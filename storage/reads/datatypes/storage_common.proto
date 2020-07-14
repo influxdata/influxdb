@@ -198,6 +198,8 @@ message MeasurementNamesRequest {
   google.protobuf.Any source = 1;
   TimestampRange range = 2 [(gogoproto.nullable) = false];
   Predicate predicate = 3;
+  // Meta contains arbitrary data that may influence how the request is interpreted by the server.
+  map<string, string> meta = 4;
 }
 
 // MeasurementTagKeysRequest is the request message for Storage.MeasurementTagKeys.
@@ -206,6 +208,8 @@ message MeasurementTagKeysRequest {
   string measurement = 2;
   TimestampRange range = 3 [(gogoproto.nullable) = false];
   Predicate predicate = 4;
+  // Meta contains arbitrary data that may influence how the request is interpreted by the server.
+  map<string, string> meta = 5;
 }
 
 // MeasurementTagValuesRequest is the request message for Storage.MeasurementTagValues.
@@ -215,6 +219,8 @@ message MeasurementTagValuesRequest {
   string tag_key = 3;
   TimestampRange range = 4 [(gogoproto.nullable) = false];
   Predicate predicate = 5;
+  // Meta contains arbitrary data that may influence how the request is interpreted by the server.
+  map<string, string> meta = 6;
 }
 
 // MeasurementFieldsRequest is the request message for Storage.MeasurementFields.
@@ -223,6 +229,8 @@ message MeasurementFieldsRequest {
   string measurement = 2;
   TimestampRange range = 3 [(gogoproto.nullable) = false];
   Predicate predicate = 4;
+  // Meta contains arbitrary data that may influence how the request is interpreted by the server.
+  map<string, string> meta = 5;
 }
 
 // MeasurementFieldsResponse is the response message for Storage.MeasurementFields.

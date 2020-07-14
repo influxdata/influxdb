@@ -7,11 +7,11 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/stopwatch"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"github.com/influxdata/influxql"
-	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 )
 
@@ -23,9 +23,6 @@ import (
 // If the context is canceled before MeasurementNamesNoTime has finished processing, a non-nil
 // error will be returned along with statistics for the already scanned data.
 func (e *Engine) MeasurementNamesNoTime(ctx context.Context, orgID, bucketID influxdb.ID, predicate influxql.Expr) (cursors.StringIterator, error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
 	return e.tagValuesNoTime(ctx, orgID, bucketID, models.MeasurementTagKeyBytes, predicate)
 }
 
@@ -43,6 +40,9 @@ func (e *Engine) MeasurementTagValuesNoTime(ctx context.Context, orgID, bucketID
 }
 
 func (e *Engine) tagValuesNoTime(ctx context.Context, orgID, bucketID influxdb.ID, tagKeyBytes []byte, predicate influxql.Expr) (cursors.StringIterator, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	if err := ValidateTagPredicate(predicate); err != nil {
 		return nil, err
 	}
@@ -58,27 +58,33 @@ func (e *Engine) tagValuesNoTime(ctx context.Context, orgID, bucketID influxdb.I
 	}
 	defer itr.Close()
 
+	span.LogFields(log.String("event", "completed TagValueIterator request"))
+
 	var (
-		vals = make([]string, 0, 128)
+		vals             = make([]string, 0, 128)
+		tagValuesCount   = 0             // total number of tag values scanned
+		tagValuesTimer   stopwatch.Timer // time calls to itr.Next
+		measurementTimer stopwatch.Timer // time calls to MeasurementSeriesByExprIterator
 	)
 
-	span := opentracing.SpanFromContext(ctx)
-	if span != nil {
-		defer func() {
-			span.LogFields(
-				log.Int("values_count", len(vals)),
-			)
-		}()
-	}
+	defer func() {
+		span.LogFields(
+			log.Float64("tag_values_next_seconds", tagValuesTimer.Elapsed().Seconds()),
+			log.Float64("measurement_series_seconds", measurementTimer.Elapsed().Seconds()),
+			log.Int("tag_values_count", tagValuesCount), // the number of unique fields that had to be scanned
+			log.Int("values_count", len(vals)),
+		)
+	}()
 
 	// reusable buffers
 	var (
 		tagKey = string(tagKeyBytes)
 	)
 
-	for i := 0; ; i++ {
+	for {
+		tagValuesCount++
 		// to keep cache scans fast, check context every 'cancelCheckInterval' iterations
-		if i%cancelCheckInterval == 0 {
+		if tagValuesCount%cancelCheckInterval == 0 {
 			select {
 			case <-ctx.Done():
 				return cursors.NewStringSliceIterator(nil), ctx.Err()
@@ -86,7 +92,13 @@ func (e *Engine) tagValuesNoTime(ctx context.Context, orgID, bucketID influxdb.I
 			}
 		}
 
-		val, err := itr.Next()
+		var (
+			val []byte
+			err error
+		)
+		tagValuesTimer.Measure(func() {
+			val, err = itr.Next()
+		})
 		if err != nil {
 			return cursors.NewStringSliceIterator(nil), err
 		} else if len(val) == 0 {
@@ -112,11 +124,16 @@ func (e *Engine) tagValuesNoTime(ctx context.Context, orgID, bucketID influxdb.I
 		}
 
 		if err := func() error {
+			measurementTimer.Start()
+
 			sitr, err := e.index.MeasurementSeriesByExprIterator(orgBucket[:], expr)
 			if err != nil {
 				return err
 			}
-			defer sitr.Close()
+			defer func() {
+				sitr.Close()
+				measurementTimer.Start()
+			}()
 
 			if elem, err := sitr.Next(); err != nil {
 				return err
@@ -147,6 +164,9 @@ func (e *Engine) MeasurementFieldsNoTime(ctx context.Context, orgID, bucketID in
 }
 
 func (e *Engine) fieldsNoTime(ctx context.Context, orgID, bucketID influxdb.ID, measurement []byte, predicate influxql.Expr) (cursors.MeasurementFieldsIterator, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	type fieldKeyType struct {
 		key []byte
 		typ cursors.FieldType
@@ -165,22 +185,28 @@ func (e *Engine) fieldsNoTime(ctx context.Context, orgID, bucketID influxdb.ID, 
 	}
 	defer itr.Close()
 
+	span.LogFields(log.String("event", "completed TagValueIterator request"))
+
 	var (
-		fieldTypes = make([]fieldKeyType, 0, 128)
+		fieldTypes       = make([]fieldKeyType, 0, 128)
+		tagValuesCount   = 0             // total number of tag values scanned
+		tagValuesTimer   stopwatch.Timer // time calls to itr.Next
+		measurementTimer stopwatch.Timer // time calls to MeasurementSeriesByExprIterator
 	)
 
-	span := opentracing.SpanFromContext(ctx)
-	if span != nil {
-		defer func() {
-			span.LogFields(
-				log.Int("values_count", len(fieldTypes)),
-			)
-		}()
-	}
+	defer func() {
+		span.LogFields(
+			log.Float64("tag_values_next_seconds", tagValuesTimer.Elapsed().Seconds()),
+			log.Float64("measurement_series_seconds", measurementTimer.Elapsed().Seconds()),
+			log.Int("tag_values_count", tagValuesCount), // the number of unique fields that had to be scanned
+			log.Int("values_count", len(fieldTypes)),
+		)
+	}()
 
-	for i := 0; ; i++ {
+	for {
+		tagValuesCount++
 		// to keep cache scans fast, check context every 'cancelCheckInterval' iterations
-		if i%cancelCheckInterval == 0 {
+		if tagValuesCount%cancelCheckInterval == 0 {
 			select {
 			case <-ctx.Done():
 				return cursors.NewMeasurementFieldsSliceIterator(nil), ctx.Err()
@@ -188,7 +214,13 @@ func (e *Engine) fieldsNoTime(ctx context.Context, orgID, bucketID influxdb.ID, 
 			}
 		}
 
-		val, err := itr.Next()
+		var (
+			val []byte
+			err error
+		)
+		tagValuesTimer.Measure(func() {
+			val, err = itr.Next()
+		})
 		if err != nil {
 			return cursors.NewMeasurementFieldsSliceIterator(nil), err
 		} else if len(val) == 0 {
@@ -214,11 +246,16 @@ func (e *Engine) fieldsNoTime(ctx context.Context, orgID, bucketID influxdb.ID, 
 		}
 
 		if err := func() error {
+			measurementTimer.Start()
+
 			sitr, err := e.index.MeasurementSeriesByExprIterator(orgBucket[:], expr)
 			if err != nil {
 				return err
 			}
-			defer sitr.Close()
+			defer func() {
+				sitr.Close()
+				measurementTimer.Stop()
+			}()
 
 			if elem, err := sitr.Next(); err != nil {
 				return err
@@ -259,22 +296,30 @@ func (e *Engine) MeasurementTagKeysNoTime(ctx context.Context, orgID, bucketID i
 }
 
 func (e *Engine) tagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID, predicate influxql.Expr) (cursors.StringIterator, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	if err := ValidateTagPredicate(predicate); err != nil {
 		return nil, err
 	}
 
 	orgBucket := tsdb.EncodeName(orgID, bucketID)
 
-	vals := make([]string, 0, 32)
+	var (
+		vals              = make([]string, 0, 32)
+		totalScannedCount = 0             // total number of values scanned
+		createTimer       stopwatch.Timer // time to query index
+		scanTimer         stopwatch.Timer // total time to scan all values from MeasurementSeriesByExprIterator
+	)
 
-	span := opentracing.SpanFromContext(ctx)
-	if span != nil {
-		defer func() {
-			span.LogFields(
-				log.Int("values_count", len(vals)),
-			)
-		}()
-	}
+	defer func() {
+		span.LogFields(
+			log.Float64("measurement_query_seconds", createTimer.Elapsed().Seconds()),
+			log.Float64("measurement_scan_seconds", scanTimer.Elapsed().Seconds()),
+			log.Int("total_scanned_count", totalScannedCount), // the number of values that had to be scanned
+			log.Int("values_count", len(vals)),
+		)
+	}()
 
 	var (
 		km   keyMerger
@@ -282,15 +327,25 @@ func (e *Engine) tagKeysNoTime(ctx context.Context, orgID, bucketID influxdb.ID,
 	)
 
 	if err := func() error {
-		sitr, err := e.index.MeasurementSeriesByExprIterator(orgBucket[:], predicate)
+		var (
+			sitr tsdb.SeriesIDIterator
+			err  error
+		)
+		createTimer.Measure(func() {
+			sitr, err = e.index.MeasurementSeriesByExprIterator(orgBucket[:], predicate)
+		})
 		if err != nil {
 			return err
 		}
 		defer sitr.Close()
 
-		for i := 0; ; i++ {
+		scanTimer.Start()
+		defer scanTimer.Stop()
+
+		for {
+			totalScannedCount++
 			// to keep cache scans fast, check context every 'cancelCheckInterval' iterations
-			if i%cancelCheckInterval == 0 {
+			if totalScannedCount%cancelCheckInterval == 0 {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
