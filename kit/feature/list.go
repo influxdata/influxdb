@@ -240,6 +240,20 @@ func SimpleTaskOptionsExtraction() BoolFlag {
 	return simpleTaskOptionsExtraction
 }
 
+var mergeFilterRule = MakeBoolFlag(
+	"Push Down Merged Filters",
+	"mergeFilterRule",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownMergedFilters - Create one filter combining multiple single return statements
+func PushDownMergedFilters() BoolFlag {
+	return mergeFilterRule
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -258,6 +272,7 @@ var all = []Flag{
 	memoryOptimizedSchemaMutation,
 	urmFreeTasks,
 	simpleTaskOptionsExtraction,
+	mergeFilterRule,
 }
 
 var byKey = map[string]Flag{
@@ -278,4 +293,5 @@ var byKey = map[string]Flag{
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"urmFreeTasks":                  urmFreeTasks,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
+	"mergeFilterRule":               mergeFilterRule,
 }

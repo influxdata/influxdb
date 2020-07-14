@@ -134,3 +134,4 @@
   key: mergeFilterRule
   default: false
   contact: Query Team
+  lifetime: temporary
