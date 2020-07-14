@@ -37,12 +37,14 @@ func (h *APIHandler) WithResourceHandler(resHandler kithttp.ResourceHandler) {
 
 func (h *APIHandler) WithLogger(log *zap.Logger) {
 }
+
 func (h *APIHandler) Open() error {
 	// generate a listener ??? port
 	// assign listener to chi
 	// start doing things???
 	return nil
 }
+
 func (h *APIHandler) Close() error {
 	// undo  the things up here ^
 	return nil
