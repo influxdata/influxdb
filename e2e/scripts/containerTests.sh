@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 APP_ROOT="$(dirname "$(dirname "$(readlink -fm "$0")")")"
-TEST_CONTAINER=experim
+TEST_CONTAINER=bonitoo_e2e
 INFLUX2_CONTAINER=influx2_solo
 E2E_MAP_DIR=/tmp/e2e
 INFLUX2_HOST=$(sudo docker inspect -f "{{ .NetworkSettings.IPAddress }}" ${INFLUX2_CONTAINER})
@@ -74,7 +74,7 @@ if [[ -d "$APP_ROOT/report" ]]; then
    rm -rdf report
 fi
 
-sudo docker build -t e2e-${TEST_CONTAINER} -f scripts/Dockerfile.experim .
+sudo docker build -t e2e-${TEST_CONTAINER} -f scripts/Dockerfile.tests .
 sudo docker run -it -v `pwd`/report:/home/e2e/report -v `pwd`/screenshots:/home/e2e/screenshots \
      -v /tmp/e2e/etc:/home/e2e/etc -v /tmp/e2e/downloads:/home/e2e/downloads \
      -e SELENIUM_REMOTE_URL="http://${SELENOID_HOST}:4444/wd/hub" \
