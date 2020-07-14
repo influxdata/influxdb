@@ -51,7 +51,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"integral_columns":      "unbounded test",
 		"map":                   "unbounded test",
 		"join_missing_on_col":   "unbounded test",
-		"join_use_previous":     "unbounded test (https://github.com/influxdata/flux/issues/2996)"
+		"join_use_previous":     "unbounded test (https://github.com/influxdata/flux/issues/2996)",
 		"rowfn_with_import":     "unbounded test",
 		"merge_filter_flag_on":  "unbounded test (https://github.com/influxdata/flux/issues/2995)",
 		"merge_filter_flag_off": "unbounded test (https://github.com/influxdata/flux/issues/2994)",
