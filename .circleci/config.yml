@@ -519,6 +519,7 @@ workflows:
     jobs:
       - gotest
       - golint
+      - lint-feature-flags
       - jstest
       - jslint
       - build
@@ -560,12 +561,14 @@ workflows:
     jobs:
       - gotest
       - golint
+      - lint-feature-flags
       - jstest
       - jslint
       - deploy-nightly:
           requires:
             - gotest
             - golint
+            - lint-feature-flags
             - jstest
             - jslint
           filters:
@@ -593,6 +596,12 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+      - lint-feature-flags:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
       - jstest:
           filters:
             branches:
@@ -609,6 +618,7 @@ workflows:
           requires:
             - gotest
             - golint
+            - lint-feature-flags
             - jstest
             - jslint
           filters:
