@@ -9,7 +9,7 @@ describe('Variables', () => {
     })
   })
 
-  it('can CRUD a CSV, map, and query variable and search for variables based on names', () => {
+  it('can CRUD a CSV,upload, map, and query variable and search for variables based on names', () => {
     // Navigate away from and back to variables index using the nav bar
     cy.getByTestID('nav-item-dashboards').click()
     cy.getByTestID('nav-item-settings').click()
@@ -201,6 +201,22 @@ describe('Variables', () => {
     cy.getByTestID(`variable-card--name ${queryVariableName}`).contains(
       queryVariableName
     )
+
+    //create variable by uploader
+    cy.getByTestID('add-resource-dropdown--button').click()
+
+    cy.getByTestID('add-resource-dropdown--import').click()
+
+    const yourFixturePath = 'data-for-variable.json'
+    cy.get('.drag-and-drop').attachFile(yourFixturePath, {
+      subjectType: 'drag-n-drop',
+    })
+
+    cy.getByTestID('submit-button Variable').click()
+
+    cy.getByTestID('resource-card variable')
+      .should('have.length', 4)
+      .contains('agent_host')
   })
 
   it('keeps user input in text area when attempting to import invalid JSON', () => {

@@ -145,6 +145,7 @@ class ImportOverlay extends PureComponent<Props, State> {
     return (
       <Button
         text={`Import JSON as ${resourceName}`}
+        testID={`submit-button ${resourceName}`}
         color={ComponentColor.Primary}
         status={status}
         type={ButtonType.Submit}
