@@ -434,6 +434,8 @@ export const selectValue = (variableID: string, selected: string) => async (
   // Validate that we can make this selection
   const vals = normalizeValues(variable)
   if (!vals.includes(selected)) {
+    // TODO: there is an issue that's causing non-state set values to
+    // return with no results and not respect query params
     return
   }
 
