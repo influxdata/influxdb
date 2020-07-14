@@ -252,5 +252,6 @@ message ReadWindowAggregateRequest {
   TimestampRange range = 2 [(gogoproto.nullable) = false];
   Predicate predicate = 3;
   int64 WindowEvery = 4;
+  int64 Offset = 6;
   repeated Aggregate aggregate = 5;
 }

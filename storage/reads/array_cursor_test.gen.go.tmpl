@@ -64,7 +64,7 @@ func TestNewWindowAggregateArrayCursor_{{$ColType}}(t *testing.T) {
 			Type: datatypes.AggregateType{{$Agg}},
 		}
 
-		got := newWindowAggregateArrayCursor(context.Background(), agg, int64(time.Hour), &Mock{{$ColType}}ArrayCursor{})
+		got := newWindowAggregateArrayCursor(context.Background(), agg, int64(time.Hour), 0, &Mock{{$ColType}}ArrayCursor{})
 
 		if diff := cmp.Diff(got, want, cmp.AllowUnexported({{$colType}}Window{{$Agg}}ArrayCursor{})); diff != "" {
 			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
