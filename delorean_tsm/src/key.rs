@@ -126,7 +126,7 @@ fn parse_tsm_key_internal(key: &[u8]) -> Result<ParsedTSMKey, DataError> {
                 }
             }
             KeyType::Field => {
-                // since parse_tsm_field_key consumes the rest of the iterator, it
+                // since `parse_tsm_field_key_value` consumes the rest of the iterator, it
                 // is some kind of logic error if we already have a field key
                 assert!(field_key.is_none(), "second field key found while parsing");
 
