@@ -1,26 +1,21 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useContext} from 'react'
 
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'
 import SelectorListItem from 'src/notebooks/pipes/Data/SelectorListItem'
-
-// Types
-import {PipeData} from 'src/notebooks'
+import {PipeContext} from 'src/notebooks/context/pipe'
 
 // Constants
 import {SELECTABLE_TIME_RANGES} from 'src/shared/constants/timeRanges'
 
-interface Props {
-  onUpdate: (data: any) => void
-  data: PipeData
-}
+const TimeSelector: FC = () => {
+  const {data, update} = useContext(PipeContext)
 
-const TimeSelector: FC<Props> = ({onUpdate, data}) => {
   const timeStart = data.timeStart
 
   const updateTimeRange = (duration: string): void => {
-    onUpdate({timeStart: duration})
+    update({timeStart: duration})
   }
 
   return (

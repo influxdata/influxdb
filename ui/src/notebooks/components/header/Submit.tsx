@@ -1,9 +1,9 @@
 // Libraries
 import React, {FC, useContext, useState, useEffect} from 'react'
 import {SubmitQueryButton} from 'src/timeMachine/components/SubmitQueryButton'
-import {BothResults} from 'src/notebooks'
 import QueryProvider, {QueryContext} from 'src/notebooks/context/query'
-import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
+import {NotebookContext} from 'src/notebooks/context/notebook.current'
+import {ResultsContext} from 'src/notebooks/context/results'
 import {TimeContext} from 'src/notebooks/context/time'
 import {IconFont} from '@influxdata/clockface'
 import {notify} from 'src/shared/actions/notifications'
@@ -21,7 +21,8 @@ const fakeNotify = notify
 
 export const Submit: FC = () => {
   const {query} = useContext(QueryContext)
-  const {id, pipes, updateResult, updateMeta} = useContext(NotebookContext)
+  const {id, notebook} = useContext(NotebookContext)
+  const {add, update} = useContext(ResultsContext)
   const {timeContext} = useContext(TimeContext)
   const [isLoading, setLoading] = useState(RemoteDataState.NotStarted)
   const time = timeContext[id]
@@ -31,13 +32,22 @@ export const Submit: FC = () => {
     submit()
   }, [tr]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const submit = async () => {
+  const forceUpdate = (id, data) => {
+    try {
+      update(id, data)
+    } catch (_e) {
+      add(id, data)
+    }
+  }
+
+  const submit = () => {
     event('Notebook Submit Button Clicked')
     setLoading(RemoteDataState.Loading)
     Promise.all(
-      pipes
-        .reduce((stages, pipe, index) => {
-          updateMeta(index, {loading: RemoteDataState.Loading} as PipeMeta)
+      notebook.data.allIDs
+        .reduce((stages, pipeID, index) => {
+          notebook.meta.update(pipeID, {loading: RemoteDataState.Loading})
+          const pipe = notebook.data.get(pipeID)
 
           if (pipe.type === 'query') {
             let text = pipe.queries[pipe.activeQuery].text.replace(
@@ -45,6 +55,13 @@ export const Submit: FC = () => {
               ''
             )
             let requirements = {}
+
+            if (!text.replace(/\s/g, '').length) {
+              if (stages.length) {
+                stages[stages.length - 1].instances.push(pipeID)
+              }
+              return stages
+            }
 
             if (PREVIOUS_REGEXP.test(text)) {
               requirements = {
@@ -56,7 +73,7 @@ export const Submit: FC = () => {
 
             stages.push({
               text,
-              instances: [index],
+              instances: [pipeID],
               requirements,
             })
           } else if (pipe.type === 'data') {
@@ -66,11 +83,11 @@ export const Submit: FC = () => {
 
             stages.push({
               text,
-              instances: [index],
+              instances: [pipeID],
               requirements: {},
             })
           } else if (stages.length) {
-            stages[stages.length - 1].instances.push(index)
+            stages[stages.length - 1].instances.push(pipeID)
           }
 
           return stages
@@ -83,19 +100,17 @@ export const Submit: FC = () => {
 
           return query(queryText)
             .then(response => {
-              queryStruct.instances.forEach(index => {
-                updateMeta(index, {loading: RemoteDataState.Done} as PipeMeta)
-                updateResult(index, response)
+              queryStruct.instances.forEach(pipeID => {
+                forceUpdate(pipeID, response)
+                notebook.meta.update(pipeID, {loading: RemoteDataState.Done})
               })
             })
             .catch(e => {
-              queryStruct.instances.forEach(index => {
-                updateMeta(index, {
-                  loading: RemoteDataState.Error,
-                } as PipeMeta)
-                updateResult(index, {
+              queryStruct.instances.forEach(pipeID => {
+                forceUpdate(pipeID, {
                   error: e.message,
-                } as BothResults)
+                })
+                notebook.meta.update(pipeID, {loading: RemoteDataState.Error})
               })
             })
         })
@@ -115,7 +130,9 @@ export const Submit: FC = () => {
       })
   }
 
-  const hasQueries = pipes.map(p => p.type).filter(p => p === 'query').length
+  const hasQueries = notebook.data.all
+    .map(p => p.type)
+    .filter(p => p === 'query' || p === 'data').length
 
   return (
     <SubmitQueryButton

@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, RefObject} from 'react'
+import React, {FC, RefObject, useContext} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -7,6 +7,7 @@ import {Icon, IconFont} from '@influxdata/clockface'
 
 // Types
 import {Visibility} from 'src/notebooks/shared/Resizer'
+import {PipeContext} from 'src/notebooks/context/pipe'
 
 interface Props {
   visibility: Visibility
@@ -32,6 +33,7 @@ const ResizerHeader: FC<Props> = ({
   onUpdateVisibility,
   toggleVisibilityEnabled,
 }) => {
+  const {readOnly} = useContext(PipeContext)
   const glyph = visibility === 'visible' ? IconFont.EyeOpen : IconFont.EyeClosed
   const className = classnames('panel-resizer--header', {
     'panel-resizer--header__multiple-controls':
@@ -64,6 +66,11 @@ const ResizerHeader: FC<Props> = ({
       </div>
     )
   }
+
+  if (readOnly) {
+    return null
+  }
+
   return (
     <div className={className}>
       {visibilityToggle}

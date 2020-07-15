@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useRef, useEffect} from 'react'
+import React, {FC, useRef, useEffect, useContext} from 'react'
 
 // Components
 import {
@@ -14,19 +14,23 @@ import {
   AlignItems,
 } from '@influxdata/clockface'
 import AddButtons from 'src/notebooks/components/AddButtons'
+import {NotebookContext} from 'src/notebooks/context/notebook.current'
+import {DataID, PipeData} from 'src/notebooks'
 
 // Styles
 import 'src/notebooks/components/panel/InsertCellButton.scss'
 
 interface Props {
-  index: number
+  id: DataID<PipeData>
 }
 
-const InsertCellButton: FC<Props> = ({index}) => {
+const InsertCellButton: FC<Props> = ({id}) => {
+  const {notebook} = useContext(NotebookContext)
   const dividerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const popoverVisible = useRef<boolean>(false)
   const buttonPositioningEnabled = useRef<boolean>(false)
+  const index = notebook.data.indexOf(id)
 
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove)

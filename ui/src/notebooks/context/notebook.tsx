@@ -1,7 +1,7 @@
 import React, {FC, useState, useCallback, RefObject} from 'react'
 import {RemoteDataState} from 'src/types'
 import {PipeData} from 'src/notebooks'
-import {BothResults} from 'src/notebooks'
+import {FluxResult} from 'src/notebooks'
 
 export interface PipeMeta {
   title: string
@@ -16,11 +16,11 @@ export interface NotebookContextType {
   id: string
   pipes: PipeData[]
   meta: PipeMeta[] // data only used for the view layer for Notebooks
-  results: BothResults[]
+  results: FluxResult[]
   addPipe: (pipe: PipeData, insertAtIndex?: number) => void
-  updatePipe: (idx: number, pipe: PipeData) => void
-  updateMeta: (idx: number, pipe: PipeMeta) => void
-  updateResult: (idx: number, result: BothResults) => void
+  updatePipe: (idx: number, pipe: Partial<PipeData>) => void
+  updateMeta: (idx: number, pipe: Partial<PipeMeta>) => void
+  updateResult: (idx: number, result: Partial<FluxResult>) => void
   movePipe: (currentIdx: number, newIdx: number) => void
   removePipe: (idx: number) => void
 }
@@ -145,7 +145,7 @@ export const NotebookProvider: FC = ({children}) => {
   )
 
   const updatePipe = useCallback(
-    (idx: number, pipe: PipeData) => {
+    (idx: number, pipe: Partial<PipeData>) => {
       _setPipes(pipes => {
         pipes[idx] = {
           ...pipes[idx],
@@ -158,7 +158,7 @@ export const NotebookProvider: FC = ({children}) => {
   )
 
   const updateMeta = useCallback(
-    (idx: number, pipe: PipeMeta) => {
+    (idx: number, pipe: Partial<PipeMeta>) => {
       _setMeta(pipes => {
         pipes[idx] = {
           ...pipes[idx],
@@ -171,11 +171,11 @@ export const NotebookProvider: FC = ({children}) => {
   )
 
   const updateResult = useCallback(
-    (idx: number, results: BothResults) => {
+    (idx: number, results: Partial<FluxResult>) => {
       _setResults(pipes => {
         pipes[idx] = {
           ...results,
-        } as BothResults
+        } as FluxResult
         return pipes.slice()
       })
     },
