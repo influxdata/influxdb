@@ -1,9 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
-import {WithRouterProps, withRouter} from 'react-router'
-
-import _ from 'lodash'
+import {connect, ConnectedProps} from 'react-redux'
+import {RouteComponentProps, withRouter} from 'react-router-dom'
 
 // Components
 import {
@@ -32,15 +30,10 @@ import {
 
 // Types
 import {ButtonType} from 'src/clockface'
-import {AppState, Organization} from 'src/types'
-import {MeState} from 'src/shared/reducers/me'
+import {AppState} from 'src/types'
 
-interface StateProps {
-  me: MeState
-  org: Organization
-}
-
-type Props = StateProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 @ErrorHandling
 class OrgProfileTab extends PureComponent<Props> {
@@ -73,6 +66,7 @@ class OrgProfileTab extends PureComponent<Props> {
                         </p>
                       </div>
                       <Button
+                        testID="rename-org--button"
                         text="Rename"
                         icon={IconFont.Pencil}
                         type={ButtonType.Submit}
@@ -109,11 +103,13 @@ class OrgProfileTab extends PureComponent<Props> {
 
   private handleShowEditOverlay = () => {
     const {
-      params: {orgID},
-      router,
+      match: {
+        params: {orgID},
+      },
+      history,
     } = this.props
 
-    router.push(`/orgs/${orgID}/settings/about/rename`)
+    history.push(`/orgs/${orgID}/about/rename`)
   }
 
   private generateCopyText = title => (text, copySucceeded) => {
@@ -132,4 +128,6 @@ const mstp = (state: AppState) => {
   }
 }
 
-export default connect<StateProps>(mstp, null)(withRouter(OrgProfileTab))
+const connector = connect(mstp)
+
+export default connector(withRouter(OrgProfileTab))

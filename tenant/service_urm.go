@@ -60,3 +60,19 @@ func (s *Service) removeResourceRelations(ctx context.Context, tx kv.Tx, resourc
 	}
 	return nil
 }
+
+func permissionFromMapping(mappings []*influxdb.UserResourceMapping) ([]influxdb.Permission, error) {
+	ps := make([]influxdb.Permission, 0, len(mappings))
+	for _, m := range mappings {
+		p, err := m.ToPermissions()
+		if err != nil {
+			return nil, &influxdb.Error{
+				Err: err,
+			}
+		}
+
+		ps = append(ps, p...)
+	}
+
+	return ps, nil
+}

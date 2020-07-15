@@ -32,6 +32,7 @@ func init() {
 		GroupWindowAggregateTransposeRule{},
 		PushDownGroupAggregateRule{},
 		SwitchFillImplRule{},
+		SwitchSchemaMutationImplRule{},
 	)
 }
 
@@ -240,7 +241,7 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 	// Retrieve the nodes and specs for all of the predecessors.
 	distinctSpec := pn.ProcedureSpec().(*universe.DistinctProcedureSpec)
 	keepNode := pn.Predecessors()[0]
-	keepSpec := keepNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+	keepSpec := asSchemaMutationProcedureSpec(keepNode.ProcedureSpec())
 	keysNode := keepNode.Predecessors()[0]
 	keysSpec := keysNode.ProcedureSpec().(*universe.KeysProcedureSpec)
 	fromNode := keysNode.Predecessors()[0]
@@ -305,7 +306,7 @@ func (rule PushDownReadTagValuesRule) Rewrite(ctx context.Context, pn plan.Node)
 	groupNode := distinctNode.Predecessors()[0]
 	groupSpec := groupNode.ProcedureSpec().(*universe.GroupProcedureSpec)
 	keepNode := groupNode.Predecessors()[0]
-	keepSpec := keepNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+	keepSpec := asSchemaMutationProcedureSpec(keepNode.ProcedureSpec())
 	fromNode := keepNode.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
 
@@ -730,7 +731,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 			return false
 		}
 	case universe.FirstKind:
-		if !feature.PushDownWindowAggregateFirst().Enabled(ctx) || !caps.HaveFirst() {
+		if !caps.HaveFirst() {
 			return false
 		}
 		firstSpec := fnNode.ProcedureSpec().(*universe.FirstProcedureSpec)
@@ -738,7 +739,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 			return false
 		}
 	case universe.LastKind:
-		if !feature.PushDownWindowAggregateLast().Enabled(ctx) || !caps.HaveLast() {
+		if !caps.HaveLast() {
 			return false
 		}
 		lastSpec := fnNode.ProcedureSpec().(*universe.LastProcedureSpec)
@@ -817,7 +818,7 @@ func (PushDownWindowAggregateByTimeRule) Rewrite(ctx context.Context, pn plan.No
 
 	duplicateNode := windowNode.Predecessors()[0]
 	duplicateSpec, duplicateSpecOk := func() (*universe.DuplicateOpSpec, bool) {
-		s := duplicateNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+		s := asSchemaMutationProcedureSpec(duplicateNode.ProcedureSpec())
 		if len(s.Mutations) != 1 {
 			return nil, false
 		}
@@ -1105,26 +1106,16 @@ func canPushGroupedAggregate(ctx context.Context, pn plan.Node) bool {
 	switch pn.Kind() {
 	case universe.CountKind:
 		agg := pn.ProcedureSpec().(*universe.CountProcedureSpec)
-		return caps.HaveCount() &&
-			feature.PushDownGroupAggregateCount().Enabled(ctx) &&
-			len(agg.Columns) == 1 &&
-			agg.Columns[0] == execute.DefaultValueColLabel
+		return caps.HaveCount() && len(agg.Columns) == 1 && agg.Columns[0] == execute.DefaultValueColLabel
 	case universe.SumKind:
 		agg := pn.ProcedureSpec().(*universe.SumProcedureSpec)
-		return caps.HaveSum() &&
-			feature.PushDownGroupAggregateSum().Enabled(ctx) &&
-			len(agg.Columns) == 1 &&
-			agg.Columns[0] == execute.DefaultValueColLabel
+		return caps.HaveSum() && len(agg.Columns) == 1 && agg.Columns[0] == execute.DefaultValueColLabel
 	case universe.FirstKind:
 		agg := pn.ProcedureSpec().(*universe.FirstProcedureSpec)
-		return caps.HaveFirst() &&
-			feature.PushDownGroupAggregateFirst().Enabled(ctx) &&
-			agg.Column == execute.DefaultValueColLabel
+		return caps.HaveFirst() && agg.Column == execute.DefaultValueColLabel
 	case universe.LastKind:
 		agg := pn.ProcedureSpec().(*universe.LastProcedureSpec)
-		return caps.HaveLast() &&
-			feature.PushDownGroupAggregateLast().Enabled(ctx) &&
-			agg.Column == execute.DefaultValueColLabel
+		return caps.HaveLast() && agg.Column == execute.DefaultValueColLabel
 	}
 	return false
 }
@@ -1148,4 +1139,31 @@ func (r SwitchFillImplRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Nod
 		}
 	}
 	return pn, false, nil
+}
+
+type SwitchSchemaMutationImplRule struct{}
+
+func (SwitchSchemaMutationImplRule) Name() string {
+	return "SwitchSchemaMutationImplRule"
+}
+
+func (SwitchSchemaMutationImplRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.SchemaMutationKind, plan.Any())
+}
+
+func (r SwitchSchemaMutationImplRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	spec, ok := pn.ProcedureSpec().(*universe.DualImplProcedureSpec)
+	if !ok || spec.UseDeprecated {
+		return pn, false, nil
+	}
+
+	spec.UseDeprecated = !feature.MemoryOptimizedSchemaMutation().Enabled(ctx)
+	return pn, spec.UseDeprecated, nil
+}
+
+func asSchemaMutationProcedureSpec(spec plan.ProcedureSpec) *universe.SchemaMutationProcedureSpec {
+	if s, ok := spec.(*universe.DualImplProcedureSpec); ok {
+		spec = s.ProcedureSpec
+	}
+	return spec.(*universe.SchemaMutationProcedureSpec)
 }

@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import ImportOverlay from 'src/shared/components/ImportOverlay'
@@ -22,12 +22,8 @@ interface State {
   status: ComponentStatus
 }
 
-interface DispatchProps {
-  createTaskFromTemplate: typeof createTaskFromTemplateAction
-  notify: typeof notifyAction
-}
-
-type Props = DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 class TaskImportOverlay extends PureComponent<Props> {
   public state: State = {
@@ -47,9 +43,9 @@ class TaskImportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router} = this.props
+    const {history} = this.props
 
-    router.goBack()
+    history.goBack()
   }
 
   private updateOverlayStatus = (status: ComponentStatus) =>
@@ -73,12 +69,11 @@ class TaskImportOverlay extends PureComponent<Props> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createTaskFromTemplate: createTaskFromTemplateAction,
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, Props>(
-  null,
-  mdtp
-)(withRouter(TaskImportOverlay))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(TaskImportOverlay))

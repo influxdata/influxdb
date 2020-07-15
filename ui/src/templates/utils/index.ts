@@ -90,3 +90,9 @@ export const getTemplateNameFromGithubUrl = (url: string): string => {
 export const getGithubUrlFromTemplateName = (templateName: string): string => {
   return `https://github.com/influxdata/community-templates/tree/master/${templateName}`
 }
+
+export const getRawUrlFromGithub = repoUrl => {
+  return repoUrl
+    .replace('github.com', 'raw.githubusercontent.com')
+    .replace('tree/', '')
+}

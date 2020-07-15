@@ -33,6 +33,7 @@ func NewStore(viewer reads.Viewer) reads.Store {
 			Count: true,
 			Sum:   true,
 			First: true,
+			Last:  true,
 		},
 	}
 }

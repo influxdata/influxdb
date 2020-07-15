@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
+	ihttp "github.com/influxdata/influxdb/v2/http"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap"
 )
@@ -28,7 +29,7 @@ func NewHTTPEmbeddedHandler(log *zap.Logger, rt influxdb.ResourceType, ls influx
 		rt:       rt,
 	}
 
-	r := chi.NewRouter()
+	r := ihttp.NewBaseChiRouter(h.api)
 	r.Use(
 		middleware.Recoverer,
 		middleware.RequestID,

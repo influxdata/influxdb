@@ -1,12 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {getDashboard} from 'src/dashboards/actions/thunks'
 
 // Types
-import {AppState, RemoteDataState, ResourceType} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -15,14 +15,6 @@ import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
 // Selectors
 import {getResourceStatus} from 'src/resources/selectors/getResourceStatus'
 
-interface StateProps {
-  remoteDataState: RemoteDataState
-}
-
-interface DispatchProps {
-  getDashboard: typeof getDashboard
-}
-
 export interface Resource {
   type: ResourceType
   id: string
@@ -30,12 +22,14 @@ export interface Resource {
 
 interface OwnProps {
   resources: Resource[]
+  children: React.ReactNode
 }
 
-export type Props = StateProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+export type Props = ReduxProps & OwnProps
 
 @ErrorHandling
-class GetResource extends PureComponent<Props, StateProps> {
+class GetResource extends PureComponent<Props> {
   public componentDidMount() {
     const {resources} = this.props
     const promises = []
@@ -76,7 +70,7 @@ class GetResource extends PureComponent<Props, StateProps> {
   }
 }
 
-const mstp = (state: AppState, props: Props): StateProps => {
+const mstp = (state: AppState, props: OwnProps) => {
   const remoteDataState = getResourceStatus(state, props.resources)
 
   return {
@@ -88,4 +82,6 @@ const mdtp = {
   getDashboard: getDashboard,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(GetResource)
+const connector = connect(mstp, mdtp)
+
+export default connector(GetResource)

@@ -36,25 +36,6 @@ func init() {
 	}
 }
 
-func (s *Service) initializeSources(ctx context.Context, tx Tx) error {
-	if _, err := tx.Bucket(sourceBucket); err != nil {
-		return err
-	}
-
-	_, pe := s.findSourceByID(ctx, tx, DefaultSource.ID)
-	if pe != nil && influxdb.ErrorCode(pe) != influxdb.ENotFound {
-		return pe
-	}
-
-	if influxdb.ErrorCode(pe) == influxdb.ENotFound {
-		if err := s.putSource(ctx, tx, &DefaultSource); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // DefaultSource retrieves the default source.
 func (s *Service) DefaultSource(ctx context.Context) (*influxdb.Source, error) {
 	var sr *influxdb.Source

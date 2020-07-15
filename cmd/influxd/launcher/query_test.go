@@ -25,7 +25,9 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	phttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 )
 
@@ -758,6 +760,178 @@ func TestQueryPushDowns(t *testing.T) {
 		want  string
 	}{
 		{
+			name: "range last single point start time",
+			data: []string{
+				"m,tag=a f=1i 1",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00.000000001Z, stop: 1970-01-01T01:00:00Z)
+	|> last()
+`,
+			op: "readWindow(last)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,tag
+,,0,1970-01-01T00:00:00.000000001Z,1970-01-01T01:00:00Z,1970-01-01T00:00:00.000000001Z,1,f,m,a
+`,
+		},
+		{
+			name: "window last",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> window(every: 3s)
+	|> last()
+`,
+			op: "readWindow(last)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,1970-01-01T00:00:06Z,1970-01-01T00:00:05Z,5,f,m0,k0
+,,1,1970-01-01T00:00:06Z,1970-01-01T00:00:09Z,1970-01-01T00:00:08Z,0,f,m0,k0
+,,2,1970-01-01T00:00:09Z,1970-01-01T00:00:12Z,1970-01-01T00:00:11Z,7,f,m0,k0
+,,3,1970-01-01T00:00:12Z,1970-01-01T00:00:15Z,1970-01-01T00:00:14Z,9,f,m0,k0
+,,4,1970-01-01T00:00:15Z,1970-01-01T00:00:18Z,1970-01-01T00:00:15Z,5,f,m0,k0
+`,
+		},
+		{
+			name: "bare last",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> last()
+`,
+			op: "readWindow(last)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,1970-01-01T00:00:20Z,1970-01-01T00:00:15Z,5,f,m0,k0
+`,
+		},
+		{
+			name: "window empty last",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1969-12-31T23:00:00Z, stop: 1970-01-01T02:00:00Z)
+	|> window(every: 1h, createEmpty: true)
+	|> last()
+`,
+			op: "readWindow(last)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,0,1969-12-31T23:00:00Z,1970-01-01T00:00:00Z,,,f,m0,k0
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,1,1970-01-01T00:00:00Z,1970-01-01T01:00:00Z,1970-01-01T00:00:15Z,5,f,m0,k0
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,2,1970-01-01T01:00:00Z,1970-01-01T02:00:00Z,,,f,m0,k0
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+`,
+		},
+		{
+			name: "window aggregate last",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1969-12-31T23:59:59Z, stop: 1970-01-01T00:00:33Z)
+	|> aggregateWindow(every: 10s, fn: last)
+`,
+			op: "readWindow(last)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,0,1969-12-31T23:59:59Z,1970-01-01T00:00:33Z,1970-01-01T00:00:10Z,6,f,m0,k0
+,,0,1969-12-31T23:59:59Z,1970-01-01T00:00:33Z,1970-01-01T00:00:20Z,5,f,m0,k0
+`,
+		},
+		{
 			name: "window first",
 			data: []string{
 				"m0,k=k0 f=0i 0",
@@ -942,6 +1116,29 @@ from(bucket: v.bucket)
 `,
 		},
 		{
+			name: "window count removes empty series",
+			data: []string{
+				"m,tag=a f=0i 1500000000",
+				"m,tag=b f=1i 2500000000",
+				"m,tag=c f=2i 3500000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:01Z, stop: 1970-01-01T00:00:02Z)
+	|> window(every: 500ms, createEmpty: true)
+	|> count()
+`,
+			op: "readWindow(count)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,true,true,true
+#default,_result,,,,,,,
+,result,table,_start,_stop,_value,_field,_measurement,tag
+,_result,0,1970-01-01T00:00:01Z,1970-01-01T00:00:01.5Z,0,f,m,a
+,_result,1,1970-01-01T00:00:01.5Z,1970-01-01T00:00:02Z,1,f,m,a
+`,
+		},
+		{
 			name: "count",
 			data: []string{
 				"m0,k=k0 f=0i 0",
@@ -1043,6 +1240,30 @@ from(bucket: v.bucket)
 #default,_result,,,,,
 ,result,table,_value,_field,_measurement,k
 ,,0,15,f,m0,k0
+`,
+		},
+		{
+			name: "window sum removes empty series",
+			data: []string{
+				"m,tag=a f=1i 1500000000",
+				"m,tag=a f=2i 1600000000",
+				"m,tag=b f=3i 2500000000",
+				"m,tag=c f=4i 3500000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:01Z, stop: 1970-01-01T00:00:02Z)
+	|> window(every: 500ms, createEmpty: true)
+	|> sum()
+`,
+			op: "readWindow(sum)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,true,true,true
+#default,_result,,,,,,,
+,result,table,_start,_stop,_value,_field,_measurement,tag
+,_result,0,1970-01-01T00:00:01Z,1970-01-01T00:00:01.5Z,,f,m,a
+,_result,1,1970-01-01T00:00:01.5Z,1970-01-01T00:00:02Z,3,f,m,a
 `,
 		},
 		{
@@ -1443,22 +1664,10 @@ from(bucket: v.bucket)
 	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			l := launcher.RunTestLauncherOrFail(t, ctx, nil,
-				"--feature-flags",
-				"pushDownWindowAggregateCount=true",
-				"--feature-flags",
-				"pushDownWindowAggregateSum=true",
-				"--feature-flags",
-				"pushDownWindowAggregateFirst=true",
-				"--feature-flags",
-				"pushDownGroupAggregateCount=true",
-				"--feature-flags",
-				"pushDownGroupAggregateSum=true",
-				"--feature-flags",
-				"pushDownGroupAggregateFirst=true",
-				"--feature-flags",
-				"pushDownGroupAggregateLast=true",
-			)
+			l := launcher.RunTestLauncherOrFail(t, ctx, mock.NewFlagger(map[feature.Flag]interface{}{
+				feature.PushDownWindowAggregateCount(): true,
+				feature.PushDownWindowAggregateSum():   true,
+			}))
 
 			l.SetupOrFail(t)
 			defer l.ShutdownOrFail(t, ctx)

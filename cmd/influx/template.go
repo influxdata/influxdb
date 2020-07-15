@@ -19,6 +19,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	ihttp "github.com/influxdata/influxdb/v2/http"
 	ierror "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/pkger"
@@ -27,29 +28,29 @@ import (
 	input "github.com/tcnksm/go-input"
 )
 
-type pkgSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
+type templateSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
 
 func cmdApply(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdApply()
+	return newCmdPkgerBuilder(newPkgerSVC, f, opts).cmdApply()
 }
 
 func cmdExport(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdExport()
+	return newCmdPkgerBuilder(newPkgerSVC, f, opts).cmdExport()
 }
 
 func cmdStack(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdStacks()
+	return newCmdPkgerBuilder(newPkgerSVC, f, opts).cmdStacks()
 }
 
 func cmdTemplate(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, f, opts).cmdTemplate()
+	return newCmdPkgerBuilder(newPkgerSVC, f, opts).cmdTemplate()
 }
 
-type cmdPkgBuilder struct {
+type cmdTemplateBuilder struct {
 	genericCLIOpts
 	*globalFlags
 
-	svcFn pkgSVCsFn
+	svcFn templateSVCsFn
 
 	encoding            string
 	file                string
@@ -87,39 +88,23 @@ type cmdPkgBuilder struct {
 		telegrafs    string
 		variables    string
 	}
+
+	updateStackOpts struct {
+		addResources []string
+	}
 }
 
-func newCmdPkgBuilder(svcFn pkgSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdPkgBuilder {
-	return &cmdPkgBuilder{
+func newCmdPkgerBuilder(svcFn templateSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdTemplateBuilder {
+	return &cmdTemplateBuilder{
 		genericCLIOpts: opts,
 		globalFlags:    f,
 		svcFn:          svcFn,
 	}
 }
 
-func (b *cmdPkgBuilder) cmdApply() *cobra.Command {
-	cmd := b.cmdPkgApply()
-
-	// all these commands are deprecated under the old pkg cmds.
-	// these are moving to root commands.
-	deprecatedCmds := []*cobra.Command{
-		b.cmdExport(),
-		b.cmdTemplateSummary(),
-		b.cmdStackDeprecated(),
-		b.cmdTemplateValidate(),
-	}
-	for i := range deprecatedCmds {
-		deprecatedCmds[i].Hidden = true
-	}
-
-	cmd.AddCommand(deprecatedCmds...)
-
-	return cmd
-}
-
-func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
+func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
 	cmd := b.newCmd("apply", b.applyRunEFn)
-	cmd.Aliases = []string{"pkg"}
+	enforceFlagValidation(cmd)
 	cmd.Short = "Apply a template to manage resources"
 	cmd.Long = `
 	The apply command applies InfluxDB template(s). Use the command to create new
@@ -178,11 +163,11 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 `
 
 	b.org.register(cmd, false)
-	b.registerPkgFileFlags(cmd)
-	b.registerPkgPrintOpts(cmd)
+	b.registerTemplateFileFlags(cmd)
+	b.registerTemplatePrintOpts(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if template will have destructive changes, proceed if set "true"`)
-	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "Stack ID to associate pkg application")
+	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "Stack ID to associate template application")
 
 	b.applyOpts.secrets = []string{}
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the template; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
@@ -192,7 +177,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) applyRunEFn(cmd *cobra.Command, args []string) error {
+func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) error {
 	if err := b.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
@@ -208,12 +193,12 @@ func (b *cmdPkgBuilder) applyRunEFn(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	pkg, isTTY, err := b.readPkg()
+	template, isTTY, err := b.readTemplate()
 	if err != nil {
 		return err
 	}
 
-	providedEnvRefs := mapKeys(pkg.Summary().MissingEnvs, b.applyOpts.envRefs)
+	providedEnvRefs := mapKeys(template.Summary().MissingEnvs, b.applyOpts.envRefs)
 	if !isTTY {
 		for _, envRef := range missingValKeys(providedEnvRefs) {
 			prompt := "Please provide environment reference value for key " + envRef
@@ -229,7 +214,7 @@ func (b *cmdPkgBuilder) applyRunEFn(cmd *cobra.Command, args []string) error {
 	}
 
 	opts := []pkger.ApplyOptFn{
-		pkger.ApplyWithPkg(pkg),
+		pkger.ApplyWithTemplate(template),
 		pkger.ApplyWithEnvRefs(providedEnvRefs),
 		pkger.ApplyWithStackID(stackID),
 	}
@@ -257,7 +242,7 @@ func (b *cmdPkgBuilder) applyRunEFn(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if err := b.printPkgDiff(dryRunImpact.Diff); err != nil {
+	if err := b.printTemplateDiff(dryRunImpact.Diff); err != nil {
 		return err
 	}
 
@@ -281,7 +266,7 @@ func (b *cmdPkgBuilder) applyRunEFn(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	b.printPkgSummary(impact.StackID, impact.Summary)
+	b.printTemplateSummary(impact.StackID, impact.Summary)
 
 	return nil
 }
@@ -321,7 +306,7 @@ func parseTemplateActions(args []string) ([]pkger.ApplyOptFn, error) {
 	return opts, nil
 }
 
-func (b *cmdPkgBuilder) cmdExport() *cobra.Command {
+func (b *cmdTemplateBuilder) cmdExport() *cobra.Command {
 	cmd := b.newCmd("export", b.exportRunEFn)
 	cmd.Short = "Export existing resources as a template"
 	cmd.Long = `
@@ -371,8 +356,8 @@ func (b *cmdPkgBuilder) cmdExport() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) exportRunEFn(cmd *cobra.Command, args []string) error {
-	pkgSVC, _, err := b.svcFn()
+func (b *cmdTemplateBuilder) exportRunEFn(cmd *cobra.Command, args []string) error {
+	templateSVC, _, err := b.svcFn()
 	if err != nil {
 		return err
 	}
@@ -410,17 +395,10 @@ func (b *cmdPkgBuilder) exportRunEFn(cmd *cobra.Command, args []string) error {
 	}
 
 	if b.exportOpts.resourceType == "" {
-		return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
+		return b.exportTemplate(cmd.OutOrStdout(), templateSVC, b.file, opts...)
 	}
 
-	resType := strings.ToLower(b.exportOpts.resourceType)
-	resKind := pkger.KindUnknown
-	for _, k := range pkger.Kinds() {
-		if strings.ToLower(string(k)) == resType {
-			resKind = k
-			break
-		}
-	}
+	resKind := templateKindFold(b.exportOpts.resourceType)
 
 	if err := resKind.OK(); err != nil {
 		return errors.New("resource type is invalid; got: " + b.exportOpts.resourceType)
@@ -439,10 +417,10 @@ func (b *cmdPkgBuilder) exportRunEFn(cmd *cobra.Command, args []string) error {
 	}
 	opts = append(opts, resTypeOpt)
 
-	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
+	return b.exportTemplate(cmd.OutOrStdout(), templateSVC, b.file, opts...)
 }
 
-func (b *cmdPkgBuilder) cmdExportAll() *cobra.Command {
+func (b *cmdTemplateBuilder) cmdExportAll() *cobra.Command {
 	cmd := b.newCmd("all", b.exportAllRunEFn)
 	cmd.Short = "Export all existing resources for an organization as a template"
 	cmd.Long = `
@@ -451,7 +429,7 @@ func (b *cmdPkgBuilder) cmdExportAll() *cobra.Command {
 
 	Examples:
 		# Export all resources for an organization
-		influx pkg export all --org $ORG_NAME
+		influx export all --org $ORG_NAME
 
 		# Export all bucket resources
 		influx export all --org $ORG_NAME --filter=kind=Bucket
@@ -478,6 +456,7 @@ func (b *cmdPkgBuilder) cmdExportAll() *cobra.Command {
 	and
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/all
 `
+	enforceFlagValidation(cmd)
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringArrayVar(&b.filters, "filter", nil, "Filter exported resources by labelName or resourceKind (format: --filter=labelName=example)")
@@ -487,8 +466,8 @@ func (b *cmdPkgBuilder) cmdExportAll() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) exportAllRunEFn(cmd *cobra.Command, args []string) error {
-	pkgSVC, orgSVC, err := b.svcFn()
+func (b *cmdTemplateBuilder) exportAllRunEFn(cmd *cobra.Command, args []string) error {
+	templateSVC, orgSVC, err := b.svcFn()
 	if err != nil {
 		return err
 	}
@@ -526,10 +505,10 @@ func (b *cmdPkgBuilder) exportAllRunEFn(cmd *cobra.Command, args []string) error
 		LabelNames:    labelNames,
 		ResourceKinds: resourceKinds,
 	})
-	return b.exportPkg(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
+	return b.exportTemplate(cmd.OutOrStdout(), templateSVC, b.file, orgOpt)
 }
 
-func (b *cmdPkgBuilder) cmdExportStack() *cobra.Command {
+func (b *cmdTemplateBuilder) cmdExportStack() *cobra.Command {
 	cmd := b.newCmd("stack $STACK_ID", b.exportStackRunEFn)
 	cmd.Short = "Export all existing resources for associated with a stack as a template"
 	cmd.Long = `
@@ -554,8 +533,8 @@ func (b *cmdPkgBuilder) cmdExportStack() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) exportStackRunEFn(cmd *cobra.Command, args []string) error {
-	pkgSVC, _, err := b.svcFn()
+func (b *cmdTemplateBuilder) exportStackRunEFn(cmd *cobra.Command, args []string) error {
+	templateSVC, _, err := b.svcFn()
 	if err != nil {
 		return err
 	}
@@ -565,64 +544,59 @@ func (b *cmdPkgBuilder) exportStackRunEFn(cmd *cobra.Command, args []string) err
 		return err
 	}
 
-	pkg, err := pkgSVC.Export(context.Background(), pkger.ExportWithStackID(*stackID))
+	template, err := templateSVC.Export(context.Background(), pkger.ExportWithStackID(*stackID))
 	if err != nil {
 		return err
 	}
 
-	return b.writePkg(b.w, b.file, pkg)
+	return b.writeTemplate(b.w, b.file, template)
 }
 
-func (b *cmdPkgBuilder) cmdTemplate() *cobra.Command {
-	cmd := b.newTemplateCmd("template")
+func (b *cmdTemplateBuilder) cmdTemplate() *cobra.Command {
+	runE := func(cmd *cobra.Command, args []string) error {
+		template, _, err := b.readTemplate()
+		if err != nil {
+			return err
+		}
+
+		return b.printTemplateSummary(0, template.Summary())
+	}
+
+	cmd := b.genericCLIOpts.newCmd("template", runE, false)
+
+	b.registerTemplateFileFlags(cmd)
+	b.registerTemplatePrintOpts(cmd)
 	cmd.Short = "Summarize the provided template"
+
 	cmd.AddCommand(b.cmdTemplateValidate())
 	return cmd
 }
 
-func (b *cmdPkgBuilder) cmdTemplateSummary() *cobra.Command {
-	cmd := b.newTemplateCmd("summary")
-	cmd.Short = "Summarize the provided template"
-	return cmd
-}
-
-func (b *cmdPkgBuilder) newTemplateCmd(usage string) *cobra.Command {
+func (b *cmdTemplateBuilder) cmdTemplateValidate() *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
-		pkg, _, err := b.readPkg()
+		template, _, err := b.readTemplate()
 		if err != nil {
 			return err
 		}
-
-		return b.printPkgSummary(0, pkg.Summary())
-	}
-
-	cmd := b.genericCLIOpts.newCmd(usage, runE, false)
-
-	b.registerPkgFileFlags(cmd)
-	b.registerPkgPrintOpts(cmd)
-
-	return cmd
-}
-
-func (b *cmdPkgBuilder) cmdTemplateValidate() *cobra.Command {
-	runE := func(cmd *cobra.Command, args []string) error {
-		pkg, _, err := b.readPkg()
-		if err != nil {
-			return err
-		}
-		return pkg.Validate()
+		return template.Validate()
 	}
 
 	cmd := b.genericCLIOpts.newCmd("validate", runE, false)
 	cmd.Short = "Validate the provided template"
 
-	b.registerPkgFileFlags(cmd)
+	b.registerTemplateFileFlags(cmd)
 
 	return cmd
 }
 
-func (b *cmdPkgBuilder) cmdStacks() *cobra.Command {
-	cmd := b.newCmdStackList("stacks")
+func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
+	cmd := b.newCmd("stacks [flags]", b.stackListRunEFn)
+	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
+	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+
+	b.org.register(cmd, false)
+
 	cmd.Short = "List stack(s) and associated templates. Subcommands manage stacks."
 	cmd.Long = `
 	List stack(s) and associated templates. Subcommands manage stacks.
@@ -656,19 +630,7 @@ func (b *cmdPkgBuilder) cmdStacks() *cobra.Command {
 	return cmd
 }
 
-// TODO(jsteenb2): nuke the deprecated command here after OSS beta13 release.
-func (b *cmdPkgBuilder) cmdStackDeprecated() *cobra.Command {
-	cmd := b.genericCLIOpts.newCmd("stack", nil, false)
-	cmd.Short = "Stack management commands"
-	cmd.AddCommand(
-		b.cmdStackInit(),
-		b.cmdStackList(),
-		b.cmdStackRemove(),
-	)
-	return cmd
-}
-
-func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
+func (b *cmdTemplateBuilder) cmdStackInit() *cobra.Command {
 	cmd := b.newCmd("init", b.stackInitRunEFn)
 	cmd.Short = "Initialize a stack"
 	cmd.Long = `
@@ -680,10 +642,10 @@ func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
 
 	Examples:
 		# Initialize a stack with a name and description
-		influx stack init -n $STACK_NAME -d $STACK_DESCRIPTION
+		influx stacks init -n $STACK_NAME -d $STACK_DESCRIPTION
 
 		# Initialize a stack with a name and urls to associate with stack.
-		influx stack init -n $STACK_NAME -u $PATH_TO_TEMPLATE
+		influx stacks init -n $STACK_NAME -u $PATH_TO_TEMPLATE
 
 	For information about how stacks work with InfluxDB templates, see
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/
@@ -701,8 +663,8 @@ func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error {
-	pkgSVC, orgSVC, err := b.svcFn()
+func (b *cmdTemplateBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error {
+	templateSVC, orgSVC, err := b.svcFn()
 	if err != nil {
 		return err
 	}
@@ -713,40 +675,21 @@ func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error
 	}
 
 	const fakeUserID = 0 // is 0 because user is pulled from token...
-	stack, err := pkgSVC.InitStack(context.Background(), fakeUserID, pkger.Stack{
-		OrgID:       orgID,
-		Name:        b.name,
-		Description: b.description,
-		URLs:        b.urls,
+	stack, err := templateSVC.InitStack(context.Background(), fakeUserID, pkger.StackCreate{
+		OrgID:        orgID,
+		Name:         b.name,
+		Description:  b.description,
+		TemplateURLs: b.urls,
 	})
 	if err != nil {
 		return err
 	}
 
-	return b.writeStack(b.w, stack)
+	return b.writeStack(stack)
 }
 
-func (b *cmdPkgBuilder) cmdStackList() *cobra.Command {
-	cmd := b.newCmdStackList("list")
-	cmd.Short = "List stack(s) and associated resources"
-	cmd.Aliases = []string{"ls"}
-	return cmd
-}
-
-func (b *cmdPkgBuilder) newCmdStackList(cmdName string) *cobra.Command {
-	usage := fmt.Sprintf("%s [flags]", cmdName)
-	cmd := b.newCmd(usage, b.stackListRunEFn)
-	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
-	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
-
-	b.org.register(cmd, false)
-
-	return cmd
-}
-
-func (b *cmdPkgBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error {
-	pkgSVC, orgSVC, err := b.svcFn()
+func (b *cmdTemplateBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error {
+	templateSVC, orgSVC, err := b.svcFn()
 	if err != nil {
 		return err
 	}
@@ -765,7 +708,7 @@ func (b *cmdPkgBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error
 		stackIDs = append(stackIDs, *id)
 	}
 
-	stacks, err := pkgSVC.ListStacks(context.Background(), orgID, pkger.ListFilter{
+	stacks, err := templateSVC.ListStacks(context.Background(), orgID, pkger.ListFilter{
 		StackIDs: stackIDs,
 		Names:    b.names,
 	})
@@ -781,25 +724,12 @@ func (b *cmdPkgBuilder) stackListRunEFn(cmd *cobra.Command, args []string) error
 	defer tabW.Flush()
 
 	tabW.HideHeaders(b.hideHeaders)
-	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At")
-
-	for _, stack := range stacks {
-		tabW.Write(map[string]interface{}{
-			"ID":            stack.ID,
-			"OrgID":         stack.OrgID,
-			"Name":          stack.Name,
-			"Description":   stack.Description,
-			"Num Resources": len(stack.Resources),
-			"Sources":       stack.Sources,
-			"URLs":          stack.URLs,
-			"Created At":    stack.CreatedAt,
-		})
-	}
+	writeStackRows(tabW, stacks...)
 
 	return nil
 }
 
-func (b *cmdPkgBuilder) cmdStackRemove() *cobra.Command {
+func (b *cmdTemplateBuilder) cmdStackRemove() *cobra.Command {
 	cmd := b.newCmd("rm [--stack-id=ID1 --stack-id=ID2]", b.stackRemoveRunEFn)
 	cmd.Short = "Remove a stack(s) and all associated resources"
 	cmd.Aliases = []string{"remove", "uninstall"}
@@ -813,8 +743,8 @@ func (b *cmdPkgBuilder) cmdStackRemove() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) error {
-	pkgSVC, orgSVC, err := b.svcFn()
+func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) error {
+	templateSVC, orgSVC, err := b.svcFn()
 	if err != nil {
 		return err
 	}
@@ -833,7 +763,7 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 		stackIDs = append(stackIDs, *id)
 	}
 
-	stacks, err := pkgSVC.ListStacks(context.Background(), orgID, pkger.ListFilter{
+	stacks, err := templateSVC.ListStacks(context.Background(), orgID, pkger.ListFilter{
 		StackIDs: stackIDs,
 	})
 	if err != nil {
@@ -853,19 +783,7 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 		}()
 
 		tabW.HideHeaders(b.hideHeaders)
-
-		tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At")
-		tabW.Write(map[string]interface{}{
-			"ID":            stack.ID,
-			"OrgID":         stack.OrgID,
-			"Name":          stack.Name,
-			"Description":   stack.Description,
-			"Num Resources": len(stack.Resources),
-			"Sources":       stack.Sources,
-			"URLs":          stack.URLs,
-			"Created At":    stack.CreatedAt,
-		})
-
+		writeStackRows(tabW, stack)
 		return nil
 	}
 
@@ -880,7 +798,7 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 			continue
 		}
 
-		err := pkgSVC.DeleteStack(context.Background(), struct{ OrgID, UserID, StackID influxdb.ID }{
+		err := templateSVC.DeleteStack(context.Background(), struct{ OrgID, UserID, StackID influxdb.ID }{
 			OrgID:   orgID,
 			UserID:  0,
 			StackID: stack.ID,
@@ -893,7 +811,7 @@ func (b *cmdPkgBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) err
 	return nil
 }
 
-func (b *cmdPkgBuilder) cmdStackUpdate() *cobra.Command {
+func (b *cmdTemplateBuilder) cmdStackUpdate() *cobra.Command {
 	cmd := b.newCmd("update", b.stackUpdateRunEFn)
 	cmd.Short = "Update a stack"
 	cmd.Long = `
@@ -901,10 +819,23 @@ func (b *cmdPkgBuilder) cmdStackUpdate() *cobra.Command {
 
 	Examples:
 		# Update a stack with a name and description
-		influx stack update -i $STACK_ID -n $STACK_NAME -d $STACK_DESCRIPTION
+		influx stacks update -i $STACK_ID -n $STACK_NAME -d $STACK_DESCRIPTION
 
 		# Update a stack with a name and urls to associate with stack.
-		influx stack update --stack-id $STACK_ID --stack-name $STACK_NAME --template-url $PATH_TO_TEMPLATE
+		influx stacks update --stack-id $STACK_ID --stack-name $STACK_NAME --template-url $PATH_TO_TEMPLATE
+
+		# Update stack with new resources to manage
+		influx stacks update \
+			--stack-id $STACK_ID \
+			--addResource=Bucket=$BUCKET_ID \
+			--addResource=Dashboard=$DASH_ID
+
+		# Update stack with new resources to manage and export stack
+		# as a template
+		influx stacks update \
+			--stack-id $STACK_ID \
+			--addResource=Bucket=$BUCKET_ID \
+			--export-file /path/to/file.yml
 
 	For information about how stacks work with InfluxDB templates, see
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks
@@ -917,13 +848,15 @@ func (b *cmdPkgBuilder) cmdStackUpdate() *cobra.Command {
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name for stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description for stack")
 	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with stack")
+	cmd.Flags().StringArrayVar(&b.updateStackOpts.addResources, "addResource", nil, "Additional resources to associate with stack")
+	cmd.Flags().StringVarP(&b.file, "export-file", "f", "", "Destination for exported template")
 	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
 
 	return cmd
 }
 
-func (b *cmdPkgBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string) error {
-	pkgSVC, _, err := b.svcFn()
+func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string) error {
+	templateSVC, _, err := b.svcFn()
 	if err != nil {
 		return err
 	}
@@ -933,20 +866,65 @@ func (b *cmdPkgBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string) err
 		return ierror.Wrap(err, "required stack id is invalid")
 	}
 
-	stack, err := pkgSVC.UpdateStack(context.Background(), pkger.StackUpdate{
-		ID:          *stackID,
-		Name:        &b.name,
-		Description: &b.description,
-		URLs:        b.urls,
-	})
+	update := pkger.StackUpdate{
+		ID:           *stackID,
+		Name:         &b.name,
+		Description:  &b.description,
+		TemplateURLs: b.urls,
+	}
+
+	for _, res := range b.updateStackOpts.addResources {
+		parts := strings.SplitN(res, "=", 2)
+		if len(parts) < 2 {
+			continue
+		}
+
+		kind, idRaw := templateKindFold(parts[0]), parts[1]
+		if err := kind.OK(); err != nil {
+			return errors.New("resource type is invalid; got: " + b.exportOpts.resourceType)
+		}
+
+		id, err := influxdb.IDFromString(idRaw)
+		if err != nil {
+			return ierror.Wrap(err, fmt.Sprintf("%s resource id %q is invalid", kind, idRaw))
+		}
+		update.AdditionalResources = append(update.AdditionalResources, pkger.StackAdditionalResource{
+			APIVersion: pkger.APIVersion,
+			ID:         *id,
+			Kind:       kind,
+		})
+	}
+
+	stack, err := templateSVC.UpdateStack(context.Background(), update)
 	if err != nil {
 		return err
 	}
 
-	return b.writeStack(b.w, stack)
+	if err := b.writeStack(stack); err != nil {
+		return err
+	}
+
+	if len(update.AdditionalResources) == 0 {
+		return nil
+	}
+
+	if b.file == "" {
+		const msg = `
+Your stack now differs from your template. Applying an outdated template will revert
+these updates. Export a new template with these updates to prevent accidental changes? (y/n)`
+		for range make([]struct{}, 3) {
+			if in := b.getInput(msg, "n"); in == "y" {
+				break
+			} else if in == "n" {
+				return nil
+			}
+		}
+	}
+
+	return b.exportTemplate(cmd.OutOrStdout(), templateSVC, b.file, pkger.ExportWithStackID(*stackID))
 }
 
-func (b *cmdPkgBuilder) writeStack(w io.Writer, stack pkger.Stack) error {
+func (b *cmdTemplateBuilder) writeStack(stack pkger.Stack) error {
 	if b.json {
 		return b.writeJSON(stack)
 	}
@@ -955,34 +933,24 @@ func (b *cmdPkgBuilder) writeStack(w io.Writer, stack pkger.Stack) error {
 	defer tabW.Flush()
 
 	tabW.HideHeaders(b.hideHeaders)
-
-	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "Sources", "URLs", "Created At")
-	tabW.Write(map[string]interface{}{
-		"ID":          stack.ID,
-		"OrgID":       stack.OrgID,
-		"Name":        stack.Name,
-		"Description": stack.Description,
-		"Sources":     stack.Sources,
-		"URLs":        stack.URLs,
-		"Created At":  stack.CreatedAt,
-	})
+	writeStackRows(tabW, stack)
 
 	return nil
 }
 
-func (b *cmdPkgBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (b *cmdTemplateBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
 	b.globalFlags.registerFlags(cmd)
 	return cmd
 }
 
-func (b *cmdPkgBuilder) registerPkgPrintOpts(cmd *cobra.Command) {
+func (b *cmdTemplateBuilder) registerTemplatePrintOpts(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
 	registerPrintOptions(cmd, nil, &b.json)
 }
 
-func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
+func (b *cmdTemplateBuilder) registerTemplateFileFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "Path to template file; Supports HTTP(S) URLs or file paths.")
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
 	cmd.Flags().BoolVarP(&b.recurse, "recurse", "R", false, "Process the directory used in -f, --file recursively. Useful when you want to manage related templates organized within the same directory.")
@@ -994,17 +962,17 @@ func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
 	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")
 }
 
-func (b *cmdPkgBuilder) exportPkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.ExportOptFn) error {
-	pkg, err := pkgSVC.Export(context.Background(), opts...)
+func (b *cmdTemplateBuilder) exportTemplate(w io.Writer, templateSVC pkger.SVC, outPath string, opts ...pkger.ExportOptFn) error {
+	template, err := templateSVC.Export(context.Background(), opts...)
 	if err != nil {
 		return err
 	}
 
-	return b.writePkg(w, outPath, pkg)
+	return b.writeTemplate(w, outPath, template)
 }
 
-func (b *cmdPkgBuilder) writePkg(w io.Writer, outPath string, pkg *pkger.Pkg) error {
-	buf, err := createPkgBuf(pkg, outPath)
+func (b *cmdTemplateBuilder) writeTemplate(w io.Writer, outPath string, template *pkger.Template) error {
+	buf, err := createTemplateBuf(template, outPath)
 	if err != nil {
 		return err
 	}
@@ -1017,7 +985,7 @@ func (b *cmdPkgBuilder) writePkg(w io.Writer, outPath string, pkg *pkger.Pkg) er
 	return ioutil.WriteFile(outPath, buf.Bytes(), os.ModePerm)
 }
 
-func (b *cmdPkgBuilder) readRawPkgsFromFiles(filePaths []string, recurse bool) ([]*pkger.Pkg, error) {
+func (b *cmdTemplateBuilder) readRawTemplatesFromFiles(filePaths []string, recurse bool) ([]*pkger.Template, error) {
 	mFiles := make(map[string]struct{})
 	for _, f := range filePaths {
 		files, err := readFilesFromPath(f, recurse)
@@ -1029,36 +997,36 @@ func (b *cmdPkgBuilder) readRawPkgsFromFiles(filePaths []string, recurse bool) (
 		}
 	}
 
-	var rawPkgs []*pkger.Pkg
+	var rawTemplates []*pkger.Template
 	for f := range mFiles {
-		pkg, err := pkger.Parse(b.convertFileEncoding(f), pkger.FromFile(f), pkger.ValidSkipParseError())
+		template, err := pkger.Parse(b.convertFileEncoding(f), pkger.FromFile(f), pkger.ValidSkipParseError())
 		if err != nil {
 			return nil, err
 		}
-		rawPkgs = append(rawPkgs, pkg)
+		rawTemplates = append(rawTemplates, template)
 	}
 
-	return rawPkgs, nil
+	return rawTemplates, nil
 }
 
-func (b *cmdPkgBuilder) readRawPkgsFromURLs(urls []string) ([]*pkger.Pkg, error) {
+func (b *cmdTemplateBuilder) readRawTemplatesFromURLs(urls []string) ([]*pkger.Template, error) {
 	mURLs := make(map[string]struct{})
 	for _, f := range urls {
 		mURLs[f] = struct{}{}
 	}
 
-	var rawPkgs []*pkger.Pkg
+	var rawTemplates []*pkger.Template
 	for u := range mURLs {
-		pkg, err := pkger.Parse(b.convertURLEncoding(u), pkger.FromHTTPRequest(u), pkger.ValidSkipParseError())
+		template, err := pkger.Parse(b.convertURLEncoding(u), pkger.FromHTTPRequest(u), pkger.ValidSkipParseError())
 		if err != nil {
 			return nil, err
 		}
-		rawPkgs = append(rawPkgs, pkg)
+		rawTemplates = append(rawTemplates, template)
 	}
-	return rawPkgs, nil
+	return rawTemplates, nil
 }
 
-func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
+func (b *cmdTemplateBuilder) readTemplate() (*pkger.Template, bool, error) {
 	var remotes, files []string
 	for _, rawURL := range append(b.files, b.urls...) {
 		u, err := url.Parse(rawURL)
@@ -1072,36 +1040,37 @@ func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
 		}
 	}
 
-	pkgs, err := b.readRawPkgsFromFiles(files, b.recurse)
+	templates, err := b.readRawTemplatesFromFiles(files, b.recurse)
 	if err != nil {
 		return nil, false, err
 	}
 
-	urlPkgs, err := b.readRawPkgsFromURLs(remotes)
+	urlTemplates, err := b.readRawTemplatesFromURLs(remotes)
 	if err != nil {
 		return nil, false, err
 	}
-	pkgs = append(pkgs, urlPkgs...)
+	templates = append(templates, urlTemplates...)
 
 	// the pkger.ValidSkipParseError option allows our server to be the one to validate the
-	// the pkg is accurate. If a user has an older version of the CLI and cloud gets updated
+	// the template is accurate. If a user has an older version of the CLI and cloud gets updated
 	// with new validation rules,they'll get immediate access to that change without having to
 	// rol their CLI build.
 
 	if _, err := b.inStdIn(); err != nil {
-		pkg, err := pkger.Combine(pkgs, pkger.ValidSkipParseError())
-		return pkg, false, err
+		template, err := pkger.Combine(templates, pkger.ValidSkipParseError())
+		return template, false, err
 	}
 
-	stdinPkg, err := pkger.Parse(b.convertEncoding(), pkger.FromReader(b.in), pkger.ValidSkipParseError())
+	stdinTemplate, err := pkger.Parse(b.convertEncoding(), pkger.FromReader(b.in), pkger.ValidSkipParseError())
 	if err != nil {
 		return nil, true, err
 	}
-	pkg, err := pkger.Combine(append(pkgs, stdinPkg), pkger.ValidSkipParseError())
-	return pkg, true, err
+
+	template, err := pkger.Combine(append(templates, stdinTemplate), pkger.ValidSkipParseError())
+	return template, true, err
 }
 
-func (b *cmdPkgBuilder) inStdIn() (*os.File, error) {
+func (b *cmdTemplateBuilder) inStdIn() (*os.File, error) {
 	stdin, _ := b.in.(*os.File)
 	if stdin != os.Stdin {
 		return nil, errors.New("input not stdIn")
@@ -1117,7 +1086,7 @@ func (b *cmdPkgBuilder) inStdIn() (*os.File, error) {
 	return stdin, nil
 }
 
-func (b *cmdPkgBuilder) readLines(r io.Reader) ([]string, error) {
+func (b *cmdTemplateBuilder) readLines(r io.Reader) ([]string, error) {
 	bb, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -1134,7 +1103,7 @@ func (b *cmdPkgBuilder) readLines(r io.Reader) ([]string, error) {
 	return stdinInput, nil
 }
 
-func (b *cmdPkgBuilder) getInput(msg, defaultVal string) string {
+func (b *cmdTemplateBuilder) getInput(msg, defaultVal string) string {
 	ui := &input.UI{
 		Writer: b.w,
 		Reader: b.in,
@@ -1142,7 +1111,7 @@ func (b *cmdPkgBuilder) getInput(msg, defaultVal string) string {
 	return getInput(ui, msg, defaultVal)
 }
 
-func (b *cmdPkgBuilder) convertURLEncoding(url string) pkger.Encoding {
+func (b *cmdTemplateBuilder) convertURLEncoding(url string) pkger.Encoding {
 	urlBase := path.Ext(url)
 	switch {
 	case strings.HasPrefix(urlBase, ".jsonnet"):
@@ -1155,7 +1124,7 @@ func (b *cmdPkgBuilder) convertURLEncoding(url string) pkger.Encoding {
 	return b.convertEncoding()
 }
 
-func (b *cmdPkgBuilder) convertFileEncoding(file string) pkger.Encoding {
+func (b *cmdTemplateBuilder) convertFileEncoding(file string) pkger.Encoding {
 	ext := filepath.Ext(file)
 	switch {
 	case strings.HasPrefix(ext, ".jsonnet"):
@@ -1169,7 +1138,7 @@ func (b *cmdPkgBuilder) convertFileEncoding(file string) pkger.Encoding {
 	return b.convertEncoding()
 }
 
-func (b *cmdPkgBuilder) convertEncoding() pkger.Encoding {
+func (b *cmdTemplateBuilder) convertEncoding() pkger.Encoding {
 	switch {
 	case b.encoding == "json":
 		return pkger.EncodingJSON
@@ -1223,7 +1192,7 @@ func toInfluxIDs(args []string) ([]influxdb.ID, error) {
 	return ids, nil
 }
 
-func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
+func createTemplateBuf(template *pkger.Template, outPath string) (*bytes.Buffer, error) {
 	var encoding pkger.Encoding
 	switch ext := filepath.Ext(outPath); ext {
 	case ".json":
@@ -1232,7 +1201,7 @@ func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
 		encoding = pkger.EncodingYAML
 	}
 
-	b, err := pkg.Encode(encoding)
+	b, err := template.Encode(encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -1252,7 +1221,7 @@ func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
 	return &pkger.HTTPRemoteService{Client: httpClient}, orgSvc, nil
 }
 
-func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
+func (b *cmdTemplateBuilder) printTemplateDiff(diff pkger.Diff) error {
 	if b.quiet {
 		return nil
 	}
@@ -1262,7 +1231,7 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	}
 
 	diffPrinterGen := func(title string, headers []string) *diffPrinter {
-		commonHeaders := []string{"Package Name", "ID", "Resource Name"}
+		commonHeaders := []string{"Metadata Name", "ID", "Resource Name"}
 
 		printer := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
 		printer.
@@ -1274,17 +1243,17 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	if labels := diff.Labels; len(labels) > 0 {
 		printer := diffPrinterGen("Labels", []string{"Color", "Description"})
 
-		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffLabelValues) []string {
-			return []string{pkgName, id.String(), v.Name, v.Color, v.Description}
+		appendValues := func(id pkger.SafeID, metaName string, v pkger.DiffLabelValues) []string {
+			return []string{metaName, id.String(), v.Name, v.Color, v.Description}
 		}
 
 		for _, l := range labels {
 			var oldRow []string
 			if l.Old != nil {
-				oldRow = appendValues(l.ID, l.PkgName, *l.Old)
+				oldRow = appendValues(l.ID, l.MetaName, *l.Old)
 			}
 
-			newRow := appendValues(l.ID, l.PkgName, l.New)
+			newRow := appendValues(l.ID, l.MetaName, l.New)
 			switch {
 			case pkger.IsNew(l.StateStatus):
 				printer.AppendDiff(nil, newRow)
@@ -1300,17 +1269,17 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	if bkts := diff.Buckets; len(bkts) > 0 {
 		printer := diffPrinterGen("Buckets", []string{"Retention Period", "Description"})
 
-		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffBucketValues) []string {
-			return []string{pkgName, id.String(), v.Name, v.RetentionRules.RP().String(), v.Description}
+		appendValues := func(id pkger.SafeID, metaName string, v pkger.DiffBucketValues) []string {
+			return []string{metaName, id.String(), v.Name, v.RetentionRules.RP().String(), v.Description}
 		}
 
 		for _, b := range bkts {
 			var oldRow []string
 			if b.Old != nil {
-				oldRow = appendValues(b.ID, b.PkgName, *b.Old)
+				oldRow = appendValues(b.ID, b.MetaName, *b.Old)
 			}
 
-			newRow := appendValues(b.ID, b.PkgName, b.New)
+			newRow := appendValues(b.ID, b.MetaName, b.New)
 			switch {
 			case pkger.IsNew(b.StateStatus):
 				printer.AppendDiff(nil, newRow)
@@ -1326,8 +1295,8 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	if checks := diff.Checks; len(checks) > 0 {
 		printer := diffPrinterGen("Checks", []string{"Description"})
 
-		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffCheckValues) []string {
-			out := []string{pkgName, id.String()}
+		appendValues := func(id pkger.SafeID, metaName string, v pkger.DiffCheckValues) []string {
+			out := []string{metaName, id.String()}
 			if v.Check == nil {
 				return append(out, "", "")
 			}
@@ -1337,10 +1306,10 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		for _, c := range checks {
 			var oldRow []string
 			if c.Old != nil {
-				oldRow = appendValues(c.ID, c.PkgName, *c.Old)
+				oldRow = appendValues(c.ID, c.MetaName, *c.Old)
 			}
 
-			newRow := appendValues(c.ID, c.PkgName, c.New)
+			newRow := appendValues(c.ID, c.MetaName, c.New)
 			switch {
 			case pkger.IsNew(c.StateStatus):
 				printer.AppendDiff(nil, newRow)
@@ -1356,17 +1325,17 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	if dashes := diff.Dashboards; len(dashes) > 0 {
 		printer := diffPrinterGen("Dashboards", []string{"Description", "Num Charts"})
 
-		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffDashboardValues) []string {
-			return []string{pkgName, id.String(), v.Name, v.Desc, strconv.Itoa(len(v.Charts))}
+		appendValues := func(id pkger.SafeID, metaName string, v pkger.DiffDashboardValues) []string {
+			return []string{metaName, id.String(), v.Name, v.Desc, strconv.Itoa(len(v.Charts))}
 		}
 
 		for _, d := range dashes {
 			var oldRow []string
 			if d.Old != nil {
-				oldRow = appendValues(d.ID, d.PkgName, *d.Old)
+				oldRow = appendValues(d.ID, d.MetaName, *d.Old)
 			}
 
-			newRow := appendValues(d.ID, d.PkgName, d.New)
+			newRow := appendValues(d.ID, d.MetaName, d.New)
 			switch {
 			case pkger.IsNew(d.StateStatus):
 				printer.AppendDiff(nil, newRow)
@@ -1382,8 +1351,8 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	if endpoints := diff.NotificationEndpoints; len(endpoints) > 0 {
 		printer := diffPrinterGen("Notification Endpoints", nil)
 
-		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffNotificationEndpointValues) []string {
-			out := []string{pkgName, id.String()}
+		appendValues := func(id pkger.SafeID, metaName string, v pkger.DiffNotificationEndpointValues) []string {
+			out := []string{metaName, id.String()}
 			if v.NotificationEndpoint == nil {
 				return append(out, "")
 			}
@@ -1393,10 +1362,10 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		for _, e := range endpoints {
 			var oldRow []string
 			if e.Old != nil {
-				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
+				oldRow = appendValues(e.ID, e.MetaName, *e.Old)
 			}
 
-			newRow := appendValues(e.ID, e.PkgName, e.New)
+			newRow := appendValues(e.ID, e.MetaName, e.New)
 			switch {
 			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
@@ -1419,9 +1388,9 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 			"Endpoint Type",
 		})
 
-		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffNotificationRuleValues) []string {
+		appendValues := func(id pkger.SafeID, metaName string, v pkger.DiffNotificationRuleValues) []string {
 			return []string{
-				pkgName,
+				metaName,
 				id.String(),
 				v.Name,
 				v.Every,
@@ -1435,10 +1404,10 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		for _, e := range rules {
 			var oldRow []string
 			if e.Old != nil {
-				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
+				oldRow = appendValues(e.ID, e.MetaName, *e.Old)
 			}
 
-			newRow := appendValues(e.ID, e.PkgName, e.New)
+			newRow := appendValues(e.ID, e.MetaName, e.New)
 			switch {
 			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
@@ -1453,17 +1422,17 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 	if teles := diff.Telegrafs; len(teles) > 0 {
 		printer := diffPrinterGen("Telegraf Configurations", []string{"Description"})
-		appendValues := func(id pkger.SafeID, pkgName string, v influxdb.TelegrafConfig) []string {
-			return []string{pkgName, id.String(), v.Name, v.Description}
+		appendValues := func(id pkger.SafeID, metaName string, v influxdb.TelegrafConfig) []string {
+			return []string{metaName, id.String(), v.Name, v.Description}
 		}
 
 		for _, e := range teles {
 			var oldRow []string
 			if e.Old != nil {
-				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
+				oldRow = appendValues(e.ID, e.MetaName, *e.Old)
 			}
 
-			newRow := appendValues(e.ID, e.PkgName, e.New)
+			newRow := appendValues(e.ID, e.MetaName, e.New)
 			switch {
 			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
@@ -1478,7 +1447,7 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 
 	if tasks := diff.Tasks; len(tasks) > 0 {
 		printer := diffPrinterGen("Tasks", []string{"Description", "Cycle"})
-		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffTaskValues) []string {
+		appendValues := func(id pkger.SafeID, metaName string, v pkger.DiffTaskValues) []string {
 			timing := v.Cron
 			if v.Cron == "" {
 				if v.Offset == "" {
@@ -1486,16 +1455,16 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 				}
 				timing = fmt.Sprintf("every: %s offset: %s", v.Every, v.Offset)
 			}
-			return []string{pkgName, id.String(), v.Name, v.Description, timing}
+			return []string{metaName, id.String(), v.Name, v.Description, timing}
 		}
 
 		for _, e := range tasks {
 			var oldRow []string
 			if e.Old != nil {
-				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
+				oldRow = appendValues(e.ID, e.MetaName, *e.Old)
 			}
 
-			newRow := appendValues(e.ID, e.PkgName, e.New)
+			newRow := appendValues(e.ID, e.MetaName, e.New)
 			switch {
 			case pkger.IsNew(e.StateStatus):
 				printer.AppendDiff(nil, newRow)
@@ -1511,21 +1480,21 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	if vars := diff.Variables; len(vars) > 0 {
 		printer := diffPrinterGen("Variables", []string{"Description", "Arg Type", "Arg Values"})
 
-		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffVariableValues) []string {
+		appendValues := func(id pkger.SafeID, metaName string, v pkger.DiffVariableValues) []string {
 			var argType string
 			if v.Args != nil {
 				argType = v.Args.Type
 			}
-			return []string{pkgName, id.String(), v.Name, v.Description, argType, printVarArgs(v.Args)}
+			return []string{metaName, id.String(), v.Name, v.Description, argType, printVarArgs(v.Args)}
 		}
 
 		for _, v := range vars {
 			var oldRow []string
 			if v.Old != nil {
-				oldRow = appendValues(v.ID, v.PkgName, *v.Old)
+				oldRow = appendValues(v.ID, v.MetaName, *v.Old)
 			}
 
-			newRow := appendValues(v.ID, v.PkgName, v.New)
+			newRow := appendValues(v.ID, v.MetaName, v.New)
 			switch {
 			case pkger.IsNew(v.StateStatus):
 				printer.AppendDiff(nil, newRow)
@@ -1544,15 +1513,15 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 			Title("Label Associations").
 			SetHeaders(
 				"Resource Type",
-				"Resource Package Name", "Resource Name", "Resource ID",
+				"Resource Meta Name", "Resource Name", "Resource ID",
 				"Label Package Name", "Label Name", "Label ID",
 			)
 
 		for _, m := range diff.LabelMappings {
 			newRow := []string{
 				string(m.ResType),
-				m.ResPkgName, m.ResName, m.ResID.String(),
-				m.LabelPkgName, m.LabelName, m.LabelID.String(),
+				m.ResMetaName, m.ResName, m.ResID.String(),
+				m.LabelMetaName, m.LabelName, m.LabelID.String(),
 			}
 			switch {
 			case pkger.IsNew(m.StateStatus):
@@ -1569,7 +1538,7 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	return nil
 }
 
-func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) error {
+func (b *cmdTemplateBuilder) printTemplateSummary(stackID influxdb.ID, sum pkger.Summary) error {
 	if b.quiet {
 		return nil
 	}
@@ -1592,7 +1561,7 @@ func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) 
 		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
 			l := labels[i]
 			return []string{
-				l.PkgName,
+				l.MetaName,
 				l.ID.String(),
 				l.Name,
 				l.Properties.Description,
@@ -1606,7 +1575,7 @@ func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) 
 		tablePrintFn("BUCKETS", headers, len(buckets), func(i int) []string {
 			bucket := buckets[i]
 			return []string{
-				bucket.PkgName,
+				bucket.MetaName,
 				bucket.ID.String(),
 				bucket.Name,
 				formatDuration(bucket.RetentionPeriod),
@@ -1620,7 +1589,7 @@ func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) 
 		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
 			c := checks[i].Check
 			return []string{
-				checks[i].PkgName,
+				checks[i].MetaName,
 				c.GetID().String(),
 				c.GetName(),
 				c.GetDescription(),
@@ -1632,7 +1601,7 @@ func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) 
 		headers := append(commonHeaders, "Description")
 		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
 			d := dashes[i]
-			return []string{d.PkgName, d.ID.String(), d.Name, d.Description}
+			return []string{d.MetaName, d.ID.String(), d.Name, d.Description}
 		})
 	}
 
@@ -1641,7 +1610,7 @@ func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) 
 		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
 			v := endpoints[i]
 			return []string{
-				v.PkgName,
+				v.MetaName,
 				v.NotificationEndpoint.GetID().String(),
 				v.NotificationEndpoint.GetName(),
 				v.NotificationEndpoint.GetDescription(),
@@ -1655,13 +1624,13 @@ func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) 
 		tablePrintFn("NOTIFICATION RULES", headers, len(rules), func(i int) []string {
 			v := rules[i]
 			return []string{
-				v.PkgName,
+				v.MetaName,
 				v.ID.String(),
 				v.Name,
 				v.Description,
 				v.Every,
 				v.Offset,
-				v.EndpointPkgName,
+				v.EndpointMetaName,
 				v.EndpointID.String(),
 				v.EndpointType,
 			}
@@ -1677,7 +1646,7 @@ func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) 
 				timing = t.Cron
 			}
 			return []string{
-				t.PkgName,
+				t.MetaName,
 				t.ID.String(),
 				t.Name,
 				t.Description,
@@ -1691,7 +1660,7 @@ func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) 
 		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
 			t := teles[i]
 			return []string{
-				t.PkgName,
+				t.MetaName,
 				t.TelegrafConfig.ID.String(),
 				t.TelegrafConfig.Name,
 				t.TelegrafConfig.Description,
@@ -1705,7 +1674,7 @@ func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) 
 			v := vars[i]
 			args := v.Arguments
 			return []string{
-				v.PkgName,
+				v.MetaName,
 				v.ID.String(),
 				v.Name,
 				v.Description,
@@ -1743,9 +1712,28 @@ func (b *cmdPkgBuilder) printPkgSummary(stackID influxdb.ID, sum pkger.Summary) 
 	return nil
 }
 
-func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, count int, rowFn func(i int) []string) {
+func (b *cmdTemplateBuilder) tablePrinterGen() func(table string, headers []string, count int, rowFn func(i int) []string) {
 	return func(table string, headers []string, count int, rowFn func(i int) []string) {
 		tablePrinter(b.w, table, headers, count, !b.disableColor, !b.disableTableBorders, rowFn)
+	}
+}
+
+func writeStackRows(tabW *internal.TabWriter, stacks ...pkger.Stack) {
+	tabW.WriteHeaders("ID", "OrgID", "Active", "Name", "Description", "Num Resources", "Sources", "URLs", "Created At", "Updated At")
+	for _, stack := range stacks {
+		latest := stack.LatestEvent()
+		tabW.Write(map[string]interface{}{
+			"ID":            stack.ID,
+			"OrgID":         stack.OrgID,
+			"Active":        latest.EventType != pkger.StackEventUninstalled,
+			"Name":          latest.Name,
+			"Description":   latest.Description,
+			"Num Resources": len(latest.Resources),
+			"Sources":       latest.Sources,
+			"URLs":          latest.TemplateURLs,
+			"Created At":    stack.CreatedAt,
+			"Updated At":    latest.UpdatedAt,
+		})
 	}
 }
 
@@ -2087,6 +2075,17 @@ func missingValKeys(m map[string]string) []string {
 		return out[i] < out[j]
 	})
 	return out
+}
+
+func templateKindFold(resType string) pkger.Kind {
+	resKind := pkger.KindUnknown
+	for _, k := range pkger.Kinds() {
+		if strings.EqualFold(string(k), resType) {
+			resKind = k
+			break
+		}
+	}
+	return resKind
 }
 
 func find(needle string, haystack []string) int {

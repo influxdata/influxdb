@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
-import {Link} from 'react-router'
-import {connect} from 'react-redux'
+import {Link} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 //Actions
@@ -9,20 +9,10 @@ import {dismissNotification as dismissNotificationAction} from 'src/shared/actio
 import {Notification, ComponentSize, Gradients} from '@influxdata/clockface'
 
 //Types
-import {
-  Notification as NotificationType,
-  NotificationStyle,
-} from 'src/types/notifications'
+import {AppState, NotificationStyle} from 'src/types'
 
-interface StateProps {
-  notifications: NotificationType[]
-}
-
-interface DispatchProps {
-  dismissNotification: typeof dismissNotificationAction
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const matchGradientToColor = (style: NotificationStyle): Gradients => {
   const converter = {
@@ -85,12 +75,14 @@ class Notifications extends PureComponent<Props> {
   }
 }
 
-const mapStateToProps = ({notifications}): StateProps => ({
+const mstp = ({notifications}: AppState) => ({
   notifications,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   dismissNotification: dismissNotificationAction,
 }
 
-export default connect(mapStateToProps, mdtp)(Notifications)
+const connector = connect(mstp, mdtp)
+
+export default connector(Notifications)

@@ -5,9 +5,10 @@ import React, {
   useState,
   ChangeEvent,
   FormEvent,
+  useCallback,
 } from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -35,29 +36,34 @@ import {OwnBucket} from 'src/types'
 
 interface DispatchProps {
   onUpdateBucket: typeof updateBucket
-  onNotify: typeof notify
 }
 
-type Props = DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{bucketID: string; orgID: string}>
 
 const UpdateBucketOverlay: FunctionComponent<Props> = ({
   onUpdateBucket,
-  onNotify,
-  params: {bucketID, orgID},
-  router,
+  match,
+  history,
 }) => {
+  const {orgID, bucketID} = match.params
+  const dispatch = useDispatch()
   const [bucketDraft, setBucketDraft] = useState<OwnBucket>(null)
 
   const [loadingStatus, setLoadingStatus] = useState(RemoteDataState.Loading)
 
   const [retentionSelection, setRetentionSelection] = useState(DEFAULT_SECONDS)
 
+  const handleClose = useCallback(() => {
+    history.push(`/orgs/${orgID}/load-data/buckets`)
+  }, [orgID, history])
+
   useEffect(() => {
     const fetchBucket = async () => {
       const resp = await api.getBucket({bucketID})
 
       if (resp.status !== 200) {
-        onNotify(getBucketFailed(bucketID, resp.data.message))
+        dispatch(notify(getBucketFailed(bucketID, resp.data.message)))
         handleClose()
         return
       }
@@ -72,7 +78,7 @@ const UpdateBucketOverlay: FunctionComponent<Props> = ({
       setLoadingStatus(RemoteDataState.Done)
     }
     fetchBucket()
-  }, [bucketID])
+  }, [bucketID, handleClose, dispatch])
 
   const handleChangeRetentionRule = (everySeconds: number): void => {
     setBucketDraft({
@@ -110,12 +116,8 @@ const UpdateBucketOverlay: FunctionComponent<Props> = ({
     setBucketDraft({...bucketDraft, [key]: value})
   }
 
-  const handleClose = () => {
-    router.push(`/orgs/${orgID}/load-data/buckets`)
-  }
-
   const handleClickRename = () => {
-    router.push(`/orgs/${orgID}/load-data/buckets/${bucketID}/rename`)
+    history.push(`/orgs/${orgID}/load-data/buckets/${bucketID}/rename`)
   }
 
   const rules = get(bucketDraft, 'retentionRules', [])
@@ -153,12 +155,13 @@ const UpdateBucketOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateBucket: updateBucket,
-  onNotify: notify,
 }
 
-export default connect<{}, DispatchProps, {}>(
+const connector = connect(null, mdtp)
+
+export default connect<{}, DispatchProps>(
   null,
   mdtp
 )(withRouter(UpdateBucketOverlay))

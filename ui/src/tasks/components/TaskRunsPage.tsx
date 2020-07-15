@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Page, IconFont, Sort} from '@influxdata/clockface'
@@ -9,7 +9,7 @@ import TaskRunsList from 'src/tasks/components/TaskRunsList'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Types
-import {AppState, RemoteDataState, Task, Run} from 'src/types'
+import {AppState, Run} from 'src/types'
 import {
   SpinnerContainer,
   TechnoSpinner,
@@ -26,22 +26,8 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 // Types
 import {SortTypes} from 'src/shared/utils/sort'
 
-interface OwnProps {
-  params: {id: string}
-}
-
-interface DispatchProps {
-  getRuns: typeof getRuns
-  onRunTask: typeof runTask
-}
-
-interface StateProps {
-  runs: Run[]
-  runStatus: RemoteDataState
-  currentTask: Task
-}
-
-type Props = OwnProps & DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{id: string; orgID: string}>
 
 interface State {
   sortKey: SortKey
@@ -51,7 +37,7 @@ interface State {
 
 type SortKey = keyof Run
 
-class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
+class TaskRunsPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -62,7 +48,7 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
   }
 
   public render() {
-    const {params, runs} = this.props
+    const {match, runs} = this.props
     const {sortKey, sortDirection, sortType} = this.state
 
     return (
@@ -93,7 +79,7 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
           </Page.ControlBar>
           <Page.Contents fullWidth={false} scrollable={true}>
             <TaskRunsList
-              taskID={params.id}
+              taskID={match.params.id}
               runs={runs}
               sortKey={sortKey}
               sortDirection={sortDirection}
@@ -107,7 +93,7 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
   }
 
   public componentDidMount() {
-    this.props.getRuns(this.props.params.id)
+    this.props.getRuns(this.props.match.params.id)
   }
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
@@ -130,23 +116,25 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
   }
 
   private handleRunTask = () => {
-    const {onRunTask, params, getRuns} = this.props
-    onRunTask(params.id)
-    getRuns(params.id)
+    const {onRunTask, match, getRuns} = this.props
+    onRunTask(match.params.id)
+    getRuns(match.params.id)
   }
 
   private handleEditTask = () => {
     const {
-      router,
+      history,
       currentTask,
-      params: {orgID},
+      match: {
+        params: {orgID},
+      },
     } = this.props
 
-    router.push(`/orgs/${orgID}/tasks/${currentTask.id}`)
+    history.push(`/orgs/${orgID}/tasks/${currentTask.id}/edit`)
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {runs, runStatus, currentTask} = state.resources.tasks
 
   return {
@@ -156,12 +144,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getRuns: getRuns,
   onRunTask: runTask,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<OwnProps>(TaskRunsPage))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TaskRunsPage))

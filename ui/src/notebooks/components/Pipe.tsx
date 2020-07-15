@@ -12,7 +12,7 @@ const Pipe: FC<PipeProp> = props => {
 
   return useMemo(
     () => createElement(PIPE_DEFINITIONS[data.type].component, props),
-    [props.data, props.results]
+    [props.data, props.results] // eslint-disable-line react-hooks/exhaustive-deps
   )
 }
 

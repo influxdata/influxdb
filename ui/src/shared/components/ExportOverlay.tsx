@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -33,11 +33,8 @@ interface OwnProps {
   isVisible: boolean
 }
 
-interface DispatchProps {
-  onCreateTemplateFromResource: typeof createTemplateFromResource
-}
-
-type Props = OwnProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 class ExportOverlay extends PureComponent<Props> {
   public static defaultProps = {
@@ -156,8 +153,10 @@ class ExportOverlay extends PureComponent<Props> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onCreateTemplateFromResource: createTemplateFromResource,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(ExportOverlay)
+const connector = connect(null, mdtp)
+
+export default connector(ExportOverlay)

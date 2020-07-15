@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/task/backend"
@@ -24,6 +25,10 @@ const (
 )
 
 var _ scheduler.Executor = (*Executor)(nil)
+
+type PermissionService interface {
+	FindPermissionForUser(ctx context.Context, UserID influxdb.ID) (influxdb.PermissionSet, error)
+}
 
 type Promise interface {
 	ID() influxdb.ID
@@ -51,6 +56,7 @@ type executorConfig struct {
 	maxWorkers             int
 	systemBuildCompiler    CompilerBuilderFunc
 	nonSystemBuildCompiler CompilerBuilderFunc
+	flagger                feature.Flagger
 }
 
 type executorOption func(*executorConfig)
@@ -83,8 +89,15 @@ func WithNonSystemCompilerBuilder(builder CompilerBuilderFunc) executorOption {
 	}
 }
 
+// WithFlagger is an Executor option that allows us to use a feature flagger in the executor
+func WithFlagger(flagger feature.Flagger) executorOption {
+	return func(o *executorConfig) {
+		o.flagger = flagger
+	}
+}
+
 // NewExecutor creates a new task executor
-func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
+func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, ts influxdb.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
 	cfg := &executorConfig{
 		maxWorkers:             defaultMaxWorkers,
 		systemBuildCompiler:    NewASTCompiler,
@@ -99,7 +112,7 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.Authorizati
 		ts:  ts,
 		tcs: tcs,
 		qs:  qs,
-		as:  as,
+		ps:  us,
 
 		currentPromises:        sync.Map{},
 		promiseQueue:           make(chan *promise, maxPromises),
@@ -107,6 +120,7 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, as influxdb.Authorizati
 		limitFunc:              func(*influxdb.Task, *influxdb.Run) error { return nil }, // noop
 		systemBuildCompiler:    cfg.systemBuildCompiler,
 		nonSystemBuildCompiler: cfg.nonSystemBuildCompiler,
+		flagger:                cfg.flagger,
 	}
 
 	e.metrics = NewExecutorMetrics(e)
@@ -126,7 +140,7 @@ type Executor struct {
 	tcs backend.TaskControlService
 
 	qs query.QueryService
-	as influxdb.AuthorizationService
+	ps PermissionService
 
 	metrics *ExecutorMetrics
 
@@ -144,6 +158,7 @@ type Executor struct {
 
 	nonSystemBuildCompiler CompilerBuilderFunc
 	systemBuildCompiler    CompilerBuilderFunc
+	flagger                feature.Flagger
 }
 
 // SetLimitFunc sets the limit func for this task executor
@@ -276,16 +291,31 @@ func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promi
 	if err != nil {
 		return nil, err
 	}
-	if !t.Authorization.GetUserID().Valid() {
-		t.Authorization.UserID = t.OwnerID
+
+	var perm influxdb.PermissionSet
+	if e.flagger != nil && feature.UseUserPermission().Enabled(ctx, e.flagger) {
+		perm, err = e.ps.FindPermissionForUser(ctx, t.OwnerID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if perm == nil {
+		perm = t.Authorization.Permissions
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	// create promise
 	p := &promise{
-		run:        run,
-		task:       t,
-		auth:       t.Authorization,
+		run:  run,
+		task: t,
+		auth: &influxdb.Authorization{
+			Status:      influxdb.Active,
+			UserID:      t.OwnerID,
+			ID:          influxdb.ID(1),
+			OrgID:       t.OrganizationID,
+			Permissions: perm,
+		},
 		createdAt:  time.Now().UTC(),
 		done:       make(chan struct{}),
 		ctx:        ctx,
@@ -442,7 +472,7 @@ func (w *worker) executeQuery(p *promise) {
 	// start
 	w.start(p)
 
-	ctx = icontext.SetAuthorizer(ctx, p.task.Authorization)
+	ctx = icontext.SetAuthorizer(ctx, p.auth)
 
 	buildCompiler := w.systemBuildCompiler
 	if p.task.Type != influxdb.TaskSystemType {

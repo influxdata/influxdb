@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {InjectedRouter} from 'react-router'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import TaskForm from 'src/tasks/components/TaskForm'
@@ -26,26 +25,10 @@ import {
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
-import {AppState, TaskOptions, TaskOptionKeys, TaskSchedule} from 'src/types'
+import {AppState, TaskOptionKeys, TaskSchedule} from 'src/types'
 
-interface OwnProps {
-  router: InjectedRouter
-}
-
-interface StateProps {
-  taskOptions: TaskOptions
-  newScript: string
-}
-
-interface DispatchProps {
-  setNewScript: typeof setNewScript
-  saveNewScript: typeof saveNewScript
-  setTaskOption: typeof setTaskOption
-  clearTask: typeof clearTask
-  cancel: typeof cancel
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 class TaskPage extends PureComponent<Props> {
   constructor(props) {
@@ -136,7 +119,7 @@ class TaskPage extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {tasks} = state.resources
   const {taskOptions, newScript} = tasks
 
@@ -146,7 +129,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   setNewScript,
   saveNewScript,
   setTaskOption,
@@ -154,4 +137,6 @@ const mdtp: DispatchProps = {
   cancel,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(TaskPage)
+const connector = connect(mstp, mdtp)
+
+export default connector(TaskPage)

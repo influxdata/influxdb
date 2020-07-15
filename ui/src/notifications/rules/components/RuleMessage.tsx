@@ -48,7 +48,7 @@ const RuleMessage: FC<Props> = ({endpoints, rule}) => {
     if (!rule.endpointID && endpoints.length) {
       onSelectEndpoint(endpoints[0].id)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Grid.Row>

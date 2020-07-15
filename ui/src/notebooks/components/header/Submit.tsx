@@ -6,6 +6,7 @@ import QueryProvider, {QueryContext} from 'src/notebooks/context/query'
 import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
 import {TimeContext} from 'src/notebooks/context/time'
 import {IconFont} from '@influxdata/clockface'
+import {notify} from 'src/shared/actions/notifications'
 
 // Utils
 import {event} from 'src/notebooks/shared/event'
@@ -16,20 +17,22 @@ import {RemoteDataState} from 'src/types'
 const PREVIOUS_REGEXP = /__PREVIOUS_RESULT__/g
 const COMMENT_REMOVER = /(\/\*([\s\S]*?)\*\/)|(\/\/(.*)$)/gm
 
+const fakeNotify = notify
+
 export const Submit: FC = () => {
   const {query} = useContext(QueryContext)
   const {id, pipes, updateResult, updateMeta} = useContext(NotebookContext)
   const {timeContext} = useContext(TimeContext)
   const [isLoading, setLoading] = useState(RemoteDataState.NotStarted)
   const time = timeContext[id]
+  const tr = !!time && time.range
 
   useEffect(() => {
     submit()
-  }, [!!time && time.range])
+  }, [tr]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const submit = () => {
+  const submit = async () => {
     event('Notebook Submit Button Clicked')
-
     setLoading(RemoteDataState.Loading)
     Promise.all(
       pipes
@@ -87,7 +90,9 @@ export const Submit: FC = () => {
             })
             .catch(e => {
               queryStruct.instances.forEach(index => {
-                updateMeta(index, {loading: RemoteDataState.Error} as PipeMeta)
+                updateMeta(index, {
+                  loading: RemoteDataState.Error,
+                } as PipeMeta)
                 updateResult(index, {
                   error: e.message,
                 } as BothResults)
@@ -95,6 +100,7 @@ export const Submit: FC = () => {
             })
         })
     )
+
       .then(() => {
         event('Notebook Submit Resolved')
 
@@ -118,6 +124,7 @@ export const Submit: FC = () => {
       submitButtonDisabled={!hasQueries}
       queryStatus={isLoading}
       onSubmit={submit}
+      onNotify={fakeNotify}
     />
   )
 }

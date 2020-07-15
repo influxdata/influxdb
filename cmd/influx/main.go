@@ -31,10 +31,14 @@ const maxTCPConnections = 10
 var (
 	version = "dev"
 	commit  = "none"
-	date    = time.Now().UTC().Format(time.RFC3339)
+	date    = ""
 )
 
 func main() {
+	if len(date) == 0 {
+		date = time.Now().UTC().Format(time.RFC3339)
+	}
+
 	influxCmd := influxCmd()
 	if err := influxCmd.Execute(); err != nil {
 		seeHelp(influxCmd, nil)
@@ -531,6 +535,16 @@ func setViperOptions() {
 	viper.SetEnvPrefix("INFLUX")
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+}
+
+func enforceFlagValidation(cmd *cobra.Command) {
+	cmd.FParseErrWhitelist = cobra.FParseErrWhitelist{
+		// disable unknown flags when short flag can conflict with a long flag.
+		// An example here is the --filter flag provided as -filter=foo will overwrite
+		// the -f flag to -f=ilter=foo, which generates a bad filename.
+		// remedies issue: https://github.com/influxdata/influxdb/issues/18850
+		UnknownFlags: false,
+	}
 }
 
 func writeJSON(w io.Writer, v interface{}) error {

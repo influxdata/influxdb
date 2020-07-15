@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/influxdb/v2/authorizer"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	httpmock "github.com/influxdata/influxdb/v2/http/mock"
-	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -19,7 +18,7 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-const namespace = "testing"
+const namespace = "templates"
 
 type fixture struct {
 	Org             *influxdb.Organization
@@ -29,14 +28,13 @@ type fixture struct {
 }
 
 func setup(t *testing.T) (func(auth influxdb.Authorizer) *httptest.Server, func(serverUrl string) DocumentService, fixture) {
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 	ctx := context.Background()
 	// Need this to make resource creation work.
 	// We are not testing authorization in the setup.
 	ctx = icontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(true, nil))
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatal(err)
-	}
+
+	store := NewTestInmemStore(t)
+	svc := kv.NewService(zaptest.NewLogger(t), store)
 	ds, err := svc.CreateDocumentStore(ctx, namespace)
 	if err != nil {
 		t.Fatalf("failed to create document store: %v", err)

@@ -27,13 +27,9 @@ func initBoltKeyValueLog(f influxdbtesting.KeyValueLogFields, t *testing.T) (inf
 	}
 }
 
-func initKeyValueLog(s kv.Store, f influxdbtesting.KeyValueLogFields, t *testing.T) (influxdb.KeyValueLog, func()) {
-	svc := kv.NewService(zaptest.NewLogger(t), s)
-
+func initKeyValueLog(s kv.SchemaStore, f influxdbtesting.KeyValueLogFields, t *testing.T) (influxdb.KeyValueLog, func()) {
 	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing organization service: %v", err)
-	}
+	svc := kv.NewService(zaptest.NewLogger(t), s)
 
 	for _, e := range f.LogEntries {
 		if err := svc.AddLogEntry(ctx, e.Key, e.Value, e.Time); err != nil {

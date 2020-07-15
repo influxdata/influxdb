@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import _ from 'lodash'
 
 // Components
@@ -14,31 +14,24 @@ import {
 } from 'src/templates/actions/thunks'
 
 // Types
-import {DocumentCreate} from '@influxdata/influx'
 import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
 
 interface OwnProps {
-  params: {id: string}
+  match: {id: string}
 }
 
-interface DispatchProps {
-  convertToTemplate: typeof convertToTemplateAction
-  clearExportTemplate: typeof clearExportTemplateAction
-}
-
-interface StateProps {
-  exportTemplate: DocumentCreate
-  status: RemoteDataState
-}
-
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps &
+  ReduxProps &
+  RouteComponentProps<{orgID: string; id: string}>
 
 @ErrorHandling
 class TemplateExportOverlay extends PureComponent<Props> {
   public componentDidMount() {
     const {
-      params: {id},
+      match: {
+        params: {id},
+      },
       convertToTemplate,
     } = this.props
     convertToTemplate(id)
@@ -66,24 +59,23 @@ class TemplateExportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router, clearExportTemplate} = this.props
+    const {history, clearExportTemplate} = this.props
 
-    router.goBack()
+    history.goBack()
     clearExportTemplate()
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   exportTemplate: state.resources.templates.exportTemplate.item,
   status: state.resources.templates.exportTemplate.status,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   convertToTemplate: convertToTemplateAction,
   clearExportTemplate: clearExportTemplateAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<Props>(TemplateExportOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TemplateExportOverlay))

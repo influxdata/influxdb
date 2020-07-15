@@ -16,14 +16,12 @@ var _ influxdb.BucketService = (*AuthedBucketService)(nil)
 // against it appropriately.
 type AuthedBucketService struct {
 	s influxdb.BucketService
-	u influxdb.UserResourceMappingService
 }
 
 // NewAuthedBucketService constructs an instance of an authorizing bucket serivce.
-func NewAuthedBucketService(s influxdb.BucketService, u influxdb.UserResourceMappingService) *AuthedBucketService {
+func NewAuthedBucketService(s influxdb.BucketService) *AuthedBucketService {
 	return &AuthedBucketService{
 		s: s,
-		u: u,
 	}
 }
 

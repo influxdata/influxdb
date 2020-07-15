@@ -13,7 +13,8 @@ register({
     activeQuery: 0,
     queries: [
       {
-        text: '// Write Flux script here',
+        text:
+          '// Write Flux script here\n// use __PREVIOUS_RESULT__ to continue building from the previous cell',
         editMode: 'advanced',
         builderConfig: {
           buckets: [],

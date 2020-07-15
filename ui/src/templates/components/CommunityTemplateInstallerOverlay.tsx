@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Alignment, Orientation, Overlay, Tabs} from '@influxdata/clockface'
@@ -14,7 +14,8 @@ import {ComponentStatus} from '@influxdata/clockface'
 interface OwnProps {
   isVisible?: boolean
   onDismissOverlay: () => void
-  onSubmit: (importString: string, orgID: string) => void
+  onInstall: () => void
+  resourceCount: number
   status?: ComponentStatus
   templateName: string
   updateStatus?: (status: ComponentStatus) => void
@@ -31,7 +32,7 @@ enum Tab {
 
 type ActiveTab = Tab.IncludedResources | Tab.Readme
 
-type Props = OwnProps & WithRouterProps
+type Props = OwnProps & RouteComponentProps<{orgID: string}>
 
 class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
   Props,
@@ -46,9 +47,7 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
   }
 
   public render() {
-    const {isVisible, templateName} = this.props
-
-    const resourceCount = 5
+    const {isVisible, onInstall, resourceCount, templateName} = this.props
 
     return (
       <Overlay visible={isVisible}>
@@ -61,7 +60,7 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
             <CommunityTemplateName
               templateName={templateName}
               resourceCount={resourceCount}
-              // onClickInstall={() => {}}
+              onClickInstall={onInstall}
             />
             <Tabs.Container orientation={Orientation.Horizontal}>
               <Tabs.Tabs alignment={Alignment.Center}>
@@ -103,6 +102,6 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
   }
 }
 
-export const CommunityTemplateInstallerOverlay = withRouter<OwnProps>(
+export const CommunityTemplateInstallerOverlay = withRouter(
   CommunityTemplateInstallerOverlayUnconnected
 )

@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -24,18 +24,10 @@ import {
 } from 'src/timeMachine/utils/queryBuilder'
 
 // Types
-import {AppState, DashboardQuery} from 'src/types'
+import {AppState} from 'src/types'
 
-interface StateProps {
-  activeQuery: DashboardQuery
-}
-
-interface DispatchProps {
-  onEditWithBuilder: typeof editActiveQueryWithBuilder
-  onEditAsFlux: typeof editActiveQueryAsFlux
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 class TimeMachineQueriesSwitcher extends PureComponent<Props> {
   public render() {
@@ -97,7 +89,6 @@ const mdtp = {
   onEditAsFlux: editActiveQueryAsFlux,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(TimeMachineQueriesSwitcher)
+const connector = connect(mstp, mdtp)
+
+export default connector(TimeMachineQueriesSwitcher)

@@ -61,6 +61,9 @@ type UserService interface {
 
 	// Removes a user by ID.
 	DeleteUser(ctx context.Context, id ID) error
+
+	// FindPermissionForUser
+	FindPermissionForUser(ctx context.Context, UserID ID) (PermissionSet, error)
 }
 
 // UserUpdate represents updates to a user.

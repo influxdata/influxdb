@@ -98,7 +98,7 @@ class RateLimitAlert extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     cloud: {limits},
   } = state
@@ -112,4 +112,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}>(mstp, null)(RateLimitAlert)
+export default connect<StateProps>(mstp)(RateLimitAlert)

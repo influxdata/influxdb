@@ -1,7 +1,7 @@
 // Libraries
 import {useMemo} from 'react'
 import {NumericColumnData} from '@influxdata/giraffe'
-import {isNull} from 'lodash'
+import {isNull, isNumber} from 'lodash'
 
 // Utils
 import {useOneWayState} from 'src/shared/utils/useOneWayState'
@@ -47,12 +47,16 @@ export const useVisXDomainSettings = (
     }
 
     return getValidRange(data, timeRange)
-  }, [storedDomain, data])
+  }, [storedDomain, data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [domain, setDomain] = useOneWayState(initialDomain)
   const resetDomain = () => setDomain(initialDomain)
 
   return [domain, setDomain, resetDomain]
+}
+
+const isValidStoredDomainValue = (value): boolean => {
+  return isNumber(value) && !Number.isNaN(value) && Number.isFinite(value)
 }
 
 export const getRemainingRange = (
@@ -64,10 +68,12 @@ export const getRemainingRange = (
   if (Array.isArray(range) && range.length >= 2) {
     const startTime = getStartTime(timeRange)
     const endTime = getEndTime(timeRange)
-    const start = storedDomain[0]
+    const start = isValidStoredDomainValue(storedDomain[0])
       ? storedDomain[0]
       : Math.min(startTime, range[0])
-    const end = storedDomain[1] ? storedDomain[1] : Math.max(endTime, range[1])
+    const end = isValidStoredDomainValue(storedDomain[1])
+      ? storedDomain[1]
+      : Math.max(endTime, range[1])
     return [start, end]
   }
   return range
@@ -89,7 +95,7 @@ export const useVisYDomainSettings = (
       return getRemainingRange(data, timeRange, storedDomain)
     }
     return storedDomain
-  }, [storedDomain, data])
+  }, [storedDomain, data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [domain, setDomain] = useOneWayState(initialDomain)
   const resetDomain = () => setDomain(initialDomain)

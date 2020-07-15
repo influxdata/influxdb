@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import TransformToolbarFunctions from 'src/timeMachine/components/fluxFunctionsToolbar/TransformToolbarFunctions'
@@ -25,15 +25,8 @@ interface OwnProps {
   onInsertFluxFunction: (func: FluxToolbarFunction) => void
 }
 
-interface StateProps {
-  activeQueryText: string
-}
-
-interface DispatchProps {
-  onSetActiveQueryText: (script: string) => void
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 interface State {
   searchTerm: string
@@ -93,7 +86,6 @@ const mdtp = {
   onSetActiveQueryText: setActiveQueryText,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(ErrorHandling(FluxFunctionsToolbar))
+const connector = connect(mstp, mdtp)
+
+export default connector(ErrorHandling(FluxFunctionsToolbar))

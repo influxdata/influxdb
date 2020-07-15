@@ -11,7 +11,7 @@ describe('Dashboard', () => {
 
     cy.fixture('routes').then(({orgs}) => {
       cy.get('@org').then(({id: orgID}: Organization) => {
-        cy.visit(`${orgs}/${orgID}/dashboards`)
+        cy.visit(`${orgs}/${orgID}/dashboards-list`)
       })
     })
   })
@@ -34,7 +34,7 @@ describe('Dashboard', () => {
 
     cy.fixture('routes').then(({orgs}) => {
       cy.get('@org').then(({id: orgID}: Organization) => {
-        cy.visit(`${orgs}/${orgID}/dashboards`)
+        cy.visit(`${orgs}/${orgID}/dashboards-list`)
       })
     })
 
@@ -449,12 +449,12 @@ describe('Dashboard', () => {
               .clear()
               .type(
                 `from(bucket: v.bucketsCSV)
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r["_measurement"] == "m")
-  |> filter(fn: (r) => r["_field"] == "v")
-  |> filter(fn: (r) => r["tk1"] == "tv1")
-  |> aggregateWindow(every: v.windowPeriod, fn: max)
-  |> yield(name: "max")`,
+|> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+|> filter(fn: (r) => r["_measurement"] == "m")
+|> filter(fn: (r) => r["_field"] == "v")
+|> filter(fn: (r) => r["tk1"] == "tv1")
+|> aggregateWindow(every: v.windowPeriod, fn: max)
+|> yield(name: "max")`,
                 {force: true, delay: 1}
               )
 
@@ -472,6 +472,101 @@ describe('Dashboard', () => {
             cy.getByTestID('giraffe-layer-line').should('exist')
           })
         })
+      })
+    })
+
+    it('ensures that dependent variables load one another accordingly', () => {
+      cy.get('@org').then(({id: orgID}: Organization) => {
+        cy.createDashboard(orgID).then(({body: dashboard}) => {
+          const now = Date.now()
+          cy.writeData([
+            `test,container_name=cool dopeness=12 ${now - 1000}000000`,
+            `test,container_name=beans dopeness=18 ${now - 1200}000000`,
+            `test,container_name=cool dopeness=14 ${now - 1400}000000`,
+            `test,container_name=beans dopeness=10 ${now - 1600}000000`,
+          ])
+          cy.createCSVVariable(orgID, 'static', ['beans', 'defbuck'])
+          cy.createQueryVariable(
+            orgID,
+            'dependent',
+            `import "influxdata/influxdb/v1"
+            v1.tagValues(bucket: v.static, tag: "container_name") |> keep(columns: ["_value"])`
+          )
+          cy.createQueryVariable(
+            orgID,
+            'build',
+            `import "influxdata/influxdb/v1"
+            import "strings"
+            v1.tagValues(bucket: v.static, tag: "container_name") |> filter(fn: (r) => strings.hasSuffix(v: r._value, suffix: v.dependent))`
+          )
+
+          cy.fixture('routes').then(({orgs}) => {
+            cy.visit(`${orgs}/${orgID}/dashboards/${dashboard.id}`)
+          })
+        })
+
+        cy.getByTestID('add-cell--button').click()
+        cy.getByTestID('switch-to-script-editor').should('be.visible')
+        cy.getByTestID('switch-to-script-editor').click()
+        cy.getByTestID('toolbar-tab').click()
+
+        cy
+          .getByTestID('flux-editor')
+          .should('be.visible')
+          .click()
+          .focused().type(`from(bucket: v.static)
+|> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+|> filter(fn: (r) => r["_measurement"] == "test")
+|> filter(fn: (r) => r["_field"] == "dopeness")
+|> filter(fn: (r) => r["container_name"] == v.build)`)
+
+        cy.getByTestID('save-cell--button').click()
+
+        // the default bucket selection should have no results and load all three variables
+        // even though only two variables are being used (because 1 is dependent upon another)
+        cy.getByTestID('variable-dropdown')
+          .should('have.length', 3)
+          .eq(0)
+          .should('contain', 'beans')
+
+        // and cause the rest to exist in loading states
+        cy.getByTestID('variable-dropdown')
+          .eq(1)
+          .should('contain', 'Loading')
+
+        cy.getByTestIDSubStr('cell--view-empty')
+
+        // But selecting a nonempty bucket should load some data
+        cy.getByTestID('variable-dropdown--button')
+          .eq(0)
+          .click()
+        cy.get(`#defbuck`).click()
+
+        // default select the first result
+        cy.getByTestID('variable-dropdown')
+          .eq(1)
+          .should('contain', 'beans')
+
+        // and also load the third result
+        cy.getByTestID('variable-dropdown--button')
+          .eq(2)
+          .should('contain', 'beans')
+          .click()
+        cy.get(`#cool`).click()
+
+        // and also load the second result
+        cy.getByTestID('variable-dropdown')
+          .eq(1)
+          .should('contain', 'cool')
+
+        // updating the third variable should update the second
+        cy.getByTestID('variable-dropdown--button')
+          .eq(2)
+          .click()
+        cy.get(`#beans`).click()
+        cy.getByTestID('variable-dropdown')
+          .eq(1)
+          .should('contain', 'beans')
       })
     })
 
@@ -585,7 +680,7 @@ describe('Dashboard', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashWithViewAndVar(orgID).then(() => {
         cy.fixture('routes').then(({orgs}) => {
-          cy.visit(`${orgs}/${orgID}/dashboards`)
+          cy.visit(`${orgs}/${orgID}/dashboards-list`)
           cy.getByTestID('dashboard-card--name').click()
           cy.get('.cell--view').should('have.length', 1)
         })

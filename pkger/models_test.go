@@ -13,15 +13,15 @@ import (
 func TestPkg(t *testing.T) {
 	t.Run("Summary", func(t *testing.T) {
 		t.Run("buckets returned in asc order by name", func(t *testing.T) {
-			pkg := Pkg{
+			pkg := Template{
 				mBuckets: map[string]*bucket{
 					"buck_2": {
 						Description:    "desc2",
-						identity:       identity{name: &references{val: "pkgName2"}, displayName: &references{val: "name2"}},
+						identity:       identity{name: &references{val: "metaName2"}, displayName: &references{val: "name2"}},
 						RetentionRules: retentionRules{newRetentionRule(2 * time.Hour)},
 					},
 					"buck_1": {
-						identity:       identity{name: &references{val: "pkgName1"}, displayName: &references{val: "name1"}},
+						identity:       identity{name: &references{val: "metaName1"}, displayName: &references{val: "name1"}},
 						Description:    "desc1",
 						RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 					},
@@ -35,14 +35,14 @@ func TestPkg(t *testing.T) {
 				assert.Zero(t, buck.ID)
 				assert.Zero(t, buck.OrgID)
 				assert.Equal(t, "desc"+strconv.Itoa(i), buck.Description)
-				assert.Equal(t, "pkgName"+strconv.Itoa(i), buck.PkgName)
+				assert.Equal(t, "metaName"+strconv.Itoa(i), buck.MetaName)
 				assert.Equal(t, "name"+strconv.Itoa(i), buck.Name)
 				assert.Equal(t, time.Duration(i)*time.Hour, buck.RetentionPeriod)
 			}
 		})
 
 		t.Run("labels returned in asc order by name", func(t *testing.T) {
-			pkg := Pkg{
+			pkg := Template{
 				mLabels: map[string]*label{
 					"2": {
 						identity:    identity{name: &references{val: "pkgName2"}, displayName: &references{val: "name2"}},
@@ -61,13 +61,13 @@ func TestPkg(t *testing.T) {
 
 			require.Len(t, summary.Labels, len(pkg.mLabels))
 			label1 := summary.Labels[0]
-			assert.Equal(t, "pkgName1", label1.PkgName)
+			assert.Equal(t, "pkgName1", label1.MetaName)
 			assert.Equal(t, "name1", label1.Name)
 			assert.Equal(t, "desc1", label1.Properties.Description)
 			assert.Equal(t, "peru", label1.Properties.Color)
 
 			label2 := summary.Labels[1]
-			assert.Equal(t, "pkgName2", label2.PkgName)
+			assert.Equal(t, "pkgName2", label2.MetaName)
 			assert.Equal(t, "name2", label2.Name)
 			assert.Equal(t, "desc2", label2.Properties.Description)
 			assert.Equal(t, "blurple", label2.Properties.Color)
@@ -94,19 +94,19 @@ func TestPkg(t *testing.T) {
 			}
 			bucket1.labels = append(bucket1.labels, label1)
 
-			pkg := Pkg{
-				mBuckets: map[string]*bucket{bucket1.PkgName(): bucket1},
-				mLabels:  map[string]*label{label1.PkgName(): label1},
+			pkg := Template{
+				mBuckets: map[string]*bucket{bucket1.MetaName(): bucket1},
+				mLabels:  map[string]*label{label1.MetaName(): label1},
 			}
 
 			summary := pkg.Summary()
 
 			require.Len(t, summary.LabelMappings, 1)
 			mapping1 := summary.LabelMappings[0]
-			assert.Equal(t, bucket1.PkgName(), mapping1.ResourcePkgName)
+			assert.Equal(t, bucket1.MetaName(), mapping1.ResourceMetaName)
 			assert.Equal(t, bucket1.Name(), mapping1.ResourceName)
 			assert.Equal(t, influxdb.BucketsResourceType, mapping1.ResourceType)
-			assert.Equal(t, label1.PkgName(), mapping1.LabelPkgName)
+			assert.Equal(t, label1.MetaName(), mapping1.LabelMetaName)
 			assert.Equal(t, label1.Name(), mapping1.LabelName)
 		})
 	})
@@ -124,7 +124,7 @@ func TestPkg(t *testing.T) {
 					name: "new bucket",
 					resource: DiffBucket{
 						DiffIdentifier: DiffIdentifier{
-							PkgName: "new bucket",
+							MetaName: "new bucket",
 						},
 						New: DiffBucketValues{
 							Description: "new desc",
@@ -136,8 +136,8 @@ func TestPkg(t *testing.T) {
 					name: "existing bucket with no changes",
 					resource: DiffBucket{
 						DiffIdentifier: DiffIdentifier{
-							ID:      3,
-							PkgName: "new bucket",
+							ID:       3,
+							MetaName: "new bucket",
 						},
 						New: DiffBucketValues{
 							Description: "new desc",
@@ -160,8 +160,8 @@ func TestPkg(t *testing.T) {
 					name: "existing bucket with desc changes",
 					resource: DiffBucket{
 						DiffIdentifier: DiffIdentifier{
-							ID:      3,
-							PkgName: "existing bucket",
+							ID:       3,
+							MetaName: "existing bucket",
 						},
 						New: DiffBucketValues{
 							Description: "new desc",
@@ -184,8 +184,8 @@ func TestPkg(t *testing.T) {
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
 						DiffIdentifier: DiffIdentifier{
-							ID:      3,
-							PkgName: "existing bucket",
+							ID:       3,
+							MetaName: "existing bucket",
 						},
 						New: DiffBucketValues{
 							Description: "new desc",
@@ -204,8 +204,8 @@ func TestPkg(t *testing.T) {
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
 						DiffIdentifier: DiffIdentifier{
-							ID:      3,
-							PkgName: "existing bucket",
+							ID:       3,
+							MetaName: "existing bucket",
 						},
 						New: DiffBucketValues{
 							Description: "new desc",
@@ -228,8 +228,8 @@ func TestPkg(t *testing.T) {
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
 						DiffIdentifier: DiffIdentifier{
-							ID:      3,
-							PkgName: "existing bucket",
+							ID:       3,
+							MetaName: "existing bucket",
 						},
 						New: DiffBucketValues{
 							Description: "new desc",
@@ -258,7 +258,7 @@ func TestPkg(t *testing.T) {
 					name: "new label",
 					resource: DiffLabel{
 						DiffIdentifier: DiffIdentifier{
-							PkgName: "new label",
+							MetaName: "new label",
 						},
 						New: DiffLabelValues{
 							Name:        "new label",
@@ -272,8 +272,8 @@ func TestPkg(t *testing.T) {
 					name: "existing label with no changes",
 					resource: DiffLabel{
 						DiffIdentifier: DiffIdentifier{
-							ID:      1,
-							PkgName: "existing label",
+							ID:       1,
+							MetaName: "existing label",
 						},
 						New: DiffLabelValues{
 							Name:        "existing label",
@@ -292,8 +292,8 @@ func TestPkg(t *testing.T) {
 					name: "existing label with changes",
 					resource: DiffLabel{
 						DiffIdentifier: DiffIdentifier{
-							ID:      1,
-							PkgName: "existing label",
+							ID:       1,
+							MetaName: "existing label",
 						},
 						New: DiffLabelValues{
 							Name:        "existing label",
@@ -312,7 +312,7 @@ func TestPkg(t *testing.T) {
 					name: "new variable",
 					resource: DiffVariable{
 						DiffIdentifier: DiffIdentifier{
-							PkgName: "new var",
+							MetaName: "new var",
 						},
 						New: DiffVariableValues{
 							Name:        "new var",
@@ -329,8 +329,8 @@ func TestPkg(t *testing.T) {
 					name: "existing variable no changes",
 					resource: DiffVariable{
 						DiffIdentifier: DiffIdentifier{
-							ID:      2,
-							PkgName: "new var",
+							ID:       2,
+							MetaName: "new var",
 						},
 						New: DiffVariableValues{
 							Name:        "new var",
@@ -355,8 +355,8 @@ func TestPkg(t *testing.T) {
 					name: "existing variable with desc changes",
 					resource: DiffVariable{
 						DiffIdentifier: DiffIdentifier{
-							ID:      3,
-							PkgName: "new var",
+							ID:       3,
+							MetaName: "new var",
 						},
 						New: DiffVariableValues{
 							Name:        "new var",
@@ -380,8 +380,8 @@ func TestPkg(t *testing.T) {
 					name: "existing variable with constant arg changes",
 					resource: DiffVariable{
 						DiffIdentifier: DiffIdentifier{
-							ID:      3,
-							PkgName: "new var",
+							ID:       3,
+							MetaName: "new var",
 						},
 						New: DiffVariableValues{
 							Name:        "new var",
@@ -405,8 +405,8 @@ func TestPkg(t *testing.T) {
 					name: "existing variable with map arg changes",
 					resource: DiffVariable{
 						DiffIdentifier: DiffIdentifier{
-							ID:      3,
-							PkgName: "new var",
+							ID:       3,
+							MetaName: "new var",
 						},
 						New: DiffVariableValues{
 							Name:        "new var",
@@ -430,8 +430,8 @@ func TestPkg(t *testing.T) {
 					name: "existing variable with query arg changes",
 					resource: DiffVariable{
 						DiffIdentifier: DiffIdentifier{
-							ID:      3,
-							PkgName: "new var",
+							ID:       3,
+							MetaName: "new var",
 						},
 						New: DiffVariableValues{
 							Name:        "new var",
@@ -490,7 +490,7 @@ func TestPkg(t *testing.T) {
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
-				testfileRunner(t, tt.pkgFile, func(t *testing.T, pkg *Pkg) {
+				testfileRunner(t, tt.pkgFile, func(t *testing.T, pkg *Template) {
 					contained := pkg.Contains(tt.kind, tt.validName)
 					assert.True(t, contained)
 

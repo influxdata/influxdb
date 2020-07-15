@@ -9,14 +9,12 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestLabels(t *testing.T) {
-	s := func() kv.Store {
-		return inmem.NewKVStore()
-	}
-
 	setup := func(t *testing.T, store *label.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateLabel(context.Background(), tx, &influxdb.Label{
@@ -227,7 +225,14 @@ func TestLabels(t *testing.T) {
 
 	for _, testScenario := range tt {
 		t.Run(testScenario.name, func(t *testing.T) {
-			ts, err := label.NewStore(s())
+			t.Parallel()
+
+			store := inmem.NewKVStore()
+			if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
+				t.Fatal(err)
+			}
+
+			ts, err := label.NewStore(store)
 			if err != nil {
 				t.Fatal(err)
 			}

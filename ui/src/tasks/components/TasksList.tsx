@@ -11,8 +11,6 @@ import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 import {Task} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
-import {addTaskLabel, runTask} from 'src/tasks/actions/thunks'
-import {checkTaskLimits as checkTaskLimitsAction} from 'src/cloud/actions/limits'
 import {TaskSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Selectors
@@ -27,15 +25,15 @@ interface Props {
   onClone: (task: Task) => void
   onFilterChange: (searchTerm: string) => void
   totalCount: number
-  onAddTaskLabel: typeof addTaskLabel
-  onRunTask: typeof runTask
+  onAddTaskLabel: any
+  onRunTask: any
   onUpdate: (name: string, taskID: string) => void
   filterComponent?: JSX.Element
   onImportTask: () => void
   sortKey: TaskSortKey
   sortDirection: Sort
   sortType: SortTypes
-  checkTaskLimits: typeof checkTaskLimitsAction
+  checkTaskLimits: any
   onImportFromTemplate: () => void
 }
 

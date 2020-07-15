@@ -21,10 +21,16 @@ func MWTracing() SVCMiddleware {
 
 var _ SVC = (*traceMW)(nil)
 
-func (s *traceMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
+func (s *traceMW) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (Stack, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return s.next.InitStack(ctx, userID, newStack)
+}
+
+func (s *traceMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+	return s.next.UninstallStack(ctx, identifiers)
 }
 
 func (s *traceMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
@@ -57,7 +63,7 @@ func (s *traceMW) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, erro
 	return s.next.UpdateStack(ctx, upd)
 }
 
-func (s *traceMW) Export(ctx context.Context, opts ...ExportOptFn) (pkg *Pkg, err error) {
+func (s *traceMW) Export(ctx context.Context, opts ...ExportOptFn) (template *Template, err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return s.next.Export(ctx, opts...)

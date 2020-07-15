@@ -36,7 +36,7 @@ export const useOneWayReducer = <R extends Reducer<any, any>>(
 
       return reducer(state, action)
     },
-    []
+    [reducer]
   )
 
   const [reducerState, dispatch] = useReducer(wrappedReducer, defaultState)

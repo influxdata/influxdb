@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
-import {Link} from 'react-router'
-import {connect} from 'react-redux'
+import {Link} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {TreeNav} from '@influxdata/clockface'
@@ -20,24 +20,14 @@ import {
 } from 'src/shared/constants'
 
 // Types
-import {AppState, Organization} from 'src/types'
-import {MeState} from 'src/shared/reducers/me'
+import {AppState} from 'src/types'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getNavItemActivation} from '../utils'
 
-interface StateProps {
-  org: Organization
-  me: MeState
-}
-
-interface DispatchProps {
-  handleShowOverlay: typeof showOverlay
-  handleDismissOverlay: typeof dismissOverlay
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const UserWidget: FC<Props> = ({
   org,
@@ -152,4 +142,5 @@ const mdtp = {
   handleDismissOverlay: dismissOverlay,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(UserWidget)
+const connector = connect(mstp, mdtp)
+export default connector(UserWidget)

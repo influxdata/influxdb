@@ -1,8 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
-import _ from 'lodash'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -32,7 +31,6 @@ export interface OnboardingStepProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetStepStatus: (index: number, status: StepStatus) => void
-  onSetSubstepIndex: (index: number, subStep: number | 'streaming') => void
   stepStatuses: StepStatus[]
   stepTitles: string[]
   stepTestIds: string[]
@@ -51,25 +49,10 @@ interface OwnProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetCurrentStepIndex: (stepNumber: number) => void
-  onSetSubstepIndex: (stepNumber: number, substep: number | 'streaming') => void
 }
 
-interface DispatchProps {
-  notify: typeof notifyAction
-  onSetSetupParams: typeof setSetupParams
-  onSetStepStatus: typeof setStepStatus
-  onSetupAdmin: typeof setupAdmin
-}
-
-interface StateProps {
-  links: Links
-  stepStatuses: StepStatus[]
-  setupParams: ISetupParams
-  orgID: string
-  bucketID: string
-}
-
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps
 
 @ErrorHandling
 class OnboardingWizard extends PureComponent<Props> {
@@ -136,9 +119,9 @@ class OnboardingWizard extends PureComponent<Props> {
   }
 
   private handleExit = () => {
-    const {router, onCompleteSetup} = this.props
+    const {history, onCompleteSetup} = this.props
     onCompleteSetup()
-    router.push(`/`)
+    history.push('/')
   }
 
   private get onboardingStepProps(): OnboardingStepProps {
@@ -152,7 +135,6 @@ class OnboardingWizard extends PureComponent<Props> {
       onSetStepStatus,
       onSetSetupParams,
       onSetCurrentStepIndex,
-      onSetSubstepIndex,
       onDecrementCurrentStepIndex,
       onIncrementCurrentStepIndex,
     } = this.props
@@ -163,7 +145,6 @@ class OnboardingWizard extends PureComponent<Props> {
       stepTestIds: this.stepTestIds,
       currentStepIndex,
       onSetCurrentStepIndex,
-      onSetSubstepIndex,
       onIncrementCurrentStepIndex,
       onDecrementCurrentStepIndex,
       onSetStepStatus,
@@ -180,7 +161,7 @@ class OnboardingWizard extends PureComponent<Props> {
 const mstp = ({
   links,
   onboarding: {stepStatuses, setupParams, orgID, bucketID},
-}: AppState): StateProps => ({
+}: AppState) => ({
   links,
   stepStatuses,
   setupParams,
@@ -188,14 +169,13 @@ const mstp = ({
   bucketID,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
   onSetSetupParams: setSetupParams,
   onSetStepStatus: setStepStatus,
   onSetupAdmin: setupAdmin,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter(OnboardingWizard))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(OnboardingWizard))

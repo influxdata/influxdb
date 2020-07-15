@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {
   AlignItems,
   ComponentSize,
@@ -37,10 +37,6 @@ interface ErrorObject {
   passwordError?: string
 }
 
-interface DispatchProps {
-  onNotify: typeof notify
-}
-
 interface State {
   buttonStatus: ComponentStatus
   email: string
@@ -49,7 +45,10 @@ interface State {
   passwordError: string
 }
 
-class LoginPageContents extends PureComponent<DispatchProps> {
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
+
+class LoginPageContents extends PureComponent<Props> {
   private auth0: typeof WebAuth
 
   state: State = {
@@ -259,8 +258,10 @@ class LoginPageContents extends PureComponent<DispatchProps> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onNotify: notify,
 }
 
-export default connect<{}, DispatchProps>(null, mdtp)(LoginPageContents)
+const connector = connect(null, mdtp)
+
+export default connector(LoginPageContents)

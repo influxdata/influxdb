@@ -1,7 +1,7 @@
 // Libraries
-import React, {FC, Dispatch} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import React, {FC} from 'react'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {
@@ -32,32 +32,22 @@ import {
 
 // Types
 import {NotificationEndpoint, Label, AlertHistoryType} from 'src/types'
-import {Action} from 'src/notifications/endpoints/actions/creators'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
-
-interface DispatchProps {
-  onDeleteEndpoint: typeof deleteEndpoint
-  onAddEndpointLabel: typeof addEndpointLabel
-  onRemoveEndpointLabel: typeof deleteEndpointLabel
-  onUpdateEndpointProperties: typeof updateEndpointProperties
-  onCloneEndpoint: typeof cloneEndpoint
-}
 
 interface OwnProps {
   endpoint: NotificationEndpoint
 }
 
-interface DispatchProp {
-  dispatch: Dispatch<Action>
-}
-
-type Props = OwnProps & WithRouterProps & DispatchProps & DispatchProp
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & RouteComponentProps<{orgID: string}> & ReduxProps
 
 const EndpointCard: FC<Props> = ({
-  router,
-  params: {orgID},
+  history,
+  match: {
+    params: {orgID},
+  },
   endpoint,
   onUpdateEndpointProperties,
   onCloneEndpoint,
@@ -72,7 +62,7 @@ const EndpointCard: FC<Props> = ({
   }
 
   const handleClick = () => {
-    router.push(`orgs/${orgID}/alerting/endpoints/${id}/edit`)
+    history.push(`/orgs/${orgID}/alerting/endpoints/${id}/edit`)
   }
 
   const handleToggle = () => {
@@ -88,7 +78,7 @@ const EndpointCard: FC<Props> = ({
       [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${id}"`,
     })
 
-    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
+    history.push(`/orgs/${orgID}/alert-history?${queryParams}`)
   }
   const handleDelete = () => {
     onDeleteEndpoint(id)
@@ -164,7 +154,7 @@ const EndpointCard: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onDeleteEndpoint: deleteEndpoint,
   onAddEndpointLabel: addEndpointLabel,
   onRemoveEndpointLabel: deleteEndpointLabel,
@@ -172,7 +162,6 @@ const mdtp: DispatchProps = {
   onCloneEndpoint: cloneEndpoint,
 }
 
-export default connect<{}, DispatchProps, {}>(
-  null,
-  mdtp
-)(withRouter<OwnProps>(EndpointCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(EndpointCard))

@@ -98,16 +98,6 @@ func encodeKeyValueIndexKey(k []byte) []byte {
 	return h.Sum(nil)
 }
 
-func (s *Service) initializeKVLog(ctx context.Context, tx Tx) error {
-	if _, err := tx.Bucket(kvlogBucket); err != nil {
-		return err
-	}
-	if _, err := tx.Bucket(kvlogIndex); err != nil {
-		return err
-	}
-	return nil
-}
-
 var errKeyValueLogBoundsNotFound = &platform.Error{
 	Code: platform.ENotFound,
 	Msg:  "oplog not found",

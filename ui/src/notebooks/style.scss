@@ -35,18 +35,6 @@
   align-items: stretch;
   border-radius: $cf-radius;
   margin: 0 $notebook-panel--gutter;
-
-  &:after {
-    content: '';
-    height: $cf-border;
-    background-color: $notebook-divider-color;
-    border-radius: $cf-border / 2;
-    margin: $cf-marg-a 0;
-  }
-
-  &:last-of-type:after {
-    display: none;
-  }
 }
 
 .notebook-panel--header,

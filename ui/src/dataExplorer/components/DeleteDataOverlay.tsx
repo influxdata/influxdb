@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {get} from 'lodash'
 
 // Components
@@ -14,7 +14,7 @@ import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {convertTimeRangeToCustom} from 'src/shared/utils/duration'
 
 // Types
-import {AppState, TimeRange, ResourceType} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 
 // Actions
 import {
@@ -23,43 +23,34 @@ import {
   setBucketAndKeys,
 } from 'src/shared/actions/predicates'
 
-interface StateProps {
-  bucketNameFromDE: string
-  timeRangeFromDE: TimeRange
-}
-
-interface DispatchProps {
-  resetPredicateState: typeof resetPredicateState
-  setTimeRange: typeof setTimeRange
-  setBucketAndKeys: typeof setBucketAndKeys
-}
-
-type Props = StateProps & WithRouterProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string}> & ReduxProps
 
 const DeleteDataOverlay: FunctionComponent<Props> = ({
-  router,
-  params: {orgID},
+  history,
+  match: {
+    params: {orgID},
+  },
   bucketNameFromDE,
   timeRangeFromDE,
-  resetPredicateState,
-  setTimeRange,
-  setBucketAndKeys,
 }) => {
+  const dispatch = useDispatch()
+
   useEffect(() => {
     if (bucketNameFromDE) {
-      setBucketAndKeys(bucketNameFromDE)
+      dispatch(setBucketAndKeys(bucketNameFromDE))
     }
-  }, [bucketNameFromDE])
+  }, [dispatch, bucketNameFromDE])
 
   useEffect(() => {
     if (timeRangeFromDE) {
-      setTimeRange(convertTimeRangeToCustom(timeRangeFromDE))
+      dispatch(setTimeRange(convertTimeRangeToCustom(timeRangeFromDE)))
     }
-  }, [timeRangeFromDE])
+  }, [dispatch, timeRangeFromDE])
 
   const handleDismiss = () => {
-    resetPredicateState()
-    router.push(`/orgs/${orgID}/data-explorer`)
+    dispatch(resetPredicateState())
+    history.push(`/orgs/${orgID}/data-explorer`)
   }
 
   return (
@@ -76,7 +67,7 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const activeQuery = getActiveQuery(state)
   const bucketNameFromDE = get(activeQuery, 'builderConfig.buckets.0')
 
@@ -88,13 +79,6 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
-  resetPredicateState,
-  setTimeRange,
-  setBucketAndKeys,
-}
+const connector = connect(mstp)
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter<Props>(DeleteDataOverlay))
+export default connector(withRouter(DeleteDataOverlay))

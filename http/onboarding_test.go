@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	platform "github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/inmem"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -24,7 +23,8 @@ func NewMockSetupBackend(t *testing.T) *SetupBackend {
 
 func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (platform.OnboardingService, func()) {
 	t.Helper()
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+	store := NewTestInmemStore(t)
+	svc := kv.NewService(zaptest.NewLogger(t), store)
 	svc.IDGenerator = f.IDGenerator
 	svc.OrgBucketIDs = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator

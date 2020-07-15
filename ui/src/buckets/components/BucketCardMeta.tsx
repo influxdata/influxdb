@@ -2,7 +2,7 @@
 import React, {FC} from 'react'
 import CopyToClipboard from 'react-copy-to-clipboard'
 import {capitalize} from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Constants
 import {
@@ -19,15 +19,12 @@ import {ResourceCard} from '@influxdata/clockface'
 // Types
 import {OwnBucket} from 'src/types'
 
-interface DispatchProps {
-  notify: typeof notifyAction
-}
-
 interface OwnProps {
   bucket: OwnBucket
 }
 
-type Props = OwnProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 const BucketCardMeta: FC<Props> = ({bucket, notify}) => {
   const handleCopyAttempt = (
@@ -77,8 +74,10 @@ const BucketCardMeta: FC<Props> = ({bucket, notify}) => {
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(BucketCardMeta)
+const connector = connect(null, mdtp)
+
+export default connector(BucketCardMeta)

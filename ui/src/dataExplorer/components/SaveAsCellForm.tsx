@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get, isEmpty} from 'lodash'
 
 // Selectors
@@ -45,24 +45,12 @@ interface State {
   newDashboardName: string
 }
 
-interface StateProps {
-  dashboards: Dashboard[]
-  view: View
-  orgID: string
-}
-
-interface DispatchProps {
-  onGetDashboards: typeof getDashboards
-  onCreateCellWithView: typeof createCellWithView
-  onCreateDashboardWithView: typeof createDashboardWithView
-  notify: typeof notify
-}
-
 interface OwnProps {
   dismiss: () => void
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
 @ErrorHandling
 class SaveAsCellForm extends PureComponent<Props, State> {
@@ -230,7 +218,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const view = getSaveableView(state)
   const org = getOrg(state)
   const dashboards = getAll<Dashboard>(state, ResourceType.Dashboards)
@@ -242,11 +230,13 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onGetDashboards: getDashboards,
   onCreateCellWithView: createCellWithView,
   onCreateDashboardWithView: createDashboardWithView,
   notify,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(SaveAsCellForm)
+const connector = connect(mstp, mdtp)
+
+export default connector(SaveAsCellForm)

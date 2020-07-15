@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Constants
 import {getNotificationRuleFailed} from 'src/shared/copy/notifications'
@@ -21,30 +21,23 @@ import {getByID} from 'src/resources/selectors'
 // Types
 import {NotificationRuleDraft, AppState, ResourceType} from 'src/types'
 
-interface StateProps {
-  stateRule: NotificationRuleDraft
-}
-
-interface DispatchProps {
-  onNotify: typeof notify
-  onUpdateRule: typeof updateRule
-}
-
-type Props = WithRouterProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{orgID: string; ruleID: string}>
+type Props = RouterProps & ReduxProps
 
 const EditRuleOverlay: FC<Props> = ({
-  params,
-  router,
+  match,
+  history,
   stateRule,
   onUpdateRule,
   onNotify,
 }) => {
   const handleDismiss = () => {
-    router.push(`/orgs/${params.orgID}/alerting`)
+    history.push(`/orgs/${match.params.orgID}/alerting`)
   }
 
   if (!stateRule) {
-    onNotify(getNotificationRuleFailed(params.ruleID))
+    onNotify(getNotificationRuleFailed(match.params.ruleID))
     handleDismiss()
     return null
   }
@@ -76,8 +69,8 @@ const EditRuleOverlay: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState, {params}: Props): StateProps => {
-  const {ruleID} = params
+const mstp = (state: AppState, {match}: RouterProps) => {
+  const {ruleID} = match.params
 
   const stateRule = getByID<NotificationRuleDraft>(
     state,
@@ -95,7 +88,6 @@ const mdtp = {
   onUpdateRule: updateRule,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter<Props>(EditRuleOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(EditRuleOverlay))

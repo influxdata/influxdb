@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {InjectedRouter} from 'react-router'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
+import {RouteComponentProps} from 'react-router-dom'
 
 // Components
 import TaskForm from 'src/tasks/components/TaskForm'
@@ -27,36 +27,10 @@ import {
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
-import {
-  AppState,
-  Task,
-  TaskOptions,
-  TaskOptionKeys,
-  TaskSchedule,
-} from 'src/types'
+import {AppState, TaskOptionKeys, TaskSchedule} from 'src/types'
 
-interface OwnProps {
-  router: InjectedRouter
-  params: {id: string}
-}
-
-interface StateProps {
-  taskOptions: TaskOptions
-  currentTask: Task
-  currentScript: string
-}
-
-interface DispatchProps {
-  setTaskOption: typeof setTaskOption
-  setCurrentScript: typeof setCurrentScript
-  updateScript: typeof updateScript
-  cancel: typeof cancel
-  selectTaskByID: typeof selectTaskByID
-  clearTask: typeof clearTask
-  setAllTaskOptionsByID: typeof setAllTaskOptionsByID
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{id: string}>
 
 class TaskEditPage extends PureComponent<Props> {
   constructor(props) {
@@ -65,7 +39,9 @@ class TaskEditPage extends PureComponent<Props> {
 
   public componentDidMount() {
     const {
-      params: {id},
+      match: {
+        params: {id},
+      },
     } = this.props
     this.props.selectTaskByID(id)
     this.props.setAllTaskOptionsByID(id)
@@ -142,7 +118,7 @@ class TaskEditPage extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {taskOptions, currentScript, currentTask} = state.resources.tasks
 
   return {
@@ -152,7 +128,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   setTaskOption,
   setCurrentScript,
   updateScript,
@@ -162,4 +138,5 @@ const mdtp: DispatchProps = {
   clearTask,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(TaskEditPage)
+const connector = connect(mstp, mdtp)
+export default connector(TaskEditPage)

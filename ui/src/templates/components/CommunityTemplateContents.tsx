@@ -1,9 +1,9 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Types
-import {AppState, CommunityTemplate} from 'src/types'
+import {AppState} from 'src/types'
 
 // Components
 import {
@@ -17,14 +17,16 @@ import {
 import CommunityTemplateListItem from 'src/templates/components/CommunityTemplateListItem'
 import CommunityTemplateListGroup from 'src/templates/components/CommunityTemplateListGroup'
 
-interface StateProps {
-  activeCommunityTemplate: CommunityTemplate
-}
+import {toggleTemplateResourceInstall} from 'src/templates/actions/creators'
+import {getResourceInstallCount} from 'src/templates/selectors'
 
-class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
+
+class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
   render() {
-    const {activeCommunityTemplate} = this.props
-    if (!Object.keys(activeCommunityTemplate).length) {
+    const {summary} = this.props
+    if (!Object.keys(summary).length) {
       return (
         <Panel>
           <Panel.Header>Calculating template resource needs...</Panel.Header>
@@ -41,13 +43,21 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
       >
         <CommunityTemplateListGroup
           title="Dashboards"
-          count={activeCommunityTemplate.dashboards.length}
+          count={getResourceInstallCount(summary.dashboards)}
         >
-          {Array.isArray(activeCommunityTemplate.dashboards) &&
-            activeCommunityTemplate.dashboards.map(dashboard => {
+          {Array.isArray(summary.dashboards) &&
+            summary.dashboards.map(dashboard => {
               return (
                 <CommunityTemplateListItem
-                  key={dashboard.pkgName}
+                  shouldInstall={dashboard.shouldInstall}
+                  handleToggle={() => {
+                    this.props.toggleTemplateResourceInstall(
+                      'dashboards',
+                      dashboard.templateMetaName,
+                      !dashboard.shouldInstall
+                    )
+                  }}
+                  key={dashboard.templateMetaName}
                   title={dashboard.name}
                   description={dashboard.description}
                 >
@@ -58,14 +68,22 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Telegraf Configurations"
-          count={activeCommunityTemplate.telegrafConfigs.length}
+          count={getResourceInstallCount(summary.telegrafConfigs)}
         >
-          {Array.isArray(activeCommunityTemplate.telegrafConfigs) &&
-            activeCommunityTemplate.telegrafConfigs.map(telegrafConfig => {
+          {Array.isArray(summary.telegrafConfigs) &&
+            summary.telegrafConfigs.map(telegrafConfig => {
               return (
                 <CommunityTemplateListItem
-                  key={telegrafConfig.pkgName}
-                  title={telegrafConfig.pkgName}
+                  shouldInstall={telegrafConfig.shouldInstall}
+                  handleToggle={() => {
+                    this.props.toggleTemplateResourceInstall(
+                      'telegrafConfigs',
+                      telegrafConfig.templateMetaName,
+                      !telegrafConfig.shouldInstall
+                    )
+                  }}
+                  key={telegrafConfig.templateMetaName}
+                  title={telegrafConfig.templateMetaName}
                   description={telegrafConfig.description}
                 />
               )
@@ -73,13 +91,22 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Buckets"
-          count={activeCommunityTemplate.buckets.length}
+          count={getResourceInstallCount(summary.buckets)}
         >
-          {Array.isArray(activeCommunityTemplate.buckets) &&
-            activeCommunityTemplate.buckets.map(bucket => {
+          {Array.isArray(summary.buckets) &&
+            summary.buckets.map(bucket => {
               return (
                 <CommunityTemplateListItem
-                  key={bucket.pkgName}
+                  shouldDisableToggle={true}
+                  shouldInstall={true}
+                  handleToggle={() => {
+                    this.props.toggleTemplateResourceInstall(
+                      'buckets',
+                      bucket.templateMetaName,
+                      !bucket.shouldInstall
+                    )
+                  }}
+                  key={bucket.templateMetaName}
                   title={bucket.name}
                   description={bucket.description}
                 />
@@ -88,13 +115,21 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Checks"
-          count={activeCommunityTemplate.checks.length}
+          count={getResourceInstallCount(summary.checks)}
         >
-          {Array.isArray(activeCommunityTemplate.checks) &&
-            activeCommunityTemplate.checks.map(check => {
+          {Array.isArray(summary.checks) &&
+            summary.checks.map(check => {
               return (
                 <CommunityTemplateListItem
-                  key={check.pkgName}
+                  shouldInstall={check.shouldInstall}
+                  handleToggle={() => {
+                    this.props.toggleTemplateResourceInstall(
+                      'checks',
+                      check.templateMetaName,
+                      !check.shouldInstall
+                    )
+                  }}
+                  key={check.templateMetaName}
                   title={check.check.name}
                   description={check.description}
                 />
@@ -103,13 +138,22 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Variables"
-          count={activeCommunityTemplate.variables.length}
+          count={getResourceInstallCount(summary.variables)}
         >
-          {Array.isArray(activeCommunityTemplate.variables) &&
-            activeCommunityTemplate.variables.map(variable => {
+          {Array.isArray(summary.variables) &&
+            summary.variables.map(variable => {
               return (
                 <CommunityTemplateListItem
-                  key={variable.pkgName}
+                  shouldDisableToggle={true}
+                  shouldInstall={true}
+                  handleToggle={() => {
+                    this.props.toggleTemplateResourceInstall(
+                      'variables',
+                      variable.templateMetaName,
+                      !variable.shouldInstall
+                    )
+                  }}
+                  key={variable.templateMetaName}
                   title={variable.name}
                   description={variable.description}
                 >
@@ -120,13 +164,21 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Notification Rules"
-          count={activeCommunityTemplate.notificationRules.length}
+          count={getResourceInstallCount(summary.notificationRules)}
         >
-          {Array.isArray(activeCommunityTemplate.notificationRules) &&
-            activeCommunityTemplate.notificationRules.map(notificationRule => {
+          {Array.isArray(summary.notificationRules) &&
+            summary.notificationRules.map(notificationRule => {
               return (
                 <CommunityTemplateListItem
-                  key={notificationRule.pkgName}
+                  shouldInstall={notificationRule.shouldInstall}
+                  handleToggle={() => {
+                    this.props.toggleTemplateResourceInstall(
+                      'notificationRules',
+                      notificationRule.templateMetaName,
+                      !notificationRule.shouldInstall
+                    )
+                  }}
+                  key={notificationRule.templateMetaName}
                   title={notificationRule.name}
                   description={notificationRule.description}
                 />
@@ -135,12 +187,22 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
         </CommunityTemplateListGroup>
         <CommunityTemplateListGroup
           title="Labels"
-          count={activeCommunityTemplate.labels.length}
+          count={getResourceInstallCount(summary.labels)}
         >
-          {Array.isArray(activeCommunityTemplate.labels) &&
-            activeCommunityTemplate.labels.map(label => {
+          {Array.isArray(summary.labels) &&
+            summary.labels.map(label => {
               return (
-                <CommunityTemplateListItem key={label.pkgName}>
+                <CommunityTemplateListItem
+                  shouldInstall={label.shouldInstall}
+                  handleToggle={() => {
+                    this.props.toggleTemplateResourceInstall(
+                      'labels',
+                      label.templateMetaName,
+                      !label.shouldInstall
+                    )
+                  }}
+                  key={label.templateMetaName}
+                >
                   <Label
                     description={label.properties.description}
                     name={label.name}
@@ -156,13 +218,16 @@ class CommunityTemplateContentsUnconnected extends PureComponent<StateProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {activeCommunityTemplate} = state.resources.templates
-
-  return {activeCommunityTemplate}
+const mstp = (state: AppState) => {
+  return {summary: state.resources.templates.communityTemplateToInstall.summary}
 }
 
-export const CommunityTemplateContents = connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(CommunityTemplateContentsUnconnected)
+const mdtp = {
+  toggleTemplateResourceInstall,
+}
+
+const connector = connect(mstp, mdtp)
+
+export const CommunityTemplateContents = connector(
+  CommunityTemplateContentsUnconnected
+)

@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {ResourceCard} from '@influxdata/clockface'
@@ -24,14 +24,12 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface DispatchProps {
-  onAddVariableLabel: typeof addVariableLabelAsync
-  onRemoveVariableLabel: typeof removeVariableLabelAsync
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
-type Props = OwnProps & DispatchProps
-
-class VariableCard extends PureComponent<Props & WithRouterProps> {
+class VariableCard extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public render() {
     const {variable, onDeleteVariable} = this.props
 
@@ -61,13 +59,11 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleNameClick = (): void => {
-    const {
-      variable,
-      params: {orgID},
-      router,
-    } = this.props
+    const {variable, match, history} = this.props
 
-    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/edit`)
+    history.push(
+      `/orgs/${match.params.orgID}/settings/variables/${variable.id}/edit`
+    )
   }
 
   private get labels(): JSX.Element {
@@ -96,31 +92,27 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleExport = () => {
-    const {
-      router,
-      variable,
-      params: {orgID},
-    } = this.props
-    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/export`)
+    const {history, variable, match} = this.props
+
+    history.push(
+      `/orgs/${match.params.orgID}/settings/variables/${variable.id}/export`
+    )
   }
 
   private handleRenameVariable = () => {
-    const {
-      router,
-      variable,
-      params: {orgID},
-    } = this.props
+    const {history, variable, match} = this.props
 
-    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/rename`)
+    history.push(
+      `/orgs/${match.params.orgID}/settings/variables/${variable.id}/rename`
+    )
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onAddVariableLabel: addVariableLabelAsync,
   onRemoveVariableLabel: removeVariableLabelAsync,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(withRouter<OwnProps>(VariableCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(VariableCard))

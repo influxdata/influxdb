@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -14,22 +14,23 @@ import {getOrg} from 'src/organizations/selectors'
 
 interface OwnProps {
   title: string
+  children: React.ReactNode
 }
 
 interface StateProps {
   org: Organization
 }
 
-type Props = OwnProps & StateProps & WithRouterProps
+type Props = OwnProps & StateProps & RouteComponentProps<{orgID: string}>
 
 const ClientLibraryOverlay: FunctionComponent<Props> = ({
   title,
   children,
-  router,
+  history,
   org,
 }) => {
   const onDismiss = () => {
-    router.push(`/orgs/${org.id}/load-data/client-libraries`)
+    history.push(`/orgs/${org.id}/load-data/client-libraries`)
   }
 
   return (
@@ -44,10 +45,8 @@ const ClientLibraryOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   org: getOrg(state),
 })
 
-export default connect<StateProps>(mstp)(
-  withRouter<OwnProps>(ClientLibraryOverlay)
-)
+export default connect<StateProps>(mstp)(withRouter(ClientLibraryOverlay))

@@ -88,7 +88,7 @@ const ClientPythonOverlay: FunctionComponent<Props> = props => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {id} = getOrg(state)
 
   return {

@@ -1,7 +1,7 @@
 // Libraries
 import React, {useMemo, FC} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {createRule} from 'src/notifications/rules/actions/thunks'
@@ -17,15 +17,18 @@ import {initRuleDraft} from 'src/notifications/rules/utils'
 // Types
 import {NotificationRuleDraft} from 'src/types'
 
-interface DispatchProps {
-  onCreateRule: (rule: Partial<NotificationRuleDraft>) => Promise<void>
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string}> & ReduxProps
 
-type Props = WithRouterProps & DispatchProps
-
-const NewRuleOverlay: FC<Props> = ({params: {orgID}, router, onCreateRule}) => {
+const NewRuleOverlay: FC<Props> = ({
+  match: {
+    params: {orgID},
+  },
+  history,
+  onCreateRule,
+}) => {
   const handleDismiss = () => {
-    router.push(`/orgs/${orgID}/alerting`)
+    history.push(`/orgs/${orgID}/alerting`)
   }
 
   const handleCreateRule = async (rule: NotificationRuleDraft) => {
@@ -58,10 +61,9 @@ const NewRuleOverlay: FC<Props> = ({params: {orgID}, router, onCreateRule}) => {
 }
 
 const mdtp = {
-  onCreateRule: createRule as any,
+  onCreateRule: createRule,
 }
 
-export default connect<{}, DispatchProps>(
-  null,
-  mdtp
-)(withRouter<Props>(NewRuleOverlay))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(NewRuleOverlay))

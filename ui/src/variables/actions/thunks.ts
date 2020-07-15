@@ -55,6 +55,7 @@ import {
   Action as VariableAction,
   EditorAction,
 } from 'src/variables/actions/creators'
+import {RouterAction} from 'connected-react-router'
 
 type Action = VariableAction | EditorAction | NotifyAction
 
@@ -422,7 +423,9 @@ export const removeVariableLabelAsync = (
 }
 
 export const selectValue = (variableID: string, selected: string) => async (
-  dispatch: Dispatch<Action | ReturnType<typeof hydrateVariables>>,
+  dispatch: Dispatch<
+    Action | ReturnType<typeof hydrateVariables> | RouterAction
+  >,
   getState: GetState
 ) => {
   const state = getState()
@@ -431,6 +434,8 @@ export const selectValue = (variableID: string, selected: string) => async (
   // Validate that we can make this selection
   const vals = normalizeValues(variable)
   if (!vals.includes(selected)) {
+    // TODO: there is an issue that's causing non-state set values to
+    // return with no results and not respect query params
     return
   }
 

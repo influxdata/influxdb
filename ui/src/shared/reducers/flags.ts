@@ -28,10 +28,16 @@ export default (state = defaultState, action: Actions): FlagState => {
     case SET_FEATURE_FLAGS:
       // just setting the loading state
       if (!action.payload.flags) {
-        return {
+        const newState = {
           ...state,
           status: action.payload.status,
         }
+
+        if (!state.hasOwnProperty('original')) {
+          newState.original = defaultState.original
+        }
+
+        return newState
       }
       return {
         ...state,

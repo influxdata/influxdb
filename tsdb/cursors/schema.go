@@ -1,6 +1,9 @@
 package cursors
 
-import "github.com/influxdata/influxql"
+import (
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxql"
+)
 
 // FieldType represents the primitive field data types available in tsm.
 type FieldType int
@@ -36,6 +39,25 @@ func FieldTypeToDataType(ft FieldType) influxql.DataType {
 // IsLower returns true if the other FieldType has greater precedence than the
 // current value. Undefined has the lowest precedence.
 func (ft FieldType) IsLower(other FieldType) bool { return other < ft }
+
+var (
+	modelsFieldTypeToFieldTypeMapping = [8]FieldType{
+		models.Integer:  Integer,
+		models.Float:    Float,
+		models.Boolean:  Boolean,
+		models.String:   String,
+		models.Empty:    Undefined,
+		models.Unsigned: Unsigned,
+		6:               Undefined,
+		7:               Undefined,
+	}
+)
+
+// ModelsFieldTypeToFieldType returns the equivalent FieldType for ft.
+// If ft is an invalid FieldType, the results are undefined.
+func ModelsFieldTypeToFieldType(ft models.FieldType) FieldType {
+	return modelsFieldTypeToFieldTypeMapping[ft&7]
+}
 
 type MeasurementField struct {
 	Key       string    // Key is the name of the field
@@ -117,6 +139,10 @@ type MeasurementFieldsSliceIterator struct {
 	v     MeasurementFields
 	i     int
 	stats CursorStats
+}
+
+func NewMeasurementFieldsSliceIterator(f []MeasurementFields) *MeasurementFieldsSliceIterator {
+	return &MeasurementFieldsSliceIterator{f: f}
 }
 
 func NewMeasurementFieldsSliceIteratorWithStats(f []MeasurementFields, stats CursorStats) *MeasurementFieldsSliceIterator {

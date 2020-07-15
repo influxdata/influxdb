@@ -1,6 +1,7 @@
 import React, {Component} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -9,24 +10,35 @@ import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 import TemplatesPage from 'src/templates/components/TemplatesPage'
 import GetResources from 'src/resources/components/GetResources'
+import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
+import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
+import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
+import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
+import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
+
+import {CommunityTemplatesIndex} from 'src/templates/containers/CommunityTemplatesIndex'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {AppState, Organization, ResourceType} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 
-interface StateProps {
-  org: Organization
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps & ReduxProps
 
-type Props = WithRouterProps & StateProps
+const templatesPath = '/orgs/:orgID/settings/templates'
+export const communityTemplatesImportPath = `${templatesPath}/import/:templateName`
 
 @ErrorHandling
 class TemplatesIndex extends Component<Props> {
   public render() {
-    const {org, children} = this.props
+    const {org, flags} = this.props
+    if (flags.communityTemplates) {
+      return <CommunityTemplatesIndex />
+    }
+
     return (
       <>
         <Page titleTag={pageTitleSuffixer(['Templates', 'Settings'])}>
@@ -37,24 +49,45 @@ class TemplatesIndex extends Component<Props> {
             </GetResources>
           </SettingsTabbedPage>
         </Page>
-        {children}
+        <Switch>
+          <Route
+            path={`${templatesPath}/import`}
+            component={TemplateImportOverlay}
+          />
+          <Route
+            path={`${templatesPath}/import/:templateName`}
+            component={CommunityTemplateImportOverlay}
+          />
+          <Route
+            path={`${templatesPath}/:id/export`}
+            component={TemplateExportOverlay}
+          />
+          <Route
+            path={`${templatesPath}/:id/view`}
+            component={TemplateViewOverlay}
+          />
+          <Route
+            path={`${templatesPath}/:id/static/view`}
+            component={StaticTemplateViewOverlay}
+          />
+        </Switch>
       </>
     )
   }
 
   private handleImport = () => {
-    const {router, org} = this.props
-    router.push(`/orgs/${org.id}/settings/templates/import`)
+    const {history, org} = this.props
+    history.push(`/orgs/${org.id}/settings/templates/import`)
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     org: getOrg(state),
+    flags: state.flags.original,
   }
 }
 
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(withRouter<{}>(TemplatesIndex))
+const connector = connect(mstp)
+
+export default connector(TemplatesIndex)

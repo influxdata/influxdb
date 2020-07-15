@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, ChangeEvent, FormEvent, useReducer} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -13,7 +13,7 @@ import {extractBucketMaxRetentionSeconds} from 'src/cloud/utils/limits'
 import {createBucket} from 'src/buckets/actions/thunks'
 
 // Types
-import {Organization, AppState} from 'src/types'
+import {AppState} from 'src/types'
 import {
   createBucketReducer,
   RuleType,
@@ -24,20 +24,12 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 
-interface StateProps {
-  org: Organization
-  isRetentionLimitEnforced: boolean
-}
-
-interface DispatchProps {
-  createBucket: typeof createBucket
-}
-
 interface OwnProps {
   onClose: () => void
 }
 
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 const CreateBucketOverlay: FC<Props> = ({
   org,
@@ -109,7 +101,7 @@ const CreateBucketOverlay: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const org = getOrg(state)
   const isRetentionLimitEnforced = !!extractBucketMaxRetentionSeconds(
     state.cloud.limits
@@ -121,11 +113,10 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createBucket,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(CreateBucketOverlay)
+const connector = connect(mstp, mdtp)
+
+export default connector(CreateBucketOverlay)

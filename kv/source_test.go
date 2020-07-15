@@ -30,14 +30,11 @@ func initBoltSourceService(f influxdbtesting.SourceFields, t *testing.T) (influx
 	}
 }
 
-func initSourceService(s kv.Store, f influxdbtesting.SourceFields, t *testing.T) (influxdb.SourceService, string, func()) {
+func initSourceService(s kv.SchemaStore, f influxdbtesting.SourceFields, t *testing.T) (influxdb.SourceService, string, func()) {
+	ctx := context.Background()
 	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.IDGenerator = f.IDGenerator
 
-	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing source service: %v", err)
-	}
 	for _, b := range f.Sources {
 		if err := svc.PutSource(ctx, b); err != nil {
 			t.Fatalf("failed to populate sources")

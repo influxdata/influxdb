@@ -70,6 +70,67 @@ func newFiles(dir string, values ...keyValues) ([]string, error) {
 	return files, nil
 }
 
+func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
+	t.Run("cache", func(t *testing.T) {
+		dir := MustTempDir()
+		defer os.RemoveAll(dir)
+		fs := NewFileStore(dir)
+
+		const START, END = 10, 1
+		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
+		defer kc.Close()
+		cur := newIntegerArrayDescendingCursor()
+		// Include a cached value with timestamp equal to END
+		cur.reset(START, END, Values{NewIntegerValue(1, 1)}, kc)
+
+		var got []int64
+		ar := cur.Next()
+		for ar.Len() > 0 {
+			got = append(got, ar.Timestamps...)
+			ar = cur.Next()
+		}
+
+		if exp := []int64{1}; !cmp.Equal(got, exp) {
+			t.Errorf("unexpected values; -got/+exp\n%s", cmp.Diff(got, exp))
+		}
+	})
+	t.Run("tsm", func(t *testing.T) {
+		dir := MustTempDir()
+		defer os.RemoveAll(dir)
+		fs := NewFileStore(dir)
+
+		const START, END = 10, 1
+
+		data := []keyValues{
+			// Write a single data point with timestamp equal to END
+			{"m,_field=v#!~#v", []Value{NewIntegerValue(1, 1)}},
+		}
+
+		files, err := newFiles(dir, data...)
+		if err != nil {
+			t.Fatalf("unexpected error creating files: %v", err)
+		}
+
+		_ = fs.Replace(nil, files)
+
+		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
+		defer kc.Close()
+		cur := newIntegerArrayDescendingCursor()
+		cur.reset(START, END, nil, kc)
+
+		var got []int64
+		ar := cur.Next()
+		for ar.Len() > 0 {
+			got = append(got, ar.Timestamps...)
+			ar = cur.Next()
+		}
+
+		if exp := []int64{1}; !cmp.Equal(got, exp) {
+			t.Errorf("unexpected values; -got/+exp\n%s", cmp.Diff(got, exp))
+		}
+	})
+}
+
 func TestFileStore_DuplicatePoints(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)

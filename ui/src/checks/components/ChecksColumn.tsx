@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
@@ -23,27 +23,24 @@ import {
   ResourceType,
 } from 'src/types'
 
-interface StateProps {
-  checks: Check[]
-  rules: NotificationRuleDraft[]
-  endpoints: NotificationEndpoint[]
-}
-
-type Props = StateProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 const ChecksColumn: FunctionComponent<Props> = ({
   checks,
-  router,
-  params: {orgID},
+  history,
+  match: {
+    params: {orgID},
+  },
   rules,
   endpoints,
 }) => {
   const handleCreateThreshold = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/new-threshold`)
+    history.push(`/orgs/${orgID}/alerting/checks/new-threshold`)
   }
 
   const handleCreateDeadman = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/new-deadman`)
+    history.push(`/orgs/${orgID}/alerting/checks/new-deadman`)
   }
 
   const tooltipContents = (
@@ -114,4 +111,6 @@ const mstp = (state: AppState) => {
   }
 }
 
-export default connect<StateProps>(mstp, null)(withRouter(ChecksColumn))
+const connector = connect(mstp)
+
+export default connector(withRouter(ChecksColumn))

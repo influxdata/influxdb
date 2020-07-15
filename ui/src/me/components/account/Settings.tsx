@@ -67,4 +67,4 @@ const mstp = ({me}: AppState) => ({
   me,
 })
 
-export default connect<StateProps>(mstp)(Settings)
+export default connect(mstp)(Settings)

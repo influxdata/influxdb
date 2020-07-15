@@ -27,12 +27,8 @@ func initBoltBucketService(f influxdbtesting.BucketFields, t *testing.T) (influx
 	}
 }
 
-func initBucketService(s kv.Store, f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
-	storage, err := tenant.NewStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+func initBucketService(s kv.SchemaStore, f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
+	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)
 
 	for _, o := range f.Organizations {
@@ -62,11 +58,8 @@ func TestBucketFind(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer close()
-	storage, err := tenant.NewStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
 
+	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)
 	o := &influxdb.Organization{
 		Name: "theorg",
@@ -91,11 +84,8 @@ func TestSystemBucketsInNameFind(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer close()
-	storage, err := tenant.NewStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
 
+	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)
 	o := &influxdb.Organization{
 		Name: "theorg",

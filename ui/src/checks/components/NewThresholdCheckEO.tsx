@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
@@ -23,42 +23,34 @@ import {createView} from 'src/views/helpers'
 // Types
 import {AppState, RemoteDataState, CheckViewProperties} from 'src/types'
 
-interface DispatchProps {
-  onSetActiveTimeMachine: typeof setActiveTimeMachine
-  onSaveCheckFromTimeMachine: typeof createCheckFromTimeMachine
-  onResetAlertBuilder: typeof resetAlertBuilder
-  onUpdateAlertBuilderName: typeof updateName
-  onInitializeAlertBuilder: typeof initializeAlertBuilder
-}
-
-interface StateProps {
-  checkName: string
-  status: RemoteDataState
-}
-
-type Props = DispatchProps & StateProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 const NewCheckOverlay: FunctionComponent<Props> = ({
   status,
-  params: {orgID},
+  match: {
+    params: {orgID},
+  },
   checkName,
-  router,
+  history,
   onSaveCheckFromTimeMachine,
-  onSetActiveTimeMachine,
   onResetAlertBuilder,
   onUpdateAlertBuilderName,
-  onInitializeAlertBuilder,
 }) => {
+  const dispatch = useDispatch()
+
   useEffect(() => {
     const view = createView<CheckViewProperties>('threshold')
-    onInitializeAlertBuilder('threshold')
-    onSetActiveTimeMachine('alerting', {
-      view,
-    })
-  }, [])
+    dispatch(initializeAlertBuilder('threshold'))
+    dispatch(
+      setActiveTimeMachine('alerting', {
+        view,
+      })
+    )
+  }, [dispatch])
 
   const handleClose = () => {
-    router.push(`/orgs/${orgID}/alerting`)
+    history.push(`/orgs/${orgID}/alerting`)
     onResetAlertBuilder()
   }
 
@@ -85,19 +77,16 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = ({alertBuilder: {name, status}}: AppState): StateProps => {
+const mstp = ({alertBuilder: {name, status}}: AppState) => {
   return {checkName: name, status}
 }
 
-const mdtp: DispatchProps = {
-  onSetActiveTimeMachine: setActiveTimeMachine,
-  onSaveCheckFromTimeMachine: createCheckFromTimeMachine,
+const mdtp = {
+  onSaveCheckFromTimeMachine: createCheckFromTimeMachine as any,
   onResetAlertBuilder: resetAlertBuilder,
   onUpdateAlertBuilderName: updateName,
-  onInitializeAlertBuilder: initializeAlertBuilder,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(NewCheckOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(NewCheckOverlay))

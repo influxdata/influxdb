@@ -1,8 +1,8 @@
 // Libraries
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import _ from 'lodash'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Form, Input, Button, Grid, Columns} from '@influxdata/clockface'
@@ -31,16 +31,9 @@ interface State {
   isNameValid: boolean
 }
 
-interface StateProps {
-  variables: Variable[]
-  startVariable: Variable
-}
-
-interface DispatchProps {
-  onUpdateVariable: typeof updateVariable
-}
-
-type Props = StateProps & OwnProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{orgID: string; id: string}>
+type Props = OwnProps & RouterProps & ReduxProps
 
 class RenameVariableOverlayForm extends PureComponent<Props, State> {
   public state: State = {
@@ -135,20 +128,17 @@ class RenameVariableOverlayForm extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState, {params: {id}}: Props): StateProps => {
+const mstp = (state: AppState, {match}: RouterProps) => {
   const variables = getVariables(state)
-  const startVariable = variables.find(v => v.id === id)
+  const startVariable = variables.find(v => v.id === match.params.id)
 
   return {variables, startVariable}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateVariable: updateVariable,
 }
 
-export default withRouter<OwnProps>(
-  connect<StateProps, DispatchProps, OwnProps>(
-    mstp,
-    mdtp
-  )(RenameVariableOverlayForm)
-)
+const connector = connect(mstp, mdtp)
+
+export default withRouter(connector(RenameVariableOverlayForm))

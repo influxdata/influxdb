@@ -343,9 +343,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Applies the technical momentum indicator developed by Tushar Chande.',
     example: 'chandeMomentumOscillator(n: 10)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/chandemomentumoscillator/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/chandemomentumoscillator/',
   },
   {
     name: 'columns',
@@ -431,9 +431,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'Computes the covariance between two streams by first joining the streams, then performing the covariance operation.',
     example:
       'cov(x: table1, y: table2, on: ["_time", "_field"], pearsonr: false)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/cov/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/cov/',
   },
   {
     name: 'covariance',
@@ -461,9 +461,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Computes the covariance between two columns.',
     example:
       'covariance(columns: ["column_x", "column_y"], pearsonr: false, valueDst: "_value")',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/covariance/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/covariance/',
   },
   {
     name: 'csv.from',
@@ -526,7 +526,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -542,7 +542,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -559,7 +559,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -576,7 +576,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -593,7 +593,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -609,7 +609,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -626,7 +626,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -643,7 +643,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -660,7 +660,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -677,7 +677,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
       {
         name: 'unit',
@@ -700,7 +700,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -717,7 +717,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -734,7 +734,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -750,7 +750,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time',
+        type: 'Time | Duration | Integer',
       },
     ],
     package: 'date',
@@ -792,9 +792,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'Computes the rate of change per unit of time between subsequent non-null records. The output table schema will be the same as the input table.',
     example:
       'derivative(unit: 1s, nonNegative: true, columns: ["_value"], timeColumn: "_time")',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/derivative/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/derivative/',
   },
   {
     name: 'difference',
@@ -822,9 +822,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Computes the difference between subsequent non-null records in the specified columns.',
     example: 'difference(nonNegative: false, columns: ["_value"])',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/difference/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/difference/',
   },
   {
     name: 'distinct',
@@ -855,9 +855,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Calculates the exponential moving average of values in the `_value` column grouped into `n` number of points, giving more weight to recent data at double the rate of `exponentialMovingAverage()`.',
     example: 'doubleEMA(n: 5)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/doubleema/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/doubleema/',
   },
   {
     name: 'drop',
@@ -1163,9 +1163,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Calculates the exponential moving average of values in the `_value` column grouped into `n` number of points, giving more weight to recent data.',
     example: 'exponentialMovingAverage(n: 5)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/exponentialmovingaverage/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/exponentialmovingaverage/',
   },
   {
     name: 'fill',
@@ -1796,9 +1796,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Applies the Holt-Winters forecasting method to input tables. The Holt-Winters method predicts `n` seasonally-adjusted values for the specified `column` at the specified `interval`.',
     example: 'holtWinters(n: 10, interval: 1d)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/holtwinters/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/holtwinters/',
   },
   {
     name: 'hourSelection',
@@ -1858,6 +1858,23 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/http/get/',
   },
   {
+    name: 'http.pathEscape',
+    args: [
+      {
+        name: 'inputString',
+        desc: 'The string to escape.',
+        type: 'String',
+      },
+    ],
+    package: 'http',
+    desc:
+      'Escapes special characters in a string and replaces non-ASCII characters with hexadecimal representations (%XX).',
+    example: 'http.pathEscape(inputString: "/this/is/an/example-path.html")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/http/pathescape/',
+  },
+  {
     name: 'http.post',
     args: [
       {
@@ -1899,9 +1916,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Computes the total non-negative difference between values in a table.',
     example: 'increase(columns: ["_value"])',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/increase/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/increase/',
   },
   {
     name: 'int',
@@ -2004,9 +2021,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Calculates Kaufman’s Adaptive Moving Average (KAMA) using values in an input table.',
     example: 'kaufmansAMA(n: 5)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/kaufmansama/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/kaufmansama/',
   },
   {
     name: 'kaufmansER',
@@ -2023,7 +2040,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'kaufmansER(n: 5)',
     category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/kaufmanser/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/kaufmanser/',
   },
   {
     name: 'keep',
@@ -3377,9 +3394,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc: 'Calculates the mean of values grouped into `n` number of points.',
     example: 'movingAverage(n: 5)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/movingaverage/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/movingaverage/',
   },
   {
     name: 'mqtt.to',
@@ -3481,9 +3498,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Computes the Pearson R correlation coefficient between two streams by first joining the streams, then performing the covariance operation normalized to compute R.',
     example: 'pearsonr(x: table1, y: table2, on: ["_time", "_field"])',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/pearsonr/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/pearsonr/',
   },
   {
     name: 'pivot',
@@ -3897,9 +3914,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc: 'Measures the relative speed and change of values in an input table.',
     example: 'relativeStrengthIndex(n: 5)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/relativestrengthindex/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/relativestrengthindex/',
   },
   {
     name: 'rename',
@@ -5090,9 +5107,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Calculates the mean of values in a defined time range at a specified frequency.',
     example: 'timedMovingAverage(every: 1d, period: 5d)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/timedmovingaverage/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/timedmovingaverage/',
   },
   {
     name: 'timeShift',
@@ -5277,9 +5294,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Calculates the exponential moving average of values in the `_value` column grouped into `n` number of points, giving more weight to recent data at triple the rate of `exponentialMovingAverage()`.',
     example: 'tripleEMA(n: 5)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/tripleema/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/tripleema/',
   },
   {
     name: 'tripleExponentialDerivative',
@@ -5294,9 +5311,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Calculates a triple exponential derivative (TRIX) of input tables using n points.',
     example: 'tripleExponentialDerivative(n: 5)',
-    category: 'Aggregates',
+    category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/tripleexponentialderivative/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/tripleexponentialderivative/',
   },
   {
     name: 'truncateTimeColumn',

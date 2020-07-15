@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import TaskForm from 'src/tasks/components/TaskForm'
@@ -25,36 +25,18 @@ import {getOrg} from 'src/organizations/selectors'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Types
-import {
-  AppState,
-  VariableAssignment,
-  TaskSchedule,
-  TaskOptions,
-  TaskOptionKeys,
-  DashboardDraftQuery,
-} from 'src/types'
+import {AppState, TaskSchedule, TaskOptionKeys} from 'src/types'
 
 interface OwnProps {
   dismiss: () => void
 }
 
-interface DispatchProps {
-  saveNewScript: typeof saveNewScript
-  setTaskOption: typeof setTaskOption
-  clearTask: typeof clearTask
-  setNewScript: typeof setNewScript
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
-interface StateProps {
-  taskOptions: TaskOptions
-  activeQuery: DashboardDraftQuery
-  newScript: string
-  userDefinedVars: VariableAssignment[]
-}
-
-type Props = StateProps & OwnProps & DispatchProps
-
-class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
+class SaveAsTaskForm extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public componentDidMount() {
     const {setTaskOption, setNewScript} = this.props
 
@@ -143,7 +125,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {newScript, taskOptions} = state.resources.tasks
   const activeQuery = getActiveQuery(state)
   const org = getOrg(state)
@@ -159,14 +141,13 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   saveNewScript,
   setTaskOption,
   clearTask,
   setNewScript,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter(SaveAsTaskForm))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(SaveAsTaskForm))

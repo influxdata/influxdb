@@ -10,13 +10,11 @@ import (
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestAuth(t *testing.T) {
-	s := func() kv.Store {
-		return inmem.NewKVStore()
-	}
-
 	setup := func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
@@ -24,6 +22,7 @@ func TestAuth(t *testing.T) {
 				Token:  fmt.Sprintf("randomtoken%d", i),
 				OrgID:  influxdb.ID(i),
 				UserID: influxdb.ID(i),
+				Status: influxdb.Active,
 			})
 
 			if err != nil {
@@ -77,11 +76,110 @@ func TestAuth(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:  "read",
+			setup: setup,
+			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+				for i := 1; i <= 10; i++ {
+					expectedAuth := &influxdb.Authorization{
+						ID:     influxdb.ID(i),
+						Token:  fmt.Sprintf("randomtoken%d", i),
+						OrgID:  influxdb.ID(i),
+						UserID: influxdb.ID(i),
+						Status: influxdb.Active,
+					}
+
+					authByID, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					if err != nil {
+						t.Fatalf("Unexpectedly could not acquire Authorization by ID [Error]: %v", err)
+					}
+
+					if !reflect.DeepEqual(authByID, expectedAuth) {
+						t.Fatalf("ID TEST: expected identical authorizations:\n[Expected]: %+#v\n[Got]: %+#v", expectedAuth, authByID)
+					}
+
+					authByToken, err := store.GetAuthorizationByToken(context.Background(), tx, fmt.Sprintf("randomtoken%d", i))
+					if err != nil {
+						t.Fatalf("cannot get authorization by Token [Error]: %v", err)
+					}
+
+					if !reflect.DeepEqual(authByToken, expectedAuth) {
+						t.Fatalf("TOKEN TEST: expected identical authorizations:\n[Expected]: %+#v\n[Got]: %+#v", expectedAuth, authByToken)
+					}
+				}
+
+			},
+		},
+		{
+			name:  "update",
+			setup: setup,
+			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+				for i := 1; i <= 10; i++ {
+					auth, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					if err != nil {
+						t.Fatalf("Could not get authorization [Error]: %v", err)
+					}
+
+					auth.Status = influxdb.Inactive
+
+					_, err = store.UpdateAuthorization(context.Background(), tx, influxdb.ID(i), auth)
+					if err != nil {
+						t.Fatalf("Could not get updated authorization [Error]: %v", err)
+					}
+				}
+			},
+			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+
+				for i := 1; i <= 10; i++ {
+					auth, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					if err != nil {
+						t.Fatalf("Could not get authorization [Error]: %v", err)
+					}
+
+					expectedAuth := &influxdb.Authorization{
+						ID:     influxdb.ID(i),
+						Token:  fmt.Sprintf("randomtoken%d", i),
+						OrgID:  influxdb.ID(i),
+						UserID: influxdb.ID(i),
+						Status: influxdb.Inactive,
+					}
+
+					if !reflect.DeepEqual(auth, expectedAuth) {
+						t.Fatalf("expected identical authorizations:\n[Expected] %+#v\n[Got] %+#v", expectedAuth, auth)
+					}
+				}
+			},
+		},
+		{
+			name:  "delete",
+			setup: setup,
+			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+				for i := 1; i <= 10; i++ {
+					err := store.DeleteAuthorization(context.Background(), tx, influxdb.ID(i))
+					if err != nil {
+						t.Fatalf("Could not delete authorization [Error]: %v", err)
+					}
+				}
+			},
+			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+				for i := 1; i <= 10; i++ {
+					_, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					if err == nil {
+						t.Fatal("Authorization was not deleted correctly")
+					}
+				}
+			},
+		},
 	}
 
 	for _, testScenario := range tt {
 		t.Run(testScenario.name, func(t *testing.T) {
-			ts, err := authorization.NewStore(s())
+			store := inmem.NewKVStore()
+			if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
+				t.Fatal(err)
+			}
+
+			ts, err := authorization.NewStore(store)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1,6 +1,6 @@
 import React, {Component} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -17,11 +17,9 @@ import {getByID} from 'src/resources/selectors'
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
 
-interface StateProps {
-  org: Organization
-}
-
-type Props = WithRouterProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{orgID: string}>
+type Props = RouterProps & ReduxProps
 
 @ErrorHandling
 class MembersIndex extends Component<Props> {
@@ -48,11 +46,11 @@ class MembersIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, props: Props) => {
+const mstp = (state: AppState, props: RouterProps) => {
   const org = getByID<Organization>(
     state,
     ResourceType.Orgs,
-    props.params.orgID
+    props.match.params.orgID
   )
 
   return {
@@ -60,4 +58,6 @@ const mstp = (state: AppState, props: Props) => {
   }
 }
 
-export default connect<StateProps>(mstp, null)(withRouter<{}>(MembersIndex))
+const connector = connect(mstp)
+
+export default connector(withRouter(MembersIndex))

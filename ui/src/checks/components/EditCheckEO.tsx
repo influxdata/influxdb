@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -21,50 +21,38 @@ import {executeQueries} from 'src/timeMachine/actions/queries'
 import {resetAlertBuilder, updateName} from 'src/alerting/actions/alertBuilder'
 
 // Types
-import {AppState, RemoteDataState, TimeMachineID, QueryView} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
-interface DispatchProps {
-  onSaveCheckFromTimeMachine: typeof updateCheckFromTimeMachine
-  onGetCheckForTimeMachine: typeof getCheckForTimeMachine
-  onExecuteQueries: typeof executeQueries
-  onResetAlertBuilder: typeof resetAlertBuilder
-  onUpdateAlertBuilderName: typeof updateName
-}
-
-interface StateProps {
-  view: QueryView | null
-  status: RemoteDataState
-  activeTimeMachineID: TimeMachineID
-  loadedCheckID: string
-  checkName: string
-}
-
-type Props = WithRouterProps & DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string; checkID: string}> & ReduxProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onUpdateAlertBuilderName,
   onResetAlertBuilder,
   onSaveCheckFromTimeMachine,
-  onExecuteQueries,
-  onGetCheckForTimeMachine,
   activeTimeMachineID,
   status,
-  router,
-  params: {checkID, orgID},
+  history,
+  match: {
+    params: {checkID, orgID},
+  },
   checkName,
   loadedCheckID,
   view,
 }) => {
-  useEffect(() => {
-    onGetCheckForTimeMachine(checkID)
-  }, [checkID])
+  const dispatch = useDispatch()
+  const query = get(view, 'properties.queries[0]', null)
 
   useEffect(() => {
-    onExecuteQueries()
-  }, [get(view, 'properties.queries[0]', null)])
+    dispatch(getCheckForTimeMachine(checkID))
+  }, [dispatch, checkID])
+
+  useEffect(() => {
+    dispatch(executeQueries())
+  }, [dispatch, query])
 
   const handleClose = () => {
-    router.push(`/orgs/${orgID}/alerting`)
+    history.push(`/orgs/${orgID}/alerting`)
     onResetAlertBuilder()
   }
 
@@ -103,7 +91,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     timeMachines: {activeTimeMachineID},
     alertBuilder: {status, name, id},
@@ -120,15 +108,12 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
-  onGetCheckForTimeMachine: getCheckForTimeMachine,
+const mdtp = {
   onSaveCheckFromTimeMachine: updateCheckFromTimeMachine,
-  onExecuteQueries: executeQueries,
   onResetAlertBuilder: resetAlertBuilder,
   onUpdateAlertBuilderName: updateName,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter(EditCheckEditorOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(EditCheckEditorOverlay))

@@ -11,9 +11,11 @@ import (
 	"github.com/influxdata/influxdb/v2/authorization"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	"go.uber.org/zap/zaptest"
 )
 
 var authorizationCmpOptions = cmp.Options{
@@ -159,15 +161,16 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 				}, 1, nil
 			}
 			// set up tenant service
+			ctx := context.Background()
 			st := inmem.NewKVStore()
-			store, err := tenant.NewStore(st)
-			if err != nil {
+			if err := all.Up(ctx, zaptest.NewLogger(t), st); err != nil {
 				t.Fatal(err)
 			}
+
+			store := tenant.NewStore(st)
 			ts := tenant.NewService(store)
 			s := authorization.NewAuthedAuthorizationService(m, ts)
 
-			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			t.Run("find authorization by id", func(t *testing.T) {
@@ -304,15 +307,16 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 				return nil, nil
 			}
 			// set up tenant service
+			ctx := context.Background()
 			st := inmem.NewKVStore()
-			store, err := tenant.NewStore(st)
-			if err != nil {
+			if err := all.Up(ctx, zaptest.NewLogger(t), st); err != nil {
 				t.Fatal(err)
 			}
+
+			store := tenant.NewStore(st)
 			ts := tenant.NewService(store)
 			s := authorization.NewAuthedAuthorizationService(m, ts)
 
-			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			t.Run("update authorization", func(t *testing.T) {
@@ -443,17 +447,18 @@ func TestAuthorizationService_CreateAuthorization(t *testing.T) {
 			}
 			// set up tenant service
 			st := inmem.NewKVStore()
-			store, err := tenant.NewStore(st)
-			if err != nil {
+			ctx := context.Background()
+			if err := all.Up(ctx, zaptest.NewLogger(t), st); err != nil {
 				t.Fatal(err)
 			}
+
+			store := tenant.NewStore(st)
 			ts := tenant.NewService(store)
 			s := authorization.NewAuthedAuthorizationService(m, ts)
 
-			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
-			err = s.CreateAuthorization(ctx, &influxdb.Authorization{OrgID: 1, UserID: 1})
+			err := s.CreateAuthorization(ctx, &influxdb.Authorization{OrgID: 1, UserID: 1})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}

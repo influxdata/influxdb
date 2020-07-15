@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
@@ -20,6 +21,8 @@ func TestBoltLabelService(t *testing.T) {
 }
 
 func NewTestBoltStore(t *testing.T) (kv.Store, func(), error) {
+	t.Helper()
+
 	f, err := ioutil.TempFile("", "influxdata-bolt-")
 	if err != nil {
 		return nil, nil, errors.New("unable to open temporary boltdb file")
@@ -27,8 +30,14 @@ func NewTestBoltStore(t *testing.T) (kv.Store, func(), error) {
 	f.Close()
 
 	path := f.Name()
-	s := bolt.NewKVStore(zaptest.NewLogger(t), path)
-	if err := s.Open(context.Background()); err != nil {
+	ctx := context.Background()
+	logger := zaptest.NewLogger(t)
+	s := bolt.NewKVStore(logger, path)
+	if err := s.Open(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	if err := all.Up(ctx, logger, s); err != nil {
 		return nil, nil, err
 	}
 

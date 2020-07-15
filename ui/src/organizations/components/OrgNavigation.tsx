@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
-import {Link} from 'react-router'
+import {Link} from 'react-router-dom'
 
 // Components
 import {Tabs, Orientation, ComponentSize} from '@influxdata/clockface'

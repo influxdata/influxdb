@@ -457,7 +457,8 @@ func (t *TSMReader) Stats() FileStat {
 	return FileStat{
 		Path:         t.Path(),
 		Size:         t.Size(),
-		LastModified: t.LastModified(),
+		CreatedAt:    t.lastModified,   // tsm file only
+		LastModified: t.LastModified(), // tsm file & tombstones
 		MinTime:      minTime,
 		MaxTime:      maxTime,
 		MinKey:       minKey,

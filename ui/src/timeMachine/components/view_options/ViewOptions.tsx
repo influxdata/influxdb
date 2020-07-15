@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {setType} from 'src/timeMachine/actions'
@@ -13,17 +13,10 @@ import {Grid, DapperScrollbars} from '@influxdata/clockface'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {View, NewView, AppState} from 'src/types'
+import {AppState} from 'src/types'
 
-interface DispatchProps {
-  onUpdateType: typeof setType
-}
-
-interface StateProps {
-  view: View | NewView
-}
-
-type Props = DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 class ViewOptions extends PureComponent<Props> {
   public render() {
@@ -46,14 +39,16 @@ class ViewOptions extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {view} = getActiveTimeMachine(state)
 
   return {view}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateType: setType,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(ViewOptions)
+const connector = connect(mstp, mdtp)
+
+export default connector(ViewOptions)

@@ -596,6 +596,13 @@ func (s *UserService) DeleteUser(ctx context.Context, id influxdb.ID) error {
 		Do(ctx)
 }
 
+func (s *UserService) FindPermissionForUser(ctx context.Context, uid influxdb.ID) (influxdb.PermissionSet, error) {
+	return nil, &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  "not implemented",
+	}
+}
+
 // PasswordService is an http client to speak to the password service.
 type PasswordService struct {
 	Client *httpc.Client

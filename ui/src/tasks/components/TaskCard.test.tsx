@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {renderWithRedux} from 'src/mockState'
+import {renderWithReduxAndRouter} from 'src/mockState'
 
 // Components
 import {TaskCard} from 'src/tasks/components/TaskCard'
@@ -40,7 +40,7 @@ const setup = (override = {}) => {
     },
   }
 
-  return renderWithRedux(<TaskCard {...props} />, () => redux)
+  return renderWithReduxAndRouter(<TaskCard {...props} />, () => redux)
 }
 
 describe('Tasks.Components.TaskCard', () => {

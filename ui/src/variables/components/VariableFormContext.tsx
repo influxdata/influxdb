@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Utils
 import {
@@ -27,14 +27,7 @@ import {createVariable} from 'src/variables/actions/thunks'
 import VariableForm from 'src/variables/components/VariableForm'
 
 // Types
-import {
-  AppState,
-  VariableArgumentType,
-  QueryArguments,
-  CSVArguments,
-  MapArguments,
-  Variable,
-} from 'src/types'
+import {AppState} from 'src/types'
 
 interface ComponentProps {
   onHideOverlay?: () => void
@@ -42,28 +35,8 @@ interface ComponentProps {
   submitButtonText?: string
 }
 
-interface DispatchProps {
-  onCreateVariable: (
-    variable: Pick<Variable, 'name' | 'arguments' | 'selected'>
-  ) => void
-  onNameUpdate: typeof updateName
-  onTypeUpdate: typeof updateType
-  onQueryUpdate: typeof updateQuery
-  onMapUpdate: typeof updateMap
-  onConstantUpdate: typeof updateConstant
-  onEditorClose: typeof clearEditor
-}
-
-interface StateProps {
-  variables: Variable[]
-  name: string
-  variableType: VariableArgumentType
-  query: QueryArguments
-  map: MapArguments
-  constant: CSVArguments
-}
-
-type Props = ComponentProps & DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ComponentProps & ReduxProps
 
 class VariableFormContext extends PureComponent<Props> {
   render() {
@@ -83,7 +56,7 @@ class VariableFormContext extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const variables = getVariables(state),
     name = extractVariableEditorName(state),
     variableType = extractVariableEditorType(state),
@@ -101,7 +74,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onNameUpdate: updateName,
   onTypeUpdate: updateType,
   onQueryUpdate: updateQuery,
@@ -111,9 +84,8 @@ const mdtp: DispatchProps = {
   onCreateVariable: createVariable,
 }
 
+const connector = connect(mstp, mdtp)
+
 export {Props}
 export {VariableFormContext}
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(VariableFormContext)
+export default connector(VariableFormContext)

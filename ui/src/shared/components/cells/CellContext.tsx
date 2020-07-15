@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC, useRef, RefObject, useState} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 import classnames from 'classnames'
 
@@ -26,22 +26,18 @@ import {deleteCell, createCellWithView} from 'src/cells/actions/thunks'
 // Types
 import {Cell, View} from 'src/types'
 
-interface DispatchProps {
-  onDeleteCell: typeof deleteCell
-  onCloneCell: typeof createCellWithView
-}
-
 interface OwnProps {
   cell: Cell
   view: View
   onCSVDownload: () => void
 }
 
-type Props = OwnProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 const CellContext: FC<Props> = ({
   view,
-  router,
+  history,
   location,
   cell,
   onCloneCell,
@@ -69,15 +65,15 @@ const CellContext: FC<Props> = ({
 
   const handleEditNote = () => {
     if (view.id) {
-      router.push(`${location.pathname}/notes/${view.id}/edit`)
+      history.push(`${location.pathname}/notes/${view.id}/edit`)
     } else {
-      router.push(`${location.pathname}/notes/new`)
+      history.push(`${location.pathname}/notes/new`)
     }
   }
 
   const handleEditCell = (): void => {
     reportSimpleQueryPerformanceEvent('editCell button Click')
-    router.push(`${location.pathname}/cells/${cell.id}/edit`)
+    history.push(`${location.pathname}/cells/${cell.id}/edit`)
   }
 
   const popoverContents = (onHide): JSX.Element => {
@@ -172,11 +168,11 @@ const CellContext: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onDeleteCell: deleteCell,
   onCloneCell: createCellWithView,
 }
 
-export default withRouter<OwnProps>(
-  connect<{}, DispatchProps>(null, mdtp)(CellContext)
-)
+const connector = connect(null, mdtp)
+
+export default withRouter(connector(CellContext))

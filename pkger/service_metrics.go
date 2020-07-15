@@ -32,9 +32,15 @@ func MWMetrics(reg *prom.Registry) SVCMiddleware {
 	}
 }
 
-func (s *mwMetrics) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
+func (s *mwMetrics) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (Stack, error) {
 	rec := s.rec.Record("init_stack")
 	stack, err := s.next.InitStack(ctx, userID, newStack)
+	return stack, rec(err)
+}
+
+func (s *mwMetrics) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+	rec := s.rec.Record("uninstall_stack")
+	stack, err := s.next.UninstallStack(ctx, identifiers)
 	return stack, rec(err)
 }
 
@@ -61,21 +67,21 @@ func (s *mwMetrics) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, er
 	return stack, rec(err)
 }
 
-func (s *mwMetrics) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error) {
-	rec := s.rec.Record("create_pkg")
+func (s *mwMetrics) Export(ctx context.Context, opts ...ExportOptFn) (*Template, error) {
+	rec := s.rec.Record("export")
 	opt, err := exportOptFromOptFns(opts)
 	if err != nil {
 		return nil, rec(err)
 	}
 
-	pkg, err := s.next.Export(ctx, opts...)
+	template, err := s.next.Export(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return pkg, rec(err, metric.RecordAdditional(map[string]interface{}{
+	return template, rec(err, metric.RecordAdditional(map[string]interface{}{
 		"num_org_ids": len(opt.OrgIDs),
-		"summary":     pkg.Summary(),
+		"summary":     template.Summary(),
 		"by_stack":    opt.StackID != 0,
 	}))
 }

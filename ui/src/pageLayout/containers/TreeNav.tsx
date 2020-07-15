@@ -1,7 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps, Link} from 'react-router'
-import {connect} from 'react-redux'
+import {
+  matchPath,
+  withRouter,
+  RouteComponentProps,
+  Link,
+} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -21,7 +26,7 @@ import {generateNavItems} from 'src/pageLayout/constants/navigationHierarchy'
 import {getNavItemActivation} from 'src/pageLayout/utils'
 
 // Types
-import {AppState, NavBarState} from 'src/types'
+import {AppState} from 'src/types'
 
 // Actions
 import {setNavBarState} from 'src/shared/actions/app'
@@ -29,30 +34,25 @@ import {setNavBarState} from 'src/shared/actions/app'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface StateProps {
-  isHidden: boolean
-  navBarState: NavBarState
-}
-
-interface DispatchProps {
-  handleSetNavBarState: typeof setNavBarState
-}
-
-type Props = StateProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 @ErrorHandling
 class TreeSidebar extends PureComponent<Props> {
   public render() {
-    const {
-      isHidden,
-      params: {orgID},
-      navBarState,
-      handleSetNavBarState,
-    } = this.props
+    const {isHidden, history, navBarState, handleSetNavBarState} = this.props
 
     if (isHidden) {
       return null
     }
+
+    const match = matchPath<{orgID: string}>(history.location.pathname, {
+      path: '/orgs/:orgID',
+      exact: false,
+      strict: false,
+    })
+
+    const orgID = match?.params?.orgID
 
     const isExpanded = navBarState === 'expanded'
 
@@ -200,18 +200,17 @@ class TreeSidebar extends PureComponent<Props> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   handleSetNavBarState: setNavBarState,
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const isHidden = get(state, 'app.ephemeral.inPresentationMode', false)
   const navBarState = get(state, 'app.persisted.navBarState', 'collapsed')
 
   return {isHidden, navBarState}
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter(TreeSidebar))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TreeSidebar))

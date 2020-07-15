@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router'
 
 // Components
 import TimeMachineFluxEditor from 'src/timeMachine/components/TimeMachineFluxEditor'
@@ -23,6 +24,7 @@ import {
 // Actions
 import {setAutoRefresh} from 'src/timeMachine/actions'
 import {setTimeRange} from 'src/timeMachine/actions'
+import {enableUpdatedTimeRangeInVEO} from 'src/shared/actions/app'
 
 // Utils
 import {
@@ -33,27 +35,15 @@ import {
 import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
-import {
-  AppState,
-  DashboardQuery,
-  TimeRange,
-  AutoRefresh,
-  AutoRefreshStatus,
-} from 'src/types'
+import {AppState, TimeRange, AutoRefreshStatus} from 'src/types'
 
-interface StateProps {
-  activeQuery: DashboardQuery
-  timeRange: TimeRange
-  autoRefresh: AutoRefresh
-  isInCheckOverlay: boolean
-}
-
-interface DispatchProps {
-  onSetTimeRange: typeof setTimeRange
-  onSetAutoRefresh: typeof setAutoRefresh
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{
+  cellID: string
+  dashboardID: string
+  orgID: string
+}>
+type Props = ReduxProps & RouterProps
 
 class TimeMachineQueries extends PureComponent<Props> {
   public render() {
@@ -91,8 +81,22 @@ class TimeMachineQueries extends PureComponent<Props> {
   }
 
   private handleSetTimeRange = (timeRange: TimeRange) => {
-    const {autoRefresh, onSetAutoRefresh, onSetTimeRange} = this.props
+    const {
+      autoRefresh,
+      location: {pathname},
+      onEnableUpdatedTimeRangeInVEO,
+      onSetAutoRefresh,
+      onSetTimeRange,
+      match: {
+        params: {cellID, dashboardID, orgID},
+      },
+    } = this.props
 
+    const inVEOMode =
+      pathname === `orgs/${orgID}/dashboards/${dashboardID}/cell/${cellID}/edit`
+    if (inVEOMode) {
+      onEnableUpdatedTimeRangeInVEO()
+    }
     onSetTimeRange(timeRange)
 
     if (timeRange.type === 'custom') {
@@ -139,10 +143,10 @@ const mstp = (state: AppState) => {
 
 const mdtp = {
   onSetTimeRange: setTimeRange,
+  onEnableUpdatedTimeRangeInVEO: enableUpdatedTimeRangeInVEO,
   onSetAutoRefresh: setAutoRefresh,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(TimeMachineQueries)
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TimeMachineQueries))

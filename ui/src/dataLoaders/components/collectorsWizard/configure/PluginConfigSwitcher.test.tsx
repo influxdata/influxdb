@@ -25,6 +25,7 @@ const setup = (override = {}) => {
     onClickNext: jest.fn(),
     onClickPrevious: jest.fn(),
     onClickSkip: jest.fn(),
+    dispatch: jest.fn,
     ...override,
   }
 

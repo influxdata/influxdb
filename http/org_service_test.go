@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/v2/inmem"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
@@ -35,17 +36,16 @@ func NewMockOrgBackend(t *testing.T) *OrgBackend {
 
 func initOrganizationService(f influxdbtesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {
 	t.Helper()
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+
+	ctx := context.Background()
+	logger := zaptest.NewLogger(t)
+	store := NewTestInmemStore(t)
+	svc := kv.NewService(logger, store)
 	svc.IDGenerator = f.IDGenerator
 	svc.OrgBucketIDs = f.OrgBucketIDs
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = influxdb.RealTimeGenerator{}
-	}
-
-	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatal(err)
 	}
 
 	for _, o := range f.Organizations {
@@ -70,12 +70,15 @@ func initOrganizationService(f influxdbtesting.OrganizationFields, t *testing.T)
 
 func initSecretService(f influxdbtesting.SecretServiceFields, t *testing.T) (influxdb.SecretService, func()) {
 	t.Helper()
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 
 	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
+	store := inmem.NewKVStore()
+	logger := zaptest.NewLogger(t)
+	if err := all.Up(ctx, logger, store); err != nil {
 		t.Fatal(err)
 	}
+
+	svc := kv.NewService(logger, store)
 
 	for _, ss := range f.Secrets {
 		if err := svc.PutSecrets(ctx, ss.OrganizationID, ss.Env); err != nil {

@@ -17,7 +17,7 @@ const (
 
 func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	switch cur := cur.(type) {
-{{range .}}{{/* every type supports first */}}
+{{range .}}{{/* every type supports limit */}}
 	case cursors.{{.Name}}ArrayCursor:
 		return new{{.Name}}LimitArrayCursor(cur)
 {{end}}
@@ -26,14 +26,28 @@ func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	}
 }
 
-func newWindowLimitArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+func newWindowFirstArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
 	if every == 0 {
 		return newLimitArrayCursor(cur)
 	}
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports first */}}
 	case cursors.{{.Name}}ArrayCursor:
-		return new{{.Name}}WindowLimitArrayCursor(cur, every)
+		return new{{.Name}}WindowFirstArrayCursor(cur, every)
+{{end}}
+	default:
+		panic(fmt.Sprintf("unreachable: %T", cur))
+	}
+}
+
+func newWindowLastArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+	if every == 0 {
+		return newLimitArrayCursor(cur)
+	}
+	switch cur := cur.(type) {
+{{range .}}{{/* every type supports last */}}
+	case cursors.{{.Name}}ArrayCursor:
+		return new{{.Name}}WindowLastArrayCursor(cur, every)
 {{end}}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
@@ -242,29 +256,97 @@ func (c *{{.name}}LimitArrayCursor) Next() {{$arrayType}} {
 	return c.res
 }
 
-type {{.name}}WindowLimitArrayCursor struct {
+type {{.name}}WindowLastArrayCursor struct {
 	cursors.{{.Name}}ArrayCursor
 	every int64
-	final int64
+	windowEnd int64
 	res {{$arrayType}}
 	tmp {{$arrayType}}
 }
 
-func new{{.Name}}WindowLimitArrayCursor(cur cursors.{{.Name}}ArrayCursor, every int64) *{{.name}}WindowLimitArrayCursor {
-	return &{{.name}}WindowLimitArrayCursor{
+func new{{.Name}}WindowLastArrayCursor(cur cursors.{{.Name}}ArrayCursor, every int64) *{{.name}}WindowLastArrayCursor {
+	return &{{.name}}WindowLastArrayCursor{
 		{{.Name}}ArrayCursor: cur,
 		every: every,
-		final: math.MinInt64,
+		windowEnd: math.MinInt64,
 		res: cursors.New{{.Name}}ArrayLen(MaxPointsPerBlock),
 		tmp: &cursors.{{.Name}}Array{},
 	}
 }
 
-func (c *{{.name}}WindowLimitArrayCursor) Stats() cursors.CursorStats {
+func (c *{{.name}}WindowLastArrayCursor) Stats() cursors.CursorStats {
 	return c.{{.Name}}ArrayCursor.Stats()
 }
 
-func (c *{{.name}}WindowLimitArrayCursor) Next() *cursors.{{.Name}}Array {
+func (c *{{.name}}WindowLastArrayCursor) Next() *cursors.{{.Name}}Array {
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
+
+	cur := -1
+
+NEXT:
+	var a *cursors.{{.Name}}Array
+
+	if c.tmp.Len() > 0 {
+		a = c.tmp
+	} else {
+		a = c.{{.Name}}ArrayCursor.Next()
+	}
+
+	if a.Len() == 0 {
+		c.res.Timestamps = c.res.Timestamps[:cur+1]
+		c.res.Values = c.res.Values[:cur+1]
+		return c.res
+	}
+
+	for i, t := range a.Timestamps {
+		if t >= c.windowEnd {
+			cur++
+		}
+
+		if cur == MaxPointsPerBlock {
+			c.tmp.Timestamps = a.Timestamps[i:]
+			c.tmp.Values = a.Values[i:]
+			return c.res
+		}
+
+		c.res.Timestamps[cur] = t
+		c.res.Values[cur] = a.Values[i]
+
+		c.windowEnd = t - t % every + every
+	}
+
+	c.tmp.Timestamps = nil
+	c.tmp.Values = nil
+
+	goto NEXT
+}
+
+type {{.name}}WindowFirstArrayCursor struct {
+	cursors.{{.Name}}ArrayCursor
+	every int64
+	windowEnd int64
+	res {{$arrayType}}
+	tmp {{$arrayType}}
+}
+
+func new{{.Name}}WindowFirstArrayCursor(cur cursors.{{.Name}}ArrayCursor, every int64) *{{.name}}WindowFirstArrayCursor {
+	return &{{.name}}WindowFirstArrayCursor{
+		{{.Name}}ArrayCursor: cur,
+		every: every,
+		windowEnd: math.MinInt64,
+		res: cursors.New{{.Name}}ArrayLen(MaxPointsPerBlock),
+		tmp: &cursors.{{.Name}}Array{},
+	}
+}
+
+func (c *{{.name}}WindowFirstArrayCursor) Stats() cursors.CursorStats {
+	return c.{{.Name}}ArrayCursor.Stats()
+}
+
+func (c *{{.name}}WindowFirstArrayCursor) Next() *cursors.{{.Name}}Array {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 
@@ -287,14 +369,11 @@ NEXT:
 	}
 
 	for i, t := range a.Timestamps {
-		if t < c.final {
+		if t < c.windowEnd {
 			continue
 		}
 
-		beg := t - t % every
-		end := beg + every
-
-		c.final = end
+		c.windowEnd = t - t % every + every
 
 		c.res.Timestamps = append(c.res.Timestamps, t)
 		c.res.Values = append(c.res.Values, a.Values[i])

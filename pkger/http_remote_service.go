@@ -6,27 +6,42 @@ import (
 	"net/http"
 
 	"github.com/influxdata/influxdb/v2"
+	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
 
-// HTTPRemoteService provides an http client that is fluent in all things pkger.
+// HTTPRemoteService provides an http client that is fluent in all things template.
 type HTTPRemoteService struct {
 	Client *httpc.Client
 }
 
 var _ SVC = (*HTTPRemoteService)(nil)
 
-func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error) {
+func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, stack StackCreate) (Stack, error) {
 	reqBody := ReqCreateStack{
 		OrgID:       stack.OrgID.String(),
 		Name:        stack.Name,
 		Description: stack.Description,
-		URLs:        stack.URLs,
+		URLs:        stack.TemplateURLs,
 	}
 
 	var respBody RespStack
 	err := s.Client.
-		PostJSON(reqBody, RoutePrefix, "/stacks").
+		PostJSON(reqBody, RoutePrefixStacks).
+		DecodeJSON(&respBody).
+		Do(ctx)
+	if err != nil {
+		return Stack{}, err
+	}
+
+	return convertRespStackToStack(respBody)
+}
+
+func (s *HTTPRemoteService) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+	var respBody RespStack
+	err := s.Client.
+		Post(httpc.BodyEmpty, RoutePrefixStacks, identifiers.StackID.String(), "/uninstall").
+		QueryParams([2]string{"orgID", identifiers.OrgID.String()}).
 		DecodeJSON(&respBody).
 		Do(ctx)
 	if err != nil {
@@ -38,7 +53,7 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 
 func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
 	return s.Client.
-		Delete(RoutePrefix, "stacks", identifiers.StackID.String()).
+		Delete(RoutePrefixStacks, identifiers.StackID.String()).
 		QueryParams([2]string{"orgID", identifiers.OrgID.String()}).
 		Do(ctx)
 }
@@ -54,7 +69,7 @@ func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f
 
 	var resp RespListStacks
 	err := s.Client.
-		Get(RoutePrefix, "/stacks").
+		Get(RoutePrefixStacks).
 		QueryParams(queryParams...).
 		DecodeJSON(&resp).
 		Do(ctx)
@@ -76,7 +91,7 @@ func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f
 func (s *HTTPRemoteService) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
 	var respBody RespStack
 	err := s.Client.
-		Get(RoutePrefix, "/stacks", id.String()).
+		Get(RoutePrefixStacks, id.String()).
 		DecodeJSON(&respBody).
 		Do(ctx)
 	if err != nil {
@@ -89,7 +104,7 @@ func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (S
 	reqBody := ReqUpdateStack{
 		Name:         upd.Name,
 		Description:  upd.Description,
-		TemplateURLs: upd.URLs,
+		TemplateURLs: upd.TemplateURLs,
 	}
 	for _, r := range upd.AdditionalResources {
 		reqBody.AdditionalResources = append(reqBody.AdditionalResources, ReqUpdateStackResource{
@@ -101,7 +116,7 @@ func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (S
 
 	var respBody RespStack
 	err := s.Client.
-		PatchJSON(reqBody, RoutePrefix, "/stacks", upd.ID.String()).
+		PatchJSON(reqBody, RoutePrefixStacks, upd.ID.String()).
 		DecodeJSON(&respBody).
 		Do(ctx)
 	if err != nil {
@@ -111,8 +126,8 @@ func (s *HTTPRemoteService) UpdateStack(ctx context.Context, upd StackUpdate) (S
 	return convertRespStackToStack(respBody)
 }
 
-// Export will produce a pkg from the parameters provided.
-func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*Pkg, error) {
+// Export will produce a template from the parameters provided.
+func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*Template, error) {
 	opt, err := exportOptFromOptFns(opts)
 	if err != nil {
 		return nil, err
@@ -138,12 +153,12 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*P
 		Resources: opt.Resources,
 	}
 
-	var newPkg *Pkg
+	var newTemplate *Template
 	err = s.Client.
-		PostJSON(reqBody, RoutePrefix).
+		PostJSON(reqBody, RoutePrefixTemplates, "/export").
 		Decode(func(resp *http.Response) error {
-			pkg, err := Parse(EncodingJSON, FromReader(resp.Body, "export"))
-			newPkg = pkg
+			t, err := Parse(EncodingJSON, FromReader(resp.Body, "export"))
+			newTemplate = t
 			return err
 		}).
 		Do(ctx)
@@ -151,22 +166,22 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*P
 		return nil, err
 	}
 
-	if err := newPkg.Validate(ValidWithoutResources()); err != nil {
+	if err := newTemplate.Validate(ValidWithoutResources()); err != nil {
 		return nil, err
 	}
-	return newPkg, nil
+	return newTemplate, nil
 }
 
-// DryRun provides a dry run of the pkg application. The pkg will be marked verified
+// DryRun provides a dry run of the template application. The template will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
 func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.apply(ctx, orgID, true, opts...)
 }
 
-// Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
-// in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
-// from before the pkg was applied.
+// Apply will apply all the resources identified in the provided template. The entire template will be applied
+// in its entirety. If a failure happens midway then the entire template will be rolled back to the state
+// from before the template was applied.
 func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.apply(ctx, orgID, false, opts...)
 }
@@ -174,15 +189,15 @@ func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID
 func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun bool, opts ...ApplyOptFn) (ImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 
-	var rawPkg ReqRawTemplate
-	for _, pkg := range opt.Pkgs {
-		b, err := pkg.Encode(EncodingJSON)
+	var rawTemplate ReqRawTemplate
+	for _, t := range opt.Templates {
+		b, err := t.Encode(EncodingJSON)
 		if err != nil {
 			return ImpactSummary{}, err
 		}
-		rawPkg.Pkg = b
-		rawPkg.Sources = pkg.sources
-		rawPkg.ContentType = EncodingJSON.String()
+		rawTemplate.Template = b
+		rawTemplate.Sources = t.sources
+		rawTemplate.ContentType = EncodingJSON.String()
 	}
 
 	reqBody := ReqApply{
@@ -190,7 +205,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 		DryRun:      dryRun,
 		EnvRefs:     opt.EnvRefs,
 		Secrets:     opt.MissingSecrets,
-		RawTemplate: rawPkg,
+		RawTemplate: rawTemplate,
 	}
 	if opt.StackID != 0 {
 		stackID := opt.StackID.String()
@@ -220,8 +235,17 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 
 	var resp RespApply
 	err := s.Client.
-		PostJSON(reqBody, RoutePrefix, "/apply").
+		PostJSON(reqBody, RoutePrefixTemplates, "/apply").
 		DecodeJSON(&resp).
+		StatusFn(func(resp *http.Response) error {
+			// valid response code when the template itself has parser errors.
+			// we short circuit on that and allow that response to pass through
+			// but consume the initial implementation if that does not hold.
+			if resp.StatusCode == http.StatusUnprocessableEntity {
+				return nil
+			}
+			return ihttp.CheckError(resp)
+		}).
 		Do(ctx)
 	if err != nil {
 		return ImpactSummary{}, err
@@ -242,14 +266,64 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 
 func convertRespStackToStack(respStack RespStack) (Stack, error) {
 	newStack := Stack{
-		Name:        respStack.Name,
-		Description: respStack.Description,
-		Sources:     respStack.Sources,
-		URLs:        respStack.URLs,
-		Resources:   make([]StackResource, 0, len(respStack.Resources)),
-		CRUDLog:     respStack.CRUDLog,
+		CreatedAt: respStack.CreatedAt,
 	}
-	for _, r := range respStack.Resources {
+	id, err := influxdb.IDFromString(respStack.ID)
+	if err != nil {
+		return Stack{}, err
+	}
+	newStack.ID = *id
+
+	orgID, err := influxdb.IDFromString(respStack.OrgID)
+	if err != nil {
+		return Stack{}, err
+	}
+	newStack.OrgID = *orgID
+
+	events := respStack.Events
+	if len(events) == 0 && !respStack.UpdatedAt.IsZero() {
+		events = append(events, respStack.RespStackEvent)
+	}
+
+	for _, respEv := range events {
+		ev, err := convertRespStackEvent(respEv)
+		if err != nil {
+			return Stack{}, err
+		}
+		newStack.Events = append(newStack.Events, ev)
+	}
+
+	return newStack, nil
+}
+
+func convertRespStackEvent(ev RespStackEvent) (StackEvent, error) {
+	res, err := convertRespStackResources(ev.Resources)
+	if err != nil {
+		return StackEvent{}, err
+	}
+
+	eventType := StackEventCreate
+	switch ev.EventType {
+	case "uninstall", "delete": // delete is included to maintain backwards compatibility
+		eventType = StackEventUninstalled
+	case "update":
+		eventType = StackEventUpdate
+	}
+
+	return StackEvent{
+		EventType:    eventType,
+		Name:         ev.Name,
+		Description:  ev.Description,
+		Resources:    res,
+		Sources:      ev.Sources,
+		TemplateURLs: ev.URLs,
+		UpdatedAt:    ev.UpdatedAt,
+	}, nil
+}
+
+func convertRespStackResources(resources []RespStackResource) ([]StackResource, error) {
+	out := make([]StackResource, 0, len(resources))
+	for _, r := range resources {
 		sr := StackResource{
 			APIVersion: r.APIVersion,
 			MetaName:   r.MetaName,
@@ -268,27 +342,14 @@ func convertRespStackToStack(respStack RespStack) (Stack, error) {
 
 		resID, err := influxdb.IDFromString(r.ID)
 		if err != nil {
-			return Stack{}, influxErr(influxdb.EInternal, err)
+			return nil, influxErr(influxdb.EInternal, err)
 		}
 		sr.ID = *resID
 
 		if sr.MetaName == "" && r.PkgName != nil {
 			sr.MetaName = *r.PkgName
 		}
-		newStack.Resources = append(newStack.Resources, sr)
+		out = append(out, sr)
 	}
-
-	id, err := influxdb.IDFromString(respStack.ID)
-	if err != nil {
-		return Stack{}, err
-	}
-	newStack.ID = *id
-
-	orgID, err := influxdb.IDFromString(respStack.OrgID)
-	if err != nil {
-		return Stack{}, err
-	}
-	newStack.OrgID = *orgID
-
-	return newStack, nil
+	return out, nil
 }

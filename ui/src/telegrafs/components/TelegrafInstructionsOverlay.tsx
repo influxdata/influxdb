@@ -1,8 +1,8 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -17,17 +17,8 @@ import {Telegraf, AppState, ResourceType} from 'src/types'
 import {getAll, getToken} from 'src/resources/selectors'
 import {clearDataLoaders} from 'src/dataLoaders/actions/dataLoaders'
 
-interface StateProps {
-  username: string
-  token: string
-  collectors: Telegraf[]
-}
-
-interface DispatchProps {
-  onClearDataLoaders: typeof clearDataLoaders
-}
-
-type Props = StateProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string; id: string}>
 
 @ErrorHandling
 export class TelegrafInstructionsOverlay extends PureComponent<Props> {
@@ -55,7 +46,9 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
 
   private get collector() {
     const {
-      params: {id},
+      match: {
+        params: {id},
+      },
       collectors,
     } = this.props
     return collectors.find(c => c.id === id)
@@ -63,19 +56,21 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
 
   private handleDismiss = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
       onClearDataLoaders,
     } = this.props
     this.setState({
       collectorID: null,
     })
     onClearDataLoaders()
-    router.push(`/orgs/${orgID}/load-data/telegrafs/`)
+    history.push(`/orgs/${orgID}/load-data/telegrafs/`)
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     me: {name},
   } = state
@@ -90,11 +85,10 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onClearDataLoaders: clearDataLoaders,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter<StateProps>(TelegrafInstructionsOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TelegrafInstructionsOverlay))

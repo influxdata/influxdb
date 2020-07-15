@@ -1,4 +1,5 @@
 import {NotificationEndpoint} from '../../src/types'
+import 'cypress-file-upload'
 
 export const signin = (): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({username, password}) => {

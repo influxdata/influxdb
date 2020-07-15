@@ -128,34 +128,6 @@ func PushDownWindowAggregateMean() BoolFlag {
 	return pushDownWindowAggregateMean
 }
 
-var pushDownWindowAggregateFirst = MakeBoolFlag(
-	"Push Down Window Aggregate First",
-	"pushDownWindowAggregateFirst",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateFirst - Enable First variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateFirst() BoolFlag {
-	return pushDownWindowAggregateFirst
-}
-
-var pushDownWindowAggregateLast = MakeBoolFlag(
-	"Push Down Window Aggregate Last",
-	"pushDownWindowAggregateLast",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateLast - Enable Last variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateLast() BoolFlag {
-	return pushDownWindowAggregateLast
-}
-
 var groupWindowAggregateTranspose = MakeBoolFlag(
 	"Group Window Aggregate Transpose",
 	"groupWindowAggregateTranspose",
@@ -182,62 +154,6 @@ var newAuth = MakeBoolFlag(
 // NewAuthPackage - Enables the refactored authorization api
 func NewAuthPackage() BoolFlag {
 	return newAuth
-}
-
-var pushDownGroupAggregateCount = MakeBoolFlag(
-	"Push Down Group Aggregate Count",
-	"pushDownGroupAggregateCount",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownGroupAggregateCount - Enable the count variant of PushDownGroupAggregate planner rule
-func PushDownGroupAggregateCount() BoolFlag {
-	return pushDownGroupAggregateCount
-}
-
-var pushDownGroupAggregateSum = MakeBoolFlag(
-	"Push Down Group Aggregate Sum",
-	"pushDownGroupAggregateSum",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownGroupAggregateSum - Enable the sum variant of PushDownGroupAggregate planner rule
-func PushDownGroupAggregateSum() BoolFlag {
-	return pushDownGroupAggregateSum
-}
-
-var pushDownGroupAggregateFirst = MakeBoolFlag(
-	"Push Down Group Aggregate First",
-	"pushDownGroupAggregateFirst",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownGroupAggregateFirst - Enable the first variant of PushDownGroupAggregate planner rule
-func PushDownGroupAggregateFirst() BoolFlag {
-	return pushDownGroupAggregateFirst
-}
-
-var pushDownGroupAggregateLast = MakeBoolFlag(
-	"Push Down Group Aggregate Last",
-	"pushDownGroupAggregateLast",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownGroupAggregateLast - Enable the last variant of PushDownGroupAggregate planner rule
-func PushDownGroupAggregateLast() BoolFlag {
-	return pushDownGroupAggregateLast
 }
 
 var newLabels = MakeBoolFlag(
@@ -282,6 +198,20 @@ func MemoryOptimizedFill() BoolFlag {
 	return memoryOptimizedFill
 }
 
+var memoryOptimizedSchemaMutation = MakeBoolFlag(
+	"Memory Optimized Schema Mutation",
+	"memoryOptimizedSchemaMutation",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// MemoryOptimizedSchemaMutation - Enable the memory optimized schema mutation functions
+func MemoryOptimizedSchemaMutation() BoolFlag {
+	return memoryOptimizedSchemaMutation
+}
+
 var urmFreeTasks = MakeBoolFlag(
 	"Urm Free Tasks",
 	"urmFreeTasks",
@@ -310,6 +240,20 @@ func SimpleTaskOptionsExtraction() BoolFlag {
 	return simpleTaskOptionsExtraction
 }
 
+var useUserPermission = MakeBoolFlag(
+	"Use User Permission",
+	"useUserPermission",
+	"Lyon Hill",
+	false,
+	Temporary,
+	false,
+)
+
+// UseUserPermission - When enabled we will use the new user service permission function
+func UseUserPermission() BoolFlag {
+	return useUserPermission
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -320,19 +264,15 @@ var all = []Flag{
 	pushDownWindowAggregateMin,
 	pushDownWindowAggregateMax,
 	pushDownWindowAggregateMean,
-	pushDownWindowAggregateFirst,
-	pushDownWindowAggregateLast,
 	groupWindowAggregateTranspose,
 	newAuth,
-	pushDownGroupAggregateCount,
-	pushDownGroupAggregateSum,
-	pushDownGroupAggregateFirst,
-	pushDownGroupAggregateLast,
 	newLabels,
 	hydratevars,
 	memoryOptimizedFill,
+	memoryOptimizedSchemaMutation,
 	urmFreeTasks,
 	simpleTaskOptionsExtraction,
+	useUserPermission,
 }
 
 var byKey = map[string]Flag{
@@ -345,17 +285,13 @@ var byKey = map[string]Flag{
 	"pushDownWindowAggregateMin":    pushDownWindowAggregateMin,
 	"pushDownWindowAggregateMax":    pushDownWindowAggregateMax,
 	"pushDownWindowAggregateMean":   pushDownWindowAggregateMean,
-	"pushDownWindowAggregateFirst":  pushDownWindowAggregateFirst,
-	"pushDownWindowAggregateLast":   pushDownWindowAggregateLast,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newAuth":                       newAuth,
-	"pushDownGroupAggregateCount":   pushDownGroupAggregateCount,
-	"pushDownGroupAggregateSum":     pushDownGroupAggregateSum,
-	"pushDownGroupAggregateFirst":   pushDownGroupAggregateFirst,
-	"pushDownGroupAggregateLast":    pushDownGroupAggregateLast,
 	"newLabels":                     newLabels,
 	"hydratevars":                   hydratevars,
 	"memoryOptimizedFill":           memoryOptimizedFill,
+	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"urmFreeTasks":                  urmFreeTasks,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
+	"useUserPermission":             useUserPermission,
 }

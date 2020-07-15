@@ -1,12 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
-import DashobardsTableEmpty from 'src/dashboards/components/dashboard_index/DashboardsTableEmpty'
+import DashboardsTableEmpty from 'src/dashboards/components/dashboard_index/DashboardsTableEmpty'
 
 // Utilities
 import {getLabels} from 'src/labels/actions/thunks'
@@ -30,17 +29,8 @@ interface OwnProps {
   sortType: SortTypes
 }
 
-interface StateProps {
-  status: RemoteDataState
-}
-
-interface DispatchProps {
-  getDashboards: typeof getDashboards
-  onCreateDashboard: typeof createDashboard
-  getLabels: typeof getLabels
-}
-
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 class DashboardsTable extends PureComponent<Props> {
   public componentDidMount() {
@@ -62,7 +52,7 @@ class DashboardsTable extends PureComponent<Props> {
 
     if (status === RemoteDataState.Done && !dashboards.length) {
       return (
-        <DashobardsTableEmpty
+        <DashboardsTableEmpty
           searchTerm={searchTerm}
           onCreateDashboard={onCreateDashboard}
           summonImportFromTemplateOverlay={this.summonImportFromTemplateOverlay}
@@ -84,22 +74,26 @@ class DashboardsTable extends PureComponent<Props> {
 
   private summonImportOverlay = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import`)
+    history.push(`/orgs/${orgID}/dashboards-list/import`)
   }
 
   private summonImportFromTemplateOverlay = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import/template`)
+    history.push(`/orgs/${orgID}/dashboards-list/import/template`)
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const status = state.resources.dashboards.status
 
   return {
@@ -107,13 +101,12 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   getDashboards: getDashboards,
-  onCreateDashboard: createDashboard,
+  onCreateDashboard: createDashboard as any,
   getLabels: getLabels,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<OwnProps>(DashboardsTable))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(DashboardsTable))

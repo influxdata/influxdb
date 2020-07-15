@@ -12,17 +12,31 @@ describe('The Login Page', () => {
       user = u
     })
 
-    cy.setupUser()
+    cy.setupUser().then(({body}) => {
+      cy.wrap(body.org.id).as('orgID')
+    })
 
     cy.visit('/')
   })
 
-  it('can login', () => {
+  it('can login and logout', () => {
     cy.getByInputName('username').type(user.username)
     cy.getByInputName('password').type(user.password)
     cy.get('button[type=submit]').click()
 
     cy.getByTestID('tree-nav').should('exist')
+
+    cy.getByTestID('logout--button').click()
+
+    cy.getByTestID('signin-page--content').should('exist')
+
+    // try to access a protected route
+    cy.get<string>('@orgID').then(orgID => {
+      cy.visit(`/orgs/${orgID}`)
+    })
+
+    // assert that user is routed to signin
+    cy.getByTestID('signin-page--content').should('exist')
   })
 
   describe('login failure', () => {
