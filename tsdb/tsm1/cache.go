@@ -413,14 +413,12 @@ func (c *Cache) Values(key []byte) Values {
 	// Create the buffer, and copy all hot values and snapshots. Individual
 	// entries are sorted at this point, so now the code has to check if the
 	// resultant buffer will be sorted from start to finish.
-	values := make(Values, sz)
-	n := 0
+	values := make(Values, 0, sz)
 	for _, e := range entries {
 		e.mu.RLock()
-		n += copy(values[n:], e.values)
+		values = append(values, e.values...)
 		e.mu.RUnlock()
 	}
-	values = values[:n]
 	values = values.Deduplicate()
 
 	return values
