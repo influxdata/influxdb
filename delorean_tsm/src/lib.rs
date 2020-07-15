@@ -59,6 +59,15 @@ pub struct Block {
     pub reader_idx: usize,
 }
 
+impl Block {
+    /// Determines if this block overlaps the provided block.
+    ///
+    /// Blocks overlap when the time-range of the data within the block can overlap.
+    pub fn overlaps(&self, other: &Self) -> bool {
+        self.min_time <= other.max_time && other.min_time <= self.max_time
+    }
+}
+
 // MAX_BLOCK_VALUES is the maximum number of values a TSM block can store.
 const MAX_BLOCK_VALUES: usize = 1000;
 
@@ -130,5 +139,41 @@ mod tests {
         let id = InfluxID::new_str("20aa9b0").unwrap();
         assert_eq!(id, InfluxID(34_253_232));
         assert_eq!(format!("{}", id), "00000000020aa9b0");
+    }
+
+    #[test]
+    fn block_overlaps() {
+        // ((0, 0), (0, 0), false)
+        let inputs = vec![
+            ((0, 10), (11, 12), false), // *---* +---+
+            ((10, 20), (3, 5), false),  // +---+ *---*
+            ((0, 0), (0, 0), true),     //
+            ((0, 1), (1, 2), true),     // +----*----*
+            ((0, 2), (1, 5), true),     // *--+-*----+
+            ((0, 5), (3, 10), true),    // *--+-*----+
+            ((3, 7), (0, 10), true),    // +--*----*-+
+            ((0, 10), (2, 2), true),    // *--++-----*
+        ];
+
+        for (a, b, expected) in inputs {
+            let block_a = Block {
+                min_time: a.0,
+                max_time: a.1,
+                offset: 0,
+                reader_idx: 0,
+                typ: BlockType::Float,
+                size: 0,
+            };
+            let block_b = Block {
+                min_time: b.0,
+                max_time: b.1,
+                offset: 0,
+                reader_idx: 0,
+                typ: BlockType::Float,
+                size: 0,
+            };
+            assert_eq!(block_a.overlaps(&block_b), expected);
+            assert_eq!(block_b.overlaps(&block_a), expected);
+        }
     }
 }

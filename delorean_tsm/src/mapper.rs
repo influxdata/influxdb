@@ -194,7 +194,7 @@ impl MeasurementTable {
 
     // Process the MeasurementTable in sections.
     //
-    // Each call to `porcess` emits a `TableSection`, which is a partial section
+    // Each call to `process` emits a `TableSection`, which is a partial section
     // of the final table. Each section contains the data for all columns
     // in the table, though not all of that data will necessarily be
     // materialised.
@@ -225,11 +225,12 @@ impl MeasurementTable {
     /// Merge another `MeasurementTable` into this one.
     ///
     /// `other` must be associated with the same measurement, otherwise an error
-    /// will be returned. If any blocks for the same field key and tagset overlap
-    /// then `merge` will return an error. The caller must provide an index
-    /// associated with the block reader for the other measurement table.
+    /// will be returned.
     ///
-    /// TODO(edd): Add support for block merging.
+    /// Because measurement table data can originate from multiple sources (TSM
+    /// files) it is possible that blocks for the same tagset and field will
+    /// overlap with each other. It is the callers responsibility to handle
+    /// merging this data when decoding those blocks.
     ///
     pub fn merge(&mut self, other: &mut Self) -> Result<(), TSMError> {
         if self.name != other.name {
@@ -262,11 +263,14 @@ impl MeasurementTable {
                             "MeasurementTable has field with no blocks"
                         );
 
-                        // Invariant: blocks are already sorted by time range
-                        // and each argument set of blocks (self's and other's)
-                        // do not overlap.
+                        // Invariant: blocks are already sorted by time range.
+                        // Self's blocks do not overlap each other.
+                        // other's blocks do not overlap each other.
+                        //
+                        // It is possible that blocks for the same tagset and
+                        // field in self overlap corresponding blocks in `other`
 
-                        // happy path - all other blocks after ours
+                        // happy path - all of other's blocks are after ours
                         if other_blocks[0].min_time > blocks[blocks.len() - 1].max_time {
                             blocks.extend_from_slice(other_blocks);
                             break;
@@ -274,11 +278,7 @@ impl MeasurementTable {
 
                         // less happy path
                         blocks.extend_from_slice(other_blocks);
-                        blocks.sort_by(|a, b| {
-                            let overlapping = a.min_time <= b.max_time && b.min_time <= a.max_time;
-                            assert!(!overlapping, "Block {:?} overlapping with block {:?}", a, b);
-                            a.min_time.cmp(&b.min_time)
-                        })
+                        blocks.sort_by(|a, b| a.min_time.cmp(&b.min_time))
                     }
                     None => {
                         field_key_blocks.insert(other_field_key.clone(), other_blocks.clone());
@@ -582,23 +582,42 @@ fn refill_block_buffer(
     // refilling.
     for (field, blocks) in field_blocks.iter_mut() {
         if blocks.is_empty() {
-            continue; // finished with all blocks for this field
+            continue; // drained all blocks for this field
         }
 
-        // peek at any decoded block data for current block for field
+        // in this case the destination buffer does not need refilling yet
         if let Some(dst_block) = dst.get(field) {
             if !dst_block.is_empty() {
                 continue; // not ready to be replaced with next block yet
             }
         };
 
-        // either no block data for field in dst, or the block data that is
-        // present has been drained - ready for the next block for field
+        // Either there is no block data in the destination buffer for field,
+        // or the block data that is there has been completely consumed. Refill
+        // the buffer by getting the next block(s), decoding them and making
+        // the block data available for consumption.
+
+        // It is possible for fields to have multiple overlapping blocks, e.g.,
+        // if the data has been built up from multiple data sources (TSM files).
         //
-        // pop the next input block for this field key, decode it and refill dst
-        // with it
-        let decoded_block = decoder.decode(&blocks.remove(0))?;
-        dst.insert(field.clone(), decoded_block);
+        // Determine how many overlapping blocks need to be decoded and merged
+        // together
+        let mut i = 0; // track which blocks are overlapping in the vector
+        while i < blocks.len() - 1 {
+            if !blocks[i].overlaps(&blocks[i + 1]) {
+                break;
+            }
+            i += 1;
+        }
+
+        // materialise all the blocks to be merged. Note, a single block is valid
+        // here - the merge will simply return the block data.
+        let decoded_blocks = blocks
+            .drain(..i + 1)
+            .map(|b| decoder.decode(&b))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        dst.insert(field.clone(), BlockData::merge(decoded_blocks));
     }
     Ok(())
 }

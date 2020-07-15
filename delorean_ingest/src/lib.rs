@@ -508,9 +508,8 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
     packers
 }
 
-/// Converts a TSM file into the delorean_table internal columnar
-/// data format and then passes that converted data to a
-/// `DeloreanTableWriter`
+/// Converts one or more TSM files into the delorean_table internal columnar
+/// data format and then passes that converted data to a `DeloreanTableWriter`.
 pub struct TSMFileConverter {
     table_writer_source: Box<dyn DeloreanTableWriterSource>,
 }
@@ -524,6 +523,9 @@ impl TSMFileConverter {
 
     /// Given one or more sets of readers, converts the underlying TSM data into
     /// a set of Parquet files segmented by measurement name.
+    ///
+    /// It is the caller's responsibility to order the input readers such that
+    /// duplicate block data will be overwritten by later readers.
     pub fn convert<R>(
         &mut self,
         index_readers: Vec<(R, usize)>,
