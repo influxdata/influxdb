@@ -1,5 +1,5 @@
 // Libraries
-import {get, sortBy} from 'lodash'
+import {sortBy} from 'lodash'
 
 // Constants
 import {FLUX_RESPONSE_BYTES_LIMIT, API_BASE_PATH} from 'src/shared/constants'
@@ -9,7 +9,6 @@ import {
 } from 'src/cloud/constants'
 
 // Utils
-import {hashCode} from 'src/queryCache/actions'
 import {asAssignment, getAllVariables} from 'src/variables/selectors'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 
@@ -47,26 +46,85 @@ const asSimplyKeyValueVariables = (vari: Variable) => {
   }
 }
 
-export const getRunQueryResults = (
+// Hashing function found here:
+// https://jsperf.com/hashcodelordvlad
+// Through this thread:
+// https://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript
+export const hashCode = (queryText: string): string => {
+  let hash = 0,
+    char
+  if (!queryText) {
+    return `${hash}`
+  }
+  for (let i = 0; i < queryText.length; i++) {
+    char = queryText.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash |= 0 // Convert to 32bit integer
+  }
+  return `${hash}`
+}
+
+class QueryCache {
+  cache = {}
+
+  getFromCache = (id: string) => {
+    if (id in this.cache) {
+      return this.cache[id]
+    }
+    return null
+  }
+
+  resetCache = () => {
+    this.cache = {}
+  }
+
+  setCacheByID = (id: string, value: any) => {
+    this.cache[id] = value
+  }
+}
+
+const queryCache = new QueryCache()
+
+export const resetQueryCache = (): void => {
+  queryCache.resetCache()
+}
+
+export const getQueryCacheResults = (
   orgID: string,
   query: string,
   state: AppState,
   abortController?: AbortController
-): {queryID: string; results: CancelBox<RunQueryResult>} => {
+): RunQueryResult => {
   const variables = sortBy(getAllVariables(state), ['name'])
   const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
   const stringifiedVars = JSON.stringify(simplifiedVariables)
   // create the queryID based on the query & vars
   const queryID = `${hashCode(query)}_${hashCode(stringifiedVars)}`
+
+  return queryCache.getFromCache(queryID)
+}
+
+export const getRunQueryResults = (
+  orgID: string,
+  query: string,
+  state: AppState,
+  abortController?: AbortController
+): CancelBox<RunQueryResult> => {
+  const variables = sortBy(getAllVariables(state), ['name'])
+  const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
+  const stringifiedVars = JSON.stringify(simplifiedVariables)
+  // create the queryID based on the query & vars
+  const queryID = `${hashCode(query)}_${hashCode(stringifiedVars)}`
+
+  const cacheResults: RunQueryResult = queryCache.getFromCache(queryID)
+  console.log('queryCache: ', queryCache)
   // check the cache based on text & vars
-  const cacheResults: CancelBox<RunQueryResult> = get(
-    state,
-    ['queryCache', 'queryResultsByQueryID', queryID],
-    undefined
-  )
-  // here we know has resolved.
   if (cacheResults) {
-    return {queryID, results: cacheResults}
+    const controller = abortController || new AbortController()
+    return {
+      promise: new Promise(resolve => resolve(cacheResults)),
+      cancel: () => controller.abort(),
+    }
   }
   const variableAssignments = variables
     .map(v => asAssignment(v))
@@ -74,7 +132,13 @@ export const getRunQueryResults = (
   // otherwise query & set results
   const extern = buildVarsOption(variableAssignments)
   const results = runQuery(orgID, query, extern, abortController)
-  return {queryID, results}
+  results.promise.then(res => {
+    // set the resolved promise results in the cache
+    queryCache.setCacheByID(queryID, res)
+    return res
+  })
+
+  return results
 }
 
 export const runQuery = (

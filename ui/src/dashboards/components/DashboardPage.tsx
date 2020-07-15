@@ -19,9 +19,9 @@ import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {resetQueryCache} from 'src/shared/apis/query'
 
 // Selectors & Actions
-import {resetCachedQueryResults} from 'src/queryCache/actions'
 import {getByID} from 'src/resources/selectors'
 
 // Types
@@ -47,11 +47,11 @@ const dashRoute = `/${ORGS}/${ORG_ID}/${DASHBOARDS}/${DASHBOARD_ID}`
 @ErrorHandling
 class DashboardPage extends Component<Props> {
   public componentDidmount() {
-    this.props.resetCachedQueryResults()
+    resetQueryCache()
   }
 
   public componentWillUnmount() {
-    this.props.resetCachedQueryResults()
+    resetQueryCache()
   }
 
   public render() {
@@ -105,10 +105,6 @@ const mstp = (state: AppState) => {
   }
 }
 
-const mdtp = {
-  resetCachedQueryResults: resetCachedQueryResults,
-}
-
-const connector = connect(mstp, mdtp)
+const connector = connect(mstp, null)
 
 export default connector(ManualRefresh<OwnProps>(DashboardPage))
