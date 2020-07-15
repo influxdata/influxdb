@@ -11,6 +11,7 @@ import TimeZoneDropdown from 'src/notebooks/components/header/TimeZoneDropdown'
 import TimeRangeDropdown from 'src/notebooks/components/header/TimeRangeDropdown'
 import AutoRefreshDropdown from 'src/notebooks/components/header/AutoRefreshDropdown'
 import Submit from 'src/notebooks/components/header/Submit'
+import PresentationMode from 'src/notebooks/components/header/PresentationMode'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 export interface TimeContextProps {
@@ -38,6 +39,7 @@ const Buttons: FC = () => {
 
   return (
     <div className="notebook-header--buttons">
+      <PresentationMode />
       <TimeZoneDropdown />
       <FeatureFlag name="notebook-panel--data-source" equals={false}>
         <TimeRangeDropdown context={timeContext[id]} update={update} />

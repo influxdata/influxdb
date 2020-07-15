@@ -1,6 +1,5 @@
 // Libraries
-import React, {FC, useEffect, useState, useMemo} from 'react'
-import {BothResults} from 'src/notebooks'
+import React, {FC, useEffect, useState, useContext, useMemo} from 'react'
 import {AutoSizer} from 'react-virtualized'
 
 // Components
@@ -9,28 +8,25 @@ import {ROW_HEIGHT} from 'src/timeMachine/components/RawFluxDataGrid'
 import Resizer from 'src/notebooks/shared/Resizer'
 import ResultsPagination from 'src/notebooks/pipes/Query/ResultsPagination'
 
-// Types
-import {PipeData} from 'src/notebooks/index'
+import {PipeContext} from 'src/notebooks/context/pipe'
+import {RemoteDataState} from 'src/types'
 
 // Utils
 import {event} from 'src/notebooks/shared/event'
 
-interface Props {
-  data: PipeData
-  results: BothResults
-  onUpdate: (data: any) => void
-}
+const Results: FC = () => {
+  const {data, results, loading} = useContext(PipeContext)
+  const resultsExist =
+    !!results && !!results.raw && !!results.parsed.table.length
+  const raw = (results || {}).raw || ''
 
-const Results: FC<Props> = ({results, onUpdate, data}) => {
-  const resultsExist = !!results.raw && !!results.parsed.table.length
-
-  const rows = useMemo(() => (results.raw || '').split('\n'), [results.raw])
+  const rows = useMemo(() => raw.split('\n'), [raw])
   const [startRow, setStartRow] = useState<number>(0)
   const [pageSize, setPageSize] = useState<number>(0)
 
   useEffect(() => {
     setStartRow(0)
-  }, [results.raw])
+  }, [raw])
 
   const prevDisabled = startRow <= 0
   const nextDisabled = startRow + pageSize >= rows.length
@@ -58,12 +54,20 @@ const Results: FC<Props> = ({results, onUpdate, data}) => {
     setStartRow(index)
   }
 
+  let emptyText
+  if (loading === RemoteDataState.NotStarted) {
+    emptyText = 'Run the Flow to See Results'
+  } else if (loading === RemoteDataState.Loading) {
+    emptyText = 'Loading'
+  } else {
+    emptyText = 'No Data Returned'
+  }
+
   return (
     <Resizer
-      data={data}
-      onUpdate={onUpdate}
       resizingEnabled={resultsExist}
-      emptyText="Run the Flow to see Results"
+      emptyText={emptyText}
+      error={results.error}
       hiddenText="Results hidden"
       toggleVisibilityEnabled={true}
     >

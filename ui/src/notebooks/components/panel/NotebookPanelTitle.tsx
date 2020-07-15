@@ -1,18 +1,19 @@
 // Libraries
 import React, {FC, ChangeEvent, useContext} from 'react'
-import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
+import {DataID, PipeData} from 'src/notebooks'
+import {NotebookContext} from 'src/notebooks/context/notebook.current'
 
 interface Props {
-  index: number
+  id: DataID<PipeData>
 }
 
-const NotebookPanelTitle: FC<Props> = ({index}) => {
-  const {meta, updateMeta} = useContext(NotebookContext)
-  const title = meta[index].title
+const NotebookPanelTitle: FC<Props> = ({id}) => {
+  const {notebook} = useContext(NotebookContext)
+  const title = notebook.meta.get(id).title
   const onTitleChange = (value: string) => {
-    updateMeta(index, {
+    notebook.meta.update(id, {
       title: value,
-    } as PipeMeta)
+    })
   }
 
   let sourceName

@@ -5,7 +5,8 @@ import React, {FC, useContext} from 'react'
 import {Button, ComponentColor} from '@influxdata/clockface'
 
 // Constants
-import {NotebookContext} from 'src/notebooks/context/notebook'
+import {NotebookContext} from 'src/notebooks/context/notebook.current'
+import {ResultsContext} from 'src/notebooks/context/results'
 import {PIPE_DEFINITIONS} from 'src/notebooks'
 
 import {event} from 'src/notebooks/shared/event'
@@ -18,7 +19,8 @@ interface Props {
 }
 
 const AddButtons: FC<Props> = ({index, onInsert, eventName}) => {
-  const {addPipe} = useContext(NotebookContext)
+  const {add} = useContext(NotebookContext)
+  const results = useContext(ResultsContext)
 
   const pipes = Object.entries(PIPE_DEFINITIONS)
     .filter(
@@ -52,13 +54,15 @@ const AddButtons: FC<Props> = ({index, onInsert, eventName}) => {
               type: def.type,
             })
 
-            addPipe(
+            const id = add(
               {
                 ...data,
                 type,
               },
               index
             )
+
+            results.add(id)
           }}
           color={ComponentColor.Secondary}
         />
