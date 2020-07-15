@@ -1287,6 +1287,10 @@ dependencies = [
 [[package]]
 name = "influxdb2_client"
 version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "snafu",
+]
 
 [[package]]
 name = "integer-encoding"

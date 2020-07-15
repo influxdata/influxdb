@@ -5,3 +5,5 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
 [dependencies]
+reqwest = "0.10.1"
+snafu = "0.6.6"
