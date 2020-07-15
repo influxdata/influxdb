@@ -306,38 +306,22 @@ impl BlockData {
                 ts: Vec::with_capacity(other.len()),
                 values: Vec::with_capacity(other.len()),
             },
-            Self::Integer {
-                i: _,
-                ts: _,
-                values: _,
-            } => Self::Integer {
+            Self::Integer { .. } => Self::Integer {
                 i: 0,
                 ts: Vec::with_capacity(other.len()),
                 values: Vec::with_capacity(other.len()),
             },
-            Self::Bool {
-                i: _,
-                ts: _,
-                values: _,
-            } => Self::Bool {
+            Self::Bool { .. } => Self::Bool {
                 i: 0,
                 ts: Vec::with_capacity(other.len()),
                 values: Vec::with_capacity(other.len()),
             },
-            Self::Str {
-                i: _,
-                ts: _,
-                values: _,
-            } => Self::Str {
+            Self::Str { .. } => Self::Str {
                 i: 0,
                 ts: Vec::with_capacity(other.len()),
                 values: Vec::with_capacity(other.len()),
             },
-            Self::Unsigned {
-                i: _,
-                ts: _,
-                values: _,
-            } => Self::Unsigned {
+            Self::Unsigned { .. } => Self::Unsigned {
                 i: 0,
                 ts: Vec::with_capacity(other.len()),
                 values: Vec::with_capacity(other.len()),
@@ -351,19 +335,19 @@ impl BlockData {
                 ts.reserve_exact(additional);
                 values.reserve_exact(additional);
             }
-            Self::Integer { i: _, ts, values } => {
+            Self::Integer { ts, values, .. } => {
                 ts.reserve_exact(additional);
                 values.reserve_exact(additional);
             }
-            Self::Bool { i: _, ts, values } => {
+            Self::Bool { ts, values, .. } => {
                 ts.reserve_exact(additional);
                 values.reserve_exact(additional);
             }
-            Self::Str { i: _, ts, values } => {
+            Self::Str { ts, values, .. } => {
                 ts.reserve_exact(additional);
                 values.reserve_exact(additional);
             }
-            Self::Unsigned { i: _, ts, values } => {
+            Self::Unsigned { ts, values, .. } => {
                 ts.reserve_exact(additional);
                 values.reserve_exact(additional);
             }
@@ -374,7 +358,7 @@ impl BlockData {
     pub fn push(&mut self, pair: ValuePair) {
         match pair {
             ValuePair::F64((t, v)) => {
-                if let Self::Float { i: _, ts, values } = self {
+                if let Self::Float { ts, values, .. } = self {
                     ts.push(t);
                     values.push(v);
                 } else {
@@ -382,7 +366,7 @@ impl BlockData {
                 }
             }
             ValuePair::I64((t, v)) => {
-                if let Self::Integer { i: _, ts, values } = self {
+                if let Self::Integer { ts, values, .. } = self {
                     ts.push(t);
                     values.push(v);
                 } else {
@@ -390,7 +374,7 @@ impl BlockData {
                 }
             }
             ValuePair::Bool((t, v)) => {
-                if let Self::Bool { i: _, ts, values } = self {
+                if let Self::Bool { ts, values, .. } = self {
                     ts.push(t);
                     values.push(v);
                 } else {
@@ -398,7 +382,7 @@ impl BlockData {
                 }
             }
             ValuePair::Str((t, v)) => {
-                if let Self::Str { i: _, ts, values } = self {
+                if let Self::Str { ts, values, .. } = self {
                     ts.push(t);
                     values.push(v); // TODO(edd): figure out
                 } else {
@@ -406,7 +390,7 @@ impl BlockData {
                 }
             }
             ValuePair::U64((t, v)) => {
-                if let Self::Unsigned { i: _, ts, values } = self {
+                if let Self::Unsigned { ts, values, .. } = self {
                     ts.push(t);
                     values.push(v);
                 } else {
@@ -452,37 +436,21 @@ impl BlockData {
 
     pub fn is_empty(&self) -> bool {
         match &self {
-            Self::Float { i, ts, values: _ } => *i == ts.len(),
-            Self::Integer { i, ts, values: _ } => *i == ts.len(),
-            Self::Bool { i, ts, values: _ } => *i == ts.len(),
-            Self::Str { i, ts, values: _ } => *i == ts.len(),
-            Self::Unsigned { i, ts, values: _ } => *i == ts.len(),
+            Self::Float { i, ts, .. } => *i == ts.len(),
+            Self::Integer { i, ts, .. } => *i == ts.len(),
+            Self::Bool { i, ts, .. } => *i == ts.len(),
+            Self::Str { i, ts, .. } => *i == ts.len(),
+            Self::Unsigned { i, ts, .. } => *i == ts.len(),
         }
     }
 
     pub fn len(&self) -> usize {
         match &self {
             Self::Float { ts, .. } => ts.len(),
-            Self::Integer {
-                i: _,
-                ts,
-                values: _,
-            } => ts.len(),
-            Self::Bool {
-                i: _,
-                ts,
-                values: _,
-            } => ts.len(),
-            Self::Str {
-                i: _,
-                ts,
-                values: _,
-            } => ts.len(),
-            Self::Unsigned {
-                i: _,
-                ts,
-                values: _,
-            } => ts.len(),
+            Self::Integer { ts, .. } => ts.len(),
+            Self::Bool { ts, .. } => ts.len(),
+            Self::Str { ts, .. } => ts.len(),
+            Self::Unsigned { ts, .. } => ts.len(),
         }
     }
 
@@ -818,11 +786,11 @@ mod tests {
         for block in blocks {
             // The first integer block in the value should have 509 values in it.
             match block {
-                BlockData::Float { i: _, ts, values } => {
+                BlockData::Float { ts, values, .. } => {
                     assert_eq!(ts.len(), 507);
                     assert_eq!(values.len(), 507);
                 }
-                BlockData::Integer { i: _, ts, values } => {
+                BlockData::Integer { ts, values, .. } => {
                     assert_eq!(ts.len(), 509);
                     assert_eq!(values.len(), 509);
                 }
