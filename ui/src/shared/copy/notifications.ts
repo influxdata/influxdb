@@ -969,3 +969,10 @@ export const communityTemplateInstallSucceeded = (
   ...defaultSuccessNotification,
   message: `We've successfully installed: ${templateName}`,
 })
+
+export const communityTemplateDeleteSucceeded = (
+  templateName: string
+): Notification => ({
+  ...defaultSuccessNotification,
+  message: `We've successfully deleted: ${templateName}`,
+})
