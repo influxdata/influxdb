@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC, useEffect, useState} from 'react'
 import moment from 'moment'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {
   Columns,
   ComponentSize,
@@ -25,7 +25,7 @@ import PreviewDataTable from 'src/shared/components/DeleteDataForm/PreviewDataTa
 import TimeRangeDropdown from 'src/shared/components/DeleteDataForm/TimeRangeDropdown'
 
 // Types
-import {Filter, RemoteDataState, CustomTimeRange, AppState} from 'src/types'
+import {Filter, AppState} from 'src/types'
 
 // Selectors
 import {setCanDelete} from 'src/shared/selectors/canDelete'
@@ -47,31 +47,8 @@ interface OwnProps {
   handleDismiss: () => void
 }
 
-interface StateProps {
-  canDelete: boolean
-  deletionStatus: RemoteDataState
-  files: string[]
-  filters: Filter[]
-  isSerious: boolean
-  keys: string[]
-  timeRange: CustomTimeRange
-  values: (string | number)[]
-  bucketName: string
-  orgID: string
-}
-
-interface DispatchProps {
-  deleteFilter: typeof deleteFilter
-  deleteWithPredicate: typeof deleteWithPredicate
-  executePreviewQuery: typeof executePreviewQuery
-  resetFilters: typeof resetFilters
-  setFilter: typeof setFilter
-  setIsSerious: typeof setIsSerious
-  setBucketAndKeys: typeof setBucketAndKeys
-  setTimeRange: typeof setTimeRange
-}
-
-export type Props = StateProps & DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+export type Props = ReduxProps & OwnProps
 
 const DeleteDataForm: FC<Props> = ({
   canDelete,
@@ -106,7 +83,7 @@ const DeleteDataForm: FC<Props> = ({
     if (filters.every(filter => filter.key !== '' && filter.value !== '')) {
       handleDeleteDataPreview()
     }
-  }, [filters])
+  }, [filters]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatPredicatesForPreview = (predicates: Filter[]) => {
     let result = ''
@@ -261,7 +238,7 @@ const DeleteDataForm: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {predicates} = state
   const {
     bucketName,
@@ -288,7 +265,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   deleteFilter,
   deleteWithPredicate,
   resetFilters,
@@ -299,4 +276,6 @@ const mdtp: DispatchProps = {
   setTimeRange,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(DeleteDataForm)
+const connector = connect(mstp, mdtp)
+
+export default connector(DeleteDataForm)

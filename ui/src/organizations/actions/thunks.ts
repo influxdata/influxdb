@@ -1,6 +1,6 @@
 // Libraries
 import {Dispatch} from 'redux'
-import {push, RouterAction} from 'react-router-redux'
+import {push, RouterAction} from 'connected-react-router'
 import {normalize} from 'normalizr'
 
 // APIs

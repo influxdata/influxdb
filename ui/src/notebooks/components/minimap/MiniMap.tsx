@@ -8,6 +8,7 @@ import {ScrollContext} from 'src/notebooks/context/scroll'
 
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'
+import MiniMapToggle from 'src/notebooks/components/minimap/MiniMapToggle'
 import MiniMapItem from 'src/notebooks/components/minimap/MiniMapItem'
 
 // Types
@@ -25,7 +26,11 @@ const MiniMap: FC<StateProps> = ({notebookMiniMapState}) => {
   const {scrollToPipe} = useContext(ScrollContext)
 
   if (notebookMiniMapState === 'collapsed') {
-    return null
+    return (
+      <div className="notebook-minimap__collapsed">
+        <MiniMapToggle />
+      </div>
+    )
   }
 
   const handleClick = (idx: number): void => {
@@ -46,13 +51,16 @@ const MiniMap: FC<StateProps> = ({notebookMiniMapState}) => {
   ))
 
   return (
-    <DapperScrollbars className="notebook-minimap" autoHide={true}>
-      <div className="notebook-minimap--list">{pipes}</div>
-    </DapperScrollbars>
+    <div className="notebook-minimap">
+      <MiniMapToggle />
+      <DapperScrollbars className="notebook-minimap--scroll" autoHide={true}>
+        <div className="notebook-minimap--list">{pipes}</div>
+      </DapperScrollbars>
+    </div>
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     app: {
       persisted: {notebookMiniMapState},

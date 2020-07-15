@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
-import {WithRouterProps, withRouter} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {RouteComponentProps, withRouter} from 'react-router-dom'
 
 // Components
 import {
@@ -28,16 +28,8 @@ import {AppState, Organization, ResourceType} from 'src/types'
 // Selectors
 import {getAll} from 'src/resources/selectors'
 
-interface StateProps {
-  startOrg: Organization
-  orgNames: string[]
-}
-
-interface DispatchProps {
-  onRenameOrg: typeof renameOrg
-}
-
-type Props = StateProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   org: Organization
@@ -118,7 +110,7 @@ class RenameOrgForm extends PureComponent<Props, State> {
   }
 
   private handleGoBack = () => {
-    this.props.router.push(`/orgs/${this.props.startOrg.id}/settings/about`)
+    this.props.history.push(`/orgs/${this.props.startOrg.id}/about`)
   }
 
   private handleValidation = (orgName: string): string | null => {
@@ -168,7 +160,6 @@ const mdtp = {
   onRenameOrg: renameOrg,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter<{}>(RenameOrgForm))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(RenameOrgForm))

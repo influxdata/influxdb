@@ -1,6 +1,7 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
 
 // Components
 import {Page} from '@influxdata/clockface'
@@ -12,6 +13,9 @@ import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import VariablesControlBar from 'src/dashboards/components/variablesControlBar/VariablesControlBar'
 import LimitChecker from 'src/cloud/components/LimitChecker'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
+import EditVEO from 'src/dashboards/components/EditVEO'
+import NewVEO from 'src/dashboards/components/NewVEO'
+import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -24,19 +28,21 @@ import {getByID} from 'src/resources/selectors'
 import {AppState, AutoRefresh, ResourceType, Dashboard} from 'src/types'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 
-interface DispatchProps {
-  resetCachedQueryResults: typeof resetCachedQueryResults
-}
-
-interface StateProps {
-  dashboard: Dashboard
-}
-
 interface OwnProps {
   autoRefresh: AutoRefresh
 }
 
-type Props = OwnProps & StateProps & ManualRefreshProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ManualRefreshProps & ReduxProps
+
+import {
+  ORGS,
+  ORG_ID,
+  DASHBOARDS,
+  DASHBOARD_ID,
+} from 'src/shared/constants/routes'
+
+const dashRoute = `/${ORGS}/${ORG_ID}/${DASHBOARDS}/${DASHBOARD_ID}`
 
 @ErrorHandling
 class DashboardPage extends Component<Props> {
@@ -45,23 +51,33 @@ class DashboardPage extends Component<Props> {
   }
 
   public render() {
-    const {autoRefresh, manualRefresh, onManualRefresh, children} = this.props
+    const {autoRefresh, manualRefresh, onManualRefresh} = this.props
 
     return (
-      <Page titleTag={this.pageTitle}>
-        <LimitChecker>
-          <HoverTimeProvider>
-            <DashboardHeader
-              autoRefresh={autoRefresh}
-              onManualRefresh={onManualRefresh}
-            />
-            <RateLimitAlert className="dashboard--rate-alert" />
-            <VariablesControlBar />
-            <DashboardComponent manualRefresh={manualRefresh} />
-            {children}
-          </HoverTimeProvider>
-        </LimitChecker>
-      </Page>
+      <>
+        <Page titleTag={this.pageTitle}>
+          <LimitChecker>
+            <HoverTimeProvider>
+              <DashboardHeader
+                autoRefresh={autoRefresh}
+                onManualRefresh={onManualRefresh}
+              />
+              <RateLimitAlert className="dashboard--rate-alert" />
+              <VariablesControlBar />
+              <DashboardComponent manualRefresh={manualRefresh} />
+            </HoverTimeProvider>
+          </LimitChecker>
+        </Page>
+        <Switch>
+          <Route path={`${dashRoute}/cells/new`} component={NewVEO} />
+          <Route path={`${dashRoute}/cells/:cellID/edit`} component={EditVEO} />
+          <Route path={`${dashRoute}/notes/new`} component={AddNoteOverlay} />
+          <Route
+            path={`${dashRoute}/notes/:cellID/edit`}
+            component={EditNoteOverlay}
+          />
+        </Switch>
+      </>
     )
   }
 
@@ -73,7 +89,7 @@ class DashboardPage extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const dashboard = getByID<Dashboard>(
     state,
     ResourceType.Dashboards,
@@ -89,7 +105,6 @@ const mdtp = {
   resetCachedQueryResults: resetCachedQueryResults,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(ManualRefresh<OwnProps>(DashboardPage))
+const connector = connect(mstp, mdtp)
+
+export default connector(ManualRefresh<OwnProps>(DashboardPage))

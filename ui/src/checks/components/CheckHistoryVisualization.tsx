@@ -11,12 +11,11 @@ import ViewLoadingSpinner from 'src/shared/components/ViewLoadingSpinner'
 
 // Types
 import {ResourceIDs} from 'src/checks/reducers'
-import {Check, TimeZone, CheckViewProperties, TimeRange} from 'src/types'
+import {Check, TimeZone, CheckViewProperties} from 'src/types'
 
 // Utils
 import {createView} from 'src/views/helpers'
 import {checkResultsLength} from 'src/shared/utils/vis'
-import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 
 export const ResourceIDsContext = createContext<ResourceIDs>(null)
 
@@ -33,14 +32,11 @@ const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
   const [submitToken] = useState(0)
   const [manualRefresh] = useState(0)
 
-  const vars = [...getTimeRangeVars({lower: 'now() - 5m'} as TimeRange)]
-
   return (
     <TimeSeries
       submitToken={submitToken}
       queries={[check.query]}
       key={manualRefresh}
-      variables={vars}
       check={check}
     >
       {({giraffeResult, loading, errorMessage, isInitialFetch, statuses}) => {

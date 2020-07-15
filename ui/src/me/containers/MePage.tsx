@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -27,19 +27,18 @@ import {AppState} from 'src/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface StateProps {
-  me: AppState['me']
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 @ErrorHandling
-export class MePage extends PureComponent<StateProps> {
+export class MePage extends PureComponent<Props> {
   public render() {
     const {me} = this.props
 
     return (
       <Page titleTag={pageTitleSuffixer(['Home'])}>
         <Page.Header fullWidth={false}>
-          <Page.Title title="Getting Started" />
+          <Page.Title title="Getting Started" testID="home-page--header" />
           <CloudUpgradeButton />
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={true}>
@@ -72,10 +71,12 @@ export class MePage extends PureComponent<StateProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {me} = state
 
   return {me}
 }
 
-export default connect<StateProps>(mstp, null)(MePage)
+const connector = connect(mstp)
+
+export default connector(MePage)

@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -22,23 +22,12 @@ import {
 } from 'src/alerting/actions/alertBuilder'
 
 // Types
-import {CheckStatusLevel, AppState} from 'src/types'
+import {AppState} from 'src/types'
 import DurationInput from 'src/shared/components/DurationInput'
 import {CHECK_OFFSET_OPTIONS} from 'src/alerting/constants'
 
-interface DispatchProps {
-  onSetStaleTime: typeof setStaleTime
-  onSetTimeSince: typeof setTimeSince
-  onSetLevel: typeof setLevel
-}
-
-interface StateProps {
-  staleTime: string
-  timeSince: string
-  level: CheckStatusLevel
-}
-
-type Props = DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const DeadmanConditions: FC<Props> = ({
   staleTime,
@@ -117,17 +106,18 @@ const DeadmanConditions: FC<Props> = ({
   )
 }
 
-const mstp = ({
-  alertBuilder: {staleTime, timeSince, level},
-}: AppState): StateProps => ({staleTime, timeSince, level})
+const mstp = ({alertBuilder: {staleTime, timeSince, level}}: AppState) => ({
+  staleTime,
+  timeSince,
+  level,
+})
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetStaleTime: setStaleTime,
   onSetTimeSince: setTimeSince,
   onSetLevel: setLevel,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(DeadmanConditions)
+const connector = connect(mstp, mdtp)
+
+export default connector(DeadmanConditions)

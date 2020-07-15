@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useState, ChangeEvent} from 'react'
-import {Link} from 'react-router'
+import {Link} from 'react-router-dom'
 import {connect} from 'react-redux'
 import {sortBy} from 'lodash'
 
@@ -95,7 +95,7 @@ const DashboardList: FC<Props> = ({dashboards, org}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   // map names and sort via a selector
   const dashboards = getSortedDashboardNames(
     getAll<Dashboard>(state, ResourceType.Dashboards)
@@ -107,4 +107,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(DashboardList)
+export default connect(mstp)(DashboardList)

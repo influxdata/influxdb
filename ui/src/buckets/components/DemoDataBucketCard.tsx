@@ -1,8 +1,8 @@
 // Libraries
 import React, {FC} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import CopyToClipboard from 'react-copy-to-clipboard'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Constants
 import {
@@ -32,24 +32,24 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 // Types
 import {DemoBucket} from 'src/types'
 
-interface DispatchProps {
-  removeBucket: typeof deleteDemoDataBucketMembership
-  notify: typeof notifyAction
-}
-
-interface Props {
+interface OwnProps {
   bucket: DemoBucket
 }
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{orgID: string}>
+type Props = OwnProps & ReduxProps & RouterProps
 
-const DemoDataBucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
+const DemoDataBucketCard: FC<Props> = ({
   bucket,
-  router,
-  params: {orgID},
+  history,
+  match: {
+    params: {orgID},
+  },
   removeBucket,
   notify,
 }) => {
   const handleNameClick = () => {
-    router.push(`/orgs/${orgID}/data-explorer?bucket=${bucket.name}`)
+    history.push(`/orgs/${orgID}/data-explorer?bucket=${bucket.name}`)
   }
 
   const handleCopyAttempt = (
@@ -133,12 +133,11 @@ const DemoDataBucketCard: FC<Props & WithRouterProps & DispatchProps> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   removeBucket: deleteDemoDataBucketMembership,
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, {}>(
-  null,
-  mdtp
-)(withRouter<Props>(DemoDataBucketCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(DemoDataBucketCard))

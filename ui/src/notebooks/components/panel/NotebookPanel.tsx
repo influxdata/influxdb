@@ -19,6 +19,7 @@ import {
   ClickOutside,
 } from '@influxdata/clockface'
 import RemovePanelButton from 'src/notebooks/components/panel/RemovePanelButton'
+import InsertCellButton from 'src/notebooks/components/panel/InsertCellButton'
 import PanelVisibilityToggle from 'src/notebooks/components/panel/PanelVisibilityToggle'
 import MovePanelButton from 'src/notebooks/components/panel/MovePanelButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
@@ -43,15 +44,19 @@ const NotebookPanelHeader: FC<HeaderProps> = ({index, controls}) => {
   const canBeMovedUp = index > 0
   const canBeMovedDown = index < pipes.length - 1
 
-  const moveUp = useCallback(
-    canBeMovedUp ? () => movePipe(index, index - 1) : null,
-    [index, pipes]
-  )
-  const moveDown = useCallback(
-    canBeMovedDown ? () => movePipe(index, index + 1) : null,
-    [index, pipes]
-  )
-  const remove = useCallback(() => removePipe(index), [index, pipes])
+  const moveUp = useCallback(() => {
+    if (canBeMovedUp) {
+      movePipe(index, index - 1)
+    }
+  }, [index, canBeMovedUp, movePipe])
+
+  const moveDown = useCallback(() => {
+    if (canBeMovedDown) {
+      movePipe(index, index + 1)
+    }
+  }, [index, canBeMovedDown, movePipe])
+
+  const remove = useCallback(() => removePipe(index), [removePipe, index])
 
   return (
     <div className="notebook-panel--header">
@@ -70,8 +75,16 @@ const NotebookPanelHeader: FC<HeaderProps> = ({index, controls}) => {
         justifyContent={JustifyContent.FlexEnd}
       >
         {controls}
-        <MovePanelButton direction="up" onClick={moveUp} />
-        <MovePanelButton direction="down" onClick={moveDown} />
+        <MovePanelButton
+          direction="up"
+          onClick={moveUp}
+          active={canBeMovedUp}
+        />
+        <MovePanelButton
+          direction="down"
+          onClick={moveDown}
+          active={canBeMovedDown}
+        />
         <PanelVisibilityToggle index={index} />
         <RemovePanelButton onRemove={remove} />
       </FlexBox>
@@ -87,8 +100,10 @@ const NotebookPanel: FC<Props> = ({index, children, controls}) => {
   const isFocused = meta[index].focus
 
   useEffect(() => {
-    updateMeta(index, {panelRef} as PipeMeta)
-  }, [])
+    updateMeta(index, {
+      panelRef,
+    } as PipeMeta)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const panelClassName = classnames('notebook-panel', {
     [`notebook-panel__visible`]: isVisible,
@@ -98,9 +113,11 @@ const NotebookPanel: FC<Props> = ({index, children, controls}) => {
 
   const updatePanelFocus = useCallback(
     (focus: boolean): void => {
-      updateMeta(index, {focus} as PipeMeta)
+      updateMeta(index, {
+        focus,
+      } as PipeMeta)
     },
-    [index, meta]
+    [index, meta] // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   const handleClick = (e: MouseEvent<HTMLDivElement>): void => {
@@ -113,12 +130,15 @@ const NotebookPanel: FC<Props> = ({index, children, controls}) => {
   }
 
   return (
-    <ClickOutside onClickOutside={handleClickOutside}>
-      <div className={panelClassName} onClick={handleClick} ref={panelRef}>
-        <NotebookPanelHeader index={index} controls={controls} />
-        <div className="notebook-panel--body">{children}</div>
-      </div>
-    </ClickOutside>
+    <>
+      <ClickOutside onClickOutside={handleClickOutside}>
+        <div className={panelClassName} onClick={handleClick} ref={panelRef}>
+          <NotebookPanelHeader index={index} controls={controls} />
+          <div className="notebook-panel--body">{children}</div>
+        </div>
+      </ClickOutside>
+      <InsertCellButton index={index} />
+    </>
   )
 }
 

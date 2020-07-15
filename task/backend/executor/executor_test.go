@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
@@ -18,9 +19,11 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	tracetest "github.com/influxdata/influxdb/v2/kit/tracing/testing"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/backend"
+	"github.com/influxdata/influxdb/v2/task/backend/executor/mock"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
@@ -53,19 +56,32 @@ func taskExecutorSystem(t *testing.T) tes {
 		qs  = query.QueryServiceBridge{
 			AsyncQueryService: aqs,
 		}
-		i = kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore(), kv.ServiceConfig{
+		ctx    = context.Background()
+		logger = zaptest.NewLogger(t)
+		store  = inmem.NewKVStore()
+	)
+
+	if err := all.Up(ctx, logger, store); err != nil {
+		t.Fatal(err)
+	}
+	ctrl := gomock.NewController(t)
+	ps := mock.NewMockPermissionService(ctrl)
+	ps.EXPECT().FindPermissionForUser(gomock.Any(), gomock.Any()).Return(influxdb.PermissionSet{}, nil).AnyTimes()
+	var (
+		svc = kv.NewService(logger, store, kv.ServiceConfig{
 			FluxLanguageService: fluxlang.DefaultService,
 		})
-		tcs         = &taskControlService{TaskControlService: i}
-		ex, metrics = NewExecutor(zaptest.NewLogger(t), qs, i, i, tcs)
+
+		tcs         = &taskControlService{TaskControlService: svc}
+		ex, metrics = NewExecutor(zaptest.NewLogger(t), qs, ps, svc, tcs)
 	)
 	return tes{
 		svc:     aqs,
 		ex:      ex,
 		metrics: metrics,
-		i:       i,
+		i:       svc,
 		tcs:     tcs,
-		tc:      createCreds(t, i),
+		tc:      createCreds(t, svc),
 	}
 }
 

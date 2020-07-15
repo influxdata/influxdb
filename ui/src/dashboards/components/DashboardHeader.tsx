@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
@@ -45,7 +45,6 @@ import {
   AutoRefresh,
   AutoRefreshStatus,
   Dashboard,
-  Organization,
   ResourceType,
   TimeRange,
 } from 'src/types'
@@ -55,23 +54,8 @@ interface OwnProps {
   onManualRefresh: () => void
 }
 
-interface StateProps {
-  org: Organization
-  dashboard: Dashboard
-  showVariablesControls: boolean
-  timeRange: TimeRange
-}
-
-interface DispatchProps {
-  toggleShowVariablesControls: typeof toggleShowVariablesControlsAction
-  updateDashboard: typeof updateDashboardAction
-  onSetAutoRefreshStatus: typeof setAutoRefreshStatusAction
-  updateQueryParams: typeof updateQueryParamsAction
-  setDashboardTimeRange: typeof setDashboardTimeRangeAction
-  setAutoRefreshInterval: typeof setAutoRefreshIntervalAction
-}
-
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 const DashboardHeader: FC<Props> = ({
   dashboard,
@@ -85,19 +69,19 @@ const DashboardHeader: FC<Props> = ({
   updateDashboard,
   updateQueryParams,
   setDashboardTimeRange,
-  router,
+  history,
   org,
 }) => {
   useEffect(() => {
     fireDashboardViewedEvent(dashboard.name)
-  }, [dashboard.id])
+  }, [dashboard.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddNote = () => {
-    router.push(`/orgs/${org.id}/dashboards/${dashboard.id}/notes/new`)
+    history.push(`/orgs/${org.id}/dashboards/${dashboard.id}/notes/new`)
   }
 
   const handleAddCell = () => {
-    router.push(`/orgs/${org.id}/dashboards/${dashboard.id}/cells/new`)
+    history.push(`/orgs/${org.id}/dashboards/${dashboard.id}/cells/new`)
   }
 
   const handleRenameDashboard = (name: string) => {
@@ -194,7 +178,7 @@ const DashboardHeader: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {showVariablesControls} = state.userSettings
   const dashboard = getByID<Dashboard>(
     state,
@@ -213,7 +197,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   toggleShowVariablesControls: toggleShowVariablesControlsAction,
   updateDashboard: updateDashboardAction,
   onSetAutoRefreshStatus: setAutoRefreshStatusAction,
@@ -222,7 +206,6 @@ const mdtp: DispatchProps = {
   setAutoRefreshInterval: setAutoRefreshIntervalAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<OwnProps>(DashboardHeader))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(DashboardHeader))

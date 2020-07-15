@@ -28,10 +28,7 @@ func initBoltUserResourceMappingService(f influxdbtesting.UserResourceFields, t 
 }
 
 func initUserResourceMappingService(s kv.Store, f influxdbtesting.UserResourceFields, t *testing.T) (influxdb.UserResourceMappingService, func()) {
-	storage, err := tenant.NewStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
+	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)
 
 	// Create resources before mappings.

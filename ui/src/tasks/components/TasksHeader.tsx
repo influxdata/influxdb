@@ -61,7 +61,7 @@ export default class TasksHeader extends PureComponent<Props> {
 
     return (
       <>
-        <Page.Header fullWidth={false}>
+        <Page.Header fullWidth={false} testID="tasks-page--header">
           <Page.Title title="Tasks" />
           <CloudUpgradeButton />
         </Page.Header>

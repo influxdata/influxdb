@@ -1,8 +1,8 @@
 // Libraries
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import {get} from 'lodash'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -22,15 +22,10 @@ interface OwnProps {
   visible: boolean
 }
 
-interface StateProps {
-  buckets: Bucket[]
-}
-
-interface DispatchProps {
-  onCreateScraper: typeof createScraper
-}
-
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps &
+  ReduxProps &
+  RouteComponentProps<{orgID: string; bucketID: string}>
 
 interface State {
   scraper: ScraperTargetRequest
@@ -41,7 +36,9 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
     super(props)
 
     const {
-      params: {bucketID, orgID},
+      match: {
+        params: {bucketID, orgID},
+      },
       buckets,
     } = this.props
 
@@ -118,19 +115,18 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
   }
 
   private onDismiss = (): void => {
-    this.props.router.goBack()
+    this.props.history.goBack()
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   buckets: getAll<Bucket>(state, ResourceType.Buckets),
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onCreateScraper: createScraper,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<StateProps & DispatchProps & OwnProps>(CreateScraperOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(CreateScraperOverlay))

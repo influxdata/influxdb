@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Form, DapperScrollbars} from '@influxdata/clockface'
@@ -19,26 +19,15 @@ import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 import {Bucket} from 'src/types'
 import {ComponentStatus} from '@influxdata/clockface'
 import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
-import {TelegrafPlugin, BundleName} from 'src/types/dataLoaders'
+import {BundleName} from 'src/types/dataLoaders'
 import {AppState} from 'src/types'
 
 export interface OwnProps extends CollectorsStepProps {
   buckets: Bucket[]
 }
 
-export interface StateProps {
-  bucket: string
-  telegrafPlugins: TelegrafPlugin[]
-  pluginBundles: BundleName[]
-}
-
-export interface DispatchProps {
-  onAddPluginBundle: typeof addPluginBundleWithPlugins
-  onRemovePluginBundle: typeof removePluginBundleWithPlugins
-  onSetBucketInfo: typeof setBucketInfo
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
 @ErrorHandling
 export class SelectCollectorsStep extends PureComponent<Props> {
@@ -79,7 +68,7 @@ export class SelectCollectorsStep extends PureComponent<Props> {
             </a>
             &nbsp; and how to &nbsp;
             <a
-              href="https://v2.docs.influxdata.com/v2.0/write-data/use-telegraf/manual-config/"
+              href="https://v2.docs.influxdata.com/v2.0/write-data/no-code/use-telegraf/manual-config/"
               target="_blank"
             >
               Configure these Plugins
@@ -134,19 +123,18 @@ const mstp = ({
     dataLoaders: {telegrafPlugins, pluginBundles},
     steps: {bucket},
   },
-}: AppState): StateProps => ({
+}: AppState) => ({
   telegrafPlugins,
   bucket,
   pluginBundles,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onAddPluginBundle: addPluginBundleWithPlugins,
   onRemovePluginBundle: removePluginBundleWithPlugins,
   onSetBucketInfo: setBucketInfo,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(SelectCollectorsStep)
+const connector = connect(mstp, mdtp)
+
+export default connector(SelectCollectorsStep)

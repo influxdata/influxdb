@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC, useMemo} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Actions
 import {createEndpoint} from 'src/notifications/endpoints/actions/thunks'
@@ -15,16 +15,14 @@ import EndpointOverlayContents from 'src/notifications/endpoints/components/Endp
 import {NEW_ENDPOINT_DRAFT} from 'src/alerting/constants'
 import {NotificationEndpoint} from 'src/types'
 
-interface DispatchProps {
-  onCreateEndpoint: typeof createEndpoint
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = RouteComponentProps<{orgID: string}> & ReduxProps
 
-type Props = WithRouterProps & DispatchProps
+const NewRuleOverlay: FC<Props> = ({match, history, onCreateEndpoint}) => {
+  const {orgID} = match.params
 
-const NewRuleOverlay: FC<Props> = ({params, router, onCreateEndpoint}) => {
-  const {orgID} = params
   const handleDismiss = () => {
-    router.push(`/orgs/${params.orgID}/alerting`)
+    history.push(`/orgs/${orgID}/alerting`)
   }
 
   const handleCreateEndpoint = (endpoint: NotificationEndpoint) => {
@@ -57,7 +55,6 @@ const mdtp = {
   onCreateEndpoint: createEndpoint,
 }
 
-export default connect<null, DispatchProps>(
-  null,
-  mdtp
-)(withRouter<Props>(NewRuleOverlay))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(NewRuleOverlay))

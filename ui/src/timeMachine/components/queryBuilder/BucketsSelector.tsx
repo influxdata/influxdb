@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useState} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
@@ -20,17 +20,8 @@ import {getAll, getStatus} from 'src/resources/selectors'
 import {AppState, Bucket, ResourceType} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
-interface StateProps {
-  selectedBucket: string
-  bucketNames: string[]
-  bucketsStatus: RemoteDataState
-}
-
-interface DispatchProps {
-  onSelectBucket: (bucket: string, resetSelections: boolean) => void
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const fb = term => bucket =>
   bucket.toLocaleLowerCase().includes(term.toLocaleLowerCase())
@@ -121,7 +112,6 @@ const mdtp = {
   onSelectBucket: selectBucket,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(BucketSelector)
+const connector = connect(mstp, mdtp)
+
+export default connector(BucketSelector)

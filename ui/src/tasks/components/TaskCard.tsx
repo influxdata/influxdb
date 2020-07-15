@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {
@@ -38,14 +38,12 @@ interface PassedProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface DispatchProps {
-  onAddTaskLabel: typeof addTaskLabel
-  onDeleteTaskLabel: typeof deleteTaskLabel
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = PassedProps & ReduxProps
 
-type Props = PassedProps & DispatchProps
-
-export class TaskCard extends PureComponent<Props & WithRouterProps> {
+export class TaskCard extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public render() {
     const {task} = this.props
 
@@ -136,25 +134,30 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private handleNameClick = (event: MouseEvent) => {
     const {
-      params: {orgID},
-      router,
+      match: {
+        params: {orgID},
+      },
+      history,
       task,
     } = this.props
-    const url = `/orgs/${orgID}/tasks/${task.id}`
+    const url = `/orgs/${orgID}/tasks/${task.id}/edit`
+
     if (event.metaKey) {
       window.open(url, '_blank')
     } else {
-      router.push(url)
+      history.push(url)
     }
   }
 
   private handleViewRuns = () => {
     const {
-      router,
+      history,
       task,
-      params: {orgID},
+      match: {
+        params: {orgID},
+      },
     } = this.props
-    router.push(`/orgs/${orgID}/tasks/${task.id}/runs`)
+    history.push(`/orgs/${orgID}/tasks/${task.id}/runs`)
   }
 
   private handleRenameTask = (name: string) => {
@@ -167,11 +170,11 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private handleExport = () => {
     const {
-      router,
+      history,
       task,
       location: {pathname},
     } = this.props
-    router.push(`${pathname}/${task.id}/export`)
+    history.push(`${pathname}/${task.id}/export`)
   }
 
   private get labels(): JSX.Element {
@@ -232,12 +235,11 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onAddTaskLabel: addTaskLabel,
   onDeleteTaskLabel: deleteTaskLabel,
 }
 
-export default connect<{}, DispatchProps, PassedProps>(
-  null,
-  mdtp
-)(withRouter<Props>(TaskCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(TaskCard))

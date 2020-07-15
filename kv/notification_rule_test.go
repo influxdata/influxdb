@@ -28,7 +28,8 @@ func initBoltNotificationRuleStore(f influxdbtesting.NotificationRuleFields, t *
 	}
 }
 
-func initNotificationRuleStore(s kv.Store, f influxdbtesting.NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, func()) {
+func initNotificationRuleStore(s kv.SchemaStore, f influxdbtesting.NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, func()) {
+	ctx := context.Background()
 	svc := kv.NewService(zaptest.NewLogger(t), s, kv.ServiceConfig{
 		FluxLanguageService: fluxlang.DefaultService,
 	})
@@ -36,11 +37,6 @@ func initNotificationRuleStore(s kv.Store, f influxdbtesting.NotificationRuleFie
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = influxdb.RealTimeGenerator{}
-	}
-
-	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing user service: %v", err)
 	}
 
 	for _, o := range f.Orgs {

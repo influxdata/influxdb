@@ -1,4 +1,4 @@
-package kv
+package migration
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )
 
@@ -18,6 +19,8 @@ var (
 	// for an already applied migration.
 	ErrMigrationSpecNotFound = errors.New("migration specification not found")
 )
+
+type Store = kv.SchemaStore
 
 // MigrationState is a type for describing the state of a migration.
 type MigrationState uint
@@ -50,84 +53,62 @@ type Migration struct {
 	FinishedAt *time.Time     `json:"finished_at,omitempty"`
 }
 
-// MigrationSpec is a specification for a particular migration.
+// Spec is a specification for a particular migration.
 // It describes the name of the migration and up and down operations
 // needed to fulfill the migration.
-type MigrationSpec interface {
+type Spec interface {
 	MigrationName() string
-	Up(ctx context.Context, store Store) error
-	Down(ctx context.Context, store Store) error
+	Up(ctx context.Context, store kv.SchemaStore) error
+	Down(ctx context.Context, store kv.SchemaStore) error
 }
-
-// MigrationFunc is a function which can be used as either an up or down operation.
-type MigrationFunc func(context.Context, Store) error
-
-// AnonymousMigration is a utility type for creating migrations from anonyomous functions.
-type AnonymousMigration struct {
-	name string
-	up   MigrationFunc
-	down MigrationFunc
-}
-
-// NewAnonymousMigration constructs a new migration from a name string and an up and a down function.
-func NewAnonymousMigration(name string, up, down MigrationFunc) AnonymousMigration {
-	return AnonymousMigration{name, up, down}
-}
-
-// Name returns the name of the migration.
-func (a AnonymousMigration) MigrationName() string { return a.name }
-
-// Up calls the underlying up migration func.
-func (a AnonymousMigration) Up(ctx context.Context, store Store) error { return a.up(ctx, store) }
-
-// Down calls the underlying down migration func.
-func (a AnonymousMigration) Down(ctx context.Context, store Store) error { return a.down(ctx, store) }
 
 // Migrator is a type which manages migrations.
 // It takes a list of migration specifications and undo (down) all or apply (up) outstanding migrations.
 // It records the state of the world in store under the migrations bucket.
 type Migrator struct {
-	logger         *zap.Logger
-	MigrationSpecs []MigrationSpec
+	logger *zap.Logger
+	store  Store
+
+	Specs []Spec
 
 	now func() time.Time
 }
 
 // NewMigrator constructs and configures a new Migrator.
-func NewMigrator(logger *zap.Logger, ms ...MigrationSpec) *Migrator {
+func NewMigrator(logger *zap.Logger, store Store, ms ...Spec) (*Migrator, error) {
 	m := &Migrator{
 		logger: logger,
+		store:  store,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
 	}
+
+	// create migration bucket if it does not exist
+	if err := store.CreateBucket(context.Background(), migrationBucket); err != nil {
+		return nil, err
+	}
+
 	m.AddMigrations(ms...)
-	return m
+
+	return m, nil
 }
 
 // AddMigrations appends the provided migration specs onto the Migrator.
-func (m *Migrator) AddMigrations(ms ...MigrationSpec) {
-	m.MigrationSpecs = append(m.MigrationSpecs, ms...)
-}
-
-// Initialize creates the migration bucket if it does not yet exist.
-func (m *Migrator) Initialize(ctx context.Context, store Store) error {
-	return store.Update(ctx, func(tx Tx) error {
-		_, err := tx.Bucket(migrationBucket)
-		return err
-	})
+func (m *Migrator) AddMigrations(ms ...Spec) {
+	m.Specs = append(m.Specs, ms...)
 }
 
 // List returns a list of migrations and their states within the provided store.
-func (m *Migrator) List(ctx context.Context, store Store) (migrations []Migration, _ error) {
-	if err := m.walk(ctx, store, func(id influxdb.ID, m Migration) {
+func (m *Migrator) List(ctx context.Context) (migrations []Migration, _ error) {
+	if err := m.walk(ctx, m.store, func(id influxdb.ID, m Migration) {
 		migrations = append(migrations, m)
 	}); err != nil {
 		return nil, err
 	}
 
 	migrationsLen := len(migrations)
-	for idx, spec := range m.MigrationSpecs[migrationsLen:] {
+	for idx, spec := range m.Specs[migrationsLen:] {
 		migration := Migration{
 			ID:   influxdb.ID(migrationsLen + idx + 1),
 			Name: spec.MigrationName(),
@@ -148,7 +129,7 @@ func (m *Migrator) List(ctx context.Context, store Store) (migrations []Migratio
 // 0003 add index "foo on baz" | (down)
 //
 // Up would apply migration 0002 and then 0003.
-func (m *Migrator) Up(ctx context.Context, store Store) error {
+func (m *Migrator) Up(ctx context.Context) error {
 	wrapErr := func(err error) error {
 		if err == nil {
 			return nil
@@ -158,7 +139,7 @@ func (m *Migrator) Up(ctx context.Context, store Store) error {
 	}
 
 	var lastMigration int
-	if err := m.walk(ctx, store, func(id influxdb.ID, mig Migration) {
+	if err := m.walk(ctx, m.store, func(id influxdb.ID, mig Migration) {
 		// we're interested in the last up migration
 		if mig.State == UpMigrationState {
 			lastMigration = int(id)
@@ -167,7 +148,7 @@ func (m *Migrator) Up(ctx context.Context, store Store) error {
 		return wrapErr(err)
 	}
 
-	for idx, spec := range m.MigrationSpecs[lastMigration:] {
+	for idx, spec := range m.Specs[lastMigration:] {
 		startedAt := m.now()
 		migration := Migration{
 			ID:        influxdb.ID(lastMigration + idx + 1),
@@ -177,11 +158,11 @@ func (m *Migrator) Up(ctx context.Context, store Store) error {
 
 		m.logMigrationEvent(UpMigrationState, migration, "started")
 
-		if err := m.putMigration(ctx, store, migration); err != nil {
+		if err := m.putMigration(ctx, m.store, migration); err != nil {
 			return wrapErr(err)
 		}
 
-		if err := spec.Up(ctx, store); err != nil {
+		if err := spec.Up(ctx, m.store); err != nil {
 			return wrapErr(err)
 		}
 
@@ -189,7 +170,7 @@ func (m *Migrator) Up(ctx context.Context, store Store) error {
 		migration.FinishedAt = &finishedAt
 		migration.State = UpMigrationState
 
-		if err := m.putMigration(ctx, store, migration); err != nil {
+		if err := m.putMigration(ctx, m.store, migration); err != nil {
 			return wrapErr(err)
 		}
 
@@ -208,7 +189,7 @@ func (m *Migrator) Up(ctx context.Context, store Store) error {
 // 0003 add index "foo on baz" | (down)
 //
 // Down would call down() on 0002 and then on 0001.
-func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
+func (m *Migrator) Down(ctx context.Context) (err error) {
 	wrapErr := func(err error) error {
 		if err == nil {
 			return nil
@@ -218,18 +199,18 @@ func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
 	}
 
 	var migrations []struct {
-		MigrationSpec
+		Spec
 		Migration
 	}
 
-	if err := m.walk(ctx, store, func(id influxdb.ID, mig Migration) {
+	if err := m.walk(ctx, m.store, func(id influxdb.ID, mig Migration) {
 		migrations = append(
 			migrations,
 			struct {
-				MigrationSpec
+				Spec
 				Migration
 			}{
-				m.MigrationSpecs[int(id)-1],
+				m.Specs[int(id)-1],
 				mig,
 			},
 		)
@@ -242,11 +223,11 @@ func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
 
 		m.logMigrationEvent(DownMigrationState, migration.Migration, "started")
 
-		if err := migration.MigrationSpec.Down(ctx, store); err != nil {
+		if err := migration.Spec.Down(ctx, m.store); err != nil {
 			return wrapErr(err)
 		}
 
-		if err := m.deleteMigration(ctx, store, migration.Migration); err != nil {
+		if err := m.deleteMigration(ctx, m.store, migration.Migration); err != nil {
 			return wrapErr(err)
 		}
 
@@ -260,8 +241,8 @@ func (m *Migrator) logMigrationEvent(state MigrationState, mig Migration, event 
 	m.logger.Info(fmt.Sprintf("Migration %q %s (%s)", mig.Name, event, state))
 }
 
-func (m *Migrator) walk(ctx context.Context, store Store, fn func(id influxdb.ID, m Migration)) error {
-	if err := store.View(ctx, func(tx Tx) error {
+func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id influxdb.ID, m Migration)) error {
+	if err := store.View(ctx, func(tx kv.Tx) error {
 		bkt, err := tx.Bucket(migrationBucket)
 		if err != nil {
 			return err
@@ -272,7 +253,7 @@ func (m *Migrator) walk(ctx context.Context, store Store, fn func(id influxdb.ID
 			return err
 		}
 
-		return WalkCursor(ctx, cursor, func(k, v []byte) error {
+		return kv.WalkCursor(ctx, cursor, func(k, v []byte) error {
 			var id influxdb.ID
 			if err := id.Decode(k); err != nil {
 				return fmt.Errorf("decoding migration id: %w", err)
@@ -284,11 +265,11 @@ func (m *Migrator) walk(ctx context.Context, store Store, fn func(id influxdb.ID
 			}
 
 			idx := int(id) - 1
-			if idx >= len(m.MigrationSpecs) {
+			if idx >= len(m.Specs) {
 				return fmt.Errorf("migration %q: %w", migration.Name, ErrMigrationSpecNotFound)
 			}
 
-			if spec := m.MigrationSpecs[idx]; spec.MigrationName() != migration.Name {
+			if spec := m.Specs[idx]; spec.MigrationName() != migration.Name {
 				return fmt.Errorf("expected migration %q, found %q", spec.MigrationName(), migration.Name)
 			}
 
@@ -307,31 +288,31 @@ func (m *Migrator) walk(ctx context.Context, store Store, fn func(id influxdb.ID
 	return nil
 }
 
-func (*Migrator) putMigration(ctx context.Context, store Store, m Migration) error {
-	return store.Update(ctx, func(tx Tx) error {
+func (m *Migrator) putMigration(ctx context.Context, store kv.Store, migration Migration) error {
+	return store.Update(ctx, func(tx kv.Tx) error {
 		bkt, err := tx.Bucket(migrationBucket)
 		if err != nil {
 			return err
 		}
 
-		data, err := json.Marshal(m)
+		data, err := json.Marshal(migration)
 		if err != nil {
 			return err
 		}
 
-		id, _ := m.ID.Encode()
+		id, _ := migration.ID.Encode()
 		return bkt.Put(id, data)
 	})
 }
 
-func (*Migrator) deleteMigration(ctx context.Context, store Store, m Migration) error {
-	return store.Update(ctx, func(tx Tx) error {
+func (m *Migrator) deleteMigration(ctx context.Context, store kv.Store, migration Migration) error {
+	return store.Update(ctx, func(tx kv.Tx) error {
 		bkt, err := tx.Bucket(migrationBucket)
 		if err != nil {
 			return err
 		}
 
-		id, _ := m.ID.Encode()
+		id, _ := migration.ID.Encode()
 		return bkt.Delete(id)
 	})
 }

@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import ExportOverlay from 'src/shared/components/ExportOverlay'
@@ -10,35 +10,23 @@ import {convertToTemplate as convertToTemplateAction} from 'src/dashboards/actio
 import {clearExportTemplate as clearExportTemplateAction} from 'src/templates/actions/thunks'
 
 // Types
-import {DocumentCreate} from '@influxdata/influx'
 import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
 
 import {
   dashboardCopySuccess,
   dashboardCopyFailed,
 } from 'src/shared/copy/notifications'
 
-interface OwnProps {
-  params: {dashboardID: string}
-}
-
-interface DispatchProps {
-  convertToTemplate: typeof convertToTemplateAction
-  clearExportTemplate: typeof clearExportTemplateAction
-}
-
-interface StateProps {
-  dashboardTemplate: DocumentCreate
-  status: RemoteDataState
-}
-
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps &
+  RouteComponentProps<{orgID: string; dashboardID: string}>
 
 class DashboardExportOverlay extends PureComponent<Props> {
   public componentDidMount() {
     const {
-      params: {dashboardID},
+      match: {
+        params: {dashboardID},
+      },
       convertToTemplate,
     } = this.props
 
@@ -68,24 +56,23 @@ class DashboardExportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router, clearExportTemplate} = this.props
+    const {history, clearExportTemplate} = this.props
 
-    router.goBack()
+    history.goBack()
     clearExportTemplate()
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   dashboardTemplate: state.resources.templates.exportTemplate.item,
   status: state.resources.templates.exportTemplate.status,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   convertToTemplate: convertToTemplateAction,
   clearExportTemplate: clearExportTemplateAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<Props>(DashboardExportOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(DashboardExportOverlay))

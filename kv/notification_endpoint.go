@@ -14,6 +14,9 @@ var (
 		Msg:  "notification endpoint not found",
 		Code: influxdb.ENotFound,
 	}
+
+	notificationEndpointBucket      = []byte("notificationEndpointv1")
+	notificationEndpointIndexBucket = []byte("notificationEndpointIndexv1")
 )
 
 var _ influxdb.NotificationEndpointService = (*Service)(nil)
@@ -40,8 +43,8 @@ func newEndpointStore() *IndexStore {
 
 	return &IndexStore{
 		Resource:   resource,
-		EntStore:   NewStoreBase(resource, []byte("notificationEndpointv1"), EncIDKey, EncBodyJSON, decEndpointEntFn, decValToEntFn),
-		IndexStore: NewOrgNameKeyStore(resource, []byte("notificationEndpointIndexv1"), true),
+		EntStore:   NewStoreBase(resource, notificationEndpointBucket, EncIDKey, EncBodyJSON, decEndpointEntFn, decValToEntFn),
+		IndexStore: NewOrgNameKeyStore(resource, notificationEndpointIndexBucket, true),
 	}
 }
 

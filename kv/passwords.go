@@ -72,11 +72,6 @@ var (
 
 var _ influxdb.PasswordsService = (*Service)(nil)
 
-func (s *Service) initializePasswords(ctx context.Context, tx Tx) error {
-	_, err := tx.Bucket(userpasswordBucket)
-	return err
-}
-
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
 func (s *Service) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old string, new string) error {

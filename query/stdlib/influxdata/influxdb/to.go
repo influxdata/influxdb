@@ -2,7 +2,6 @@ package influxdb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -26,13 +25,17 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
-// ToKind is the kind for the `to` flux function
-const ToKind = influxdb.ToKind
+const (
+	// ToKind is the kind for the `to` flux function
+	ToKind = influxdb.ToKind
 
-// TODO(jlapacik) remove this once we have execute.DefaultFieldColLabel
-const defaultFieldColLabel = "_field"
-const DefaultMeasurementColLabel = "_measurement"
-const DefaultBufferSize = 1 << 14
+	// TODO(jlapacik) remove this once we have execute.DefaultFieldColLabel
+	defaultFieldColLabel       = "_field"
+	DefaultMeasurementColLabel = "_measurement"
+	DefaultBufferSize          = 1 << 14
+
+	toOp = "influxdata/influxdb/to"
+)
 
 // ToOpSpec is the flux.OperationSpec for the `to` flux function.
 type ToOpSpec struct {
@@ -291,7 +294,11 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		// No org or orgID provided as an arg, use the orgID from the context
 		req := query.RequestFromContext(ctx)
 		if req == nil {
-			return nil, errors.New("missing request on context")
+			return nil, &platform.Error{
+				Code: platform.EInternal,
+				Msg:  "missing request on context",
+				Op:   toOp,
+			}
 		}
 		orgID = &req.OrganizationID
 	}
@@ -338,10 +345,11 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 	if t.implicitTagColumns {
 
 		// If no tag columns are specified, by default we exclude
-		// _field and _value from being tag columns.
+		// _field, _value and _measurement from being tag columns.
 		excludeColumns := map[string]bool{
 			execute.DefaultValueColLabel: true,
 			defaultFieldColLabel:         true,
+			DefaultMeasurementColLabel:   true,
 		}
 
 		// If a field function is specified then we exclude any column that
@@ -354,7 +362,9 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 			// Walk the field function expression and record which columns
 			// are referenced. None of these columns will be used as tag columns.
 			semantic.Walk(colVisitor, exprNode)
-			excludeColumns = colVisitor.captured
+			for k, v := range colVisitor.captured {
+				excludeColumns[k] = v
+			}
 		}
 
 		addTagsFromTable(t.spec.Spec, tbl, excludeColumns)
@@ -449,13 +459,25 @@ type ToDependencies struct {
 // Validate returns an error if any required field is unset.
 func (d ToDependencies) Validate() error {
 	if d.BucketLookup == nil {
-		return errors.New("missing bucket lookup dependency")
+		return &platform.Error{
+			Code: platform.EInternal,
+			Msg:  "missing bucket lookup dependency",
+			Op:   toOp,
+		}
 	}
 	if d.OrganizationLookup == nil {
-		return errors.New("missing organization lookup dependency")
+		return &platform.Error{
+			Code: platform.EInternal,
+			Msg:  "missing organization lookup dependency",
+			Op:   toOp,
+		}
 	}
 	if d.PointsWriter == nil {
-		return errors.New("missing points writer dependency")
+		return &platform.Error{
+			Code: platform.EInternal,
+			Msg:  "missing points writer dependency",
+			Op:   toOp,
+		}
 	}
 	return nil
 }
@@ -564,7 +586,11 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 					pointTime = valueTime.Time().Time()
 				case isTag[j]:
 					if col.Type != flux.TString {
-						return errors.New("invalid type for tag column")
+						return &platform.Error{
+							Code: platform.EInvalid,
+							Msg:  "invalid type for tag column",
+							Op:   toOp,
+						}
 					}
 					// TODO(docmerlin): instead of doing this sort of thing, it would be nice if we had a way that allocated a lot less.
 					kv = append(kv, []byte(col.Label), er.Strings(j).Value(i))

@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {includes, get} from 'lodash'
 
 // Components
@@ -32,7 +32,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, TelegrafPlugin, ConfigurationState} from 'src/types'
+import {AppState, ConfigurationState} from 'src/types'
 import {InputType, ComponentSize} from '@influxdata/clockface'
 import {influxdbTemplateList} from 'src/templates/constants/defaultTemplates'
 
@@ -40,26 +40,8 @@ import {influxdbTemplateList} from 'src/templates/constants/defaultTemplates'
 import {getOrg} from 'src/organizations/selectors'
 import {getDataLoaders} from 'src/dataLoaders/selectors'
 
-interface DispatchProps {
-  onSetTelegrafConfigName: typeof setTelegrafConfigName
-  onSetTelegrafConfigDescription: typeof setTelegrafConfigDescription
-  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
-  onSetPluginConfiguration: typeof setPluginConfiguration
-  onIncrementStep: typeof incrementCurrentStepIndex
-  onDecrementStep: typeof decrementCurrentStepIndex
-  notify: typeof notifyAction
-  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
-}
-
-interface StateProps {
-  telegrafConfigName: string
-  telegrafConfigDescription: string
-  telegrafPlugins: TelegrafPlugin[]
-  telegrafConfigID: string
-  orgID: string
-}
-
-type Props = DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 export class TelegrafPluginInstructions extends PureComponent<Props> {
   public render() {
@@ -205,7 +187,7 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     telegrafConfigName,
     telegrafConfigDescription,
@@ -224,7 +206,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetTelegrafConfigName: setTelegrafConfigName,
   onSetTelegrafConfigDescription: setTelegrafConfigDescription,
   onIncrementStep: incrementCurrentStepIndex,
@@ -235,7 +217,6 @@ const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(TelegrafPluginInstructions)
+const connector = connect(mstp, mdtp)
+
+export default connector(TelegrafPluginInstructions)

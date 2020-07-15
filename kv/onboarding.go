@@ -16,11 +16,6 @@ var (
 
 var _ influxdb.OnboardingService = (*Service)(nil)
 
-func (s *Service) initializeOnboarding(ctx context.Context, tx Tx) error {
-	_, err := tx.Bucket(onboardingBucket)
-	return err
-}
-
 // IsOnboarding means if the initial setup of influxdb has happened.
 // true means that the onboarding setup has not yet happened.
 // false means that the onboarding has been completed.

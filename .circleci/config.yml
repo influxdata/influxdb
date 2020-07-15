@@ -7,7 +7,7 @@ commands:
     steps:
       - run:
           name: Install clang
-          command: sudo apt-get install -y --no-install-recommends clang
+          command: sudo apt-get install -y --no-install-recommends clang musl-tools
       - run:
           name: Install rust compiler
           command: |
@@ -42,7 +42,8 @@ commands:
       - run:
           name: Install additional rust targets
           command: |
-            rustup target add aarch64-unknown-linux-gnu \
+            rustup target add x86_64-unknown-linux-musl \
+                              aarch64-unknown-linux-gnu \
                               arm-unknown-linux-gnueabihf \
                               armv7-unknown-linux-gnueabihf \
                               x86_64-apple-darwin
@@ -266,9 +267,10 @@ jobs:
   gotest:
     docker:
       - image: circleci/golang:1.13
+    resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
       TEST_RESULTS: /tmp/test-results
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
@@ -326,32 +328,8 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      # Populate GOCACHE.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gocache- # Matches a new branch.
-      # Populate GOPATH/pkg.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
       - run: ./scripts/ci/lint/flags.bash
-      - skip_if_not_master
-      - save_cache:
-          name: Saving GOCACHE
-          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
-          when: always
-      - save_cache:
-          name: Saving GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
-          paths:
-            - /go/pkg/mod
-          when: always
+
   golint:
     docker:
       - image: circleci/golang:1.13
@@ -362,19 +340,6 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-
-      # Populate GOCACHE.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gocache- # Matches a new branch.
-      # Populate GOPATH/pkg.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
       - run: sudo apt-get install -y bzr
       - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
@@ -394,18 +359,6 @@ jobs:
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
       - run: GO111MODULE=on ./env staticcheck ./...
-      - save_cache:
-          name: Saving GOCACHE
-          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
-          when: always
-      - save_cache:
-          name: Saving GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
-          paths:
-            - /go/pkg/mod
-          when: always
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -517,6 +470,7 @@ workflows:
     jobs:
       - gotest
       - golint
+      - lint-feature-flags
       - jstest
       - jslint
       - build
@@ -558,12 +512,14 @@ workflows:
     jobs:
       - gotest
       - golint
+      - lint-feature-flags
       - jstest
       - jslint
       - deploy-nightly:
           requires:
             - gotest
             - golint
+            - lint-feature-flags
             - jstest
             - jslint
           filters:
@@ -591,6 +547,12 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+      - lint-feature-flags:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
       - jstest:
           filters:
             branches:
@@ -607,6 +569,7 @@ workflows:
           requires:
             - gotest
             - golint
+            - lint-feature-flags
             - jstest
             - jslint
           filters:

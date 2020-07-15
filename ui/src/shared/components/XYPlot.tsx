@@ -80,8 +80,10 @@ const XYPlot: FC<Props> = ({
 }) => {
   const storedXDomain = useMemo(() => parseXBounds(xBounds), [xBounds])
   const storedYDomain = useMemo(() => parseYBounds(yBounds), [yBounds])
-  const xColumn = storedXColumn || defaultXColumn(table)
-  const yColumn = storedYColumn || defaultYColumn(table)
+  const xColumn = storedXColumn || defaultXColumn(table, '_time')
+  const yColumn =
+    (table.columnKeys.includes(storedYColumn) && storedYColumn) ||
+    defaultYColumn(table)
 
   const columnKeys = table.columnKeys
 

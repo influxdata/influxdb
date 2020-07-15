@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -25,11 +25,8 @@ interface PassedProps {
   theme: Theme
 }
 
-interface DispatchProps {
-  setFieldOptions: typeof setFieldOptionsAction
-}
-
-type Props = PassedProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = PassedProps & ReduxProps
 
 interface State {
   selectedTableName: string
@@ -111,11 +108,10 @@ class TableGraphs extends PureComponent<Props, State> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   setFieldOptions: setFieldOptionsAction,
 }
 
-export default connect<null, DispatchProps, PassedProps>(
-  null,
-  mdtp
-)(TableGraphs)
+const connector = connect(null, mdtp)
+
+export default connector(TableGraphs)

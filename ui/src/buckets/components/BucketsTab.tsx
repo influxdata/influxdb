@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {isEmpty} from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -29,10 +29,7 @@ import {
   updateBucket,
   deleteBucket,
 } from 'src/buckets/actions/thunks'
-import {
-  checkBucketLimits as checkBucketLimitsAction,
-  LimitStatus,
-} from 'src/cloud/actions/limits'
+import {checkBucketLimits as checkBucketLimitsAction} from 'src/cloud/actions/limits'
 
 // Utils
 import {extractBucketLimits} from 'src/cloud/utils/limits'
@@ -43,18 +40,6 @@ import {SortTypes} from 'src/shared/utils/sort'
 import {AppState, Bucket, ResourceType, OwnBucket} from 'src/types'
 import {BucketSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
-interface StateProps {
-  buckets: Bucket[]
-  limitStatus: LimitStatus
-}
-
-interface DispatchProps {
-  createBucket: typeof createBucket
-  updateBucket: typeof updateBucket
-  deleteBucket: typeof deleteBucket
-  checkBucketLimits: typeof checkBucketLimitsAction
-}
-
 interface State {
   searchTerm: string
   sortKey: BucketSortKey
@@ -62,7 +47,8 @@ interface State {
   sortType: SortTypes
 }
 
-type Props = DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const FilterBuckets = FilterList<Bucket>()
 
@@ -202,7 +188,7 @@ class BucketsTab extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const buckets = getAll<Bucket>(state, ResourceType.Buckets)
   return {
     buckets,
@@ -210,11 +196,13 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createBucket,
   updateBucket,
   deleteBucket,
   checkBucketLimits: checkBucketLimitsAction,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(BucketsTab)
+const connector = connect(mstp, mdtp)
+
+export default connector(BucketsTab)

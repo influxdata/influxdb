@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -10,6 +10,7 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import VEOHeader from 'src/dashboards/components/VEOHeader'
 
 // Actions
+import {disableUpdatedTimeRangeInVEO} from 'src/shared/actions/app'
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions/thunks'
 import {getViewAndResultsForVEO} from 'src/views/actions/thunks'
@@ -18,39 +19,33 @@ import {getViewAndResultsForVEO} from 'src/views/actions/thunks'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, RemoteDataState, QueryView, TimeMachineID} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
-interface DispatchProps {
-  getViewAndResultsForVEO: typeof getViewAndResultsForVEO
-  onSetName: typeof setName
-  onSaveView: typeof saveVEOView
-}
-
-interface StateProps {
-  activeTimeMachineID: TimeMachineID
-  view: QueryView | null
-}
-
-type Props = DispatchProps & StateProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps &
+  RouteComponentProps<{orgID: string; cellID: string; dashboardID: string}>
 
 const EditViewVEO: FunctionComponent<Props> = ({
   activeTimeMachineID,
-  getViewAndResultsForVEO,
   onSaveView,
   onSetName,
-  params: {orgID, cellID, dashboardID},
-  router,
+  match: {
+    params: {orgID, cellID, dashboardID},
+  },
+  history,
   view,
 }) => {
+  const dispatch = useDispatch()
   useEffect(() => {
     // TODO split this up into "loadView" "setActiveTimeMachine"
     // and something to tell the component to pull from the context
     // of the dashboardID
-    getViewAndResultsForVEO(dashboardID, cellID, 'veo')
-  }, [])
+    dispatch(getViewAndResultsForVEO(dashboardID, cellID, 'veo'))
+  }, [dispatch, dashboardID, cellID])
 
   const handleClose = () => {
-    router.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
+    history.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
+    dispatch(disableUpdatedTimeRangeInVEO())
   }
 
   const handleSave = () => {
@@ -90,20 +85,18 @@ const EditViewVEO: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {activeTimeMachineID} = state.timeMachines
   const {view} = getActiveTimeMachine(state)
 
   return {view, activeTimeMachineID}
 }
 
-const mdtp: DispatchProps = {
-  getViewAndResultsForVEO: getViewAndResultsForVEO,
+const mdtp = {
   onSetName: setName,
   onSaveView: saveVEOView,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter<StateProps & DispatchProps>(EditViewVEO))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(EditViewVEO))

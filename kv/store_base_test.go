@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,14 +21,16 @@ func TestStoreBase(t *testing.T) {
 		inmemSVC, done, err := NewTestBoltStore(t)
 		require.NoError(t, err)
 
-		store := kv.NewStoreBase("foo", []byte("foo_"+bktSuffix), encKeyFn, encBodyFn, decFn, decToEntFn)
+		bucket := []byte("foo_" + bktSuffix)
+		store := kv.NewStoreBase("foo", bucket, encKeyFn, encBodyFn, decFn, decToEntFn)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 
-		require.NoError(t, inmemSVC.Update(ctx, func(tx kv.Tx) error {
-			return store.Init(ctx, tx)
-		}))
+		migrationName := fmt.Sprintf("create bucket %q", string(bucket))
+		migration.CreateBuckets(migrationName, bucket).Up(ctx, inmemSVC)
+		require.NoError(t, err)
+
 		return store, done, inmemSVC
 	}
 

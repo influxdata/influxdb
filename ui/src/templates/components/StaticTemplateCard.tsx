@@ -1,8 +1,8 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import {get, capitalize} from 'lodash'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {
   Button,
   ComponentSize,
@@ -22,7 +22,7 @@ import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Organization, TemplateSummary} from 'src/types'
+import {AppState, TemplateSummary} from 'src/types'
 
 // Constants
 interface OwnProps {
@@ -31,17 +31,12 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface DispatchProps {
-  onCreateFromTemplate: typeof createResourceFromStaticTemplate
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
-interface StateProps {
-  org: Organization
-}
-
-type Props = DispatchProps & OwnProps & StateProps
-
-class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
+class StaticTemplateCard extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public render() {
     const {template} = this.props
 
@@ -98,23 +93,22 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleViewTemplate = () => {
-    const {router, org, name} = this.props
+    const {history, org, name} = this.props
 
-    router.push(`/orgs/${org.id}/settings/templates/${name}/static/view`)
+    history.push(`/orgs/${org.id}/settings/templates/${name}/static/view`)
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     org: getOrg(state),
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onCreateFromTemplate: createResourceFromStaticTemplate,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<Props>(StaticTemplateCard))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(StaticTemplateCard))

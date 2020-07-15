@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,10 +24,18 @@ func TestIndexStore(t *testing.T) {
 
 		const resource = "foo"
 
+		bucketName := []byte("foo_ent_" + bktSuffix)
+		indexBucketName := []byte("foo_idx+" + bktSuffix)
+
+		ctx := context.Background()
+		if err := migration.CreateBuckets("add foo buckets", bucketName, indexBucketName).Up(ctx, kvStoreStore); err != nil {
+			t.Fatal(err)
+		}
+
 		indexStore := &kv.IndexStore{
 			Resource:   resource,
-			EntStore:   newStoreBase(resource, []byte("foo_ent_"+bktSuffix), kv.EncIDKey, kv.EncBodyJSON, decJSONFooFn, decFooEntFn),
-			IndexStore: kv.NewOrgNameKeyStore(resource, []byte("foo_idx_"+bktSuffix), false),
+			EntStore:   newStoreBase(resource, bucketName, kv.EncIDKey, kv.EncBodyJSON, decJSONFooFn, decFooEntFn),
+			IndexStore: kv.NewOrgNameKeyStore(resource, indexBucketName, false),
 		}
 
 		return indexStore, done, kvStoreStore

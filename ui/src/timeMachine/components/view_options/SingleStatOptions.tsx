@@ -1,6 +1,6 @@
 // Libraries
 import React, {SFC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Grid} from '@influxdata/clockface'
@@ -40,16 +40,8 @@ interface StateProps {
   decimalPlaces: DecimalPlaces
 }
 
-interface DispatchProps {
-  onSetPrefix: typeof setPrefix
-  onSetTickPrefix: typeof setTickPrefix
-  onSetSuffix: typeof setSuffix
-  onSetTickSuffix: typeof setTickSuffix
-  onSetDecimalPlaces: typeof setDecimalPlaces
-  onSetColors: typeof setColors
-}
-
-type Props = StateProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = StateProps & ReduxProps
 
 const SingleStatOptions: SFC<Props> = props => {
   const {
@@ -119,7 +111,7 @@ const mstp = (state: AppState) => {
   return {colors, prefix, suffix, decimalPlaces, tickPrefix, tickSuffix}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetPrefix: setPrefix,
   onSetTickPrefix: setTickPrefix,
   onSetSuffix: setSuffix,
@@ -128,4 +120,6 @@ const mdtp: DispatchProps = {
   onSetColors: setColors,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(SingleStatOptions)
+const connector = connect(mstp, mdtp)
+
+export default connector(SingleStatOptions)

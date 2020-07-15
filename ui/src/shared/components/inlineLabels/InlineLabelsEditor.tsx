@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component, ChangeEvent, createRef} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -36,19 +36,14 @@ export const ADD_NEW_LABEL_LABEL: Label = {
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface DispatchProps {
-  onCreateLabel: typeof createLabel
-}
-
-interface StateProps {}
-
 interface OwnProps {
   selectedLabels: Label[]
   labels: Label[]
   onAddLabel: (label: Label) => void
 }
 
-type Props = DispatchProps & StateProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
 interface State {
   searchTerm: string
@@ -289,15 +284,10 @@ class InlineLabelsEditor extends Component<Props, State> {
   }
 }
 
-const mstp = (): StateProps => {
-  return {}
-}
-
-const mdtp: DispatchProps = {
+const mdtp = {
   onCreateLabel: createLabel,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(InlineLabelsEditor)
+const connector = connect(null, mdtp)
+
+export default connector(InlineLabelsEditor)

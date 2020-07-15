@@ -73,7 +73,7 @@ interface StateProps {
   org: Organization
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const variables = getVariables(state)
   const org = getOrg(state)
 

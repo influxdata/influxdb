@@ -4618,85 +4618,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /packages:
-    post:
-      operationId: CreatePkg
-      tags:
-        - InfluxPackages
-      summary: Create a new Influx package
-      requestBody:
-        description: Influx package to create.
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PkgCreate"
-      responses:
-        "200":
-          description: Influx package created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Pkg"
-            application/x-yaml:
-              schema:
-                $ref: "#/components/schemas/Pkg"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /packages/apply:
-    post:
-      operationId: ApplyPkg
-      tags:
-        - InfluxPackages
-      summary: Apply or dry-run an Influx package
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PkgApply"
-          application/x-jsonnet:
-            schema:
-              $ref: "#/components/schemas/PkgApply"
-          text/yml:
-            schema:
-              $ref: "#/components/schemas/PkgApply"
-      responses:
-        "200":
-          description: >
-            Influx package dry-run successful, no new resources created.
-            The provided diff and summary will not have IDs for resources
-            that do not exist at the time of the dry run.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PkgSummary"
-        "201":
-          description: >
-            Influx package applied successfully. Newly created resources created
-            available in summary. The diff compares the state of the world before
-            the package is applied with the changes the application will impose.
-            This corresponds to `"dryRun": true`
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PkgSummary"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /packages/stacks:
+  /stacks:
     get:
       operationId: ListStacks
       tags:
-        - InfluxPackages
-      summary: Grab a list of installed Influx packages
+        - InfluxDB Templates
+      summary: Grab a list of installed InfluxDB Templates
       parameters:
         - in: query
           name: orgID
@@ -4735,10 +4662,10 @@ paths:
     post:
       operationId: CreateStack
       tags:
-        - InfluxPackages
+        - InfluxDB Templates
       summary: Create a new stack
       requestBody:
-        description: Influx stack to create.
+        description: Stack to create.
         required: true
         content:
           application/json:
@@ -4757,7 +4684,7 @@ paths:
                     type: string
       responses:
         "201":
-          description: Influx stack created
+          description: InfluxDB Stack created
           content:
             application/json:
               schema:
@@ -4768,11 +4695,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /packages/stacks/{stack_id}:
+  /stacks/{stack_id}:
     get:
       operationId: ReadStack
       tags:
-        - InfluxPackages
+        - InfluxDB Templates
       summary: Grab a stack by its ID
       parameters:
         - in: path
@@ -4797,8 +4724,8 @@ paths:
     patch:
       operationId: UpdateStack
       tags:
-        - InfluxPackages
-      summary: Update a an Influx Stack
+        - InfluxDB Templates
+      summary: Update an InfluxDB Stack
       parameters:
         - in: path
           name: stack_id
@@ -4850,7 +4777,7 @@ paths:
     delete:
       operationId: DeleteStack
       tags:
-        - InfluxPackages
+        - InfluxDB Templates
       summary: Delete a stack and remove all its associated resources
       parameters:
         - in: path
@@ -4868,6 +4795,105 @@ paths:
       responses:
         "204":
           description: Stack and all its associated resources are deleted
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /stacks/{stack_id}/uninstall:
+    post:
+      operationId: UninstallStack
+      tags:
+        - InfluxDB Templates
+      summary: Uninstall an InfluxDB Stack
+      parameters:
+        - in: path
+          name: stack_id
+          required: true
+          schema:
+            type: string
+          description: The stack id
+      responses:
+        "200":
+          description: Influx stack uninstalled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stack"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /templates/apply:
+    post:
+      operationId: ApplyTemplate
+      tags:
+        - InfluxDB Templates
+      summary: Apply or dry-run an InfluxDB Template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateApply"
+          application/x-jsonnet:
+            schema:
+              $ref: "#/components/schemas/TemplateApply"
+          text/yml:
+            schema:
+              $ref: "#/components/schemas/TemplateApply"
+      responses:
+        "200":
+          description: >
+            Influx package dry-run successful, no new resources created.
+            The provided diff and summary will not have IDs for resources
+            that do not exist at the time of the dry run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateSummary"
+        "201":
+          description: >
+            Influx package applied successfully. Newly created resources created
+            available in summary. The diff compares the state of the world before
+            the package is applied with the changes the application will impose.
+            This corresponds to `"dryRun": true`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateSummary"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /templates/export:
+    post:
+      operationId: ExportTemplate
+      tags:
+        - InfluxDB Templates
+      summary: Export a new Influx Template
+      requestBody:
+        description: Export resources as an InfluxDB template.
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateExport"
+      responses:
+        "200":
+          description: InfluxDB template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+            application/x-yaml:
+              schema:
+                $ref: "#/components/schemas/Template"
         default:
           description: Unexpected error
           content:
@@ -7430,7 +7456,7 @@ components:
           type: string
         retentionRules:
           $ref: "#/components/schemas/RetentionRules"
-      required: [name, retentionRules]
+      required: [orgID, name, retentionRules]
     Bucket:
       properties:
         links:
@@ -7621,7 +7647,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Organization"
-    PkgApply:
+    TemplateApply:
       type: object
       properties:
         dryRun:
@@ -7640,7 +7666,7 @@ components:
               items:
                 type: string
             package:
-              $ref: "#/components/schemas/Pkg"
+              $ref: "#/components/schemas/Template"
         templates:
           type: array
           items:
@@ -7653,7 +7679,7 @@ components:
                 items:
                   type: string
               package:
-                $ref: "#/components/schemas/Pkg"
+                $ref: "#/components/schemas/Template"
         secrets:
           type: object
           additionalProperties:
@@ -7713,7 +7739,7 @@ components:
         - Task
         - Telegraf
         - Variable
-    PkgCreate:
+    TemplateExport:
       type: object
       properties:
         stackID:
@@ -7746,7 +7772,7 @@ components:
             name:
               type: string
           required: [id, kind]
-    Pkg:
+    Template:
       type: array
       items:
         type: object
@@ -7762,7 +7788,7 @@ components:
                 type: string
           spec:
             type: object
-    PkgEnvReferences:
+    TemplateEnvReferences:
       type: array
       items:
         type: object
@@ -7780,7 +7806,7 @@ components:
             type: string
             description: Default value that will be provided for the reference when no value is provided
         required: [resourceField, envRefKey, defaultValue]
-    PkgSummary:
+    TemplateSummary:
       type: object
       properties:
         sources:
@@ -7801,7 +7827,9 @@ components:
                     type: string
                   orgID:
                     type: string
-                  pkgName:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
+                  templateMetaName:
                     type: string
                   name:
                     type: string
@@ -7812,9 +7840,9 @@ components:
                   labelAssociations:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgSummaryLabel"
+                      $ref: "#/components/schemas/TemplateSummaryLabel"
                   envReferences:
-                    $ref: "#/components/schemas/PkgEnvReferences"
+                    $ref: "#/components/schemas/TemplateEnvReferences"
             checks:
               type: array
               items:
@@ -7822,18 +7850,16 @@ components:
                   - $ref: "#/components/schemas/CheckDiscriminator"
                   - type: object
                     properties:
-                      pkgName:
+                      kind:
+                        $ref: "#/components/schemas/TemplateKind"
+                      templateMetaName:
                         type: string
                       labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/PkgSummaryLabel"
+                          $ref: "#/components/schemas/TemplateSummaryLabel"
                       envReferences:
-                        $ref: "#/components/schemas/PkgEnvReferences"
-            labels:
-              type: array
-              items:
-                $ref: "#/components/schemas/PkgSummaryLabel"
+                        $ref: "#/components/schemas/TemplateEnvReferences"
             dashboards:
               type: array
               items:
@@ -7843,7 +7869,9 @@ components:
                     type: "string"
                   orgID:
                     type: "string"
-                  pkgName:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
+                  templateMetaName:
                     type: string
                   name:
                     type: "string"
@@ -7852,13 +7880,17 @@ components:
                   labelAssociations:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgSummaryLabel"
+                      $ref: "#/components/schemas/TemplateSummaryLabel"
                   charts:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgChart"
+                      $ref: "#/components/schemas/TemplateChart"
                   envReferences:
-                    $ref: "#/components/schemas/PkgEnvReferences"
+                    $ref: "#/components/schemas/TemplateEnvReferences"
+            labels:
+              type: array
+              items:
+                $ref: "#/components/schemas/TemplateSummaryLabel"
             labelMappings:
               type: array
               items:
@@ -7866,7 +7898,7 @@ components:
                 properties:
                   status:
                     type: string
-                  resourcePkgName:
+                  resourceTemplateMetaName:
                     type: string
                   resourceName:
                     type: string
@@ -7874,7 +7906,7 @@ components:
                     type: string
                   resourceType:
                     type: string
-                  labelPkgName:
+                  labelTemplateMetaName:
                     type: string
                   labelName:
                     type: string
@@ -7895,26 +7927,30 @@ components:
                   - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
                   - type: object
                     properties:
-                      pkgName:
+                      kind:
+                        $ref: "#/components/schemas/TemplateKind"
+                      templateMetaName:
                         type: string
                       labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/PkgSummaryLabel"
+                          $ref: "#/components/schemas/TemplateSummaryLabel"
                       envReferences:
-                        $ref: "#/components/schemas/PkgEnvReferences"
+                        $ref: "#/components/schemas/TemplateEnvReferences"
             notificationRules:
               type: array
               items:
                 type: object
                 properties:
-                  pkgName:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
+                  templateMetaName:
                     type: string
                   name:
                     type: string
                   description:
                     type: string
-                  endpointPkgName:
+                  endpointTemplateMetaName:
                     type: string
                   endpointID:
                     type: string
@@ -7951,15 +7987,17 @@ components:
                   labelAssociations:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgSummaryLabel"
+                      $ref: "#/components/schemas/TemplateSummaryLabel"
                   envReferences:
-                    $ref: "#/components/schemas/PkgEnvReferences"
+                    $ref: "#/components/schemas/TemplateEnvReferences"
             tasks:
               type: array
               items:
                 type: object
                 properties:
-                  pkgName:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
+                  templateMetaName:
                     type: string
                   id:
                     type: string
@@ -7978,7 +8016,7 @@ components:
                   status:
                     type: string
                   envReferences:
-                    $ref: "#/components/schemas/PkgEnvReferences"
+                    $ref: "#/components/schemas/TemplateEnvReferences"
             telegrafConfigs:
               type: array
               items:
@@ -7986,20 +8024,24 @@ components:
                   - $ref: "#/components/schemas/TelegrafRequest"
                   - type: object
                     properties:
-                      pkgName:
+                      kind:
+                        $ref: "#/components/schemas/TemplateKind"
+                      templateMetaName:
                         type: string
                       labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/PkgSummaryLabel"
+                          $ref: "#/components/schemas/TemplateSummaryLabel"
                       envReferences:
-                        $ref: "#/components/schemas/PkgEnvReferences"
+                        $ref: "#/components/schemas/TemplateEnvReferences"
             variables:
               type: array
               items:
                 type: object
                 properties:
-                  pkgName:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
+                  templateMetaName:
                     type: string
                   id:
                     type: string
@@ -8014,9 +8056,9 @@ components:
                   labelAssociations:
                     type: array
                     items:
-                      $ref: "#/components/schemas/PkgSummaryLabel"
+                      $ref: "#/components/schemas/TemplateSummaryLabel"
                   envReferences:
-                    $ref: "#/components/schemas/PkgEnvReferences"
+                    $ref: "#/components/schemas/TemplateEnvReferences"
         diff:
           type: object
           properties:
@@ -8025,11 +8067,13 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8054,11 +8098,13 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     $ref: "#/components/schemas/CheckDiscriminator"
@@ -8073,7 +8119,9 @@ components:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8085,7 +8133,7 @@ components:
                       charts:
                         type: array
                         items:
-                          $ref: "#/components/schemas/PkgChart"
+                          $ref: "#/components/schemas/TemplateChart"
                   old:
                     type: object
                     properties:
@@ -8096,7 +8144,7 @@ components:
                       charts:
                         type: array
                         items:
-                          $ref: "#/components/schemas/PkgChart"
+                          $ref: "#/components/schemas/TemplateChart"
             labels:
               type: array
               items:
@@ -8104,9 +8152,11 @@ components:
                 properties:
                   stateStatus:
                     type: string
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8137,13 +8187,13 @@ components:
                     type: string
                   resourceID:
                     type: string
-                  resourcePkgName:
+                  resourceTemplateMetaName:
                     type: string
                   resourceName:
                     type: string
                   labelID:
                     type: string
-                  labelPkgName:
+                  labelTemplateMetaName:
                     type: string
                   labelName:
                     type: string
@@ -8152,11 +8202,13 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     $ref: "#/components/schemas/NotificationEndpointDiscrimator"
@@ -8167,11 +8219,13 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8260,11 +8314,13 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8305,11 +8361,13 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     $ref: "#/components/schemas/TelegrafRequest"
@@ -8320,11 +8378,13 @@ components:
               items:
                 type: object
                 properties:
+                  kind:
+                    $ref: "#/components/schemas/TemplateKind"
                   stateStatus:
                     type: string
                   id:
                     type: string
-                  pkgName:
+                  templateMetaName:
                     type: string
                   new:
                     type: object
@@ -8361,14 +8421,16 @@ components:
                 type: array
                 items:
                   type: integer
-    PkgSummaryLabel:
+    TemplateSummaryLabel:
       type: object
       properties:
         id:
           type: string
         orgID:
           type: string
-        pkgName:
+        kind:
+          $ref: "#/components/schemas/TemplateKind"
+        templateMetaName:
           type: string
         name:
           type: string
@@ -8380,8 +8442,8 @@ components:
             description:
               type: string
         envReferences:
-          $ref: "#/components/schemas/PkgEnvReferences"
-    PkgChart:
+          $ref: "#/components/schemas/TemplateEnvReferences"
+    TemplateChart:
       type: object
       properties:
         xPos:
@@ -8401,48 +8463,55 @@ components:
           type: string
         orgID:
           type: string
-        name:
-          type: string
-        description:
-          type: string
-        sources:
-          type: array
-          items:
-            type: string
-        resources:
-          type: array
-          items:
-            type: object
-            properties:
-              apiVersion:
-                type: string
-              resourceID:
-                type: string
-              kind:
-                $ref: "#/components/schemas/TemplateKind"
-              templateMetaName:
-                type: string
-              associations:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    kind:
-                      $ref: "#/components/schemas/TemplateKind"
-                    metaName:
-                      type: string
-        urls:
-          type: array
-          items:
-            type: string
         createdAt:
           type: string
           format: date-time
           readOnly: true
-        updatedAt:
-          type: string
-          format: date-time
-          readOnly: true
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              eventType:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+              sources:
+                type: array
+                items:
+                  type: string
+              resources:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    apiVersion:
+                      type: string
+                    resourceID:
+                      type: string
+                    kind:
+                      $ref: "#/components/schemas/TemplateKind"
+                    templateMetaName:
+                      type: string
+                    associations:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          kind:
+                            $ref: "#/components/schemas/TemplateKind"
+                          metaName:
+                            type: string
+              urls:
+                type: array
+                items:
+                  type: string
+              updatedAt:
+                type: string
+                format: date-time
+                readOnly: true
     Runs:
       type: object
       properties:

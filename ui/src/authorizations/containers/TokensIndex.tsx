@@ -1,6 +1,7 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
 
 // Components
 import {Page} from '@influxdata/clockface'
@@ -9,22 +10,29 @@ import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import GetResources from 'src/resources/components/GetResources'
 import TokensTab from 'src/authorizations/components/TokensTab'
+import {
+  AllAccessTokenOverlay,
+  BucketsTokenOverlay,
+} from 'src/overlays/components'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {AppState, Organization, ResourceType} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 
-interface StateProps {
-  org: Organization
-}
+import {ORGS, ORG_ID, TOKENS} from 'src/shared/constants/routes'
+
+const tokensPath = `/${ORGS}/${ORG_ID}/load-data/${TOKENS}/generate`
+
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 @ErrorHandling
-class TokensIndex extends Component<StateProps> {
+class TokensIndex extends Component<Props> {
   public render() {
-    const {org, children} = this.props
+    const {org} = this.props
 
     return (
       <>
@@ -36,7 +44,16 @@ class TokensIndex extends Component<StateProps> {
             </GetResources>
           </LoadDataTabbedPage>
         </Page>
-        {children}
+        <Switch>
+          <Route
+            path={`${tokensPath}/all-access`}
+            component={AllAccessTokenOverlay}
+          />
+          <Route
+            path={`${tokensPath}/buckets`}
+            component={BucketsTokenOverlay}
+          />
+        </Switch>
       </>
     )
   }
@@ -44,4 +61,6 @@ class TokensIndex extends Component<StateProps> {
 
 const mstp = (state: AppState) => ({org: getOrg(state)})
 
-export default connect<StateProps, {}, {}>(mstp, null)(TokensIndex)
+const connector = connect(mstp)
+
+export default connector(TokensIndex)

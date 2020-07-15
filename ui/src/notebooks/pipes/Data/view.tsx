@@ -14,8 +14,8 @@ import BucketProvider from 'src/notebooks/context/buckets'
 import 'src/notebooks/pipes/Query/style.scss'
 
 const DataSource: FC<PipeProp> = ({data, onUpdate, Context}) => {
-  return useMemo(
-    () => (
+  return useMemo(() => {
+    return (
       <BucketProvider>
         <Context>
           <FlexBox
@@ -28,9 +28,8 @@ const DataSource: FC<PipeProp> = ({data, onUpdate, Context}) => {
           </FlexBox>
         </Context>
       </BucketProvider>
-    ),
-    [data.bucketName, data.timeStart, data.timeStop]
-  )
+    )
+  }, [data, onUpdate])
 }
 
 export default DataSource

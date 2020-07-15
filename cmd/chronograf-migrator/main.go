@@ -37,7 +37,7 @@ func exec(dbPath, out string) error {
 		return err
 	}
 
-	pkg := &pkger.Pkg{
+	pkg := &pkger.Template{
 		Objects: make([]pkger.Object, 0),
 	}
 

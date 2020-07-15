@@ -20,7 +20,6 @@ import {EditorProps} from 'src/shared/components/FluxMonacoEditor'
 const MarkdownMonacoEditor: FC<EditorProps> = ({
   script,
   onChangeScript,
-  skipFocus,
   autogrow,
 }) => {
   const editorDidMount = (editor: EditorType) => {
@@ -29,14 +28,12 @@ const MarkdownMonacoEditor: FC<EditorProps> = ({
     }
 
     if (isFlagEnabled('cursorAtEOF')) {
-      if (!skipFocus) {
-        const lines = (script || '').split('\n')
-        editor.setPosition({
-          lineNumber: lines.length,
-          column: lines[lines.length - 1].length + 1,
-        })
-        editor.focus()
-      }
+      const lines = (script || '').split('\n')
+      editor.setPosition({
+        lineNumber: lines.length,
+        column: lines[lines.length - 1].length + 1,
+      })
+      editor.focus()
     } else {
       editor.focus()
     }

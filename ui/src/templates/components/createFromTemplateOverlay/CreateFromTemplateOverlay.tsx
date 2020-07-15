@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 import {sortBy} from 'lodash'
 
 // Components
@@ -29,22 +29,12 @@ import {
   TemplateType,
   DashboardTemplateIncluded,
   AppState,
-  RemoteDataState,
   DashboardTemplate,
   ResourceType,
 } from 'src/types'
 
 // Selectors
 import {getAll} from 'src/resources/selectors/getAll'
-
-interface StateProps {
-  templates: TemplateSummary[]
-  templateStatus: RemoteDataState
-}
-
-interface DispatchProps {
-  createDashboardFromTemplate: typeof createDashboardFromTemplateAction
-}
 
 interface State {
   selectedTemplateSummary: TemplateSummary
@@ -53,10 +43,11 @@ interface State {
   cells: string[]
 }
 
-type Props = DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 class DashboardImportFromTemplateOverlay extends PureComponent<
-  Props & WithRouterProps,
+  Props & RouteComponentProps<{orgID: string}>,
   State
 > {
   constructor(props) {
@@ -176,8 +167,8 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 
   private onDismiss = () => {
-    const {router} = this.props
-    router.goBack()
+    const {history} = this.props
+    history.goBack()
   }
 
   private onSubmit = () => {
@@ -189,7 +180,7 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     resources: {
       templates: {status},
@@ -210,11 +201,10 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createDashboardFromTemplate: createDashboardFromTemplateAction,
 }
 
-export default connect<StateProps>(
-  mstp,
-  mdtp
-)(withRouter(DashboardImportFromTemplateOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(DashboardImportFromTemplateOverlay))

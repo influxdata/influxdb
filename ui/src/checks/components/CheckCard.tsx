@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {
@@ -38,20 +38,12 @@ import {Check, Label} from 'src/types'
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
-interface DispatchProps {
-  onUpdateCheckDisplayProperties: typeof updateCheckDisplayProperties
-  deleteCheck: typeof deleteCheck
-  onAddCheckLabel: typeof addCheckLabel
-  onRemoveCheckLabel: typeof deleteCheckLabel
-  onCloneCheck: typeof cloneCheck
-  onNotify: typeof notify
-}
-
 interface OwnProps {
   check: Check
 }
 
-type Props = OwnProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 const CheckCard: FC<Props> = ({
   onRemoveCheckLabel,
@@ -61,8 +53,10 @@ const CheckCard: FC<Props> = ({
   check,
   onUpdateCheckDisplayProperties,
   deleteCheck,
-  params: {orgID},
-  router,
+  match: {
+    params: {orgID},
+  },
+  history,
 }) => {
   const {id, activeStatus, name, description} = check
 
@@ -101,7 +95,7 @@ const CheckCard: FC<Props> = ({
   }
 
   const onCheckClick = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/${id}/edit`)
+    history.push(`/orgs/${orgID}/alerting/checks/${id}/edit`)
   }
 
   const onView = () => {
@@ -109,7 +103,7 @@ const CheckCard: FC<Props> = ({
       [SEARCH_QUERY_PARAM]: `"checkID" == "${id}"`,
     })
 
-    router.push(`/orgs/${orgID}/checks/${id}/?${queryParams}`)
+    history.push(`/orgs/${orgID}/checks/${id}/?${queryParams}`)
   }
 
   const handleAddCheckLabel = (label: Label) => {
@@ -188,7 +182,7 @@ const CheckCard: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateCheckDisplayProperties: updateCheckDisplayProperties,
   deleteCheck: deleteCheck,
   onAddCheckLabel: addCheckLabel,
@@ -197,4 +191,6 @@ const mdtp: DispatchProps = {
   onNotify: notify,
 }
 
-export default connect<{}, DispatchProps>(null, mdtp)(withRouter(CheckCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(CheckCard))

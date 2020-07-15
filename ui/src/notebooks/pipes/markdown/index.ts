@@ -170,7 +170,7 @@ register({
   component: MarkdownPanel,
   button: 'Markdown',
   initial: () => ({
-    text: TEST_MODE ? TESTCASE : '',
+    text: TEST_MODE ? TESTCASE : 'Type markdown here',
     mode: 'edit',
   }),
 })

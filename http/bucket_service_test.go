@@ -13,7 +13,6 @@ import (
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/inmem"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -456,6 +455,34 @@ func TestService_handlePostBucket(t *testing.T) {
 			},
 			wants: wants{
 				statusCode: http.StatusUnprocessableEntity,
+			},
+		},
+		{
+			name: "create a new bucket without orgId",
+			fields: fields{
+				BucketService: &mock.BucketService{
+					CreateBucketFn: func(ctx context.Context, c *influxdb.Bucket) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						return nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+						return &influxdb.Organization{ID: platformtesting.MustIDBase16("6f626f7274697320")}, nil
+					},
+				},
+			},
+			args: args{
+				bucket: &influxdb.Bucket{
+					Name: "hello",
+				},
+			},
+			wants: wants{
+				statusCode: http.StatusBadRequest,
+				body: `{
+	"code": "invalid",
+	"message": "organization id must be provided"
+}`,
 			},
 		},
 	}
@@ -1173,17 +1200,15 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 }
 
 func initBucketService(f platformtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+	ctx := context.Background()
+	logger := zaptest.NewLogger(t)
+	store := NewTestInmemStore(t)
+	svc := kv.NewService(logger, store)
 	svc.IDGenerator = f.IDGenerator
 	svc.OrgBucketIDs = f.OrgBucketIDs
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = influxdb.RealTimeGenerator{}
-	}
-
-	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatal(err)
 	}
 
 	for _, o := range f.Organizations {

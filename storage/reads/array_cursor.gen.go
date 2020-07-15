@@ -44,26 +44,52 @@ func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	}
 }
 
-func newWindowLimitArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+func newWindowFirstArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
 	if every == 0 {
 		return newLimitArrayCursor(cur)
 	}
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatWindowLimitArrayCursor(cur, every)
+		return newFloatWindowFirstArrayCursor(cur, every)
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerWindowLimitArrayCursor(cur, every)
+		return newIntegerWindowFirstArrayCursor(cur, every)
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowLimitArrayCursor(cur, every)
+		return newUnsignedWindowFirstArrayCursor(cur, every)
 
 	case cursors.StringArrayCursor:
-		return newStringWindowLimitArrayCursor(cur, every)
+		return newStringWindowFirstArrayCursor(cur, every)
 
 	case cursors.BooleanArrayCursor:
-		return newBooleanWindowLimitArrayCursor(cur, every)
+		return newBooleanWindowFirstArrayCursor(cur, every)
+
+	default:
+		panic(fmt.Sprintf("unreachable: %T", cur))
+	}
+}
+
+func newWindowLastArrayCursor(cur cursors.Cursor, every int64) cursors.Cursor {
+	if every == 0 {
+		return newLimitArrayCursor(cur)
+	}
+	switch cur := cur.(type) {
+
+	case cursors.FloatArrayCursor:
+		return newFloatWindowLastArrayCursor(cur, every)
+
+	case cursors.IntegerArrayCursor:
+		return newIntegerWindowLastArrayCursor(cur, every)
+
+	case cursors.UnsignedArrayCursor:
+		return newUnsignedWindowLastArrayCursor(cur, every)
+
+	case cursors.StringArrayCursor:
+		return newStringWindowLastArrayCursor(cur, every)
+
+	case cursors.BooleanArrayCursor:
+		return newBooleanWindowLastArrayCursor(cur, every)
 
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
@@ -280,29 +306,97 @@ func (c *floatLimitArrayCursor) Next() *cursors.FloatArray {
 	return c.res
 }
 
-type floatWindowLimitArrayCursor struct {
+type floatWindowLastArrayCursor struct {
 	cursors.FloatArrayCursor
-	every int64
-	final int64
-	res   *cursors.FloatArray
-	tmp   *cursors.FloatArray
+	every     int64
+	windowEnd int64
+	res       *cursors.FloatArray
+	tmp       *cursors.FloatArray
 }
 
-func newFloatWindowLimitArrayCursor(cur cursors.FloatArrayCursor, every int64) *floatWindowLimitArrayCursor {
-	return &floatWindowLimitArrayCursor{
+func newFloatWindowLastArrayCursor(cur cursors.FloatArrayCursor, every int64) *floatWindowLastArrayCursor {
+	return &floatWindowLastArrayCursor{
 		FloatArrayCursor: cur,
 		every:            every,
-		final:            math.MinInt64,
+		windowEnd:        math.MinInt64,
 		res:              cursors.NewFloatArrayLen(MaxPointsPerBlock),
 		tmp:              &cursors.FloatArray{},
 	}
 }
 
-func (c *floatWindowLimitArrayCursor) Stats() cursors.CursorStats {
+func (c *floatWindowLastArrayCursor) Stats() cursors.CursorStats {
 	return c.FloatArrayCursor.Stats()
 }
 
-func (c *floatWindowLimitArrayCursor) Next() *cursors.FloatArray {
+func (c *floatWindowLastArrayCursor) Next() *cursors.FloatArray {
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
+
+	cur := -1
+
+NEXT:
+	var a *cursors.FloatArray
+
+	if c.tmp.Len() > 0 {
+		a = c.tmp
+	} else {
+		a = c.FloatArrayCursor.Next()
+	}
+
+	if a.Len() == 0 {
+		c.res.Timestamps = c.res.Timestamps[:cur+1]
+		c.res.Values = c.res.Values[:cur+1]
+		return c.res
+	}
+
+	for i, t := range a.Timestamps {
+		if t >= c.windowEnd {
+			cur++
+		}
+
+		if cur == MaxPointsPerBlock {
+			c.tmp.Timestamps = a.Timestamps[i:]
+			c.tmp.Values = a.Values[i:]
+			return c.res
+		}
+
+		c.res.Timestamps[cur] = t
+		c.res.Values[cur] = a.Values[i]
+
+		c.windowEnd = t - t%every + every
+	}
+
+	c.tmp.Timestamps = nil
+	c.tmp.Values = nil
+
+	goto NEXT
+}
+
+type floatWindowFirstArrayCursor struct {
+	cursors.FloatArrayCursor
+	every     int64
+	windowEnd int64
+	res       *cursors.FloatArray
+	tmp       *cursors.FloatArray
+}
+
+func newFloatWindowFirstArrayCursor(cur cursors.FloatArrayCursor, every int64) *floatWindowFirstArrayCursor {
+	return &floatWindowFirstArrayCursor{
+		FloatArrayCursor: cur,
+		every:            every,
+		windowEnd:        math.MinInt64,
+		res:              cursors.NewFloatArrayLen(MaxPointsPerBlock),
+		tmp:              &cursors.FloatArray{},
+	}
+}
+
+func (c *floatWindowFirstArrayCursor) Stats() cursors.CursorStats {
+	return c.FloatArrayCursor.Stats()
+}
+
+func (c *floatWindowFirstArrayCursor) Next() *cursors.FloatArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 
@@ -325,14 +419,11 @@ NEXT:
 	}
 
 	for i, t := range a.Timestamps {
-		if t < c.final {
+		if t < c.windowEnd {
 			continue
 		}
 
-		beg := t - t%every
-		end := beg + every
-
-		c.final = end
+		c.windowEnd = t - t%every + every
 
 		c.res.Timestamps = append(c.res.Timestamps, t)
 		c.res.Values = append(c.res.Values, a.Values[i])
@@ -765,29 +856,97 @@ func (c *integerLimitArrayCursor) Next() *cursors.IntegerArray {
 	return c.res
 }
 
-type integerWindowLimitArrayCursor struct {
+type integerWindowLastArrayCursor struct {
 	cursors.IntegerArrayCursor
-	every int64
-	final int64
-	res   *cursors.IntegerArray
-	tmp   *cursors.IntegerArray
+	every     int64
+	windowEnd int64
+	res       *cursors.IntegerArray
+	tmp       *cursors.IntegerArray
 }
 
-func newIntegerWindowLimitArrayCursor(cur cursors.IntegerArrayCursor, every int64) *integerWindowLimitArrayCursor {
-	return &integerWindowLimitArrayCursor{
+func newIntegerWindowLastArrayCursor(cur cursors.IntegerArrayCursor, every int64) *integerWindowLastArrayCursor {
+	return &integerWindowLastArrayCursor{
 		IntegerArrayCursor: cur,
 		every:              every,
-		final:              math.MinInt64,
+		windowEnd:          math.MinInt64,
 		res:                cursors.NewIntegerArrayLen(MaxPointsPerBlock),
 		tmp:                &cursors.IntegerArray{},
 	}
 }
 
-func (c *integerWindowLimitArrayCursor) Stats() cursors.CursorStats {
+func (c *integerWindowLastArrayCursor) Stats() cursors.CursorStats {
 	return c.IntegerArrayCursor.Stats()
 }
 
-func (c *integerWindowLimitArrayCursor) Next() *cursors.IntegerArray {
+func (c *integerWindowLastArrayCursor) Next() *cursors.IntegerArray {
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
+
+	cur := -1
+
+NEXT:
+	var a *cursors.IntegerArray
+
+	if c.tmp.Len() > 0 {
+		a = c.tmp
+	} else {
+		a = c.IntegerArrayCursor.Next()
+	}
+
+	if a.Len() == 0 {
+		c.res.Timestamps = c.res.Timestamps[:cur+1]
+		c.res.Values = c.res.Values[:cur+1]
+		return c.res
+	}
+
+	for i, t := range a.Timestamps {
+		if t >= c.windowEnd {
+			cur++
+		}
+
+		if cur == MaxPointsPerBlock {
+			c.tmp.Timestamps = a.Timestamps[i:]
+			c.tmp.Values = a.Values[i:]
+			return c.res
+		}
+
+		c.res.Timestamps[cur] = t
+		c.res.Values[cur] = a.Values[i]
+
+		c.windowEnd = t - t%every + every
+	}
+
+	c.tmp.Timestamps = nil
+	c.tmp.Values = nil
+
+	goto NEXT
+}
+
+type integerWindowFirstArrayCursor struct {
+	cursors.IntegerArrayCursor
+	every     int64
+	windowEnd int64
+	res       *cursors.IntegerArray
+	tmp       *cursors.IntegerArray
+}
+
+func newIntegerWindowFirstArrayCursor(cur cursors.IntegerArrayCursor, every int64) *integerWindowFirstArrayCursor {
+	return &integerWindowFirstArrayCursor{
+		IntegerArrayCursor: cur,
+		every:              every,
+		windowEnd:          math.MinInt64,
+		res:                cursors.NewIntegerArrayLen(MaxPointsPerBlock),
+		tmp:                &cursors.IntegerArray{},
+	}
+}
+
+func (c *integerWindowFirstArrayCursor) Stats() cursors.CursorStats {
+	return c.IntegerArrayCursor.Stats()
+}
+
+func (c *integerWindowFirstArrayCursor) Next() *cursors.IntegerArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 
@@ -810,14 +969,11 @@ NEXT:
 	}
 
 	for i, t := range a.Timestamps {
-		if t < c.final {
+		if t < c.windowEnd {
 			continue
 		}
 
-		beg := t - t%every
-		end := beg + every
-
-		c.final = end
+		c.windowEnd = t - t%every + every
 
 		c.res.Timestamps = append(c.res.Timestamps, t)
 		c.res.Values = append(c.res.Values, a.Values[i])
@@ -1250,29 +1406,97 @@ func (c *unsignedLimitArrayCursor) Next() *cursors.UnsignedArray {
 	return c.res
 }
 
-type unsignedWindowLimitArrayCursor struct {
+type unsignedWindowLastArrayCursor struct {
 	cursors.UnsignedArrayCursor
-	every int64
-	final int64
-	res   *cursors.UnsignedArray
-	tmp   *cursors.UnsignedArray
+	every     int64
+	windowEnd int64
+	res       *cursors.UnsignedArray
+	tmp       *cursors.UnsignedArray
 }
 
-func newUnsignedWindowLimitArrayCursor(cur cursors.UnsignedArrayCursor, every int64) *unsignedWindowLimitArrayCursor {
-	return &unsignedWindowLimitArrayCursor{
+func newUnsignedWindowLastArrayCursor(cur cursors.UnsignedArrayCursor, every int64) *unsignedWindowLastArrayCursor {
+	return &unsignedWindowLastArrayCursor{
 		UnsignedArrayCursor: cur,
 		every:               every,
-		final:               math.MinInt64,
+		windowEnd:           math.MinInt64,
 		res:                 cursors.NewUnsignedArrayLen(MaxPointsPerBlock),
 		tmp:                 &cursors.UnsignedArray{},
 	}
 }
 
-func (c *unsignedWindowLimitArrayCursor) Stats() cursors.CursorStats {
+func (c *unsignedWindowLastArrayCursor) Stats() cursors.CursorStats {
 	return c.UnsignedArrayCursor.Stats()
 }
 
-func (c *unsignedWindowLimitArrayCursor) Next() *cursors.UnsignedArray {
+func (c *unsignedWindowLastArrayCursor) Next() *cursors.UnsignedArray {
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
+
+	cur := -1
+
+NEXT:
+	var a *cursors.UnsignedArray
+
+	if c.tmp.Len() > 0 {
+		a = c.tmp
+	} else {
+		a = c.UnsignedArrayCursor.Next()
+	}
+
+	if a.Len() == 0 {
+		c.res.Timestamps = c.res.Timestamps[:cur+1]
+		c.res.Values = c.res.Values[:cur+1]
+		return c.res
+	}
+
+	for i, t := range a.Timestamps {
+		if t >= c.windowEnd {
+			cur++
+		}
+
+		if cur == MaxPointsPerBlock {
+			c.tmp.Timestamps = a.Timestamps[i:]
+			c.tmp.Values = a.Values[i:]
+			return c.res
+		}
+
+		c.res.Timestamps[cur] = t
+		c.res.Values[cur] = a.Values[i]
+
+		c.windowEnd = t - t%every + every
+	}
+
+	c.tmp.Timestamps = nil
+	c.tmp.Values = nil
+
+	goto NEXT
+}
+
+type unsignedWindowFirstArrayCursor struct {
+	cursors.UnsignedArrayCursor
+	every     int64
+	windowEnd int64
+	res       *cursors.UnsignedArray
+	tmp       *cursors.UnsignedArray
+}
+
+func newUnsignedWindowFirstArrayCursor(cur cursors.UnsignedArrayCursor, every int64) *unsignedWindowFirstArrayCursor {
+	return &unsignedWindowFirstArrayCursor{
+		UnsignedArrayCursor: cur,
+		every:               every,
+		windowEnd:           math.MinInt64,
+		res:                 cursors.NewUnsignedArrayLen(MaxPointsPerBlock),
+		tmp:                 &cursors.UnsignedArray{},
+	}
+}
+
+func (c *unsignedWindowFirstArrayCursor) Stats() cursors.CursorStats {
+	return c.UnsignedArrayCursor.Stats()
+}
+
+func (c *unsignedWindowFirstArrayCursor) Next() *cursors.UnsignedArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 
@@ -1295,14 +1519,11 @@ NEXT:
 	}
 
 	for i, t := range a.Timestamps {
-		if t < c.final {
+		if t < c.windowEnd {
 			continue
 		}
 
-		beg := t - t%every
-		end := beg + every
-
-		c.final = end
+		c.windowEnd = t - t%every + every
 
 		c.res.Timestamps = append(c.res.Timestamps, t)
 		c.res.Values = append(c.res.Values, a.Values[i])
@@ -1735,29 +1956,97 @@ func (c *stringLimitArrayCursor) Next() *cursors.StringArray {
 	return c.res
 }
 
-type stringWindowLimitArrayCursor struct {
+type stringWindowLastArrayCursor struct {
 	cursors.StringArrayCursor
-	every int64
-	final int64
-	res   *cursors.StringArray
-	tmp   *cursors.StringArray
+	every     int64
+	windowEnd int64
+	res       *cursors.StringArray
+	tmp       *cursors.StringArray
 }
 
-func newStringWindowLimitArrayCursor(cur cursors.StringArrayCursor, every int64) *stringWindowLimitArrayCursor {
-	return &stringWindowLimitArrayCursor{
+func newStringWindowLastArrayCursor(cur cursors.StringArrayCursor, every int64) *stringWindowLastArrayCursor {
+	return &stringWindowLastArrayCursor{
 		StringArrayCursor: cur,
 		every:             every,
-		final:             math.MinInt64,
+		windowEnd:         math.MinInt64,
 		res:               cursors.NewStringArrayLen(MaxPointsPerBlock),
 		tmp:               &cursors.StringArray{},
 	}
 }
 
-func (c *stringWindowLimitArrayCursor) Stats() cursors.CursorStats {
+func (c *stringWindowLastArrayCursor) Stats() cursors.CursorStats {
 	return c.StringArrayCursor.Stats()
 }
 
-func (c *stringWindowLimitArrayCursor) Next() *cursors.StringArray {
+func (c *stringWindowLastArrayCursor) Next() *cursors.StringArray {
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
+
+	cur := -1
+
+NEXT:
+	var a *cursors.StringArray
+
+	if c.tmp.Len() > 0 {
+		a = c.tmp
+	} else {
+		a = c.StringArrayCursor.Next()
+	}
+
+	if a.Len() == 0 {
+		c.res.Timestamps = c.res.Timestamps[:cur+1]
+		c.res.Values = c.res.Values[:cur+1]
+		return c.res
+	}
+
+	for i, t := range a.Timestamps {
+		if t >= c.windowEnd {
+			cur++
+		}
+
+		if cur == MaxPointsPerBlock {
+			c.tmp.Timestamps = a.Timestamps[i:]
+			c.tmp.Values = a.Values[i:]
+			return c.res
+		}
+
+		c.res.Timestamps[cur] = t
+		c.res.Values[cur] = a.Values[i]
+
+		c.windowEnd = t - t%every + every
+	}
+
+	c.tmp.Timestamps = nil
+	c.tmp.Values = nil
+
+	goto NEXT
+}
+
+type stringWindowFirstArrayCursor struct {
+	cursors.StringArrayCursor
+	every     int64
+	windowEnd int64
+	res       *cursors.StringArray
+	tmp       *cursors.StringArray
+}
+
+func newStringWindowFirstArrayCursor(cur cursors.StringArrayCursor, every int64) *stringWindowFirstArrayCursor {
+	return &stringWindowFirstArrayCursor{
+		StringArrayCursor: cur,
+		every:             every,
+		windowEnd:         math.MinInt64,
+		res:               cursors.NewStringArrayLen(MaxPointsPerBlock),
+		tmp:               &cursors.StringArray{},
+	}
+}
+
+func (c *stringWindowFirstArrayCursor) Stats() cursors.CursorStats {
+	return c.StringArrayCursor.Stats()
+}
+
+func (c *stringWindowFirstArrayCursor) Next() *cursors.StringArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 
@@ -1780,14 +2069,11 @@ NEXT:
 	}
 
 	for i, t := range a.Timestamps {
-		if t < c.final {
+		if t < c.windowEnd {
 			continue
 		}
 
-		beg := t - t%every
-		end := beg + every
-
-		c.final = end
+		c.windowEnd = t - t%every + every
 
 		c.res.Timestamps = append(c.res.Timestamps, t)
 		c.res.Values = append(c.res.Values, a.Values[i])
@@ -2103,29 +2389,97 @@ func (c *booleanLimitArrayCursor) Next() *cursors.BooleanArray {
 	return c.res
 }
 
-type booleanWindowLimitArrayCursor struct {
+type booleanWindowLastArrayCursor struct {
 	cursors.BooleanArrayCursor
-	every int64
-	final int64
-	res   *cursors.BooleanArray
-	tmp   *cursors.BooleanArray
+	every     int64
+	windowEnd int64
+	res       *cursors.BooleanArray
+	tmp       *cursors.BooleanArray
 }
 
-func newBooleanWindowLimitArrayCursor(cur cursors.BooleanArrayCursor, every int64) *booleanWindowLimitArrayCursor {
-	return &booleanWindowLimitArrayCursor{
+func newBooleanWindowLastArrayCursor(cur cursors.BooleanArrayCursor, every int64) *booleanWindowLastArrayCursor {
+	return &booleanWindowLastArrayCursor{
 		BooleanArrayCursor: cur,
 		every:              every,
-		final:              math.MinInt64,
+		windowEnd:          math.MinInt64,
 		res:                cursors.NewBooleanArrayLen(MaxPointsPerBlock),
 		tmp:                &cursors.BooleanArray{},
 	}
 }
 
-func (c *booleanWindowLimitArrayCursor) Stats() cursors.CursorStats {
+func (c *booleanWindowLastArrayCursor) Stats() cursors.CursorStats {
 	return c.BooleanArrayCursor.Stats()
 }
 
-func (c *booleanWindowLimitArrayCursor) Next() *cursors.BooleanArray {
+func (c *booleanWindowLastArrayCursor) Next() *cursors.BooleanArray {
+	every := c.every
+	if every == 0 {
+		every = math.MaxInt64
+	}
+
+	cur := -1
+
+NEXT:
+	var a *cursors.BooleanArray
+
+	if c.tmp.Len() > 0 {
+		a = c.tmp
+	} else {
+		a = c.BooleanArrayCursor.Next()
+	}
+
+	if a.Len() == 0 {
+		c.res.Timestamps = c.res.Timestamps[:cur+1]
+		c.res.Values = c.res.Values[:cur+1]
+		return c.res
+	}
+
+	for i, t := range a.Timestamps {
+		if t >= c.windowEnd {
+			cur++
+		}
+
+		if cur == MaxPointsPerBlock {
+			c.tmp.Timestamps = a.Timestamps[i:]
+			c.tmp.Values = a.Values[i:]
+			return c.res
+		}
+
+		c.res.Timestamps[cur] = t
+		c.res.Values[cur] = a.Values[i]
+
+		c.windowEnd = t - t%every + every
+	}
+
+	c.tmp.Timestamps = nil
+	c.tmp.Values = nil
+
+	goto NEXT
+}
+
+type booleanWindowFirstArrayCursor struct {
+	cursors.BooleanArrayCursor
+	every     int64
+	windowEnd int64
+	res       *cursors.BooleanArray
+	tmp       *cursors.BooleanArray
+}
+
+func newBooleanWindowFirstArrayCursor(cur cursors.BooleanArrayCursor, every int64) *booleanWindowFirstArrayCursor {
+	return &booleanWindowFirstArrayCursor{
+		BooleanArrayCursor: cur,
+		every:              every,
+		windowEnd:          math.MinInt64,
+		res:                cursors.NewBooleanArrayLen(MaxPointsPerBlock),
+		tmp:                &cursors.BooleanArray{},
+	}
+}
+
+func (c *booleanWindowFirstArrayCursor) Stats() cursors.CursorStats {
+	return c.BooleanArrayCursor.Stats()
+}
+
+func (c *booleanWindowFirstArrayCursor) Next() *cursors.BooleanArray {
 	c.res.Timestamps = c.res.Timestamps[:0]
 	c.res.Values = c.res.Values[:0]
 
@@ -2148,14 +2502,11 @@ NEXT:
 	}
 
 	for i, t := range a.Timestamps {
-		if t < c.final {
+		if t < c.windowEnd {
 			continue
 		}
 
-		beg := t - t%every
-		end := beg + every
-
-		c.final = end
+		c.windowEnd = t - t%every + every
 
 		c.res.Timestamps = append(c.res.Timestamps, t)
 		c.res.Values = append(c.res.Values, a.Values[i])

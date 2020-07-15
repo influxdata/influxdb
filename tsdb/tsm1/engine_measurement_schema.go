@@ -22,7 +22,14 @@ import (
 //
 // If the context is canceled before MeasurementNames has finished processing, a non-nil
 // error will be returned along with statistics for the already scanned data.
-func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64) (cursors.StringIterator, error) {
+func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
+	if predicate == nil {
+		return e.measurementNamesNoPredicate(ctx, orgID, bucketID, start, end)
+	}
+	return e.measurementNamesPredicate(ctx, orgID, bucketID, start, end, predicate)
+}
+
+func (e *Engine) measurementNamesNoPredicate(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64) (cursors.StringIterator, error) {
 	orgBucket := tsdb.EncodeName(orgID, bucketID)
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.
@@ -122,13 +129,142 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 	return cursors.NewStringSliceIteratorWithStats(vals, stats), nil
 }
 
+func (e *Engine) measurementNamesPredicate(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
+	if err := ValidateMeasurementNamesTagPredicate(predicate); err != nil {
+		return nil, err
+	}
+
+	orgBucket := tsdb.EncodeName(orgID, bucketID)
+
+	keys, err := e.findCandidateKeys(ctx, orgBucket[:], predicate)
+	if err != nil {
+		return cursors.EmptyStringIterator, err
+	}
+
+	if len(keys) == 0 {
+		return cursors.EmptyStringIterator, nil
+	}
+
+	var files []TSMFile
+	defer func() {
+		for _, f := range files {
+			f.Unref()
+		}
+	}()
+	var iters []*TimeRangeIterator
+
+	// TODO(edd): we need to clean up how we're encoding the prefix so that we
+	// don't have to remember to get it right everywhere we need to touch TSM data.
+	tsmKeyPrefix := models.EscapeMeasurement(orgBucket[:])
+
+	var canceled bool
+
+	e.FileStore.ForEachFile(func(f TSMFile) bool {
+		// Check the context before accessing each tsm file
+		select {
+		case <-ctx.Done():
+			canceled = true
+			return false
+		default:
+		}
+		if f.OverlapsTimeRange(start, end) && f.OverlapsKeyPrefixRange(tsmKeyPrefix, tsmKeyPrefix) {
+			f.Ref()
+			files = append(files, f)
+			iters = append(iters, f.TimeRangeIterator(tsmKeyPrefix, start, end))
+		}
+		return true
+	})
+
+	var stats cursors.CursorStats
+
+	if canceled {
+		stats = statsFromIters(stats, iters)
+		return cursors.NewStringSliceIteratorWithStats(nil, stats), ctx.Err()
+	}
+
+	tsmValues := make(map[string]struct{})
+
+	// reusable buffers
+	var (
+		tags   models.Tags
+		keybuf []byte
+		sfkey  []byte
+		ts     cursors.TimestampArray
+	)
+
+	for i := range keys {
+		// to keep cache scans fast, check context every 'cancelCheckInterval' iteratons
+		if i%cancelCheckInterval == 0 {
+			select {
+			case <-ctx.Done():
+				stats = statsFromIters(stats, iters)
+				return cursors.NewStringSliceIteratorWithStats(nil, stats), ctx.Err()
+			default:
+			}
+		}
+
+		_, tags = seriesfile.ParseSeriesKeyInto(keys[i], tags[:0])
+
+		// orgBucketEsc is already escaped, so no need to use models.AppendMakeKey, which
+		// unescapes and escapes the value again. The degenerate case is if the orgBucketEsc
+		// has escaped values, causing two allocations per key
+		keybuf = append(keybuf[:0], tsmKeyPrefix...)
+		keybuf = tags.AppendHashKey(keybuf)
+		sfkey = AppendSeriesFieldKeyBytes(sfkey[:0], keybuf, tags.Get(models.FieldKeyTagKeyBytes))
+
+		key, _ := SeriesAndFieldFromCompositeKey(sfkey)
+		name, err := models.ParseMeasurement(key)
+		if err != nil {
+			e.logger.Error("Invalid series key in TSM index", zap.Error(err), zap.Binary("key", key))
+			continue
+		}
+
+		if _, ok := tsmValues[string(name)]; ok {
+			continue
+		}
+
+		ts.Timestamps = e.Cache.AppendTimestamps(sfkey, ts.Timestamps[:0])
+		if ts.Len() > 0 {
+			sort.Sort(&ts)
+
+			stats.ScannedValues += ts.Len()
+			stats.ScannedBytes += ts.Len() * 8 // sizeof timestamp
+
+			if ts.Contains(start, end) {
+				tsmValues[string(name)] = struct{}{}
+			}
+			continue
+		}
+
+		for _, iter := range iters {
+			if exact, _ := iter.Seek(sfkey); !exact {
+				continue
+			}
+
+			if iter.HasData() {
+				tsmValues[string(name)] = struct{}{}
+				break
+			}
+		}
+	}
+
+	vals := make([]string, 0, len(tsmValues))
+	for val := range tsmValues {
+		vals = append(vals, val)
+	}
+	sort.Strings(vals)
+
+	stats = statsFromIters(stats, iters)
+	return cursors.NewStringSliceIteratorWithStats(vals, stats), err
+}
+
 // MeasurementTagValues returns an iterator which enumerates the tag values for the given
 // bucket, measurement and tag key, filtered using the optional the predicate and limited to the
 // time range [start, end].
 //
 // MeasurementTagValues will always return a StringIterator if there is no error.
 //
-// If the context is canceled before TagValues has finished processing, a non-nil
+// If the context is canceled before MeasurementTagValues has finished processing, a non-nil
 // error will be returned along with statistics for the already scanned data.
 func (e *Engine) MeasurementTagValues(ctx context.Context, orgID, bucketID influxdb.ID, measurement, tagKey string, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
 	if predicate == nil {
@@ -161,7 +297,7 @@ func (e *Engine) MeasurementTagKeys(ctx context.Context, orgID, bucketID influxd
 
 // MeasurementFields returns an iterator which enumerates the field schema for the given
 // bucket and measurement, filtered using the optional the predicate and limited to the
-//// time range [start, end].
+// time range [start, end].
 //
 // MeasurementFields will always return a MeasurementFieldsIterator if there is no error.
 //
@@ -212,6 +348,7 @@ func (e *Engine) fieldsPredicate(ctx context.Context, orgID influxdb.ID, bucketI
 
 	mt := models.Tags{models.NewTag(models.MeasurementTagKeyBytes, measurement)}
 	tsmKeyPrefix := mt.AppendHashKey(orgBucketEsc)
+	tsmKeyPrefix = append(tsmKeyPrefix, ',')
 
 	var canceled bool
 
@@ -317,6 +454,7 @@ func (e *Engine) fieldsNoPredicate(ctx context.Context, orgID influxdb.ID, bucke
 
 	mt := models.Tags{models.NewTag(models.MeasurementTagKeyBytes, measurement)}
 	tsmKeyPrefix := mt.AppendHashKey(orgBucketEsc)
+	tsmKeyPrefix = append(tsmKeyPrefix, ',')
 
 	var stats cursors.CursorStats
 	var canceled bool

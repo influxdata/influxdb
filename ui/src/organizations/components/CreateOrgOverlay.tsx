@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
-import {WithRouterProps, withRouter} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {RouteComponentProps, withRouter} from 'react-router-dom'
 
 import {sample, startCase} from 'lodash'
 
@@ -21,11 +21,8 @@ import {createOrgWithBucket} from 'src/organizations/actions/thunks'
 
 interface OwnProps {}
 
-interface DispatchProps {
-  createOrgWithBucket: typeof createOrgWithBucket
-}
-
-type Props = OwnProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps & RouteComponentProps
 
 interface State {
   org: Organization
@@ -65,6 +62,7 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
           <Overlay.Header
             title="Create Organization"
             onDismiss={this.closeModal}
+            testID="create-org-overlay--header"
           />
           <Form onSubmit={this.handleCreateOrg}>
             <Overlay.Body>
@@ -131,7 +129,7 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
   }
 
   private closeModal = () => {
-    this.props.router.goBack()
+    this.props.history.goBack()
   }
 
   private handleChangeOrgInput = (e: ChangeEvent<HTMLInputElement>) => {
@@ -192,7 +190,6 @@ const mdtp = {
   createOrgWithBucket,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(withRouter<OwnProps & DispatchProps>(CreateOrgOverlay))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(CreateOrgOverlay))

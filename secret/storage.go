@@ -19,15 +19,6 @@ type Storage struct {
 
 // NewStore creates a new storage system
 func NewStore(s kv.Store) (*Storage, error) {
-	err := s.Update(context.Background(), func(tx kv.Tx) error {
-		if _, err := tx.Bucket(secretBucket); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
 	return &Storage{s}, nil
 }
 

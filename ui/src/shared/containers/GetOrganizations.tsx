@@ -1,57 +1,46 @@
 // Libraries
 import React, {useEffect, FunctionComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
+import {Route, Switch} from 'react-router-dom'
 
 // Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
+import App from 'src/App'
 
 // Types
 import {RemoteDataState, AppState} from 'src/types'
 
 // Actions
-import {getOrganizations as getOrganizationsAction} from 'src/organizations/actions/thunks'
+import {getOrganizations} from 'src/organizations/actions/thunks'
+import RouteToOrg from './RouteToOrg'
 
-interface PassedInProps {
-  children: React.ReactElement<any>
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
-interface DispatchProps {
-  getOrganizations: typeof getOrganizationsAction
-}
-
-interface StateProps {
-  status: RemoteDataState
-}
-
-type Props = StateProps & DispatchProps & PassedInProps
-
-const GetOrganizations: FunctionComponent<Props> = ({
-  status,
-  getOrganizations,
-  children,
-}) => {
+const GetOrganizations: FunctionComponent<Props> = ({status}) => {
+  const dispatch = useDispatch()
   useEffect(() => {
     if (status === RemoteDataState.NotStarted) {
-      getOrganizations()
+      dispatch(getOrganizations())
     }
-  }, [])
+  }, [dispatch, status])
 
   return (
     <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
-      {children && React.cloneElement(children)}
+      <Switch>
+        <Route path="/no-orgs" component={NoOrgsPage} />
+        <Route path="/orgs" component={App} />
+        <Route exact path="/" component={RouteToOrg} />
+      </Switch>
     </SpinnerContainer>
   )
 }
 
-const mdtp = {
-  getOrganizations: getOrganizationsAction,
-}
-
-const mstp = ({resources}: AppState): StateProps => ({
+const mstp = ({resources}: AppState) => ({
   status: resources.orgs.status,
 })
 
-export default connect<StateProps, DispatchProps, PassedInProps>(
-  mstp,
-  mdtp
-)(GetOrganizations)
+const connector = connect(mstp)
+
+export default connector(GetOrganizations)

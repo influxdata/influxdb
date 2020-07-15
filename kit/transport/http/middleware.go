@@ -152,7 +152,11 @@ func ValidResource(api *API, lookupOrgByResourceID func(context.Context, influxd
 
 			orgID, err := lookupOrgByResourceID(ctx, *id)
 			if err != nil {
-				api.Err(w, r, err)
+				// if this function returns an error we will squash the error message and replace it with a not found error
+				api.Err(w, r, &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Msg:  "404 page not found",
+				})
 				return
 			}
 

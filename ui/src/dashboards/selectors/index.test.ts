@@ -77,6 +77,7 @@ describe('Dashboards.Selector', () => {
     const app: AppPresentationState = {
       ephemeral: {
         inPresentationMode: false,
+        hasUpdatedTimeRangeInVEO: false,
       },
       persisted: {
         autoRefresh: 0,
@@ -99,6 +100,7 @@ describe('Dashboards.Selector', () => {
     const app: AppPresentationState = {
       ephemeral: {
         inPresentationMode: false,
+        hasUpdatedTimeRangeInVEO: false,
       },
       persisted: {
         autoRefresh: 0,

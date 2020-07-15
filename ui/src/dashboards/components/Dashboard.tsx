@@ -52,11 +52,11 @@ class DashboardComponent extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     cells: getCells(state, state.currentDashboard.id),
     status: state.resources.cells.status,
   }
 }
 
-export default connect<StateProps, {}, OwnProps>(mstp, null)(DashboardComponent)
+export default connect<StateProps, {}, OwnProps>(mstp)(DashboardComponent)

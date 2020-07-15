@@ -1,6 +1,6 @@
 // Libraries
-import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import React, {PureComponent, ReactNode} from 'react'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Actions
 import {getAuthorizations} from 'src/authorizations/actions/thunks'
@@ -22,7 +22,7 @@ import {getVariables} from 'src/variables/actions/thunks'
 import {reportSimpleQueryPerformanceDuration} from 'src/cloud/utils/reporting'
 
 // Types
-import {AppState, RemoteDataState, ResourceType} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -31,35 +31,16 @@ import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
 // Selectors
 import {getResourcesStatus} from 'src/resources/selectors/getResourcesStatus'
 
-interface StateProps {
-  remoteDataState: RemoteDataState
-}
-
-interface DispatchProps {
-  getLabels: typeof getLabels
-  getBuckets: typeof getBuckets
-  getTelegrafs: typeof getTelegrafs
-  getPlugins: typeof getPlugins
-  getVariables: typeof getVariables
-  getScrapers: typeof getScrapers
-  getAuthorizations: typeof getAuthorizations
-  getDashboards: typeof getDashboards
-  getTasks: typeof getTasks
-  getTemplates: typeof getTemplates
-  getMembers: typeof getMembers
-  getChecks: typeof getChecks
-  getNotificationRules: typeof getNotificationRules
-  getEndpoints: typeof getEndpoints
-}
-
-interface PassedProps {
+interface OwnProps {
   resources: Array<ResourceType>
+  children: ReactNode
 }
 
-export type Props = StateProps & DispatchProps & PassedProps
+type ReduxProps = ConnectedProps<typeof connector>
+export type Props = ReduxProps & OwnProps
 
 @ErrorHandling
-class GetResources extends PureComponent<Props, StateProps> {
+class GetResources extends PureComponent<Props> {
   public componentDidMount() {
     const {resources} = this.props
     const promises = []
@@ -156,7 +137,7 @@ class GetResources extends PureComponent<Props, StateProps> {
   }
 }
 
-const mstp = (state: AppState, {resources}: Props): StateProps => {
+const mstp = (state: AppState, {resources}: OwnProps) => {
   const remoteDataState = getResourcesStatus(state, resources)
 
   return {
@@ -181,4 +162,6 @@ const mdtp = {
   getEndpoints: getEndpoints,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(GetResources)
+const connector = connect(mstp, mdtp)
+
+export default connector(GetResources)

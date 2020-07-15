@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {
@@ -39,19 +39,12 @@ import {NotificationRuleDraft, Label, AlertHistoryType} from 'src/types'
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
-interface DispatchProps {
-  onUpdateRuleProperties: typeof updateRuleProperties
-  deleteNotificationRule: typeof deleteRule
-  onAddRuleLabel: typeof addRuleLabel
-  onRemoveRuleLabel: typeof deleteRuleLabel
-  onCloneRule: typeof cloneRule
-}
-
 interface OwnProps {
   rule: NotificationRuleDraft
 }
 
-type Props = OwnProps & WithRouterProps & DispatchProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & RouteComponentProps<{orgID: string}> & ReduxProps
 
 const RuleCard: FC<Props> = ({
   rule,
@@ -60,8 +53,10 @@ const RuleCard: FC<Props> = ({
   onCloneRule,
   onAddRuleLabel,
   onRemoveRuleLabel,
-  params: {orgID},
-  router,
+  match: {
+    params: {orgID},
+  },
+  history,
 }) => {
   const {
     id,
@@ -96,7 +91,7 @@ const RuleCard: FC<Props> = ({
   }
 
   const onRuleClick = () => {
-    router.push(`/orgs/${orgID}/alerting/rules/${id}/edit`)
+    history.push(`/orgs/${orgID}/alerting/rules/${id}/edit`)
   }
 
   const onView = () => {
@@ -107,7 +102,7 @@ const RuleCard: FC<Props> = ({
       [SEARCH_QUERY_PARAM]: `"notificationRuleID" == "${id}"`,
     })
 
-    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
+    history.push(`/orgs/${orgID}/alert-history?${queryParams}`)
   }
 
   const handleAddRuleLabel = (label: Label) => {
@@ -186,7 +181,7 @@ const RuleCard: FC<Props> = ({
   )
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onUpdateRuleProperties: updateRuleProperties,
   deleteNotificationRule: deleteRule,
   onAddRuleLabel: addRuleLabel,
@@ -194,4 +189,6 @@ const mdtp: DispatchProps = {
   onCloneRule: cloneRule,
 }
 
-export default connect<{}, DispatchProps>(null, mdtp)(withRouter(RuleCard))
+const connector = connect(null, mdtp)
+
+export default connector(withRouter(RuleCard))

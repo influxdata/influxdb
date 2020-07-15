@@ -141,7 +141,8 @@ func (s SafeID) String() string {
 type DiffIdentifier struct {
 	ID          SafeID      `json:"id"`
 	StateStatus StateStatus `json:"stateStatus"`
-	PkgName     string      `json:"pkgName"`
+	MetaName    string      `json:"templateMetaName"`
+	Kind        Kind        `json:"kind"`
 }
 
 // IsNew indicates the resource is new to the platform.
@@ -309,14 +310,14 @@ const (
 type DiffLabelMapping struct {
 	StateStatus StateStatus `json:"stateStatus"`
 
-	ResType    influxdb.ResourceType `json:"resourceType"`
-	ResID      SafeID                `json:"resourceID"`
-	ResName    string                `json:"resourceName"`
-	ResPkgName string                `json:"resourcePkgName"`
+	ResType     influxdb.ResourceType `json:"resourceType"`
+	ResID       SafeID                `json:"resourceID"`
+	ResName     string                `json:"resourceName"`
+	ResMetaName string                `json:"resourceTemplateMetaName"`
 
-	LabelID      SafeID `json:"labelID"`
-	LabelName    string `json:"labelName"`
-	LabelPkgName string `json:"labelPkgName"`
+	LabelID       SafeID `json:"labelID"`
+	LabelName     string `json:"labelName"`
+	LabelMetaName string `json:"labelTemplateMetaName"`
 }
 
 //func (d DiffLabelMapping) IsNew() bool {
@@ -447,33 +448,39 @@ type Summary struct {
 	Variables             []SummaryVariable             `json:"variables"`
 }
 
+// SummaryIdentifier establishes the shared identifiers for a given resource
+// within a template.
+type SummaryIdentifier struct {
+	Kind          Kind               `json:"kind"`
+	MetaName      string             `json:"templateMetaName"`
+	EnvReferences []SummaryReference `json:"envReferences"`
+}
+
 // SummaryBucket provides a summary of a pkg bucket.
 type SummaryBucket struct {
+	SummaryIdentifier
 	ID          SafeID `json:"id,omitempty"`
 	OrgID       SafeID `json:"orgID,omitempty"`
 	Name        string `json:"name"`
-	PkgName     string `json:"pkgName"`
 	Description string `json:"description"`
 	// TODO: return retention rules?
 	RetentionPeriod time.Duration `json:"retentionPeriod"`
 
-	EnvReferences     []SummaryReference `json:"envReferences"`
-	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	LabelAssociations []SummaryLabel `json:"labelAssociations"`
 }
 
 // SummaryCheck provides a summary of a pkg check.
 type SummaryCheck struct {
-	PkgName string          `json:"pkgName"`
-	Check   influxdb.Check  `json:"check"`
-	Status  influxdb.Status `json:"status"`
+	SummaryIdentifier
+	Check  influxdb.Check  `json:"check"`
+	Status influxdb.Status `json:"status"`
 
-	EnvReferences     []SummaryReference `json:"envReferences"`
-	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	LabelAssociations []SummaryLabel `json:"labelAssociations"`
 }
 
 func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 	var out struct {
-		PkgName           string          `json:"pkgName"`
+		SummaryIdentifier
 		Status            string          `json:"status"`
 		LabelAssociations []SummaryLabel  `json:"labelAssociations"`
 		Check             json.RawMessage `json:"check"`
@@ -481,7 +488,7 @@ func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &out); err != nil {
 		return err
 	}
-	s.PkgName = out.PkgName
+	s.SummaryIdentifier = out.SummaryIdentifier
 	s.Status = influxdb.Status(out.Status)
 	s.LabelAssociations = out.LabelAssociations
 
@@ -492,15 +499,14 @@ func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 
 // SummaryDashboard provides a summary of a pkg dashboard.
 type SummaryDashboard struct {
+	SummaryIdentifier
 	ID          SafeID         `json:"id"`
 	OrgID       SafeID         `json:"orgID"`
-	PkgName     string         `json:"pkgName"`
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	Charts      []SummaryChart `json:"charts"`
 
-	EnvReferences     []SummaryReference `json:"envReferences"`
-	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	LabelAssociations []SummaryLabel `json:"labelAssociations"`
 }
 
 // SummaryChart provides a summary of a pkg dashboard's chart.
@@ -554,25 +560,24 @@ func (s *SummaryChart) UnmarshalJSON(b []byte) error {
 
 // SummaryNotificationEndpoint provides a summary of a pkg notification endpoint.
 type SummaryNotificationEndpoint struct {
-	PkgName              string                        `json:"pkgName"`
+	SummaryIdentifier
 	NotificationEndpoint influxdb.NotificationEndpoint `json:"notificationEndpoint"`
 
-	EnvReferences     []SummaryReference `json:"envReferences"`
-	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	LabelAssociations []SummaryLabel `json:"labelAssociations"`
 }
 
 // UnmarshalJSON unmarshals the notificatio endpoint. This is necessary b/c of
 // the notification endpoint does not have a means ot unmarshal itself.
 func (s *SummaryNotificationEndpoint) UnmarshalJSON(b []byte) error {
 	var a struct {
-		PkgName              string          `json:"pkgName"`
+		SummaryIdentifier
 		NotificationEndpoint json.RawMessage `json:"notificationEndpoint"`
 		LabelAssociations    []SummaryLabel  `json:"labelAssociations"`
 	}
 	if err := json.Unmarshal(b, &a); err != nil {
 		return err
 	}
-	s.PkgName = a.PkgName
+	s.SummaryIdentifier = a.SummaryIdentifier
 	s.LabelAssociations = a.LabelAssociations
 
 	e, err := endpoint.UnmarshalJSON(a.NotificationEndpoint)
@@ -583,15 +588,15 @@ func (s *SummaryNotificationEndpoint) UnmarshalJSON(b []byte) error {
 // Summary types for NotificationRules which provide a summary of a pkg notification rule.
 type (
 	SummaryNotificationRule struct {
+		SummaryIdentifier
 		ID          SafeID `json:"id"`
-		PkgName     string `json:"pkgName"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
 
 		// These fields represent the relationship of the rule to the endpoint.
-		EndpointID      SafeID `json:"endpointID"`
-		EndpointPkgName string `json:"endpointPkgName"`
-		EndpointType    string `json:"endpointType"`
+		EndpointID       SafeID `json:"endpointID"`
+		EndpointMetaName string `json:"endpointTemplateMetaName"`
+		EndpointType     string `json:"endpointType"`
 
 		Every           string              `json:"every"`
 		Offset          string              `json:"offset"`
@@ -600,8 +605,7 @@ type (
 		StatusRules     []SummaryStatusRule `json:"statusRules"`
 		TagRules        []SummaryTagRule    `json:"tagRules"`
 
-		EnvReferences     []SummaryReference `json:"envReferences"`
-		LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+		LabelAssociations []SummaryLabel `json:"labelAssociations"`
 	}
 
 	SummaryStatusRule struct {
@@ -618,29 +622,27 @@ type (
 
 // SummaryLabel provides a summary of a pkg label.
 type SummaryLabel struct {
+	SummaryIdentifier
 	ID         SafeID `json:"id"`
 	OrgID      SafeID `json:"orgID"`
-	PkgName    string `json:"pkgName"`
 	Name       string `json:"name"`
 	Properties struct {
 		Color       string `json:"color"`
 		Description string `json:"description"`
 	} `json:"properties"`
-
-	EnvReferences []SummaryReference `json:"envReferences"`
 }
 
 // SummaryLabelMapping provides a summary of a label mapped with a single resource.
 type SummaryLabelMapping struct {
-	exists          bool
-	Status          StateStatus           `json:"status,omitempty"`
-	ResourceID      SafeID                `json:"resourceID"`
-	ResourcePkgName string                `json:"resourcePkgName"`
-	ResourceName    string                `json:"resourceName"`
-	ResourceType    influxdb.ResourceType `json:"resourceType"`
-	LabelPkgName    string                `json:"labelPkgName"`
-	LabelName       string                `json:"labelName"`
-	LabelID         SafeID                `json:"labelID"`
+	exists           bool
+	Status           StateStatus           `json:"status,omitempty"`
+	ResourceID       SafeID                `json:"resourceID"`
+	ResourceMetaName string                `json:"resourceTemplateMetaName"`
+	ResourceName     string                `json:"resourceName"`
+	ResourceType     influxdb.ResourceType `json:"resourceType"`
+	LabelMetaName    string                `json:"labelTemplateMetaName"`
+	LabelName        string                `json:"labelName"`
+	LabelID          SafeID                `json:"labelID"`
 }
 
 // SummaryReference informs the consumer of required references for
@@ -654,8 +656,8 @@ type SummaryReference struct {
 
 // SummaryTask provides a summary of a task.
 type SummaryTask struct {
+	SummaryIdentifier
 	ID          SafeID          `json:"id"`
-	PkgName     string          `json:"pkgName"`
 	Name        string          `json:"name"`
 	Cron        string          `json:"cron"`
 	Description string          `json:"description"`
@@ -664,29 +666,26 @@ type SummaryTask struct {
 	Query       string          `json:"query"`
 	Status      influxdb.Status `json:"status"`
 
-	EnvReferences     []SummaryReference `json:"envReferences"`
-	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	LabelAssociations []SummaryLabel `json:"labelAssociations"`
 }
 
 // SummaryTelegraf provides a summary of a pkg telegraf config.
 type SummaryTelegraf struct {
-	PkgName        string                  `json:"pkgName"`
+	SummaryIdentifier
 	TelegrafConfig influxdb.TelegrafConfig `json:"telegrafConfig"`
 
-	EnvReferences     []SummaryReference `json:"envReferences"`
-	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	LabelAssociations []SummaryLabel `json:"labelAssociations"`
 }
 
 // SummaryVariable provides a summary of a pkg variable.
 type SummaryVariable struct {
+	SummaryIdentifier
 	ID          SafeID                      `json:"id,omitempty"`
-	PkgName     string                      `json:"pkgName"`
 	OrgID       SafeID                      `json:"orgID,omitempty"`
 	Name        string                      `json:"name"`
 	Description string                      `json:"description"`
 	Selected    []string                    `json:"variables"`
 	Arguments   *influxdb.VariableArguments `json:"arguments"`
 
-	EnvReferences     []SummaryReference `json:"envReferences"`
-	LabelAssociations []SummaryLabel     `json:"labelAssociations"`
+	LabelAssociations []SummaryLabel `json:"labelAssociations"`
 }

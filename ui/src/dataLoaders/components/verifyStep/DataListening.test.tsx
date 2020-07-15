@@ -7,13 +7,13 @@ fetchMock.enableMocks()
 import DataListening from 'src/dataLoaders/components/verifyStep/DataListening'
 
 // Utils
-import {renderWithRedux} from 'src/mockState'
+import {renderWithReduxAndRouter} from 'src/mockState'
 import {fireEvent} from '@testing-library/react'
 
 describe('Onboarding.Components.DataListening', () => {
   describe('if button is clicked', () => {
     it('displays connection information', () => {
-      const {getByTitle, getByText} = renderWithRedux(
+      const {getByTitle, getByText} = renderWithReduxAndRouter(
         <DataListening bucket="bucket" params={{orgID: 'org123'}} />
       )
 

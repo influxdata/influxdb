@@ -8,6 +8,7 @@ import (
 	nethttp "net/http"
 	"net/http/httptest"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,7 +47,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.NoError(t, err, "failed to delete stack and its associated resources")
 	}
 
-	newStackFn := func(t *testing.T, stack pkger.Stack) (pkger.Stack, func()) {
+	newStackFn := func(t *testing.T, stack pkger.StackCreate) (pkger.Stack, func()) {
 		t.Helper()
 
 		if stack.OrgID == 0 {
@@ -57,15 +58,17 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, l.Org.ID, newStack.OrgID)
-		assert.Equal(t, stack.Name, newStack.Name)
-		assert.Equal(t, stack.Description, newStack.Description)
-		assert.NotNil(t, newStack.Resources, "failed to match stack resources")
-		expectedURLs := stack.URLs
+		ev := newStack.LatestEvent()
+		assert.Equal(t, stack.Name, ev.Name)
+		assert.Equal(t, stack.Description, ev.Description)
+		assert.NotNil(t, ev.Resources, "failed to match stack resources")
+		expectedURLs := stack.TemplateURLs
 		if expectedURLs == nil {
 			expectedURLs = []string{}
 		}
-		assert.Equal(t, expectedURLs, newStack.URLs, "failed to match stack URLs")
-		assert.NotZero(t, newStack.CRUDLog)
+		assert.Equal(t, expectedURLs, ev.TemplateURLs, "failed to match stack URLs")
+		assert.NotZero(t, newStack.CreatedAt)
+		assert.NotZero(t, ev.UpdatedAt)
 
 		return newStack, func() {
 			// deletes are idempotent, so any error encountered here is not a not found error
@@ -74,8 +77,8 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 	}
 
-	newTemplate := func(objects ...pkger.Object) *pkger.Pkg {
-		return &pkger.Pkg{Objects: objects}
+	newTemplate := func(objects ...pkger.Object) *pkger.Template {
+		return &pkger.Template{Objects: objects}
 	}
 
 	newBucketObject := func(pkgName, name, desc string) pkger.Object {
@@ -87,22 +90,46 @@ func TestLauncher_Pkger(t *testing.T) {
 		return obj
 	}
 
-	newCheckDeadmanObject := func(t *testing.T, pkgName, name string, every time.Duration) pkger.Object {
+	newCheckBase := func(t *testing.T, name string, every time.Duration) check.Base {
 		t.Helper()
 
 		d, err := notification.FromTimeDuration(every)
 		require.NoError(t, err)
 
-		obj := pkger.CheckToObject("", &check.Deadman{
-			Base: check.Base{
-				Name:  name,
-				Every: &d,
-				Query: influxdb.DashboardQuery{
-					Text: `from(bucket: "rucket_1") |> range(start: -1d)`,
-				},
-				StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+		return check.Base{
+			Name:  name,
+			Every: &d,
+			Query: influxdb.DashboardQuery{
+				Text: `from(bucket: "rucket_1") |> range(start: -1d)`,
 			},
+			StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+		}
+	}
+
+	newCheckDeadmanObject := func(t *testing.T, pkgName, name string, every time.Duration) pkger.Object {
+		t.Helper()
+
+		obj := pkger.CheckToObject("", &check.Deadman{
+			Base:  newCheckBase(t, name, every),
 			Level: notification.Critical,
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newCheckThresholdObject := func(t *testing.T, pkgName, name string, every time.Duration) pkger.Object {
+		t.Helper()
+
+		obj := pkger.CheckToObject("", &check.Threshold{
+			Base: newCheckBase(t, name, every),
+			Thresholds: []check.ThresholdConfig{
+				check.Lesser{
+					ThresholdConfigBase: check.ThresholdConfigBase{
+						Level: notification.Critical,
+					},
+					Value: 0.5,
+				},
+			},
 		})
 		obj.SetMetadataName(pkgName)
 		return obj
@@ -117,16 +144,42 @@ func TestLauncher_Pkger(t *testing.T) {
 		return obj
 	}
 
+	newEndpointBase := func(name, desc string) endpoint.Base {
+		return endpoint.Base{
+			Name:        name,
+			Description: desc,
+			Status:      influxdb.Inactive,
+		}
+	}
+
 	newEndpointHTTP := func(pkgName, name, description string) pkger.Object {
 		obj := pkger.NotificationEndpointToObject("", &endpoint.HTTP{
-			Base: endpoint.Base{
-				Name:        name,
-				Description: description,
-				Status:      influxdb.Inactive,
-			},
+			Base:       newEndpointBase(name, description),
 			AuthMethod: "none",
 			URL:        "http://example.com",
 			Method:     "GET",
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newEndpointPagerDuty := func(pkgName, name, description string) pkger.Object {
+		obj := pkger.NotificationEndpointToObject("", &endpoint.PagerDuty{
+			Base:      newEndpointBase(name, description),
+			ClientURL: "http://example.com",
+			RoutingKey: influxdb.SecretField{
+				Key:   "routing-key",
+				Value: strPtr("threeve"),
+			},
+		})
+		obj.SetMetadataName(pkgName)
+		return obj
+	}
+
+	newEndpointSlack := func(pkgName, name, description string) pkger.Object {
+		obj := pkger.NotificationEndpointToObject("", &endpoint.Slack{
+			Base: newEndpointBase(name, description),
+			URL:  "http://influxslack.com",
 		})
 		obj.SetMetadataName(pkgName)
 		return obj
@@ -197,18 +250,67 @@ func TestLauncher_Pkger(t *testing.T) {
 		return obj
 	}
 
+	validateAllResourcesRemoved := func(t *testing.T, summary pkger.Summary) {
+		t.Helper()
+
+		for _, b := range summary.Buckets {
+			_, err := resourceCheck.getBucket(t, bySafeID(b.ID))
+			assertErrorCode(t, influxdb.ENotFound, err)
+		}
+
+		for _, c := range summary.Checks {
+			_, err := resourceCheck.getCheck(t, byID(c.Check.GetID()))
+			assert.Error(t, err)
+		}
+
+		for _, d := range summary.Dashboards {
+			_, err := resourceCheck.getDashboard(t, bySafeID(d.ID))
+			assertErrorCode(t, influxdb.ENotFound, err)
+		}
+
+		for _, l := range summary.Labels {
+			_, err := resourceCheck.getLabel(t, bySafeID(l.ID))
+			assertErrorCode(t, influxdb.ENotFound, err)
+		}
+
+		for _, e := range summary.NotificationEndpoints {
+			_, err := resourceCheck.getEndpoint(t, byID(e.NotificationEndpoint.GetID()))
+			assert.Error(t, err)
+		}
+
+		for _, r := range summary.NotificationRules {
+			_, err := resourceCheck.getRule(t, bySafeID(r.ID))
+			assert.Error(t, err)
+		}
+
+		for _, ta := range summary.Tasks {
+			_, err := resourceCheck.getTask(t, bySafeID(ta.ID))
+			assert.Error(t, err)
+		}
+
+		for _, te := range summary.TelegrafConfigs {
+			_, err := resourceCheck.getTelegrafConfig(t, byID(te.TelegrafConfig.ID))
+			assert.Error(t, err)
+		}
+
+		for _, v := range summary.Variables {
+			_, err := resourceCheck.getVariable(t, bySafeID(v.ID))
+			assertErrorCode(t, influxdb.ENotFound, err)
+		}
+	}
+
 	t.Run("managing pkg lifecycle with stacks", func(t *testing.T) {
 		t.Run("list stacks", func(t *testing.T) {
 			stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
 			require.NoError(t, err)
 			require.Empty(t, stacks)
 
-			newStack1, cleanup1 := newStackFn(t, pkger.Stack{
+			newStack1, cleanup1 := newStackFn(t, pkger.StackCreate{
 				Name: "first stack",
 			})
 			defer cleanup1()
 
-			newStack2, cleanup2 := newStackFn(t, pkger.Stack{
+			newStack2, cleanup2 := newStackFn(t, pkger.StackCreate{
 				Name: "second stack",
 			})
 			defer cleanup2()
@@ -242,7 +344,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			t.Run("filter stacks by names", func(t *testing.T) {
 				stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{
-					Names: []string{newStack2.Name},
+					Names: []string{newStack2.LatestEvent().Name},
 				})
 				require.NoError(t, err)
 				require.Len(t, stacks, 1)
@@ -251,18 +353,18 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("creating a stack", func(t *testing.T) {
-			_, cleanup := newStackFn(t, pkger.Stack{
-				OrgID:       l.Org.ID,
-				Name:        "first stack",
-				Description: "desc",
-				URLs:        []string{"http://example.com"},
+			_, cleanup := newStackFn(t, pkger.StackCreate{
+				OrgID:        l.Org.ID,
+				Name:         "first stack",
+				Description:  "desc",
+				TemplateURLs: []string{"http://example.com"},
 			})
 			cleanup()
 		})
 
-		t.Run("delete a stack", func(t *testing.T) {
-			t.Run("should delete the stack and all resources associated with it", func(t *testing.T) {
-				newStack, cleanup := newStackFn(t, pkger.Stack{})
+		t.Run("uninstall a stack", func(t *testing.T) {
+			t.Run("should remove all resources associated with it", func(t *testing.T) {
+				newStack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer cleanup()
 
 				newEndpointPkgName := "non-existent-endpoint"
@@ -279,7 +381,70 @@ func TestLauncher_Pkger(t *testing.T) {
 				)
 
 				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-					pkger.ApplyWithPkg(allResourcesPkg),
+					pkger.ApplyWithTemplate(allResourcesPkg),
+					pkger.ApplyWithStackID(newStack.ID),
+				)
+				require.NoError(t, err)
+
+				sum := impact.Summary
+
+				require.Len(t, sum.Buckets, 1)
+				assert.NotZero(t, sum.Buckets[0].ID)
+				require.Len(t, sum.Checks, 1)
+				assert.NotZero(t, sum.Checks[0].Check.GetID())
+				require.Len(t, sum.Dashboards, 1)
+				assert.NotZero(t, sum.Dashboards[0].ID)
+				require.Len(t, sum.Labels, 1)
+				assert.NotZero(t, sum.Labels[0].ID)
+				require.Len(t, sum.NotificationEndpoints, 1)
+				assert.NotZero(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID())
+				require.Len(t, sum.NotificationRules, 1)
+				assert.NotZero(t, sum.NotificationRules[0].ID)
+				require.Len(t, sum.Tasks, 1)
+				assert.NotZero(t, sum.Tasks[0].ID)
+				require.Len(t, sum.TelegrafConfigs, 1)
+				assert.NotZero(t, sum.TelegrafConfigs[0].TelegrafConfig.ID)
+				require.Len(t, sum.Variables, 1)
+				assert.NotZero(t, sum.Variables[0].ID)
+
+				_, err = svc.UninstallStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
+					OrgID:   l.Org.ID,
+					UserID:  l.User.ID,
+					StackID: newStack.ID,
+				})
+				require.NoError(t, err)
+
+				matchingStack, err := svc.ReadStack(ctx, newStack.ID)
+				require.NoError(t, err)
+
+				ev := matchingStack.LatestEvent()
+				assert.Equal(t, pkger.StackEventUninstalled, ev.EventType)
+				assert.Empty(t, ev.Resources)
+
+				validateAllResourcesRemoved(t, sum)
+			})
+		})
+
+		t.Run("delete a stack", func(t *testing.T) {
+			t.Run("should delete the stack and all resources associated with it", func(t *testing.T) {
+				newStack, cleanup := newStackFn(t, pkger.StackCreate{})
+				defer cleanup()
+
+				newEndpointPkgName := "non-existent-endpoint"
+				allResourcesPkg := newTemplate(
+					newBucketObject("non-existent-bucket", "", ""),
+					newCheckDeadmanObject(t, "non-existent-check", "", time.Minute),
+					newDashObject("non-existent-dash", "", ""),
+					newEndpointHTTP(newEndpointPkgName, "", ""),
+					newLabelObject("non-existent-label", "", "", ""),
+					newRuleObject(t, "non-existent-rule", "", newEndpointPkgName, ""),
+					newTaskObject("non-existent-task", "", ""),
+					newTelegrafObject("non-existent-tele", "", ""),
+					newVariableObject("non-existent-var", "", ""),
+				)
+
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithTemplate(allResourcesPkg),
 					pkger.ApplyWithStackID(newStack.ID),
 				)
 				require.NoError(t, err)
@@ -312,42 +477,11 @@ func TestLauncher_Pkger(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				matchingStacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{
-					StackIDs: []influxdb.ID{newStack.ID},
-				})
-				require.NoError(t, err)
-				require.Empty(t, matchingStacks)
-
-				_, err = resourceCheck.getBucket(t, byID(influxdb.ID(sum.Buckets[0].ID)))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getCheck(t, byID(sum.Checks[0].Check.GetID()))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getDashboard(t, byID(influxdb.ID(sum.Dashboards[0].ID)))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getLabel(t, byID(influxdb.ID(sum.Labels[0].ID)))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getEndpoint(t, byID(sum.NotificationEndpoints[0].NotificationEndpoint.GetID()))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getRule(t, byID(influxdb.ID(sum.NotificationRules[0].ID)))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getTask(t, byID(influxdb.ID(sum.Tasks[0].ID)))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getTelegrafConfig(t, byID(sum.TelegrafConfigs[0].TelegrafConfig.ID))
-				assert.Error(t, err)
-
-				_, err = resourceCheck.getVariable(t, byID(influxdb.ID(sum.Variables[0].ID)))
-				assert.Error(t, err)
+				validateAllResourcesRemoved(t, sum)
 			})
 
 			t.Run("that has already been deleted should be successful", func(t *testing.T) {
-				newStack, cleanup := newStackFn(t, pkger.Stack{})
+				newStack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer cleanup()
 
 				err := svc.DeleteStack(ctx, struct{ OrgID, UserID, StackID influxdb.ID }{
@@ -378,16 +512,12 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("read a stack", func(t *testing.T) {
-			stacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
-			require.NoError(t, err)
-			require.Empty(t, stacks)
-
-			newStack1, cleanup1 := newStackFn(t, pkger.Stack{
+			newStack1, cleanup1 := newStackFn(t, pkger.StackCreate{
 				Name: "first stack",
 			})
 			defer cleanup1()
 
-			newStack2, cleanup2 := newStackFn(t, pkger.Stack{
+			newStack2, cleanup2 := newStackFn(t, pkger.StackCreate{
 				Name: "second stack",
 			})
 			defer cleanup2()
@@ -405,20 +535,21 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("updating a stack", func(t *testing.T) {
-			stack, cleanup := newStackFn(t, pkger.Stack{
-				OrgID:       l.Org.ID,
-				Name:        "first name",
-				Description: "first desc",
-				URLs:        []string{},
+			stack, cleanup := newStackFn(t, pkger.StackCreate{
+				OrgID:        l.Org.ID,
+				Name:         "first name",
+				Description:  "first desc",
+				TemplateURLs: []string{},
 			})
 			defer cleanup()
 
 			assertStack := func(t *testing.T, st pkger.Stack) {
 				t.Helper()
 				assert.Equal(t, stack.ID, st.ID)
-				assert.Equal(t, "2nd name", st.Name)
-				assert.Equal(t, "2nd desc", st.Description)
-				assert.Equal(t, []string{"http://example.com"}, st.URLs)
+				ev := st.LatestEvent()
+				assert.Equal(t, "2nd name", ev.Name)
+				assert.Equal(t, "2nd desc", ev.Description)
+				assert.Equal(t, []string{"http://example.com"}, ev.TemplateURLs)
 				resources := []pkger.StackResource{
 					{
 						APIVersion: pkger.APIVersion,
@@ -427,15 +558,15 @@ func TestLauncher_Pkger(t *testing.T) {
 						MetaName:   "bucket-meta",
 					},
 				}
-				assert.Equal(t, resources, st.Resources)
-				assert.True(t, st.UpdatedAt.After(stack.UpdatedAt))
+				assert.Equal(t, resources, ev.Resources)
+				assert.True(t, ev.UpdatedAt.After(stack.LatestEvent().UpdatedAt))
 			}
 
 			updStack, err := svc.UpdateStack(ctx, pkger.StackUpdate{
-				ID:          stack.ID,
-				Name:        strPtr("2nd name"),
-				Description: strPtr("2nd desc"),
-				URLs:        []string{"http://example.com"},
+				ID:           stack.ID,
+				Name:         strPtr("2nd name"),
+				Description:  strPtr("2nd desc"),
+				TemplateURLs: []string{"http://example.com"},
 				AdditionalResources: []pkger.StackAdditionalResource{
 					{
 						APIVersion: pkger.APIVersion,
@@ -482,8 +613,8 @@ func TestLauncher_Pkger(t *testing.T) {
 				"file://" + f.Name(),
 			}
 
-			newStack, cleanup := newStackFn(t, pkger.Stack{
-				URLs: expectedURLs,
+			newStack, cleanup := newStackFn(t, pkger.StackCreate{
+				TemplateURLs: expectedURLs,
 			})
 			defer cleanup()
 
@@ -494,9 +625,9 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				sum := impact.Summary
 				require.Len(t, sum.Buckets, 2)
-				assert.Equal(t, "bucket-0", sum.Buckets[0].PkgName)
+				assert.Equal(t, "bucket-0", sum.Buckets[0].MetaName)
 				assert.Equal(t, "bucket-0", sum.Buckets[0].Name)
-				assert.Equal(t, "bucket-1", sum.Buckets[1].PkgName)
+				assert.Equal(t, "bucket-1", sum.Buckets[1].MetaName)
 				assert.Equal(t, "bucket-1", sum.Buckets[1].Name)
 			}
 
@@ -514,15 +645,15 @@ func TestLauncher_Pkger(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Len(t, stacks, 1)
-			assert.Equal(t, expectedURLs, stacks[0].Sources)
+			assert.Equal(t, expectedURLs, stacks[0].LatestEvent().Sources)
 		})
 
 		t.Run("apply a pkg with a stack and associations", func(t *testing.T) {
-			testLabelMappingFn := func(t *testing.T, stackID influxdb.ID, pkg *pkger.Pkg, assertAssociatedLabelsFn func(pkger.Summary, []*influxdb.Label, influxdb.ResourceType)) pkger.Summary {
+			testLabelMappingFn := func(t *testing.T, stackID influxdb.ID, pkg *pkger.Template, assertAssociatedLabelsFn func(pkger.Summary, []*influxdb.Label, influxdb.ResourceType)) pkger.Summary {
 				t.Helper()
 
 				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-					pkger.ApplyWithPkg(pkg),
+					pkger.ApplyWithTemplate(pkg),
 					pkger.ApplyWithStackID(stackID),
 				)
 				require.NoError(t, err)
@@ -605,7 +736,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			testAssociationFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
 				t.Helper()
 
-				stack, cleanup := newStackFn(t, pkger.Stack{})
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer func() {
 					if t.Failed() {
 						// if test fails in setup, then we attempt to clean it up
@@ -666,7 +797,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				pkg := newTemplate(append(newObjectsFn(), labelObj)...)
 				_, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-					pkger.ApplyWithPkg(pkg),
+					pkger.ApplyWithTemplate(pkg),
 					pkger.ApplyWithStackID(stack.ID),
 				)
 				require.Error(t, err)
@@ -714,7 +845,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			testStackApplyFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
 				t.Helper()
 
-				stack, cleanup := newStackFn(t, pkger.Stack{})
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer func() {
 					if t.Failed() {
 						cleanup()
@@ -745,7 +876,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				)
 
 				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-					pkger.ApplyWithPkg(initialPkg),
+					pkger.ApplyWithTemplate(initialPkg),
 					pkger.ApplyWithStackID(stack.ID),
 				)
 				require.NoError(t, err)
@@ -778,7 +909,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				require.Len(t, summary.NotificationRules, 1)
 				assert.NotZero(t, summary.NotificationRules[0].ID)
 				assert.Equal(t, "rule_0", summary.NotificationRules[0].Name)
-				assert.Equal(t, initialEndpointPkgName, summary.NotificationRules[0].EndpointPkgName)
+				assert.Equal(t, initialEndpointPkgName, summary.NotificationRules[0].EndpointMetaName)
 				assert.Equal(t, "init desc", summary.NotificationRules[0].Description)
 
 				require.Len(t, summary.Tasks, 1)
@@ -850,24 +981,24 @@ func TestLauncher_Pkger(t *testing.T) {
 					updateVariableName = "new variable"
 				)
 				updatedPkg := newTemplate(
-					newBucketObject(initialSum.Buckets[0].PkgName, updateBucketName, ""),
-					newCheckDeadmanObject(t, initialSum.Checks[0].PkgName, updateCheckName, time.Hour),
-					newDashObject(initialSum.Dashboards[0].PkgName, updateDashName, ""),
-					newEndpointHTTP(initialSum.NotificationEndpoints[0].PkgName, updateEndpointName, ""),
-					newLabelObject(initialSum.Labels[0].PkgName, updateLabelName, "", ""),
+					newBucketObject(initialSum.Buckets[0].MetaName, updateBucketName, ""),
+					newCheckDeadmanObject(t, initialSum.Checks[0].MetaName, updateCheckName, time.Hour),
+					newDashObject(initialSum.Dashboards[0].MetaName, updateDashName, ""),
+					newEndpointHTTP(initialSum.NotificationEndpoints[0].MetaName, updateEndpointName, ""),
+					newLabelObject(initialSum.Labels[0].MetaName, updateLabelName, "", ""),
 					newRuleObject(
 						t,
-						initialSum.NotificationRules[0].PkgName,
+						initialSum.NotificationRules[0].MetaName,
 						updateRuleName,
-						initialSum.NotificationEndpoints[0].PkgName,
+						initialSum.NotificationEndpoints[0].MetaName,
 						"",
 					),
-					newTaskObject(initialSum.Tasks[0].PkgName, updateTaskName, ""),
-					newTelegrafObject(initialSum.TelegrafConfigs[0].PkgName, updateTelegrafName, ""),
-					newVariableObject(initialSum.Variables[0].PkgName, updateVariableName, ""),
+					newTaskObject(initialSum.Tasks[0].MetaName, updateTaskName, ""),
+					newTelegrafObject(initialSum.TelegrafConfigs[0].MetaName, updateTelegrafName, ""),
+					newVariableObject(initialSum.Variables[0].MetaName, updateVariableName, ""),
 				)
 				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-					pkger.ApplyWithPkg(updatedPkg),
+					pkger.ApplyWithTemplate(updatedPkg),
 					pkger.ApplyWithStackID(stack.ID),
 				)
 				require.NoError(t, err)
@@ -984,7 +1115,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newVariableObject("z-var-rolls-back", "", ""),
 				)
 				_, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-					pkger.ApplyWithPkg(pkgWithDelete),
+					pkger.ApplyWithTemplate(pkgWithDelete),
 					pkger.ApplyWithStackID(stack.ID),
 				)
 				require.Error(t, err)
@@ -1068,7 +1199,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newVariableObject("non-existent-var", "", ""),
 				)
 				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-					pkger.ApplyWithPkg(allNewResourcesPkg),
+					pkger.ApplyWithTemplate(allNewResourcesPkg),
 					pkger.ApplyWithStackID(stack.ID),
 				)
 				require.NoError(t, err)
@@ -1177,10 +1308,10 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("apply should handle cases where users have changed platform data", func(t *testing.T) {
-			initializeStackPkg := func(t *testing.T, pkg *pkger.Pkg) (influxdb.ID, func(), pkger.Summary) {
+			initializeStackPkg := func(t *testing.T, pkg *pkger.Template) (influxdb.ID, func(), pkger.Summary) {
 				t.Helper()
 
-				stack, cleanup := newStackFn(t, pkger.Stack{})
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer func() {
 					if t.Failed() {
 						cleanup()
@@ -1188,7 +1319,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				}()
 
 				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-					pkger.ApplyWithPkg(pkg),
+					pkger.ApplyWithTemplate(pkg),
 					pkger.ApplyWithStackID(stack.ID),
 				)
 				require.NoError(t, err)
@@ -1225,7 +1356,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedVariable(t, func(t *testing.T, stackID influxdb.ID, initialVarObj pkger.Object, initialSum pkger.Summary) {
 						pkg := newTemplate(initialVarObj)
-						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
+						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
 						updateSum := impact.Summary
@@ -1263,7 +1394,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedBucket(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
 						pkg := newTemplate(initialObj)
-						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
+						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
 						updateSum := impact.Summary
@@ -1301,7 +1432,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedCheck(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
 						pkg := newTemplate(initialObj)
-						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
+						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
 						updateSum := impact.Summary
@@ -1340,7 +1471,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedDashboard(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
 						pkg := newTemplate(initialObj)
-						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
+						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
 						updateSum := impact.Summary
@@ -1378,7 +1509,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedLabel(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
 						pkg := newTemplate(initialObj)
-						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
+						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
 						updateSum := impact.Summary
@@ -1416,7 +1547,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedEndpoint(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
 						pkg := newTemplate(initialObj)
-						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
+						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
 						updateSum := impact.Summary
@@ -1458,7 +1589,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedRule(t, func(t *testing.T, stackID influxdb.ID, initialObjects []pkger.Object, initialSum pkger.Summary) {
 						pkg := newTemplate(initialObjects...)
-						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
+						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
 						updateSum := impact.Summary
@@ -1496,7 +1627,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedTask(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
 						pkg := newTemplate(initialObj)
-						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
+						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
 						updateSum := impact.Summary
@@ -1534,7 +1665,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				t.Run("should create new resource when attempting to update", func(t *testing.T) {
 					testUserDeletedTelegraf(t, func(t *testing.T, stackID influxdb.ID, initialObj pkger.Object, initialSum pkger.Summary) {
 						pkg := newTemplate(initialObj)
-						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stackID))
+						impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg), pkger.ApplyWithStackID(stackID))
 						require.NoError(t, err)
 
 						updateSum := impact.Summary
@@ -1556,12 +1687,12 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("applying updates to existing variable should be successful", func(t *testing.T) {
-			stack, cleanup := newStackFn(t, pkger.Stack{})
+			stack, cleanup := newStackFn(t, pkger.StackCreate{})
 			defer cleanup()
 
 			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
 				pkger.ApplyWithStackID(stack.ID),
-				pkger.ApplyWithPkg(newTemplate(newVariableObject("var", "", ""))),
+				pkger.ApplyWithTemplate(newTemplate(newVariableObject("var", "", ""))),
 			)
 			require.NoError(t, err)
 
@@ -1572,7 +1703,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			impact, err = svc.Apply(ctx, l.Org.ID, l.User.ID,
 				pkger.ApplyWithStackID(stack.ID),
-				pkger.ApplyWithPkg(newTemplate(newVariableObject("var", "", "", "selected"))),
+				pkger.ApplyWithTemplate(newTemplate(newVariableObject("var", "", "", "selected"))),
 			)
 			require.NoError(t, err)
 
@@ -1595,7 +1726,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				variablePkgName = "laces-out-dan"
 			)
 
-			defaultPkgFn := func(*testing.T) *pkger.Pkg {
+			defaultPkgFn := func(*testing.T) *pkger.Template {
 				return newTemplate(
 					newBucketObject(bucketPkgName, "", ""),
 					newCheckDeadmanObject(t, checkPkgName, "", time.Hour),
@@ -1611,7 +1742,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			tests := []struct {
 				name      string
-				pkgFn     func(t *testing.T) *pkger.Pkg
+				pkgFn     func(t *testing.T) *pkger.Template
 				applyOpts []pkger.ApplyOptFn
 				assertFn  func(t *testing.T, impact pkger.ImpactSummary)
 			}{
@@ -1716,7 +1847,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				},
 				{
 					name: "skip label and assoications should be dropped",
-					pkgFn: func(t *testing.T) *pkger.Pkg {
+					pkgFn: func(t *testing.T) *pkger.Template {
 						objs := []pkger.Object{
 							newBucketObject(bucketPkgName, "", ""),
 							newCheckDeadmanObject(t, checkPkgName, "", time.Hour),
@@ -1770,13 +1901,13 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
-					stack, cleanup := newStackFn(t, pkger.Stack{})
+					stack, cleanup := newStackFn(t, pkger.StackCreate{})
 					defer cleanup()
 
 					impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
 						append(
 							tt.applyOpts,
-							pkger.ApplyWithPkg(tt.pkgFn(t)),
+							pkger.ApplyWithTemplate(tt.pkgFn(t)),
 							pkger.ApplyWithStackID(stack.ID),
 						)...,
 					)
@@ -1793,7 +1924,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			testStackApplyFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
 				t.Helper()
 
-				stack, cleanup := newStackFn(t, pkger.Stack{})
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer func() {
 					if t.Failed() {
 						cleanup()
@@ -1834,7 +1965,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				)
 
 				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-					pkger.ApplyWithPkg(initialPkg),
+					pkger.ApplyWithTemplate(initialPkg),
 					pkger.ApplyWithStackID(stack.ID),
 				)
 				require.NoError(t, err)
@@ -1844,7 +1975,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				hasAssociation := func(t *testing.T, actual []pkger.SummaryLabel) {
 					t.Helper()
 					require.Len(t, actual, 1, "unexpected number of label mappings")
-					assert.Equal(t, actual[0].PkgName, labelObj.Name())
+					assert.Equal(t, actual[0].MetaName, labelObj.Name())
 				}
 
 				require.Len(t, summary.Buckets, 1)
@@ -1877,7 +2008,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				require.Len(t, summary.NotificationRules, 1)
 				assert.NotZero(t, summary.NotificationRules[0].ID)
 				assert.Equal(t, "rule_0", summary.NotificationRules[0].Name)
-				assert.Equal(t, initialEndpointPkgName, summary.NotificationRules[0].EndpointPkgName)
+				assert.Equal(t, initialEndpointPkgName, summary.NotificationRules[0].EndpointMetaName)
 				assert.Equal(t, "init desc", summary.NotificationRules[0].Description)
 				hasAssociation(t, summary.NotificationRules[0].LabelAssociations)
 
@@ -1945,49 +2076,49 @@ func TestLauncher_Pkger(t *testing.T) {
 					if len(actual) != 1 {
 						return
 					}
-					assert.Equal(t, actual[0].PkgName, initialSum.Labels[0].PkgName)
+					assert.Equal(t, actual[0].MetaName, initialSum.Labels[0].MetaName)
 				}
 
 				sum := exportedTemplate.Summary()
 
 				require.Len(t, sum.Buckets, 1, "missing required buckets")
-				assert.Equal(t, initialSum.Buckets[0].PkgName, sum.Buckets[0].PkgName)
+				assert.Equal(t, initialSum.Buckets[0].MetaName, sum.Buckets[0].MetaName)
 				assert.Equal(t, initialSum.Buckets[0].Name, sum.Buckets[0].Name)
 				hasAssociation(t, sum.Buckets[0].LabelAssociations)
 
 				require.Len(t, sum.Checks, 1, "missing required checks")
-				assert.Equal(t, initialSum.Checks[0].PkgName, sum.Checks[0].PkgName)
+				assert.Equal(t, initialSum.Checks[0].MetaName, sum.Checks[0].MetaName)
 				assert.Equal(t, initialSum.Checks[0].Check.GetName(), sum.Checks[0].Check.GetName())
 				hasAssociation(t, sum.Checks[0].LabelAssociations)
 
 				require.Len(t, sum.Dashboards, 1, "missing required dashboards")
-				assert.Equal(t, initialSum.Dashboards[0].PkgName, sum.Dashboards[0].PkgName)
+				assert.Equal(t, initialSum.Dashboards[0].MetaName, sum.Dashboards[0].MetaName)
 				assert.Equal(t, initialSum.Dashboards[0].Name, sum.Dashboards[0].Name)
 				hasAssociation(t, sum.Dashboards[0].LabelAssociations)
 
 				require.Len(t, sum.Labels, 1, "missing required labels")
-				assert.Equal(t, initialSum.Labels[0].PkgName, sum.Labels[0].PkgName)
+				assert.Equal(t, initialSum.Labels[0].MetaName, sum.Labels[0].MetaName)
 				assert.Equal(t, initialSum.Labels[0].Name, sum.Labels[0].Name)
 
 				require.Len(t, sum.NotificationRules, 1, "missing required rules")
-				assert.Equal(t, initialSum.NotificationRules[0].PkgName, sum.NotificationRules[0].PkgName)
+				assert.Equal(t, initialSum.NotificationRules[0].MetaName, sum.NotificationRules[0].MetaName)
 				assert.Equal(t, initialSum.NotificationRules[0].Name, sum.NotificationRules[0].Name)
-				assert.Equal(t, initialSum.NotificationRules[0].EndpointPkgName, sum.NotificationRules[0].EndpointPkgName)
+				assert.Equal(t, initialSum.NotificationRules[0].EndpointMetaName, sum.NotificationRules[0].EndpointMetaName)
 				assert.Equal(t, initialSum.NotificationRules[0].EndpointType, sum.NotificationRules[0].EndpointType)
 				hasAssociation(t, sum.NotificationRules[0].LabelAssociations)
 
 				require.Len(t, sum.Tasks, 1, "missing required tasks")
-				assert.Equal(t, initialSum.Tasks[0].PkgName, sum.Tasks[0].PkgName)
+				assert.Equal(t, initialSum.Tasks[0].MetaName, sum.Tasks[0].MetaName)
 				assert.Equal(t, initialSum.Tasks[0].Name, sum.Tasks[0].Name)
 				hasAssociation(t, sum.Tasks[0].LabelAssociations)
 
 				require.Len(t, sum.TelegrafConfigs, 1, "missing required telegraf configs")
-				assert.Equal(t, initialSum.TelegrafConfigs[0].PkgName, sum.TelegrafConfigs[0].PkgName)
+				assert.Equal(t, initialSum.TelegrafConfigs[0].MetaName, sum.TelegrafConfigs[0].MetaName)
 				assert.Equal(t, initialSum.TelegrafConfigs[0].TelegrafConfig.Name, sum.TelegrafConfigs[0].TelegrafConfig.Name)
 				hasAssociation(t, sum.TelegrafConfigs[0].LabelAssociations)
 
 				require.Len(t, sum.Variables, 1, "missing required variables")
-				assert.Equal(t, initialSum.Variables[0].PkgName, sum.Variables[0].PkgName)
+				assert.Equal(t, initialSum.Variables[0].MetaName, sum.Variables[0].MetaName)
 				assert.Equal(t, initialSum.Variables[0].Name, sum.Variables[0].Name)
 				hasAssociation(t, sum.Variables[0].LabelAssociations)
 			})
@@ -2017,7 +2148,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 				pkg := newTemplate(pkger.DashboardToObject("", dash))
 
-				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg))
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg))
 				require.NoError(t, err)
 
 				defer deleteStackFn(t, impact.StackID)
@@ -2041,7 +2172,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				newLabelAssociationTestFn := func(t *testing.T) (pkger.Stack, pkger.Summary, func()) {
 					t.Helper()
 
-					stack, cleanup := newStackFn(t, pkger.Stack{})
+					stack, cleanup := newStackFn(t, pkger.StackCreate{})
 					defer func() {
 						if t.Failed() {
 							cleanup()
@@ -2056,7 +2187,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					})
 					pkg := newTemplate(bktObj, labelObj)
 
-					impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg), pkger.ApplyWithStackID(stack.ID))
+					impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg), pkger.ApplyWithStackID(stack.ID))
 					require.NoError(t, err)
 
 					require.Len(t, impact.Summary.Labels, 1)
@@ -2150,7 +2281,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			pkger.WithVariableSVC(l.VariableService(t)),
 		)
 
-		_, err = svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(newCompletePkg(t)))
+		_, err = svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(newCompletePkg(t)))
 		require.Error(t, err)
 
 		bkts, _, err := l.BucketService(t).FindBuckets(ctx, influxdb.BucketFilter{OrganizationID: &l.Org.ID})
@@ -2201,9 +2332,9 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, vars)
 
-		stacks, err = svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
+		afterStacks, err := svc.ListStacks(ctx, l.Org.ID, pkger.ListFilter{})
 		require.NoError(t, err)
-		require.Empty(t, stacks)
+		require.Empty(t, afterStacks)
 	})
 
 	hasLabelAssociations := func(t *testing.T, associations []pkger.SummaryLabel, numAss int, expectedNames ...string) {
@@ -2224,93 +2355,94 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 	}
 
-	t.Run("dry run a package with no existing resources", func(t *testing.T) {
-		impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(newCompletePkg(t)))
-		require.NoError(t, err)
+	t.Run("dry run", func(t *testing.T) {
+		t.Run("template with no existing resources", func(t *testing.T) {
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(newCompletePkg(t)))
+			require.NoError(t, err)
 
-		sum, diff := impact.Summary, impact.Diff
+			sum, diff := impact.Summary, impact.Diff
 
-		require.Len(t, diff.Buckets, 1)
-		assert.True(t, diff.Buckets[0].IsNew())
+			require.Len(t, diff.Buckets, 1)
+			assert.True(t, diff.Buckets[0].IsNew())
 
-		require.Len(t, diff.Checks, 2)
-		for _, ch := range diff.Checks {
-			assert.True(t, ch.IsNew())
-		}
+			require.Len(t, diff.Checks, 2)
+			for _, ch := range diff.Checks {
+				assert.True(t, ch.IsNew())
+			}
 
-		require.Len(t, diff.Labels, 2)
-		assert.True(t, diff.Labels[0].IsNew())
-		assert.True(t, diff.Labels[1].IsNew())
+			require.Len(t, diff.Labels, 2)
+			assert.True(t, diff.Labels[0].IsNew())
+			assert.True(t, diff.Labels[1].IsNew())
 
-		require.Len(t, diff.Variables, 1)
-		assert.True(t, diff.Variables[0].IsNew())
+			require.Len(t, diff.Variables, 1)
+			assert.True(t, diff.Variables[0].IsNew())
 
-		require.Len(t, diff.NotificationRules, 1)
-		// the pkg being run here has a relationship with the rule and the endpoint within the pkg.
-		assert.Equal(t, "http", diff.NotificationRules[0].New.EndpointType)
+			require.Len(t, diff.NotificationRules, 1)
+			// the pkg being run here has a relationship with the rule and the endpoint within the pkg.
+			assert.Equal(t, "http", diff.NotificationRules[0].New.EndpointType)
 
-		require.Len(t, diff.Dashboards, 1)
-		require.Len(t, diff.NotificationEndpoints, 1)
-		require.Len(t, diff.Tasks, 1)
-		require.Len(t, diff.Telegrafs, 1)
+			require.Len(t, diff.Dashboards, 1)
+			require.Len(t, diff.NotificationEndpoints, 1)
+			require.Len(t, diff.Tasks, 1)
+			require.Len(t, diff.Telegrafs, 1)
 
-		labels := sum.Labels
-		require.Len(t, labels, 2)
-		assert.Equal(t, "label-1", labels[0].Name)
-		assert.Equal(t, "the 2nd label", labels[1].Name)
+			labels := sum.Labels
+			require.Len(t, labels, 2)
+			assert.Equal(t, "label-1", labels[0].Name)
+			assert.Equal(t, "the 2nd label", labels[1].Name)
 
-		bkts := sum.Buckets
-		require.Len(t, bkts, 1)
-		assert.Equal(t, "rucketeer", bkts[0].Name)
-		hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label-1", "the 2nd label")
+			bkts := sum.Buckets
+			require.Len(t, bkts, 1)
+			assert.Equal(t, "rucketeer", bkts[0].Name)
+			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label-1", "the 2nd label")
 
-		checks := sum.Checks
-		require.Len(t, checks, 2)
-		assert.Equal(t, "check 0 name", checks[0].Check.GetName())
-		hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label-1")
-		assert.Equal(t, "check-1", checks[1].Check.GetName())
-		hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label-1")
+			checks := sum.Checks
+			require.Len(t, checks, 2)
+			assert.Equal(t, "check 0 name", checks[0].Check.GetName())
+			hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label-1")
+			assert.Equal(t, "check-1", checks[1].Check.GetName())
+			hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label-1")
 
-		dashs := sum.Dashboards
-		require.Len(t, dashs, 1)
-		assert.Equal(t, "dash_1", dashs[0].Name)
-		assert.Equal(t, "desc1", dashs[0].Description)
-		hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label-1", "the 2nd label")
+			dashs := sum.Dashboards
+			require.Len(t, dashs, 1)
+			assert.Equal(t, "dash_1", dashs[0].Name)
+			assert.Equal(t, "desc1", dashs[0].Description)
+			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label-1", "the 2nd label")
 
-		endpoints := sum.NotificationEndpoints
-		require.Len(t, endpoints, 1)
-		assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
-		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
-		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label-1")
+			endpoints := sum.NotificationEndpoints
+			require.Len(t, endpoints, 1)
+			assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
+			assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
+			hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label-1")
 
-		require.Len(t, sum.Tasks, 1)
-		task := sum.Tasks[0]
-		assert.Equal(t, "task_1", task.Name)
-		assert.Equal(t, "desc_1", task.Description)
-		assert.Equal(t, "15 * * * *", task.Cron)
-		hasLabelAssociations(t, task.LabelAssociations, 1, "label-1")
+			require.Len(t, sum.Tasks, 1)
+			task := sum.Tasks[0]
+			assert.Equal(t, "task_1", task.Name)
+			assert.Equal(t, "desc_1", task.Description)
+			assert.Equal(t, "15 * * * *", task.Cron)
+			hasLabelAssociations(t, task.LabelAssociations, 1, "label-1")
 
-		teles := sum.TelegrafConfigs
-		require.Len(t, teles, 1)
-		assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
-		assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
-		hasLabelAssociations(t, teles[0].LabelAssociations, 1, "label-1")
+			teles := sum.TelegrafConfigs
+			require.Len(t, teles, 1)
+			assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
+			assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
+			hasLabelAssociations(t, teles[0].LabelAssociations, 1, "label-1")
 
-		vars := sum.Variables
-		require.Len(t, vars, 1)
-		assert.Equal(t, "query var", vars[0].Name)
-		hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label-1")
-		varArgs := vars[0].Arguments
-		require.NotNil(t, varArgs)
-		assert.Equal(t, "query", varArgs.Type)
-		assert.Equal(t, influxdb.VariableQueryValues{
-			Query:    "buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: \"_value\"})  |> keep(columns: [\"_value\"])",
-			Language: "flux",
-		}, varArgs.Values)
-	})
+			vars := sum.Variables
+			require.Len(t, vars, 1)
+			assert.Equal(t, "query var", vars[0].Name)
+			hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label-1")
+			varArgs := vars[0].Arguments
+			require.NotNil(t, varArgs)
+			assert.Equal(t, "query", varArgs.Type)
+			assert.Equal(t, influxdb.VariableQueryValues{
+				Query:    "buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: \"_value\"})  |> keep(columns: [\"_value\"])",
+				Language: "flux",
+			}, varArgs.Values)
+		})
 
-	t.Run("dry run package with env ref", func(t *testing.T) {
-		pkgStr := fmt.Sprintf(`
+		t.Run("template with env ref", func(t *testing.T) {
+			pkgStr := fmt.Sprintf(`
 apiVersion: %[1]s
 kind: Label
 metadata:
@@ -2333,292 +2465,397 @@ spec:
           key: label-1-name-ref
 `, pkger.APIVersion)
 
-		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
-		require.NoError(t, err)
+			pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
+			require.NoError(t, err)
 
-		impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID,
-			pkger.ApplyWithPkg(pkg),
-			pkger.ApplyWithEnvRefs(map[string]string{
-				"bkt-1-name-ref":   "new-bkt-name",
-				"label-1-name-ref": "new-label-name",
-			}),
-		)
-		require.NoError(t, err)
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID,
+				pkger.ApplyWithTemplate(pkg),
+				pkger.ApplyWithEnvRefs(map[string]string{
+					"bkt-1-name-ref":   "new-bkt-name",
+					"label-1-name-ref": "new-label-name",
+				}),
+			)
+			require.NoError(t, err)
 
-		sum := impact.Summary
+			sum := impact.Summary
 
-		require.Len(t, sum.Buckets, 1)
-		assert.Equal(t, "new-bkt-name", sum.Buckets[0].Name)
+			require.Len(t, sum.Buckets, 1)
+			assert.Equal(t, "new-bkt-name", sum.Buckets[0].Name)
 
-		require.Len(t, sum.Labels, 1)
-		assert.Equal(t, "new-label-name", sum.Labels[0].Name)
-	})
+			require.Len(t, sum.Labels, 1)
+			assert.Equal(t, "new-label-name", sum.Labels[0].Name)
+		})
 
-	t.Run("dry run dashboards", func(t *testing.T) {
-		newQuery := func() influxdb.DashboardQuery {
-			q := influxdb.DashboardQuery{
-				BuilderConfig: influxdb.BuilderConfig{
-					Buckets: []string{},
-					Tags:    nil,
-					Functions: []struct {
-						Name string `json:"name"`
-					}{},
-					AggregateWindow: struct {
-						Period string `json:"period"`
-					}{},
-				},
-				Text:     "from(v.bucket) |> count()",
-				EditMode: "advanced",
-			}
-			// TODO: remove this when issue that forced the builder tag to be here to render in UI.
-			q.BuilderConfig.Tags = append(q.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
-			return q
-		}
+		t.Run("bucket", func(t *testing.T) {
+			template := newTemplate(
+				newBucketObject("foo", "", ""),
+			)
 
-		newAxes := func() map[string]influxdb.Axis {
-			return map[string]influxdb.Axis{
-				"x": {
-					Bounds: []string{},
-					Label:  "labx",
-					Prefix: "pre",
-					Suffix: "suf",
-					Base:   "base",
-					Scale:  "linear",
-				},
-				"y": {
-					Bounds: []string{},
-					Label:  "laby",
-					Prefix: "pre",
-					Suffix: "suf",
-					Base:   "base",
-					Scale:  "linear",
-				},
-			}
-		}
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
 
-		newColors := func(types ...string) []influxdb.ViewColor {
-			var out []influxdb.ViewColor
-			for _, t := range types {
-				out = append(out, influxdb.ViewColor{
-					Type:  t,
-					Hex:   time.Now().Format(time.RFC3339),
-					Name:  time.Now().Format(time.RFC3339),
-					Value: float64(time.Now().Unix()),
-				})
-			}
-			return out
-		}
+			require.Len(t, impact.Diff.Buckets, 1)
+			assert.Equal(t, pkger.KindBucket, impact.Diff.Buckets[0].Kind)
+		})
 
-		tests := []struct {
-			name  string
-			props influxdb.ViewProperties
-		}{
-			{
-				name: "gauge",
-				props: influxdb.GaugeViewProperties{
-					Type:              influxdb.ViewPropertyTypeGauge,
-					DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-					Note:              "a note",
-					Prefix:            "pre",
-					TickPrefix:        "true",
-					Suffix:            "suf",
-					TickSuffix:        "false",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShowNoteWhenEmpty: true,
-					ViewColors:        newColors("min", "max", "threshold"),
-				},
-			},
-			{
-				name: "heatmap",
-				props: influxdb.HeatmapViewProperties{
-					Type:              influxdb.ViewPropertyTypeHeatMap,
-					Note:              "a note",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShowNoteWhenEmpty: true,
-					ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
-					XColumn:           "x",
-					YColumn:           "y",
-					XDomain:           []float64{0, 10},
-					YDomain:           []float64{0, 100},
-					XAxisLabel:        "x_label",
-					XPrefix:           "x_prefix",
-					XSuffix:           "x_suffix",
-					YAxisLabel:        "y_label",
-					YPrefix:           "y_prefix",
-					YSuffix:           "y_suffix",
-					BinSize:           10,
-					TimeFormat:        "",
-				},
-			},
-			{
-				name: "histogram",
-				props: influxdb.HistogramViewProperties{
-					Type:              influxdb.ViewPropertyTypeHistogram,
-					Note:              "a note",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShowNoteWhenEmpty: true,
-					ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
-					FillColumns:       []string{"a", "b"},
-					XColumn:           "_value",
-					XDomain:           []float64{0, 10},
-					XAxisLabel:        "x_label",
-					BinCount:          30,
-					Position:          "stacked",
-				},
-			},
-			{
-				name: "markdown",
-				props: influxdb.MarkdownViewProperties{
-					Type: influxdb.ViewPropertyTypeMarkdown,
-					Note: "the note is here with **markdown**",
-				},
-			},
-			{
-				name: "scatter",
-				props: influxdb.ScatterViewProperties{
-					Type:              influxdb.ViewPropertyTypeScatter,
-					Note:              "a note",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShowNoteWhenEmpty: true,
-					ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
-					XColumn:           "x",
-					YColumn:           "y",
-					XDomain:           []float64{0, 10},
-					YDomain:           []float64{0, 100},
-					XAxisLabel:        "x_label",
-					XPrefix:           "x_prefix",
-					XSuffix:           "x_suffix",
-					YAxisLabel:        "y_label",
-					YPrefix:           "y_prefix",
-					YSuffix:           "y_suffix",
-					TimeFormat:        "",
-				},
-			},
-			{
-				name: "single stat",
-				props: influxdb.SingleStatViewProperties{
-					Type:              influxdb.ViewPropertyTypeSingleStat,
-					DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-					Note:              "a note",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					Prefix:            "pre",
-					TickPrefix:        "false",
-					ShowNoteWhenEmpty: true,
-					Suffix:            "suf",
-					TickSuffix:        "true",
-					ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-				},
-			},
-			{
-				name: "single stat plus line",
-				props: influxdb.LinePlusSingleStatProperties{
-					Type:              influxdb.ViewPropertyTypeSingleStatPlusLine,
-					Axes:              newAxes(),
-					DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-					Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
-					Note:              "a note",
-					Prefix:            "pre",
-					Suffix:            "suf",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShadeBelow:        true,
-					HoverDimension:    "y",
-					ShowNoteWhenEmpty: true,
-					ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-					XColumn:           "x",
-					YColumn:           "y",
-					Position:          "stacked",
-				},
-			},
-			{
-				name: "table",
-				props: influxdb.TableViewProperties{
-					Type:              influxdb.ViewPropertyTypeTable,
-					Note:              "a note",
-					ShowNoteWhenEmpty: true,
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
-					TableOptions: influxdb.TableOptions{
-						VerticalTimeAxis: true,
-						SortBy: influxdb.RenamableField{
-							InternalName: "_time",
-						},
-						Wrapping:       "truncate",
-						FixFirstColumn: true,
+		t.Run("check", func(t *testing.T) {
+			template := newTemplate(
+				newCheckDeadmanObject(t, "check1", "", time.Hour),
+				newCheckThresholdObject(t, "check2", "", time.Hour),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.Checks, 2)
+			assert.Equal(t, pkger.KindCheckDeadman, impact.Diff.Checks[0].Kind)
+			assert.Equal(t, pkger.KindCheckThreshold, impact.Diff.Checks[1].Kind)
+		})
+
+		t.Run("dashboards", func(t *testing.T) {
+			newQuery := func() influxdb.DashboardQuery {
+				q := influxdb.DashboardQuery{
+					BuilderConfig: influxdb.BuilderConfig{
+						Buckets: []string{},
+						Tags:    nil,
+						Functions: []struct {
+							Name string `json:"name"`
+						}{},
+						AggregateWindow: struct {
+							Period string `json:"period"`
+						}{},
 					},
-					FieldOptions: []influxdb.RenamableField{
-						{
-							InternalName: "_time",
-							DisplayName:  "time (ms)",
-							Visible:      true,
-						},
+					Text:     "from(v.bucket) |> count()",
+					EditMode: "advanced",
+				}
+				// TODO: remove this when issue that forced the builder tag to be here to render in UI.
+				q.BuilderConfig.Tags = append(q.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
+				return q
+			}
+
+			newAxes := func() map[string]influxdb.Axis {
+				return map[string]influxdb.Axis{
+					"x": {
+						Bounds: []string{},
+						Label:  "labx",
+						Prefix: "pre",
+						Suffix: "suf",
+						Base:   "base",
+						Scale:  "linear",
 					},
-					TimeFormat: "YYYY:MM:DD",
-					DecimalPlaces: influxdb.DecimalPlaces{
-						IsEnforced: true,
-						Digits:     1,
+					"y": {
+						Bounds: []string{},
+						Label:  "laby",
+						Prefix: "pre",
+						Suffix: "suf",
+						Base:   "base",
+						Scale:  "linear",
+					},
+				}
+			}
+
+			newColors := func(types ...string) []influxdb.ViewColor {
+				var out []influxdb.ViewColor
+				for _, t := range types {
+					out = append(out, influxdb.ViewColor{
+						Type:  t,
+						Hex:   time.Now().Format(time.RFC3339),
+						Name:  time.Now().Format(time.RFC3339),
+						Value: float64(time.Now().Unix()),
+					})
+				}
+				return out
+			}
+
+			tests := []struct {
+				name  string
+				props influxdb.ViewProperties
+			}{
+				{
+					name: "gauge",
+					props: influxdb.GaugeViewProperties{
+						Type:              influxdb.ViewPropertyTypeGauge,
+						DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+						Note:              "a note",
+						Prefix:            "pre",
+						TickPrefix:        "true",
+						Suffix:            "suf",
+						TickSuffix:        "false",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShowNoteWhenEmpty: true,
+						ViewColors:        newColors("min", "max", "threshold"),
 					},
 				},
-			},
-			{
-				name: "xy",
-				props: influxdb.XYViewProperties{
-					Type:              influxdb.ViewPropertyTypeXY,
-					Axes:              newAxes(),
-					Geom:              "step",
-					Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
-					Note:              "a note",
-					Queries:           []influxdb.DashboardQuery{newQuery()},
-					ShadeBelow:        true,
-					HoverDimension:    "y",
-					ShowNoteWhenEmpty: true,
-					ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-					XColumn:           "x",
-					YColumn:           "y",
-					Position:          "overlaid",
-					TimeFormat:        "",
+				{
+					name: "heatmap",
+					props: influxdb.HeatmapViewProperties{
+						Type:              influxdb.ViewPropertyTypeHeatMap,
+						Note:              "a note",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShowNoteWhenEmpty: true,
+						ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+						XColumn:           "x",
+						YColumn:           "y",
+						XDomain:           []float64{0, 10},
+						YDomain:           []float64{0, 100},
+						XAxisLabel:        "x_label",
+						XPrefix:           "x_prefix",
+						XSuffix:           "x_suffix",
+						YAxisLabel:        "y_label",
+						YPrefix:           "y_prefix",
+						YSuffix:           "y_suffix",
+						BinSize:           10,
+						TimeFormat:        "",
+					},
 				},
-			},
-		}
-
-		for _, tt := range tests {
-			fn := func(t *testing.T) {
-				obj := pkger.DashboardToObject("", influxdb.Dashboard{
-					OrganizationID: l.Org.ID,
-					Name:           tt.name,
-					Cells: []*influxdb.Cell{
-						{
-							CellProperty: influxdb.CellProperty{
-								X: 2, Y: 2,
-								H: 5, W: 5,
+				{
+					name: "histogram",
+					props: influxdb.HistogramViewProperties{
+						Type:              influxdb.ViewPropertyTypeHistogram,
+						Note:              "a note",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShowNoteWhenEmpty: true,
+						ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+						FillColumns:       []string{"a", "b"},
+						XColumn:           "_value",
+						XDomain:           []float64{0, 10},
+						XAxisLabel:        "x_label",
+						BinCount:          30,
+						Position:          "stacked",
+					},
+				},
+				{
+					name: "markdown",
+					props: influxdb.MarkdownViewProperties{
+						Type: influxdb.ViewPropertyTypeMarkdown,
+						Note: "the note is here with **markdown**",
+					},
+				},
+				{
+					name: "scatter",
+					props: influxdb.ScatterViewProperties{
+						Type:              influxdb.ViewPropertyTypeScatter,
+						Note:              "a note",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShowNoteWhenEmpty: true,
+						ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+						XColumn:           "x",
+						YColumn:           "y",
+						XDomain:           []float64{0, 10},
+						YDomain:           []float64{0, 100},
+						XAxisLabel:        "x_label",
+						XPrefix:           "x_prefix",
+						XSuffix:           "x_suffix",
+						YAxisLabel:        "y_label",
+						YPrefix:           "y_prefix",
+						YSuffix:           "y_suffix",
+						TimeFormat:        "",
+					},
+				},
+				{
+					name: "single stat",
+					props: influxdb.SingleStatViewProperties{
+						Type:              influxdb.ViewPropertyTypeSingleStat,
+						DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+						Note:              "a note",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						Prefix:            "pre",
+						TickPrefix:        "false",
+						ShowNoteWhenEmpty: true,
+						Suffix:            "suf",
+						TickSuffix:        "true",
+						ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+					},
+				},
+				{
+					name: "single stat plus line",
+					props: influxdb.LinePlusSingleStatProperties{
+						Type:              influxdb.ViewPropertyTypeSingleStatPlusLine,
+						Axes:              newAxes(),
+						DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+						Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+						Note:              "a note",
+						Prefix:            "pre",
+						Suffix:            "suf",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShadeBelow:        true,
+						HoverDimension:    "y",
+						ShowNoteWhenEmpty: true,
+						ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+						XColumn:           "x",
+						YColumn:           "y",
+						Position:          "stacked",
+					},
+				},
+				{
+					name: "table",
+					props: influxdb.TableViewProperties{
+						Type:              influxdb.ViewPropertyTypeTable,
+						Note:              "a note",
+						ShowNoteWhenEmpty: true,
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+						TableOptions: influxdb.TableOptions{
+							VerticalTimeAxis: true,
+							SortBy: influxdb.RenamableField{
+								InternalName: "_time",
 							},
-							View: &influxdb.View{Properties: tt.props},
+							Wrapping:       "truncate",
+							FixFirstColumn: true,
+						},
+						FieldOptions: []influxdb.RenamableField{
+							{
+								InternalName: "_time",
+								DisplayName:  "time (ms)",
+								Visible:      true,
+							},
+						},
+						TimeFormat: "YYYY:MM:DD",
+						DecimalPlaces: influxdb.DecimalPlaces{
+							IsEnforced: true,
+							Digits:     1,
 						},
 					},
-				})
-				template := newTemplate(obj)
-
-				impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(template))
-				require.NoError(t, err)
-
-				diff := impact.Diff.Dashboards
-				require.Len(t, diff, 1)
-
-				actual := diff[0]
-				assert.Equal(t, tt.name, actual.New.Name)
-
-				charts := actual.New.Charts
-				require.Len(t, charts, 1)
-				require.NotNil(t, charts[0].Properties)
-				assert.Equal(t, tt.props, charts[0].Properties)
+				},
+				{
+					name: "xy",
+					props: influxdb.XYViewProperties{
+						Type:              influxdb.ViewPropertyTypeXY,
+						Axes:              newAxes(),
+						Geom:              "step",
+						Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+						Note:              "a note",
+						Queries:           []influxdb.DashboardQuery{newQuery()},
+						ShadeBelow:        true,
+						HoverDimension:    "y",
+						ShowNoteWhenEmpty: true,
+						ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+						XColumn:           "x",
+						YColumn:           "y",
+						Position:          "overlaid",
+						TimeFormat:        "",
+					},
+				},
 			}
 
-			t.Run(tt.name, fn)
-		}
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					obj := pkger.DashboardToObject("", influxdb.Dashboard{
+						OrganizationID: l.Org.ID,
+						Name:           tt.name,
+						Cells: []*influxdb.Cell{
+							{
+								CellProperty: influxdb.CellProperty{
+									X: 2, Y: 2,
+									H: 5, W: 5,
+								},
+								View: &influxdb.View{Properties: tt.props},
+							},
+						},
+					})
+					template := newTemplate(obj)
+
+					impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+					require.NoError(t, err)
+
+					diff := impact.Diff.Dashboards
+					require.Len(t, diff, 1)
+
+					actual := diff[0]
+					assert.Equal(t, pkger.KindDashboard, actual.Kind)
+					assert.Equal(t, tt.name, actual.New.Name)
+
+					charts := actual.New.Charts
+					require.Len(t, charts, 1)
+					require.NotNil(t, charts[0].Properties)
+					assert.Equal(t, tt.props, charts[0].Properties)
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
+
+		t.Run("labels", func(t *testing.T) {
+			template := newTemplate(
+				newLabelObject("label", "", "", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.Labels, 1)
+			assert.Equal(t, pkger.KindLabel, impact.Diff.Labels[0].Kind)
+		})
+
+		t.Run("endpoints", func(t *testing.T) {
+			template := newTemplate(
+				newEndpointHTTP("http", "", ""),
+				newEndpointPagerDuty("pager", "", ""),
+				newEndpointSlack("slack", "", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.NotificationEndpoints, 3)
+			assert.Equal(t, pkger.KindNotificationEndpointHTTP, impact.Diff.NotificationEndpoints[0].Kind)
+			assert.Equal(t, pkger.KindNotificationEndpointPagerDuty, impact.Diff.NotificationEndpoints[1].Kind)
+			assert.Equal(t, pkger.KindNotificationEndpointSlack, impact.Diff.NotificationEndpoints[2].Kind)
+		})
+
+		t.Run("rules", func(t *testing.T) {
+			template := newTemplate(
+				newEndpointHTTP("http", "", ""),
+				newRuleObject(t, "rule", "", "http", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.NotificationRules, 1)
+			assert.Equal(t, pkger.KindNotificationRule, impact.Diff.NotificationRules[0].Kind)
+		})
+
+		t.Run("tasks", func(t *testing.T) {
+			template := newTemplate(
+				newTaskObject("task", "", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.Tasks, 1)
+			assert.Equal(t, pkger.KindTask, impact.Diff.Tasks[0].Kind)
+		})
+
+		t.Run("telegraf configs", func(t *testing.T) {
+			template := newTemplate(
+				newTelegrafObject("tele", "", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.Telegrafs, 1)
+			assert.Equal(t, pkger.KindTelegraf, impact.Diff.Telegrafs[0].Kind)
+		})
+
+		t.Run("variables", func(t *testing.T) {
+			template := newTemplate(
+				newVariableObject("var", "", ""),
+			)
+
+			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(template))
+			require.NoError(t, err)
+
+			require.Len(t, impact.Diff.Variables, 1)
+			assert.Equal(t, pkger.KindVariable, impact.Diff.Variables[0].Kind)
+		})
 	})
 
-	t.Run("apply a package of all new resources", func(t *testing.T) {
+	t.Run("apply a template of all new resources", func(t *testing.T) {
 		// this initial test is also setup for the sub tests
-		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(newCompletePkg(t)))
+		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(newCompletePkg(t)))
 		require.NoError(t, err)
 		defer deleteStackFn(t, impact.StackID)
 
@@ -2628,22 +2865,26 @@ spec:
 
 		labels := sum1.Labels
 		require.Len(t, labels, 2)
+		assert.Equal(t, pkger.KindLabel, labels[0].Kind)
 		assert.NotZero(t, labels[0].ID)
 		assert.Equal(t, "label-1", labels[0].Name)
 		assert.Equal(t, "the 2nd label", labels[1].Name)
 
 		bkts := sum1.Buckets
 		require.Len(t, bkts, 1)
+		assert.Equal(t, pkger.KindBucket, bkts[0].Kind)
 		assert.NotZero(t, bkts[0].ID)
-		assert.NotEmpty(t, bkts[0].PkgName)
+		assert.NotEmpty(t, bkts[0].MetaName)
 		assert.Equal(t, "rucketeer", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label-1", "the 2nd label")
 
 		checks := sum1.Checks
 		require.Len(t, checks, 2)
 		assert.Equal(t, "check 0 name", checks[0].Check.GetName())
+		assert.Equal(t, pkger.KindCheckThreshold, checks[0].Kind)
 		hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label-1")
 		assert.Equal(t, "check-1", checks[1].Check.GetName())
+		assert.Equal(t, pkger.KindCheckDeadman, checks[1].Kind)
 		hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label-1")
 		for _, ch := range checks {
 			assert.NotZero(t, ch.Check.GetID())
@@ -2651,6 +2892,7 @@ spec:
 
 		dashs := sum1.Dashboards
 		require.Len(t, dashs, 1)
+		assert.Equal(t, pkger.KindDashboard, dashs[0].Kind)
 		assert.NotZero(t, dashs[0].ID)
 		assert.NotEmpty(t, dashs[0].Name)
 		assert.Equal(t, "dash_1", dashs[0].Name)
@@ -2661,6 +2903,7 @@ spec:
 
 		endpoints := sum1.NotificationEndpoints
 		require.Len(t, endpoints, 1)
+		assert.Equal(t, pkger.KindNotificationEndpointHTTP, endpoints[0].Kind)
 		assert.NotZero(t, endpoints[0].NotificationEndpoint.GetID())
 		assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
 		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
@@ -2669,20 +2912,23 @@ spec:
 
 		require.Len(t, sum1.NotificationRules, 1)
 		rule := sum1.NotificationRules[0]
+		assert.Equal(t, pkger.KindNotificationRule, rule.Kind)
 		assert.NotZero(t, rule.ID)
 		assert.Equal(t, "rule_0", rule.Name)
 		assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
-		assert.Equal(t, "http-none-auth-notification-endpoint", rule.EndpointPkgName)
+		assert.Equal(t, "http-none-auth-notification-endpoint", rule.EndpointMetaName)
 		assert.Equalf(t, "http", rule.EndpointType, "rule: %+v", rule)
 
 		require.Len(t, sum1.Tasks, 1)
 		task := sum1.Tasks[0]
+		assert.Equal(t, pkger.KindTask, task.Kind)
 		assert.NotZero(t, task.ID)
 		assert.Equal(t, "task_1", task.Name)
 		assert.Equal(t, "desc_1", task.Description)
 
 		teles := sum1.TelegrafConfigs
 		require.Len(t, teles, 1)
+		assert.Equal(t, pkger.KindTelegraf, teles[0].Kind)
 		assert.NotZero(t, teles[0].TelegrafConfig.ID)
 		assert.Equal(t, l.Org.ID, teles[0].TelegrafConfig.OrgID)
 		assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
@@ -2691,6 +2937,7 @@ spec:
 
 		vars := sum1.Variables
 		require.Len(t, vars, 1)
+		assert.Equal(t, pkger.KindVariable, vars[0].Kind)
 		assert.NotZero(t, vars[0].ID)
 		assert.Equal(t, "query var", vars[0].Name)
 		assert.Equal(t, []string{"rucketeer"}, vars[0].Selected)
@@ -2707,14 +2954,14 @@ spec:
 
 		newSumMapping := func(id pkger.SafeID, pkgName, name string, rt influxdb.ResourceType) pkger.SummaryLabelMapping {
 			return pkger.SummaryLabelMapping{
-				Status:          pkger.StateStatusNew,
-				ResourceID:      id,
-				ResourceType:    rt,
-				ResourcePkgName: pkgName,
-				ResourceName:    name,
-				LabelPkgName:    labels[0].PkgName,
-				LabelName:       labels[0].Name,
-				LabelID:         labels[0].ID,
+				Status:           pkger.StateStatusNew,
+				ResourceID:       id,
+				ResourceType:     rt,
+				ResourceMetaName: pkgName,
+				ResourceName:     name,
+				LabelMetaName:    labels[0].MetaName,
+				LabelName:        labels[0].Name,
+				LabelID:          labels[0].ID,
 			}
 		}
 
@@ -2726,14 +2973,14 @@ spec:
 		}
 
 		require.Len(t, mappings, 11)
-		mappingsContain(t, bkts[0].ID, bkts[0].PkgName, bkts[0].Name, influxdb.BucketsResourceType)
-		mappingsContain(t, pkger.SafeID(checks[0].Check.GetID()), checks[0].PkgName, checks[0].Check.GetName(), influxdb.ChecksResourceType)
-		mappingsContain(t, dashs[0].ID, dashs[0].PkgName, dashs[0].Name, influxdb.DashboardsResourceType)
-		mappingsContain(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), endpoints[0].PkgName, endpoints[0].NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType)
-		mappingsContain(t, rule.ID, rule.PkgName, rule.Name, influxdb.NotificationRuleResourceType)
-		mappingsContain(t, task.ID, task.PkgName, task.Name, influxdb.TasksResourceType)
-		mappingsContain(t, pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].PkgName, teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType)
-		mappingsContain(t, vars[0].ID, vars[0].PkgName, vars[0].Name, influxdb.VariablesResourceType)
+		mappingsContain(t, bkts[0].ID, bkts[0].MetaName, bkts[0].Name, influxdb.BucketsResourceType)
+		mappingsContain(t, pkger.SafeID(checks[0].Check.GetID()), checks[0].MetaName, checks[0].Check.GetName(), influxdb.ChecksResourceType)
+		mappingsContain(t, dashs[0].ID, dashs[0].MetaName, dashs[0].Name, influxdb.DashboardsResourceType)
+		mappingsContain(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), endpoints[0].MetaName, endpoints[0].NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType)
+		mappingsContain(t, rule.ID, rule.MetaName, rule.Name, influxdb.NotificationRuleResourceType)
+		mappingsContain(t, task.ID, task.MetaName, task.Name, influxdb.TasksResourceType)
+		mappingsContain(t, pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].MetaName, teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType)
+		mappingsContain(t, vars[0].ID, vars[0].MetaName, vars[0].Name, influxdb.VariablesResourceType)
 
 		var (
 			// used in dependent subtests
@@ -2767,7 +3014,7 @@ spec:
 
 				bkts := sum.Buckets
 				require.Len(t, bkts, 1)
-				assert.NotEmpty(t, bkts[0].PkgName)
+				assert.NotEmpty(t, bkts[0].MetaName)
 				assert.Equal(t, "rucketeer", bkts[0].Name)
 				hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label-1", "the 2nd label")
 
@@ -2799,7 +3046,7 @@ spec:
 				rule := sum.NotificationRules[0]
 				assert.Equal(t, "rule_0", rule.Name)
 				assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
-				assert.NotEmpty(t, rule.EndpointPkgName)
+				assert.NotEmpty(t, rule.EndpointMetaName)
 
 				require.Len(t, sum.Tasks, 1)
 				task := sum.Tasks[0]
@@ -2826,35 +3073,35 @@ spec:
 
 				newSumMapping := func(id pkger.SafeID, pkgName, name string, rt influxdb.ResourceType) pkger.SummaryLabelMapping {
 					return pkger.SummaryLabelMapping{
-						Status:          pkger.StateStatusNew,
-						ResourceID:      id,
-						ResourceType:    rt,
-						ResourcePkgName: pkgName,
-						ResourceName:    name,
-						LabelPkgName:    labels[0].PkgName,
-						LabelName:       labels[0].Name,
-						LabelID:         labels[0].ID,
+						Status:           pkger.StateStatusNew,
+						ResourceID:       id,
+						ResourceType:     rt,
+						ResourceMetaName: pkgName,
+						ResourceName:     name,
+						LabelMetaName:    labels[0].MetaName,
+						LabelName:        labels[0].Name,
+						LabelID:          labels[0].ID,
 					}
 				}
 
 				mappings := sum.LabelMappings
 				require.Len(t, mappings, 11)
-				assert.Contains(t, mappings, newSumMapping(bkts[0].ID, bkts[0].PkgName, bkts[0].Name, influxdb.BucketsResourceType))
+				assert.Contains(t, mappings, newSumMapping(bkts[0].ID, bkts[0].MetaName, bkts[0].Name, influxdb.BucketsResourceType))
 
 				ch0 := checks[0]
-				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ch0.Check.GetID()), ch0.PkgName, ch0.Check.GetName(), influxdb.ChecksResourceType))
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ch0.Check.GetID()), ch0.MetaName, ch0.Check.GetName(), influxdb.ChecksResourceType))
 
 				ch1 := checks[0]
-				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ch1.Check.GetID()), ch1.PkgName, ch1.Check.GetName(), influxdb.ChecksResourceType))
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ch1.Check.GetID()), ch1.MetaName, ch1.Check.GetName(), influxdb.ChecksResourceType))
 
 				ne := endpoints[0]
-				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ne.NotificationEndpoint.GetID()), ne.PkgName, ne.NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(ne.NotificationEndpoint.GetID()), ne.MetaName, ne.NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
 
-				assert.Contains(t, mappings, newSumMapping(dashs[0].ID, dashs[0].PkgName, dashs[0].Name, influxdb.DashboardsResourceType))
-				assert.Contains(t, mappings, newSumMapping(rule.ID, rule.PkgName, rule.Name, influxdb.NotificationRuleResourceType))
-				assert.Contains(t, mappings, newSumMapping(task.ID, task.PkgName, task.Name, influxdb.TasksResourceType))
-				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].PkgName, teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
-				assert.Contains(t, mappings, newSumMapping(vars[0].ID, vars[0].PkgName, vars[0].Name, influxdb.VariablesResourceType))
+				assert.Contains(t, mappings, newSumMapping(dashs[0].ID, dashs[0].MetaName, dashs[0].Name, influxdb.DashboardsResourceType))
+				assert.Contains(t, mappings, newSumMapping(rule.ID, rule.MetaName, rule.Name, influxdb.NotificationRuleResourceType))
+				assert.Contains(t, mappings, newSumMapping(task.ID, task.MetaName, task.Name, influxdb.TasksResourceType))
+				assert.Contains(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].MetaName, teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
+				assert.Contains(t, mappings, newSumMapping(vars[0].ID, vars[0].MetaName, vars[0].Name, influxdb.VariablesResourceType))
 			})
 
 			t.Run("filtered by resource types", func(t *testing.T) {
@@ -2944,7 +3191,7 @@ spec:
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
 			// validate the new package doesn't create new resources for bkts/labels/vars
 			// since names collide.
-			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(newCompletePkg(t)))
+			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(newCompletePkg(t)))
 			require.NoError(t, err)
 
 			sum2 := impact.Summary
@@ -2964,7 +3211,7 @@ spec:
 				pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
 				require.NoError(t, err)
 
-				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg))
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg))
 				require.NoError(t, err)
 				return impact.Summary
 			}
@@ -3109,7 +3356,7 @@ spec:
 			newRule := newSum.NotificationRules[0]
 			assert.Equal(t, "new rule name", newRule.Name)
 			assert.Zero(t, newRule.EndpointID)
-			assert.NotEmpty(t, newRule.EndpointPkgName)
+			assert.NotEmpty(t, newRule.EndpointMetaName)
 			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label-1")
 
 			require.Len(t, newSum.Tasks, 1)
@@ -3162,7 +3409,7 @@ spec:
 				pkger.WithVariableSVC(l.VariableService(t)),
 			)
 
-			_, err = svc.Apply(ctx, l.Org.ID, 0, pkger.ApplyWithPkg(updatePkg))
+			_, err = svc.Apply(ctx, l.Org.ID, 0, pkger.ApplyWithTemplate(updatePkg))
 			require.Error(t, err)
 
 			bkt, err := l.BucketService(t).FindBucketByID(ctx, influxdb.ID(sum1Bkts[0].ID))
@@ -3194,7 +3441,7 @@ spec:
 		})
 	})
 
-	t.Run("apply a task pkg with a complex query", func(t *testing.T) {
+	t.Run("apply a task template with a complex query", func(t *testing.T) {
 		// validates bug: https://github.com/influxdata/influxdb/issues/17069
 
 		pkgStr := fmt.Sprintf(`
@@ -3243,17 +3490,38 @@ spec:
 		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
 		require.NoError(t, err)
 
-		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg))
+		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg))
 		require.NoError(t, err)
 		assert.NotZero(t, impact.StackID)
 
 		require.Len(t, impact.Summary.Tasks, 1)
 	})
 
+	t.Run("applying a template with an invalid template returns parser errors", func(t *testing.T) {
+		stack, cleanup := newStackFn(t, pkger.StackCreate{})
+		defer cleanup()
+
+		template := newTemplate(newTelegrafObject("with_underscore-is-bad", "", ""))
+
+		_, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+			pkger.ApplyWithTemplate(template),
+			pkger.ApplyWithStackID(stack.ID),
+		)
+		require.Error(t, err)
+		require.True(t, pkger.IsParseErr(err))
+
+		vErrs := err.(pkger.ParseError).ValidationErrs()
+		require.Len(t, vErrs, 1)
+
+		// this check is to make sure we aren't creating duplicate error messages like
+		// was witnessed from CLI recently.
+		require.Equal(t, 1, strings.Count(err.Error(), "DNS-1123"))
+	})
+
 	t.Run("applying a pkg without a stack will have a stack created for it", func(t *testing.T) {
 		pkg := newTemplate(newBucketObject("room", "for", "more"))
 
-		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg))
+		impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg))
 		require.NoError(t, err)
 
 		require.NotZero(t, impact.StackID)
@@ -3268,9 +3536,10 @@ spec:
 		require.NoError(t, err)
 
 		require.Len(t, stacks, 1)
-		require.Len(t, stacks[0].Resources, 1)
-		assert.Equal(t, stacks[0].Resources[0].MetaName, "room")
-		assert.Equal(t, influxdb.ID(impact.Summary.Buckets[0].ID), stacks[0].Resources[0].ID)
+		ev := stacks[0].LatestEvent()
+		require.Len(t, ev.Resources, 1)
+		assert.Equal(t, ev.Resources[0].MetaName, "room")
+		assert.Equal(t, influxdb.ID(impact.Summary.Buckets[0].ID), ev.Resources[0].ID)
 	})
 
 	t.Run("apply a package with env refs", func(t *testing.T) {
@@ -3377,7 +3646,7 @@ spec:
 		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
 		require.NoError(t, err)
 
-		impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithPkg(pkg))
+		impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(pkg))
 		require.NoError(t, err)
 		assert.Zero(t, impact.StackID)
 
@@ -3417,7 +3686,7 @@ spec:
 		assert.Equal(t, expectedMissingEnvs, sum.MissingEnvs)
 
 		impact, err = svc.Apply(ctx, l.Org.ID, l.User.ID,
-			pkger.ApplyWithPkg(pkg),
+			pkger.ApplyWithTemplate(pkg),
 			pkger.ApplyWithEnvRefs(map[string]string{
 				"bkt-1-name-ref":      "rucket_threeve",
 				"check-1-name-ref":    "check_threeve",
@@ -3441,7 +3710,7 @@ spec:
 		assert.Equal(t, "endpoint_threeve", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
 		assert.Equal(t, "label_threeve", sum.Labels[0].Name)
 		assert.Equal(t, "rule_threeve", sum.NotificationRules[0].Name)
-		assert.Equal(t, "endpoint_threeve", sum.NotificationRules[0].EndpointPkgName)
+		assert.Equal(t, "endpoint_threeve", sum.NotificationRules[0].EndpointMetaName)
 		assert.Equal(t, "telegraf_threeve", sum.TelegrafConfigs[0].TelegrafConfig.Name)
 		assert.Equal(t, "task_threeve", sum.Tasks[0].Name)
 		assert.Equal(t, "var_threeve", sum.Variables[0].Name)
@@ -3449,7 +3718,7 @@ spec:
 	})
 }
 
-func newCompletePkg(t *testing.T) *pkger.Pkg {
+func newCompletePkg(t *testing.T) *pkger.Template {
 	t.Helper()
 
 	pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgYMLStr))
@@ -3795,6 +4064,12 @@ func (f *fakeRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.
 	return f.NotificationRuleStore.CreateNotificationRule(ctx, nr, userID)
 }
 
+func assertErrorCode(t *testing.T, expected string, err error) {
+	t.Helper()
+	assert.Error(t, err)
+	assert.Equal(t, expected, influxdb.ErrorCode(err))
+}
+
 type resourceChecker struct {
 	tl *TestLauncher
 }
@@ -3821,6 +4096,12 @@ func byID(id influxdb.ID) getResourceOptFn {
 func byName(name string) getResourceOptFn {
 	return func() getResourceOpt {
 		return getResourceOpt{name: name}
+	}
+}
+
+func bySafeID(id pkger.SafeID) getResourceOptFn {
+	return func() getResourceOpt {
+		return getResourceOpt{id: influxdb.ID(id)}
 	}
 }
 

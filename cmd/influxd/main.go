@@ -22,10 +22,14 @@ import (
 var (
 	version = "dev"
 	commit  = "none"
-	date    = fmt.Sprint(time.Now().UTC().Format(time.RFC3339))
+	date    = ""
 )
 
 func main() {
+	if len(date) == 0 {
+		date = time.Now().UTC().Format(time.RFC3339)
+	}
+
 	influxdb.SetBuildInfo(version, commit, date)
 
 	rootCmd := launcher.NewInfluxdCommand(context.Background(),

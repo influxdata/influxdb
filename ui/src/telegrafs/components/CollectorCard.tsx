@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps, Link} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps, Link} from 'react-router-dom'
 
 // Components
 import {Context} from 'src/clockface'
@@ -22,7 +22,7 @@ import {getOrg} from 'src/organizations/selectors'
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
-import {AppState, Organization, Label, Telegraf} from 'src/types'
+import {AppState, Label, Telegraf} from 'src/types'
 
 interface OwnProps {
   collector: Telegraf
@@ -31,18 +31,12 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface StateProps {
-  org: Organization
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
 
-interface DispatchProps {
-  onAddLabels: typeof addTelegrafLabelsAsync
-  onRemoveLabels: typeof removeTelegrafLabelsAsync
-}
-
-type Props = OwnProps & StateProps & DispatchProps
-
-class CollectorRow extends PureComponent<Props & WithRouterProps> {
+class CollectorRow extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public render() {
     const {collector, org} = this.props
 
@@ -86,8 +80,16 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   private get contextMenu(): JSX.Element {
     return (
       <Context>
-        <Context.Menu icon={IconFont.Trash} color={ComponentColor.Danger}>
-          <Context.Item label="Delete" action={this.handleDeleteConfig} />
+        <Context.Menu
+          testID="telegraf-delete-menu"
+          icon={IconFont.Trash}
+          color={ComponentColor.Danger}
+        >
+          <Context.Item
+            testID="telegraf-delete-button"
+            label="Delete"
+            action={this.handleDeleteConfig}
+          />
         </Context.Menu>
       </Context>
     )
@@ -137,8 +139,8 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleOpenConfig = (): void => {
-    const {collector, router, org} = this.props
-    router.push(`/orgs/${org.id}/load-data/telegrafs/${collector.id}/view`)
+    const {collector, history, org} = this.props
+    history.push(`/orgs/${org.id}/load-data/telegrafs/${collector.id}/view`)
   }
 
   private handleDeleteConfig = (): void => {
@@ -146,18 +148,17 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const org = getOrg(state)
 
   return {org}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onAddLabels: addTelegrafLabelsAsync,
   onRemoveLabels: removeTelegrafLabelsAsync,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<Props>(CollectorRow))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(CollectorRow))

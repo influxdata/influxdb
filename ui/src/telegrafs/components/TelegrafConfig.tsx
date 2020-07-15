@@ -1,12 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect, ConnectedProps} from 'react-redux'
+import {withRouter, RouteComponentProps, matchPath} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import Editor from 'src/shared/components/TomlMonacoEditor'
-import {RemoteDataState} from '@influxdata/clockface'
 
 // Actions
 import {getTelegrafConfigToml} from 'src/telegrafs/actions/thunks'
@@ -14,25 +13,20 @@ import {getTelegrafConfigToml} from 'src/telegrafs/actions/thunks'
 // Types
 import {AppState} from 'src/types'
 
-interface DispatchProps {
-  getTelegrafConfigToml: typeof getTelegrafConfigToml
-}
-
-interface StateProps {
-  telegrafConfig: string
-  status: RemoteDataState
-}
-
-type Props = StateProps & DispatchProps
+type Params = {orgID: string; id: string}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 @ErrorHandling
-export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
+export class TelegrafConfig extends PureComponent<Props & RouteComponentProps> {
   public componentDidMount() {
-    const {
-      params: {id},
-      getTelegrafConfigToml,
-    } = this.props
-    getTelegrafConfigToml(id)
+    const match = matchPath<Params>(this.props.history.location.pathname, {
+      path: '/orgs/:orgID/load-data/telegrafs/:id/view',
+      exact: true,
+      strict: false,
+    })
+    const id = match.params.id
+    this.props.getTelegrafConfigToml(id)
   }
 
   public render() {
@@ -45,16 +39,15 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({resources}: AppState): StateProps => ({
+const mstp = ({resources}: AppState) => ({
   telegrafConfig: resources.telegrafs.currentConfig.item,
   status: resources.telegrafs.currentConfig.status,
 })
 
-const mdtp: DispatchProps = {
-  getTelegrafConfigToml: getTelegrafConfigToml,
+const mdtp = {
+  getTelegrafConfigToml,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter<Props>(TelegrafConfig))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TelegrafConfig))

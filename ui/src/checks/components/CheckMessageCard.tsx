@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {
@@ -17,15 +17,8 @@ import {setStatusMessageTemplate} from 'src/alerting/actions/alertBuilder'
 // Types
 import {AppState} from 'src/types'
 
-interface DispatchProps {
-  onSetStatusMessageTemplate: typeof setStatusMessageTemplate
-}
-
-interface StateProps {
-  statusMessageTemplate: string
-}
-
-type Props = DispatchProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
 const CheckMessageCard: FC<Props> = ({
   statusMessageTemplate,
@@ -91,17 +84,14 @@ const CheckMessageCard: FC<Props> = ({
   )
 }
 
-const mstp = ({
-  alertBuilder: {statusMessageTemplate},
-}: AppState): StateProps => ({
+const mstp = ({alertBuilder: {statusMessageTemplate}}: AppState) => ({
   statusMessageTemplate,
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onSetStatusMessageTemplate: setStatusMessageTemplate,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(CheckMessageCard)
+const connector = connect(mstp, mdtp)
+
+export default connector(CheckMessageCard)

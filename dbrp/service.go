@@ -63,21 +63,7 @@ func composeForeignKey(orgID influxdb.ID, db string) []byte {
 	return key
 }
 
-func NewService(ctx context.Context, bucketSvc influxdb.BucketService, st kv.Store) (influxdb.DBRPMappingServiceV2, error) {
-	if err := st.Update(ctx, func(tx kv.Tx) error {
-		_, err := tx.Bucket(bucket)
-		if err != nil {
-			return err
-		}
-		_, err = tx.Bucket(indexBucket)
-		if err != nil {
-			return err
-		}
-		_, err = tx.Bucket(defaultBucket)
-		return err
-	}); err != nil {
-		return nil, err
-	}
+func NewService(ctx context.Context, bucketSvc influxdb.BucketService, st kv.Store) influxdb.DBRPMappingServiceV2 {
 	return &Service{
 		store:     st,
 		IDGen:     snowflake.NewDefaultIDGenerator(),
@@ -89,7 +75,7 @@ func NewService(ctx context.Context, bucketSvc influxdb.BucketService, st kv.Sto
 			}
 			return indexForeignKey(dbrp), nil
 		}), kv.WithIndexReadPathEnabled),
-	}, nil
+	}
 }
 
 // getDefault gets the default mapping ID inside of a transaction.

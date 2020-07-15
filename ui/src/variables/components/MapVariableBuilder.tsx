@@ -1,6 +1,6 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Component
 import {
@@ -32,11 +32,8 @@ interface OwnProps {
   selected?: string[]
 }
 
-interface DispatchProps {
-  notify: typeof notifyAction
-}
-
-type Props = DispatchProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
 interface State {
   templateValuesString: string
@@ -154,11 +151,10 @@ class MapVariableBuilder extends PureComponent<Props, State> {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(MapVariableBuilder)
+const connector = connect(null, mdtp)
+
+export default connector(MapVariableBuilder)

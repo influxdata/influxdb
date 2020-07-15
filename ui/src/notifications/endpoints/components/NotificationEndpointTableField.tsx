@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useContext} from 'react'
-import {Link} from 'react-router'
+import {Link} from 'react-router-dom'
 
 // Context
 import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'

@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
@@ -14,19 +14,16 @@ import {getLinks} from 'src/shared/actions/links'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface PassedInProps {
+interface OwnProps {
   children: React.ReactElement<any>
-}
-
-interface ConnectDispatchProps {
-  getLinks: typeof getLinks
 }
 
 interface State {
   loading: RemoteDataState
 }
 
-type Props = ConnectDispatchProps & PassedInProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
 @ErrorHandling
 class GetLinks extends PureComponent<Props, State> {
@@ -58,7 +55,6 @@ const mdtp = {
   getLinks,
 }
 
-export default connect<{}, ConnectDispatchProps, PassedInProps>(
-  null,
-  mdtp
-)(GetLinks)
+const connector = connect(null, mdtp)
+
+export default connector(GetLinks)

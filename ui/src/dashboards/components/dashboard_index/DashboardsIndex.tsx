@@ -1,7 +1,8 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {InjectedRouter} from 'react-router'
-import {connect} from 'react-redux'
+import {RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
+import {Switch, Route} from 'react-router-dom'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -15,6 +16,8 @@ import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
+import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
+import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -25,28 +28,14 @@ import {createDashboard as createDashboardAction} from 'src/dashboards/actions/t
 import {setDashboardSort} from 'src/dashboards/actions/creators'
 
 // Types
-import {AppState, ResourceType, DashboardSortParams} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {ComponentStatus, Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
-interface DispatchProps {
-  createDashboard: typeof createDashboardAction
-  setDashboardSort: typeof setDashboardSort
-}
-
-interface StateProps {
-  limitStatus: LimitStatus
-  sortOptions: DashboardSortParams
-}
-
-interface OwnProps {
-  router: InjectedRouter
-  params: {orgID: string}
-}
-
-type Props = DispatchProps & StateProps & OwnProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   searchTerm: string
@@ -121,7 +110,16 @@ class DashboardIndex extends PureComponent<Props, State> {
             </GetAssetLimits>
           </Page.Contents>
         </Page>
-        {this.props.children}
+        <Switch>
+          <Route
+            path="/orgs/:orgID/dashboards-list/import/template"
+            component={CreateFromTemplateOverlay}
+          />
+          <Route
+            path="/orgs/:orgID/dashboards-list/import"
+            component={DashboardImportOverlay}
+          />
+        </Switch>
       </>
     )
   }
@@ -140,18 +138,22 @@ class DashboardIndex extends PureComponent<Props, State> {
 
   private summonImportOverlay = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import`)
+    history.push(`/orgs/${orgID}/dashboards-list/import`)
   }
 
   private summonImportFromTemplateOverlay = (): void => {
     const {
-      router,
-      params: {orgID},
+      history,
+      match: {
+        params: {orgID},
+      },
     } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import/template`)
+    history.push(`/orgs/${orgID}/dashboards-list/import/template`)
   }
 
   private get addResourceStatus(): ComponentStatus {
@@ -163,7 +165,7 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const {
     cloud: {limits},
   } = state
@@ -175,12 +177,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   createDashboard: createDashboardAction,
   setDashboardSort,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(DashboardIndex)
+const connector = connect(mstp, mdtp)
+
+export default connector(DashboardIndex)

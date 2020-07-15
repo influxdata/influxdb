@@ -27,12 +27,9 @@ func initBoltSecretService(f influxdbtesting.SecretServiceFields, t *testing.T) 
 	}
 }
 
-func initSecretService(s kv.Store, f influxdbtesting.SecretServiceFields, t *testing.T) (influxdb.SecretService, func()) {
-	svc := kv.NewService(zaptest.NewLogger(t), s)
+func initSecretService(s kv.SchemaStore, f influxdbtesting.SecretServiceFields, t *testing.T) (influxdb.SecretService, func()) {
 	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing secret service: %v", err)
-	}
+	svc := kv.NewService(zaptest.NewLogger(t), s)
 
 	for _, s := range f.Secrets {
 		for k, v := range s.Env {

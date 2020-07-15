@@ -9,6 +9,8 @@ import (
 var (
 	// ErrKeyNotFound is the error returned when the key requested is not found.
 	ErrKeyNotFound = errors.New("key not found")
+	// ErrBucketNotFound is the error returned when the bucket cannot be found.
+	ErrBucketNotFound = errors.New("bucket not found")
 	// ErrTxNotWritable is the error returned when an mutable operation is called during
 	// a non-writable transaction.
 	ErrTxNotWritable = errors.New("transaction is not writable")
@@ -20,6 +22,23 @@ var (
 // IsNotFound returns a boolean indicating whether the error is known to report that a key or was not found.
 func IsNotFound(err error) bool {
 	return err == ErrKeyNotFound
+}
+
+// SchemaStore is a superset of Store along with store schema change
+// functionality like bucket creation and deletion.
+//
+// This type is made available via the `kv/migration` package.
+// It should be consumed via this package to create and delete buckets using a migration.
+// Checkout the internal tool `cmd/internal/kvmigrate` for building a new migration Go file into
+// the correct location (in kv/migration/all.go).
+// Configuring your bucket here will ensure it is created properly on initialization of InfluxDB.
+type SchemaStore interface {
+	Store
+
+	// CreateBucket creates a bucket on the underlying store if it does not exist
+	CreateBucket(ctx context.Context, bucket []byte) error
+	// DeleteBucket deletes a bucket on the underlying store if it exists
+	DeleteBucket(ctx context.Context, bucket []byte) error
 }
 
 // Store is an interface for a generic key value store. It is modeled after

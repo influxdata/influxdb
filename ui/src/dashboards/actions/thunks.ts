@@ -1,7 +1,7 @@
 // Libraries
 import {normalize} from 'normalizr'
 import {Dispatch} from 'react'
-import {push} from 'react-router-redux'
+import {push} from 'connected-react-router'
 
 // APIs
 import * as dashAPI from 'src/dashboards/apis'
@@ -364,7 +364,7 @@ export const getDashboard = (dashboardID: string) => async (
     dispatch(updateTimeRangeFromQueryParams(dashboardID))
   } catch (error) {
     const org = getOrg(getState())
-    dispatch(push(`/orgs/${org.id}/dashboards`))
+    dispatch(push(`/orgs/${org.id}/dashboards-list`))
     dispatch(notify(copy.dashboardGetFailed(dashboardID, error.message)))
     return
   }

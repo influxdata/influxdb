@@ -276,6 +276,7 @@ func (t *Tombstoner) TombstoneFiles() []FileStat {
 	t.mu.Lock()
 	t.fileStats = append(t.fileStats[:0], FileStat{
 		Path:         t.tombstonePath(),
+		CreatedAt:    stat.ModTime().UnixNano(),
 		LastModified: stat.ModTime().UnixNano(),
 		Size:         uint32(stat.Size()),
 	})

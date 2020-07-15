@@ -1,63 +1,55 @@
 // Libraries
-import React, {Component, ComponentClass} from 'react'
-import {withRouter, WithRouterProps, InjectedRouter} from 'react-router'
-import {connect} from 'react-redux'
+import React, {FC, Component, ComponentClass, useEffect} from 'react'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {useDispatch} from 'react-redux'
 import {OverlayID} from 'src/overlays/reducers/overlays'
 
 // Actions
 import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
 
-// NOTE: i dont know what is wrong with the type definition of react-router
+// NOTE(alex b): I don't know what is wrong with the type definition of react-router
 // but it doesn't include params on an injected router upon route resolution
-interface RealInjectedRouter extends InjectedRouter {
-  params: WithRouterProps['params']
-}
 
-export type OverlayDismissalWithRoute = (router: RealInjectedRouter) => void
+export type OverlayDismissalWithRoute = (
+  history: RouteComponentProps['history'],
+  params: {[x: string]: string}
+) => void
 
 interface OwnProps {
   overlayID: OverlayID
   onClose: OverlayDismissalWithRoute
 }
 
-interface DispatchProps {
-  onShowOverlay: typeof showOverlay
-  onDismissOverlay: typeof dismissOverlay
-}
+type OverlayHandlerProps = OwnProps & RouteComponentProps
 
-type OverlayHandlerProps = OwnProps & DispatchProps & WithRouterProps
+const OverlayHandler: FC<OverlayHandlerProps> = props => {
+  const {overlayID, onClose, match, history} = props
 
-class OverlayHandler extends Component<OverlayHandlerProps> {
-  public componentWillUnmount() {
-    this.props.onDismissOverlay()
-  }
+  const dispatch = useDispatch()
 
-  public render() {
+  useEffect(() => {
     const closer = () => {
-      this.props.onClose(this.props.router as RealInjectedRouter)
+      onClose(history, match.params)
     }
-    const {overlayID, params, onShowOverlay} = this.props
-    onShowOverlay(overlayID, params, closer)
-    return null
-  }
+
+    dispatch(showOverlay(overlayID, match.params, closer))
+
+    return () => dispatch(dismissOverlay())
+  }, [overlayID]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null
 }
 
-const mdtp: DispatchProps = {
-  onShowOverlay: showOverlay,
-  onDismissOverlay: dismissOverlay,
-}
+const routedComponent = withRouter(OverlayHandler)
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(withRouter<OwnProps>(OverlayHandler))
+export default routedComponent
 
 interface RouteOverlayProps {
-  overlayID: string
+  overlayID: OverlayID
 }
 
 export function RouteOverlay<P>(
-  WrappedComponent: ComponentClass<P & RouteOverlayProps>,
+  WrappedComponent: typeof routedComponent,
   overlayID: string,
   onClose?: OverlayDismissalWithRoute
 ): ComponentClass<P> {

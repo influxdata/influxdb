@@ -14,7 +14,13 @@ import (
 )
 
 func Test_Inmem_Index(t *testing.T) {
-	influxdbtesting.TestIndex(t, inmem.NewKVStore())
+	s, closeStore, err := NewTestInmemStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeStore()
+
+	influxdbtesting.TestIndex(t, s)
 }
 
 func Test_Bolt_Index(t *testing.T) {

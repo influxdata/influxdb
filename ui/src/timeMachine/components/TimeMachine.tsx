@@ -35,7 +35,6 @@ const TimeMachine: FunctionComponent<StateProps> = ({
   })
 
   let bottomContents: JSX.Element = null
-
   if (activeTab === 'alerting') {
     bottomContents = <TimeMachineAlerting />
   } else if (activeTab === 'queries') {

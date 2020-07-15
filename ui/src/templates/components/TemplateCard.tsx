@@ -1,8 +1,8 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps} from 'react-redux'
 import {get, capitalize} from 'lodash'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {
   Button,
   ComponentSize,
@@ -31,7 +31,7 @@ import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Organization, Label, TemplateSummary} from 'src/types'
+import {AppState, Label, TemplateSummary} from 'src/types'
 
 // Constants
 import {DEFAULT_TEMPLATE_NAME} from 'src/templates/constants'
@@ -41,22 +41,12 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface DispatchProps {
-  onDelete: typeof deleteTemplate
-  onClone: typeof cloneTemplate
-  onUpdate: typeof updateTemplate
-  onCreateFromTemplate: typeof createResourceFromTemplate
-  onAddTemplateLabels: typeof addTemplateLabelsAsync
-  onRemoveTemplateLabels: typeof removeTemplateLabelsAsync
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & OwnProps
 
-interface StateProps {
-  org: Organization
-}
-
-type Props = DispatchProps & OwnProps & StateProps
-
-class TemplateCard extends PureComponent<Props & WithRouterProps> {
+class TemplateCard extends PureComponent<
+  Props & RouteComponentProps<{orgID: string}>
+> {
   public render() {
     const {template, onFilterChange} = this.props
 
@@ -179,8 +169,8 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleViewTemplate = () => {
-    const {router, template, org} = this.props
-    router.push(`/orgs/${org.id}/settings/templates/${template.id}/view`)
+    const {history, template, org} = this.props
+    history.push(`/orgs/${org.id}/settings/templates/${template.id}/view`)
   }
 
   private handleAddLabel = (label: Label): void => {
@@ -196,13 +186,13 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   return {
     org: getOrg(state),
   }
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onDelete: deleteTemplate,
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
@@ -211,7 +201,6 @@ const mdtp: DispatchProps = {
   onRemoveTemplateLabels: removeTemplateLabelsAsync,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<Props>(TemplateCard))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TemplateCard))

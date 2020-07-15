@@ -1,5 +1,12 @@
 // Libraries
-import React, {FC, useRef, useEffect, ReactNode, useState} from 'react'
+import React, {
+  FC,
+  useRef,
+  useEffect,
+  ReactNode,
+  useState,
+  useCallback,
+} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -60,39 +67,29 @@ const Resizer: FC<Props> = ({
     [`panel-resizer--body__${visibility}`]: resizingEnabled && visibility,
   })
 
-  const updateResultsStyle = (): void => {
+  const updateResultsStyle = useCallback(() => {
     if (bodyRef.current && resizingEnabled && visibility === 'visible') {
       bodyRef.current.setAttribute('style', `height: ${size}px`)
     } else {
       bodyRef.current.setAttribute('style', '')
     }
-  }
+  }, [resizingEnabled, size, visibility])
 
   const handleUpdateVisibility = (panelVisibility: Visibility): void => {
     onUpdate({panelVisibility})
   }
 
-  const handleUpdateHeight = (panelHeight: number): void => {
-    onUpdate({panelHeight})
-  }
+  const handleUpdateHeight = useCallback(
+    (panelHeight: number): void => {
+      onUpdate({panelHeight})
+    },
+    [onUpdate]
+  )
 
-  // Ensure results renders with proper height on initial render
+  // Ensure styles update when state & props update
   useEffect(() => {
     updateResultsStyle()
-  }, [])
-
-  // Update results height when associated props change
-  useEffect(() => {
-    updateResultsStyle()
-  }, [size, visibility, resizingEnabled])
-
-  // Update local height when context height changes
-  // so long as it is a different value
-  useEffect(() => {
-    if (height !== size) {
-      updateSize(height)
-    }
-  }, [height])
+  }, [updateResultsStyle])
 
   // Handle changes in drag state
   useEffect(() => {
@@ -110,7 +107,7 @@ const Resizer: FC<Props> = ({
         )
       handleUpdateHeight(size)
     }
-  }, [isDragging])
+  }, [isDragging, size, handleUpdateHeight])
 
   const handleMouseMove = (e: MouseEvent): void => {
     if (!bodyRef.current) {

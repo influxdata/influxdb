@@ -20,12 +20,8 @@ func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.Buck
 	if err != nil {
 		t.Fatal(err)
 	}
-	storage, err := tenant.NewStore(s)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	svc := tenant.NewService(storage)
+	svc := tenant.NewService(tenant.NewStore(s))
 
 	ctx := context.Background()
 	for _, o := range f.Organizations {
@@ -39,7 +35,7 @@ func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.Buck
 		}
 	}
 
-	handler := tenant.NewHTTPBucketHandler(zaptest.NewLogger(t), svc, nil, nil)
+	handler := tenant.NewHTTPBucketHandler(zaptest.NewLogger(t), svc, nil, nil, nil)
 	r := chi.NewRouter()
 	r.Mount(handler.Prefix(), handler)
 	server := httptest.NewServer(r)

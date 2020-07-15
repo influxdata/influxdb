@@ -30,9 +30,6 @@ func initOldLabelService(s kv.Store, f influxdbtesting.LabelFields, t *testing.T
 	svc.IDGenerator = f.IDGenerator
 
 	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing label service: %v", err)
-	}
 	for _, l := range f.Labels {
 		if err := svc.PutLabel(ctx, l); err != nil {
 			t.Fatalf("failed to populate labels: %v", err)

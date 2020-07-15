@@ -1,6 +1,6 @@
 // Libraries
 import {Dispatch} from 'react'
-import {push} from 'react-router-redux'
+import {push, RouterAction} from 'connected-react-router'
 import {normalize} from 'normalizr'
 
 // Constants
@@ -99,7 +99,7 @@ export const getChecks = () => async (
 
 export const getCheckForTimeMachine = (checkID: string) => async (
   dispatch: Dispatch<
-    TimeMachineAction | NotificationAction | AlertBuilderAction
+    TimeMachineAction | NotificationAction | AlertBuilderAction | RouterAction
   >,
   getState: GetState
 ) => {
@@ -115,9 +115,15 @@ export const getCheckForTimeMachine = (checkID: string) => async (
 
     const check = resp.data
 
-    const view = createView<CheckViewProperties>(check.type)
+    const normCheck = normalize<Check, CheckEntities, string>(
+      resp.data,
+      checkSchema
+    )
+    const builderCheck = normCheck.entities.checks[normCheck.result]
 
-    view.properties.queries = [check.query]
+    const view = createView<CheckViewProperties>(builderCheck.type)
+
+    view.properties.queries = [builderCheck.query]
 
     dispatch(
       setActiveTimeMachine('alerting', {
@@ -125,13 +131,6 @@ export const getCheckForTimeMachine = (checkID: string) => async (
         activeTab: check.type === 'custom' ? 'customCheckQuery' : 'alerting',
       })
     )
-
-    const normCheck = normalize<Check, CheckEntities, string>(
-      resp.data,
-      checkSchema
-    )
-
-    const builderCheck = normCheck.entities.checks[normCheck.result]
 
     dispatch(setAlertBuilderCheck(builderCheck))
   } catch (error) {
@@ -149,7 +148,7 @@ type SendToTimeMachineAction =
   | NotificationAction
 
 export const createCheckFromTimeMachine = () => async (
-  dispatch: Dispatch<Action | SendToTimeMachineAction>,
+  dispatch: Dispatch<Action | SendToTimeMachineAction | RouterAction>,
   getState: GetState
 ): Promise<void> => {
   const rename = 'Please rename the check before saving'
@@ -188,7 +187,7 @@ export const createCheckFromTimeMachine = () => async (
 }
 
 export const updateCheckFromTimeMachine = () => async (
-  dispatch: Dispatch<Action | SendToTimeMachineAction>,
+  dispatch: Dispatch<Action | SendToTimeMachineAction | RouterAction>,
   getState: GetState
 ) => {
   const state = getState()

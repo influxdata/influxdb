@@ -92,7 +92,29 @@ describe('Buckets', () => {
             ).click()
           })
           .then(() => {
-            const asc_buckets = buckets.slice().sort()
+            const asc_buckets = buckets
+              .slice()
+              .sort((a, b) => a.localeCompare(b))
+
+            cy.get('[data-testid*="bucket-card"]').each((val, index) => {
+              const testID = val.attr('data-testid')
+              expect(testID).to.include(asc_buckets[index])
+            })
+          })
+
+        cy.getByTestID('resource-sorter--button')
+          .click()
+          .then(() => {
+            cy.getByTestID(
+              'resource-sorter--retentionRules[0].everySeconds-asc'
+            ).click()
+          })
+          .then(() => {
+            const asc_buckets = buckets
+              .slice()
+              .sort((a, b) => a.localeCompare(b))
+
+              .reverse()
             cy.get('[data-testid*="bucket-card"]').each((val, index) => {
               const testID = val.attr('data-testid')
               expect(testID).to.include(asc_buckets[index])

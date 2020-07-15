@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 import {isEmpty} from 'lodash'
 
 // Components
@@ -27,25 +27,15 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {AppState, Bucket, Scraper, Organization, ResourceType} from 'src/types'
+import {AppState, Bucket, Scraper, ResourceType} from 'src/types'
 import {ScraperSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
 
-interface StateProps {
-  scrapers: Scraper[]
-  buckets: Bucket[]
-  org: Organization
-}
-
-interface DispatchProps {
-  onUpdateScraper: typeof updateScraper
-  onDeleteScraper: typeof deleteScraper
-}
-
-type Props = StateProps & DispatchProps & WithRouterProps
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps & RouteComponentProps<{orgID: string}>
 
 interface State {
   searchTerm: string
@@ -194,13 +184,13 @@ class Scrapers extends PureComponent<Props, State> {
   }
 
   private handleShowOverlay = () => {
-    const {router, org} = this.props
+    const {history, org} = this.props
 
     if (this.hasNoBuckets) {
       return
     }
 
-    router.push(`/orgs/${org.id}/load-data/scrapers/new`)
+    history.push(`/orgs/${org.id}/load-data/scrapers/new`)
   }
 
   private handleFilterChange = (searchTerm: string) => {
@@ -208,18 +198,17 @@ class Scrapers extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = (state: AppState) => ({
   scrapers: getAll<Scraper>(state, ResourceType.Scrapers),
   buckets: getAll<Bucket>(state, ResourceType.Buckets),
   org: getOrg(state),
 })
 
-const mdtp: DispatchProps = {
+const mdtp = {
   onDeleteScraper: deleteScraper,
   onUpdateScraper: updateScraper,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(withRouter(Scrapers))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(Scrapers))

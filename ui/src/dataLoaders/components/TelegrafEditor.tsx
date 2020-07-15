@@ -95,7 +95,7 @@ class TelegrafEditor extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const pluginHashMap = state.telegrafEditorPlugins
     .filter(
       (a: TelegrafEditorPlugin) => a.type !== 'bundle' || !!a.include.length
@@ -110,4 +110,4 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}>(mstp, null)(TelegrafEditor)
+export default connect<StateProps>(mstp)(TelegrafEditor)

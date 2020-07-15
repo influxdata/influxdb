@@ -93,7 +93,7 @@ Your browser should reload the page after you save your changes (sometimes this 
 
 ## Getting some Graphs
 
-If you haven't set up telegraf yet, [following the official telegraf documentation](https://v2.docs.influxdata.com/v2.0/write-data/use-telegraf/) is the quickest and most straightforward and hassle-free way of getting some data into your local instance. The documentation there will be kept fresher and and more current than this tutorial.
+If you haven't set up telegraf yet, [following the official telegraf documentation](https://v2.docs.influxdata.com/v2.0/write-data/no-code/use-telegraf/) is the quickest and most straightforward and hassle-free way of getting some data into your local instance. The documentation there will be kept fresher and and more current than this tutorial.
 
 Learning how to input Line protocol data is a great tool if you need to debug with arbitrary adhoc data. Check out a quick intro to the [Line protocol](https://v2.docs.influxdata.com/v2.0/write-data/#what-you-ll-need), and learn how to [input it via the ui.](https://v2.docs.influxdata.com/v2.0/write-data/#user-interface) *Since we're running `influxd` locally, you can skip step 1.*
 

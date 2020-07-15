@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
+import {withRouter, RouteComponentProps} from 'react-router-dom'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import ImportOverlay from 'src/shared/components/ImportOverlay'
@@ -24,20 +24,9 @@ interface State {
   status: ComponentStatus
 }
 
-interface DispatchProps {
-  createTemplate: typeof createTemplateAction
-  notify: typeof notifyAction
-}
-
-interface StateProps {
-  org: Organization
-}
-
-interface OwnProps extends WithRouterProps {
-  params: {orgID: string}
-}
-
-type Props = DispatchProps & OwnProps & StateProps
+type ReduxProps = ConnectedProps<typeof connector>
+type RouterProps = RouteComponentProps<{orgID: string}>
+type Props = ReduxProps & RouterProps
 
 class TemplateImportOverlay extends PureComponent<Props> {
   public state: State = {
@@ -57,9 +46,9 @@ class TemplateImportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router} = this.props
+    const {history} = this.props
 
-    router.goBack()
+    history.goBack()
   }
 
   private updateOverlayStatus = (status: ComponentStatus) =>
@@ -82,22 +71,21 @@ class TemplateImportOverlay extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState, props: Props): StateProps => {
+const mstp = (state: AppState, props: RouterProps) => {
   const org = getByID<Organization>(
     state,
     ResourceType.Orgs,
-    props.params.orgID
+    props.match.params.orgID
   )
 
   return {org}
 }
 
-const mdtp: DispatchProps = {
+const mdtp = {
   notify: notifyAction,
   createTemplate: createTemplateAction,
 }
 
-export default connect<StateProps, DispatchProps, Props>(
-  mstp,
-  mdtp
-)(withRouter(TemplateImportOverlay))
+const connector = connect(mstp, mdtp)
+
+export default connector(withRouter(TemplateImportOverlay))

@@ -2,13 +2,77 @@ package storage
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 // PointsWriter describes the ability to write points into a storage engine.
 type PointsWriter interface {
 	WritePoints(context.Context, []models.Point) error
+}
+
+// LoggingPointsWriter wraps an underlying points writer but writes logs to
+// another bucket when an error occurs.
+type LoggingPointsWriter struct {
+	// Wrapped points writer. Errored writes from here will be logged.
+	Underlying PointsWriter
+
+	// Service used to look up logging bucket.
+	BucketFinder BucketFinder
+
+	// Name of the bucket to log to.
+	LogBucketName string
+}
+
+// WritePoints writes points to the underlying PointsWriter. Logs on error.
+func (w *LoggingPointsWriter) WritePoints(ctx context.Context, p []models.Point) error {
+	if len(p) == 0 {
+		return nil
+	}
+
+	// Write to underlying writer and exit immediately if successful.
+	err := w.Underlying.WritePoints(ctx, p)
+	if err == nil {
+		return nil
+	}
+
+	// Find organizationID from points
+	orgID, _ := tsdb.DecodeNameSlice(p[0].Name())
+
+	// Attempt to lookup log bucket.
+	bkts, n, e := w.BucketFinder.FindBuckets(ctx, influxdb.BucketFilter{
+		OrganizationID: &orgID,
+		Name:           &w.LogBucketName,
+	})
+	if e != nil {
+		return e
+	} else if n == 0 {
+		return fmt.Errorf("logging bucket not found: %q", w.LogBucketName)
+	}
+
+	// Log error to bucket.
+	name := tsdb.EncodeName(orgID, bkts[0].ID)
+	pt, e := models.NewPoint(
+		string(name[:]),
+		models.NewTags(map[string]string{
+			models.MeasurementTagKey: "write_errors",
+			models.FieldKeyTagKey:    "error"},
+		),
+		models.Fields{"error": err.Error()},
+		time.Now(),
+	)
+	if e != nil {
+		return e
+	}
+	if e := w.Underlying.WritePoints(ctx, []models.Point{pt}); e != nil {
+		return e
+	}
+
+	return err
 }
 
 type BufferedPointsWriter struct {

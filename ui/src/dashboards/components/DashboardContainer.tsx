@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {connect} from 'react-redux'
+import {connect, ConnectedProps, useDispatch} from 'react-redux'
 
 // Components
 import GetResource from 'src/resources/components/GetResource'
@@ -19,27 +19,15 @@ import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 // Types
-import {AppState, ResourceType, AutoRefresh, AutoRefreshStatus} from 'src/types'
+import {AppState, ResourceType, AutoRefreshStatus} from 'src/types'
 
 const {Active} = AutoRefreshStatus
 
-interface StateProps {
-  autoRefresh: AutoRefresh
-  dashboard: string
-}
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = ReduxProps
 
-interface DispatchProps {
-  onSetCurrentPage: typeof setCurrentPage
-}
-
-type Props = StateProps & DispatchProps
-
-const DashboardContainer: FC<Props> = ({
-  autoRefresh,
-  dashboard,
-  children,
-  onSetCurrentPage,
-}) => {
+const DashboardContainer: FC<Props> = ({autoRefresh, dashboard}) => {
+  const dispatch = useDispatch()
   useEffect(() => {
     if (autoRefresh.status === Active) {
       GlobalAutoRefresher.poll(autoRefresh.interval)
@@ -54,11 +42,11 @@ const DashboardContainer: FC<Props> = ({
   }, [autoRefresh.status, autoRefresh.interval])
 
   useEffect(() => {
-    onSetCurrentPage('dashboard')
+    dispatch(setCurrentPage('dashboard'))
     return () => {
-      onSetCurrentPage('not set')
+      dispatch(setCurrentPage('not set'))
     }
-  }, [])
+  }, [dispatch])
 
   return (
     <DashboardRoute>
@@ -66,14 +54,13 @@ const DashboardContainer: FC<Props> = ({
         <GetResources resources={[ResourceType.Buckets]}>
           <GetTimeRange />
           <DashboardPage autoRefresh={autoRefresh} />
-          {children}
         </GetResources>
       </GetResource>
     </DashboardRoute>
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState) => {
   const dashboard = state.currentDashboard.id
   const autoRefresh = state.autoRefresh[dashboard] || AUTOREFRESH_DEFAULT
   return {
@@ -82,11 +69,6 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {
-  onSetCurrentPage: setCurrentPage,
-}
+const connector = connect(mstp)
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(DashboardContainer)
+export default connector(DashboardContainer)

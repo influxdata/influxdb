@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {render} from '@testing-library/react'
+import {renderWithReduxAndRouter} from 'src/mockState'
 
 // NOTE: stubbing is required here as the CopyButton component
 // requires a redux store (alex)
@@ -20,7 +20,9 @@ describe('Telegrafs.Components.TelegrafOutputOverlay', () => {
       buckets: [],
       onClose: () => {},
     }
-    const {getByTestId} = render(<TelegrafOutputOverlay {...props} />)
+    const {getByTestId} = renderWithReduxAndRouter(
+      <TelegrafOutputOverlay {...props} />
+    )
 
     const root = getByTestId('telegraf-output-overlay--code-snippet')
 

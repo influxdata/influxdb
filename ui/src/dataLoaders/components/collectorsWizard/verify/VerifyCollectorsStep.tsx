@@ -73,7 +73,7 @@ const mstp = ({
     steps: {bucket, org},
   },
   me: {name},
-}: AppState): StateProps => ({
+}: AppState) => ({
   username: name,
   telegrafConfigID,
   bucket,
