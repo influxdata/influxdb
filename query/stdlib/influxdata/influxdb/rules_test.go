@@ -3074,10 +3074,10 @@ func TestSwitchFillImplRule(t *testing.T) {
 
 func TestMergeFilterRule(t *testing.T) {
 	flaggerOn := mock.NewFlagger(map[feature.Flag]interface{}{
-		feature.PushDownMergedFilters(): true,
+		feature.MergedFiltersRule(): true,
 	})
 	flaggerOff := mock.NewFlagger(map[feature.Flag]interface{}{
-		feature.PushDownMergedFilters(): false,
+		feature.MergedFiltersRule(): false,
 	})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flaggerOn)
@@ -3110,7 +3110,7 @@ func TestMergeFilterRule(t *testing.T) {
 		{
 			Context: withFlagger,
 			Name:    "merge filter on",
-			Rules:   []plan.Rule{influxdb.MergeFilterRule{}},
+			Rules:   []plan.Rule{influxdb.MergeFiltersRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("from", from),
@@ -3133,7 +3133,7 @@ func TestMergeFilterRule(t *testing.T) {
 		{
 			Context: withOutFlagger,
 			Name:    "merge filter off",
-			Rules:   []plan.Rule{influxdb.MergeFilterRule{}},
+			Rules:   []plan.Rule{influxdb.MergeFiltersRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("from", from),

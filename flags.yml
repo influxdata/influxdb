@@ -136,9 +136,9 @@
   contact: Lyon Hill
   lifetime: temporary
 
-- name: Push Down Merged Filters
+- name: Merged Filters Rule
   description: Create one filter combining multiple single return statements
-  key: mergeFilterRule
+  key: mergeFiltersRule
   default: false
   contact: Query Team
   lifetime: temporary
