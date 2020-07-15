@@ -1,0 +1,7 @@
+[package]
+name = "influxdb2_client"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2018"
+
+[dependencies]

@@ -18,6 +18,7 @@ members = [
     "delorean_tsm",
     "delorean_utilities",
     "delorean_wal",
+    "influxdb2_client",
 ]
 
 [profile.release]
@@ -81,6 +82,7 @@ chrono = "0.4"
 criterion = "0.3"
 delorean_test_helpers = { path = "delorean_test_helpers" }
 hex = "0.4.2"
+influxdb2_client = { path = "influxdb2_client" }
 libflate = "1.0.0"
 rand = "0.7.2"
 reqwest = "0.10.1"
