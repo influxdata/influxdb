@@ -381,6 +381,8 @@ func (s *Server) Open() error {
 		return err
 	}
 
+	s.Logger.Info(s.config.V2) // spit out all the config variables
+
 	// Open shared TCP connection.
 	ln, err := net.Listen("tcp", s.BindAddress)
 	if err != nil {

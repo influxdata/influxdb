@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/influxdb/services/retention"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
+	apiv2 "github.com/influxdata/influxdb/servicesv2/api"
 	itoml "github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"golang.org/x/text/encoding/unicode"
@@ -64,6 +65,9 @@ type Config struct {
 
 	// TLS provides configuration options for all https endpoints.
 	TLS tlsconfig.Config `toml:"tls"`
+
+	// Config for V2 services
+	V2 apiv2.Config `toml:"v2-config"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
@@ -87,6 +91,8 @@ func NewConfig() *Config {
 	c.ContinuousQuery = continuous_querier.NewConfig()
 	c.Retention = retention.NewConfig()
 	c.BindAddress = DefaultBindAddress
+
+	c.V2 = apiv2.NewConfig()
 
 	return c
 }
@@ -150,6 +156,10 @@ func (c *Config) FromToml(input string) error {
 // Validate returns an error if the config is invalid.
 func (c *Config) Validate() error {
 	if err := c.Meta.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.V2.Validate(); err != nil {
 		return err
 	}
 

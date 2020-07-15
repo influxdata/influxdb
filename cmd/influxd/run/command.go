@@ -78,6 +78,14 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("parse config: %s", err)
 	}
 
+	if options.V2BindAddr != "" {
+		config.V2.BindAddr = options.V2BindAddr
+	}
+
+	if options.V2BoltFile != "" {
+		config.V2.BoltFile = options.V2BoltFile
+	}
+
 	// Apply any environment variables on top of the parsed config
 	if err := config.ApplyEnvOverrides(cmd.Getenv); err != nil {
 		return fmt.Errorf("apply env config: %v", err)
@@ -198,6 +206,8 @@ func (cmd *Command) ParseFlags(args ...string) (Options, error) {
 	_ = fs.String("hostname", "", "")
 	fs.StringVar(&options.CPUProfile, "cpuprofile", "", "")
 	fs.StringVar(&options.MemProfile, "memprofile", "", "")
+	fs.StringVar(&options.V2BindAddr, "v2bindaddr", "", "")
+	fs.StringVar(&options.V2BoltFile, "v2boltfile", "", "")
 	fs.Usage = func() { fmt.Fprintln(cmd.Stderr, usage) }
 	if err := fs.Parse(args); err != nil {
 		return Options{}, err
@@ -262,6 +272,10 @@ Usage: influxd run [flags]
             Write CPU profiling information to a file.
     -memprofile <path>
             Write memory usage information to a file.
+    -v2bindaddr <url>
+            Set the address that the v2 APIs should bind to. Defaults to localhost:9999
+    -v2boltfile <path>
+            Set path to .bolt file. Defaults to ~/.influxdbv2/influxd.bolt
 `
 
 // Options represents the command line options that can be parsed.
@@ -270,6 +284,8 @@ type Options struct {
 	PIDFile    string
 	CPUProfile string
 	MemProfile string
+	V2BindAddr string
+	V2BoltFile string
 }
 
 // GetConfigPath returns the config path from the options.
