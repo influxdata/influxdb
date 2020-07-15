@@ -2,14 +2,27 @@ import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
 
 // Components
-import {Table} from '@influxdata/clockface'
+import {
+  Appearance,
+  ComponentColor,
+  ComponentSize,
+  ComponentStatus,
+  ConfirmationButton,
+  IconFont,
+  Table,
+} from '@influxdata/clockface'
 
 // Redux
+import {notify} from 'src/shared/actions/notifications'
+import {communityTemplateDeleteSucceeded} from 'src/shared/copy/notifications'
 import {fetchAndSetStacks} from 'src/templates/actions/thunks'
 
 // Types
 import {AppState} from 'src/types'
 import {TemplateKind} from 'src/client'
+
+// API
+import {deleteStack} from 'src/templates/api'
 
 interface OwnProps {
   orgID: string
@@ -64,6 +77,15 @@ class CommunityTemplatesActivityLogUnconnected extends PureComponent<Props> {
     })
   }
 
+  private generateDeleteHandlerForStack = (stackID: string) => {
+    return async () => {
+      await deleteStack(stackID, this.props.orgID)
+      this.props.fetchAndSetStacks(this.props.orgID)
+
+      this.props.notify(communityTemplateDeleteSucceeded(stackID))
+    }
+  }
+
   render() {
     if (!this.props.stacks.length) {
       return <h4>You haven't installed any templates yet</h4>
@@ -79,6 +101,7 @@ class CommunityTemplatesActivityLogUnconnected extends PureComponent<Props> {
               <Table.HeaderCell>Resources Created</Table.HeaderCell>
               <Table.HeaderCell>Install Date</Table.HeaderCell>
               <Table.HeaderCell>Source</Table.HeaderCell>
+              <Table.HeaderCell>&nbsp;</Table.HeaderCell>
             </Table.Row>
           </Table.Header>
           <Table.Body>
@@ -95,6 +118,20 @@ class CommunityTemplatesActivityLogUnconnected extends PureComponent<Props> {
                   <Table.Cell>
                     {this.renderStackSources(stack.sources)}
                   </Table.Cell>
+                  <Table.Cell>
+                    <ConfirmationButton
+                      confirmationButtonText="Delete"
+                      confirmationButtonColor={ComponentColor.Danger}
+                      confirmationLabel="Really Delete All Resources?"
+                      popoverColor={ComponentColor.Default}
+                      popoverAppearance={Appearance.Solid}
+                      onConfirm={this.generateDeleteHandlerForStack(stack.id)}
+                      icon={IconFont.Trash}
+                      color={ComponentColor.Danger}
+                      size={ComponentSize.Small}
+                      status={ComponentStatus.Default}
+                    />
+                  </Table.Cell>
                 </Table.Row>
               )
             })}
@@ -108,13 +145,14 @@ class CommunityTemplatesActivityLogUnconnected extends PureComponent<Props> {
 const mstp = (state: AppState) => {
   return {
     stacks: state.resources.templates.stacks.filter(
-      stack => stack.eventType !== 'delete'
+      stack => stack.eventType !== 'delete' && stack.eventType !== 'uninstall'
     ),
   }
 }
 
 const mdtp = {
   fetchAndSetStacks,
+  notify,
 }
 
 const connector = connect(mstp, mdtp)
