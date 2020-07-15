@@ -45,13 +45,15 @@ func (caps mockReaderCaps) ReadWindowAggregate(ctx context.Context, spec query.R
 }
 
 type mockGroupCapability struct {
-	count, sum, first, last bool
+	count, sum, first, last, min, max bool
 }
 
 func (c mockGroupCapability) HaveCount() bool { return c.count }
 func (c mockGroupCapability) HaveSum() bool   { return c.sum }
 func (c mockGroupCapability) HaveFirst() bool { return c.first }
 func (c mockGroupCapability) HaveLast() bool  { return c.last }
+func (c mockGroupCapability) HaveMin() bool   { return c.min }
+func (c mockGroupCapability) HaveMax() bool   { return c.max }
 
 // Mock Window Aggregate Capability
 type mockWAC struct {

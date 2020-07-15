@@ -28,12 +28,16 @@ func NewStore(viewer reads.Viewer) reads.Store {
 			Sum:   true,
 			First: true,
 			Last:  true,
+			Min:   true,
+			Max:   true,
 		},
 		windowCap: WindowAggregateCapability{
 			Count: true,
 			Sum:   true,
 			First: true,
 			Last:  true,
+			Min:   true,
+			Max:   true,
 		},
 	}
 }
@@ -207,12 +211,16 @@ type GroupCapability struct {
 	Sum   bool
 	First bool
 	Last  bool
+	Min   bool
+	Max   bool
 }
 
 func (c GroupCapability) HaveCount() bool { return c.Count }
 func (c GroupCapability) HaveSum() bool   { return c.Sum }
 func (c GroupCapability) HaveFirst() bool { return c.First }
 func (c GroupCapability) HaveLast() bool  { return c.Last }
+func (c GroupCapability) HaveMin() bool   { return c.Min }
+func (c GroupCapability) HaveMax() bool   { return c.Max }
 
 type WindowAggregateCapability struct {
 	Min   bool

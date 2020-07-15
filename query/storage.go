@@ -29,6 +29,8 @@ type GroupCapability interface {
 	HaveSum() bool
 	HaveFirst() bool
 	HaveLast() bool
+	HaveMin() bool
+	HaveMax() bool
 }
 
 type GroupAggregator interface {
