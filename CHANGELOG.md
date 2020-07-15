@@ -9,6 +9,7 @@
 ### Bug Fixes
 
 1. [18891](https://github.com/influxdata/influxdb/pull/18891): Allow 0 to be the custom set minimum value for Y Domain
+1. [18969](https://github.com/influxdata/influxdb/pull/18969): Single Stat cells should render properly in Safari again
 
 ## v2.0.0-beta.14 [2020-07-08]
 
