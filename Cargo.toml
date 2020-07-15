@@ -83,7 +83,7 @@ delorean_test_helpers = { path = "delorean_test_helpers" }
 hex = "0.4.2"
 libflate = "1.0.0"
 rand = "0.7.2"
-reqwest = { version = "0.10.1", features = ["blocking"] }
+reqwest = "0.10.1"
 predicates = "1.0.4"
 tempfile = "3.1.0"
 
