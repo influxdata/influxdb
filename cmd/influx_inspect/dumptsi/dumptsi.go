@@ -214,10 +214,7 @@ func (cmd *Command) readFileSet(sfile *tsdb.SeriesFile) (*tsi1.Index, *tsi1.File
 		}
 	}
 
-	fs, err := tsi1.NewFileSet(nil, sfile, files)
-	if err != nil {
-		return nil, nil, err
-	}
+	fs := tsi1.NewFileSet(files)
 	fs.Retain()
 
 	return nil, fs, nil
