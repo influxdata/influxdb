@@ -3,13 +3,17 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {
-  Input,
   InputLabel,
   FlexBox,
   FlexDirection,
   ComponentSize,
+  ComponentColor,
   SelectGroup,
-  InputType,
+  AlignItems,
+  ButtonShape,
+  Toggle,
+  InputToggleType,
+  QuestionMarkTooltip,
 } from '@influxdata/clockface'
 import SelectorList from 'src/timeMachine/components/SelectorList'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
@@ -50,129 +54,103 @@ class AggregationContents extends PureComponent<Props> {
       isInCheckOverlay,
       onSelectFunction,
     } = this.props
+
     return (
       <BuilderCard
         className="aggregation-selector"
         testID="aggregation-selector"
       >
+        <BuilderCard.Header title="Window Period" />
+        <BuilderCard.Body scrollable={false} style={{flex: 'unset'}}>
+          <FlexBox
+            direction={FlexDirection.Column}
+            alignItems={AlignItems.Stretch}
+            margin={ComponentSize.Small}
+            stretchToFitWidth={true}
+          >
+            <SelectGroup shape={ButtonShape.StretchToFit}>
+              <SelectGroup.Option
+                name="custom"
+                id="custom-window-period"
+                active={!isAutoWindowPeriod}
+                value="Custom"
+                onClick={() => {}}
+                titleText="Custom"
+              >
+                Custom
+              </SelectGroup.Option>
+              <SelectGroup.Option
+                name="auto"
+                id="auto-window-period"
+                active={isAutoWindowPeriod}
+                value="Auto"
+                onClick={() => {}}
+                titleText="Auto"
+              >
+                Auto
+              </SelectGroup.Option>
+            </SelectGroup>
+            <DurationInput
+              onSubmit={() => {}}
+              value={windowPeriod}
+              suggestions={this.durations}
+              submitInvalid={false}
+              validFunction={this.windowInputValid}
+            />
+            <FlexBox
+              direction={FlexDirection.Row}
+              margin={ComponentSize.Small}
+              stretchToFitWidth
+              testID="component-spacer"
+            >
+              <Toggle
+                id="isFillValues"
+                type={InputToggleType.Checkbox}
+                checked={isFillValues}
+                onChange={() => {}}
+                color={ComponentColor.Primary}
+                size={ComponentSize.ExtraSmall}
+              />
+              <FlexBox.Child grow={1}>
+                <InputLabel>Fill missing values</InputLabel>
+              </FlexBox.Child>
+              <QuestionMarkTooltip
+                diameter={16}
+                tooltipContents="Tooltip goes here!"
+                tooltipStyle={{fontSize: '13px', padding: '8px'}}
+              />
+            </FlexBox>
+          </FlexBox>
+        </BuilderCard.Body>
+        <BuilderCard.Header title="Aggregate Function" />
         <BuilderCard.Menu>
           <FlexBox
             direction={FlexDirection.Column}
             margin={ComponentSize.Small}
+            alignItems={AlignItems.Stretch}
           >
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
-              Window Period
-            </FlexBox>
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
-              <SelectGroup>
-                <SelectGroup.Option
-                  name="custom"
-                  id="custom-window-period"
-                  active={!isAutoWindowPeriod}
-                  value="Custom"
-                  onClick={() => {}}
-                  titleText="Custom"
-                >
-                  Custom
-                </SelectGroup.Option>
-                <SelectGroup.Option
-                  name="auto"
-                  id="auto-window-period"
-                  active={isAutoWindowPeriod}
-                  value="Auto"
-                  onClick={() => {}}
-                  titleText="Auto"
-                >
-                  Auto
-                </SelectGroup.Option>
-              </SelectGroup>
-            </FlexBox>
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
-              <FlexBox.Child>
-                <DurationInput
-                  onSubmit={() => {}}
-                  value={windowPeriod}
-                  suggestions={this.durations}
-                  submitInvalid={false}
-                  validFunction={this.windowInputValid}
-                />
-              </FlexBox.Child>
-            </FlexBox>
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
-              <FlexBox.Child basis={20} grow={0}>
-                <Input
-                  type={InputType.Checkbox}
-                  size={ComponentSize.ExtraSmall}
-                  checked={isFillValues}
-                  onChange={() => {}}
-                />
-              </FlexBox.Child>
-              <FlexBox.Child grow={1}>
-                <InputLabel>Fill missing values</InputLabel>
-              </FlexBox.Child>
-            </FlexBox>
-          </FlexBox>
-          <FlexBox
-            direction={FlexDirection.Column}
-            margin={ComponentSize.Small}
-          >
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
-              Aggregate Function
-            </FlexBox>
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
-              <SelectGroup>
-                <SelectGroup.Option
-                  name="custom"
-                  id="custom window period"
-                  active={!isAutoFunction}
-                  value="Custom"
-                  onClick={() => {}}
-                  titleText="Custom"
-                >
-                  Custom
-                </SelectGroup.Option>
-                <SelectGroup.Option
-                  name="template-type"
-                  id="user-templates"
-                  active={isAutoFunction}
-                  value="user-templates"
-                  onClick={() => {}}
-                  titleText="User Templates"
-                >
-                  Auto
-                </SelectGroup.Option>
-              </SelectGroup>
-            </FlexBox>
+            <SelectGroup shape={ButtonShape.StretchToFit}>
+              <SelectGroup.Option
+                name="custom"
+                id="custom window period"
+                active={!isAutoFunction}
+                value="Custom"
+                onClick={() => {}}
+                titleText="Custom"
+              >
+                Custom
+              </SelectGroup.Option>
+              <SelectGroup.Option
+                name="template-type"
+                id="user-templates"
+                active={isAutoFunction}
+                value="user-templates"
+                onClick={() => {}}
+                titleText="User Templates"
+              >
+                Auto
+              </SelectGroup.Option>
+            </SelectGroup>
           </FlexBox>
         </BuilderCard.Menu>
         <SelectorList

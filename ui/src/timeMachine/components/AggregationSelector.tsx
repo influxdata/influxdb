@@ -35,8 +35,8 @@ const AggregationSelector: FunctionComponent<Props> = ({
   onSelectFunction,
 }) => {
   const functionList = isAutoFunction
-    ? ['mean', 'median', 'first']
-    : FUNCTIONS.map(f => f.name)
+    ? FUNCTIONS.map(f => f.name)
+    : ['mean', 'median', 'first']
 
   return (
     <AggregationContents

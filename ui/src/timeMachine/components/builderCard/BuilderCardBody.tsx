@@ -9,6 +9,7 @@ interface Props {
   addPadding: boolean
   testID: string
   autoHideScrollbars: boolean
+  style?: CSSProperties
 }
 
 export default class BuilderCardBody extends PureComponent<Props> {
@@ -20,13 +21,15 @@ export default class BuilderCardBody extends PureComponent<Props> {
   }
 
   public render() {
-    const {scrollable, testID, autoHideScrollbars} = this.props
+    const {scrollable, testID, autoHideScrollbars, style} = this.props
 
     if (scrollable) {
+      const scrollbarStyles = {maxWidth: '100%', maxHeight: '100%', ...style}
+
       return (
         <DapperScrollbars
           className="builder-card--body"
-          style={{maxWidth: '100%', maxHeight: '100%'}}
+          style={scrollbarStyles}
           testID={testID}
           autoHide={autoHideScrollbars}
         >
@@ -36,7 +39,7 @@ export default class BuilderCardBody extends PureComponent<Props> {
     }
 
     return (
-      <div className="builder-card--body" data-testid={testID}>
+      <div className="builder-card--body" data-testid={testID} style={style}>
         {this.children}
       </div>
     )
