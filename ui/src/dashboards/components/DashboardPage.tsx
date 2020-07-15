@@ -21,9 +21,9 @@ import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {event} from 'src/cloud/utils/reporting'
+import {resetQueryCache} from 'src/shared/apis/query'
 
 // Selectors & Actions
-import {resetCachedQueryResults} from 'src/queryCache/actions'
 import {setRenderID as setRenderIDAction} from 'src/perf/actions'
 import {getByID} from 'src/resources/selectors'
 
@@ -60,10 +60,11 @@ class DashboardPage extends Component<Props> {
     const fields = {renderID}
 
     event('Dashboard Mounted', tags, fields)
+    resetQueryCache()
   }
 
   public componentWillUnmount() {
-    this.props.resetCachedQueryResults()
+    resetQueryCache()
   }
 
   public render() {
@@ -119,7 +120,6 @@ const mstp = (state: AppState) => {
 
 const mdtp = {
   setRenderID: setRenderIDAction,
-  resetCachedQueryResults: resetCachedQueryResults,
 }
 
 const connector = connect(mstp, mdtp)
