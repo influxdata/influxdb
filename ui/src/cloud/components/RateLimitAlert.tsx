@@ -9,9 +9,10 @@ import {
   AlignItems,
   ComponentSize,
   IconFont,
-  ComponentColor,
-  Alert,
   JustifyContent,
+  Gradients,
+  InfluxColors,
+  BannerPanel,
 } from '@influxdata/clockface'
 
 // Utils
@@ -50,20 +51,25 @@ class RateLimitAlert extends PureComponent<Props> {
           stretchToFitWidth={true}
           className={className}
         >
-          <Alert icon={IconFont.Cloud} color={ComponentColor.Primary}>
-            <FlexBox
-              alignItems={AlignItems.Center}
-              direction={FlexDirection.Row}
-              justifyContent={JustifyContent.SpaceBetween}
-              margin={ComponentSize.Medium}
-            >
-              <div>
-                {this.message}
-                <br />
-              </div>
-              <CheckoutButton />
+          <BannerPanel
+            size={ComponentSize.ExtraSmall}
+            icon={IconFont.Cloud}
+            gradient={Gradients.BeijingEclipse}
+            textColor={InfluxColors.Twilight}
+          >
+            <FlexBox justifyContent={JustifyContent.SpaceBetween}>
+              {this.message}
+              <FlexBox
+                direction={FlexDirection.Row}
+                justifyContent={JustifyContent.FlexEnd}
+                margin={ComponentSize.Medium}
+                style={{minWidth: '200px'}}
+              >
+                <div>Need to write more data?</div>
+                <CheckoutButton />
+              </FlexBox>
             </FlexBox>
-          </Alert>
+          </BannerPanel>
         </FlexBox>
       )
     }
@@ -71,8 +77,8 @@ class RateLimitAlert extends PureComponent<Props> {
     return null
   }
 
-  private get message(): string {
-    return `Hey there, it looks like you have exceeded your plan's ${this.resourceName} limits.${this.additionalMessage}`
+  private get message(): JSX.Element {
+    return <span>You've reached the maximum {this.resourceName} available in your plan.{this.additionalMessage}</span>
   }
 
   private get additionalMessage(): string {
@@ -88,7 +94,7 @@ class RateLimitAlert extends PureComponent<Props> {
 
     const renamedResources = resources.map(resource => {
       if (resource === 'cardinality') {
-        return 'total series'
+        return 'series cardinality'
       }
 
       return resource

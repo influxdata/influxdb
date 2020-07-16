@@ -1,13 +1,9 @@
 .dashboard--rate-alert {
-    padding: 0 $page-gutter;
-    width: 100%;
-    padding-bottom: 16px;
+    padding: 0 $cf-marg-d $cf-marg-c;
 }
 
 .load-data--rate-alert {
-    padding: 0 $page-gutter;
-    padding-bottom: 16px;
-    max-width: 1608px;
+    padding-bottom: $cf-marg-c;
 }
 
 .load-data--asset-alert {
