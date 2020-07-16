@@ -38,6 +38,7 @@ import {
   getStacks,
   postTemplatesApply,
   Error as PkgError,
+  TemplateApply,
   TemplateSummary,
 } from 'src/client'
 import {addDashboardDefaults} from 'src/schemas/dashboards'
@@ -484,13 +485,33 @@ export const reviewTemplate = async (orgID: string, templateUrl: string) => {
   return applyTemplates(params)
 }
 
-export const installTemplate = async (orgID: string, templateUrl: string) => {
+export const installTemplate = async (
+  orgID: string,
+  templateUrl: string,
+  resourcesToSkip
+) => {
+  const data: TemplateApply = {
+    dryRun: false,
+    orgID,
+    remotes: [{url: templateUrl}],
+  }
+
+  if (Object.keys(resourcesToSkip).length) {
+    const actions = []
+    for (const resourceTemplateName in resourcesToSkip) {
+      actions.push({
+        action: 'skipResource',
+        properties: {
+          kind: resourcesToSkip[resourceTemplateName],
+          resourceTemplateName,
+        },
+      })
+    }
+    data.actions = actions
+  }
+
   const params = {
-    data: {
-      dryRun: false,
-      orgID,
-      remotes: [{url: templateUrl}],
-    },
+    data,
   }
 
   return applyTemplates(params)
