@@ -7,7 +7,7 @@ register({
   family: 'inputs',
   priority: 1,
   component: View,
-  button: 'Data Source',
+  button: 'Bucket',
   initial: {
     bucketName: '',
     timeStart: '-1h',
