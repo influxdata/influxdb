@@ -7,7 +7,7 @@ import {ResultsProvider} from 'src/notebooks/context/results'
 import {RefProvider} from 'src/notebooks/context/refs'
 import CurrentNotebook from 'src/notebooks/context/notebook.current'
 import {ScrollProvider} from 'src/notebooks/context/scroll'
-import Header from 'src/notebooks/components/header'
+import NotebookHeader from 'src/notebooks/components/header'
 import PipeList from 'src/notebooks/components/PipeList'
 import MiniMap from 'src/notebooks/components/minimap/MiniMap'
 
@@ -23,7 +23,7 @@ const NotebookPage: FC = () => {
         <RefProvider>
           <ScrollProvider>
             <Page titleTag="Flows">
-              <Header />
+              <NotebookHeader />
               <Page.Contents
                 fullWidth={true}
                 scrollable={false}
