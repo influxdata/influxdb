@@ -1,10 +1,14 @@
 //! Structures for computing and reporting on storage statistics
-
 use delorean_table_schema::DataType;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
+
+fn format_size(sz: u64) -> String {
+    human_format::Formatter::new().format(sz as f64)
+}
 
 /// Represents statistics for data stored in a particular chunk
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ColumnStats {
     pub column_index: usize,
     pub column_name: String,
@@ -15,6 +19,49 @@ pub struct ColumnStats {
     /// (e.g. GZIP) not the raw (decoded) size
     pub num_uncompressed_bytes: u64,
     pub data_type: DataType,
+}
+
+impl ColumnStats {
+    /// Accumulates the statistics of other into this column stats
+    pub fn merge(&mut self, other: &Self) {
+        // ignore column_index (some files can have different numbers of columns)
+        assert_eq!(self.column_name, other.column_name, "expected same column");
+        if self.compression_description != other.compression_description {
+            self.compression_description = String::from("MIXED");
+        }
+        self.num_rows += other.num_rows;
+        self.num_compressed_bytes += other.num_compressed_bytes;
+        self.num_uncompressed_bytes += other.num_uncompressed_bytes;
+        assert_eq!(self.data_type, other.data_type, "expected same datatype");
+    }
+}
+
+impl fmt::Display for ColumnStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(
+            f,
+            "Column Stats '{}' [{}]",
+            self.column_name, self.column_index
+        )?;
+        writeln!(
+            f,
+            "  Total rows: {} ({}), DataType: {:?}, Compression: {}",
+            format_size(self.num_rows),
+            self.num_rows,
+            self.data_type,
+            self.compression_description
+        )?;
+        write!(
+            f,
+            "  {:30}: {:10} / {:10} ({:8} / {:8}) {:.4} bits per row",
+            "Compressed/Uncompressed Bytes",
+            format_size(self.num_compressed_bytes),
+            format_size(self.num_uncompressed_bytes),
+            self.num_compressed_bytes,
+            self.num_uncompressed_bytes,
+            8.0 * (self.num_compressed_bytes as f64) / (self.num_rows as f64)
+        )
+    }
 }
 
 /// Represents statistics for data stored in a particular chunk
@@ -97,6 +144,151 @@ impl ColumnStatsBuilder {
             num_uncompressed_bytes: self.num_uncompressed_bytes,
             data_type: self.data_type,
         }
+    }
+}
+
+/// Represents File level statistics
+#[derive(Debug, PartialEq, Eq)]
+pub struct FileStats {
+    /// Name of the input file
+    pub file_name: String,
+    /// size of input file, in bytes
+    pub input_len: u64,
+    /// total number of rows in the input file
+    pub total_rows: u64,
+    /// Column by column statistics
+    pub col_stats: Vec<ColumnStats>,
+}
+
+impl fmt::Display for FileStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: total columns ({:3}), rows: {:10}({:8}), size: {:10}({:8}), bits per row: {:.4}",
+            self.file_name,
+            self.col_stats.len(),
+            format_size(self.total_rows),
+            self.total_rows,
+            format_size(self.input_len),
+            self.input_len,
+            8.0 * (self.input_len as f64) / (self.total_rows as f64)
+        )
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct FileStatsBuilder {
+    inner: FileStats,
+}
+
+impl FileStatsBuilder {
+    pub fn new(file_name: &str, input_len: u64) -> Self {
+        Self {
+            inner: FileStats {
+                file_name: file_name.into(),
+                input_len,
+                total_rows: 0,
+                col_stats: Vec::new(),
+            },
+        }
+    }
+
+    pub fn build(mut self) -> FileStats {
+        // ensure output is not sorted by column name, but by column index
+        self.inner.col_stats.sort_by_key(|stats| stats.column_index);
+        self.inner
+    }
+
+    pub fn add_column(mut self, c: ColumnStats) -> Self {
+        if self.inner.total_rows == 0 {
+            self.inner.total_rows = c.num_rows;
+        }
+
+        assert_eq!(
+            self.inner.total_rows, c.num_rows,
+            "Internal error: columns had different numbers of rows {}, {}",
+            self.inner.total_rows, c.num_rows
+        );
+
+        self.inner.col_stats.push(c);
+        self
+    }
+}
+/// Represents statistics for a set of files
+#[derive(Debug, PartialEq, Eq)]
+pub struct FileSetStats {
+    /// total size of input file, in bytes
+    pub total_len: u64,
+    /// total number of rows in the input files
+    pub total_rows: u64,
+    /// maximum columns in any file
+    pub max_columns: u64,
+    // Column by column statistics (TODO)
+    pub col_stats: Vec<ColumnStats>,
+}
+
+impl fmt::Display for FileSetStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "ALL: total columns ({:3}), rows: {}({}), size: {}({}), bits per row: {:.4}",
+            self.col_stats.len(),
+            format_size(self.total_rows),
+            self.total_rows,
+            format_size(self.total_len),
+            self.total_len,
+            8.0 * (self.total_len as f64) / (self.total_rows as f64)
+        )
+    }
+}
+#[derive(Debug, PartialEq, Eq)]
+pub struct FileSetStatsBuilder {
+    inner: FileSetStats,
+
+    // key: column name
+    // value: index into inner.col_stats
+    col_stats_map: BTreeMap<String, usize>,
+}
+
+impl Default for FileSetStatsBuilder {
+    fn default() -> Self {
+        Self {
+            inner: FileSetStats {
+                total_len: 0,
+                total_rows: 0,
+                max_columns: 0,
+                col_stats: Vec::new(),
+            },
+            col_stats_map: BTreeMap::new(),
+        }
+    }
+}
+
+impl FileSetStatsBuilder {
+    /// Add a file's statstics
+    pub fn accumulate(mut self, file_stats: &FileStats) -> Self {
+        self.inner.total_len += file_stats.input_len;
+        self.inner.total_rows += file_stats.total_rows;
+        self.inner.max_columns =
+            std::cmp::max(self.inner.max_columns, file_stats.col_stats.len() as u64);
+
+        for c in &file_stats.col_stats {
+            match self.col_stats_map.get(&c.column_name) {
+                Some(index) => {
+                    self.inner.col_stats[*index].merge(c);
+                }
+                None => {
+                    self.inner.col_stats.push(c.clone());
+                    let index = self.inner.col_stats.len() - 1;
+                    self.col_stats_map.insert(c.column_name.clone(), index);
+                }
+            }
+        }
+        self
+    }
+
+    pub fn build(self) -> FileSetStats {
+        self.inner
     }
 }
 

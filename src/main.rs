@@ -93,12 +93,23 @@ Examples:
         )
         .subcommand(
             SubCommand::with_name("stats")
-                .about("Print out storage statistics information about a file to stdout")
+                .about("Print out storage statistics information to stdout. \
+                        If a directory isspecified, checks all files recursively")
                 .arg(
                     Arg::with_name("INPUT")
-                        .help("The input filename to read from")
+                        .help("The input filename or directory to read from")
                         .required(true)
                         .index(1),
+                )
+                .arg(
+                    Arg::with_name("per-column")
+                        .long("per-column")
+                        .help("Include detaled information per column")
+                )
+                .arg(
+                    Arg::with_name("per-file")
+                        .long("per-file")
+                        .help("Include detaled information per file")
                 ),
         )
         .subcommand(SubCommand::with_name("server").about("Runs in server mode (default)"))
@@ -135,8 +146,13 @@ Examples:
             }
         }
         ("stats", Some(sub_matches)) => {
-            let input_filename = sub_matches.value_of("INPUT").unwrap();
-            match commands::stats::stats(&input_filename) {
+            let config = commands::stats::StatsConfig {
+                input_path: sub_matches.value_of("INPUT").unwrap().into(),
+                per_file: sub_matches.is_present("per-file"),
+                per_column: sub_matches.is_present("per-column"),
+            };
+
+            match commands::stats::stats(&config).await {
                 Ok(()) => debug!("Storage statistics dump completed successfully"),
                 Err(e) => {
                     eprintln!("Stats dump failed: {}", e);

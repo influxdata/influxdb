@@ -1,5 +1,8 @@
 //! Provide storage statistics for parquet files
-use delorean_table::stats::{ColumnStats, ColumnStatsBuilder};
+use delorean_table::{
+    stats::{ColumnStatsBuilder, FileStats, FileStatsBuilder},
+    Name,
+};
 use log::debug;
 use parquet::{
     basic::{Compression, Encoding},
@@ -18,10 +21,11 @@ use crate::{error::Result, metadata::data_type_from_parquet_type, Length, TryClo
 /// be read from `input`, with a total size of `input_size` byes
 ///
 /// Returns a Vec of ColumnStats, one for each column in the input
-pub fn col_stats<R: 'static>(input: R) -> Result<Vec<ColumnStats>>
+pub fn file_stats<R: 'static>(input: R) -> Result<FileStats>
 where
-    R: Read + Seek + TryClone + Length,
+    R: Read + Seek + TryClone + Length + Name,
 {
+    let mut file_stats_builder = FileStatsBuilder::new(&input.name(), input.len());
     let reader = SerializedFileReader::new(input).context(crate::error::ParquetLibraryError {
         message: "Creating parquet reader",
     })?;
@@ -71,15 +75,11 @@ where
     }
 
     // now, marshal up all the results
-    let mut v = stats_builders
-        .into_iter()
-        .map(|(_k, b)| b.build())
-        .collect::<Vec<_>>();
+    for (_k, b) in stats_builders {
+        file_stats_builder = file_stats_builder.add_column(b.build());
+    }
 
-    // ensure output is not sorted by column name, but by column index
-    v.sort_by_key(|stats| stats.column_index);
-
-    Ok(v)
+    Ok(file_stats_builder.build())
 }
 
 /// Create a more user friendly display of the encodings

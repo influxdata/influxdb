@@ -1,20 +1,81 @@
 //! This module contains code to report compression statistics for storage files
 
-use delorean_parquet::{error::Error as DeloreanParquetError, stats::col_stats};
+use delorean_parquet::{error::Error as DeloreanParquetError, stats as parquet_stats};
+use delorean_table::{
+    stats::{FileSetStatsBuilder, FileStats},
+    Name,
+};
 use log::info;
 use snafu::{ResultExt, Snafu};
 
-use crate::commands::input::{FileType, InputReader};
+use crate::commands::input::{FileType, InputPath, InputReader};
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Not implemented: {}", operation_name))]
+    NotImplemented { operation_name: String },
+
+    #[snafu(display("Error opening input {}", source))]
+    OpenInput { source: super::input::Error },
+
+    #[snafu(display("Unable to dump parquet file metadata: {}", source))]
+    UnableDumpToParquetMetadata { source: DeloreanParquetError },
+}
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Describes what statistics are desired
+#[derive(Debug)]
+pub struct StatsConfig {
+    /// The path to start searching from
+    pub input_path: String,
+
+    /// Are detailed file-by-file statistics desired?
+    pub per_file: bool,
+
+    /// Are detailed column-by-column statistics desired?
+    pub per_column: bool,
+}
+
+/// Print statistics about all the files rooted at input_path
+pub async fn stats(config: &StatsConfig) -> Result<()> {
+    info!("stats starting for {:?}", config);
+    let input_path = InputPath::new(&config.input_path, |_| true).context(OpenInput)?;
+
+    println!("Storage statistics:");
+
+    let mut builder = FileSetStatsBuilder::default();
+
+    for input_reader in input_path {
+        let input_reader = input_reader.context(OpenInput)?;
+
+        let file_stats = stats_for_file(config, input_reader).await?;
+
+        if config.per_file {
+            println!("{}", file_stats);
+        }
+        builder = builder.accumulate(&file_stats);
+    }
+
+    let overall_stats = builder.build();
+    if config.per_column {
+        println!("-------------------------------");
+        println!("Overall Per Column Stats");
+        println!("-------------------------------");
+        for c in &overall_stats.col_stats {
+            println!("{}", c);
+            println!();
+        }
+    }
+    println!("{}", overall_stats);
+
+    Ok(())
+}
+
 /// Print statistics about the file name in input_filename to stdout
-pub fn stats(input_filename: &str) -> Result<()> {
-    info!("stats starting");
-
-    let input_reader = InputReader::new(input_filename).context(OpenInput)?;
-
-    let (input_len, col_stats) = match input_reader.file_type() {
+pub async fn stats_for_file(config: &StatsConfig, input_reader: InputReader) -> Result<FileStats> {
+    let input_name = String::from(input_reader.name());
+    let file_stats = match input_reader.file_type() {
         FileType::LineProtocol => {
             return NotImplemented {
                 operation_name: "Line protocol storage statistics",
@@ -28,63 +89,19 @@ pub fn stats(input_filename: &str) -> Result<()> {
             .fail()
         }
         FileType::Parquet => {
-            let input_len = input_reader.len();
-            (
-                input_len,
-                col_stats(input_reader).context(UnableDumpToParquetMetadata)?,
-            )
+            parquet_stats::file_stats(input_reader).context(UnableDumpToParquetMetadata)?
         }
     };
 
-    let mut total_rows = 0;
-
-    println!("Storage statistics:");
-    let num_cols = col_stats.len();
-    for c in col_stats {
-        println!("Column Stats '{}' [{}]", c.column_name, c.column_index);
-        println!(
-            "  Total rows: {}, DataType: {:?}, Compression: {}",
-            c.num_rows, c.data_type, c.compression_description
-        );
-        println!(
-            "  Compressed/Uncompressed Bytes: ({:8}/{:8}) {:.4} bits per row",
-            c.num_compressed_bytes,
-            c.num_uncompressed_bytes,
-            8.0 * (c.num_compressed_bytes as f64) / (c.num_rows as f64)
-        );
-
-        if total_rows == 0 {
-            total_rows = c.num_rows;
+    if config.per_column && config.per_file {
+        println!("-------------------------------");
+        println!("Column Stats for {}", input_name);
+        println!("-------------------------------");
+        for c in &file_stats.col_stats {
+            println!("{}", c);
+            println!();
         }
-
-        assert_eq!(
-            total_rows, c.num_rows,
-            "Internal error: columns had different numbers of rows {}, {}",
-            total_rows, c.num_rows
-        );
     }
 
-    println!();
-    println!(
-        "{}: total columns/rows/bytes: ({:8}/{:8}/{:8}) {:.4} bits per row",
-        input_filename,
-        num_cols,
-        total_rows,
-        input_len,
-        8.0 * (input_len as f64) / (total_rows as f64)
-    );
-
-    Ok(())
-}
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Not implemented: {}", operation_name))]
-    NotImplemented { operation_name: String },
-
-    #[snafu(display("Error opening input {}", source))]
-    OpenInput { source: super::input::Error },
-
-    #[snafu(display("Unable to dump parquet file metadata: {}", source))]
-    UnableDumpToParquetMetadata { source: DeloreanParquetError },
+    Ok(file_stats)
 }

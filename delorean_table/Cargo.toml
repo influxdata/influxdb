@@ -9,6 +9,8 @@ edition = "2018"
 snafu = "0.6.2"
 log = "0.4.8"
 
+human_format = "1.0.3"
+
 # I get a build error when I use this one:
 # failed to run custom build command for `arrow-flight v0.17.0`
 #parquet = "0.17.0"

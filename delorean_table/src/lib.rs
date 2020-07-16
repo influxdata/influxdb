@@ -15,6 +15,8 @@ use delorean_table_schema::Schema;
 pub use packers::{Packer, Packers};
 pub use parquet::data_type::ByteArray;
 
+use std::borrow::Cow;
+
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display(r#"Data Error: {}"#, source))]
@@ -82,4 +84,9 @@ where
     fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, Error> {
         (**self).next_writer(schema)
     }
+}
+
+pub trait Name {
+    /// Returns a user understandable identifier of this thing
+    fn name(&self) -> Cow<'_, str>;
 }
