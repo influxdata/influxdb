@@ -112,6 +112,22 @@ func newWindowMaxArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cu
 		panic(fmt.Sprintf("unsupported for aggregate max: %T", cur))
 	}
 }
+
+func newWindowMeanArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
+	switch cur := cur.(type) {
+{{range .}}
+{{$Type := .Name}}
+{{range .Aggs}}
+{{if eq .Name "Mean"}}
+	case cursors.{{$Type}}ArrayCursor:
+		return new{{$Type}}WindowMeanArrayCursor(cur, every, offset)
+{{end}}
+{{end}}{{/* for each supported agg fn */}}
+{{end}}{{/* for each field type */}}
+	default:
+		panic(fmt.Sprintf("unsupported for aggregate mean: %T", cur))
+	}
+}
 {{range .}}
 {{$arrayType := print "*cursors." .Name "Array"}}
 {{$type := print .name "ArrayFilterCursor"}}
