@@ -5,7 +5,6 @@ import './style.scss'
 register({
   type: 'data',
   priority: 1,
-  featureFlag: 'notebook-panel--data-source',
   component: View,
   button: 'Data Source',
   initial: {
