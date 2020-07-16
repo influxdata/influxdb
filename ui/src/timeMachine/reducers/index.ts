@@ -882,7 +882,21 @@ export const timeMachineReducer = (
         const {activeQueryIndex, draftQueries} = draftState
         const {period} = action.payload
 
-        draftQueries[activeQueryIndex].builderConfig.aggregateWindow = {period}
+        draftQueries[
+          activeQueryIndex
+        ].builderConfig.aggregateWindow.period = period
+        buildActiveQuery(draftState)
+      })
+    }
+
+    case 'SET_AGGREGATE_FILL_VALUES': {
+      return produce(state, draftState => {
+        const {activeQueryIndex, draftQueries} = draftState
+        const {fillValues} = action.payload
+
+        draftQueries[
+          activeQueryIndex
+        ].builderConfig.aggregateWindow.fillValues = fillValues
         buildActiveQuery(draftState)
       })
     }

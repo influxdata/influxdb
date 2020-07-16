@@ -9,6 +9,7 @@ import AggregationContents from 'src/timeMachine/components/AggregationContents'
 import {
   selectBuilderFunction,
   selectAggregateWindow,
+  setAggregateFillValues,
 } from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
@@ -30,24 +31,29 @@ const AggregationSelector: FunctionComponent<Props> = ({
   isInCheckOverlay,
   isAutoFunction,
   isAutoWindowPeriod,
-  isFillValues,
-  aggregateWindow,
+  aggregateWindow: {period, fillValues},
   onSelectFunction,
+  onSetAggregateFillValues,
 }) => {
   const functionList = isAutoFunction
     ? FUNCTIONS.map(f => f.name)
     : ['mean', 'median', 'first']
 
+  const onChangeFillValues = () => {
+    onSetAggregateFillValues(!fillValues)
+  }
+
   return (
     <AggregationContents
       isAutoWindowPeriod={isAutoWindowPeriod}
-      windowPeriod={aggregateWindow.period}
-      isFillValues={isFillValues}
+      windowPeriod={period} //BE done
+      isFillValues={fillValues} //BE
       isAutoFunction={isAutoFunction}
-      functionList={functionList}
+      functionList={functionList} //BE done
       selectedFunctions={selectedFunctions}
       onSelectFunction={onSelectFunction}
       isInCheckOverlay={isInCheckOverlay}
+      onChangeFillValues={onChangeFillValues}
     />
   )
 }
@@ -55,7 +61,6 @@ const AggregationSelector: FunctionComponent<Props> = ({
 const mstp = (state: AppState) => {
   const {builderConfig} = getActiveQuery(state)
   const {functions, aggregateWindow} = builderConfig
-  console.log(builderConfig)
   return {
     selectedFunctions: functions.map(f => f.name),
     aggregateWindow,
@@ -63,13 +68,13 @@ const mstp = (state: AppState) => {
     isInCheckOverlay: getIsInCheckOverlay(state),
     isAutoFunction: true,
     isAutoWindowPeriod: false,
-    isFillValues: true,
   }
 }
 
 const mdtp = {
   onSelectFunction: selectBuilderFunction,
   onSelectAggregateWindow: selectAggregateWindow,
+  onSetAggregateFillValues: setAggregateFillValues,
 }
 
 const connector = connect(mstp, mdtp)

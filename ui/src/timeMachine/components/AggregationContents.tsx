@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FunctionComponent} from 'react'
 
 // Components
 import {
@@ -14,6 +14,7 @@ import {
   Toggle,
   InputToggleType,
   QuestionMarkTooltip,
+  ComponentStatus,
 } from '@influxdata/clockface'
 import SelectorList from 'src/timeMachine/components/SelectorList'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
@@ -40,144 +41,139 @@ interface Props {
   functionList: Array<string>
   isInCheckOverlay: boolean
   onSelectFunction: (name: string) => void
+  onChangeFillValues: () => void
 }
 
-class AggregationContents extends PureComponent<Props> {
-  public render() {
-    const {
-      isAutoWindowPeriod,
-      isAutoFunction,
-      isFillValues,
-      windowPeriod,
-      selectedFunctions,
-      functionList,
-      isInCheckOverlay,
-      onSelectFunction,
-    } = this.props
+const AggregationContents: FunctionComponent<Props> = ({
+  isAutoWindowPeriod,
+  isAutoFunction,
+  isFillValues,
+  windowPeriod,
+  selectedFunctions,
+  functionList,
+  isInCheckOverlay,
+  onSelectFunction,
+  onChangeFillValues,
+}) => {
+  const autoLabel = windowPeriod
+    ? `${AGG_WINDOW_AUTO} (${millisecondsToDuration(10)})`
+    : AGG_WINDOW_AUTO
 
-    return (
-      <BuilderCard
-        className="aggregation-selector"
-        testID="aggregation-selector"
-      >
-        <BuilderCard.Header title="Window Period" />
-        <BuilderCard.Body scrollable={false} style={{flex: 'unset'}}>
-          <FlexBox
-            direction={FlexDirection.Column}
-            alignItems={AlignItems.Stretch}
-            margin={ComponentSize.Small}
-            stretchToFitWidth={true}
-          >
-            <SelectGroup shape={ButtonShape.StretchToFit}>
-              <SelectGroup.Option
-                name="custom"
-                id="custom-window-period"
-                active={!isAutoWindowPeriod}
-                value="Custom"
-                onClick={() => {}}
-                titleText="Custom"
-              >
-                Custom
-              </SelectGroup.Option>
-              <SelectGroup.Option
-                name="auto"
-                id="auto-window-period"
-                active={isAutoWindowPeriod}
-                value="Auto"
-                onClick={() => {}}
-                titleText="Auto"
-              >
-                Auto
-              </SelectGroup.Option>
-            </SelectGroup>
-            <DurationInput
-              onSubmit={() => {}}
-              value={windowPeriod}
-              suggestions={this.durations}
-              submitInvalid={false}
-              validFunction={this.windowInputValid}
-            />
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
+  const durations = isInCheckOverlay
+    ? DURATIONS
+    : [autoLabel, AGG_WINDOW_NONE, ...DURATIONS]
+
+  const windowInputValid = (input: string): boolean =>
+    input == 'none' || input == autoLabel
+
+  const durationInputStatus = isAutoWindowPeriod
+    ? ComponentStatus.Disabled
+    : ComponentStatus.Default
+
+  return (
+    <BuilderCard className="aggregation-selector" testID="aggregation-selector">
+      <BuilderCard.Header title="Window Period" />
+      <BuilderCard.Body scrollable={false} style={{flex: 'unset'}}>
+        <FlexBox
+          direction={FlexDirection.Column}
+          alignItems={AlignItems.Stretch}
+          margin={ComponentSize.Small}
+          stretchToFitWidth={true}
+        >
+          <SelectGroup shape={ButtonShape.StretchToFit}>
+            <SelectGroup.Option
+              name="custom"
+              id="custom-window-period"
+              active={!isAutoWindowPeriod}
+              value="Custom"
+              onClick={() => {}}
+              titleText="Custom"
             >
-              <Toggle
-                id="isFillValues"
-                type={InputToggleType.Checkbox}
-                checked={isFillValues}
-                onChange={() => {}}
-                color={ComponentColor.Primary}
-                size={ComponentSize.ExtraSmall}
-              />
-              <FlexBox.Child grow={1}>
-                <InputLabel>Fill missing values</InputLabel>
-              </FlexBox.Child>
-              <QuestionMarkTooltip
-                diameter={16}
-                tooltipContents="Tooltip goes here!"
-                tooltipStyle={{fontSize: '13px', padding: '8px'}}
-              />
-            </FlexBox>
-          </FlexBox>
-        </BuilderCard.Body>
-        <BuilderCard.Header title="Aggregate Function" />
-        <BuilderCard.Menu>
+              Custom
+            </SelectGroup.Option>
+            <SelectGroup.Option
+              name="auto"
+              id="auto-window-period"
+              active={isAutoWindowPeriod}
+              value="Auto"
+              onClick={() => {}}
+              titleText="Auto"
+            >
+              Auto
+            </SelectGroup.Option>
+          </SelectGroup>
+          <DurationInput
+            onSubmit={() => {}}
+            value={windowPeriod}
+            suggestions={durations}
+            submitInvalid={false}
+            validFunction={windowInputValid}
+            status={durationInputStatus}
+          />
           <FlexBox
-            direction={FlexDirection.Column}
+            direction={FlexDirection.Row}
             margin={ComponentSize.Small}
-            alignItems={AlignItems.Stretch}
+            stretchToFitWidth
+            testID="component-spacer"
           >
-            <SelectGroup shape={ButtonShape.StretchToFit}>
-              <SelectGroup.Option
-                name="custom"
-                id="custom window period"
-                active={!isAutoFunction}
-                value="Custom"
-                onClick={() => {}}
-                titleText="Custom"
-              >
-                Custom
-              </SelectGroup.Option>
-              <SelectGroup.Option
-                name="template-type"
-                id="user-templates"
-                active={isAutoFunction}
-                value="user-templates"
-                onClick={() => {}}
-                titleText="User Templates"
-              >
-                Auto
-              </SelectGroup.Option>
-            </SelectGroup>
+            <Toggle
+              id="isFillValues"
+              type={InputToggleType.Checkbox}
+              checked={isFillValues}
+              onChange={onChangeFillValues}
+              color={ComponentColor.Primary}
+              size={ComponentSize.ExtraSmall}
+            />
+            <FlexBox.Child grow={1}>
+              <InputLabel>Fill missing values</InputLabel>
+            </FlexBox.Child>
+            <QuestionMarkTooltip
+              diameter={16}
+              tooltipContents="Tooltip goes here!"
+              tooltipStyle={{fontSize: '13px', padding: '8px'}}
+            />
           </FlexBox>
-        </BuilderCard.Menu>
-        <SelectorList
-          items={functionList}
-          selectedItems={selectedFunctions}
-          onSelectItem={onSelectFunction}
-          multiSelect={!isInCheckOverlay && !isAutoFunction}
-        />
-      </BuilderCard>
-    )
-  }
-
-  private get autoLabel(): string {
-    const {windowPeriod} = this.props
-    return windowPeriod
-      ? `${AGG_WINDOW_AUTO} (${millisecondsToDuration(10)})`
-      : AGG_WINDOW_AUTO
-  }
-
-  private get durations(): string[] {
-    return this.props.isInCheckOverlay
-      ? DURATIONS
-      : [this.autoLabel, AGG_WINDOW_NONE, ...DURATIONS]
-  }
-
-  private windowInputValid = (input: string): boolean =>
-    input == 'none' || input == this.autoLabel
+        </FlexBox>
+      </BuilderCard.Body>
+      <BuilderCard.Header title="Aggregate Function" />
+      <BuilderCard.Menu>
+        <FlexBox
+          direction={FlexDirection.Column}
+          margin={ComponentSize.Small}
+          alignItems={AlignItems.Stretch}
+        >
+          <SelectGroup shape={ButtonShape.StretchToFit}>
+            <SelectGroup.Option
+              name="custom"
+              id="custom window period"
+              active={!isAutoFunction}
+              value="Custom"
+              onClick={() => {}}
+              titleText="Custom"
+            >
+              Custom
+            </SelectGroup.Option>
+            <SelectGroup.Option
+              name="template-type"
+              id="user-templates"
+              active={isAutoFunction}
+              value="user-templates"
+              onClick={() => {}}
+              titleText="User Templates"
+            >
+              Auto
+            </SelectGroup.Option>
+          </SelectGroup>
+        </FlexBox>
+      </BuilderCard.Menu>
+      <SelectorList
+        items={functionList}
+        selectedItems={selectedFunctions}
+        onSelectItem={onSelectFunction}
+        multiSelect={!isInCheckOverlay && !isAutoFunction}
+      />
+    </BuilderCard>
+  )
 }
 
 export default AggregationContents

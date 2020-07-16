@@ -2,11 +2,11 @@
 import React, {useState, useEffect, FC} from 'react'
 import {
   Input,
-  ComponentStatus,
   DropdownMenu,
   DropdownDivider,
   DropdownItem,
   ClickOutside,
+  ComponentStatus,
 } from '@influxdata/clockface'
 import {isDurationParseable} from 'src/shared/utils/duration'
 
@@ -21,6 +21,7 @@ type Props = {
   showDivider?: boolean
   testID?: string
   validFunction?: (input: string) => boolean
+  status?: ComponentStatus
 }
 
 const DurationInput: FC<Props> = ({
@@ -28,6 +29,7 @@ const DurationInput: FC<Props> = ({
   onSubmit,
   value,
   placeholder,
+  status: controlledStatus,
   submitInvalid = true,
   showDivider = true,
   testID = 'duration-input',
@@ -63,9 +65,14 @@ const DurationInput: FC<Props> = ({
   const isValid = (i: string): boolean =>
     isDurationParseable(i) || validFunction(i)
 
-  const inputStatus = isValid(inputValue)
-    ? ComponentStatus.Default
-    : ComponentStatus.Error
+  const getInputStatus = () => {
+    if (controlledStatus === ComponentStatus.Default) {
+      return isValid(inputValue)
+        ? ComponentStatus.Default
+        : ComponentStatus.Error
+    }
+    return controlledStatus || ComponentStatus.Default
+  }
 
   const onChange = (i: string) => {
     setInputValue(i)
@@ -80,7 +87,7 @@ const DurationInput: FC<Props> = ({
         <Input
           placeholder={placeholder}
           value={inputValue}
-          status={inputStatus}
+          status={getInputStatus()}
           onChange={e => onChange(e.target.value)}
           onFocus={() => setIsFocused(true)}
           testID={testID}

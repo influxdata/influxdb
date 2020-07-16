@@ -57,6 +57,7 @@ export type Action =
   | ReturnType<typeof removeTagSelectorSync>
   | ReturnType<typeof setFunctions>
   | ReturnType<typeof setAggregateWindow>
+  | ReturnType<typeof setAggregateFillValues>
   | ReturnType<typeof setValuesSearchTerm>
   | ReturnType<typeof setKeysSearchTerm>
   | ReturnType<typeof setBuilderTagsStatus>
@@ -139,6 +140,11 @@ export const setFunctions = (functions: BuilderFunctionsType[]) => ({
 export const setAggregateWindow = (period: string) => ({
   type: 'SET_AGGREGATE_WINDOW' as 'SET_AGGREGATE_WINDOW',
   payload: {period},
+})
+
+export const setAggregateFillValues = (fillValues: boolean) => ({
+  type: 'SET_AGGREGATE_FILL_VALUES' as 'SET_AGGREGATE_FILL_VALUES',
+  payload: {fillValues},
 })
 
 export const setValuesSearchTerm = (index: number, searchTerm: string) => ({
@@ -434,6 +440,7 @@ export const selectBuilderFunction = (name: string) => (
     }
     newFunctions = functions.filter(f => f.name !== name)
   } else if (activeTimeMachineID === 'alerting') {
+    // or if auto
     newFunctions = [{name}]
   } else {
     newFunctions = [...functions, {name}]
