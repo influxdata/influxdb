@@ -1,6 +1,27 @@
 // @ts-ignore
-import {AppState, RemoteDataState} from 'src/types'
+import {
+  AppState,
+  AutoRefreshStatus,
+  NoteEditorMode,
+  RemoteDataState,
+  TaskSchedule,
+} from 'src/types'
+import {WritePrecision} from '@influxdata/influx'
+import {DataLoaderType, LineProtocolTab} from 'src/types/dataLoaders'
 import {LimitStatus} from 'src/cloud/actions/limits'
+import {StepStatus} from 'src/clockface/constants/wizard'
+
+export const getMockAppState = (query?: string, variables?: []): AppState => {
+  const newAppState = Object.assign({}, mockAppState)
+  if (query) {
+    newAppState.timeMachines.timeMachines.de.view.properties.queries[0].text = query
+    newAppState.timeMachines.timeMachines.de.draftQueries[0].text = query
+  }
+  if (variables && variables.length > 0) {
+    // TODO: update variables
+  }
+  return newAppState
+}
 
 export const mockAppState: AppState = {
   router: {
@@ -160,12 +181,12 @@ export const mockAppState: AppState = {
     },
     dataLoaders: {
       telegrafPlugins: [],
-      type: '',
+      type: DataLoaderType.Empty,
       lineProtocolBody: '',
-      activeLPTab: 'Upload File',
+      activeLPTab: LineProtocolTab.UploadFile,
       lpStatus: RemoteDataState.NotStarted,
       lpError: '',
-      precision: 'ns',
+      precision: WritePrecision.Ns,
       telegrafConfigID: null,
       pluginBundles: [],
       scraperTarget: {
@@ -183,6 +204,7 @@ export const mockAppState: AppState = {
     name: 'asalem',
     links: {
       self: '/api/v2/users/054b7359dbdf1000',
+      log: '/',
     },
     status: 'active',
   },
@@ -194,18 +216,22 @@ export const mockAppState: AppState = {
     original: {
       appMetrics: false,
       communityTemplates: false,
-      frontendExample: 42,
+      frontendExample: '42',
       hydratevars: false,
     },
   },
   noteEditor: {
-    mode: 'adding',
+    mode: NoteEditorMode.Adding,
     note: '',
     showNoteWhenEmpty: false,
     isPreviewing: false,
   },
   onboarding: {
-    stepStatuses: ['circle-thick', 'circle-thick', 'circle-thick'],
+    stepStatuses: [
+      StepStatus.Incomplete,
+      StepStatus.Incomplete,
+      StepStatus.Incomplete,
+    ],
     setupParams: null,
     orgID: '',
     bucketID: '',
@@ -213,6 +239,7 @@ export const mockAppState: AppState = {
   overlays: {
     id: null,
     params: {},
+    onClose: () => {},
   },
   plugins: {
     status: RemoteDataState.NotStarted,
@@ -482,7 +509,7 @@ export const mockAppState: AppState = {
         interval: '',
         offset: '',
         cron: '',
-        taskScheduleType: '',
+        taskScheduleType: TaskSchedule.unselected,
         orgID: '',
         toBucketName: '',
         toOrgName: '',
@@ -764,7 +791,7 @@ export const mockAppState: AppState = {
           windowPeriod: 10000,
         },
         autoRefresh: {
-          status: 'paused',
+          status: AutoRefreshStatus.Paused,
           interval: 0,
         },
         view: {
@@ -909,7 +936,7 @@ export const mockAppState: AppState = {
           windowPeriod: 10000,
         },
         autoRefresh: {
-          status: 'paused',
+          status: AutoRefreshStatus.Paused,
           interval: 0,
         },
         view: {
@@ -1005,7 +1032,7 @@ export const mockAppState: AppState = {
           {
             name: '',
             text:
-              'from(bucket: "Homeward Bound")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "cpu")\n  |> filter(fn: (r) => r["_field"] == "usage_user")',
+              'from(bucket: "v.bucket")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "cpu")\n  |> filter(fn: (r) => r["_field"] == "usage_user")',
             editMode: 'builder',
             builderConfig: {
               buckets: ['Homeward Bound'],
@@ -1148,7 +1175,7 @@ export const mockAppState: AppState = {
           windowPeriod: 10000,
         },
         autoRefresh: {
-          status: 'paused',
+          status: AutoRefreshStatus.Paused,
           interval: 0,
         },
         view: {
