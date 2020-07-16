@@ -32,6 +32,7 @@ use futures::prelude::*;
 use http::StatusCode;
 use prost::Message;
 use std::convert::TryInto;
+use std::fs;
 use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::{Duration, SystemTime};
@@ -221,6 +222,10 @@ swap,server01,disk0,out,{},4
     )
     .await?;
     assert_eq!(text, expected_read_data);
+
+    // Make an invalid organization WAL dir to test that the server ignores it instead of crashing
+    let invalid_org_dir = server.dir.path().join("not-an-org-id");
+    fs::create_dir(invalid_org_dir)?;
 
     // Test the WAL by restarting the server
     server.restart()?;
