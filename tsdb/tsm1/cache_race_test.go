@@ -223,7 +223,7 @@ func TestConcurrentReadAfterWrite(t *testing.T) {
 	closing := make(chan struct{})
 	var wg sync.WaitGroup
 
-	c := tsm1.NewCache(1024 * 1024 * 16)
+	c := tsm1.NewCache(1024 * 1024 * 128)
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
 		// read after read concurrently
