@@ -27,6 +27,11 @@
   }
 }
 
+.notebook-divider:hover:after,
+.notebook-divider__popped:after {
+  background-color: $c-star;
+}
+
 .notebook-divider--button {
   position: absolute;
   z-index: 1;
