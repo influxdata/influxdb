@@ -18,10 +18,14 @@ export const DURATIONS = [
 
 export interface QueryFn {
   name: string
-  flux: (period?: string) => string
+  flux: (period?: string, fillValues?: boolean) => string
 }
 
-export const genFlux = (func: string, period?: string) => {
+export const genFlux = (
+  func: string,
+  period?: string,
+  fillValues?: boolean
+) => {
   if (period === AGG_WINDOW_NONE) {
     return `|> ${func}()`
   }
@@ -43,7 +47,7 @@ export const genFlux = (func: string, period?: string) => {
     case 'stddev':
     case 'first':
     case 'last': {
-      return `|> aggregateWindow(every: ${period}, fn: ${func})`
+      return `|> aggregateWindow(every: ${period}, fn: ${func}, createEmpty: ${!fillValues})`
     }
 
     default:
@@ -54,70 +58,71 @@ export const genFlux = (func: string, period?: string) => {
 export const FUNCTIONS: QueryFn[] = [
   {
     name: 'mean',
-    flux: period => genFlux('mean', period),
+    flux: (period, fillValues) => genFlux('mean', period, fillValues),
   },
   {
     name: 'median',
-    flux: period => genFlux('median', period),
+    flux: (period, fillValues) => genFlux('median', period, fillValues),
   },
   {
     name: 'max',
-    flux: period => genFlux('max', period),
+    flux: (period, fillValues) => genFlux('max', period, fillValues),
   },
   {
     name: 'min',
-    flux: period => genFlux('min', period),
+    flux: (period, fillValues) => genFlux('min', period, fillValues),
   },
   {
     name: 'sum',
-    flux: period => genFlux('sum', period),
+    flux: (period, fillValues) => genFlux('sum', period, fillValues),
   },
   {
     name: 'derivative',
-    flux: period => genFlux('derivative', period),
+    flux: (period, fillValues) => genFlux('derivative', period, fillValues),
   },
   {
     name: 'nonnegative derivative',
-    flux: period => genFlux('nonnegative derivative', period),
+    flux: (period, fillValues) =>
+      genFlux('nonnegative derivative', period, fillValues),
   },
   {
     name: 'distinct',
-    flux: period => genFlux('distinct', period),
+    flux: (period, fillValues) => genFlux('distinct', period, fillValues),
   },
   {
     name: 'count',
-    flux: period => genFlux('count', period),
+    flux: (period, fillValues) => genFlux('count', period, fillValues),
   },
   {
     name: 'increase',
-    flux: period => genFlux('increase', period),
+    flux: (period, fillValues) => genFlux('increase', period, fillValues),
   },
   {
     name: 'skew',
-    flux: period => genFlux('skew', period),
+    flux: (period, fillValues) => genFlux('skew', period, fillValues),
   },
   {
     name: 'spread',
-    flux: period => genFlux('spread', period),
+    flux: (period, fillValues) => genFlux('spread', period, fillValues),
   },
   {
     name: 'stddev',
-    flux: period => genFlux('stddev', period),
+    flux: (period, fillValues) => genFlux('stddev', period, fillValues),
   },
   {
     name: 'first',
-    flux: period => genFlux('first', period),
+    flux: (period, fillValues) => genFlux('first', period, fillValues),
   },
   {
     name: 'last',
-    flux: period => genFlux('last', period),
+    flux: (period, fillValues) => genFlux('last', period, fillValues),
   },
   {
     name: 'unique',
-    flux: period => genFlux('unique', period),
+    flux: (period, fillValues) => genFlux('unique', period, fillValues),
   },
   {
     name: 'sort',
-    flux: period => genFlux('sort', period),
+    flux: (period, fillValues) => genFlux('sort', period, fillValues),
   },
 ]
