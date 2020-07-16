@@ -4,6 +4,7 @@ import './style.scss'
 
 register({
   type: 'data',
+  family: 'inputs',
   priority: 1,
   component: View,
   button: 'Data Source',

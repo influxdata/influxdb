@@ -4,6 +4,7 @@ import './style.scss'
 
 register({
   type: 'query',
+  family: 'custom',
   priority: 1,
   component: View,
   button: 'Flux Script',

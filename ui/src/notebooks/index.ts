@@ -89,6 +89,7 @@ export interface NotebookList {
 // on the page.
 export interface TypeRegistration {
   type: string // a unique string that identifies a pipe
+  family: 'inputs' | 'passThrough' | 'test' // dictates grouping of related pipes
   priority?: number // 0 is lowest priority, equal priorities revert to string comparison
   disabled?: boolean // if you should show it or not
   featureFlag?: string // designates a flag that should enable the panel type
