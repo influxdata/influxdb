@@ -137,6 +137,7 @@ test-js: node_modules
 	make -C ui test
 
 test-go:
+	$(GO_GENERATE) ./tsdb/tsi1/gen_test.go
 	$(GO_TEST) ./...
 
 test-promql-e2e:
