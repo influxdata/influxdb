@@ -12,7 +12,7 @@ import {PipeContext} from 'src/notebooks/context/pipe'
 import {RemoteDataState} from 'src/types'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 const Results: FC = () => {
   const {data, results, loading} = useContext(PipeContext)

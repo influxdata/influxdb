@@ -12,7 +12,7 @@ import Resizer from 'src/notebooks/shared/Resizer'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {createView} from 'src/views/helpers'
 import ExportVisualizationButton from 'src/notebooks/pipes/Visualization/ExportVisualizationButton'
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {PipeProp, PipeData} from 'src/notebooks'

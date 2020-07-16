@@ -6,7 +6,7 @@ import {TimeZoneDropdown as StatelessTimeZoneDropdown} from 'src/shared/componen
 import {TimeZone} from 'src/types'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 const TimeZoneDropdown: FC = React.memo(() => {
   const {timeZone, onSetTimeZone} = useContext(AppSettingContext)

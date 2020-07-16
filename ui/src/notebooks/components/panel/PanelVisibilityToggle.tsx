@@ -6,7 +6,7 @@ import {SquareButton, IconFont} from '@influxdata/clockface'
 import {NotebookContext} from 'src/notebooks/context/notebook.current'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 import {DataID, PipeData} from 'src/notebooks'
 

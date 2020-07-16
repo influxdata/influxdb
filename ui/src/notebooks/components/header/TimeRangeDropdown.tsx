@@ -4,7 +4,7 @@ import {TimeContextProps} from 'src/notebooks/components/header/Buttons'
 import {TimeBlock} from 'src/notebooks/context/time'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 const TimeRangeDropdown: FC<TimeContextProps> = ({context, update}) => {
   const {range} = context

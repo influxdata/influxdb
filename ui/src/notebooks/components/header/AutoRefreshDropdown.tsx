@@ -5,7 +5,7 @@ import {TimeBlock} from 'src/notebooks/context/time'
 import {AutoRefreshStatus} from 'src/types'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 const AutoRefreshDropdown: FC<TimeContextProps> = ({context, update}) => {
   const {refresh} = context

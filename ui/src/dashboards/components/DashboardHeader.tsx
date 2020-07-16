@@ -26,7 +26,7 @@ import {
 } from 'src/dashboards/actions/ranges'
 
 // Utils
-import {fireDashboardViewedEvent} from 'src/shared/utils/analytics'
+import {event} from 'src/cloud/utils/reporting'
 
 // Selectors
 import {getTimeRange} from 'src/dashboards/selectors'
@@ -34,6 +34,7 @@ import {getByID} from 'src/resources/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
 // Constants
+import {DemoDataDashboardNames} from 'src/cloud/constants'
 import {
   DEFAULT_DASHBOARD_NAME,
   DASHBOARD_NAME_MAX_LENGTH,
@@ -73,8 +74,11 @@ const DashboardHeader: FC<Props> = ({
   org,
 }) => {
   useEffect(() => {
-    fireDashboardViewedEvent(dashboard.name)
-  }, [dashboard.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    const demoDataset = DemoDataDashboardNames[dashboard.name]
+    if (demoDataset) {
+      event('demoData_dashboardViewed', {demo_dataset: demoDataset})
+    }
+  }, [dashboard.id])
 
   const handleAddNote = () => {
     history.push(`/orgs/${org.id}/dashboards/${dashboard.id}/notes/new`)
