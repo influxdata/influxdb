@@ -42,6 +42,8 @@ interface QueryBuilderState {
   bucketsStatus: RemoteDataState
   functions: Array<[{name: string}]>
   aggregateWindow: BuilderConfigAggregateWindow
+  isAutoWindowPeriod: boolean
+  isAutoFunction: boolean
   tags: Array<{
     aggregateFunctionType: BuilderAggregateFunctionType
     valuesSearchTerm: string
@@ -100,6 +102,8 @@ export const initialStateHelper = (): TimeMachineState => {
       buckets: [],
       bucketsStatus: RemoteDataState.NotStarted,
       aggregateWindow: {period: 'auto'},
+      isAutoFunction: true,
+      isAutoWindowPeriod: true,
       functions: [[{name: 'mean'}]],
       tags: [
         {
@@ -865,6 +869,16 @@ export const timeMachineReducer = (
       })
     }
 
+    case 'SET_IS_AUTO_FUNCTION': {
+      return produce(state, draftState => {
+        const {isAutoFunction} = action.payload
+
+        draftState.queryBuilder.isAutoFunction = isAutoFunction
+        // do stuff
+        buildActiveQuery(draftState)
+      })
+    }
+
     case 'SELECT_BUILDER_FUNCTION': {
       return produce(state, draftState => {
         const {functions} = action.payload
@@ -872,6 +886,18 @@ export const timeMachineReducer = (
         draftState.draftQueries[
           draftState.activeQueryIndex
         ].builderConfig.functions = functions
+
+        buildActiveQuery(draftState)
+      })
+    }
+
+    case 'SET_IS_AUTO_WINDOW_PERIOD': {
+      return produce(state, draftState => {
+        const {isAutoWindowPeriod} = action.payload
+
+        draftState.queryBuilder.isAutoWindowPeriod = isAutoWindowPeriod
+
+        // do stuff
 
         buildActiveQuery(draftState)
       })
@@ -915,9 +941,7 @@ export const timeMachineReducer = (
     }
 
     case 'SET_FIELD_OPTIONS': {
-      const workingView = state.view as ExtractWorkingView<
-        typeof action.payload
-      >
+      const workingView = state.view
       const {fieldOptions} = action.payload
       const properties = {
         ...workingView.properties,
@@ -949,9 +973,7 @@ export const timeMachineReducer = (
     }
 
     case 'SET_TABLE_OPTIONS': {
-      const workingView = state.view as ExtractWorkingView<
-        typeof action.payload
-      >
+      const workingView = state.view
       const {tableOptions} = action.payload
       const properties = {...workingView.properties, tableOptions}
       const view = {...state.view, properties}
@@ -960,9 +982,7 @@ export const timeMachineReducer = (
     }
 
     case 'SET_TIME_FORMAT': {
-      const workingView = state.view as ExtractWorkingView<
-        typeof action.payload
-      >
+      const workingView = state.view
 
       const {timeFormat} = action.payload
       const properties = {...workingView.properties, timeFormat}
@@ -1056,6 +1076,8 @@ const initialQueryBuilderState = (
     bucketsStatus: RemoteDataState.NotStarted,
     functions: [...defaultFunctions],
     aggregateWindow: {period: 'auto'},
+    isAutoFunction: true,
+    isAutoWindowPeriod: true,
     tags: builderConfig.tags.map(() => {
       return {...defaultTag}
     }),

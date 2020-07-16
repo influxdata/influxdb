@@ -58,6 +58,8 @@ export type Action =
   | ReturnType<typeof setFunctions>
   | ReturnType<typeof setAggregateWindow>
   | ReturnType<typeof setAggregateFillValues>
+  | ReturnType<typeof setIsAutoWindowPeriod>
+  | ReturnType<typeof setIsAutoFunction>
   | ReturnType<typeof setValuesSearchTerm>
   | ReturnType<typeof setKeysSearchTerm>
   | ReturnType<typeof setBuilderTagsStatus>
@@ -145,6 +147,16 @@ export const setAggregateWindow = (period: string) => ({
 export const setAggregateFillValues = (fillValues: boolean) => ({
   type: 'SET_AGGREGATE_FILL_VALUES' as 'SET_AGGREGATE_FILL_VALUES',
   payload: {fillValues},
+})
+
+export const setIsAutoWindowPeriod = (isAutoWindowPeriod: boolean) => ({
+  type: 'SET_IS_AUTO_WINDOW_PERIOD' as 'SET_IS_AUTO_WINDOW_PERIOD',
+  payload: {isAutoWindowPeriod},
+})
+
+export const setIsAutoFunction = (isAutoFunction: boolean) => ({
+  type: 'SET_IS_AUTO_FUNCTION' as 'SET_IS_AUTO_FUNCTION',
+  payload: {isAutoFunction},
 })
 
 export const setValuesSearchTerm = (index: number, searchTerm: string) => ({

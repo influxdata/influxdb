@@ -10,6 +10,8 @@ import {
   selectBuilderFunction,
   selectAggregateWindow,
   setAggregateFillValues,
+  setIsAutoWindowPeriod,
+  setIsAutoFunction,
 } from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
@@ -17,6 +19,7 @@ import {
   getActiveQuery,
   getIsInCheckOverlay,
   getActiveWindowPeriod,
+  getActiveTimeMachine,
 } from 'src/timeMachine/selectors'
 
 // Types
@@ -34,10 +37,12 @@ const AggregationSelector: FunctionComponent<Props> = ({
   aggregateWindow: {period, fillValues},
   onSelectFunction,
   onSetAggregateFillValues,
+  onSetIsAutoFunction,
+  onSetIsAutoWindowPeriod,
 }) => {
   const functionList = isAutoFunction
-    ? FUNCTIONS.map(f => f.name)
-    : ['mean', 'median', 'first']
+    ? ['mean', 'median', 'first']
+    : FUNCTIONS.map(f => f.name)
 
   const onChangeFillValues = () => {
     onSetAggregateFillValues(!fillValues)
@@ -46,6 +51,8 @@ const AggregationSelector: FunctionComponent<Props> = ({
   return (
     <AggregationContents
       isAutoWindowPeriod={isAutoWindowPeriod}
+      onSetIsAutoWindowPeriod={onSetIsAutoWindowPeriod}
+      onSetIsAutoFunction={onSetIsAutoFunction}
       windowPeriod={period} //BE done
       isFillValues={fillValues} //BE
       isAutoFunction={isAutoFunction}
@@ -59,6 +66,9 @@ const AggregationSelector: FunctionComponent<Props> = ({
 }
 
 const mstp = (state: AppState) => {
+  const {
+    queryBuilder: {isAutoFunction, isAutoWindowPeriod},
+  } = getActiveTimeMachine(state)
   const {builderConfig} = getActiveQuery(state)
   const {functions, aggregateWindow} = builderConfig
   return {
@@ -66,8 +76,8 @@ const mstp = (state: AppState) => {
     aggregateWindow,
     autoWindowPeriod: getActiveWindowPeriod(state),
     isInCheckOverlay: getIsInCheckOverlay(state),
-    isAutoFunction: true,
-    isAutoWindowPeriod: false,
+    isAutoFunction: isAutoFunction,
+    isAutoWindowPeriod: isAutoWindowPeriod,
   }
 }
 
@@ -75,6 +85,8 @@ const mdtp = {
   onSelectFunction: selectBuilderFunction,
   onSelectAggregateWindow: selectAggregateWindow,
   onSetAggregateFillValues: setAggregateFillValues,
+  onSetIsAutoWindowPeriod: setIsAutoWindowPeriod,
+  onSetIsAutoFunction: setIsAutoFunction,
 }
 
 const connector = connect(mstp, mdtp)

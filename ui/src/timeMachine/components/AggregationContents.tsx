@@ -42,6 +42,8 @@ interface Props {
   isInCheckOverlay: boolean
   onSelectFunction: (name: string) => void
   onChangeFillValues: () => void
+  onSetIsAutoFunction: (b: boolean) => void
+  onSetIsAutoWindowPeriod: (b: boolean) => void
 }
 
 const AggregationContents: FunctionComponent<Props> = ({
@@ -54,6 +56,8 @@ const AggregationContents: FunctionComponent<Props> = ({
   isInCheckOverlay,
   onSelectFunction,
   onChangeFillValues,
+  onSetIsAutoFunction,
+  onSetIsAutoWindowPeriod,
 }) => {
   const autoLabel = windowPeriod
     ? `${AGG_WINDOW_AUTO} (${millisecondsToDuration(10)})`
@@ -86,7 +90,9 @@ const AggregationContents: FunctionComponent<Props> = ({
               id="custom-window-period"
               active={!isAutoWindowPeriod}
               value="Custom"
-              onClick={() => {}}
+              onClick={() => {
+                onSetIsAutoWindowPeriod(false)
+              }}
               titleText="Custom"
             >
               Custom
@@ -96,7 +102,9 @@ const AggregationContents: FunctionComponent<Props> = ({
               id="auto-window-period"
               active={isAutoWindowPeriod}
               value="Auto"
-              onClick={() => {}}
+              onClick={() => {
+                onSetIsAutoWindowPeriod(true)
+              }}
               titleText="Auto"
             >
               Auto
@@ -148,7 +156,9 @@ const AggregationContents: FunctionComponent<Props> = ({
               id="custom window period"
               active={!isAutoFunction}
               value="Custom"
-              onClick={() => {}}
+              onClick={() => {
+                onSetIsAutoFunction(false)
+              }}
               titleText="Custom"
             >
               Custom
@@ -158,7 +168,9 @@ const AggregationContents: FunctionComponent<Props> = ({
               id="user-templates"
               active={isAutoFunction}
               value="user-templates"
-              onClick={() => {}}
+              onClick={() => {
+                onSetIsAutoFunction(true)
+              }}
               titleText="User Templates"
             >
               Auto
