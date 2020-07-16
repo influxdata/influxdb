@@ -44,6 +44,7 @@ interface Props {
   onChangeFillValues: () => void
   onSetIsAutoFunction: (b: boolean) => void
   onSetIsAutoWindowPeriod: (b: boolean) => void
+  onSelectAggregateWindow: (period: string) => void
 }
 
 const AggregationContents: FunctionComponent<Props> = ({
@@ -58,6 +59,7 @@ const AggregationContents: FunctionComponent<Props> = ({
   onChangeFillValues,
   onSetIsAutoFunction,
   onSetIsAutoWindowPeriod,
+  onSelectAggregateWindow,
 }) => {
   const autoLabel = windowPeriod
     ? `${AGG_WINDOW_AUTO} (${millisecondsToDuration(10)})`
@@ -111,7 +113,7 @@ const AggregationContents: FunctionComponent<Props> = ({
             </SelectGroup.Option>
           </SelectGroup>
           <DurationInput
-            onSubmit={() => {}}
+            onSubmit={onSelectAggregateWindow}
             value={windowPeriod}
             suggestions={durations}
             submitInvalid={false}

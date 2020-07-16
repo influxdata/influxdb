@@ -39,6 +39,7 @@ const AggregationSelector: FunctionComponent<Props> = ({
   onSetAggregateFillValues,
   onSetIsAutoFunction,
   onSetIsAutoWindowPeriod,
+  onSelectAggregateWindow,
 }) => {
   const functionList = isAutoFunction
     ? ['mean', 'median', 'first']
@@ -61,6 +62,7 @@ const AggregationSelector: FunctionComponent<Props> = ({
       onSelectFunction={onSelectFunction}
       isInCheckOverlay={isInCheckOverlay}
       onChangeFillValues={onChangeFillValues}
+      onSelectAggregateWindow={onSelectAggregateWindow}
     />
   )
 }
