@@ -1,6 +1,5 @@
 // @ts-ignore
 import {
-  AppState,
   AutoRefreshStatus,
   NoteEditorMode,
   RemoteDataState,
@@ -11,7 +10,7 @@ import {DataLoaderType, LineProtocolTab} from 'src/types/dataLoaders'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {StepStatus} from 'src/clockface/constants/wizard'
 
-export const getMockAppState = (query?: string, variables?: []): AppState => {
+export const getMockAppState = (query?: string, variables?: []) => {
   const newAppState = Object.assign({}, mockAppState)
   if (query) {
     newAppState.timeMachines.timeMachines.de.view.properties.queries[0].text = query
@@ -23,16 +22,14 @@ export const getMockAppState = (query?: string, variables?: []): AppState => {
   return newAppState
 }
 
-export const mockAppState: AppState = {
+export const mockAppState = {
   router: {
     location: {
       pathname: '/orgs/674b23253171ee69/data-explorer',
       search: '?vars%5Bbucket%5D=Homeward%20Bound',
       hash: '',
       key: '0qxivm',
-      query: {
-        'vars%5Bbucket%5D': 'Homeward%20Bound',
-      },
+      state: '',
     },
     action: 'POP',
   },
@@ -52,9 +49,7 @@ export const mockAppState: AppState = {
   },
   links: {
     authorizations: '/api/v2/authorizations',
-    backup: '/api/v2/backup',
     buckets: '/api/v2/buckets',
-    checks: '/api/v2/checks',
     dashboards: '/api/v2/dashboards',
     delete: '/api/v2/delete',
     external: {
@@ -68,7 +63,6 @@ export const mockAppState: AppState = {
     orgs: '/api/v2/orgs',
     plugins: '/api/v2/telegraf/plugins',
     query: {
-      analyze: '/api/v2/query/analyze',
       ast: '/api/v2/query/ast',
       self: '/api/v2/query',
       suggestions: '/api/v2/query/suggestions',
@@ -206,7 +200,6 @@ export const mockAppState: AppState = {
       self: '/api/v2/users/054b7359dbdf1000',
       log: '/',
     },
-    status: 'active',
   },
   flags: {
     override: {
@@ -400,11 +393,6 @@ export const mockAppState: AppState = {
       byID: {},
       allIDs: [],
       status: RemoteDataState.NotStarted,
-      sortOptions: {
-        sortDirection: 'asc',
-        sortType: 'string',
-        sortKey: 'name',
-      },
     },
     endpoints: {
       status: RemoteDataState.NotStarted,
@@ -428,7 +416,6 @@ export const mockAppState: AppState = {
             buckets: '/api/v2/buckets?org=a',
             dashboards: '/api/v2/dashboards?org=a',
             labels: '/api/v2/orgs/674b23253171ee69/labels',
-            logs: '/api/v2/orgs/674b23253171ee69/logs',
             members: '/api/v2/orgs/674b23253171ee69/members',
             owners: '/api/v2/orgs/674b23253171ee69/owners',
             secrets: '/api/v2/orgs/674b23253171ee69/secrets',
@@ -446,7 +433,6 @@ export const mockAppState: AppState = {
             buckets: '/api/v2/buckets?org=asalem',
             dashboards: '/api/v2/dashboards?org=asalem',
             labels: '/api/v2/orgs/ce415d27fcd98781/labels',
-            logs: '/api/v2/orgs/ce415d27fcd98781/logs',
             members: '/api/v2/orgs/ce415d27fcd98781/members',
             owners: '/api/v2/orgs/ce415d27fcd98781/owners',
             secrets: '/api/v2/orgs/ce415d27fcd98781/secrets',
@@ -467,7 +453,6 @@ export const mockAppState: AppState = {
           buckets: '/api/v2/buckets?org=a',
           dashboards: '/api/v2/dashboards?org=a',
           labels: '/api/v2/orgs/674b23253171ee69/labels',
-          logs: '/api/v2/orgs/674b23253171ee69/logs',
           members: '/api/v2/orgs/674b23253171ee69/members',
           owners: '/api/v2/orgs/674b23253171ee69/owners',
           secrets: '/api/v2/orgs/674b23253171ee69/secrets',
@@ -871,28 +856,7 @@ export const mockAppState: AppState = {
             position: 'overlaid',
           },
         },
-        draftQueries: [
-          {
-            name: '',
-            text: '',
-            editMode: 'builder',
-            builderConfig: {
-              buckets: [],
-              tags: [
-                {
-                  key: '_measurement',
-                  values: [],
-                  aggregateFunctionType: 'filter',
-                },
-              ],
-              functions: [],
-              aggregateWindow: {
-                period: 'auto',
-              },
-            },
-            hidden: false,
-          },
-        ],
+        draftQueries: [],
         isViewingRawData: false,
         isViewingVisOptions: false,
         activeTab: 'queries',
@@ -973,7 +937,6 @@ export const mockAppState: AppState = {
                     period: 'auto',
                   },
                 },
-                hidden: false,
               },
             ],
             colors: [
