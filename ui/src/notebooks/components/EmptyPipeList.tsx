@@ -20,7 +20,7 @@ const EmptyPipeList: FC = () => {
         Get started by <strong>Adding a Cell</strong> below
       </p>
       <div className="notebook-empty--buttons">
-        <AddButtons />
+        <AddButtons eventName="Add from empty" />
       </div>
     </div>
   )

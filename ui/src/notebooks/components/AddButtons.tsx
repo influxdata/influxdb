@@ -14,6 +14,8 @@ import {PIPE_DEFINITIONS} from 'src/notebooks'
 import {event} from 'src/cloud/utils/reporting'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
+import {TypeRegistration} from 'src/notebooks'
+
 // Styles
 import 'src/notebooks/components/AddButtons.scss'
 
@@ -23,34 +25,70 @@ interface Props {
   eventName: string
 }
 
+const SUPPORTED_FAMILIES = [
+  {
+    name: 'Input',
+    family: 'inputs',
+  },
+  {
+    name: 'Transform',
+    family: 'transform',
+  },
+  {
+    name: 'Pass Throughs',
+    family: 'passThrough',
+  },
+  {
+    name: 'Test',
+    family: 'test',
+  },
+  {
+    name: 'Output',
+    family: 'output',
+  },
+  {
+    name: 'Side Effects',
+    family: 'sideEffects',
+  },
+]
+
 const AddButtons: FC<Props> = ({index, onInsert, eventName}) => {
   const {add} = useContext(NotebookContext)
   const results = useContext(ResultsContext)
 
-  const sortedPipes = Object.entries(PIPE_DEFINITIONS)
-    .filter(
-      ([_, def]) =>
-        !def.disabled && (!def.featureFlag || isFlagEnabled(def.featureFlag))
-    )
-    .sort((a, b) => {
-      const aPriority = a[1].priority || 0
-      const bPriority = b[1].priority || 0
+  const pipeFamilies = Object.entries(
+    Object.values(PIPE_DEFINITIONS)
+      .filter(
+        def =>
+          !def.disabled && (!def.featureFlag || isFlagEnabled(def.featureFlag))
+      )
+      .reduce((acc, def) => {
+        if (!acc.hasOwnProperty(def.family)) {
+          acc[def.family] = []
+        }
+
+        acc[def.family].push(def)
+
+        return acc
+      }, {})
+  ).reduce((acc, [key, val]) => {
+    acc[key] = (val as TypeRegistration[]).sort((a, b) => {
+      const aPriority = a.priority || 0
+      const bPriority = b.priority || 0
 
       if (aPriority === bPriority) {
-        return a[1].button.localeCompare(b[1].button)
+        return a.button.localeCompare(b.button)
       }
 
       return bPriority - aPriority
     })
+    return acc
+  }, {})
 
-  const inputPipes = sortedPipes.filter(pipe => pipe[1].family === 'inputs')
-  const passThroughPipes = sortedPipes.filter(
-    pipe => pipe[1].family === 'passThrough'
-  )
-  const testPipes = sortedPipes.filter(pipe => pipe[1].family === 'test')
-
-  const mapPipes = (pipes: any): JSX.Element[] => {
-    return pipes.map(([type, def]) => {
+  const cellFamilies = SUPPORTED_FAMILIES.filter(fam =>
+    pipeFamilies.hasOwnProperty(fam.family)
+  ).map(fam => {
+    const pipes = pipeFamilies[fam.family].map(def => {
       return (
         <Button
           key={def.type}
@@ -70,7 +108,7 @@ const AddButtons: FC<Props> = ({index, onInsert, eventName}) => {
             const id = add(
               {
                 ...data,
-                type,
+                type: def.type,
               },
               index
             )
@@ -81,15 +119,10 @@ const AddButtons: FC<Props> = ({index, onInsert, eventName}) => {
         />
       )
     })
-  }
+    return <CellFamily title={fam.name}>{pipes}</CellFamily>
+  })
 
-  return (
-    <div className="add-cell-menu">
-      <CellFamily title="Inputs">{mapPipes(inputPipes)}</CellFamily>
-      <CellFamily title="Pass Through">{mapPipes(passThroughPipes)}</CellFamily>
-      <CellFamily title="Test">{mapPipes(testPipes)}</CellFamily>
-    </div>
-  )
+  return <div className="add-cell-menu">{cellFamilies}</div>
 }
 
 export default AddButtons
