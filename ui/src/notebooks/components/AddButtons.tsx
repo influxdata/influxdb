@@ -119,7 +119,11 @@ const AddButtons: FC<Props> = ({index, onInsert, eventName}) => {
         />
       )
     })
-    return <CellFamily title={fam.name}>{pipes}</CellFamily>
+    return (
+      <CellFamily key={fam.name} title={fam.name}>
+        {pipes}
+      </CellFamily>
+    )
   })
 
   return <div className="add-cell-menu">{cellFamilies}</div>
