@@ -1,3 +1,19 @@
+/*
+ * NOTE:
+ *
+ * This tests focuses on the hydrateVars thunk, and not the hydrateVariables function
+ * As such, we are NOT testing the number of fetch requests made for each variable
+ * We ARE testing the number of variables that are ultimately being set based on the
+ * query that we are passing in and the available view.
+ *
+ * The reason for this is simply due to the fact that the hydrateVars thunk is focused
+ * on dispatching the setVariables event for each variable that will eventually be fetched
+ *
+ * Testing the number of fetch requests being made should be tested in the hydrateVariables
+ * or hydrateVarHelper since that is more directly related to querying based on the number of variables
+ * being injested by the function
+ */
+
 // Libraries
 import fetchMock from 'jest-fetch-mock'
 
@@ -59,7 +75,6 @@ describe('hydrateVariables', () => {
     })
 
     hydrateVariables()(dispatch, getState).then(() => {
-      // bucket variable
       expect(dispatch).toHaveBeenCalledWith(bucketVariableAction)
       expect(dispatch).not.toHaveBeenCalledWith(baseQueryVariableAction)
       expect(dispatch).not.toHaveBeenCalledWith(brokerHostVariableAction)
