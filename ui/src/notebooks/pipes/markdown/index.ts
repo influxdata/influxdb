@@ -167,6 +167,7 @@ which you wish to be displayed literally, ex.: \`foo\`, \*bar\*, etc.`
 
 register({
   type: 'markdown',
+  family: 'passThrough',
   component: MarkdownPanel,
   button: 'Markdown',
   initial: () => ({

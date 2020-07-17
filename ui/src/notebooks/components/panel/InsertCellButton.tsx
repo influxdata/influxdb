@@ -12,6 +12,7 @@ import {
   FlexBox,
   FlexDirection,
   AlignItems,
+  PopoverPosition,
 } from '@influxdata/clockface'
 import AddButtons from 'src/notebooks/components/AddButtons'
 import {NotebookContext} from 'src/notebooks/context/notebook.current'
@@ -99,6 +100,7 @@ const InsertCellButton: FC<Props> = ({id}) => {
         appearance={Appearance.Outline}
         color={ComponentColor.Secondary}
         triggerRef={buttonRef}
+        position={PopoverPosition.Below}
         onShow={handlePopoverShow}
         onHide={handlePopoverHide}
         contents={onHide => (

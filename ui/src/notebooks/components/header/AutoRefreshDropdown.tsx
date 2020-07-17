@@ -1,6 +1,6 @@
 import React, {FC, useMemo, useCallback} from 'react'
 import {default as StatelessAutoRefreshDropdown} from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
-import {TimeContextProps} from 'src/notebooks/components/header/Buttons'
+import {TimeContextProps} from 'src/notebooks/components/header'
 import {TimeBlock} from 'src/notebooks/context/time'
 import {AutoRefreshStatus} from 'src/types'
 

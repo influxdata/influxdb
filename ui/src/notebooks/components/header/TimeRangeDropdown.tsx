@@ -1,6 +1,6 @@
 import React, {FC, useMemo, useCallback} from 'react'
 import {default as StatelessTimeRangeDropdown} from 'src/shared/components/TimeRangeDropdown'
-import {TimeContextProps} from 'src/notebooks/components/header/Buttons'
+import {TimeContextProps} from 'src/notebooks/components/header'
 import {TimeBlock} from 'src/notebooks/context/time'
 
 // Utils
