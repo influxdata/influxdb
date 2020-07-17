@@ -18,6 +18,7 @@ import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/R
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
+import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -111,6 +112,10 @@ class DashboardIndex extends PureComponent<Props, State> {
           </Page.Contents>
         </Page>
         <Switch>
+          <Route
+            path="/orgs/:orgID/dashboards-list/:dashboardID/export"
+            component={DashboardExportOverlay}
+          />
           <Route
             path="/orgs/:orgID/dashboards-list/import/template"
             component={CreateFromTemplateOverlay}
