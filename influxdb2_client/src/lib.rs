@@ -10,6 +10,7 @@
 //! # influxdb2_client
 //!
 //! This is a Rust client to InfluxDB using the 2.0 API.
+//! that implements the API in https://v2.docs.influxdata.com/v2.0/reference/api/
 //!
 //! ## Work Remaining
 //!
