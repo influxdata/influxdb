@@ -26,6 +26,7 @@ var (
 )
 
 func main() {
+	println("...")
 	if len(date) == 0 {
 		date = time.Now().UTC().Format(time.RFC3339)
 	}
