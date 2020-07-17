@@ -17,7 +17,7 @@
 //! - Query
 //! - Authentication
 //! - optional sync client
-//! - Infux 1.x API?
+//! - Influx 1.x API?
 //! - Other parts of the API
 
 use snafu::{ResultExt, Snafu};
