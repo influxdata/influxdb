@@ -10,7 +10,7 @@ import {
   selectBuilderFunction,
   selectAggregateWindow,
   setAggregateFillValues,
-  setIsAutoWindowPeriod,
+  setWindowPeriodSelectionMode,
   setFunctionSelectionMode,
 } from 'src/timeMachine/actions/queryBuilder'
 
@@ -40,7 +40,7 @@ const AggregationSelector: FunctionComponent<Props> = ({
   onSelectFunction,
   onSetAggregateFillValues,
   onSetFunctionSelectionMode,
-  onSetIsAutoWindowPeriod,
+  onSetWindowPeriodSelectionMode,
   onSelectAggregateWindow,
 }) => {
   const functionList = isAutoFunction
@@ -54,7 +54,7 @@ const AggregationSelector: FunctionComponent<Props> = ({
   return (
     <AggregationContents
       isAutoWindowPeriod={isAutoWindowPeriod}
-      onSetIsAutoWindowPeriod={onSetIsAutoWindowPeriod}
+      onSetWindowPeriodSelectionMode={onSetWindowPeriodSelectionMode}
       onSetFunctionSelectionMode={onSetFunctionSelectionMode}
       windowPeriod={period} //BE done
       isFillValues={fillValues} //BE
@@ -89,7 +89,7 @@ const mdtp = {
   onSelectFunction: selectBuilderFunction,
   onSelectAggregateWindow: selectAggregateWindow,
   onSetAggregateFillValues: setAggregateFillValues,
-  onSetIsAutoWindowPeriod: setIsAutoWindowPeriod,
+  onSetWindowPeriodSelectionMode: setWindowPeriodSelectionMode,
   onSetFunctionSelectionMode: setFunctionSelectionMode,
 }
 

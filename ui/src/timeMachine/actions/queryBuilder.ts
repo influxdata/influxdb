@@ -198,6 +198,19 @@ export const setFunctionSelectionMode = (mode: 'custom' | 'auto') => (
   dispatch(setIsAutoFunction(true))
 }
 
+export const setWindowPeriodSelectionMode = (mode: 'custom' | 'auto') => (
+  dispatch: Dispatch<Action | AlertBuilderAction>
+  // getState: GetState
+) => {
+  if (mode === 'custom') {
+    dispatch(setIsAutoWindowPeriod(false))
+    return
+  }
+  // const state = getState()
+  dispatch(setAggregateWindow('10s'))
+  dispatch(setIsAutoWindowPeriod(true))
+}
+
 export const selectAggregateWindow = (period: string) => (
   dispatch: Dispatch<Action | AlertBuilderAction>
 ) => {

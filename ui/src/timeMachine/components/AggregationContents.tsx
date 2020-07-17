@@ -20,17 +20,8 @@ import SelectorList from 'src/timeMachine/components/SelectorList'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import DurationInput from 'src/shared/components/DurationInput'
 
-// Utils
-import {millisecondsToDuration} from 'src/shared/utils/duration'
-
 // Constants
-import {
-  AGG_WINDOW_AUTO,
-  AGG_WINDOW_NONE,
-  DURATIONS,
-} from 'src/timeMachine/constants/queryBuilder'
-
-// Types
+import {DURATIONS} from 'src/timeMachine/constants/queryBuilder'
 
 interface Props {
   isAutoWindowPeriod: boolean
@@ -43,7 +34,7 @@ interface Props {
   onSelectFunction: (name: string) => void
   onChangeFillValues: () => void
   onSetFunctionSelectionMode: (m: 'custom' | 'auto') => void
-  onSetIsAutoWindowPeriod: (b: boolean) => void
+  onSetWindowPeriodSelectionMode: (m: 'custom' | 'auto') => void
   onSelectAggregateWindow: (period: string) => void
 }
 
@@ -58,20 +49,9 @@ const AggregationContents: FunctionComponent<Props> = ({
   onSelectFunction,
   onChangeFillValues,
   onSetFunctionSelectionMode,
-  onSetIsAutoWindowPeriod,
+  onSetWindowPeriodSelectionMode,
   onSelectAggregateWindow,
 }) => {
-  const autoLabel = windowPeriod
-    ? `${AGG_WINDOW_AUTO} (${millisecondsToDuration(10)})`
-    : AGG_WINDOW_AUTO
-
-  const durations = isInCheckOverlay
-    ? DURATIONS
-    : [autoLabel, AGG_WINDOW_NONE, ...DURATIONS]
-
-  const windowInputValid = (input: string): boolean =>
-    input == 'none' || input == autoLabel
-
   const durationInputStatus = isAutoWindowPeriod
     ? ComponentStatus.Disabled
     : ComponentStatus.Default
@@ -91,10 +71,8 @@ const AggregationContents: FunctionComponent<Props> = ({
               name="custom"
               id="custom-window-period"
               active={!isAutoWindowPeriod}
-              value="Custom"
-              onClick={() => {
-                onSetIsAutoWindowPeriod(false)
-              }}
+              value="custom"
+              onClick={onSetWindowPeriodSelectionMode}
               titleText="Custom"
             >
               Custom
@@ -103,10 +81,8 @@ const AggregationContents: FunctionComponent<Props> = ({
               name="auto"
               id="auto-window-period"
               active={isAutoWindowPeriod}
-              value="Auto"
-              onClick={() => {
-                onSetIsAutoWindowPeriod(true)
-              }}
+              value="auto"
+              onClick={onSetWindowPeriodSelectionMode}
               titleText="Auto"
             >
               Auto
@@ -115,9 +91,8 @@ const AggregationContents: FunctionComponent<Props> = ({
           <DurationInput
             onSubmit={onSelectAggregateWindow}
             value={windowPeriod}
-            suggestions={durations}
+            suggestions={DURATIONS}
             submitInvalid={false}
-            validFunction={windowInputValid}
             status={durationInputStatus}
           />
           <FlexBox
