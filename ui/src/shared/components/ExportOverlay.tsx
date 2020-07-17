@@ -84,7 +84,10 @@ class ExportOverlay extends PureComponent<Props> {
       completeSingle: false,
     }
     return (
-      <div className="export-overlay--text-area">
+      <div
+        className="export-overlay--text-area"
+        data-testid="export-overlay--text-area"
+      >
         <ReactCodeMirror
           autoFocus={false}
           autoCursor={true}

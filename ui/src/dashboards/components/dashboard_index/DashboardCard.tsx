@@ -99,7 +99,11 @@ class DashboardCard extends PureComponent<Props> {
     return (
       <Context>
         <Context.Menu icon={IconFont.CogThick}>
-          <Context.Item label="Export" action={this.handleExport} />
+          <Context.Item
+            label="Export"
+            action={this.handleExport}
+            testID="context-menu-item-export"
+          />
         </Context.Menu>
         <Context.Menu
           icon={IconFont.Duplicate}
@@ -177,7 +181,7 @@ class DashboardCard extends PureComponent<Props> {
       id,
     } = this.props
 
-    history.push(`/orgs/${orgID}/dashboards/${id}/export`)
+    history.push(`/orgs/${orgID}/dashboards-list/${id}/export`)
   }
 }
 
