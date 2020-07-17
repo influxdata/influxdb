@@ -604,7 +604,7 @@ async fn test_http_error_messages() -> Result<()> {
 
     let response_body = response.text().await?;
 
-    let expected_error = r#"{"error":"Invalid query string 'bucket=Foo&org=Bar': ID must have a length of 16 bytes"}"#;
+    let expected_error = r#"{"error":"Invalid query string 'bucket=Foo&org=Bar': ID must have a length of 16 bytes, was 3 bytes: 'Foo'"}"#;
     assert_eq!(response_body, expected_error);
 
     Ok(())

@@ -1,7 +1,7 @@
 use tracing::{debug, error, info};
 
 use crate::generated_types::{Bucket, Predicate, TimestampRange};
-use crate::id::Id;
+use crate::id::{self, Id};
 use crate::line_parser::PointType;
 use crate::storage::{
     memdb::MemDB,
@@ -44,10 +44,11 @@ pub enum Error {
     OrganizationWalDirMustBeUTF8 { org_dir: PathBuf },
 
     #[snafu(display(
-        "Should have been able to parse Organization WAL dir into Organization Id: '{:?}'",
-        org_dir
+        "Should have been able to parse Organization WAL dir into Organization Id: '{:?}', {}",
+        org_dir,
+        source
     ))]
-    OrganizationWalDirWasntAnOrgId { org_dir: PathBuf },
+    OrganizationWalDirWasntAnOrgId { org_dir: PathBuf, source: id::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -107,7 +108,7 @@ impl Organization {
             .to_str()
             .context(OrganizationWalDirMustBeUTF8 { org_dir })?
             .parse()
-            .map_err(|_| OrganizationWalDirWasntAnOrgId { org_dir }.build())?;
+            .context(OrganizationWalDirWasntAnOrgId { org_dir })?;
         let mut org = Self::new(org_id);
 
         let dirs = fs::read_dir(org_dir).context(ReadingPath { path: org_dir })?;
