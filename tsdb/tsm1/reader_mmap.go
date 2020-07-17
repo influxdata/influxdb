@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"go.uber.org/zap"
 )
 
@@ -24,6 +26,8 @@ type mmapAccessor struct {
 	b     []byte
 	f     *os.File
 	_path string // If the underlying file is renamed then this gets updated
+
+	pageFaultLimiter *mincore.Limiter // limits page fault accesses
 
 	index *indirectIndex
 }
@@ -150,8 +154,14 @@ func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 	}
 	//TODO: Validate checksum
 	var err error
-	values, err = DecodeBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	values, err = DecodeBlock(b, values)
 	if err != nil {
+		return nil, err
+	}
+
+	// Rate limit page faults.
+	if err := m.wait(b); err != nil {
 		return nil, err
 	}
 
@@ -170,6 +180,13 @@ func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) (uint32, []byte, e
 	// return the bytes after the 4 byte checksum
 	crc, block := binary.BigEndian.Uint32(m.b[entry.Offset:entry.Offset+4]), m.b[entry.Offset+4:entry.Offset+int64(entry.Size)]
 	m.mu.RUnlock()
+
+	// Rate limit page faults.
+	if err := m.wait(m.b[entry.Offset : entry.Offset+4]); err != nil {
+		return 0, nil, err
+	} else if err := m.wait(block); err != nil {
+		return 0, nil, err
+	}
 
 	return crc, block, nil
 }
@@ -209,6 +226,8 @@ func (m *mmapAccessor) readAll(key []byte) ([]Value, error) {
 		temp, err = DecodeBlock(m.b[block.Offset+4:block.Offset+int64(block.Size)], temp)
 		if err != nil {
 			return nil, err
+		} else if err := m.wait(m.b[block.Offset+4 : block.Offset+int64(block.Size)]); err != nil {
+			return nil, err
 		}
 
 		// Filter out any values that were deleted
@@ -243,4 +262,12 @@ func (m *mmapAccessor) close() error {
 
 	m.b = nil
 	return m.f.Close()
+}
+
+// wait rate limits page faults to the underlying data. Skipped if limiter is not set.
+func (m *mmapAccessor) wait(b []byte) error {
+	if m.pageFaultLimiter == nil {
+		return nil
+	}
+	return m.pageFaultLimiter.WaitRange(context.Background(), b)
 }

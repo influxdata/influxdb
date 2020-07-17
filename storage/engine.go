@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 )
 
 // Static objects to prevent small allocs.
@@ -162,6 +163,14 @@ func WithCompactionSemaphore(s influxdb.Semaphore) Option {
 func WithWritePointsValidationEnabled(v bool) Option {
 	return func(e *Engine) {
 		e.writePointsValidationEnabled = v
+	}
+}
+
+// WithPageFaultLimiter allows the caller to set the limiter for restricting
+// the frequency of page faults.
+func WithPageFaultLimiter(limiter *rate.Limiter) Option {
+	return func(e *Engine) {
+		e.engine.WithPageFaultLimiter(limiter)
 	}
 }
 
