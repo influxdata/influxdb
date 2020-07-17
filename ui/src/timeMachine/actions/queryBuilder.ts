@@ -38,6 +38,7 @@ import {setBuckets} from 'src/buckets/actions/creators'
 
 // Constants
 import {LIMIT} from 'src/resources/constants'
+import {AUTO_FUNCTIONS} from '../constants/queryBuilder'
 
 // Schemas
 import {arrayOfBuckets} from 'src/schemas'
@@ -168,6 +169,34 @@ export const setKeysSearchTerm = (index: number, searchTerm: string) => ({
   type: 'SET_BUILDER_KEYS_SEARCH_TERM' as 'SET_BUILDER_KEYS_SEARCH_TERM',
   payload: {index, searchTerm},
 })
+
+export const setFunctionSelectionMode = (mode: 'custom' | 'auto') => (
+  dispatch: Dispatch<Action | AlertBuilderAction>,
+  getState: GetState
+) => {
+  if (mode === 'custom') {
+    dispatch(setIsAutoFunction(false))
+    return
+  }
+  const state = getState()
+  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
+
+  const functions = draftQueries[activeQueryIndex].builderConfig.functions
+
+  const newFunctions = functions.filter(f =>
+    ['mean', 'median', 'first'].includes(f.name)
+  )
+
+  if (newFunctions.length === 0) {
+    dispatch(setFunctions([AUTO_FUNCTIONS[0]]))
+  } else if (newFunctions.length > 1) {
+    dispatch(setFunctions([newFunctions[0]]))
+  } else {
+    dispatch(setFunctions(newFunctions))
+  }
+
+  dispatch(setIsAutoFunction(true))
+}
 
 export const selectAggregateWindow = (period: string) => (
   dispatch: Dispatch<Action | AlertBuilderAction>
@@ -439,7 +468,12 @@ export const selectBuilderFunction = (name: string) => (
   const {
     timeMachines: {activeTimeMachineID},
   } = state
-  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
+
+  const {
+    draftQueries,
+    activeQueryIndex,
+    queryBuilder: {isAutoFunction},
+  } = getActiveTimeMachine(state)
 
   const functions = draftQueries[activeQueryIndex].builderConfig.functions
 
@@ -451,8 +485,7 @@ export const selectBuilderFunction = (name: string) => (
       return
     }
     newFunctions = functions.filter(f => f.name !== name)
-  } else if (activeTimeMachineID === 'alerting') {
-    // or if auto
+  } else if (activeTimeMachineID === 'alerting' || isAutoFunction) {
     newFunctions = [{name}]
   } else {
     newFunctions = [...functions, {name}]

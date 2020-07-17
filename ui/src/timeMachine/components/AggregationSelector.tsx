@@ -11,7 +11,7 @@ import {
   selectAggregateWindow,
   setAggregateFillValues,
   setIsAutoWindowPeriod,
-  setIsAutoFunction,
+  setFunctionSelectionMode,
 } from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
@@ -22,9 +22,11 @@ import {
   getActiveTimeMachine,
 } from 'src/timeMachine/selectors'
 
+// Constants
+import {FUNCTIONS, AUTO_FUNCTIONS} from '../constants/queryBuilder'
+
 // Types
 import {AppState} from 'src/types'
-import {FUNCTIONS} from '../constants/queryBuilder'
 
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
@@ -37,12 +39,12 @@ const AggregationSelector: FunctionComponent<Props> = ({
   aggregateWindow: {period, fillValues},
   onSelectFunction,
   onSetAggregateFillValues,
-  onSetIsAutoFunction,
+  onSetFunctionSelectionMode,
   onSetIsAutoWindowPeriod,
   onSelectAggregateWindow,
 }) => {
   const functionList = isAutoFunction
-    ? ['mean', 'median', 'first']
+    ? AUTO_FUNCTIONS.map(f => f.name)
     : FUNCTIONS.map(f => f.name)
 
   const onChangeFillValues = () => {
@@ -53,7 +55,7 @@ const AggregationSelector: FunctionComponent<Props> = ({
     <AggregationContents
       isAutoWindowPeriod={isAutoWindowPeriod}
       onSetIsAutoWindowPeriod={onSetIsAutoWindowPeriod}
-      onSetIsAutoFunction={onSetIsAutoFunction}
+      onSetFunctionSelectionMode={onSetFunctionSelectionMode}
       windowPeriod={period} //BE done
       isFillValues={fillValues} //BE
       isAutoFunction={isAutoFunction}
@@ -88,7 +90,7 @@ const mdtp = {
   onSelectAggregateWindow: selectAggregateWindow,
   onSetAggregateFillValues: setAggregateFillValues,
   onSetIsAutoWindowPeriod: setIsAutoWindowPeriod,
-  onSetIsAutoFunction: setIsAutoFunction,
+  onSetFunctionSelectionMode: setFunctionSelectionMode,
 }
 
 const connector = connect(mstp, mdtp)

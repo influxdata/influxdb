@@ -55,7 +55,7 @@ export const genFlux = (
   }
 }
 
-export const FUNCTIONS: QueryFn[] = [
+export const AUTO_FUNCTIONS: QueryFn[] = [
   {
     name: 'mean',
     flux: (period, fillValues) => genFlux('mean', period, fillValues),
@@ -64,6 +64,15 @@ export const FUNCTIONS: QueryFn[] = [
     name: 'median',
     flux: (period, fillValues) => genFlux('median', period, fillValues),
   },
+  {
+    name: 'first',
+    flux: (period, fillValues) => genFlux('first', period, fillValues),
+  },
+]
+
+export const FUNCTIONS: QueryFn[] = [
+  AUTO_FUNCTIONS[0],
+  AUTO_FUNCTIONS[1],
   {
     name: 'max',
     flux: (period, fillValues) => genFlux('max', period, fillValues),
@@ -109,10 +118,7 @@ export const FUNCTIONS: QueryFn[] = [
     name: 'stddev',
     flux: (period, fillValues) => genFlux('stddev', period, fillValues),
   },
-  {
-    name: 'first',
-    flux: (period, fillValues) => genFlux('first', period, fillValues),
-  },
+  AUTO_FUNCTIONS[2],
   {
     name: 'last',
     flux: (period, fillValues) => genFlux('last', period, fillValues),

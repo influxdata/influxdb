@@ -42,7 +42,7 @@ interface Props {
   isInCheckOverlay: boolean
   onSelectFunction: (name: string) => void
   onChangeFillValues: () => void
-  onSetIsAutoFunction: (b: boolean) => void
+  onSetFunctionSelectionMode: (m: 'custom' | 'auto') => void
   onSetIsAutoWindowPeriod: (b: boolean) => void
   onSelectAggregateWindow: (period: string) => void
 }
@@ -57,7 +57,7 @@ const AggregationContents: FunctionComponent<Props> = ({
   isInCheckOverlay,
   onSelectFunction,
   onChangeFillValues,
-  onSetIsAutoFunction,
+  onSetFunctionSelectionMode,
   onSetIsAutoWindowPeriod,
   onSelectAggregateWindow,
 }) => {
@@ -155,25 +155,21 @@ const AggregationContents: FunctionComponent<Props> = ({
           <SelectGroup shape={ButtonShape.StretchToFit}>
             <SelectGroup.Option
               name="custom"
-              id="custom window period"
+              id="custom-function"
               active={!isAutoFunction}
-              value="Custom"
-              onClick={() => {
-                onSetIsAutoFunction(false)
-              }}
+              value="custom"
+              onClick={onSetFunctionSelectionMode}
               titleText="Custom"
             >
               Custom
             </SelectGroup.Option>
             <SelectGroup.Option
-              name="template-type"
-              id="user-templates"
+              name="auto"
+              id="auto-function"
               active={isAutoFunction}
-              value="user-templates"
-              onClick={() => {
-                onSetIsAutoFunction(true)
-              }}
-              titleText="User Templates"
+              value="auto"
+              onClick={onSetFunctionSelectionMode}
+              titleText="Auto"
             >
               Auto
             </SelectGroup.Option>
