@@ -25,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -223,6 +224,8 @@ type FileStore struct {
 	parseFileName ParseFileNameFunc
 
 	obs FileStoreObserver
+
+	pageFaultLimiter *rate.Limiter
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -290,6 +293,11 @@ func (f *FileStore) ParseFileName(path string) (int, int, error) {
 // SetCurrentGenerationFunc must be set before using FileStore.
 func (f *FileStore) SetCurrentGenerationFunc(fn func() int) {
 	f.currentGenerationFunc = fn
+}
+
+// WithPageFaultLimiter sets the rate limiter used for limiting page faults.
+func (f *FileStore) WithPageFaultLimiter(limiter *rate.Limiter) {
+	f.pageFaultLimiter = limiter
 }
 
 // WithLogger sets the logger on the file store.
@@ -670,6 +678,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 			start := time.Now()
 			df, err := NewTSMReader(file,
 				WithMadviseWillNeed(f.tsmMMAPWillNeed),
+				WithTSMReaderPageFaultLimiter(f.pageFaultLimiter),
 				WithTSMReaderLogger(f.logger))
 			f.logger.Info("Opened file",
 				zap.String("path", file.Name()),
@@ -911,6 +920,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 		tsm, err := NewTSMReader(fd,
 			WithMadviseWillNeed(f.tsmMMAPWillNeed),
+			WithTSMReaderPageFaultLimiter(f.pageFaultLimiter),
 			WithTSMReaderLogger(f.logger))
 		if err != nil {
 			return err
