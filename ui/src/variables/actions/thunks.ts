@@ -138,7 +138,6 @@ const getActiveView = (state: AppState) => {
   return []
 }
 
-// TODO: make this context aware
 export const hydrateVariables = (skipCache?: boolean) => async (
   dispatch: Dispatch<Action>,
   getState: GetState

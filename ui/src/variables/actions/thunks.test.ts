@@ -125,7 +125,6 @@ describe('hydrateVariables', () => {
     })
 
     hydrateVariables()(dispatch, getState).then(() => {
-      // bucket variable
       expect(dispatch).toHaveBeenCalledWith(bucketVariableAction)
       expect(dispatch).toHaveBeenCalledWith(deploymentVariableAction)
       expect(dispatch).not.toHaveBeenCalledWith(baseQueryVariableAction)
