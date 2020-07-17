@@ -317,12 +317,6 @@ export const timeMachineReducer = (
       return {...state, isViewingVisOptions: !state.isViewingVisOptions}
     }
 
-    case 'SET_AXES': {
-      const {axes} = action.payload
-
-      return setViewProperties(state, {axes})
-    }
-
     case 'SET_GEOM': {
       const {geom} = action.payload
 
@@ -365,12 +359,6 @@ export const timeMachineReducer = (
       const {base} = action.payload
 
       return setYAxis(state, {base})
-    }
-
-    case 'SET_Y_AXIS_SCALE': {
-      const {scale} = action.payload
-
-      return setYAxis(state, {scale})
     }
 
     case 'SET_X_COLUMN': {
@@ -597,12 +585,6 @@ export const timeMachineReducer = (
       })
 
       return setViewProperties(state, {colors})
-    }
-
-    case 'SET_STATIC_LEGEND': {
-      const {staticLegend} = action.payload
-
-      return setViewProperties(state, {staticLegend})
     }
 
     case 'EDIT_ACTIVE_QUERY_WITH_BUILDER': {
