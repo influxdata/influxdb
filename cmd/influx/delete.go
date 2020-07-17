@@ -53,6 +53,7 @@ func (b *cmdDeleteBuilder) cmd() *cobra.Command {
 		{
 			DestP:      &b.flags.Bucket,
 			Flag:       "bucket",
+			Short:      'b',
 			Desc:       "The name of destination bucket",
 			EnvVar:     "BUCKET_NAME",
 			Persistent: true,
