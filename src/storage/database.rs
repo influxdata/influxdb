@@ -330,7 +330,7 @@ impl Database {
                 }
             }
 
-            debug!("Restored {} orgs from WAL", restored);
+            info!("Restored {} orgs from WAL", restored);
         }
 
         Ok(())
