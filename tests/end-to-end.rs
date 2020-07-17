@@ -91,7 +91,7 @@ async fn write_data(
     client: &influxdb2_client::Client,
     org_id: &str,
     bucket_id: &str,
-    body: &str,
+    body: impl Into<String>,
 ) -> Result<()> {
     client.write(org_id, bucket_id, body).await?;
     Ok(())
@@ -150,7 +150,7 @@ async fn read_and_write_data() -> Result<()> {
         &client2,
         org_id_str,
         bucket_id_str,
-        &format!(
+        format!(
             "\
 cpu_load_short,host=server01,region=us-west value=0.64 {}
 cpu_load_short,host=server01 value=27.99 {}
