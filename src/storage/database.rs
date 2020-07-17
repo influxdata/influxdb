@@ -1,7 +1,7 @@
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::generated_types::{Bucket, Predicate, TimestampRange};
-use crate::id::Id;
+use crate::id::{self, Id};
 use crate::line_parser::PointType;
 use crate::storage::{
     memdb::MemDB,
@@ -36,6 +36,19 @@ pub enum Error {
 
     #[snafu(display("Database partition error: {}'", source))]
     UnderlyingPartitionError { source: PartitionError },
+
+    #[snafu(display("Organization WAL directory should not end in '..': '{:?}'", org_dir))]
+    OrganizationWalDirCantReferenceParent { org_dir: PathBuf },
+
+    #[snafu(display("Organization WAL dir should have been UTF-8: '{:?}'", org_dir))]
+    OrganizationWalDirMustBeUTF8 { org_dir: PathBuf },
+
+    #[snafu(display(
+        "Should have been able to parse Organization WAL dir into Organization Id: '{:?}', {}",
+        org_dir,
+        source
+    ))]
+    OrganizationWalDirWasntAnOrgId { org_dir: PathBuf, source: id::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -91,11 +104,11 @@ impl Organization {
     async fn restore_from_wal(org_dir: &PathBuf) -> Result<Self> {
         let org_id: Id = org_dir
             .file_name()
-            .expect("Path should not end in ..")
+            .context(OrganizationWalDirCantReferenceParent { org_dir })?
             .to_str()
-            .expect("Organization WAL dir should have been UTF-8")
+            .context(OrganizationWalDirMustBeUTF8 { org_dir })?
             .parse()
-            .expect("Should have been able to parse Organization WAL dir into Organization Id");
+            .context(OrganizationWalDirWasntAnOrgId { org_dir })?;
         let mut org = Self::new(org_id);
 
         let dirs = fs::read_dir(org_dir).context(ReadingPath { path: org_dir })?;
@@ -304,12 +317,20 @@ impl Database {
             let mut orgs = self.organizations.write().await;
 
             let dirs = fs::read_dir(wal_dir).context(ReadingPath { path: wal_dir })?;
+            let mut restored = 0usize;
 
             for org_dir in dirs {
                 let org_dir = org_dir.context(ReadingPath { path: wal_dir })?;
-                let org = Organization::restore_from_wal(&org_dir.path()).await?;
-                orgs.insert(org.id, RwLock::new(org));
+                match Organization::restore_from_wal(&org_dir.path()).await {
+                    Ok(org) => {
+                        restored += 1;
+                        orgs.insert(org.id, RwLock::new(org));
+                    }
+                    Err(e) => error!("Could not restore from {:?}: {}", org_dir, e),
+                }
             }
+
+            info!("Restored {} orgs from WAL", restored);
         }
 
         Ok(())

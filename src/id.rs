@@ -1,14 +1,26 @@
 // ID handling code ported from https://github.com/influxdata/influxdb/blob/047e195/id.go for
 // interoperability purposes.
 
-use serde::{de::Error, Deserialize, Deserializer};
-
+use serde::{de::Error as _, Deserialize, Deserializer};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     convert::{TryFrom, TryInto},
     fmt,
-    num::NonZeroU64,
+    num::{NonZeroU64, ParseIntError},
     str::FromStr,
 };
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("ID cannot be zero"))]
+    IdCannotBeZero,
+
+    #[snafu(display("ID must have a length of {} bytes, was {} bytes: '{}'", ID_LENGTH, hex.len(), hex))]
+    IdLengthIncorrect { hex: String },
+
+    #[snafu(display("Invalid ID: {}", source))]
+    InvalidId { source: ParseIntError },
+}
 
 /// ID_LENGTH is the exact length a string (or a byte slice representing it) must have in order to
 /// be decoded into a valid ID.
@@ -21,10 +33,10 @@ const ID_LENGTH: usize = 16;
 pub struct Id(NonZeroU64);
 
 impl TryFrom<u64> for Id {
-    type Error = &'static str;
+    type Error = Error;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        Ok(Self(NonZeroU64::new(value).ok_or("ID cannot be zero")?))
+        Ok(Self(NonZeroU64::new(value).context(IdCannotBeZero)?))
     }
 }
 
@@ -45,21 +57,19 @@ impl<'de> Deserialize<'de> for Id {
 }
 
 impl TryFrom<&str> for Id {
-    type Error = &'static str;
+    type Error = Error;
 
     fn try_from(hex: &str) -> Result<Self, Self::Error> {
-        if hex.len() != ID_LENGTH {
-            return Err("ID must have a length of 16 bytes");
-        }
+        ensure!(hex.len() == ID_LENGTH, IdLengthIncorrect { hex });
 
         u64::from_str_radix(hex, 16)
-            .map_err(|_| "invalid ID")
+            .context(InvalidId)
             .and_then(|value| value.try_into())
     }
 }
 
 impl FromStr for Id {
-    type Err = &'static str;
+    type Err = Error;
 
     fn from_str(hex: &str) -> Result<Self, Self::Err> {
         Self::try_from(hex)
@@ -92,31 +102,47 @@ mod tests {
 
     #[test]
     fn test_id_from_string() {
-        let cases = [
-            ("0000000000000000", Err("ID cannot be zero")),
+        let success_cases = [
             (
                 "ffffffffffffffff",
-                Ok(Id(NonZeroU64::new(18_446_744_073_709_551_615).unwrap())),
+                Id(NonZeroU64::new(18_446_744_073_709_551_615).unwrap()),
             ),
             (
                 "020f755c3c082000",
-                Ok(Id(NonZeroU64::new(148_466_351_731_122_176).unwrap())),
+                Id(NonZeroU64::new(148_466_351_731_122_176).unwrap()),
             ),
-            ("gggggggggggggggg", Err("invalid ID")),
             (
                 "0000111100001111",
-                Ok(Id(NonZeroU64::new(18_764_712_120_593).unwrap())),
-            ),
-            ("abc", Err("ID must have a length of 16 bytes")),
-            (
-                "abcdabcdabcdabcd0",
-                Err("ID must have a length of 16 bytes"),
+                Id(NonZeroU64::new(18_764_712_120_593).unwrap()),
             ),
         ];
 
-        for &(input, expected_output) in &cases {
-            let actual_output = input.try_into();
-            assert_eq!(expected_output, actual_output);
+        for &(input, expected_output) in &success_cases {
+            let actual_output = input.try_into().unwrap();
+            assert_eq!(expected_output, actual_output, "input was `{}`", input);
+        }
+
+        let failure_cases = [
+            ("0000000000000000", "ID cannot be zero"),
+            (
+                "gggggggggggggggg",
+                "Invalid ID: invalid digit found in string",
+            ),
+            (
+                "abc",
+                "ID must have a length of 16 bytes, was 3 bytes: 'abc'",
+            ),
+            (
+                "abcdabcdabcdabcd0",
+                "ID must have a length of 16 bytes, was 17 bytes: 'abcdabcdabcdabcd0'",
+            ),
+        ];
+
+        for &(input, expected_output) in &failure_cases {
+            let actual_output: Result<Id, Error> = input.try_into();
+            let actual_output: Error = actual_output.unwrap_err();
+            let actual_output = actual_output.to_string();
+            assert_eq!(expected_output, actual_output, "input was `{}`", input);
         }
     }
 
