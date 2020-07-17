@@ -223,7 +223,7 @@ pub struct FileSetStats {
     pub total_rows: u64,
     /// maximum columns in any file
     pub max_columns: u64,
-    // Column by column statistics (TODO)
+    // Column by column statistics
     pub col_stats: Vec<ColumnStats>,
 }
 
@@ -311,7 +311,7 @@ mod test {
     }
 
     #[test]
-    fn stats_builder_create() {
+    fn col_stats_builder_create() {
         let stats = ColumnStatsBuilder::new("My Column", 7, DataType::Integer).build();
 
         assert_eq!(
@@ -326,7 +326,7 @@ mod test {
     }
 
     #[test]
-    fn stats_builder_compression() {
+    fn col_stats_builder_compression() {
         let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)
             .compression("GZIP")
             .compression("DEFLATE")
@@ -345,7 +345,7 @@ mod test {
     }
 
     #[test]
-    fn stats_builder_add_rows() {
+    fn col_stats_builder_add_rows() {
         let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)
             .add_rows(7)
             .add_rows(3)
@@ -363,7 +363,7 @@ mod test {
     }
 
     #[test]
-    fn stats_builder_add_compressed_bytes() {
+    fn col_stats_builder_add_compressed_bytes() {
         let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)
             .add_compressed_bytes(7)
             .add_compressed_bytes(3)
@@ -381,7 +381,7 @@ mod test {
     }
 
     #[test]
-    fn stats_builder_add_uncompressed_bytes() {
+    fn col_stats_builder_add_uncompressed_bytes() {
         let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)
             .add_uncompressed_bytes(7)
             .add_uncompressed_bytes(3)
@@ -395,6 +395,190 @@ mod test {
                 num_uncompressed_bytes: 10,
                 ..Default::default()
             }
+        );
+    }
+
+    #[test]
+    fn col_stats_display() {
+        let stats = ColumnStats {
+            column_index: 11,
+            column_name: String::from("The Column"),
+            compression_description: String::from("Maximum"),
+            num_rows: 123456789,
+            num_compressed_bytes: 1234122,
+            num_uncompressed_bytes: 5588833,
+            data_type: DataType::Float,
+        };
+        assert_eq!(
+            format!("{}", stats),
+            r#"Column Stats 'The Column' [11]
+  Total rows: 123.46 M (123456789), DataType: Float, Compression: Maximum
+  Compressed/Uncompressed Bytes : 1.23 M     / 5.59 M     ( 1234122 /  5588833) 0.0800 bits per row"#
+        );
+    }
+
+    #[test]
+    fn col_stats_merge() {
+        let mut stats1 = ColumnStats {
+            column_index: 11,
+            column_name: String::from("The Column"),
+            compression_description: String::from("Maximum"),
+            num_rows: 123456789,
+            num_compressed_bytes: 1234122,
+            num_uncompressed_bytes: 5588833,
+            data_type: DataType::Float,
+        };
+
+        let stats2 = ColumnStats {
+            column_index: 11,
+            column_name: String::from("The Column"),
+            compression_description: String::from("Maximum"),
+            num_rows: 1,
+            num_compressed_bytes: 2,
+            num_uncompressed_bytes: 3,
+            data_type: DataType::Float,
+        };
+
+        stats1.merge(&stats2);
+        assert_eq!(
+            stats1,
+            ColumnStats {
+                column_index: 11,
+                column_name: String::from("The Column"),
+                compression_description: String::from("Maximum"),
+                num_rows: 123456790,
+                num_compressed_bytes: 1234124,
+                num_uncompressed_bytes: 5588836,
+                data_type: DataType::Float,
+            }
+        );
+
+        // now, merge in stats with different compression description
+        let stats3 = ColumnStats {
+            column_name: String::from("The Column"),
+            compression_description: String::from("Minimum"),
+            ..Default::default()
+        };
+
+        stats1.merge(&stats3);
+        assert_eq!(stats1.compression_description, "MIXED");
+    }
+
+    #[test]
+    fn file_stats_builder() {
+        let file_stats = FileStatsBuilder::new("the_filename", 1337)
+            .add_column(ColumnStats {
+                column_index: 11,
+                column_name: String::from("The Column"),
+                compression_description: String::from("Maximum"),
+                num_rows: 2,
+                num_compressed_bytes: 3,
+                num_uncompressed_bytes: 4,
+                data_type: DataType::Float,
+            })
+            .add_column(ColumnStats {
+                column_index: 11,
+                column_name: String::from("The Second Column"),
+                compression_description: String::from("Minimum"),
+                num_rows: 2,
+                num_compressed_bytes: 30,
+                num_uncompressed_bytes: 40,
+                data_type: DataType::Float,
+            })
+            .build();
+
+        assert_eq!(file_stats.file_name, "the_filename");
+        assert_eq!(file_stats.input_len, 1337);
+        assert_eq!(file_stats.total_rows, 2);
+        assert_eq!(file_stats.col_stats[0].column_name, "The Column");
+        assert_eq!(file_stats.col_stats[1].column_name, "The Second Column");
+    }
+
+    #[test]
+    fn file_stats_display() {
+        let file_stats = FileStats {
+            file_name: "the_filename".into(),
+            input_len: 1337,
+            total_rows: 11,
+            col_stats: vec![ColumnStats::default()],
+        };
+        assert_eq!(format!("{}", file_stats),
+                   "the_filename: total columns (  1), rows: 11.00     (      11), size: 1.34 k    (    1337), bits per row: 972.3636");
+    }
+
+    #[test]
+    fn file_set_stats_build() {
+        let file_set_stats = FileSetStatsBuilder::default()
+            .accumulate(&FileStats {
+                file_name: "the_filename".into(),
+                input_len: 1337,
+                total_rows: 11,
+                col_stats: vec![ColumnStats {
+                    // Accumulate just enough to demonstrate that `merge` is being called
+                    num_rows: 1,
+                    ..ColumnStats::default()
+                }],
+            })
+            .accumulate(&FileStats {
+                file_name: "the_other_filename".into(),
+                input_len: 555,
+                total_rows: 22,
+                col_stats: vec![
+                    ColumnStats {
+                        num_rows: 11,
+                        ..ColumnStats::default()
+                    },
+                    ColumnStats {
+                        column_name: "Another".into(),
+                        num_rows: 13,
+                        ..ColumnStats::default()
+                    },
+                ],
+            })
+            .build();
+
+        assert_eq!(
+            file_set_stats,
+            FileSetStats {
+                total_len: 1892,
+                total_rows: 33,
+                max_columns: 2,
+                col_stats: vec![
+                    ColumnStats {
+                        column_index: 0,
+                        column_name: "".into(),
+                        compression_description: "{}".into(),
+                        num_rows: 12,
+                        num_compressed_bytes: 0,
+                        num_uncompressed_bytes: 0,
+                        data_type: DataType::Float,
+                    },
+                    ColumnStats {
+                        column_index: 0,
+                        column_name: "Another".into(),
+                        compression_description: "{}".into(),
+                        num_rows: 13,
+                        num_compressed_bytes: 0,
+                        num_uncompressed_bytes: 0,
+                        data_type: DataType::Float,
+                    },
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn file_set_stats_display() {
+        let file_set_stats = FileSetStats {
+            total_len: 1892,
+            total_rows: 33,
+            max_columns: 2,
+            col_stats: vec![ColumnStats::default(), ColumnStats::default()],
+        };
+
+        assert_eq!(
+            format!("{}", file_set_stats),
+            "ALL: total columns (  2), rows: 33.00 (33), size: 1.89 k(1892), bits per row: 458.6667"
         );
     }
 }
