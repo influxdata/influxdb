@@ -1,5 +1,6 @@
 // Libraries
 import {normalize} from 'normalizr'
+import {get} from 'lodash'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -41,6 +42,7 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {Dispatch} from 'react'
 import {
+  AppState,
   GetState,
   RemoteDataState,
   VariableTemplate,
@@ -56,6 +58,8 @@ import {
   EditorAction,
 } from 'src/variables/actions/creators'
 import {RouterAction} from 'connected-react-router'
+import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 type Action = VariableAction | EditorAction | NotifyAction
 
@@ -120,7 +124,20 @@ export const getVariables = () => async (
   }
 }
 
-// TODO: make this context aware
+const getActiveView = (state: AppState) => {
+  if (state.currentPage === 'dashboard') {
+    const dashboardID = state.currentDashboard.id
+    return Object.values(state.resources.views.byID).filter(
+      variable => variable.dashboardID === dashboardID
+    )
+  }
+  if (get(state, ['timeMachines', 'activeTimeMachineID']) === 'de') {
+    const de = getActiveTimeMachine(state)
+    return [de.view]
+  }
+  return []
+}
+
 export const hydrateVariables = (skipCache?: boolean) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -128,8 +145,10 @@ export const hydrateVariables = (skipCache?: boolean) => async (
   const state = getState()
   const org = getOrg(state)
   const vars = getVariablesFromState(state)
+  const views = getActiveView(state)
+  const usedVars = views.length ? filterUnusedVars(vars, views) : vars
 
-  const hydration = hydrateVars(vars, getAllVariablesFromState(state), {
+  const hydration = hydrateVars(usedVars, getAllVariablesFromState(state), {
     orgID: org.id,
     url: state.links.query.self,
     skipCache,
