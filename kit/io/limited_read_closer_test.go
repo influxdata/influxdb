@@ -27,7 +27,7 @@ func TestLimitedReadCloser_Happy(t *testing.T) {
 	out, err := ioutil.ReadAll(rc)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("ho"), out)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 type closer struct {

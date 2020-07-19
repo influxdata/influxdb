@@ -270,14 +270,14 @@ func Test_CreateDecoder(t *testing.T) {
 		return string(s)
 	}
 	require.NotNil(t, decoder)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, "\u2318", toUtf8([]byte{226, 140, 152}))
 	decoder, err = CreateDecoder("windows-1250")
 	require.NotNil(t, decoder)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, "\u0160", toUtf8([]byte{0x8A}))
 	decoder, err = CreateDecoder("whateveritis")
-	require.NotNil(t, err)
+	require.Error(t, err)
 	require.Nil(t, decoder)
 	// we can have valid IANA names that are not supported by golang/x/text
 	decoder, err = CreateDecoder("US-ASCII")
@@ -324,7 +324,7 @@ func Test_CreateBoolParseFn(t *testing.T) {
 				case "false":
 					require.Equal(t, false, result)
 				default:
-					require.NotNil(t, err)
+					require.Error(t, err)
 					require.True(t, strings.Contains(fmt.Sprintf("%v", err), pair.expect))
 				}
 			})

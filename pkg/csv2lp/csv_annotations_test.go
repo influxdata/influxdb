@@ -160,10 +160,10 @@ func Test_TimeZoneAnnotation(t *testing.T) {
 			table := &CsvTable{}
 			err := subject.setupTable(table, strings.Split(test.value, ","))
 			if test.err == "" {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.NotNil(t, table.timeZone != nil)
 			} else {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.True(t, strings.Contains(fmt.Sprintf("%v", err), test.err))
 			}
 		})
@@ -207,7 +207,7 @@ func Test_ParseTimeZone(t *testing.T) {
 			require.NotNil(t, tz)
 			testDate := fmt.Sprintf("%d-%02d-%02d", now.Year(), now.Month(), now.Day())
 			result, err := time.ParseInLocation("2006-01-02", testDate, tz)
-			require.Nil(t, err)
+			require.NoError(t, err)
 			_, offset := result.Zone()
 			require.Equal(t, test.offset, offset)
 		})

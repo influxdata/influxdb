@@ -241,7 +241,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			reader, closer, err := test.flags.createLineReader(context.Background(), command, test.arguments)
 			require.NotNil(t, closer)
 			defer closer.Close()
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.NotNil(t, reader)
 			if !test.lpData {
 				csvToLineReader, ok := reader.(*csv2lp.CsvToLineReader)
@@ -320,7 +320,7 @@ func Test_writeFlags_createLineReader_errors(t *testing.T) {
 			_, closer, err := test.flags.createLineReader(context.Background(), command, []string{})
 			require.NotNil(t, closer)
 			defer closer.Close()
-			require.NotNil(t, err)
+			require.Error(t, err)
 			require.Contains(t, fmt.Sprintf("%s", err), test.message)
 		})
 	}
@@ -334,7 +334,7 @@ func Test_fluxWriteDryrunF(t *testing.T) {
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
 		command.SetArgs([]string{"dryrun", "--format", "csv"})
 		err := command.Execute()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(out.String(), "\n"))
 	})
 
@@ -344,7 +344,7 @@ func Test_fluxWriteDryrunF(t *testing.T) {
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
 		command.SetArgs([]string{"dryrun", "--format", "csvx"})
 		err := command.Execute()
-		require.NotNil(t, err)
+		require.Error(t, err)
 		require.Contains(t, fmt.Sprintf("%s", err), "unsupported") // unsupported format
 	})
 
@@ -354,7 +354,7 @@ func Test_fluxWriteDryrunF(t *testing.T) {
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
 		command.SetArgs([]string{"dryrun", "--format", "csv"})
 		err := command.Execute()
-		require.NotNil(t, err)
+		require.Error(t, err)
 		require.Contains(t, fmt.Sprintf("%s", err), "measurement") // no measurement column
 	})
 }
@@ -535,7 +535,7 @@ func Test_fluxWriteF(t *testing.T) {
 			w:  ioutil.Discard})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
 		err := command.Execute()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(string(lineData), "\n"))
 	})
 }

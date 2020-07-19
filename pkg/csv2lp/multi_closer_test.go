@@ -55,7 +55,7 @@ func TestMultiCloser(t *testing.T) {
 			messages := strings.Count(buf.String(), prefix)
 			require.Equal(t, test.errors, messages)
 			if test.errors > 0 {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			}
 		})
 	}
