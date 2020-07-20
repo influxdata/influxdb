@@ -26,7 +26,7 @@
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
 use reqwest::Body;
-use snafu::{ResultExt, Snafu};
+use snafu::{ensure, ResultExt, Snafu};
 use std::{cmp, collections::BTreeMap, convert::Infallible, fmt, marker::PhantomData};
 
 /// Errors that occur while making requests to the Influx server.
@@ -37,7 +37,7 @@ pub enum RequestError {
     #[snafu(display("Error while processing the HTTP request: {}", source))]
     ReqwestProcessing {
         /// The underlying error object from `reqwest`.
-        source: reqwest::Error
+        source: reqwest::Error,
     },
     /// The underlying `reqwest` library returned an HTTP error with code 400 (meaning a client
     /// error) or 500 (meaning a server error).
@@ -47,6 +47,20 @@ pub enum RequestError {
         status: reqwest::StatusCode,
         /// Any text data returned from the request
         text: String,
+    },
+}
+
+/// Errors that occur while building `DataPoint`s
+#[derive(Debug, Snafu)]
+pub enum DataPointError {
+    /// Returned when calling `build` on a `DataPointBuilder` that has no fields.
+    #[snafu(display(
+        "All `DataPoints` must have at least one field. Builder contains: {:?}",
+        data_point_builder
+    ))]
+    AtLeastOneFieldRequired {
+        /// The current state of the `DataPointBuilder`
+        data_point_builder: DataPointBuilder,
     },
 }
 
@@ -165,19 +179,27 @@ impl DataPointBuilder {
     }
 
     /// Constructs the data point
-    pub fn build(self) -> DataPoint {
+    pub fn build(self) -> Result<DataPoint, DataPointError> {
+        ensure!(
+            !self.fields.is_empty(),
+            AtLeastOneFieldRequired {
+                data_point_builder: self
+            }
+        );
+
         let Self {
             measurement,
             tags,
             fields,
             timestamp,
         } = self;
-        DataPoint {
+
+        Ok(DataPoint {
             measurement,
             tags,
             fields,
             timestamp,
-        }
+        })
     }
 }
 
@@ -384,25 +406,62 @@ impl fmt::Display for FieldValue {
 mod tests {
     use super::*;
 
+    type Error = Box<dyn std::error::Error>;
+    type Result<T = (), E = Error> = std::result::Result<T, E>;
+
     #[test]
     fn it_works() {
         let _client = Client::new("http://localhost:8888");
     }
 
     #[test]
-    fn point_builder_allows_setting_tags_and_fields() {
+    fn point_builder_allows_setting_tags_and_fields() -> Result {
         let point = DataPoint::builder("swap")
             .tag("host", "server01")
             .tag("name", "disk0")
             .field("in", 3_i64)
             .field("out", 4_i64)
             .timestamp(1)
-            .build();
+            .build()?;
 
         assert_eq!(
             point.line_protocol().to_string(),
             "swap,host=server01,name=disk0 in=3i,out=4i 1",
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn no_tags_or_timestamp() -> Result {
+        let point = DataPoint::builder("m0")
+            .field("f0", 1.0)
+            .field("f1", 2_i64)
+            .build()?;
+
+        assert_eq!(point.line_protocol().to_string(), "m0 f0=1,f1=2i");
+
+        Ok(())
+    }
+
+    #[test]
+    fn no_timestamp() -> Result {
+        let point = DataPoint::builder("m0")
+            .tag("t0", "v0")
+            .tag("t1", "v1")
+            .field("f1", 2_i64)
+            .build()?;
+
+        assert_eq!(point.line_protocol().to_string(), "m0,t0=v0,t1=v1 f1=2i");
+
+        Ok(())
+    }
+
+    #[test]
+    fn no_field() {
+        let point_result = DataPoint::builder("m0").build();
+
+        assert!(point_result.is_err());
     }
 
     const ALL_THE_DELIMITERS: &str = r#"alpha,beta=delta gamma"epsilon"#;
