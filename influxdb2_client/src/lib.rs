@@ -123,7 +123,7 @@ pub struct DataPointBuilder {
     // Keeping the tags sorted improves performance on the server side
     tags: BTreeMap<EscapedTagKey, EscapedTagKey>,
     fields: BTreeMap<EscapedFieldKey, FieldValue>,
-    timestamp: Option<u64>,
+    timestamp: Option<i64>,
 }
 
 impl DataPointBuilder {
@@ -156,7 +156,7 @@ impl DataPointBuilder {
     ///
     /// The value is treated as the number of nanoseconds since the
     /// UNIX epoch.
-    pub fn timestamp(mut self, value: u64) -> Self {
+    pub fn timestamp(mut self, value: i64) -> Self {
         self.timestamp = Some(value);
         self
     }
@@ -184,7 +184,7 @@ pub struct DataPoint {
     measurement: EscapedMeasurement,
     tags: BTreeMap<EscapedTagKey, EscapedTagValue>,
     fields: BTreeMap<EscapedFieldKey, FieldValue>,
-    timestamp: Option<u64>,
+    timestamp: Option<i64>,
 }
 
 impl DataPoint {
