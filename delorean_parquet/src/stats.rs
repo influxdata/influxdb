@@ -17,10 +17,11 @@ use std::{
 
 use crate::{error::Result, metadata::data_type_from_parquet_type, Length, TryClone};
 
-/// Calculate storage statistics for a particular parquet file that can
+/// Calculate storage statistics for a particular parquet "file" that can
 /// be read from `input`, with a total size of `input_size` byes
 ///
-/// Returns a Vec of ColumnStats, one for each column in the input
+/// Returns a `FileStats` object representing statistics for all
+/// columns across all column chunks.
 pub fn file_stats<R: 'static>(input: R) -> Result<FileStats>
 where
     R: Read + Seek + TryClone + Length + Name,
