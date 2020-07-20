@@ -215,7 +215,7 @@ impl FileStatsBuilder {
     }
 }
 /// Represents statistics for a set of files
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct FileSetStats {
     /// total size of input file, in bytes
     pub total_len: u64,
@@ -241,27 +241,13 @@ impl fmt::Display for FileSetStats {
         )
     }
 }
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct FileSetStatsBuilder {
     inner: FileSetStats,
 
     // key: column name
     // value: index into inner.col_stats
     col_stats_map: BTreeMap<String, usize>,
-}
-
-impl Default for FileSetStatsBuilder {
-    fn default() -> Self {
-        Self {
-            inner: FileSetStats {
-                total_len: 0,
-                total_rows: 0,
-                max_columns: 0,
-                col_stats: Vec::new(),
-            },
-            col_stats_map: BTreeMap::new(),
-        }
-    }
 }
 
 impl FileSetStatsBuilder {
