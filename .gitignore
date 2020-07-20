@@ -58,7 +58,8 @@ chronograf/server/swagger_gen.go
 http/swagger_gen.go
 
 # Ignore TSM testdata binary files
-tsdb/tsi/testdata
+tsdb/tsi1/testdata
+tsdb/testdata
 
 # The rest of the file is the .gitignore from the original influxdb repository,
 # copied here to prevent mistakenly checking in any binary files
