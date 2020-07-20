@@ -40,7 +40,10 @@ pub struct StatsConfig {
 /// Print statistics about all the files rooted at input_path
 pub async fn stats(config: &StatsConfig) -> Result<()> {
     info!("stats starting for {:?}", config);
-    let input_path = InputPath::new(&config.input_path, |_| true).context(OpenInput)?;
+    let input_path = InputPath::new(&config.input_path, |p| {
+        p.extension() == Some(std::ffi::OsStr::new("parquet"))
+    })
+    .context(OpenInput)?;
 
     println!("Storage statistics:");
 

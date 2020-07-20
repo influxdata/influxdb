@@ -310,8 +310,10 @@ impl InputPath {
                         file_type,
                     });
                 }
-            } else if file_type.is_file() && pred(&path) {
-                files.push(path)
+            } else if file_type.is_file() {
+                if pred(&path) {
+                    files.push(path)
+                }
             } else {
                 unimplemented!(
                     "Unknown file type {:?} while recursing {:?}",
