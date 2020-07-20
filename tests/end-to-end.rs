@@ -29,7 +29,6 @@ use delorean_generated_types::{
 };
 use delorean_test_helpers::*;
 use futures::prelude::*;
-use http::StatusCode;
 use prost::Message;
 use std::convert::TryInto;
 use std::fs;
@@ -89,20 +88,12 @@ async fn read_data(
 }
 
 async fn write_data(
-    client: &reqwest::Client,
-    path: &str,
+    client: &influxdb2_client::Client,
     org_id: &str,
     bucket_id: &str,
-    body: String,
+    body: impl Into<String>,
 ) -> Result<()> {
-    let url = format!("{}{}", API_BASE, path);
-    client
-        .post(&url)
-        .query(&[("bucket", bucket_id), ("org", org_id)])
-        .body(body)
-        .send()
-        .await?
-        .error_for_status()?;
+    client.write(org_id, bucket_id, body).await?;
     Ok(())
 }
 
@@ -117,6 +108,7 @@ async fn read_and_write_data() -> Result<()> {
     let bucket_id = u64::from_str_radix(bucket_id_str, 16).unwrap();
 
     let client = reqwest::Client::new();
+    let client2 = influxdb2_client::Client::new(HTTP_BASE);
     let mut grpc_client = DeloreanClient::connect(GRPC_URL_BASE).await?;
 
     let get_buckets_request = tonic::Request::new(Organization {
@@ -155,8 +147,7 @@ async fn read_and_write_data() -> Result<()> {
     // TODO: make a more extensible way to manage data for tests, such as in external fixture
     // files or with factories.
     write_data(
-        &client,
-        "/write",
+        &client2,
         org_id_str,
         bucket_id_str,
         format!(
@@ -583,29 +574,22 @@ swap,server01,disk0,out,{},4
     assert_eq!(field.r#type, DataType::Float as i32);
     assert_eq!(field.timestamp, ns_since_epoch + 4);
 
-    test_http_error_messages().await?;
+    test_http_error_messages(&client2).await?;
 
     Ok(())
 }
 
 // Don't make a separate #test function so that we can reuse the same
 // server process
-async fn test_http_error_messages() -> Result<()> {
-    let client = reqwest::Client::new();
-    let url = format!("{}/write", API_BASE);
-
+async fn test_http_error_messages(client: &influxdb2_client::Client) -> Result<()> {
     // send malformed request (bucket id is invalid)
-    let response = client
-        .post(&url)
-        .query(&[("bucket", "Foo"), ("org", "Bar")])
-        .send()
-        .await?;
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let result = client
+        .write("Bar", "Foo", "arbitrary")
+        .await
+        .expect_err("Should have errored");
 
-    let response_body = response.text().await?;
-
-    let expected_error = r#"{"error":"Invalid query string 'bucket=Foo&org=Bar': ID must have a length of 16 bytes, was 3 bytes: 'Foo'"}"#;
-    assert_eq!(response_body, expected_error);
+    let expected_error = r#"HTTP request returned an error: 400 Bad Request, `{"error":"Invalid query string 'bucket=Foo&org=Bar': ID must have a length of 16 bytes, was 3 bytes: 'Foo'"}`"#;
+    assert_eq!(result.to_string(), expected_error);
 
     Ok(())
 }

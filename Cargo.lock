@@ -645,6 +645,7 @@ dependencies = [
  "hex",
  "http",
  "hyper",
+ "influxdb2_client",
  "integer-encoding",
  "libflate",
  "log",
@@ -1281,6 +1282,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c398b2b113b55809ceb9ee3e753fcbac793f1956663f3c36549c1346015c2afe"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "influxdb2_client"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "snafu",
 ]
 
 [[package]]
