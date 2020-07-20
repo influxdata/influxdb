@@ -20,6 +20,7 @@
 //! - optional sync client
 //! - Influx 1.x API?
 //! - Other parts of the API
+//! - Pick the best name to use on crates.io and publish
 
 use snafu::{ResultExt, Snafu};
 
