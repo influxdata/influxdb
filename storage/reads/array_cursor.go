@@ -38,6 +38,10 @@ func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate
 		return newWindowFirstArrayCursor(cursor, every)
 	case datatypes.AggregateTypeLast:
 		return newWindowLastArrayCursor(cursor, every)
+	case datatypes.AggregateTypeMin:
+		return newWindowMinArrayCursor(cursor, every)
+	case datatypes.AggregateTypeMax:
+		return newWindowMaxArrayCursor(cursor, every)
 	default:
 		// TODO(sgc): should be validated higher up
 		panic("invalid aggregate")
