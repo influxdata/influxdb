@@ -74,7 +74,7 @@ impl Client {
         &self,
         org_id: &str,
         bucket_id: &str,
-        body: impl Into<String>,
+        body: impl Into<Body>,
     ) -> Result<()> {
         let body = body.into();
         let write_url = format!("{}/api/v2/write", self.url);
@@ -104,30 +104,13 @@ impl Client {
         bucket_id: &str,
         body: impl Stream<Item = DataPoint> + Send + Sync + 'static,
     ) -> Result<()> {
-        let write_url = format!("{}/api/v2/write", self.url);
-
         let body = body
             .map(|dp| dp.line_protocol().to_string())
             .map(Bytes::from)
             .map(Ok::<_, Infallible>);
         let body = Body::wrap_stream(body);
 
-        let response = self
-            .reqwest
-            .post(&write_url)
-            .query(&[("bucket", bucket_id), ("org", org_id)])
-            .body(body)
-            .send()
-            .await
-            .context(ReqwestProcessing)?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.context(ReqwestProcessing)?;
-            Http { status, text }.fail()?;
-        }
-
-        Ok(())
+        Ok(self.write_line_protocol(org_id, bucket_id, body).await?)
     }
 }
 

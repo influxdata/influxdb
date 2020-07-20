@@ -93,7 +93,9 @@ async fn write_data(
     bucket_id: &str,
     body: impl Into<String>,
 ) -> Result<()> {
-    client.write_line_protocol(org_id, bucket_id, body).await?;
+    client
+        .write_line_protocol(org_id, bucket_id, body.into())
+        .await?;
     Ok(())
 }
 
