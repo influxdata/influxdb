@@ -1,11 +1,10 @@
 // Libraries
 import memoizeOne from 'memoize-one'
 import moment from 'moment'
-import {get, flatMap} from 'lodash'
+import {get} from 'lodash'
 import {fromFlux, Table} from '@influxdata/giraffe'
 
 // Utils
-import {parseResponse} from 'src/shared/parsing/flux/response'
 import {
   defaultXColumn,
   defaultYColumn,
@@ -24,7 +23,6 @@ import {
 import {
   QueryView,
   DashboardQuery,
-  FluxTable,
   AppState,
   DashboardDraftQuery,
   TimeRange,
@@ -67,13 +65,6 @@ export const getActiveWindowPeriod = (state: AppState) => {
   const variables = getAllVariables(state).map(v => asAssignment(v))
   return getWindowPeriod(text, variables)
 }
-
-const getTablesMemoized = memoizeOne((files: string[]): FluxTable[] =>
-  files ? flatMap(files, parseResponse) : []
-)
-
-export const getTables = (state: AppState): FluxTable[] =>
-  getTablesMemoized(getActiveTimeMachine(state).queryResults.files)
 
 const getVisTableMemoized = memoizeOne(fromFlux)
 
