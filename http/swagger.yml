@@ -7665,7 +7665,7 @@ components:
               type: array
               items:
                 type: string
-            package:
+            contents:
               $ref: "#/components/schemas/Template"
         templates:
           type: array
@@ -7678,7 +7678,7 @@ components:
                 type: array
                 items:
                   type: string
-              package:
+              contents:
                 $ref: "#/components/schemas/Template"
         secrets:
           type: object
