@@ -634,8 +634,8 @@ describe('DataExplorer', () => {
       cy.getByTestID('right-click--edit-tab').click()
       cy.getByTestID('edit-query-name').type('NewName{enter}')
       cy.get('.query-tab')
-      .first()
-      .contains('NewName')
+        .first()
+        .contains('NewName')
 
       // Fire a click outside of the right click menu to dismiss it because
       // it is obscuring the + button

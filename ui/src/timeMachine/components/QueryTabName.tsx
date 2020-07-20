@@ -38,7 +38,7 @@ class TimeMachineQueryTabName extends PureComponent<Props, State> {
           onKeyUp={this.handleEnterKey}
           size={ComponentSize.ExtraSmall}
           autoFocus={true}
-          testID='edit-query-name'
+          testID="edit-query-name"
         />
       )
     }
