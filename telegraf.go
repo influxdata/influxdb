@@ -188,7 +188,7 @@ func (t *buckets) UnmarshalTOML(data interface{}) error {
 		}
 	}
 
-	*t = buckets(bkts)
+	*t = bkts
 
 	return nil
 }

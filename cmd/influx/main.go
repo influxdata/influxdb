@@ -90,6 +90,9 @@ type genericCLIOpts struct {
 	w    io.Writer
 	errW io.Writer
 
+	json        bool
+	hideHeaders bool
+
 	runEWrapFn cobraRunEMiddleware
 }
 
@@ -123,7 +126,13 @@ func (o genericCLIOpts) writeJSON(v interface{}) error {
 }
 
 func (o genericCLIOpts) newTabWriter() *internal.TabWriter {
-	return internal.NewTabWriter(o.w)
+	w := internal.NewTabWriter(o.w)
+	w.HideHeaders(o.hideHeaders)
+	return w
+}
+
+func (o *genericCLIOpts) registerPrintOptions(cmd *cobra.Command) {
+	registerPrintOptions(cmd, &o.hideHeaders, &o.json)
 }
 
 func in(r io.Reader) genericCLIOptFn {
@@ -289,6 +298,7 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdSetup,
 		cmdStack,
 		cmdTask,
+		cmdTelegraf,
 		cmdTemplate,
 		cmdApply,
 		cmdTranspile,
