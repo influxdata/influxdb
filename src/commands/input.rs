@@ -269,7 +269,7 @@ impl InputReader {
 impl InputPath {
     // Create a new InputPath with a snapshot of all the files in the
     // directory tree rooted at root_path that pass predicate P
-    pub fn new<P>(root_path: &str, mut pred: P) -> Result<Self>
+    pub fn new<P>(root_path: impl Into<PathBuf>, mut pred: P) -> Result<Self>
     where
         P: FnMut(&Path) -> bool,
     {
@@ -279,7 +279,7 @@ impl InputPath {
         };
 
         let mut paths = VecDeque::new();
-        let root_path = PathBuf::from(root_path);
+        let root_path = root_path.into();
         let root_meta = fs::metadata(&root_path).context(UnableToOpenInput {
             input_name: root_path.clone(),
         })?;

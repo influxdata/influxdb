@@ -94,7 +94,7 @@ Examples:
         .subcommand(
             SubCommand::with_name("stats")
                 .about("Print out storage statistics information to stdout. \
-                        If a directory isspecified, checks all files recursively")
+                        If a directory is specified, checks all files recursively")
                 .arg(
                     Arg::with_name("INPUT")
                         .help("The input filename or directory to read from")
@@ -104,12 +104,12 @@ Examples:
                 .arg(
                     Arg::with_name("per-column")
                         .long("per-column")
-                        .help("Include detaled information per column")
+                        .help("Include detailed information per column")
                 )
                 .arg(
                     Arg::with_name("per-file")
                         .long("per-file")
-                        .help("Include detaled information per file")
+                        .help("Include detailed information per file")
                 ),
         )
         .subcommand(SubCommand::with_name("server").about("Runs in server mode (default)"))
