@@ -1541,6 +1541,34 @@ func TestWindowMinArrayCursor(t *testing.T) {
 			},
 		},
 		{
+			name:   "window offset",
+			every:  time.Hour,
+			offset: 30 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						base := (i / 4) * 100
+						m := (i % 4) * 15
+						return base + m
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				{
+					Timestamps: []int64{
+						mustParseTime("2010-01-01T00:00:00Z").UnixNano(),
+						mustParseTime("2010-01-01T00:30:00Z").UnixNano(),
+						mustParseTime("2010-01-01T01:30:00Z").UnixNano(),
+						mustParseTime("2010-01-01T02:30:00Z").UnixNano(),
+						mustParseTime("2010-01-01T03:30:00Z").UnixNano(),
+					},
+					Values: []int64{0, 30, 130, 230, 330},
+				},
+			},
+		},
+		{
 			name:  "window desc values",
 			every: time.Hour,
 			inputArrays: []*cursors.IntegerArray{
@@ -1557,6 +1585,34 @@ func TestWindowMinArrayCursor(t *testing.T) {
 			want: []*cursors.IntegerArray{
 				makeIntegerArray(4, mustParseTime("2010-01-01T00:45:00Z"), time.Hour,
 					func(i int64) int64 { return i*100 + 15 }),
+			},
+		},
+		{
+			name:   "window offset desc values",
+			every:  time.Hour,
+			offset: 30 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						base := (i / 4) * 100
+						m := 60 - (i%4)*15
+						return base + m
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				{
+					Timestamps: []int64{
+						mustParseTime("2010-01-01T00:15:00Z").UnixNano(),
+						mustParseTime("2010-01-01T00:45:00Z").UnixNano(),
+						mustParseTime("2010-01-01T01:45:00Z").UnixNano(),
+						mustParseTime("2010-01-01T02:45:00Z").UnixNano(),
+						mustParseTime("2010-01-01T03:45:00Z").UnixNano(),
+					},
+					Values: []int64{45, 15, 115, 215, 315},
+				},
 			},
 		},
 		{
@@ -1693,6 +1749,34 @@ func TestWindowMaxArrayCursor(t *testing.T) {
 			},
 		},
 		{
+			name:   "window offset",
+			every:  time.Hour,
+			offset: 30 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						base := (i / 4) * 100
+						m := (i % 4) * 15
+						return base + m
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				{
+					Timestamps: []int64{
+						mustParseTime("2010-01-01T00:15:00Z").UnixNano(),
+						mustParseTime("2010-01-01T01:15:00Z").UnixNano(),
+						mustParseTime("2010-01-01T02:15:00Z").UnixNano(),
+						mustParseTime("2010-01-01T03:15:00Z").UnixNano(),
+						mustParseTime("2010-01-01T03:45:00Z").UnixNano(),
+					},
+					Values: []int64{15, 115, 215, 315, 345},
+				},
+			},
+		},
+		{
 			name:  "window desc values",
 			every: time.Hour,
 			inputArrays: []*cursors.IntegerArray{
@@ -1709,6 +1793,34 @@ func TestWindowMaxArrayCursor(t *testing.T) {
 			want: []*cursors.IntegerArray{
 				makeIntegerArray(4, mustParseTime("2010-01-01T00:00:00Z"), time.Hour,
 					func(i int64) int64 { return i*100 + 60 }),
+			},
+		},
+		{
+			name:   "window offset desc values",
+			every:  time.Hour,
+			offset: 30 * time.Minute,
+			inputArrays: []*cursors.IntegerArray{
+				makeIntegerArray(
+					16,
+					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
+					func(i int64) int64 {
+						base := (i / 4) * 100
+						m := 60 - (i%4)*15
+						return base + m
+					},
+				),
+			},
+			want: []*cursors.IntegerArray{
+				{
+					Timestamps: []int64{
+						mustParseTime("2010-01-01T00:00:00Z").UnixNano(),
+						mustParseTime("2010-01-01T01:00:00Z").UnixNano(),
+						mustParseTime("2010-01-01T02:00:00Z").UnixNano(),
+						mustParseTime("2010-01-01T03:00:00Z").UnixNano(),
+						mustParseTime("2010-01-01T03:30:00Z").UnixNano(),
+					},
+					Values: []int64{60, 160, 260, 360, 330},
+				},
 			},
 		},
 		{
