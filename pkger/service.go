@@ -120,8 +120,6 @@ func (e StackEventType) String() string {
 	}
 }
 
-const ResourceTypeStack influxdb.ResourceType = "stack"
-
 // SVC is the packages service interface.
 type SVC interface {
 	InitStack(ctx context.Context, userID influxdb.ID, stack StackCreate) (Stack, error)

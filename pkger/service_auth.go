@@ -29,7 +29,7 @@ func MWAuth(authAgent AuthAgent) SVCMiddleware {
 }
 
 func (s *authMW) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (Stack, error) {
-	err := s.authAgent.IsWritable(ctx, newStack.OrgID, ResourceTypeStack)
+	err := s.authAgent.IsWritable(ctx, newStack.OrgID, influxdb.ResourceTypeStack)
 	if err != nil {
 		return Stack{}, err
 	}
@@ -37,7 +37,7 @@ func (s *authMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Sta
 }
 
 func (s *authMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
-	err := s.authAgent.IsWritable(ctx, identifiers.OrgID, ResourceTypeStack)
+	err := s.authAgent.IsWritable(ctx, identifiers.OrgID, influxdb.ResourceTypeStack)
 	if err != nil {
 		return Stack{}, err
 	}
@@ -45,7 +45,7 @@ func (s *authMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, 
 }
 
 func (s *authMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
-	err := s.authAgent.IsWritable(ctx, identifiers.OrgID, ResourceTypeStack)
+	err := s.authAgent.IsWritable(ctx, identifiers.OrgID, influxdb.ResourceTypeStack)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func (s *authMW) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, error
 		return Stack{}, err
 	}
 
-	err = s.authAgent.IsWritable(ctx, stack.OrgID, ResourceTypeStack)
+	err = s.authAgent.IsWritable(ctx, stack.OrgID, influxdb.ResourceTypeStack)
 	if err != nil {
 		return Stack{}, err
 	}
