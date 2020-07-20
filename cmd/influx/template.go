@@ -404,7 +404,7 @@ func (b *cmdTemplateBuilder) exportRunEFn(cmd *cobra.Command, args []string) err
 		return errors.New("resource type is invalid; got: " + b.exportOpts.resourceType)
 	}
 
-	if stdin, err := b.inStdIn(); err == nil {
+	if stdin, err := inStdIn(b.in); err == nil {
 		stdinInpt, _ := b.readLines(stdin)
 		if len(stdinInpt) > 0 {
 			args = stdinInpt
@@ -1056,7 +1056,7 @@ func (b *cmdTemplateBuilder) readTemplate() (*pkger.Template, bool, error) {
 	// with new validation rules,they'll get immediate access to that change without having to
 	// rol their CLI build.
 
-	if _, err := b.inStdIn(); err != nil {
+	if _, err := inStdIn(b.in); err != nil {
 		template, err := pkger.Combine(templates, pkger.ValidSkipParseError())
 		return template, false, err
 	}
@@ -1068,22 +1068,6 @@ func (b *cmdTemplateBuilder) readTemplate() (*pkger.Template, bool, error) {
 
 	template, err := pkger.Combine(append(templates, stdinTemplate), pkger.ValidSkipParseError())
 	return template, true, err
-}
-
-func (b *cmdTemplateBuilder) inStdIn() (*os.File, error) {
-	stdin, _ := b.in.(*os.File)
-	if stdin != os.Stdin {
-		return nil, errors.New("input not stdIn")
-	}
-
-	info, err := stdin.Stat()
-	if err != nil {
-		return nil, err
-	}
-	if (info.Mode() & os.ModeCharDevice) == os.ModeCharDevice {
-		return nil, errors.New("input not stdIn")
-	}
-	return stdin, nil
 }
 
 func (b *cmdTemplateBuilder) readLines(r io.Reader) ([]string, error) {
@@ -2095,4 +2079,20 @@ func find(needle string, haystack []string) int {
 		}
 	}
 	return -1
+}
+
+func inStdIn(in io.Reader) (*os.File, error) {
+	stdin, _ := in.(*os.File)
+	if stdin != os.Stdin {
+		return nil, errors.New("input not stdIn")
+	}
+
+	info, err := stdin.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if (info.Mode() & os.ModeCharDevice) == os.ModeCharDevice {
+		return nil, errors.New("input not stdIn")
+	}
+	return stdin, nil
 }
