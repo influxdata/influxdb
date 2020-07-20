@@ -16,6 +16,8 @@ import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {CancelBox} from 'src/types/promises'
 import {AppState, File, Query, CancellationError, Variable} from 'src/types'
 
+const TIME_INVALIDATION = 5000
+
 export type RunQueryResult =
   | RunQuerySuccessResult
   | RunQueryLimitResult
@@ -67,41 +69,80 @@ export const hashCode = (queryText: string): string => {
 class QueryCache {
   cache = {}
 
-  getFromCache = (id: string) => {
-    if (id in this.cache) {
-      return this.cache[id]
+  _cleanExpiredQueries = (): void => {
+    const now = Date.now()
+    for (let id in this.cache) {
+      if (this.cache[id].isCustomTime) {
+        continue
+      }
+      if (this.cache[id].dateSet > now - TIME_INVALIDATION) {
+        this.resetCacheByID(id)
+      }
     }
-    return null
   }
 
-  resetCache = () => {
+  getFromCache = (id: string, variableID): RunQueryResult | null => {
+    // no existing query match
+    if (!this.cache[id]) {
+      return null
+    }
+    // query match with no existing variable match
+    if (this.cache[id].variables !== variableID) {
+      this.resetCacheByID(id)
+      return null
+    }
+    // query & variable match with an expired result
+    if (this.cache[id].dateSet > Date.now() - TIME_INVALIDATION) {
+      this.resetCacheByID(id)
+      return null
+    }
+    return this.cache[id].values
+  }
+
+  resetCacheByID = (id: string): void => {
+    if (!this.cache[id]) {
+      return
+    }
+    delete this.cache[id]
+  }
+
+  resetCache = (): void => {
     this.cache = {}
   }
 
-  setCacheByID = (id: string, value: any) => {
-    this.cache[id] = value
+  setCacheByID = (
+    queryID: string,
+    variableID: string,
+    values: RunQueryResult,
+    isCustomTime: boolean = false
+  ): void => {
+    this.cache[queryID] = {
+      dateSet: Date.now(),
+      isCustomTime,
+      values,
+      variables: variableID,
+    }
+  }
+
+  startWatchDog = () => {
+    setInterval(() => {
+      this._cleanExpiredQueries()
+    }, TIME_INVALIDATION / 2)
+
+    this._cleanExpiredQueries()
   }
 }
 
 const queryCache = new QueryCache()
+// Set a period to check for expired data to invalidate
+queryCache.startWatchDog()
 
 export const resetQueryCache = (): void => {
   queryCache.resetCache()
 }
 
-export const getQueryCacheResults = (
-  orgID: string,
-  query: string,
-  state: AppState,
-  abortController?: AbortController
-): RunQueryResult => {
-  const variables = sortBy(getAllVariables(state), ['name'])
-  const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
-  const stringifiedVars = JSON.stringify(simplifiedVariables)
-  // create the queryID based on the query & vars
-  const queryID = `${hashCode(query)}_${hashCode(stringifiedVars)}`
-
-  return queryCache.getFromCache(queryID)
+export const resetQueryCacheByID = (id: string): void => {
+  queryCache.resetCacheByID(id)
 }
 
 export const getRunQueryResults = (
@@ -110,14 +151,19 @@ export const getRunQueryResults = (
   state: AppState,
   abortController?: AbortController
 ): CancelBox<RunQueryResult> => {
+  // filterUnusedVars
+  // don't pass the views because they aren't a concept here
   const variables = sortBy(getAllVariables(state), ['name'])
   const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
   const stringifiedVars = JSON.stringify(simplifiedVariables)
   // create the queryID based on the query & vars
-  const queryID = `${hashCode(query)}_${hashCode(stringifiedVars)}`
+  const queryID = `${hashCode(query)}}`
+  const variableID = `${hashCode(stringifiedVars)}`
 
-  const cacheResults: RunQueryResult = queryCache.getFromCache(queryID)
-  console.log('queryCache: ', queryCache)
+  const cacheResults: RunQueryResult = queryCache.getFromCache(
+    query,
+    variableID
+  )
   // check the cache based on text & vars
   if (cacheResults) {
     const controller = abortController || new AbortController()
@@ -132,9 +178,15 @@ export const getRunQueryResults = (
   // otherwise query & set results
   const extern = buildVarsOption(variableAssignments)
   const results = runQuery(orgID, query, extern, abortController)
-  results.promise.then(res => {
+  results.promise = results.promise.then(res => {
     // set the resolved promise results in the cache
-    queryCache.setCacheByID(queryID, res)
+    // check to see if data is under a custom timeRange
+    // if the timeRange is non-relative (i.e. a custom timeRange || the query text has a set time range)
+    // if (!query.includes('v.timeRangeStop') && !query.includes('v.timeRangeStart')) {
+    //
+    // }
+    queryCache.setCacheByID(queryID, variableID, res)
+    // non-variable start / stop should
     return res
   })
 
