@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -776,6 +777,61 @@ func TestWriteWALSegment_UnmarshalBinary_DeleteRangeWALCorrupt(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
+}
+
+func TestSegmentSize(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	const segSize = 1024 * 1024
+	w := tsm1.NewWAL(dir)
+	if err := w.Open(); err != nil {
+		t.Fatalf("error opening WAL: %v", err)
+	}
+	w.SegmentSize = segSize
+
+	var estimate int64
+
+	for i := 0; i < 10000; i++ {
+		values := make([]tsm1.Value, 0, 1024)
+		for j := 0; j < cap(values); j++ {
+			values = append(values, tsm1.NewValue(int64(j), float64(j)))
+		}
+
+		if _, err := w.WriteMulti(map[string][]tsm1.Value{
+			fmt.Sprintf("series-key-%d", i): values}); err != nil {
+			t.Fatalf("error writing points: %v", err)
+		}
+		if estimate == 0 {
+			file := filepath.Join(dir, fmt.Sprintf("%s%05d.%s", tsm1.WALFilePrefix, 1, tsm1.WALFileExtension))
+			fi, err := os.Stat(file)
+			if err != nil {
+				t.Fatalf("error stat file segment file : %v", err)
+			}
+			estimate = fi.Size()
+		}
+	}
+
+	files, err := w.ClosedSegments()
+	if err != nil {
+		t.Fatalf("error getting closed segments: %v", err)
+	}
+
+	for _, file := range files {
+		fi, err := os.Stat(file)
+		if err != nil {
+			t.Fatalf("error stat file segment file : %v", err)
+		}
+
+		if fi.Size() < segSize || fi.Size() > segSize+estimate {
+			t.Fatalf("segment file not rolled as expected:%s size %d", file, fi.Size())
+		}
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("error closing wal: %v", err)
+	}
+
 }
 
 func BenchmarkWALSegmentWriter(b *testing.B) {
