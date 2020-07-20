@@ -278,7 +278,7 @@ where
     K: EscapingSpecification,
 {
     fn from(other: &str) -> Self {
-        Escaped(other.into(), PhantomData)
+        Self(other.into(), PhantomData)
     }
 }
 
@@ -287,7 +287,7 @@ where
     K: EscapingSpecification,
 {
     fn from(other: String) -> Self {
-        Escaped(other, PhantomData)
+        Self(other, PhantomData)
     }
 }
 
@@ -353,31 +353,31 @@ pub enum FieldValue {
 
 impl From<bool> for FieldValue {
     fn from(other: bool) -> Self {
-        FieldValue::Bool(other)
+        Self::Bool(other)
     }
 }
 
 impl From<f64> for FieldValue {
     fn from(other: f64) -> Self {
-        FieldValue::F64(other)
+        Self::F64(other)
     }
 }
 
 impl From<i64> for FieldValue {
     fn from(other: i64) -> Self {
-        FieldValue::I64(other)
+        Self::I64(other)
     }
 }
 
 impl From<&str> for FieldValue {
     fn from(other: &str) -> Self {
-        FieldValue::String(other.into())
+        Self::String(other.into())
     }
 }
 
 impl From<String> for FieldValue {
     fn from(other: String) -> Self {
-        FieldValue::String(other.into())
+        Self::String(other.into())
     }
 }
 
