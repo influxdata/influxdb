@@ -70,7 +70,7 @@ impl Client {
     }
 
     /// Write line protocol data to the specified organization and bucket.
-    pub async fn write(
+    pub async fn write_line_protocol(
         &self,
         org_id: &str,
         bucket_id: &str,
@@ -97,8 +97,8 @@ impl Client {
         Ok(())
     }
 
-    /// Write line protocol data to the specified organization and bucket.
-    pub async fn write2(
+    /// Write a `Stream` of `DataPoint`s to the specified organization and bucket.
+    pub async fn write(
         &self,
         org_id: &str,
         bucket_id: &str,
