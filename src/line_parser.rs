@@ -249,6 +249,26 @@ mod test {
     }
 
     #[test]
+    fn parse_empty_string_succeeds_no_points() -> Result {
+        let input = "";
+        let vals = parse_full(input, 555)?;
+
+        assert!(vals.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_no_fields() -> Result {
+        let input = "meas";
+
+        let result = parse_full(input, 555);
+        assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[test]
     fn index_pairs() {
         let p = Point {
             series: "cpu,host=A,region=west\tusage_system".to_string(),
