@@ -620,7 +620,7 @@ describe('DataExplorer', () => {
       cy.get('.query-tab').should('have.length', 1)
     })
 
-    it.only('can rename and remove a second query using tab context menu', () => {
+    it('can rename and remove a second query using tab context menu', () => {
       cy.get('.query-tab').trigger('contextmenu')
       cy.getByTestID('right-click--remove-tab').should(
         'have.class',
