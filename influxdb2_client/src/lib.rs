@@ -29,23 +29,26 @@ use reqwest::Body;
 use snafu::{ResultExt, Snafu};
 use std::{cmp, collections::BTreeMap, convert::Infallible, fmt, marker::PhantomData};
 
-/// Public error type.
+/// Errors that occur while making requests to the Influx server.
 #[derive(Debug, Snafu)]
-pub struct Error(InternalError);
-
-#[derive(Debug, Snafu)]
-enum InternalError {
+pub enum RequestError {
+    /// While making a request to the Influx server, the underlying `reqwest` library returned an
+    /// error that was not an HTTP 400 or 500.
     #[snafu(display("Error while processing the HTTP request: {}", source))]
-    ReqwestProcessing { source: reqwest::Error },
+    ReqwestProcessing {
+        /// The underlying error object from `reqwest`.
+        source: reqwest::Error
+    },
+    /// The underlying `reqwest` library returned an HTTP error with code 400 (meaning a client
+    /// error) or 500 (meaning a server error).
     #[snafu(display("HTTP request returned an error: {}, `{}`", status, text))]
     Http {
+        /// The `StatusCode` returned from the request
         status: reqwest::StatusCode,
+        /// Any text data returned from the request
         text: String,
     },
 }
-
-/// A specialized `Result` for `influxdb2_client` errors.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Client to a server supporting the InfluxData 2.0 API.
 #[derive(Debug, Clone)]
@@ -75,7 +78,7 @@ impl Client {
         org_id: &str,
         bucket_id: &str,
         body: impl Into<Body>,
-    ) -> Result<()> {
+    ) -> Result<(), RequestError> {
         let body = body.into();
         let write_url = format!("{}/api/v2/write", self.url);
 
@@ -103,7 +106,7 @@ impl Client {
         org_id: &str,
         bucket_id: &str,
         body: impl Stream<Item = DataPoint> + Send + Sync + 'static,
-    ) -> Result<()> {
+    ) -> Result<(), RequestError> {
         let body = body
             .map(|dp| dp.line_protocol().to_string())
             .map(Bytes::from)
