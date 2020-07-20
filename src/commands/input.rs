@@ -66,7 +66,7 @@ pub enum FileType {
 pub struct InputPath {
     // All files left to traverse. Elements of files were actual files
     // when this InputPath was constructed.
-    files: VecDeque<PathBuf>,
+    files: Vec<PathBuf>,
 }
 
 /// Interface for interacting with streams
@@ -323,39 +323,10 @@ impl InputPath {
 
         // sort filenames in order to ensure repeatability between runs
         files.sort();
-        Ok(Self {
-            files: files.into(),
-        })
-    }
-}
-
-/// Owning itertor over items in InputReader
-pub struct IntoIter {
-    inner: VecDeque<PathBuf>,
-}
-
-impl Iterator for IntoIter {
-    type Item = Result<InputReader>;
-
-    fn next(&mut self) -> Option<Result<InputReader>> {
-        self.inner
-            .pop_back()
-            .map(|p| InputReader::new(&p.to_string_lossy()))
+        Ok(Self { files })
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
-    }
-}
-
-impl IntoIterator for InputPath {
-    type Item = Result<InputReader>;
-    type IntoIter = IntoIter;
-
-    /// Consumes the `VecDeque` into a front-to-back iterator yielding elements by
-    /// value.
-    fn into_iter(self) -> IntoIter {
-        IntoIter { inner: self.files }
+    pub fn files(&self) -> &[PathBuf] {
+        &self.files
     }
 }
