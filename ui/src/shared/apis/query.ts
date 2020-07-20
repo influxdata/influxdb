@@ -11,6 +11,7 @@ import {
 // Utils
 import {asAssignment, getAllVariables} from 'src/variables/selectors'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
+import {filterUnusedVarsBasedOnQuery} from 'src/shared/utils/filterUnusedVars'
 
 // Types
 import {CancelBox} from 'src/types/promises'
@@ -134,7 +135,7 @@ class QueryCache {
 }
 
 const queryCache = new QueryCache()
-// Set a period to check for expired data to invalidate
+// Set an interval to check for expired data to invalidate
 queryCache.startWatchDog()
 
 export const resetQueryCache = (): void => {
@@ -145,15 +146,19 @@ export const resetQueryCacheByID = (id: string): void => {
   queryCache.resetCacheByID(id)
 }
 
+export const resetQueryCacheByQuery = (query: string): void => {
+  const queryID = `${hashCode(query)}`
+  queryCache.resetCacheByID(queryID)
+}
+
 export const getRunQueryResults = (
   orgID: string,
   query: string,
   state: AppState,
   abortController?: AbortController
 ): CancelBox<RunQueryResult> => {
-  // filterUnusedVars
-  // don't pass the views because they aren't a concept here
-  const variables = sortBy(getAllVariables(state), ['name'])
+  const usedVars = filterUnusedVarsBasedOnQuery(getAllVariables(state), [query])
+  const variables = sortBy(usedVars, ['name'])
   const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
   const stringifiedVars = JSON.stringify(simplifiedVariables)
   // create the queryID based on the query & vars
@@ -179,12 +184,9 @@ export const getRunQueryResults = (
   const extern = buildVarsOption(variableAssignments)
   const results = runQuery(orgID, query, extern, abortController)
   results.promise = results.promise.then(res => {
-    // set the resolved promise results in the cache
-    // check to see if data is under a custom timeRange
     // if the timeRange is non-relative (i.e. a custom timeRange || the query text has a set time range)
-    // if (!query.includes('v.timeRangeStop') && !query.includes('v.timeRangeStart')) {
-    //
-    // }
+    // we will need to pass an additional parameter to ensure that the cached data is treated differently
+    // set the resolved promise results in the cache
     queryCache.setCacheByID(queryID, variableID, res)
     // non-variable start / stop should
     return res

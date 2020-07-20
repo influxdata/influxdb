@@ -1,12 +1,14 @@
 // Libraries
 import {parse} from 'src/external/parser'
-import {get, sortBy} from 'lodash'
+import {get} from 'lodash'
 
 // API
 import {
   runQuery,
   RunQueryResult,
   RunQuerySuccessResult,
+  resetQueryCacheByQuery,
+  getRunQueryResults,
 } from 'src/shared/apis/query'
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
@@ -50,6 +52,7 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors/index'
+import {isDashboardActive} from 'src/dashboards/selectors'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -227,6 +230,11 @@ export const executeQueries = (abortController?: AbortController) => async (
       const extern = buildVarsOption(variableAssignments)
 
       event('runQuery', {context: 'timeMachine'})
+      if (isDashboardActive(state)) {
+        // reset any existing matching query in the cache
+        resetQueryCacheByQuery(text)
+        return getRunQueryResults(orgID, text, state, abortController)
+      }
       return runQuery(orgID, text, extern, abortController)
     })
     const results = await Promise.all(pendingResults.map(r => r.promise))
