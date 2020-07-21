@@ -2726,13 +2726,6 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 			},
 		}
 	}
-	maxProcedureSpec := func() *universe.MaxProcedureSpec {
-		return &universe.MaxProcedureSpec{
-			SelectorConfig: execute.SelectorConfig{
-				Column: execute.DefaultTimeColLabel,
-			},
-		}
-	}
 	countProcedureSpec := func() *universe.CountProcedureSpec {
 		return &universe.CountProcedureSpec{
 			AggregateConfig: execute.DefaultAggregateConfig,
@@ -2754,7 +2747,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		}
 	}
 
-	// ReadGroup() -> count => ReadGroup(count) -> sum
+	// ReadGroup() -> count => ReadGroup(count)
 	tests = append(tests, plantest.RuleTestCase{
 		Context: caps(mockGroupCapability{count: true}),
 		Name:    "RewriteGroupCount",
@@ -2763,10 +2756,6 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("count")),
-				plan.CreateLogicalNode("sum", sumProcedureSpec()),
-			},
-			Edges: [][2]int{
-				{0, 1},
 			},
 		},
 	})
@@ -2780,7 +2769,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		NoChange: true,
 	})
 
-	// ReadGroup() -> sum => ReadGroup(sum) -> sum
+	// ReadGroup() -> sum => ReadGroup(sum)
 	tests = append(tests, plantest.RuleTestCase{
 		Context: caps(mockGroupCapability{sum: true}),
 		Name:    "RewriteGroupSum",
@@ -2789,10 +2778,6 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("sum")),
-				plan.CreateLogicalNode("sum", sumProcedureSpec()),
-			},
-			Edges: [][2]int{
-				{0, 1},
 			},
 		},
 	})
@@ -2806,7 +2791,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		NoChange: true,
 	})
 
-	// ReadGroup() -> first => ReadGroup(first) -> min
+	// ReadGroup() -> first => ReadGroup(first)
 	tests = append(tests, plantest.RuleTestCase{
 		Context: caps(mockGroupCapability{first: true}),
 		Name:    "RewriteGroupFirst",
@@ -2815,10 +2800,6 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("first")),
-				plan.CreateLogicalNode("min", minProcedureSpec()),
-			},
-			Edges: [][2]int{
-				{0, 1},
 			},
 		},
 	})
@@ -2832,7 +2813,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		NoChange: true,
 	})
 
-	// ReadGroup() -> last => ReadGroup(last) -> max
+	// ReadGroup() -> last => ReadGroup(last)
 	tests = append(tests, plantest.RuleTestCase{
 		Context: caps(mockGroupCapability{last: true}),
 		Name:    "RewriteGroupLast",
@@ -2841,10 +2822,6 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("last")),
-				plan.CreateLogicalNode("max", maxProcedureSpec()),
-			},
-			Edges: [][2]int{
-				{0, 1},
 			},
 		},
 	})
@@ -2859,7 +2836,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 	})
 
 	// Rewrite with successors
-	// ReadGroup() -> count -> sum {2} => ReadGroup(count) -> sum -> sum {2}
+	// ReadGroup() -> count -> sum {2} => ReadGroup(count) -> sum {2}
 	tests = append(tests, plantest.RuleTestCase{
 		Context: caps(mockGroupCapability{count: true}),
 		Name:    "WithSuccessor1",
@@ -2882,19 +2859,17 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 				plan.CreatePhysicalNode("ReadGroupAggregate", readGroupAgg("count")),
 				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 				plan.CreateLogicalNode("sum", sumProcedureSpec()),
-				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 			},
 			Edges: [][2]int{
 				{0, 1},
 				{1, 2},
-				{1, 3},
 			},
 		},
 	})
 
 	// Cannot replace a ReadGroup that already has an aggregate. This exercises
 	// the check that ReadGroup aggregate is not set.
-	// ReadGroup() -> count -> count => ReadGroup(count) -> sum -> count
+	// ReadGroup() -> count -> count => ReadGroup(count) -> count
 	tests = append(tests, plantest.RuleTestCase{
 		Context: caps(mockGroupCapability{count: true}),
 		Name:    "WithSuccessor2",
@@ -2913,12 +2888,10 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadGroupAggregate", readGroupAgg("count")),
-				plan.CreateLogicalNode("sum", sumProcedureSpec()),
 				plan.CreateLogicalNode("count", countProcedureSpec()),
 			},
 			Edges: [][2]int{
 				{0, 1},
-				{1, 2},
 			},
 		},
 	})
