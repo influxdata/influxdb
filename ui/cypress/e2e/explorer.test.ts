@@ -108,6 +108,8 @@ describe('DataExplorer', () => {
 
   describe('numeric input validation when changing bin sizes in Heat Maps', () => {
     beforeEach(() => {
+      const numLines = 360
+      cy.writeData(lines(numLines))
       cy.getByTestID('view-type--dropdown').click()
       cy.getByTestID(`view-type--heatmap`).click()
       cy.getByTestID('cog-cell--button').click()
@@ -146,6 +148,26 @@ describe('DataExplorer', () => {
             .should('have.length', 0)
         })
       })
+    })
+
+    it('should be possible to input large bin size', () => {
+      cy.getByTestID(`selector-list m`)
+        .click()
+        .getByTestID('selector-list v')
+        .click()
+        .getByTestID(`selector-list tv1`)
+        .click()
+        .then(() => {
+          cy.getByTestID('time-machine-submit-button').click()
+        })
+
+      cy.getByTestID('giraffe-layer-rect')
+      cy.getByTestID('bin-size-input')
+        .clear()
+        .type('99999')
+        .then(() => {
+          cy.getByTestID('giraffe-layer-rect')
+        })
     })
   })
 
