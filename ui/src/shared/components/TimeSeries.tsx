@@ -13,7 +13,7 @@ import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 // API
 import {RunQueryResult, RunQuerySuccessResult} from 'src/shared/apis/query'
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
-import {getRunQueryResults} from 'src/shared/apis/query'
+import {getRunQueryResults} from 'src/shared/apis/queryCache'
 
 // Utils
 import {

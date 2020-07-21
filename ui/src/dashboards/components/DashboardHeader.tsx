@@ -27,7 +27,7 @@ import {
 
 // Utils
 import {event} from 'src/cloud/utils/reporting'
-import {resetQueryCache} from 'src/shared/apis/query'
+import {resetQueryCache} from 'src/shared/apis/queryCache'
 
 // Selectors
 import {getTimeRange} from 'src/dashboards/selectors'

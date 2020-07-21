@@ -19,7 +19,7 @@ import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-import {resetQueryCache} from 'src/shared/apis/query'
+import {resetQueryCache} from 'src/shared/apis/queryCache'
 
 // Selectors & Actions
 import {getByID} from 'src/resources/selectors'
