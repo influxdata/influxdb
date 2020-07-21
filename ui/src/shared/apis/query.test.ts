@@ -109,7 +109,6 @@ const mockState = ({
 } as unknown) as AppState
 
 describe('query', () => {
-  const filePath = 'src/shared/apis/query'
   describe('runQuery', () => {
     beforeEach(() => {
       const {resetQueryCache} = require('src/shared/apis/queryCache')
@@ -121,7 +120,7 @@ describe('query', () => {
     })
 
     it('calls runQuery when there is no matching query in the cache & returns cached results when an unexpired match is found', done => {
-      const promise = new Promise((res, rej) => {
+      const promise = new Promise(res => {
         return res({
           type: 'SUCCESS',
           csv: 'wooooo',
@@ -153,7 +152,7 @@ describe('query', () => {
     })
 
     it('clears the cache by queryText', done => {
-      const promise = new Promise((res, rej) => {
+      const promise = new Promise(res => {
         return res({
           type: 'SUCCESS',
           csv: 'wooooo',
@@ -188,7 +187,7 @@ describe('query', () => {
     })
 
     it('invalidates the cached results after the time invalidation constant', done => {
-      const promise = new Promise((res, rej) => {
+      const promise = new Promise(res => {
         return res({
           type: 'SUCCESS',
           csv: 'wooooo',
@@ -220,7 +219,7 @@ describe('query', () => {
       }, TIME_INVALIDATION + 100)
     }, 6000)
     it('returns the cached results when an unexpired match with the same variable is found', done => {
-      const promise = new Promise((res, rej) => {
+      const promise = new Promise(res => {
         return res({
           type: 'SUCCESS',
           csv: 'wooooo',
@@ -250,7 +249,7 @@ describe('query', () => {
       })
     })
     it('resets the matching query if the variables do not match and reruns the query', done => {
-      const promise = new Promise((res, rej) => {
+      const promise = new Promise(res => {
         return res({
           type: 'SUCCESS',
           csv: 'wooooo',
@@ -295,7 +294,7 @@ describe('query', () => {
         })
     })
     it('resets the matching query if the selected variables do not match and reruns the query', done => {
-      const promise = new Promise((res, rej) => {
+      const promise = new Promise(res => {
         return res({
           type: 'SUCCESS',
           csv: 'wooooo',
@@ -342,7 +341,7 @@ describe('query', () => {
         })
     })
     it('returns cached results even when variables irrelevant to a query are toggled', done => {
-      const promise = new Promise((res, rej) => {
+      const promise = new Promise(res => {
         return res({
           type: 'SUCCESS',
           csv: 'wooooo',
