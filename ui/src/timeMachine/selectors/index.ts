@@ -11,13 +11,16 @@ import {
   getNumericColumns as getNumericColumnsUtil,
   getGroupableColumns as getGroupableColumnsUtil,
 } from 'src/shared/utils/vis'
-import {getAllVariables, asAssignment} from 'src/variables/selectors'
 import {getWindowPeriod} from 'src/variables/utils/getWindowVars'
 import {
   timeRangeToDuration,
   parseDuration,
   durationToMilliseconds,
 } from 'src/shared/utils/duration'
+
+//Selectors
+import {getAllVariables, asAssignment} from 'src/variables/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -64,6 +67,15 @@ export const getActiveWindowPeriod = (state: AppState) => {
   const {text} = getActiveQuery(state)
   const variables = getAllVariables(state).map(v => asAssignment(v))
   return getWindowPeriod(text, variables)
+}
+
+export const getWindowPeriodFromTimeRange = (state: AppState): string => {
+  const timeRange = getTimeRange(state)
+
+  if (timeRange.type === 'selectable-duration') {
+    return timeRange.windowPeriod.toString()
+  }
+  //TODO work this out for other time ranges
 }
 
 const getVisTableMemoized = memoizeOne(fromFlux)

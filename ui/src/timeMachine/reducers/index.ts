@@ -875,11 +875,16 @@ export const timeMachineReducer = (
 
     case 'SET_IS_AUTO_WINDOW_PERIOD': {
       return produce(state, draftState => {
-        const {isAutoWindowPeriod} = action.payload
+        const {isAutoWindowPeriod, period} = action.payload
 
         draftState.queryBuilder.isAutoWindowPeriod = isAutoWindowPeriod
+        if (period) {
+          const {activeQueryIndex, draftQueries} = draftState
 
-        // do stuff
+          draftQueries[
+            activeQueryIndex
+          ].builderConfig.aggregateWindow.period = period
+        }
 
         buildActiveQuery(draftState)
       })

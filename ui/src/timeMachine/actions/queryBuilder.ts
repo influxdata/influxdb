@@ -23,14 +23,17 @@ import {
   Action as AlertBuilderAction,
   setEvery,
 } from 'src/alerting/actions/alertBuilder'
-import {Action as BucketAction} from 'src/buckets/actions/creators'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
 import {getStatus} from 'src/resources/selectors'
 import {getTimeRangeWithTimezone} from 'src/dashboards/selectors'
-import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {
+  getActiveQuery,
+  getActiveTimeMachine,
+  getWindowPeriodFromTimeRange,
+} from 'src/timeMachine/selectors'
 
 //Actions
 import {editActiveQueryWithBuilderSync} from 'src/timeMachine/actions'
@@ -38,7 +41,7 @@ import {setBuckets} from 'src/buckets/actions/creators'
 
 // Constants
 import {LIMIT} from 'src/resources/constants'
-import {AUTO_FUNCTIONS} from '../constants/queryBuilder'
+import {AUTO_FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 
 // Schemas
 import {arrayOfBuckets} from 'src/schemas'
@@ -150,9 +153,12 @@ export const setAggregateFillValues = (fillValues: boolean) => ({
   payload: {fillValues},
 })
 
-export const setIsAutoWindowPeriod = (isAutoWindowPeriod: boolean) => ({
+export const setIsAutoWindowPeriod = (
+  isAutoWindowPeriod: boolean,
+  period?: string
+) => ({
   type: 'SET_IS_AUTO_WINDOW_PERIOD' as 'SET_IS_AUTO_WINDOW_PERIOD',
-  payload: {isAutoWindowPeriod},
+  payload: {isAutoWindowPeriod, period},
 })
 
 export const setIsAutoFunction = (isAutoFunction: boolean) => ({
@@ -199,16 +205,18 @@ export const setFunctionSelectionMode = (mode: 'custom' | 'auto') => (
 }
 
 export const setWindowPeriodSelectionMode = (mode: 'custom' | 'auto') => (
-  dispatch: Dispatch<Action | AlertBuilderAction>
-  // getState: GetState
+  dispatch: Dispatch<Action | AlertBuilderAction>,
+  getState: GetState
 ) => {
   if (mode === 'custom') {
     dispatch(setIsAutoWindowPeriod(false))
     return
   }
-  // const state = getState()
-  dispatch(setAggregateWindow('10s'))
-  dispatch(setIsAutoWindowPeriod(true))
+
+  const state = getState()
+  const autoWindowPeriod = getWindowPeriodFromTimeRange(state)
+
+  dispatch(setIsAutoWindowPeriod(true, autoWindowPeriod))
 }
 
 export const selectAggregateWindow = (period: string) => (

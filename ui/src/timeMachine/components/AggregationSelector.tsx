@@ -18,7 +18,6 @@ import {
 import {
   getActiveQuery,
   getIsInCheckOverlay,
-  getActiveWindowPeriod,
   getActiveTimeMachine,
 } from 'src/timeMachine/selectors'
 
@@ -78,7 +77,6 @@ const mstp = (state: AppState) => {
   return {
     selectedFunctions: functions.map(f => f.name),
     aggregateWindow,
-    autoWindowPeriod: getActiveWindowPeriod(state),
     isInCheckOverlay: getIsInCheckOverlay(state),
     isAutoFunction: isAutoFunction,
     isAutoWindowPeriod: isAutoWindowPeriod,
