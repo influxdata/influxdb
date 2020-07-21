@@ -6,7 +6,7 @@ import {
   getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis'
-import {getRunQueryResults} from 'src/shared/apis/query'
+import {getRunQueryResults} from 'src/shared/apis/queryCache'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -17,7 +17,6 @@ import {notify} from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 import {setView, Action} from 'src/views/actions/creators'
-import {hashCode} from 'src/shared/apis/query'
 import {setQueryResults} from 'src/timeMachine/actions/queries'
 
 // Selectors

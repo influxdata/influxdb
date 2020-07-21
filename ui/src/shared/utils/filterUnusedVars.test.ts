@@ -1,11 +1,10 @@
 import {filterUnusedVarsBasedOnQuery} from 'src/shared/utils/filterUnusedVars'
 import {RemoteDataState, Variable} from 'src/types'
 
-const bucketVariable: Variable = {
+const bucketVariable = {
   id: '054b7476389f1000',
   orgID: '674b23253171ee69',
   name: 'bucket',
-  description: '',
   selected: ['Homeward Bound'],
   arguments: {
     type: 'query',
@@ -13,25 +12,15 @@ const bucketVariable: Variable = {
       query:
         '// buckets\nbuckets()\n  |> filter(fn: (r) => r.name !~ /^_/)\n  |> rename(columns: {name: "_value"})\n  |> keep(columns: ["_value"])\n',
       language: 'flux',
-      results: ['Futile Devices', 'Homeward Bound', 'damn'],
+      results: ['Futile Devices', 'Homeward Bound', 'woo'],
     },
   },
-  createdAt: '2020-02-25T11:30:40.482278-08:00',
-  updatedAt: '2020-07-15T14:28:39.240725-07:00',
-  labels: [],
-  links: {
-    self: '/api/v2/variables/054b7476389f1000',
-    labels: '/api/v2/variables/054b7476389f1000/labels',
-    org: '/api/v2/orgs/674b23253171ee69',
-  },
-  status: RemoteDataState.Done,
-}
+} as Variable
 
-const deploymentVariable: Variable = {
+const deploymentVariable = {
   id: '05e6e4df2287b000',
   orgID: '674b23253171ee69',
   name: 'deployment',
-  description: '',
   selected: [],
   arguments: {
     type: 'query',
@@ -42,22 +31,12 @@ const deploymentVariable: Variable = {
       results: [],
     },
   },
-  createdAt: '2020-06-25T06:06:21.962137-07:00',
-  updatedAt: '2020-07-15T14:28:55.499456-07:00',
-  labels: [],
-  links: {
-    self: '/api/v2/variables/05e6e4df2287b000',
-    labels: '/api/v2/variables/05e6e4df2287b000/labels',
-    org: '/api/v2/orgs/674b23253171ee69',
-  },
-  status: RemoteDataState.Done,
-}
+} as Variable
 
-const buildVariable: Variable = {
+const buildVariable = {
   id: '05e6e4fb0887b000',
   orgID: '674b23253171ee69',
   name: 'build',
-  description: '',
   selected: [],
   arguments: {
     type: 'query',
@@ -68,24 +47,14 @@ const buildVariable: Variable = {
       results: [],
     },
   },
-  createdAt: '2020-06-25T06:06:50.530959-07:00',
-  updatedAt: '2020-07-15T14:28:48.134806-07:00',
-  labels: [],
-  links: {
-    self: '/api/v2/variables/05e6e4fb0887b000',
-    labels: '/api/v2/variables/05e6e4fb0887b000/labels',
-    org: '/api/v2/orgs/674b23253171ee69',
-  },
-  status: RemoteDataState.Done,
-}
+} as Variable
 
-const variables: Variable[] = [
+const variables = [
   bucketVariable,
   {
     id: '05782ef09ddb8000',
     orgID: '674b23253171ee69',
     name: 'base_query',
-    description: '',
     selected: [],
     arguments: {
       type: 'query',
@@ -96,41 +65,21 @@ const variables: Variable[] = [
         results: [],
       },
     },
-    createdAt: '2020-03-31T06:18:34.615076-07:00',
-    updatedAt: '2020-07-15T14:28:26.685766-07:00',
-    labels: [],
-    links: {
-      self: '/api/v2/variables/05782ef09ddb8000',
-      labels: '/api/v2/variables/05782ef09ddb8000/labels',
-      org: '/api/v2/orgs/674b23253171ee69',
-    },
-    status: RemoteDataState.Done,
   },
   {
     id: '05aeb0ad75aca000',
     orgID: '674b23253171ee69',
     name: 'values',
-    description: '',
     selected: ['system'],
     arguments: {
       type: 'map',
       values: {system: 'system', usage_user: 'usage_user'},
     },
-    createdAt: '2020-05-12T14:23:23.222747-07:00',
-    updatedAt: '2020-05-12T14:23:23.222747-07:00',
-    labels: [],
-    links: {
-      self: '/api/v2/variables/05aeb0ad75aca000',
-      labels: '/api/v2/variables/05aeb0ad75aca000/labels',
-      org: '/api/v2/orgs/674b23253171ee69',
-    },
-    status: RemoteDataState.Done,
   },
   {
     id: '05ba3253105a5000',
     orgID: '674b23253171ee69',
     name: 'broker_host',
-    description: '',
     selected: [],
     arguments: {
       type: 'query',
@@ -141,19 +90,10 @@ const variables: Variable[] = [
         results: [],
       },
     },
-    createdAt: '2020-05-21T12:53:06.881887-07:00',
-    updatedAt: '2020-07-15T14:28:33.980146-07:00',
-    labels: [],
-    links: {
-      self: '/api/v2/variables/05ba3253105a5000',
-      labels: '/api/v2/variables/05ba3253105a5000/labels',
-      org: '/api/v2/orgs/674b23253171ee69',
-    },
-    status: RemoteDataState.Done,
   },
   deploymentVariable,
   buildVariable,
-]
+] as Variable[]
 
 describe('filterUnusedVars', () => {
   describe('filterUnusedVarsBasedOnQuery', () => {

@@ -21,7 +21,7 @@ import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {event} from 'src/cloud/utils/reporting'
-import {resetQueryCache} from 'src/shared/apis/query'
+import {resetQueryCache} from 'src/shared/apis/queryCache'
 
 // Selectors & Actions
 import {setRenderID as setRenderIDAction} from 'src/perf/actions'

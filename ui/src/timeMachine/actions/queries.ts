@@ -7,9 +7,11 @@ import {
   runQuery,
   RunQueryResult,
   RunQuerySuccessResult,
-  resetQueryCacheByQuery,
-  getRunQueryResults,
 } from 'src/shared/apis/query'
+import {
+  getRunQueryResults,
+  resetQueryCacheByQuery,
+} from 'src/shared/apis/queryCache'
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Actions
