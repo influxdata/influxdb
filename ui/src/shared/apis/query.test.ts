@@ -20,7 +20,6 @@ const mockState = ({
       byID: {
         '054b7476389f1000': {
           id: '054b7476389f1000',
-          orgID: '674b23253171ee69',
           name: 'bucket',
           selected: ['Homeward Bound'],
           arguments: {
@@ -34,7 +33,6 @@ const mockState = ({
         },
         '05782ef09ddb8000': {
           id: '05782ef09ddb8000',
-          orgID: '674b23253171ee69',
           name: 'base_query',
           selected: [],
           arguments: {
@@ -48,7 +46,6 @@ const mockState = ({
         },
         '05aeb0ad75aca000': {
           id: '05aeb0ad75aca000',
-          orgID: '674b23253171ee69',
           name: 'values',
           selected: ['system'],
           arguments: {
@@ -61,7 +58,6 @@ const mockState = ({
         },
         '05ba3253105a5000': {
           id: '05ba3253105a5000',
-          orgID: '674b23253171ee69',
           name: 'broker_host',
           selected: [],
           arguments: {
@@ -75,7 +71,6 @@ const mockState = ({
         },
         '05e6e4df2287b000': {
           id: '05e6e4df2287b000',
-          orgID: '674b23253171ee69',
           name: 'deployment',
           selected: [],
           arguments: {
@@ -89,7 +84,6 @@ const mockState = ({
         },
         '05e6e4fb0887b000': {
           id: '05e6e4fb0887b000',
-          orgID: '674b23253171ee69',
           name: 'build',
           selected: [],
           arguments: {

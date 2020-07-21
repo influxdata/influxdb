@@ -43,7 +43,7 @@ class QueryCache {
 
   _cleanExpiredQueries = (): void => {
     const now = Date.now()
-    for (let id in this.cache) {
+    for (const id in this.cache) {
       if (this.cache[id].isCustomTime) {
         continue
       }
