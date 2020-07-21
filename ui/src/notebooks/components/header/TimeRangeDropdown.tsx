@@ -11,11 +11,13 @@ const TimeRangeDropdown: FC<TimeContextProps> = ({context, update}) => {
 
   const updateRange = useCallback(
     range => {
-      event('Time Range Updated', {
-        type: range.type,
-        upper: range.upper as string,
-        lower: range.lower,
-      })
+      event(
+        'Time Range Updated',
+        {
+          type: range.type,
+        },
+        {upper: range.upper as string, lower: range.lower}
+      )
 
       update({
         range,
