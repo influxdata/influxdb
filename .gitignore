@@ -57,7 +57,7 @@ chronograf/dist/dist_gen.go
 chronograf/server/swagger_gen.go
 http/swagger_gen.go
 
-# Ignore TSM testdata binary files
+# Ignore TSM/TSI testdata binary files
 tsdb/tsi1/testdata
 tsdb/testdata
 
