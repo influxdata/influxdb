@@ -193,6 +193,7 @@ const DashboardList: FC<Props> = ({
           titleText="Save to Dashboard"
           status={saveStatus}
           color={ComponentColor.Success}
+          className="flows-export-visualization-success"
         />
       </FlexBox>
     </div>

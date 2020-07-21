@@ -9,9 +9,17 @@ const PresentationMode: FC = () => {
     update({readOnly: !notebook.readOnly})
   }
 
+  const toggleClassName = `flows-presentationmode-${
+    !!notebook.readOnly ? 'disable' : 'enable'
+  }`
+
   return (
     <>
-      <SlideToggle active={notebook.readOnly} onChange={handleChange} />
+      <SlideToggle
+        active={notebook.readOnly}
+        onChange={handleChange}
+        className={toggleClassName}
+      />
       <InputLabel>Presentation</InputLabel>
     </>
   )

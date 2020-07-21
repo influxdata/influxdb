@@ -45,6 +45,7 @@ const ExportVisualizationButton: FC<Props> = ({disabled, children}) => {
         titleText="Save to Dashboard"
         status={status}
         style={buttonStyle}
+        className="flows-export-visualization-button"
       />
       <Popover
         triggerRef={triggerRef}
