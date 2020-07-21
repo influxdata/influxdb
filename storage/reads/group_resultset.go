@@ -292,6 +292,10 @@ func (c *groupNoneCursor) PartitionKeyVals() [][]byte { return nil }
 func (c *groupNoneCursor) Close()                     { c.cur.Close() }
 func (c *groupNoneCursor) Stats() cursors.CursorStats { return c.row.Query.Stats() }
 
+func (c *groupNoneCursor) Aggregate() *datatypes.Aggregate {
+	return c.agg
+}
+
 func (c *groupNoneCursor) Next() bool {
 	row := c.cur.Next()
 	if row == nil {
@@ -331,6 +335,10 @@ func (c *groupByCursor) Keys() [][]byte             { return c.keys }
 func (c *groupByCursor) PartitionKeyVals() [][]byte { return c.vals }
 func (c *groupByCursor) Tags() models.Tags          { return c.seriesRows[c.i-1].Tags }
 func (c *groupByCursor) Close()                     {}
+
+func (c *groupByCursor) Aggregate() *datatypes.Aggregate {
+	return c.agg
+}
 
 func (c *groupByCursor) Next() bool {
 	if c.i < len(c.seriesRows) {
