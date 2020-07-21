@@ -196,6 +196,10 @@ func (t *table) readTags(tags models.Tags) {
 
 	for _, tag := range tags {
 		j := execute.ColIdx(string(tag.Key), t.cols)
+		// In the case of group aggregates, there might be tags that are excluded so you cannot find it.
+		if j < 0 {
+			continue
+		}
 		t.tags[j] = tag.Value
 	}
 }
