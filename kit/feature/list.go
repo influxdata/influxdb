@@ -254,6 +254,20 @@ func UseUserPermission() BoolFlag {
 	return useUserPermission
 }
 
+var notebooks = MakeBoolFlag(
+	"Notebooks",
+	"notebooks",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// Notebooks - Determin if the notebook feature's route and navbar icon are visible to the user
+func Notebooks() BoolFlag {
+	return notebooks
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -273,6 +287,7 @@ var all = []Flag{
 	urmFreeTasks,
 	simpleTaskOptionsExtraction,
 	useUserPermission,
+	notebooks,
 }
 
 var byKey = map[string]Flag{
@@ -294,4 +309,5 @@ var byKey = map[string]Flag{
 	"urmFreeTasks":                  urmFreeTasks,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"useUserPermission":             useUserPermission,
+	"notebooks":                     notebooks,
 }

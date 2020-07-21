@@ -135,3 +135,11 @@
   default: false
   contact: Lyon Hill
   lifetime: temporary
+
+- name: Notebooks
+  description: Determin if the notebook feature's route and navbar icon are visible to the user
+  key: notebooks
+  default: false
+  contact: Monitoring Team
+  lifetime: temporary
+  expose: true
