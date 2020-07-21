@@ -889,7 +889,8 @@ type BuilderConfig struct {
 		Name string `json:"name"`
 	} `json:"functions"`
 	AggregateWindow struct {
-		Period string `json:"period"`
+		Period     string `json:"period"`
+		FillValues bool   `json:"fillValues"`
 	} `json:"aggregateWindow"`
 }
 
