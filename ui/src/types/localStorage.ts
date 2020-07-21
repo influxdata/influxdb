@@ -13,6 +13,5 @@ export interface LocalStorage {
   userSettings: UserSettingsState
   resources: {
     orgs: ResourceState['orgs']
-    variables: ResourceState['variables']
   }
 }
