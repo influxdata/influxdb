@@ -22,12 +22,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// DefaultTokenFile is deprecated, and will be only used for migration.
-const DefaultTokenFile = "credentials"
-
-// DefaultConfigsFile stores cli credentials and hosts.
-const DefaultConfigsFile = "configs"
-
 // BackupBackend is all services and associated parameters required to construct the BackupHandler.
 type BackupBackend struct {
 	Logger *zap.Logger
@@ -130,7 +124,7 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if credsExist {
-		files = append(files, DefaultConfigsFile)
+		files = append(files, fs.DefaultConfigsFile)
 	}
 
 	b := backup{
@@ -145,7 +139,7 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BackupHandler) backupCredentials(internalBackupPath string) (bool, error) {
-	credBackupPath := filepath.Join(internalBackupPath, DefaultConfigsFile)
+	credBackupPath := filepath.Join(internalBackupPath, fs.DefaultConfigsFile)
 
 	credPath, err := defaultConfigsPath()
 	if err != nil {
@@ -268,7 +262,7 @@ func defaultConfigsPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, DefaultConfigsFile), nil
+	return filepath.Join(dir, fs.DefaultConfigsFile), nil
 }
 
 func (s *BackupService) InternalBackupPath(backupID int) string {

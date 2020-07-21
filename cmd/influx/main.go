@@ -340,7 +340,7 @@ func defaultConfigPath() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	return filepath.Join(dir, http.DefaultConfigsFile), dir, nil
+	return filepath.Join(dir, fs.DefaultConfigsFile), dir, nil
 }
 
 func getConfigFromDefaultPath() config.Config {
@@ -365,18 +365,18 @@ func migrateOldCredential() {
 		return // no need for migration
 	}
 
-	tokB, err := ioutil.ReadFile(filepath.Join(dir, http.DefaultTokenFile))
+	tokB, err := ioutil.ReadFile(filepath.Join(dir, fs.DefaultTokenFile))
 	if err != nil {
 		return // no need for migration
 	}
 
-	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", filepath.Join(dir, http.DefaultConfigsFile), dir)
+	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", filepath.Join(dir, fs.DefaultConfigsFile), dir)
 	if err != nil {
 		return
 	}
 
 	// ignore the remove err
-	_ = os.Remove(filepath.Join(dir, http.DefaultTokenFile))
+	_ = os.Remove(filepath.Join(dir, fs.DefaultTokenFile))
 }
 
 func writeConfigToPath(tok, org, path, dir string) error {

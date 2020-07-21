@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+// DefaultTokenFile is deprecated, and will be only used for migration.
+const DefaultTokenFile = "credentials"
+
+// DefaultConfigsFile stores cli credentials and hosts.
+const DefaultConfigsFile = "configs"
+
 // InfluxDir retrieves the influxdbv2 directory.
 func InfluxDir() (string, error) {
 	var dir string

@@ -9,7 +9,6 @@ import (
 
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
-	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/storage"
@@ -74,7 +73,7 @@ func init() {
 		{
 			DestP:   &flags.credPath,
 			Flag:    "credentials-path",
-			Default: filepath.Join(dir, http.DefaultTokenFile),
+			Default: filepath.Join(dir, fs.DefaultTokenFile),
 			Desc:    "path to target credentials file",
 		},
 		{
@@ -286,7 +285,7 @@ func restoreFile(backup string, target string, filetype string) error {
 }
 
 func restoreCred() error {
-	backupCred := filepath.Join(flags.backupPath, http.DefaultTokenFile)
+	backupCred := filepath.Join(flags.backupPath, fs.DefaultTokenFile)
 
 	_, err := os.Stat(backupCred)
 	if os.IsNotExist(err) {
