@@ -7,7 +7,7 @@
 1. [18912](https://github.com/influxdata/influxdb/pull/18912): Drop deprecated influx pkg command tree
 1. [18997](https://github.com/influxdata/influxdb/pull/18997): Add telegraf management commands to influx CLI
 1. [19006](https://github.com/influxdata/influxdb/pull/19006): Variables are no longer stored in localStorage
-
+1. [19000](https://github.com/influxdata/influxdb/pull/19000): Transition Stack permissions to be accessible by any non root user
 
 ### Bug Fixes
 

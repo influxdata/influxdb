@@ -233,7 +233,7 @@ export const executeQueries = (abortController?: AbortController) => async (
 
     const duration = window.performance.now() - startTime
 
-    event('executeQueries querying', {time: startDate, duration})
+    event('executeQueries querying', {time: startDate}, {duration})
 
     let statuses = [[]] as StatusRow[][]
     const {
@@ -280,10 +280,13 @@ export const executeQueries = (abortController?: AbortController) => async (
       setQueryResults(RemoteDataState.Done, files, duration, null, statuses)
     )
 
-    event('executeQueries function', {
-      time: executeQueriesStartTime,
-      duration: Date.now() - executeQueriesStartTime,
-    })
+    event(
+      'executeQueries function',
+      {
+        time: executeQueriesStartTime,
+      },
+      {duration: Date.now() - executeQueriesStartTime}
+    )
 
     return results
   } catch (error) {

@@ -620,15 +620,26 @@ describe('DataExplorer', () => {
       cy.get('.query-tab').should('have.length', 1)
     })
 
-    it('can remove a second query using tab context menu', () => {
+    it('can rename and remove a second query using tab context menu', () => {
       cy.get('.query-tab').trigger('contextmenu')
       cy.getByTestID('right-click--remove-tab').should(
         'have.class',
         'cf-right-click--menu-item__disabled'
       )
 
+      //rename the first tab
+      cy.get('.query-tab')
+        .first()
+        .trigger('contextmenu')
+      cy.getByTestID('right-click--edit-tab').click()
+      cy.getByTestID('edit-query-name').type('NewName{enter}')
+      cy.get('.query-tab')
+        .first()
+        .contains('NewName')
+
       // Fire a click outside of the right click menu to dismiss it because
       // it is obscuring the + button
+
       cy.getByTestID('data-explorer--header').click()
 
       cy.get('.time-machine-queries--new').click()
@@ -697,6 +708,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('raw-data--toggle').click()
         cy.getByTestID('raw-data-table').should('exist')
         cy.getByTestID('raw-data--toggle').click()
+        cy.getByTestID('giraffe-axes').should('exist')
       })
 
       it('can set min or max y-axis values', () => {
