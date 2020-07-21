@@ -19,10 +19,15 @@ import {
   getActiveQuery,
   getIsInCheckOverlay,
   getActiveTimeMachine,
+  getWindowPeriodFromTimeRange,
 } from 'src/timeMachine/selectors'
 
 // Constants
-import {FUNCTIONS, AUTO_FUNCTIONS} from '../constants/queryBuilder'
+import {
+  FUNCTIONS,
+  AUTO_FUNCTIONS,
+  AGG_WINDOW_AUTO,
+} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
 import {AppState} from 'src/types'
@@ -36,6 +41,7 @@ const AggregationSelector: FunctionComponent<Props> = ({
   isAutoFunction,
   isAutoWindowPeriod,
   aggregateWindow: {period, fillValues},
+  autoWindowPeriod,
   onSelectFunction,
   onSetAggregateFillValues,
   onSetFunctionSelectionMode,
@@ -50,12 +56,20 @@ const AggregationSelector: FunctionComponent<Props> = ({
     onSetAggregateFillValues(!fillValues)
   }
 
+  let durationDisplay = period
+
+  if (!period || period === AGG_WINDOW_AUTO) {
+    durationDisplay = autoWindowPeriod
+      ? `${AGG_WINDOW_AUTO} (${autoWindowPeriod})`
+      : AGG_WINDOW_AUTO
+  }
+
   return (
     <AggregationContents
       isAutoWindowPeriod={isAutoWindowPeriod}
       onSetWindowPeriodSelectionMode={onSetWindowPeriodSelectionMode}
       onSetFunctionSelectionMode={onSetFunctionSelectionMode}
-      windowPeriod={period} //BE done
+      durationDisplay={durationDisplay} //BE done
       isFillValues={fillValues} //BE
       isAutoFunction={isAutoFunction}
       functionList={functionList} //BE done
@@ -75,6 +89,7 @@ const mstp = (state: AppState) => {
   const {builderConfig} = getActiveQuery(state)
   const {functions, aggregateWindow} = builderConfig
   return {
+    autoWindowPeriod: getWindowPeriodFromTimeRange(state),
     selectedFunctions: functions.map(f => f.name),
     aggregateWindow,
     isInCheckOverlay: getIsInCheckOverlay(state),

@@ -27,7 +27,7 @@ interface Props {
   isAutoWindowPeriod: boolean
   isAutoFunction: boolean
   isFillValues: boolean
-  windowPeriod: string
+  durationDisplay: string
   selectedFunctions: Array<string>
   functionList: Array<string>
   isInCheckOverlay: boolean
@@ -42,7 +42,7 @@ const AggregationContents: FunctionComponent<Props> = ({
   isAutoWindowPeriod,
   isAutoFunction,
   isFillValues,
-  windowPeriod,
+  durationDisplay,
   selectedFunctions,
   functionList,
   isInCheckOverlay,
@@ -90,7 +90,7 @@ const AggregationContents: FunctionComponent<Props> = ({
           </SelectGroup>
           <DurationInput
             onSubmit={onSelectAggregateWindow}
-            value={windowPeriod}
+            value={durationDisplay}
             suggestions={DURATIONS}
             submitInvalid={false}
             status={durationInputStatus}

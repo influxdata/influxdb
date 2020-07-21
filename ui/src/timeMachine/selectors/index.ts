@@ -11,11 +11,15 @@ import {
   getNumericColumns as getNumericColumnsUtil,
   getGroupableColumns as getGroupableColumnsUtil,
 } from 'src/shared/utils/vis'
-import {getWindowPeriod} from 'src/variables/utils/getWindowVars'
+import {
+  getWindowPeriod,
+  calcWindowPeriodForDuration,
+} from 'src/variables/utils/getWindowVars'
 import {
   timeRangeToDuration,
   parseDuration,
   durationToMilliseconds,
+  millisecondsToDuration,
 } from 'src/shared/utils/duration'
 
 //Selectors
@@ -71,11 +75,19 @@ export const getActiveWindowPeriod = (state: AppState) => {
 
 export const getWindowPeriodFromTimeRange = (state: AppState): string => {
   const timeRange = getTimeRange(state)
-
   if (timeRange.type === 'selectable-duration') {
-    return timeRange.windowPeriod.toString()
+    return millisecondsToDuration(timeRange.windowPeriod)
   }
-  //TODO work this out for other time ranges
+
+  if (timeRange.type === 'custom') {
+    const upper = Date.parse(timeRange.upper)
+    const lower = Date.parse(timeRange.lower)
+    return millisecondsToDuration(calcWindowPeriodForDuration(upper - lower))
+  }
+
+  throw new Error(
+    'Unknown timeRange type provided to getWindowPeriodFromTimeRange'
+  )
 }
 
 const getVisTableMemoized = memoizeOne(fromFlux)

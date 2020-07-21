@@ -209,14 +209,13 @@ export const setWindowPeriodSelectionMode = (mode: 'custom' | 'auto') => (
   getState: GetState
 ) => {
   if (mode === 'custom') {
-    dispatch(setIsAutoWindowPeriod(false))
-    return
+    const autoWindowPeriod = getWindowPeriodFromTimeRange(getState())
+
+    dispatch(setIsAutoWindowPeriod(false, autoWindowPeriod))
   }
-
-  const state = getState()
-  const autoWindowPeriod = getWindowPeriodFromTimeRange(state)
-
-  dispatch(setIsAutoWindowPeriod(true, autoWindowPeriod))
+  if (mode === 'auto') {
+    dispatch(setIsAutoWindowPeriod(true))
+  }
 }
 
 export const selectAggregateWindow = (period: string) => (

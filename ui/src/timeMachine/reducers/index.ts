@@ -101,7 +101,10 @@ export const initialStateHelper = (): TimeMachineState => {
     queryBuilder: {
       buckets: [],
       bucketsStatus: RemoteDataState.NotStarted,
-      aggregateWindow: {period: 'auto'},
+      aggregateWindow: {
+        period: 'auto',
+        fillValues: true,
+      },
       isAutoFunction: true,
       isAutoWindowPeriod: true,
       functions: [[{name: 'mean'}]],
@@ -878,12 +881,19 @@ export const timeMachineReducer = (
         const {isAutoWindowPeriod, period} = action.payload
 
         draftState.queryBuilder.isAutoWindowPeriod = isAutoWindowPeriod
+
         if (period) {
           const {activeQueryIndex, draftQueries} = draftState
 
           draftQueries[
             activeQueryIndex
           ].builderConfig.aggregateWindow.period = period
+        }
+
+        if (isAutoWindowPeriod) {
+          const {activeQueryIndex, draftQueries} = draftState
+          draftQueries[activeQueryIndex].builderConfig.aggregateWindow.period =
+            'auto'
         }
 
         buildActiveQuery(draftState)
@@ -1062,7 +1072,7 @@ const initialQueryBuilderState = (
     buckets: builderConfig.buckets,
     bucketsStatus: RemoteDataState.NotStarted,
     functions: [...defaultFunctions],
-    aggregateWindow: {period: 'auto'},
+    aggregateWindow: {period: 'auto', fillValues: true},
     isAutoFunction: true,
     isAutoWindowPeriod: true,
     tags: builderConfig.tags.map(() => {
