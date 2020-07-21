@@ -204,10 +204,13 @@ export const loadBuckets = () => async (
     } else {
       dispatch(selectBucket(buckets[0], true))
     }
-    event('loadBuckets function', {
-      time: startTime,
-      duration: Date.now() - startTime,
-    })
+    event(
+      'loadBuckets function',
+      {
+        time: startTime,
+      },
+      {duration: Date.now() - startTime}
+    )
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
@@ -286,10 +289,13 @@ export const loadTagSelector = (index: number) => async (
 
     dispatch(setBuilderTagKeys(index, keys))
     dispatch(loadTagSelectorValues(index))
-    event('loadTagSelector function', {
-      time: startTime,
-      duration: Date.now() - startTime,
-    })
+    event(
+      'loadTagSelector function',
+      {
+        time: startTime,
+      },
+      {duration: Date.now() - startTime}
+    )
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
@@ -351,10 +357,13 @@ const loadTagSelectorValues = (index: number) => async (
 
     dispatch(setBuilderTagValues(index, values))
     dispatch(loadTagSelector(index + 1))
-    event('loadTagSelectorValues function', {
-      time: startTime,
-      duration: Date.now() - startTime,
-    })
+    event(
+      'loadTagSelectorValues function',
+      {
+        time: startTime,
+      },
+      {duration: Date.now() - startTime}
+    )
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
