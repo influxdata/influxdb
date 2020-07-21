@@ -67,6 +67,15 @@ func (w *windowTableSplitter) Do(f func(flux.Table) error) error {
 
 			// Rewrite the group key using the new time.
 			key := groupKeyForWindow(cr.Key(), startT, stopT)
+			if w.selector && values.IsNull(i) {
+				// Produce an empty table if the value is null
+				// and this is a selector.
+				table := execute.NewEmptyTable(key, cr.Cols())
+				if err := f(table); err != nil {
+					return err
+				}
+				continue
+			}
 
 			// Produce a slice for each column into a new
 			// table buffer.
@@ -75,17 +84,8 @@ func (w *windowTableSplitter) Do(f func(flux.Table) error) error {
 				Columns:  cr.Cols(),
 				Values:   make([]array.Interface, len(cr.Cols())),
 			}
-
-			empty := w.selector && values.IsNull(i)
-
-			if empty {
-				for j := range arrs {
-					buffer.Values[j] = arrow.NewBuilder(cr.Cols()[j].Type, w.alloc).NewArray()
-				}
-			} else {
-				for j, arr := range arrs {
-					buffer.Values[j] = arrow.Slice(arr, int64(i), int64(i+1))
-				}
+			for j, arr := range arrs {
+				buffer.Values[j] = arrow.Slice(arr, int64(i), int64(i+1))
 			}
 
 			// Wrap these into a single table and execute.
@@ -93,7 +93,6 @@ func (w *windowTableSplitter) Do(f func(flux.Table) error) error {
 			table := &windowTableRow{
 				buffer: buffer,
 				done:   done,
-				empty:  empty,
 			}
 			if err := f(table); err != nil {
 				return err
@@ -129,7 +128,6 @@ type windowTableRow struct {
 	used   int32
 	buffer arrow.TableBuffer
 	done   chan struct{}
-	empty  bool
 }
 
 func (w *windowTableRow) Key() flux.GroupKey {
@@ -149,10 +147,7 @@ func (w *windowTableRow) Do(f func(flux.ColReader) error) error {
 	}
 	defer close(w.done)
 
-	var err error
-	if !w.empty {
-		err = f(&w.buffer)
-	}
+	err := f(&w.buffer)
 	w.buffer.Release()
 	return err
 }
@@ -165,7 +160,7 @@ func (w *windowTableRow) Done() {
 }
 
 func (w *windowTableRow) Empty() bool {
-	return w.empty
+	return false
 }
 
 func groupKeyForWindow(key flux.GroupKey, start, stop int64) flux.GroupKey {
