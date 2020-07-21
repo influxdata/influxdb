@@ -328,7 +328,10 @@ impl InputPath {
         Ok(Self { files })
     }
 
-    pub fn files(&self) -> &[PathBuf] {
-        &self.files
+    pub fn input_readers(&self) -> impl Iterator<Item = Result<InputReader>> + '_ {
+        self.files
+            .iter()
+            .rev()
+            .map(|p| InputReader::new(&p.to_string_lossy()))
     }
 }
