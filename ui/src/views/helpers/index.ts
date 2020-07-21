@@ -54,7 +54,7 @@ export function defaultBuilderConfig(): BuilderConfig {
     buckets: [],
     tags: [{key: '_measurement', values: [], aggregateFunctionType: 'filter'}],
     functions: [{name: 'mean'}],
-    aggregateWindow: {period: 'auto'},
+    aggregateWindow: {period: 'auto', fillValues: true},
   }
 }
 
