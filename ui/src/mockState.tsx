@@ -4,7 +4,6 @@ import {Router} from 'react-router-dom'
 import {createMemoryHistory} from 'history'
 
 import {render} from '@testing-library/react'
-import {initialState as initialVariablesState} from 'src/variables/reducers'
 import {initialState as initialUserSettingsState} from 'src/userSettings/reducers'
 import {default as configureStore, clearStore} from 'src/store/configureStore'
 import {RemoteDataState, TimeZone, LocalStorage, ResourceType} from 'src/types'
@@ -51,7 +50,6 @@ export const localState: LocalStorage = {
       org: {name: 'org', id: 'orgid'},
       status: Done,
     },
-    variables: initialVariablesState(),
   },
 }
 
