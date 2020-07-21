@@ -8,7 +8,7 @@ import {client} from 'src/utils/api'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
-import GetMe from 'src/shared/containers/GetMe'
+import GetAppState from 'src/shared/containers/GetAppState'
 
 // Utils
 import {
@@ -74,7 +74,7 @@ export class Signin extends PureComponent<Props, State> {
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
         {auth && (
           <Switch>
-            <Route component={GetMe} />
+            <Route component={GetAppState} />
           </Switch>
         )}
       </SpinnerContainer>

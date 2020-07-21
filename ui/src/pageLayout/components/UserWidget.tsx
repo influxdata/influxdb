@@ -31,7 +31,7 @@ type Props = ReduxProps
 
 const UserWidget: FC<Props> = ({
   org,
-  me,
+  username,
   handleShowOverlay,
   handleDismissOverlay,
 }) => {
@@ -46,7 +46,7 @@ const UserWidget: FC<Props> = ({
   const orgPrefix = `/orgs/${org.id}`
 
   return (
-    <TreeNav.User username={me.name} team={org.name} testID="user-nav">
+    <TreeNav.User username={username} team={org.name} testID="user-nav">
       <CloudOnly>
         <TreeNav.UserItem
           id="usage"
@@ -133,8 +133,8 @@ const UserWidget: FC<Props> = ({
 
 const mstp = (state: AppState) => {
   const org = getOrg(state)
-  const me = state.me
-  return {org, me}
+  const username = state.me.resource.name
+  return {org, username}
 }
 
 const mdtp = {
