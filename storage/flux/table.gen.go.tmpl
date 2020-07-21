@@ -788,9 +788,9 @@ func (t *{{.name}}GroupTable) advance() bool {
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
 		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
-		colReader.cols[valueColIdx] = t.toArrowBuffer([]float64{value})
+		colReader.cols[valueColIdx] = t.toArrowBuffer([]{{.Type}}{value})
 	} else {
-		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]float64{value})
+		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]{{.Type}}{value})
 	}
 	t.appendTags(colReader)
 	t.appendBounds(colReader)

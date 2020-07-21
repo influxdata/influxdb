@@ -1613,9 +1613,9 @@ func (t *integerGroupTable) advance() bool {
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
 		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
-		colReader.cols[valueColIdx] = t.toArrowBuffer([]float64{value})
+		colReader.cols[valueColIdx] = t.toArrowBuffer([]int64{value})
 	} else {
-		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]float64{value})
+		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]int64{value})
 	}
 	t.appendTags(colReader)
 	t.appendBounds(colReader)
@@ -2432,9 +2432,9 @@ func (t *unsignedGroupTable) advance() bool {
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
 		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
-		colReader.cols[valueColIdx] = t.toArrowBuffer([]float64{value})
+		colReader.cols[valueColIdx] = t.toArrowBuffer([]uint64{value})
 	} else {
-		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]float64{value})
+		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]uint64{value})
 	}
 	t.appendTags(colReader)
 	t.appendBounds(colReader)
@@ -3251,9 +3251,9 @@ func (t *stringGroupTable) advance() bool {
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
 		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
-		colReader.cols[valueColIdx] = t.toArrowBuffer([]float64{value})
+		colReader.cols[valueColIdx] = t.toArrowBuffer([]string{value})
 	} else {
-		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]float64{value})
+		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]string{value})
 	}
 	t.appendTags(colReader)
 	t.appendBounds(colReader)
@@ -4070,9 +4070,9 @@ func (t *booleanGroupTable) advance() bool {
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
 		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
-		colReader.cols[valueColIdx] = t.toArrowBuffer([]float64{value})
+		colReader.cols[valueColIdx] = t.toArrowBuffer([]bool{value})
 	} else {
-		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]float64{value})
+		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]bool{value})
 	}
 	t.appendTags(colReader)
 	t.appendBounds(colReader)
