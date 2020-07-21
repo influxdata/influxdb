@@ -3,7 +3,6 @@ import {RemoteDataState, Variable} from 'src/types'
 
 const bucketVariable = {
   id: '054b7476389f1000',
-  orgID: '674b23253171ee69',
   name: 'bucket',
   selected: ['Homeward Bound'],
   arguments: {
@@ -19,7 +18,6 @@ const bucketVariable = {
 
 const deploymentVariable = {
   id: '05e6e4df2287b000',
-  orgID: '674b23253171ee69',
   name: 'deployment',
   selected: [],
   arguments: {
@@ -35,7 +33,6 @@ const deploymentVariable = {
 
 const buildVariable = {
   id: '05e6e4fb0887b000',
-  orgID: '674b23253171ee69',
   name: 'build',
   selected: [],
   arguments: {
@@ -53,7 +50,6 @@ const variables = [
   bucketVariable,
   {
     id: '05782ef09ddb8000',
-    orgID: '674b23253171ee69',
     name: 'base_query',
     selected: [],
     arguments: {
@@ -68,7 +64,6 @@ const variables = [
   },
   {
     id: '05aeb0ad75aca000',
-    orgID: '674b23253171ee69',
     name: 'values',
     selected: ['system'],
     arguments: {
@@ -78,7 +73,6 @@ const variables = [
   },
   {
     id: '05ba3253105a5000',
-    orgID: '674b23253171ee69',
     name: 'broker_host',
     selected: [],
     arguments: {
