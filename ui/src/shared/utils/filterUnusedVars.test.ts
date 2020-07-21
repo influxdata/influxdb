@@ -1,5 +1,5 @@
 import {filterUnusedVarsBasedOnQuery} from 'src/shared/utils/filterUnusedVars'
-import {RemoteDataState, Variable} from 'src/types'
+import {Variable} from 'src/types'
 
 const bucketVariable = {
   id: '054b7476389f1000',
