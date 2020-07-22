@@ -103,6 +103,8 @@ const defaultState = (): State => ({
   statuses: [[]],
 })
 
+const controller = new AbortController()
+
 class TimeSeries extends Component<Props, State> {
   public static defaultProps = {
     implicitSubmit: true,
@@ -143,6 +145,7 @@ class TimeSeries extends Component<Props, State> {
 
   public componentWillUnmount() {
     this.observer && this.observer.disconnect()
+    this.pendingResults.forEach(({cancel}) => cancel())
   }
 
   public render() {

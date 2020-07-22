@@ -63,7 +63,7 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 type Action = VariableAction | EditorAction | NotifyAction
 
-export const getVariables = () => async (
+export const getVariables = (signal?: AbortSignal) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -77,7 +77,11 @@ export const getVariables = () => async (
     }
 
     const org = getOrg(state)
-    const resp = await api.getVariables({query: {orgID: org.id}})
+    const resp = await api.getVariables({query: {orgID: org.id}}, {signal})
+    if (!resp) {
+      return
+    }
+
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
