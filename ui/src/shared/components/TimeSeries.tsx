@@ -13,7 +13,7 @@ import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 // API
 import {RunQueryResult, RunQuerySuccessResult} from 'src/shared/apis/query'
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
-import {getRunQueryResults} from 'src/shared/apis/queryCache'
+import {getCachedResultsOrRunQuery} from 'src/shared/apis/queryCache'
 
 // Utils
 import {
@@ -230,7 +230,7 @@ class TimeSeries extends Component<Props, State> {
         const extern = buildVarsOption([...vars, ...windowVars])
         event('runQuery', {context: 'TimeSeries'})
         if (isCurrentPageDashboard) {
-          return getRunQueryResults(orgID, text, appState)
+          return getCachedResultsOrRunQuery(orgID, text, appState)
         }
         const queryID = hashCode(text)
         if (!this.hashMapMutex[queryID]) {

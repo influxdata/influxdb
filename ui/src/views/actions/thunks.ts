@@ -6,7 +6,7 @@ import {
   getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis'
-import {getRunQueryResults} from 'src/shared/apis/queryCache'
+import {getCachedResultsOrRunQuery} from 'src/shared/apis/queryCache'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -126,7 +126,7 @@ export const getViewAndResultsForVEO = (
     }
     const {id: orgID} = getOrg(state)
     const pendingResults = queries.map(({text}) => {
-      return getRunQueryResults(orgID, text, state)
+      return getCachedResultsOrRunQuery(orgID, text, state)
     })
 
     // Wait for new queries to complete

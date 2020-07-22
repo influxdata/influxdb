@@ -9,7 +9,7 @@ import {
   RunQuerySuccessResult,
 } from 'src/shared/apis/query'
 import {
-  getRunQueryResults,
+  getCachedResultsOrRunQuery,
   resetQueryCacheByQuery,
 } from 'src/shared/apis/queryCache'
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
@@ -230,7 +230,7 @@ export const executeQueries = (abortController?: AbortController) => async (
       if (isCurrentPageDashboard(state)) {
         // reset any existing matching query in the cache
         resetQueryCacheByQuery(text)
-        return getRunQueryResults(orgID, text, state, abortController)
+        return getCachedResultsOrRunQuery(orgID, text, state, abortController)
       }
       return runQuery(orgID, text, extern, abortController)
     })
