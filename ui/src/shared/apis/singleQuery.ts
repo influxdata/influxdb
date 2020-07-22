@@ -16,77 +16,76 @@ import {runQuery} from 'src/shared/apis/query'
 
 \*/
 export function RunQueryPromiseMutex() {
-    const cached = []
-    let processing = false
+  const cached = []
+  let processing = false
 
-    const ret = {
-        run: (orgID: string, query: string, extern?: File) => {
-            return {
-                promise: new Promise((resolve, reject) => {
-                    if (processing) {
-                        cached.push({
-                            resolve,
-                            reject,
-                            cancel: () => {}
-                        })
+  const ret = {
+    run: (orgID: string, query: string, extern?: File) => {
+      return {
+        promise: new Promise((resolve, reject) => {
+          if (processing) {
+            cached.push({
+              resolve,
+              reject,
+              cancel: () => {},
+            })
 
-                        return
-                    }
+            return
+          }
 
-                    processing = true
-                    const abortController = new AbortController()
-                    cached.push({
-                        resolve,
-                        reject,
-                        cancel: () => {
-                            abortController.abort();
-                        }
-                    })
+          processing = true
+          const abortController = new AbortController()
+          cached.push({
+            resolve,
+            reject,
+            cancel: () => {
+              abortController.abort()
+            },
+          })
 
-                    runQuery(orgID, query, extern, abortController)
-                        .promise
-                        .then((...args) => {
-                            ret.resolve.apply(ret, args)
-                        })
-                        .catch((error: Error) => {
-                            ret.reject(error)
-                        })
-                }),
-                cancel: ret.cancel
-            }
-        },
-        resolve: (...args) => {
-            let curr
+          runQuery(orgID, query, extern, abortController)
+            .promise.then((...args) => {
+              ret.resolve.apply(ret, args)
+            })
+            .catch((error: Error) => {
+              ret.reject(error)
+            })
+        }),
+        cancel: ret.cancel,
+      }
+    },
+    resolve: (...args) => {
+      let curr
 
-            while (cached.length) {
-                curr = cached.pop()
-                curr.resolve.apply(curr, args)
-            }
+      while (cached.length) {
+        curr = cached.pop()
+        curr.resolve.apply(curr, args)
+      }
 
-            processing = false
-        },
-        reject: (error: Error) => {
-            let curr
+      processing = false
+    },
+    reject: (error: Error) => {
+      let curr
 
-            while (cached.length) {
-                curr = cached.pop()
-                curr.reject(error)
-                curr.cancel()
-            }
+      while (cached.length) {
+        curr = cached.pop()
+        curr.reject(error)
+        curr.cancel()
+      }
 
-            processing = false
-        },
-        cancel: () => {
-            let curr
+      processing = false
+    },
+    cancel: () => {
+      let curr
 
-            while (cached.length) {
-                curr = cached.pop()
-                curr.cancel()
-            }
+      while (cached.length) {
+        curr = cached.pop()
+        curr.cancel()
+      }
 
-            processing = false
-        }
-    }
+      processing = false
+    },
+  }
 
-    return ret
+  return ret
 }
