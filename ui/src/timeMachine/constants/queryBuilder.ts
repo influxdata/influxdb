@@ -1,5 +1,6 @@
 export const AGG_WINDOW_AUTO = 'auto'
 export const AGG_WINDOW_NONE = 'none'
+export const DEFAULT_FILLVALUES = false
 
 export const DURATIONS = [
   '5s',

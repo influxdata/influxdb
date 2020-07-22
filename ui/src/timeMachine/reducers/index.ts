@@ -14,6 +14,10 @@ import {
 } from 'src/shared/constants/thresholds'
 import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
+import {
+  AGG_WINDOW_AUTO,
+  DEFAULT_FILLVALUES,
+} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
 import {
@@ -102,8 +106,8 @@ export const initialStateHelper = (): TimeMachineState => {
       buckets: [],
       bucketsStatus: RemoteDataState.NotStarted,
       aggregateWindow: {
-        period: 'auto',
-        fillValues: true,
+        period: AGG_WINDOW_AUTO,
+        fillValues: DEFAULT_FILLVALUES,
       },
       isAutoFunction: true,
       isAutoWindowPeriod: true,
@@ -1072,7 +1076,7 @@ const initialQueryBuilderState = (
     buckets: builderConfig.buckets,
     bucketsStatus: RemoteDataState.NotStarted,
     functions: [...defaultFunctions],
-    aggregateWindow: {period: 'auto', fillValues: true},
+    aggregateWindow: {period: AGG_WINDOW_AUTO, fillValues: DEFAULT_FILLVALUES},
     isAutoFunction: true,
     isAutoWindowPeriod: true,
     tags: builderConfig.tags.map(() => {

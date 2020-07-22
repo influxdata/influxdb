@@ -12,7 +12,7 @@ import * as copy from 'src/shared/copy/notifications'
 import {viewSchema} from 'src/schemas'
 
 // Utils
-import applyQueryBuilderRequirements from 'src/utils/defaultAggregate'
+import applyAutoAggregateRequirements from 'src/utils/autoAggregateRequirements'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -115,7 +115,7 @@ export const getViewAndResultsForVEO = (
       view = (await getViewAJAX(dashboardID, cellID)) as QueryView
     }
 
-    const updatedView = applyQueryBuilderRequirements(view)
+    const updatedView = applyAutoAggregateRequirements(view)
 
     dispatch(
       setActiveTimeMachine(timeMachineID, {
