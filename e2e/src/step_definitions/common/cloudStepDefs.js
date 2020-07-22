@@ -1,12 +1,10 @@
 import { AfterAll, Given, Then, When } from 'cucumber';
 const cloudSteps = require(__srcdir + '/steps/cloudSteps.js');
-const signinStepsCloud = require(__srcdir + '/steps/signin/signinStepsCloud.js');
 
 let cSteps = new cloudSteps(__wdriver);
-let sStepsCloud = new signinStepsCloud(__wdriver);
 
 When(/^open the cloud page in "(.*?)" milliseconds$/, {timeout: 15000}, async (maxDelay) => {
-   await cSteps.openCloudPage(maxDelay);
+   await cSteps.openCloudPage(parseInt(maxDelay));
 });
 
 When(/^setup default cloud user$/, async () => {
@@ -21,10 +19,10 @@ When(/^log in to the cloud$/, async () => {
   await cSteps.logInToCloud();
 });
 
-When(/^open the cloud signin page$/, {timeout: 15000}, async () => {
-  await sStepsCloud.openContext(sStepsCloud.signinPageCloud.urlCtx);
+When(/^log in to the cloud in "(.*)" milliseconds$/, {timeout: 15000}, async (maxDelay) => {
+  await cSteps.logInToCloudTimed(parseInt(maxDelay));
 });
 
 When(/^wait "(.*?)" with delay "(.*?)"$/, async (sleep, delay) => {
-  await cSteps.performanceBogusTest(sleep, delay);
+  await cSteps.performanceBogusTest(sleep, parseInt(delay));
 });

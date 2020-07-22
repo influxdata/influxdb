@@ -148,6 +148,23 @@ caps.set('enableVideo', true);
 ```
 
 Then rerun the script `selenoid.sh` with the argument `-debug`. 
+
+### Light Weight Perfomance checks
+
+For tests against the cloud a light weigh perfomance utility has been added. It currently exports only one method for tests: `execTimed( func, maxDelay, failMsg, successMsg)`.  This method will execute the passed function and expect it to resolve by `maxDelay` milliseconds.  Failures are thrown to cucumber and results are stored in a performance log buffer.  This log is then dumped to the console after all tests have been run.  They are also written to a CSV report file: `./report/performance.csv`.
+
+For example, here is how it is used to check the redirect to the login page. 
+
+```javascript
+    async openCloudPage(maxDelay){
+        await perfUtils.execTimed(async () => {
+                await this.driver.get(__config.influx_url);
+                await this.loginPage.waitToLoad(10000);
+            },
+            maxDelay, `Redirect failed to resolve in ${maxDelay} ms`);
+    }
+
+```
  
 ### Tips
 

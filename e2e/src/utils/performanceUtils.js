@@ -9,13 +9,17 @@ let performanceRecFile = './report/performance.csv';
 
 const execTimed = async ( func, maxDelay, failMsg, successMsg) => {
 
+    if(typeof(maxDelay) !== 'number'){
+        throw `maxDelay must be of type number.  Got ${typeof(maxDelay)}`
+    }
+
     let start = new Date();
     let startl = start.getTime();
     await func();
     let finish = new Date();
     let finishl = finish.getTime();
     try{
-        assert.isBelow(finishl-startl, parseInt(maxDelay), failMsg);
+        assert.isBelow(finishl-startl, maxDelay, failMsg);
         performanceLog.push({name: `${__currentFeature}: ${__currentScenario}`,
             state: 'pass',
             maxTime: maxDelay,
