@@ -268,6 +268,20 @@ func MergedFiltersRule() BoolFlag {
 	return mergeFiltersRule
 }
 
+var notebooks = MakeBoolFlag(
+	"Notebooks",
+	"notebooks",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// Notebooks - Determine if the notebook feature's route and navbar icon are visible to the user
+func Notebooks() BoolFlag {
+	return notebooks
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -288,6 +302,7 @@ var all = []Flag{
 	simpleTaskOptionsExtraction,
 	useUserPermission,
 	mergeFiltersRule,
+	notebooks,
 }
 
 var byKey = map[string]Flag{
@@ -310,4 +325,5 @@ var byKey = map[string]Flag{
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"useUserPermission":             useUserPermission,
 	"mergeFiltersRule":              mergeFiltersRule,
+	"notebooks":                     notebooks,
 }

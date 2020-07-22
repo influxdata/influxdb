@@ -142,3 +142,11 @@
   default: false
   contact: Query Team
   lifetime: temporary
+
+- name: Notebooks
+  description: Determine if the notebook feature's route and navbar icon are visible to the user
+  key: notebooks
+  default: false
+  contact: Monitoring Team
+  lifetime: temporary
+  expose: true
