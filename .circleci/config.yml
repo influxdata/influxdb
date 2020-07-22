@@ -103,8 +103,8 @@ jobs:
           echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
       - run: |
           BRANCH=$(git rev-parse --abbrev-ref HEAD | tr '/' '.')
-          docker build -t quay.io/influxdb/rust:$BRANCH -f Dockerfile.perf .
-          docker push quay.io/influxdb/rust:$BRANCH
+          docker build -t quay.io/influxdb/fusion:$BRANCH -f Dockerfile.perf .
+          docker push quay.io/influxdb/fusion:$BRANCH
 
 workflows:
   version: 2
