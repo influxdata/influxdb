@@ -370,7 +370,7 @@ const hydrateVarsHelper = async (
     null,
     '',
     options.skipCache,
-    options.controller,
+    options.controller
   )
 
   node.cancel = request.cancel
