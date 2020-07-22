@@ -12,7 +12,7 @@ import {RunQueryResult} from 'src/shared/apis/query'
 import {CancelBox} from 'src/types/promises'
 import {AppState, Variable} from 'src/types'
 
-export const TIME_INVALIDATION = 5000
+export const TIME_INVALIDATION = 5000 // this is in milliseconds
 
 const asSimplyKeyValueVariables = (vari: Variable) => {
   return {
@@ -120,7 +120,7 @@ export const resetQueryCacheByQuery = (query: string): void => {
   queryCache.resetCacheByID(queryID)
 }
 
-export const getRunQueryResults = (
+export const getCachedResultsOrRunQuery = (
   orgID: string,
   query: string,
   state: AppState,

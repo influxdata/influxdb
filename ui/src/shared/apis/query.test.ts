@@ -1,7 +1,7 @@
 import {mocked} from 'ts-jest/utils'
 import {runQuery} from 'src/shared/apis/query'
 import {
-  getRunQueryResults,
+  getCachedResultsOrRunQuery,
   resetQueryCache,
   resetQueryCacheByQuery,
 } from 'src/shared/apis/queryCache'
@@ -137,11 +137,11 @@ describe('query', () => {
         cancel: jest.fn(),
       }))
       const queryText = '|> get some data fool'
-      const result = getRunQueryResults(orgID, queryText, mockState)
+      const result = getCachedResultsOrRunQuery(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
       result.promise.then(() => {
         try {
-          getRunQueryResults(orgID, queryText, mockState)
+          getCachedResultsOrRunQuery(orgID, queryText, mockState)
           expect(runQuery).toHaveBeenCalledTimes(1)
           done()
         } catch (error) {
@@ -156,12 +156,12 @@ describe('query', () => {
         cancel: jest.fn(),
       }))
       const queryText = '|> get some data fool'
-      const result = getRunQueryResults(orgID, queryText, mockState)
+      const result = getCachedResultsOrRunQuery(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
       result.promise.then(() => {
         try {
           resetQueryCacheByQuery(queryText)
-          getRunQueryResults(orgID, queryText, mockState)
+          getCachedResultsOrRunQuery(orgID, queryText, mockState)
           expect(runQuery).toHaveBeenCalledTimes(2)
           done()
         } catch (error) {
@@ -176,15 +176,15 @@ describe('query', () => {
         cancel: jest.fn(),
       }))
       const {
-        getRunQueryResults,
+        getCachedResultsOrRunQuery,
         TIME_INVALIDATION,
       } = require('src/shared/apis/queryCache')
       const queryText = '|> get some data fool'
-      getRunQueryResults(orgID, queryText, mockState)
+      getCachedResultsOrRunQuery(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
       setTimeout(() => {
         try {
-          getRunQueryResults(orgID, queryText, mockState)
+          getCachedResultsOrRunQuery(orgID, queryText, mockState)
           expect(runQuery).toHaveBeenCalledTimes(2)
           done()
         } catch (error) {
@@ -198,11 +198,11 @@ describe('query', () => {
         cancel: jest.fn(),
       }))
       const queryText = 'v.bucket'
-      const result = getRunQueryResults(orgID, queryText, mockState)
+      const result = getCachedResultsOrRunQuery(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
       result.promise.then(() => {
         try {
-          getRunQueryResults(orgID, queryText, mockState)
+          getCachedResultsOrRunQuery(orgID, queryText, mockState)
           expect(runQuery).toHaveBeenCalledTimes(1)
           done()
         } catch (error) {
@@ -218,7 +218,7 @@ describe('query', () => {
       const queryText = 'v.build'
       const originalName =
         mockState.resources.variables.byID['05e6e4df2287b000'].name
-      const result = getRunQueryResults(orgID, queryText, mockState)
+      const result = getCachedResultsOrRunQuery(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
       result.promise
         .then(() => {
@@ -226,7 +226,7 @@ describe('query', () => {
             const newMockState = Object.assign({}, mockState)
             newMockState.resources.variables.byID['05e6e4df2287b000'].name =
               'newName'
-            getRunQueryResults(orgID, queryText, newMockState)
+            getCachedResultsOrRunQuery(orgID, queryText, newMockState)
             expect(runQuery).toHaveBeenCalledTimes(2)
           } catch (error) {
             done(error)
@@ -237,7 +237,7 @@ describe('query', () => {
             mockState.resources.variables.byID[
               '05e6e4df2287b000'
             ].name = originalName
-            getRunQueryResults(orgID, queryText, mockState)
+            getCachedResultsOrRunQuery(orgID, queryText, mockState)
             expect(runQuery).toHaveBeenCalledTimes(3)
             done()
           } catch (error) {
@@ -254,7 +254,7 @@ describe('query', () => {
       const [selected] = mockState.resources.variables.byID[
         '05aeb0ad75aca000'
       ].selected
-      const result = getRunQueryResults(orgID, queryText, mockState)
+      const result = getCachedResultsOrRunQuery(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
       result.promise
         .then(() => {
@@ -263,7 +263,7 @@ describe('query', () => {
             newMockState.resources.variables.byID[
               '05aeb0ad75aca000'
             ].selected[0] = 'usage_user'
-            getRunQueryResults(orgID, queryText, newMockState)
+            getCachedResultsOrRunQuery(orgID, queryText, newMockState)
             expect(runQuery).toHaveBeenCalledTimes(2)
           } catch (error) {
             done(error)
@@ -274,7 +274,7 @@ describe('query', () => {
             mockState.resources.variables.byID[
               '05aeb0ad75aca000'
             ].selected[0] = selected
-            getRunQueryResults(orgID, queryText, mockState)
+            getCachedResultsOrRunQuery(orgID, queryText, mockState)
             expect(runQuery).toHaveBeenCalledTimes(3)
             done()
           } catch (error) {
@@ -288,13 +288,13 @@ describe('query', () => {
         cancel: jest.fn(),
       }))
       const queryText = 'v.bucket'
-      const result = getRunQueryResults(orgID, queryText, mockState)
+      const result = getCachedResultsOrRunQuery(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
       result.promise.then(() => {
         try {
           mockState.resources.variables.byID['05aeb0ad75aca000'].selected[0] =
             'usage_user'
-          getRunQueryResults(orgID, queryText, mockState)
+          getCachedResultsOrRunQuery(orgID, queryText, mockState)
           expect(runQuery).toHaveBeenCalledTimes(1)
           done()
         } catch (error) {
