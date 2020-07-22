@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/url"
+	"path/filepath"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
@@ -10,19 +11,17 @@ import (
 )
 
 func cmdConfig(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	path, dir, err := defaultConfigPath()
-	if err != nil {
-		panic(err)
-	}
 	builder := cmdConfigBuilder{
 		genericCLIOpts: opt,
-		svc:            config.NewLocalConfigSVC(path, dir),
+		globalFlags:    f,
+		svcFn:          newConfigService,
 	}
 	return builder.cmd()
 }
 
 type cmdConfigBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	name   string
 	url    string
@@ -33,7 +32,7 @@ type cmdConfigBuilder struct {
 	json        bool
 	hideHeaders bool
 
-	svc config.ConfigsService
+	svcFn func(path string) config.Service
 }
 
 func (b *cmdConfigBuilder) cmd() *cobra.Command {
@@ -65,6 +64,7 @@ func (b *cmdConfigBuilder) cmd() *cobra.Command {
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
 `
 
+	b.registerFilepath(cmd)
 	cmd.AddCommand(
 		b.cmdCreate(),
 		b.cmdDelete(),
@@ -75,8 +75,10 @@ func (b *cmdConfigBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdSwitchActiveRunEFn(cmd *cobra.Command, args []string) error {
+	svc := b.newConfigSVC()
+
 	if len(args) > 0 {
-		cfg, err := b.svc.SwitchActive(args[0])
+		cfg, err := svc.SwitchActive(args[0])
 		if err != nil {
 			return err
 		}
@@ -86,7 +88,7 @@ func (b *cmdConfigBuilder) cmdSwitchActiveRunEFn(cmd *cobra.Command, args []stri
 		})
 	}
 
-	configs, err := b.svc.ListConfigs()
+	configs, err := svc.ListConfigs()
 	if err != nil {
 		return err
 	}
@@ -126,6 +128,7 @@ func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
 	and
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/create`
 
+	b.registerFilepath(cmd)
 	b.registerPrintFlags(cmd)
 	b.registerConfigSettingFlags(cmd)
 	cmd.MarkFlagRequired("token")
@@ -134,12 +137,14 @@ func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
+	svc := b.newConfigSVC()
+
 	host, err := b.getValidHostURL()
 	if err != nil {
 		return err
 	}
 
-	cfg, err := b.svc.CreateConfig(config.Config{
+	cfg, err := svc.CreateConfig(config.Config{
 		Name:   b.name,
 		Host:   host,
 		Token:  b.token,
@@ -184,13 +189,15 @@ func (b *cmdConfigBuilder) cmdDelete() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) error {
+	svc := b.newConfigSVC()
+
 	deletedConfigs := make(config.Configs)
 	for _, name := range append(args, b.name) {
 		if name == "" {
 			continue
 		}
 
-		cfg, err := b.svc.DeleteConfig(name)
+		cfg, err := svc.DeleteConfig(name)
 		if influxdb.ErrorCode(err) == influxdb.ENotFound {
 			continue
 		}
@@ -241,7 +248,7 @@ func (b *cmdConfigBuilder) cmdUpdateRunEFn(*cobra.Command, []string) error {
 		host = h
 	}
 
-	cfg, err := b.svc.UpdateConfig(config.Config{
+	cfg, err := b.newConfigSVC().UpdateConfig(config.Config{
 		Name:   b.name,
 		Host:   host,
 		Token:  b.token,
@@ -283,7 +290,7 @@ func (b *cmdConfigBuilder) cmdList() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdListRunEFn(*cobra.Command, []string) error {
-	cfgs, err := b.svc.ListConfigs()
+	cfgs, err := b.newConfigSVC().ListConfigs()
 	if err != nil {
 		return err
 	}
@@ -307,6 +314,10 @@ func (b *cmdConfigBuilder) registerConfigSettingFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkDeprecated("name", "use the --config-name flag")
 	cmd.Flags().StringVar(&b.url, "url", "", "The host url (required)")
 	cmd.Flags().MarkDeprecated("url", "use the --host-url flag")
+}
+
+func (b *cmdConfigBuilder) registerFilepath(cmd *cobra.Command) {
+	b.globalFlags.registerFlags(cmd, "host", "token", "skip-verify", "trace-debug-id")
 }
 
 func (b *cmdConfigBuilder) registerPrintFlags(cmd *cobra.Command) {
@@ -368,6 +379,14 @@ func (b *cmdConfigBuilder) getValidHostURL() (string, error) {
 		return "", errors.New("a scheme of HTTP(S) must be provided for host url")
 	}
 	return u.String(), nil
+}
+
+func (b *cmdConfigBuilder) newConfigSVC() config.Service {
+	return b.svcFn(b.globalFlags.filepath)
+}
+
+func newConfigService(path string) config.Service {
+	return config.NewLocalConfigSVC(path, filepath.Dir(path))
 }
 
 type configPrintOpts struct {
