@@ -15,13 +15,44 @@
 //!
 //! ## Work Remaining
 //!
-//! - Write
 //! - Query
 //! - Authentication
 //! - optional sync client
 //! - Influx 1.x API?
 //! - Other parts of the API
 //! - Pick the best name to use on crates.io and publish
+//!
+//! ## Quick start
+//!
+//! This example creates a client to an InfluxDB server running at `http://localhost:8888`, builds
+//! two points, and writes them to InfluxDB in the organization with ID `0000111100001111` and the
+//! bucket with the ID `1111000011110000`.
+//!
+//! ```
+//! async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//!     use influxdb2_client::{Client, DataPoint};
+//!     use futures::stream;
+//!
+//!     let client = Client::new("http://localhost:8888");
+//!     let points = vec![
+//!         DataPoint::builder("cpu")
+//!             .tag("host", "server01")
+//!             .field("usage", 0.5)
+//!             .build()?,
+//!         DataPoint::builder("cpu")
+//!             .tag("host", "server01")
+//!             .tag("region", "us-west")
+//!             .field("usage", 0.87)
+//!             .build()?,
+//!     ];
+//!
+//!     let org_id = "0000111100001111";
+//!     let bucket_id = "1111000011110000";
+//!
+//!     client.write(org_id, bucket_id, stream::iter(points)).await?;
+//!     Ok(())
+//! }
+//! ```
 
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
