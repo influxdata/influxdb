@@ -6,6 +6,7 @@
 1. [18910](https://github.com/influxdata/influxdb/pull/18910): Add uninstall functionality for stacks
 1. [18912](https://github.com/influxdata/influxdb/pull/18912): Drop deprecated influx pkg command tree
 1. [18997](https://github.com/influxdata/influxdb/pull/18997): Add telegraf management commands to influx CLI
+1. [19030](https://github.com/influxdata/influxdb/pull/19030): Enable dynamic destination for the influx CLI configs file
 
 ### Bug Fixes
 
