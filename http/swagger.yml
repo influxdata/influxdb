@@ -7351,7 +7351,6 @@ components:
             - notificationEndpoints
             - checks
             - dbrp
-            - stack
         id:
           type: string
           nullable: true
