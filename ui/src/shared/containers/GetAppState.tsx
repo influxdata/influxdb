@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useEffect, useMemo} from 'react'
+import React, {FC, useEffect, useMemo, useState} from 'react'
 import {Switch, Route, RouteComponentProps} from 'react-router-dom'
 import {useDispatch, useSelector} from 'react-redux'
 
@@ -34,7 +34,7 @@ import {CLOUD, CLOUD_SIGNIN_PATHNAME} from 'src/shared/constants'
 const FETCH_WAIT = 60000
 
 const GetAppState: FC<RouteComponentProps> = ({history, location}) => {
-  let ignoreMeLoading = false
+  const [ignoreMe, setIgnoreMe] = useState(false)
   const dispatch = useDispatch()
   const {orgStatus, meStatus, flagStatus, flags} = useSelector(
     (state: AppState) => {
@@ -42,7 +42,7 @@ const GetAppState: FC<RouteComponentProps> = ({history, location}) => {
         flags: activeFlags(state),
         flagStatus: state.flags.status || RemoteDataState.NotStarted,
         orgStatus: state.resources.orgs.status || RemoteDataState.NotStarted,
-        meStatus: ignoreMeLoading ? RemoteDataState.Done : state.me.status,
+        meStatus: ignoreMe ? RemoteDataState.Done : state.me.status,
       }
     }
   )
@@ -102,7 +102,8 @@ const GetAppState: FC<RouteComponentProps> = ({history, location}) => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      ignoreMeLoading = true
+      // NOTE: after the initial load, this dispatch will update the loading state, which will cause a rerender
+      setIgnoreMe(true)
       dispatch(getMe())
     }, FETCH_WAIT)
 
@@ -127,18 +128,18 @@ const GetAppState: FC<RouteComponentProps> = ({history, location}) => {
     )
   }, [flags])
 
-  return useMemo(() => {
-      console.log('RESET', loading, orgStatus, meStatus, flagStatus)
-      return (
-    <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
-      <Switch>
-        <Route path="/no-orgs" component={NoOrgsPage} />
-        <Route path="/orgs" component={App} />
-        <Route exact path="/" component={RouteToOrg} />
-      </Switch>
-    </SpinnerContainer>
-      )
-  } , [loading])
+  return useMemo(
+    () => (
+      <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
+        <Switch>
+          <Route path="/no-orgs" component={NoOrgsPage} />
+          <Route path="/orgs" component={App} />
+          <Route exact path="/" component={RouteToOrg} />
+        </Switch>
+      </SpinnerContainer>
+    ),
+    [loading]
+  )
 }
 
 export default GetAppState
