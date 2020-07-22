@@ -48,7 +48,7 @@ class GetResource extends PureComponent<Props> {
   private getResourceDetails({type, id}: Resource) {
     switch (type) {
       case ResourceType.Dashboards: {
-        return this.props.getDashboard(id, this.controller.signal)
+        return this.props.getDashboard(id, this.controller)
       }
 
       default: {

@@ -326,15 +326,18 @@ export const deleteDashboard = (dashboardID: string, name: string) => async (
 
 export const getDashboard = (
   dashboardID: string,
-  signal?: AbortSignal
+  controller?: AbortController
 ) => async (dispatch, getState: GetState): Promise<void> => {
   try {
     dispatch(creators.setDashboard(dashboardID, RemoteDataState.Loading))
 
     // Fetch the dashboard, views, and all variables a user has access to
     const [resp] = await Promise.all([
-      api.getDashboard({dashboardID, query: {include: 'properties'}}, {signal}),
-      dispatch(getVariables(signal)),
+      api.getDashboard(
+        {dashboardID, query: {include: 'properties'}},
+        {signal: controller.signal}
+      ),
+      dispatch(getVariables(controller)),
     ])
 
     if (!resp) {
@@ -346,7 +349,7 @@ export const getDashboard = (
     }
 
     const skipCache = true
-    dispatch(hydrateVariables(skipCache))
+    dispatch(hydrateVariables(skipCache, controller))
 
     const normDash = normalize<Dashboard, DashboardEntities, string>(
       resp.data,

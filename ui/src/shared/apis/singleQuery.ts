@@ -1,4 +1,4 @@
-import {File} from 'src/types'
+import {File, CancelBox} from 'src/types'
 import {runQuery} from 'src/shared/apis/query'
 
 /*\
@@ -15,12 +15,12 @@ import {runQuery} from 'src/shared/apis/query'
       }
 
 \*/
-export function RunQueryPromiseMutex() {
+export function RunQueryPromiseMutex<T>() {
   const cached = []
   let processing = false
 
   const ret = {
-    run: (orgID: string, query: string, extern?: File) => {
+    run: (orgID: string, query: string, extern?: File): CancelBox<T> => {
       return {
         promise: new Promise((resolve, reject) => {
           if (processing) {
