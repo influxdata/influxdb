@@ -263,7 +263,7 @@ var notebooks = MakeBoolFlag(
 	true,
 )
 
-// Notebooks - Determin if the notebook feature's route and navbar icon are visible to the user
+// Notebooks - Determine if the notebook feature's route and navbar icon are visible to the user
 func Notebooks() BoolFlag {
 	return notebooks
 }
