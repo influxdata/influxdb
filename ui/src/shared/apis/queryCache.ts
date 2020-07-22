@@ -24,15 +24,13 @@ const asSimplyKeyValueVariables = (vari: Variable) => {
 // https://jsperf.com/hashcodelordvlad
 // Through this thread:
 // https://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript
-const hashCode = (queryText: string): string => {
-  let hash = 0,
-    char
-  if (!queryText) {
+const hashCode = (rawText: string): string => {
+  let hash = 0
+  if (!rawText) {
     return `${hash}`
   }
-  for (let i = 0; i < queryText.length; i++) {
-    char = queryText.charCodeAt(i)
-    hash = (hash << 5) - hash + char
+  for (let i = 0; i < rawText.length; i++) {
+    hash = (hash << 5) - hash + rawText.charCodeAt(i)
     hash |= 0 // Convert to 32bit integer
   }
   return `${hash}`
@@ -41,9 +39,10 @@ const hashCode = (queryText: string): string => {
 class QueryCache {
   cache = {}
 
-  _cleanExpiredQueries = (): void => {
+  private _cleanExpiredQueries = (): void => {
     const now = Date.now()
     for (const id in this.cache) {
+      // TODO(ariel): need to implement specific rules for custom time ranges
       if (this.cache[id].isCustomTime) {
         continue
       }
@@ -152,7 +151,8 @@ export const getRunQueryResults = (
   const extern = buildVarsOption(variableAssignments)
   const results = runQuery(orgID, query, extern, abortController)
   results.promise = results.promise.then(res => {
-    // if the timeRange is non-relative (i.e. a custom timeRange || the query text has a set time range)
+    // TODO(ariel): handle custom time range
+    // if the timeRange is non-relative (i.e. a custom timeRange or the query text has a set time range)
     // we will need to pass an additional parameter to ensure that the cached data is treated differently
     // set the resolved promise results in the cache
     queryCache.setCacheByID(queryID, variableID, res)
