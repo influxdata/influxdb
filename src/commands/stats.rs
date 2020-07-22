@@ -49,12 +49,7 @@ pub async fn stats(config: &StatsConfig) -> Result<()> {
 
     let mut builder = FileSetStatsBuilder::default();
 
-    for input_reader in input_path
-        .files()
-        .iter()
-        .rev()
-        .map(|p| InputReader::new(&p.to_string_lossy()))
-    {
+    for input_reader in input_path.input_readers() {
         let input_reader = input_reader.context(OpenInput)?;
 
         let file_stats = stats_for_file(config, input_reader).await?;
