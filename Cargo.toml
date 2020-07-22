@@ -16,7 +16,6 @@ members = [
     "delorean_table_schema",
     "delorean_test_helpers",
     "delorean_tsm",
-    "delorean_utilities",
     "delorean_wal",
     "influxdb2_client",
 ]
