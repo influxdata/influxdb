@@ -8,6 +8,7 @@ import (
 	"sort"
 	"unsafe"
 
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"github.com/influxdata/influxdb/v2/pkg/rhh"
 	"github.com/influxdata/influxdb/v2/tsdb"
 )
@@ -70,7 +71,8 @@ func (blk *MeasurementBlock) bytes() int {
 func (blk *MeasurementBlock) Version() int { return blk.version }
 
 // Elem returns an element for a measurement.
-func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool) {
+func (blk *MeasurementBlock) Elem(name []byte, limiter *mincore.Limiter) (e MeasurementBlockElem, ok bool) {
+	_ = wait(limiter, blk.hashData[:MeasurementNSize])
 	n := int64(binary.BigEndian.Uint64(blk.hashData[:MeasurementNSize]))
 	hash := rhh.HashKey(name)
 	pos := hash % n
@@ -79,6 +81,7 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool)
 	var d int64
 	for {
 		// Find offset of measurement.
+		_ = wait(limiter, blk.hashData[MeasurementNSize+(pos*MeasurementOffsetSize):MeasurementNSize+(pos*MeasurementOffsetSize)+8])
 		offset := binary.BigEndian.Uint64(blk.hashData[MeasurementNSize+(pos*MeasurementOffsetSize):])
 		if offset == 0 {
 			return MeasurementBlockElem{}, false
@@ -88,6 +91,7 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool)
 		if offset > 0 {
 			// Parse into element.
 			var e MeasurementBlockElem
+			_ = wait(limiter, blk.hashData[offset:offset+1])
 			e.UnmarshalBinary(blk.data[offset:])
 
 			// Return if name match.
@@ -132,18 +136,22 @@ func (blk *MeasurementBlock) UnmarshalBinary(data []byte) error {
 }
 
 // Iterator returns an iterator over all measurements.
-func (blk *MeasurementBlock) Iterator() MeasurementIterator {
-	return &blockMeasurementIterator{data: blk.data[MeasurementFillSize:]}
+func (blk *MeasurementBlock) Iterator(limiter *mincore.Limiter) MeasurementIterator {
+	return &blockMeasurementIterator{
+		data:    blk.data[MeasurementFillSize:],
+		limiter: limiter,
+	}
 }
 
 // SeriesIDIterator returns an iterator for all series ids in a measurement.
-func (blk *MeasurementBlock) SeriesIDIterator(name []byte) tsdb.SeriesIDIterator {
+func (blk *MeasurementBlock) SeriesIDIterator(name []byte, limiter *mincore.Limiter) tsdb.SeriesIDIterator {
 	// Find measurement element.
-	e, ok := blk.Elem(name)
+	e, ok := blk.Elem(name, limiter)
 	if !ok {
 		return &rawSeriesIDIterator{}
 	}
 	if e.seriesIDSet != nil {
+		_ = wait(limiter, e.seriesIDSetData)
 		return tsdb.NewSeriesIDSetIterator(e.seriesIDSet)
 	}
 	return &rawSeriesIDIterator{n: e.series.n, data: e.series.data}
@@ -153,6 +161,8 @@ func (blk *MeasurementBlock) SeriesIDIterator(name []byte) tsdb.SeriesIDIterator
 type blockMeasurementIterator struct {
 	elem MeasurementBlockElem
 	data []byte
+
+	limiter *mincore.Limiter
 }
 
 // Next returns the next measurement. Returns nil when iterator is complete.
@@ -164,6 +174,7 @@ func (itr *blockMeasurementIterator) Next() MeasurementElem {
 
 	// Unmarshal the element at the current position.
 	itr.elem.UnmarshalBinary(itr.data)
+	_ = wait(itr.limiter, itr.data[:itr.elem.size])
 
 	// Move the data forward past the record.
 	itr.data = itr.data[itr.elem.size:]
@@ -304,7 +315,8 @@ type MeasurementBlockElem struct {
 		data []byte // serialized series data
 	}
 
-	seriesIDSet *tsdb.SeriesIDSet
+	seriesIDSet     *tsdb.SeriesIDSet
+	seriesIDSetData []byte
 
 	// size in bytes, set after unmarshaling.
 	size int
@@ -420,6 +432,7 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 	} else {
 		// data = memalign(data)
 		e.seriesIDSet = tsdb.NewSeriesIDSet()
+		e.seriesIDSetData = data[:sz]
 		if err = e.seriesIDSet.UnmarshalBinaryUnsafe(data[:sz]); err != nil {
 			return err
 		}

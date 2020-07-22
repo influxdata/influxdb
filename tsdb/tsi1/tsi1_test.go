@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
@@ -203,9 +204,9 @@ type TagKeyElem struct {
 	deleted bool
 }
 
-func (e *TagKeyElem) Key() []byte                             { return e.key }
-func (e *TagKeyElem) Deleted() bool                           { return e.deleted }
-func (e *TagKeyElem) TagValueIterator() tsi1.TagValueIterator { return nil }
+func (e *TagKeyElem) Key() []byte                                               { return e.key }
+func (e *TagKeyElem) Deleted() bool                                             { return e.deleted }
+func (e *TagKeyElem) TagValueIterator(_ *mincore.Limiter) tsi1.TagValueIterator { return nil }
 
 // TagKeyIterator represents an iterator over a slice of tag keys.
 type TagKeyIterator struct {

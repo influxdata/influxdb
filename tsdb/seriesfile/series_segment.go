@@ -12,8 +12,10 @@ import (
 	"strconv"
 
 	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"github.com/influxdata/influxdb/v2/pkg/mmap"
 	"github.com/influxdata/influxdb/v2/tsdb"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -47,6 +49,8 @@ type SeriesSegment struct {
 	file *os.File      // write file handle
 	w    *bufio.Writer // bufferred file handle
 	size uint32        // current file size
+
+	limiter *mincore.Limiter
 }
 
 // NewSeriesSegment returns a new instance of SeriesSegment.
@@ -125,6 +129,7 @@ func (s *SeriesSegment) InitForWrite() (err error) {
 		if !IsValidSeriesEntryFlag(flag) {
 			break
 		}
+		_ = wait(s.limiter, s.data[s.size:int64(s.size)+sz])
 		s.size += uint32(sz)
 	}
 
@@ -170,6 +175,12 @@ func (s *SeriesSegment) CloseForWrite() (err error) {
 		s.file = nil
 	}
 	return err
+}
+
+// SetPageFaultLimiter sets the limiter used for rate limiting page faults.
+// Must be called after Open().
+func (s *SeriesSegment) SetPageFaultLimiter(limiter *rate.Limiter) {
+	s.limiter = mincore.NewLimiter(limiter, s.data)
 }
 
 // Data returns the raw data.
@@ -247,6 +258,7 @@ func (s *SeriesSegment) ForEachEntry(fn func(flag uint8, id tsdb.SeriesIDTyped, 
 		if !IsValidSeriesEntryFlag(flag) {
 			break
 		}
+		_ = wait(s.limiter, s.data[pos:int64(pos)+sz])
 
 		offset := JoinSeriesOffset(s.id, pos)
 		if err := fn(flag, id, offset, key); err != nil {
@@ -335,6 +347,7 @@ func ReadSeriesKeyFromSegments(a []*SeriesSegment, offset int64) []byte {
 	}
 	buf := segment.Slice(pos)
 	key, _ := ReadSeriesKey(buf)
+	_ = wait(segment.limiter, buf[:len(key)])
 	return key
 }
 

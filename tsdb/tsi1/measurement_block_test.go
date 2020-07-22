@@ -117,7 +117,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 	}
 
 	// Verify data in block.
-	if e, ok := blk.Elem([]byte("foo")); !ok {
+	if e, ok := blk.Elem([]byte("foo"), nil); !ok {
 		t.Fatal("expected element")
 	} else if e.TagBlockOffset() != 100 || e.TagBlockSize() != 10 {
 		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
@@ -125,7 +125,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
-	if e, ok := blk.Elem([]byte("bar")); !ok {
+	if e, ok := blk.Elem([]byte("bar"), nil); !ok {
 		t.Fatal("expected element")
 	} else if e.TagBlockOffset() != 200 || e.TagBlockSize() != 20 {
 		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
@@ -133,7 +133,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
-	if e, ok := blk.Elem([]byte("baz")); !ok {
+	if e, ok := blk.Elem([]byte("baz"), nil); !ok {
 		t.Fatal("expected element")
 	} else if e.TagBlockOffset() != 300 || e.TagBlockSize() != 30 {
 		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
@@ -142,7 +142,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 	}
 
 	// Verify non-existent measurement doesn't exist.
-	if _, ok := blk.Elem([]byte("BAD_MEASUREMENT")); ok {
+	if _, ok := blk.Elem([]byte("BAD_MEASUREMENT"), nil); ok {
 		t.Fatal("expected no element")
 	}
 }
