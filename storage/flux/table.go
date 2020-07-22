@@ -196,7 +196,8 @@ func (t *table) readTags(tags models.Tags) {
 
 	for _, tag := range tags {
 		j := execute.ColIdx(string(tag.Key), t.cols)
-		// In the case of group aggregates, there might be tags that are excluded so you cannot find it.
+		// In the case of group aggregate, tags that are not referenced in group() are not included in the result, but
+		// readTags () still get a complete tag list. Here is just to skip the tags that should not present in the result.
 		if j < 0 {
 			continue
 		}
