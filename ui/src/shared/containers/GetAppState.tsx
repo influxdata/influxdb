@@ -15,6 +15,7 @@ import App from 'src/App'
 import {getMe} from 'src/shared/actions/me'
 import {getFlags} from 'src/shared/actions/flags'
 import {getOrganizations} from 'src/organizations/actions/thunks'
+import {getLinks} from 'src/shared/actions/links'
 import RouteToOrg from 'src/shared/containers/RouteToOrg'
 import {notify} from 'src/shared/actions/notifications'
 
@@ -47,13 +48,17 @@ const GetAppState: FC<RouteComponentProps> = ({history, location}) => {
     }
   )
 
-  const loading = [orgStatus, meStatus, flagStatus].filter(
+  const loading = [orgStatus, meStatus, flagStatus].some(
     status =>
       status === RemoteDataState.NotStarted ||
       status === RemoteDataState.Loading
-  ).length
+  )
     ? RemoteDataState.Loading
     : RemoteDataState.Done
+
+  useEffect(() => {
+      dispatch(getLinks())
+  }, [dispatch])
 
   useEffect(() => {
     if (orgStatus === RemoteDataState.NotStarted) {
