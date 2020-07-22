@@ -526,9 +526,9 @@ func TestWindowFirstArrayCursor(t *testing.T) {
 			},
 		},
 		{
-			name:        "whole series no points",
-			inputArrays: []*cursors.IntegerArray{{}},
-			wantIntegers:        []*cursors.IntegerArray{},
+			name:         "whole series no points",
+			inputArrays:  []*cursors.IntegerArray{{}},
+			wantIntegers: []*cursors.IntegerArray{},
 		},
 		{
 			name: "whole series two arrays",
@@ -1155,9 +1155,9 @@ func TestIntegerCountArrayCursor(t *testing.T) {
 			},
 		},
 		{
-			name:        "whole series no points",
-			inputArrays: []*cursors.IntegerArray{{}},
-			wantIntegers:        []*cursors.IntegerArray{},
+			name:         "whole series no points",
+			inputArrays:  []*cursors.IntegerArray{{}},
+			wantIntegers: []*cursors.IntegerArray{},
 		},
 		{
 			name: "whole series two arrays",
@@ -1422,9 +1422,9 @@ func TestIntegerSumArrayCursor(t *testing.T) {
 			},
 		},
 		{
-			name:        "whole series no points",
-			inputArrays: []*cursors.IntegerArray{{}},
-			wantIntegers:        []*cursors.IntegerArray{},
+			name:         "whole series no points",
+			inputArrays:  []*cursors.IntegerArray{{}},
+			wantIntegers: []*cursors.IntegerArray{},
 		},
 		{
 			name: "whole series two arrays",
@@ -1951,10 +1951,10 @@ func TestWindowMeanArrayCursor(t *testing.T) {
 			},
 		},
 		{
-			name:  "no window empty",
-			every: 0,
+			name:        "no window empty",
+			every:       0,
 			inputArrays: []*cursors.IntegerArray{},
-			wantFloats: []*cursors.FloatArray{},
+			wantFloats:  []*cursors.FloatArray{},
 		},
 		{
 			name:  "window",
@@ -1969,7 +1969,7 @@ func TestWindowMeanArrayCursor(t *testing.T) {
 				),
 			},
 			wantFloats: []*cursors.FloatArray{
-				makeFloatArray(4, mustParseTime("2010-01-01T00:30:00Z"), 30 * time.Minute,
+				makeFloatArray(4, mustParseTime("2010-01-01T00:30:00Z"), 30*time.Minute,
 					func(i int64) float64 { return 0.5 + float64(i)*2 }),
 			},
 		},
@@ -1986,13 +1986,13 @@ func TestWindowMeanArrayCursor(t *testing.T) {
 				),
 			},
 			wantFloats: []*cursors.FloatArray{
-				makeFloatArray(4, mustParseTime("2010-01-01T00:30:00Z"), 30 * time.Minute,
+				makeFloatArray(4, mustParseTime("2010-01-01T00:30:00Z"), 30*time.Minute,
 					func(i int64) float64 { return 0.5 + float64(i)*2 }),
 			},
 		},
 		{
-			name:  "window offset",
-			every: 30 * time.Minute,
+			name:   "window offset",
+			every:  30 * time.Minute,
 			offset: 5 * time.Minute,
 			inputArrays: []*cursors.IntegerArray{
 				makeIntegerArray(
@@ -2004,7 +2004,7 @@ func TestWindowMeanArrayCursor(t *testing.T) {
 				),
 			},
 			wantFloats: []*cursors.FloatArray{
-				makeFloatArray(5, mustParseTime("2010-01-01T00:05:00Z"), 30 * time.Minute,
+				makeFloatArray(5, mustParseTime("2010-01-01T00:05:00Z"), 30*time.Minute,
 					func(i int64) float64 { return []float64{0, 1.5, 3.5, 5.5, 7}[i] }),
 			},
 		},

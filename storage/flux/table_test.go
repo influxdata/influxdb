@@ -15,6 +15,8 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
+	"github.com/influxdata/flux/execute/table"
+	"github.com/influxdata/flux/execute/table/static"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
@@ -1187,6 +1189,202 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("unexpected results -want/+got:\n%s", diff)
 	}
+}
+
+func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (gen.SeriesGenerator, gen.TimeRange) {
+		tagsSpec := &gen.TagsSpec{
+			Tags: []*gen.TagValuesSpec{
+				{
+					TagKey: "t0",
+					Values: func() gen.CountableSequence {
+						return gen.NewCounterByteSequence("a%s", 0, 1)
+					},
+				},
+			},
+		}
+		spec := gen.Spec{
+			OrgID:    org,
+			BucketID: bucket,
+			Measurements: []gen.MeasurementSpec{
+				{
+					Name:     "m0",
+					TagsSpec: tagsSpec,
+					FieldValuesSpec: &gen.FieldValuesSpec{
+						Name: "f0",
+						TimeSequenceSpec: gen.TimeSequenceSpec{
+							Count: math.MaxInt32,
+							Delta: 5 * time.Second,
+						},
+						DataType: models.Integer,
+						Values: func(spec gen.TimeSequenceSpec) gen.TimeValuesSequence {
+							return gen.NewTimeIntegerValuesSequence(
+								spec.Count,
+								gen.NewTimestampSequenceFromSpec(spec),
+								gen.NewIntegerArrayValuesSequence([]int64{1, 2, 3, 4}),
+							)
+						},
+					},
+				},
+			},
+		}
+		tr := gen.TimeRange{
+			Start: mustParseTime("2019-11-25T00:00:00Z"),
+			End:   mustParseTime("2019-11-25T00:01:00Z"),
+		}
+		return gen.NewSeriesGeneratorFromSpec(&spec, tr), tr
+	})
+	defer reader.Close()
+
+	t.Run("unwindowed mean", func(t *testing.T) {
+		mem := &memory.Allocator{}
+		ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
+				OrganizationID: reader.Org,
+				BucketID:       reader.Bucket,
+				Bounds:         reader.Bounds,
+			},
+			WindowEvery: math.MaxInt64,
+			Aggregates: []plan.ProcedureKind{
+				storageflux.MeanKind,
+			},
+		}, mem)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := static.Table{
+			static.StringKey("_measurement", "m0"),
+			static.StringKey("_field", "f0"),
+			static.StringKey("t0", "a0"),
+			static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+			static.TimeKey("_stop", "2019-11-25T00:01:00Z"),
+			static.Floats("_value", 2.5),
+		}
+		if diff := table.Diff(want, ti); diff != "" {
+			t.Fatalf("table iterators do not match; -want/+got:\n%s", diff)
+		}
+	})
+
+	t.Run("windowed mean", func(t *testing.T) {
+		mem := &memory.Allocator{}
+		ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
+				OrganizationID: reader.Org,
+				BucketID:       reader.Bucket,
+				Bounds:         reader.Bounds,
+			},
+			WindowEvery: int64(10 * time.Second),
+			Aggregates: []plan.ProcedureKind{
+				storageflux.MeanKind,
+			},
+		}, mem)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := static.TableGroup{
+			static.StringKey("_measurement", "m0"),
+			static.StringKey("_field", "f0"),
+			static.StringKey("t0", "a0"),
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:10Z"),
+				static.Floats("_value", 1.5),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:10Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:20Z"),
+				static.Floats("_value", 3.5),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:20Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:30Z"),
+				static.Floats("_value", 1.5),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:30Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:40Z"),
+				static.Floats("_value", 3.5),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:40Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:50Z"),
+				static.Floats("_value", 1.5),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:50Z"),
+				static.TimeKey("_stop", "2019-11-25T00:01:00Z"),
+				static.Floats("_value", 3.5),
+			},
+		}
+		if diff := table.Diff(want, ti); diff != "" {
+			t.Fatalf("table iterators do not match; -want/+got:\n%s", diff)
+		}
+	})
+
+	t.Run("windowed mean with offset", func(t *testing.T) {
+		mem := &memory.Allocator{}
+		ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
+				OrganizationID: reader.Org,
+				BucketID:       reader.Bucket,
+				Bounds:         reader.Bounds,
+			},
+			WindowEvery: int64(10 * time.Second),
+			Offset:      int64(2 * time.Second),
+			Aggregates: []plan.ProcedureKind{
+				storageflux.MeanKind,
+			},
+		}, mem)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := static.TableGroup{
+			static.StringKey("_measurement", "m0"),
+			static.StringKey("_field", "f0"),
+			static.StringKey("t0", "a0"),
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:02Z"),
+				static.Floats("_value", 1.0),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:02Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:12Z"),
+				static.Floats("_value", 2.5),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:12Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:22Z"),
+				static.Floats("_value", 2.5),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:22Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:32Z"),
+				static.Floats("_value", 2.5),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:32Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:42Z"),
+				static.Floats("_value", 2.5),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:42Z"),
+				static.TimeKey("_stop", "2019-11-25T00:00:52Z"),
+				static.Floats("_value", 2.5),
+			},
+			static.Table{
+				static.TimeKey("_start", "2019-11-25T00:00:52Z"),
+				static.TimeKey("_stop", "2019-11-25T00:01:00Z"),
+				static.Floats("_value", 4),
+			},
+		}
+		if diff := table.Diff(want, ti); diff != "" {
+			t.Fatalf("table iterators do not match; -want/+got:\n%s", diff)
+		}
+	})
 }
 
 func TestStorageReader_ReadWindowFirst(t *testing.T) {
