@@ -136,7 +136,9 @@ generate: $(SUBDIRS)
 test-js: node_modules
 	make -C ui test
 
+# Download tsdb testdata before running unit tests
 test-go:
+	$(GO_GENERATE) ./tsdb/gen_test.go
 	$(GO_GENERATE) ./tsdb/tsi1/gen_test.go
 	$(GO_TEST) ./...
 

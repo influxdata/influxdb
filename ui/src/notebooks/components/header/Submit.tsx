@@ -42,6 +42,7 @@ export const Submit: FC = () => {
 
   const submit = () => {
     event('Notebook Submit Button Clicked')
+    let queryIncludesPreviousResult = false
     setLoading(RemoteDataState.Loading)
     Promise.all(
       notebook.data.allIDs
@@ -69,6 +70,7 @@ export const Submit: FC = () => {
                 [`prev_${index}`]: stages[stages.length - 1].text,
               }
               text = text.replace(PREVIOUS_REGEXP, `prev_${index}`)
+              queryIncludesPreviousResult = true
             }
 
             stages.push({
@@ -119,6 +121,12 @@ export const Submit: FC = () => {
       .then(() => {
         event('Notebook Submit Resolved')
 
+        if (queryIncludesPreviousResult) {
+          event('flows_queryIncludesPreviousResult')
+        } else {
+          event('flows_queryExcludesPreviousResult')
+        }
+
         setLoading(RemoteDataState.Done)
       })
       .catch(e => {
@@ -137,6 +145,7 @@ export const Submit: FC = () => {
   return (
     <SubmitQueryButton
       text="Run Flow"
+      className="flows-run-flow"
       icon={IconFont.Play}
       submitButtonDisabled={!hasQueries}
       queryStatus={isLoading}
