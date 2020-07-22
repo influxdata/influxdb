@@ -141,8 +141,6 @@ describe('query', () => {
       expect(runQuery).toHaveBeenCalledTimes(1)
       result.promise.then(() => {
         try {
-          // expect runQuery to have still only be called once
-          // expect results to be retrieved from cache
           getRunQueryResults(orgID, queryText, mockState)
           expect(runQuery).toHaveBeenCalledTimes(1)
           done()
@@ -162,9 +160,7 @@ describe('query', () => {
       expect(runQuery).toHaveBeenCalledTimes(1)
       result.promise.then(() => {
         try {
-          // expect the cache to be cleared
           resetQueryCacheByQuery(queryText)
-          // expect results to be retrieved from runQuery
           getRunQueryResults(orgID, queryText, mockState)
           expect(runQuery).toHaveBeenCalledTimes(2)
           done()
@@ -206,8 +202,6 @@ describe('query', () => {
       expect(runQuery).toHaveBeenCalledTimes(1)
       result.promise.then(() => {
         try {
-          // expect runQuery to have still only be called once
-          // expect results to be retrieved from cache
           getRunQueryResults(orgID, queryText, mockState)
           expect(runQuery).toHaveBeenCalledTimes(1)
           done()

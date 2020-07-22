@@ -39,7 +39,7 @@ const hashCode = (rawText: string): string => {
 class QueryCache {
   cache = {}
 
-  private _cleanExpiredQueries = (): void => {
+  private cleanExpiredQueries = (): void => {
     const now = Date.now()
     for (const id in this.cache) {
       // TODO(ariel): need to implement specific rules for custom time ranges
@@ -52,13 +52,16 @@ class QueryCache {
     }
   }
 
-  getFromCache = (id: string, variableID: string): RunQueryResult | null => {
+  getFromCache = (
+    id: string,
+    hashedVariables: string
+  ): RunQueryResult | null => {
     // no existing query match
     if (!this.cache[id]) {
       return null
     }
     // query match with no existing variable match
-    if (this.cache[id].variables !== variableID) {
+    if (this.cache[id].hashedVariables !== hashedVariables) {
       this.resetCacheByID(id)
       return null
     }
@@ -83,24 +86,24 @@ class QueryCache {
 
   setCacheByID = (
     queryID: string,
-    variableID: string,
+    hashedVariables: string,
     values: RunQueryResult,
     isCustomTime: boolean = false
   ): void => {
     this.cache[queryID] = {
       dateSet: Date.now(),
+      hashedVariables,
       isCustomTime,
       values,
-      variables: variableID,
     }
   }
 
   startWatchDog = () => {
     setInterval(() => {
-      this._cleanExpiredQueries()
+      this.cleanExpiredQueries()
     }, TIME_INVALIDATION / 2)
 
-    this._cleanExpiredQueries()
+    this.cleanExpiredQueries()
   }
 }
 
@@ -129,11 +132,11 @@ export const getRunQueryResults = (
   const stringifiedVars = JSON.stringify(simplifiedVariables)
   // create the queryID based on the query & vars
   const queryID = `${hashCode(query)}`
-  const variableID = `${hashCode(stringifiedVars)}`
+  const hashedVariables = `${hashCode(stringifiedVars)}`
 
   const cacheResults: RunQueryResult | null = queryCache.getFromCache(
     queryID,
-    variableID
+    hashedVariables
   )
 
   // check the cache based on text & vars
@@ -155,7 +158,7 @@ export const getRunQueryResults = (
     // if the timeRange is non-relative (i.e. a custom timeRange or the query text has a set time range)
     // we will need to pass an additional parameter to ensure that the cached data is treated differently
     // set the resolved promise results in the cache
-    queryCache.setCacheByID(queryID, variableID, res)
+    queryCache.setCacheByID(queryID, hashedVariables, res)
     // non-variable start / stop should
     return res
   })
