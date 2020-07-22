@@ -14,7 +14,6 @@ export interface PipeMeta {
   visible: boolean
   loading: RemoteDataState
   error?: string
-  focus: boolean
 }
 
 export interface PipeProp {
@@ -73,13 +72,13 @@ export interface Notebook {
 
 export interface NotebookListState {
   notebooks: {
-    [key: string]: Resource<NotebookState>
+    [key: string]: NotebookState
   }
 }
 
 export interface NotebookList {
   notebooks: {
-    [key: string]: ResourceManipulator<Notebook>
+    [key: string]: Notebook
   }
 }
 
