@@ -39,7 +39,6 @@ const AggregationSelector: FunctionComponent<Props> = ({
   selectedFunctions,
   isInCheckOverlay,
   isAutoFunction,
-  isAutoWindowPeriod,
   aggregateWindow: {period, fillValues},
   autoWindowPeriod,
   onSelectFunction,
@@ -66,13 +65,13 @@ const AggregationSelector: FunctionComponent<Props> = ({
 
   return (
     <AggregationContents
-      isAutoWindowPeriod={isAutoWindowPeriod}
+      isAutoWindowPeriod={period === AGG_WINDOW_AUTO}
       onSetWindowPeriodSelectionMode={onSetWindowPeriodSelectionMode}
       onSetFunctionSelectionMode={onSetFunctionSelectionMode}
-      durationDisplay={durationDisplay} //BE done
-      isFillValues={fillValues} //BE
+      durationDisplay={durationDisplay}
+      isFillValues={fillValues}
       isAutoFunction={isAutoFunction}
-      functionList={functionList} //BE done
+      functionList={functionList}
       selectedFunctions={selectedFunctions}
       onSelectFunction={onSelectFunction}
       isInCheckOverlay={isInCheckOverlay}
@@ -84,7 +83,7 @@ const AggregationSelector: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState) => {
   const {
-    queryBuilder: {isAutoFunction, isAutoWindowPeriod},
+    queryBuilder: {isAutoFunction},
   } = getActiveTimeMachine(state)
   const {builderConfig} = getActiveQuery(state)
   const {functions, aggregateWindow} = builderConfig
@@ -94,7 +93,6 @@ const mstp = (state: AppState) => {
     aggregateWindow,
     isInCheckOverlay: getIsInCheckOverlay(state),
     isAutoFunction: isAutoFunction,
-    isAutoWindowPeriod: isAutoWindowPeriod,
   }
 }
 

@@ -46,7 +46,6 @@ interface QueryBuilderState {
   bucketsStatus: RemoteDataState
   functions: Array<[{name: string}]>
   aggregateWindow: BuilderConfigAggregateWindow
-  isAutoWindowPeriod: boolean
   isAutoFunction: boolean
   tags: Array<{
     aggregateFunctionType: BuilderAggregateFunctionType
@@ -110,7 +109,6 @@ export const initialStateHelper = (): TimeMachineState => {
         fillValues: DEFAULT_FILLVALUES,
       },
       isAutoFunction: true,
-      isAutoWindowPeriod: true,
       functions: [[{name: 'mean'}]],
       tags: [
         {
@@ -880,30 +878,6 @@ export const timeMachineReducer = (
       })
     }
 
-    case 'SET_IS_AUTO_WINDOW_PERIOD': {
-      return produce(state, draftState => {
-        const {isAutoWindowPeriod, period} = action.payload
-
-        draftState.queryBuilder.isAutoWindowPeriod = isAutoWindowPeriod
-
-        if (period) {
-          const {activeQueryIndex, draftQueries} = draftState
-
-          draftQueries[
-            activeQueryIndex
-          ].builderConfig.aggregateWindow.period = period
-        }
-
-        if (isAutoWindowPeriod) {
-          const {activeQueryIndex, draftQueries} = draftState
-          draftQueries[activeQueryIndex].builderConfig.aggregateWindow.period =
-            'auto'
-        }
-
-        buildActiveQuery(draftState)
-      })
-    }
-
     case 'SET_AGGREGATE_WINDOW': {
       return produce(state, draftState => {
         const {activeQueryIndex, draftQueries} = draftState
@@ -1078,7 +1052,6 @@ const initialQueryBuilderState = (
     functions: [...defaultFunctions],
     aggregateWindow: {period: AGG_WINDOW_AUTO, fillValues: DEFAULT_FILLVALUES},
     isAutoFunction: true,
-    isAutoWindowPeriod: true,
     tags: builderConfig.tags.map(() => {
       return {...defaultTag}
     }),

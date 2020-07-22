@@ -41,7 +41,7 @@ import {setBuckets} from 'src/buckets/actions/creators'
 
 // Constants
 import {LIMIT} from 'src/resources/constants'
-import {AUTO_FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
+import {AUTO_FUNCTIONS, AGG_WINDOW_AUTO} from '../constants/queryBuilder'
 
 // Schemas
 import {arrayOfBuckets} from 'src/schemas'
@@ -62,7 +62,6 @@ export type Action =
   | ReturnType<typeof setFunctions>
   | ReturnType<typeof setAggregateWindow>
   | ReturnType<typeof setAggregateFillValues>
-  | ReturnType<typeof setIsAutoWindowPeriod>
   | ReturnType<typeof setIsAutoFunction>
   | ReturnType<typeof setValuesSearchTerm>
   | ReturnType<typeof setKeysSearchTerm>
@@ -153,14 +152,6 @@ export const setAggregateFillValues = (fillValues: boolean) => ({
   payload: {fillValues},
 })
 
-export const setIsAutoWindowPeriod = (
-  isAutoWindowPeriod: boolean,
-  period?: string
-) => ({
-  type: 'SET_IS_AUTO_WINDOW_PERIOD' as 'SET_IS_AUTO_WINDOW_PERIOD',
-  payload: {isAutoWindowPeriod, period},
-})
-
 export const setIsAutoFunction = (isAutoFunction: boolean) => ({
   type: 'SET_IS_AUTO_FUNCTION' as 'SET_IS_AUTO_FUNCTION',
   payload: {isAutoFunction},
@@ -209,12 +200,12 @@ export const setWindowPeriodSelectionMode = (mode: 'custom' | 'auto') => (
   getState: GetState
 ) => {
   if (mode === 'custom') {
-    const autoWindowPeriod = getWindowPeriodFromTimeRange(getState())
+    const windowPeriod = getWindowPeriodFromTimeRange(getState())
 
-    dispatch(setIsAutoWindowPeriod(false, autoWindowPeriod))
+    dispatch(setAggregateWindow(windowPeriod))
   }
   if (mode === 'auto') {
-    dispatch(setIsAutoWindowPeriod(true))
+    dispatch(setAggregateWindow(AGG_WINDOW_AUTO))
   }
 }
 
@@ -226,7 +217,9 @@ export const selectAggregateWindow = (period: string) => (
 }
 
 export const loadBuckets = () => async (
-  dispatch: Dispatch<Action | ReturnType<typeof selectBucket> | BucketAction>,
+  dispatch: Dispatch<
+    Action | ReturnType<typeof selectBucket> | ReturnType<typeof setBuckets>
+  >,
   getState: GetState
 ) => {
   if (
