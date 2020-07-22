@@ -63,7 +63,7 @@ export class Settings extends PureComponent<StateProps, State> {
   }
 }
 
-const mstp = ({me}: AppState):StateProps => ({
+const mstp = ({me}: AppState): StateProps => ({
   username: me.resource.name,
 })
 

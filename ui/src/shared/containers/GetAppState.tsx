@@ -57,7 +57,7 @@ const GetAppState: FC<RouteComponentProps> = ({history, location}) => {
     : RemoteDataState.Done
 
   useEffect(() => {
-      dispatch(getLinks())
+    dispatch(getLinks())
   }, [dispatch])
 
   useEffect(() => {
