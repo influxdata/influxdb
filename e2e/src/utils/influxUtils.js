@@ -66,6 +66,8 @@ global.__killLiveDataGen = false;
 global.__liveDataGenRunning = false;
 global.__reportedResetOnce = false;
 global.__dockerRun = false;
+global.__currentFeature = 'jar';
+global.__currentScenario = 'pickle';
 
 if(typeof __config.download_dir === 'undefined'){
     __config.download_dir = __basedir;

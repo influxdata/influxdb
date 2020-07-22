@@ -1,6 +1,7 @@
 const fs = require('fs')
-var {Before, BeforeAll, After, AfterAll, Status} = require('cucumber')
+var {Before, After, AfterAll, Status} = require('cucumber');
 var {logging} = require('selenium-webdriver');
+var perfUtils = require(__srcdir + '/utils/performanceUtils.js');
 
 /*
 Before(function (scenario, callback) {
@@ -21,7 +22,6 @@ BeforeAll(async function (scenario, callback) {
 //    });
     callback();
 })*/
-
 
 async function writeScreenShot(filename) {
     filename = filename.replace(/\s+/g, '_');
@@ -64,6 +64,8 @@ let currentFeature = '';
 
 Before(async function (scenario){
 
+    __currentFeature = scenario.sourceLocation.uri.substring(scenario.sourceLocation.uri.lastIndexOf("/") + 1).replace('.','-')
+    __currentScenario = scenario.pickle.name.trim();
     //safety kill any live data generator
     if(!await scenarioContainsTag(scenario, '@use-live-data') && __liveDataGenRunning){
         console.log("killing live generator");
@@ -141,6 +143,11 @@ AfterAll(async function ( ) {
     if(__liveDataGenRunning) {
         console.log("killing live generator");
         __killLiveDataGen = true;
+    }
+
+    if(perfUtils.performanceLog.length > 0){
+        await perfUtils.writePerformanceLog();
+        await perfUtils.writePerfomanceReport();
     }
 });
 

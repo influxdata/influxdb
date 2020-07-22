@@ -1,6 +1,6 @@
 const { By, Condition, until, StaleElementReferenceError} = require('selenium-webdriver');
 
-const urlCtx = 'signin';
+const urlCtx = 'login';
 
 const emailInput = '[data-testid=\'input-field\']';
 const passwordInput = '[data-testid=\'visibility-input\']';
