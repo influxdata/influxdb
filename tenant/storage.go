@@ -2,10 +2,12 @@ package tenant
 
 import (
 	"context"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/rand"
 	"github.com/influxdata/influxdb/v2/snowflake"
 )
 
@@ -15,6 +17,7 @@ const ReservedIDs = 1000
 type Store struct {
 	kvStore        kv.Store
 	IDGen          influxdb.IDGenerator
+	OrgBucketIDGen influxdb.IDGenerator
 	urmByUserIndex *kv.Index
 }
 
@@ -22,6 +25,7 @@ func NewStore(kvStore kv.Store) *Store {
 	return &Store{
 		kvStore:        kvStore,
 		IDGen:          snowflake.NewDefaultIDGenerator(),
+		OrgBucketIDGen: rand.NewOrgBucketID(time.Now().UnixNano()),
 		urmByUserIndex: kv.NewIndex(kv.URMByUserIndexMapping, kv.WithIndexReadPathEnabled),
 	}
 }
@@ -39,9 +43,9 @@ func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
 
 // generateSafeID attempts to create ids for buckets
 // and orgs that are without backslash, commas, and spaces, BUT ALSO do not already exist.
-func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte) (influxdb.ID, error) {
+func (s *Store) generateSafeOrgBucketID(ctx context.Context, tx kv.Tx, bucket []byte) (influxdb.ID, error) {
 	for i := 0; i < MaxIDGenerationN; i++ {
-		id := s.IDGen.ID()
+		id := s.OrgBucketIDGen.ID()
 
 		// TODO: this is probably unnecessary but for testing we need to keep it in.
 		// After KV is cleaned out we can update the tests and remove this.

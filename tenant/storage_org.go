@@ -156,7 +156,7 @@ func (s *Store) ListOrgs(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpti
 
 func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organization) error {
 	if !o.ID.Valid() {
-		id, err := s.generateSafeID(ctx, tx, organizationBucket)
+		id, err := s.generateSafeOrgBucketID(ctx, tx, organizationBucket)
 		if err != nil {
 			return err
 		}
