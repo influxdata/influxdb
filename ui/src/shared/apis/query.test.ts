@@ -1,10 +1,25 @@
 import {mocked} from 'ts-jest/utils'
 import {runQuery} from 'src/shared/apis/query'
-
+import {
+  getRunQueryResults,
+  resetQueryCache,
+  resetQueryCacheByQuery,
+} from 'src/shared/apis/queryCache'
 import {RunQuerySuccessResult} from 'src/shared/apis/query'
 import {AppState} from 'src/types'
 
 jest.mock('src/shared/apis/query')
+
+const orgID = 'orgID'
+
+const promise = new Promise(res => {
+  return res({
+    type: 'SUCCESS',
+    csv: 'wooooo',
+    didTruncate: true,
+    bytesRead: 1,
+  } as RunQuerySuccessResult)
+})
 
 const mockState = ({
   app: {
@@ -111,30 +126,16 @@ const mockState = ({
 describe('query', () => {
   describe('runQuery', () => {
     beforeEach(() => {
-      const {resetQueryCache} = require('src/shared/apis/queryCache')
-      // NOTE: as long as you mock children like below, before importing your
-      // component by using a require().default pattern, this will reset your
-      // mocks between tests (alex)
       jest.clearAllMocks()
       resetQueryCache()
     })
 
     it('calls runQuery when there is no matching query in the cache & returns cached results when an unexpired match is found', done => {
-      const promise = new Promise(res => {
-        return res({
-          type: 'SUCCESS',
-          csv: 'wooooo',
-          didTruncate: true,
-          bytesRead: 1,
-        } as RunQuerySuccessResult)
-      })
       // returns a mock runQuery
       mocked(runQuery).mockImplementation(() => ({
         promise,
         cancel: jest.fn(),
       }))
-      const {getRunQueryResults} = require('src/shared/apis/queryCache')
-      const orgID = 'orgID'
       const queryText = '|> get some data fool'
       const result = getRunQueryResults(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
@@ -152,23 +153,10 @@ describe('query', () => {
     })
 
     it('clears the cache by queryText', done => {
-      const promise = new Promise(res => {
-        return res({
-          type: 'SUCCESS',
-          csv: 'wooooo',
-          didTruncate: true,
-          bytesRead: 1,
-        } as RunQuerySuccessResult)
-      })
       mocked(runQuery).mockImplementation(() => ({
         promise,
         cancel: jest.fn(),
       }))
-      const {
-        getRunQueryResults,
-        resetQueryCacheByQuery,
-      } = require('src/shared/apis/queryCache')
-      const orgID = 'orgID'
       const queryText = '|> get some data fool'
       const result = getRunQueryResults(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
@@ -187,14 +175,6 @@ describe('query', () => {
     })
 
     it('invalidates the cached results after the time invalidation constant', done => {
-      const promise = new Promise(res => {
-        return res({
-          type: 'SUCCESS',
-          csv: 'wooooo',
-          didTruncate: true,
-          bytesRead: 1,
-        } as RunQuerySuccessResult)
-      })
       mocked(runQuery).mockImplementation(() => ({
         promise,
         cancel: jest.fn(),
@@ -203,7 +183,6 @@ describe('query', () => {
         getRunQueryResults,
         TIME_INVALIDATION,
       } = require('src/shared/apis/queryCache')
-      const orgID = 'orgID'
       const queryText = '|> get some data fool'
       getRunQueryResults(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
@@ -215,24 +194,13 @@ describe('query', () => {
         } catch (error) {
           done(error)
         }
-        // wait 5100 seconds
       }, TIME_INVALIDATION + 100)
     }, 6000)
     it('returns the cached results when an unexpired match with the same variable is found', done => {
-      const promise = new Promise(res => {
-        return res({
-          type: 'SUCCESS',
-          csv: 'wooooo',
-          didTruncate: true,
-          bytesRead: 1,
-        } as RunQuerySuccessResult)
-      })
       mocked(runQuery).mockImplementation(() => ({
         promise,
         cancel: jest.fn(),
       }))
-      const {getRunQueryResults} = require('src/shared/apis/queryCache')
-      const orgID = 'orgID'
       const queryText = 'v.bucket'
       const result = getRunQueryResults(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)
@@ -249,20 +217,10 @@ describe('query', () => {
       })
     })
     it('resets the matching query if the variables do not match and reruns the query', done => {
-      const promise = new Promise(res => {
-        return res({
-          type: 'SUCCESS',
-          csv: 'wooooo',
-          didTruncate: true,
-          bytesRead: 1,
-        } as RunQuerySuccessResult)
-      })
       mocked(runQuery).mockImplementation(() => ({
         promise,
         cancel: jest.fn(),
       }))
-      const {getRunQueryResults} = require('src/shared/apis/queryCache')
-      const orgID = 'orgID'
       const queryText = 'v.build'
       const originalName =
         mockState.resources.variables.byID['05e6e4df2287b000'].name
@@ -294,20 +252,10 @@ describe('query', () => {
         })
     })
     it('resets the matching query if the selected variables do not match and reruns the query', done => {
-      const promise = new Promise(res => {
-        return res({
-          type: 'SUCCESS',
-          csv: 'wooooo',
-          didTruncate: true,
-          bytesRead: 1,
-        } as RunQuerySuccessResult)
-      })
       mocked(runQuery).mockImplementation(() => ({
         promise,
         cancel: jest.fn(),
       }))
-      const {getRunQueryResults} = require('src/shared/apis/queryCache')
-      const orgID = 'orgID'
       const queryText = 'v.values'
       const [selected] = mockState.resources.variables.byID[
         '05aeb0ad75aca000'
@@ -341,20 +289,10 @@ describe('query', () => {
         })
     })
     it('returns cached results even when variables irrelevant to a query are toggled', done => {
-      const promise = new Promise(res => {
-        return res({
-          type: 'SUCCESS',
-          csv: 'wooooo',
-          didTruncate: true,
-          bytesRead: 1,
-        } as RunQuerySuccessResult)
-      })
       mocked(runQuery).mockImplementation(() => ({
         promise,
         cancel: jest.fn(),
       }))
-      const {getRunQueryResults} = require('src/shared/apis/queryCache')
-      const orgID = 'orgID'
       const queryText = 'v.bucket'
       const result = getRunQueryResults(orgID, queryText, mockState)
       expect(runQuery).toHaveBeenCalledTimes(1)

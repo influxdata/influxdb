@@ -46,7 +46,7 @@ export const sortDashboardByName = (dashboards: Dashboard[]): Dashboard[] =>
  * in order to conditionally check the QueryCache in dashboard cells
  * in the TimeSeries.tsx file, since TimeSeries.tsx is used in Dashboard Cells and Check Alerts History
  **/
-export const isDashboardActive = (state: AppState): boolean =>
+export const isCurrentPageDashboard = (state: AppState): boolean =>
   state.currentPage === 'dashboard'
 
 // The purpose of this function is to set a user's custom time range selection

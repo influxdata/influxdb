@@ -54,7 +54,7 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors/index'
-import {isDashboardActive} from 'src/dashboards/selectors'
+import {isCurrentPageDashboard} from 'src/dashboards/selectors'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -227,7 +227,7 @@ export const executeQueries = (abortController?: AbortController) => async (
       const extern = buildVarsOption(variableAssignments)
 
       event('runQuery', {context: 'timeMachine'})
-      if (isDashboardActive(state)) {
+      if (isCurrentPageDashboard(state)) {
         // reset any existing matching query in the cache
         resetQueryCacheByQuery(text)
         return getRunQueryResults(orgID, text, state, abortController)

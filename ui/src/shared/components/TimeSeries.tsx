@@ -18,7 +18,7 @@ import {getRunQueryResults} from 'src/shared/apis/queryCache'
 // Utils
 import {
   getTimeRange,
-  isDashboardActive as isDashboardActiveSelector,
+  isCurrentPageDashboard as isCurrentPageDashboardSelector,
 } from 'src/dashboards/selectors'
 import {getVariables, asAssignment} from 'src/variables/selectors'
 import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
@@ -183,7 +183,7 @@ class TimeSeries extends Component<Props, State> {
       appState,
       buckets,
       check,
-      isDashboardActive,
+      isCurrentPageDashboard,
       notify,
       variables,
     } = this.props
@@ -229,7 +229,7 @@ class TimeSeries extends Component<Props, State> {
         const windowVars = getWindowVars(text, vars)
         const extern = buildVarsOption([...vars, ...windowVars])
         event('runQuery', {context: 'TimeSeries'})
-        if (isDashboardActive) {
+        if (isCurrentPageDashboard) {
           return getRunQueryResults(orgID, text, appState)
         }
         const queryID = hashCode(text)
@@ -371,7 +371,7 @@ const mstp = (state: AppState, props: OwnProps) => {
   return {
     appState: state,
     hasUpdatedTimeRangeInVEO: hasUpdatedTimeRangeInVEO(state),
-    isDashboardActive: isDashboardActiveSelector(state),
+    isCurrentPageDashboard: isCurrentPageDashboardSelector(state),
     queryLink: state.links.query.self,
     buckets: getAll<Bucket>(state, ResourceType.Buckets),
     variables,
