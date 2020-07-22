@@ -1974,23 +1974,6 @@ func TestWindowMeanArrayCursor(t *testing.T) {
 			},
 		},
 		{
-			name:  "window",
-			every: 30 * time.Minute,
-			inputArrays: []*cursors.IntegerArray{
-				makeIntegerArray(
-					8,
-					mustParseTime("2010-01-01T00:00:00Z"), 15*time.Minute,
-					func(i int64) int64 {
-						return i
-					},
-				),
-			},
-			wantFloats: []*cursors.FloatArray{
-				makeFloatArray(4, mustParseTime("2010-01-01T00:30:00Z"), 30*time.Minute,
-					func(i int64) float64 { return 0.5 + float64(i)*2 }),
-			},
-		},
-		{
 			name:   "window offset",
 			every:  30 * time.Minute,
 			offset: 5 * time.Minute,
