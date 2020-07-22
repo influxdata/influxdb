@@ -37,5 +37,6 @@ export const getMe = () => async dispatch => {
     dispatch(setMe(RemoteDataState.Done, user as MeState))
   } catch (error) {
     console.error(error)
+    dispatch(setMe(RemoteDataState.Error))
   }
 }
