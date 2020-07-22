@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/generate"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/migrate"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/restore"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	_ "github.com/influxdata/influxdb/v2/tsdb/tsi1"
@@ -35,7 +34,6 @@ func main() {
 	rootCmd := launcher.NewInfluxdCommand(context.Background(),
 		generate.Command,
 		restore.Command,
-		migrate.Command,
 		&cobra.Command{
 			Use:   "version",
 			Short: "Print the influxd server version",

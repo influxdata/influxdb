@@ -27,6 +27,7 @@ interface OwnProps {
   text?: string
   icon?: IconFont
   testID?: string
+  className?: string
 }
 
 type ReduxProps = ConnectedProps<typeof connector>
@@ -61,12 +62,13 @@ class SubmitQueryButton extends PureComponent<Props> {
   }
 
   public render() {
-    const {text, queryStatus, icon, testID} = this.props
+    const {text, queryStatus, icon, testID, className} = this.props
 
     if (queryStatus === RemoteDataState.Loading && this.state.timer === true) {
       return (
         <Button
           text="Cancel"
+          className={className}
           icon={icon}
           size={ComponentSize.Small}
           status={ComponentStatus.Default}
@@ -80,6 +82,7 @@ class SubmitQueryButton extends PureComponent<Props> {
     return (
       <Button
         text={text}
+        className={className}
         icon={icon}
         size={ComponentSize.Small}
         status={this.buttonStatus}
