@@ -28,7 +28,7 @@ describe('Orgs', () => {
       })
     })
 
-    it('should be able to rename the org', () => {
+    it('should be able to rename the org and switch to another org', () => {
       const extraText = '_my_renamed_org_in_e2e'
       cy.getByTestID('user-nav').click()
       cy.getByTestID('user-nav-item-about').click()
