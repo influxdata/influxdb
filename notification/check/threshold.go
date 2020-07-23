@@ -156,7 +156,16 @@ func addCreateEmptyFalseToAggregateWindow(pkg *ast.Package) {
 			if id, ok := call.Callee.(*ast.Identifier); ok && id.Name == "aggregateWindow" {
 				for _, args := range call.Arguments {
 					if obj, ok := args.(*ast.ObjectExpression); ok {
-						obj.Properties = append(obj.Properties, flux.Property("createEmpty", flux.Bool(false)))
+						foundCreateEmpty := false
+						for _, props := range obj.Properties {
+							if props.Key.Key() == "createEmpty" {
+								foundCreateEmpty = true
+								break
+							}
+						}
+						if !foundCreateEmpty {
+							obj.Properties = append(obj.Properties, flux.Property("createEmpty", flux.Bool(false)))
+						}
 					}
 				}
 			}
