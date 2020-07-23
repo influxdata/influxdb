@@ -802,7 +802,7 @@ func TestConfigDelete(t *testing.T) {
 	}
 }
 
-func newBufferSVC() (ConfigsService, *bytesStore) {
+func newBufferSVC() (Service, *bytesStore) {
 	store := new(bytesStore)
 	return newConfigsSVC(store), store
 }

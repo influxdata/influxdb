@@ -67,6 +67,7 @@ message Aggregate {
     MAX = 4 [(gogoproto.enumvalue_customname) = "AggregateTypeMax"];
     FIRST = 5 [(gogoproto.enumvalue_customname) = "AggregateTypeFirst"];
     LAST = 6 [(gogoproto.enumvalue_customname) = "AggregateTypeLast"];
+    MEAN = 7 [(gogoproto.enumvalue_customname) = "AggregateTypeMean"];
   }
 
   AggregateType type = 1;

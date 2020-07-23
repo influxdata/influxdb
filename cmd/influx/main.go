@@ -29,9 +29,10 @@ import (
 const maxTCPConnections = 10
 
 var (
-	version = "dev"
-	commit  = "none"
-	date    = ""
+	version            = "dev"
+	commit             = "none"
+	date               = ""
+	defaultConfigsPath = mustDefaultConfigPath()
 )
 
 func main() {
@@ -151,6 +152,7 @@ type globalFlags struct {
 	config.Config
 	skipVerify   bool
 	traceDebugID string
+	filepath     string
 }
 
 func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
@@ -179,6 +181,12 @@ func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
 			DestP:  &g.traceDebugID,
 			Flag:   "trace-debug-id",
 			Hidden: true,
+		},
+		{
+			DestP:   &g.filepath,
+			Flag:    "configs-path",
+			Desc:    "Path to the influx CLI configurations",
+			Default: defaultConfigsPath,
 		},
 	}
 
@@ -237,25 +245,27 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		cmd.AddCommand(childCmd(&flags, b.genericCLIOpts))
 	}
 
-	// migration credential token
-	migrateOldCredential()
+	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		// migration credential token
+		migrateOldCredential(flags.filepath)
 
-	// this is after the flagOpts register b/c we don't want to show the default value
-	// in the usage display. This will add it as the config, then if a token flag
-	// is provided too, the flag will take precedence.
-	cfg := getConfigFromDefaultPath()
+		// this is after the flagOpts register b/c we don't want to show the default value
+		// in the usage display. This will add it as the config, then if a token flag
+		// is provided too, the flag will take precedence.
+		cfg := getConfigFromDefaultPath(flags.filepath)
 
-	// we have some indirection here b/c of how the Config is embedded on the
-	// global flags type. For the time being, we check to see if there was a
-	// value set on flags registered (via env vars), and override the host/token
-	// values if they are.
-	if flags.Token != "" {
-		cfg.Token = flags.Token
+		// we have some indirection here b/c of how the Config is embedded on the
+		// global flags type. For the time being, we check to see if there was a
+		// value set on flags registered (via env vars), and override the host/token
+		// values if they are.
+		if flags.Token != "" {
+			cfg.Token = flags.Token
+		}
+		if flags.Host != "" {
+			cfg.Host = flags.Host
+		}
+		flags.Config = cfg
 	}
-	if flags.Host != "" {
-		cfg.Host = flags.Host
-	}
-	flags.Config = cfg
 
 	// Update help description for all commands in command tree
 	walk(cmd, func(c *cobra.Command) {
@@ -335,6 +345,20 @@ func seeHelp(c *cobra.Command, args []string) {
 	c.Printf("See '%s -h' for help\n", c.CommandPath())
 }
 
+func getConfigFromDefaultPath(configsPath string) config.Config {
+	r, err := os.Open(configsPath)
+	if err != nil {
+		return config.DefaultConfig
+	}
+	defer r.Close()
+
+	activated, err := config.ParseActiveConfig(r)
+	if err != nil {
+		return config.DefaultConfig
+	}
+	return activated
+}
+
 func defaultConfigPath() (string, string, error) {
 	dir, err := fs.InfluxDir()
 	if err != nil {
@@ -343,40 +367,33 @@ func defaultConfigPath() (string, string, error) {
 	return filepath.Join(dir, fs.DefaultConfigsFile), dir, nil
 }
 
-func getConfigFromDefaultPath() config.Config {
-	path, _, err := defaultConfigPath()
+func mustDefaultConfigPath() string {
+	filepath, _, err := defaultConfigPath()
 	if err != nil {
-		return config.DefaultConfig
+		panic(err)
 	}
-	r, err := os.Open(path)
-	if err != nil {
-		return config.DefaultConfig
-	}
-	activated, err := config.ParseActiveConfig(r)
-	if err != nil {
-		return config.DefaultConfig
-	}
-	return activated
+	return filepath
 }
 
-func migrateOldCredential() {
-	dir, err := fs.InfluxDir()
+func migrateOldCredential(configsPath string) {
+	dir := filepath.Dir(configsPath)
+	if configsPath == "" || dir == "" {
+		return
+	}
+
+	tokenFile := filepath.Join(dir, fs.DefaultTokenFile)
+	tokB, err := ioutil.ReadFile(tokenFile)
 	if err != nil {
 		return // no need for migration
 	}
 
-	tokB, err := ioutil.ReadFile(filepath.Join(dir, fs.DefaultTokenFile))
-	if err != nil {
-		return // no need for migration
-	}
-
-	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", filepath.Join(dir, fs.DefaultConfigsFile), dir)
+	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", configsPath, dir)
 	if err != nil {
 		return
 	}
 
 	// ignore the remove err
-	_ = os.Remove(filepath.Join(dir, fs.DefaultTokenFile))
+	_ = os.Remove(tokenFile)
 }
 
 func writeConfigToPath(tok, org, path, dir string) error {

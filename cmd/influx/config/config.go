@@ -33,8 +33,8 @@ var DefaultConfig = Config{
 // Configs is map of configs indexed by name.
 type Configs map[string]Config
 
-// ConfigsService is the service to list and write configs.
-type ConfigsService interface {
+// Service is the service to list and write configs.
+type Service interface {
 	CreateConfig(Config) (Config, error)
 	DeleteConfig(name string) (Config, error)
 	UpdateConfig(Config) (Config, error)
@@ -83,10 +83,10 @@ func newConfigsSVC(s store) localConfigsSVC {
 }
 
 // NewLocalConfigSVC create a new local config svc.
-func NewLocalConfigSVC(Path, Dir string) ConfigsService {
+func NewLocalConfigSVC(path, dir string) Service {
 	return newConfigsSVC(ioStore{
-		Path: Path,
-		Dir:  Dir,
+		Path: path,
+		Dir:  dir,
 	})
 }
 

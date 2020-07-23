@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,21 +88,22 @@ func TestCmdConfig(t *testing.T) {
 				},
 			}
 			cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
-				svc := &mockConfigService{
-					CreateConfigFn: func(cfg config.Config) (config.Config, error) {
-						if diff := cmp.Diff(expected, cfg); diff != "" {
-							return config.Config{}, &influxdb.Error{
-								Msg: fmt.Sprintf("create config failed, diff %s", diff),
-							}
-						}
-						return expected, nil
-					},
-				}
-
 				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 					builder := cmdConfigBuilder{
 						genericCLIOpts: opt,
-						svc:            svc,
+						globalFlags:    g,
+						svcFn: func(_ string) config.Service {
+							return &mockConfigService{
+								CreateConfigFn: func(cfg config.Config) (config.Config, error) {
+									if diff := cmp.Diff(expected, cfg); diff != "" {
+										return config.Config{}, &influxdb.Error{
+											Msg: fmt.Sprintf("create config failed, diff %s", diff),
+										}
+									}
+									return expected, nil
+								},
+							}
+						},
 					}
 					return builder.cmd()
 				}
@@ -118,14 +122,52 @@ func TestCmdConfig(t *testing.T) {
 			}
 		})
 
+		t.Run("handles non default configs path", func(t *testing.T) {
+			dir := newTempDir(t)
+			defer os.RemoveAll(dir)
+
+			file := filepath.Join(dir, "configurations")
+
+			builder := newInfluxCmdBuilder(
+				in(new(bytes.Buffer)),
+				out(ioutil.Discard),
+			)
+			cmd := builder.cmd(cmdConfig)
+
+			flags := []string{
+				"--configs-path=" + file,
+				"-n", "default",
+				"-o", "org1",
+				"-u", "http://localhost:9999",
+				"-t", "tok1",
+				"-a",
+			}
+			cmd.SetArgs(append([]string{"config", "create"}, flags...))
+			require.NoError(t, cmd.Execute())
+
+			configs, err := config.NewLocalConfigSVC(file, dir).ListConfigs()
+			require.NoError(t, err)
+
+			cfg, ok := configs["default"]
+			require.True(t, ok)
+			assert.Equal(t, "default", cfg.Name)
+			assert.Equal(t, "org1", cfg.Org)
+			assert.Equal(t, "http://localhost:9999", cfg.Host)
+			assert.Equal(t, "tok1", cfg.Token)
+			assert.True(t, cfg.Active)
+		})
+
 		t.Run("rejects a config option with an invalid host url", func(t *testing.T) {
 			cmdFn := func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
-					svc: &mockConfigService{
-						CreateConfigFn: func(cfg config.Config) (config.Config, error) {
-							return cfg, nil
-						},
+					globalFlags:    g,
+					svcFn: func(_ string) config.Service {
+						return &mockConfigService{
+							CreateConfigFn: func(cfg config.Config) (config.Config, error) {
+								return cfg, nil
+							},
+						}
 					},
 				}
 				return builder.cmd()
@@ -198,32 +240,35 @@ func TestCmdConfig(t *testing.T) {
 			},
 		}
 		cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
-			svc := &mockConfigService{
-				SwitchActiveFn: func(name string) (config.Config, error) {
-					var cfg config.Config
-					for _, item := range original {
-						if name == "-" && item.PreviousActive ||
-							item.Name == name {
-							cfg = item
-							break
+			svc := func(_ string) config.Service {
+				return &mockConfigService{
+					SwitchActiveFn: func(name string) (config.Config, error) {
+						var cfg config.Config
+						for _, item := range original {
+							if name == "-" && item.PreviousActive ||
+								item.Name == name {
+								cfg = item
+								break
 
+							}
 						}
-					}
-					cfg.Active = true
-					cfg.PreviousActive = false
-					if diff := cmp.Diff(expected, cfg); diff != "" {
-						return config.Config{}, &influxdb.Error{
-							Msg: fmt.Sprintf("switch config failed, diff %s", diff),
+						cfg.Active = true
+						cfg.PreviousActive = false
+						if diff := cmp.Diff(expected, cfg); diff != "" {
+							return config.Config{}, &influxdb.Error{
+								Msg: fmt.Sprintf("switch config failed, diff %s", diff),
+							}
 						}
-					}
-					return expected, nil
-				},
+						return expected, nil
+					},
+				}
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
-					svc:            svc,
+					globalFlags:    g,
+					svcFn:          svc,
 				}
 				return builder.cmd()
 			}
@@ -331,21 +376,24 @@ func TestCmdConfig(t *testing.T) {
 				},
 			}
 			cmdFn := func(expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
-				svc := &mockConfigService{
-					UpdateConfigFn: func(cfg config.Config) (config.Config, error) {
-						if diff := cmp.Diff(expected, cfg); diff != "" {
-							return config.Config{}, &influxdb.Error{
-								Msg: fmt.Sprintf("update config failed, diff %s", diff),
+				svc := func(_ string) config.Service {
+					return &mockConfigService{
+						UpdateConfigFn: func(cfg config.Config) (config.Config, error) {
+							if diff := cmp.Diff(expected, cfg); diff != "" {
+								return config.Config{}, &influxdb.Error{
+									Msg: fmt.Sprintf("update config failed, diff %s", diff),
+								}
 							}
-						}
-						return expected, nil
-					},
+							return expected, nil
+						},
+					}
 				}
 
 				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 					builder := cmdConfigBuilder{
 						genericCLIOpts: opt,
-						svc:            svc,
+						globalFlags:    g,
+						svcFn:          svc,
 					}
 					return builder.cmd()
 				}
@@ -368,10 +416,13 @@ func TestCmdConfig(t *testing.T) {
 			cmdFn := func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
-					svc: &mockConfigService{
-						CreateConfigFn: func(cfg config.Config) (config.Config, error) {
-							return cfg, nil
-						},
+					globalFlags:    g,
+					svcFn: func(_ string) config.Service {
+						return &mockConfigService{
+							CreateConfigFn: func(cfg config.Config) (config.Config, error) {
+								return cfg, nil
+							},
+						}
 					},
 				}
 				return builder.cmd()
@@ -434,28 +485,31 @@ func TestCmdConfig(t *testing.T) {
 			},
 		}
 		cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
-			svc := &mockConfigService{
-				DeleteConfigFn: func(name string) (config.Config, error) {
-					var cfg config.Config
-					for _, item := range original {
-						if item.Name == name {
-							cfg = item
-							break
+			svc := func(_ string) config.Service {
+				return &mockConfigService{
+					DeleteConfigFn: func(name string) (config.Config, error) {
+						var cfg config.Config
+						for _, item := range original {
+							if item.Name == name {
+								cfg = item
+								break
+							}
 						}
-					}
-					if diff := cmp.Diff(expected, cfg); diff != "" {
-						return config.Config{}, &influxdb.Error{
-							Msg: fmt.Sprintf("delete config failed, diff %s", diff),
+						if diff := cmp.Diff(expected, cfg); diff != "" {
+							return config.Config{}, &influxdb.Error{
+								Msg: fmt.Sprintf("delete config failed, diff %s", diff),
+							}
 						}
-					}
-					return expected, nil
-				},
+						return expected, nil
+					},
+				}
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
-					svc:            svc,
+					globalFlags:    g,
+					svcFn:          svc,
 				}
 				return builder.cmd()
 			}
@@ -498,16 +552,19 @@ func TestCmdConfig(t *testing.T) {
 			},
 		}
 		cmdFn := func(expected config.Configs) func(*globalFlags, genericCLIOpts) *cobra.Command {
-			svc := &mockConfigService{
-				ListConfigsFn: func() (config.Configs, error) {
-					return expected, nil
-				},
+			svc := func(_ string) config.Service {
+				return &mockConfigService{
+					ListConfigsFn: func() (config.Configs, error) {
+						return expected, nil
+					},
+				}
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
-					svc:            svc,
+					globalFlags:    g,
+					svcFn:          svc,
 				}
 				return builder.cmd()
 			}
