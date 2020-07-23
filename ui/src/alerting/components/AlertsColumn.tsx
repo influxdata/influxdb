@@ -1,8 +1,10 @@
 // Libraries
 import React, {FC, ReactChild, useState} from 'react'
+import {connect} from 'react-redux'
 
 // Types
-import {ResourceType} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
+import {LimitStatus} from 'src/cloud/actions/limits'
 
 // Components
 import {
@@ -17,13 +19,17 @@ import {
   QuestionMarkTooltip,
   ComponentColor,
 } from '@influxdata/clockface'
+import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+
+// Utils
+import {extractMonitoringLimitStatus} from 'src/cloud/utils/limits'
 
 type ColumnTypes =
   | ResourceType.NotificationRules
   | ResourceType.NotificationEndpoints
   | ResourceType.Checks
 
-interface Props {
+interface OwnProps {
   type: ColumnTypes
   title: string
   createButton: JSX.Element
@@ -31,10 +37,15 @@ interface Props {
   children: (searchTerm: string) => ReactChild
 }
 
-const AlertsColumnHeader: FC<Props> = ({
+interface StateProps {
+  limitStatus: LimitStatus
+}
+
+const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
   type,
   children,
   title,
+  limitStatus,
   createButton,
   questionMarkTooltipContents,
 }) => {
@@ -75,11 +86,23 @@ const AlertsColumnHeader: FC<Props> = ({
           autoHide={true}
           style={{width: '100%', height: '100%'}}
         >
-          <div className="alerting-index--list">{children(searchTerm)}</div>
+          <div className="alerting-index--list">
+            {children(searchTerm)}
+            <AssetLimitAlert
+              resourceName={title}
+              limitStatus={limitStatus}
+            />
+          </div>
         </DapperScrollbars>
       </div>
     </Panel>
   )
 }
 
-export default AlertsColumnHeader
+const mstp = ({cloud: {limits}}: AppState) => {
+  return {
+    limitStatus: extractMonitoringLimitStatus(limits),
+  }
+}
+
+export default connect(mstp)(AlertsColumnHeader)
