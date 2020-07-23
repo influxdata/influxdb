@@ -24,7 +24,7 @@ const asSimplyKeyValueVariables = (vari: Variable) => {
 // https://jsperf.com/hashcodelordvlad
 // Through this thread:
 // https://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript
-const hashCode = (rawText: string): string => {
+export const hashCode = (rawText: string): string => {
   let hash = 0
   if (!rawText) {
     return `${hash}`

@@ -32,7 +32,7 @@ import {
   isDemoDataAvailabilityError,
   demoDataError,
 } from 'src/cloud/utils/demoDataErrors'
-import {hashCode} from 'src/shared/apis/query'
+import {hashCode} from 'src/shared/apis/queryCache'
 import {RunQueryPromiseMutex} from 'src/shared/apis/singleQuery'
 
 // Constants
