@@ -67,6 +67,7 @@ describe('applyAutoAggregateRequirements', () => {
 
     expect(returnedView).toEqual(advancedModeQuery)
   })
+
   it('does not alter builder queries which can be represented in the autoAggregating Builder', () => {
     const representableConfig = cloneDeep(autoAggregateableBuilderConfig)
 
@@ -74,6 +75,7 @@ describe('applyAutoAggregateRequirements', () => {
 
     expect(returnedConfig).toEqual(representableConfig)
   })
+
   describe('converts a "builder" query with a builderConfig that can not be represented in the new autoAggregating builder to an "advanced" query, displaying in the script editor instead, and modifies the builderConfig so that user gets warning when switching to queryBuilder', () => {
     it('if the builderConfig can not be represented in autoAggregating builder because it does not have any aggregationFunctions', () => {
       const initBuilderConfig = {functions: []}
