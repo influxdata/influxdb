@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
@@ -143,7 +144,7 @@ func (itr *tsdbMeasurementIteratorAdapter) Next() ([]byte, error) {
 type TagKeyElem interface {
 	Key() []byte
 	Deleted() bool
-	TagValueIterator() TagValueIterator
+	TagValueIterator(*mincore.Limiter) TagValueIterator
 }
 
 // TagKeyIterator represents a iterator over a list of tag keys.
@@ -261,14 +262,14 @@ func (p tagKeyMergeElem) Deleted() bool {
 }
 
 // TagValueIterator returns a merge iterator for all elements until a tombstone occurs.
-func (p tagKeyMergeElem) TagValueIterator() TagValueIterator {
+func (p tagKeyMergeElem) TagValueIterator(limiter *mincore.Limiter) TagValueIterator {
 	if len(p) == 0 {
 		return nil
 	}
 
 	a := make([]TagValueIterator, 0, len(p))
 	for _, e := range p {
-		itr := e.TagValueIterator()
+		itr := e.TagValueIterator(limiter)
 
 		a = append(a, itr)
 		if e.Deleted() {

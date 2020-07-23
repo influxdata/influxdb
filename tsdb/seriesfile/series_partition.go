@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 )
 
 var (
@@ -47,6 +48,8 @@ type SeriesPartition struct {
 
 	compacting          bool
 	compactionsDisabled int
+
+	pageFaultLimiter *rate.Limiter // Limits page faults by the partition
 
 	CompactThreshold    int
 	LargeWriteThreshold int
@@ -94,7 +97,10 @@ func (p *SeriesPartition) Open() error {
 
 		if err := p.index.Open(); err != nil {
 			return err
-		} else if err = p.index.Recover(p.segments); err != nil {
+		}
+		p.index.SetPageFaultLimiter(p.pageFaultLimiter)
+
+		if err = p.index.Recover(p.segments); err != nil {
 			return err
 		}
 		return nil
@@ -124,6 +130,7 @@ func (p *SeriesPartition) openSegments() error {
 		if err := segment.Open(); err != nil {
 			return err
 		}
+		segment.SetPageFaultLimiter(p.pageFaultLimiter)
 		p.segments = append(p.segments, segment)
 	}
 
@@ -142,6 +149,7 @@ func (p *SeriesPartition) openSegments() error {
 		if err != nil {
 			return err
 		}
+		segment.SetPageFaultLimiter(p.pageFaultLimiter)
 		p.segments = append(p.segments, segment)
 	}
 
@@ -569,6 +577,7 @@ func (p *SeriesPartition) createSegment() (*SeriesSegment, error) {
 	if err != nil {
 		return nil, err
 	}
+	segment.SetPageFaultLimiter(p.pageFaultLimiter)
 	p.segments = append(p.segments, segment)
 
 	// Allow segment to write.
@@ -591,7 +600,9 @@ func (p *SeriesPartition) seriesKeyByOffset(offset int64) []byte {
 			continue
 		}
 
-		key, _ := ReadSeriesKey(segment.Slice(pos + SeriesEntryHeaderSize))
+		buf := segment.Slice(pos + SeriesEntryHeaderSize)
+		key, _ := ReadSeriesKey(buf)
+		_ = wait(segment.limiter, buf[:len(key)])
 		return key
 	}
 
@@ -769,7 +780,10 @@ func (c *SeriesPartitionCompactor) Compact(p *SeriesPartition) (time.Duration, e
 			return err
 		} else if err := fs.RenameFileWithReplacement(indexPath, index.path); err != nil {
 			return err
-		} else if err := p.index.Open(); err != nil {
+		}
+
+		p.index.SetPageFaultLimiter(p.pageFaultLimiter)
+		if err := p.index.Open(); err != nil {
 			return err
 		}
 

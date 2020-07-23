@@ -171,6 +171,8 @@ func WithWritePointsValidationEnabled(v bool) Option {
 func WithPageFaultLimiter(limiter *rate.Limiter) Option {
 	return func(e *Engine) {
 		e.engine.WithPageFaultLimiter(limiter)
+		e.index.WithPageFaultLimiter(limiter)
+		e.sfile.WithPageFaultLimiter(limiter)
 	}
 }
 
