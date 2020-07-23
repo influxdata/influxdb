@@ -6,7 +6,7 @@ export interface Ref {
 }
 
 export interface RefMap {
-  [key: string]: Ref
+  [key: DataID<PipeData>]: Ref
 }
 
 export interface RefContextType {
