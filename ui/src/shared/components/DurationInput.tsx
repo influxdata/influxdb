@@ -70,7 +70,6 @@ const DurationInput: FC<Props> = ({
       ? ComponentStatus.Default
       : ComponentStatus.Error
   }
-  console.log(inputStatus, inputValue)
 
   const onChange = (i: string) => {
     setInputValue(i)
