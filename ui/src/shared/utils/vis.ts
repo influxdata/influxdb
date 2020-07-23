@@ -190,10 +190,6 @@ export const getTimeColumns = (table: Table): string[] => {
       return false
     }
 
-    if (k === '_value') {
-      return true
-    }
-
     const columnType = table.getColumnType(k)
     return columnType === 'time'
   })
@@ -243,7 +239,7 @@ export const defaultXColumn = (
   table: Table,
   preferredColumnKey?: string
 ): string | null => {
-  const validColumnKeys = getTimeColumns(table)
+  const validColumnKeys = [...getTimeColumns(table), ...getNumberColumns(table)]
   if (validColumnKeys.includes(preferredColumnKey)) {
     return preferredColumnKey
   }
@@ -269,8 +265,7 @@ export const defaultYColumn = (
   table: Table,
   preferredColumnKey?: string
 ): string | null => {
-  const validColumnKeys = getNumberColumns(table)
-  console.log('valid keys Y', validColumnKeys)
+  const validColumnKeys = [...getTimeColumns(table), ...getNumberColumns(table)]
 
   if (validColumnKeys.includes(preferredColumnKey)) {
     return preferredColumnKey
