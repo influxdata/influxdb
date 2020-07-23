@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ReactNode} from 'react'
+import React, {PureComponent, ReactNode, CSSProperties} from 'react'
 
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'

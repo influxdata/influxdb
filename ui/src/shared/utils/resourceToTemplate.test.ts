@@ -368,7 +368,7 @@ describe('resourceToTemplate', () => {
                           },
                         ],
                         functions: [{name: 'mean'}],
-                        aggregateWindow: {period: 'auto'},
+                        aggregateWindow: {period: 'auto', fillValues: false},
                       },
                     },
                   ],
