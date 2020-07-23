@@ -1,18 +1,17 @@
-import React, {Component} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import {Page} from '@influxdata/clockface'
-import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
-class LoadDataHeader extends Component {
-  public render() {
-    return (
-      <Page.Header fullWidth={false} testID="load-data--header">
-        <Page.Title title="Load Data" />
-        <CloudUpgradeButton />
-      </Page.Header>
-    )
-  }
+
+const LoadDataHeader: FC = () => {
+  return (
+    <Page.Header fullWidth={false} testID="load-data--header">
+      <Page.Title title="Load Data" />
+      <RateLimitAlert className="load-data--rate-alert" />
+    </Page.Header>
+  )
 }
 
 export default LoadDataHeader

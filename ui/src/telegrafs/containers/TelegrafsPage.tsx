@@ -10,15 +10,9 @@ import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import Collectors from 'src/telegrafs/components/Collectors'
 import GetResources from 'src/resources/components/GetResources'
 import LimitChecker from 'src/cloud/components/LimitChecker'
-import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
-import {
-  FlexBox,
-  FlexDirection,
-  JustifyContent,
-  Page,
-} from '@influxdata/clockface'
+import {Page} from '@influxdata/clockface'
 import OverlayHandler, {
   RouteOverlay,
 } from 'src/overlays/components/RouteOverlay'
@@ -39,7 +33,6 @@ const TelegrafOutputOverlay = RouteOverlay(
 )
 
 // Utils
-import {extractRateLimitResources} from 'src/cloud/utils/limits'
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {getOrg} from 'src/organizations/selectors'
 
@@ -51,7 +44,6 @@ import {ORGS, ORG_ID, TELEGRAFS} from 'src/shared/constants/routes'
 
 interface StateProps {
   org: Organization
-  limitedResources: string[]
 }
 
 const telegrafsPath = `/${ORGS}/${ORG_ID}/load-data/${TELEGRAFS}`
@@ -66,14 +58,6 @@ class TelegrafsPage extends PureComponent<StateProps> {
         <Page titleTag={pageTitleSuffixer(['Telegraf', 'Load Data'])}>
           <LimitChecker>
             <LoadDataHeader />
-            <FlexBox
-              direction={FlexDirection.Row}
-              justifyContent={JustifyContent.Center}
-            >
-              {this.isCardinalityExceeded && (
-                <RateLimitAlert className="load-data--rate-alert" />
-              )}
-            </FlexBox>
             <LoadDataTabbedPage activeTab="telegrafs" orgID={org.id}>
               <GetResources
                 resources={[ResourceType.Buckets, ResourceType.Telegrafs]}
@@ -101,21 +85,11 @@ class TelegrafsPage extends PureComponent<StateProps> {
       </>
     )
   }
-  private get isCardinalityExceeded(): boolean {
-    const {limitedResources} = this.props
-
-    return limitedResources.includes('cardinality')
-  }
 }
 
 const mstp = (state: AppState) => {
   const org = getOrg(state)
-  const {
-    cloud: {limits},
-  } = state
-  const limitedResources = extractRateLimitResources(limits)
-
-  return {org, limitedResources}
+  return {org}
 }
 
 export default connect<StateProps>(mstp)(TelegrafsPage)
