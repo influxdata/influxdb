@@ -254,6 +254,10 @@ impl DataPoint {
     }
 }
 
+/// The `LineProtocol` struct exists (and is deliberately) private because line protocol
+/// isn't guaranteed to be UTF-8, unlike Rust `String`s.
+/// Some future version of this library may support creating LineProtocol
+/// with data that's not UTF-8
 struct LineProtocol<'a>(&'a DataPoint);
 
 impl fmt::Display for LineProtocol<'_> {
