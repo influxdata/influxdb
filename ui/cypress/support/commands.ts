@@ -114,12 +114,14 @@ export const createDashboardTemplate = (
   })
 }
 
-export const createOrg = (): Cypress.Chainable<Cypress.Response> => {
+export const createOrg = (
+  name = 'test org'
+): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
     url: '/api/v2/orgs',
     body: {
-      name: 'test org',
+      name,
     },
   })
 }
