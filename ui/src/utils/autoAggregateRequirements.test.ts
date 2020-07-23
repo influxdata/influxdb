@@ -77,11 +77,12 @@ describe('applyAutoAggregateRequirements', () => {
   describe('converts a "builder" query with a builderConfig that can not be represented in the new autoAggregating builder to an "advanced" query, displaying in the script editor instead, and modifies the builderConfig so that user gets warning when switching to queryBuilder', () => {
     it('if the builderConfig can not be represented in autoAggregating builder because it does not have any aggregationFunctions', () => {
       const initBuilderConfig = {functions: []}
+      const originalQueryText = 'something'
       const builderViewWithNoFunctions = {
         properties: {
           queries: [
             {
-              text: 'something',
+              text: originalQueryText,
               editMode: 'builder' as 'builder',
               builderConfig: initBuilderConfig,
               aggregateWindow: {period: '2000', fillValues: false},
@@ -97,6 +98,7 @@ describe('applyAutoAggregateRequirements', () => {
       const {editMode, builderConfig, text} = returnedView.properties.queries[0]
 
       expect(editMode).toBe('advanced')
+      expect(text).toEqual(originalQueryText)
       expect(builderConfig).not.toEqual(initBuilderConfig)
       expect(hasQueryBeenEdited(text, builderConfig)).toBeTruthy()
     })
