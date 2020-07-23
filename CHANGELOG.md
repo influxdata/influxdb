@@ -30,6 +30,7 @@
 1. [18974](https://github.com/influxdata/influxdb/pull/18974): Limit variable querying when submitting queries to used variables
 1. [19039](https://github.com/influxdata/influxdb/pull/19039): Fix an issue where switching orgs was not redirecting correctly
 1. [18989](https://github.com/influxdata/influxdb/pull/18989): Stopped fetching tags in the advanced builder
+1. [19044](https://github.com/influxdata/influxdb/pull/19044): Graph customization: X and Y axis properly accept values
 
 
 ## v2.0.0-beta.14 [2020-07-08]
