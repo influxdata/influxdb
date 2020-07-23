@@ -5,12 +5,12 @@ import {sortBy} from 'lodash'
 import {asAssignment, getAllVariables} from 'src/variables/selectors'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {filterUnusedVarsBasedOnQuery} from 'src/shared/utils/filterUnusedVars'
-import {runQuery} from 'src/shared/apis/query'
 
 // Types
 import {RunQueryResult} from 'src/shared/apis/query'
 import {CancelBox} from 'src/types/promises'
 import {AppState, GetState, Variable} from 'src/types'
+import {RunQueryPromiseMutex} from './singleQuery'
 
 export const TIME_INVALIDATION = 1000 * 60 * 10 // 10 minutes
 
@@ -65,12 +65,33 @@ class QueryCache {
       this.resetCacheByID(id)
       return null
     }
+    // query has been initialized but the result has not been set
+    if (this.cache[id].values === undefined) {
+      return null
+    }
     // query & variable match with an expired result
     if (Date.now() - this.cache[id].dateSet > TIME_INVALIDATION) {
       this.resetCacheByID(id)
       return null
     }
     return this.cache[id].values
+  }
+
+  initializeCacheByID = (
+    queryID: string,
+    hashedVariables: string,
+    isCustomTime: boolean = false
+  ) => {
+    if (this.cache[queryID]) {
+      return this.cache[queryID]
+    }
+    this.cache[queryID] = {
+      dateSet: Date.now(),
+      hashedVariables,
+      isCustomTime,
+      mutex: RunQueryPromiseMutex<RunQueryResult>(),
+    }
+    return this.cache[queryID]
   }
 
   resetCacheByID = (id: string): void => {
@@ -87,13 +108,11 @@ class QueryCache {
   setCacheByID = (
     queryID: string,
     hashedVariables: string,
-    values: RunQueryResult,
-    isCustomTime: boolean = false
+    values: RunQueryResult
   ): void => {
     this.cache[queryID] = {
+      ...this.initializeCacheByID(queryID, hashedVariables),
       dateSet: Date.now(),
-      hashedVariables,
-      isCustomTime,
       values,
     }
   }
@@ -123,8 +142,7 @@ export const resetQueryCacheByQuery = (query: string): void => {
 export const getCachedResultsOrRunQuery = (
   orgID: string,
   query: string,
-  state: AppState,
-  abortController?: AbortController
+  state: AppState
 ): CancelBox<RunQueryResult> => {
   const usedVars = filterUnusedVarsBasedOnQuery(getAllVariables(state), [query])
   const variables = sortBy(usedVars, ['name'])
@@ -141,10 +159,9 @@ export const getCachedResultsOrRunQuery = (
 
   // check the cache based on text & vars
   if (cacheResults) {
-    const controller = abortController || new AbortController()
     return {
       promise: new Promise(resolve => resolve(cacheResults)),
-      cancel: () => controller.abort(),
+      cancel: () => {},
     }
   }
   const variableAssignments = variables
@@ -152,7 +169,8 @@ export const getCachedResultsOrRunQuery = (
     .filter(v => !!v)
   // otherwise query & set results
   const extern = buildVarsOption(variableAssignments)
-  const results = runQuery(orgID, query, extern, abortController)
+  const {mutex} = queryCache.initializeCacheByID(queryID, hashedVariables)
+  const results = mutex.run(orgID, query, extern)
   results.promise = results.promise.then(res => {
     // TODO(ariel): handle custom time range
     // if the timeRange is non-relative (i.e. a custom timeRange or the query text has a set time range)
@@ -166,9 +184,8 @@ export const getCachedResultsOrRunQuery = (
   return results
 }
 
-export const getCachedResultsThunk = (
-  orgID: string,
-  query: string,
-  abortController?: AbortController
-) => (_, getState: GetState): CancelBox<RunQueryResult> =>
-  getCachedResultsOrRunQuery(orgID, query, getState(), abortController)
+export const getCachedResultsThunk = (orgID: string, query: string) => (
+  _,
+  getState: GetState
+): CancelBox<RunQueryResult> =>
+  getCachedResultsOrRunQuery(orgID, query, getState())
