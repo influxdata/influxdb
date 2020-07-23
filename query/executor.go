@@ -282,28 +282,31 @@ LOOP:
 		// measurement incorrectly and causing a panic.
 		if stmt, ok := stmt.(*influxql.SelectStatement); ok {
 			for _, s := range stmt.Sources {
-				switch s := s.(type) {
-				case *influxql.Measurement:
-					if influxql.IsSystemName(s.Name) {
-						command := "the appropriate meta command"
-						switch s.Name {
-						case "_fieldKeys":
-							command = "SHOW FIELD KEYS"
-						case "_measurements":
-							command = "SHOW MEASUREMENTS"
-						case "_series":
-							command = "SHOW SERIES"
-						case "_tagKeys":
-							command = "SHOW TAG KEYS"
-						case "_tags":
-							command = "SHOW TAG VALUES"
-						}
-						results <- &Result{
-							Err: fmt.Errorf("unable to use system source '%s': use %s instead", s.Name, command),
-						}
-						break LOOP
-					}
+				meas, ok := s.(*influxql.Measurement)
+				if !ok {
+					continue
 				}
+
+				if !influxql.IsSystemName(meas.Name) {
+					continue
+				}
+
+				command := "the appropriate meta command"
+				switch meas.Name {
+				case "_fieldKeys":
+					command = "SHOW FIELD KEYS"
+				case "_measurements":
+					command = "SHOW MEASUREMENTS"
+				case "_series":
+					command = "SHOW SERIES"
+				case "_tagKeys":
+					command = "SHOW TAG KEYS"
+				case "_tags":
+					command = "SHOW TAG VALUES"
+				}
+
+				results <- &Result{Err: fmt.Errorf("unable to use system source '%s': use %s instead", meas.Name, command)}
+				break LOOP
 			}
 		}
 
