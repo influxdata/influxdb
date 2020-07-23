@@ -369,13 +369,11 @@ export const timeMachineReducer = (
 
     case 'SET_X_COLUMN': {
       const {xColumn} = action.payload
-
       return setViewProperties(state, {xColumn})
     }
 
     case 'SET_Y_COLUMN': {
       const {yColumn} = action.payload
-
       return setViewProperties(state, {yColumn})
     }
 
