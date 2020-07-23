@@ -79,13 +79,17 @@ const FunctionSelector: FunctionComponent<Props> = ({
       <BuilderCard.Menu>
         <FlexBox
           direction={FlexDirection.Column}
-          margin={ComponentSize.Small}
+          margin={ComponentSize.ExtraSmall}
           alignItems={AlignItems.Stretch}
         >
-          <SelectGroup shape={ButtonShape.StretchToFit}>
+          <SelectGroup
+            shape={ButtonShape.StretchToFit}
+            size={ComponentSize.ExtraSmall}
+          >
             <SelectGroup.Option
               name="custom"
               id="custom-function"
+              testID="custom-function"
               active={!isAutoFunction}
               value="custom"
               onClick={setFunctionSelectionMode}
@@ -96,6 +100,7 @@ const FunctionSelector: FunctionComponent<Props> = ({
             <SelectGroup.Option
               name="auto"
               id="auto-function"
+              testID="auto-function"
               active={isAutoFunction}
               value="auto"
               onClick={setFunctionSelectionMode}

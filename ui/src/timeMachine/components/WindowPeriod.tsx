@@ -3,7 +3,12 @@ import React, {FunctionComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
 
 // Components
-import {SelectGroup, ButtonShape, ComponentStatus} from '@influxdata/clockface'
+import {
+  SelectGroup,
+  ButtonShape,
+  ComponentStatus,
+  ComponentSize,
+} from '@influxdata/clockface'
 
 // Actions
 import {
@@ -50,7 +55,10 @@ const WindowPeriod: FunctionComponent<Props> = ({
 
   return (
     <>
-      <SelectGroup shape={ButtonShape.StretchToFit}>
+      <SelectGroup
+        shape={ButtonShape.StretchToFit}
+        size={ComponentSize.ExtraSmall}
+      >
         <SelectGroup.Option
           name="custom"
           id="custom-window-period"

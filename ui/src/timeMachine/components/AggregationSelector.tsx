@@ -21,13 +21,13 @@ const AggregationSelector: FunctionComponent = () => {
         <FlexBox
           direction={FlexDirection.Column}
           alignItems={AlignItems.Stretch}
-          margin={ComponentSize.Small}
+          margin={ComponentSize.ExtraSmall}
           stretchToFitWidth={true}
         >
           <WindowPeriod />
           <FlexBox
             direction={FlexDirection.Row}
-            margin={ComponentSize.Small}
+            margin={ComponentSize.ExtraSmall}
             stretchToFitWidth
             testID="component-spacer"
           >

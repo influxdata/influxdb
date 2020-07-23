@@ -74,7 +74,7 @@ describe('The Query Builder', () => {
 
       cy.get('.giraffe-plot').should('exist')
       cy.contains('cached').click()
-      cy.contains('mean').click()
+
       cy.contains('Submit').click()
       cy.getByTestID('save-cell--button').click()
 

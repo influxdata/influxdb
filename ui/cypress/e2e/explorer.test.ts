@@ -690,7 +690,7 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list max').click()
+        cy.getByTestID('selector-list first').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
@@ -794,7 +794,8 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list sort').click()
+        cy.getByTestID(`custom-function`).click()
+        cy.getByTestID('selector-list sort').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
@@ -842,7 +843,8 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list sort').click()
+        cy.getByTestID(`custom-function`).click()
+        cy.getByTestID('selector-list sort').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
@@ -873,7 +875,8 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list sort').click()
+        cy.getByTestID(`custom-function`).click()
+        cy.getByTestID('selector-list sort').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
