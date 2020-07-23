@@ -354,16 +354,11 @@ LOOP:
 		}
 
 		// Check if the query was interrupted during an uninterruptible statement.
-		interrupted := false
 		select {
 		case <-ctx.Done():
-			interrupted = true
+			break LOOP
 		default:
 			// Query has not been interrupted.
-		}
-
-		if interrupted {
-			break
 		}
 	}
 
