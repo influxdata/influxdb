@@ -2,8 +2,12 @@
 import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {get, find} from 'lodash'
+import classnames from 'classnames'
 
 // Components
+import {
+  LinkButton, ComponentColor, ComponentSize, ButtonShape
+} from '@influxdata/clockface'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
 // Constants
@@ -20,17 +24,32 @@ interface StateProps {
   inView: boolean
 }
 
-const CloudUpgradeButton: FC<StateProps> = ({inView}) => {
+interface OwnProps {
+  className?: string
+  buttonText?: string
+}
+
+const CloudUpgradeButton: FC<StateProps & OwnProps> = ({
+  inView,
+  className,
+  buttonText = "Upgrade Now",
+}) => {
+  const cloudUpgradeButtonClass = classnames('upgrade-payg--button', {
+    [`${className}`]: className,
+  })
+
   return (
     <CloudOnly>
       {inView && (
-        <a
-          className="cf-button cf-button-sm cf-button-success upgrade-payg--button"
+        <LinkButton
+          className={cloudUpgradeButtonClass}
+          color={ComponentColor.Success}
+          size={ComponentSize.Small}
+          shape={ButtonShape.Default}
           href={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
           target="_self"
-        >
-          Upgrade Now
-        </a>
+          text={buttonText}
+        />
       )}
     </CloudOnly>
   )

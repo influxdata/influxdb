@@ -1,63 +1,68 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import {
   FlexBox,
-  FlexDirection,
-  AlignItems,
-  ComponentSize,
-  IconFont,
-  ComponentColor,
-  Alert,
   JustifyContent,
+  Gradients,
+  InfluxColors,
+  GradientBox,
+  Panel,
+  Heading,
+  HeadingElement,
+  AlignItems,
 } from '@influxdata/clockface'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Constants
 import {CLOUD} from 'src/shared/constants'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
-import CheckoutButton from 'src/cloud/components/CheckoutButton'
 
 interface Props {
-  resourceName: string
   limitStatus: LimitStatus
+  resourceName: string
   className?: string
 }
 
-export default class AssetLimitAlert extends PureComponent<Props> {
-  public render() {
-    const {limitStatus, resourceName, className} = this.props
-
-    if (CLOUD && limitStatus === LimitStatus.EXCEEDED) {
-      return (
-        <FlexBox
-          direction={FlexDirection.Column}
-          alignItems={AlignItems.Center}
-          margin={ComponentSize.Large}
-          stretchToFitWidth={true}
-          className={className}
+const AssetLimitAlert: FC<Props> = ({limitStatus, resourceName, className}) => {
+  if (CLOUD && limitStatus === LimitStatus.EXCEEDED) {
+    return (
+      <GradientBox
+        borderGradient={Gradients.MiyazakiSky}
+        borderColor={InfluxColors.Raven}
+        className={className}
+      >
+        <Panel
+          backgroundColor={InfluxColors.Raven}
+          className="asset-alert"
         >
-          <Alert icon={IconFont.Cloud} color={ComponentColor.Primary}>
+          <Panel.Header>
+            <Heading element={HeadingElement.H4}>
+              Need more {resourceName}?
+            </Heading>
+          </Panel.Header>
+          <Panel.Body
+            className="asset-alert--contents"
+          >
             <FlexBox
-              alignItems={AlignItems.Center}
-              direction={FlexDirection.Row}
-              justifyContent={JustifyContent.SpaceBetween}
-              margin={ComponentSize.Medium}
+              justifyContent={JustifyContent.FlexEnd}
+              alignItems={AlignItems.FlexEnd}
+              stretchToFitHeight={true}
             >
-              <div>
-                {`Hey there, looks like you have reached the maximum number of
-              ${resourceName} you can create as part of your plan.`}
-                <br />
-              </div>
-              <CheckoutButton />
+              <CloudUpgradeButton buttonText={`Get more ${resourceName}`} />
             </FlexBox>
-          </Alert>
-        </FlexBox>
-      )
-    }
+          </Panel.Body>
+        </Panel>
+      </GradientBox>
 
-    return null
+    )
   }
+
+  return null
 }
+
+
+export default AssetLimitAlert

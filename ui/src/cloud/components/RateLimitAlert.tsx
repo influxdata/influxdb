@@ -1,6 +1,7 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FC} from 'react'
 import {connect} from 'react-redux'
+import classnames from 'classnames'
 
 // Components
 import {
@@ -14,6 +15,7 @@ import {
   InfluxColors,
   BannerPanel,
 } from '@influxdata/clockface'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Utils
 import {
@@ -27,7 +29,6 @@ import {CLOUD} from 'src/shared/constants'
 // Types
 import {AppState} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
-import CheckoutButton from 'src/cloud/components/CheckoutButton'
 
 interface StateProps {
   resources: string[]
@@ -38,70 +39,45 @@ interface OwnProps {
 }
 type Props = StateProps & OwnProps
 
-class RateLimitAlert extends PureComponent<Props> {
-  public render() {
-    const {status, className} = this.props
+const RateLimitAlert: FC<Props> = ({status, className, resources}) => {
+  const rateLimitAlertClass = classnames('rate-alert', {
+    [`${className}`]: className,
+  })
 
-    if (CLOUD && status === LimitStatus.EXCEEDED) {
-      return (
-        <FlexBox
-          direction={FlexDirection.Column}
-          alignItems={AlignItems.Center}
-          margin={ComponentSize.Large}
-          stretchToFitWidth={true}
-          className={className}
+  if (CLOUD && status === LimitStatus.EXCEEDED && resources.includes('cardinality')) {
+    return (
+      <FlexBox
+        direction={FlexDirection.Column}
+        alignItems={AlignItems.Center}
+        margin={ComponentSize.Large}
+        className={rateLimitAlertClass}
+      >
+        <BannerPanel
+          size={ComponentSize.ExtraSmall}
+          gradient={Gradients.PolarExpress}
+          icon={IconFont.Cloud}
+          hideMobileIcon={true}
+          textColor={InfluxColors.Yeti}
         >
-          <BannerPanel
-            size={ComponentSize.ExtraSmall}
-            icon={IconFont.Cloud}
-            gradient={Gradients.BeijingEclipse}
-            textColor={InfluxColors.Twilight}
-          >
-            <FlexBox justifyContent={JustifyContent.SpaceBetween}>
-              {this.message}
-              <FlexBox
-                direction={FlexDirection.Row}
-                justifyContent={JustifyContent.FlexEnd}
-                margin={ComponentSize.Medium}
-                style={{minWidth: '200px'}}
-              >
-                <div>Need to write more data?</div>
-                <CheckoutButton />
-              </FlexBox>
+          <div className="rate-alert--content">
+            <span>You've reached the maximum <a href="https://v2.docs.influxdata.com/v2.0/reference/glossary/#series-cardinality" target="_blank">series cardinality</a> available in your plan. Need to write more data?</span>
+            <FlexBox
+              justifyContent={JustifyContent.Center}
+              className="rate-alert--button"
+            >
+              <CloudUpgradeButton />
             </FlexBox>
-          </BannerPanel>
-        </FlexBox>
-      )
-    }
-
-    return null
+          </div>
+        </BannerPanel>
+      </FlexBox>
+    )
   }
 
-  private get message(): JSX.Element {
-    return <span>You've reached the maximum {this.resourceName} available in your plan.{this.additionalMessage}</span>
+  if (CLOUD) {
+    return <CloudUpgradeButton />
   }
 
-  private get additionalMessage(): string {
-    if (this.props.resources.includes('cardinality')) {
-      return ' Your writes will be rejected until resolved.'
-    }
-
-    return ''
-  }
-
-  private get resourceName(): string {
-    const {resources} = this.props
-
-    const renamedResources = resources.map(resource => {
-      if (resource === 'cardinality') {
-        return 'series cardinality'
-      }
-
-      return resource
-    })
-
-    return renamedResources.join(' and ')
-  }
+  return null
 }
 
 const mstp = (state: AppState) => {
