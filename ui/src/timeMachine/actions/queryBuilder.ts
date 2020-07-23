@@ -41,7 +41,7 @@ import {setBuckets} from 'src/buckets/actions/creators'
 
 // Constants
 import {LIMIT} from 'src/resources/constants'
-import {AUTO_FUNCTIONS, AGG_WINDOW_AUTO} from '../constants/queryBuilder'
+import {AGG_WINDOW_AUTO} from '../constants/queryBuilder'
 
 // Schemas
 import {arrayOfBuckets} from 'src/schemas'
@@ -62,7 +62,6 @@ export type Action =
   | ReturnType<typeof setFunctions>
   | ReturnType<typeof setAggregateWindow>
   | ReturnType<typeof setAggregateFillValues>
-  | ReturnType<typeof setIsAutoFunction>
   | ReturnType<typeof setValuesSearchTerm>
   | ReturnType<typeof setKeysSearchTerm>
   | ReturnType<typeof setBuilderTagsStatus>
@@ -137,7 +136,7 @@ const removeTagSelectorSync = (index: number) => ({
   payload: {index},
 })
 
-export const setFunctions = (functions: BuilderFunctionsType[]) => ({
+export const setFunctions = (functions: string[]) => ({
   type: 'SELECT_BUILDER_FUNCTION' as 'SELECT_BUILDER_FUNCTION',
   payload: {functions},
 })
@@ -152,11 +151,6 @@ export const setAggregateFillValues = (fillValues: boolean) => ({
   payload: {fillValues},
 })
 
-export const setIsAutoFunction = (isAutoFunction: boolean) => ({
-  type: 'SET_IS_AUTO_FUNCTION' as 'SET_IS_AUTO_FUNCTION',
-  payload: {isAutoFunction},
-})
-
 export const setValuesSearchTerm = (index: number, searchTerm: string) => ({
   type: 'SET_BUILDER_VALUES_SEARCH_TERM' as 'SET_BUILDER_VALUES_SEARCH_TERM',
   payload: {index, searchTerm},
@@ -166,34 +160,6 @@ export const setKeysSearchTerm = (index: number, searchTerm: string) => ({
   type: 'SET_BUILDER_KEYS_SEARCH_TERM' as 'SET_BUILDER_KEYS_SEARCH_TERM',
   payload: {index, searchTerm},
 })
-
-export const setFunctionSelectionMode = (mode: 'custom' | 'auto') => (
-  dispatch: Dispatch<Action | AlertBuilderAction>,
-  getState: GetState
-) => {
-  if (mode === 'custom') {
-    dispatch(setIsAutoFunction(false))
-    return
-  }
-  const state = getState()
-  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
-
-  const functions = draftQueries[activeQueryIndex].builderConfig.functions
-
-  const newFunctions = functions.filter(f =>
-    ['mean', 'median', 'first'].includes(f.name)
-  )
-
-  if (newFunctions.length === 0) {
-    dispatch(setFunctions([AUTO_FUNCTIONS[0]]))
-  } else if (newFunctions.length > 1) {
-    dispatch(setFunctions([newFunctions[0]]))
-  } else {
-    dispatch(setFunctions(newFunctions))
-  }
-
-  dispatch(setIsAutoFunction(true))
-}
 
 export const setWindowPeriodSelectionMode = (mode: 'custom' | 'auto') => (
   dispatch: Dispatch<Action | AlertBuilderAction>,
@@ -473,20 +439,11 @@ export const selectTagValue = (index: number, value: string) => (
   }
 }
 
-export const selectBuilderFunction = (name: string) => (
+export const multiSelectBuilderFunction = (name: string) => (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const state = getState()
-  const {
-    timeMachines: {activeTimeMachineID},
-  } = state
-
-  const {
-    draftQueries,
-    activeQueryIndex,
-    queryBuilder: {isAutoFunction},
-  } = getActiveTimeMachine(state)
+  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(getState())
 
   const functions = draftQueries[activeQueryIndex].builderConfig.functions
 
@@ -498,12 +455,34 @@ export const selectBuilderFunction = (name: string) => (
       return
     }
     newFunctions = functions.filter(f => f.name !== name)
-  } else if (activeTimeMachineID === 'alerting' || isAutoFunction) {
-    newFunctions = [{name}]
   } else {
     newFunctions = [...functions, {name}]
   }
-  dispatch(setFunctions(newFunctions))
+
+  dispatch(setFunctions(newFunctions.map(f => f.name)))
+}
+
+export const singleSelectBuilderFunction = (name: string) => (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(getState())
+
+  const functions = draftQueries[activeQueryIndex].builderConfig.functions
+
+  let newFunctions: BuilderFunctionsType[]
+
+  if (functions.find(f => f.name === name)) {
+    if (functions.length == 1) {
+      // at least one function must be selected
+      return
+    }
+    newFunctions = functions.filter(f => f.name !== name)
+  } else {
+    newFunctions = [{name}]
+  }
+
+  dispatch(setFunctions(newFunctions.map(f => f.name)))
 }
 
 export const selectTagKey = (index: number, key: string) => (

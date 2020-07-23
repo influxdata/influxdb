@@ -46,7 +46,6 @@ interface QueryBuilderState {
   bucketsStatus: RemoteDataState
   functions: Array<[{name: string}]>
   aggregateWindow: BuilderConfigAggregateWindow
-  isAutoFunction: boolean
   tags: Array<{
     aggregateFunctionType: BuilderAggregateFunctionType
     valuesSearchTerm: string
@@ -108,7 +107,6 @@ export const initialStateHelper = (): TimeMachineState => {
         period: AGG_WINDOW_AUTO,
         fillValues: DEFAULT_FILLVALUES,
       },
-      isAutoFunction: true,
       functions: [[{name: 'mean'}]],
       tags: [
         {
@@ -856,23 +854,17 @@ export const timeMachineReducer = (
       })
     }
 
-    case 'SET_IS_AUTO_FUNCTION': {
-      return produce(state, draftState => {
-        const {isAutoFunction} = action.payload
-
-        draftState.queryBuilder.isAutoFunction = isAutoFunction
-        // do stuff
-        buildActiveQuery(draftState)
-      })
-    }
-
     case 'SELECT_BUILDER_FUNCTION': {
       return produce(state, draftState => {
         const {functions} = action.payload
 
+        const functionsWithNames = functions.map(f => ({
+          name: f,
+        }))
+
         draftState.draftQueries[
           draftState.activeQueryIndex
-        ].builderConfig.functions = functions
+        ].builderConfig.functions = functionsWithNames
 
         buildActiveQuery(draftState)
       })
@@ -1051,7 +1043,6 @@ const initialQueryBuilderState = (
     bucketsStatus: RemoteDataState.NotStarted,
     functions: [...defaultFunctions],
     aggregateWindow: {period: AGG_WINDOW_AUTO, fillValues: DEFAULT_FILLVALUES},
-    isAutoFunction: true,
     tags: builderConfig.tags.map(() => {
       return {...defaultTag}
     }),

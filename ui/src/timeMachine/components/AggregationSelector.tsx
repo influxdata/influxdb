@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, useState} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
 
 // Components
@@ -7,18 +7,18 @@ import AggregationContents from 'src/timeMachine/components/AggregationContents'
 
 // Actions
 import {
-  selectBuilderFunction,
+  multiSelectBuilderFunction,
+  singleSelectBuilderFunction,
   selectAggregateWindow,
   setAggregateFillValues,
   setWindowPeriodSelectionMode,
-  setFunctionSelectionMode,
+  setFunctions,
 } from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
 import {
   getActiveQuery,
   getIsInCheckOverlay,
-  getActiveTimeMachine,
   getWindowPeriodFromTimeRange,
 } from 'src/timeMachine/selectors'
 
@@ -38,17 +38,24 @@ type Props = ReduxProps
 const AggregationSelector: FunctionComponent<Props> = ({
   selectedFunctions,
   isInCheckOverlay,
-  isAutoFunction,
   aggregateWindow: {period, fillValues},
   autoWindowPeriod,
-  onSelectFunction,
+  onMultiSelectBuilderFunction,
+  onSingleSelectBuilderFunction,
   onSetAggregateFillValues,
-  onSetFunctionSelectionMode,
   onSetWindowPeriodSelectionMode,
   onSelectAggregateWindow,
+  onSetFunctions,
 }) => {
+  const autoFunctions = AUTO_FUNCTIONS.map(f => f.name)
+
+  const [isAutoFunction, setIsAutoFunction] = useState(
+    selectedFunctions.length === 1 &&
+      autoFunctions.includes(selectedFunctions[0])
+  )
+
   const functionList = isAutoFunction
-    ? AUTO_FUNCTIONS.map(f => f.name)
+    ? autoFunctions
     : FUNCTIONS.map(f => f.name)
 
   const onChangeFillValues = () => {
@@ -63,17 +70,40 @@ const AggregationSelector: FunctionComponent<Props> = ({
       : AGG_WINDOW_AUTO
   }
 
+  const setFunctionSelectionMode = (mode: 'custom' | 'auto') => {
+    if (mode === 'custom') {
+      setIsAutoFunction(false)
+      return
+    }
+    const newFunctions = selectedFunctions.filter(f =>
+      autoFunctions.includes(f)
+    )
+    if (newFunctions.length === 0) {
+      onSetFunctions([autoFunctions[0]])
+    } else if (newFunctions.length > 1) {
+      onSetFunctions([newFunctions[0]])
+    } else {
+      onSetFunctions(newFunctions)
+    }
+
+    setIsAutoFunction(true)
+  }
+
   return (
     <AggregationContents
       isAutoWindowPeriod={period === AGG_WINDOW_AUTO}
       onSetWindowPeriodSelectionMode={onSetWindowPeriodSelectionMode}
-      onSetFunctionSelectionMode={onSetFunctionSelectionMode}
       durationDisplay={durationDisplay}
       isFillValues={fillValues}
-      isAutoFunction={isAutoFunction}
       functionList={functionList}
+      isAutoFunction={isAutoFunction}
+      onSetFunctionSelectionMode={setFunctionSelectionMode}
       selectedFunctions={selectedFunctions}
-      onSelectFunction={onSelectFunction}
+      onSelectFunction={
+        isAutoFunction
+          ? onSingleSelectBuilderFunction
+          : onMultiSelectBuilderFunction
+      }
       isInCheckOverlay={isInCheckOverlay}
       onChangeFillValues={onChangeFillValues}
       onSelectAggregateWindow={onSelectAggregateWindow}
@@ -82,9 +112,6 @@ const AggregationSelector: FunctionComponent<Props> = ({
 }
 
 const mstp = (state: AppState) => {
-  const {
-    queryBuilder: {isAutoFunction},
-  } = getActiveTimeMachine(state)
   const {builderConfig} = getActiveQuery(state)
   const {functions, aggregateWindow} = builderConfig
   return {
@@ -92,16 +119,16 @@ const mstp = (state: AppState) => {
     selectedFunctions: functions.map(f => f.name),
     aggregateWindow,
     isInCheckOverlay: getIsInCheckOverlay(state),
-    isAutoFunction: isAutoFunction,
   }
 }
 
 const mdtp = {
-  onSelectFunction: selectBuilderFunction,
+  onMultiSelectBuilderFunction: multiSelectBuilderFunction,
+  onSingleSelectBuilderFunction: singleSelectBuilderFunction,
   onSelectAggregateWindow: selectAggregateWindow,
   onSetAggregateFillValues: setAggregateFillValues,
   onSetWindowPeriodSelectionMode: setWindowPeriodSelectionMode,
-  onSetFunctionSelectionMode: setFunctionSelectionMode,
+  onSetFunctions: setFunctions,
 }
 
 const connector = connect(mstp, mdtp)
