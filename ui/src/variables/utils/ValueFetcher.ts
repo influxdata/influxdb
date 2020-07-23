@@ -72,7 +72,8 @@ export interface ValueFetcher {
     variables: VariableAssignment[],
     prevSelection: string,
     defaultSelection: string,
-    skipCache: boolean
+    skipCache: boolean,
+    controller?: AbortController
   ) => CancelBox<VariableValues>
 }
 
@@ -86,7 +87,8 @@ export class DefaultValueFetcher implements ValueFetcher {
     variables,
     prevSelection,
     defaultSelection,
-    skipCache
+    skipCache,
+    abortController
   ) {
     const key = cacheKey(url, orgID, query, variables)
     if (!skipCache) {
@@ -102,7 +104,7 @@ export class DefaultValueFetcher implements ValueFetcher {
     }
 
     const extern = buildVarsOption(variables)
-    const request = runQuery(orgID, query, extern)
+    const request = runQuery(orgID, query, extern, abortController)
     event('runQuery', {context: 'variables'})
 
     const promise = request.promise.then(result => {
