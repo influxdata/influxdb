@@ -1,3 +1,10 @@
+## v2.0.0-beta.16 [unreleased]
+
+### Bug Fixes
+
+1. [19043](https://github.com/influxdata/influxdb/pull/19043): Enforce all influx CLI flag args are valid
+
+
 ## v2.0.0-beta.15 [2020-07-23]
 
 ### Breaking
