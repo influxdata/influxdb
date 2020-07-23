@@ -625,6 +625,7 @@ const (
 	LastKind  = "last"
 	MinKind   = "min"
 	MaxKind   = "max"
+	MeanKind  = "mean"
 )
 
 // isSelector returns true if given a procedure kind that represents a selector operator.

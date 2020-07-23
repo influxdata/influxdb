@@ -1530,6 +1530,149 @@ from(bucket: v.bucket)
 `,
 		},
 		{
+			name: "bare mean",
+			data: []string{
+				"m0,k=k0,kk=kk0 f=5 0",
+				"m0,k=k0,kk=kk0 f=6 5000000000",
+				"m0,k=k0,kk=kk0 f=7 10000000000",
+				"m0,k=k0,kk=kk0 f=9 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 0)
+	|> mean()
+	|> keep(columns: ["_value"])
+`,
+			op: "readWindow(mean)",
+			want: `
+#datatype,string,long,double
+#group,false,false,false
+#default,_result,,
+,result,table,_value
+,,0,6.75
+`,
+
+		},
+		{
+			name: "window mean",
+			data: []string{
+				"m0,k=k0 f=1i 5000000000",
+				"m0,k=k0 f=2i 6000000000",
+				"m0,k=k0 f=3i 7000000000",
+				"m0,k=k0 f=4i 8000000000",
+				"m0,k=k0 f=5i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=8i 12000000000",
+				"m0,k=k0 f=9i 13000000000",
+				"m0,k=k0 f=10i 14000000000",
+				"m0,k=k0 f=11i 15000000000",
+				"m0,k=k0 f=12i 16000000000",
+				"m0,k=k0 f=13i 17000000000",
+				"m0,k=k0 f=14i 18000000000",
+				"m0,k=k0 f=16i 19000000000",
+				"m0,k=k0 f=17i 20000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> aggregateWindow(fn: mean, every: 5s)
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readWindow(mean)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,double
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:10Z,3
+,,0,1970-01-01T00:00:15Z,8
+,,0,1970-01-01T00:00:20Z,13.2
+`,
+
+		},
+		{
+			name: "window mean offset",
+			data: []string{
+				"m0,k=k0 f=1i 5000000000",
+				"m0,k=k0 f=2i 6000000000",
+				"m0,k=k0 f=3i 7000000000",
+				"m0,k=k0 f=4i 8000000000",
+				"m0,k=k0 f=5i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=8i 12000000000",
+				"m0,k=k0 f=9i 13000000000",
+				"m0,k=k0 f=10i 14000000000",
+				"m0,k=k0 f=11i 15000000000",
+				"m0,k=k0 f=12i 16000000000",
+				"m0,k=k0 f=13i 17000000000",
+				"m0,k=k0 f=14i 18000000000",
+				"m0,k=k0 f=16i 19000000000",
+				"m0,k=k0 f=17i 20000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> window(every: 5s, offset: 1s)
+	|> mean()
+`,
+			op: "readWindow(mean)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,string,string,string,double
+#group,false,false,true,true,true,true,true,false
+#default,_result,,,,,,,
+,result,table,_start,_stop,_field,_measurement,k,_value
+,,0,1970-01-01T00:00:05Z,1970-01-01T00:00:06Z,f,m0,k0,1
+,,1,1970-01-01T00:00:06Z,1970-01-01T00:00:11Z,f,m0,k0,4
+,,2,1970-01-01T00:00:11Z,1970-01-01T00:00:16Z,f,m0,k0,9
+,,3,1970-01-01T00:00:16Z,1970-01-01T00:00:20Z,f,m0,k0,13.75
+`,
+
+		},
+		{
+			name: "window mean offset with duplicate and unwindow",
+			data: []string{
+				"m0,k=k0 f=1i 5000000000",
+				"m0,k=k0 f=2i 6000000000",
+				"m0,k=k0 f=3i 7000000000",
+				"m0,k=k0 f=4i 8000000000",
+				"m0,k=k0 f=5i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=8i 12000000000",
+				"m0,k=k0 f=9i 13000000000",
+				"m0,k=k0 f=10i 14000000000",
+				"m0,k=k0 f=11i 15000000000",
+				"m0,k=k0 f=12i 16000000000",
+				"m0,k=k0 f=13i 17000000000",
+				"m0,k=k0 f=14i 18000000000",
+				"m0,k=k0 f=16i 19000000000",
+				"m0,k=k0 f=17i 20000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> window(every: 5s, offset: 1s)
+	|> mean()
+	|> duplicate(column: "_stop", as: "_time")
+	|> window(every: inf)
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readWindow(mean)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,double
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:06Z,1
+,,0,1970-01-01T00:00:11Z,4
+,,0,1970-01-01T00:00:16Z,9
+,,0,1970-01-01T00:00:20Z,13.75
+`,
+
+		},
+		{
 			name: "group first",
 			data: []string{
 				"m0,k=k0,kk=kk0 f=0i 0",
@@ -1826,6 +1969,7 @@ from(bucket: v.bucket)
 			l := launcher.RunTestLauncherOrFail(t, ctx, mock.NewFlagger(map[feature.Flag]interface{}{
 				feature.PushDownWindowAggregateCount(): true,
 				feature.PushDownWindowAggregateSum():   true,
+				feature.PushDownWindowAggregateMean():   true,
 			}))
 
 			l.SetupOrFail(t)
