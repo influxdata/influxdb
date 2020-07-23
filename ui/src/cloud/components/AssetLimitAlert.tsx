@@ -35,18 +35,13 @@ const AssetLimitAlert: FC<Props> = ({limitStatus, resourceName, className}) => {
         borderColor={InfluxColors.Raven}
         className={className}
       >
-        <Panel
-          backgroundColor={InfluxColors.Raven}
-          className="asset-alert"
-        >
+        <Panel backgroundColor={InfluxColors.Raven} className="asset-alert">
           <Panel.Header>
             <Heading element={HeadingElement.H4}>
               Need more {resourceName}?
             </Heading>
           </Panel.Header>
-          <Panel.Body
-            className="asset-alert--contents"
-          >
+          <Panel.Body className="asset-alert--contents">
             <FlexBox
               justifyContent={JustifyContent.FlexEnd}
               alignItems={AlignItems.FlexEnd}
@@ -57,12 +52,10 @@ const AssetLimitAlert: FC<Props> = ({limitStatus, resourceName, className}) => {
           </Panel.Body>
         </Panel>
       </GradientBox>
-
     )
   }
 
   return null
 }
-
 
 export default AssetLimitAlert

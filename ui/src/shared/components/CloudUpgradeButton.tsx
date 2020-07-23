@@ -6,7 +6,10 @@ import classnames from 'classnames'
 
 // Components
 import {
-  LinkButton, ComponentColor, ComponentSize, ButtonShape
+  LinkButton,
+  ComponentColor,
+  ComponentSize,
+  ButtonShape,
 } from '@influxdata/clockface'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
@@ -32,7 +35,7 @@ interface OwnProps {
 const CloudUpgradeButton: FC<StateProps & OwnProps> = ({
   inView,
   className,
-  buttonText = "Upgrade Now",
+  buttonText = 'Upgrade Now',
 }) => {
   const cloudUpgradeButtonClass = classnames('upgrade-payg--button', {
     [`${className}`]: className,

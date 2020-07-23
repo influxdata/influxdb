@@ -88,10 +88,7 @@ const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
         >
           <div className="alerting-index--list">
             {children(searchTerm)}
-            <AssetLimitAlert
-              resourceName={title}
-              limitStatus={limitStatus}
-            />
+            <AssetLimitAlert resourceName={title} limitStatus={limitStatus} />
           </div>
         </DapperScrollbars>
       </div>

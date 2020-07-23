@@ -44,7 +44,11 @@ const RateLimitAlert: FC<Props> = ({status, className, resources}) => {
     [`${className}`]: className,
   })
 
-  if (CLOUD && status === LimitStatus.EXCEEDED && resources.includes('cardinality')) {
+  if (
+    CLOUD &&
+    status === LimitStatus.EXCEEDED &&
+    resources.includes('cardinality')
+  ) {
     return (
       <FlexBox
         direction={FlexDirection.Column}
@@ -60,7 +64,16 @@ const RateLimitAlert: FC<Props> = ({status, className, resources}) => {
           textColor={InfluxColors.Yeti}
         >
           <div className="rate-alert--content">
-            <span>You've reached the maximum <a href="https://v2.docs.influxdata.com/v2.0/reference/glossary/#series-cardinality" target="_blank">series cardinality</a> available in your plan. Need to write more data?</span>
+            <span>
+              You've reached the maximum{' '}
+              <a
+                href="https://v2.docs.influxdata.com/v2.0/reference/glossary/#series-cardinality"
+                target="_blank"
+              >
+                series cardinality
+              </a>{' '}
+              available in your plan. Need to write more data?
+            </span>
             <FlexBox
               justifyContent={JustifyContent.Center}
               className="rate-alert--button"
