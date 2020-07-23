@@ -1,19 +1,29 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 import memoizeOne from 'memoize-one'
 
 // Components
 import DashboardCard from 'src/dashboards/components/dashboard_index/DashboardCard'
 import {TechnoSpinner} from '@influxdata/clockface'
+import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Selectors
 import {getSortedResources, SortTypes} from 'src/shared/utils/sort'
 
 // Types
-import {Dashboard, RemoteDataState} from 'src/types'
+import {AppState, Dashboard, RemoteDataState} from 'src/types'
 import {Sort} from 'src/clockface'
+import {LimitStatus} from 'src/cloud/actions/limits'
 
-interface Props {
+// Utils
+import {extractDashboardLimits} from 'src/cloud/utils/limits'
+
+interface StateProps {
+  limitStatus: LimitStatus
+}
+
+interface OwnProps {
   dashboards: Dashboard[]
   sortKey: string
   sortDirection: Sort
@@ -21,7 +31,7 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-export default class DashboardCards extends PureComponent<Props> {
+class DashboardCards extends PureComponent<OwnProps & StateProps> {
   private _observer
   private _spinner
 
@@ -110,6 +120,11 @@ export default class DashboardCards extends PureComponent<Props> {
                 onFilterChange={onFilterChange}
               />
             ))}
+          <AssetLimitAlert
+            className="dashboards--asset-alert"
+            resourceName="dashboards"
+            limitStatus={this.props.limitStatus}
+          />
         </div>
         {windowSize * pages < dashboards.length && (
           <div
@@ -123,3 +138,15 @@ export default class DashboardCards extends PureComponent<Props> {
     )
   }
 }
+
+const mstp = (state: AppState) => {
+  const {
+    cloud: {limits},
+  } = state
+
+  return {
+    limitStatus: extractDashboardLimits(limits),
+  }
+}
+
+export default connect(mstp)(DashboardCards)
