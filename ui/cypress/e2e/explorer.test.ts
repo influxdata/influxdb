@@ -802,12 +802,12 @@ describe('DataExplorer', () => {
         cy.getByTestID('raw-data--toggle').click()
 
         cy.get('.time-machine--view').within(() => {
-          cy.getByTestID('dapper-scrollbars--thumb-y')
+          cy.getByTestID('rawdata-table--scrollbar--thumb-y')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientY: 5000})
             .trigger('mouseup')
 
-          cy.getByTestID('dapper-scrollbars--thumb-x')
+          cy.getByTestID('rawdata-table--scrollbar--thumb-x')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientX: 1000})
             .trigger('mouseup')
