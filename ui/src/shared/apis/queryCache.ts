@@ -12,7 +12,7 @@ import {RunQueryResult} from 'src/shared/apis/query'
 import {CancelBox} from 'src/types/promises'
 import {AppState, GetState, Variable} from 'src/types'
 
-export const TIME_INVALIDATION = 5000 // this is in milliseconds
+export const TIME_INVALIDATION = 1000 * 60 * 10 // 10 minutes
 
 const asSimplyKeyValueVariables = (vari: Variable) => {
   return {
@@ -101,7 +101,7 @@ class QueryCache {
   startWatchDog = () => {
     setInterval(() => {
       this.cleanExpiredQueries()
-    }, TIME_INVALIDATION / 2)
+    }, 2500)
 
     this.cleanExpiredQueries()
   }
