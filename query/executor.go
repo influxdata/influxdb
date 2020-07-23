@@ -312,12 +312,11 @@ LOOP:
 
 		// Rewrite statements, if necessary.
 		// This can occur on meta read statements which convert to SELECT statements.
-		newStmt, err := RewriteStatement(stmt)
+		stmt, err = RewriteStatement(stmt)
 		if err != nil {
 			results <- &Result{Err: err}
 			break
 		}
-		stmt = newStmt
 
 		// Normalize each statement if possible.
 		if normalizer, ok := e.StatementExecutor.(StatementNormalizer); ok {
