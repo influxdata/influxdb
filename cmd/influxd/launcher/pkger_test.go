@@ -2522,7 +2522,8 @@ spec:
 							Name string `json:"name"`
 						}{},
 						AggregateWindow: struct {
-							Period string `json:"period"`
+							Period     string `json:"period"`
+							FillValues bool   `json:"fillValues"`
 						}{},
 					},
 					Text:     "from(v.bucket) |> count()",
