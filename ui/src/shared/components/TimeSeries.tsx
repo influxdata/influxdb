@@ -13,7 +13,7 @@ import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 // API
 import {RunQueryResult, RunQuerySuccessResult} from 'src/shared/apis/query'
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
-import {getCachedResultsOrRunQuery} from 'src/shared/apis/queryCache'
+import {getCachedResultsThunk} from 'src/shared/apis/queryCache'
 
 // Utils
 import {
@@ -176,11 +176,11 @@ class TimeSeries extends Component<Props, State> {
 
   private reload = async () => {
     const {
-      appState,
       buckets,
       check,
       isCurrentPageDashboard,
       notify,
+      onGetCachedResultsThunk,
       variables,
     } = this.props
     const queries = this.props.queries.filter(({text}) => !!text.trim())
@@ -227,7 +227,7 @@ class TimeSeries extends Component<Props, State> {
 
         event('runQuery', {context: 'TimeSeries'})
         if (isCurrentPageDashboard) {
-          return getCachedResultsOrRunQuery(orgID, text, appState)
+          return onGetCachedResultsThunk(orgID, text)
         }
         return this.mutex.run(orgID, text, extern)
       })
@@ -360,7 +360,6 @@ const mstp = (state: AppState, props: OwnProps) => {
   ]
 
   return {
-    appState: state,
     hasUpdatedTimeRangeInVEO: hasUpdatedTimeRangeInVEO(state),
     isCurrentPageDashboard: isCurrentPageDashboardSelector(state),
     queryLink: state.links.query.self,
@@ -371,6 +370,7 @@ const mstp = (state: AppState, props: OwnProps) => {
 
 const mdtp = {
   notify: notifyAction,
+  onGetCachedResultsThunk: getCachedResultsThunk,
 }
 
 const connector = connect(mstp, mdtp)

@@ -10,7 +10,7 @@ import {runQuery} from 'src/shared/apis/query'
 // Types
 import {RunQueryResult} from 'src/shared/apis/query'
 import {CancelBox} from 'src/types/promises'
-import {AppState, Variable} from 'src/types'
+import {AppState, GetState, Variable} from 'src/types'
 
 export const TIME_INVALIDATION = 5000 // this is in milliseconds
 
@@ -165,3 +165,10 @@ export const getCachedResultsOrRunQuery = (
 
   return results
 }
+
+export const getCachedResultsThunk = (
+  orgID: string,
+  query: string,
+  abortController?: AbortController
+) => (_, getState: GetState): CancelBox<RunQueryResult> =>
+  getCachedResultsOrRunQuery(orgID, query, getState(), abortController)
