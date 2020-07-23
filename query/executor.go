@@ -369,11 +369,9 @@ LOOP:
 
 	// Send error results for any statements which were not executed.
 	for ; i < len(query.Statements); i++ {
-		if err := ctx.send(&Result{
-			StatementID: i,
-			Err:         ErrNotExecuted,
-		}); err == ErrQueryAborted {
-			return
+		res := Result{StatementID: i, Err: ErrNotExecuted}
+		if err := ctx.send(&res); err == ErrQueryAborted {
+			break
 		}
 	}
 }
