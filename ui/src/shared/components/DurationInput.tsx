@@ -63,14 +63,14 @@ const DurationInput: FC<Props> = ({
   const isValid = (i: string): boolean =>
     isDurationParseable(i) || validFunction(i)
 
-  const getInputStatus = () => {
-    if (controlledStatus === ComponentStatus.Default) {
-      return isValid(inputValue)
-        ? ComponentStatus.Default
-        : ComponentStatus.Error
-    }
-    return controlledStatus || ComponentStatus.Default
+  let inputStatus = controlledStatus || ComponentStatus.Default
+
+  if (inputStatus === ComponentStatus.Default) {
+    inputStatus = isValid(inputValue)
+      ? ComponentStatus.Default
+      : ComponentStatus.Error
   }
+  console.log(inputStatus, inputValue)
 
   const onChange = (i: string) => {
     setInputValue(i)
@@ -85,7 +85,7 @@ const DurationInput: FC<Props> = ({
         <Input
           placeholder={placeholder}
           value={inputValue}
-          status={getInputStatus()}
+          status={inputStatus}
           onChange={e => onChange(e.target.value)}
           onFocus={() => setIsFocused(true)}
           testID={testID}

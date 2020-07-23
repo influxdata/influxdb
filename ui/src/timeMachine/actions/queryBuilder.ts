@@ -41,7 +41,7 @@ import {setBuckets} from 'src/buckets/actions/creators'
 
 // Constants
 import {LIMIT} from 'src/resources/constants'
-import {AGG_WINDOW_AUTO} from '../constants/queryBuilder'
+import {AGG_WINDOW_AUTO} from 'src/timeMachine/constants/queryBuilder'
 
 // Schemas
 import {arrayOfBuckets} from 'src/schemas'
