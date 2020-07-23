@@ -95,8 +95,6 @@ class LineOptions extends PureComponent<Props> {
       onSetHoverDimension,
     } = this.props
 
-    console.log('lineoptions',yColumn)
-
     return (
       <>
         <Grid.Column>

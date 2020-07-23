@@ -243,9 +243,7 @@ export const defaultXColumn = (
   if (validColumnKeys.includes(preferredColumnKey)) {
     return preferredColumnKey
   }
-  console.log('valid keys X', validColumnKeys)
-
-  for (const key of ['_time', '_stop', '_start', '_value']) {
+  for (const key of ['_time', '_stop', '_start']) {
     if (validColumnKeys.includes(key)) {
       return key
     }
