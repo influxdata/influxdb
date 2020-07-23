@@ -21,6 +21,7 @@
 1. [19029](https://github.com/influxdata/influxdb/pull/19029): Navigating away from a dashboard cancels all pending queries
 1. [19003](https://github.com/influxdata/influxdb/pull/19003): Upgrade to Flux v0.74.0
 1. [19040](https://github.com/influxdata/influxdb/pull/19040): Drop the REPL command from influx CLI
+1. [19032](https://github.com/influxdata/influxdb/pull/19032): Redesign asset & rate limit alerts
 
 ### Bug Fixes
 
