@@ -45,7 +45,7 @@ export function RunQueryPromiseMutex<T>() {
 
           runQuery(orgID, query, extern, abortController)
             .promise.then((...args) => {
-              ret.resolve.apply(ret, args)
+              ret.resolve.apply(ret, args) // eslint-disable-line prefer-spread
             })
             .catch((error: Error) => {
               ret.reject(error)
@@ -59,7 +59,7 @@ export function RunQueryPromiseMutex<T>() {
 
       while (cached.length) {
         curr = cached.pop()
-        curr.resolve.apply(curr, args)
+        curr.resolve.apply(curr, args) // eslint-disable-line prefer-spread
       }
 
       processing = false
