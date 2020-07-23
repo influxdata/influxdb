@@ -739,6 +739,56 @@ describe('DataExplorer', () => {
         cy.getByTestID('form--element-error').should('not.exist')
       })
 
+      it('can set x-axis and y-axis values', () => {
+        // build the query to return data from beforeEach
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+        cy.getByTestID('cog-cell--button').click()
+
+        // Check stop
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_stop').click()
+        cy.getByTestID('dropdown-x').contains('_stop')
+
+        //check Value
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_value').click()
+        cy.getByTestID('dropdown-x').contains('_value')
+
+        //check start
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_start').click()
+        cy.getByTestID('dropdown-x').contains('_start')
+
+        //check time
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_time').click()
+        cy.getByTestID('dropdown-x').contains('_time')
+
+        // Check stop
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_stop').click()
+        cy.getByTestID('dropdown-y').contains('_stop')
+
+        //check Value
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_value').click()
+        cy.getByTestID('dropdown-y').contains('_value')
+
+        //check start
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_start').click()
+        cy.getByTestID('dropdown-y').contains('_start')
+
+        //check time
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_time').click()
+        cy.getByTestID('dropdown-y').contains('_time')
+      })
+
       it('can view table data & sort values numerically', () => {
         // build the query to return data from beforeEach
         cy.getByTestID(`selector-list m`).click()

@@ -19,30 +19,3 @@ describe('parseYBounds', () => {
     expect(parseYBounds(['0.1', '0.6'])).toEqual([0.1, 0.6])
   })
 })
-// export interface Table {
-//   getColumn: GetColumn
-//   getColumnName: (columnKey: string) => string
-//   getColumnType: (columnKey: string) => ColumnType
-//   columnKeys: string[]
-//   length: number
-//   addColumn: (
-//     columnKey: string,
-//     type: ColumnType,
-//     data: ColumnData,
-//     name?: string
-//   ) => Table
-// }
-
- const results = ["result",
- "table",
- "_start",
- "_stop",
- "_time",
- "_value",
- "_field",
- "_measurement",
- "device",
- "fstype",
- "host",
- "mode",
- "path"]
