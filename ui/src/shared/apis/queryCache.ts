@@ -101,7 +101,7 @@ class QueryCache {
   startWatchDog = () => {
     setInterval(() => {
       this.cleanExpiredQueries()
-    }, 2500)
+    }, TIME_INVALIDATION / 2)
 
     this.cleanExpiredQueries()
   }
