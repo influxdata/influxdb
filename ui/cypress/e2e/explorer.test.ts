@@ -802,12 +802,12 @@ describe('DataExplorer', () => {
         cy.getByTestID('raw-data--toggle').click()
 
         cy.get('.time-machine--view').within(() => {
-          cy.get('.cf-dapper-scrollbars--thumb-y') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+          cy.getByTestID('dapper-scrollbars--thumb-y')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientY: 5000})
             .trigger('mouseup')
 
-          cy.get('.cf-dapper-scrollbars--thumb-x') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+          cy.getByTestID('dapper-scrollbars--thumb-x')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientX: 1000})
             .trigger('mouseup')
@@ -831,7 +831,7 @@ describe('DataExplorer', () => {
         cy.getByTestID(`view-type--table`).click()
 
         cy.get('.time-machine--view').within(() => {
-          cy.get('.cf-dapper-scrollbars--thumb-y') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+          cy.getByTestID('dapper-scrollbars--thumb-y')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientY: 5000})
             .trigger('mouseup')
