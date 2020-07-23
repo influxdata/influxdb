@@ -70,96 +70,113 @@ export const setBuilderAggregateFunctionType = (
   builderAggregateFunctionType: BuilderAggregateFunctionType,
   index: number
 ) => ({
-  type: 'SET_BUILDER_AGGREGATE_FUNCTION_TYPE' as 'SET_BUILDER_AGGREGATE_FUNCTION_TYPE',
+  type: 'SET_BUILDER_AGGREGATE_FUNCTION_TYPE',
   payload: {builderAggregateFunctionType, index},
 })
 
-const setBuilderBucketsStatus = (bucketsStatus: RemoteDataState) => ({
-  type: 'SET_BUILDER_BUCKETS_STATUS' as 'SET_BUILDER_BUCKETS_STATUS',
-  payload: {bucketsStatus},
-})
+const setBuilderBucketsStatus = (bucketsStatus: RemoteDataState) =>
+  ({
+    type: 'SET_BUILDER_BUCKETS_STATUS',
+    payload: {bucketsStatus},
+  } as const)
 
-export const setBuilderBuckets = (buckets: string[]) => ({
-  type: 'SET_BUILDER_BUCKETS' as 'SET_BUILDER_BUCKETS',
-  payload: {buckets},
-})
+export const setBuilderBuckets = (buckets: string[]) =>
+  ({
+    type: 'SET_BUILDER_BUCKETS',
+    payload: {buckets},
+  } as const)
 
-const setBuilderBucket = (bucket: string, resetSelections: boolean) => ({
-  type: 'SET_BUILDER_BUCKET_SELECTION' as 'SET_BUILDER_BUCKET_SELECTION',
-  payload: {bucket, resetSelections},
-})
+const setBuilderBucket = (bucket: string, resetSelections: boolean) =>
+  ({
+    type: 'SET_BUILDER_BUCKET_SELECTION',
+    payload: {bucket, resetSelections},
+  } as const)
 
-export const setBuilderTagsStatus = (status: RemoteDataState) => ({
-  type: 'SET_BUILDER_TAGS_STATUS' as 'SET_BUILDER_TAGS_STATUS',
-  payload: {status},
-})
+export const setBuilderTagsStatus = (status: RemoteDataState) =>
+  ({
+    type: 'SET_BUILDER_TAGS_STATUS',
+    payload: {status},
+  } as const)
 
-const setBuilderTagKeys = (index: number, keys: string[]) => ({
-  type: 'SET_BUILDER_TAG_KEYS' as 'SET_BUILDER_TAG_KEYS',
-  payload: {index, keys},
-})
+const setBuilderTagKeys = (index: number, keys: string[]) =>
+  ({
+    type: 'SET_BUILDER_TAG_KEYS',
+    payload: {index, keys},
+  } as const)
 
 export const setBuilderTagKeysStatus = (
   index: number,
   status: RemoteDataState
-) => ({
-  type: 'SET_BUILDER_TAG_KEYS_STATUS' as 'SET_BUILDER_TAG_KEYS_STATUS',
-  payload: {index, status},
-})
+) =>
+  ({
+    type: 'SET_BUILDER_TAG_KEYS_STATUS',
+    payload: {index, status},
+  } as const)
 
-const setBuilderTagValues = (index: number, values: string[]) => ({
-  type: 'SET_BUILDER_TAG_VALUES' as 'SET_BUILDER_TAG_VALUES',
-  payload: {index, values},
-})
+const setBuilderTagValues = (index: number, values: string[]) =>
+  ({
+    type: 'SET_BUILDER_TAG_VALUES',
+    payload: {index, values},
+  } as const)
 
-const setBuilderTagValuesStatus = (index: number, status: RemoteDataState) => ({
-  type: 'SET_BUILDER_TAG_VALUES_STATUS' as 'SET_BUILDER_TAG_VALUES_STATUS',
-  payload: {index, status},
-})
+const setBuilderTagValuesStatus = (index: number, status: RemoteDataState) =>
+  ({
+    type: 'SET_BUILDER_TAG_VALUES_STATUS',
+    payload: {index, status},
+  } as const)
 
-const setBuilderTagKeySelection = (index: number, key: string) => ({
-  type: 'SET_BUILDER_TAG_KEY_SELECTION' as 'SET_BUILDER_TAG_KEY_SELECTION',
-  payload: {index, key},
-})
+const setBuilderTagKeySelection = (index: number, key: string) =>
+  ({
+    type: 'SET_BUILDER_TAG_KEY_SELECTION',
+    payload: {index, key},
+  } as const)
 
-const setBuilderTagValuesSelection = (index: number, values: string[]) => ({
-  type: 'SET_BUILDER_TAG_VALUES_SELECTION' as 'SET_BUILDER_TAG_VALUES_SELECTION',
-  payload: {index, values},
-})
+const setBuilderTagValuesSelection = (index: number, values: string[]) =>
+  ({
+    type: 'SET_BUILDER_TAG_VALUES_SELECTION',
+    payload: {index, values},
+  } as const)
 
-const addTagSelectorSync = () => ({
-  type: 'ADD_TAG_SELECTOR' as 'ADD_TAG_SELECTOR',
-})
+const addTagSelectorSync = () =>
+  ({
+    type: 'ADD_TAG_SELECTOR',
+  } as const)
 
-const removeTagSelectorSync = (index: number) => ({
-  type: 'REMOVE_TAG_SELECTOR' as 'REMOVE_TAG_SELECTOR',
-  payload: {index},
-})
+const removeTagSelectorSync = (index: number) =>
+  ({
+    type: 'REMOVE_TAG_SELECTOR',
+    payload: {index},
+  } as const)
 
-export const setFunctions = (functions: string[]) => ({
-  type: 'SELECT_BUILDER_FUNCTION' as 'SELECT_BUILDER_FUNCTION',
-  payload: {functions},
-})
+export const setFunctions = (functions: string[]) =>
+  ({
+    type: 'SELECT_BUILDER_FUNCTION',
+    payload: {functions},
+  } as const)
 
-export const setAggregateWindow = (period: string) => ({
-  type: 'SET_AGGREGATE_WINDOW' as 'SET_AGGREGATE_WINDOW',
-  payload: {period},
-})
+export const setAggregateWindow = (period: string) =>
+  ({
+    type: 'SET_AGGREGATE_WINDOW',
+    payload: {period},
+  } as const)
 
-export const setAggregateFillValues = (fillValues: boolean) => ({
-  type: 'SET_AGGREGATE_FILL_VALUES' as 'SET_AGGREGATE_FILL_VALUES',
-  payload: {fillValues},
-})
+export const setAggregateFillValues = (fillValues: boolean) =>
+  ({
+    type: 'SET_AGGREGATE_FILL_VALUES',
+    payload: {fillValues},
+  } as const)
 
-export const setValuesSearchTerm = (index: number, searchTerm: string) => ({
-  type: 'SET_BUILDER_VALUES_SEARCH_TERM' as 'SET_BUILDER_VALUES_SEARCH_TERM',
-  payload: {index, searchTerm},
-})
+export const setValuesSearchTerm = (index: number, searchTerm: string) =>
+  ({
+    type: 'SET_BUILDER_VALUES_SEARCH_TERM',
+    payload: {index, searchTerm},
+  } as const)
 
-export const setKeysSearchTerm = (index: number, searchTerm: string) => ({
-  type: 'SET_BUILDER_KEYS_SEARCH_TERM' as 'SET_BUILDER_KEYS_SEARCH_TERM',
-  payload: {index, searchTerm},
-})
+export const setKeysSearchTerm = (index: number, searchTerm: string) =>
+  ({
+    type: 'SET_BUILDER_KEYS_SEARCH_TERM',
+    payload: {index, searchTerm},
+  } as const)
 
 export const setWindowPeriodSelectionMode = (mode: 'custom' | 'auto') => (
   dispatch: Dispatch<Action | AlertBuilderAction>,
