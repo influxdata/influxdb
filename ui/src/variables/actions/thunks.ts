@@ -79,7 +79,7 @@ export const getVariables = (controller?: AbortController) => async (
     const org = getOrg(state)
     const resp = await api.getVariables(
       {query: {orgID: org.id}},
-      {signal: controller.signal}
+      {signal: controller?.signal}
     )
     if (!resp) {
       return

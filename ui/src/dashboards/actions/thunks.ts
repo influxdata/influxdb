@@ -335,7 +335,7 @@ export const getDashboard = (
     const [resp] = await Promise.all([
       api.getDashboard(
         {dashboardID, query: {include: 'properties'}},
-        {signal: controller.signal}
+        {signal: controller?.signal}
       ),
       dispatch(getVariables(controller)),
     ])
