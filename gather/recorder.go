@@ -26,7 +26,7 @@ func (s PointWriter) Record(collected MetricsCollection) error {
 		return err
 	}
 
-	return s.Writer.WritePoints(context.TODO(), ps)
+	return s.Writer.WritePoints(context.TODO(), 0, 0, nil)
 }
 
 // Recorder record the metrics of a time based.

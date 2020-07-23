@@ -441,6 +441,6 @@ func (t *ToTransformation) writeTable(ctx context.Context, tbl flux.Table) error
 			}
 		}
 
-		return t.buf.WritePoints(ctx, points)
+		return t.buf.WritePoints(ctx, nil)
 	})
 }

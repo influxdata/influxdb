@@ -9,8 +9,10 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/logger"
-	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/v1/coordinator"
+	"github.com/influxdata/influxdb/v2/v1/models"
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
@@ -38,9 +40,12 @@ type Engine struct {
 	config Config
 	path   string
 
-	mu      sync.RWMutex
-	closing chan struct{} // closing returns the zero value when the engine is shutting down.
-	store   *tsdb.Store
+	mu           sync.RWMutex
+	closing      chan struct{} // closing returns the zero value when the engine is shutting down.
+	store        *tsdb.Store
+	pointsWriter interface {
+		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+	}
 
 	retentionEnforcer        runner
 	retentionEnforcerLimiter runnable
@@ -102,6 +107,10 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		writePointsValidationEnabled: true,
 	}
 
+	pw := coordinator.NewPointsWriter()
+	pw.TSDBStore = e.store
+	pw.MetaClient = nil // TODO(edd): link this back to the bucket service backed by bolt?
+
 	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
 		r.SetDefaultMetricLabels(e.defaultMetricLabels)
 	}
@@ -116,6 +125,10 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	e.logger = log.With(fields...)
 
 	e.store.Logger = e.logger
+	if pw, ok := e.pointsWriter.(*coordinator.PointsWriter); ok {
+		pw.Logger = e.logger
+	}
+
 	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
 		r.WithLogger(e.logger)
 	}
@@ -153,7 +166,6 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 	if e.retentionEnforcer != nil {
 		e.runRetentionEnforcer()
 	}
-
 	return nil
 }
 
@@ -288,7 +300,7 @@ func (e *Engine) CreateCursorIterator(ctx context.Context) (cursors.CursorIterat
 // Rosalie was here lockdown 2020
 //
 // Appropriate errors are returned in those cases.
-func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
+func (e *Engine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/models"
 )
 
 // PointsWriter describes the ability to write points into a storage engine.
 type PointsWriter interface {
-	WritePoints(context.Context, []models.Point) error
+	WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error
 }
 
 // LoggingPointsWriter wraps an underlying points writer but writes logs to
@@ -29,19 +29,16 @@ type LoggingPointsWriter struct {
 }
 
 // WritePoints writes points to the underlying PointsWriter. Logs on error.
-func (w *LoggingPointsWriter) WritePoints(ctx context.Context, p []models.Point) error {
+func (w *LoggingPointsWriter) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, p []models.Point) error {
 	if len(p) == 0 {
 		return nil
 	}
 
 	// Write to underlying writer and exit immediately if successful.
-	err := w.Underlying.WritePoints(ctx, p)
+	err := w.Underlying.WritePoints(ctx, orgID, bucketID, p)
 	if err == nil {
 		return nil
 	}
-
-	// Find organizationID from points
-	orgID, _ := tsdb.DecodeNameSlice(p[0].Name())
 
 	// Attempt to lookup log bucket.
 	bkts, n, e := w.BucketFinder.FindBuckets(ctx, influxdb.BucketFilter{
@@ -68,7 +65,7 @@ func (w *LoggingPointsWriter) WritePoints(ctx context.Context, p []models.Point)
 	if e != nil {
 		return e
 	}
-	if e := w.Underlying.WritePoints(ctx, []models.Point{pt}); e != nil {
+	if e := w.Underlying.WritePoints(ctx, orgID, bucketID, []models.Point{pt}); e != nil {
 		return e
 	}
 
@@ -82,6 +79,7 @@ type BufferedPointsWriter struct {
 	err error
 }
 
+//TODO - org id bucket id
 func NewBufferedPointsWriter(size int, pointswriter PointsWriter) *BufferedPointsWriter {
 	return &BufferedPointsWriter{
 		buf: make([]models.Point, size),
@@ -95,7 +93,7 @@ func (b *BufferedPointsWriter) WritePoints(ctx context.Context, p []models.Point
 		if b.Buffered() == 0 {
 			// Large write, empty buffer.
 			// Write directly from p to avoid copy.
-			b.err = b.wr.WritePoints(ctx, p)
+			b.err = b.wr.WritePoints(ctx, 0, 0, p)
 			return b.err
 		}
 		n := copy(b.buf[b.n:], p)
@@ -125,7 +123,7 @@ func (b *BufferedPointsWriter) Flush(ctx context.Context) error {
 		return nil
 	}
 
-	b.err = b.wr.WritePoints(ctx, b.buf[:b.n])
+	b.err = b.wr.WritePoints(ctx, 0, 0, b.buf[:b.n])
 	if b.err != nil {
 		return b.err
 	}

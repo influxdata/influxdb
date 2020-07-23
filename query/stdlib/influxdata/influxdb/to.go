@@ -688,7 +688,8 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 			}
 		}
 
-		return t.buf.WritePoints(ctx, points)
+		// TODO FIX
+		return t.buf.WritePoints(ctx, nil)
 	})
 }
 

@@ -16,9 +16,8 @@ import (
 	kitio "github.com/influxdata/influxdb/v2/kit/io"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 	"istio.io/pkg/log"
@@ -67,7 +66,7 @@ type WriteHandler struct {
 	router            *httprouter.Router
 	log               *zap.Logger
 	maxBatchSizeBytes int64
-	parserOptions     []models.ParserOption
+	// parserOptions     []models.ParserOption
 }
 
 // WriteHandlerOption is a functional option for a *WriteHandler
@@ -81,11 +80,11 @@ func WithMaxBatchSizeBytes(n int64) WriteHandlerOption {
 	}
 }
 
-func WithParserOptions(opts ...models.ParserOption) WriteHandlerOption {
-	return func(w *WriteHandler) {
-		w.parserOptions = opts
-	}
-}
+//func WithParserOptions(opts ...models.ParserOption) WriteHandlerOption {
+//	return func(w *WriteHandler) {
+//		w.parserOptions = opts
+//	}
+//}
 
 // Prefix provides the route prefix.
 func (*WriteHandler) Prefix() string {
@@ -192,16 +191,17 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := append([]models.ParserOption{}, h.parserOptions...)
-	opts = append(opts, models.WithParserPrecision(req.Precision))
-	parsed, err := NewPointsParser(opts...).ParsePoints(ctx, org.ID, bucket.ID, req.Body)
+	// TODO: Backport?
+	//opts := append([]models.ParserOption{}, h.parserOptions...)
+	//opts = append(opts, models.WithParserPrecision(req.Precision))
+	parsed, err := NewPointsParser().ParsePoints(ctx, org.ID, bucket.ID, req.Body)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, sw)
 		return
 	}
 	requestBytes = parsed.RawSize
 
-	if err := h.PointsWriter.WritePoints(ctx, parsed.Points); err != nil {
+	if err := h.PointsWriter.WritePoints(ctx, org.ID, bucket.ID, parsed.Points); err != nil {
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EInternal,
 			Op:   opWriteHandler,
@@ -255,9 +255,9 @@ func PointBatchReadCloser(rc io.ReadCloser, encoding string, maxBatchSizeBytes i
 }
 
 // NewPointsParser returns a new PointsParser
-func NewPointsParser(parserOptions ...models.ParserOption) *PointsParser {
+func NewPointsParser( /*parserOptions ...models.ParserOption*/ ) *PointsParser {
 	return &PointsParser{
-		ParserOptions: parserOptions,
+		//ParserOptions: parserOptions,
 	}
 }
 
@@ -270,7 +270,7 @@ type ParsedPoints struct {
 
 // PointsParser parses batches of Points.
 type PointsParser struct {
-	ParserOptions []models.ParserOption
+	//ParserOptions []models.ParserOption
 }
 
 // ParsePoints parses the points from an io.ReadCloser for a specific Bucket.
@@ -307,21 +307,22 @@ func (pw *PointsParser) parsePoints(ctx context.Context, orgID, bucketID influxd
 	}
 
 	span, _ := tracing.StartSpanFromContextWithOperationName(ctx, "encoding and parsing")
-	encoded := tsdb.EncodeName(orgID, bucketID)
-	mm := models.EscapeMeasurement(encoded[:])
+	// encoded := tsdb.EncodeName(org.ID, bucket.ID)
+	// mm := models.EscapeMeasurement(encoded[:])
 
-	points, err := models.ParsePointsWithOptions(data, mm, pw.ParserOptions...)
+	points, err := models.ParsePoints(data)
 	span.LogKV("values_total", len(points))
 	span.Finish()
 	if err != nil {
 		log.Error("Error parsing points", zap.Error(err))
 
 		code := influxdb.EInvalid
-		if errors.Is(err, models.ErrLimitMaxBytesExceeded) ||
-			errors.Is(err, models.ErrLimitMaxLinesExceeded) ||
-			errors.Is(err, models.ErrLimitMaxValuesExceeded) {
-			code = influxdb.ETooLarge
-		}
+		// TODO - backport these
+		// if errors.Is(err, models.ErrLimitMaxBytesExceeded) ||
+		// 	errors.Is(err, models.ErrLimitMaxLinesExceeded) ||
+		// 	errors.Is(err, models.ErrLimitMaxValuesExceeded) {
+		// 	code = influxdb.ETooLarge
+		// }
 
 		return nil, &influxdb.Error{
 			Code: code,
@@ -380,13 +381,14 @@ func decodeWriteRequest(ctx context.Context, r *http.Request, maxBatchSizeBytes 
 		precision = "ns"
 	}
 
-	if !models.ValidPrecision(precision) {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Op:   "http/newWriteRequest",
-			Msg:  msgInvalidPrecision,
-		}
-	}
+	// TODO backport?
+	//if !models.ValidPrecision(precision) {
+	//	return nil, &influxdb.Error{
+	//		Code: influxdb.EInvalid,
+	//		Op:   "http/newWriteRequest",
+	//		Msg:  msgInvalidPrecision,
+	//	}
+	//}
 
 	bucket := qp.Get("bucket")
 	if bucket == "" {
@@ -427,13 +429,14 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID influxdb.ID, r
 		precision = "ns"
 	}
 
-	if !models.ValidPrecision(precision) {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Op:   "http/Write",
-			Msg:  msgInvalidPrecision,
-		}
-	}
+	// TODO backport?
+	// if !models.ValidPrecision(precision) {
+	// 	return &influxdb.Error{
+	// 		Code: influxdb.EInvalid,
+	// 		Op:   "http/Write",
+	// 		Msg:  msgInvalidPrecision,
+	// 	}
+	// }
 
 	u, err := NewURL(s.Addr, prefixWrite)
 	if err != nil {
