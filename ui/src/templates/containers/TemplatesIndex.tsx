@@ -29,7 +29,7 @@ type ReduxProps = ConnectedProps<typeof connector>
 type Props = RouteComponentProps & ReduxProps
 
 const templatesPath = '/orgs/:orgID/settings/templates'
-export const communityTemplatesImportPath = `${templatesPath}/import/:templateName`
+export const communityTemplatesImportPath = `${templatesPath}/import/:directory/:templateName/:templateExtension`
 
 @ErrorHandling
 class TemplatesIndex extends Component<Props> {

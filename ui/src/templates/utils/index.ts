@@ -77,22 +77,28 @@ export const getIncludedLabels = (included: {type: TemplateType}[]) =>
 // See https://github.com/influxdata/community-templates/
 // an example of a url that works with this function:
 // https://github.com/influxdata/community-templates/tree/master/csgo
-export const getTemplateNameFromGithubUrl = (url: string): string => {
+export const getTemplateNameFromGithubSource = (
+  url: string
+): {directory: string; templateExtension: string; templateName: string} => {
   if (!url.includes('https://github.com/influxdata/community-templates/')) {
     throw new Error(
       "We're only going to fetch from influxdb's github repo right now"
     )
   }
-  const [, name] = url.split('/tree/master/')
-  return name
+  const [, templatePath] = url.split('/blob/master/')
+  const [directory, name] = templatePath.split('/')
+  const [templateName, templateExtension] = name.split('.')
+  return {
+    directory,
+    templateExtension,
+    templateName,
+  }
 }
 
-export const getGithubUrlFromTemplateName = (templateName: string): string => {
-  return `https://github.com/influxdata/community-templates/tree/master/${templateName}`
-}
-
-export const getRawUrlFromGithub = repoUrl => {
-  return repoUrl
-    .replace('github.com', 'raw.githubusercontent.com')
-    .replace('tree/', '')
+export const getGithubUrlFromTemplateName = (
+  directory: string,
+  templateName: string,
+  templateExtension: string
+): string => {
+  return `https://github.com/influxdata/community-templates/blob/master/${directory}/${templateName}.${templateExtension}`
 }
