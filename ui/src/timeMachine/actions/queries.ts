@@ -8,6 +8,10 @@ import {
   RunQueryResult,
   RunQuerySuccessResult,
 } from 'src/shared/apis/query'
+import {
+  getCachedResultsOrRunQuery,
+  resetQueryCacheByQuery,
+} from 'src/shared/apis/queryCache'
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Actions
@@ -50,6 +54,7 @@ import {
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors/index'
+import {isCurrentPageDashboard} from 'src/dashboards/selectors'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -227,6 +232,11 @@ export const executeQueries = (abortController?: AbortController) => async (
       const extern = buildVarsOption(variableAssignments)
 
       event('runQuery', {context: 'timeMachine'})
+      if (isCurrentPageDashboard(state)) {
+        // reset any existing matching query in the cache
+        resetQueryCacheByQuery(text)
+        return getCachedResultsOrRunQuery(orgID, text, state)
+      }
       return runQuery(orgID, text, extern, abortController)
     })
     const results = await Promise.all(pendingResults.map(r => r.promise))

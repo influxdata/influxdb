@@ -41,6 +41,14 @@ export const sortDashboardByName = (dashboards: Dashboard[]): Dashboard[] =>
     a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1
   )
 
+/**
+ * We are currently using this to track whether the dashboard is active
+ * in order to conditionally check the QueryCache in dashboard cells
+ * in the TimeSeries.tsx file, since TimeSeries.tsx is used in Dashboard Cells and Check Alerts History
+ **/
+export const isCurrentPageDashboard = (state: AppState): boolean =>
+  state.currentPage === 'dashboard'
+
 // The purpose of this function is to set a user's custom time range selection
 // from the local time to the same time in UTC if UTC is selected from the
 // timezone dropdown. This is feature was original requested here:
