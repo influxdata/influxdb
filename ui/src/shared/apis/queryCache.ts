@@ -5,6 +5,7 @@ import {sortBy} from 'lodash'
 import {asAssignment, getAllVariables} from 'src/variables/selectors'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {filterUnusedVarsBasedOnQuery} from 'src/shared/utils/filterUnusedVars'
+import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {RunQueryResult} from 'src/shared/apis/query'
@@ -74,6 +75,7 @@ class QueryCache {
       this.resetCacheByID(id)
       return null
     }
+    event('query_cache_hit', {context: 'queryCache'})
     return this.cache[id].values
   }
 
@@ -110,6 +112,7 @@ class QueryCache {
     hashedVariables: string,
     values: RunQueryResult
   ): void => {
+    event('query_cache_miss', {context: 'queryCache'})
     this.cache[queryID] = {
       ...this.initializeCacheByID(queryID, hashedVariables),
       dateSet: Date.now(),
