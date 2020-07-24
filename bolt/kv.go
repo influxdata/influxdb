@@ -24,15 +24,33 @@ type KVStore struct {
 	path string
 	db   *bolt.DB
 	log  *zap.Logger
+
+	noSync bool
+}
+
+type KVOption func(*KVStore)
+
+// WithNoSync WARNING: this is useful for tests only
+// this skips fsyncing on every commit to improve
+// write performance in exchange for no guarantees
+// that the db will persist.
+func WithNoSync(s *KVStore) {
+	s.noSync = true
 }
 
 // NewKVStore returns an instance of KVStore with the file at
 // the provided path.
-func NewKVStore(log *zap.Logger, path string) *KVStore {
-	return &KVStore{
+func NewKVStore(log *zap.Logger, path string, opts ...KVOption) *KVStore {
+	store := &KVStore{
 		path: path,
 		log:  log,
 	}
+
+	for _, opt := range opts {
+		opt(store)
+	}
+
+	return store
 }
 
 // Open creates boltDB file it doesn't exists and opens it otherwise.
@@ -55,6 +73,8 @@ func (s *KVStore) Open(ctx context.Context) error {
 		return fmt.Errorf("unable to open boltdb file %v", err)
 	}
 	s.db = db
+
+	db.NoSync = s.noSync
 
 	s.log.Info("Resources opened", zap.String("path", s.path))
 	return nil

@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useMemo} from 'react'
+import React, {FC} from 'react'
 
 // Types
 import {PipeProp} from 'src/notebooks'
@@ -13,23 +13,21 @@ import BucketProvider from 'src/notebooks/context/buckets'
 // Styles
 import 'src/notebooks/pipes/Query/style.scss'
 
-const DataSource: FC<PipeProp> = ({data, onUpdate, Context}) => {
-  return useMemo(() => {
-    return (
-      <BucketProvider>
-        <Context>
-          <FlexBox
-            margin={ComponentSize.Large}
-            stretchToFitWidth={true}
-            className="data-source"
-          >
-            <BucketSelector onUpdate={onUpdate} data={data} />
-            <TimeSelector onUpdate={onUpdate} data={data} />
-          </FlexBox>
-        </Context>
-      </BucketProvider>
-    )
-  }, [data, onUpdate])
+const DataSource: FC<PipeProp> = ({Context}) => {
+  return (
+    <BucketProvider>
+      <Context>
+        <FlexBox
+          margin={ComponentSize.Large}
+          stretchToFitWidth={true}
+          className="data-source"
+        >
+          <BucketSelector />
+          <TimeSelector />
+        </FlexBox>
+      </Context>
+    </BucketProvider>
+  )
 }
 
 export default DataSource

@@ -5,7 +5,7 @@ import {
 } from './generatedRoutes'
 import {getAPIBasepath} from 'src/utils/basepath'
 
-setRequestHandler((url, query, init) => {
+setRequestHandler((url: string, query: string, init: RequestInit) => {
   return {
     url: `${getAPIBasepath()}${url}`,
     query,

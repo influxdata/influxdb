@@ -17,7 +17,7 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
-import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
+import {event} from 'src/cloud/utils/reporting'
 import {queryCancelRequest} from 'src/shared/copy/notifications'
 
 // Types
@@ -27,6 +27,7 @@ interface OwnProps {
   text?: string
   icon?: IconFont
   testID?: string
+  className?: string
 }
 
 type ReduxProps = ConnectedProps<typeof connector>
@@ -61,12 +62,13 @@ class SubmitQueryButton extends PureComponent<Props> {
   }
 
   public render() {
-    const {text, queryStatus, icon, testID} = this.props
+    const {text, queryStatus, icon, testID, className} = this.props
 
     if (queryStatus === RemoteDataState.Loading && this.state.timer === true) {
       return (
         <Button
           text="Cancel"
+          className={className}
           icon={icon}
           size={ComponentSize.Small}
           status={ComponentStatus.Default}
@@ -80,6 +82,7 @@ class SubmitQueryButton extends PureComponent<Props> {
     return (
       <Button
         text={text}
+        className={className}
         icon={icon}
         size={ComponentSize.Small}
         status={this.buttonStatus}
@@ -108,9 +111,7 @@ class SubmitQueryButton extends PureComponent<Props> {
   private abortController: AbortController
 
   private handleClick = (): void => {
-    // Optimistic UI, set the state to loading when the event
-    // happens rather than when the event trickles down to execution
-    reportSimpleQueryPerformanceEvent('SubmitQueryButton click')
+    event('SubmitQueryButton click')
     // We need to instantiate a new AbortController per request
     // In order to allow for requests after cancellations:
     // https://stackoverflow.com/a/56548348/7963795

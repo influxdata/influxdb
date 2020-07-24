@@ -34,7 +34,7 @@ import {
 } from '@influxdata/clockface'
 import {Notification, NotificationStyle} from 'src/types'
 import {getOrg} from 'src/organizations/selectors'
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -193,6 +193,7 @@ const DashboardList: FC<Props> = ({
           titleText="Save to Dashboard"
           status={saveStatus}
           color={ComponentColor.Success}
+          className="flows-export-visualization-success"
         />
       </FlexBox>
     </div>

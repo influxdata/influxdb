@@ -19,7 +19,7 @@ import {getTemplates} from 'src/templates/actions/thunks'
 import {getVariables} from 'src/variables/actions/thunks'
 
 //Utils
-import {reportSimpleQueryPerformanceDuration} from 'src/cloud/utils/reporting'
+import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {AppState, ResourceType} from 'src/types'
@@ -51,10 +51,13 @@ class GetResources extends PureComponent<Props> {
 
     const gotResources = resources.join(', ')
     Promise.all(promises).then(() => {
-      reportSimpleQueryPerformanceDuration(
+      event(
         `GetResources ${gotResources}`,
-        startTime,
-        Date.now() - startTime
+        {
+          time: startTime,
+          resource: gotResources,
+        },
+        {duration: Date.now() - startTime}
       )
     })
   }

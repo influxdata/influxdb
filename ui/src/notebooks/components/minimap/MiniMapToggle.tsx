@@ -9,7 +9,7 @@ import {Icon, IconFont} from '@influxdata/clockface'
 import {setNotebookMiniMapState} from 'src/shared/actions/app'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {AppState} from 'src/types'
@@ -40,12 +40,12 @@ const MiniMapToggle: FC<Props> = ({
     ? 'Click to minimize Table of Contents'
     : 'Click to maximize Table of Contents'
 
+  const headerClassName = `notebook-minimap--header flows-toc-${
+    active ? 'collapse' : 'expand'
+  }`
+
   return (
-    <button
-      className="notebook-minimap--header"
-      onClick={handleChange}
-      title={title}
-    >
+    <button className={headerClassName} onClick={handleChange} title={title}>
       {active && <h6 className="notebook-minimap--title">Table of Contents</h6>}
       <Icon className="notebook-minimap--icon" glyph={glyph} />
     </button>

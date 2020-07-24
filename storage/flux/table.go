@@ -14,15 +14,6 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 )
 
-// offset returns a non-negative equivalent to t % windowEvery.
-func offset(t, windowEvery int64) int64 {
-	r := t % windowEvery
-	if r < 0 {
-		r += windowEvery
-	}
-	return r
-}
-
 type table struct {
 	bounds execute.Bounds
 	key    flux.GroupKey

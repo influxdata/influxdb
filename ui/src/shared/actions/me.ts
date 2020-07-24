@@ -1,9 +1,7 @@
 import {MeState} from 'src/shared/reducers/me'
 import {client} from 'src/utils/api'
-import {CLOUD} from 'src/shared/constants'
 import HoneyBadger from 'honeybadger-js'
-import {fireUserDataReady} from 'src/shared/utils/analytics'
-import {updateReportingContext} from 'src/cloud/utils/reporting'
+import {updateReportingContext, gaEvent} from 'src/cloud/utils/reporting'
 
 export const SET_ME = 'SET_ME'
 
@@ -20,10 +18,14 @@ export const setMe = (me: MeState) =>
 export const getMe = () => async dispatch => {
   try {
     const user = await client.users.me()
+    updateReportingContext({userID: user.id, userEmail: user.name})
 
-    if (CLOUD) {
-      fireUserDataReady(user.id, user.name)
-    }
+    gaEvent('cloudAppUserDataReady', {
+      identity: {
+        id: user.id,
+        email: user.name,
+      },
+    })
 
     updateReportingContext({
       userID: user.id,

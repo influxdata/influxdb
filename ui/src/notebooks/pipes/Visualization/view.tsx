@@ -12,7 +12,7 @@ import Resizer from 'src/notebooks/shared/Resizer'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {createView} from 'src/views/helpers'
 import ExportVisualizationButton from 'src/notebooks/pipes/Visualization/ExportVisualizationButton'
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {PipeProp, PipeData} from 'src/notebooks'
@@ -25,6 +25,7 @@ import {FromFluxResult} from '@influxdata/giraffe'
 // but timezone seems like an app setting, and its existance within
 // the notebook folder is purely a convenience
 import {AppSettingContext} from 'src/notebooks/context/app'
+import {PipeContext} from 'src/notebooks/context/pipe'
 
 const updateVisualizationType = (
   type: ViewType,
@@ -92,21 +93,16 @@ const updateVisualizationType = (
 
 export {updateVisualizationType}
 
-const Visualization: FC<PipeProp> = ({
-  data,
-  results,
-  onUpdate,
-  Context,
-  loading,
-}) => {
+const Visualization: FC<PipeProp> = ({Context}) => {
   const {timeZone} = useContext(AppSettingContext)
+  const {data, update, loading, results} = useContext(PipeContext)
 
   const updateType = (type: ViewType) => {
     event('Notebook Visualization Type Changed', {
       type,
     })
 
-    updateVisualizationType(type, results.parsed, onUpdate)
+    updateVisualizationType(type, results.parsed, update)
   }
 
   const controls = (
@@ -130,8 +126,6 @@ const Visualization: FC<PipeProp> = ({
   return (
     <Context controls={controls}>
       <Resizer
-        data={data}
-        onUpdate={onUpdate}
         resizingEnabled={!!results.raw}
         emptyText="This cell will visualize results from the previous cell"
         emptyIcon={IconFont.BarChart}

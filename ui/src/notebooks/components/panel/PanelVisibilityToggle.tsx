@@ -3,29 +3,32 @@ import React, {FC, useContext} from 'react'
 
 // Components
 import {SquareButton, IconFont} from '@influxdata/clockface'
-import {NotebookContext, PipeMeta} from 'src/notebooks/context/notebook'
+import {NotebookContext} from 'src/notebooks/context/notebook.current'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
+
+import {DataID, PipeData} from 'src/notebooks'
 
 export interface Props {
-  index: number
+  id: DataID<PipeData>
 }
 
-const PanelVisibilityToggle: FC<Props> = ({index}) => {
-  const {meta, updateMeta} = useContext(NotebookContext)
+const PanelVisibilityToggle: FC<Props> = ({id}) => {
+  const {notebook} = useContext(NotebookContext)
+  const meta = notebook.meta.get(id)
 
-  const icon = meta[index].visible ? IconFont.EyeOpen : IconFont.EyeClosed
-  const title = meta[index].visible ? 'Collapse cell' : 'Expand cell'
+  const icon = meta.visible ? IconFont.EyeOpen : IconFont.EyeClosed
+  const title = meta.visible ? 'Collapse cell' : 'Expand cell'
 
   const handleClick = (): void => {
     event('Panel Visibility Toggled', {
-      state: !meta[index].visible ? 'true' : 'false',
+      state: !meta.visible ? 'true' : 'false',
     })
 
-    updateMeta(index, {
-      visible: !meta[index].visible,
-    } as PipeMeta)
+    notebook.meta.update(id, {
+      visible: !meta.visible,
+    })
   }
 
   return <SquareButton icon={icon} onClick={handleClick} titleText={title} />

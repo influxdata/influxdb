@@ -55,7 +55,6 @@ import alertBuilderReducer from 'src/alerting/reducers/alertBuilder'
 
 // Types
 import {AppState, LocalStorage} from 'src/types'
-import {queryCacheReducer} from 'src/queryCache/reducers'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
@@ -86,7 +85,6 @@ export const rootReducer = (history: History) =>
     overlays: overlaysReducer,
     plugins: pluginsResourceReducer,
     predicates: predicatesReducer,
-    queryCache: queryCacheReducer,
     ranges: rangesReducer,
     resources: combineReducers({
       buckets: bucketsReducer,

@@ -123,10 +123,13 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) (
 		return nil, ErrTSMClosed
 	}
 
-	a, err := DecodeFloatBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	a, err := DecodeFloatBlock(b, values)
 	m.mu.RUnlock()
 
 	if err != nil {
+		return nil, err
+	} else if err := m.wait(b); err != nil {
 		return nil, err
 	}
 
@@ -142,10 +145,16 @@ func (m *mmapAccessor) readFloatArrayBlock(entry *IndexEntry, values *cursors.Fl
 		return ErrTSMClosed
 	}
 
-	err := DecodeFloatArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	err := DecodeFloatArrayBlock(b, values)
 	m.mu.RUnlock()
 
-	return err
+	if err != nil {
+		return err
+	} else if err := m.wait(b); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error) {
@@ -157,10 +166,13 @@ func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValu
 		return nil, ErrTSMClosed
 	}
 
-	a, err := DecodeIntegerBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	a, err := DecodeIntegerBlock(b, values)
 	m.mu.RUnlock()
 
 	if err != nil {
+		return nil, err
+	} else if err := m.wait(b); err != nil {
 		return nil, err
 	}
 
@@ -176,10 +188,16 @@ func (m *mmapAccessor) readIntegerArrayBlock(entry *IndexEntry, values *cursors.
 		return ErrTSMClosed
 	}
 
-	err := DecodeIntegerArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	err := DecodeIntegerArrayBlock(b, values)
 	m.mu.RUnlock()
 
-	return err
+	if err != nil {
+		return err
+	} else if err := m.wait(b); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error) {
@@ -191,10 +209,13 @@ func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedVa
 		return nil, ErrTSMClosed
 	}
 
-	a, err := DecodeUnsignedBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	a, err := DecodeUnsignedBlock(b, values)
 	m.mu.RUnlock()
 
 	if err != nil {
+		return nil, err
+	} else if err := m.wait(b); err != nil {
 		return nil, err
 	}
 
@@ -210,10 +231,16 @@ func (m *mmapAccessor) readUnsignedArrayBlock(entry *IndexEntry, values *cursors
 		return ErrTSMClosed
 	}
 
-	err := DecodeUnsignedArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	err := DecodeUnsignedArrayBlock(b, values)
 	m.mu.RUnlock()
 
-	return err
+	if err != nil {
+		return err
+	} else if err := m.wait(b); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error) {
@@ -225,10 +252,13 @@ func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue)
 		return nil, ErrTSMClosed
 	}
 
-	a, err := DecodeStringBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	a, err := DecodeStringBlock(b, values)
 	m.mu.RUnlock()
 
 	if err != nil {
+		return nil, err
+	} else if err := m.wait(b); err != nil {
 		return nil, err
 	}
 
@@ -244,10 +274,16 @@ func (m *mmapAccessor) readStringArrayBlock(entry *IndexEntry, values *cursors.S
 		return ErrTSMClosed
 	}
 
-	err := DecodeStringArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	err := DecodeStringArrayBlock(b, values)
 	m.mu.RUnlock()
 
-	return err
+	if err != nil {
+		return err
+	} else if err := m.wait(b); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error) {
@@ -259,10 +295,13 @@ func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValu
 		return nil, ErrTSMClosed
 	}
 
-	a, err := DecodeBooleanBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	a, err := DecodeBooleanBlock(b, values)
 	m.mu.RUnlock()
 
 	if err != nil {
+		return nil, err
+	} else if err := m.wait(b); err != nil {
 		return nil, err
 	}
 
@@ -278,8 +317,14 @@ func (m *mmapAccessor) readBooleanArrayBlock(entry *IndexEntry, values *cursors.
 		return ErrTSMClosed
 	}
 
-	err := DecodeBooleanArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)]
+	err := DecodeBooleanArrayBlock(b, values)
 	m.mu.RUnlock()
 
-	return err
+	if err != nil {
+		return err
+	} else if err := m.wait(b); err != nil {
+		return err
+	}
+	return nil
 }

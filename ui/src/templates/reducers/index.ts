@@ -31,6 +31,7 @@ const defaultCommunityTemplate = (): CommunityTemplate => {
     stackID: '',
     summary: {},
     diff: {},
+    resourcesToSkip: {},
   }
 }
 
@@ -199,6 +200,17 @@ export const templatesReducer = (
         templateToInstall.summary[resourceType].forEach(resource => {
           if (resource.templateMetaName === templateMetaName) {
             resource.shouldInstall = shouldInstall
+            if (!shouldInstall) {
+              templateToInstall.resourcesToSkip[resource.templateMetaName] =
+                resource.kind
+            } else if (
+              templateToInstall.resourcesToSkip[resource.templateMetaName]
+            ) {
+              // if we re-check a resource that we un-checked, remove it from the skipped resources hash
+              delete templateToInstall.resourcesToSkip[
+                resource.templateMetaName
+              ]
+            }
           }
         })
 

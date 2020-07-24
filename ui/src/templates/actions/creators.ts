@@ -22,6 +22,7 @@ export const TOGGLE_TEMPLATE_RESOURCE_INSTALL =
   'TOGGLE_TEMPLATE_RESOURCE_INSTALL'
 
 export const SET_STACKS = 'SET_STACKS'
+export const DELETE_STACKS = 'DELETE_STACKS'
 
 export type Action =
   | ReturnType<typeof addTemplateSummary>
@@ -33,6 +34,7 @@ export type Action =
   | ReturnType<typeof setCommunityTemplateToInstall>
   | ReturnType<typeof toggleTemplateResourceInstall>
   | ReturnType<typeof setStacks>
+  | ReturnType<typeof removeStack>
 
 type TemplateSummarySchema<R extends string | string[]> = NormalizedSchema<
   TemplateSummaryEntities,
@@ -111,4 +113,10 @@ export const setStacks = (stacks: InstalledStack[]) =>
   ({
     type: SET_STACKS,
     stacks,
+  } as const)
+
+export const removeStack = (stackID: string) =>
+  ({
+    type: DELETE_STACKS,
+    stackID,
   } as const)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -116,6 +117,12 @@ func setupUserF(cmd *cobra.Command, args []string) error {
 }
 
 func setupF(cmd *cobra.Command, args []string) error {
+	dPath, dir := flags.filepath, filepath.Dir(flags.filepath)
+	if dPath == "" || dir == "" {
+		return errors.New("a valid configurations path must be provided")
+	}
+	localConfigSVC := config.NewLocalConfigSVC(dPath, dir)
+
 	// check if setup is allowed
 	client, err := newHTTPClient()
 	if err != nil {
@@ -133,16 +140,9 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance at %q has already been setup", flags.Host)
 	}
 
-	dPath, dir, err := defaultConfigPath()
-	if err != nil {
-		return err
-	}
-
-	localSVC := config.NewLocalConfigSVC(dPath, dir)
-
 	existingConfigs := make(config.Configs)
 	if _, err := os.Stat(dPath); err == nil {
-		existingConfigs, _ = localSVC.ListConfigs()
+		existingConfigs, _ = localConfigSVC.ListConfigs()
 		// ignore the error if found nothing
 		if setupFlags.name == "" {
 			return errors.New("flag name is required if you already have existing configs")
@@ -175,7 +175,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 		p.Host = flags.Host
 	}
 
-	if _, err = localSVC.CreateConfig(p); err != nil {
+	if _, err = localConfigSVC.CreateConfig(p); err != nil {
 		return fmt.Errorf("failed to write config to path %q: %v", dPath, err)
 	}
 

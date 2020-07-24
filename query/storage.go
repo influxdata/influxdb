@@ -29,6 +29,8 @@ type GroupCapability interface {
 	HaveSum() bool
 	HaveFirst() bool
 	HaveLast() bool
+	HaveMin() bool
+	HaveMax() bool
 }
 
 type GroupAggregator interface {
@@ -44,6 +46,7 @@ type WindowAggregateCapability interface {
 	HaveSum() bool
 	HaveFirst() bool
 	HaveLast() bool
+	HaveOffset() bool
 }
 
 // WindowAggregateReader implements the WindowAggregate capability.
@@ -89,6 +92,7 @@ type ReadTagValuesSpec struct {
 type ReadWindowAggregateSpec struct {
 	ReadFilterSpec
 	WindowEvery int64
+	Offset      int64
 	Aggregates  []plan.ProcedureKind
 	CreateEmpty bool
 	TimeColumn  string

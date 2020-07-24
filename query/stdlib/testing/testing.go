@@ -46,15 +46,13 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"window_null": "failed to read meta data: panic: interface conversion: interface {} is nil, not float64",
 
 		// these may just be missing calls to range() in the tests.  easy to fix in a new PR.
-		"group_nulls":           "unbounded test",
-		"integral":              "unbounded test",
-		"integral_columns":      "unbounded test",
-		"map":                   "unbounded test",
-		"join_missing_on_col":   "unbounded test",
-		"join_use_previous":     "unbounded test (https://github.com/influxdata/flux/issues/2996)",
-		"rowfn_with_import":     "unbounded test",
-		"merge_filter_flag_on":  "unbounded test (https://github.com/influxdata/flux/issues/2995)",
-		"merge_filter_flag_off": "unbounded test (https://github.com/influxdata/flux/issues/2994)",
+		"group_nulls":         "unbounded test",
+		"integral":            "unbounded test",
+		"integral_columns":    "unbounded test",
+		"map":                 "unbounded test",
+		"join_missing_on_col": "unbounded test",
+		"join_use_previous":   "unbounded test (https://github.com/influxdata/flux/issues/2996)",
+		"rowfn_with_import":   "unbounded test",
 
 		// the following tests have a difference between the CSV-decoded input table, and the storage-retrieved version of that table
 		"columns":            "group key mismatch",
@@ -168,6 +166,33 @@ var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{
 		},
 		"bare_sum_push": {
 			"pushDownWindowAggregateSum": "true",
+		},
+		"bare_mean_push": {
+			"pushDownWindowAggregateMean": "true",
+		},
+		"window_mean_push": {
+			"pushDownWindowAggregateMean": "true",
+		},
+		"bare_min_push": {
+			"pushDownWindowAggregateMin": "true",
+		},
+		"window_min_push": {
+			"pushDownWindowAggregateMin": "true",
+		},
+		"aggregate_window_min_push": {
+			"pushDownWindowAggregateMin": "true",
+		},
+		"bare_max_push": {
+			"pushDownWindowAggregateMax": "true",
+		},
+		"window_max_push": {
+			"pushDownWindowAggregateMax": "true",
+		},
+		"aggregate_window_max_push": {
+			"pushDownWindowAggregateMax": "true",
+		},
+		"merge_filters": {
+			"mergeFilterRule": "true",
 		},
 	},
 }

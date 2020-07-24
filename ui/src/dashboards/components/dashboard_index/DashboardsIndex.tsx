@@ -13,11 +13,11 @@ import {Page} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
-import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
-import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
+import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -52,8 +52,9 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {createDashboard, limitStatus, sortOptions} = this.props
+    const {createDashboard, sortOptions} = this.props
     const {searchTerm} = this.state
+
     return (
       <>
         <Page
@@ -62,7 +63,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         >
           <Page.Header fullWidth={false}>
             <Page.Title title="Dashboards" />
-            <CloudUpgradeButton />
+            <RateLimitAlert />
           </Page.Header>
           <Page.ControlBar fullWidth={false}>
             <Page.ControlBarLeft>
@@ -96,10 +97,6 @@ class DashboardIndex extends PureComponent<Props, State> {
             scrollable={true}
           >
             <GetAssetLimits>
-              <AssetLimitAlert
-                resourceName="dashboards"
-                limitStatus={limitStatus}
-              />
               <DashboardsIndexContents
                 searchTerm={searchTerm}
                 onFilterChange={this.handleFilterDashboards}
@@ -111,6 +108,10 @@ class DashboardIndex extends PureComponent<Props, State> {
           </Page.Contents>
         </Page>
         <Switch>
+          <Route
+            path="/orgs/:orgID/dashboards-list/:dashboardID/export"
+            component={DashboardExportOverlay}
+          />
           <Route
             path="/orgs/:orgID/dashboards-list/import/template"
             component={CreateFromTemplateOverlay}

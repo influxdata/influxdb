@@ -11,7 +11,7 @@ import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDr
 import GetResources from 'src/resources/components/GetResources'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
 import DeleteDataButton from 'src/dataExplorer/components/DeleteDataButton'
-import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
 import DEDeleteDataOverlay from 'src/dataExplorer/components/DeleteDataOverlay'
 
@@ -40,7 +40,7 @@ const DataExplorerPage: FC = () => {
       <GetResources resources={[ResourceType.Variables]}>
         <Page.Header fullWidth={true} testID="data-explorer--header">
           <Page.Title title="Data Explorer" />
-          <CloudUpgradeButton />
+          <RateLimitAlert />
         </Page.Header>
         <Page.ControlBar fullWidth={true}>
           <Page.ControlBarLeft>

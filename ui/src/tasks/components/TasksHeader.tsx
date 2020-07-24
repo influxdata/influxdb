@@ -15,7 +15,7 @@ import {
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
-import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
@@ -63,7 +63,7 @@ export default class TasksHeader extends PureComponent<Props> {
       <>
         <Page.Header fullWidth={false} testID="tasks-page--header">
           <Page.Title title="Tasks" />
-          <CloudUpgradeButton />
+          <RateLimitAlert />
         </Page.Header>
         <Page.ControlBar fullWidth={false}>
           <Page.ControlBarLeft>

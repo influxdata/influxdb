@@ -29,9 +29,10 @@ import (
 const maxTCPConnections = 10
 
 var (
-	version = "dev"
-	commit  = "none"
-	date    = ""
+	version            = "dev"
+	commit             = "none"
+	date               = ""
+	defaultConfigsPath = mustDefaultConfigPath()
 )
 
 func main() {
@@ -90,6 +91,9 @@ type genericCLIOpts struct {
 	w    io.Writer
 	errW io.Writer
 
+	json        bool
+	hideHeaders bool
+
 	runEWrapFn cobraRunEMiddleware
 }
 
@@ -98,11 +102,6 @@ func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) e
 		Args: cobra.NoArgs,
 		Use:  use,
 		RunE: runE,
-		FParseErrWhitelist: cobra.FParseErrWhitelist{
-			// allows for unknown flags, parser does not crap the bed
-			// when providing a flag that doesn't exist/match.
-			UnknownFlags: true,
-		},
 	}
 
 	canWrapRunE := runE != nil && o.runEWrapFn != nil
@@ -123,7 +122,13 @@ func (o genericCLIOpts) writeJSON(v interface{}) error {
 }
 
 func (o genericCLIOpts) newTabWriter() *internal.TabWriter {
-	return internal.NewTabWriter(o.w)
+	w := internal.NewTabWriter(o.w)
+	w.HideHeaders(o.hideHeaders)
+	return w
+}
+
+func (o *genericCLIOpts) registerPrintOptions(cmd *cobra.Command) {
+	registerPrintOptions(cmd, &o.hideHeaders, &o.json)
 }
 
 func in(r io.Reader) genericCLIOptFn {
@@ -142,6 +147,7 @@ type globalFlags struct {
 	config.Config
 	skipVerify   bool
 	traceDebugID string
+	filepath     string
 }
 
 func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
@@ -170,6 +176,12 @@ func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
 			DestP:  &g.traceDebugID,
 			Flag:   "trace-debug-id",
 			Hidden: true,
+		},
+		{
+			DestP:   &g.filepath,
+			Flag:    "configs-path",
+			Desc:    "Path to the influx CLI configurations",
+			Default: defaultConfigsPath,
 		},
 	}
 
@@ -228,25 +240,27 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		cmd.AddCommand(childCmd(&flags, b.genericCLIOpts))
 	}
 
-	// migration credential token
-	migrateOldCredential()
+	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		// migration credential token
+		migrateOldCredential(flags.filepath)
 
-	// this is after the flagOpts register b/c we don't want to show the default value
-	// in the usage display. This will add it as the config, then if a token flag
-	// is provided too, the flag will take precedence.
-	cfg := getConfigFromDefaultPath()
+		// this is after the flagOpts register b/c we don't want to show the default value
+		// in the usage display. This will add it as the config, then if a token flag
+		// is provided too, the flag will take precedence.
+		cfg := getConfigFromDefaultPath(flags.filepath)
 
-	// we have some indirection here b/c of how the Config is embedded on the
-	// global flags type. For the time being, we check to see if there was a
-	// value set on flags registered (via env vars), and override the host/token
-	// values if they are.
-	if flags.Token != "" {
-		cfg.Token = flags.Token
+		// we have some indirection here b/c of how the Config is embedded on the
+		// global flags type. For the time being, we check to see if there was a
+		// value set on flags registered (via env vars), and override the host/token
+		// values if they are.
+		if flags.Token != "" {
+			cfg.Token = flags.Token
+		}
+		if flags.Host != "" {
+			cfg.Host = flags.Host
+		}
+		flags.Config = cfg
 	}
-	if flags.Host != "" {
-		cfg.Host = flags.Host
-	}
-	flags.Config = cfg
 
 	// Update help description for all commands in command tree
 	walk(cmd, func(c *cobra.Command) {
@@ -284,11 +298,11 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdOrganization,
 		cmdPing,
 		cmdQuery,
-		cmdREPL,
 		cmdSecret,
 		cmdSetup,
 		cmdStack,
 		cmdTask,
+		cmdTelegraf,
 		cmdTemplate,
 		cmdApply,
 		cmdTranspile,
@@ -325,23 +339,13 @@ func seeHelp(c *cobra.Command, args []string) {
 	c.Printf("See '%s -h' for help\n", c.CommandPath())
 }
 
-func defaultConfigPath() (string, string, error) {
-	dir, err := fs.InfluxDir()
+func getConfigFromDefaultPath(configsPath string) config.Config {
+	r, err := os.Open(configsPath)
 	if err != nil {
-		return "", "", err
+		return config.DefaultConfig
 	}
-	return filepath.Join(dir, http.DefaultConfigsFile), dir, nil
-}
+	defer r.Close()
 
-func getConfigFromDefaultPath() config.Config {
-	path, _, err := defaultConfigPath()
-	if err != nil {
-		return config.DefaultConfig
-	}
-	r, err := os.Open(path)
-	if err != nil {
-		return config.DefaultConfig
-	}
 	activated, err := config.ParseActiveConfig(r)
 	if err != nil {
 		return config.DefaultConfig
@@ -349,24 +353,41 @@ func getConfigFromDefaultPath() config.Config {
 	return activated
 }
 
-func migrateOldCredential() {
+func defaultConfigPath() (string, string, error) {
 	dir, err := fs.InfluxDir()
 	if err != nil {
-		return // no need for migration
+		return "", "", err
+	}
+	return filepath.Join(dir, fs.DefaultConfigsFile), dir, nil
+}
+
+func mustDefaultConfigPath() string {
+	filepath, _, err := defaultConfigPath()
+	if err != nil {
+		panic(err)
+	}
+	return filepath
+}
+
+func migrateOldCredential(configsPath string) {
+	dir := filepath.Dir(configsPath)
+	if configsPath == "" || dir == "" {
+		return
 	}
 
-	tokB, err := ioutil.ReadFile(filepath.Join(dir, http.DefaultTokenFile))
+	tokenFile := filepath.Join(dir, fs.DefaultTokenFile)
+	tokB, err := ioutil.ReadFile(tokenFile)
 	if err != nil {
 		return // no need for migration
 	}
 
-	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", filepath.Join(dir, http.DefaultConfigsFile), dir)
+	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", configsPath, dir)
 	if err != nil {
 		return
 	}
 
 	// ignore the remove err
-	_ = os.Remove(filepath.Join(dir, http.DefaultTokenFile))
+	_ = os.Remove(tokenFile)
 }
 
 func writeConfigToPath(tok, org, path, dir string) error {
@@ -535,16 +556,6 @@ func setViperOptions() {
 	viper.SetEnvPrefix("INFLUX")
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-}
-
-func enforceFlagValidation(cmd *cobra.Command) {
-	cmd.FParseErrWhitelist = cobra.FParseErrWhitelist{
-		// disable unknown flags when short flag can conflict with a long flag.
-		// An example here is the --filter flag provided as -filter=foo will overwrite
-		// the -f flag to -f=ilter=foo, which generates a bad filename.
-		// remedies issue: https://github.com/influxdata/influxdb/issues/18850
-		UnknownFlags: false,
-	}
 }
 
 func writeJSON(w io.Writer, v interface{}) error {

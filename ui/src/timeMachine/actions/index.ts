@@ -141,11 +141,15 @@ export const setName = (name: string): SetNameAction => ({
 })
 
 export const setTimeRange = (timeRange: TimeRange) => (dispatch, getState) => {
-  const contextID = currentContext(getState())
+  const state = getState()
+  const contextID = currentContext(state)
+  const activeQuery = getActiveQuery(state)
 
   dispatch(setDashboardTimeRange(contextID, timeRange))
   dispatch(saveAndExecuteQueries())
-  dispatch(reloadTagSelectors())
+  if (activeQuery.editMode === 'builder') {
+    dispatch(reloadTagSelectors())
+  }
 }
 
 interface SetAutoRefreshAction {

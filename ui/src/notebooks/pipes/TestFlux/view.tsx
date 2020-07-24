@@ -15,16 +15,17 @@ import fromFlux from 'src/shared/utils/fromFlux.legacy'
 import {checkResultsLength} from 'src/shared/utils/vis'
 
 // Types
-import {PipeProp} from 'src/notebooks'
-import {BothResults} from 'src/notebooks'
+import {PipeProp, FluxResult} from 'src/notebooks'
 import {ViewType, RemoteDataState} from 'src/types'
 
 import {AppSettingContext} from 'src/notebooks/context/app'
+import {PipeContext} from 'src/notebooks/context/pipe'
 
 import {updateVisualizationType} from 'src/notebooks/pipes/Visualization/view'
 
-const TestFlux: FC<PipeProp> = ({Context, data, onUpdate}) => {
+const TestFlux: FC<PipeProp> = ({Context}) => {
   const {timeZone} = useContext(AppSettingContext)
+  const {data, update} = useContext(PipeContext)
   const uploadRef: React.RefObject<HTMLInputElement> = React.createRef()
   const startUpload = () => {
     uploadRef.current.click()
@@ -53,16 +54,16 @@ const TestFlux: FC<PipeProp> = ({Context, data, onUpdate}) => {
           raw: result,
           parsed: fromFlux(result),
           source: 'buckets()',
-        }
+        } as FluxResult
       })
       .then(result => {
         setResults(result)
       })
   }
-  const [results, setResults] = useState({} as BothResults)
+  const [results, setResults] = useState({} as FluxResult)
 
   const updateType = (type: ViewType) => {
-    updateVisualizationType(type, results.parsed, onUpdate)
+    updateVisualizationType(type, results.parsed, update)
   }
 
   const controls = (
@@ -83,8 +84,6 @@ const TestFlux: FC<PipeProp> = ({Context, data, onUpdate}) => {
   return (
     <Context controls={controls}>
       <Resizer
-        data={data}
-        onUpdate={onUpdate}
         resizingEnabled={!!results.raw}
         emptyText="This cell will visualize results from uploaded CSVs"
         emptyIcon={IconFont.BarChart}
