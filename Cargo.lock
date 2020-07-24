@@ -1285,6 +1285,8 @@ dependencies = [
 name = "influxdb2_client"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "futures",
  "reqwest",
  "snafu",
 ]

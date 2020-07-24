@@ -93,7 +93,9 @@ async fn write_data(
     bucket_id: &str,
     body: impl Into<String>,
 ) -> Result<()> {
-    client.write(org_id, bucket_id, body).await?;
+    client
+        .write_line_protocol(org_id, bucket_id, body.into())
+        .await?;
     Ok(())
 }
 
@@ -584,7 +586,7 @@ swap,server01,disk0,out,{},4
 async fn test_http_error_messages(client: &influxdb2_client::Client) -> Result<()> {
     // send malformed request (bucket id is invalid)
     let result = client
-        .write("Bar", "Foo", "arbitrary")
+        .write_line_protocol("Bar", "Foo", "arbitrary")
         .await
         .expect_err("Should have errored");
 
