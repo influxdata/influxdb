@@ -278,7 +278,7 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID influxdb.I
 
 func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Bucket) error {
 	if !bucket.ID.Valid() {
-		id, err := s.generateSafeID(ctx, tx, bucketBucket)
+		id, err := s.generateSafeOrgBucketID(ctx, tx, bucketBucket)
 		if err != nil {
 			return err
 		}

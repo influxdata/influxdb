@@ -32,7 +32,10 @@ func initBucketService(s kv.SchemaStore, f influxdbtesting.BucketFields, t *test
 	svc := tenant.NewService(storage)
 
 	for _, o := range f.Organizations {
-		if err := svc.CreateOrganization(context.Background(), o); err != nil {
+		// use storage create org in order to avoid creating system buckets
+		if err := s.Update(context.Background(), func(tx kv.Tx) error {
+			return storage.CreateOrg(tx.Context(), tx, o)
+		}); err != nil {
 			t.Fatalf("failed to populate organizations: %s", err)
 		}
 	}
