@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -85,19 +86,17 @@ type (
 		Kind         Kind                     `json:"kind"`
 		MetaName     string                   `json:"templateMetaName"`
 		Associations []RespStackResourceAssoc `json:"associations"`
-
-		// PkgName is deprecated moving forward, will support until it is
-		// ripped out.
-		PkgName *string `json:"pkgName,omitempty"`
+		Links        RespStackResourceLinks   `json:"links"`
 	}
 
 	// RespStackResourceAssoc is the response for a stack resource's associations.
 	RespStackResourceAssoc struct {
 		Kind     Kind   `json:"kind"`
 		MetaName string `json:"metaName"`
+	}
 
-		//PkgName is to be deprecated moving forward
-		PkgName *string `json:"pkgName,omitempty"`
+	RespStackResourceLinks struct {
+		Self string `json:"self"`
 	}
 )
 
@@ -389,16 +388,14 @@ func convertStackEvent(ev StackEvent) RespStackEvent {
 	for _, r := range ev.Resources {
 		asses := make([]RespStackResourceAssoc, 0, len(r.Associations))
 		for _, a := range r.Associations {
-			asses = append(asses, RespStackResourceAssoc{
-				Kind:     a.Kind,
-				MetaName: a.MetaName,
-			})
+			asses = append(asses, RespStackResourceAssoc(a))
 		}
 		resources = append(resources, RespStackResource{
 			APIVersion:   r.APIVersion,
 			ID:           r.ID.String(),
 			Kind:         r.Kind,
 			MetaName:     r.MetaName,
+			Links:        stackResLinks(r),
 			Associations: asses,
 		})
 	}
@@ -411,6 +408,36 @@ func convertStackEvent(ev StackEvent) RespStackEvent {
 		Sources:     append([]string{}, ev.Sources...),
 		URLs:        append([]string{}, ev.TemplateURLs...),
 		UpdatedAt:   ev.UpdatedAt,
+	}
+}
+
+func stackResLinks(r StackResource) RespStackResourceLinks {
+	var linkResource string
+	switch r.Kind {
+	case KindBucket:
+		linkResource = "buckets"
+	case KindCheck, KindCheckDeadman, KindCheckThreshold:
+		linkResource = "checks"
+	case KindDashboard:
+		linkResource = "dashboards"
+	case KindLabel:
+		linkResource = "labels"
+	case KindNotificationEndpoint,
+		KindNotificationEndpointHTTP,
+		KindNotificationEndpointPagerDuty,
+		KindNotificationEndpointSlack:
+		linkResource = "notificationEndpoints"
+	case KindNotificationRule:
+		linkResource = "notificationRules"
+	case KindTask:
+		linkResource = "tasks"
+	case KindTelegraf:
+		linkResource = "telegrafs"
+	case KindVariable:
+		linkResource = "variables"
+	}
+	return RespStackResourceLinks{
+		Self: path.Join("/api/v2", linkResource, r.ID.String()),
 	}
 }
 
