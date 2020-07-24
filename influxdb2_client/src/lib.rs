@@ -58,7 +58,7 @@ use bytes::Bytes;
 use futures::{Stream, StreamExt};
 use reqwest::Body;
 use snafu::{ensure, ResultExt, Snafu};
-use std::{cmp, collections::BTreeMap, convert::Infallible, fmt, marker::PhantomData};
+use std::{collections::BTreeMap, convert::Infallible, fmt};
 
 /// Errors that occur while making requests to the Influx server.
 #[derive(Debug, Snafu)]
@@ -167,15 +167,15 @@ impl Client {
 /// Create this via `DataPoint::builder`.
 #[derive(Debug)]
 pub struct DataPointBuilder {
-    measurement: EscapedMeasurement,
+    measurement: String,
     // Keeping the tags sorted improves performance on the server side
-    tags: BTreeMap<EscapedTagKey, EscapedTagKey>,
-    fields: BTreeMap<EscapedFieldKey, FieldValue>,
+    tags: BTreeMap<String, String>,
+    fields: BTreeMap<String, FieldValue>,
     timestamp: Option<i64>,
 }
 
 impl DataPointBuilder {
-    fn new(measurement: impl Into<EscapedMeasurement>) -> Self {
+    fn new(measurement: impl Into<String>) -> Self {
         Self {
             measurement: measurement.into(),
             tags: Default::default(),
@@ -185,17 +185,13 @@ impl DataPointBuilder {
     }
 
     /// Sets a tag, replacing any existing tag of the same name.
-    pub fn tag(
-        mut self,
-        name: impl Into<EscapedTagKey>,
-        value: impl Into<EscapedTagValue>,
-    ) -> Self {
+    pub fn tag(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.tags.insert(name.into(), value.into());
         self
     }
 
     /// Sets a field, replacing any existing field of the same name.
-    pub fn field(mut self, name: impl Into<EscapedFieldKey>, value: impl Into<FieldValue>) -> Self {
+    pub fn field(mut self, name: impl Into<String>, value: impl Into<FieldValue>) -> Self {
         self.fields.insert(name.into(), value.into());
         self
     }
@@ -235,17 +231,21 @@ impl DataPointBuilder {
 }
 
 /// A single point of information to send to InfluxDB.
+// TODO: If we want to support non-UTF-8 data, all `String`s stored in `DataPoint` would need
+// to be `Vec<u8>` instead, the API for creating a `DataPoint` would need some more consideration,
+// and there would need to be more `Write*` trait implementations. Because the `Write*` traits work
+// on a writer of bytes, that part of the design supports non-UTF-8 data now.
 #[derive(Debug)]
 pub struct DataPoint {
-    measurement: EscapedMeasurement,
-    tags: BTreeMap<EscapedTagKey, EscapedTagValue>,
-    fields: BTreeMap<EscapedFieldKey, FieldValue>,
+    measurement: String,
+    tags: BTreeMap<String, String>,
+    fields: BTreeMap<String, FieldValue>,
     timestamp: Option<i64>,
 }
 
 impl DataPoint {
     /// Create a builder to incrementally construct a `DataPoint`.
-    pub fn builder(measurement: impl Into<EscapedMeasurement>) -> DataPointBuilder {
+    pub fn builder(measurement: impl Into<String>) -> DataPointBuilder {
         DataPointBuilder::new(measurement)
     }
 
@@ -281,106 +281,6 @@ impl fmt::Display for LineProtocol<'_> {
     }
 }
 
-/// A string that will be escaped according to the rules of measurements
-pub type EscapedMeasurement = Escaped<Measurement>;
-/// A string that will be escaped according to the rules of tag keys
-pub type EscapedTagKey = Escaped<TagKey>;
-/// A string that will be escaped according to the rules of tag values
-pub type EscapedTagValue = Escaped<TagKey>;
-/// A string that will be escaped according to the rules of field keys
-pub type EscapedFieldKey = Escaped<TagKey>;
-/// A string that will be escaped according to the rules of field value strings
-pub type EscapedFieldValueString = Escaped<FieldValueString>;
-
-/// Ensures that a string value is appropriately escaped when it is sent to InfluxDB.
-#[derive(Debug, Clone)]
-pub struct Escaped<K>(String, PhantomData<K>);
-
-impl<K> PartialEq for Escaped<K> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.eq(&other.0)
-    }
-}
-
-impl<K> Eq for Escaped<K> {}
-
-impl<K> PartialOrd for Escaped<K> {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
-
-impl<K> Ord for Escaped<K> {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-impl<K> From<&str> for Escaped<K>
-where
-    K: EscapingSpecification,
-{
-    fn from(other: &str) -> Self {
-        Self(other.into(), PhantomData)
-    }
-}
-
-impl<K> From<String> for Escaped<K>
-where
-    K: EscapingSpecification,
-{
-    fn from(other: String) -> Self {
-        Self(other, PhantomData)
-    }
-}
-
-impl<K> fmt::Display for Escaped<K>
-where
-    K: EscapingSpecification,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut last = 0;
-
-        for (idx, delim) in self.0.match_indices(K::DELIMITERS) {
-            let s = &self.0[last..idx];
-            write!(f, r#"{}\{}"#, s, delim)?;
-            last = idx + delim.len();
-        }
-
-        self.0[last..].fmt(f)
-    }
-}
-
-/// Specifies how to escape a particular piece of InfluxDB information.
-pub trait EscapingSpecification {
-    /// The delimiters that need to be escaped
-    const DELIMITERS: &'static [char];
-}
-
-/// Rules to escape a field value string
-#[derive(Debug, Copy, Clone)]
-pub struct Measurement(());
-
-/// Rules to escape a tag key, tag field, or field key string
-#[derive(Debug, Copy, Clone)]
-pub struct TagKey(());
-
-/// Rules to escape a field value string
-#[derive(Debug, Copy, Clone)]
-pub struct FieldValueString(());
-
-impl EscapingSpecification for Measurement {
-    const DELIMITERS: &'static [char] = &[',', ' '];
-}
-
-impl EscapingSpecification for TagKey {
-    const DELIMITERS: &'static [char] = &[',', '=', ' '];
-}
-
-impl EscapingSpecification for FieldValueString {
-    const DELIMITERS: &'static [char] = &['"'];
-}
-
 /// Possible value types
 #[derive(Debug, Clone)]
 pub enum FieldValue {
@@ -391,7 +291,7 @@ pub enum FieldValue {
     /// A 64-bit signed integer number
     I64(i64),
     /// A string value
-    String(EscapedFieldValueString),
+    String(String),
 }
 
 impl From<bool> for FieldValue {
@@ -503,32 +403,27 @@ mod tests {
 
     #[test]
     fn special_characters_are_escaped_in_measurements() {
-        let e = EscapedMeasurement::from(ALL_THE_DELIMITERS);
-        assert_eq!(e.to_string(), r#"alpha\,beta=delta\ gamma"epsilon"#);
+        assert_eq!(ALL_THE_DELIMITERS, r#"alpha\,beta=delta\ gamma"epsilon"#);
     }
 
     #[test]
     fn special_characters_are_escaped_in_tag_keys() {
-        let e = EscapedTagKey::from(ALL_THE_DELIMITERS);
-        assert_eq!(e.to_string(), r#"alpha\,beta\=delta\ gamma"epsilon"#);
+        assert_eq!(ALL_THE_DELIMITERS, r#"alpha\,beta\=delta\ gamma"epsilon"#);
     }
 
     #[test]
     fn special_characters_are_escaped_in_tag_values() {
-        let e = EscapedTagValue::from(ALL_THE_DELIMITERS);
-        assert_eq!(e.to_string(), r#"alpha\,beta\=delta\ gamma"epsilon"#);
+        assert_eq!(ALL_THE_DELIMITERS, r#"alpha\,beta\=delta\ gamma"epsilon"#);
     }
 
     #[test]
     fn special_characters_are_escaped_in_field_keys() {
-        let e = EscapedFieldKey::from(ALL_THE_DELIMITERS);
-        assert_eq!(e.to_string(), r#"alpha\,beta\=delta\ gamma"epsilon"#);
+        assert_eq!(ALL_THE_DELIMITERS, r#"alpha\,beta\=delta\ gamma"epsilon"#);
     }
 
     #[test]
     fn special_characters_are_escaped_in_field_values_of_strings() {
-        let e = EscapedFieldValueString::from(ALL_THE_DELIMITERS);
-        assert_eq!(e.to_string(), r#"alpha,beta=delta gamma\"epsilon"#);
+        assert_eq!(ALL_THE_DELIMITERS, r#"alpha,beta=delta gamma\"epsilon"#);
     }
 
     #[test]
