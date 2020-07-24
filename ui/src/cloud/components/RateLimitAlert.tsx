@@ -35,11 +35,17 @@ interface StateProps {
   status: LimitStatus
 }
 interface OwnProps {
+  alertOnly?: boolean
   className?: string
 }
 type Props = StateProps & OwnProps
 
-const RateLimitAlert: FC<Props> = ({status, className, resources}) => {
+const RateLimitAlert: FC<Props> = ({
+  status,
+  alertOnly,
+  className,
+  resources,
+}) => {
   const rateLimitAlertClass = classnames('rate-alert', {
     [`${className}`]: className,
   })
@@ -86,7 +92,7 @@ const RateLimitAlert: FC<Props> = ({status, className, resources}) => {
     )
   }
 
-  if (CLOUD) {
+  if (CLOUD && !alertOnly) {
     return <CloudUpgradeButton />
   }
 

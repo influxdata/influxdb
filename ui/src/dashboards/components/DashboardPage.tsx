@@ -62,7 +62,7 @@ class DashboardPage extends Component<Props> {
                 autoRefresh={autoRefresh}
                 onManualRefresh={onManualRefresh}
               />
-              <RateLimitAlert />
+              <RateLimitAlert alertOnly={true} />
               <VariablesControlBar />
               <DashboardComponent manualRefresh={manualRefresh} />
             </HoverTimeProvider>
