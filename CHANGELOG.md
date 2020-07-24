@@ -1,5 +1,9 @@
 ## v2.0.0-beta.16 [unreleased]
 
+### Breaking
+
+1. [19066](https://github.com/influxdata/influxdb/pull/19066): Drop deprecated /packages route tree
+
 ### Bug Fixes
 
 1. [19043](https://github.com/influxdata/influxdb/pull/19043): Enforce all influx CLI flag args are valid

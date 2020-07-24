@@ -3,7 +3,9 @@ package pkger_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +14,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
@@ -19,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 )
 
 func TestPkgerHTTPServerTemplate(t *testing.T) {
@@ -587,4 +594,101 @@ func assertNonZeroApplyResp(t *testing.T, resp pkger.RespApply) {
 	assert.NotNil(t, resp.Summary.Tasks)
 	assert.NotNil(t, resp.Summary.TelegrafConfigs)
 	assert.NotNil(t, resp.Summary.Variables)
+}
+
+func bucketPkgKinds(t *testing.T, encoding pkger.Encoding) pkger.ReqRawTemplate {
+	t.Helper()
+
+	var pkgStr string
+	switch encoding {
+	case pkger.EncodingJsonnet:
+		pkgStr = `
+local Bucket(name, desc) = {
+    apiVersion: '%[1]s',
+    kind: 'Bucket',
+    metadata: {
+        name: name
+    },
+    spec: {
+        description: desc
+    }
+};
+
+[
+  Bucket(name="rucket-1", desc="bucket 1 description"),
+]
+`
+	case pkger.EncodingJSON:
+		pkgStr = `[
+  {
+    "apiVersion": "%[1]s",
+    "kind": "Bucket",
+    "metadata": {
+      "name": "rucket-11"
+    },
+    "spec": {
+      "description": "bucket 1 description"
+    }
+  }
+]
+`
+	case pkger.EncodingYAML:
+		pkgStr = `apiVersion: %[1]s
+kind: Bucket
+metadata:
+  name:  rucket-11
+spec:
+  description: bucket 1 description
+`
+	default:
+		require.FailNow(t, "invalid encoding provided: "+encoding.String())
+	}
+
+	pkg, err := pkger.Parse(encoding, pkger.FromString(fmt.Sprintf(pkgStr, pkger.APIVersion)))
+	require.NoError(t, err)
+
+	b, err := pkg.Encode(encoding)
+	require.NoError(t, err)
+	return pkger.ReqRawTemplate{
+		ContentType: encoding.String(),
+		Sources:     pkg.Sources(),
+		Template:    b,
+	}
+}
+
+func newReqApplyYMLBody(t *testing.T, orgID influxdb.ID, dryRun bool) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	err := yaml.NewEncoder(&buf).Encode(pkger.ReqApply{
+		DryRun:      dryRun,
+		OrgID:       orgID.String(),
+		RawTemplate: bucketPkgKinds(t, pkger.EncodingYAML),
+	})
+	require.NoError(t, err)
+	return &buf
+}
+
+func decodeBody(t *testing.T, r io.Reader, v interface{}) {
+	t.Helper()
+
+	if err := json.NewDecoder(r).Decode(v); err != nil {
+		require.FailNow(t, err.Error())
+	}
+}
+
+func newMountedHandler(rh kithttp.ResourceHandler, userID influxdb.ID) chi.Router {
+	r := chi.NewRouter()
+	r.Mount(rh.Prefix(), authMW(userID)(rh))
+	return r
+}
+
+func authMW(userID influxdb.ID) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &influxdb.Session{UserID: userID}))
+			next.ServeHTTP(w, r)
+		}
+		return http.HandlerFunc(fn)
+	}
 }

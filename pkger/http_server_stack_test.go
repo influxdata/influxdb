@@ -776,3 +776,69 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 		})
 	})
 }
+
+type fakeSVC struct {
+	initStackFn   func(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error)
+	listStacksFn  func(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error)
+	readStackFn   func(ctx context.Context, id influxdb.ID) (pkger.Stack, error)
+	updateStackFn func(ctx context.Context, upd pkger.StackUpdate) (pkger.Stack, error)
+	dryRunFn      func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
+	applyFn       func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
+}
+
+var _ pkger.SVC = (*fakeSVC)(nil)
+
+func (f *fakeSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error) {
+	if f.initStackFn == nil {
+		panic("not implemented")
+	}
+	return f.initStackFn(ctx, userID, stack)
+}
+
+func (f *fakeSVC) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (pkger.Stack, error) {
+	panic("not implemented")
+}
+
+func (f *fakeSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
+	panic("not implemented yet")
+}
+
+func (f *fakeSVC) ListStacks(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
+	if f.listStacksFn == nil {
+		panic("not implemented")
+	}
+	return f.listStacksFn(ctx, orgID, filter)
+}
+
+func (f *fakeSVC) ReadStack(ctx context.Context, id influxdb.ID) (pkger.Stack, error) {
+	if f.readStackFn != nil {
+		return f.readStackFn(ctx, id)
+	}
+	panic("not implemented")
+}
+
+func (f *fakeSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pkger.Stack, error) {
+	if f.updateStackFn != nil {
+		return f.updateStackFn(ctx, upd)
+	}
+	panic("not implemented")
+}
+
+func (f *fakeSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Template, error) {
+	panic("not implemented")
+}
+
+func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+	if f.dryRunFn == nil {
+		panic("not implemented")
+	}
+
+	return f.dryRunFn(ctx, orgID, userID, opts...)
+}
+
+func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+	if f.applyFn == nil {
+		panic("not implemented")
+	}
+	return f.applyFn(ctx, orgID, userID, opts...)
+}
