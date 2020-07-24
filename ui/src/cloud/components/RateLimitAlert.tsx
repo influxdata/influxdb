@@ -40,7 +40,12 @@ interface OwnProps {
 }
 type Props = StateProps & OwnProps
 
-const RateLimitAlert: FC<Props> = ({status, alertOnly, className, resources}) => {
+const RateLimitAlert: FC<Props> = ({
+  status,
+  alertOnly,
+  className,
+  resources,
+}) => {
   const rateLimitAlertClass = classnames('rate-alert', {
     [`${className}`]: className,
   })
