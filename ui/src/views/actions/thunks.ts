@@ -1,12 +1,11 @@
 // Libraries
 import {normalize} from 'normalizr'
-
+import {get} from 'lodash'
 // APIs
 import {
   getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis'
-import {getCachedResultsOrRunQuery} from 'src/shared/apis/queryCache'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -17,12 +16,12 @@ import {notify} from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 import {setView, Action} from 'src/views/actions/creators'
+import {hashCode} from 'src/queryCache/actions'
 import {setQueryResults} from 'src/timeMachine/actions/queries'
 
 // Selectors
 import {getViewsForDashboard} from 'src/views/selectors'
 import {getByID} from 'src/resources/selectors'
-import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {
@@ -34,7 +33,6 @@ import {
   TimeMachineID,
   ResourceType,
 } from 'src/types'
-import {RunQuerySuccessResult} from 'src/shared/apis/query'
 import {Dispatch} from 'redux'
 
 export const getView = (dashboardID: string, cellID: string) => async (
@@ -124,15 +122,13 @@ export const getViewAndResultsForVEO = (
     if (!queries.length) {
       dispatch(setQueryResults(RemoteDataState.Done, [], null))
     }
-    const {id: orgID} = getOrg(state)
-    const pendingResults = queries.map(({text}) => {
-      return getCachedResultsOrRunQuery(orgID, text, state)
-    })
-
-    // Wait for new queries to complete
-    const results = await Promise.all(pendingResults.map(r => r.promise))
-    const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
-
+    const queryText = queries.map(({text}) => text).join('')
+    const queryID = hashCode(queryText)
+    const files = get(
+      state,
+      ['queryCache', 'queryResultsByQueryID', queryID],
+      undefined
+    )
     if (files) {
       dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
       return
