@@ -22,6 +22,7 @@ import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {event} from 'src/cloud/utils/reporting'
 import {resetQueryCache} from 'src/shared/apis/queryCache'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Selectors & Actions
 import {setRenderID as setRenderIDAction} from 'src/perf/actions'
@@ -60,11 +61,15 @@ class DashboardPage extends Component<Props> {
     const fields = {renderID}
 
     event('Dashboard Mounted', tags, fields)
-    resetQueryCache()
+    if (isFlagEnabled('queryCacheForDashboards')) {
+      resetQueryCache()
+    }
   }
 
   public componentWillUnmount() {
-    resetQueryCache()
+    if (isFlagEnabled('queryCacheForDashboards')) {
+      resetQueryCache()
+    }
   }
 
   public render() {

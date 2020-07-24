@@ -1,5 +1,6 @@
 // Libraries
 import {normalize} from 'normalizr'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // APIs
 import {
@@ -120,22 +121,24 @@ export const getViewAndResultsForVEO = (
         view,
       })
     )
-    const queries = view.properties.queries.filter(({text}) => !!text.trim())
-    if (!queries.length) {
-      dispatch(setQueryResults(RemoteDataState.Done, [], null))
-    }
-    const {id: orgID} = getOrg(state)
-    const pendingResults = queries.map(({text}) => {
-      return getCachedResultsOrRunQuery(orgID, text, state)
-    })
+    if (isFlagEnabled('queryCacheForDashboards')) {
+      const queries = view.properties.queries.filter(({text}) => !!text.trim())
+      if (!queries.length) {
+        dispatch(setQueryResults(RemoteDataState.Done, [], null))
+      }
+      const {id: orgID} = getOrg(state)
+      const pendingResults = queries.map(({text}) => {
+        return getCachedResultsOrRunQuery(orgID, text, state)
+      })
 
-    // Wait for new queries to complete
-    const results = await Promise.all(pendingResults.map(r => r.promise))
-    const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
+      // Wait for new queries to complete
+      const results = await Promise.all(pendingResults.map(r => r.promise))
+      const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
 
-    if (files) {
-      dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
-      return
+      if (files) {
+        dispatch(setQueryResults(RemoteDataState.Done, files, null, null))
+        return
+      }
     }
     dispatch(executeQueries())
   } catch (error) {
