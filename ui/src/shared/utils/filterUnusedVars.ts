@@ -50,10 +50,13 @@ export const createdUsedVarsCache = (variables: Variable[]) => {
 
 export const filterUnusedVarsBasedOnQuery = (
   variables: Variable[],
-  queryTexts: string[]
+  queryTexts: string[],
+  keepSystemVariables?: boolean
 ) => {
-  const varsInUse = variables.filter(variable =>
-    queryTexts.some(text => isInQuery(text, variable))
+  const varsInUse = variables.filter(
+    variable =>
+      queryTexts.some(text => isInQuery(text, variable)) ||
+      (variable.arguments.type === 'system' && keepSystemVariables)
   )
 
   const cachedVars = createdUsedVarsCache(varsInUse)

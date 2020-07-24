@@ -147,7 +147,11 @@ export const getCachedResultsOrRunQuery = (
   query: string,
   state: AppState
 ): CancelBox<RunQueryResult> => {
-  const usedVars = filterUnusedVarsBasedOnQuery(getAllVariables(state), [query])
+  const usedVars = filterUnusedVarsBasedOnQuery(
+    getAllVariables(state),
+    [query],
+    true
+  )
   const variables = sortBy(usedVars, ['name'])
   const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
   const stringifiedVars = JSON.stringify(simplifiedVariables)

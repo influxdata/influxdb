@@ -119,5 +119,13 @@ describe('filterUnusedVars', () => {
         deploymentVariable,
       ])
     })
+    it('lets those system variables through when we need them', () => {
+      const actual = filterUnusedVarsBasedOnQuery(
+        variables,
+        ['random query'],
+        true
+      )
+      expect(actual.length).toEqual(3)
+    })
   })
 })
