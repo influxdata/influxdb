@@ -95,7 +95,11 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
     )}/${templateName}.yml`
 
     try {
-      const summary = await installTemplate(org.id, yamlLocation)
+      const summary = await installTemplate(
+        org.id,
+        yamlLocation,
+        this.props.resourcesToSkip
+      )
       this.props.notify(communityTemplateInstallSucceeded(templateName))
 
       this.props.fetchAndSetStacks(org.id)
@@ -123,6 +127,8 @@ const mstp = (state: AppState, props: RouterProps) => {
     resourceCount: getTotalResourceCount(
       state.resources.templates.communityTemplateToInstall.summary
     ),
+    resourcesToSkip:
+      state.resources.templates.communityTemplateToInstall.resourcesToSkip,
   }
 }
 

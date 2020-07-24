@@ -6,7 +6,7 @@ import {get} from 'lodash'
 import classnames from 'classnames'
 
 // Utils
-import {reportSimpleQueryPerformanceEvent} from 'src/cloud/utils/reporting'
+import {event} from 'src/cloud/utils/reporting'
 
 // Components
 import {
@@ -72,8 +72,8 @@ const CellContext: FC<Props> = ({
   }
 
   const handleEditCell = (): void => {
-    reportSimpleQueryPerformanceEvent('editCell button Click')
     history.push(`${location.pathname}/cells/${cell.id}/edit`)
+    event('editCell button Click')
   }
 
   const popoverContents = (onHide): JSX.Element => {

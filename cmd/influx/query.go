@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"strings"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/dependencies/filesystem"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/flux/runtime"
 	_ "github.com/influxdata/flux/stdlib"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
@@ -97,4 +103,20 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func getFluxREPL(skipVerify bool) (*repl.REPL, error) {
+	deps := flux.NewDefaultDependencies()
+	deps.Deps.FilesystemService = filesystem.SystemFS
+	if skipVerify {
+		deps.Deps.HTTPClient = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+	}
+	ctx := deps.Inject(context.Background())
+	return repl.New(ctx, deps), nil
 }

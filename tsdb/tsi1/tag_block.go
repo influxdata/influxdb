@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"github.com/influxdata/influxdb/v2/pkg/rhh"
 	"github.com/influxdata/influxdb/v2/tsdb"
 )
@@ -91,15 +92,15 @@ func (blk *TagBlock) UnmarshalBinary(data []byte) error {
 
 // TagKeyElem returns an element for a tag key.
 // Returns an element with a nil key if not found.
-func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
+func (blk *TagBlock) TagKeyElem(key []byte, limiter *mincore.Limiter) TagKeyElem {
 	var elem TagBlockKeyElem
-	if !blk.DecodeTagKeyElem(key, &elem) {
+	if !blk.DecodeTagKeyElem(key, &elem, limiter) {
 		return nil
 	}
 	return &elem
 }
 
-func (blk *TagBlock) DecodeTagKeyElem(key []byte, elem *TagBlockKeyElem) bool {
+func (blk *TagBlock) DecodeTagKeyElem(key []byte, elem *TagBlockKeyElem, limiter *mincore.Limiter) bool {
 	keyN := int64(binary.BigEndian.Uint64(blk.hashData[:TagKeyNSize]))
 	hash := rhh.HashKey(key)
 	pos := hash % keyN
@@ -108,6 +109,7 @@ func (blk *TagBlock) DecodeTagKeyElem(key []byte, elem *TagBlockKeyElem) bool {
 	var d int64
 	for {
 		// Find offset of tag key.
+		_ = wait(limiter, blk.hashData[TagKeyNSize+(pos*TagKeyOffsetSize):TagKeyNSize+(pos*TagKeyOffsetSize)+8])
 		offset := binary.BigEndian.Uint64(blk.hashData[TagKeyNSize+(pos*TagKeyOffsetSize):])
 		if offset == 0 {
 			return false
@@ -115,6 +117,7 @@ func (blk *TagBlock) DecodeTagKeyElem(key []byte, elem *TagBlockKeyElem) bool {
 
 		// Parse into element.
 		elem.unmarshal(blk.data[offset:], blk.data)
+		_ = wait(limiter, blk.data[offset:offset+uint64(elem.size)])
 
 		// Return if keys match.
 		if bytes.Equal(elem.key, key) {
@@ -137,25 +140,26 @@ func (blk *TagBlock) DecodeTagKeyElem(key []byte, elem *TagBlockKeyElem) bool {
 }
 
 // TagValueElem returns an element for a tag value.
-func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
+func (blk *TagBlock) TagValueElem(key, value []byte, limiter *mincore.Limiter) TagValueElem {
 	var valueElem TagBlockValueElem
-	if !blk.DecodeTagValueElem(key, value, &valueElem) {
+	if !blk.DecodeTagValueElem(key, value, &valueElem, limiter) {
 		return nil
 	}
 	return &valueElem
 }
 
 // DecodeTagValueElem returns an element for a tag value.
-func (blk *TagBlock) DecodeTagValueElem(key, value []byte, valueElem *TagBlockValueElem) bool {
+func (blk *TagBlock) DecodeTagValueElem(key, value []byte, valueElem *TagBlockValueElem, limiter *mincore.Limiter) bool {
 	// Find key element, exit if not found.
 	var keyElem TagBlockKeyElem
-	if !blk.DecodeTagKeyElem(key, &keyElem) {
+	if !blk.DecodeTagKeyElem(key, &keyElem, limiter) {
 		return false
 	}
 
 	// Slice hash index data.
 	hashData := keyElem.hashIndex.buf
 
+	_ = wait(limiter, hashData[:TagValueNSize])
 	valueN := int64(binary.BigEndian.Uint64(hashData[:TagValueNSize]))
 	hash := rhh.HashKey(value)
 	pos := hash % valueN
@@ -164,6 +168,7 @@ func (blk *TagBlock) DecodeTagValueElem(key, value []byte, valueElem *TagBlockVa
 	var d int64
 	for {
 		// Find offset of tag value.
+		_ = wait(limiter, hashData[TagValueNSize+(pos*TagValueOffsetSize):TagValueNSize+(pos*TagValueOffsetSize)+8])
 		offset := binary.BigEndian.Uint64(hashData[TagValueNSize+(pos*TagValueOffsetSize):])
 		if offset == 0 {
 			return false
@@ -171,6 +176,7 @@ func (blk *TagBlock) DecodeTagValueElem(key, value []byte, valueElem *TagBlockVa
 
 		// Parse into element.
 		valueElem.unmarshal(blk.data[offset:])
+		_ = wait(limiter, blk.data[offset:offset+uint64(valueElem.size)])
 
 		// Return if values match.
 		if bytes.Equal(valueElem.value, value) {
@@ -194,10 +200,11 @@ func (blk *TagBlock) DecodeTagValueElem(key, value []byte, valueElem *TagBlockVa
 }
 
 // TagKeyIterator returns an iterator over all the keys in the block.
-func (blk *TagBlock) TagKeyIterator() TagKeyIterator {
+func (blk *TagBlock) TagKeyIterator(limiter *mincore.Limiter) TagKeyIterator {
 	return &tagBlockKeyIterator{
 		blk:     blk,
 		keyData: blk.keyData,
+		limiter: limiter,
 	}
 }
 
@@ -206,6 +213,7 @@ type tagBlockKeyIterator struct {
 	blk     *TagBlock
 	keyData []byte
 	e       TagBlockKeyElem
+	limiter *mincore.Limiter
 }
 
 // Next returns the next element in the iterator.
@@ -217,6 +225,7 @@ func (itr *tagBlockKeyIterator) Next() TagKeyElem {
 
 	// Unmarshal next element & move data forward.
 	itr.e.unmarshal(itr.keyData, itr.blk.data)
+	_ = wait(itr.limiter, itr.keyData[:itr.e.size])
 	itr.keyData = itr.keyData[itr.e.size:]
 
 	assert(len(itr.e.Key()) > 0, "invalid zero-length tag key")
@@ -225,8 +234,9 @@ func (itr *tagBlockKeyIterator) Next() TagKeyElem {
 
 // tagBlockValueIterator represents an iterator over all values for a tag key.
 type tagBlockValueIterator struct {
-	data []byte
-	e    TagBlockValueElem
+	data    []byte
+	e       TagBlockValueElem
+	limiter *mincore.Limiter
 }
 
 // Next returns the next element in the iterator.
@@ -239,6 +249,7 @@ func (itr *tagBlockValueIterator) Next() TagValueElem {
 	// Unmarshal next element & move data forward.
 	itr.e.unmarshal(itr.data)
 	itr.data = itr.data[itr.e.size:]
+	_ = wait(itr.limiter, itr.data[:itr.e.size])
 
 	assert(len(itr.e.Value()) > 0, "invalid zero-length tag value")
 	return &itr.e
@@ -273,8 +284,8 @@ func (e *TagBlockKeyElem) Deleted() bool { return (e.flag & TagKeyTombstoneFlag)
 func (e *TagBlockKeyElem) Key() []byte { return e.key }
 
 // TagValueIterator returns an iterator over the key's values.
-func (e *TagBlockKeyElem) TagValueIterator() TagValueIterator {
-	return &tagBlockValueIterator{data: e.data.buf}
+func (e *TagBlockKeyElem) TagValueIterator(limiter *mincore.Limiter) TagValueIterator {
+	return &tagBlockValueIterator{data: e.data.buf, limiter: limiter}
 }
 
 // unmarshal unmarshals buf into e.

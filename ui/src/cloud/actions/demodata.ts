@@ -26,7 +26,7 @@ import {
 // Utils
 import {reportError} from 'src/shared/utils/errors'
 import {getErrorMessage} from 'src/utils/api'
-import {fireEvent} from 'src/shared/utils/analytics'
+import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {Bucket, RemoteDataState, GetState, DemoBucket} from 'src/types'
@@ -112,7 +112,7 @@ export const getDemoDataBucketMembership = ({
 
     dispatch(notify(demoDataSucceeded(bucketName, url)))
 
-    fireEvent('demoData_bucketAdded', {demo_dataset: bucketName})
+    event('demoData_bucketAdded', {demo_dataset: bucketName})
   } catch (error) {
     const errorMessage = getErrorMessage(error)
 
@@ -140,7 +140,7 @@ export const deleteDemoDataBucketMembership = (
     }
 
     dispatch(removeBucket(bucket.id))
-    fireEvent('demoData_bucketDeleted', {demo_dataset: bucket.name})
+    event('demoData_bucketDeleted', {demo_dataset: bucket.name})
   } catch (error) {
     dispatch(notify(demoDataDeleteBucketFailed(bucket.name, error)))
 

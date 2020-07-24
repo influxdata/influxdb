@@ -4,10 +4,10 @@ import './style.scss'
 
 register({
   type: 'data',
+  family: 'inputs',
   priority: 1,
-  featureFlag: 'notebook-panel--data-source',
   component: View,
-  button: 'Data Source',
+  button: 'Bucket',
   initial: {
     bucketName: '',
     timeStart: '-1h',

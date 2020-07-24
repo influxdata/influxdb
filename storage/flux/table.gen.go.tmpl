@@ -97,6 +97,7 @@ func (t *{{.name}}Table) advance() bool {
 type {{.name}}WindowTable struct {
 	{{.name}}Table
 	windowEvery int64
+	offset      int64
 	arr         *cursors.{{.Name}}Array
 	nextTS      int64
 	idxInArr    int
@@ -110,6 +111,7 @@ func new{{.Name}}WindowTable(
 	cur cursors.{{.Name}}ArrayCursor,
 	bounds execute.Bounds,
 	every int64,
+	offset int64,
 	createEmpty bool,
 	timeColumn string,
 	{{if eq .Name "Integer"}}fillValue *{{.Type}},{{end}}
@@ -126,13 +128,14 @@ func new{{.Name}}WindowTable(
 			cur:   cur,
 		},
 		windowEvery: every,
+		offset:      offset,
 		createEmpty: createEmpty,
 		timeColumn:  timeColumn,
 		{{if eq .Name "Integer"}}fillValue: fillValue,{{end}}
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
-		t.nextTS = start + (every - offset(start, every))
+		t.nextTS = storage.WindowStop(start, every, offset)
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -310,6 +313,7 @@ func (t *{{.name}}WindowTable) advance() bool {
 type {{.name}}WindowSelectorTable struct {
 	{{.name}}Table
 	windowEvery int64
+	offset      int64
 	timeColumn  string
 }
 
@@ -318,6 +322,7 @@ func new{{.Name}}WindowSelectorTable(
 	cur cursors.{{.Name}}ArrayCursor,
 	bounds execute.Bounds,
 	every int64,
+	offset int64,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -332,6 +337,7 @@ func new{{.Name}}WindowSelectorTable(
 			cur:   cur,
 		},
 		windowEvery: every,
+		offset:      offset,
 		timeColumn:  timeColumn,
 	}
 	t.readTags(tags)
@@ -376,7 +382,7 @@ func (t *{{.name}}WindowSelectorTable) startTimes(arr *cursors.{{.Name}}Array) *
 	rangeStart := int64(t.bounds.Start)
 
 	for _, v := range arr.Timestamps {
-		if windowStart := v - offset(v, t.windowEvery); windowStart < rangeStart {
+		if windowStart := storage.WindowStart(v, t.windowEvery, t.offset); windowStart < rangeStart {
 			start.Append(rangeStart)
 		} else {
 			start.Append(windowStart)
@@ -392,7 +398,7 @@ func (t *{{.name}}WindowSelectorTable) stopTimes(arr *cursors.{{.Name}}Array) *a
 	rangeStop := int64(t.bounds.Stop)
 
 	for _, v := range arr.Timestamps {
-		if windowStop := v - offset(v, t.windowEvery) + t.windowEvery; windowStop > rangeStop {
+		if windowStop := storage.WindowStop(v, t.windowEvery, t.offset); windowStop > rangeStop {
 			stop.Append(rangeStop)
 		} else {
 			stop.Append(windowStop)
@@ -420,6 +426,7 @@ func new{{.Name}}EmptyWindowSelectorTable(
 	cur cursors.{{.Name}}ArrayCursor,
 	bounds execute.Bounds,
 	windowEvery int64,
+	offset int64,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -428,11 +435,8 @@ func new{{.Name}}EmptyWindowSelectorTable(
 	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *{{.name}}EmptyWindowSelectorTable {
-	rangeStart  := int64(bounds.Start)
-	rangeStop   := int64(bounds.Stop)
-	windowStart := rangeStart - offset(rangeStart, windowEvery)
-	windowStop  := windowStart + windowEvery
-
+	rangeStart := int64(bounds.Start)
+	rangeStop  := int64(bounds.Stop)
 	t := &{{.name}}EmptyWindowSelectorTable{
 		{{.name}}Table: {{.name}}Table{
 			table: newTable(done, bounds, key, cols, defs, cache, alloc),
@@ -441,8 +445,8 @@ func new{{.Name}}EmptyWindowSelectorTable(
 		arr: cur.Next(),
 		rangeStart:  rangeStart,
 		rangeStop:   rangeStop,
-		windowStart: windowStart,
-		windowStop:  windowStop,
+		windowStart: storage.WindowStart(rangeStart, windowEvery, offset),
+		windowStop:  storage.WindowStop(rangeStart, windowEvery, offset),
 		windowEvery: windowEvery,
 		timeColumn:  timeColumn,
 	}
@@ -495,13 +499,6 @@ func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowTy
 
 	for t.windowStart < t.rangeStop {
 
-		// If the current array is non-empty and has
-		// been read in its entirety, call Next().
-		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
-			t.arr = t.cur.Next()
-			t.idx = 0
-		}
-
 		// The first window should start at the
 		// beginning of the time range.
 		if t.windowStart < t.rangeStart {
@@ -531,6 +528,13 @@ func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowTy
 		t.windowStart += t.windowEvery
 		t.windowStop  += t.windowEvery
 
+		// If the current array is non-empty and has
+		// been read in its entirety, call Next().
+		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
+			t.arr = t.cur.Next()
+			t.idx = 0
+		}
+
 		if start.Len() == storage.MaxPointsPerBlock {
 			break
 		}
@@ -543,13 +547,6 @@ func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowTyp
 	stop.Resize(storage.MaxPointsPerBlock)
 
 	for t.windowStart < t.rangeStop {
-
-		// If the current array is non-empty and has
-		// been read in its entirety, call Next().
-		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
-			t.arr = t.cur.Next()
-			t.idx = 0
-		}
 
 		// The last window should stop at the end of
 		// the time range.
@@ -580,6 +577,13 @@ func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowTyp
 		t.windowStart += t.windowEvery
 		t.windowStop  += t.windowEvery
 
+		// If the current array is non-empty and has
+		// been read in its entirety, call Next().
+		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
+			t.arr = t.cur.Next()
+			t.idx = 0
+		}
+
 		if stop.Len() == storage.MaxPointsPerBlock {
 			break
 		}
@@ -598,13 +602,6 @@ func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.Arr
 	time.Resize(storage.MaxPointsPerBlock)
 
 	for t.windowStart < t.rangeStop {
-
-		// If the current array is non-empty and has
-		// been read in its entirety, call Next().
-		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
-			t.arr = t.cur.Next()
-			t.idx = 0
-		}
 
 		// The first window should start at the
 		// beginning of the time range.
@@ -644,6 +641,13 @@ func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.Arr
 
 		t.windowStart += t.windowEvery
 		t.windowStop  += t.windowEvery
+
+		// If the current array is non-empty and has
+		// been read in its entirety, call Next().
+		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
+			t.arr = t.cur.Next()
+			t.idx = 0
+		}
 
 		if time.Len() == storage.MaxPointsPerBlock {
 			break

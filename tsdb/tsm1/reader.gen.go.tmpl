@@ -50,10 +50,13 @@ func (m *mmapAccessor) read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}
 		return nil, ErrTSMClosed
 	}
 
-	a, err := Decode{{.Name}}Block(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4:entry.Offset+int64(entry.Size)]
+	a, err := Decode{{.Name}}Block(b, values)
 	m.mu.RUnlock()
 
 	if err != nil {
+		return nil, err
+	} else if err := m.wait(b); err != nil {
 		return nil, err
 	}
 
@@ -69,9 +72,15 @@ func (m *mmapAccessor) read{{.Name}}ArrayBlock(entry *IndexEntry, values *cursor
 		return ErrTSMClosed
 	}
 
-	err := Decode{{.Name}}ArrayBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	b := m.b[entry.Offset+4:entry.Offset+int64(entry.Size)]
+	err := Decode{{.Name}}ArrayBlock(b, values)
 	m.mu.RUnlock()
 
-	return err
+	if err != nil {
+		return err
+	} else if err := m.wait(b); err != nil {
+		return err
+	}
+	return nil
 }
 {{end}}

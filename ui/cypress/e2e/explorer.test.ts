@@ -620,15 +620,26 @@ describe('DataExplorer', () => {
       cy.get('.query-tab').should('have.length', 1)
     })
 
-    it('can remove a second query using tab context menu', () => {
+    it('can rename and remove a second query using tab context menu', () => {
       cy.get('.query-tab').trigger('contextmenu')
       cy.getByTestID('right-click--remove-tab').should(
         'have.class',
         'cf-right-click--menu-item__disabled'
       )
 
+      //rename the first tab
+      cy.get('.query-tab')
+        .first()
+        .trigger('contextmenu')
+      cy.getByTestID('right-click--edit-tab').click()
+      cy.getByTestID('edit-query-name').type('NewName{enter}')
+      cy.get('.query-tab')
+        .first()
+        .contains('NewName')
+
       // Fire a click outside of the right click menu to dismiss it because
       // it is obscuring the + button
+
       cy.getByTestID('data-explorer--header').click()
 
       cy.get('.time-machine-queries--new').click()
@@ -697,6 +708,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('raw-data--toggle').click()
         cy.getByTestID('raw-data-table').should('exist')
         cy.getByTestID('raw-data--toggle').click()
+        cy.getByTestID('giraffe-axes').should('exist')
       })
 
       it('can set min or max y-axis values', () => {
@@ -725,6 +737,56 @@ describe('DataExplorer', () => {
           .clear()
           .blur()
         cy.getByTestID('form--element-error').should('not.exist')
+      })
+
+      it('can set x-axis and y-axis values', () => {
+        // build the query to return data from beforeEach
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+        cy.getByTestID('cog-cell--button').click()
+
+        // Check stop
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_stop').click()
+        cy.getByTestID('dropdown-x').contains('_stop')
+
+        //check Value
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_value').click()
+        cy.getByTestID('dropdown-x').contains('_value')
+
+        //check start
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_start').click()
+        cy.getByTestID('dropdown-x').contains('_start')
+
+        //check time
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_time').click()
+        cy.getByTestID('dropdown-x').contains('_time')
+
+        // Check stop
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_stop').click()
+        cy.getByTestID('dropdown-y').contains('_stop')
+
+        //check Value
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_value').click()
+        cy.getByTestID('dropdown-y').contains('_value')
+
+        //check start
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_start').click()
+        cy.getByTestID('dropdown-y').contains('_start')
+
+        //check time
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_time').click()
+        cy.getByTestID('dropdown-y').contains('_time')
       })
 
       it('can view table data & sort values numerically', () => {
@@ -790,12 +852,12 @@ describe('DataExplorer', () => {
         cy.getByTestID('raw-data--toggle').click()
 
         cy.get('.time-machine--view').within(() => {
-          cy.get('.cf-dapper-scrollbars--thumb-y') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+          cy.getByTestID('rawdata-table--scrollbar--thumb-y')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientY: 5000})
             .trigger('mouseup')
 
-          cy.get('.cf-dapper-scrollbars--thumb-x') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+          cy.getByTestID('rawdata-table--scrollbar--thumb-x')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientX: 1000})
             .trigger('mouseup')
@@ -819,7 +881,7 @@ describe('DataExplorer', () => {
         cy.getByTestID(`view-type--table`).click()
 
         cy.get('.time-machine--view').within(() => {
-          cy.get('.cf-dapper-scrollbars--thumb-y') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+          cy.getByTestID('dapper-scrollbars--thumb-y')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientY: 5000})
             .trigger('mouseup')

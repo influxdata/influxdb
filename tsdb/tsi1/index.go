@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/tsdb"
@@ -29,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 )
 
 // ErrCompactionInterrupted is returned if compactions are disabled or
@@ -115,13 +117,14 @@ type Index struct {
 	metricsEnabled   bool
 
 	// The following may be set when initializing an Index.
-	path               string      // Root directory of the index partitions.
-	disableCompactions bool        // Initially disables compactions on the index.
-	maxLogFileSize     int64       // Maximum size of a LogFile before it's compacted.
-	logfileBufferSize  int         // The size of the buffer used by the LogFile.
-	disableFsync       bool        // Disables flushing buffers and fsyning files. Used when working with indexes offline.
-	logger             *zap.Logger // Index's logger.
-	config             Config      // The index configuration
+	path               string        // Root directory of the index partitions.
+	disableCompactions bool          // Initially disables compactions on the index.
+	maxLogFileSize     int64         // Maximum size of a LogFile before it's compacted.
+	logfileBufferSize  int           // The size of the buffer used by the LogFile.
+	disableFsync       bool          // Disables flushing buffers and fsyning files. Used when working with indexes offline.
+	pageFaultLimiter   *rate.Limiter // Limits page faults by the index.
+	logger             *zap.Logger   // Index's logger.
+	config             Config        // The index configuration
 
 	// The following must be set when initializing an Index.
 	sfile *seriesfile.SeriesFile // series lookup file
@@ -160,6 +163,11 @@ func NewIndex(sfile *seriesfile.SeriesFile, c Config, options ...IndexOption) *I
 	}
 
 	return idx
+}
+
+// WithPageFaultLimiter sets a limiter to restrict the number of page faults.
+func (i *Index) WithPageFaultLimiter(limiter *rate.Limiter) {
+	i.pageFaultLimiter = limiter
 }
 
 // SetDefaultMetricLabels sets the default labels on the trackers.
@@ -253,6 +261,7 @@ func (i *Index) Open(ctx context.Context) error {
 		p.StatsTTL = i.StatsTTL
 		p.nosync = i.disableFsync
 		p.logbufferSize = i.logfileBufferSize
+		p.pageFaultLimiter = i.pageFaultLimiter
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
 
 		// Each of the trackers needs to be given slightly different default
@@ -1685,4 +1694,12 @@ func (itr *filterUndeletedSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 type DropSeriesItem struct {
 	SeriesID tsdb.SeriesID
 	Key      []byte
+}
+
+// wait rate limits page faults to the underlying data. Skipped if limiter is not set.
+func wait(limiter *mincore.Limiter, b []byte) error {
+	if limiter == nil {
+		return nil
+	}
+	return limiter.WaitRange(context.Background(), b)
 }

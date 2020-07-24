@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 )
 
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@array_cursor.gen.go.tmpldata array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
@@ -271,6 +272,10 @@ func (e *Engine) WithCurrentGenerationFunc(fn func() int) {
 
 func (e *Engine) WithFileStoreObserver(obs FileStoreObserver) {
 	e.FileStore.WithObserver(obs)
+}
+
+func (e *Engine) WithPageFaultLimiter(limiter *rate.Limiter) {
+	e.FileStore.WithPageFaultLimiter(limiter)
 }
 
 func (e *Engine) WithCompactionPlanner(planner CompactionPlanner) {

@@ -4,6 +4,7 @@ import './style.scss'
 
 register({
   type: 'visualization',
+  family: 'passThrough',
   component: View,
   button: 'Visualization',
   initial: {

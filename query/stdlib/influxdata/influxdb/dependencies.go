@@ -26,6 +26,9 @@ func (d StorageDependencies) Inject(ctx context.Context) context.Context {
 }
 
 func GetStorageDependencies(ctx context.Context) StorageDependencies {
+	if ctx.Value(dependenciesKey) == nil {
+		return StorageDependencies{}
+	}
 	return ctx.Value(dependenciesKey).(StorageDependencies)
 }
 

@@ -6,18 +6,17 @@ interface Props {
   title: string
   focus: boolean
   visible: boolean
-  index: number
-  onClick: (index: number) => void
+  onClick: () => void
 }
 
-const MiniMapItem: FC<Props> = ({title, focus, onClick, index, visible}) => {
+const MiniMapItem: FC<Props> = ({title, focus, onClick, visible}) => {
   const className = classnames('notebook-minimap--item', {
     'notebook-minimap--item__focus': focus,
     'notebook-minimap--item__hidden': !visible,
   })
 
   const handleClick = (): void => {
-    onClick(index)
+    onClick()
   }
 
   return (

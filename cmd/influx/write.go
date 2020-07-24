@@ -44,7 +44,6 @@ var writeFlags writeFlagsType
 
 func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("write", fluxWriteF, true)
-	enforceFlagValidation(cmd)
 	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Short = "Write points to InfluxDB"
 	cmd.Long = `Write data to InfluxDB via stdin, or add an entire file specified with the -f flag`

@@ -1,6 +1,9 @@
 // Libraries
 import React, {FC} from 'react'
 
+// Components
+import AddButtons from 'src/notebooks/components/AddButtons'
+
 // Styles
 import 'src/notebooks/components/EmptyPipeList.scss'
 
@@ -14,8 +17,11 @@ const EmptyPipeList: FC = () => {
         alert on your data
       </p>
       <p>
-        Get started by <strong>Adding a Cell</strong> from the top left menu
+        Get started by <strong>Adding a Cell</strong> below
       </p>
+      <div className="notebook-empty--buttons">
+        <AddButtons eventName="Add from empty" />
+      </div>
     </div>
   )
 }

@@ -31,6 +31,7 @@ interface HydrateVarsOptions {
   selections?: ValueSelections
   fetcher?: ValueFetcher
   skipCache?: boolean
+  controller?: AbortController
 }
 
 export interface EventedCancelBox<T> extends CancelBox<T> {
@@ -368,7 +369,8 @@ const hydrateVarsHelper = async (
     assignments,
     null,
     '',
-    options.skipCache
+    options.skipCache,
+    options.controller
   )
 
   node.cancel = request.cancel

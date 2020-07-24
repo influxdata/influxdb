@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useMemo} from 'react'
+import React, {FC, useMemo, useContext} from 'react'
 
 // Types
 import {PipeProp} from 'src/notebooks'
@@ -7,11 +7,13 @@ import {PipeProp} from 'src/notebooks'
 // Components
 import FluxMonacoEditor from 'src/shared/components/FluxMonacoEditor'
 import Results from 'src/notebooks/pipes/Query/Results'
+import {PipeContext} from 'src/notebooks/context/pipe'
 
 // Styles
 import 'src/notebooks/pipes/Query/style.scss'
 
-const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
+const Query: FC<PipeProp> = ({Context}) => {
+  const {data, update, results} = useContext(PipeContext)
   const {queries, activeQuery} = data
   const query = queries[activeQuery]
 
@@ -22,7 +24,7 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
       text,
     }
 
-    onUpdate({queries: _queries})
+    update({queries: _queries})
   }
 
   return useMemo(
@@ -34,7 +36,7 @@ const Query: FC<PipeProp> = ({data, onUpdate, Context, results}) => {
           onSubmitScript={() => {}}
           autogrow
         />
-        <Results results={results} onUpdate={onUpdate} data={data} />
+        <Results />
       </Context>
     ),
     [query.text, results, data.panelVisibility, data.panelHeight] // eslint-disable-line react-hooks/exhaustive-deps

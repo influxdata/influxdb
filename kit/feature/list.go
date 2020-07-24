@@ -254,6 +254,34 @@ func UseUserPermission() BoolFlag {
 	return useUserPermission
 }
 
+var mergeFiltersRule = MakeBoolFlag(
+	"Merged Filters Rule",
+	"mergeFiltersRule",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// MergedFiltersRule - Create one filter combining multiple single return statements
+func MergedFiltersRule() BoolFlag {
+	return mergeFiltersRule
+}
+
+var notebooks = MakeBoolFlag(
+	"Notebooks",
+	"notebooks",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// Notebooks - Determine if the notebook feature's route and navbar icon are visible to the user
+func Notebooks() BoolFlag {
+	return notebooks
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -273,6 +301,8 @@ var all = []Flag{
 	urmFreeTasks,
 	simpleTaskOptionsExtraction,
 	useUserPermission,
+	mergeFiltersRule,
+	notebooks,
 }
 
 var byKey = map[string]Flag{
@@ -294,4 +324,6 @@ var byKey = map[string]Flag{
 	"urmFreeTasks":                  urmFreeTasks,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"useUserPermission":             useUserPermission,
+	"mergeFiltersRule":              mergeFiltersRule,
+	"notebooks":                     notebooks,
 }

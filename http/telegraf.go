@@ -300,27 +300,6 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*influxdb
 	return f, err
 }
 
-func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*influxdb.TelegrafConfig, error) {
-	tc := new(influxdb.TelegrafConfig)
-	if err := json.NewDecoder(r.Body).Decode(tc); err != nil {
-		return nil, err
-	}
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
-	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "url missing id",
-		}
-	}
-	i := new(influxdb.ID)
-	if err := i.DecodeFromString(id); err != nil {
-		return nil, err
-	}
-	tc.ID = *i
-	return tc, nil
-}
-
 // handlePostTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
 func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -348,6 +327,27 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 		logEncodingError(h.log, r, err)
 		return
 	}
+}
+
+func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*influxdb.TelegrafConfig, error) {
+	tc := new(influxdb.TelegrafConfig)
+	if err := json.NewDecoder(r.Body).Decode(tc); err != nil {
+		return nil, err
+	}
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "url missing id",
+		}
+	}
+	i := new(influxdb.ID)
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+	tc.ID = *i
+	return tc, nil
 }
 
 // handlePutTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.

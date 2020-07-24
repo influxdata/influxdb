@@ -34,6 +34,9 @@ func init() {
 		SwitchFillImplRule{},
 		SwitchSchemaMutationImplRule{},
 	)
+	plan.RegisterLogicalRules(
+		MergeFiltersRule{},
+	)
 }
 
 type FromStorageRule struct{}
@@ -676,17 +679,10 @@ func (rule PushDownWindowAggregateRule) Pattern() plan.Pattern {
 }
 
 func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
-	// Check Capabilities
-	reader := GetStorageDependencies(ctx).FromDeps.Reader
-	windowAggregateReader, ok := reader.(query.WindowAggregateReader)
+	caps, ok := capabilities(ctx)
 	if !ok {
 		return false
 	}
-	caps := windowAggregateReader.GetWindowAggregateCapability(ctx)
-	if caps == nil {
-		return false
-	}
-
 	// Check the aggregate function spec. Require the operation on _value
 	// and check the feature flag associated with the aggregate function.
 	switch fnNode.Kind() {
@@ -754,7 +750,8 @@ func isPushableWindow(windowSpec *universe.WindowProcedureSpec) bool {
 	// every and period must be equal
 	// every.months must be zero
 	// every.isNegative must be false
-	// offset: must be zero
+	// offset.months must be zero
+	// offset.isNegative must be false
 	// timeColumn: must be "_time"
 	// startColumn: must be "_start"
 	// stopColumn: must be "_stop"
@@ -764,10 +761,21 @@ func isPushableWindow(windowSpec *universe.WindowProcedureSpec) bool {
 		window.Every.Months() == 0 &&
 		!window.Every.IsNegative() &&
 		!window.Every.IsZero() &&
-		window.Offset.IsZero() &&
+		window.Offset.Months() == 0 &&
+		!window.Offset.IsNegative() &&
 		windowSpec.TimeColumn == "_time" &&
 		windowSpec.StartColumn == "_start" &&
 		windowSpec.StopColumn == "_stop"
+}
+
+func capabilities(ctx context.Context) (query.WindowAggregateCapability, bool) {
+	reader := GetStorageDependencies(ctx).FromDeps.Reader
+	windowAggregateReader, ok := reader.(query.WindowAggregateReader)
+	if !ok {
+		return nil, false
+	}
+	caps := windowAggregateReader.GetWindowAggregateCapability(ctx)
+	return caps, caps != nil
 }
 
 func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
@@ -785,11 +793,16 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		return pn, false, nil
 	}
 
+	if caps, ok := capabilities(ctx); !ok || windowSpec.Window.Offset.IsPositive() && !caps.HaveOffset() {
+		return pn, false, nil
+	}
+
 	// Rule passes.
 	return plan.CreatePhysicalNode("ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       windowSpec.Window.Every.Nanoseconds(),
+		Offset:            windowSpec.Window.Offset.Nanoseconds(),
 		CreateEmpty:       windowSpec.CreateEmpty,
 	}), true, nil
 }
@@ -932,6 +945,10 @@ func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.
 		return pn, false, nil
 	}
 
+	if caps, ok := capabilities(ctx); !ok || windowSpec.Window.Offset.IsPositive() && !caps.HaveOffset() {
+		return pn, false, nil
+	}
+
 	fromNode := windowNode.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadGroupPhysSpec)
 
@@ -949,6 +966,7 @@ func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.
 		ReadRangePhysSpec: *fromSpec.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       windowSpec.Window.Every.Nanoseconds(),
+		Offset:            windowSpec.Window.Offset.Nanoseconds(),
 		CreateEmpty:       windowSpec.CreateEmpty,
 	})
 
@@ -1166,4 +1184,21 @@ func asSchemaMutationProcedureSpec(spec plan.ProcedureSpec) *universe.SchemaMuta
 		spec = s.ProcedureSpec
 	}
 	return spec.(*universe.SchemaMutationProcedureSpec)
+}
+
+type MergeFiltersRule struct{}
+
+func (MergeFiltersRule) Name() string {
+	return universe.MergeFiltersRule{}.Name()
+}
+
+func (MergeFiltersRule) Pattern() plan.Pattern {
+	return universe.MergeFiltersRule{}.Pattern()
+}
+
+func (r MergeFiltersRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	if feature.MergedFiltersRule().Enabled(ctx) {
+		return universe.MergeFiltersRule{}.Rewrite(ctx, pn)
+	}
+	return pn, false, nil
 }

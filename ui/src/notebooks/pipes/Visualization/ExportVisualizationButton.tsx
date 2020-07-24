@@ -13,7 +13,7 @@ import {
 } from '@influxdata/clockface'
 
 // Utils
-import {event} from 'src/notebooks/shared/event'
+import {event} from 'src/cloud/utils/reporting'
 
 interface Props {
   disabled: boolean
@@ -45,6 +45,7 @@ const ExportVisualizationButton: FC<Props> = ({disabled, children}) => {
         titleText="Save to Dashboard"
         status={status}
         style={buttonStyle}
+        className="flows-export-visualization-button"
       />
       <Popover
         triggerRef={triggerRef}

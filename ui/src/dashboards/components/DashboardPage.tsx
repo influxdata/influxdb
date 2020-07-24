@@ -19,9 +19,9 @@ import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {resetQueryCache} from 'src/shared/apis/queryCache'
 
 // Selectors & Actions
-import {resetCachedQueryResults} from 'src/queryCache/actions'
 import {getByID} from 'src/resources/selectors'
 
 // Types
@@ -46,8 +46,12 @@ const dashRoute = `/${ORGS}/${ORG_ID}/${DASHBOARDS}/${DASHBOARD_ID}`
 
 @ErrorHandling
 class DashboardPage extends Component<Props> {
+  public componentDidmount() {
+    resetQueryCache()
+  }
+
   public componentWillUnmount() {
-    this.props.resetCachedQueryResults()
+    resetQueryCache()
   }
 
   public render() {
@@ -62,7 +66,7 @@ class DashboardPage extends Component<Props> {
                 autoRefresh={autoRefresh}
                 onManualRefresh={onManualRefresh}
               />
-              <RateLimitAlert className="dashboard--rate-alert" />
+              <RateLimitAlert alertOnly={true} />
               <VariablesControlBar />
               <DashboardComponent manualRefresh={manualRefresh} />
             </HoverTimeProvider>
@@ -101,10 +105,6 @@ const mstp = (state: AppState) => {
   }
 }
 
-const mdtp = {
-  resetCachedQueryResults: resetCachedQueryResults,
-}
-
-const connector = connect(mstp, mdtp)
+const connector = connect(mstp, null)
 
 export default connector(ManualRefresh<OwnProps>(DashboardPage))

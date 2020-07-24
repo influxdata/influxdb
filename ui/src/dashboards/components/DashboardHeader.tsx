@@ -26,7 +26,8 @@ import {
 } from 'src/dashboards/actions/ranges'
 
 // Utils
-import {fireDashboardViewedEvent} from 'src/shared/utils/analytics'
+import {event} from 'src/cloud/utils/reporting'
+import {resetQueryCache} from 'src/shared/apis/queryCache'
 
 // Selectors
 import {getTimeRange} from 'src/dashboards/selectors'
@@ -34,6 +35,7 @@ import {getByID} from 'src/resources/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
 // Constants
+import {DemoDataDashboardNames} from 'src/cloud/constants'
 import {
   DEFAULT_DASHBOARD_NAME,
   DASHBOARD_NAME_MAX_LENGTH,
@@ -72,9 +74,12 @@ const DashboardHeader: FC<Props> = ({
   history,
   org,
 }) => {
+  const demoDataset = DemoDataDashboardNames[dashboard.name]
   useEffect(() => {
-    fireDashboardViewedEvent(dashboard.name)
-  }, [dashboard.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (demoDataset) {
+      event('demoData_dashboardViewed', {demo_dataset: demoDataset})
+    }
+  }, [dashboard.id, demoDataset])
 
   const handleAddNote = () => {
     history.push(`/orgs/${org.id}/dashboards/${dashboard.id}/notes/new`)
@@ -121,6 +126,12 @@ const DashboardHeader: FC<Props> = ({
     }
   }
 
+  const resetCacheAndRefresh = (): void => {
+    // We want to invalidate the existing cache when a user manually refreshes the dashboard
+    resetQueryCache()
+    onManualRefresh()
+  }
+
   return (
     <>
       <Page.Header fullWidth={true}>
@@ -165,7 +176,7 @@ const DashboardHeader: FC<Props> = ({
           <TimeZoneDropdown />
           <AutoRefreshDropdown
             onChoose={handleChooseAutoRefresh}
-            onManualRefresh={onManualRefresh}
+            onManualRefresh={resetCacheAndRefresh}
             selected={autoRefresh}
           />
           <TimeRangeDropdown

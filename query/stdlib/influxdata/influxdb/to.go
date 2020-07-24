@@ -241,8 +241,15 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 	}
 	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
-	deps := GetStorageDependencies(a.Context()).ToDeps
-	t, err := NewToTransformation(a.Context(), d, cache, s, deps)
+	deps := GetStorageDependencies(a.Context())
+	if deps == (StorageDependencies{}) {
+		return nil, nil, &flux.Error{
+			Code: codes.Unimplemented,
+			Msg:  "cannot return storage dependencies; storage dependencies are unimplemented",
+		}
+	}
+	toDeps := deps.ToDeps
+	t, err := NewToTransformation(a.Context(), d, cache, s, toDeps)
 	if err != nil {
 		return nil, nil, err
 	}

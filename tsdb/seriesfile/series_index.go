@@ -8,10 +8,12 @@ import (
 	"os"
 
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"github.com/influxdata/influxdb/v2/pkg/mmap"
 	"github.com/influxdata/influxdb/v2/pkg/rhh"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -63,6 +65,8 @@ type SeriesIndex struct {
 	keyIDMap    *rhh.HashMap
 	idOffsetMap map[tsdb.SeriesID]int64
 	tombstones  map[tsdb.SeriesID]struct{}
+
+	limiter *mincore.Limiter // Limits page faults by the partition
 }
 
 func NewSeriesIndex(path string) *SeriesIndex {
@@ -122,6 +126,12 @@ func (idx *SeriesIndex) Close() (err error) {
 	idx.idOffsetMap = nil
 	idx.tombstones = nil
 	return err
+}
+
+// SetPageFaultLimiter sets the limiter used for rate limiting page faults.
+// Must be called after Open().
+func (idx *SeriesIndex) SetPageFaultLimiter(limiter *rate.Limiter) {
+	idx.limiter = mincore.NewLimiter(limiter, idx.data)
 }
 
 // Recover rebuilds the in-memory index for all new entries.
@@ -247,6 +257,7 @@ func (idx *SeriesIndex) FindIDBySeriesKey(segments []*SeriesSegment, key []byte)
 	for d, pos := int64(0), hash&idx.mask; ; d, pos = d+1, (pos+1)&idx.mask {
 		elem := idx.keyIDData[(pos * SeriesIndexElemSize):]
 		elemOffset := int64(binary.BigEndian.Uint64(elem[:SeriesOffsetSize]))
+		_ = wait(idx.limiter, elem[:SeriesOffsetSize]) // elem size is two uint64s
 
 		if elemOffset == 0 {
 			return tsdb.SeriesIDTyped{}
@@ -298,6 +309,7 @@ func (idx *SeriesIndex) FindOffsetByID(id tsdb.SeriesID) int64 {
 	for d, pos := int64(0), hash&idx.mask; ; d, pos = d+1, (pos+1)&idx.mask {
 		elem := idx.idOffsetData[(pos * SeriesIndexElemSize):]
 		elemID := tsdb.NewSeriesID(binary.BigEndian.Uint64(elem[:SeriesIDSize]))
+		_ = wait(idx.limiter, elem[:SeriesIDSize])
 
 		if elemID == id {
 			return int64(binary.BigEndian.Uint64(elem[SeriesIDSize:]))

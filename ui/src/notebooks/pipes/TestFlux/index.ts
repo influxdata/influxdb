@@ -3,6 +3,7 @@ import View from './view'
 
 register({
   type: 'test',
+  family: 'test',
   component: View,
   priority: -1,
   featureFlag: 'notebook-panel--test-flux',
