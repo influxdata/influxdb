@@ -235,7 +235,7 @@ export const executeQueries = (abortController?: AbortController) => async (
       if (isCurrentPageDashboard(state)) {
         // reset any existing matching query in the cache
         resetQueryCacheByQuery(text)
-        return getCachedResultsOrRunQuery(orgID, text, state, abortController)
+        return getCachedResultsOrRunQuery(orgID, text, state)
       }
       return runQuery(orgID, text, extern, abortController)
     })
