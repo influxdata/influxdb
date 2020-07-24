@@ -37,6 +37,20 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 		return &s
 	}
 
+	newStackEvent := func(id influxdb.ID, k pkger.Kind, metaName string, associations ...pkger.RespStackResourceAssoc) pkger.RespStackResource {
+		if associations == nil {
+			associations = []pkger.RespStackResourceAssoc{}
+		}
+		return pkger.RespStackResource{
+			APIVersion:   pkger.APIVersion,
+			ID:           id.String(),
+			Kind:         k,
+			MetaName:     metaName,
+			Associations: associations,
+			Links:        stackResLinks(string(k.ResourceType()), id),
+		}
+	}
+
 	t.Run("create a stack", func(t *testing.T) {
 		t.Run("should successfully return with valid req body", func(t *testing.T) {
 			svc := &fakeSVC{
@@ -351,6 +365,426 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 				t.Run(tt.name, fn)
 			}
 		})
+
+		t.Run("should provide all resource links for each stack resource collection", func(t *testing.T) {
+			const expectedOrgID influxdb.ID = 3
+
+			tests := []struct {
+				name          string
+				stub          pkger.Stack
+				expectedStack pkger.RespStack
+			}{
+				{
+					name: "for stacks with associated buckets",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindBucket,
+									MetaName:   "buck-1",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindBucket, "buck-1"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindBucket, "buck-1"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated checks",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindCheckThreshold,
+									MetaName:   "check-thresh",
+								},
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         2,
+									Kind:       pkger.KindCheckDeadman,
+									MetaName:   "check-deadman",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindCheckThreshold, "check-thresh"),
+								newStackEvent(2, pkger.KindCheckDeadman, "check-deadman"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindCheckThreshold, "check-thresh"),
+									newStackEvent(2, pkger.KindCheckDeadman, "check-deadman"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated dashboards",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindDashboard,
+									MetaName:   "dash",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindDashboard, "dash"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindDashboard, "dash"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated labels",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindLabel,
+									MetaName:   "label",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindLabel, "label"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindLabel, "label"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated notification endpoints",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindNotificationEndpoint,
+									MetaName:   "end-1",
+								},
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         2,
+									Kind:       pkger.KindNotificationEndpointHTTP,
+									MetaName:   "end-2",
+								},
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         3,
+									Kind:       pkger.KindNotificationEndpointPagerDuty,
+									MetaName:   "end-3",
+								},
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         4,
+									Kind:       pkger.KindNotificationEndpointSlack,
+									MetaName:   "end-4",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindNotificationEndpoint, "end-1"),
+								newStackEvent(2, pkger.KindNotificationEndpointHTTP, "end-2"),
+								newStackEvent(3, pkger.KindNotificationEndpointPagerDuty, "end-3"),
+								newStackEvent(4, pkger.KindNotificationEndpointSlack, "end-4"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindNotificationEndpoint, "end-1"),
+									newStackEvent(2, pkger.KindNotificationEndpointHTTP, "end-2"),
+									newStackEvent(3, pkger.KindNotificationEndpointPagerDuty, "end-3"),
+									newStackEvent(4, pkger.KindNotificationEndpointSlack, "end-4"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated notification rules",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindNotificationRule,
+									MetaName:   "rule-1",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindNotificationRule, "rule-1"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindNotificationRule, "rule-1"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated tasks",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindTask,
+									MetaName:   "task-1",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindTask, "task-1"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindTask, "task-1"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated telegraf configs",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindTelegraf,
+									MetaName:   "tele-1",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindTelegraf, "tele-1"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindTelegraf, "tele-1"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated variables",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindVariable,
+									MetaName:   "var-1",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindVariable, "var-1"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindVariable, "var-1"),
+								},
+							},
+						},
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					svc := &fakeSVC{
+						listStacksFn: func(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
+							return []pkger.Stack{tt.stub}, nil
+						},
+					}
+					pkgHandler := pkger.NewHTTPServerStacks(zap.NewNop(), svc)
+					svr := newMountedHandler(pkgHandler, 1)
+
+					testttp.
+						Get(t, "/api/v2/stacks?orgID="+expectedOrgID.String()).
+						Do(svr).
+						ExpectStatus(http.StatusOK).
+						ExpectBody(func(buf *bytes.Buffer) {
+							var resp pkger.RespListStacks
+							decodeBody(t, buf, &resp)
+
+							require.Len(t, resp.Stacks, 1)
+							assert.Equal(t, tt.expectedStack, resp.Stacks[0])
+						})
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
 	})
 
 	t.Run("read a stack", func(t *testing.T) {
@@ -394,13 +828,7 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 							Sources:     []string{"threeve"},
 							URLs:        []string{"http://example.com"},
 							Resources: []pkger.RespStackResource{
-								{
-									APIVersion:   pkger.APIVersion,
-									ID:           influxdb.ID(3).String(),
-									Kind:         pkger.KindBucket,
-									MetaName:     "rucketeer",
-									Associations: []pkger.RespStackResourceAssoc{},
-								},
+								newStackEvent(3, pkger.KindBucket, "rucketeer"),
 							},
 						},
 						Events: []pkger.RespStackEvent{
@@ -411,13 +839,7 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 								Sources:     []string{"threeve"},
 								URLs:        []string{"http://example.com"},
 								Resources: []pkger.RespStackResource{
-									{
-										APIVersion:   pkger.APIVersion,
-										ID:           influxdb.ID(3).String(),
-										Kind:         pkger.KindBucket,
-										MetaName:     "rucketeer",
-										Associations: []pkger.RespStackResourceAssoc{},
-									},
+									newStackEvent(3, pkger.KindBucket, "rucketeer"),
 								},
 							},
 						},
@@ -480,6 +902,350 @@ func TestPkgerHTTPServerStacks(t *testing.T) {
 								Sources:   []string{},
 								URLs:      []string{},
 								Resources: []pkger.RespStackResource{},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated checks",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindCheckThreshold,
+									MetaName:   "check-thresh",
+								},
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         2,
+									Kind:       pkger.KindCheckDeadman,
+									MetaName:   "check-deadman",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindCheckThreshold, "check-thresh"),
+								newStackEvent(2, pkger.KindCheckDeadman, "check-deadman"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindCheckThreshold, "check-thresh"),
+									newStackEvent(2, pkger.KindCheckDeadman, "check-deadman"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated dashboards",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindDashboard,
+									MetaName:   "dash",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindDashboard, "dash"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindDashboard, "dash"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated labels",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindLabel,
+									MetaName:   "label",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindLabel, "label"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindLabel, "label"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated notification endpoints",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindNotificationEndpoint,
+									MetaName:   "end-1",
+								},
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         2,
+									Kind:       pkger.KindNotificationEndpointHTTP,
+									MetaName:   "end-2",
+								},
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         3,
+									Kind:       pkger.KindNotificationEndpointPagerDuty,
+									MetaName:   "end-3",
+								},
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         4,
+									Kind:       pkger.KindNotificationEndpointSlack,
+									MetaName:   "end-4",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindNotificationEndpoint, "end-1"),
+								newStackEvent(2, pkger.KindNotificationEndpointHTTP, "end-2"),
+								newStackEvent(3, pkger.KindNotificationEndpointPagerDuty, "end-3"),
+								newStackEvent(4, pkger.KindNotificationEndpointSlack, "end-4"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindNotificationEndpoint, "end-1"),
+									newStackEvent(2, pkger.KindNotificationEndpointHTTP, "end-2"),
+									newStackEvent(3, pkger.KindNotificationEndpointPagerDuty, "end-3"),
+									newStackEvent(4, pkger.KindNotificationEndpointSlack, "end-4"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated notification rules",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindNotificationRule,
+									MetaName:   "rule-1",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindNotificationRule, "rule-1"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindNotificationRule, "rule-1"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated tasks",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindTask,
+									MetaName:   "task-1",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindTask, "task-1"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindTask, "task-1"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated telegraf configs",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindTelegraf,
+									MetaName:   "tele-1",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindTelegraf, "tele-1"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindTelegraf, "tele-1"),
+								},
+							},
+						},
+					},
+				},
+				{
+					name: "for stacks with associated variables",
+					stub: pkger.Stack{
+						ID:    1,
+						OrgID: expectedOrgID,
+						Events: []pkger.StackEvent{{
+							Resources: []pkger.StackResource{
+								{
+									APIVersion: pkger.APIVersion,
+									ID:         1,
+									Kind:       pkger.KindVariable,
+									MetaName:   "var-1",
+								},
+							},
+						}},
+					},
+					expectedStack: pkger.RespStack{
+						ID:    influxdb.ID(1).String(),
+						OrgID: expectedOrgID.String(),
+						RespStackEvent: pkger.RespStackEvent{
+							EventType: pkger.StackEventCreate.String(),
+							Sources:   []string{},
+							URLs:      []string{},
+							Resources: []pkger.RespStackResource{
+								newStackEvent(1, pkger.KindVariable, "var-1"),
+							},
+						},
+						Events: []pkger.RespStackEvent{
+							{
+								EventType: pkger.StackEventCreate.String(),
+								Sources:   []string{},
+								URLs:      []string{},
+								Resources: []pkger.RespStackResource{
+									newStackEvent(1, pkger.KindVariable, "var-1"),
+								},
 							},
 						},
 					},
@@ -841,4 +1607,10 @@ func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...
 		panic("not implemented")
 	}
 	return f.applyFn(ctx, orgID, userID, opts...)
+}
+
+func stackResLinks(resource string, id influxdb.ID) pkger.RespStackResourceLinks {
+	return pkger.RespStackResourceLinks{
+		Self: fmt.Sprintf("/api/v2/%s/%s", resource, id),
+	}
 }

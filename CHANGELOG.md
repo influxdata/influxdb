@@ -4,6 +4,10 @@
 
 1. [19066](https://github.com/influxdata/influxdb/pull/19066): Drop deprecated /packages route tree
 
+### Features
+
+1. [19075](https://github.com/influxdata/influxdb/pull/19075): Aadd resource links to a stack's resources from public HTTP API list/read calls
+
 ### Bug Fixes
 
 1. [19043](https://github.com/influxdata/influxdb/pull/19043): Enforce all influx CLI flag args are valid

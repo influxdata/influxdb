@@ -8504,6 +8504,11 @@ components:
                             $ref: "#/components/schemas/TemplateKind"
                           metaName:
                             type: string
+                    links:
+                      type: object
+                      properties:
+                        self:
+                          type: string
               urls:
                 type: array
                 items:
