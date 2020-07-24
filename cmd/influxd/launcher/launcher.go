@@ -737,7 +737,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	deps, err := influxdb.NewDependencies(
 		storageflux.NewReader(readservice.NewStore(m.engine)),
 		m.engine,
-		authorizer.NewBucketService(ts.BucketService, ts.UserResourceMappingService),
+		authorizer.NewBucketService(ts.BucketService),
 		authorizer.NewOrgService(ts.OrganizationService),
 		authorizer.NewSecretService(secretSvc),
 		nil,
@@ -828,7 +828,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 	}
 
-	dbrpSvc := dbrp.NewService(ctx, authorizer.NewBucketService(ts.BucketService, ts.UserResourceMappingService), m.kvStore)
+	dbrpSvc := dbrp.NewService(ctx, authorizer.NewBucketService(ts.BucketService), m.kvStore)
 	dbrpSvc = dbrp.NewAuthorizedService(dbrpSvc)
 
 	var checkSvc platform.CheckService
@@ -1029,7 +1029,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgSVC = pkger.NewService(
 			pkger.WithLogger(pkgerLogger),
 			pkger.WithStore(pkger.NewStoreKV(m.kvStore)),
-			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService, b.UserResourceMappingService)),
+			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
 			pkger.WithCheckSVC(authorizer.NewCheckService(b.CheckService, authedUrmSVC, authedOrgSVC)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
 			pkger.WithLabelSVC(authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)),
