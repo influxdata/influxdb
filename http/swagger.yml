@@ -2449,7 +2449,7 @@ paths:
               - "UpdatedAt"
         - in: query
           name: id
-          description: List of dashboard IDs to return. If both `id and `owner` are specified, only `id` is used.
+          description: List of dashboard IDs to return. If both `id` and `owner` are specified, only `id` is used.
           schema:
             type: array
             items:
