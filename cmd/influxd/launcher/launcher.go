@@ -1047,12 +1047,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgSVC = pkger.MWAuth(authAgent)(pkgSVC)
 	}
 
-	var pkgHTTPServerDeprecated *pkger.HTTPServerPackages
-	{
-		pkgServerLogger := m.log.With(zap.String("handler", "pkger"))
-		pkgHTTPServerDeprecated = pkger.NewHTTPServerPackages(pkgServerLogger, pkgSVC)
-	}
-
 	var stacksHTTPServer *pkger.HTTPServerStacks
 	{
 		tLogger := m.log.With(zap.String("handler", "stacks"))
@@ -1126,7 +1120,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	{
 		platformHandler := http.NewPlatformHandler(m.apibackend,
-			http.WithResourceHandler(pkgHTTPServerDeprecated),
 			http.WithResourceHandler(stacksHTTPServer),
 			http.WithResourceHandler(templatesHTTPServer),
 			http.WithResourceHandler(onboardHTTPServer),
