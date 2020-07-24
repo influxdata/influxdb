@@ -110,6 +110,7 @@ type partitionMetrics struct {
 	Series                *prometheus.GaugeVec     // Number of series.
 	Measurements          *prometheus.GaugeVec     // Number of measurements.
 	DiskSize              *prometheus.GaugeVec     // Size occupied on disk.
+	PageFaults            *prometheus.CounterVec   // Number of page faults caused by index partition.
 
 	// This metrics has a "type" = {index, log}
 	FilesTotal *prometheus.GaugeVec // files on disk.
@@ -188,6 +189,12 @@ func newPartitionMetrics(labels prometheus.Labels) *partitionMetrics {
 			Name:      "disk_bytes",
 			Help:      "Number of bytes TSI partition is using on disk.",
 		}, names),
+		PageFaults: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: partitionSubsystem,
+			Name:      "page_faults",
+			Help:      "Number of page faults occurred in the partition.",
+		}, names),
 		CompactionsActive: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: partitionSubsystem,
@@ -221,6 +228,7 @@ func (m *partitionMetrics) PrometheusCollectors() []prometheus.Collector {
 		m.Measurements,
 		m.FilesTotal,
 		m.DiskSize,
+		m.PageFaults,
 		m.CompactionsActive,
 		m.CompactionDuration,
 		m.Compactions,

@@ -312,6 +312,9 @@ func (p *Partition) openIndexFile(path string) (*IndexFile, error) {
 		return nil, err
 	}
 	f.pageFaultLimiter = mincore.NewLimiter(p.pageFaultLimiter, f.data)
+	if f.pageFaultLimiter != nil {
+		f.pageFaultLimiter.OnPageFault = p.tracker.AddPageFaults
+	}
 	return f, nil
 }
 
@@ -1100,6 +1103,9 @@ func (p *Partition) compactToLevel(files []*IndexFile, frefs lifecycle.Reference
 		return
 	}
 	file.pageFaultLimiter = mincore.NewLimiter(p.pageFaultLimiter, file.data)
+	if file.pageFaultLimiter != nil {
+		file.pageFaultLimiter.OnPageFault = p.tracker.AddPageFaults
+	}
 
 	// Obtain lock to swap in index file and write manifest.
 	if err = func() error {
@@ -1268,6 +1274,9 @@ func (p *Partition) compactLogFile(ctx context.Context, logFile *LogFile, interr
 		return
 	}
 	file.pageFaultLimiter = mincore.NewLimiter(p.pageFaultLimiter, file.data)
+	if file.pageFaultLimiter != nil {
+		file.pageFaultLimiter.OnPageFault = p.tracker.AddPageFaults
+	}
 
 	// Obtain lock to swap in index file and write manifest.
 	if err := func() error {
@@ -1515,6 +1524,14 @@ func (t *partitionTracker) SetDiskSize(n uint64) {
 
 	labels := t.Labels()
 	t.metrics.DiskSize.With(labels).Set(float64(n))
+}
+
+// AddPageFaults increases the number of page faults in the partition by n.
+func (t *partitionTracker) AddPageFaults(n int) {
+	if !t.enabled {
+		return
+	}
+	t.metrics.SeriesDropped.With(t.Labels()).Add(float64(n))
 }
 
 // IncActiveCompaction increments the number of active compactions for the provided level.

@@ -179,8 +179,11 @@ func (s *SeriesSegment) CloseForWrite() (err error) {
 
 // SetPageFaultLimiter sets the limiter used for rate limiting page faults.
 // Must be called after Open().
-func (s *SeriesSegment) SetPageFaultLimiter(limiter *rate.Limiter) {
+func (s *SeriesSegment) SetPageFaultLimiter(limiter *rate.Limiter, onPageFault func(int)) {
 	s.limiter = mincore.NewLimiter(limiter, s.data)
+	if s.limiter != nil {
+		s.limiter.OnPageFault = onPageFault
+	}
 }
 
 // Data returns the raw data.

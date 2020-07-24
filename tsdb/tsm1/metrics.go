@@ -253,8 +253,9 @@ func (m *cacheMetrics) PrometheusCollectors() []prometheus.Collector {
 
 // readMetrics are a set of metrics concerned with tracking data engine reads.
 type readMetrics struct {
-	Cursors *prometheus.CounterVec
-	Seeks   *prometheus.CounterVec
+	Cursors    *prometheus.CounterVec
+	Seeks      *prometheus.CounterVec
+	PageFaults *prometheus.CounterVec
 }
 
 // newReadMetrics initialises the prometheus metrics for tracking reads.
@@ -278,6 +279,12 @@ func newReadMetrics(labels prometheus.Labels) *readMetrics {
 			Name:      "seeks",
 			Help:      "Number of tsm locations seeked.",
 		}, names),
+		PageFaults: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: readSubsystem,
+			Name:      "page_faults",
+			Help:      "Number of page faults occurring in TSM.",
+		}, names),
 	}
 }
 
@@ -286,5 +293,6 @@ func (m *readMetrics) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		m.Cursors,
 		m.Seeks,
+		m.PageFaults,
 	}
 }

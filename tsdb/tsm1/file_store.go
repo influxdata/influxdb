@@ -216,8 +216,9 @@ type FileStore struct {
 
 	logger *zap.Logger // Logger to be used for important messages
 
-	tracker *fileTracker
-	purger  *purger
+	tracker     *fileTracker
+	readTracker *readTracker
+	purger      *purger
 
 	currentTempDirID int
 
@@ -678,7 +679,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 			start := time.Now()
 			df, err := NewTSMReader(file,
 				WithMadviseWillNeed(f.tsmMMAPWillNeed),
-				WithTSMReaderPageFaultLimiter(f.pageFaultLimiter),
+				WithTSMReaderPageFaultLimiter(f.pageFaultLimiter, f.readTracker.AddPageFaults),
 				WithTSMReaderLogger(f.logger))
 			f.logger.Info("Opened file",
 				zap.String("path", file.Name()),
@@ -920,7 +921,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 		tsm, err := NewTSMReader(fd,
 			WithMadviseWillNeed(f.tsmMMAPWillNeed),
-			WithTSMReaderPageFaultLimiter(f.pageFaultLimiter),
+			WithTSMReaderPageFaultLimiter(f.pageFaultLimiter, f.readTracker.AddPageFaults),
 			WithTSMReaderLogger(f.logger))
 		if err != nil {
 			return err

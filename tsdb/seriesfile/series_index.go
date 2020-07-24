@@ -130,8 +130,11 @@ func (idx *SeriesIndex) Close() (err error) {
 
 // SetPageFaultLimiter sets the limiter used for rate limiting page faults.
 // Must be called after Open().
-func (idx *SeriesIndex) SetPageFaultLimiter(limiter *rate.Limiter) {
+func (idx *SeriesIndex) SetPageFaultLimiter(limiter *rate.Limiter, onPageFault func(int)) {
 	idx.limiter = mincore.NewLimiter(limiter, idx.data)
+	if idx.limiter != nil {
+		idx.limiter.OnPageFault = onPageFault
+	}
 }
 
 // Recover rebuilds the in-memory index for all new entries.

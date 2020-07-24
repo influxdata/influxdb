@@ -98,7 +98,7 @@ func (p *SeriesPartition) Open() error {
 		if err := p.index.Open(); err != nil {
 			return err
 		}
-		p.index.SetPageFaultLimiter(p.pageFaultLimiter)
+		p.index.SetPageFaultLimiter(p.pageFaultLimiter, p.tracker.AddPageFaults)
 
 		if err = p.index.Recover(p.segments); err != nil {
 			return err
@@ -130,7 +130,7 @@ func (p *SeriesPartition) openSegments() error {
 		if err := segment.Open(); err != nil {
 			return err
 		}
-		segment.SetPageFaultLimiter(p.pageFaultLimiter)
+		segment.SetPageFaultLimiter(p.pageFaultLimiter, p.tracker.AddPageFaults)
 		p.segments = append(p.segments, segment)
 	}
 
@@ -149,7 +149,7 @@ func (p *SeriesPartition) openSegments() error {
 		if err != nil {
 			return err
 		}
-		segment.SetPageFaultLimiter(p.pageFaultLimiter)
+		segment.SetPageFaultLimiter(p.pageFaultLimiter, p.tracker.AddPageFaults)
 		p.segments = append(p.segments, segment)
 	}
 
@@ -577,7 +577,7 @@ func (p *SeriesPartition) createSegment() (*SeriesSegment, error) {
 	if err != nil {
 		return nil, err
 	}
-	segment.SetPageFaultLimiter(p.pageFaultLimiter)
+	segment.SetPageFaultLimiter(p.pageFaultLimiter, p.tracker.AddPageFaults)
 	p.segments = append(p.segments, segment)
 
 	// Allow segment to write.
@@ -692,6 +692,14 @@ func (t *seriesPartitionTracker) SetSegments(n uint64) {
 	t.metrics.Segments.With(labels).Set(float64(n))
 }
 
+// AddPageFaults increases the number of page faults that occurred in the partition by n.
+func (t *seriesPartitionTracker) AddPageFaults(n int) {
+	if !t.enabled {
+		return
+	}
+	t.metrics.PageFaults.With(t.Labels()).Add(float64(n))
+}
+
 // IncCompactionsActive increments the number of active compactions for the
 // components of a partition (index and segments).
 func (t *seriesPartitionTracker) IncCompactionsActive() {
@@ -782,7 +790,7 @@ func (c *SeriesPartitionCompactor) Compact(p *SeriesPartition) (time.Duration, e
 			return err
 		}
 
-		p.index.SetPageFaultLimiter(p.pageFaultLimiter)
+		p.index.SetPageFaultLimiter(p.pageFaultLimiter, p.tracker.AddPageFaults)
 		if err := p.index.Open(); err != nil {
 			return err
 		}

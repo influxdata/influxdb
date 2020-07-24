@@ -44,6 +44,8 @@ type seriesFileMetrics struct {
 	DiskSize      *prometheus.GaugeVec   // Size occupied on disk.
 	Segments      *prometheus.GaugeVec   // Number of segment files.
 
+	PageFaults *prometheus.CounterVec // Total number of page faults.
+
 	CompactionsActive  *prometheus.GaugeVec     // Number of active compactions.
 	CompactionDuration *prometheus.HistogramVec // Duration of compactions.
 	// The following metrics include a ``"status" = {ok, error}` label
@@ -89,6 +91,12 @@ func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
 			Name:      "segments_total",
 			Help:      "Number of segment files in Series File.",
 		}, names),
+		PageFaults: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: seriesFileSubsystem,
+			Name:      "page_faults",
+			Help:      "Number of page faults that occurred in Series File.",
+		}, names),
 		CompactionsActive: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: seriesFileSubsystem,
@@ -119,6 +127,7 @@ func (m *seriesFileMetrics) PrometheusCollectors() []prometheus.Collector {
 		m.Series,
 		m.DiskSize,
 		m.Segments,
+		m.PageFaults,
 		m.CompactionsActive,
 		m.CompactionDuration,
 		m.Compactions,

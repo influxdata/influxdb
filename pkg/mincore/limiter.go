@@ -29,6 +29,9 @@ type Limiter struct {
 
 	// OS mincore() function.
 	Mincore func(data []byte) ([]byte, error)
+
+	// Function executed when one or more page faults occur.
+	OnPageFault func(n int)
 }
 
 // NewLimiter returns a new instance of Limiter associated with an mmap.
@@ -68,6 +71,9 @@ func (l *Limiter) WaitPointer(ctx context.Context, ptr unsafe.Pointer) error {
 		return nil
 	}
 
+	if l.OnPageFault != nil {
+		l.OnPageFault(1)
+	}
 	return l.underlying.Wait(ctx)
 }
 
@@ -107,6 +113,10 @@ func (l *Limiter) WaitRange(ctx context.Context, b []byte) error {
 		return err
 	} else if n == 0 {
 		return nil
+	}
+
+	if l.OnPageFault != nil {
+		l.OnPageFault(n)
 	}
 
 	for i := 0; i < n; i++ {

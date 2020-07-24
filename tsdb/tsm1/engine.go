@@ -525,6 +525,7 @@ func (e *Engine) initTrackers() {
 	e.FileStore.tracker = newFileTracker(bms.fileMetrics, e.defaultMetricLabels)
 	e.Cache.tracker = newCacheTracker(bms.cacheMetrics, e.defaultMetricLabels)
 	e.readTracker = newReadTracker(bms.readMetrics, e.defaultMetricLabels)
+	e.FileStore.readTracker = e.readTracker
 
 	e.scheduler.setCompactionTracker(e.compactionTracker)
 }
@@ -1505,16 +1506,18 @@ func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, []byte) {
 
 // readTracker tracks reads from the engine.
 type readTracker struct {
-	metrics *readMetrics
-	labels  prometheus.Labels
-	cursors uint64
-	seeks   uint64
+	metrics    *readMetrics
+	labels     prometheus.Labels
+	cursors    uint64
+	seeks      uint64
+	pageFaults uint64
 }
 
 func newReadTracker(metrics *readMetrics, defaultLabels prometheus.Labels) *readTracker {
 	t := &readTracker{metrics: metrics, labels: defaultLabels}
 	t.AddCursors(0)
 	t.AddSeeks(0)
+	t.AddPageFaults(0)
 	return t
 }
 
@@ -1538,4 +1541,10 @@ func (t *readTracker) AddCursors(n uint64) {
 func (t *readTracker) AddSeeks(n uint64) {
 	atomic.AddUint64(&t.seeks, n)
 	t.metrics.Seeks.With(t.labels).Add(float64(n))
+}
+
+// AddPageFaults increases the number of page faults.
+func (t *readTracker) AddPageFaults(n int) {
+	atomic.AddUint64(&t.pageFaults, uint64(n))
+	t.metrics.PageFaults.With(t.labels).Add(float64(n))
 }

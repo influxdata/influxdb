@@ -45,6 +45,7 @@ type TSMReader struct {
 
 	// limiter rate limits page faults by the underlying memory maps.
 	pageFaultLimiter *rate.Limiter
+	onPageFault      func(int)
 }
 
 type tsmReaderOption func(*TSMReader)
@@ -56,9 +57,10 @@ var WithMadviseWillNeed = func(willNeed bool) tsmReaderOption {
 	}
 }
 
-var WithTSMReaderPageFaultLimiter = func(limiter *rate.Limiter) tsmReaderOption {
+var WithTSMReaderPageFaultLimiter = func(limiter *rate.Limiter, onPageFault func(int)) tsmReaderOption {
 	return func(r *TSMReader) {
 		r.pageFaultLimiter = limiter
+		r.onPageFault = onPageFault
 	}
 }
 
@@ -97,6 +99,9 @@ func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 	// Set a limiter if passed in through options.
 	if t.pageFaultLimiter != nil {
 		accessor.pageFaultLimiter = mincore.NewLimiter(t.pageFaultLimiter, accessor.b)
+		if accessor.pageFaultLimiter != nil {
+			accessor.pageFaultLimiter.OnPageFault = t.onPageFault
+		}
 	}
 
 	t.accessor = accessor
