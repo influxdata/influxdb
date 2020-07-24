@@ -5,10 +5,12 @@ TEST_CONTAINER=bonitoo_e2e
 INFLUX2_CONTAINER=influx2_solo
 E2E_MAP_DIR=/tmp/e2e
 INFLUX2_HOST=$(sudo docker inspect -f "{{ .NetworkSettings.IPAddress }}" ${INFLUX2_CONTAINER})
-TAGS="@influx-influx"
+INFLUX2_URL="http://${INFLUX2_HOST}:9999"
+#TAGS="@influx-influx"
 ACTIVE_CONF=development
 
-echo "------ Targeting influx container ${INFLUX2_CONTAINER} at ${INFLUX2_HOST} ------"
+env
+
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]
@@ -26,15 +28,52 @@ case $key in
    shift;
    shift;
    ;;
+   -b| --base)
+   BASE_DIR="$2"
+   shift;
+   shift;
 esac
 done
 
-echo "TAGS $TAGS"
+
+echo Working from ${APP_ROOT}
+
+DOCKER_TEST_CMD="npm test -- activeConf=${ACTIVE_CONF}"
+
+if [[ -n "${TAGS}" ]]; then
+    DOCKER_TEST_CMD="${DOCKER_TEST_CMD} --tags ${TAGS}"
+fi
+
+if [[ -n "${BASE_DIR+x}" ]]; then
+    DOCKER_TEST_CMD="${DOCKER_TEST_CMD} ${BASE_DIR}"
+fi
+
+echo DOCKER_TEST_CMD = ${DOCKER_TEST_CMD}
+
+if [ ${ACTIVE_CONF} = 'cloud' ]; then
+    echo configuring for cloud
+    if [ -z ${E2E_CLOUD_INFLUX_URL+x} ]; then
+      echo E2E_CLOUD_INFLUX_URL is unset
+      echo But cloud configuration chosen
+      echo Please set E2E_CLOUD_INFLUX_URL to use cloud configuration
+    else
+      echo E2E_CLOUD_INFLUX_URL ${E2E_CLOUD_INFLUX_URL}
+      INFLUX2_URL=${E2E_CLOUD_INFLUX_URL}
+    fi
+
+    if [ -z ${E2E_CLOUD_DEFAULT_USER_PASSWORD} ]; then
+      echo E2E_CLOUD_DEFAULT_USER_PASSWORD is unset
+      echo But cloud configuration chosen
+      echo Please set E2E_CLOUD_DEFAULT_USER_PASSWORD to use cloud configuration
+    fi
+    #exit 1
+fi
+
+echo "------ Targeting influx at ${INFLUX2_URL} ------"
+
 
 # Tear down running test container
 echo "----- Tearing down test container ${TEST_CONTAINER} ------"
-
-echo ${APP_ROOT}
 
 if docker container inspect ${TEST_CONTAINER} > /dev/null 2>&1
 then
@@ -74,15 +113,25 @@ if [[ -d "$APP_ROOT/report" ]]; then
    rm -rdf report
 fi
 
+DOCKER_ENVARS="-e SELENIUM_REMOTE_URL=http://${SELENOID_HOST}:4444/wd/hub -e E2E_${ACTIVE_CONF^^}_INFLUX_URL=${INFLUX2_URL}"
+
+if [ -n ${E2E_CLOUD_DEFAULT_USER_PASSWORD} ]; then
+   DOCKER_ENVARS="${DOCKER_ENVARS} -e E2E_CLOUD_DEFAULT_USER_PASSWORD=${E2E_CLOUD_DEFAULT_USER_PASSWORD}"
+fi
+
+echo DOCKER_ENVARS ${DOCKER_ENVARS}
+
 sudo docker build -t e2e-${TEST_CONTAINER} -f scripts/Dockerfile.tests .
 sudo docker run -it -v `pwd`/report:/home/e2e/report -v `pwd`/screenshots:/home/e2e/screenshots \
      -v /tmp/e2e/etc:/home/e2e/etc -v /tmp/e2e/downloads:/home/e2e/downloads \
-     -e SELENIUM_REMOTE_URL="http://${SELENOID_HOST}:4444/wd/hub" \
-     -e E2E_${ACTIVE_CONF^^}_INFLUX_URL="http://${INFLUX2_HOST}:9999" --detach \
+     ${DOCKER_ENVARS} --detach \
      --name ${TEST_CONTAINER} e2e-${TEST_CONTAINER}:latest
 
+echo ACTIVE_CONF ${ACTIVE_CONF} BASE_DIR ${BASE_DIR} TAGS ${TAGS}
 
-sudo docker exec ${TEST_CONTAINER} npm test -- activeConf=${ACTIVE_CONF} --tags "$TAGS"
+sudo docker exec ${TEST_CONTAINER} env
+
+sudo docker exec ${TEST_CONTAINER} ${DOCKER_TEST_CMD}
 
 sudo docker exec ${TEST_CONTAINER} npm run report:html
 sudo docker exec ${TEST_CONTAINER} npm run report:junit

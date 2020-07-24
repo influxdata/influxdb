@@ -5,7 +5,7 @@ const baseSteps = require(__srcdir + '/steps/baseSteps.js');
 const cloudLoginPage = require(__srcdir + '/pages/cloud/cloudLoginPage.js');
 const influxUtils = require(__srcdir + '/utils/influxUtils.js');
 const perfUtils = require(__srcdir + '/utils/performanceUtils.js');
-const influxPage = require(__srcdir + '/pages/influxPage.js');
+const homePage = require(__srcdir + '/pages/home/homePage.js');
 
 class cloudSteps extends baseSteps {
 
@@ -13,7 +13,7 @@ class cloudSteps extends baseSteps {
         super(driver);
         //this.createOrgPage = new createOrgPage(driver);
         this.loginPage = new cloudLoginPage(driver);
-        this.influxPage = new influxPage(driver);
+        this.homePage = new homePage(driver);
     }
 
     //for driver sync
@@ -66,16 +66,40 @@ class cloudSteps extends baseSteps {
         await perfUtils.execTimed(async () => {
             await this.clickAndWait(await this.loginPage.getLogInButton());
             try {
-                await this.driver.wait(until.elementIsVisible(await this.influxPage.getNavMenu()), maxDelay * 3);
-                await this.driver.wait(until.elementIsVisible(await this.influxPage.getPageHeader()), maxDelay * 3);
+                await this.driver.wait(until.elementIsVisible(await this.homePage.getNavMenu()), maxDelay * 3);
+                await this.driver.wait(until.elementIsVisible(await this.homePage.getPageHeader()), maxDelay * 3);
             }catch(err){
                 console.warn(JSON.stringify(err));
                 //try again
-                await this.driver.wait(until.elementIsVisible(await this.influxPage.getNavMenu()), maxDelay * 3);
-                await this.driver.wait(until.elementIsVisible(await this.influxPage.getPageHeader()), maxDelay * 3);
+                await this.driver.wait(until.elementIsVisible(await this.homePage.getNavMenu()), maxDelay * 3);
+                await this.driver.wait(until.elementIsVisible(await this.homePage.getPageHeader()), maxDelay * 3);
             }
         },maxDelay, 'failed to timely open cloud ');
     }
+
+    //TODO - this is not checking correct page - see issue #19057
+    //because currently not loading account info on logout like before
+    //not sure why... once logout to correct page is fixed update this method
+    //this is a holder so that other tests can be written
+    async logoutToAccountInfoTimed(maxDelay){
+        await perfUtils.execTimed(async () => {
+           await this.clickAndWait(await this.homePage.getLogoutButton());
+           await this.driver.wait(this.homePage.isLoaded(), maxDelay * 3);
+        }, maxDelay, 'failed to timely open info');
+    }
+
+    async logoutToLoginTimed(maxDelay){
+        await perfUtils.execTimed(async () => {
+            await this.clickAndWait(await this.homePage.getLogoutButton());
+            await this.loginPage.waitToLoad(10000);
+        }, maxDelay, 'login slow to reload');
+    }
+
+    async verifyCloudLoginPageLoaded(){
+        await this.loginPage.isLoaded();
+    }
+
+
 
 }
 
