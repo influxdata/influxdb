@@ -225,7 +225,10 @@ class TimeSeries extends Component<Props, State> {
         const extern = buildVarsOption([...vars, ...windowVars])
 
         event('runQuery', {context: 'TimeSeries'})
-        if (isCurrentPageDashboard) {
+        if (
+          isCurrentPageDashboard &&
+          isFlagEnabled('queryCacheForDashboards')
+        ) {
           return onGetCachedResultsThunk(orgID, text)
         }
         return this.mutex.run(orgID, text, extern)

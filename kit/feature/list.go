@@ -184,6 +184,20 @@ func NewHydrateVarsFunctionality() BoolFlag {
 	return hydratevars
 }
 
+var queryCacheForDashboards = MakeBoolFlag(
+	"Query Cache for Dashboards UI",
+	"queryCacheForDashboards",
+	"Ariel Salem / Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// QueryCacheForDashboardsUi - Enables a Dashboard Cache on the uI
+func QueryCacheForDashboardsUi() BoolFlag {
+	return queryCacheForDashboards
+}
+
 var memoryOptimizedFill = MakeBoolFlag(
 	"Memory Optimized Fill",
 	"memoryOptimizedFill",
@@ -296,6 +310,7 @@ var all = []Flag{
 	newAuth,
 	newLabels,
 	hydratevars,
+	queryCacheForDashboards,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	urmFreeTasks,
@@ -319,6 +334,7 @@ var byKey = map[string]Flag{
 	"newAuth":                       newAuth,
 	"newLabels":                     newLabels,
 	"hydratevars":                   hydratevars,
+	"queryCacheForDashboards":       queryCacheForDashboards,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"urmFreeTasks":                  urmFreeTasks,
