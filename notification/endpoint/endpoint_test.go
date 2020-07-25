@@ -55,7 +55,23 @@ func TestValidEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name: "empty name",
+			name: "empty name PagerDuty",
+			src: &endpoint.PagerDuty{
+				Base: endpoint.Base{
+					ID:     influxTesting.MustIDBase16Ptr(id1),
+					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					Status: influxdb.Active,
+				},
+				ClientURL:  "https://events.pagerduty.com/v2/enqueue",
+				RoutingKey: influxdb.SecretField{Key: id1 + "-routing-key"},
+			},
+			err: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "Notification Endpoint Name can't be empty",
+			},
+		},
+		{
+			name: "empty name Telegram",
 			src: &endpoint.Telegram{
 				Base: endpoint.Base{
 					ID:     influxTesting.MustIDBase16Ptr(id1),
