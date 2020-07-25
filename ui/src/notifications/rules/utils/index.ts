@@ -62,7 +62,7 @@ export const getRuleVariantDefaults = (
         type: 'telegram',
       }
     }
-    
+
     case 'teams': {
       return {
         messageTemplate: defaultMessage,

@@ -83,7 +83,13 @@ export type NotificationRuleBaseDraft = Overwrite<
   }
 >
 
-type RuleDraft = SlackRule | SMTPRule | PagerDutyRule | HTTPRule | TelegramRule | TeamsRule
+type RuleDraft =
+  | SlackRule
+  | SMTPRule
+  | PagerDutyRule
+  | HTTPRule
+  | TelegramRule
+  | TeamsRule
 
 export type NotificationRuleDraft = RuleDraft
 
