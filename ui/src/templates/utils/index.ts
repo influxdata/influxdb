@@ -75,9 +75,7 @@ export const getIncludedLabels = (included: {type: TemplateType}[]) =>
   included.filter((i): i is LabelIncluded => i.type === TemplateType.Label)
 
 // See https://github.com/influxdata/community-templates/
-// an example of a url that works with this function:
-// https://github.com/influxdata/community-templates/tree/master/csgo
-export const getTemplateNameFromGithubSource = (
+export const getTemplateUrlDetailsFromGithubSource = (
   url: string
 ): {directory: string; templateExtension: string; templateName: string} => {
   if (!url.includes('https://github.com/influxdata/community-templates/')) {
@@ -95,7 +93,7 @@ export const getTemplateNameFromGithubSource = (
   }
 }
 
-export const getGithubUrlFromTemplateName = (
+export const getGithubUrlFromTemplateUrlDetails = (
   directory: string,
   templateName: string,
   templateExtension: string

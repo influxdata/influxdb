@@ -36,8 +36,8 @@ import {getOrg} from 'src/organizations/selectors'
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {
-  getGithubUrlFromTemplateName,
-  getTemplateNameFromGithubSource,
+  getGithubUrlFromTemplateUrlDetails,
+  getTemplateUrlDetailsFromGithubSource,
 } from 'src/templates/utils'
 
 // Types
@@ -73,7 +73,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       match?.params?.templateExtension
     ) {
       this.setState({
-        templateUrl: getGithubUrlFromTemplateName(
+        templateUrl: getGithubUrlFromTemplateUrlDetails(
           match.params.directory,
           match.params.templateName,
           match.params.templateExtension
@@ -161,7 +161,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       directory,
       templateExtension,
       templateName,
-    } = getTemplateNameFromGithubSource(this.state.templateUrl)
+    } = getTemplateUrlDetailsFromGithubSource(this.state.templateUrl)
 
     this.props.history.push(
       `/orgs/${this.props.org.id}/settings/templates/import/${directory}/${templateName}/${templateExtension}`
