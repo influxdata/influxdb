@@ -75,8 +75,11 @@ const FunctionSelector: FunctionComponent<Props> = ({
 
   return (
     <>
-      <BuilderCard.Header title="Aggregate Function" />
-      <BuilderCard.Menu>
+      <BuilderCard.Header
+        title="Aggregate Function"
+        className="aggregation-selector-header"
+      />
+      <BuilderCard.Menu className="aggregation-selector-menu">
         <FlexBox
           direction={FlexDirection.Column}
           margin={ComponentSize.ExtraSmall}

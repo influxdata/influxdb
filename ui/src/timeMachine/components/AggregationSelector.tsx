@@ -16,8 +16,15 @@ import FunctionModeSelector from 'src/timeMachine/components/FunctionModeSelecto
 const AggregationSelector: FunctionComponent = () => {
   return (
     <BuilderCard className="aggregation-selector" testID="aggregation-selector">
-      <BuilderCard.Header title="Window Period" />
-      <BuilderCard.Body scrollable={false} style={{flex: 'unset'}}>
+      <BuilderCard.Header
+        title="Window Period"
+        className="aggregation-selector-header"
+      />
+      <BuilderCard.Body
+        scrollable={false}
+        addPadding={false}
+        style={{flex: 'unset', padding: '2px'}}
+      >
         <FlexBox
           direction={FlexDirection.Column}
           alignItems={AlignItems.Stretch}
