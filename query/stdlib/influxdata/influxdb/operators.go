@@ -131,7 +131,7 @@ type ReadWindowAggregatePhysSpec struct {
 }
 
 func (s *ReadWindowAggregatePhysSpec) PlanDetails() string {
-	return fmt.Sprintf("every = %d, aggregates = %v, createEmpty = %v, timeColumn = \"%s\"", s.WindowEvery, s.Aggregates, s.CreateEmpty, s.TimeColumn)
+	return fmt.Sprintf("every = %d, aggregates = %v", s.WindowEvery, s.Aggregates)
 }
 
 func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {

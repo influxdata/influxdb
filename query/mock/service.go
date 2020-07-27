@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/query"
 )
@@ -53,7 +52,7 @@ func (s *AsyncQueryService) Query(ctx context.Context, req *query.Request) (flux
 // It contains controls to ensure that the flux.Query object is used correctly.
 // Note: Query will only return one result, specified by calling the SetResults method.
 type Query struct {
-	Metadata metadata.Metadata
+	Metadata flux.Metadata
 
 	results chan flux.Result
 	once    sync.Once
@@ -67,7 +66,7 @@ var _ flux.Query = (*Query)(nil)
 // NewQuery constructs a new asynchronous query.
 func NewQuery() *Query {
 	return &Query{
-		Metadata: make(metadata.Metadata),
+		Metadata: make(flux.Metadata),
 		results:  make(chan flux.Result, 1),
 	}
 }
