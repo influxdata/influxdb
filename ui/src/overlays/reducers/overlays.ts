@@ -13,6 +13,7 @@ export type OverlayID =
   | 'telegraf-output'
   | 'switch-organizations'
   | 'create-bucket'
+  | 'asset-limit'
 
 export interface OverlayParams {
   [key: string]: string

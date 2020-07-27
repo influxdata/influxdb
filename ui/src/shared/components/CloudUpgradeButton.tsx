@@ -30,10 +30,12 @@ interface StateProps {
 interface OwnProps {
   className?: string
   buttonText?: string
+  size?: ComponentSize
 }
 
 const CloudUpgradeButton: FC<StateProps & OwnProps> = ({
   inView,
+  size = ComponentSize.Small,
   className,
   buttonText = 'Upgrade Now',
 }) => {
@@ -47,7 +49,7 @@ const CloudUpgradeButton: FC<StateProps & OwnProps> = ({
         <LinkButton
           className={cloudUpgradeButtonClass}
           color={ComponentColor.Success}
-          size={ComponentSize.Small}
+          size={size}
           shape={ButtonShape.Default}
           href={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
           target="_self"
