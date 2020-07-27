@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/execute/executetest"
+	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/mock"
 )
