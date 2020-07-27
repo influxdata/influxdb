@@ -53,20 +53,25 @@ echo DOCKER_TEST_CMD = ${DOCKER_TEST_CMD}
 if [ ${ACTIVE_CONF} = 'cloud' ]; then
     echo configuring for cloud
     if [ -z ${E2E_CLOUD_INFLUX_URL+x} ]; then
+      echo
       echo E2E_CLOUD_INFLUX_URL is unset
       echo But cloud configuration chosen
+      echo
       echo Please set E2E_CLOUD_INFLUX_URL to use cloud configuration
+      exit 1
     else
       echo E2E_CLOUD_INFLUX_URL ${E2E_CLOUD_INFLUX_URL}
       INFLUX2_URL=${E2E_CLOUD_INFLUX_URL}
     fi
 
     if [ -z ${E2E_CLOUD_DEFAULT_USER_PASSWORD} ]; then
+      echo
       echo E2E_CLOUD_DEFAULT_USER_PASSWORD is unset
       echo But cloud configuration chosen
+      echo
       echo Please set E2E_CLOUD_DEFAULT_USER_PASSWORD to use cloud configuration
+      exit 1
     fi
-    #exit 1
 fi
 
 echo "------ Targeting influx at ${INFLUX2_URL} ------"
