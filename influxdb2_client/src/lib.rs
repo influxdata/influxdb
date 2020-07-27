@@ -286,6 +286,8 @@ impl WriteDataPoint for DataPoint {
             ts.write_timestamp_to(&mut w)?;
         }
 
+        w.write_all(b"\n")?;
+
         Ok(())
     }
 }
@@ -552,7 +554,7 @@ cpu,host=server01,region=us-west usage=0.87
 
         assert_utf8_strings_eq(
             &point.data_point_to_vec()?,
-            b"swap,host=server01,name=disk0 in=3i,out=4i 1".as_ref(),
+            b"swap,host=server01,name=disk0 in=3i,out=4i 1\n".as_ref(),
         )?;
 
         Ok(())
@@ -565,7 +567,7 @@ cpu,host=server01,region=us-west usage=0.87
             .field("f1", 2_i64)
             .build()?;
 
-        assert_utf8_strings_eq(&point.data_point_to_vec()?, b"m0 f0=1,f1=2i".as_ref())?;
+        assert_utf8_strings_eq(&point.data_point_to_vec()?, b"m0 f0=1,f1=2i\n".as_ref())?;
 
         Ok(())
     }
@@ -580,7 +582,7 @@ cpu,host=server01,region=us-west usage=0.87
 
         assert_utf8_strings_eq(
             &point.data_point_to_vec()?,
-            b"m0,t0=v0,t1=v1 f1=2i".as_ref(),
+            b"m0,t0=v0,t1=v1 f1=2i\n".as_ref(),
         )?;
 
         Ok(())
