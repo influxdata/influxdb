@@ -392,6 +392,8 @@ github.com/influxdata/cron v0.0.0-20191203200038-ded12750aac6/go.mod h1:XabtPPW2
 github.com/influxdata/flux v0.72.2-0.20200727042949-13787248dbef/go.mod h1:sAAIEgQTlTpsXCUQ49ymoRsKqraPzIb7F3paT72/lE0=
 github.com/influxdata/flux v0.74.0 h1:gSn9v/mzzZnP2dXOFaTuLGIba+wkVoa/GczjU3VqP5U=
 github.com/influxdata/flux v0.74.0/go.mod h1:sAAIEgQTlTpsXCUQ49ymoRsKqraPzIb7F3paT72/lE0=
+github.com/influxdata/flux v0.74.1-0.20200727045810-d1cd4ed309f2 h1:WFgS8EXFxXEzwUsxXZnwYC79qIrwKjGxQvBlu3zPZvk=
+github.com/influxdata/flux v0.74.1-0.20200727045810-d1cd4ed309f2/go.mod h1:sAAIEgQTlTpsXCUQ49ymoRsKqraPzIb7F3paT72/lE0=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69/go.mod h1:pwymjR6SrP3gD3pRj9RJwdl1j5s3doEEV8gS4X9qSzA=
 github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d/go.mod h1:qj24IKcXYK6Iy9ceXlo3Tc+vtHo9lIhSX5JddghvEPo=
