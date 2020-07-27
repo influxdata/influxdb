@@ -9,9 +9,6 @@ INFLUX2_URL="http://${INFLUX2_HOST}:9999"
 #TAGS="@influx-influx"
 ACTIVE_CONF=development
 
-env
-
-
 POSITIONAL=()
 while [[ $# -gt 0 ]]
 do
@@ -124,8 +121,6 @@ if [ -n ${E2E_CLOUD_DEFAULT_USER_PASSWORD} ]; then
    DOCKER_ENVARS="${DOCKER_ENVARS} -e E2E_CLOUD_DEFAULT_USER_PASSWORD=${E2E_CLOUD_DEFAULT_USER_PASSWORD}"
 fi
 
-echo DOCKER_ENVARS ${DOCKER_ENVARS}
-
 sudo docker build -t e2e-${TEST_CONTAINER} -f scripts/Dockerfile.tests .
 sudo docker run -it -v `pwd`/report:/home/e2e/report -v `pwd`/screenshots:/home/e2e/screenshots \
      -v /tmp/e2e/etc:/home/e2e/etc -v /tmp/e2e/downloads:/home/e2e/downloads \
@@ -133,8 +128,6 @@ sudo docker run -it -v `pwd`/report:/home/e2e/report -v `pwd`/screenshots:/home/
      --name ${TEST_CONTAINER} e2e-${TEST_CONTAINER}:latest
 
 echo ACTIVE_CONF ${ACTIVE_CONF} BASE_DIR ${BASE_DIR} TAGS ${TAGS}
-
-sudo docker exec ${TEST_CONTAINER} env
 
 sudo docker exec ${TEST_CONTAINER} ${DOCKER_TEST_CMD}
 
