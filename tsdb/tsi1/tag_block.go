@@ -248,8 +248,8 @@ func (itr *tagBlockValueIterator) Next() TagValueElem {
 
 	// Unmarshal next element & move data forward.
 	itr.e.unmarshal(itr.data)
-	itr.data = itr.data[itr.e.size:]
 	_ = wait(itr.limiter, itr.data[:itr.e.size])
+	itr.data = itr.data[itr.e.size:]
 
 	assert(len(itr.e.Value()) > 0, "invalid zero-length tag value")
 	return &itr.e
