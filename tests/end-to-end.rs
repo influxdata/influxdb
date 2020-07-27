@@ -91,10 +91,10 @@ async fn write_data(
     client: &influxdb2_client::Client,
     org_id: &str,
     bucket_id: &str,
-    body: impl Into<String>,
+    points: Vec<influxdb2_client::DataPoint>,
 ) -> Result<()> {
     client
-        .write_line_protocol(org_id, bucket_id, body.into())
+        .write(org_id, bucket_id, stream::iter(points))
         .await?;
     Ok(())
 }
@@ -148,29 +148,50 @@ async fn read_and_write_data() -> Result<()> {
 
     // TODO: make a more extensible way to manage data for tests, such as in external fixture
     // files or with factories.
-    write_data(
-        &client2,
-        org_id_str,
-        bucket_id_str,
-        format!(
-            "\
-cpu_load_short,host=server01,region=us-west value=0.64 {}
-cpu_load_short,host=server01 value=27.99 {}
-cpu_load_short,host=server02,region=us-west value=3.89 {}
-cpu_load_short,host=server01,region=us-east value=1234567.891011 {}
-cpu_load_short,host=server01,region=us-west value=0.000003 {}
-system,host=server03 uptime=1303385i {}
-swap,host=server01,name=disk0 in=3i,out=4i {}",
-            ns_since_epoch,
-            ns_since_epoch + 1,
-            ns_since_epoch + 2,
-            ns_since_epoch + 3,
-            ns_since_epoch + 4,
-            ns_since_epoch + 5,
-            ns_since_epoch + 6,
-        ),
-    )
-    .await?;
+    let points = vec![
+        influxdb2_client::DataPoint::builder("cpu_load_short")
+            .tag("host", "server01")
+            .tag("region", "us-west")
+            .field("value", 0.64)
+            .timestamp(ns_since_epoch)
+            .build()?,
+        influxdb2_client::DataPoint::builder("cpu_load_short")
+            .tag("host", "server01")
+            .field("value", 27.99)
+            .timestamp(ns_since_epoch + 1)
+            .build()?,
+        influxdb2_client::DataPoint::builder("cpu_load_short")
+            .tag("host", "server02")
+            .tag("region", "us-west")
+            .field("value", 3.89)
+            .timestamp(ns_since_epoch + 2)
+            .build()?,
+        influxdb2_client::DataPoint::builder("cpu_load_short")
+            .tag("host", "server01")
+            .tag("region", "us-east")
+            .field("value", 1234567.891011)
+            .timestamp(ns_since_epoch + 3)
+            .build()?,
+        influxdb2_client::DataPoint::builder("cpu_load_short")
+            .tag("host", "server01")
+            .tag("region", "us-west")
+            .field("value", 0.000003)
+            .timestamp(ns_since_epoch + 4)
+            .build()?,
+        influxdb2_client::DataPoint::builder("system")
+            .tag("host", "server03")
+            .field("uptime", 1303385)
+            .timestamp(ns_since_epoch + 5)
+            .build()?,
+        influxdb2_client::DataPoint::builder("swap")
+            .tag("host", "server01")
+            .tag("name", "disk0")
+            .field("in", 3)
+            .field("out", 4)
+            .timestamp(ns_since_epoch + 6)
+            .build()?,
+    ];
+    write_data(&client2, org_id_str, bucket_id_str, points).await?;
 
     let end_time = SystemTime::now();
     let duration = end_time
