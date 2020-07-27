@@ -9,7 +9,7 @@ import {
 } from 'src/cloud/apis/reporting'
 
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
-import {VERSION} from 'src/shared/constants'
+import {GIT_SHA} from 'src/shared/constants'
 export {Point, PointTags, PointFields} from 'src/cloud/apis/reporting'
 
 let reportingTags = {}
@@ -61,7 +61,7 @@ const pooledEvent = ({timestamp, measurement, fields, tags}: Point) => {
   reportingPoints.push(
     cleanTags({
       measurement,
-      tags: {...reportingTags, ...tags, version: VERSION},
+      tags: {...reportingTags, ...tags, version: GIT_SHA},
       fields,
       timestamp,
     })
