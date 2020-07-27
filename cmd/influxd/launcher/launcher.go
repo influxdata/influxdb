@@ -1114,7 +1114,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		sessionHTTPServer = session.NewSessionHandler(m.log.With(zap.String("handler", "session")), sessionSvc, ts.UserSvc, ts.PasswordSvc)
 	}
 
-	orgHTTPServer := ts.NewOrgHTTPHandler(m.log, labelSvc, secret.NewAuthedService(secretSvc))
+	orgHTTPServer := ts.NewOrgHTTPHandler(m.log, secret.NewAuthedService(secretSvc))
 
 	bucketHTTPServer := ts.NewBucketHTTPHandler(m.log, labelSvc)
 

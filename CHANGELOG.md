@@ -3,7 +3,8 @@
 ### Breaking
 
 1. [19066](https://github.com/influxdata/influxdb/pull/19066): Drop deprecated /packages route tree
-1. [19116](https://github.com/influxdata/influxdb/pull/19116): Support more types for template envRef default value and require explicit default values
+1. [19116](https://github.com/influxdata/influxdb/pull/19116): Support more types for template envRef default value and require explicit default values 
+1. [19104](https://github.com/influxdata/influxdb/pull/19104): Remove orgs/labels nested routes from the API.
 
 ### Features
 
