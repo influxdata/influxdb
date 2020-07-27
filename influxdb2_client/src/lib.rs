@@ -483,6 +483,7 @@ mod tests {
     use super::*;
     use futures::stream;
     use mockito::mock;
+    use std::str;
 
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
@@ -528,6 +529,17 @@ cpu,host=server01,region=us-west usage=0.87
         Ok(())
     }
 
+    fn assert_utf8_strings_eq(left: &[u8], right: &[u8]) -> Result {
+        assert_eq!(
+            left,
+            right,
+            "\n\nleft string value:  `{}`,\nright string value: `{}`",
+            str::from_utf8(left)?,
+            str::from_utf8(right)?
+        );
+        Ok(())
+    }
+
     #[test]
     fn point_builder_allows_setting_tags_and_fields() -> Result {
         let point = DataPoint::builder("swap")
@@ -538,10 +550,10 @@ cpu,host=server01,region=us-west usage=0.87
             .timestamp(1)
             .build()?;
 
-        assert_eq!(
-            point.data_point_to_vec()?,
+        assert_utf8_strings_eq(
+            &point.data_point_to_vec()?,
             b"swap,host=server01,name=disk0 in=3i,out=4i 1".as_ref(),
-        );
+        )?;
 
         Ok(())
     }
@@ -553,7 +565,7 @@ cpu,host=server01,region=us-west usage=0.87
             .field("f1", 2_i64)
             .build()?;
 
-        assert_eq!(point.data_point_to_vec()?, b"m0 f0=1,f1=2i".as_ref());
+        assert_utf8_strings_eq(&point.data_point_to_vec()?, b"m0 f0=1,f1=2i".as_ref())?;
 
         Ok(())
     }
@@ -566,7 +578,10 @@ cpu,host=server01,region=us-west usage=0.87
             .field("f1", 2_i64)
             .build()?;
 
-        assert_eq!(point.data_point_to_vec()?, b"m0,t0=v0,t1=v1 f1=2i".as_ref());
+        assert_utf8_strings_eq(
+            &point.data_point_to_vec()?,
+            b"m0,t0=v0,t1=v1 f1=2i".as_ref(),
+        )?;
 
         Ok(())
     }
@@ -582,56 +597,56 @@ cpu,host=server01,region=us-west usage=0.87
 
     #[test]
     fn special_characters_are_escaped_in_measurements() -> Result {
-        assert_eq!(
-            ALL_THE_DELIMITERS.measurement_to_vec()?,
+        assert_utf8_strings_eq(
+            &ALL_THE_DELIMITERS.measurement_to_vec()?,
             br#"alpha\,beta=delta\ gamma"epsilon"#.as_ref(),
-        );
+        )?;
         Ok(())
     }
 
     #[test]
     fn special_characters_are_escaped_in_tag_keys() -> Result {
-        assert_eq!(
-            ALL_THE_DELIMITERS.tag_key_to_vec()?,
+        assert_utf8_strings_eq(
+            &ALL_THE_DELIMITERS.tag_key_to_vec()?,
             br#"alpha\,beta\=delta\ gamma"epsilon"#.as_ref(),
-        );
+        )?;
         Ok(())
     }
 
     #[test]
     fn special_characters_are_escaped_in_tag_values() -> Result {
-        assert_eq!(
-            ALL_THE_DELIMITERS.tag_value_to_vec()?,
+        assert_utf8_strings_eq(
+            &ALL_THE_DELIMITERS.tag_value_to_vec()?,
             br#"alpha\,beta\=delta\ gamma"epsilon"#.as_ref(),
-        );
+        )?;
         Ok(())
     }
 
     #[test]
     fn special_characters_are_escaped_in_field_keys() -> Result {
-        assert_eq!(
-            ALL_THE_DELIMITERS.field_key_to_vec()?,
+        assert_utf8_strings_eq(
+            &ALL_THE_DELIMITERS.field_key_to_vec()?,
             br#"alpha\,beta\=delta\ gamma"epsilon"#.as_ref(),
-        );
+        )?;
         Ok(())
     }
 
     #[test]
     fn special_characters_are_escaped_in_field_values_of_strings() -> Result {
-        assert_eq!(
-            FieldValue::from(ALL_THE_DELIMITERS).field_value_to_vec()?,
+        assert_utf8_strings_eq(
+            &FieldValue::from(ALL_THE_DELIMITERS).field_value_to_vec()?,
             br#""alpha,beta=delta gamma\"epsilon""#.as_ref(),
-        );
+        )?;
         Ok(())
     }
 
     #[test]
     fn field_value_of_bool() -> Result {
         let e = FieldValue::from(true);
-        assert_eq!(e.field_value_to_vec()?, b"t");
+        assert_utf8_strings_eq(&e.field_value_to_vec()?, b"t")?;
 
         let e = FieldValue::from(false);
-        assert_eq!(e.field_value_to_vec()?, b"f");
+        assert_utf8_strings_eq(&e.field_value_to_vec()?, b"f")?;
 
         Ok(())
     }
@@ -639,21 +654,21 @@ cpu,host=server01,region=us-west usage=0.87
     #[test]
     fn field_value_of_float() -> Result {
         let e = FieldValue::from(42_f64);
-        assert_eq!(e.field_value_to_vec()?, b"42");
+        assert_utf8_strings_eq(&e.field_value_to_vec()?, b"42")?;
         Ok(())
     }
 
     #[test]
     fn field_value_of_integer() -> Result {
         let e = FieldValue::from(42_i64);
-        assert_eq!(e.field_value_to_vec()?, b"42i");
+        assert_utf8_strings_eq(&e.field_value_to_vec()?, b"42i")?;
         Ok(())
     }
 
     #[test]
     fn field_value_of_string() -> Result {
         let e = FieldValue::from("hello");
-        assert_eq!(e.field_value_to_vec()?, br#""hello""#);
+        assert_utf8_strings_eq(&e.field_value_to_vec()?, br#""hello""#)?;
         Ok(())
     }
 
