@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
@@ -22,15 +23,26 @@ func initHttpOrgService(f itesting.OrganizationFields, t *testing.T) (influxdb.O
 	}
 
 	storage := tenant.NewStore(s)
-	svc := tenant.NewService(storage)
-	ctx := context.Background()
-	for _, o := range f.Organizations {
-		if err := svc.CreateOrganization(ctx, o); err != nil {
-			t.Fatalf("failed to populate organizations")
-		}
+
+	if f.OrgBucketIDs != nil {
+		storage.OrgIDGen = f.OrgBucketIDs
+		storage.BucketIDGen = f.OrgBucketIDs
 	}
 
-	handler := tenant.NewHTTPOrgHandler(zaptest.NewLogger(t), svc, nil, nil)
+	// go direct to storage for test data
+	if err := s.Update(context.Background(), func(tx kv.Tx) error {
+		for _, o := range f.Organizations {
+			if err := storage.CreateOrg(tx.Context(), tx, o); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		t.Fatalf("failed to populate organizations: %s", err)
+	}
+
+	handler := tenant.NewHTTPOrgHandler(zaptest.NewLogger(t), tenant.NewService(storage), nil, nil)
 	r := chi.NewRouter()
 	r.Mount(handler.Prefix(), handler)
 	server := httptest.NewServer(r)
@@ -49,6 +61,6 @@ func initHttpOrgService(f itesting.OrganizationFields, t *testing.T) (influxdb.O
 	}
 }
 
-func TestOrgService(t *testing.T) {
+func TestHTTPOrgService(t *testing.T) {
 	itesting.OrganizationService(initHttpOrgService, t)
 }

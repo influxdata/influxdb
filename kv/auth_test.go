@@ -31,6 +31,7 @@ func initAuthorizationService(s kv.SchemaStore, f influxdbtesting.AuthorizationF
 	ctx := context.Background()
 	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.IDGenerator = f.IDGenerator
+	svc.OrgIDs = f.OrgIDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	svc.TimeGenerator = f.TimeGenerator
 
@@ -41,6 +42,7 @@ func initAuthorizationService(s kv.SchemaStore, f influxdbtesting.AuthorizationF
 	}
 
 	for _, o := range f.Orgs {
+		o.ID = svc.OrgIDs.ID()
 		if err := svc.PutOrganization(ctx, o); err != nil {
 			t.Fatalf("failed to populate orgs")
 		}

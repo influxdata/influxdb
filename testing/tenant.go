@@ -8,9 +8,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 type TenantFields struct {
+	OrgIDGenerator       influxdb.IDGenerator
+	BucketIDGenerator    influxdb.IDGenerator
 	Users                []*influxdb.User
 	Passwords            []string // passwords are indexed against the Users field
 	UserResourceMappings []*influxdb.UserResourceMapping
@@ -87,9 +90,14 @@ func (u urmByUserID) Swap(i, j int) {
 // Create tests various cases of creation for the services in the TenantService.
 // For example, when you create a user, do you create system buckets? How are URMs organized?
 func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantService, func())) {
+	t.Helper()
+
 	// Blank fields, we are testing creation.
 	fields := func() TenantFields {
-		return TenantFields{}
+		return TenantFields{
+			OrgIDGenerator:    mock.NewIncrementingIDGenerator(1),
+			BucketIDGenerator: mock.NewIncrementingIDGenerator(1),
+		}
 	}
 
 	// NOTE(affo)(*kv.Service): tests that contain s.CreateOrganization() generate error in logs:
@@ -106,7 +114,7 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		ctx := context.Background()
 
 		o := &influxdb.Organization{
-			ID:   1,
+			// ID(1)
 			Name: "org1",
 		}
 		if err := s.CreateOrganization(ctx, o); err != nil {
@@ -222,7 +230,7 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 			t.Fatal(err)
 		}
 		o := &influxdb.Organization{
-			ID:   1,
+			// ID(1)
 			Name: "org1",
 		}
 		if err := s.CreateOrganization(ctx, o); err != nil {
@@ -307,7 +315,7 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		}
 
 		b := &influxdb.Bucket{
-			ID:    1,
+			// ID(1)
 			OrgID: 1,
 			Name:  "bucket1",
 		}
@@ -363,7 +371,7 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 					t.Fatal(err)
 				}
 				o := &influxdb.Organization{
-					ID:   1,
+					// ID(1)
 					Name: "org1",
 				}
 				if err := s.CreateOrganization(ctx, o); err != nil {
@@ -432,7 +440,7 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 
 				// Now add a new bucket and check the URMs.
 				b := &influxdb.Bucket{
-					ID:    1000,
+					// ID(1)
 					OrgID: o.ID,
 					Name:  "bucket1",
 				}
@@ -456,8 +464,16 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 // Delete tests various cases of deletion for the services in the TenantService.
 // An example: if you delete a bucket the corresponding user resource mapping is not present.
 func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantService, func())) {
+	t.Helper()
+
 	fields := func() TenantFields {
 		return TenantFields{
+			OrgIDGenerator: mock.NewIncrementingIDGenerator(1),
+			// URM are userID + resourceID (they do not include resource type)
+			// so same IDs across different resources leads to collisions
+			// therefore, we need to start bucket IDs at higher offset for
+			// test.
+			BucketIDGenerator: mock.NewIncrementingIDGenerator(10),
 			Users: []*influxdb.User{
 				{
 					ID:   1,
@@ -471,23 +487,25 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 			Passwords: []string{"password1", "password2"},
 			Organizations: []*influxdb.Organization{
 				{
-					ID:   10,
+					// ID(1)
 					Name: "org1",
 				},
 				{
-					ID:   20,
+					// ID(2)
 					Name: "org2",
 				},
 			},
+			// 2 organizations create 2 system buckets each
+			// so start at 14
 			Buckets: []*influxdb.Bucket{
 				{
-					ID:    100,
-					OrgID: 10,
+					// ID(14)
+					OrgID: 1,
 					Name:  "bucket1",
 				},
 				{
-					ID:    200,
-					OrgID: 20,
+					// ID(15)
+					OrgID: 2,
 					Name:  "bucket2",
 				},
 			},
@@ -499,14 +517,14 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 					UserType:     influxdb.Owner,
 					MappingType:  influxdb.UserMappingType,
 					ResourceType: influxdb.OrgsResourceType,
-					ResourceID:   10,
+					ResourceID:   1,
 				},
 				{
 					UserID:       1,
 					UserType:     influxdb.Owner,
 					MappingType:  influxdb.UserMappingType,
 					ResourceType: influxdb.BucketsResourceType,
-					ResourceID:   100,
+					ResourceID:   14,
 				},
 				// user 1 is member of org2 (and so bucket2)
 				{
@@ -514,14 +532,14 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 					UserType:     influxdb.Member,
 					MappingType:  influxdb.UserMappingType,
 					ResourceType: influxdb.OrgsResourceType,
-					ResourceID:   20,
+					ResourceID:   2,
 				},
 				{
 					UserID:       1,
 					UserType:     influxdb.Member,
 					MappingType:  influxdb.UserMappingType,
 					ResourceType: influxdb.BucketsResourceType,
-					ResourceID:   200,
+					ResourceID:   15,
 				},
 				// user 2 owns org2 (and so bucket2)
 				{
@@ -529,14 +547,14 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 					UserType:     influxdb.Owner,
 					MappingType:  influxdb.UserMappingType,
 					ResourceType: influxdb.OrgsResourceType,
-					ResourceID:   20,
+					ResourceID:   2,
 				},
 				{
 					UserID:       2,
 					UserType:     influxdb.Owner,
 					MappingType:  influxdb.UserMappingType,
 					ResourceType: influxdb.BucketsResourceType,
-					ResourceID:   200,
+					ResourceID:   15,
 				},
 			},
 		}

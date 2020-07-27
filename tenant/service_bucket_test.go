@@ -10,11 +10,11 @@ import (
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
-func TestBoltBucketService(t *testing.T) {
-	influxdbtesting.BucketService(initBoltBucketService, t, influxdbtesting.WithoutHooks())
+func TestInmemBucketService(t *testing.T) {
+	influxdbtesting.BucketService(initInmemBucketService, t)
 }
 
-func initBoltBucketService(f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
+func initInmemBucketService(f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
 	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
@@ -29,28 +29,54 @@ func initBoltBucketService(f influxdbtesting.BucketFields, t *testing.T) (influx
 
 func initBucketService(s kv.SchemaStore, f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
 	storage := tenant.NewStore(s)
-	svc := tenant.NewService(storage)
-
-	for _, o := range f.Organizations {
-		// use storage create org in order to avoid creating system buckets
-		if err := s.Update(context.Background(), func(tx kv.Tx) error {
-			return storage.CreateOrg(tx.Context(), tx, o)
-		}); err != nil {
-			t.Fatalf("failed to populate organizations: %s", err)
-		}
+	if f.IDGenerator != nil {
+		storage.IDGen = f.IDGenerator
 	}
 
-	for _, b := range f.Buckets {
-		if err := svc.CreateBucket(context.Background(), b); err != nil {
-			t.Fatalf("failed to populate buckets: %s", err)
-		}
+	if f.OrgIDs != nil {
+		storage.OrgIDGen = f.OrgIDs
 	}
 
-	return svc, "tenant/", func() {
+	if f.BucketIDs != nil {
+		storage.BucketIDGen = f.BucketIDs
+	}
+
+	// go direct to storage for test data
+	if err := s.Update(context.Background(), func(tx kv.Tx) error {
 		for _, o := range f.Organizations {
-			if err := svc.DeleteOrganization(context.Background(), o.ID); err != nil {
-				t.Logf("failed to remove organization: %v", err)
+			if err := storage.CreateOrg(tx.Context(), tx, o); err != nil {
+				return err
 			}
+		}
+
+		for _, b := range f.Buckets {
+			if err := storage.CreateBucket(tx.Context(), tx, b); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		t.Fatalf("failed to populate organizations: %s", err)
+	}
+
+	return tenant.NewService(storage), "tenant/", func() {
+		if err := s.Update(context.Background(), func(tx kv.Tx) error {
+			for _, b := range f.Buckets {
+				if err := storage.DeleteBucket(tx.Context(), tx, b.ID); err != nil {
+					return err
+				}
+			}
+
+			for _, o := range f.Organizations {
+				if err := storage.DeleteOrg(tx.Context(), tx, o.ID); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}); err != nil {
+			t.Logf("failed to cleanup organizations: %s", err)
 		}
 	}
 }

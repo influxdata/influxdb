@@ -37,7 +37,8 @@ type Service struct {
 	// special ID generator that never returns bytes with backslash,
 	// comma, or space. Used to support very specific encoding of org &
 	// bucket into the old measurement in storage.
-	OrgBucketIDs influxdb.IDGenerator
+	OrgIDs    influxdb.IDGenerator
+	BucketIDs influxdb.IDGenerator
 
 	TokenGenerator influxdb.TokenGenerator
 	// TODO(desa:ariel): this should not be embedded
@@ -59,7 +60,8 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		log:         log,
 		IDGenerator: snowflake.NewIDGenerator(),
 		// Seed the random number generator with the current time
-		OrgBucketIDs:   rand.NewOrgBucketID(time.Now().UnixNano()),
+		OrgIDs:         rand.NewOrgBucketID(time.Now().UnixNano()),
+		BucketIDs:      rand.NewOrgBucketID(time.Now().UnixNano()),
 		TokenGenerator: rand.NewTokenGenerator(64),
 		Hash:           &Bcrypt{},
 		kv:             kv,
@@ -107,14 +109,6 @@ func (s *Service) WithResourceLogger(audit resource.Logger) {
 // Should only be used in tests for mocking.
 func (s *Service) WithStore(store Store) {
 	s.kv = store
-}
-
-// WithSpecialOrgBucketIDs sets the generator for the org
-// and bucket ids.
-//
-// Should only be used in tests for mocking.
-func (s *Service) WithSpecialOrgBucketIDs(gen influxdb.IDGenerator) {
-	s.OrgBucketIDs = gen
 }
 
 // WithMaxPermissionFunc sets the useAuthorizationsForMaxPermissions function
