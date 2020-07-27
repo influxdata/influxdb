@@ -75,7 +75,7 @@ class QueryCache {
       this.resetCacheByID(id)
       return null
     }
-    event('Query Cache successful Get', {context: 'queryCache'})
+    event('Query Cache successful Get', {context: 'queryCache', queryID: id})
     return this.cache[id].values
   }
 
@@ -112,7 +112,7 @@ class QueryCache {
     hashedVariables: string,
     values: RunQueryResult
   ): void => {
-    event('Query Cache was Set', {context: 'queryCache'})
+    event('Query Cache was Set', {context: 'queryCache', queryID})
     this.cache[queryID] = {
       ...this.initializeCacheByID(queryID, hashedVariables),
       dateSet: Date.now(),
