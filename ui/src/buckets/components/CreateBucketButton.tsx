@@ -3,12 +3,7 @@ import React, {FC, useEffect} from 'react'
 import {connect, ConnectedProps, useDispatch} from 'react-redux'
 
 // Components
-import {
-  Button,
-  IconFont,
-  ComponentColor,
-  ComponentStatus,
-} from '@influxdata/clockface'
+import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 
 // Actions
 import {checkBucketLimits, LimitStatus} from 'src/cloud/actions/limits'
@@ -19,6 +14,9 @@ import {extractBucketLimits} from 'src/cloud/utils/limits'
 
 // Types
 import {AppState} from 'src/types'
+
+// Constants
+import {CLOUD} from 'src/shared/constants'
 
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
@@ -35,32 +33,23 @@ const CreateBucketButton: FC<Props> = ({
   }, [dispatch])
 
   const limitExceeded = limitStatus === LimitStatus.EXCEEDED
-  const text = 'Create Bucket'
-  let titleText = 'Click to create a bucket'
-  let buttonStatus = ComponentStatus.Default
-
-  if (limitExceeded) {
-    titleText = 'This account has the maximum number of buckets allowed'
-    buttonStatus = ComponentStatus.Disabled
-  }
 
   const handleItemClick = (): void => {
-    if (limitExceeded) {
-      return
+    if (CLOUD && limitExceeded) {
+      onShowOverlay('asset-limit', {asset: 'Buckets'}, onDismissOverlay)
+    } else {
+      onShowOverlay('create-bucket', null, onDismissOverlay)
     }
-
-    onShowOverlay('create-bucket', null, onDismissOverlay)
   }
 
   return (
     <Button
       icon={IconFont.Plus}
       color={ComponentColor.Primary}
-      text={text}
-      titleText={titleText}
+      text="Create Bucket"
+      titleText="Click to create a bucket"
       onClick={handleItemClick}
       testID="Create Bucket"
-      status={buttonStatus}
     />
   )
 }
