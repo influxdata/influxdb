@@ -32,6 +32,7 @@ case $key in
 esac
 done
 
+echo E2E_CLOUD_DEFAULT_USER_USERNAME = ${E2E_CLOUD_DEFAULT_USER_USERNAME}
 
 echo Working from ${APP_ROOT}
 
