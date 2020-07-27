@@ -91,7 +91,7 @@ func (blk *MeasurementBlock) Elem(name []byte, limiter *mincore.Limiter) (e Meas
 		if offset > 0 {
 			// Parse into element.
 			var e MeasurementBlockElem
-			_ = wait(limiter, blk.hashData[offset:offset+1])
+			_ = wait(limiter, blk.data[offset:offset+1])
 			e.UnmarshalBinary(blk.data[offset:])
 
 			// Return if name match.
