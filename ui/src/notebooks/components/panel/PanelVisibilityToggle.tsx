@@ -8,10 +8,8 @@ import {NotebookContext} from 'src/notebooks/context/notebook.current'
 // Utils
 import {event} from 'src/cloud/utils/reporting'
 
-import {DataID, PipeData} from 'src/notebooks'
-
 export interface Props {
-  id: DataID<PipeData>
+  id: string
 }
 
 const PanelVisibilityToggle: FC<Props> = ({id}) => {

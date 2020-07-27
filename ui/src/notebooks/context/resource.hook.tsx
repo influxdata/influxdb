@@ -3,7 +3,6 @@ import {
   ResourceManipulator,
   ResourceUpdater,
   ResourceGenerator,
-  DataID,
 } from 'src/notebooks'
 
 function useResource<T>(
@@ -12,14 +11,14 @@ function useResource<T>(
   generator?: ResourceGenerator<T>
 ): ResourceManipulator<T> {
   return {
-    get: (id: DataID<T>): T => {
+    get: (id: string): T => {
       if (!resource.byID.hasOwnProperty(id)) {
         throw new Error(`Could not find resource [${id}]`)
       }
 
       return resource.byID[id]
     },
-    add: (id: DataID<T>, data?: T) => {
+    add: (id: string, data?: T) => {
       if (data) {
         resource.byID[id] = data
         resource.allIDs.push(id)
@@ -42,7 +41,7 @@ function useResource<T>(
       resource.allIDs.push(id)
       onChange(resource)
     },
-    update: (id: DataID<T>, data: Partial<T>) => {
+    update: (id: string, data: Partial<T>) => {
       if (!resource.byID.hasOwnProperty(id)) {
         throw new Error(`Could not update resource [${id}]`)
       }
@@ -57,7 +56,7 @@ function useResource<T>(
 
       onChange(resource)
     },
-    remove: (id: DataID<T>) => {
+    remove: (id: string) => {
       if (!resource.byID.hasOwnProperty(id)) {
         return
       }
@@ -75,10 +74,10 @@ function useResource<T>(
       return resource.allIDs.map(id => resource.byID[id])
     },
 
-    indexOf: (id: DataID<T>): number => {
+    indexOf: (id: string): number => {
       return resource.allIDs.indexOf(id)
     },
-    move: (id: DataID<T>, index: number) => {
+    move: (id: string, index: number) => {
       const _index =
         ((index % resource.allIDs.length) + resource.allIDs.length) %
         resource.allIDs.length

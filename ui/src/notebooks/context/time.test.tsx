@@ -92,39 +92,49 @@ describe('Notebook Time Context', () => {
     })
   })
 
-  it('yells if you try to overwrite something', () => {
-    const contextCallback = jest.fn()
+  describe('error suite', () => {
+    beforeEach(() => {
+      jest.spyOn(console, 'error')
+      ;(console.error as any).mockImplementation(() => {})
+    })
 
-    render(
-      <TimeProvider>
-        <TimeContext.Consumer>{contextCallback}</TimeContext.Consumer>
-      </TimeProvider>
-    )
+    afterEach(() => {
+      ;(console.error as any).mockRestore()
+    })
+    it('yells if you try to overwrite something', () => {
+      const contextCallback = jest.fn()
 
-    const context = contextCallback.mock.calls[0][0]
-    expect(context.timeContext).toEqual({})
+      render(
+        <TimeProvider>
+          <TimeContext.Consumer>{contextCallback}</TimeContext.Consumer>
+        </TimeProvider>
+      )
 
-    context.addTimeContext('sweet')
-    expect(() => {
+      const context = contextCallback.mock.calls[0][0]
+      expect(context.timeContext).toEqual({})
+
       context.addTimeContext('sweet')
-    }).toThrow('TimeContext[sweet] already exists: use updateContext instead')
-  })
+      expect(() => {
+        context.addTimeContext('sweet')
+      }).toThrow('TimeContext[sweet] already exists: use updateContext instead')
+    })
 
-  it('yells if you try to delete nothing', () => {
-    const contextCallback = jest.fn()
+    it('yells if you try to delete nothing', () => {
+      const contextCallback = jest.fn()
 
-    render(
-      <TimeProvider>
-        <TimeContext.Consumer>{contextCallback}</TimeContext.Consumer>
-      </TimeProvider>
-    )
+      render(
+        <TimeProvider>
+          <TimeContext.Consumer>{contextCallback}</TimeContext.Consumer>
+        </TimeProvider>
+      )
 
-    const context = contextCallback.mock.calls[0][0]
-    expect(context.timeContext).toEqual({})
+      const context = contextCallback.mock.calls[0][0]
+      expect(context.timeContext).toEqual({})
 
-    expect(() => {
-      context.removeTimeContext('sweet')
-    }).toThrow("TimeContext[sweet] doesn't exist")
+      expect(() => {
+        context.removeTimeContext('sweet')
+      }).toThrow("TimeContext[sweet] doesn't exist")
+    })
   })
 
   it('totally chill with deleting', () => {
