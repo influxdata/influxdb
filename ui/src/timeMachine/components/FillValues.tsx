@@ -43,7 +43,9 @@ const FillValues: FunctionComponent<Props> = ({
         size={ComponentSize.ExtraSmall}
       />
       <FlexBox.Child grow={1}>
-        <InputLabel>Fill missing values</InputLabel>
+        <InputLabel className="fill-values-checkbox--label">
+          Fill missing values
+        </InputLabel>
       </FlexBox.Child>
       <QuestionMarkTooltip
         diameter={16}
