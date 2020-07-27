@@ -102,11 +102,6 @@ func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) e
 		Args: cobra.NoArgs,
 		Use:  use,
 		RunE: runE,
-		FParseErrWhitelist: cobra.FParseErrWhitelist{
-			// allows for unknown flags, parser does not crap the bed
-			// when providing a flag that doesn't exist/match.
-			UnknownFlags: true,
-		},
 	}
 
 	canWrapRunE := runE != nil && o.runEWrapFn != nil
@@ -303,7 +298,6 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdOrganization,
 		cmdPing,
 		cmdQuery,
-		cmdREPL,
 		cmdSecret,
 		cmdSetup,
 		cmdStack,
@@ -562,16 +556,6 @@ func setViperOptions() {
 	viper.SetEnvPrefix("INFLUX")
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-}
-
-func enforceFlagValidation(cmd *cobra.Command) {
-	cmd.FParseErrWhitelist = cobra.FParseErrWhitelist{
-		// disable unknown flags when short flag can conflict with a long flag.
-		// An example here is the --filter flag provided as -filter=foo will overwrite
-		// the -f flag to -f=ilter=foo, which generates a bad filename.
-		// remedies issue: https://github.com/influxdata/influxdb/issues/18850
-		UnknownFlags: false,
-	}
 }
 
 func writeJSON(w io.Writer, v interface{}) error {

@@ -284,7 +284,7 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 		}
 
 		// Iterate over tag values.
-		vitr := ke.TagValueIterator()
+		vitr := ke.TagValueIterator(nil)
 		for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
 			seriesIDs = seriesIDs[:0]
 

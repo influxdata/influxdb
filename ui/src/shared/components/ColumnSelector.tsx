@@ -23,6 +23,7 @@ const ColumnSelector: FunctionComponent<Props> = ({
         options={availableColumns}
         selectedOption={selectedColumn || 'Build a query before selecting...'}
         onSelect={onSelectColumn}
+        testID={`dropdown-${axisName}`}
         buttonStatus={
           availableColumns.length == 0
             ? ComponentStatus.Disabled

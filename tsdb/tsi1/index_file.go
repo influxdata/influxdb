@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"github.com/influxdata/influxdb/v2/pkg/mmap"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
@@ -73,6 +74,8 @@ type IndexFile struct {
 
 	// Path to data file.
 	path string
+
+	pageFaultLimiter *mincore.Limiter
 }
 
 // NewIndexFile returns a new instance of IndexFile.
@@ -215,7 +218,7 @@ func (f *IndexFile) UnmarshalBinary(data []byte) error {
 
 	// Unmarshal each tag block.
 	f.tblks = make(map[string]*TagBlock)
-	itr := f.mblk.Iterator()
+	itr := f.mblk.Iterator(f.pageFaultLimiter)
 
 	for m := itr.Next(); m != nil; m = itr.Next() {
 		e := m.(*MeasurementBlockElem)
@@ -243,7 +246,7 @@ func (f *IndexFile) SeriesIDSet() (*tsdb.SeriesIDSet, error) {
 	if err := ss.UnmarshalBinary(f.seriesIDSetData); err != nil {
 		return nil, err
 	}
-	return ss, nil
+	return ss, wait(f.pageFaultLimiter, f.seriesIDSetData)
 }
 
 func (f *IndexFile) TombstoneSeriesIDSet() (*tsdb.SeriesIDSet, error) {
@@ -251,12 +254,12 @@ func (f *IndexFile) TombstoneSeriesIDSet() (*tsdb.SeriesIDSet, error) {
 	if err := ss.UnmarshalBinaryUnsafe(f.tombstoneSeriesIDSetData); err != nil {
 		return nil, err
 	}
-	return ss, nil
+	return ss, wait(f.pageFaultLimiter, f.tombstoneSeriesIDSetData)
 }
 
 // Measurement returns a measurement element.
 func (f *IndexFile) Measurement(name []byte) MeasurementElem {
-	e, ok := f.mblk.Elem(name)
+	e, ok := f.mblk.Elem(name, f.pageFaultLimiter)
 	if !ok {
 		return nil
 	}
@@ -265,7 +268,7 @@ func (f *IndexFile) Measurement(name []byte) MeasurementElem {
 
 // MeasurementN returns the number of measurements in the file.
 func (f *IndexFile) MeasurementN() (n uint64) {
-	mitr := f.mblk.Iterator()
+	mitr := f.mblk.Iterator(f.pageFaultLimiter)
 	for me := mitr.Next(); me != nil; me = mitr.Next() {
 		n++
 	}
@@ -274,7 +277,7 @@ func (f *IndexFile) MeasurementN() (n uint64) {
 
 // MeasurementHasSeries returns true if a measurement has any non-tombstoned series.
 func (f *IndexFile) MeasurementHasSeries(ss *tsdb.SeriesIDSet, name []byte) (ok bool) {
-	e, ok := f.mblk.Elem(name)
+	e, ok := f.mblk.Elem(name, f.pageFaultLimiter)
 	if !ok {
 		return false
 	}
@@ -299,13 +302,13 @@ func (f *IndexFile) TagValueIterator(name, key []byte) TagValueIterator {
 	}
 
 	// Find key element.
-	ke := tblk.TagKeyElem(key)
+	ke := tblk.TagKeyElem(key, f.pageFaultLimiter)
 	if ke == nil {
 		return nil
 	}
 
 	// Merge all value series iterators together.
-	return ke.TagValueIterator()
+	return ke.TagValueIterator(f.pageFaultLimiter)
 }
 
 // TagKeySeriesIDIterator returns a series iterator for a tag key and a flag
@@ -317,13 +320,13 @@ func (f *IndexFile) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDItera
 	}
 
 	// Find key element.
-	ke := tblk.TagKeyElem(key)
+	ke := tblk.TagKeyElem(key, f.pageFaultLimiter)
 	if ke == nil {
 		return nil, nil
 	}
 
 	// Merge all value series iterators together.
-	vitr := ke.TagValueIterator()
+	vitr := ke.TagValueIterator(f.pageFaultLimiter)
 
 	var itrs []tsdb.SeriesIDIterator
 	for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
@@ -351,7 +354,7 @@ func (f *IndexFile) TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesID
 
 	// Find value element.
 	var valueElem TagBlockValueElem
-	if !tblk.DecodeTagValueElem(key, value, &valueElem) {
+	if !tblk.DecodeTagValueElem(key, value, &valueElem, f.pageFaultLimiter) {
 		return nil, nil
 	} else if valueElem.SeriesN() == 0 {
 		return nil, nil
@@ -365,7 +368,7 @@ func (f *IndexFile) TagKey(name, key []byte) TagKeyElem {
 	if tblk == nil {
 		return nil
 	}
-	return tblk.TagKeyElem(key)
+	return tblk.TagKeyElem(key, f.pageFaultLimiter)
 }
 
 // TagValue returns a tag value.
@@ -374,7 +377,7 @@ func (f *IndexFile) TagValue(name, key, value []byte) TagValueElem {
 	if tblk == nil {
 		return nil
 	}
-	return tblk.TagValueElem(key, value)
+	return tblk.TagValueElem(key, value, f.pageFaultLimiter)
 }
 
 // HasSeries returns flags indicating if the series exists and if it is tombstoned.
@@ -388,12 +391,12 @@ func (f *IndexFile) TagValueElem(name, key, value []byte) TagValueElem {
 	if !ok {
 		return nil
 	}
-	return tblk.TagValueElem(key, value)
+	return tblk.TagValueElem(key, value, f.pageFaultLimiter)
 }
 
 // MeasurementIterator returns an iterator over all measurements.
 func (f *IndexFile) MeasurementIterator() MeasurementIterator {
-	return f.mblk.Iterator()
+	return f.mblk.Iterator(f.pageFaultLimiter)
 }
 
 // TagKeyIterator returns an iterator over all tag keys for a measurement.
@@ -402,13 +405,12 @@ func (f *IndexFile) TagKeyIterator(name []byte) TagKeyIterator {
 	if blk == nil {
 		return nil
 	}
-
-	return blk.TagKeyIterator()
+	return blk.TagKeyIterator(f.pageFaultLimiter)
 }
 
 // MeasurementSeriesIDIterator returns an iterator over a measurement's series.
 func (f *IndexFile) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator {
-	return f.mblk.SeriesIDIterator(name)
+	return f.mblk.SeriesIDIterator(name, f.pageFaultLimiter)
 }
 
 // ReadIndexFileTrailer returns the index file trailer from data.

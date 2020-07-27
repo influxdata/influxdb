@@ -5,7 +5,6 @@ import {useDispatch} from 'react-redux'
 // Components
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import LimitChecker from 'src/cloud/components/LimitChecker'
-import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
 // Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
@@ -28,7 +27,6 @@ const DataExplorer: FC = () => {
 
   return (
     <LimitChecker>
-      <RateLimitAlert />
       <div className="data-explorer">
         <HoverTimeProvider>
           <TimeMachine />
