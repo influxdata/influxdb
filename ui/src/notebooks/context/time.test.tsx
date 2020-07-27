@@ -95,11 +95,11 @@ describe('Notebook Time Context', () => {
   describe('error suite', () => {
     beforeEach(() => {
       jest.spyOn(console, 'error')
-      (console.error as any).mockImplementation(() => {})
+      ;(console.error as any).mockImplementation(() => {}) // eslint-disable-line no-extra-semi
     })
 
     afterEach(() => {
-      (console.error as any).mockRestore()
+      ;(console.error as any).mockRestore() // eslint-disable-line no-extra-semi
     })
 
     it('yells if you try to overwrite something', () => {
