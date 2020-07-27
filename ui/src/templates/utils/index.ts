@@ -78,12 +78,12 @@ export const getIncludedLabels = (included: {type: TemplateType}[]) =>
 export const getTemplateUrlDetailsFromGithubSource = (
   url: string
 ): {directory: string; templateExtension: string; templateName: string} => {
-  if (!url.includes('https://github.com/influxdata/community-templates/')) {
+  if (!url.includes('influxdata/community-templates/')) {
     throw new Error(
       "We're only going to fetch from influxdb's github repo right now"
     )
   }
-  const [, templatePath] = url.split('/blob/master/')
+  const [, templatePath] = url.split('/master/')
   const [directory, name] = templatePath.split('/')
   const [templateName, templateExtension] = name.split('.')
   return {
