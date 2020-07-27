@@ -329,7 +329,7 @@ impl From<&str> for FieldValue {
 
 impl From<String> for FieldValue {
     fn from(other: String) -> Self {
-        Self::String(other.into())
+        Self::String(other)
     }
 }
 
@@ -453,11 +453,11 @@ impl WriteTimestamp for i64 {
     }
 }
 
-const MEASUREMENT_DELIMITERS: &'static [char] = &[',', ' '];
-const TAG_KEY_DELIMITERS: &'static [char] = &[',', '=', ' '];
-const TAG_VALUE_DELIMITERS: &'static [char] = TAG_KEY_DELIMITERS;
-const FIELD_KEY_DELIMITERS: &'static [char] = TAG_KEY_DELIMITERS;
-const FIELD_VALUE_STRING_DELIMITERS: &'static [char] = &['"'];
+const MEASUREMENT_DELIMITERS: &[char] = &[',', ' '];
+const TAG_KEY_DELIMITERS: &[char] = &[',', '=', ' '];
+const TAG_VALUE_DELIMITERS: &[char] = TAG_KEY_DELIMITERS;
+const FIELD_KEY_DELIMITERS: &[char] = TAG_KEY_DELIMITERS;
+const FIELD_VALUE_STRING_DELIMITERS: &[char] = &['"'];
 
 fn escape_and_write_value<W>(
     value: &str,
