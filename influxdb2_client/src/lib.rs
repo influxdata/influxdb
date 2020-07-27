@@ -291,7 +291,7 @@ impl WriteDataPoint for DataPoint {
 }
 
 /// Possible value types
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FieldValue {
     /// A true or false value
     Bool(bool),
