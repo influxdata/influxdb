@@ -95,12 +95,13 @@ describe('Notebook Time Context', () => {
   describe('error suite', () => {
     beforeEach(() => {
       jest.spyOn(console, 'error')
-      ;(console.error as any).mockImplementation(() => {})
+      (console.error as any).mockImplementation(() => {})
     })
 
     afterEach(() => {
-      ;(console.error as any).mockRestore()
+      (console.error as any).mockRestore()
     })
+
     it('yells if you try to overwrite something', () => {
       const contextCallback = jest.fn()
 
