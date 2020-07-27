@@ -9,3 +9,7 @@ bytes = { version = "0.5.4", default-features = false }
 futures = { version = "0.3.5", default-features = false }
 reqwest = { version = "0.10.1", default-features = false, features = ["stream"] }
 snafu = "0.6.6"
+
+[dev-dependencies]
+mockito = "0.26.0"
+tokio = { version = "0.2", features = ["full"] }

@@ -481,13 +481,51 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::stream;
+    use mockito::mock;
 
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
 
-    #[test]
-    fn it_works() {
-        let _client = Client::new("http://localhost:8888");
+    #[tokio::test]
+    async fn writing_points() -> Result {
+        let org_id = "0000111100001111";
+        let bucket_id = "1111000011110000";
+
+        let mock_server = mock(
+            "POST",
+            format!("/api/v2/write?bucket={}&org={}", bucket_id, org_id).as_str(),
+        )
+        .match_body(
+            "\
+cpu,host=server01 usage=0.5
+cpu,host=server01,region=us-west usage=0.87
+",
+        )
+        .create();
+
+        let client = Client::new(&mockito::server_url());
+
+        let points = vec![
+            DataPoint::builder("cpu")
+                .tag("host", "server01")
+                .field("usage", 0.5)
+                .build()?,
+            DataPoint::builder("cpu")
+                .tag("host", "server01")
+                .tag("region", "us-west")
+                .field("usage", 0.87)
+                .build()?,
+        ];
+
+        // If the requests made are incorrect, Mockito returns status 501 and `write` will return
+        // an error, which causes the test to fail here instead of when we assert on mock_server.
+        // The error messages that Mockito provides are much clearer for explaining why a test
+        // failed than just that the server returned 501, so don't use `?` here.
+        let _result = client.write(org_id, bucket_id, stream::iter(points)).await;
+
+        mock_server.assert();
+        Ok(())
     }
 
     #[test]
