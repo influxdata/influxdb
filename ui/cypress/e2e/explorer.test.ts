@@ -888,6 +888,98 @@ describe('DataExplorer', () => {
         })
         cy.get(`[title="${numLines}"]`).should('be.visible')
       })
+
+      it('can customize graph axes parameters', () => {
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+        cy.getByTestID('time-machine-submit-button').click()
+        cy.getByTestID('cog-cell--button').click()
+
+        cy.get('.view-options').within(() => {
+          cy.getByTestID('grid--column')
+            .eq(0)
+            .within(() => {
+              cy.getByTestID('dropdown--button')
+                .eq(0)
+                .click()
+                .then(() => {
+                  cy.getByTestID('dropdown-item')
+                    .contains('_value')
+                    .click()
+                })
+            })
+        })
+
+        cy.get('.view-options').within(() => {
+          cy.getByTestID('dropdown--button')
+            .eq(0)
+            .contains('_value')
+        })
+
+        cy.get('.view-options').within(() => {
+          cy.getByTestID('grid--column')
+            .eq(0)
+            .within(() => {
+              cy.getByTestID('dropdown--button')
+                .eq(1)
+                .click()
+                .then(() => {
+                  cy.getByTestID('dropdown-item')
+                    .contains('_time')
+                    .click()
+                })
+            })
+        })
+
+        cy.get('.view-options').within(() => {
+          cy.getByTestID('dropdown--button')
+            .eq(1)
+            .contains('_time')
+        })
+
+        cy.get('.view-options').within(() => {
+          cy.getByTestID('grid--column')
+            .eq(0)
+            .within(() => {
+              cy.getByTestID('dropdown--button')
+                .eq(0)
+                .click()
+                .then(() => {
+                  cy.getByTestID('dropdown-item')
+                    .contains('_start')
+                    .click()
+                })
+            })
+        })
+
+        cy.get('.view-options').within(() => {
+          cy.getByTestID('dropdown--button')
+            .eq(0)
+            .contains('_start')
+        })
+
+        cy.get('.view-options').within(() => {
+          cy.getByTestID('grid--column')
+            .eq(0)
+            .within(() => {
+              cy.getByTestID('dropdown--button')
+                .eq(0)
+                .click()
+                .then(() => {
+                  cy.getByTestID('dropdown-item')
+                    .contains('_stop')
+                    .click()
+                })
+            })
+        })
+
+        cy.get('.view-options').within(() => {
+          cy.getByTestID('dropdown--button')
+            .eq(0)
+            .contains('_stop')
+        })
+      })
     })
   })
 
