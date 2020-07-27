@@ -1,12 +1,12 @@
 import React, {FC, createElement, useMemo} from 'react'
 
-import {PipeContextProps, PipeData, DataID} from 'src/notebooks'
+import {PipeContextProps} from 'src/notebooks'
 import Pipe from 'src/notebooks/components/Pipe'
 import NotebookPanel from 'src/notebooks/components/panel/NotebookPanel'
 import {PipeProvider} from 'src/notebooks/context/pipe'
 
 export interface NotebookPipeProps {
-  id: DataID<PipeData>
+  id: string
 }
 
 const NotebookPipe: FC<NotebookPipeProps> = ({id}) => {

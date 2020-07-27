@@ -1,6 +1,6 @@
 import React, {FC, useContext, useEffect, useCallback, useMemo} from 'react'
 import createPersistedState from 'use-persisted-state'
-import {Notebook, DataID, PipeData} from 'src/notebooks'
+import {Notebook, PipeData} from 'src/notebooks'
 import {
   NotebookListContext,
   NotebookListProvider,
@@ -11,9 +11,9 @@ import {RemoteDataState} from 'src/types'
 const useNotebookCurrentState = createPersistedState('current-notebook')
 
 export interface NotebookContextType {
-  id: DataID<Notebook> | null
+  id: string | null
   notebook: Notebook | null
-  change: (id: DataID<Notebook>) => void
+  change: (id: string) => void
   add: (data: Partial<PipeData>, index?: number) => string
   update: (notebook: Partial<Notebook>) => void
   remove: () => void
@@ -56,7 +56,7 @@ export const NotebookProvider: FC = ({children}) => {
   const {notebooks, add, update, remove} = useContext(NotebookListContext)
 
   const change = useCallback(
-    (id: DataID<Notebook>) => {
+    (id: string) => {
       if (!notebooks || !notebooks.hasOwnProperty(id)) {
         throw new Error('Notebook does note exist')
       }

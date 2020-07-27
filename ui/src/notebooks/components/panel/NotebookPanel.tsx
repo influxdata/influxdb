@@ -25,18 +25,18 @@ import MovePanelButton from 'src/notebooks/components/panel/MovePanelButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
 
 // Types
-import {PipeContextProps, DataID, PipeData} from 'src/notebooks'
+import {PipeContextProps} from 'src/notebooks'
 
 // Contexts
 import {NotebookContext} from 'src/notebooks/context/notebook.current'
 import {RefContext} from 'src/notebooks/context/refs'
 
 export interface Props extends PipeContextProps {
-  id: DataID<PipeData>
+  id: string
 }
 
 export interface HeaderProps {
-  id: DataID<PipeData>
+  id: string
   controls?: ReactNode
 }
 

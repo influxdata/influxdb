@@ -169,5 +169,5 @@ export const useLoadTimeReporting = (measurement: string) => {
     event(measurement, {
       time: loadStartTime,
     })
-  }, [event, loadStartTime])
+  }, [measurement, loadStartTime])
 }
