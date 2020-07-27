@@ -54,11 +54,14 @@
 //! }
 //! ```
 
-use bytes::Bytes;
+use bytes::buf::ext::BufMutExt;
 use futures::{Stream, StreamExt};
 use reqwest::Body;
 use snafu::{ensure, ResultExt, Snafu};
-use std::{cmp, collections::BTreeMap, convert::Infallible, fmt, marker::PhantomData};
+use std::{
+    collections::BTreeMap,
+    io::{self, Write},
+};
 
 /// Errors that occur while making requests to the Influx server.
 #[derive(Debug, Snafu)]
@@ -150,12 +153,17 @@ impl Client {
         &self,
         org_id: &str,
         bucket_id: &str,
-        body: impl Stream<Item = DataPoint> + Send + Sync + 'static,
+        body: impl Stream<Item = impl WriteDataPoint> + Send + Sync + 'static,
     ) -> Result<(), RequestError> {
-        let body = body
-            .map(|dp| dp.line_protocol().to_string())
-            .map(Bytes::from)
-            .map(Ok::<_, Infallible>);
+        let mut buffer = bytes::BytesMut::new();
+
+        let body = body.map(move |point| {
+            let mut w = (&mut buffer).writer();
+            point.write_data_point_to(&mut w)?;
+            w.flush()?;
+            Ok::<_, io::Error>(buffer.split().freeze())
+        });
+
         let body = Body::wrap_stream(body);
 
         Ok(self.write_line_protocol(org_id, bucket_id, body).await?)
@@ -167,15 +175,15 @@ impl Client {
 /// Create this via `DataPoint::builder`.
 #[derive(Debug)]
 pub struct DataPointBuilder {
-    measurement: EscapedMeasurement,
+    measurement: String,
     // Keeping the tags sorted improves performance on the server side
-    tags: BTreeMap<EscapedTagKey, EscapedTagKey>,
-    fields: BTreeMap<EscapedFieldKey, FieldValue>,
+    tags: BTreeMap<String, String>,
+    fields: BTreeMap<String, FieldValue>,
     timestamp: Option<i64>,
 }
 
 impl DataPointBuilder {
-    fn new(measurement: impl Into<EscapedMeasurement>) -> Self {
+    fn new(measurement: impl Into<String>) -> Self {
         Self {
             measurement: measurement.into(),
             tags: Default::default(),
@@ -185,17 +193,13 @@ impl DataPointBuilder {
     }
 
     /// Sets a tag, replacing any existing tag of the same name.
-    pub fn tag(
-        mut self,
-        name: impl Into<EscapedTagKey>,
-        value: impl Into<EscapedTagValue>,
-    ) -> Self {
+    pub fn tag(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.tags.insert(name.into(), value.into());
         self
     }
 
     /// Sets a field, replacing any existing field of the same name.
-    pub fn field(mut self, name: impl Into<EscapedFieldKey>, value: impl Into<FieldValue>) -> Self {
+    pub fn field(mut self, name: impl Into<String>, value: impl Into<FieldValue>) -> Self {
         self.fields.insert(name.into(), value.into());
         self
     }
@@ -235,154 +239,59 @@ impl DataPointBuilder {
 }
 
 /// A single point of information to send to InfluxDB.
+// TODO: If we want to support non-UTF-8 data, all `String`s stored in `DataPoint` would need
+// to be `Vec<u8>` instead, the API for creating a `DataPoint` would need some more consideration,
+// and there would need to be more `Write*` trait implementations. Because the `Write*` traits work
+// on a writer of bytes, that part of the design supports non-UTF-8 data now.
 #[derive(Debug)]
 pub struct DataPoint {
-    measurement: EscapedMeasurement,
-    tags: BTreeMap<EscapedTagKey, EscapedTagValue>,
-    fields: BTreeMap<EscapedFieldKey, FieldValue>,
+    measurement: String,
+    tags: BTreeMap<String, String>,
+    fields: BTreeMap<String, FieldValue>,
     timestamp: Option<i64>,
 }
 
 impl DataPoint {
     /// Create a builder to incrementally construct a `DataPoint`.
-    pub fn builder(measurement: impl Into<EscapedMeasurement>) -> DataPointBuilder {
+    pub fn builder(measurement: impl Into<String>) -> DataPointBuilder {
         DataPointBuilder::new(measurement)
-    }
-
-    fn line_protocol(&self) -> LineProtocol<'_> {
-        LineProtocol(self)
     }
 }
 
-/// The `LineProtocol` struct exists (and is deliberately) private because line protocol
-/// isn't guaranteed to be UTF-8, unlike Rust `String`s.
-/// Some future version of this library may support creating LineProtocol
-/// with data that's not UTF-8
-struct LineProtocol<'a>(&'a DataPoint);
+impl WriteDataPoint for DataPoint {
+    fn write_data_point_to<W>(&self, mut w: W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        self.measurement.write_measurement_to(&mut w)?;
 
-impl fmt::Display for LineProtocol<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.measurement)?;
-
-        for (k, v) in &self.0.tags {
-            write!(f, ",{}={}", k, v)?;
+        for (k, v) in &self.tags {
+            w.write_all(b",")?;
+            k.write_tag_key_to(&mut w)?;
+            w.write_all(b"=")?;
+            v.write_tag_value_to(&mut w)?;
         }
 
-        for (i, (k, v)) in self.0.fields.iter().enumerate() {
-            let d = if i == 0 { " " } else { "," };
-            write!(f, "{}{}={}", d, k, v)?;
+        for (i, (k, v)) in self.fields.iter().enumerate() {
+            let d = if i == 0 { b" " } else { b"," };
+
+            w.write_all(d)?;
+            k.write_field_key_to(&mut w)?;
+            w.write_all(b"=")?;
+            v.write_field_value_to(&mut w)?;
         }
 
-        if let Some(ts) = self.0.timestamp {
-            write!(f, " {}", ts)?;
+        if let Some(ts) = self.timestamp {
+            w.write_all(b" ")?;
+            ts.write_timestamp_to(&mut w)?;
         }
 
         Ok(())
     }
 }
 
-/// A string that will be escaped according to the rules of measurements
-pub type EscapedMeasurement = Escaped<Measurement>;
-/// A string that will be escaped according to the rules of tag keys
-pub type EscapedTagKey = Escaped<TagKey>;
-/// A string that will be escaped according to the rules of tag values
-pub type EscapedTagValue = Escaped<TagKey>;
-/// A string that will be escaped according to the rules of field keys
-pub type EscapedFieldKey = Escaped<TagKey>;
-/// A string that will be escaped according to the rules of field value strings
-pub type EscapedFieldValueString = Escaped<FieldValueString>;
-
-/// Ensures that a string value is appropriately escaped when it is sent to InfluxDB.
-#[derive(Debug, Clone)]
-pub struct Escaped<K>(String, PhantomData<K>);
-
-impl<K> PartialEq for Escaped<K> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.eq(&other.0)
-    }
-}
-
-impl<K> Eq for Escaped<K> {}
-
-impl<K> PartialOrd for Escaped<K> {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
-
-impl<K> Ord for Escaped<K> {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-impl<K> From<&str> for Escaped<K>
-where
-    K: EscapingSpecification,
-{
-    fn from(other: &str) -> Self {
-        Self(other.into(), PhantomData)
-    }
-}
-
-impl<K> From<String> for Escaped<K>
-where
-    K: EscapingSpecification,
-{
-    fn from(other: String) -> Self {
-        Self(other, PhantomData)
-    }
-}
-
-impl<K> fmt::Display for Escaped<K>
-where
-    K: EscapingSpecification,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut last = 0;
-
-        for (idx, delim) in self.0.match_indices(K::DELIMITERS) {
-            let s = &self.0[last..idx];
-            write!(f, r#"{}\{}"#, s, delim)?;
-            last = idx + delim.len();
-        }
-
-        self.0[last..].fmt(f)
-    }
-}
-
-/// Specifies how to escape a particular piece of InfluxDB information.
-pub trait EscapingSpecification {
-    /// The delimiters that need to be escaped
-    const DELIMITERS: &'static [char];
-}
-
-/// Rules to escape a field value string
-#[derive(Debug, Copy, Clone)]
-pub struct Measurement(());
-
-/// Rules to escape a tag key, tag field, or field key string
-#[derive(Debug, Copy, Clone)]
-pub struct TagKey(());
-
-/// Rules to escape a field value string
-#[derive(Debug, Copy, Clone)]
-pub struct FieldValueString(());
-
-impl EscapingSpecification for Measurement {
-    const DELIMITERS: &'static [char] = &[',', ' '];
-}
-
-impl EscapingSpecification for TagKey {
-    const DELIMITERS: &'static [char] = &[',', '=', ' '];
-}
-
-impl EscapingSpecification for FieldValueString {
-    const DELIMITERS: &'static [char] = &['"'];
-}
-
 /// Possible value types
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FieldValue {
     /// A true or false value
     Bool(bool),
@@ -391,7 +300,7 @@ pub enum FieldValue {
     /// A 64-bit signed integer number
     I64(i64),
     /// A string value
-    String(EscapedFieldValueString),
+    String(String),
 }
 
 impl From<bool> for FieldValue {
@@ -420,21 +329,153 @@ impl From<&str> for FieldValue {
 
 impl From<String> for FieldValue {
     fn from(other: String) -> Self {
-        Self::String(other.into())
+        Self::String(other)
     }
 }
 
-impl fmt::Display for FieldValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// Transform a type into valid line protocol lines
+///
+/// This trait is to enable the conversion of `DataPoint`s to line protocol; it is unlikely that
+/// you would need to implement this trait. In the future, a `derive` crate may exist that would
+/// facilitate the generation of implementations of this trait on custom types to help uphold the
+/// responsibilities for escaping and producing complete lines.
+pub trait WriteDataPoint {
+    /// Write this data point as line protocol. The implementor is responsible for
+    /// properly escaping the data and ensuring that complete lines
+    /// are generated.
+    fn write_data_point_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write;
+}
+
+// The following are traits rather than free functions so that we can limit their implementations
+// to only the data types supported for each of measurement, tag key, tag value, field key, field
+// value, and timestamp. They are a private implementation detail and any custom implementations
+// of these traits would be generated by a future derive trait.
+trait WriteMeasurement {
+    fn write_measurement_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write;
+}
+
+impl WriteMeasurement for str {
+    fn write_measurement_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        escape_and_write_value(self, MEASUREMENT_DELIMITERS, w)
+    }
+}
+
+trait WriteTagKey {
+    fn write_tag_key_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write;
+}
+
+impl WriteTagKey for str {
+    fn write_tag_key_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        escape_and_write_value(self, TAG_KEY_DELIMITERS, w)
+    }
+}
+
+trait WriteTagValue {
+    fn write_tag_value_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write;
+}
+
+impl WriteTagValue for str {
+    fn write_tag_value_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        escape_and_write_value(self, TAG_VALUE_DELIMITERS, w)
+    }
+}
+
+trait WriteFieldKey {
+    fn write_field_key_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write;
+}
+
+impl WriteFieldKey for str {
+    fn write_field_key_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        escape_and_write_value(self, FIELD_KEY_DELIMITERS, w)
+    }
+}
+
+trait WriteFieldValue {
+    fn write_field_value_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write;
+}
+
+impl WriteFieldValue for FieldValue {
+    fn write_field_value_to<W>(&self, mut w: W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
         use FieldValue::*;
 
         match self {
-            Bool(v) => write!(f, "{}", if *v { "t" } else { "f" }),
-            F64(v) => write!(f, "{}", v),
-            I64(v) => write!(f, "{}i", v),
-            String(v) => write!(f, r#""{}""#, v),
+            Bool(v) => write!(w, "{}", if *v { "t" } else { "f" }),
+            F64(v) => write!(w, "{}", v),
+            I64(v) => write!(w, "{}i", v),
+            String(v) => {
+                w.write_all(br#"""#)?;
+                escape_and_write_value(v, FIELD_VALUE_STRING_DELIMITERS, &mut w)?;
+                w.write_all(br#"""#)
+            }
         }
     }
+}
+
+trait WriteTimestamp {
+    fn write_timestamp_to<W>(&self, w: W) -> io::Result<()>
+    where
+        W: io::Write;
+}
+
+impl WriteTimestamp for i64 {
+    fn write_timestamp_to<W>(&self, mut w: W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        write!(w, "{}", self)
+    }
+}
+
+const MEASUREMENT_DELIMITERS: &[char] = &[',', ' '];
+const TAG_KEY_DELIMITERS: &[char] = &[',', '=', ' '];
+const TAG_VALUE_DELIMITERS: &[char] = TAG_KEY_DELIMITERS;
+const FIELD_KEY_DELIMITERS: &[char] = TAG_KEY_DELIMITERS;
+const FIELD_VALUE_STRING_DELIMITERS: &[char] = &['"'];
+
+fn escape_and_write_value<W>(
+    value: &str,
+    escaping_specification: &[char],
+    mut w: W,
+) -> io::Result<()>
+where
+    W: io::Write,
+{
+    let mut last = 0;
+
+    for (idx, delim) in value.match_indices(escaping_specification) {
+        let s = &value[last..idx];
+        write!(w, r#"{}\{}"#, s, delim)?;
+        last = idx + delim.len();
+    }
+
+    w.write_all(value[last..].as_bytes())
 }
 
 #[cfg(test)]
@@ -460,8 +501,8 @@ mod tests {
             .build()?;
 
         assert_eq!(
-            point.line_protocol().to_string(),
-            "swap,host=server01,name=disk0 in=3i,out=4i 1",
+            point.data_point_to_vec()?,
+            b"swap,host=server01,name=disk0 in=3i,out=4i 1".as_ref(),
         );
 
         Ok(())
@@ -474,7 +515,7 @@ mod tests {
             .field("f1", 2_i64)
             .build()?;
 
-        assert_eq!(point.line_protocol().to_string(), "m0 f0=1,f1=2i");
+        assert_eq!(point.data_point_to_vec()?, b"m0 f0=1,f1=2i".as_ref());
 
         Ok(())
     }
@@ -487,7 +528,7 @@ mod tests {
             .field("f1", 2_i64)
             .build()?;
 
-        assert_eq!(point.line_protocol().to_string(), "m0,t0=v0,t1=v1 f1=2i");
+        assert_eq!(point.data_point_to_vec()?, b"m0,t0=v0,t1=v1 f1=2i".as_ref());
 
         Ok(())
     }
@@ -502,59 +543,104 @@ mod tests {
     const ALL_THE_DELIMITERS: &str = r#"alpha,beta=delta gamma"epsilon"#;
 
     #[test]
-    fn special_characters_are_escaped_in_measurements() {
-        let e = EscapedMeasurement::from(ALL_THE_DELIMITERS);
-        assert_eq!(e.to_string(), r#"alpha\,beta=delta\ gamma"epsilon"#);
+    fn special_characters_are_escaped_in_measurements() -> Result {
+        assert_eq!(
+            ALL_THE_DELIMITERS.measurement_to_vec()?,
+            br#"alpha\,beta=delta\ gamma"epsilon"#.as_ref(),
+        );
+        Ok(())
     }
 
     #[test]
-    fn special_characters_are_escaped_in_tag_keys() {
-        let e = EscapedTagKey::from(ALL_THE_DELIMITERS);
-        assert_eq!(e.to_string(), r#"alpha\,beta\=delta\ gamma"epsilon"#);
+    fn special_characters_are_escaped_in_tag_keys() -> Result {
+        assert_eq!(
+            ALL_THE_DELIMITERS.tag_key_to_vec()?,
+            br#"alpha\,beta\=delta\ gamma"epsilon"#.as_ref(),
+        );
+        Ok(())
     }
 
     #[test]
-    fn special_characters_are_escaped_in_tag_values() {
-        let e = EscapedTagValue::from(ALL_THE_DELIMITERS);
-        assert_eq!(e.to_string(), r#"alpha\,beta\=delta\ gamma"epsilon"#);
+    fn special_characters_are_escaped_in_tag_values() -> Result {
+        assert_eq!(
+            ALL_THE_DELIMITERS.tag_value_to_vec()?,
+            br#"alpha\,beta\=delta\ gamma"epsilon"#.as_ref(),
+        );
+        Ok(())
     }
 
     #[test]
-    fn special_characters_are_escaped_in_field_keys() {
-        let e = EscapedFieldKey::from(ALL_THE_DELIMITERS);
-        assert_eq!(e.to_string(), r#"alpha\,beta\=delta\ gamma"epsilon"#);
+    fn special_characters_are_escaped_in_field_keys() -> Result {
+        assert_eq!(
+            ALL_THE_DELIMITERS.field_key_to_vec()?,
+            br#"alpha\,beta\=delta\ gamma"epsilon"#.as_ref(),
+        );
+        Ok(())
     }
 
     #[test]
-    fn special_characters_are_escaped_in_field_values_of_strings() {
-        let e = EscapedFieldValueString::from(ALL_THE_DELIMITERS);
-        assert_eq!(e.to_string(), r#"alpha,beta=delta gamma\"epsilon"#);
+    fn special_characters_are_escaped_in_field_values_of_strings() -> Result {
+        assert_eq!(
+            FieldValue::from(ALL_THE_DELIMITERS).field_value_to_vec()?,
+            br#""alpha,beta=delta gamma\"epsilon""#.as_ref(),
+        );
+        Ok(())
     }
 
     #[test]
-    fn field_value_of_bool() {
+    fn field_value_of_bool() -> Result {
         let e = FieldValue::from(true);
-        assert_eq!(e.to_string(), "t");
+        assert_eq!(e.field_value_to_vec()?, b"t");
 
         let e = FieldValue::from(false);
-        assert_eq!(e.to_string(), "f");
+        assert_eq!(e.field_value_to_vec()?, b"f");
+
+        Ok(())
     }
 
     #[test]
-    fn field_value_of_float() {
+    fn field_value_of_float() -> Result {
         let e = FieldValue::from(42_f64);
-        assert_eq!(e.to_string(), "42");
+        assert_eq!(e.field_value_to_vec()?, b"42");
+        Ok(())
     }
 
     #[test]
-    fn field_value_of_integer() {
+    fn field_value_of_integer() -> Result {
         let e = FieldValue::from(42_i64);
-        assert_eq!(e.to_string(), "42i");
+        assert_eq!(e.field_value_to_vec()?, b"42i");
+        Ok(())
     }
 
     #[test]
-    fn field_value_of_string() {
+    fn field_value_of_string() -> Result {
         let e = FieldValue::from("hello");
-        assert_eq!(e.to_string(), r#""hello""#);
+        assert_eq!(e.field_value_to_vec()?, br#""hello""#);
+        Ok(())
+    }
+
+    // Clears up the boilerplate of writing to a vector from the tests
+    macro_rules! test_extension_traits {
+        ($($ext_name:ident :: $ext_fn_name:ident -> $base_name:ident :: $base_fn_name:ident,)*) => {
+            $(
+                pub(crate) trait $ext_name: $base_name {
+                    fn $ext_fn_name(&self) -> io::Result<Vec<u8>> {
+                        let mut v = Vec::new();
+                        self.$base_fn_name(&mut v)?;
+                        Ok(v)
+                    }
+                }
+                impl<T: $base_name + ?Sized> $ext_name for T {}
+            )*
+        }
+    }
+
+    test_extension_traits! {
+        WriteDataPointExt::data_point_to_vec -> WriteDataPoint::write_data_point_to,
+        WriteMeasurementExt::measurement_to_vec -> WriteMeasurement::write_measurement_to,
+        WriteTagKeyExt::tag_key_to_vec -> WriteTagKey::write_tag_key_to,
+        WriteTagValueExt::tag_value_to_vec -> WriteTagValue::write_tag_value_to,
+        WriteFieldKeyExt::field_key_to_vec -> WriteFieldKey::write_field_key_to,
+        WriteFieldValueExt::field_value_to_vec -> WriteFieldValue::write_field_value_to,
     }
 }
