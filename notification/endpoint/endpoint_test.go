@@ -55,7 +55,7 @@ func TestValidEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name: "empty name PagerDuty",
+			name: "empty name",
 			src: &endpoint.PagerDuty{
 				Base: endpoint.Base{
 					ID:     influxTesting.MustIDBase16Ptr(id1),
@@ -64,22 +64,6 @@ func TestValidEndpoint(t *testing.T) {
 				},
 				ClientURL:  "https://events.pagerduty.com/v2/enqueue",
 				RoutingKey: influxdb.SecretField{Key: id1 + "-routing-key"},
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "Notification Endpoint Name can't be empty",
-			},
-		},
-		{
-			name: "empty name Telegram",
-			src: &endpoint.Telegram{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
-					Status: influxdb.Active,
-				},
-				Token:   influxdb.SecretField{Key: id1 + "-token"},
-				Channel: "-1001406363649",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -151,36 +135,6 @@ func TestValidEndpoint(t *testing.T) {
 				Code: influxdb.EInvalid,
 				Msg:  "invalid http username/password for basic auth",
 			},
-		},
-		{
-			name: "empty telegram token",
-			src: &endpoint.Telegram{
-				Base: goodBase,
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "empty telegram bot token",
-			},
-		},
-		{
-			name: "empty telegram channel",
-			src: &endpoint.Telegram{
-				Base:  goodBase,
-				Token: influxdb.SecretField{Key: id1 + "-token"},
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "empty telegram channel",
-			},
-		},
-		{
-			name: "valid telegram token",
-			src: &endpoint.Telegram{
-				Base:    goodBase,
-				Token:   influxdb.SecretField{Key: id1 + "-token"},
-				Channel: "-1001406363649",
-			},
-			err: nil,
 		},
 	}
 	for _, c := range cases {
@@ -270,22 +224,6 @@ func TestJSON(t *testing.T) {
 				URL:        "http://example.com",
 				Username:   influxdb.SecretField{Key: "username-key"},
 				Password:   influxdb.SecretField{Key: "password-key"},
-			},
-		},
-		{
-			name: "simple Telegram",
-			src: &endpoint.Telegram{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
-					Name:   "nameTelegram",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
-					Status: influxdb.Active,
-					CRUDLog: influxdb.CRUDLog{
-						CreatedAt: timeGen1.Now(),
-						UpdatedAt: timeGen2.Now(),
-					},
-				},
-				Token: influxdb.SecretField{Key: "token-key-1"},
 			},
 		},
 	}
@@ -427,171 +365,10 @@ func TestBackFill(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "simple Telegram",
-			src: &endpoint.Telegram{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
-					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
-					Status: influxdb.Active,
-					CRUDLog: influxdb.CRUDLog{
-						CreatedAt: timeGen1.Now(),
-						UpdatedAt: timeGen2.Now(),
-					},
-				},
-				Token: influxdb.SecretField{
-					Value: strPtr("token-value"),
-				},
-			},
-			target: &endpoint.Telegram{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
-					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
-					Status: influxdb.Active,
-					CRUDLog: influxdb.CRUDLog{
-						CreatedAt: timeGen1.Now(),
-						UpdatedAt: timeGen2.Now(),
-					},
-				},
-				Token: influxdb.SecretField{
-					Key:   id1 + "-token",
-					Value: strPtr("token-value"),
-				},
-			},
-		},
 	}
 	for _, c := range cases {
 		c.src.BackfillSecretKeys()
 		if diff := cmp.Diff(c.target, c.src); diff != "" {
-			t.Errorf("failed %s, NotificationEndpoint are different -got/+want\ndiff %s", c.name, diff)
-		}
-	}
-}
-
-func TestSecretFields(t *testing.T) {
-	cases := []struct {
-		name    string
-		src     influxdb.NotificationEndpoint
-		secrets []influxdb.SecretField
-	}{
-		{
-			name: "simple Slack",
-			src: &endpoint.Slack{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
-					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
-					Status: influxdb.Active,
-					CRUDLog: influxdb.CRUDLog{
-						CreatedAt: timeGen1.Now(),
-						UpdatedAt: timeGen2.Now(),
-					},
-				},
-				URL: "https://slack.com/api/chat.postMessage",
-				Token: influxdb.SecretField{
-					Key:   id1 + "-token",
-					Value: strPtr("token-value"),
-				},
-			},
-			secrets: []influxdb.SecretField{
-				{
-					Key:   id1 + "-token",
-					Value: strPtr("token-value"),
-				},
-			},
-		},
-		{
-			name: "simple pagerduty",
-			src: &endpoint.PagerDuty{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
-					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
-					Status: influxdb.Active,
-					CRUDLog: influxdb.CRUDLog{
-						CreatedAt: timeGen1.Now(),
-						UpdatedAt: timeGen2.Now(),
-					},
-				},
-				ClientURL: "https://events.pagerduty.com/v2/enqueue",
-				RoutingKey: influxdb.SecretField{
-					Key:   id1 + "-routing-key",
-					Value: strPtr("routing-key-value"),
-				},
-			},
-			secrets: []influxdb.SecretField{
-				{
-					Key:   id1 + "-routing-key",
-					Value: strPtr("routing-key-value"),
-				},
-			},
-		},
-		{
-			name: "http with user and password",
-			src: &endpoint.HTTP{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
-					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
-					Status: influxdb.Active,
-					CRUDLog: influxdb.CRUDLog{
-						CreatedAt: timeGen1.Now(),
-						UpdatedAt: timeGen2.Now(),
-					},
-				},
-				AuthMethod: "basic",
-				URL:        "http://example.com",
-				Username: influxdb.SecretField{
-					Key:   id1 + "-username",
-					Value: strPtr("user1"),
-				},
-				Password: influxdb.SecretField{
-					Key:   id1 + "-password",
-					Value: strPtr("password1"),
-				},
-			},
-			secrets: []influxdb.SecretField{
-				{
-					Key:   id1 + "-username",
-					Value: strPtr("user1"),
-				},
-				{
-					Key:   id1 + "-password",
-					Value: strPtr("password1"),
-				},
-			},
-		},
-		{
-			name: "simple Telegram",
-			src: &endpoint.Telegram{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
-					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
-					Status: influxdb.Active,
-					CRUDLog: influxdb.CRUDLog{
-						CreatedAt: timeGen1.Now(),
-						UpdatedAt: timeGen2.Now(),
-					},
-				},
-				Token: influxdb.SecretField{
-					Key:   id1 + "-token",
-					Value: strPtr("token-value"),
-				},
-			},
-			secrets: []influxdb.SecretField{
-				{
-					Key:   id1 + "-token",
-					Value: strPtr("token-value"),
-				},
-			},
-		},
-	}
-	for _, c := range cases {
-		secretFields := c.src.SecretFields()
-		if diff := cmp.Diff(c.secrets, secretFields); diff != "" {
 			t.Errorf("failed %s, NotificationEndpoint are different -got/+want\ndiff %s", c.name, diff)
 		}
 	}

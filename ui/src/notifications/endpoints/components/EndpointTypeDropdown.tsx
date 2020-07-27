@@ -32,7 +32,6 @@ const types: EndpointType[] = [
   {name: 'HTTP', type: 'http', id: 'http'},
   {name: 'Slack', type: 'slack', id: 'slack'},
   {name: 'Pagerduty', type: 'pagerduty', id: 'pagerduty'},
-  {name: 'Telegram', type: 'telegram', id: 'telegram'},
 ]
 
 const EndpointTypeDropdown: FC<Props> = ({
