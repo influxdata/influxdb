@@ -7,6 +7,7 @@ import {
   Route,
 } from 'react-router-dom'
 import {connect, ConnectedProps} from 'react-redux'
+import {notify} from 'src/shared/actions/notifications'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -40,6 +41,7 @@ import {
   getTemplateDetails,
 } from 'src/templates/utils'
 
+import {communityTemplateUnsupportedFormatError} from 'src/shared/copy/notifications'
 // Types
 import {AppState} from 'src/types'
 
@@ -153,17 +155,21 @@ class UnconnectedTemplatesIndex extends Component<Props> {
 
   private startTemplateInstall = () => {
     if (!this.state.templateUrl) {
-      console.error('undefined')
+      this.props.notify(communityTemplateUnsupportedFormatError())
       return false
     }
 
-    const {directory, templateExtension, templateName} = getTemplateDetails(
-      this.state.templateUrl
-    )
+    try {
+      const {directory, templateExtension, templateName} = getTemplateDetails(
+        this.state.templateUrl
+      )
 
-    this.props.history.push(
-      `/orgs/${this.props.org.id}/settings/templates/import/${directory}/${templateName}/${templateExtension}`
-    )
+      this.props.history.push(
+        `/orgs/${this.props.org.id}/settings/templates/import/${directory}/${templateName}/${templateExtension}`
+      )
+    } catch (err) {
+      this.props.notify(communityTemplateUnsupportedFormatError())
+    }
   }
 
   private handleTemplateChange = event => {
@@ -177,7 +183,11 @@ const mstp = (state: AppState) => {
   }
 }
 
-const connector = connect(mstp)
+const mdtp = {
+  notify,
+}
+
+const connector = connect(mstp, mdtp)
 
 export const CommunityTemplatesIndex = connector(
   withRouter(UnconnectedTemplatesIndex)

@@ -14,7 +14,11 @@ import {
 
 // Redux
 import {notify} from 'src/shared/actions/notifications'
-import {communityTemplateDeleteSucceeded} from 'src/shared/copy/notifications'
+import {
+  communityTemplateDeleteSucceeded,
+  communityTemplateDeleteFailed,
+  communityTemplateFetchStackFailed,
+} from 'src/shared/copy/notifications'
 import {fetchAndSetStacks} from 'src/templates/actions/thunks'
 
 // Types
@@ -48,7 +52,7 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
     try {
       this.props.fetchAndSetStacks(this.props.orgID)
     } catch (err) {
-      console.error('error getting stacks', err)
+      this.props.notify(communityTemplateFetchStackFailed(err.message))
     }
   }
 
@@ -79,10 +83,15 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
 
   private generateDeleteHandlerForStack = (stackID: string) => {
     return async () => {
-      await deleteStack(stackID, this.props.orgID)
-      this.props.fetchAndSetStacks(this.props.orgID)
+      try {
+        await deleteStack(stackID, this.props.orgID)
 
-      this.props.notify(communityTemplateDeleteSucceeded(stackID))
+        this.props.notify(communityTemplateDeleteSucceeded(stackID))
+      } catch (err) {
+        this.props.notify(communityTemplateDeleteFailed(err.message))
+      } finally {
+        this.props.fetchAndSetStacks(this.props.orgID)
+      }
     }
   }
 
