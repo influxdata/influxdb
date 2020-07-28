@@ -48,7 +48,7 @@ func NewTestBoltStore(t *testing.T) (kv.SchemaStore, func(), error) {
 	f.Close()
 
 	path := f.Name()
-	s := bolt.NewKVStore(zaptest.NewLogger(t), path)
+	s := bolt.NewKVStore(zaptest.NewLogger(t), path, bolt.WithNoSync)
 	if err := s.Open(context.Background()); err != nil {
 		return nil, nil, err
 	}
