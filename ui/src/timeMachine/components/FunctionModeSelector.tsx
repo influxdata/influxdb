@@ -22,7 +22,7 @@ import {
 } from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
-import {getActiveQuery} from 'src/timeMachine/selectors'
+import {getActiveQuery, getIsInCheckOverlay} from 'src/timeMachine/selectors'
 
 // Constants
 import {AUTO_FUNCTIONS, FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
@@ -38,11 +38,12 @@ const FunctionSelector: FunctionComponent<Props> = ({
   selectedFunctions,
   onSingleSelectBuilderFunction,
   onMultiSelectBuilderFunction,
+  isInCheckOverlay,
 }) => {
   const autoFunctions = AUTO_FUNCTIONS.map(f => f.name)
-
   const [isAutoFunction, setIsAutoFunction] = useState(
-    selectedFunctions.length === 1 &&
+    !isInCheckOverlay &&
+      selectedFunctions.length === 1 &&
       autoFunctions.includes(selectedFunctions[0])
   )
 
@@ -72,6 +73,23 @@ const FunctionSelector: FunctionComponent<Props> = ({
   const onSelectFunction = isAutoFunction
     ? onSingleSelectBuilderFunction
     : onMultiSelectBuilderFunction
+
+  if (isInCheckOverlay) {
+    return (
+      <>
+        <BuilderCard.Header
+          title="Aggregate Function"
+          className="aggregation-selector-header"
+        />
+        <SelectorList
+          items={functionList}
+          selectedItems={selectedFunctions}
+          onSelectItem={onSingleSelectBuilderFunction}
+          multiSelect={false}
+        />
+      </>
+    )
+  }
 
   return (
     <>
@@ -129,6 +147,7 @@ const mstp = (state: AppState) => {
   const {functions} = builderConfig
   return {
     selectedFunctions: functions.map(f => f.name),
+    isInCheckOverlay: getIsInCheckOverlay(state),
   }
 }
 

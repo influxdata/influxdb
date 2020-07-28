@@ -20,6 +20,7 @@ import {
 import {
   getActiveQuery,
   getWindowPeriodFromTimeRange,
+  getIsInCheckOverlay,
 } from 'src/timeMachine/selectors'
 
 // Constants
@@ -38,12 +39,13 @@ const WindowPeriod: FunctionComponent<Props> = ({
   autoWindowPeriod,
   onSetWindowPeriodSelectionMode,
   onSelectAggregateWindow,
+  isInCheckOverlay,
 }) => {
-  const isAutoWindowPeriod = period === AGG_WINDOW_AUTO
+  const isAutoWindowPeriod = isInCheckOverlay || period === AGG_WINDOW_AUTO
 
   let durationDisplay = period
 
-  if (!period || period === AGG_WINDOW_AUTO) {
+  if (!period || isAutoWindowPeriod) {
     durationDisplay = autoWindowPeriod
       ? `${AGG_WINDOW_AUTO} (${autoWindowPeriod})`
       : AGG_WINDOW_AUTO
@@ -52,6 +54,18 @@ const WindowPeriod: FunctionComponent<Props> = ({
   const durationInputStatus = isAutoWindowPeriod
     ? ComponentStatus.Disabled
     : ComponentStatus.Default
+
+  if (isInCheckOverlay) {
+    return (
+      <DurationInput
+        onSubmit={onSelectAggregateWindow}
+        value={durationDisplay}
+        suggestions={DURATIONS}
+        submitInvalid={false}
+        status={durationInputStatus}
+      />
+    )
+  }
 
   return (
     <>
@@ -99,6 +113,7 @@ const mstp = (state: AppState) => {
 
   return {
     period,
+    isInCheckOverlay: getIsInCheckOverlay(state),
     autoWindowPeriod: getWindowPeriodFromTimeRange(state),
   }
 }

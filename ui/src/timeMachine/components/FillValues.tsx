@@ -17,7 +17,7 @@ import {
 import {setAggregateFillValues} from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
-import {getActiveQuery} from 'src/timeMachine/selectors'
+import {getActiveQuery, getIsInCheckOverlay} from 'src/timeMachine/selectors'
 
 // Types
 import {AppState} from 'src/types'
@@ -28,10 +28,15 @@ type Props = ReduxProps
 const FillValues: FunctionComponent<Props> = ({
   fillValues,
   onSetAggregateFillValues,
+  isInCheckOverlay,
 }) => {
   const onChangeFillValues = () => {
     onSetAggregateFillValues(!fillValues)
   }
+  if (isInCheckOverlay) {
+    return <></>
+  }
+
   return (
     <>
       <Toggle
@@ -63,6 +68,7 @@ const mstp = (state: AppState) => {
   } = builderConfig
 
   return {
+    isInCheckOverlay: getIsInCheckOverlay(state),
     fillValues,
   }
 }
