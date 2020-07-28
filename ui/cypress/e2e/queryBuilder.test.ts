@@ -89,6 +89,44 @@ describe('The Query Builder', () => {
       cy.contains('Basic Ole Dashboard').should('exist')
     })
 
+    it('when it creates a query, the query has an aggregate window, clicking around aggregate window selections work', () => {
+      cy.get('@org').then((org: Organization) => {
+        cy.visit(`orgs/${org.id}/data-explorer`)
+      })
+
+      cy.contains('mem').click('right') // users sometimes click in random spots
+      cy.contains('active').click('bottomLeft')
+
+      cy.getByTestID('empty-graph--no-queries').should('exist')
+
+      cy.contains('Submit').click()
+
+      cy.get('.giraffe-plot').should('exist')
+
+      cy.getByTestID('switch-to-script-editor').click()
+
+      cy.contains(
+        '|> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: true)'
+      ).should('exist')
+
+      cy.getByTestID('switch-to-query-builder').click()
+      cy.getByTestID('custom-window-period').click()
+
+      cy.getByTestID('custom-window-period').click()
+      cy.getByTestID('duration-input--error').should('not.exist')
+      cy.getByTestID('duration-input').type('not a duration')
+      cy.getByTestID('duration-input--error').should('exist')
+
+      cy.getByTestID('auto-window-period').click()
+
+      cy.getByTestID('duration-input--error').should('not.exist')
+      cy.getByTestID('toggle').click()
+      cy.getByTestID('switch-to-script-editor').click()
+      cy.contains(
+        '|> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)'
+      ).should('exist')
+    })
+
     it('can create a bucket from the buckets list', () => {
       cy.get('@org').then((org: Organization) => {
         cy.visit(`orgs/${org.id}/data-explorer`)

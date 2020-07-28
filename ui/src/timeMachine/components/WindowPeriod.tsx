@@ -9,6 +9,7 @@ import {
   ComponentStatus,
   ComponentSize,
 } from '@influxdata/clockface'
+import DurationInput from 'src/shared/components/DurationInput'
 
 // Actions
 import {
@@ -24,12 +25,13 @@ import {
 } from 'src/timeMachine/selectors'
 
 // Constants
-import {DURATIONS} from 'src/timeMachine/constants/queryBuilder'
+import {
+  DURATIONS,
+  AGG_WINDOW_AUTO,
+} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
 import {AppState} from 'src/types'
-import DurationInput from 'src/shared/components/DurationInput'
-import {AGG_WINDOW_AUTO} from '../constants/queryBuilder'
 
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
@@ -76,6 +78,7 @@ const WindowPeriod: FunctionComponent<Props> = ({
         <SelectGroup.Option
           name="custom"
           id="custom-window-period"
+          testID="custom-window-period"
           active={!isAutoWindowPeriod}
           value="custom"
           onClick={onSetWindowPeriodSelectionMode}
@@ -86,6 +89,7 @@ const WindowPeriod: FunctionComponent<Props> = ({
         <SelectGroup.Option
           name="auto"
           id="auto-window-period"
+          testID="auto-window-period"
           active={isAutoWindowPeriod}
           value="auto"
           onClick={onSetWindowPeriodSelectionMode}
