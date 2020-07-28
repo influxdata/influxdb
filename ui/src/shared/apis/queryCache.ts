@@ -150,8 +150,7 @@ export const getCachedResultsOrRunQuery = (
 ): CancelBox<RunQueryResult> => {
   const queryID = `${hashCode(query)}`
   event('Starting Query Cache Process ', {context: 'queryCache', queryID})
-  const allVars = getAllVariables(state)
-  const usedVars = filterUnusedVarsBasedOnQuery(allVars, [query])
+  const usedVars = filterUnusedVarsBasedOnQuery(getAllVariables(state), [query])
   const variables = sortBy(usedVars, ['name'])
   const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
   const stringifiedVars = JSON.stringify(simplifiedVariables)
@@ -174,7 +173,7 @@ export const getCachedResultsOrRunQuery = (
     .map(v => asAssignment(v))
     .filter(v => !!v)
 
-  const windowVars = getWindowVars(query, allVars)
+  const windowVars = getWindowVars(query, variableAssignments)
 
   // otherwise query & set results
   const extern = buildVarsOption([...variableAssignments, ...windowVars])
