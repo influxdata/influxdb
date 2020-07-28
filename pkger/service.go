@@ -1375,7 +1375,7 @@ type (
 	// ApplyOpt is an option for applying a package.
 	ApplyOpt struct {
 		Templates       []*Template
-		EnvRefs         map[string]string
+		EnvRefs         map[string]interface{}
 		MissingSecrets  map[string]string
 		StackID         influxdb.ID
 		ResourcesToSkip map[ActionSkipResource]bool
@@ -1400,7 +1400,7 @@ type (
 )
 
 // ApplyWithEnvRefs provides env refs to saturate the missing reference fields in the template.
-func ApplyWithEnvRefs(envRefs map[string]string) ApplyOptFn {
+func ApplyWithEnvRefs(envRefs map[string]interface{}) ApplyOptFn {
 	return func(o *ApplyOpt) {
 		o.EnvRefs = envRefs
 	}

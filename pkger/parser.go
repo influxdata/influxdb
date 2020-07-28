@@ -354,7 +354,7 @@ type Template struct {
 	mVariables             map[string]*variable
 
 	mEnv     map[string]bool
-	mEnvVals map[string]string
+	mEnvVals map[string]interface{}
 	mSecrets map[string]bool
 
 	isParsed bool // indicates the pkg has been parsed and all resources graphed accordingly
@@ -458,13 +458,13 @@ func (p *Template) Summary() Summary {
 	return sum
 }
 
-func (p *Template) applyEnvRefs(envRefs map[string]string) error {
+func (p *Template) applyEnvRefs(envRefs map[string]interface{}) error {
 	if len(envRefs) == 0 {
 		return nil
 	}
 
 	if p.mEnvVals == nil {
-		p.mEnvVals = make(map[string]string)
+		p.mEnvVals = make(map[string]interface{})
 	}
 
 	for k, v := range envRefs {
@@ -1378,7 +1378,7 @@ func (p *Template) setRefs(refs ...*references) {
 			p.mSecrets[ref.Secret] = false
 		}
 		if ref.EnvRef != "" {
-			p.mEnv[ref.EnvRef] = p.mEnvVals[ref.EnvRef] != ""
+			p.mEnv[ref.EnvRef] = p.mEnvVals[ref.EnvRef] != nil
 		}
 	}
 }
@@ -1772,7 +1772,7 @@ func ifaceToReference(i interface{}) *references {
 			switch f {
 			case fieldReferencesEnv:
 				ref.EnvRef = keyRes.stringShort(fieldKey)
-				ref.defaultVal = keyRes.stringShort(fieldDefault)
+				ref.defaultVal = keyRes[fieldDefault]
 			case fieldReferencesSecret:
 				ref.Secret = keyRes.stringShort(fieldKey)
 			}
