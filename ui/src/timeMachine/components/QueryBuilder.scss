@@ -8,34 +8,10 @@
   display: flex;
   flex-direction: column;
   @include no-user-select();
-
-  .function-selector {
-    margin-left: $ix-marg-b;
-  }
 }
 
 .query-builder--cards {
   flex: 1 1 0;
   display: flex;
   justify-content: space-between;
-}
-
-.builder-card--list > .query-builder--add-card-button {
-  height: 100%;
-  background-color: $g4-onyx;
-  border-color: $g4-onyx;
-  flex-grow: 0;
-  flex-shrink: 0;
-}
-
-.cf-input-label.fill-values-checkbox--label {
-  color: $g11-sidewalk;
-}
-
-.builder-card--header.aggregation-selector-header {
-  flex: 0 0 25px;
-}
-
-.builder-card--menu.aggregation-selector-menu {
-  padding: 2px;
 }

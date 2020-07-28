@@ -23,7 +23,7 @@ const AggregationSelector: FunctionComponent = () => {
       <BuilderCard.Body
         scrollable={false}
         addPadding={false}
-        style={{flex: 'unset', padding: '2px'}}
+        className="aggregation-selector-body"
       >
         <FlexBox
           direction={FlexDirection.Column}
@@ -36,7 +36,6 @@ const AggregationSelector: FunctionComponent = () => {
             direction={FlexDirection.Row}
             margin={ComponentSize.ExtraSmall}
             stretchToFitWidth
-            testID="component-spacer"
           >
             <FillValues />
           </FlexBox>

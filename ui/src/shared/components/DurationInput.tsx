@@ -79,7 +79,7 @@ const DurationInput: FC<Props> = ({
   }
 
   return (
-    <div className="status-search-bar">
+    <div className="duration-input">
       <ClickOutside onClickOutside={handleClickOutside}>
         <Input
           placeholder={placeholder}
@@ -91,10 +91,7 @@ const DurationInput: FC<Props> = ({
         />
       </ClickOutside>
       {isFocused && (
-        <DropdownMenu
-          className="status-search-bar--suggestions"
-          noScrollX={true}
-        >
+        <DropdownMenu className="duration-input--menu" noScrollX={true}>
           {showDivider && <DropdownDivider text="Examples" />}
           {suggestions.map(s => (
             <DropdownItem
