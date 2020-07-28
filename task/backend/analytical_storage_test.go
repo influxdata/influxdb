@@ -21,7 +21,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	stdlib "github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/storage/reads"
+	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/servicetest"
 	"github.com/influxdata/influxdb/v2/tenant"
@@ -191,7 +191,7 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 
 	// TODO(adam): do we need a proper secret service here?
 	storageStore := storage2.NewStore(engine.TSDBStore, engine.MetaClient)
-	readsReader := reads.NewReader(storageStore)
+	readsReader := storageflux.NewReader(storageStore)
 
 	deps, err := stdlib.NewDependencies(readsReader, engine, bucketSvc, orgSvc, nil, nil)
 	if err != nil {
