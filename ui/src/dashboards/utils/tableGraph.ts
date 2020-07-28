@@ -1,5 +1,6 @@
 import _ from 'lodash'
 import {fastMap, fastReduce, fastFilter} from 'src/utils/fast'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
 import {DEFAULT_TIME_FIELD, FORMAT_OPTIONS} from 'src/dashboards/constants'
@@ -215,6 +216,11 @@ export const sortTableData = (
 
   if (headerSet.has(sort.field)) {
     sortIndex = _.indexOf(data[0], sort.field)
+  } else if (isFlagEnabled('disableDefaultTableSort') && !sort.field) {
+    return {
+      sortedData: [...data],
+      sortedTimeVals: data.map(col => col[0]),
+    }
   }
 
   const dataValues = _.drop(data, 1)
