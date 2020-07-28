@@ -18,10 +18,7 @@ import {ComponentStatus} from '@influxdata/clockface'
 
 // Utils
 import {getByID} from 'src/resources/selectors'
-import {
-  getGithubUrlFromTemplateName,
-  getRawUrlFromGithub,
-} from 'src/templates/utils'
+import {getGithubUrlFromTemplateUrlDetails} from 'src/templates/utils'
 
 import {installTemplate, reviewTemplate} from 'src/templates/api'
 
@@ -32,7 +29,12 @@ interface State {
 }
 
 type ReduxProps = ConnectedProps<typeof connector>
-type RouterProps = RouteComponentProps<{orgID: string; templateName: string}>
+type RouterProps = RouteComponentProps<{
+  directory: string
+  orgID: string
+  templateName: string
+  templateExtension: string
+}>
 type Props = ReduxProps & RouterProps
 
 class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
@@ -41,9 +43,13 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 
   public componentDidMount() {
-    const {org, templateName} = this.props
-
-    this.reviewTemplateResources(org.id, templateName)
+    const {directory, org, templateExtension, templateName} = this.props
+    this.reviewTemplateResources(
+      org.id,
+      directory,
+      templateName,
+      templateExtension
+    )
   }
 
   public render() {
@@ -63,10 +69,17 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
     )
   }
 
-  private reviewTemplateResources = async (orgID, templateName) => {
-    const yamlLocation = `${getRawUrlFromGithub(
-      getGithubUrlFromTemplateName(templateName)
-    )}/${templateName}.yml`
+  private reviewTemplateResources = async (
+    orgID,
+    directory,
+    templateName,
+    templateExtension
+  ) => {
+    const yamlLocation = getGithubUrlFromTemplateUrlDetails(
+      directory,
+      templateName,
+      templateExtension
+    )
 
     try {
       const summary = await reviewTemplate(orgID, yamlLocation)
@@ -88,11 +101,13 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
     this.setState(() => ({status}))
 
   private handleInstallTemplate = async () => {
-    const {org, templateName} = this.props
+    const {directory, org, templateExtension, templateName} = this.props
 
-    const yamlLocation = `${getRawUrlFromGithub(
-      getGithubUrlFromTemplateName(templateName)
-    )}/${templateName}.yml`
+    const yamlLocation = getGithubUrlFromTemplateUrlDetails(
+      directory,
+      templateName,
+      templateExtension
+    )
 
     try {
       const summary = await installTemplate(
@@ -122,7 +137,9 @@ const mstp = (state: AppState, props: RouterProps) => {
 
   return {
     org,
+    directory: props.match.params.directory,
     templateName: props.match.params.templateName,
+    templateExtension: props.match.params.templateExtension,
     flags: state.flags.original,
     resourceCount: getTotalResourceCount(
       state.resources.templates.communityTemplateToInstall.summary

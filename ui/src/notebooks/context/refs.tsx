@@ -1,5 +1,4 @@
 import React, {FC, useState, RefObject} from 'react'
-import {DataID, PipeData} from 'src/notebooks'
 
 export interface Ref {
   panel: RefObject<HTMLDivElement>
@@ -11,8 +10,8 @@ export interface RefMap {
 }
 
 export interface RefContextType {
-  get: (id: DataID<PipeData>) => Ref
-  update: (id: DataID<PipeData>, data: Partial<Ref>) => void
+  get: (id: string) => Ref
+  update: (id: string, data: Partial<Ref>) => void
 }
 
 export const DEFAULT_CONTEXT: RefContextType = {
@@ -25,7 +24,7 @@ export const RefContext = React.createContext<RefContextType>(DEFAULT_CONTEXT)
 export const RefProvider: FC = ({children}) => {
   const [refs, setRefs] = useState({})
 
-  const get = (id: DataID<PipeData>) => {
+  const get = (id: string) => {
     return (
       refs[id] || {
         panel: null,
@@ -33,7 +32,7 @@ export const RefProvider: FC = ({children}) => {
       }
     )
   }
-  const update = (id: DataID<PipeData>, data: Partial<Ref>) => {
+  const update = (id: string, data: Partial<Ref>) => {
     refs[id] = {
       ...get(id),
       ...data,

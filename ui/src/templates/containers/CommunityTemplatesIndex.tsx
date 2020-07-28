@@ -36,8 +36,8 @@ import {getOrg} from 'src/organizations/selectors'
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {
-  getGithubUrlFromTemplateName,
-  getTemplateNameFromGithubUrl,
+  getGithubUrlFromTemplateUrlDetails,
+  getTemplateUrlDetailsFromGithubSource,
 } from 'src/templates/utils'
 
 // Types
@@ -47,7 +47,9 @@ const communityTemplatesUrl =
   'https://github.com/influxdata/community-templates#templates'
 const templatesPath = '/orgs/:orgID/settings/templates'
 
-type Params = {params: {templateName: string}}
+type Params = {
+  params: {directory: string; templateName: string; templateExtension: string}
+}
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & RouteComponentProps<{templateName: string}>
 
@@ -65,9 +67,17 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       path: communityTemplatesImportPath,
     }) as Params
 
-    if (match?.params?.templateName) {
+    if (
+      match?.params?.directory &&
+      match?.params?.templateName &&
+      match?.params?.templateExtension
+    ) {
       this.setState({
-        templateUrl: getGithubUrlFromTemplateName(match.params.templateName),
+        templateUrl: getGithubUrlFromTemplateUrlDetails(
+          match.params.directory,
+          match.params.templateName,
+          match.params.templateExtension
+        ),
       })
     }
   }
@@ -133,7 +143,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
         </Page>
         <Switch>
           <Route
-            path={`${templatesPath}/import/:templateName`}
+            path={`${templatesPath}/import/:directory/:templateName/:templateExtension`}
             component={CommunityTemplateImportOverlay}
           />
         </Switch>
@@ -147,14 +157,15 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       return false
     }
 
-    const name = getTemplateNameFromGithubUrl(this.state.templateUrl)
-    this.showInstallerOverlay(name)
-  }
+    const {
+      directory,
+      templateExtension,
+      templateName,
+    } = getTemplateUrlDetailsFromGithubSource(this.state.templateUrl)
 
-  private showInstallerOverlay = templateName => {
-    const {history, org} = this.props
-
-    history.push(`/orgs/${org.id}/settings/templates/import/${templateName}`)
+    this.props.history.push(
+      `/orgs/${this.props.org.id}/settings/templates/import/${directory}/${templateName}/${templateExtension}`
+    )
   }
 
   private handleTemplateChange = event => {

@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/execute/executetest"
+	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/mock"
 )
@@ -26,7 +27,7 @@ func (w failWriter) Write(p []byte) (int, error) {
 
 func TestProxyQueryServiceAsyncBridge_StatsOnClientDisconnect(t *testing.T) {
 	q := mock.NewQuery()
-	q.Metadata = flux.Metadata{
+	q.Metadata = metadata.Metadata{
 		"foo": []interface{}{"bar"},
 	}
 	r := executetest.NewResult([]*executetest.Table{
