@@ -61,10 +61,14 @@ const GetAppState: FC<RouteComponentProps> = ({history, location}) => {
   }, [dispatch])
 
   useEffect(() => {
+    if (meStatus !== RemoteDataState.Done) {
+      return
+    }
+
     if (orgStatus === RemoteDataState.NotStarted) {
       dispatch(getOrganizations())
     }
-  }, [dispatch, orgStatus])
+  }, [dispatch, orgStatus, meStatus])
 
   useEffect(() => {
     if (meStatus === RemoteDataState.NotStarted) {
@@ -118,10 +122,14 @@ const GetAppState: FC<RouteComponentProps> = ({history, location}) => {
   }, [])
 
   useEffect(() => {
+    if (meStatus !== RemoteDataState.Done) {
+      return
+    }
+
     if (flagStatus === RemoteDataState.NotStarted) {
       dispatch(getFlags())
     }
-  }, [dispatch, flagStatus])
+  }, [dispatch, flagStatus, meStatus])
 
   useEffect(() => {
     updateReportingContext(

@@ -12,13 +12,14 @@ import {postSignin} from 'src/client'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {setMe} from 'src/shared/actions/me'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
 import {Links} from 'src/types/links'
-import {AppState} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 import {
   Columns,
   InputType,
@@ -142,6 +143,9 @@ class SigninForm extends PureComponent<Props, State> {
     const {history, location} = this.props
     const params = new URLSearchParams(location.search)
     const returnTo = params.get('returnTo')
+    const {setMe} = this.props
+
+    setMe(RemoteDataState.NotStarted)
 
     if (returnTo) {
       history.replace(returnTo)
@@ -157,6 +161,7 @@ const mstp = ({links}: AppState) => ({
 
 const mdtp = {
   notify: notifyAction,
+  setMe: setMe,
 }
 
 const connector = connect(mstp, mdtp)

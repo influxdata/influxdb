@@ -1,25 +1,33 @@
 // Libraries
-import {PureComponent} from 'react'
-import {connect} from 'react-redux'
-import {RouteComponentProps} from 'react-router-dom'
+import {FC, useEffect} from 'react'
+import {useSelector} from 'react-redux'
+import {useHistory} from 'react-router-dom'
 
 // Types
-import {AppState, Organization, ResourceType} from 'src/types'
+import {AppState, Organization, ResourceType, RemoteDataState} from 'src/types'
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
-interface StateProps {
-  orgs: Organization[]
-  org: {id?: string}
-}
+const RouteToOrg: FC = () => {
+  const {org, orgs, status} = useSelector((state: AppState) => {
+    const org = getOrg(state)
+    const orgs = getAll<Organization>(state, ResourceType.Orgs)
+    const status = state.resources.orgs.status
 
-type Props = StateProps & RouteComponentProps
+    return {
+      org,
+      orgs,
+      status,
+    }
+  })
+  const history = useHistory()
 
-class RouteToOrg extends PureComponent<Props> {
-  public componentDidMount() {
-    const {orgs, history, org} = this.props
+  useEffect(() => {
+    if (status !== RemoteDataState.Done) {
+      return
+    }
 
     if (!orgs || !orgs.length) {
       history.push(`/no-orgs`)
@@ -34,18 +42,9 @@ class RouteToOrg extends PureComponent<Props> {
 
     // else default to first org
     history.push(`/orgs/${orgs[0].id}`)
-  }
+  }, [history, org, orgs, status])
 
-  render() {
-    return false
-  }
+  return null
 }
 
-const mstp = (state: AppState) => {
-  const org = getOrg(state)
-  const orgs = getAll<Organization>(state, ResourceType.Orgs)
-
-  return {orgs, org}
-}
-
-export default connect<StateProps>(mstp)(RouteToOrg)
+export default RouteToOrg
