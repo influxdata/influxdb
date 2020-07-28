@@ -35,8 +35,8 @@ type QueryRequest struct {
 	Extern  *ast.File    `json:"extern,omitempty"`
 	Spec    *flux.Spec   `json:"spec,omitempty"`
 	AST     *ast.Package `json:"ast,omitempty"`
-	Dialect QueryDialect    `json:"dialect"`
-	Now     time.Time       `json:"now"`
+	Dialect QueryDialect `json:"dialect"`
+	Now     time.Time    `json:"now"`
 
 	// InfluxQL fields
 	Bucket string `json:"bucket,omitempty"`
