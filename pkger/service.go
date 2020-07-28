@@ -526,7 +526,18 @@ func (s *Service) applyStackUpdate(existing Stack, upd StackUpdate) Stack {
 
 		out = append(out, sr)
 	}
-	ev.Resources = out
+
+	ev.Resources = append(ev.Resources, out...)
+	sort.Slice(ev.Resources, func(i, j int) bool {
+		iName, jName := ev.Resources[i].MetaName, ev.Resources[j].MetaName
+		iKind, jKind := ev.Resources[i].Kind, ev.Resources[j].Kind
+
+		if iKind.is(jKind) {
+			return iName < jName
+		}
+		return kindPriorities[iKind] > kindPriorities[jKind]
+	})
+
 	existing.Events = append(existing.Events, ev)
 	return existing
 }
