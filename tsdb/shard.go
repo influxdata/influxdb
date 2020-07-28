@@ -93,6 +93,15 @@ type ShardError struct {
 	Err error
 }
 
+type ShardStatus int
+
+const (
+	_ ShardStatus = iota
+	ShardInit
+	ShardRunning
+	ShardClosed
+)
+
 // NewShardError returns a new ShardError.
 func NewShardError(id uint64, err error) error {
 	if err == nil {
@@ -152,6 +161,8 @@ type Shard struct {
 	// CompactionDisabled specifies the shard should not schedule compactions.
 	// This option is intended for offline tooling.
 	CompactionDisabled bool
+
+	status ShardStatus
 }
 
 // NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
@@ -185,6 +196,7 @@ func NewShard(id uint64, path string, walPath string, sfile *SeriesFile, opt Eng
 		logger:       logger,
 		baseLogger:   logger,
 		EnableOnOpen: true,
+		status:       ShardInit,
 	}
 	return s
 }
@@ -192,11 +204,6 @@ func NewShard(id uint64, path string, walPath string, sfile *SeriesFile, opt Eng
 // WithLogger sets the logger on the shard. It must be called before Open.
 func (s *Shard) WithLogger(log *zap.Logger) {
 	s.baseLogger = log
-	engine, err := s.Engine()
-	if err == nil {
-		engine.WithLogger(s.baseLogger)
-		s.index.WithLogger(s.baseLogger)
-	}
 	s.logger = s.baseLogger.With(zap.String("service", "shard"))
 }
 
@@ -298,14 +305,22 @@ func (s *Shard) Path() string { return s.path }
 
 // Open initializes and opens the shard's store.
 func (s *Shard) Open() error {
-	if err := func() error {
+	if err := func() (err error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-
 		// Return if the shard is already open
-		if s._engine != nil {
+		if s.status == ShardRunning || s._engine != nil {
 			return nil
 		}
+
+		start := time.Now()
+		defer func() {
+			if err == nil {
+				s.logger.Info("Opened shard", zap.String("index_version", s.index.Type()), zap.String("path", s.path), zap.Duration("duration", time.Since(start)))
+			} else {
+				s.logger.Info("Opened shard failed", zap.String("path", s.path), zap.Error(err))
+			}
+		}()
 
 		seriesIDSet := NewSeriesIDSet()
 
@@ -347,15 +362,19 @@ func (s *Shard) Open() error {
 		}
 		s._engine = e
 
+		if s.EnableOnOpen {
+			// enable writes, queries and compactions
+			s.enabled = true
+			if !s.CompactionDisabled {
+				// Disable background compactions and snapshotting
+				s._engine.SetEnabled(true)
+			}
+		}
+		s.status = ShardRunning
 		return nil
 	}(); err != nil {
 		s.close()
 		return NewShardError(s.id, err)
-	}
-
-	if s.EnableOnOpen {
-		// enable writes, queries and compactions
-		s.SetEnabled(true)
 	}
 
 	return nil
@@ -371,6 +390,10 @@ func (s *Shard) Close() error {
 // close closes the shard an removes reference to the shard from associated
 // indexes, unless clean is false.
 func (s *Shard) close() error {
+	defer func() {
+		s.status = ShardClosed
+	}()
+
 	if s._engine == nil {
 		return nil
 	}
@@ -393,10 +416,15 @@ func (s *Shard) close() error {
 func (s *Shard) IndexType() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s._engine == nil || s.index == nil { // Shard not open yet.
-		return ""
+	if s._engine != nil {
+		return s.index.Type()
+	} else {
+		// Shard not opened yet
+		if _, err := os.Stat(filepath.Join(s.path, "index")); os.IsNotExist(err) {
+			return InmemIndexName
+		}
+		return s.options.IndexVersion
 	}
-	return s.index.Type()
 }
 
 // ready determines if the Shard is ready for queries or writes.
@@ -425,6 +453,17 @@ func (s *Shard) LastModified() time.Time {
 func (s *Shard) Index() (Index, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.status == ShardInit && s._engine == nil {
+		// shard not opened yet
+		if err := func() error {
+			s.mu.RUnlock()
+			defer s.mu.RLock()
+			return s.Open()
+		}(); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := s.ready(); err != nil {
 		return nil, err
 	}
@@ -436,6 +475,17 @@ func (s *Shard) Index() (Index, error) {
 func (s *Shard) SeriesFile() (*SeriesFile, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.status == ShardInit && s._engine == nil {
+		// shard not opened yet
+		if err := func() error {
+			s.mu.RUnlock()
+			defer s.mu.RLock()
+			return s.Open()
+		}(); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := s.ready(); err != nil {
 		return nil, err
 	}
@@ -1175,6 +1225,17 @@ func (s *Shard) Engine() (Engine, error) {
 // engineNoLock is similar to calling engine(), but the caller must guarantee
 // that they already hold an appropriate lock.
 func (s *Shard) engineNoLock() (Engine, error) {
+	if s.status == ShardInit && s._engine == nil {
+		// shard not opened yet
+		if err := func() error {
+			s.mu.RUnlock()
+			defer s.mu.RLock()
+			return s.Open()
+		}(); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := s.ready(); err != nil {
 		return nil, err
 	}

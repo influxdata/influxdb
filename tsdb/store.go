@@ -238,8 +238,9 @@ func (s *Store) Open() error {
 func (s *Store) loadShards() error {
 	// res holds the result from opening each shard in a goroutine
 	type res struct {
-		s   *Shard
-		err error
+		s      *Shard
+		err    error
+		loaded bool
 	}
 
 	// Limit the number of concurrent TSM files to be opened to the number of cores.
@@ -351,7 +352,7 @@ func (s *Store) loadShards() error {
 				return err
 			}
 
-			for _, sh := range shardDirs {
+			for index, sh := range shardDirs {
 				// Series file should not be in a retention policy but skip just in case.
 				if sh.Name() == SeriesFileDirectory {
 					log.Warn("Skipping series file in retention policy dir", zap.String("path", filepath.Join(s.path, db.Name(), rp.Name())))
@@ -359,11 +360,11 @@ func (s *Store) loadShards() error {
 				}
 
 				n++
-				go func(db, rp, sh string) {
+				go func(db, rp, sh string, id int) {
 					t.Take()
 					defer t.Release()
 
-					start := time.Now()
+					loaded := false
 					path := filepath.Join(s.path, db, rp, sh)
 					walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp, sh)
 
@@ -397,28 +398,41 @@ func (s *Store) loadShards() error {
 					shard := NewShard(shardID, path, walPath, sfile, opt)
 
 					// Disable compactions, writes and queries until all shards are loaded
-					shard.EnableOnOpen = false
 					shard.CompactionDisabled = s.EngineOptions.CompactionDisabled
 					shard.WithLogger(s.baseLogger)
 
-					err = shard.Open()
-					if err != nil {
-						log.Info("Failed to open shard", logger.Shard(shardID), zap.Error(err))
-						resC <- &res{err: fmt.Errorf("Failed to open shard: %d: %s", shardID, err)}
-						return
+					hasWAL := false
+					if s.EngineOptions.WALEnabled {
+						if wals, err := ioutil.ReadDir(walPath); err == nil && len(wals) > 0 {
+							hasWAL = true
+						}
+					}
+					// Load the latest and active shards
+					if id == len(shardDirs)-1 || hasWAL {
+						shard.EnableOnOpen = false
+						err = shard.Open()
+						if err != nil {
+							log.Info("Failed to open shard", logger.Shard(shardID), zap.Error(err))
+							resC <- &res{err: fmt.Errorf("Failed to open shard: %d: %s", shardID, err)}
+							return
+						}
+						loaded = true
 					}
 
-					resC <- &res{s: shard}
-					log.Info("Opened shard", zap.String("index_version", shard.IndexType()), zap.String("path", path), zap.Duration("duration", time.Since(start)))
-				}(db.Name(), rp.Name(), sh.Name())
+					resC <- &res{s: shard, loaded: loaded}
+				}(db.Name(), rp.Name(), sh.Name(), index)
 			}
 		}
 	}
 
 	// Gather results of opening shards concurrently, keeping track of how
 	// many databases we are managing.
+	openShards := make([]uint64, 0, 16)
 	for i := 0; i < n; i++ {
 		res := <-resC
+		if res.loaded && res.s != nil {
+			openShards = append(openShards, res.s.id)
+		}
 		if res.s == nil || res.err != nil {
 			continue
 		}
@@ -442,11 +456,10 @@ func (s *Store) loadShards() error {
 		}
 	}
 
-	// Enable all shards
-	for _, sh := range s.shards {
-		sh.SetEnabled(true)
-		if sh.IsIdle() {
-			if err := sh.Free(); err != nil {
+	for _, id := range openShards {
+		s.shards[id].SetEnabled(true)
+		if s.shards[id].IsIdle() {
+			if err := s.shards[id].Free(); err != nil {
 				return err
 			}
 		}
