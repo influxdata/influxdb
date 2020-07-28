@@ -54,7 +54,7 @@ const FillValues: FunctionComponent<Props> = ({
       </FlexBox.Child>
       <QuestionMarkTooltip
         diameter={16}
-        tooltipContents="Tooltip goes here!"
+        tooltipContents="For windows without data, create an empty window and fill it with a null aggregate value"
         tooltipStyle={{fontSize: '13px', padding: '8px'}}
       />
     </>
