@@ -177,11 +177,28 @@ export const timeMachinesReducer = (
     const {activeTimeMachineID, initialState} = action.payload
     const activeTimeMachine = state.timeMachines[activeTimeMachineID]
     const view = initialState.view || activeTimeMachine.view
-    const draftQueries = map(cloneDeep(view.properties.queries), q => ({
+
+    let draftQueries = map(cloneDeep(view.properties.queries), q => ({
       ...q,
       hidden: false,
     }))
+
     const queryBuilder = initialQueryBuilderState(draftQueries[0].builderConfig)
+
+    if (activeTimeMachineID === 'alerting') {
+      queryBuilder.aggregateWindow.fillValues = !DEFAULT_FILLVALUES
+      draftQueries = draftQueries.map(q => ({
+        ...q,
+        builderConfig: {
+          ...q.builderConfig,
+          aggregateWindow: {
+            ...q.builderConfig.aggregateWindow,
+            fillValues: !DEFAULT_FILLVALUES,
+          },
+        },
+      }))
+    }
+
     const queryResults = initialQueryResultsState()
     const timeRange =
       activeTimeMachineID === 'alerting'
