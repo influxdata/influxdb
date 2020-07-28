@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect, ConnectedProps} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -11,11 +12,21 @@ import {
   ComponentStatus,
 } from '@influxdata/clockface'
 
+// Actions
+import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
+
+// Types
+import {LimitStatus} from 'src/cloud/actions/limits'
+
+// Constants
+import {CLOUD} from '../constants'
+
 interface OwnProps {
   onSelectNew: () => void
   onSelectImport: () => void
   onSelectTemplate?: () => void
   resourceName: string
+  limitStatus?: LimitStatus
 }
 
 interface DefaultProps {
@@ -24,9 +35,11 @@ interface DefaultProps {
   titleText: string
 }
 
-type Props = OwnProps & DefaultProps
+type ReduxProps = ConnectedProps<typeof connector>
 
-export default class AddResourceDropdown extends PureComponent<Props> {
+type Props = OwnProps & DefaultProps & ReduxProps
+
+class AddResourceDropdown extends PureComponent<Props> {
   public static defaultProps: DefaultProps = {
     canImportFromTemplate: false,
     status: ComponentStatus.Default,
@@ -121,8 +134,23 @@ export default class AddResourceDropdown extends PureComponent<Props> {
     return `From a Template`
   }
 
+  private handleLimit = (): void => {
+    const {resourceName, onShowOverlay, onDismissOverlay} = this.props
+    onShowOverlay('asset-limit', {asset: `${resourceName}s`}, onDismissOverlay)
+  }
+
   private handleSelect = (selection: string): void => {
-    const {onSelectNew, onSelectImport, onSelectTemplate} = this.props
+    const {
+      onSelectNew,
+      onSelectImport,
+      onSelectTemplate,
+      limitStatus,
+    } = this.props
+
+    if (CLOUD && limitStatus === LimitStatus.EXCEEDED) {
+      this.handleLimit()
+      return
+    }
 
     if (selection === this.newOption) {
       onSelectNew()
@@ -135,3 +163,12 @@ export default class AddResourceDropdown extends PureComponent<Props> {
     }
   }
 }
+
+const mdtp = {
+  onShowOverlay: showOverlay,
+  onDismissOverlay: dismissOverlay,
+}
+
+const connector = connect(null, mdtp)
+
+export default connector(AddResourceDropdown)

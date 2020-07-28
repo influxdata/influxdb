@@ -57,6 +57,7 @@ const OverlayController: FunctionComponent<OverlayControllerProps> = props => {
       break
     case 'create-bucket':
       activeOverlay = <CreateBucketOverlay onClose={closer} />
+      break
     case 'asset-limit':
       activeOverlay = <AssetLimitOverlay onClose={closer} />
       break
