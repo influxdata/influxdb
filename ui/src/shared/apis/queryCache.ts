@@ -6,6 +6,7 @@ import {asAssignment, getAllVariables} from 'src/variables/selectors'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {filterUnusedVarsBasedOnQuery} from 'src/shared/utils/filterUnusedVars'
 import {event} from 'src/cloud/utils/reporting'
+import {getWindowVars} from 'src/variables/utils/getWindowVars'
 
 // Types
 import {RunQueryResult} from 'src/shared/apis/query'
@@ -149,7 +150,8 @@ export const getCachedResultsOrRunQuery = (
 ): CancelBox<RunQueryResult> => {
   const queryID = `${hashCode(query)}`
   event('Starting Query Cache Process ', {context: 'queryCache', queryID})
-  const usedVars = filterUnusedVarsBasedOnQuery(getAllVariables(state), [query])
+  const allVars = getAllVariables(state)
+  const usedVars = filterUnusedVarsBasedOnQuery(allVars, [query])
   const variables = sortBy(usedVars, ['name'])
   const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
   const stringifiedVars = JSON.stringify(simplifiedVariables)
@@ -171,8 +173,11 @@ export const getCachedResultsOrRunQuery = (
   const variableAssignments = variables
     .map(v => asAssignment(v))
     .filter(v => !!v)
+
+  const windowVars = getWindowVars(query, allVars)
+
   // otherwise query & set results
-  const extern = buildVarsOption(variableAssignments)
+  const extern = buildVarsOption([...variableAssignments, ...windowVars])
   const {mutex} = queryCache.initializeCacheByID(queryID, hashedVariables)
   const results = mutex.run(orgID, query, extern)
   results.promise = results.promise.then(res => {
