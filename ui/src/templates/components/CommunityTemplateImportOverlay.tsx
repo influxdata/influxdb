@@ -18,7 +18,7 @@ import {ComponentStatus} from '@influxdata/clockface'
 
 // Utils
 import {getByID} from 'src/resources/selectors'
-import {getGithubUrlFromTemplateUrlDetails} from 'src/templates/utils'
+import {getGithubUrlFromTemplateDetails} from 'src/templates/utils'
 
 import {installTemplate, reviewTemplate} from 'src/templates/api'
 
@@ -75,7 +75,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
     templateName,
     templateExtension
   ) => {
-    const yamlLocation = getGithubUrlFromTemplateUrlDetails(
+    const yamlLocation = getGithubUrlFromTemplateDetails(
       directory,
       templateName,
       templateExtension
@@ -103,7 +103,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   private handleInstallTemplate = async () => {
     const {directory, org, templateExtension, templateName} = this.props
 
-    const yamlLocation = getGithubUrlFromTemplateUrlDetails(
+    const yamlLocation = getGithubUrlFromTemplateDetails(
       directory,
       templateName,
       templateExtension
@@ -115,6 +115,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
         yamlLocation,
         this.props.resourcesToSkip
       )
+
       this.props.notify(communityTemplateInstallSucceeded(templateName))
 
       this.props.fetchAndSetStacks(org.id)

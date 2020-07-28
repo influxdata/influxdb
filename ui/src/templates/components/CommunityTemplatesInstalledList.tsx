@@ -24,9 +24,6 @@ import {TemplateKind} from 'src/client'
 // API
 import {deleteStack} from 'src/templates/api'
 
-// Utils
-import {getTemplateUrlDetailsFromGithubSource} from 'src/templates/utils'
-
 interface OwnProps {
   orgID: string
 }
@@ -109,14 +106,9 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
           </Table.Header>
           <Table.Body>
             {this.props.stacks.map(stack => {
-              const [source] = stack.sources
-              const {
-                directory,
-                templateName,
-              } = getTemplateUrlDetailsFromGithubSource(source)
               return (
                 <Table.Row key={`stack-${stack.id}`}>
-                  <Table.Cell>{`${directory}/${templateName}`}</Table.Cell>
+                  <Table.Cell>{stack.name}</Table.Cell>
                   <Table.Cell>
                     {this.renderStackResources(stack.resources)}
                   </Table.Cell>
