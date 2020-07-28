@@ -115,13 +115,6 @@
   contact: Query Team
   lifetime: temporary
 
-- name: Urm Free Tasks
-  description: allow task system to operate without creating additional urms
-  key: urmFreeTasks
-  default: false
-  contact: Lyon Hill
-  lifetime: temporary
-
 - name: Simple Task Options Extraction
   description: Simplified task options extraction to avoid undefined functions when saving tasks
   key: simpleTaskOptionsExtraction
