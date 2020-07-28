@@ -12,7 +12,7 @@ Scenario: logout influx menu
   When click nav menu item "User"
   When click user nav item "Logout"
   # Need second click - 1st should lead to account info
-  # TODO update when account info page loads
+  # TODO update when account info page loads - issue #19057
   When click nav menu item "User"
   When click user nav item "Logout"
   Then the cloud login page is loaded

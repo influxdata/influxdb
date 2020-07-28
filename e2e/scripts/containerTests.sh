@@ -9,10 +9,6 @@ INFLUX2_URL="http://${INFLUX2_HOST}:9999"
 #TAGS="@influx-influx"
 ACTIVE_CONF=development
 
-echo ------ CHECK ENV IN containerTests.sh --------
-env
-echo ------- END ENV CHECK ------------------------
-
 POSITIONAL=()
 while [[ $# -gt 0 ]]
 do
