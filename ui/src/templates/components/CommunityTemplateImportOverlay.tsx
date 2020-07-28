@@ -20,11 +20,16 @@ import {ComponentStatus} from '@influxdata/clockface'
 import {getByID} from 'src/resources/selectors'
 import {getGithubUrlFromTemplateDetails} from 'src/templates/utils'
 
-import {installTemplate, reviewTemplate} from 'src/templates/api'
+import {
+  installTemplate,
+  reviewTemplate,
+  updateStackName,
+} from 'src/templates/api'
 
 import {
-  communityTemplateInstallSucceeded,
   communityTemplateInstallFailed,
+  communityTemplateInstallSucceeded,
+  communityTemplateRenameFailed,
 } from 'src/shared/copy/notifications'
 
 interface State {
@@ -112,22 +117,26 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
       templateExtension
     )
 
+    let summary
     try {
-      const summary = await installTemplate(
+      summary = await installTemplate(
         org.id,
         yamlLocation,
         this.props.resourcesToSkip
       )
-
-      this.props.notify(communityTemplateInstallSucceeded(templateName))
-
-      this.props.fetchAndSetStacks(org.id)
-
-      this.onDismiss()
-
-      return summary
     } catch (err) {
       this.props.notify(communityTemplateInstallFailed(err.message))
+    }
+
+    try {
+      await updateStackName(summary.stackID, templateName)
+
+      this.props.notify(communityTemplateInstallSucceeded(templateName))
+    } catch {
+      this.props.notify(communityTemplateRenameFailed())
+    } finally {
+      this.props.fetchAndSetStacks(org.id)
+      this.onDismiss()
     }
   }
 }
