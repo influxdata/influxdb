@@ -8,15 +8,8 @@ edition = "2018"
 [dependencies]
 snafu = "0.6.2"
 log = "0.4.8"
-
 human_format = "1.0.3"
-
-# I get a build error when I use this one:
-# failed to run custom build command for `arrow-flight v0.17.0`
-#parquet = "0.17.0"
-# this, we are living on the edge and pull directly from the arrow repo.
-# https://github.com/apache/arrow/commit/04a1867eeb58f0c515e7ee5a6300a8f61045a6cd
-parquet = { git = "https://github.com/apache/arrow.git", rev="04a1867eeb58f0c515e7ee5a6300a8f61045a6cd", version = "1.0.0-SNAPSHOT" }
+parquet = "1.0.0"
 
 delorean_table_schema = { path = "../delorean_table_schema" }
 delorean_tsm = { path = "../delorean_tsm" }
