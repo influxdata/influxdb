@@ -22,6 +22,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
 	"github.com/influxdata/influxdb/v2/pkg/estimator"
 	"github.com/influxdata/influxdb/v2/pkg/file"
@@ -30,7 +31,6 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/radix"
 	intar "github.com/influxdata/influxdb/v2/pkg/tar"
 	"github.com/influxdata/influxdb/v2/pkg/tracing"
-	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	_ "github.com/influxdata/influxdb/v2/v1/tsdb/index"
 	"github.com/influxdata/influxdb/v2/v1/tsdb/index/inmem"

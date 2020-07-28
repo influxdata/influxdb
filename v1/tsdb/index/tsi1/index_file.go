@@ -9,10 +9,10 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/estimator"
 	"github.com/influxdata/influxdb/v2/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/v2/pkg/mmap"
-	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/influxdata/influxdb/v2/v1/tsdb"
 )
 

@@ -20,11 +20,11 @@ import (
 	"unsafe"
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
 	"github.com/influxdata/influxdb/v2/pkg/escape"
 	"github.com/influxdata/influxdb/v2/pkg/estimator"
 	"github.com/influxdata/influxdb/v2/pkg/estimator/hll"
-	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"

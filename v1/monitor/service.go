@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/logger"
-	"github.com/influxdata/influxdb/v2/v1/models"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/v1/monitor/diagnostics"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"go.uber.org/zap"

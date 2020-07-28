@@ -13,8 +13,8 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/v2/influxql/query"
+	"github.com/influxdata/influxdb/v2/models"
 	influxdb "github.com/influxdata/influxdb/v2/v1"
-	"github.com/influxdata/influxdb/v2/v1/models"
 	internal "github.com/influxdata/influxdb/v2/v1/services/meta/internal"
 	"github.com/influxdata/influxql"
 )

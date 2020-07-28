@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/toml"
-	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/influxdata/influxdb/v2/v1/monitor"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"go.uber.org/zap"

@@ -16,8 +16,8 @@ import (
 	"sync/atomic"
 
 	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/file"
-	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
 	"github.com/influxdata/influxdb/v2/v1/tsdb/index/tsi1"

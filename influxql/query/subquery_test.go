@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2/influxql/query"
-	"github.com/influxdata/influxdb/v2/v1/models"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxql"
 )
 

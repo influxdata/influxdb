@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/tracing/fields"
 	influxdb "github.com/influxdata/influxdb/v2/v1"
-	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/influxdata/influxdb/v2/v1/monitor"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/tsdb"

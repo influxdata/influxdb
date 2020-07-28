@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/v1/models"
+	"github.com/influxdata/influxdb/v2/models"
 )
 
 // PointsWriter describes the ability to write points into a storage engine.

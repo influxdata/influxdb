@@ -18,10 +18,10 @@ import (
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/estimator"
 	"github.com/influxdata/influxdb/v2/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"
-	"github.com/influxdata/influxdb/v2/v1/models"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

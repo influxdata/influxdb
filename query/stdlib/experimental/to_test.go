@@ -15,11 +15,11 @@ import (
 	"github.com/influxdata/flux/stdlib/universe"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/models"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	pquerytest "github.com/influxdata/influxdb/v2/query/querytest"
 	"github.com/influxdata/influxdb/v2/query/stdlib/experimental"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
-	"github.com/influxdata/influxdb/v2/v1/models"
 )
 
 func TestTo_Query(t *testing.T) {

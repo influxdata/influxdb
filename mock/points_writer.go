@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/v1/models"
+	"github.com/influxdata/influxdb/v2/models"
 )
 
 // PointsWriter is a mock structure for writing points.

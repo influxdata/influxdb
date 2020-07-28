@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/v1/models"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/v1/tsdb"
 )
 

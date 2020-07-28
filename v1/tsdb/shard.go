@@ -20,12 +20,12 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/v2/influxql/query"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
 	"github.com/influxdata/influxdb/v2/pkg/estimator"
 	"github.com/influxdata/influxdb/v2/pkg/file"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
-	"github.com/influxdata/influxdb/v2/v1/models"
 	internal "github.com/influxdata/influxdb/v2/v1/tsdb/internal"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"

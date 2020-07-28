@@ -19,9 +19,9 @@ import (
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/v1/models"
 )
 
 // ToKind is the kind for the `to` flux function
