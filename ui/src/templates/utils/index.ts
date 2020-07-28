@@ -106,7 +106,11 @@ export const getTemplateDetails = (source: string): TemplateDetails => {
     return getTemplateDetailsFromGithubSource(source)
   }
 
-  return getTemplateDetailsFromFileSource(source)
+  if (source.includes('file://')) {
+    return getTemplateDetailsFromFileSource(source)
+  }
+
+  throw new Error('unsupported format')
 }
 
 export const getGithubUrlFromTemplateDetails = (

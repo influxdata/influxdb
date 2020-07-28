@@ -22,7 +22,10 @@ import {getGithubUrlFromTemplateDetails} from 'src/templates/utils'
 
 import {installTemplate, reviewTemplate} from 'src/templates/api'
 
-import {communityTemplateInstallSucceeded} from 'src/shared/copy/notifications'
+import {
+  communityTemplateInstallSucceeded,
+  communityTemplateInstallFailed,
+} from 'src/shared/copy/notifications'
 
 interface State {
   status: ComponentStatus
@@ -87,7 +90,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
       this.props.setCommunityTemplateToInstall(summary)
       return summary
     } catch (err) {
-      console.error(err)
+      this.props.notify(communityTemplateInstallFailed(err.message))
     }
   }
 
@@ -124,7 +127,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
 
       return summary
     } catch (err) {
-      console.error('Error installing template', err)
+      this.props.notify(communityTemplateInstallFailed(err.message))
     }
   }
 }
