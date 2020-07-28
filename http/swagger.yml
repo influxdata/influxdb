@@ -7498,6 +7498,14 @@ components:
                   type: string
               contents:
                 $ref: "#/components/schemas/Template"
+        envRefs:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: boolean
         secrets:
           type: object
           additionalProperties:
@@ -7621,9 +7629,14 @@ components:
             type: string
             description: Value provided to fulfill reference
           defaultValue:
-            type: string
             description: Default value that will be provided for the reference when no value is provided
-        required: [resourceField, envRefKey, defaultValue]
+            nullable: true
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: boolean
+        required: [resourceField, envRefKey]
     TemplateSummary:
       type: object
       properties:

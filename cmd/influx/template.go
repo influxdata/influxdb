@@ -214,7 +214,7 @@ func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) erro
 
 	opts := []pkger.ApplyOptFn{
 		pkger.ApplyWithTemplate(template),
-		pkger.ApplyWithEnvRefs(providedEnvRefs),
+		pkger.ApplyWithEnvRefs(toMapInterface(providedEnvRefs)),
 		pkger.ApplyWithStackID(stackID),
 	}
 
@@ -2042,6 +2042,14 @@ func mapKeys(provided, kvPairs []string) map[string]string {
 		out[k] = v
 	}
 
+	return out
+}
+
+func toMapInterface(m map[string]string) map[string]interface{} {
+	out := make(map[string]interface{})
+	for k, v := range m {
+		out[k] = v
+	}
 	return out
 }
 

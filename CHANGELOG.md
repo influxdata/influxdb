@@ -3,10 +3,11 @@
 ### Breaking
 
 1. [19066](https://github.com/influxdata/influxdb/pull/19066): Drop deprecated /packages route tree
+1. [19116](https://github.com/influxdata/influxdb/pull/19116): Support more types for template envRef default value and require explicit default values 
 
 ### Features
 
-1. [19075](https://github.com/influxdata/influxdb/pull/19075): Aadd resource links to a stack's resources from public HTTP API list/read calls
+1. [19075](https://github.com/influxdata/influxdb/pull/19075): Add resource links to a stack's resources from public HTTP API list/read calls
 
 ### Bug Fixes
 

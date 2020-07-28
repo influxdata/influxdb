@@ -2470,7 +2470,7 @@ spec:
 
 			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID,
 				pkger.ApplyWithTemplate(pkg),
-				pkger.ApplyWithEnvRefs(map[string]string{
+				pkger.ApplyWithEnvRefs(map[string]interface{}{
 					"bkt-1-name-ref":   "new-bkt-name",
 					"label-1-name-ref": "new-label-name",
 				}),
@@ -3687,7 +3687,7 @@ spec:
 
 		impact, err = svc.Apply(ctx, l.Org.ID, l.User.ID,
 			pkger.ApplyWithTemplate(pkg),
-			pkger.ApplyWithEnvRefs(map[string]string{
+			pkger.ApplyWithEnvRefs(map[string]interface{}{
 				"bkt-1-name-ref":      "rucket_threeve",
 				"check-1-name-ref":    "check_threeve",
 				"dash-1-name-ref":     "dash_threeve",
