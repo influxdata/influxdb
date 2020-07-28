@@ -75,7 +75,7 @@ class QueryCache {
       this.resetCacheByID(id)
       return null
     }
-    event('Query Cache successful Get', {context: 'queryCache'})
+    event('Query Cache successful Get', {context: 'queryCache', queryID: id})
     return this.cache[id].values
   }
 
@@ -112,7 +112,7 @@ class QueryCache {
     hashedVariables: string,
     values: RunQueryResult
   ): void => {
-    event('Query Cache was Set', {context: 'queryCache'})
+    event('Query Cache was Set', {context: 'queryCache', queryID})
     this.cache[queryID] = {
       ...this.initializeCacheByID(queryID, hashedVariables),
       dateSet: Date.now(),
@@ -152,11 +152,12 @@ export const getCachedResultsOrRunQuery = (
     [query],
     true
   )
+  const queryID = `${hashCode(query)}`
+  event('Starting Query Cache Process ', {context: 'queryCache', queryID})
   const variables = sortBy(usedVars, ['name'])
   const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
   const stringifiedVars = JSON.stringify(simplifiedVariables)
   // create the queryID based on the query & vars
-  const queryID = `${hashCode(query)}`
   const hashedVariables = `${hashCode(stringifiedVars)}`
 
   const cacheResults: RunQueryResult | null = queryCache.getFromCache(
