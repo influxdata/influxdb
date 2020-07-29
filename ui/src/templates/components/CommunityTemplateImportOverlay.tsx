@@ -19,6 +19,7 @@ import {ComponentStatus} from '@influxdata/clockface'
 // Utils
 import {getByID} from 'src/resources/selectors'
 import {getGithubUrlFromTemplateDetails} from 'src/templates/utils'
+import {reportError} from 'src/shared/utils/errors'
 
 import {
   installTemplate,
@@ -96,6 +97,9 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
       return summary
     } catch (err) {
       this.props.notify(communityTemplateInstallFailed(err.message))
+      reportError(err, {
+        name: 'The community template fetch for preview failed',
+      })
     }
   }
 
@@ -126,14 +130,16 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
       )
     } catch (err) {
       this.props.notify(communityTemplateInstallFailed(err.message))
+      reportError(err, {name: 'Failed to install community template'})
     }
 
     try {
       await updateStackName(summary.stackID, templateName)
 
       this.props.notify(communityTemplateInstallSucceeded(templateName))
-    } catch {
+    } catch (err) {
       this.props.notify(communityTemplateRenameFailed())
+      reportError(err, {name: 'The community template rename failed'})
     } finally {
       this.props.fetchAndSetStacks(org.id)
       this.onDismiss()

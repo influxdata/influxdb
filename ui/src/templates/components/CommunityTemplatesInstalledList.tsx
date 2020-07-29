@@ -28,6 +28,9 @@ import {TemplateKind} from 'src/client'
 // API
 import {deleteStack} from 'src/templates/api'
 
+//Utils
+import {reportError} from 'src/shared/utils/errors'
+
 interface OwnProps {
   orgID: string
 }
@@ -53,6 +56,7 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
       this.props.fetchAndSetStacks(this.props.orgID)
     } catch (err) {
       this.props.notify(communityTemplateFetchStackFailed(err.message))
+      reportError(err, {name: 'The community template fetch stack failed'})
     }
   }
 
@@ -89,6 +93,7 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
         this.props.notify(communityTemplateDeleteSucceeded(stackID))
       } catch (err) {
         this.props.notify(communityTemplateDeleteFailed(err.message))
+        reportError(err, {name: 'The community template delete failed'})
       } finally {
         this.props.fetchAndSetStacks(this.props.orgID)
       }
