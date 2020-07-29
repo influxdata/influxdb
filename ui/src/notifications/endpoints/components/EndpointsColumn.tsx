@@ -11,7 +11,7 @@ import {AppState, NotificationEndpoint, ResourceType} from 'src/types'
 
 // Utils
 import {getAll} from 'src/resources/selectors'
-import { isFlagEnabled } from 'src/shared/utils/featureFlag'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 interface StateProps {
   endpoints: NotificationEndpoint[]
