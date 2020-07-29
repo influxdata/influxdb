@@ -57,7 +57,7 @@ const EmptyEndpointList: FC<{searchTerm: string}> = ({searchTerm}) => {
       <EmptyState.Text>
         Want to send notifications to Slack,
         <br />
-        PagerDuty or an HTTP server?
+        PagerDuty, Telegram or an HTTP server?
         <br />
         <br />
         Try creating a <b>Notification Endpoint</b>
