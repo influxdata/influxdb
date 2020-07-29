@@ -693,7 +693,7 @@ func TestService_handlePostCheck(t *testing.T) {
   "query": {
   	"builderConfig": {
     "aggregateWindow": {
-			"fillValues": false,
+      "fillValues": false,
       "period": ""
     },
     "buckets": [],
@@ -1136,7 +1136,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 		  "query": {
             "builderConfig": {
               "aggregateWindow": {
-								"fillValues": false,
+                "fillValues": false,
                 "period": ""
               },
               "buckets": [],
