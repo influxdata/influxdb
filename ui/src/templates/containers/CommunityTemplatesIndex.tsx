@@ -170,7 +170,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       )
     } catch (err) {
       this.props.notify(communityTemplateUnsupportedFormatError())
-      reportError(err, {name: 'The community template install failed'})
+      reportError(err, {name: 'The community template getTemplateDetails failed'})
     }
   }
 
