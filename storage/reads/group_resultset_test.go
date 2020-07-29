@@ -504,6 +504,10 @@ type mockReadGroupCursor struct {
 	rows []reads.SeriesRow
 }
 
+/* Interface adherence means that mockReadGroupCursor can't be
+   written to. This global variable is icky, but accomplishes
+   the same idea.
+*/
 var mockReadGroupCursorIndex = 0
 
 func (c mockReadGroupCursor) Close()     {}
@@ -518,6 +522,8 @@ func (c mockReadGroupCursor) Next() *reads.SeriesRow {
 }
 
 func newMockReadGroupCursor(keys ...string) mockReadGroupCursor {
+	// Reset the cursor index
+	mockReadGroupCursorIndex = 0
 	rows := make([]reads.SeriesRow, len(keys))
 	for i := range keys {
 		rows[i].Name, rows[i].SeriesTags = models.ParseKeyBytes([]byte(keys[i]))
