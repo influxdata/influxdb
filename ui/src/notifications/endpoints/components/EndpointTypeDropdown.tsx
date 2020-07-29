@@ -10,11 +10,13 @@ import {extractBlockedEndpoints} from 'src/cloud/utils/limits'
 
 // Types
 import {NotificationEndpointType, AppState} from 'src/types'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 interface EndpointType {
   id: NotificationEndpointType
   type: NotificationEndpointType
   name: string
+  flag?: string // feature flag that enable/disable endpoint type
 }
 
 interface StateProps {
@@ -32,7 +34,12 @@ const types: EndpointType[] = [
   {name: 'HTTP', type: 'http', id: 'http'},
   {name: 'Slack', type: 'slack', id: 'slack'},
   {name: 'Pagerduty', type: 'pagerduty', id: 'pagerduty'},
-  {name: 'Telegram', type: 'telegram', id: 'telegram'},
+  {
+    name: 'Telegram',
+    type: 'telegram',
+    id: 'telegram',
+    flag: 'notification-endpoint-telegram',
+  },
 ]
 
 const EndpointTypeDropdown: FC<Props> = ({
@@ -41,7 +48,10 @@ const EndpointTypeDropdown: FC<Props> = ({
   blockedEndpoints,
 }) => {
   const items = types
-    .filter(({type}) => !blockedEndpoints.includes(type))
+    .filter(
+      ({type, flag}) =>
+        !blockedEndpoints.includes(type) && (!flag || isFlagEnabled(flag))
+    )
     .map(({id, type, name}) => (
       <Dropdown.Item
         key={id}

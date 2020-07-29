@@ -8,6 +8,7 @@ import FilterList from 'src/shared/components/FilterList'
 
 // Types
 import {NotificationEndpoint} from 'src/types'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 interface Props {
   endpoints: NotificationEndpoint[]
@@ -51,13 +52,17 @@ const EmptyEndpointList: FC<{searchTerm: string}> = ({searchTerm}) => {
       </EmptyState>
     )
   }
+  const conditionalEndpoints: Array<string> = []
+  if (isFlagEnabled('notification-endpoint-telegram')) {
+    conditionalEndpoints.push('Telegram')
+  }
 
   return (
     <EmptyState size={ComponentSize.Small} className="alert-column--empty">
       <EmptyState.Text>
-        Want to send notifications to Slack,
+        Want to send notifications to Slack, PagerDuty,
         <br />
-        PagerDuty, Telegram or an HTTP server?
+        {conditionalEndpoints.join(', ')}or an HTTP server?
         <br />
         <br />
         Try creating a <b>Notification Endpoint</b>

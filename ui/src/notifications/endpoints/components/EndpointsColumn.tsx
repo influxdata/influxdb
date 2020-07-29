@@ -11,6 +11,7 @@ import {AppState, NotificationEndpoint, ResourceType} from 'src/types'
 
 // Utils
 import {getAll} from 'src/resources/selectors'
+import { isFlagEnabled } from 'src/shared/utils/featureFlag'
 
 interface StateProps {
   endpoints: NotificationEndpoint[]
@@ -27,13 +28,18 @@ const EndpointsColumn: FC<Props> = ({history, match, endpoints, tabIndex}) => {
     history.push(newRuleRoute)
   }
 
+  const conditionalEndpoints: Array<string> = []
+  if (isFlagEnabled('notification-endpoint-telegram')) {
+    conditionalEndpoints.push('Telegram')
+  }
+
   const tooltipContents = (
     <>
       A <strong>Notification Endpoint</strong> stores the information to connect
       <br />
       to a third party service that can receive notifications
       <br />
-      like Slack, PagerDuty, Telegram, or an HTTP server
+      like Slack, PagerDuty, {conditionalEndpoints.join(', ')}or an HTTP server
       <br />
       <br />
       <a
