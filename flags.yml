@@ -151,3 +151,9 @@
   contact: Monitoring Team
   lifetime: temporary
   expose: true
+
+- name: Push Down Group Aggregate Min Max
+  description: Enable the min and max variants of the PushDownGroupAggregate planner rule
+  key: pushDownGroupAggregateMinMax
+  default: false
+  contact: Query Team
