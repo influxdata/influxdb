@@ -72,7 +72,7 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
       if (source.includes('github')) {
         return (
           <a key={source} href={source}>
-            Github
+            {source}
           </a>
         )
       }
