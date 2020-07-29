@@ -5,41 +5,38 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
-	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2"
 )
 
-// FromBucketService wraps an platform.BucketService in the BucketLookup interface.
-func FromBucketService(srv platform.BucketService) *BucketLookup {
+// FromBucketService wraps an influxdb.BucketService in the BucketLookup interface.
+func FromBucketService(srv influxdb.BucketService) *BucketLookup {
 	return &BucketLookup{
 		BucketService: srv,
 	}
 }
 
-// BucketLookup converts Flux bucket lookups into platform.BucketService calls.
+// BucketLookup converts Flux bucket lookups into influxdb.BucketService calls.
 type BucketLookup struct {
-	BucketService platform.BucketService
+	BucketService influxdb.BucketService
 }
 
 // Lookup returns the bucket id and its existence given an org id and bucket name.
-func (b *BucketLookup) Lookup(ctx context.Context, orgID platform.ID, name string) (platform.ID, bool) {
-	oid := platform.ID(orgID)
-	filter := platform.BucketFilter{
-		OrganizationID: &oid,
+func (b *BucketLookup) Lookup(ctx context.Context, orgID influxdb.ID, name string) (influxdb.ID, bool) {
+	filter := influxdb.BucketFilter{
+		OrganizationID: &orgID,
 		Name:           &name,
 	}
 	bucket, err := b.BucketService.FindBucket(ctx, filter)
 	if err != nil {
-		return platform.InvalidID(), false
+		return influxdb.InvalidID(), false
 	}
 	return bucket.ID, true
 }
 
 // LookupName returns an bucket name given its organization ID and its bucket ID.
-func (b *BucketLookup) LookupName(ctx context.Context, orgID platform.ID, id platform.ID) string {
-	oid := platform.ID(orgID)
-	id = platform.ID(id)
-	filter := platform.BucketFilter{
-		OrganizationID: &oid,
+func (b *BucketLookup) LookupName(ctx context.Context, orgID influxdb.ID, id influxdb.ID) string {
+	filter := influxdb.BucketFilter{
+		OrganizationID: &orgID,
 		ID:             &id,
 	}
 	bucket, err := b.BucketService.FindBucket(ctx, filter)
@@ -49,48 +46,55 @@ func (b *BucketLookup) LookupName(ctx context.Context, orgID platform.ID, id pla
 	return bucket.Name
 }
 
-func (b *BucketLookup) FindAllBuckets(ctx context.Context, orgID platform.ID) ([]*platform.Bucket, int) {
-	oid := platform.ID(orgID)
-	filter := platform.BucketFilter{
-		OrganizationID: &oid,
+func (b *BucketLookup) FindAllBuckets(ctx context.Context, orgID influxdb.ID) ([]*influxdb.Bucket, int) {
+	filter := influxdb.BucketFilter{
+		OrganizationID: &orgID,
 	}
-	buckets, count, err := b.BucketService.FindBuckets(ctx, filter)
-	if err != nil {
-		return nil, count
-	}
-	return buckets, count
 
+	var allBuckets []*influxdb.Bucket
+	opt := influxdb.FindOptions{Limit: 20}
+	for ; ; opt.Offset += opt.Limit {
+		buckets, _, err := b.BucketService.FindBuckets(ctx, filter, opt)
+		if err != nil {
+			return nil, len(buckets)
+		}
+		allBuckets = append(allBuckets, buckets...)
+		if len(buckets) < opt.Limit {
+			break
+		}
+	}
+	return allBuckets, len(allBuckets)
 }
 
-// FromOrganizationService wraps a platform.OrganizationService in the OrganizationLookup interface.
-func FromOrganizationService(srv platform.OrganizationService) *OrganizationLookup {
+// FromOrganizationService wraps a influxdb.OrganizationService in the OrganizationLookup interface.
+func FromOrganizationService(srv influxdb.OrganizationService) *OrganizationLookup {
 	return &OrganizationLookup{OrganizationService: srv}
 }
 
-// OrganizationLookup converts organization name lookups into platform.OrganizationService calls.
+// OrganizationLookup converts organization name lookups into influxdb.OrganizationService calls.
 type OrganizationLookup struct {
-	OrganizationService platform.OrganizationService
+	OrganizationService influxdb.OrganizationService
 }
 
 // Lookup returns the organization ID and its existence given an organization name.
-func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (platform.ID, bool) {
+func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (influxdb.ID, bool) {
 	org, err := o.OrganizationService.FindOrganization(
 		ctx,
-		platform.OrganizationFilter{Name: &name},
+		influxdb.OrganizationFilter{Name: &name},
 	)
 
 	if err != nil {
-		return platform.InvalidID(), false
+		return influxdb.InvalidID(), false
 	}
 	return org.ID, true
 }
 
 // LookupName returns an organization name given its ID.
-func (o *OrganizationLookup) LookupName(ctx context.Context, id platform.ID) string {
-	id = platform.ID(id)
+func (o *OrganizationLookup) LookupName(ctx context.Context, id influxdb.ID) string {
+	id = influxdb.ID(id)
 	org, err := o.OrganizationService.FindOrganization(
 		ctx,
-		platform.OrganizationFilter{
+		influxdb.OrganizationFilter{
 			ID: &id,
 		},
 	)
@@ -101,14 +105,14 @@ func (o *OrganizationLookup) LookupName(ctx context.Context, id platform.ID) str
 	return org.Name
 }
 
-// SecretLookup wraps the platform.SecretService to perform lookups based on the organization
+// SecretLookup wraps the influxdb.SecretService to perform lookups based on the organization
 // in the context.
 type SecretLookup struct {
-	SecretService platform.SecretService
+	SecretService influxdb.SecretService
 }
 
-// FromSecretService wraps a platform.OrganizationService in the OrganizationLookup interface.
-func FromSecretService(srv platform.SecretService) *SecretLookup {
+// FromSecretService wraps a influxdb.OrganizationService in the OrganizationLookup interface.
+func FromSecretService(srv influxdb.SecretService) *SecretLookup {
 	return &SecretLookup{SecretService: srv}
 }
 
