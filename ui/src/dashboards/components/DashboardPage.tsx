@@ -16,6 +16,7 @@ import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import EditVEO from 'src/dashboards/components/EditVEO'
 import NewVEO from 'src/dashboards/components/NewVEO'
 import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
+import {event} from 'src/cloud/utils/reporting'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -46,6 +47,14 @@ const dashRoute = `/${ORGS}/${ORG_ID}/${DASHBOARDS}/${DASHBOARD_ID}`
 
 @ErrorHandling
 class DashboardPage extends Component<Props> {
+  public componentDidMount() {
+    const {dashboard} = this.props
+    event('Dashboard Mounted', {
+      dashboardID: dashboard.id,
+      orgID: dashboard.orgID,
+    })
+  }
+
   public componentWillUnmount() {
     this.props.resetCachedQueryResults()
   }

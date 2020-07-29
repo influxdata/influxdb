@@ -26,6 +26,7 @@ import {
 } from 'src/types'
 
 interface OwnProps {
+  id: string
   manualRefresh: number
   properties: QueryViewProperties
 }
