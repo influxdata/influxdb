@@ -4,6 +4,7 @@ import {connect, ConnectedProps, useDispatch} from 'react-redux'
 
 // Components
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
+import AssetLimitButton from 'src/cloud/components/AssetLimitButton'
 
 // Actions
 import {checkBucketLimits, LimitStatus} from 'src/cloud/actions/limits'
@@ -19,9 +20,8 @@ import {AppState} from 'src/types'
 import {CLOUD} from 'src/shared/constants'
 
 type ReduxProps = ConnectedProps<typeof connector>
-type Props = ReduxProps
 
-const CreateBucketButton: FC<Props> = ({
+const CreateBucketButton: FC<ReduxProps> = ({
   limitStatus,
   onShowOverlay,
   onDismissOverlay,
@@ -32,14 +32,12 @@ const CreateBucketButton: FC<Props> = ({
     dispatch(checkBucketLimits())
   }, [dispatch])
 
-  const limitExceeded = limitStatus === LimitStatus.EXCEEDED
-
   const handleItemClick = (): void => {
-    if (CLOUD && limitExceeded) {
-      onShowOverlay('asset-limit', {asset: 'Buckets'}, onDismissOverlay)
-    } else {
-      onShowOverlay('create-bucket', null, onDismissOverlay)
-    }
+    onShowOverlay('create-bucket', null, onDismissOverlay)
+  }
+
+  if (CLOUD && limitStatus === LimitStatus.EXCEEDED) {
+    return <AssetLimitButton resourceName="Bucket" />
   }
 
   return (
