@@ -36,6 +36,10 @@ export enum LimitStatus {
   EXCEEDED = 'exceeded',
 }
 
+export type MonitoringLimits = {
+  [type: string]: LimitStatus
+}
+
 export enum ActionTypes {
   SetLimits = 'SET_LIMITS',
   SetLimitsStatus = 'SET_LIMITS_STATUS',
