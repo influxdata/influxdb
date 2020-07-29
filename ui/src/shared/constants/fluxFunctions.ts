@@ -176,7 +176,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'experimental/aggregate',
-    desc: 'Calculates the range of change per windows of time.',
+    desc: 'Calculates the rate of change per windows of time.',
     example: 'aggregate.rate(every: 1m, unit: 1s)',
     category: 'Transformations',
     link:
