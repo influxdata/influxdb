@@ -67,7 +67,7 @@ export const setTimeToUTC = (date: string): string => {
   if (offset < 0) {
     return moment
       .utc(date)
-      .add(offset, 'minutes')
+      .add(Math.abs(offset), 'minutes')
       .format()
   }
   return moment.utc(date).format()
