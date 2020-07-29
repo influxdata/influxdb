@@ -10,7 +10,7 @@ import {AppState} from 'src/types'
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & RouteComponentProps
 
-const NoOrgsPage: FC<Props> = ({history, me}) => {
+const NoOrgsPage: FC<Props> = ({history, username}) => {
   const handleClick = () => {
     history.push('/signin')
   }
@@ -27,7 +27,7 @@ const NoOrgsPage: FC<Props> = ({history, me}) => {
       <p className="cf-funnel-page--subtitle">
         You don't belong to an organization.
         <br />
-        Add user <strong>{`"${me.name}"`}</strong> to an organization to
+        Add user <strong>{`"${username}"`}</strong> to an organization to
         continue
       </p>
       <Button
@@ -39,8 +39,10 @@ const NoOrgsPage: FC<Props> = ({history, me}) => {
   )
 }
 
-const mstp = ({me}: AppState) => {
-  return {me}
+const mstp = (state: AppState) => {
+  return {
+    username: state.me.resource.name,
+  }
 }
 
 const connector = connect(mstp)

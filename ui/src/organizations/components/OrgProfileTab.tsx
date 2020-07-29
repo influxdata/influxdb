@@ -85,7 +85,7 @@ class OrgProfileTab extends PureComponent<Props> {
             </Panel.Header>
             <Panel.Body>
               <CodeSnippet
-                copyText={this.props.me.id}
+                copyText={this.props.userID}
                 label="My User Id"
                 onCopyText={this.generateCopyText('User Id')}
               />
@@ -124,7 +124,7 @@ class OrgProfileTab extends PureComponent<Props> {
 const mstp = (state: AppState) => {
   return {
     org: getOrg(state),
-    me: state.me,
+    userID: state.me.resource.id,
   }
 }
 
