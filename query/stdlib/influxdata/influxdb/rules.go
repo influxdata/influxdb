@@ -1040,73 +1040,41 @@ func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (pl
 
 	switch pn.Kind() {
 	case universe.CountKind:
-		// ReadGroup() -> count => ReadGroup(count) -> sum
-		root := plan.CreatePhysicalNode("sum", &universe.SumProcedureSpec{
-			AggregateConfig: execute.DefaultAggregateConfig,
-		})
-
-		leaf := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+		// ReadGroup() -> count => ReadGroup(count)
+		node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
 			ReadRangePhysSpec: group.ReadRangePhysSpec,
 			GroupMode:         group.GroupMode,
 			GroupKeys:         group.GroupKeys,
 			AggregateMethod:   universe.CountKind,
 		})
-
-		root.AddPredecessors(leaf)
-		leaf.AddSuccessors(root)
-		return root, true, nil
+		return node, true, nil
 	case universe.SumKind:
-		// ReadGroup() -> sum => ReadGroup(sum) -> sum
-		root := plan.CreatePhysicalNode("sum", &universe.SumProcedureSpec{
-			AggregateConfig: execute.DefaultAggregateConfig,
-		})
-
-		leaf := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+		// ReadGroup() -> sum => ReadGroup(sum)
+		node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
 			ReadRangePhysSpec: group.ReadRangePhysSpec,
 			GroupMode:         group.GroupMode,
 			GroupKeys:         group.GroupKeys,
 			AggregateMethod:   universe.SumKind,
 		})
-
-		root.AddPredecessors(leaf)
-		leaf.AddSuccessors(root)
-		return root, true, nil
+		return node, true, nil
 	case universe.FirstKind:
-		// ReadGroup() -> first => ReadGroup(first) -> min
-		root := plan.CreatePhysicalNode("min", &universe.MinProcedureSpec{
-			SelectorConfig: execute.SelectorConfig{
-				Column: execute.DefaultTimeColLabel,
-			},
-		})
-
-		leaf := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+		// ReadGroup() -> first => ReadGroup(first)
+		node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
 			ReadRangePhysSpec: group.ReadRangePhysSpec,
 			GroupMode:         group.GroupMode,
 			GroupKeys:         group.GroupKeys,
 			AggregateMethod:   universe.FirstKind,
 		})
-
-		root.AddPredecessors(leaf)
-		leaf.AddSuccessors(root)
-		return root, true, nil
+		return node, true, nil
 	case universe.LastKind:
-		// ReadGroup() -> last => ReadGroup(last) -> max
-		root := plan.CreatePhysicalNode("max", &universe.MaxProcedureSpec{
-			SelectorConfig: execute.SelectorConfig{
-				Column: execute.DefaultTimeColLabel,
-			},
-		})
-
-		leaf := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+		// ReadGroup() -> last => ReadGroup(last)
+		node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
 			ReadRangePhysSpec: group.ReadRangePhysSpec,
 			GroupMode:         group.GroupMode,
 			GroupKeys:         group.GroupKeys,
 			AggregateMethod:   universe.LastKind,
 		})
-
-		root.AddPredecessors(leaf)
-		leaf.AddSuccessors(root)
-		return root, true, nil
+		return node, true, nil
 	}
 	return pn, false, nil
 }

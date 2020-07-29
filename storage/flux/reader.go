@@ -336,19 +336,19 @@ READ:
 		done := make(chan struct{})
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt, gc.Aggregate(), key)
 			table = newIntegerGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.FloatArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TFloat)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TFloat, gc.Aggregate(), key)
 			table = newFloatGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.UnsignedArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TUInt)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TUInt, gc.Aggregate(), key)
 			table = newUnsignedGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.BooleanArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TBool)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TBool, gc.Aggregate(), key)
 			table = newBooleanGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.StringArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString, gc.Aggregate(), key)
 			table = newStringGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
@@ -403,11 +403,11 @@ func convertGroupMode(m query.GroupMode) datatypes.ReadGroupRequest_Group {
 }
 
 const (
-	startColIdx         = 0
-	stopColIdx          = 1
-	timeColIdx          = 2
-	windowedValueColIdx = 2
-	valueColIdx         = 3
+	startColIdx            = 0
+	stopColIdx             = 1
+	timeColIdx             = 2
+	valueColIdxWithoutTime = 2
+	valueColIdx            = 3
 )
 
 func determineTableColsForWindowAggregate(tags models.Tags, typ flux.ColType, hasTimeCol bool) ([]flux.ColMeta, [][]byte) {
@@ -439,7 +439,7 @@ func determineTableColsForWindowAggregate(tags models.Tags, typ flux.ColType, ha
 			Type:  typ,
 		}
 	} else {
-		cols[windowedValueColIdx] = flux.ColMeta{
+		cols[valueColIdxWithoutTime] = flux.ColMeta{
 			Label: execute.DefaultValueColLabel,
 			Type:  typ,
 		}
@@ -506,9 +506,35 @@ func defaultGroupKeyForSeries(tags models.Tags, bnds execute.Bounds) flux.GroupK
 	return execute.NewGroupKey(cols, vs)
 }
 
-func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType) ([]flux.ColMeta, [][]byte) {
-	cols := make([]flux.ColMeta, 4+len(tagKeys))
-	defs := make([][]byte, 4+len(tagKeys))
+func IsSelector(agg *datatypes.Aggregate) bool {
+	if agg == nil {
+		return false
+	}
+	return agg.Type == datatypes.AggregateTypeMin || agg.Type == datatypes.AggregateTypeMax ||
+		agg.Type == datatypes.AggregateTypeFirst || agg.Type == datatypes.AggregateTypeLast
+}
+
+func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType, agg *datatypes.Aggregate, groupKey flux.GroupKey) ([]flux.ColMeta, [][]byte) {
+	var colSize int
+	if agg == nil || IsSelector(agg) {
+		// The group without aggregate or with selector (min, max, first, last) case:
+		// _start, _stop, _time, _value + tags
+		colSize += 4 + len(tagKeys)
+	} else {
+		// The group aggregate case:
+		// Only the group keys + _value are needed.
+		// Note that `groupKey` will contain _start, _stop, plus any group columns specified.
+		// _start and _stop will always be in the first two slots, see: groupKeyForGroup()
+		// For the group aggregate case the output does not contain a _time column.
+
+		// Also note that if in the future we will add support for mean, then it should also fall onto this branch.
+
+		colSize = len(groupKey.Cols()) + 1
+	}
+
+	cols := make([]flux.ColMeta, colSize)
+	defs := make([][]byte, colSize)
+	// No matter this has aggregate, selector, or neither, the first two columns are always _start and _stop
 	cols[startColIdx] = flux.ColMeta{
 		Label: execute.DefaultStartColLabel,
 		Type:  flux.TTime,
@@ -517,21 +543,42 @@ func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType) ([]flux.ColM
 		Label: execute.DefaultStopColLabel,
 		Type:  flux.TTime,
 	}
-	cols[timeColIdx] = flux.ColMeta{
-		Label: execute.DefaultTimeColLabel,
-		Type:  flux.TTime,
-	}
-	cols[valueColIdx] = flux.ColMeta{
-		Label: execute.DefaultValueColLabel,
-		Type:  typ,
-	}
-	for j, tag := range tagKeys {
-		cols[4+j] = flux.ColMeta{
-			Label: string(tag),
-			Type:  flux.TString,
-		}
-		defs[4+j] = []byte("")
 
+	if agg == nil || IsSelector(agg) {
+		// For the group without aggregate or with selector case:
+		cols[timeColIdx] = flux.ColMeta{
+			Label: execute.DefaultTimeColLabel,
+			Type:  flux.TTime,
+		}
+		cols[valueColIdx] = flux.ColMeta{
+			Label: execute.DefaultValueColLabel,
+			Type:  typ,
+		}
+		for j, tag := range tagKeys {
+			cols[4+j] = flux.ColMeta{
+				Label: string(tag),
+				Type:  flux.TString,
+			}
+			defs[4+j] = []byte("")
+		}
+	} else {
+		// Aggregate has no _time
+		cols[valueColIdxWithoutTime] = flux.ColMeta{
+			Label: execute.DefaultValueColLabel,
+			Type:  typ,
+		}
+		// From now on, only include group keys that are not _start and _stop.
+		// which are already included as the first two columns
+		// This highly depends on the implementation of groupKeyForGroup() which
+		// put _start and _stop into the first two slots.
+		for j := 2; j < len(groupKey.Cols()); j++ {
+			// the starting columns index for other group key columns is 3 (1+j)
+			cols[1+j] = flux.ColMeta{
+				Label: groupKey.Cols()[j].Label,
+				Type:  groupKey.Cols()[j].Type,
+			}
+			defs[1+j] = []byte("")
+		}
 	}
 	return cols, defs
 }
