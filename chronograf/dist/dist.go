@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/elazarl/go-bindata-assetfs"
+	assetfs "github.com/elazarl/go-bindata-assetfs"
 )
 
 // DebugAssets serves assets via a specified directory
@@ -36,6 +36,11 @@ func (b *BindataAssets) Handler() http.Handler {
 // addCacheHeaders requests an hour of Cache-Control and sets an ETag based on file size and modtime
 func (b *BindataAssets) addCacheHeaders(filename string, w http.ResponseWriter) error {
 	w.Header().Add("Cache-Control", "public, max-age=3600")
+	w.Header().Add("X-Frame-Options", "SAMEORIGIN")
+	w.Header().Add("X-XSS-Protection", "1; mode=block")
+	w.Header().Add("X-Content-Type-Options", "nosniff")
+	w.Header().Add("Content-Security-Policy", "script-src 'self'; object-src 'self'")
+
 	fi, err := AssetInfo(filename)
 	if err != nil {
 		return err
