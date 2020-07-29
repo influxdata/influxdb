@@ -1,20 +1,67 @@
-.dashboard--rate-alert {
-    padding: 0 $page-gutter;
-    width: 100%;
-    padding-bottom: 16px;
-}
-
-.load-data--rate-alert {
-    padding: 0 $page-gutter;
-    padding-bottom: 16px;
-    max-width: 1608px;
-}
-
 .load-data--asset-alert {
-    padding-bottom: 16px;
+    margin-bottom: $cf-marg-d;
 }
 
-// Might need to remove this eventually
-.cf-page-header--fixed {
-    justify-content: space-between;
+.cf-page-control-bar {
+    + .rate-alert {
+        margin: 0 $cf-marg-c $cf-marg-c;
+    }
+}
+
+.rate-alert--content {
+    display: inline-flex;
+    flex-direction: column;
+    font-weight: 500;
+    
+    .rate-alert--button {
+        margin-top: $cf-marg-b;
+    }
+}
+
+.cf-page--title {
+    flex-shrink: 0;
+}
+
+.asset-alert {
+    height: 100%;
+    background-position: bottom -20px left -20px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-image: url('../../assets/images/dashboard-empty--dark.svg');
+}
+
+.dashboards--asset-alert {
+    .asset-alert--contents {
+        position: absolute;
+        bottom: 0;
+    }
+}
+
+a.upgrade-payg--button {
+    @include gradient-diag-up($c-pool, $c-rainforest);
+}
+
+@media screen and (min-width: $cf-nav-menu--breakpoint) {
+    .rate-alert {
+        margin-left: $cf-marg-d;
+    }
+
+    .rate-alert--content {
+        flex-direction: row;
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: space-between;
+
+        .rate-alert--button {
+            margin-top: 0;
+            margin-left: $cf-marg-c;
+        }
+    }
+
+    .cf-page-control-bar {
+        + .rate-alert {
+            margin: 0 $cf-marg-d $cf-marg-c;
+        }
+    }
 }

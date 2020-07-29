@@ -17,12 +17,14 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/binaryutil"
 	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"github.com/influxdata/influxdb/v2/pkg/rhh"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 )
 
 var (
@@ -49,6 +51,8 @@ type SeriesFile struct {
 	// partition id label values.
 	defaultMetricLabels prometheus.Labels
 	metricsEnabled      bool
+
+	pageFaultLimiter *rate.Limiter // Limits page faults by the series file
 
 	LargeWriteThreshold int
 
@@ -84,6 +88,11 @@ func (f *SeriesFile) SetDefaultMetricLabels(labels prometheus.Labels) {
 // DisableMetrics must be called before Open.
 func (f *SeriesFile) DisableMetrics() {
 	f.metricsEnabled = false
+}
+
+// WithPageFaultLimiter sets a limiter to restrict the number of page faults.
+func (f *SeriesFile) WithPageFaultLimiter(limiter *rate.Limiter) {
+	f.pageFaultLimiter = limiter
 }
 
 // Open memory maps the data file at the file's path.
@@ -129,6 +138,7 @@ func (f *SeriesFile) Open(ctx context.Context) error {
 		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
 		p.LargeWriteThreshold = f.LargeWriteThreshold
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
+		p.pageFaultLimiter = f.pageFaultLimiter
 
 		// For each series file index, rhh trackers are used to track the RHH Hashmap.
 		// Each of the trackers needs to be given slightly different default
@@ -607,4 +617,12 @@ func SeriesKeySize(name []byte, tags models.Tags) int {
 	}
 	n += binaryutil.UvarintSize(uint64(n))
 	return n
+}
+
+// wait rate limits page faults to the underlying data. Skipped if limiter is not set.
+func wait(limiter *mincore.Limiter, b []byte) error {
+	if limiter == nil {
+		return nil
+	}
+	return limiter.WaitRange(context.Background(), b)
 }

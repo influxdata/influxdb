@@ -2050,10 +2050,11 @@ const (
 )
 
 type references struct {
+	EnvRef string
+	Secret string
+
 	val        interface{}
-	defaultVal string
-	EnvRef     string
-	Secret     string
+	defaultVal interface{}
 }
 
 func (r *references) hasValue() bool {
@@ -2072,24 +2073,17 @@ func (r *references) String() string {
 		return v
 	}
 	if r.EnvRef != "" {
-		return r.defaultEnvValue()
+		if s, _ := ifaceToStr(r.defaultVal); s != "" {
+			return s
+		}
+		return "env-" + r.EnvRef
 	}
 	return ""
-}
-
-func (r *references) defaultEnvValue() string {
-	if r.defaultVal != "" {
-		return r.defaultVal
-	}
-	return "env-" + r.EnvRef
 }
 
 func (r *references) StringVal() string {
-	if r.val != nil {
-		s, _ := r.val.(string)
-		return s
-	}
-	return ""
+	s, _ := ifaceToStr(r.val)
+	return s
 }
 
 func (r *references) SecretField() influxdb.SecretField {
@@ -2107,7 +2101,7 @@ func convertRefToRefSummary(field string, ref *references) SummaryReference {
 		Field:        field,
 		EnvRefKey:    ref.EnvRef,
 		Value:        ref.StringVal(),
-		DefaultValue: ref.defaultEnvValue(),
+		DefaultValue: ref.defaultVal,
 	}
 }
 

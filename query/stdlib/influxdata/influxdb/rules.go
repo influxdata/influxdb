@@ -34,6 +34,9 @@ func init() {
 		SwitchFillImplRule{},
 		SwitchSchemaMutationImplRule{},
 	)
+	plan.RegisterLogicalRules(
+		MergeFiltersRule{},
+	)
 }
 
 type FromStorageRule struct{}
@@ -1149,4 +1152,21 @@ func asSchemaMutationProcedureSpec(spec plan.ProcedureSpec) *universe.SchemaMuta
 		spec = s.ProcedureSpec
 	}
 	return spec.(*universe.SchemaMutationProcedureSpec)
+}
+
+type MergeFiltersRule struct{}
+
+func (MergeFiltersRule) Name() string {
+	return universe.MergeFiltersRule{}.Name()
+}
+
+func (MergeFiltersRule) Pattern() plan.Pattern {
+	return universe.MergeFiltersRule{}.Pattern()
+}
+
+func (r MergeFiltersRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	if feature.MergedFiltersRule().Enabled(ctx) {
+		return universe.MergeFiltersRule{}.Rewrite(ctx, pn)
+	}
+	return pn, false, nil
 }

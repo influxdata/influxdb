@@ -210,8 +210,8 @@ type ReqApply struct {
 	RawTemplates []ReqRawTemplate `json:"templates" yaml:"templates"`
 	RawTemplate  ReqRawTemplate   `json:"template" yaml:"template"`
 
-	EnvRefs map[string]string `json:"envRefs"`
-	Secrets map[string]string `json:"secrets"`
+	EnvRefs map[string]interface{} `json:"envRefs"`
+	Secrets map[string]string      `json:"secrets"`
 
 	RawActions []ReqRawAction `json:"actions"`
 }

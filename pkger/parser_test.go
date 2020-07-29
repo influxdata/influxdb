@@ -74,9 +74,8 @@ func TestParse(t *testing.T) {
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -215,14 +214,12 @@ spec:
 
 				expected := sumLabelGen("env-meta-name", "env-spec-name", "", "",
 					SummaryReference{
-						Field:        "metadata.name",
-						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						Field:     "metadata.name",
+						EnvRefKey: "meta-name",
 					},
 					SummaryReference{
-						Field:        "spec.name",
-						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						Field:     "spec.name",
+						EnvRefKey: "spec-name",
 					},
 				)
 				assert.Contains(t, actual, expected)
@@ -598,9 +595,8 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -2309,9 +2305,8 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expected, actual[0].EnvReferences)
@@ -2571,9 +2566,8 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -2896,14 +2890,12 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 					{
-						Field:        "spec.endpointName",
-						EnvRefKey:    "endpoint-meta-name",
-						DefaultValue: "env-endpoint-meta-name",
+						Field:     "spec.endpointName",
+						EnvRefKey: "endpoint-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -3238,9 +3230,8 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -3457,9 +3448,8 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -3588,9 +3578,8 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 					{
 						Field:        "spec.selected[0]",
@@ -3598,9 +3587,8 @@ spec:
 						DefaultValue: "second val",
 					},
 					{
-						Field:        "spec.selected[1]",
-						EnvRefKey:    "the-2nd",
-						DefaultValue: "env-the-2nd",
+						Field:     "spec.selected[1]",
+						EnvRefKey: "the-2nd",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -3879,7 +3867,7 @@ spec:
 
 			t.Log("applying env vars should populate env fields")
 			{
-				err := template.applyEnvRefs(map[string]string{
+				err := template.applyEnvRefs(map[string]interface{}{
 					"bkt-1-name-ref":   "bucket-1",
 					"label-1-name-ref": "label-1",
 				})

@@ -30,7 +30,7 @@ const CommunityTemplateName: FC<Props> = ({
 }) => {
   let installButton
 
-  if (onClickInstall) {
+  if (onClickInstall && resourceCount > 0) {
     installButton = (
       <Button
         text="Install Template"

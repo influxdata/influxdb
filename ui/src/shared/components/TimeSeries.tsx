@@ -11,11 +11,7 @@ import {fromFlux as fromFluxGiraffe} from '@influxdata/giraffe'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // API
-import {
-  runQuery,
-  RunQueryResult,
-  RunQuerySuccessResult,
-} from 'src/shared/apis/query'
+import {RunQueryResult, RunQuerySuccessResult} from 'src/shared/apis/query'
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Utils
@@ -33,6 +29,7 @@ import {
   demoDataError,
 } from 'src/cloud/utils/demoDataErrors'
 import {hashCode} from 'src/queryCache/actions'
+import {RunQueryPromiseMutex} from 'src/shared/apis/singleQuery'
 
 // Constants
 import {
@@ -109,8 +106,9 @@ class TimeSeries extends Component<Props, State> {
     className: 'time-series-container',
     style: null,
   }
-
   public state: State = defaultState()
+
+  private mutex = RunQueryPromiseMutex<RunQueryResult>()
 
   private observer: IntersectionObserver
   private ref: RefObject<HTMLDivElement> = React.createRef()
@@ -143,6 +141,7 @@ class TimeSeries extends Component<Props, State> {
 
   public componentWillUnmount() {
     this.observer && this.observer.disconnect()
+    this.pendingResults.forEach(({cancel}) => cancel())
   }
 
   public render() {
@@ -219,7 +218,7 @@ class TimeSeries extends Component<Props, State> {
         const extern = buildVarsOption([...vars, ...windowVars])
 
         event('runQuery', {context: 'TimeSeries'})
-        return runQuery(orgID, text, extern)
+        return this.mutex.run(orgID, text, extern)
       })
 
       // Wait for new queries to complete

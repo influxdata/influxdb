@@ -113,10 +113,6 @@ class TasksPage extends PureComponent<Props, State> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <GetResources resources={[ResourceType.Tasks, ResourceType.Labels]}>
               <GetAssetLimits>
-                <AssetLimitAlert
-                  resourceName="tasks"
-                  limitStatus={limitStatus}
-                />
                 <Filter
                   list={this.filteredTasks}
                   searchTerm={searchTerm}
@@ -147,6 +143,10 @@ class TasksPage extends PureComponent<Props, State> {
                   )}
                 </Filter>
                 {this.hiddenTaskAlert}
+                <AssetLimitAlert
+                  resourceName="tasks"
+                  limitStatus={limitStatus}
+                />
               </GetAssetLimits>
             </GetResources>
           </Page.Contents>

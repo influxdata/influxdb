@@ -322,7 +322,7 @@ func (b *cmdTelegrafBuilder) readConfig(file string) (string, error) {
 func (b *cmdTelegrafBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
 	b.genericCLIOpts.registerPrintOptions(cmd)
-	enforceFlagValidation(cmd)
+	b.globalFlags.registerFlags(cmd)
 	return cmd
 }
 

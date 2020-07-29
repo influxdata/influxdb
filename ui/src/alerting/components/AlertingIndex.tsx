@@ -1,6 +1,5 @@
 // Libraries
 import React, {FunctionComponent, useState} from 'react'
-import {connect} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 //Components
@@ -9,9 +8,8 @@ import ChecksColumn from 'src/checks/components/ChecksColumn'
 import RulesColumn from 'src/notifications/rules/components/RulesColumn'
 import EndpointsColumn from 'src/notifications/endpoints/components/EndpointsColumn'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
-import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import GetResources from 'src/resources/components/GetResources'
-import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 import NewThresholdCheckEO from 'src/checks/components/NewThresholdCheckEO'
 import NewDeadmanCheckEO from 'src/checks/components/NewDeadmanCheckEO'
 import EditCheckEO from 'src/checks/components/EditCheckEO'
@@ -22,28 +20,15 @@ import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndp
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-import {
-  extractMonitoringLimitStatus,
-  extractLimitedMonitoringResources,
-} from 'src/cloud/utils/limits'
 
 // Types
-import {AppState, ResourceType} from 'src/types'
-import {LimitStatus} from 'src/cloud/actions/limits'
+import {ResourceType} from 'src/types'
 
 const alertsPath = '/orgs/:orgID/alerting'
 
-interface StateProps {
-  limitStatus: LimitStatus
-  limitedResources: string
-}
-
 type ActiveColumn = 'checks' | 'endpoints' | 'rules'
 
-const AlertingIndex: FunctionComponent<StateProps> = ({
-  limitStatus,
-  limitedResources,
-}) => {
+const AlertingIndex: FunctionComponent = () => {
   const [activeColumn, setActiveColumn] = useState<ActiveColumn>('checks')
 
   const pageContentsClassName = `alerting-index alerting-index__${activeColumn}`
@@ -57,7 +42,7 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
       <Page titleTag={pageTitleSuffixer(['Alerts'])}>
         <Page.Header fullWidth={true} testID="alerts-page--header">
           <Page.Title title="Alerts" />
-          <CloudUpgradeButton />
+          <RateLimitAlert />
         </Page.Header>
         <Page.Contents
           fullWidth={true}
@@ -66,11 +51,6 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
         >
           <GetResources resources={[ResourceType.Labels, ResourceType.Buckets]}>
             <GetAssetLimits>
-              <AssetLimitAlert
-                resourceName={limitedResources}
-                limitStatus={limitStatus}
-                className="load-data--asset-alert"
-              />
               <SelectGroup
                 className="alerting-index--selector"
                 shape={ButtonShape.StretchToFit}
@@ -152,11 +132,4 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
   )
 }
 
-const mstp = ({cloud: {limits}}: AppState) => {
-  return {
-    limitStatus: extractMonitoringLimitStatus(limits),
-    limitedResources: extractLimitedMonitoringResources(limits),
-  }
-}
-
-export default connect(mstp)(AlertingIndex)
+export default AlertingIndex

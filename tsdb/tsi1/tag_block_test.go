@@ -56,7 +56,7 @@ func TestTagBlockWriter(t *testing.T) {
 	}
 
 	// Verify data.
-	if e := blk.TagValueElem([]byte("region"), []byte("us-east")); e == nil {
+	if e := blk.TagValueElem([]byte("region"), []byte("us-east"), nil); e == nil {
 		t.Fatal("expected element")
 	} else if a, err := e.(*tsi1.TagBlockValueElem).SeriesIDs(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -64,28 +64,28 @@ func TestTagBlockWriter(t *testing.T) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 
-	if e := blk.TagValueElem([]byte("region"), []byte("us-west")); e == nil {
+	if e := blk.TagValueElem([]byte("region"), []byte("us-west"), nil); e == nil {
 		t.Fatal("expected element")
 	} else if a, err := e.(*tsi1.TagBlockValueElem).SeriesIDs(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if !reflect.DeepEqual(a, []uint64{3}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
-	if e := blk.TagValueElem([]byte("host"), []byte("server0")); e == nil {
+	if e := blk.TagValueElem([]byte("host"), []byte("server0"), nil); e == nil {
 		t.Fatal("expected element")
 	} else if a, err := e.(*tsi1.TagBlockValueElem).SeriesIDs(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if !reflect.DeepEqual(a, []uint64{1}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
-	if e := blk.TagValueElem([]byte("host"), []byte("server1")); e == nil {
+	if e := blk.TagValueElem([]byte("host"), []byte("server1"), nil); e == nil {
 		t.Fatal("expected element")
 	} else if a, err := e.(*tsi1.TagBlockValueElem).SeriesIDs(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if !reflect.DeepEqual(a, []uint64{2}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
-	if e := blk.TagValueElem([]byte("host"), []byte("server2")); e == nil {
+	if e := blk.TagValueElem([]byte("host"), []byte("server2"), nil); e == nil {
 		t.Fatal("expected element")
 	} else if a, err := e.(*tsi1.TagBlockValueElem).SeriesIDs(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -149,7 +149,7 @@ func benchmarkTagBlock_SeriesN(b *testing.B, tagN, valueN int, blk **tsi1.TagBlo
 
 	key, value := []byte("0"), []byte("0")
 	for i := 0; i < b.N; i++ {
-		if e := (*blk).TagValueElem(key, value); e == nil {
+		if e := (*blk).TagValueElem(key, value, nil); e == nil {
 			b.Fatal("expected element")
 		} else if n := e.(*tsi1.TagBlockValueElem).SeriesN(); n != 1 {
 			b.Fatalf("unexpected series count: %d", n)

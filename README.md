@@ -56,7 +56,7 @@ If you are getting an `error loading module requirements` error with `bzr execut
 
 - OSX: `brew install bazaar protobuf yarn`
 - Linux (Arch): `pacman -S bzr protobuf yarn`
-- Linux (Ubuntu): `apt install bzr protobuf-compiler yarnpkg`
+- Linux (Ubuntu): `apt install bzr protobuf-compiler libprotobuf-dev yarnpkg`
 
 **NB:** For RedHat, there are some extra steps:
 

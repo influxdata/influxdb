@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2"
 	ihttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
@@ -21,12 +22,16 @@ func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.Buck
 		t.Fatal(err)
 	}
 
-	svc := tenant.NewService(tenant.NewStore(s))
+	store := tenant.NewStore(s)
+	svc := tenant.NewService(store)
 
 	ctx := context.Background()
 	for _, o := range f.Organizations {
-		if err := svc.CreateOrganization(ctx, o); err != nil {
-			t.Fatalf("failed to populate organizations")
+		// use storage create org in order to avoid creating system buckets
+		if err := s.Update(ctx, func(tx kv.Tx) error {
+			return store.CreateOrg(tx.Context(), tx, o)
+		}); err != nil {
+			t.Fatalf("failed to populate organizations: %s", err)
 		}
 	}
 	for _, b := range f.Buckets {

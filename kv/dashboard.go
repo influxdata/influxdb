@@ -884,16 +884,6 @@ func (s *Service) deleteDashboard(ctx context.Context, tx Tx, id influxdb.ID) er
 		}
 	}
 
-	err = s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
-		ResourceID:   id,
-		ResourceType: influxdb.DashboardsResourceType,
-	})
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
 	if err := s.appendDashboardEventToLog(ctx, tx, d.ID, dashboardRemovedEvent); err != nil {
 		return &influxdb.Error{
 			Err: err,

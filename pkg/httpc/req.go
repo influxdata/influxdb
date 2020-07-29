@@ -25,7 +25,7 @@ type Req struct {
 	client doer
 
 	req    *http.Request
-	authFn func(*http.Request)
+	authFn func(*http.Request) error
 
 	decodeFn func(*http.Response) error
 	respFn   func(*http.Response) error
@@ -40,7 +40,7 @@ func (r *Req) Accept(contentType string) *Req {
 }
 
 // Auth sets the authorization for a request.
-func (r *Req) Auth(authFn func(r *http.Request)) *Req {
+func (r *Req) Auth(authFn func(r *http.Request) error) *Req {
 	if r.err != nil {
 		return r
 	}
@@ -139,7 +139,11 @@ func (r *Req) Do(ctx context.Context) error {
 	if r.err != nil {
 		return r.err
 	}
-	r.authFn(r.req)
+
+	if err := r.authFn(r.req); err != nil {
+		return err
+	}
+
 	// TODO(@jsteenb2): wrap do with retry/backoff policy.
 	return r.do(ctx)
 }

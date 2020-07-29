@@ -9,7 +9,7 @@ describe('Variables', () => {
     })
   })
 
-  it('can CRUD a CSV,upload, map, and query variable and search for variables based on names', () => {
+  it('can CRUD a CSV, upload, map, and query variable and search for variables based on names', () => {
     // Navigate away from and back to variables index using the nav bar
     cy.getByTestID('nav-item-dashboards').click()
     cy.getByTestID('nav-item-settings').click()

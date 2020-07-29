@@ -17,7 +17,7 @@ type clientOpt struct {
 	insecureSkipVerify bool
 	doer               doer
 	headers            http.Header
-	authFn             func(*http.Request)
+	authFn             func(*http.Request) error
 	respFn             func(*http.Response) error
 	statusFn           func(*http.Response) error
 	writerFns          []WriteCloserFn
@@ -33,7 +33,7 @@ func WithAddr(addr string) ClientOptFn {
 
 // WithAuth provides a means to set a custom auth that doesn't match
 // the provided auth types here.
-func WithAuth(fn func(r *http.Request)) ClientOptFn {
+func WithAuth(fn func(r *http.Request) error) ClientOptFn {
 	return func(opt *clientOpt) error {
 		opt.authFn = fn
 		return nil
@@ -42,19 +42,22 @@ func WithAuth(fn func(r *http.Request)) ClientOptFn {
 
 // WithAuthToken provides token auth for requests.
 func WithAuthToken(token string) ClientOptFn {
-	return WithAuth(func(r *http.Request) {
+	return WithAuth(func(r *http.Request) error {
 		r.Header.Set("Authorization", "Token "+token)
+		return nil
 	})
 }
 
 // WithSessionCookie provides cookie auth for requests to mimic the browser.
 // Typically, session is influxdb.Session.Key.
 func WithSessionCookie(session string) ClientOptFn {
-	return WithAuth(func(r *http.Request) {
+	return WithAuth(func(r *http.Request) error {
 		r.AddCookie(&http.Cookie{
 			Name:  "session",
 			Value: session,
 		})
+
+		return nil
 	})
 }
 

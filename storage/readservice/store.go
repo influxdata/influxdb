@@ -38,6 +38,7 @@ func NewStore(viewer reads.Viewer) reads.Store {
 			Last:   true,
 			Min:    true,
 			Max:    true,
+			Mean:   true,
 			Offset: true,
 		},
 	}

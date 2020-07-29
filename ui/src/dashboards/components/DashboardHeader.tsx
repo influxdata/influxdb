@@ -73,12 +73,12 @@ const DashboardHeader: FC<Props> = ({
   history,
   org,
 }) => {
+  const demoDataset = DemoDataDashboardNames[dashboard.name]
   useEffect(() => {
-    const demoDataset = DemoDataDashboardNames[dashboard.name]
     if (demoDataset) {
       event('demoData_dashboardViewed', {demo_dataset: demoDataset})
     }
-  }, [dashboard.id])
+  }, [dashboard.id, demoDataset])
 
   const handleAddNote = () => {
     history.push(`/orgs/${org.id}/dashboards/${dashboard.id}/notes/new`)

@@ -20,11 +20,13 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
 	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/pkg/mincore"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 )
 
 // Version is the current version of the TSI index.
@@ -85,6 +87,8 @@ type Partition struct {
 	MaxLogFileSize int64
 	nosync         bool // when true, flushing and syncing of LogFile will be disabled.
 	logbufferSize  int  // the LogFile's buffer is set to this value.
+
+	pageFaultLimiter *rate.Limiter
 
 	logger *zap.Logger
 
@@ -294,7 +298,6 @@ func (p *Partition) openLogFile(path string) (*LogFile, error) {
 	f := NewLogFile(p.sfile, path)
 	f.nosync = p.nosync
 	f.bufferSize = p.logbufferSize
-
 	if err := f.Open(); err != nil {
 		return nil, err
 	}
@@ -308,6 +311,7 @@ func (p *Partition) openIndexFile(path string) (*IndexFile, error) {
 	if err := f.Open(); err != nil {
 		return nil, err
 	}
+	f.pageFaultLimiter = mincore.NewLimiter(p.pageFaultLimiter, f.data)
 	return f, nil
 }
 
@@ -628,7 +632,7 @@ func (p *Partition) DropMeasurement(name []byte) error {
 			}
 
 			// Delete each value in key.
-			if vitr := k.TagValueIterator(); vitr != nil {
+			if vitr := k.TagValueIterator(nil); vitr != nil {
 				for v := vitr.Next(); v != nil; v = vitr.Next() {
 					if !v.Deleted() {
 						if err := func() error {
@@ -1095,6 +1099,7 @@ func (p *Partition) compactToLevel(files []*IndexFile, frefs lifecycle.Reference
 		log.Error("Cannot open new index file", zap.Error(err))
 		return
 	}
+	file.pageFaultLimiter = mincore.NewLimiter(p.pageFaultLimiter, file.data)
 
 	// Obtain lock to swap in index file and write manifest.
 	if err = func() error {
@@ -1262,6 +1267,7 @@ func (p *Partition) compactLogFile(ctx context.Context, logFile *LogFile, interr
 		log.Error("Cannot open compacted index file", zap.Error(err), zap.String("path", file.Path()))
 		return
 	}
+	file.pageFaultLimiter = mincore.NewLimiter(p.pageFaultLimiter, file.data)
 
 	// Obtain lock to swap in index file and write manifest.
 	if err := func() error {

@@ -140,6 +140,7 @@ func CreateBucket(
 		fields BucketFields
 		args   args
 		wants  wants
+		skip   string
 	}{
 		{
 			name: "create buckets with empty set",
@@ -319,6 +320,7 @@ func CreateBucket(
 					},
 				},
 			},
+			skip: "flaky test: https://github.com/influxdata/influxdb/issues/19109",
 		},
 		{
 			name: "create bucket with orgID not exist",
@@ -348,6 +350,10 @@ func CreateBucket(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.skip != "" {
+				t.Skip(tt.skip)
+			}
+
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()

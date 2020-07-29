@@ -648,10 +648,10 @@ type SummaryLabelMapping struct {
 // SummaryReference informs the consumer of required references for
 // this resource.
 type SummaryReference struct {
-	Field        string `json:"resourceField"`
-	EnvRefKey    string `json:"envRefKey"`
-	Value        string `json:"value"`
-	DefaultValue string `json:"defaultValue"`
+	Field        string      `json:"resourceField"`
+	EnvRefKey    string      `json:"envRefKey"`
+	Value        string      `json:"value"`
+	DefaultValue interface{} `json:"defaultValue"`
 }
 
 // SummaryTask provides a summary of a task.

@@ -115,13 +115,6 @@
   contact: Query Team
   lifetime: temporary
 
-- name: Urm Free Tasks
-  description: allow task system to operate without creating additional urms
-  key: urmFreeTasks
-  default: false
-  contact: Lyon Hill
-  lifetime: temporary
-
 - name: Simple Task Options Extraction
   description: Simplified task options extraction to avoid undefined functions when saving tasks
   key: simpleTaskOptionsExtraction
@@ -135,3 +128,18 @@
   default: false
   contact: Lyon Hill
   lifetime: temporary
+
+- name: Merged Filters Rule
+  description: Create one filter combining multiple single return statements
+  key: mergeFiltersRule
+  default: false
+  contact: Query Team
+  lifetime: temporary
+
+- name: Notebooks
+  description: Determine if the notebook feature's route and navbar icon are visible to the user
+  key: notebooks
+  default: false
+  contact: Monitoring Team
+  lifetime: temporary
+  expose: true

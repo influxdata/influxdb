@@ -970,9 +970,40 @@ export const communityTemplateInstallSucceeded = (
   message: `We've successfully installed: ${templateName}`,
 })
 
+export const communityTemplateInstallFailed = (
+  errorMessage: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `There was a problem installing the template: ${errorMessage}`,
+})
+
 export const communityTemplateDeleteSucceeded = (
   templateName: string
 ): Notification => ({
-  ...defaultSuccessNotification,
+  ...defaultDeletionNotification,
   message: `We've successfully deleted: ${templateName}`,
+})
+
+export const communityTemplateDeleteFailed = (
+  message: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Delete failed, please check error message: ${message}`,
+})
+
+export const communityTemplateFetchStackFailed = (
+  message: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `We could not fetch your installed resources, please reload the page: ${message}`,
+})
+
+export const communityTemplateUnsupportedFormatError = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Please provide a link to a template file`,
+})
+
+export const communityTemplateRenameFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `We've successfully installed your template but weren't able to name it properly. It may appear as a blank template.`,
 })

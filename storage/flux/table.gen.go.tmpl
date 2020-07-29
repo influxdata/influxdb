@@ -500,13 +500,6 @@ func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowTy
 
 	for t.windowStart < t.rangeStop {
 
-		// If the current array is non-empty and has
-		// been read in its entirety, call Next().
-		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
-			t.arr = t.cur.Next()
-			t.idx = 0
-		}
-
 		// The first window should start at the
 		// beginning of the time range.
 		if t.windowStart < t.rangeStart {
@@ -536,6 +529,13 @@ func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowTy
 		t.windowStart += t.windowEvery
 		t.windowStop  += t.windowEvery
 
+		// If the current array is non-empty and has
+		// been read in its entirety, call Next().
+		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
+			t.arr = t.cur.Next()
+			t.idx = 0
+		}
+
 		if start.Len() == storage.MaxPointsPerBlock {
 			break
 		}
@@ -548,13 +548,6 @@ func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowTyp
 	stop.Resize(storage.MaxPointsPerBlock)
 
 	for t.windowStart < t.rangeStop {
-
-		// If the current array is non-empty and has
-		// been read in its entirety, call Next().
-		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
-			t.arr = t.cur.Next()
-			t.idx = 0
-		}
 
 		// The last window should stop at the end of
 		// the time range.
@@ -585,6 +578,13 @@ func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowTyp
 		t.windowStart += t.windowEvery
 		t.windowStop  += t.windowEvery
 
+		// If the current array is non-empty and has
+		// been read in its entirety, call Next().
+		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
+			t.arr = t.cur.Next()
+			t.idx = 0
+		}
+
 		if stop.Len() == storage.MaxPointsPerBlock {
 			break
 		}
@@ -603,13 +603,6 @@ func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.Arr
 	time.Resize(storage.MaxPointsPerBlock)
 
 	for t.windowStart < t.rangeStop {
-
-		// If the current array is non-empty and has
-		// been read in its entirety, call Next().
-		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
-			t.arr = t.cur.Next()
-			t.idx = 0
-		}
 
 		// The first window should start at the
 		// beginning of the time range.
@@ -649,6 +642,13 @@ func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.Arr
 
 		t.windowStart += t.windowEvery
 		t.windowStop  += t.windowEvery
+
+		// If the current array is non-empty and has
+		// been read in its entirety, call Next().
+		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
+			t.arr = t.cur.Next()
+			t.idx = 0
+		}
 
 		if time.Len() == storage.MaxPointsPerBlock {
 			break

@@ -120,6 +120,8 @@ func (e StackEventType) String() string {
 	}
 }
 
+const ResourceTypeStack influxdb.ResourceType = "stack"
+
 // SVC is the packages service interface.
 type SVC interface {
 	InitStack(ctx context.Context, userID influxdb.ID, stack StackCreate) (Stack, error)
@@ -524,7 +526,18 @@ func (s *Service) applyStackUpdate(existing Stack, upd StackUpdate) Stack {
 
 		out = append(out, sr)
 	}
-	ev.Resources = out
+
+	ev.Resources = append(ev.Resources, out...)
+	sort.Slice(ev.Resources, func(i, j int) bool {
+		iName, jName := ev.Resources[i].MetaName, ev.Resources[j].MetaName
+		iKind, jKind := ev.Resources[i].Kind, ev.Resources[j].Kind
+
+		if iKind.is(jKind) {
+			return iName < jName
+		}
+		return kindPriorities[iKind] > kindPriorities[jKind]
+	})
+
 	existing.Events = append(existing.Events, ev)
 	return existing
 }
@@ -1373,7 +1386,7 @@ type (
 	// ApplyOpt is an option for applying a package.
 	ApplyOpt struct {
 		Templates       []*Template
-		EnvRefs         map[string]string
+		EnvRefs         map[string]interface{}
 		MissingSecrets  map[string]string
 		StackID         influxdb.ID
 		ResourcesToSkip map[ActionSkipResource]bool
@@ -1398,7 +1411,7 @@ type (
 )
 
 // ApplyWithEnvRefs provides env refs to saturate the missing reference fields in the template.
-func ApplyWithEnvRefs(envRefs map[string]string) ApplyOptFn {
+func ApplyWithEnvRefs(envRefs map[string]interface{}) ApplyOptFn {
 	return func(o *ApplyOpt) {
 		o.EnvRefs = envRefs
 	}
