@@ -8,7 +8,7 @@ import {client} from 'src/utils/api'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
-import GetAppState from 'src/shared/containers/GetAppState'
+import Signin from 'src/Signin'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 import SigninPage from 'src/onboarding/containers/SigninPage'
 import {LoginPage} from 'src/onboarding/containers/LoginPage'
@@ -97,7 +97,7 @@ export class Setup extends PureComponent<Props, State> {
             <Route path={LOGIN} component={LoginPage} />
             <Route path={SIGNIN} component={SigninPage} />
             <Route path={LOGOUT} component={Logout} />
-            <Route component={GetAppState} />
+            <Route component={Signin} />
           </Switch>
         )}
       </SpinnerContainer>

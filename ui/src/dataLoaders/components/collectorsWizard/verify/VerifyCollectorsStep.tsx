@@ -17,6 +17,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 type OwnProps = CollectorsStepProps
 
 interface StateProps {
+  username: string
   telegrafConfigID: string
   bucket: string
   org: string
@@ -71,7 +72,9 @@ const mstp = ({
     dataLoaders: {telegrafConfigID, token},
     steps: {bucket, org},
   },
+  me: {name},
 }: AppState) => ({
+  username: name,
   telegrafConfigID,
   bucket,
   org,

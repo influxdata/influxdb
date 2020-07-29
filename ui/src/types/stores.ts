@@ -1,7 +1,7 @@
 import {RouterState} from 'connected-react-router'
 import {TimeMachinesState} from 'src/timeMachine/reducers'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
-import {MeReducerState} from 'src/shared/reducers/me'
+import {MeState} from 'src/shared/reducers/me'
 import {FlagState} from 'src/shared/reducers/flags'
 import {CurrentDashboardState} from 'src/shared/reducers/currentDashboard'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
@@ -47,7 +47,7 @@ export interface AppState {
   queryCache: QueryCacheState
   dataLoading: DataLoadingState
   links: Links
-  me: MeReducerState
+  me: MeState
   flags: FlagState
   noteEditor: NoteEditorState
   notifications: Notification[]
