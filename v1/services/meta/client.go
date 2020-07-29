@@ -4,21 +4,19 @@ package meta
 
 import (
 	"bytes"
+	"context"
 	crand "crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/logger"
-	"github.com/influxdata/influxdb/v2/pkg/file"
 	influxdb "github.com/influxdata/influxdb/v2/v1"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
@@ -29,11 +27,18 @@ const (
 	// SaltBytes is the number of bytes used for salts.
 	SaltBytes = 32
 
-	metaFile = "meta.db"
+	// Filename specifies the default name of the metadata file.
+	Filename = "meta.db"
 
 	// ShardGroupDeletedExpiration is the amount of time before a shard group info will be removed from cached
 	// data after it has been marked deleted (2 weeks).
 	ShardGroupDeletedExpiration = -2 * 7 * 24 * time.Hour
+)
+
+// Name of the bucket to store TSM metadata
+var (
+	BucketName  = []byte("v1_tsm1_metadata")
+	metadataKey = []byte(Filename)
 )
 
 var (
@@ -57,7 +62,7 @@ type Client struct {
 	// Authentication cache.
 	authCache map[string]authUser
 
-	path string
+	store kv.Store
 
 	retentionAutoCreate bool
 }
@@ -69,7 +74,7 @@ type authUser struct {
 }
 
 // NewClient returns a new *Client.
-func NewClient(config *Config) *Client {
+func NewClient(config *Config, store kv.Store) *Client {
 	return &Client{
 		cacheData: &Data{
 			ClusterID: uint64(rand.Int63()),
@@ -79,7 +84,7 @@ func NewClient(config *Config) *Client {
 		changed:             make(chan struct{}),
 		logger:              zap.NewNop(),
 		authCache:           make(map[string]authUser),
-		path:                config.Dir,
+		store:               store,
 		retentionAutoCreate: config.RetentionAutoCreate,
 	}
 }
@@ -94,9 +99,9 @@ func (c *Client) Open() error {
 		return err
 	}
 
-	// If this is a brand new instance, persist to disk immediatly.
+	// If this is a brand new instance, persist to disk immediately.
 	if c.cacheData.Index == 1 {
-		if err := snapshot(c.path, c.cacheData); err != nil {
+		if err := snapshot(c.store, c.cacheData); err != nil {
 			return err
 		}
 	}
@@ -965,7 +970,7 @@ func (c *Client) commit(data *Data) error {
 	data.Index++
 
 	// try to write to disk before updating in memory
-	if err := snapshot(c.path, data); err != nil {
+	if err := snapshot(c.store, data); err != nil {
 		return err
 	}
 
@@ -994,61 +999,37 @@ func (c *Client) WithLogger(log *zap.Logger) {
 }
 
 // snapshot saves the current meta data to disk.
-func snapshot(path string, data *Data) error {
-	filename := filepath.Join(path, metaFile)
-	tmpFile := filename + "tmp"
-
-	f, err := os.Create(tmpFile)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
+func snapshot(store kv.Store, data *Data) (err error) {
 	var d []byte
-	if b, err := data.MarshalBinary(); err != nil {
-		return err
-	} else {
-		d = b
-	}
-
-	if _, err := f.Write(d); err != nil {
+	if d, err = data.MarshalBinary(); err != nil {
 		return err
 	}
 
-	if err = f.Sync(); err != nil {
-		return err
-	}
-
-	//close file handle before renaming to support Windows
-	if err = f.Close(); err != nil {
-		return err
-	}
-
-	return file.RenameFile(tmpFile, filename)
+	return store.Update(context.TODO(), func(tx kv.Tx) error {
+		b, err := tx.Bucket(BucketName)
+		if err != nil {
+			return err
+		}
+		return b.Put(metadataKey, d)
+	})
 }
 
 // Load loads the current meta data from disk.
 func (c *Client) Load() error {
-	file := filepath.Join(c.path, metaFile)
-
-	f, err := os.Open(file)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
+	return c.store.View(context.TODO(), func(tx kv.Tx) error {
+		b, err := tx.Bucket(BucketName)
+		if err != nil {
+			return err
 		}
-		return err
-	}
-	defer f.Close()
 
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		return err
-	}
-
-	if err := c.cacheData.UnmarshalBinary(data); err != nil {
-		return err
-	}
-	return nil
+		if data, err := b.Get(metadataKey); errors.Is(err, kv.ErrKeyNotFound) {
+			return nil
+		} else if err != nil {
+			return err
+		} else {
+			return c.cacheData.UnmarshalBinary(data)
+		}
+	})
 }
 
 type uint64Slice []uint64

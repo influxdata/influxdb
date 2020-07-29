@@ -1,6 +1,7 @@
 package meta_test
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/inmem"
 	influxdb "github.com/influxdata/influxdb/v2/v1"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxql"
@@ -19,7 +21,7 @@ func TestMetaClient_CreateDatabaseOnly(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	if db, err := c.CreateDatabase("db0"); err != nil {
@@ -50,7 +52,7 @@ func TestMetaClient_CreateDatabaseIfNotExists(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	if _, err := c.CreateDatabase("db0"); err != nil {
@@ -73,7 +75,7 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	// Calling CreateDatabaseWithRetentionPolicy with a nil spec should return
@@ -134,7 +136,7 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy_Conflict_Fields(t *testing
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	duration := 1 * time.Hour
@@ -184,7 +186,7 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy_Conflict_NonDefault(t *tes
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	duration := 1 * time.Hour
@@ -219,7 +221,7 @@ func TestMetaClient_Databases(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	// Create two databases.
@@ -256,7 +258,7 @@ func TestMetaClient_DropDatabase(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	if _, err := c.CreateDatabase("db0"); err != nil {
@@ -288,7 +290,7 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	if _, err := c.CreateDatabase("db0"); err != nil {
@@ -405,7 +407,7 @@ func TestMetaClient_DefaultRetentionPolicy(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	duration := 1 * time.Hour
@@ -446,7 +448,7 @@ func TestMetaClient_UpdateRetentionPolicy(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &meta.RetentionPolicySpec{
@@ -527,7 +529,7 @@ func TestMetaClient_DropRetentionPolicy(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	if _, err := c.CreateDatabase("db0"); err != nil {
@@ -578,7 +580,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	// Create an admin user
@@ -748,7 +750,7 @@ func TestMetaClient_UpdateUser(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	// UpdateUser that doesn't exist should return an error.
@@ -761,7 +763,7 @@ func TestMetaClient_ContinuousQueries(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	// Create a database to use
@@ -817,7 +819,7 @@ func TestMetaClient_Subscriptions_Create(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	// Create a database to use
@@ -874,7 +876,7 @@ func TestMetaClient_Subscriptions_Drop(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	// Create a database to use
@@ -919,7 +921,7 @@ func TestMetaClient_Shards(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	if _, err := c.CreateDatabase("db0"); err != nil {
@@ -975,7 +977,7 @@ func TestMetaClient_CreateShardGroupIdempotent(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	if _, err := c.CreateDatabase("db0"); err != nil {
@@ -1029,7 +1031,7 @@ func TestMetaClient_PruneShardGroups(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
-	defer os.RemoveAll(d)
+	defer d()
 	defer c.Close()
 
 	if _, err := c.CreateDatabase("db0"); err != nil {
@@ -1110,7 +1112,9 @@ func TestMetaClient_PersistClusterIDAfterRestart(t *testing.T) {
 	cfg := newConfig()
 	defer os.RemoveAll(cfg.Dir)
 
-	c := meta.NewClient(cfg)
+	store := newStore()
+
+	c := meta.NewClient(cfg, store)
 	if err := c.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -1119,7 +1123,7 @@ func TestMetaClient_PersistClusterIDAfterRestart(t *testing.T) {
 		t.Fatal("cluster ID can't be zero")
 	}
 
-	c = meta.NewClient(cfg)
+	c = meta.NewClient(cfg, store)
 	if err := c.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -1133,19 +1137,24 @@ func TestMetaClient_PersistClusterIDAfterRestart(t *testing.T) {
 	}
 }
 
-func newClient() (string, *meta.Client) {
+func newClient() (func(), *meta.Client) {
 	cfg := newConfig()
-	c := meta.NewClient(cfg)
+	store := newStore()
+	c := meta.NewClient(cfg, store)
 	if err := c.Open(); err != nil {
 		panic(err)
 	}
-	return cfg.Dir, c
+	return func() {}, c
+}
+
+func newStore() *inmem.KVStore {
+	store := inmem.NewKVStore()
+	_ = store.CreateBucket(context.Background(), meta.BucketName)
+	return store
 }
 
 func newConfig() *meta.Config {
-	cfg := meta.NewConfig()
-	cfg.Dir = testTempDir(2)
-	return cfg
+	return meta.NewConfig()
 }
 
 func testTempDir(skip int) string {
