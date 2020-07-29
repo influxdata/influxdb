@@ -8875,6 +8875,8 @@ components:
           properties:
             period:
               type: string
+            fillValues:
+              type: boolean
     BuilderTagsType:
       type: object
       properties:
