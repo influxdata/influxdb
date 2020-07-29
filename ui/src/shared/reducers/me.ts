@@ -1,5 +1,4 @@
 import {Actions, SET_ME} from 'src/shared/actions/me'
-import {RemoteDataState} from 'src/types'
 
 export interface MeLinks {
   self: string
@@ -12,33 +11,21 @@ export interface MeState {
   links: MeLinks
 }
 
-export interface MeReducerState {
-  status: RemoteDataState
-  resource: MeState
-}
-
-const defaultState: MeReducerState = {
-  status: RemoteDataState.NotStarted,
-  resource: {
-    id: '',
-    name: '',
-    links: {
-      self: '',
-      log: '',
-    },
+const defaultState: MeState = {
+  id: '',
+  name: '',
+  links: {
+    self: '',
+    log: '',
   },
 }
 
-export default (state = defaultState, action: Actions): MeReducerState => {
+export default (state = defaultState, action: Actions): MeState => {
   switch (action.type) {
     case SET_ME:
       return {
         ...state,
-        status: action.payload.status,
-        resource: {
-          ...state.resource,
-          ...action.payload.me,
-        },
+        ...action.payload.me,
       }
     default:
       return state

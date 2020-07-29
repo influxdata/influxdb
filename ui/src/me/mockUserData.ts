@@ -1,5 +1,5 @@
 // Types
-import {AppState, RemoteDataState} from 'src/types'
+import {AppState} from 'src/types'
 
 const LeroysTokens = [
   {
@@ -15,14 +15,11 @@ const LeroysTokens = [
 ]
 
 export const me: AppState['me'] = {
-  status: RemoteDataState.Done,
-  resource: {
-    id: 'id-of-groot',
-    name: 'groot',
-    links: {
-      self: '/api/v2/users/id-of-groot',
-      log: '/api/v2/users/id-of-groot/log',
-    },
+  id: 'id-of-groot',
+  name: 'groot',
+  links: {
+    self: '/api/v2/users/id-of-groot',
+    log: '/api/v2/users/id-of-groot/log',
   },
 }
 

@@ -16,6 +16,7 @@ import {history} from 'src/store/history'
 // Components
 import Setup from 'src/Setup'
 import NotFound from 'src/shared/components/NotFound'
+import GetLinks from 'src/shared/containers/GetLinks'
 
 // Utilities
 import {writeNavigationTimingMetrics} from 'src/cloud/utils/rum'
@@ -72,6 +73,7 @@ class Root extends PureComponent {
     return (
       <Provider store={store}>
         <ConnectedRouter history={history}>
+          <Route component={GetLinks} />
           <Switch>
             <Route component={Setup} />
             <Route component={NotFound} />

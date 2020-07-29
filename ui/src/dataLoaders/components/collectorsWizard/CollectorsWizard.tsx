@@ -144,6 +144,7 @@ const mstp = (state: AppState) => {
       dataLoaders: {telegrafPlugins},
       steps: {currentStep, substep, bucket},
     },
+    me: {name},
     telegrafEditor,
   } = state
 
@@ -161,6 +162,7 @@ const mstp = (state: AppState) => {
     text: telegrafEditor.text,
     currentStepIndex: currentStep,
     substep,
+    username: name,
     bucket,
     buckets: nonSystemBuckets,
     org,

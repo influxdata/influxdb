@@ -70,7 +70,7 @@ export interface Notebook {
 
 export interface NotebookListState {
   notebooks: {
-    [key: string]: NotebookState
+    [key: string]: Resource<NotebookState>
   }
 }
 

@@ -71,10 +71,15 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
+  const {
+    me: {name},
+  } = state
+
   const token = getToken(state)
   const telegrafs = getAll<Telegraf>(state, ResourceType.Telegrafs)
 
   return {
+    username: name,
     token,
     collectors: telegrafs,
   }

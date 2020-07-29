@@ -121,12 +121,14 @@ const mstp = (state: AppState) => {
     dataLoading: {
       steps: {currentStep, bucket},
     },
+    me: {name},
   } = state
 
   const buckets = getAll<Bucket>(state, ResourceType.Buckets)
 
   return {
     currentStepIndex: currentStep,
+    username: name,
     bucket,
     buckets,
   }

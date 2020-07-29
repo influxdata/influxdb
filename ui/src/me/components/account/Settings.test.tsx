@@ -8,7 +8,7 @@ import {me} from '../../mockUserData'
 
 const setup = (override?) => {
   const props = {
-    username: me.resource.name,
+    me,
     ...override,
   }
 
@@ -29,7 +29,7 @@ describe('Account', () => {
       const {wrapper} = setup()
 
       const nameInput = wrapper.find({'data-testid': 'nameInput'})
-      expect(nameInput.props().value).toBe(me.resource.name)
+      expect(nameInput.props().value).toBe(me.name)
     })
   })
 })
