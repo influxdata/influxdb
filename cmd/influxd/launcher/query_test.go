@@ -19,7 +19,6 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
-	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
@@ -28,6 +27,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/pkg/flux/execute/table"
 	"github.com/influxdata/influxdb/v2/query"
 )
 
