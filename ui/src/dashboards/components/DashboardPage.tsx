@@ -17,10 +17,10 @@ import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import EditVEO from 'src/dashboards/components/EditVEO'
 import NewVEO from 'src/dashboards/components/NewVEO'
 import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
-import {event} from 'src/cloud/utils/reporting'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {event} from 'src/cloud/utils/reporting'
 
 // Selectors & Actions
 import {resetCachedQueryResults} from 'src/queryCache/actions'
