@@ -18,7 +18,7 @@ const (
 
 // Config holds the configuration for an Engine.
 type Config struct {
-	tsdb.Config
+	Data tsdb.Config
 
 	// Frequency of retention in seconds.
 	RetentionInterval toml.Duration `toml:"retention-interval"`
@@ -27,7 +27,7 @@ type Config struct {
 // NewConfig initialises a new config for an Engine.
 func NewConfig() Config {
 	return Config{
-		Config:            tsdb.NewConfig(),
+		Data:              tsdb.NewConfig(),
 		RetentionInterval: toml.Duration(DefaultRetentionInterval),
 	}
 }

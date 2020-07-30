@@ -118,11 +118,14 @@ type MetaClient interface {
 // NewEngine initialises a new storage engine, including a series file, index and
 // TSM engine.
 func NewEngine(path string, c Config, options ...Option) *Engine {
+	c.Data.Dir = filepath.Join(path, "data")
+	c.Data.WALDir = filepath.Join(path, "wal")
+
 	e := &Engine{
 		config:              c,
 		path:                path,
 		defaultMetricLabels: prometheus.Labels{},
-		TSDBStore:           tsdb.NewStore(path),
+		TSDBStore:           tsdb.NewStore(c.Data.Dir),
 		logger:              zap.NewNop(),
 
 		writePointsValidationEnabled: true,
@@ -132,15 +135,16 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		opt(e)
 	}
 
+	e.TSDBStore.EngineOptions.Config = c.Data
+
+	// Copy TSDB configuration.
+	e.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
+	e.TSDBStore.EngineOptions.IndexVersion = c.Data.Index
+
 	pw := coordinator.NewPointsWriter()
 	pw.TSDBStore = e.TSDBStore
 	pw.MetaClient = e.MetaClient
 	e.pointsWriter = pw
-
-	tsdbConfig := tsdb.NewConfig()
-	tsdbConfig.Dir = filepath.Join(path, "data")
-	tsdbConfig.WALDir = filepath.Join(path, "wal")
-	e.TSDBStore.EngineOptions.Config = tsdbConfig
 
 	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
 		r.SetDefaultMetricLabels(e.defaultMetricLabels)
