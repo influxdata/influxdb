@@ -65,6 +65,11 @@ const CommunityTemplateName: FC<Props> = ({
             Installing this template will create{' '}
             <strong>{resourceCount} resources</strong> in your system
           </p>
+
+          <p className="community-templates--template-description">
+            There might be extra steps needed to complete your template
+            installation, check github to find any further instruction
+          </p>
         </FlexBox.Child>
         {installButton}
       </Panel.Body>
