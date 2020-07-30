@@ -1,4 +1,4 @@
-import * as React from 'react'
+import React from 'react'
 import HTML5Backend from 'react-dnd-html5-backend'
 import {DndProvider} from 'react-dnd'
 
