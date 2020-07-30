@@ -38,11 +38,10 @@ func NewSystem(store *Store, log *zap.Logger, reg prometheus.Registerer, metricO
 	}
 }
 
-func (ts *TenantSystem) NewOrgHTTPHandler(log *zap.Logger, labelSvc influxdb.LabelService, secretSvc influxdb.SecretService) *OrgHandler {
+func (ts *TenantSystem) NewOrgHTTPHandler(log *zap.Logger, secretSvc influxdb.SecretService) *OrgHandler {
 	secretHandler := secret.NewHandler(log, "id", secret.NewAuthedService(secretSvc))
 	urmHandler := NewURMHandler(log.With(zap.String("handler", "urm")), influxdb.OrgsResourceType, "id", ts.UserSvc, NewAuthedURMService(ts.OrgSvc, ts.UrmSvc))
-	labelHandler := label.NewHTTPEmbeddedHandler(log.With(zap.String("handler", "label")), influxdb.OrgsResourceType, labelSvc)
-	return NewHTTPOrgHandler(log.With(zap.String("handler", "org")), NewAuthedOrgService(ts.OrgSvc), urmHandler, labelHandler, secretHandler)
+	return NewHTTPOrgHandler(log.With(zap.String("handler", "org")), NewAuthedOrgService(ts.OrgSvc), urmHandler, secretHandler)
 }
 
 func (ts *TenantSystem) NewBucketHTTPHandler(log *zap.Logger, labelSvc influxdb.LabelService) *BucketHandler {
