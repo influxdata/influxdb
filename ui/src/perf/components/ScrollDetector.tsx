@@ -5,7 +5,8 @@ import {useDispatch} from 'react-redux'
 // Actions
 import {setScroll, ScrollState, ComponentKey} from 'src/perf/actions'
 
-// Hook
+// TODO: use `onScroll` of clockface scrollable elements once
+// https://github.com/influxdata/clockface/issues/523 get merged in
 export function useDetectScroll(ref: RefObject<HTMLElement>) {
   const [y, setY] = useState(Infinity)
   const [scroll, setScrollY] = useState<ScrollState>('not scrolled')
