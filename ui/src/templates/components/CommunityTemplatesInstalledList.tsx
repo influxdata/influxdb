@@ -74,28 +74,8 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
             </React.Fragment>
           )
         }
-        case 'Check': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link to={`/orgs/${this.props.orgID}/alerting`}>
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'CheckDeadman': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link
-                to={`/orgs/${this.props.orgID}/alerting/checks/${resource.resourceID}/edit`}
-              >
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
+        case 'Check':
+        case 'CheckDeadman':
         case 'CheckThreshold': {
           return (
             <React.Fragment key={resource.templateMetaName}>
@@ -130,40 +110,9 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
             </React.Fragment>
           )
         }
-        case 'NotificationEndpoint': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link to={`/orgs/${this.props.orgID}/alerting`}>
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'NotificationEndpointHTTP': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link
-                to={`/orgs/${this.props.orgID}/alerting/endpoints/${resource.resourceID}/edit`}
-              >
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'NotificationEndpointPagerDuty': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link
-                to={`/orgs/${this.props.orgID}/alerting/endpoints/${resource.resourceID}/edit`}
-              >
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
+        case 'NotificationEndpoint':
+        case 'NotificationEndpointHTTP':
+        case 'NotificationEndpointPagerDuty':
         case 'NotificationEndpointSlack': {
           return (
             <React.Fragment key={resource.templateMetaName}>
