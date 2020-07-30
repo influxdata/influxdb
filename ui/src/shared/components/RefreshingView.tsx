@@ -8,7 +8,7 @@ import TimeSeries from 'src/shared/components/TimeSeries'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 import ViewLoadingSpinner from 'src/shared/components/ViewLoadingSpinner'
-import CellEvent from 'src/perf/components/ScrollDetector'
+import CellEvent from 'src/perf/components/CellEvent'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
