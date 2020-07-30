@@ -5,7 +5,7 @@
 The InfluxDB repository contains testing targets for InfluxDB's integration with
 [OSS-Fuzz](https://google.github.io/oss-fuzz/).
 
-The build scripts for this integration are contained [in the OSS-Fuzz repo](https://github.com/google/oss-fuzz/tree/master/projects/influxdb).
+The build scripts for this integration are maintained [in the OSS-Fuzz repo](https://github.com/google/oss-fuzz/tree/master/projects/influxdb).
 
 ## Local fuzzing
 
