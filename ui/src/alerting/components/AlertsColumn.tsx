@@ -3,8 +3,8 @@ import React, {FC, ReactChild, useState} from 'react'
 import {connect} from 'react-redux'
 
 // Types
-import {AppState, ResourceType} from 'src/types'
-import {LimitStatus} from 'src/cloud/actions/limits'
+import {AppState, ResourceType, ColumnTypes} from 'src/types'
+import {LimitStatus, MonitoringLimits} from 'src/cloud/actions/limits'
 
 // Components
 import {
@@ -20,14 +20,17 @@ import {
   ComponentColor,
 } from '@influxdata/clockface'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import AssetLimitButton from 'src/cloud/components/AssetLimitButton'
 
 // Utils
-import {extractMonitoringLimitStatus} from 'src/cloud/utils/limits'
+import {
+  extractChecksLimits,
+  extractRulesLimits,
+  extractEndpointsLimits,
+} from 'src/cloud/utils/limits'
 
-type ColumnTypes =
-  | ResourceType.NotificationRules
-  | ResourceType.NotificationEndpoints
-  | ResourceType.Checks
+// Constants
+import {CLOUD} from 'src/shared/constants'
 
 interface OwnProps {
   type: ColumnTypes
@@ -38,7 +41,7 @@ interface OwnProps {
 }
 
 interface StateProps {
-  limitStatus: LimitStatus
+  limitStatus: MonitoringLimits
 }
 
 const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
@@ -53,6 +56,20 @@ const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
 
   const formattedTitle = title.toLowerCase().replace(' ', '-')
   const panelClassName = `alerting-index--column alerting-index--${formattedTitle}`
+  const resourceName = title.substr(0, title.length - 1)
+
+  const isLimitExceeded =
+    CLOUD &&
+    limitStatus[type] === LimitStatus.EXCEEDED &&
+    type !== ResourceType.Checks
+
+  const assetLimitButton = (
+    <AssetLimitButton
+      color={ComponentColor.Secondary}
+      buttonText="Create"
+      resourceName={resourceName}
+    />
+  )
 
   return (
     <Panel
@@ -70,7 +87,7 @@ const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
             tooltipContents={questionMarkTooltipContents}
           />
         </FlexBox>
-        {createButton}
+        {isLimitExceeded ? assetLimitButton : createButton}
       </Panel.Header>
       <div className="alerting-index--search">
         <Input
@@ -88,7 +105,10 @@ const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
         >
           <div className="alerting-index--list">
             {children(searchTerm)}
-            <AssetLimitAlert resourceName={title} limitStatus={limitStatus} />
+            <AssetLimitAlert
+              resourceName={title}
+              limitStatus={limitStatus[type]}
+            />
           </div>
         </DapperScrollbars>
       </div>
@@ -98,7 +118,11 @@ const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
 
 const mstp = ({cloud: {limits}}: AppState) => {
   return {
-    limitStatus: extractMonitoringLimitStatus(limits),
+    limitStatus: {
+      [ResourceType.Checks]: extractChecksLimits(limits),
+      [ResourceType.NotificationRules]: extractRulesLimits(limits),
+      [ResourceType.NotificationEndpoints]: extractEndpointsLimits(limits),
+    },
   }
 }
 

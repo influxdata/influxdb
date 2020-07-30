@@ -20,7 +20,9 @@ import {
   CheckBase as GenCheckBase,
   NotificationEndpointBase as GenEndpointBase,
 } from 'src/client'
+
 import {RemoteDataState} from 'src/types'
+import {ResourceType} from './resources'
 
 type Omit<T, U> = Pick<T, Exclude<keyof T, U>>
 type Overwrite<T, U> = Omit<T, keyof U> & U
@@ -29,6 +31,11 @@ interface WithClientID<T> {
   cid: string
   value: T
 }
+
+export type ColumnTypes =
+  | ResourceType.NotificationRules
+  | ResourceType.NotificationEndpoints
+  | ResourceType.Checks
 
 /* Endpoints */
 type EndpointOverrides = {
