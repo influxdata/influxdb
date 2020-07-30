@@ -34,7 +34,6 @@ type Props = OwnProps & ReduxProps
 
 @ErrorHandling
 class Cells extends Component<Props> {
-  cellsRef = React.createRef()
   public render() {
     const {views, cells, manualRefresh} = this.props
 
