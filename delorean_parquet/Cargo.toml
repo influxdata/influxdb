@@ -10,12 +10,9 @@ edition = "2018"
 snafu = "0.6.2"
 log = "0.4.8"
 
-# I get a build error when I use this one:
-# failed to run custom build command for `arrow-flight v0.17.0`
-#parquet = "0.17.0"
-# this, we are living on the edge and pull directly from the arrow repo.
-# https://github.com/apache/arrow/commit/04a1867eeb58f0c515e7ee5a6300a8f61045a6cd
-parquet = { git = "https://github.com/apache/arrow.git", rev="04a1867eeb58f0c515e7ee5a6300a8f61045a6cd", version = "1.0.0-SNAPSHOT" }
+# Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time
+# and we're not currently using it anyway
+parquet = { version = "1.0.0", default-features = false, features = ["snap", "brotli", "flate2", "lz4", "zstd"] }
 
 delorean_table = { path = "../delorean_table" }
 delorean_table_schema = { path = "../delorean_table_schema" }
