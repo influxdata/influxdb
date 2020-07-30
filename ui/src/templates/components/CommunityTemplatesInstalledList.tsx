@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
+import {Link} from 'react-router-dom'
 
 // Components
 import {
@@ -62,12 +63,176 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
 
   private renderStackResources(resources: Resource[]) {
     return resources.map(resource => {
-      return (
-        <React.Fragment key={resource.templateMetaName}>
-          {resource.kind}
-          <br />
-        </React.Fragment>
-      )
+      switch (resource.kind) {
+        case 'Bucket': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link to={`/orgs/${this.props.orgID}/load-data/buckets`}>
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'Check': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link to={`/orgs/${this.props.orgID}/alerting`}>
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'CheckDeadman': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link
+                to={`/orgs/${this.props.orgID}/alerting/checks/${resource.resourceID}/edit`}
+              >
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'CheckThreshold': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link
+                to={`/orgs/${this.props.orgID}/alerting/checks/${resource.resourceID}/edit`}
+              >
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'Dashboard': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link
+                to={`/orgs/${this.props.orgID}/dashboards/${resource.resourceID}`}
+              >
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'Label': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link to={`/orgs/${this.props.orgID}/settings/labels`}>
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'NotificationEndpoint': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link to={`/orgs/${this.props.orgID}/alerting`}>
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'NotificationEndpointHTTP': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link
+                to={`/orgs/${this.props.orgID}/alerting/endpoints/${resource.resourceID}/edit`}
+              >
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'NotificationEndpointPagerDuty': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link
+                to={`/orgs/${this.props.orgID}/alerting/endpoints/${resource.resourceID}/edit`}
+              >
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'NotificationEndpointSlack': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link
+                to={`/orgs/${this.props.orgID}/alerting/endpoints/${resource.resourceID}/edit`}
+              >
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'NotificationRule': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link
+                to={`/orgs/${this.props.orgID}/alerting/rules/${resource.resourceID}/edit`}
+              >
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'Task': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link
+                to={`/orgs/${this.props.orgID}/tasks/${resource.resourceID}/edit`}
+              >
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'Telegraf': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link
+                to={`/orgs/${this.props.orgID}/load-data/telegrafs/${resource.resourceID}/view`}
+              >
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        case 'Variable': {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              <Link
+                to={`/orgs/${this.props.orgID}/settings/variables/${resource.resourceID}/edit`}
+              >
+                {resource.kind} <code>{resource.templateMetaName}</code>
+              </Link>
+              <br />
+            </React.Fragment>
+          )
+        }
+        default: {
+          return (
+            <React.Fragment key={resource.templateMetaName}>
+              {resource.kind}
+              <br />
+            </React.Fragment>
+          )
+        }
+      }
     })
   }
 
