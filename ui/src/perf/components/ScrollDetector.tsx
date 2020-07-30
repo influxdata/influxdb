@@ -1,6 +1,7 @@
 // Libraries
 import React, {useState, useEffect, useRef, RefObject} from 'react'
 import {useDispatch} from 'react-redux'
+import 'intersection-observer'
 
 // Actions
 import {setScroll, ScrollState, ComponentKey} from 'src/perf/actions'
