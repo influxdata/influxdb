@@ -561,7 +561,6 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 		var points models.Points
 		var tags models.Tags
 		kv := make([][]byte, 2, er.Len()*2+2) // +2 for field key, value
-		var fieldValues values.Object
 	outer:
 		for i := 0; i < er.Len(); i++ {
 			measurementName = ""
@@ -602,6 +601,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				}
 			}
 
+			var fieldValues values.Object
 			if spec.FieldFn.Fn == nil {
 				if fieldValues, err = defaultFieldMapping(er, i); err != nil {
 					return err
@@ -645,21 +645,12 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				measurementStats[measurementName].Update(mstats)
 			}
 
-			fieldNames := make([]string, 0, len(fields))
-			for k := range fields {
-				fieldNames = append(fieldNames, k)
+			tags, _ = models.NewTagsKeyValues(tags, kv...)
+			pt, err := models.NewPoint(measurementName, tags, fields, pointTime)
+			if err != nil {
+				return err
 			}
-			sort.Strings(fieldNames)
-
-			for _, k := range fieldNames {
-				v := fields[k]
-				tags, _ = models.NewTagsKeyValues(tags, kv...)
-				pt, err := models.NewPoint(measurementName, tags, models.Fields{k: v}, pointTime)
-				if err != nil {
-					return err
-				}
-				points = append(points, pt)
-			}
+			points = append(points, pt)
 
 			if err := execute.AppendRecord(i, er, builder); err != nil {
 				return err

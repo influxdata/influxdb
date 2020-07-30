@@ -412,9 +412,13 @@ func (t *ToTransformation) writeTable(ctx context.Context, tbl flux.Table) error
 			return nil
 		}
 
-		var points models.Points
+		var (
+			points models.Points
+			tags   models.Tags
+		)
+
 		for i := 0; i < cr.Len(); i++ {
-			timestamp := execute.ValueForRow(cr, i, tmd.TimestampOffset).Time().Time()
+			fields := make(models.Fields, len(tmd.Fields))
 			for _, lao := range tmd.Fields {
 				fieldVal := execute.ValueForRow(cr, i, lao.Offset)
 
@@ -423,32 +427,32 @@ func (t *ToTransformation) writeTable(ctx context.Context, tbl flux.Table) error
 					continue
 				}
 
-				var fields models.Fields
 				switch fieldVal.Type() {
 				case semantic.Float:
-					fields = models.Fields{lao.Label: fieldVal.Float()}
+					fields[lao.Label] = fieldVal.Float()
 				case semantic.Int:
-					fields = models.Fields{lao.Label: fieldVal.Int()}
+					fields[lao.Label] = fieldVal.Int()
 				case semantic.UInt:
-					fields = models.Fields{lao.Label: fieldVal.UInt()}
+					fields[lao.Label] = fieldVal.UInt()
 				case semantic.String:
-					fields = models.Fields{lao.Label: fieldVal.Str()}
+					fields[lao.Label] = fieldVal.Str()
 				case semantic.Bool:
-					fields = models.Fields{lao.Label: fieldVal.Bool()}
+					fields[lao.Label] = fieldVal.Bool()
 				default:
 					return fmt.Errorf("unsupported field type %v", fieldVal.Type())
 				}
-				var tags models.Tags
-				tags, err := models.NewTagsKeyValues(tags, tmd.Tags...)
-				if err != nil {
-					return err
-				}
-				pt, err := models.NewPoint(pointName, tags, fields, timestamp)
-				if err != nil {
-					return err
-				}
-				points = append(points, pt)
 			}
+
+			timestamp := execute.ValueForRow(cr, i, tmd.TimestampOffset).Time().Time()
+			tags, err := models.NewTagsKeyValues(tags, tmd.Tags...)
+			if err != nil {
+				return err
+			}
+			pt, err := models.NewPoint(pointName, tags, fields, timestamp)
+			if err != nil {
+				return err
+			}
+			points = append(points, pt)
 
 			if err := execute.AppendRecord(i, cr, builder); err != nil {
 				return err
