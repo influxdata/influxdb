@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
@@ -25,7 +26,7 @@ import (
 type Engine interface {
 	influxdb.DeleteService
 	storage.PointsWriter
-	storage.BucketDeleter
+	storage.EngineSchema
 	prom.PrometheusCollector
 	influxdb.BackupService
 
@@ -118,6 +119,14 @@ func (t *TemporaryEngine) SeriesCardinality() int64 {
 func (t *TemporaryEngine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
 	return t.engine.DeleteBucketRangePredicate(ctx, orgID, bucketID, min, max, pred)
 
+}
+
+func (t *TemporaryEngine) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
+	return t.engine.CreateBucket(ctx, b)
+}
+
+func (t *TemporaryEngine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) error {
+	return t.engine.UpdateBucketRetentionPeriod(ctx, bucketID, d)
 }
 
 // DeleteBucket deletes a bucket from the time-series data.

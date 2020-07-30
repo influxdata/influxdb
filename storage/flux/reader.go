@@ -134,8 +134,8 @@ func (fi *filterIterator) Statistics() cursors.CursorStats { return fi.stats }
 
 func (fi *filterIterator) Do(f func(flux.Table) error) error {
 	src := fi.s.GetSource(
-		fi.spec.OrganizationID.String(),
-		fi.spec.BucketID.String(),
+		uint64(fi.spec.OrganizationID),
+		uint64(fi.spec.BucketID),
 	)
 
 	// Setup read request
@@ -258,8 +258,8 @@ func (gi *groupIterator) Statistics() cursors.CursorStats { return gi.stats }
 
 func (gi *groupIterator) Do(f func(flux.Table) error) error {
 	src := gi.s.GetSource(
-		gi.spec.OrganizationID.String(),
-		gi.spec.BucketID.String(),
+		uint64(gi.spec.OrganizationID),
+		uint64(gi.spec.BucketID),
 	)
 
 	// Setup read request
@@ -538,8 +538,8 @@ type tagKeysIterator struct {
 
 func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
 	src := ti.s.GetSource(
-		ti.readSpec.OrganizationID.String(),
-		ti.readSpec.BucketID.String(),
+		uint64(ti.readSpec.OrganizationID),
+		uint64(ti.readSpec.BucketID),
 	)
 
 	var req datatypes.TagKeysRequest
@@ -621,8 +621,8 @@ type tagValuesIterator struct {
 
 func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
 	src := ti.s.GetSource(
-		ti.readSpec.OrganizationID.String(),
-		ti.readSpec.BucketID.String(),
+		uint64(ti.readSpec.OrganizationID),
+		uint64(ti.readSpec.BucketID),
 	)
 
 	var req datatypes.TagValuesRequest

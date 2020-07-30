@@ -63,6 +63,7 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"
 	_ "github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1" // needed for tsm1
 	_ "github.com/influxdata/influxdb/v2/v1/tsdb/index/tsi1"  // needed for tsi1
@@ -483,9 +484,9 @@ func (m *Launcher) NatsURL() string {
 
 // Engine returns a reference to the storage engine. It should only be called
 // for end-to-end testing purposes.
-// func (m *Launcher) Engine() Engine {
-// 	return m.engine
-// }
+func (m *Launcher) Engine() Engine {
+	return m.engine
+}
 
 // Shutdown shuts down the HTTP server and waits for all services to clean up.
 func (m *Launcher) Shutdown(ctx context.Context) {
@@ -717,10 +718,17 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	// 	flushers = append(flushers, engine)
 	// 	m.engine = engine
 	// } else {
+	metaClient := meta.NewClient(meta.NewConfig(), m.kvStore)
+	if err := metaClient.Open(); err != nil {
+		m.log.Error("Failed to open meta client", zap.Error(err))
+		return err
+	}
+
 	m.engine = storage.NewEngine(
 		m.enginePath,
 		m.StorageConfig,
 		storage.WithRetentionEnforcer(ts.BucketService),
+		storage.WithMetaClient(metaClient),
 	)
 	// }
 	m.engine.WithLogger(m.log)

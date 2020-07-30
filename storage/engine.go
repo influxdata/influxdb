@@ -100,59 +100,19 @@ func WithPageFaultLimiter(limiter *rate.Limiter) Option {
 	}
 }
 
+func WithMetaClient(c MetaClient) Option {
+	return func(e *Engine) {
+		e.MetaClient = c
+	}
+}
+
 type MetaClient interface {
 	Database(name string) (di *meta.DatabaseInfo)
+	CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
+	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
-}
-
-type DummyMetaClient struct {
-}
-
-func (m *DummyMetaClient) Database(name string) (di *meta.DatabaseInfo) {
-	return &meta.DatabaseInfo{
-		DefaultRetentionPolicy: "1234",
-		Name:                   name,
-		RetentionPolicies: []meta.RetentionPolicyInfo{
-			{
-				Name:               "0440e2fda1957000",
-				Duration:           0,
-				ShardGroupDuration: time.Hour * 24,
-			},
-		},
-	}
-}
-func (m *DummyMetaClient) RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error) {
-	return &meta.RetentionPolicyInfo{
-		Name:               "1234",
-		Duration:           0,
-		ShardGroupDuration: time.Hour * 24,
-	}, nil
-}
-
-func (m *DummyMetaClient) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
-	return &meta.ShardGroupInfo{
-		ID:        1,
-		StartTime: time.Now().Add(-time.Hour * 24),
-		EndTime:   time.Now().Add(time.Hour * 24),
-		Shards: []meta.ShardInfo{
-			{ID: 1},
-		},
-	}, nil
-}
-
-func (m *DummyMetaClient) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
-	return []meta.ShardGroupInfo{
-		{
-			ID:        1,
-			StartTime: time.Now().Add(-time.Hour * 24),
-			EndTime:   time.Now().Add(time.Hour * 24),
-			Shards: []meta.ShardInfo{
-				{ID: 1},
-			},
-		},
-	}, nil
 }
 
 // NewEngine initialises a new storage engine, including a series file, index and
@@ -163,10 +123,13 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		path:                path,
 		defaultMetricLabels: prometheus.Labels{},
 		TSDBStore:           tsdb.NewStore(path),
-		MetaClient:          &DummyMetaClient{},
 		logger:              zap.NewNop(),
 
 		writePointsValidationEnabled: true,
+	}
+
+	for _, opt := range options {
+		opt(e)
 	}
 
 	pw := coordinator.NewPointsWriter()
@@ -358,14 +321,40 @@ func (e *Engine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID in
 		return ErrEngineClosed
 	}
 
-	return e.pointsWriter.WritePoints(orgID.String(), bucketID.String(), models.ConsistencyLevelAll, &meta.UserInfo{}, points)
+	return e.pointsWriter.WritePoints(bucketID.String(), meta.DefaultRetentionPolicyName, models.ConsistencyLevelAll, &meta.UserInfo{}, points)
+}
+
+func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	spec := meta.RetentionPolicySpec{
+		Name:     meta.DefaultRetentionPolicyName,
+		Duration: &b.RetentionPeriod,
+	}
+
+	if _, err = e.MetaClient.CreateDatabaseWithRetentionPolicy(b.ID.String(), &spec); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) (err error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	rpu := meta.RetentionPolicyUpdate{
+		Duration: &d,
+	}
+	return e.MetaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.
 func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-	return e.TSDBStore.DeleteRetentionPolicy(orgID.String(), bucketID.String())
+	return e.TSDBStore.DeleteRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName)
 }
 
 // DeleteBucketRange deletes an entire range of data from the storage engine.
@@ -380,7 +369,7 @@ func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb
 	}
 
 	// TODO(edd): create an influxql.Expr that represents the min and max time...
-	return e.TSDBStore.DeleteSeries(orgID.String(), nil, nil)
+	return e.TSDBStore.DeleteSeries(bucketID.String(), nil, nil)
 }
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
@@ -407,7 +396,7 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 	_ = predData
 
 	// TODO - edd convert the predicate into an influxql.Expr
-	return e.TSDBStore.DeleteSeries(orgID.String(), nil, nil)
+	return e.TSDBStore.DeleteSeries(bucketID.String(), nil, nil)
 }
 
 // CreateBackup creates a "snapshot" of all TSM data in the Engine.

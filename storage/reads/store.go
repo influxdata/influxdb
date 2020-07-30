@@ -82,5 +82,5 @@ type Store interface {
 	TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
 	TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
 
-	GetSource(db, rp string) proto.Message
+	GetSource(orgID, bucketID uint64) proto.Message
 }

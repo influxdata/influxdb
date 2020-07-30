@@ -8,6 +8,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage/reads"
@@ -23,7 +24,7 @@ var (
 	ErrMissingReadSource = errors.New("missing ReadSource")
 )
 
-// GetReadSource will attempt to unmarshal a ReadSource from the ReadRequest or
+// getReadSource will attempt to unmarshal a ReadSource from the ReadRequest or
 // return an error if no valid resource is present.
 func GetReadSource(any types.Any) (*ReadSource, error) {
 	var source ReadSource
@@ -82,14 +83,13 @@ func (s *Store) findShardIDs(database, rp string, desc bool, start, end int64) (
 	return shardIDs, nil
 }
 
-func (s *Store) validateArgs(database, rp string, start, end int64) (string, string, int64, int64, error) {
+func (s *Store) validateArgs(orgID, bucketID uint64, start, end int64) (string, string, int64, int64, error) {
+	database := influxdb.ID(bucketID).String()
+	rp := meta.DefaultRetentionPolicyName
+
 	di := s.MetaClient.Database(database)
 	if di == nil {
 		return "", "", 0, 0, errors.New("no database")
-	}
-
-	if rp == "" {
-		rp = di.DefaultRetentionPolicy
 	}
 
 	rpi := di.RetentionPolicy(rp)
@@ -111,12 +111,12 @@ func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.ReadSource)
+	source, err := getReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
@@ -149,12 +149,12 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.ReadSource)
+	source, err := getReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
@@ -193,12 +193,12 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.TagsSource)
+	source, err := getReadSource(*req.TagsSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
@@ -268,12 +268,12 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.TagsSource)
+	source, err := getReadSource(*req.TagsSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
@@ -356,12 +356,12 @@ func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesReque
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.MeasurementsSource)
+	source, err := getReadSource(*req.MeasurementsSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, _, _, _, err := s.validateArgs(source.Database, source.RetentionPolicy, -1, -1)
+	database, _, _, _, err := s.validateArgs(source.OrganizationID, source.BucketID, -1, -1)
 	if err != nil {
 		return nil, err
 	}
@@ -403,6 +403,9 @@ func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesReque
 	return cursors.NewStringSliceIterator(names), nil
 }
 
-func (s *Store) GetSource(db, rp string) proto.Message {
-	return &ReadSource{Database: db, RetentionPolicy: rp}
+func (s *Store) GetSource(orgID, bucketID uint64) proto.Message {
+	return &readSource{
+		BucketID:       bucketID,
+		OrganizationID: orgID,
+	}
 }
