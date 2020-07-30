@@ -198,8 +198,9 @@ where
             match col_writer {
                 BoolColumnWriter(ref mut w) => {
                     let p = packer.bool_packer();
+                    let rep_levels = vec![0; p.num_rows()];
                     let n = w
-                        .write_batch(p.values(), Some(p.def_levels()), Some(p.rep_levels()))
+                        .write_batch(&p.some_values(), Some(&p.def_levels()), Some(&rep_levels))
                         .context(ParquetLibraryError {
                             message: String::from("Can't write_batch with bool values"),
                         })?;
@@ -208,8 +209,9 @@ where
                 Int32ColumnWriter(_) => unreachable!("ParquetWriter does not support INT32 data"),
                 Int64ColumnWriter(ref mut w) => {
                     let p = packer.i64_packer();
+                    let rep_levels = vec![0; p.num_rows()];
                     let n = w
-                        .write_batch(p.values(), Some(p.def_levels()), Some(p.rep_levels()))
+                        .write_batch(&p.some_values(), Some(&p.def_levels()), Some(&rep_levels))
                         .context(ParquetLibraryError {
                             message: String::from("Can't write_batch with int64 values"),
                         })?;
@@ -221,8 +223,9 @@ where
                 }
                 DoubleColumnWriter(ref mut w) => {
                     let p = packer.f64_packer();
+                    let rep_levels = vec![0; p.num_rows()];
                     let n = w
-                        .write_batch(p.values(), Some(p.def_levels()), Some(p.rep_levels()))
+                        .write_batch(&p.some_values(), Some(&p.def_levels()), Some(&rep_levels))
                         .context(ParquetLibraryError {
                             message: String::from("Can't write_batch with f64 values"),
                         })?;
@@ -230,8 +233,9 @@ where
                 }
                 ByteArrayColumnWriter(ref mut w) => {
                     let p = packer.str_packer();
+                    let rep_levels = vec![0; p.num_rows()];
                     let n = w
-                        .write_batch(p.values(), Some(p.def_levels()), Some(p.rep_levels()))
+                        .write_batch(&p.some_values(), Some(&p.def_levels()), Some(&rep_levels))
                         .context(ParquetLibraryError {
                             message: String::from("Can't write_batch with byte array values"),
                         })?;

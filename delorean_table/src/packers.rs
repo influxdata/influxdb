@@ -200,9 +200,7 @@ pub struct Packer<T>
 where
     T: Default + Clone,
 {
-    values: Vec<T>,
-    def_levels: Vec<i16>,
-    rep_levels: Vec<i16>,
+    values: Vec<Option<T>>,
 }
 
 impl<T> Packer<T>
@@ -210,19 +208,13 @@ where
     T: Default + Clone,
 {
     pub fn new() -> Self {
-        Self {
-            values: Vec::new(),
-            def_levels: Vec::new(),
-            rep_levels: Vec::new(),
-        }
+        Self { values: Vec::new() }
     }
 
     /// Create a new packer with the specified capacity
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             values: Vec::with_capacity(capacity),
-            def_levels: Vec::with_capacity(capacity),
-            rep_levels: Vec::with_capacity(capacity),
         }
     }
 
@@ -230,8 +222,6 @@ where
     /// be inserted to the `Packer<T>` without reallocation.
     pub fn reserve_exact(&mut self, additional: usize) {
         self.values.reserve_exact(additional);
-        self.def_levels.reserve_exact(additional);
-        self.rep_levels.reserve_exact(additional);
     }
 
     /// Returns the number of logical rows represented in this
@@ -239,26 +229,14 @@ where
     /// NULLs are present because there are no values in self.values
     /// stored for NULL
     pub fn num_rows(&self) -> usize {
-        self.def_levels.len()
+        self.values.len()
     }
 
     /// Get the value of logical row at `index`. This may be different
     /// than the index in self.values.len() when NULLs are present
     /// because there are no values in self.values stored for NULL
     pub fn get(&self, index: usize) -> Option<&T> {
-        if self.def_levels[index] == 0 {
-            None
-        } else {
-            let mut values_idx: usize = 0;
-            for i in 0..index {
-                let def_level = self.def_levels[i];
-                if def_level != 0 && def_level != 1 {
-                    panic!("unexpected def level. Expected 0 or 1, found {}", i);
-                }
-                values_idx += def_level as usize;
-            }
-            Some(&self.values[values_idx])
-        }
+        self.values[index].as_ref()
     }
 
     pub fn iter(&'_ self) -> PackerIterator<'_, T> {
@@ -269,69 +247,68 @@ where
     // write the data into a parquet writer. We should have a method on Packer
     // that accepts some implementation of a trait that a parquet writer satisfies
     // and then pass the data through in here.
-    pub fn values(&self) -> &[T] {
+    pub fn values(&self) -> &[Option<T>] {
         &self.values
     }
 
-    pub fn def_levels(&self) -> &[i16] {
-        &self.def_levels
+    /// returns a binary vector indicating which indexes have null values.
+    pub fn def_levels(&self) -> Vec<i16> {
+        let mut levels = vec![1; self.values.len()];
+        for (i, v) in self.values.iter().enumerate() {
+            if v.is_none() {
+                levels[i] = 0;
+            }
+        }
+        levels
     }
 
-    pub fn rep_levels(&self) -> &[i16] {
-        &self.rep_levels
+    /// returns all of the non-null values in the Packer
+    pub fn some_values(&self) -> Vec<T> {
+        self.values
+            .iter()
+            .filter_map(|x| x.clone())
+            .collect::<Vec<T>>()
     }
 
     pub fn push_option(&mut self, value: Option<T>) {
-        match value {
-            Some(v) => self.push(v),
-            None => {
-                // NB: No value stored at def level == 0
-                self.def_levels.push(0);
-                self.rep_levels.push(1);
-            }
-        }
+        self.values.push(value);
     }
 
     pub fn push(&mut self, value: T) {
-        self.values.push(value);
-        self.def_levels.push(1);
-        self.rep_levels.push(1);
+        self.push_option(Some(value));
     }
 
     pub fn extend_from_packer(&mut self, other: &Self) {
         self.values.extend_from_slice(&other.values);
-        self.def_levels.extend_from_slice(&other.def_levels);
-        self.rep_levels.extend_from_slice(&other.rep_levels);
     }
 
     pub fn extend_from_slice(&mut self, other: &[T]) {
-        self.values.extend_from_slice(other);
-        self.def_levels.extend(iter::repeat(1).take(other.len()));
-        self.rep_levels.extend(iter::repeat(1).take(other.len()));
-    }
-
-    pub fn extend_from_option_slice(&mut self, other: &[Option<T>]) {
-        for v in other {
-            self.push_option(v.clone()); // TODO(edd): perf here.
+        self.values.reserve_exact(other.len());
+        for v in other.to_owned() {
+            self.push(v);
         }
     }
 
+    pub fn extend_from_option_slice(&mut self, other: &[Option<T>]) {
+        for v in other.to_owned() {
+            self.push_option(v);
+        }
+    }
+
+    /// Populate the Packer with additional more values of T.
     pub fn fill_with(&mut self, value: T, additional: usize) {
-        self.values.extend(iter::repeat(value).take(additional));
-        self.def_levels.extend(iter::repeat(1).take(additional));
-        self.rep_levels.extend(iter::repeat(1).take(additional));
+        self.values
+            .extend(iter::repeat(Some(value)).take(additional));
     }
 
     pub fn fill_with_null(&mut self, additional: usize) {
-        // N.B., No value stored at def level == 0
-        self.def_levels.extend(iter::repeat(0).take(additional));
-        self.rep_levels.extend(iter::repeat(1).take(additional));
+        self.values.extend(iter::repeat(None).take(additional));
     }
 
-    /// Return true if the row for index is null. Returns true if there is no
-    /// row for index.
+    /// Return true if the logic value at index is null. Returns true if there
+    /// is no row for index.
     pub fn is_null(&self, index: usize) -> bool {
-        self.def_levels.get(index).map_or(true, |&x| x == 0)
+        index >= self.values.len() || self.values[index].is_none()
     }
 }
 
@@ -366,7 +343,7 @@ where
 
         let curr_iter_i = self.iter_i;
         self.iter_i += 1;
-        Some(self.packer.get(curr_iter_i))
+        Some(self.packer.values[curr_iter_i].as_ref())
     }
 }
 
@@ -378,9 +355,7 @@ where
 {
     fn from(v: Vec<T>) -> Self {
         Self {
-            def_levels: vec![1; v.len()],
-            rep_levels: vec![1; v.len()],
-            values: v,
+            values: v.into_iter().map(Some).collect(),
         }
     }
 }
@@ -404,12 +379,26 @@ where
 mod test {
     use super::*;
 
+    // helper to extract a Vec<T> from a Packer<T>, panicking if there are any
+    // None values in the Packer.
+    fn must_some_values<T>(p: &Packer<T>) -> Vec<T>
+    where
+        T: Default + Clone,
+    {
+        let mut values = vec![];
+        for v in &p.values {
+            match v {
+                None => panic!("got None value"),
+                Some(v) => values.push(v.clone()),
+            }
+        }
+        values
+    }
+
     #[test]
     fn with_capacity() {
         let packer: Packer<bool> = Packer::with_capacity(42);
         assert_eq!(packer.values.capacity(), 42);
-        assert_eq!(packer.def_levels.capacity(), 42);
-        assert_eq!(packer.rep_levels.capacity(), 42);
     }
 
     #[test]
@@ -420,9 +409,8 @@ mod test {
 
         packer.extend_from_slice(&[2, 3, 4]);
 
-        assert_eq!(packer.values, &[100, 22, 2, 3, 4]);
-        assert_eq!(packer.def_levels, &[1; 5]);
-        assert_eq!(packer.rep_levels, &[1; 5]);
+        assert_eq!(must_some_values(&packer), &[100, 22, 2, 3, 4]);
+        assert_eq!(packer.def_levels(), &[1; 5]);
     }
 
     #[test]
@@ -435,9 +423,8 @@ mod test {
         packer_b.push(3);
 
         packer_a.extend_from_packer(&packer_b);
-        assert_eq!(packer_a.values, &[100, 22, 3]);
-        assert_eq!(packer_a.def_levels, &[1; 3]);
-        assert_eq!(packer_a.rep_levels, &[1; 3]);
+        assert_eq!(must_some_values(&packer_a), &[100, 22, 3]);
+        assert_eq!(packer_a.def_levels(), &[1; 3]);
     }
 
     #[test]
@@ -448,9 +435,8 @@ mod test {
 
         packer.fill_with_null(3);
 
-        assert_eq!(packer.values, &[100, 22]);
-        assert_eq!(packer.def_levels, &[1, 1, 0, 0, 0]);
-        assert_eq!(packer.rep_levels, &[1; 5]);
+        assert_eq!(packer.values, &[Some(100), Some(22), None, None, None]);
+        assert_eq!(packer.def_levels(), &[1, 1, 0, 0, 0]);
     }
 
     #[test]
@@ -489,10 +475,13 @@ mod test {
         // Note there are only two values, even though there are 3 rows
         assert_eq!(
             packer.values,
-            vec![ByteArray::from("foo"), ByteArray::from("bar")]
+            vec![
+                Some(ByteArray::from("foo")),
+                None,
+                Some(ByteArray::from("bar"))
+            ]
         );
-        assert_eq!(packer.def_levels, vec![1, 0, 1]);
-        assert_eq!(packer.rep_levels, vec![1, 1, 1]);
+        assert_eq!(packer.def_levels(), vec![1, 0, 1]);
     }
 
     #[test]
