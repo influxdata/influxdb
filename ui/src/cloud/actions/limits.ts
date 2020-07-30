@@ -17,6 +17,7 @@ import {
   Limits,
   RemoteDataState,
   ResourceType,
+  ColumnTypes,
 } from 'src/types'
 
 // Selectors
@@ -37,7 +38,7 @@ export enum LimitStatus {
 }
 
 export type MonitoringLimits = {
-  [type: string]: LimitStatus
+  [type in ColumnTypes]: LimitStatus
 }
 
 export enum ActionTypes {

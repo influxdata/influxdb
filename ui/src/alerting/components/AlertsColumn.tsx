@@ -3,7 +3,7 @@ import React, {FC, ReactChild, useState} from 'react'
 import {connect} from 'react-redux'
 
 // Types
-import {AppState, ResourceType} from 'src/types'
+import {AppState, ResourceType, ColumnTypes} from 'src/types'
 import {LimitStatus, MonitoringLimits} from 'src/cloud/actions/limits'
 
 // Components
@@ -32,11 +32,6 @@ import {
 // Constants
 import {CLOUD} from 'src/shared/constants'
 
-type ColumnTypes =
-  | ResourceType.NotificationRules
-  | ResourceType.NotificationEndpoints
-  | ResourceType.Checks
-
 interface OwnProps {
   type: ColumnTypes
   title: string
@@ -63,23 +58,18 @@ const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
   const panelClassName = `alerting-index--column alerting-index--${formattedTitle}`
   const resourceName = title.substr(0, title.length - 1)
 
-  const assetCreateButton = (): JSX.Element => {
-    if (
-      CLOUD &&
-      limitStatus[type] === LimitStatus.EXCEEDED &&
-      type !== ResourceType.Checks
-    ) {
-      return (
-        <AssetLimitButton
-          color={ComponentColor.Secondary}
-          buttonText="Create"
-          resourceName={resourceName}
-        />
-      )
-    }
+  const isLimitExceeded =
+    CLOUD &&
+    limitStatus[type] === LimitStatus.EXCEEDED &&
+    type !== ResourceType.Checks
 
-    return createButton
-  }
+  const assetLimitButton = (
+    <AssetLimitButton
+      color={ComponentColor.Secondary}
+      buttonText="Create"
+      resourceName={resourceName}
+    />
+  )
 
   return (
     <Panel
@@ -97,7 +87,7 @@ const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
             tooltipContents={questionMarkTooltipContents}
           />
         </FlexBox>
-        {assetCreateButton()}
+        {isLimitExceeded ? assetLimitButton : createButton}
       </Panel.Header>
       <div className="alerting-index--search">
         <Input

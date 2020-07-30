@@ -19,7 +19,7 @@ import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
 import {LimitStatus} from 'src/cloud/actions/limits'
 
 // Constants
-import {CLOUD} from '../constants'
+import {CLOUD} from 'src/shared/constants'
 
 interface OwnProps {
   onSelectNew: () => void
@@ -144,7 +144,7 @@ class AddResourceDropdown extends PureComponent<Props> {
       onSelectNew,
       onSelectImport,
       onSelectTemplate,
-      limitStatus,
+      limitStatus = LimitStatus.OK,
     } = this.props
 
     if (CLOUD && limitStatus === LimitStatus.EXCEEDED) {

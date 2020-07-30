@@ -10,7 +10,7 @@ import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
 
 interface OwnProps {
   color?: ComponentColor
-  resourceName?: string
+  resourceName: string
   buttonText?: string
 }
 
