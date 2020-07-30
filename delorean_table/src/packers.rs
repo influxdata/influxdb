@@ -5,6 +5,7 @@
 // Note the maintainability of this code is not likely high (it came
 // from the copy pasta factory) but the plan is to replace it
 // soon... We'll see how long that actually takes...
+use core::iter::Iterator;
 use std::iter;
 
 use parquet::data_type::ByteArray;
@@ -260,6 +261,10 @@ where
         }
     }
 
+    pub fn iter(&'_ self) -> PackerIterator<'_, T> {
+        PackerIterator::new(&self)
+    }
+
     // TODO(edd): I don't like these getters. They're only needed so we can
     // write the data into a parquet writer. We should have a method on Packer
     // that accepts some implementation of a trait that a parquet writer satisfies
@@ -327,6 +332,41 @@ where
     /// row for index.
     pub fn is_null(&self, index: usize) -> bool {
         self.def_levels.get(index).map_or(true, |&x| x == 0)
+    }
+}
+
+#[derive(Debug)]
+pub struct PackerIterator<'a, T>
+where
+    T: Default + Clone,
+{
+    packer: &'a Packer<T>,
+    iter_i: usize,
+}
+
+impl<'a, T> PackerIterator<'a, T>
+where
+    T: Default + Clone,
+{
+    fn new(packer: &'a Packer<T>) -> Self {
+        PackerIterator { packer, iter_i: 0 }
+    }
+}
+
+impl<'a, T> Iterator for PackerIterator<'a, T>
+where
+    T: Default + Clone,
+{
+    type Item = Option<&'a T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.iter_i == self.packer.num_rows() {
+            return None;
+        }
+
+        let curr_iter_i = self.iter_i;
+        self.iter_i += 1;
+        Some(self.packer.get(curr_iter_i))
     }
 }
 
@@ -453,5 +493,23 @@ mod test {
         );
         assert_eq!(packer.def_levels, vec![1, 0, 1]);
         assert_eq!(packer.rep_levels, vec![1, 1, 1]);
+    }
+
+    #[test]
+    fn packers_iter() {
+        let mut packer: Packer<u64> = Packer::new();
+        packer.push(100);
+        packer.push_option(None);
+        packer.push(200);
+        packer.push_option(None);
+        packer.push_option(None);
+
+        let values: Vec<Option<&u64>> = packer.iter().collect();
+
+        assert_eq!(values[0], Some(&100));
+        assert_eq!(values[1], None);
+        assert_eq!(values[2], Some(&200));
+        assert_eq!(values[3], None);
+        assert_eq!(values[4], None);
     }
 }
