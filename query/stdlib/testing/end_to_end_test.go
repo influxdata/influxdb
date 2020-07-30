@@ -13,6 +13,8 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/stdlib"
+	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/feature/override"
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
@@ -22,6 +24,53 @@ import (
 	_ "github.com/influxdata/influxdb/v2/query/stdlib"
 	itesting "github.com/influxdata/influxdb/v2/query/stdlib/testing" // Import the stdlib
 )
+
+// Flagger for end-to-end test cases. This flagger contains a pointer to a
+// single struct instance that all the test cases will consult. It will return flags
+// based on the contents of FluxEndToEndFeatureFlags and the currently active
+// test case. This works only because tests are serialized. We can set the
+// current test case in the common flagger state, then run the test. If we were
+// to run tests in parallel we would need to create multiple users and assign
+// them different flags combinations, then run the tests under different users.
+
+type Flagger struct {
+	flaggerState *FlaggerState
+}
+
+type FlaggerState struct {
+	Path           string
+	Name           string
+	FeatureFlags   itesting.PerTestFeatureFlagMap
+	DefaultFlagger feature.Flagger
+}
+
+func newFlagger(featureFlagMap itesting.PerTestFeatureFlagMap) Flagger {
+	flaggerState := &FlaggerState{}
+	flaggerState.FeatureFlags = featureFlagMap
+	flaggerState.DefaultFlagger = feature.DefaultFlagger()
+	return Flagger{flaggerState}
+}
+
+func (f Flagger) SetActiveTestCase(path string, name string) {
+	f.flaggerState.Path = path
+	f.flaggerState.Name = name
+}
+
+func (f Flagger) Flags(ctx context.Context, _f ...feature.Flag) (map[string]interface{}, error) {
+	// If an override is set for the test case, construct an override flagger
+	// and use it's computed flags.
+	overrides := f.flaggerState.FeatureFlags[f.flaggerState.Path][f.flaggerState.Name]
+	if overrides != nil {
+		f, err := override.Make(overrides, nil)
+		if err != nil {
+			panic("failed to construct override flagger, probably an invalid flag in FluxEndToEndFeatureFlags")
+		}
+		return f.Flags(ctx)
+	}
+
+	// Otherwise use flags from a default flagger.
+	return f.flaggerState.DefaultFlagger.Flags(ctx)
+}
 
 // Default context.
 var ctx = influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(true, nil))
@@ -38,7 +87,8 @@ func BenchmarkFluxEndToEnd(b *testing.B) {
 }
 
 func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	flagger := newFlagger(itesting.FluxEndToEndFeatureFlags)
+	l := launcher.RunTestLauncherOrFail(t, ctx, flagger)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 	for _, pkg := range pkgs {

@@ -150,3 +150,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"year":       "flakey test: https://github.com/influxdata/influxdb/issues/15667",
 	},
 }
+
+type PerTestFeatureFlagMap = map[string]map[string]map[string]string
+
+var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{}
