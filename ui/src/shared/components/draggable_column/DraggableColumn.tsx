@@ -41,7 +41,7 @@ interface Props {
   onMoveColumn: (dragIndex: number, hoverIndex: number) => void
 }
 
-const columnSource: DragSourceSpec<Props> = {
+const columnSource: DragSourceSpec<Props, {}> = {
   beginDrag(props) {
     return {
       id: props.id,
