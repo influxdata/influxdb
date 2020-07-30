@@ -125,7 +125,7 @@ func TestEndpointService_cummulativeSecrets(t *testing.T) {
 		t.Errorf("secrets after creating 2nd endpoint = %v, want %v", len(secretKeys), 4)
 	}
 
-	// update 1st endpoint and validate secreats
+	// update 1st endpoint and validate secrets
 	const updatedSecretValue = "updatedSecVal"
 	endpoint1.Username.Value = strPtr(updatedSecretValue)
 	if _, err = endpointService.UpdateNotificationEndpoint(ctx, *endpoint1.ID, &endpoint1, *userID); err != nil {
@@ -145,7 +145,7 @@ func TestEndpointService_cummulativeSecrets(t *testing.T) {
 		t.Errorf("secret after updating 1st endpoint is not updated = %v, want %v", secretValue, updatedSecretValue)
 	}
 
-	// delete 1st endpoints and secreats, validate secrets
+	// delete 1st endpoints and secrets, validate secrets
 	var secretsToDelete []influxdb.SecretField
 	if secretsToDelete, _, err = endpointService.DeleteNotificationEndpoint(ctx, *endpoint1.ID); err != nil {
 		t.Fatal(err)
@@ -172,7 +172,7 @@ func TestEndpointService_cummulativeSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(secretKeys) != 0 {
-		t.Errorf("secrets after updating deleting 1st endpoint = %v, want %v", len(secretKeys), 2)
+		t.Errorf("secrets after deleting the 2nd endpoint = %v, want %v", len(secretKeys), 2)
 	}
 }
 
