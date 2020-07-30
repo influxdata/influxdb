@@ -52,10 +52,6 @@ const DashboardContainer: FC<Props> = ({autoRefresh, dashboard}) => {
     }
   }, [dispatch])
 
-  useEffect(() => {
-    event('Dashboard Visited', {dashboardID: dashboard, orgID})
-  }, [dashboard, orgID])
-
   return (
     <DashboardRoute>
       <GetResource resources={[{type: ResourceType.Dashboards, id: dashboard}]}>

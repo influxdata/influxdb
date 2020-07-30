@@ -52,6 +52,7 @@ import {
 } from 'src/dataLoaders/reducers/telegrafEditor'
 import {predicatesReducer} from 'src/shared/reducers/predicates'
 import alertBuilderReducer from 'src/alerting/reducers/alertBuilder'
+import perfReducer from 'src/perf/reducers'
 
 // Types
 import {AppState, LocalStorage} from 'src/types'
@@ -84,6 +85,7 @@ export const rootReducer = (history: History) =>
     noteEditor: noteEditorReducer,
     onboarding: onboardingReducer,
     overlays: overlaysReducer,
+    perf: perfReducer,
     plugins: pluginsResourceReducer,
     predicates: predicatesReducer,
     queryCache: queryCacheReducer,

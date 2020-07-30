@@ -8,6 +8,7 @@ import TimeSeries from 'src/shared/components/TimeSeries'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 import ViewLoadingSpinner from 'src/shared/components/ViewLoadingSpinner'
+import CellEvent from 'src/perf/components/ScrollDetector'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
@@ -65,7 +66,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {ranges, properties, manualRefresh, timeZone, theme} = this.props
+    const {id, ranges, properties, manualRefresh, timeZone, theme} = this.props
     const {submitToken} = this.state
 
     return (
@@ -94,15 +95,18 @@ class RefreshingView extends PureComponent<Props, State> {
                 queries={this.queries}
                 fallbackNote={this.fallbackNote}
               >
-                <ViewSwitcher
-                  files={files}
-                  giraffeResult={giraffeResult}
-                  properties={properties}
-                  timeRange={ranges}
-                  statuses={statuses}
-                  timeZone={timeZone}
-                  theme={theme}
-                />
+                <>
+                  <CellEvent id={id} type={properties.type} />
+                  <ViewSwitcher
+                    files={files}
+                    giraffeResult={giraffeResult}
+                    properties={properties}
+                    timeRange={ranges}
+                    statuses={statuses}
+                    timeZone={timeZone}
+                    theme={theme}
+                  />
+                </>
               </EmptyQueryView>
             </>
           )

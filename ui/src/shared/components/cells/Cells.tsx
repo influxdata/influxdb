@@ -8,6 +8,7 @@ import {get} from 'lodash'
 const Grid = WidthProvider(ReactGridLayout)
 import CellComponent from 'src/shared/components/cells/Cell'
 import GradientBorder from 'src/shared/components/cells/GradientBorder'
+import ScrollDetector from 'src/perf/components/ScrollDetector'
 
 // Actions
 import {updateCells} from 'src/cells/actions/thunks'
@@ -33,33 +34,37 @@ type Props = OwnProps & ReduxProps
 
 @ErrorHandling
 class Cells extends Component<Props> {
+  cellsRef = React.createRef()
   public render() {
     const {views, cells, manualRefresh} = this.props
 
     return (
-      <Grid
-        cols={12}
-        layout={this.cells}
-        rowHeight={DASHBOARD_LAYOUT_ROW_HEIGHT}
-        useCSSTransforms={false}
-        containerPadding={[0, 0]}
-        margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
-        onLayoutChange={this.handleLayoutChange}
-        draggableHandle=".cell--draggable"
-        isDraggable
-        isResizable
-      >
-        {fastMap(cells, cell => (
-          <div
-            key={cell.id}
-            className="cell"
-            data-testid={`cell ${views[cell.id]?.name}`}
-          >
-            <CellComponent cell={cell} manualRefresh={manualRefresh} />
-            <GradientBorder />
-          </div>
-        ))}
-      </Grid>
+      <>
+        <ScrollDetector component="dashboard" />
+        <Grid
+          cols={12}
+          layout={this.cells}
+          rowHeight={DASHBOARD_LAYOUT_ROW_HEIGHT}
+          useCSSTransforms={false}
+          containerPadding={[0, 0]}
+          margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
+          onLayoutChange={this.handleLayoutChange}
+          draggableHandle=".cell--draggable"
+          isDraggable
+          isResizable
+        >
+          {fastMap(cells, cell => (
+            <div
+              key={cell.id}
+              className="cell"
+              data-testid={`cell ${views[cell.id]?.name}`}
+            >
+              <CellComponent cell={cell} manualRefresh={manualRefresh} />
+              <GradientBorder />
+            </div>
+          ))}
+        </Grid>
+      </>
     )
   }
 

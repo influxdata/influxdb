@@ -2,6 +2,7 @@
 import React, {Component} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
+import uuid from 'uuid'
 
 // Components
 import {Page} from '@influxdata/clockface'
@@ -23,6 +24,7 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Selectors & Actions
 import {resetCachedQueryResults} from 'src/queryCache/actions'
+import {setMountID as setMountIDAction} from 'src/perf/actions'
 import {getByID} from 'src/resources/selectors'
 
 // Types
@@ -48,8 +50,12 @@ const dashRoute = `/${ORGS}/${ORG_ID}/${DASHBOARDS}/${DASHBOARD_ID}`
 @ErrorHandling
 class DashboardPage extends Component<Props> {
   public componentDidMount() {
-    const {dashboard} = this.props
+    const {dashboard, setMountID} = this.props
+    const mountID = uuid.v4()
+    setMountID('dashboard', mountID)
+
     event('Dashboard Mounted', {
+      mountID,
       dashboardID: dashboard.id,
       orgID: dashboard.orgID,
     })
@@ -111,6 +117,7 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
+  setMountID: setMountIDAction,
   resetCachedQueryResults: resetCachedQueryResults,
 }
 
