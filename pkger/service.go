@@ -1968,7 +1968,7 @@ func (s *Service) rollbackDashboards(ctx context.Context, dashs []*stateDashboar
 	return nil
 }
 
-func convertChartsToCells(ch []chart) []*influxdb.Cell {
+func convertChartsToCells(ch []*chart) []*influxdb.Cell {
 	icells := make([]*influxdb.Cell, 0, len(ch))
 	for _, c := range ch {
 		icell := &influxdb.Cell{
