@@ -1,7 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
 import {connect, ConnectedProps, useDispatch} from 'react-redux'
-import {useParams} from 'react-router-dom'
 
 // Components
 import GetResource from 'src/resources/components/GetResource'
@@ -15,7 +14,6 @@ import {setCurrentPage} from 'src/shared/reducers/currentPage'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
-import {event} from 'src/cloud/utils/reporting'
 
 // Constants
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
@@ -30,7 +28,6 @@ type Props = ReduxProps
 
 const DashboardContainer: FC<Props> = ({autoRefresh, dashboard}) => {
   const dispatch = useDispatch()
-  const {orgID} = useParams()
 
   useEffect(() => {
     if (autoRefresh.status === Active) {
