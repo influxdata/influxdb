@@ -1962,13 +1962,10 @@ func TestService(t *testing.T) {
 			})
 
 			newQuery := func() influxdb.DashboardQuery {
-				q := influxdb.DashboardQuery{
+				return influxdb.DashboardQuery{
 					Text:     "from(v.bucket) |> count()",
 					EditMode: "advanced",
 				}
-				// TODO: remove this when issue that forced the builder tag to be here to render in UI.
-				q.BuilderConfig.Tags = append(q.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
-				return q
 			}
 
 			newAxes := func() map[string]influxdb.Axis {

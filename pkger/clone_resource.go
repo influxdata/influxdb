@@ -708,8 +708,14 @@ func convertChartToResource(ch chart) Resource {
 		fieldChartHeight: ch.Height,
 		fieldChartWidth:  ch.Width,
 	}
-	if len(ch.Queries) > 0 {
-		r[fieldChartQueries] = ch.Queries
+	var qq []Resource
+	for _, q := range ch.Queries {
+		qq = append(qq, Resource{
+			fieldQuery: q.DashboardQuery(),
+		})
+	}
+	if len(qq) > 0 {
+		r[fieldChartQueries] = qq
 	}
 	if len(ch.Colors) > 0 {
 		r[fieldChartColors] = ch.Colors
