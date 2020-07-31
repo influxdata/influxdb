@@ -100,6 +100,7 @@ class CellComponent extends Component<Props, State> {
 
     return (
       <RefreshingView
+        id={view.id}
         properties={view.properties}
         manualRefresh={manualRefresh}
       />
@@ -117,4 +118,4 @@ const mstp = (state: AppState, ownProps: OwnProps) => {
   return {view}
 }
 
-export default connect<StateProps, {}, OwnProps>(mstp, null)(CellComponent)
+export default connect<StateProps, {}, OwnProps>(mstp)(CellComponent)

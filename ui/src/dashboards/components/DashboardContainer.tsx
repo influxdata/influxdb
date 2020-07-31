@@ -28,6 +28,7 @@ type Props = ReduxProps
 
 const DashboardContainer: FC<Props> = ({autoRefresh, dashboard}) => {
   const dispatch = useDispatch()
+
   useEffect(() => {
     if (autoRefresh.status === Active) {
       GlobalAutoRefresher.poll(autoRefresh.interval)
