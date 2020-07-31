@@ -112,7 +112,7 @@ func concatSetupTable(table *CsvTable, row []string) error {
 	}
 	// add a virtual column to the table
 	table.extraColumns = append(table.extraColumns, &col)
-	// add validator to report error when no placeholder column is not available
+	// add validator to report error when no placeholder column is available
 	table.validators = append(table.validators, func(table *CsvTable) error {
 		placeholders := computedReplacer.FindAllString(template, len(template))
 		for _, placeholder := range placeholders {
