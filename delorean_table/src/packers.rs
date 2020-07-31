@@ -232,9 +232,7 @@ where
         self.values.len()
     }
 
-    /// Get the value of logical row at `index`. This may be different
-    /// than the index in self.values.len() when NULLs are present
-    /// because there are no values in self.values stored for NULL
+    /// Get the value of logical row at `index`.
     pub fn get(&self, index: usize) -> Option<&T> {
         self.values[index].as_ref()
     }
@@ -253,13 +251,10 @@ where
 
     /// returns a binary vector indicating which indexes have null values.
     pub fn def_levels(&self) -> Vec<i16> {
-        let mut levels = vec![1; self.values.len()];
-        for (i, v) in self.values.iter().enumerate() {
-            if v.is_none() {
-                levels[i] = 0;
-            }
-        }
-        levels
+        self.values
+            .iter()
+            .map(|v| if v.is_some() { 1 } else { 0 })
+            .collect::<Vec<i16>>()
     }
 
     /// returns all of the non-null values in the Packer
