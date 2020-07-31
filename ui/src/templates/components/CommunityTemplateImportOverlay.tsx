@@ -1,4 +1,4 @@
-import React, {PureComponent, useState} from 'react'
+import React, {PureComponent} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect, ConnectedProps} from 'react-redux'
 
