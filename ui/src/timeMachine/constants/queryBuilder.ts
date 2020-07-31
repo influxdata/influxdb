@@ -48,7 +48,7 @@ export const genFlux = (
     case 'stddev':
     case 'first':
     case 'last': {
-      return `|> aggregateWindow(every: ${period}, fn: ${func}, createEmpty: ${!fillValues})`
+      return `|> aggregateWindow(every: ${period}, fn: ${func}, createEmpty: ${fillValues})`
     }
 
     default:
