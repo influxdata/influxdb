@@ -124,6 +124,28 @@ export const gaEvent = (event: string, payload: object = {}) => {
   })
 }
 
+// The event function allows us to dispatch events from the UI
+
+// The first argument, `measurement` will be written in the bucket as a measurement.
+//      it usually answers the 'what?' question. So if I'm instrumenting the 'runQuery' function, I would make the measurement = "runQuery function ran".
+//      Make it human readable.
+// The second argument values will be written to the bucket as TAGs.
+//      This is where you have to be careful, since tags are sensitive to cardinality.
+//      If you expect the values you are reporting to be one of a reasonable number of alternatives, then write them as tags.
+//      Except!!! if you want to pass an optional timestamp, you can safely write {time: Date.now()} in the second arg, and it will be written as a timestamp and not a tag.
+// The parameters of the third argument will be written to bucket as FIELDs.
+//      If you have a potentially unbounded variety of values to report, write them to the third argument,
+//
+// Example:
+//  event(
+//    `GetResources component fetched resources`,  // What are we measuring- make it readable
+//   {
+//     time: startTime,                  // will be converted to timestamp, so this is ok
+//     resource: "dashboard",            // one of just a few possibilities here, writing as a tag
+//   },
+//   {duration: Date.now() - startTime}   // unbounded cardinality, writing as field
+// )
+
 export const event = (
   measurement: string,
   meta: PointTags = {},
