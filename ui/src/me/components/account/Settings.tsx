@@ -10,23 +10,23 @@ import {AppState} from 'src/types'
 import {Columns, ComponentSize, ComponentStatus} from '@influxdata/clockface'
 
 interface StateProps {
-  me: AppState['me']
+  username: string
 }
 
 interface State {
-  me: AppState['me']
+  username: string
 }
 
 export class Settings extends PureComponent<StateProps, State> {
   constructor(props) {
     super(props)
     this.state = {
-      me: this.props.me,
+      username: this.props.username,
     }
   }
 
   public render() {
-    const {me} = this.state
+    const {username} = this.state
 
     return (
       <Grid>
@@ -41,7 +41,7 @@ export class Settings extends PureComponent<StateProps, State> {
                 <Form>
                   <Form.Element label="Username">
                     <Input
-                      value={me.name}
+                      value={username}
                       testID="nameInput"
                       titleText="Username"
                       size={ComponentSize.Small}
@@ -63,8 +63,8 @@ export class Settings extends PureComponent<StateProps, State> {
   }
 }
 
-const mstp = ({me}: AppState) => ({
-  me,
+const mstp = ({me}: AppState): StateProps => ({
+  username: me.resource.name,
 })
 
 export default connect(mstp)(Settings)
