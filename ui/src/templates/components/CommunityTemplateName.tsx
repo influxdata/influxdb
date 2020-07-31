@@ -23,12 +23,19 @@ interface Props {
   onClickInstall?: () => void
 }
 
+import {} from 'react'
+
 const CommunityTemplateName: FC<Props> = ({
   templateName,
   resourceCount,
   onClickInstall,
 }) => {
   let installButton
+  let resourcePlural = 'resources'
+
+  if (resourceCount === 1) {
+    resourcePlural = 'resource'
+  }
 
   if (onClickInstall && resourceCount > 0) {
     installButton = (
@@ -63,7 +70,10 @@ const CommunityTemplateName: FC<Props> = ({
           </Heading>
           <p className="community-templates--template-description">
             Installing this template will create{' '}
-            <strong>{resourceCount} resources</strong> in your system
+            <strong>
+              {resourceCount} {resourcePlural}
+            </strong>{' '}
+            in your system
           </p>
         </FlexBox.Child>
         {installButton}
