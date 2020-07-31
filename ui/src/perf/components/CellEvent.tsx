@@ -19,7 +19,7 @@ interface Props {
 const getState = (s: AppState) => {
   return {
     scroll: s.perf.dashboard.scroll,
-    mountID: s.perf.dashboard.mountID,
+    renderID: s.perf.dashboard.renderID,
     orgID: getOrg(s).id,
   }
 }
@@ -28,21 +28,21 @@ const CellEvent: FC<Props> = ({id, type}) => {
   const params = useParams<{dashboardID?: string}>()
   const dashboardID = params?.dashboardID
 
-  const {mountID, orgID, scroll} = useSelector(getState)
+  const {renderID, orgID, scroll} = useSelector(getState)
 
   useEffect(() => {
     if (scroll === 'scrolled') {
       return
     }
 
-    const hasIDs = dashboardID && id && orgID && mountID
+    const hasIDs = dashboardID && id && orgID && renderID
 
     if (!hasIDs) {
       return
     }
 
-    event('Cell Visualized', {dashboardID, cellID: id, orgID, mountID, type})
-  }, [dashboardID, id, orgID, mountID, type, scroll])
+    event('Cell Visualized', {dashboardID, cellID: id, orgID, renderID, type})
+  }, [dashboardID, id, orgID, renderID, type, scroll])
 
   return null
 }

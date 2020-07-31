@@ -2,19 +2,19 @@
 import {produce} from 'immer'
 
 // Actions
-import {SET_MOUNT_ID, SET_SCROLL, Action} from 'src/perf/actions'
+import {SET_RENDER_ID, SET_SCROLL, Action} from 'src/perf/actions'
 
 export interface PerfState {
   dashboard: {
     scroll: 'not scrolled' | 'scrolled'
-    mountID: string
+    renderID: string
   }
 }
 
 const initialState = (): PerfState => ({
   dashboard: {
     scroll: 'not scrolled',
-    mountID: '',
+    renderID: '',
   },
 })
 
@@ -24,9 +24,9 @@ const perfReducer = (
 ): PerfState =>
   produce(state, draftState => {
     switch (action.type) {
-      case SET_MOUNT_ID: {
-        const {component, mountID} = action
-        draftState[component].mountID = mountID
+      case SET_RENDER_ID: {
+        const {component, renderID} = action
+        draftState[component].renderID = renderID
 
         return
       }

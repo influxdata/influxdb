@@ -24,7 +24,7 @@ import {event} from 'src/cloud/utils/reporting'
 
 // Selectors & Actions
 import {resetCachedQueryResults} from 'src/queryCache/actions'
-import {setMountID as setMountIDAction} from 'src/perf/actions'
+import {setRenderID as setRenderIDAction} from 'src/perf/actions'
 import {getByID} from 'src/resources/selectors'
 
 // Types
@@ -50,12 +50,12 @@ const dashRoute = `/${ORGS}/${ORG_ID}/${DASHBOARDS}/${DASHBOARD_ID}`
 @ErrorHandling
 class DashboardPage extends Component<Props> {
   public componentDidMount() {
-    const {dashboard, setMountID} = this.props
-    const mountID = uuid.v4()
-    setMountID('dashboard', mountID)
+    const {dashboard, setRenderID} = this.props
+    const renderID = uuid.v4()
+    setRenderID('dashboard', renderID)
 
     event('Dashboard Mounted', {
-      mountID,
+      renderID,
       dashboardID: dashboard.id,
       orgID: dashboard.orgID,
     })
@@ -117,7 +117,7 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  setMountID: setMountIDAction,
+  setRenderID: setRenderIDAction,
   resetCachedQueryResults: resetCachedQueryResults,
 }
 
