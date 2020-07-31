@@ -56,7 +56,6 @@ class DashboardPage extends Component<Props> {
 
     const tags = {
       dashboardID: dashboard.id,
-      orgID: dashboard.orgID,
     }
     const fields = {renderID}
 
