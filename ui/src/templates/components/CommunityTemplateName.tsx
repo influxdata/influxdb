@@ -21,7 +21,6 @@ interface Props {
   templateName: string
   buttonStatus: string
   resourceCount?: number
-  resourcePlural?: string
   onClickInstall?: () => void
 }
 
@@ -31,10 +30,14 @@ const CommunityTemplateName: FC<Props> = ({
   templateName,
   buttonStatus,
   resourceCount,
-  resourcePlural,
   onClickInstall,
 }) => {
   let installButton
+  let resourcePlural = "resources"
+
+  if (resourceCount === 1 ) {
+    resourcePlural = 'resource'
+  }
 
   if (onClickInstall && resourceCount > 0) {
     installButton = (
@@ -43,16 +46,12 @@ const CommunityTemplateName: FC<Props> = ({
         color={ComponentColor.Success}
         size={ComponentSize.Medium}
         onClick={onClickInstall}
-        status={buttonStatus}
+        // status={buttonStatus}
       />
     )
   }
 
-  if (resourceCount > 1) {
-    resourcePlural = 'resources'
-  } else {
-    resourcePlural = 'resource'
-  }
+
 
   return (
     <Panel border={true} gradient={Gradients.SpirulinaSmoothie}>

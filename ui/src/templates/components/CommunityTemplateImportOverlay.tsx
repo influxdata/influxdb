@@ -35,6 +35,7 @@ import {
 
 interface State {
   status: ComponentStatus
+  buttonStatus: string
 }
 
 
@@ -47,9 +48,11 @@ type RouterProps = RouteComponentProps<{
 }>
 type Props = ReduxProps & RouterProps
 
+
 class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   public state: State = {
     status: ComponentStatus.Default,
+    buttonStatus: ComponentStatus.Default
   }
 
 
@@ -64,7 +67,6 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 
   public render() {
-    const [buttonStatus, setbuttonStatus] = useState("default");
 
     if (!this.props.flags.communityTemplates) {
       return null
@@ -78,7 +80,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
         status={this.state.status}
         templateName={this.props.templateName}
         updateStatus={this.updateOverlayStatus}
-        buttonStatus={buttonStatus}
+        buttonStatus={this.state.buttonStatus}
       />
     )
   }
