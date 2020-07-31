@@ -54,11 +54,13 @@ class DashboardPage extends Component<Props> {
     const renderID = uuid.v4()
     setRenderID('dashboard', renderID)
 
-    event('Dashboard Mounted', {
-      renderID,
+    const tags = {
       dashboardID: dashboard.id,
       orgID: dashboard.orgID,
-    })
+    }
+    const fields = {renderID}
+
+    event('Dashboard Mounted', tags, fields)
   }
 
   public componentWillUnmount() {

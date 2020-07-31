@@ -41,7 +41,10 @@ const CellEvent: FC<Props> = ({id, type}) => {
       return
     }
 
-    event('Cell Visualized', {dashboardID, cellID: id, orgID, renderID, type})
+    const tags = {dashboardID, cellID: id, orgID, type}
+    const fields = {renderID}
+
+    event('Cell Visualized', tags, fields)
   }, [dashboardID, id, orgID, renderID, type, scroll])
 
   return null
