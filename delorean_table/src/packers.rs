@@ -215,7 +215,7 @@ where
 
 impl<T> Packer<T>
 where
-    T: Default + Clone,
+    T: Default + Clone + std::fmt::Debug,
 {
     pub fn new() -> Self {
         Self { values: Vec::new() }
@@ -333,7 +333,7 @@ where
 
 impl<'a, T> Iterator for PackerIterator<'a, T>
 where
-    T: Default + Clone,
+    T: Default + Clone + std::fmt::Debug,
 {
     type Item = Option<&'a T>;
 
@@ -365,7 +365,7 @@ where
 // `Packer<T>` value, e.g., `Packer<f64>`.
 impl<T> std::convert::From<Vec<Option<T>>> for Packer<T>
 where
-    T: Default + Clone,
+    T: Default + Clone + std::fmt::Debug,
 {
     fn from(values: Vec<Option<T>>) -> Self {
         let mut packer = Self::new();
