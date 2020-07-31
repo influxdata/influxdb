@@ -19,7 +19,6 @@ import CommunityTemplateNameIcon from 'src/templates/components/CommunityTemplat
 
 interface Props {
   templateName: string
-  buttonStatus: string
   resourceCount?: number
   onClickInstall?: () => void
 }
@@ -28,14 +27,13 @@ import {} from 'react'
 
 const CommunityTemplateName: FC<Props> = ({
   templateName,
-  buttonStatus,
   resourceCount,
   onClickInstall,
 }) => {
   let installButton
-  let resourcePlural = "resources"
+  let resourcePlural = 'resources'
 
-  if (resourceCount === 1 ) {
+  if (resourceCount === 1) {
     resourcePlural = 'resource'
   }
 
@@ -46,12 +44,9 @@ const CommunityTemplateName: FC<Props> = ({
         color={ComponentColor.Success}
         size={ComponentSize.Medium}
         onClick={onClickInstall}
-        // status={buttonStatus}
       />
     )
   }
-
-
 
   return (
     <Panel border={true} gradient={Gradients.SpirulinaSmoothie}>

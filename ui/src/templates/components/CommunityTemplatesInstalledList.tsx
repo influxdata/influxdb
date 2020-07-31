@@ -199,7 +199,10 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
     })
   }
 
-  private generateDeleteHandlerForStack = (stackID: string, stackName: string) => {
+  private generateDeleteHandlerForStack = (
+    stackID: string,
+    stackName: string
+  ) => {
     return async () => {
       try {
         await deleteStack(stackID, this.props.orgID)
@@ -253,7 +256,10 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
                       confirmationLabel="Really Delete All Resources?"
                       popoverColor={ComponentColor.Default}
                       popoverAppearance={Appearance.Solid}
-                      onConfirm={this.generateDeleteHandlerForStack(stack.id, stack.name)}
+                      onConfirm={this.generateDeleteHandlerForStack(
+                        stack.id,
+                        stack.name
+                      )}
                       icon={IconFont.Trash}
                       color={ComponentColor.Danger}
                       size={ComponentSize.Small}
