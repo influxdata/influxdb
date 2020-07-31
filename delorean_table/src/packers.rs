@@ -237,7 +237,7 @@ where
         self.values[index].as_ref()
     }
 
-    pub fn iter(&'_ self) -> PackerIterator<'_, T> {
+    pub fn iter(&self) -> PackerIterator<'_, T> {
         PackerIterator::new(&self)
     }
 
@@ -254,15 +254,12 @@ where
         self.values
             .iter()
             .map(|v| if v.is_some() { 1 } else { 0 })
-            .collect::<Vec<i16>>()
+            .collect()
     }
 
     /// returns all of the non-null values in the Packer
     pub fn some_values(&self) -> Vec<T> {
-        self.values
-            .iter()
-            .filter_map(|x| x.clone())
-            .collect::<Vec<T>>()
+        self.values.iter().filter_map(|x| x.clone()).collect()
     }
 
     pub fn push_option(&mut self, value: Option<T>) {
@@ -278,16 +275,11 @@ where
     }
 
     pub fn extend_from_slice(&mut self, other: &[T]) {
-        self.values.reserve_exact(other.len());
-        for v in other.to_owned() {
-            self.push(v);
-        }
+        self.values.extend(other.iter().cloned().map(Some));
     }
 
     pub fn extend_from_option_slice(&mut self, other: &[Option<T>]) {
-        for v in other.to_owned() {
-            self.push_option(v);
-        }
+        self.values.extend_from_slice(other);
     }
 
     /// Populate the Packer with additional more values of T.
@@ -303,7 +295,7 @@ where
     /// Return true if the logic value at index is null. Returns true if there
     /// is no row for index.
     pub fn is_null(&self, index: usize) -> bool {
-        index >= self.values.len() || self.values[index].is_none()
+        self.values.get(index).map_or(true, Option::is_none)
     }
 }
 
@@ -376,18 +368,15 @@ mod test {
 
     // helper to extract a Vec<T> from a Packer<T>, panicking if there are any
     // None values in the Packer.
-    fn must_some_values<T>(p: &Packer<T>) -> Vec<T>
+    fn must_materialise_some_values<T>(p: &Packer<T>) -> Vec<T>
     where
         T: Default + Clone,
     {
-        let mut values = vec![];
-        for v in &p.values {
-            match v {
-                None => panic!("got None value"),
-                Some(v) => values.push(v.clone()),
-            }
-        }
-        values
+        p.values
+            .iter()
+            .cloned()
+            .map(|x| x.expect("got None value"))
+            .collect()
     }
 
     #[test]
@@ -404,7 +393,7 @@ mod test {
 
         packer.extend_from_slice(&[2, 3, 4]);
 
-        assert_eq!(must_some_values(&packer), &[100, 22, 2, 3, 4]);
+        assert_eq!(must_materialise_some_values(&packer), &[100, 22, 2, 3, 4]);
         assert_eq!(packer.def_levels(), &[1; 5]);
     }
 
@@ -418,7 +407,7 @@ mod test {
         packer_b.push(3);
 
         packer_a.extend_from_packer(&packer_b);
-        assert_eq!(must_some_values(&packer_a), &[100, 22, 3]);
+        assert_eq!(must_materialise_some_values(&packer_a), &[100, 22, 3]);
         assert_eq!(packer_a.def_levels(), &[1; 3]);
     }
 
@@ -467,7 +456,6 @@ mod test {
         packer.push(ByteArray::from("bar"));
 
         assert_eq!(packer.num_rows(), 3);
-        // Note there are only two values, even though there are 3 rows
         assert_eq!(
             packer.values,
             vec![
@@ -481,14 +469,14 @@ mod test {
 
     #[test]
     fn packers_iter() {
-        let mut packer: Packer<u64> = Packer::new();
-        packer.push(100);
+        let mut packer = Packer::new();
+        packer.push(100_u64);
         packer.push_option(None);
         packer.push(200);
         packer.push_option(None);
         packer.push_option(None);
 
-        let values: Vec<Option<&u64>> = packer.iter().collect();
+        let values: Vec<_> = packer.iter().collect();
 
         assert_eq!(values[0], Some(&100));
         assert_eq!(values[1], None);

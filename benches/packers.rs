@@ -47,21 +47,26 @@ fn benchmark_push(c: &mut Criterion, benchmark_group_name: &str, batch_sizes: &[
     group.finish();
 }
 
+fn i64_vec_with_nulls(size: usize, null_percent: usize) -> Vec<Option<u64>> {
+    let mut rng = rand::thread_rng();
+    let mut a = Vec::with_capacity(size);
+    // insert 10% null values
+    for _ in 0..size {
+        if rng.gen_range(0, null_percent) == 0 {
+            a.push(None);
+        } else {
+            a.push(Some(1_u64));
+        }
+    }
+    a
+}
+
 fn benchmark_push_option(c: &mut Criterion, benchmark_group_name: &str, batch_sizes: &[usize]) {
     let mut group = c.benchmark_group(benchmark_group_name);
     for &batch_size in batch_sizes {
-        let mut rng = rand::thread_rng();
-        let mut input = Vec::with_capacity(batch_size);
-        // insert 10% null values
-        for _ in 0..batch_size {
-            if rng.gen_range(0, 10) == 0 {
-                input.push(None);
-            } else {
-                input.push(Some(1_u64));
-            }
-        }
+        let input = i64_vec_with_nulls(batch_size, 10);
         group.throughput(Throughput::Bytes(
-            u64::try_from(input.len() * mem::size_of::<Option<u64>>()).unwrap(),
+            u64::try_from(input.len() * mem::size_of_val(&input[0])).unwrap(),
         ));
 
         group.bench_with_input(
@@ -83,19 +88,10 @@ fn benchmark_push_option(c: &mut Criterion, benchmark_group_name: &str, batch_si
 fn benchmark_get(c: &mut Criterion, benchmark_group_name: &str, batch_sizes: &[usize]) {
     let mut group = c.benchmark_group(benchmark_group_name);
     for &batch_size in batch_sizes {
-        let mut rng = rand::thread_rng();
-        let mut input = Vec::with_capacity(batch_size);
-        // insert 10% null values
-        for _ in 0..batch_size {
-            if rng.gen_range(0, 10) == 0 {
-                input.push(None);
-            } else {
-                input.push(Some(1_u64));
-            }
-        }
+        let mut input = i64_vec_with_nulls(batch_size, 10);
 
         // ensure last value is non-null so that we exercise cold path.
-        input[batch_size - 1] = Some(1_u64);
+        *input.last_mut().unwrap() = Some(1_u64);
 
         group.throughput(Throughput::Bytes(
             u64::try_from(input.len() * mem::size_of::<Option<u64>>()).unwrap(),
@@ -123,16 +119,7 @@ fn benchmark_get(c: &mut Criterion, benchmark_group_name: &str, batch_sizes: &[u
 fn benchmark_iter(c: &mut Criterion, benchmark_group_name: &str, batch_sizes: &[usize]) {
     let mut group = c.benchmark_group(benchmark_group_name);
     for &batch_size in batch_sizes {
-        let mut rng = rand::thread_rng();
-        let mut input = Vec::with_capacity(batch_size);
-        // insert 10% null values
-        for _ in 0..batch_size {
-            if rng.gen_range(0, 100) < 10 {
-                input.push(None);
-            } else {
-                input.push(Some(1_u64));
-            }
-        }
+        let input = i64_vec_with_nulls(batch_size, 10);
 
         group.throughput(Throughput::Bytes(
             u64::try_from(input.len() * mem::size_of::<Option<u64>>()).unwrap(),
