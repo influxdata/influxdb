@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, useState} from 'react'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect, ConnectedProps} from 'react-redux'
 
@@ -37,6 +37,7 @@ interface State {
   status: ComponentStatus
 }
 
+
 type ReduxProps = ConnectedProps<typeof connector>
 type RouterProps = RouteComponentProps<{
   directory: string
@@ -51,6 +52,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
     status: ComponentStatus.Default,
   }
 
+
   public componentDidMount() {
     const {directory, org, templateExtension, templateName} = this.props
     this.reviewTemplateResources(
@@ -62,6 +64,8 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 
   public render() {
+    const [buttonStatus, setbuttonStatus] = useState("default");
+
     if (!this.props.flags.communityTemplates) {
       return null
     }
@@ -74,6 +78,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
         status={this.state.status}
         templateName={this.props.templateName}
         updateStatus={this.updateOverlayStatus}
+        buttonStatus={buttonStatus}
       />
     )
   }

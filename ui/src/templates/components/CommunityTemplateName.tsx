@@ -19,13 +19,19 @@ import CommunityTemplateNameIcon from 'src/templates/components/CommunityTemplat
 
 interface Props {
   templateName: string
+  buttonStatus: string
   resourceCount?: number
+  resourcePlural?: string
   onClickInstall?: () => void
 }
 
+import {} from 'react'
+
 const CommunityTemplateName: FC<Props> = ({
   templateName,
+  buttonStatus,
   resourceCount,
+  resourcePlural,
   onClickInstall,
 }) => {
   let installButton
@@ -37,8 +43,15 @@ const CommunityTemplateName: FC<Props> = ({
         color={ComponentColor.Success}
         size={ComponentSize.Medium}
         onClick={onClickInstall}
+        status={buttonStatus}
       />
     )
+  }
+
+  if (resourceCount > 1) {
+    resourcePlural = 'resources'
+  } else {
+    resourcePlural = 'resource'
   }
 
   return (
@@ -63,7 +76,10 @@ const CommunityTemplateName: FC<Props> = ({
           </Heading>
           <p className="community-templates--template-description">
             Installing this template will create{' '}
-            <strong>{resourceCount} resources</strong> in your system
+            <strong>
+              {resourceCount} {resourcePlural}
+            </strong>{' '}
+            in your system
           </p>
         </FlexBox.Child>
         {installButton}
