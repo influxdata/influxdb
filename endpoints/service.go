@@ -56,7 +56,7 @@ func (s *Service) CreateNotificationEndpoint(ctx context.Context, edp influxdb.N
 		return nil
 	}
 
-	return s.secretSVC.PutSecrets(ctx, edp.GetOrgID(), secrets)
+	return s.secretSVC.PatchSecrets(ctx, edp.GetOrgID(), secrets)
 }
 
 // UpdateNotificationEndpoint updates a single notification endpoint.
@@ -79,7 +79,7 @@ func (s *Service) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID
 		return updatedEndpoint, nil
 	}
 
-	if err := s.secretSVC.PutSecrets(ctx, updatedEndpoint.GetOrgID(), secrets); err != nil {
+	if err := s.secretSVC.PatchSecrets(ctx, updatedEndpoint.GetOrgID(), secrets); err != nil {
 		return nil, err
 	}
 
