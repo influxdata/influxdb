@@ -7,6 +7,7 @@
 )]
 
 pub mod packers;
+pub mod sorter;
 pub mod stats;
 
 use snafu::Snafu;

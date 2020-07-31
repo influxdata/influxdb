@@ -70,6 +70,16 @@ impl Packers {
         }
     }
 
+    /// swap two elements within a Packers variant
+    pub fn swap(&mut self, a: usize, b: usize) {
+        match self {
+            Self::Float(p) => p.swap(a, b),
+            Self::Integer(p) => p.swap(a, b),
+            Self::String(p) => p.swap(a, b),
+            Self::Boolean(p) => p.swap(a, b),
+        }
+    }
+
     /// See description on `Packer::num_rows`
     pub fn num_rows(&self) -> usize {
         match self {
@@ -290,6 +300,10 @@ where
 
     pub fn fill_with_null(&mut self, additional: usize) {
         self.values.extend(iter::repeat(None).take(additional));
+    }
+
+    pub fn swap(&mut self, a: usize, b: usize) {
+        self.values.swap(a, b);
     }
 
     /// Return true if the logic value at index is null. Returns true if there
