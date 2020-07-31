@@ -152,7 +152,7 @@ func (s *OrgSvc) CreateOrganization(ctx context.Context, o *influxdb.Organizatio
 
 	// create associated URM
 	userID, err := icontext.GetUserID(ctx)
-	if err == nil {
+	if err == nil && userID.Valid() {
 		// if I am given a userid i can associate the user as the org owner
 		err = s.svc.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
 			UserID:       userID,
