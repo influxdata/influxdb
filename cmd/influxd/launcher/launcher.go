@@ -46,6 +46,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkger"
 	infprom "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/builtinlazy"
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
@@ -131,6 +132,8 @@ func cmdRunE(ctx context.Context, l *Launcher) func() error {
 	return func() error {
 		// exit with SIGINT and SIGTERM
 		ctx = signals.WithStandardSignals(ctx)
+
+		builtinlazy.Initialize()
 
 		if err := l.run(ctx); err != nil {
 			return err
