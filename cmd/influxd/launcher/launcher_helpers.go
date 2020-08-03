@@ -85,6 +85,8 @@ func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, flagger feature.F
 // Passed arguments will overwrite/add to the default ones.
 func (tl *TestLauncher) Run(ctx context.Context, args ...string) error {
 	largs := make([]string, 0, len(args)+8)
+	largs = append(largs, "--store", "memory")
+	largs = append(largs, "--e2e-testing")
 	largs = append(largs, "--bolt-path", filepath.Join(tl.Path, bolt.DefaultFilename))
 	largs = append(largs, "--engine-path", filepath.Join(tl.Path, "engine"))
 	largs = append(largs, "--http-bind-address", "127.0.0.1:0")
@@ -137,15 +139,7 @@ func (tl *TestLauncher) SetupOrFail(tb testing.TB) {
 // OnBoard attempts an on-boarding request.
 // The on-boarding status is also reset to allow multiple user/org/buckets to be created.
 func (tl *TestLauncher) OnBoard(req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
-	res, err := tl.KeyValueService().OnboardInitialUser(context.Background(), req)
-	if err != nil {
-		return nil, err
-	}
-	err = tl.KeyValueService().PutOnboardingStatus(context.Background(), false)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
+	return tl.apibackend.OnboardingService.OnboardInitialUser(context.Background(), req)
 }
 
 // OnBoardOrFail attempts an on-boarding request or fails on error.

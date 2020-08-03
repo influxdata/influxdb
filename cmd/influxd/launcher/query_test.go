@@ -752,6 +752,7 @@ from(bucket: "%s")
 }
 
 func TestQueryPushDowns(t *testing.T) {
+	t.Skip("Not supported yet")
 	testcases := []struct {
 		name  string
 		data  []string

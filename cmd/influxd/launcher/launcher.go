@@ -977,6 +977,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	ts.BucketService = storage.NewBucketService(ts.BucketService, m.engine)
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
 
+	var onboardOpts []tenant.OnboardServiceOptionFn
+	if m.testing {
+		onboardOpts = append(onboardOpts, tenant.WithAlwaysAllowInitialUser())
+	}
+
+	onboardSvc := tenant.NewOnboardService(ts, authSvc, onboardOpts...)                               // basic service
+	onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
+	onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
+	onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
@@ -998,6 +1008,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		BucketService:                   ts.BucketService,
 		SessionService:                  sessionSvc,
 		UserService:                     ts.UserService,
+		OnboardingService:               onboardSvc,
 		DBRPService:                     dbrpSvc,
 		OrganizationService:             ts.OrganizationService,
 		UserResourceMappingService:      ts.UserResourceMappingService,
@@ -1074,16 +1085,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	userHTTPServer := ts.NewUserHTTPHandler(m.log)
-
-	var onboardHTTPServer *tenant.OnboardHandler
-	{
-		onboardSvc := tenant.NewOnboardService(ts, authSvc)                                               // basic service
-		onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
-		onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
-		onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
-
-		onboardHTTPServer = tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
-	}
+	onboardHTTPServer := tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
 
 	// feature flagging for new labels service
 	var oldLabelHandler nethttp.Handler

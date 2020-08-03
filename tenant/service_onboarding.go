@@ -10,19 +10,41 @@ import (
 )
 
 type OnboardService struct {
-	service *Service
-	authSvc influxdb.AuthorizationService
+	service     *Service
+	authSvc     influxdb.AuthorizationService
+	alwaysAllow bool
 }
 
-func NewOnboardService(svc *Service, as influxdb.AuthorizationService) influxdb.OnboardingService {
-	return &OnboardService{
+type OnboardServiceOptionFn func(*OnboardService)
+
+// WithAlwaysAllowInitialUser configures the OnboardService to
+// always return true for IsOnboarding to allow multiple
+// initial onboard requests.
+func WithAlwaysAllowInitialUser() OnboardServiceOptionFn {
+	return func(s *OnboardService) {
+		s.alwaysAllow = true
+	}
+}
+
+func NewOnboardService(svc *Service, as influxdb.AuthorizationService, opts ...OnboardServiceOptionFn) influxdb.OnboardingService {
+	s := &OnboardService{
 		service: svc,
 		authSvc: as,
 	}
+
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
 
 // IsOnboarding determine if onboarding request is allowed.
 func (s *OnboardService) IsOnboarding(ctx context.Context) (bool, error) {
+	if s.alwaysAllow {
+		return true, nil
+	}
+	
 	allowed := false
 	err := s.service.store.View(ctx, func(tx kv.Tx) error {
 		// we are allowed to onboard a user if we have no users or orgs
