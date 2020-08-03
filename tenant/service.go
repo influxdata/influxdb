@@ -67,7 +67,7 @@ func (ts *Service) NewOrgHTTPHandler(log *zap.Logger, secretSvc influxdb.SecretS
 }
 
 func (ts *Service) NewBucketHTTPHandler(log *zap.Logger, labelSvc influxdb.LabelService) *BucketHandler {
-	urmHandler := NewURMHandler(log.With(zap.String("handler", "urm")), influxdb.OrgsResourceType, "id", ts.UserService, NewAuthedURMService(ts.OrganizationService, ts.UserResourceMappingService))
+	urmHandler := NewURMHandler(log.With(zap.String("handler", "urm")), influxdb.BucketsResourceType, "id", ts.UserService, NewAuthedURMService(ts.OrganizationService, ts.UserResourceMappingService))
 	labelHandler := label.NewHTTPEmbeddedHandler(log.With(zap.String("handler", "label")), influxdb.BucketsResourceType, labelSvc)
 	return NewHTTPBucketHandler(log.With(zap.String("handler", "bucket")), NewAuthedBucketService(ts.BucketService), labelSvc, urmHandler, labelHandler)
 }
