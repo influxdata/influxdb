@@ -100,6 +100,10 @@ const defaultState = (): State => ({
   statuses: [[]],
 })
 
+type HashMapMutex = {
+  [queryID: string]: ReturnType<typeof RunQueryPromiseMutex>
+}
+
 class TimeSeries extends Component<Props, State> {
   public static defaultProps = {
     implicitSubmit: true,
@@ -108,7 +112,7 @@ class TimeSeries extends Component<Props, State> {
   }
   public state: State = defaultState()
 
-  private mutex = RunQueryPromiseMutex<RunQueryResult>()
+  private hashMapMutex: HashMapMutex = {}
 
   private observer: IntersectionObserver
   private ref: RefObject<HTMLDivElement> = React.createRef()
@@ -216,9 +220,14 @@ class TimeSeries extends Component<Props, State> {
 
         const windowVars = getWindowVars(text, vars)
         const extern = buildVarsOption([...vars, ...windowVars])
-
         event('runQuery', {context: 'TimeSeries'})
-        return this.mutex.run(orgID, text, extern)
+        const queryID = hashCode(text)
+        if (!this.hashMapMutex[queryID]) {
+          this.hashMapMutex[queryID] = RunQueryPromiseMutex<RunQueryResult>()
+        }
+        return this.hashMapMutex[queryID].run(orgID, text, extern) as CancelBox<
+          RunQueryResult
+        >
       })
 
       // Wait for new queries to complete

@@ -204,11 +204,6 @@ export const executeQueries = (abortController?: AbortController) => async (
       .map(v => asAssignment(v))
       .filter(v => !!v)
 
-    // keeping getState() here ensures that the state we are working with
-    // is the most current one. By having this set to state, we were creating a race
-    // condition that was causing the following bug:
-    // https://github.com/influxdata/idpe/issues/6240
-
     const startTime = window.performance.now()
     const startDate = Date.now()
 

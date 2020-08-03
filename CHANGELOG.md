@@ -3,7 +3,7 @@
 ### Breaking
 
 1. [19066](https://github.com/influxdata/influxdb/pull/19066): Drop deprecated /packages route tree
-1. [19116](https://github.com/influxdata/influxdb/pull/19116): Support more types for template envRef default value and require explicit default values 
+1. [19116](https://github.com/influxdata/influxdb/pull/19116): Support more types for template envRef default value and require explicit default values
 1. [19104](https://github.com/influxdata/influxdb/pull/19104): Remove orgs/labels nested routes from the API.
 
 ### Features
@@ -14,6 +14,7 @@
 ### Bug Fixes
 
 1. [19043](https://github.com/influxdata/influxdb/pull/19043): Enforce all influx CLI flag args are valid
+1. [19188](https://github.com/influxdata/influxdb/pull/19188): Dashboard cells correctly map results when multiple queries exist
 
 ## v2.0.0-beta.15 [2020-07-23]
 
