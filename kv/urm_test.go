@@ -30,7 +30,7 @@ func TestBoltUserResourceMappingService(t *testing.T) {
 }
 
 func TestInmemUserResourceMappingService(t *testing.T) {
-	influxdbtesting.UserResourceMappingService(initURMServiceFunc(NewTestBoltStore), t)
+	influxdbtesting.UserResourceMappingService(initURMServiceFunc(NewTestInmemStore), t)
 }
 
 type userResourceMappingTestFunc func(influxdbtesting.UserResourceFields, *testing.T) (influxdb.UserResourceMappingService, func())
