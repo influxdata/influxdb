@@ -184,7 +184,7 @@ class DragAndDrop extends PureComponent<Props, State> {
   }
 
   private handleFileClick = (e: any): void => {
-    const file = e.currentTarget.files[0]
+    const file: File = e.currentTarget.files[0]
 
     if (!file) {
       return
@@ -194,7 +194,10 @@ class DragAndDrop extends PureComponent<Props, State> {
     e.stopPropagation()
 
     const reader = new FileReader()
+    const start = performance.now()
     reader.readAsText(file)
+    const end = performance.now()
+    console.log('upload time: ', end - start)
     reader.onload = () => {
       this.setState(
         {
@@ -208,6 +211,8 @@ class DragAndDrop extends PureComponent<Props, State> {
 
   private handleFileDrop = (e: any): void => {
     const file = e.dataTransfer.files[0]
+    const start = performance.now()
+    console.log('upload starting')
     this.setState({
       dragClass: 'drag-none',
     })
@@ -221,6 +226,8 @@ class DragAndDrop extends PureComponent<Props, State> {
 
     const reader = new FileReader()
     reader.readAsText(file)
+    const end = performance.now()
+    console.log('upload time: ', end - start)
     reader.onload = () => {
       this.setState(
         {

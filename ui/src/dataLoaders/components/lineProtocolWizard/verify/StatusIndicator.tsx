@@ -34,6 +34,7 @@ export class StatusIndicator extends PureComponent<Props> {
   private get statusClassName(): string {
     const {status} = this.props
 
+    console.log('write data status: ', status)
     return classnames(`line-protocol--status`, {
       loading: status === RemoteDataState.Loading,
       success: status === RemoteDataState.Done,

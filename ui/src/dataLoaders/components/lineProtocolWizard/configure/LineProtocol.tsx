@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
 
 // Components
-import {Form, Overlay} from '@influxdata/clockface'
+import {Form, Overlay, ComponentStatus} from '@influxdata/clockface'
 import LineProtocolTabs from 'src/dataLoaders/components/lineProtocolWizard/configure/LineProtocolTabs'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import LineProtocolHelperText from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolHelperText'
@@ -39,7 +39,11 @@ export class LineProtocol extends PureComponent<Props> {
   }
 
   public render() {
-    const {bucket, org} = this.props
+    const {bucket, org, lpStatus, lpError, lineProtocolBody} = this.props
+
+    console.log('lpstatus', lpStatus)
+    console.log('lperror', lpError)
+    console.log('body', lineProtocolBody)
 
     return (
       <Form onSubmit={this.handleSubmit}>
@@ -75,12 +79,12 @@ export class LineProtocol extends PureComponent<Props> {
 const mstp = (state: AppState) => {
   const {dataLoading} = state
   const {
-    dataLoaders: {lineProtocolBody, precision},
+    dataLoaders: {lineProtocolBody, precision, lpStatus, lpError},
     steps: {bucket},
   } = dataLoading
   const org = getOrg(state).name
 
-  return {lineProtocolBody, precision, bucket, org}
+  return {lineProtocolBody, precision, bucket, org, lpStatus, lpError}
 }
 
 const mdtp = {

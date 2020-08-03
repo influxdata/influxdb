@@ -91,7 +91,13 @@ export type Action =
   | SetTelegrafConfigName
   | SetTelegrafConfigDescription
   | SetToken
+  | ReturnType<typeof setLpFileStatus>
 
+export const setLpFileStatus = (lpFileStatus: RemoteDataState) =>
+  ({
+    type: 'SET_LP_FILE_STATUS',
+    payload: {lpFileStatus},
+  } as const)
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
   payload: {type: DataLoaderType}

@@ -1,4 +1,5 @@
 import {Bucket, Organization} from '../../src/types'
+import {base64StringToBlob} from 'cypress/types/blob-util'
 
 describe('Buckets', () => {
   beforeEach(() => {
@@ -278,7 +279,7 @@ describe('Buckets', () => {
     })
   })
 
-  describe('add data', () => {
+  describe('add data', function() {
     it('can write data to buckets', () => {
       cy.get('@org').then(({id: orgID}: Organization) => {
         // writing a well-formed line is accepted
@@ -325,6 +326,20 @@ describe('Buckets', () => {
       cy.getByTestID('add-data--button').click()
       cy.getByTestID('bucket-add-line-protocol').click()
       cy.getByTestID('Upload File').click()
+
+      // cy.getByTestID('next').should('be.disabled')
+
+      const fileName = 'data-big.txt'
+      cy.fixture(fileName, 'base64')
+        .then(Cypress.Blob.base64StringToBlob)
+        .then(blob => {
+          const type = 'plain/text'
+          const testFile = new File([blob], fileName, {type})
+          const event = {dataTransfer: {files: [testFile]}, force: true}
+          cy.getByTestID('drag-and-drop--input')
+            .trigger('dragover', event)
+            .trigger('drop', event)
+        })
     })
   })
 })
