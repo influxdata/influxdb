@@ -71,6 +71,7 @@ class DragAndDrop extends PureComponent<Props, State> {
           <div className={this.infoClass} />
           <input
             type="file"
+            data-testid="drag-and-drop--input"
             ref={r => (this.fileInput = r)}
             className="drag-and-drop--input"
             accept={this.fileTypesToAccept}

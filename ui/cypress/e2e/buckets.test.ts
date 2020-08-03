@@ -279,7 +279,7 @@ describe('Buckets', () => {
   })
 
   describe('add data', () => {
-    it('writing data to buckets', () => {
+    it('can write data to buckets', () => {
       cy.get('@org').then(({id: orgID}: Organization) => {
         // writing a well-formed line is accepted
         cy.getByTestID('add-data--button').click()
@@ -319,6 +319,12 @@ describe('Buckets', () => {
         cy.getByTestID('line-protocol--status').should('have.class', 'success')
         cy.getByTestID('next').click()
       })
+    })
+
+    it.only('upload a file and write data', () => {
+      cy.getByTestID('add-data--button').click()
+      cy.getByTestID('bucket-add-line-protocol').click()
+      cy.getByTestID('Upload File').click()
     })
   })
 })
