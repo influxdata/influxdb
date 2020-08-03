@@ -54,6 +54,11 @@ const CellEvent: FC<Props> = ({id, type}) => {
       return
     }
 
+    const hasIDs = dashboardID && id && renderID
+    if (!hasIDs) {
+      return
+    }
+
     const visRenderedMs = new Date().getTime()
     const timeToAppearMs = visRenderedMs - cellMountStartMs
 
