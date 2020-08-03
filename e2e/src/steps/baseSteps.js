@@ -403,10 +403,27 @@ class baseSteps{
 
     async typeTextAndWait(input, text,
         wait = async () => { await this.driver.sleep((await this.driver.manage().getTimeouts()).implicit/20); }) { //wait 1/10th implicit timeout)
+
         await input.sendKeys(text).then(async() => {
             await wait();
         });
     }
+
+    //Sometimes - rare times - sendKeys in typeTextAndWait() above seems to drop a char
+    //Use this as a work around
+    async typeTextParanoAndWait(input, text,
+        wait = async () => { await this.driver.sleep((await this.driver.manage().getTimeouts()).implicit/20); }){
+
+        let chars = text.split('');
+
+        for(let c of chars){
+            await input.sendKeys(c).then(async () => {
+                this.driver.sleep(167)
+            })
+        }
+        await wait();
+    }
+
 
     async verifyElementText(element, text){
         await element.getText().then(async elText => {
