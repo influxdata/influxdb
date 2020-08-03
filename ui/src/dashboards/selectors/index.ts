@@ -58,9 +58,6 @@ export const isCurrentPageDashboard = (state: AppState): boolean =>
 // 10-11:00am local time (offset depending on timezone)
 export const setTimeToUTC = (date: string): string => {
   const offset = new Date(date).getTimezoneOffset()
-  if (offset === 0) {
-    return moment.utc(date).format()
-  }
   return moment
     .utc(date)
     .subtract(offset, 'minutes')
