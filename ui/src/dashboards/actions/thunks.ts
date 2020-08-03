@@ -359,20 +359,12 @@ export const getDashboard = (
     const cellViews: CellsWithViewProperties = resp.data.cells || []
     const viewsData = viewsFromCells(cellViews, dashboardID)
 
-    setTimeout(() => {
-      const normCells = normalize<Dashboard, DashboardEntities, string[]>(
-        resp.data.cells,
-        arrayOfCells
-      )
-      dispatch(setCells(dashboardID, RemoteDataState.Done, normCells))
+    const normViews = normalize<View, ViewEntities, string[]>(
+      viewsData,
+      arrayOfViews
+    )
 
-      const normViews = normalize<View, ViewEntities, string[]>(
-        viewsData,
-        arrayOfViews
-      )
-
-      dispatch(setViews(RemoteDataState.Done, normViews))
-    }, 0)
+    dispatch(setViews(RemoteDataState.Done, normViews))
 
     // Now that all the necessary state has been loaded, set the dashboard
     dispatch(creators.setDashboard(dashboardID, RemoteDataState.Done, normDash))
