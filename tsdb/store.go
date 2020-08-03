@@ -2,6 +2,7 @@ package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -1373,6 +1374,10 @@ func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 
 // WriteToShard writes a list of points to a shard identified by its ID.
 func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
+	return s.WriteToShardWithContext(context.Background(), shardID, points)
+}
+
+func (s *Store) WriteToShardWithContext(ctx context.Context, shardID uint64, points []models.Point) error {
 	s.mu.RLock()
 
 	select {
@@ -1409,7 +1414,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 		sh.SetCompactionsEnabled(true)
 	}
 
-	return sh.WritePoints(points)
+	return sh.WritePointsWithContext(ctx, points)
 }
 
 // MeasurementNames returns a slice of all measurements. Measurements accepts an
