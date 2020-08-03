@@ -141,8 +141,15 @@ export const event = (
     /* eslint-disable no-console */
     console.log(`Event:  [ ${measurement} ]`)
     if (Object.keys(meta).length) {
+      console.log('tags')
       console.log(
         Object.entries(meta)
+          .map(([k, v]) => `        ${k}: ${v}`)
+          .join('\n')
+      )
+      console.log('fields')
+      console.log(
+        Object.entries(values)
           .map(([k, v]) => `        ${k}: ${v}`)
           .join('\n')
       )
