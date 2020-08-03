@@ -7,7 +7,6 @@ import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {AppState} from 'src/types'
-import {render} from '@testing-library/react'
 
 interface Props {
   id: string
