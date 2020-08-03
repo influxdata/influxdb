@@ -1,12 +1,17 @@
 // APIs
 import {
   findBuckets,
+  findBucketsNew,
   findKeys,
+  findKeysNew,
   findValues,
+  findValuesNew,
   FindBucketsOptions,
   FindKeysOptions,
   FindValuesOptions,
 } from 'src/timeMachine/apis/queryBuilder'
+
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {CancelBox} from 'src/types'
@@ -30,8 +35,12 @@ class QueryBuilderFetcher {
     if (cachedResult) {
       return Promise.resolve(cachedResult)
     }
-
-    const pendingResult = findBuckets(options)
+    let pendingResult
+    if (isFlagEnabled('new-v1-meta-queries')) {
+      pendingResult = findBucketsNew(options)
+    } else {
+      pendingResult = findBuckets(options)
+    }
 
     pendingResult.promise
       .then(result => {
@@ -61,7 +70,12 @@ class QueryBuilderFetcher {
       return Promise.resolve(cachedResult)
     }
 
-    const pendingResult = findKeys(options)
+    let pendingResult
+    if (isFlagEnabled('new-v1-meta-queries')) {
+      pendingResult = findKeysNew(options)
+    } else {
+      pendingResult = findKeys(options)
+    }
 
     this.findKeysQueries[index] = pendingResult
 
@@ -93,7 +107,12 @@ class QueryBuilderFetcher {
       return Promise.resolve(cachedResult)
     }
 
-    const pendingResult = findValues(options)
+    let pendingResult
+    if (isFlagEnabled('new-v1-meta-queries')) {
+      pendingResult = findValuesNew(options)
+    } else {
+      pendingResult = findValues(options)
+    }
 
     this.findValuesQueries[index] = pendingResult
 

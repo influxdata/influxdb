@@ -143,3 +143,11 @@
   contact: Monitoring Team
   lifetime: temporary
   expose: true
+
+- name: New v1 Meta Queries in Time Machine
+  description: Switching the data explorer queries to use v1 meta queries
+  key: new-v1-meta-queries
+  default: false
+  contact: Monitoring Team
+  lifetime: temporary
+  expose: true

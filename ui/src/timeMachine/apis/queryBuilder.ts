@@ -35,6 +35,18 @@ export function findBuckets({orgID}: FindBucketsOptions): CancelBox<string[]> {
   return extractBoxedCol(runQuery(orgID, query), 'name')
 }
 
+export function findBucketsNew({
+  orgID,
+}: FindBucketsOptions): CancelBox<string[]> {
+  const query = `buckets()
+    |> sort(columns: ["name"])`
+
+  event('runQuery', {
+    context: 'queryBuilder-findBuckets',
+  })
+  return extractBoxedCol(runQuery(orgID, query), 'name')
+}
+
 export interface FindKeysOptions {
   url: string
   orgID: string
@@ -69,6 +81,32 @@ export function findKeys({
   |> filter(fn: (r) => r._value != "_time" and r._value != "_start" and r._value !=  "_stop" and r._value != "_value")
   |> sort()
   |> limit(n: ${limit})`
+
+  event('runQuery', {
+    context: 'queryBuilder-findKeys',
+  })
+
+  return extractBoxedCol(runQuery(orgID, query), '_value')
+}
+
+export function findKeysNew({
+  orgID,
+  bucket,
+  tagsSelections,
+  searchTerm = '',
+  timeRange = DEFAULT_TIME_RANGE,
+  limit = DEFAULT_LIMIT,
+}: FindKeysOptions): CancelBox<string[]> {
+  const tagFilters = formatTagFilterPredicate(tagsSelections)
+  const searchFilter = formatSearchFilterCall(searchTerm)
+  const previousKeyFilter = formatTagKeyFilterCall(tagsSelections)
+  const startArg = formatStartArgument(timeRange)
+
+  const query = `import "influxdata/influxdb/v1"
+    v1.tagKeys(bucket: "${bucket}", predicate: ${tagFilters}, ${startArg})
+    |> filter(fn: (r) => r._value !~ /^_(time|start|stop|value)$/)${searchFilter}${previousKeyFilter}
+    |> sort()
+    |> limit(n: ${limit})`
 
   event('runQuery', {
     context: 'queryBuilder-findKeys',
@@ -116,6 +154,55 @@ export function findValues({
     context: 'queryBuilder-findValues',
   })
 
+  return extractBoxedCol(runQuery(orgID, query), '_value')
+}
+
+export function findValuesNew({
+  orgID,
+  bucket,
+  tagsSelections,
+  key,
+  searchTerm = '',
+  timeRange = DEFAULT_TIME_RANGE,
+  limit = DEFAULT_LIMIT,
+}: FindValuesOptions): CancelBox<string[]> {
+  const searchFilter = formatSearchFilterCall(searchTerm)
+  const startArg = formatStartArgument(timeRange)
+
+  let query = `import "influxdata/influxdb/v1"\n`
+
+  if (key == '_measurement') {
+    query += `v1.measurements(bucket: "${bucket}")${searchFilter}
+      |> limit(n: ${limit})
+      |> sort()`
+  } else if (key == '_field') {
+    let fieldFilter = tagsSelections[0].values
+      .map(value => `r._measurement == "${value}"`)
+      .join(` or `)
+    query += `v1.fieldKeys(bucket: "${bucket}", predicate: (r) => ${fieldFilter}, ${startArg})`
+    query += `|> distinct()${searchFilter}
+      |> limit(n: ${limit})
+      |> sort()`
+  } else {
+    let finalFilter = []
+    for (let i = 0; i < tagsSelections.length; i++) {
+      let fieldKey = tagsSelections[i].key
+      let fieldFilter = tagsSelections[i].values
+        .map(value => `r.${fieldKey} == "${value}"`)
+        .join(` or `)
+      finalFilter.push(`( ${fieldFilter} )`)
+    }
+    query += `v1.tagValues(bucket: "${bucket}", tag: "${key}", predicate: (r) => ${finalFilter.join(
+      ` and `
+    )}, ${startArg})`
+    query += `|> distinct()${searchFilter}
+      |> limit(n: ${limit})
+      |> sort()`
+  }
+
+  event('runQuery', {
+    context: 'queryBuilder-findValues',
+  })
   return extractBoxedCol(runQuery(orgID, query), '_value')
 }
 
@@ -199,4 +286,12 @@ export function formatTimeRangeArguments(timeRange: TimeRange): string {
   )
 
   return `start: ${start}, stop: ${stop}`
+}
+
+export function formatStartArgument(timeRange: TimeRange): string {
+  const [start] = getTimeRangeVars(timeRange).map(assignment =>
+    formatExpression(assignment.init)
+  )
+
+  return `start: ${start}`
 }
