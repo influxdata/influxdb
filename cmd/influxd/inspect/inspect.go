@@ -17,7 +17,7 @@ func NewCommand() *cobra.Command {
 		//NewBuildTSICommand(),
 		//NewCompactSeriesFileCommand(),
 		//NewExportBlocksCommand(),
-		//NewExportIndexCommand(),
+		NewExportIndexCommand(),
 		//NewReportTSMCommand(),
 		//NewVerifyTSMCommand(),
 		//NewVerifyWALCommand(),
