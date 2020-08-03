@@ -208,7 +208,7 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 		return nil, err
 	}
 	if len(shardIDs) == 0 { // TODO(jeff): this was a typed nil
-		return nil, nil
+		return cursors.EmptyStringIterator, nil
 	}
 
 	var expr influxql.Expr
@@ -232,7 +232,7 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 	auth := query.OpenAuthorizer
 	keys, err := s.TSDBStore.TagKeys(auth, shardIDs, expr)
 	if err != nil {
-		return nil, err
+		return cursors.EmptyStringIterator, err
 	}
 
 	m := map[string]bool{
@@ -283,7 +283,7 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 		return nil, err
 	}
 	if len(shardIDs) == 0 { // TODO(jeff): this was a typed nil
-		return nil, nil
+		return cursors.EmptyStringIterator, nil
 	}
 
 	var expr influxql.Expr
