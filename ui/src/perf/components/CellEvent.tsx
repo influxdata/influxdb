@@ -7,16 +7,22 @@ import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {AppState} from 'src/types'
+import {render} from '@testing-library/react'
 
 interface Props {
   id: string
   type: string
 }
 
-const getState = (s: AppState) => {
+const getState = (cellID: string) => (state: AppState) => {
+  const {perf} = state
+  const {dashboard, cells} = perf
+  const {scroll, renderID} = dashboard
+
   return {
-    scroll: s.perf.dashboard.scroll,
-    renderID: s.perf.dashboard.renderID,
+    scroll,
+    renderID,
+    cellMountStartMs: cells.byID[cellID]?.mountStartMs,
   }
 }
 
@@ -24,7 +30,7 @@ const CellEvent: FC<Props> = ({id, type}) => {
   const params = useParams<{dashboardID?: string}>()
   const dashboardID = params?.dashboardID
 
-  const {renderID, scroll} = useSelector(getState)
+  const {renderID, scroll, cellMountStartMs} = useSelector(getState(id))
 
   useEffect(() => {
     if (scroll === 'scrolled') {
@@ -42,6 +48,20 @@ const CellEvent: FC<Props> = ({id, type}) => {
 
     event('Cell Visualized', tags, fields)
   }, [dashboardID, id, renderID, type, scroll])
+
+  useEffect(() => {
+    if (!cellMountStartMs) {
+      return
+    }
+
+    const visRenderedMs = new Date().getTime()
+    const timeToAppearMs = visRenderedMs - cellMountStartMs
+
+    const tags = {dashboardID, cellID: id, type}
+    const fields = {timeToAppearMs, renderID}
+
+    event('Cell Render Cycle', tags, fields)
+  }, [cellMountStartMs, dashboardID, id, renderID, type])
 
   return null
 }
