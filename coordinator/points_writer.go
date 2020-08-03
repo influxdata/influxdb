@@ -335,7 +335,7 @@ func (w *PointsWriter) WritePointsPrivilegedWithContext(ctx context.Context, dat
 	for shardID, points := range shardMappings.Points {
 		go func(shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {
 			var numPoints, numValues int64
-			ctx = context.WithValue(ctx, tsdb.StatPointsWritten, &numPoints)
+			ctx := context.WithValue(ctx, tsdb.StatPointsWritten, &numPoints)
 			ctx = context.WithValue(ctx, tsdb.StatValuesWritten, &numValues)
 
 			err := w.writeToShardWithContext(ctx, shard, database, retentionPolicy, points)
