@@ -3,7 +3,6 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"sort"
 	"time"
@@ -375,6 +374,7 @@ const (
 	ViewPropertyTypeSingleStatPlusLine = "line-plus-single-stat"
 	ViewPropertyTypeTable              = "table"
 	ViewPropertyTypeXY                 = "xy"
+	ViewPropertyTypeMosaic             = "mosaic"
 )
 
 // ViewProperties is used to mark other structures as conforming to a View.
@@ -484,6 +484,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = sv
+		case ViewPropertyTypeMosaic:
+			var mv MosaicViewProperties
+			if err := json.Unmarshal(v.B, &mv); err != nil {
+				return nil, err
+			}
+			vis = mv
 		}
 	case "empty":
 		var ev EmptyViewProperties
@@ -573,6 +579,15 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape: "chronograf-v2",
 
 			ScatterViewProperties: vis,
+		}
+	case MosaicViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			MosaicViewProperties
+		}{
+			Shape: "chronograf-v2",
+
+			MosaicViewProperties: vis,
 		}
 	case MarkdownViewProperties:
 		s = struct {
@@ -790,6 +805,26 @@ type ScatterViewProperties struct {
 	TimeFormat        string           `json:"timeFormat"`
 }
 
+// MosaicViewProperties represents options for mosaic view in Chronograf
+type MosaicViewProperties struct {
+	Type              string           `json:"type"`
+	Queries           []DashboardQuery `json:"queries"`
+	ViewColors        []string         `json:"colors"`
+	FillColumns       []string         `json:"fillColumns"`
+	XColumn           string           `json:"xColumn"`
+	YColumn           []string         `json:"yColumn"`
+	XDomain           []float64        `json:"xDomain,omitempty"`
+	YDomain           []float64        `json:"yDomain,omitempty"`
+	XAxisLabel        string           `json:"xAxisLabel"`
+	YAxisLabel        string           `json:"yAxisLabel"`
+	XPrefix           string           `json:"xPrefix"`
+	XSuffix           string           `json:"xSuffix"`
+	YPrefix           string           `json:"yPrefix"`
+	YSuffix           string           `json:"ySuffix"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+	TimeFormat        string           `json:"timeFormat"`
+}
 // GaugeViewProperties represents options for gauge view in Chronograf
 type GaugeViewProperties struct {
 	Type              string           `json:"type"`
@@ -848,6 +883,7 @@ func (SingleStatViewProperties) viewProperties()     {}
 func (HistogramViewProperties) viewProperties()      {}
 func (HeatmapViewProperties) viewProperties()        {}
 func (ScatterViewProperties) viewProperties()        {}
+func (MosaicViewProperties) viewProperties()         {}
 func (GaugeViewProperties) viewProperties()          {}
 func (TableViewProperties) viewProperties()          {}
 func (MarkdownViewProperties) viewProperties()       {}
@@ -860,6 +896,7 @@ func (v SingleStatViewProperties) GetType() string     { return v.Type }
 func (v HistogramViewProperties) GetType() string      { return v.Type }
 func (v HeatmapViewProperties) GetType() string        { return v.Type }
 func (v ScatterViewProperties) GetType() string        { return v.Type }
+func (v MosaicViewProperties) GetType() string         { return v.Type }
 func (v GaugeViewProperties) GetType() string          { return v.Type }
 func (v TableViewProperties) GetType() string          { return v.Type }
 func (v MarkdownViewProperties) GetType() string       { return v.Type }
