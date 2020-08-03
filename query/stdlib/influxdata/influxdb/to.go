@@ -351,7 +351,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		spec:               toSpec,
 		implicitTagColumns: spec.TagColumns == nil,
 		deps:               deps,
-		buf:                storage.NewBufferedPointsWriter(DefaultBufferSize, deps.PointsWriter),
+		buf:                storage.NewBufferedPointsWriter(*orgID, *bucketID, DefaultBufferSize, deps.PointsWriter),
 	}, nil
 }
 
@@ -657,7 +657,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 			}
 		}
 
-		return t.buf.WritePoints(ctx, t.OrgID, t.BucketID, points)
+		return t.buf.WritePoints(ctx, points)
 	})
 }
 

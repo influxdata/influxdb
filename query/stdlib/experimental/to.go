@@ -266,7 +266,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		cache:    cache,
 		spec:     spec.Spec,
 		deps:     deps,
-		buf:      storage.NewBufferedPointsWriter(influxdb.DefaultBufferSize, deps.PointsWriter),
+		buf:      storage.NewBufferedPointsWriter(orgID, *bucketID, influxdb.DefaultBufferSize, deps.PointsWriter),
 	}, nil
 }
 
@@ -459,6 +459,6 @@ func (t *ToTransformation) writeTable(ctx context.Context, tbl flux.Table) error
 			}
 		}
 
-		return t.buf.WritePoints(ctx, t.orgID, t.bucketID, points)
+		return t.buf.WritePoints(ctx, points)
 	})
 }

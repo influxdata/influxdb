@@ -68,27 +68,30 @@ func (w *LoggingPointsWriter) WritePoints(ctx context.Context, orgID influxdb.ID
 }
 
 type BufferedPointsWriter struct {
-	buf []models.Point
-	n   int
-	wr  PointsWriter
-	err error
+	buf      []models.Point
+	orgID    influxdb.ID
+	bucketID influxdb.ID
+	n        int
+	wr       PointsWriter
+	err      error
 }
 
-//TODO - org id bucket id
-func NewBufferedPointsWriter(size int, pointswriter PointsWriter) *BufferedPointsWriter {
+func NewBufferedPointsWriter(orgID influxdb.ID, bucketID influxdb.ID, size int, pointswriter PointsWriter) *BufferedPointsWriter {
 	return &BufferedPointsWriter{
-		buf: make([]models.Point, size),
-		wr:  pointswriter,
+		buf:      make([]models.Point, size),
+		orgID:    orgID,
+		bucketID: bucketID,
+		wr:       pointswriter,
 	}
 }
 
 // WritePoints writes the points to the underlying PointsWriter.
-func (b *BufferedPointsWriter) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, p []models.Point) error {
+func (b *BufferedPointsWriter) WritePoints(ctx context.Context, p []models.Point) error {
 	for len(p) > b.Available() && b.err == nil {
 		if b.Buffered() == 0 {
 			// Large write, empty buffer.
 			// Write directly from p to avoid copy.
-			b.err = b.wr.WritePoints(ctx, orgID, bucketID, p)
+			b.err = b.wr.WritePoints(ctx, b.orgID, b.bucketID, p)
 			return b.err
 		}
 		n := copy(b.buf[b.n:], p)
@@ -118,7 +121,7 @@ func (b *BufferedPointsWriter) Flush(ctx context.Context) error {
 		return nil
 	}
 
-	b.err = b.wr.WritePoints(ctx, 0, 0, b.buf[:b.n])
+	b.err = b.wr.WritePoints(ctx, b.orgID, b.bucketID, b.buf[:b.n])
 	if b.err != nil {
 		return b.err
 	}
