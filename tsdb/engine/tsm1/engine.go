@@ -1268,22 +1268,46 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 	return nil
 }
 
-// WritePoints writes metadata and point data into the engine.
-// It returns an error if new points are added to an existing key.
+// WritePoints() is a thin wrapper for WritePointsWithContext().
+//
+// TODO: We should consider obsolteing and removing this function in favor of
+// WritePointsWithContext()
+//
 func (e *Engine) WritePoints(points []models.Point) error {
+	return e.WritePointsWithContext(context.Background(), points)
+}
+
+// WritePointsWithContext() writes metadata and point data into the engine.  It
+// returns an error if new points are added to an existing key.
+//
+// In addition, it accepts a context.Context value. It stores write statstics
+// to context values passed in of type tsdb.MetricKey. The metrics it stores
+// are points written and values (fields) written.
+//
+// It expects int64 pointers to be stored in the tsdb.StatPointsWritten and
+// tsdb.StatValuesWritten keys and will store the proper values if requested.
+//
+func (e *Engine) WritePointsWithContext(ctx context.Context, points []models.Point) error {
 	values := make(map[string][]Value, len(points))
 	var (
 		keyBuf    []byte
 		baseLen   int
 		seriesErr error
+		npoints   int64 // total points processed
+		nvalues   int64 // total values (fields) processed
 	)
 
 	for _, p := range points {
+		// TODO: In the future we'd like to check ctx.Err() for cancellation here.
+		// Beforehand we should measure the performance impact.
+
 		keyBuf = append(keyBuf[:0], p.Key()...)
 		keyBuf = append(keyBuf, keyFieldSeparator...)
 		baseLen = len(keyBuf)
 		iter := p.FieldIterator()
 		t := p.Time().UnixNano()
+
+		npoints++
 		for iter.Next() {
 			// Skip fields name "time", they are illegal
 			if bytes.Equal(iter.FieldKey(), timeBytes) {
@@ -1353,6 +1377,8 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			default:
 				return fmt.Errorf("unknown field type for %s: %s", string(iter.FieldKey()), p.String())
 			}
+
+			nvalues++
 			values[string(keyBuf)] = append(values[string(keyBuf)], v)
 		}
 	}
@@ -1370,6 +1396,17 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			return err
 		}
 	}
+
+	// if requested, store points written stats
+	if pointsWritten, ok := ctx.Value(tsdb.StatPointsWritten).(*int64); ok {
+		*pointsWritten = npoints
+	}
+
+	// if requested, store values written stats
+	if valuesWritten, ok := ctx.Value(tsdb.StatValuesWritten).(*int64); ok {
+		*valuesWritten = nvalues
+	}
+
 	return seriesErr
 }
 
