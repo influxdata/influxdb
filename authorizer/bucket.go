@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"context"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
@@ -12,14 +13,12 @@ var _ influxdb.BucketService = (*BucketService)(nil)
 // against it appropriately.
 type BucketService struct {
 	s influxdb.BucketService
-	u influxdb.UserResourceMappingService
 }
 
 // NewBucketService constructs an instance of an authorizing bucket serivce.
-func NewBucketService(s influxdb.BucketService, u influxdb.UserResourceMappingService) *BucketService {
+func NewBucketService(s influxdb.BucketService) *BucketService {
 	return &BucketService{
 		s: s,
-		u: u,
 	}
 }
 
