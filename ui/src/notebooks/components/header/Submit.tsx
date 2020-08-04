@@ -79,9 +79,9 @@ export const Submit: FC = () => {
               requirements,
             })
           } else if (pipe.type === 'data') {
-            const {bucketName, timeStart, timeStop} = pipe
+            const {bucketName} = pipe
 
-            const text = `from(bucket: "${bucketName}")|>range(start: ${timeStart}, stop: ${timeStop})`
+            const text = `from(bucket: "${bucketName}")|>range(start: v.timeRangeStart, stop: v.timeRangeStop)`
 
             stages.push({
               text,
