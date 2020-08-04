@@ -44,8 +44,8 @@ describe('Dashboards.Selector', () => {
     '04c6f3976f4b8003',
     '04c6f3976f4b8004',
   ]
-  const lower = `2020-05-05T10:00:00${moment().format('Z')}`
-  const upper = `2020-05-05T11:00:00${moment().format('Z')}`
+  const lower = `2020-05-05T10:00:00-07:00`
+  const upper = `2020-05-05T11:00:00-07:00`
   const customTimeRangePST = {
     lower,
     upper,
