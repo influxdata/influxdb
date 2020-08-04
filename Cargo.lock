@@ -688,6 +688,7 @@ dependencies = [
  "human_format",
  "log",
  "parquet",
+ "rand",
  "snafu",
 ]
 
