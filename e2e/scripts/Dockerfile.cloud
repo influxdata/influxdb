@@ -12,4 +12,4 @@ COPY . /home/e2e
 
 ENV PATH $PATH:./node_modules/.bin
 
-ENTRYPOINT npm test -- activeConf=cloud cloud
+ENTRYPOINT scripts/cloud-test.sh
