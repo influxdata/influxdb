@@ -1249,6 +1249,48 @@ spec:
 				})
 			})
 
+			t.Run("mosaic chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_mosaic.yml", func(t *testing.T, template *Template) {
+						sum := template.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
+						assert.Equal(t, "dash-0", actual.Name)
+						assert.Equal(t, "a dashboard w/ single mosaic chart", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.MosaicViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "mosaic note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+						assert.Equal(t, expectedQuery, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						assert.Equal(t, []string{"_value", "foo"}, props.YSeriesColumns)
+						assert.Equal(t, []float64{0, 10}, props.XDomain)
+						assert.Equal(t, []float64{0, 100}, props.YDomain)
+						assert.Equal(t, "x_label", props.XAxisLabel)
+						assert.Equal(t, "y_label", props.YAxisLabel)
+						assert.Equal(t, "x_prefix", props.XPrefix)
+						assert.Equal(t, "y_prefix", props.YPrefix)
+						assert.Equal(t, "x_suffix", props.XSuffix)
+						assert.Equal(t, "y_suffix", props.YSuffix)
+					})
+				})
+			})
+
 			t.Run("scatter chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
 					testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, template *Template) {
@@ -2058,7 +2100,7 @@ spec:
       colors:
         - name: laser
           type: min
-          hex: 
+          hex:
           value: 3.0`,
 						},
 						{
