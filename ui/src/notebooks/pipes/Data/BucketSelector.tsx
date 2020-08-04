@@ -3,12 +3,13 @@ import React, {FC, useEffect, useContext, useCallback} from 'react'
 
 // Components
 import {
-  DapperScrollbars,
   TechnoSpinner,
   ComponentSize,
   RemoteDataState,
+  InfluxColors,
+  List,
+  Gradients,
 } from '@influxdata/clockface'
-import SelectorListItem from 'src/notebooks/pipes/Data/SelectorListItem'
 import {BucketContext} from 'src/notebooks/context/buckets'
 import {PipeContext} from 'src/notebooks/context/pipe'
 
@@ -56,17 +57,25 @@ const BucketSelector: FC = () => {
 
   if (loading === RemoteDataState.Done && selectedBucketName) {
     body = (
-      <DapperScrollbars className="data-source--list">
+      <List
+        className="data-source--list"
+        backgroundColor={InfluxColors.Obsidian}
+      >
         {buckets.map(bucket => (
-          <SelectorListItem
+          <List.Item
             key={bucket.name}
             value={bucket}
             onClick={updateBucket}
             selected={bucket.name === selectedBucketName}
-            text={bucket.name}
-          />
+            title={bucket.name}
+            gradient={Gradients.GundamPilot}
+            wrapText={true}
+          >
+            <List.Indicator type="dot" />
+            {bucket.name}
+          </List.Item>
         ))}
-      </DapperScrollbars>
+      </List>
     )
   }
 

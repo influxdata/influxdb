@@ -7,7 +7,7 @@
 }
 
 .data-source--block {
-  flex: 1 0 220px;
+  flex: 1 0 350px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -27,8 +27,6 @@
 
 .data-source--list,
 .data-source--list__empty {
-  background-color: $g1-raven;
-  border-radius: $cf-radius;
   flex: 1 0 0;
 }
 
