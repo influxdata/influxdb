@@ -2111,6 +2111,31 @@ func TestService(t *testing.T) {
 							},
 						},
 						{
+							name: "mosaic",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.MosaicViewProperties{
+									Type:              influxdb.ViewPropertyTypeMosaic,
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+									XColumn:           "x",
+									YSeriesColumns:    []string{"y"},
+									XDomain:           []float64{0, 10},
+									YDomain:           []float64{0, 100},
+									XAxisLabel:        "x_label",
+									XPrefix:           "x_prefix",
+									XSuffix:           "x_suffix",
+									YAxisLabel:        "y_label",
+									YPrefix:           "y_prefix",
+									YSuffix:           "y_suffix",
+								},
+							},
+						},
+						{
 							name: "without new name single stat",
 							expectedView: influxdb.View{
 								ViewContents: influxdb.ViewContents{
