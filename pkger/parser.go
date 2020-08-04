@@ -1415,6 +1415,7 @@ func parseChart(r Resource) (chart, []validationErr) {
 		XPos:           r.intShort(fieldChartXPos),
 		YPos:           r.intShort(fieldChartYPos),
 		FillColumns:    r.slcStr(fieldChartFillColumns),
+		YSeriesColumns: r.slcStr(fieldChartYSeriesColumns),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {

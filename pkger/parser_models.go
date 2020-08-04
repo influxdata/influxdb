@@ -422,6 +422,7 @@ const (
 	chartKindHeatMap            chartKind = "heatmap"
 	chartKindHistogram          chartKind = "histogram"
 	chartKindMarkdown           chartKind = "markdown"
+	chartKindMosaic             chartKind = "mosaic"
 	chartKindScatter            chartKind = "scatter"
 	chartKindSingleStat         chartKind = "single_stat"
 	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
@@ -432,8 +433,9 @@ const (
 func (c chartKind) ok() bool {
 	switch c {
 	case chartKindGauge, chartKindHeatMap, chartKindHistogram,
-		chartKindMarkdown, chartKindScatter, chartKindSingleStat,
-		chartKindSingleStatPlusLine, chartKindTable, chartKindXY:
+		chartKindMarkdown, chartKindMosaic, chartKindScatter,
+		chartKindSingleStat, chartKindSingleStatPlusLine, chartKindTable,
+		chartKindXY:
 		return true
 	default:
 		return false
@@ -526,6 +528,7 @@ const (
 	fieldChartTickPrefix     = "tickPrefix"
 	fieldChartTickSuffix     = "tickSuffix"
 	fieldChartTimeFormat     = "timeFormat"
+	fieldChartYSeriesColumns = "ySeriesColumns"
 	fieldChartWidth          = "width"
 	fieldChartXCol           = "xCol"
 	fieldChartXPos           = "xPos"
@@ -551,6 +554,7 @@ type chart struct {
 	Queries         queries
 	Axes            axes
 	Geom            string
+	YSeriesColumns  []string
 	XCol, YCol      string
 	XPos, YPos      int
 	Height, Width   int
@@ -619,6 +623,25 @@ func (c chart) properties() influxdb.ViewProperties {
 		return influxdb.MarkdownViewProperties{
 			Type: influxdb.ViewPropertyTypeMarkdown,
 			Note: c.Note,
+		}
+	case chartKindMosaic:
+		return influxdb.MosaicViewProperties{
+			Type:              influxdb.ViewPropertyTypeMosaic,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.strings(),
+			XColumn:           c.XCol,
+			YSeriesColumns:    c.YSeriesColumns,
+			XDomain:           c.Axes.get("x").Domain,
+			YDomain:           c.Axes.get("y").Domain,
+			XPrefix:           c.Axes.get("x").Prefix,
+			YPrefix:           c.Axes.get("y").Prefix,
+			XSuffix:           c.Axes.get("x").Suffix,
+			YSuffix:           c.Axes.get("y").Suffix,
+			XAxisLabel:        c.Axes.get("x").Label,
+			YAxisLabel:        c.Axes.get("y").Label,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
 		}
 	case chartKindScatter:
 		return influxdb.ScatterViewProperties{
