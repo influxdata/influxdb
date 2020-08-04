@@ -71,6 +71,7 @@ class RefreshingView extends PureComponent<Props, State> {
 
     return (
       <TimeSeries
+        cellID={id}
         submitToken={submitToken}
         queries={this.queries}
         key={manualRefresh}
