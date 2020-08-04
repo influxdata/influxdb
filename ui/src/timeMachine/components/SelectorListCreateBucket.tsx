@@ -18,6 +18,7 @@ import {
   ComponentColor,
   ComponentSize,
   List,
+  ListItemRef,
 } from '@influxdata/clockface'
 import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
@@ -54,7 +55,7 @@ const SelectorListCreateBucket: FC<Props> = ({
   limitStatus,
 }) => {
   const reduxDispatch = useDispatch()
-  const triggerRef = useRef<HTMLButtonElement>(null)
+  const triggerRef = useRef<ListItemRef>(null)
   const [state, dispatch] = useReducer(
     createBucketReducer,
     initialBucketState(isRetentionLimitEnforced, org.id)
