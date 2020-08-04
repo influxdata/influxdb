@@ -30,6 +30,8 @@ import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
 import {CurrentPage} from 'src/shared/reducers/currentPage'
 import {DemoDataState} from 'src/cloud/reducers/demodata'
 import {OrgSettingsState} from 'src/cloud/reducers/orgsettings'
+import {QueryCacheState} from 'src/queryCache/reducers'
+import {PerfState} from 'src/perf/reducers'
 
 export interface AppState {
   router: RouterState
@@ -43,6 +45,7 @@ export interface AppState {
   }
   currentPage: CurrentPage
   currentDashboard: CurrentDashboardState
+  queryCache: QueryCacheState
   dataLoading: DataLoadingState
   links: Links
   me: MeState
@@ -51,6 +54,7 @@ export interface AppState {
   notifications: Notification[]
   onboarding: OnboardingState
   overlays: OverlayState
+  perf: PerfState
   predicates: PredicatesState
   ranges: RangeState
   resources: ResourceState

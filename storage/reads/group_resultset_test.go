@@ -2,6 +2,7 @@ package reads_test
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/data/gen"
 	"github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 func TestNewGroupResultSet_Sorting(t *testing.T) {
@@ -461,5 +463,244 @@ func BenchmarkNewGroupResultSet_GroupBy(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag2"}, Hints: hints}, newCursor)
 		rs.Close()
+	}
+}
+
+type mockIntArrayCursor struct {
+	callCount int
+}
+
+func (i *mockIntArrayCursor) Close()                     {}
+func (i *mockIntArrayCursor) Err() error                 { return nil }
+func (i *mockIntArrayCursor) Stats() cursors.CursorStats { return cursors.CursorStats{} }
+func (i *mockIntArrayCursor) Next() *cursors.IntegerArray {
+	if i.callCount == 1 {
+		return &cursors.IntegerArray{}
+	}
+	i.callCount++
+	return &cursors.IntegerArray{
+		Timestamps: []int64{
+			1,
+			3,
+			5,
+			7,
+			9,
+			11,
+		},
+		Values: []int64{1, 2, 3, 4, 5, 6},
+	}
+}
+
+type mockGroupCursorIterator struct{}
+
+func (i *mockGroupCursorIterator) Next(ctx context.Context, req *cursors.CursorRequest) (cursors.Cursor, error) {
+	return &mockIntArrayCursor{}, nil
+}
+func (i *mockGroupCursorIterator) Stats() cursors.CursorStats {
+	return cursors.CursorStats{ScannedBytes: 35, ScannedValues: 6}
+}
+
+type mockReadGroupCursor struct {
+	rows []reads.SeriesRow
+}
+
+/* Interface adherence means that mockReadGroupCursor can't be
+   written to. This global variable is icky, but accomplishes
+   the same idea.
+*/
+var mockReadGroupCursorIndex = 0
+
+func (c mockReadGroupCursor) Close()     {}
+func (c mockReadGroupCursor) Err() error { return nil }
+func (c mockReadGroupCursor) Next() *reads.SeriesRow {
+	if mockReadGroupCursorIndex == len(c.rows) {
+		return nil
+	}
+	row := c.rows[mockReadGroupCursorIndex]
+	mockReadGroupCursorIndex++
+	return &row
+}
+
+func newMockReadGroupCursor(keys ...string) mockReadGroupCursor {
+	// Reset the cursor index
+	mockReadGroupCursorIndex = 0
+	rows := make([]reads.SeriesRow, len(keys))
+	for i := range keys {
+		rows[i].Name, rows[i].SeriesTags = models.ParseKeyBytes([]byte(keys[i]))
+		rows[i].Tags = rows[i].SeriesTags.Clone()
+		rows[i].Query = &mockGroupCursorIterator{}
+	}
+	return mockReadGroupCursor{rows: rows}
+}
+
+func newSeriesCursorFn() (reads.SeriesCursor, error) {
+	cursor := newMockReadGroupCursor(
+		"clicks,host=foo,location=chicago click=1 1",
+		"clicks,host=bar,location=dallas click=2 3",
+		"clicks,host=foo,location=dallas click=3 5",
+		"clicks,host=bar,location=dallas click=4 7",
+		"clicks click=5 9",
+		"clicks click=6 11",
+	)
+	return cursor, nil
+}
+
+func TestNewGroupResultSet_GroupBy_Sum(t *testing.T) {
+	request := datatypes.ReadGroupRequest{
+		Group:     datatypes.GroupBy,
+		GroupKeys: []string{"host", "location"},
+		Aggregate: &datatypes.Aggregate{
+			Type: datatypes.AggregateTypeSum,
+		},
+		Range: datatypes.TimestampRange{
+			Start: 0,
+			End:   15,
+		},
+	}
+	resultSet := reads.NewGroupResultSet(context.Background(), &request, newSeriesCursorFn)
+
+	if resultSet == nil {
+		t.Fatalf("resultSet was nil")
+	}
+
+	groupByCursor := resultSet.Next()
+	if groupByCursor == nil {
+		t.Fatal("unexpected: groupByCursor was nil")
+	}
+	if !groupByCursor.Next() {
+		t.Fatal("unexpected: groupByCursor.Next failed")
+	}
+	cursor := groupByCursor.Cursor()
+	if cursor == nil {
+		t.Fatal("unexpected: cursor was nil")
+	}
+	integerArrayCursor := cursor.(cursors.IntegerArrayCursor)
+	integerArray := integerArrayCursor.Next()
+
+	if integerArray == nil {
+		t.Fatalf("unexpected: integerArray was nil")
+	}
+	if !reflect.DeepEqual(integerArray.Values, []int64{21}) {
+		t.Errorf("unexpected sum values: %v", integerArray.Values)
+	}
+}
+
+func TestNewGroupResultSet_GroupBy_Count(t *testing.T) {
+	request := datatypes.ReadGroupRequest{
+		Group:     datatypes.GroupBy,
+		GroupKeys: []string{"host", "location"},
+		Aggregate: &datatypes.Aggregate{
+			Type: datatypes.AggregateTypeCount,
+		},
+		Range: datatypes.TimestampRange{
+			Start: 0,
+			End:   15,
+		},
+	}
+	resultSet := reads.NewGroupResultSet(context.Background(), &request, newSeriesCursorFn)
+
+	if resultSet == nil {
+		t.Fatalf("resultSet was nil")
+	}
+
+	groupByCursor := resultSet.Next()
+	if groupByCursor == nil {
+		t.Fatal("unexpected: groupByCursor was nil")
+	}
+	if !groupByCursor.Next() {
+		t.Fatal("unexpected: groupByCursor.Next failed")
+	}
+	cursor := groupByCursor.Cursor()
+	if cursor == nil {
+		t.Fatal("unexpected: cursor was nil")
+	}
+	integerArrayCursor := cursor.(cursors.IntegerArrayCursor)
+	integerArray := integerArrayCursor.Next()
+
+	if integerArray == nil {
+		t.Fatalf("unexpected: integerArray was nil")
+	}
+	if !reflect.DeepEqual(integerArray.Values, []int64{6}) {
+		t.Errorf("unexpected count values: %v", integerArray.Values)
+	}
+}
+
+func TestNewGroupResultSet_GroupBy_First(t *testing.T) {
+	request := datatypes.ReadGroupRequest{
+		Group:     datatypes.GroupBy,
+		GroupKeys: []string{"host", "location"},
+		Aggregate: &datatypes.Aggregate{
+			Type: datatypes.AggregateTypeFirst,
+		},
+		Range: datatypes.TimestampRange{
+			Start: 0,
+			End:   15,
+		},
+	}
+	resultSet := reads.NewGroupResultSet(context.Background(), &request, newSeriesCursorFn)
+
+	if resultSet == nil {
+		t.Fatalf("resultSet was nil")
+	}
+
+	groupByCursor := resultSet.Next()
+	if groupByCursor == nil {
+		t.Fatal("unexpected: groupByCursor was nil")
+	}
+	if !groupByCursor.Next() {
+		t.Fatal("unexpected: groupByCursor.Next failed")
+	}
+	cursor := groupByCursor.Cursor()
+	if cursor == nil {
+		t.Fatal("unexpected: cursor was nil")
+	}
+	integerArrayCursor := cursor.(cursors.IntegerArrayCursor)
+	integerArray := integerArrayCursor.Next()
+
+	if integerArray == nil {
+		t.Fatalf("unexpected: integerArray was nil")
+	}
+	if !reflect.DeepEqual(integerArray.Values, []int64{1}) {
+		t.Errorf("unexpected first values: %v", integerArray.Values)
+	}
+}
+
+func TestNewGroupResultSet_GroupBy_Last(t *testing.T) {
+	request := datatypes.ReadGroupRequest{
+		Group:     datatypes.GroupBy,
+		GroupKeys: []string{"host", "location"},
+		Aggregate: &datatypes.Aggregate{
+			Type: datatypes.AggregateTypeLast,
+		},
+		Range: datatypes.TimestampRange{
+			Start: 0,
+			End:   15,
+		},
+	}
+	resultSet := reads.NewGroupResultSet(context.Background(), &request, newSeriesCursorFn)
+
+	if resultSet == nil {
+		t.Fatalf("resultSet was nil")
+	}
+
+	groupByCursor := resultSet.Next()
+	if groupByCursor == nil {
+		t.Fatal("unexpected: groupByCursor was nil")
+	}
+	if !groupByCursor.Next() {
+		t.Fatal("unexpected: groupByCursor.Next failed")
+	}
+	cursor := groupByCursor.Cursor()
+	if cursor == nil {
+		t.Fatal("unexpected: cursor was nil")
+	}
+	integerArrayCursor := cursor.(cursors.IntegerArrayCursor)
+	integerArray := integerArrayCursor.Next()
+
+	if integerArray == nil {
+		t.Fatalf("unexpected: integerArray was nil")
+	}
+	if !reflect.DeepEqual(integerArray.Values, []int64{1}) {
+		t.Errorf("unexpected last values: %v", integerArray.Values)
 	}
 }

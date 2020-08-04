@@ -200,18 +200,11 @@ type ReqApply struct {
 	StackID *string             `json:"stackID" yaml:"stackID"` // optional: non nil value signals stack should be used
 	Remotes []ReqTemplateRemote `json:"remotes" yaml:"remotes"`
 
-	// TODO(jsteenb2): pkg references will all be replaced by template references
-	// 	these 2 exist alongside the templates for backwards compatibility
-	// 	until beta13 rolls out the door. This code should get axed when the next
-	//	OSS release goes out.
-	RawPkgs []json.RawMessage `json:"packages" yaml:"packages"`
-	RawPkg  json.RawMessage   `json:"package" yaml:"package"`
-
 	RawTemplates []ReqRawTemplate `json:"templates" yaml:"templates"`
 	RawTemplate  ReqRawTemplate   `json:"template" yaml:"template"`
 
-	EnvRefs map[string]string `json:"envRefs"`
-	Secrets map[string]string `json:"secrets"`
+	EnvRefs map[string]interface{} `json:"envRefs"`
+	Secrets map[string]string      `json:"secrets"`
 
 	RawActions []ReqRawAction `json:"actions"`
 }
@@ -226,19 +219,6 @@ func (r ReqApply) Templates(encoding Encoding) (*Template, error) {
 		template, err := Parse(rem.Encoding(), FromHTTPRequest(rem.URL), ValidSkipParseError())
 		if err != nil {
 			msg := fmt.Sprintf("template from url[%s] had an issue: %s", rem.URL, err.Error())
-			return nil, influxErr(influxdb.EUnprocessableEntity, msg)
-		}
-		rawTemplates = append(rawTemplates, template)
-	}
-
-	for i, rawTemplate := range append(r.RawPkgs, r.RawPkg) {
-		if rawTemplate == nil {
-			continue
-		}
-
-		template, err := Parse(encoding, FromReader(bytes.NewReader(rawTemplate)), ValidSkipParseError())
-		if err != nil {
-			msg := fmt.Sprintf("template[%d] had an issue: %s", i, err.Error())
 			return nil, influxErr(influxdb.EUnprocessableEntity, msg)
 		}
 		rawTemplates = append(rawTemplates, template)

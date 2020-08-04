@@ -613,9 +613,9 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 
 func TestProxyRequestToQueryRequest_Compilers(t *testing.T) {
 	tests := []struct {
-		name   string
-		pr     query.ProxyRequest
-		want   QueryRequest
+		name string
+		pr   query.ProxyRequest
+		want QueryRequest
 	}{
 		{
 			name: "flux compiler copied",
@@ -629,10 +629,10 @@ func TestProxyRequestToQueryRequest_Compilers(t *testing.T) {
 				},
 			},
 			want: QueryRequest{
-				Type: "flux",
-				Query: `howdy`,
+				Type:            "flux",
+				Query:           `howdy`,
 				PreferNoContent: true,
-				Now: time.Unix(45, 45),
+				Now:             time.Unix(45, 45),
 			},
 		},
 		{
@@ -641,23 +641,23 @@ func TestProxyRequestToQueryRequest_Compilers(t *testing.T) {
 				Dialect: &query.NoContentDialect{},
 				Request: query.Request{
 					Compiler: lang.ASTCompiler{
-						Now:   time.Unix(45, 45),
-						AST:  mustMarshal(&ast.Package{}),
+						Now: time.Unix(45, 45),
+						AST: mustMarshal(&ast.Package{}),
 					},
 				},
 			},
 			want: QueryRequest{
-				Type: "flux",
+				Type:            "flux",
 				PreferNoContent: true,
-				AST:  mustMarshal(&ast.Package{}),
-				Now: time.Unix(45, 45),
+				AST:             mustMarshal(&ast.Package{}),
+				Now:             time.Unix(45, 45),
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			got, err := QueryRequestFromProxyRequest( &tt.pr )
+			got, err := QueryRequestFromProxyRequest(&tt.pr)
 			if err != nil {
 				t.Error(err)
 			} else if !reflect.DeepEqual(*got, tt.want) {

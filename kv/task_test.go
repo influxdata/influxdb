@@ -10,6 +10,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -18,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"github.com/influxdata/influxdb/v2/task/servicetest"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -37,16 +39,26 @@ func TestBoltTaskService(t *testing.T) {
 				FluxLanguageService: fluxlang.DefaultService,
 			})
 
+			tenantStore := tenant.NewStore(store)
+			ts := tenant.NewService(tenantStore)
+
+			authStore, err := authorization.NewStore(store)
+			require.NoError(t, err)
+			authSvc := authorization.NewService(authStore, ts)
+
 			go func() {
 				<-ctx.Done()
 				close()
 			}()
 
 			return &servicetest.System{
-				TaskControlService: service,
-				TaskService:        service,
-				I:                  service,
-				Ctx:                ctx,
+				TaskControlService:         service,
+				TaskService:                service,
+				OrganizationService:        ts.OrganizationService,
+				UserService:                ts.UserService,
+				UserResourceMappingService: ts.UserResourceMappingService,
+				AuthorizationService:       authSvc,
+				Ctx:                        ctx,
 			}, cancelFunc
 		},
 		"transactional",

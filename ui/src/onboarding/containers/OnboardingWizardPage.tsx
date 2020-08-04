@@ -147,7 +147,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
   private setStepIndex = (index: number) => {
     const {history} = this.props
 
-    history.push(`/onboarding/${index}`)
+    history.replace(`/onboarding/${index}`)
   }
 }
 

@@ -7,11 +7,12 @@ import {
   Route,
 } from 'react-router-dom'
 import {connect, ConnectedProps} from 'react-redux'
+import {notify} from 'src/shared/actions/notifications'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
-import {CommunityTemplatesActivityLog} from 'src/templates/components/CommunityTemplatesActivityLog'
+import {CommunityTemplatesInstalledList} from 'src/templates/components/CommunityTemplatesInstalledList'
 
 import {
   Bullet,
@@ -36,10 +37,12 @@ import {getOrg} from 'src/organizations/selectors'
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {
-  getGithubUrlFromTemplateName,
-  getTemplateNameFromGithubUrl,
+  getGithubUrlFromTemplateDetails,
+  getTemplateDetails,
 } from 'src/templates/utils'
+import {reportError} from 'src/shared/utils/errors'
 
+import {communityTemplateUnsupportedFormatError} from 'src/shared/copy/notifications'
 // Types
 import {AppState} from 'src/types'
 
@@ -47,7 +50,9 @@ const communityTemplatesUrl =
   'https://github.com/influxdata/community-templates#templates'
 const templatesPath = '/orgs/:orgID/settings/templates'
 
-type Params = {params: {templateName: string}}
+type Params = {
+  params: {directory: string; templateName: string; templateExtension: string}
+}
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & RouteComponentProps<{templateName: string}>
 
@@ -65,9 +70,17 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       path: communityTemplatesImportPath,
     }) as Params
 
-    if (match?.params?.templateName) {
+    if (
+      match?.params?.directory &&
+      match?.params?.templateName &&
+      match?.params?.templateExtension
+    ) {
       this.setState({
-        templateUrl: getGithubUrlFromTemplateName(match.params.templateName),
+        templateUrl: getGithubUrlFromTemplateDetails(
+          match.params.directory,
+          match.params.templateName,
+          match.params.templateExtension
+        ),
       })
     }
   }
@@ -127,13 +140,13 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                   </div>
                 </Panel.Body>
               </Panel>
-              <CommunityTemplatesActivityLog orgID={org.id} />
+              <CommunityTemplatesInstalledList orgID={org.id} />
             </div>
           </SettingsTabbedPage>
         </Page>
         <Switch>
           <Route
-            path={`${templatesPath}/import/:templateName`}
+            path={`${templatesPath}/import/:directory/:templateName/:templateExtension`}
             component={CommunityTemplateImportOverlay}
           />
         </Switch>
@@ -143,18 +156,24 @@ class UnconnectedTemplatesIndex extends Component<Props> {
 
   private startTemplateInstall = () => {
     if (!this.state.templateUrl) {
-      console.error('undefined')
+      this.props.notify(communityTemplateUnsupportedFormatError())
       return false
     }
 
-    const name = getTemplateNameFromGithubUrl(this.state.templateUrl)
-    this.showInstallerOverlay(name)
-  }
+    try {
+      const {directory, templateExtension, templateName} = getTemplateDetails(
+        this.state.templateUrl
+      )
 
-  private showInstallerOverlay = templateName => {
-    const {history, org} = this.props
-
-    history.push(`/orgs/${org.id}/settings/templates/import/${templateName}`)
+      this.props.history.push(
+        `/orgs/${this.props.org.id}/settings/templates/import/${directory}/${templateName}/${templateExtension}`
+      )
+    } catch (err) {
+      this.props.notify(communityTemplateUnsupportedFormatError())
+      reportError(err, {
+        name: 'The community template getTemplateDetails failed',
+      })
+    }
   }
 
   private handleTemplateChange = event => {
@@ -168,7 +187,11 @@ const mstp = (state: AppState) => {
   }
 }
 
-const connector = connect(mstp)
+const mdtp = {
+  notify,
+}
+
+const connector = connect(mstp, mdtp)
 
 export const CommunityTemplatesIndex = connector(
   withRouter(UnconnectedTemplatesIndex)

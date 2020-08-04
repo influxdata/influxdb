@@ -73,8 +73,12 @@ class TableGraph extends PureComponent<Props, State> {
     this.setState(({sortOptions}) => {
       const newSortOptions = {...sortOptions}
       if (fieldName === sortOptions.field) {
-        newSortOptions.direction =
-          sortOptions.direction === ASCENDING ? DESCENDING : ASCENDING
+        if (sortOptions.direction === DESCENDING) {
+          newSortOptions.field = ''
+          newSortOptions.direction = DEFAULT_SORT_DIRECTION
+        } else {
+          newSortOptions.direction = DESCENDING
+        }
       } else {
         newSortOptions.field = fieldName
         newSortOptions.direction = DEFAULT_SORT_DIRECTION

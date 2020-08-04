@@ -148,6 +148,7 @@ func TestService_handleGetChecks(t *testing.T) {
 			"query": {
 				"builderConfig": {
 					"aggregateWindow": {
+						"fillValues": false,
 						"period": ""
 					},
 					"buckets": [],
@@ -191,6 +192,7 @@ func TestService_handleGetChecks(t *testing.T) {
 			"query": {
 				"builderConfig": {
 					"aggregateWindow": {
+						"fillValues": false,
 						"period": ""
 					},
 					"buckets": [],
@@ -510,7 +512,8 @@ func TestService_handleGetCheck(t *testing.T) {
 		  "query": {
             "builderConfig": {
               "aggregateWindow": {
-                "period": ""
+								"fillValues": false,
+								"period": ""
               },
               "buckets": [],
               "functions": [],
@@ -690,6 +693,7 @@ func TestService_handlePostCheck(t *testing.T) {
   "query": {
   	"builderConfig": {
     "aggregateWindow": {
+      "fillValues": false,
       "period": ""
     },
     "buckets": [],
@@ -945,6 +949,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 		  "query": {
 				"builderConfig": {
 					"aggregateWindow": {
+						"fillValues": false,
 						"period": ""
 					},
 					"buckets": [],
@@ -1131,6 +1136,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 		  "query": {
             "builderConfig": {
               "aggregateWindow": {
+                "fillValues": false,
                 "period": ""
               },
               "buckets": [],

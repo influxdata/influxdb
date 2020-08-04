@@ -268,89 +268,6 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 
 // findTasksByUser is a subset of the find tasks function. Used for cleanliness
 func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-	if feature.UrmFreeTasks().Enabled(ctx) {
-		return s.findTasksByUserUrmFree(ctx, tx, filter)
-	}
-	return s.findTasksByUserWithURM(ctx, tx, filter)
-}
-
-// findTasksByUser is a subset of the find tasks function. Used for cleanliness
-func (s *Service) findTasksByUserWithURM(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-	if filter.User == nil {
-		return nil, 0, influxdb.ErrTaskNotFound
-	}
-	var org *influxdb.Organization
-	var err error
-	if filter.OrganizationID != nil {
-		org, err = s.findOrganizationByID(ctx, tx, *filter.OrganizationID)
-		if err != nil {
-			return nil, 0, err
-		}
-	} else if filter.Organization != "" {
-		org, err = s.findOrganizationByName(ctx, tx, filter.Organization)
-		if err != nil {
-			return nil, 0, err
-		}
-	}
-
-	var ts []*influxdb.Task
-
-	maps, err := s.findUserResourceMappings(
-		ctx,
-		tx,
-		influxdb.UserResourceMappingFilter{
-			ResourceType: influxdb.TasksResourceType,
-			UserID:       *filter.User,
-			UserType:     influxdb.Owner,
-		},
-	)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	var (
-		afterSeen bool
-		after     = func(task *influxdb.Task) bool {
-			if filter.After == nil || afterSeen {
-				return true
-			}
-
-			if task.ID == *filter.After {
-				afterSeen = true
-			}
-
-			return false
-		}
-		matchFn = newTaskMatchFn(filter, org)
-	)
-
-	for _, m := range maps {
-		task, err := s.findTaskByIDWithAuth(ctx, tx, m.ResourceID)
-		if err != nil && err != influxdb.ErrTaskNotFound {
-			return nil, 0, err
-		}
-		if err == influxdb.ErrTaskNotFound {
-			continue
-		}
-
-		if matchFn == nil || matchFn(task) {
-			if !after(task) {
-				continue
-			}
-
-			ts = append(ts, task)
-
-			if len(ts) >= filter.Limit {
-				break
-			}
-		}
-
-	}
-
-	return ts, len(ts), nil
-}
-
-func (s *Service) findTasksByUserUrmFree(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 	var ts []*influxdb.Task
 
 	taskBucket, err := tx.Bucket(taskBucket)
@@ -736,12 +653,6 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	if !feature.UrmFreeTasks().Enabled(ctx) {
-		if err := s.createTaskURM(ctx, tx, task); err != nil {
-			s.log.Info("Error creating user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
-		}
-	}
-
 	// populate permissions so the task can be used immediately
 	// if we cant populate here we shouldn't error.
 	ps, _ := s.maxPermissions(ctx, tx, task.OwnerID)
@@ -766,22 +677,6 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	}
 
 	return task, nil
-}
-
-func (s *Service) createTaskURM(ctx context.Context, tx Tx, t *influxdb.Task) error {
-	// TODO(jsteenb2): should not be getting authorizer inside the store, should terminate at the
-	//  transport layer then pass user id everywhere else.
-	userAuth, err := icontext.GetAuthorizer(ctx)
-	if err != nil {
-		return err
-	}
-
-	return s.createUserResourceMapping(ctx, tx, &influxdb.UserResourceMapping{
-		ResourceType: influxdb.TasksResourceType,
-		ResourceID:   t.ID,
-		UserID:       userAuth.GetUserID(),
-		UserType:     influxdb.Owner,
-	})
 }
 
 // UpdateTask updates a single task with changeset.

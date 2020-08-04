@@ -13,13 +13,9 @@ import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 // API
 import {RunQueryResult, RunQuerySuccessResult} from 'src/shared/apis/query'
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
-import {getCachedResultsThunk} from 'src/shared/apis/queryCache'
 
 // Utils
-import {
-  getTimeRange,
-  isCurrentPageDashboard as isCurrentPageDashboardSelector,
-} from 'src/dashboards/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 import {getVariables, asAssignment} from 'src/variables/selectors'
 import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
 import {isInQuery} from 'src/variables/utils/hydrateVars'
@@ -32,6 +28,7 @@ import {
   isDemoDataAvailabilityError,
   demoDataError,
 } from 'src/cloud/utils/demoDataErrors'
+import {hashCode} from 'src/queryCache/actions'
 import {RunQueryPromiseMutex} from 'src/shared/apis/singleQuery'
 
 // Constants
@@ -44,6 +41,7 @@ import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Actions & Selectors
 import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {setQueryResultsByQueryID} from 'src/queryCache/actions'
 import {hasUpdatedTimeRangeInVEO} from 'src/shared/selectors/app'
 
 // Types
@@ -102,6 +100,10 @@ const defaultState = (): State => ({
   statuses: [[]],
 })
 
+type HashMapMutex = {
+  [queryID: string]: ReturnType<typeof RunQueryPromiseMutex>
+}
+
 class TimeSeries extends Component<Props, State> {
   public static defaultProps = {
     implicitSubmit: true,
@@ -110,7 +112,7 @@ class TimeSeries extends Component<Props, State> {
   }
   public state: State = defaultState()
 
-  private mutex = RunQueryPromiseMutex<RunQueryResult>()
+  private hashMapMutex: HashMapMutex = {}
 
   private observer: IntersectionObserver
   private ref: RefObject<HTMLDivElement> = React.createRef()
@@ -177,9 +179,8 @@ class TimeSeries extends Component<Props, State> {
     const {
       buckets,
       check,
-      isCurrentPageDashboard,
       notify,
-      onGetCachedResultsThunk,
+      onSetQueryResultsByQueryID,
       variables,
     } = this.props
     const queries = this.props.queries.filter(({text}) => !!text.trim())
@@ -201,11 +202,7 @@ class TimeSeries extends Component<Props, State> {
       let errorMessage: string = ''
 
       // Cancel any existing queries
-      this.pendingResults.forEach(({cancel}) => {
-        if (cancel) {
-          cancel()
-        }
-      })
+      this.pendingResults.forEach(({cancel}) => cancel())
       const usedVars = variables.filter(v => v.arguments.type !== 'system')
       const waitList = usedVars.filter(v => v.status !== RemoteDataState.Done)
 
@@ -223,12 +220,14 @@ class TimeSeries extends Component<Props, State> {
 
         const windowVars = getWindowVars(text, vars)
         const extern = buildVarsOption([...vars, ...windowVars])
-
         event('runQuery', {context: 'TimeSeries'})
-        if (isCurrentPageDashboard) {
-          return onGetCachedResultsThunk(orgID, text)
+        const queryID = hashCode(text)
+        if (!this.hashMapMutex[queryID]) {
+          this.hashMapMutex[queryID] = RunQueryPromiseMutex<RunQueryResult>()
         }
-        return this.mutex.run(orgID, text, extern)
+        return this.hashMapMutex[queryID].run(orgID, text, extern) as CancelBox<
+          RunQueryResult
+        >
       })
 
       // Wait for new queries to complete
@@ -280,6 +279,11 @@ class TimeSeries extends Component<Props, State> {
       }
 
       this.pendingReload = false
+      const queryText = queries.map(({text}) => text).join('')
+      const queryID = hashCode(queryText)
+      if (queryID && files.length) {
+        onSetQueryResultsByQueryID(queryID, files)
+      }
 
       this.setState({
         giraffeResult,
@@ -360,7 +364,6 @@ const mstp = (state: AppState, props: OwnProps) => {
 
   return {
     hasUpdatedTimeRangeInVEO: hasUpdatedTimeRangeInVEO(state),
-    isCurrentPageDashboard: isCurrentPageDashboardSelector(state),
     queryLink: state.links.query.self,
     buckets: getAll<Bucket>(state, ResourceType.Buckets),
     variables,
@@ -369,7 +372,7 @@ const mstp = (state: AppState, props: OwnProps) => {
 
 const mdtp = {
   notify: notifyAction,
-  onGetCachedResultsThunk: getCachedResultsThunk,
+  onSetQueryResultsByQueryID: setQueryResultsByQueryID,
 }
 
 const connector = connect(mstp, mdtp)

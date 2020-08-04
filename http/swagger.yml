@@ -4083,101 +4083,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/labels":
-    get:
-      operationId: GetOrgsIDLabels
-      tags:
-        - Organizations
-      summary: List all labels for a organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      responses:
-        "200":
-          description: A list of all labels for an organization
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LabelsResponse"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    post:
-      operationId: PostOrgsIDLabels
-      tags:
-        - Organizations
-      summary: Add a label to an organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      requestBody:
-        description: Label to add
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LabelMapping"
-      responses:
-        "201":
-          description: Returns the created label
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LabelResponse"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/labels/{labelID}":
-    delete:
-      operationId: DeleteOrgsIDLabelsID
-      tags:
-        - Organizations
-      summary: Delete a label from an organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-        - in: path
-          name: labelID
-          schema:
-            type: string
-          required: true
-          description: The label ID.
-      responses:
-        "204":
-          description: Delete has been accepted
-        "404":
-          description: Organization not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   "/orgs/{orgID}/secrets":
     get:
       operationId: GetOrgsIDSecrets
@@ -4433,191 +4338,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/invites":
-    post:
-      operationId: PostOrgsIDInvites
-      tags:
-        - Invites
-        - Organizations
-      summary: Creates an invite to an organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      requestBody:
-        description: Invite to be sent
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Invite"
-      responses:
-        "201":
-          description: Invite sent
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Invite"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/invites/{inviteID}":
-    delete:
-      operationId: DeleteOrgsIDInviteID
-      tags:
-        - Invites
-        - Organizations
-      summary: Remove an invite to an organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: inviteID
-          schema:
-            type: string
-          required: true
-          description: The ID of the invite to remove.
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      responses:
-        "204":
-          description: Invite removed
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/invites/{inviteID}/resend":
-    post:
-      operationId: PostOrgsIDInviteID
-      tags:
-        - Invites
-        - Organizations
-      summary: Resends an invite
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: inviteID
-          schema:
-            type: string
-          required: true
-          description: The ID of the invite to resend.
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      responses:
-        "200":
-          description: Invite resent
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Invite"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/users":
-    get:
-      operationId: GetCloudUsers
-      tags:
-        - CloudUsers
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: orgID
-          description: Specifies the organization ID of the CloudUser.
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: A list of cloud users
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CloudUsers"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/users/{userID}":
-    delete:
-      operationId: DeleteOrgsIDCloudUserID
-      tags:
-        - CloudUsers
-        - Organizations
-      summary: Deletes a cloud user
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: userID
-          schema:
-            type: string
-          required: true
-          description: The ID of the user to remove.
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      responses:
-        "204":
-          description: User removed
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/owners/{userID}":
-    delete:
-      operationId: DeleteOrgsIDOwnersID
-      tags:
-        - Users
-        - Organizations
-      summary: Remove an owner from an organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: userID
-          schema:
-            type: string
-          required: true
-          description: The ID of the owner to remove.
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      responses:
-        "204":
-          description: Owner removed
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   /stacks:
     get:
       operationId: ListStacks
@@ -4743,12 +4463,15 @@ paths:
               properties:
                 name:
                   type: string
+                  nullable: true
                 description:
                   type: string
+                  nullable: true
                 templateURLs:
                   type: array
                   items:
                     type: string
+                  nullable: true
                 additionalResources:
                   type: array
                   items:
@@ -7680,6 +7403,14 @@ components:
                   type: string
               contents:
                 $ref: "#/components/schemas/Template"
+        envRefs:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: boolean
         secrets:
           type: object
           additionalProperties:
@@ -7803,9 +7534,14 @@ components:
             type: string
             description: Value provided to fulfill reference
           defaultValue:
-            type: string
             description: Default value that will be provided for the reference when no value is provided
-        required: [resourceField, envRefKey, defaultValue]
+            nullable: true
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: boolean
+        required: [resourceField, envRefKey]
     TemplateSummary:
       type: object
       properties:
@@ -8504,6 +8240,11 @@ components:
                             $ref: "#/components/schemas/TemplateKind"
                           metaName:
                             type: string
+                    links:
+                      type: object
+                      properties:
+                        self:
+                          type: string
               urls:
                 type: array
                 items:
@@ -8733,46 +8474,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Invite"
-    CloudUser:
-      properties:
-        id:
-          description: the idpe id of the user
-          readOnly: true
-          type: string
-        firstName:
-          type: string
-        lastName:
-          type: string
-        email:
-          type: string
-        role:
-          type: string
-          enum:
-            - member
-            - owner
-        links:
-          type: object
-          readOnly: true
-          example:
-            self: "/api/v2/cloud_users/1"
-          properties:
-            self:
-              type: string
-              format: uri
-      required: [id, email, role]
-    CloudUsers:
-      type: object
-      properties:
-        links:
-          type: object
-          properties:
-            self:
-              type: string
-              format: uri
-        users:
-          type: array
-          items:
-            $ref: "#/components/schemas/CloudUser"
     User:
       properties:
         id:
@@ -9079,6 +8780,8 @@ components:
           properties:
             period:
               type: string
+            fillValues:
+              type: boolean
     BuilderTagsType:
       type: object
       properties:

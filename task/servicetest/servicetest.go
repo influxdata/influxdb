@@ -136,13 +136,20 @@ func (tc TestCreds) Authorizer() influxdb.Authorizer {
 	}
 }
 
-// UsedServices is a simple interface that contains all the service we need
-// now we dont have to use a specific implementation of these services.
-type UsedServices interface {
-	influxdb.UserService
-	influxdb.OrganizationService
-	influxdb.UserResourceMappingService
-	influxdb.AuthorizationService
+type OrganizationService interface {
+	CreateOrganization(ctx context.Context, b *influxdb.Organization) error
+}
+
+type UserService interface {
+	CreateUser(ctx context.Context, u *influxdb.User) error
+}
+
+type UserResourceMappingService interface {
+	CreateUserResourceMapping(ctx context.Context, m *influxdb.UserResourceMapping) error
+}
+
+type AuthorizationService interface {
+	CreateAuthorization(ctx context.Context, a *influxdb.Authorization) error
 }
 
 // System  as in "system under test" encapsulates the required parts of a influxdb.TaskAdapter
@@ -150,7 +157,10 @@ type System struct {
 	TaskControlService backend.TaskControlService
 
 	// Used in the Creds function to create valid organizations, users, tokens, etc.
-	I UsedServices
+	OrganizationService        OrganizationService
+	UserService                UserService
+	UserResourceMappingService UserResourceMappingService
+	AuthorizationService       AuthorizationService
 
 	// Set this context, to be used in tests, so that any spawned goroutines watching Ctx.Done()
 	// will clean up after themselves.
@@ -1675,19 +1685,19 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 }
 
 func creds(t *testing.T, s *System) TestCreds {
-	t.Helper()
+	// t.Helper()
 
 	if s.CredsFunc == nil {
 		u := &influxdb.User{Name: t.Name() + "-user"}
-		if err := s.I.CreateUser(s.Ctx, u); err != nil {
+		if err := s.UserService.CreateUser(s.Ctx, u); err != nil {
 			t.Fatal(err)
 		}
 		o := &influxdb.Organization{Name: t.Name() + "-org"}
-		if err := s.I.CreateOrganization(s.Ctx, o); err != nil {
+		if err := s.OrganizationService.CreateOrganization(s.Ctx, o); err != nil {
 			t.Fatal(err)
 		}
 
-		if err := s.I.CreateUserResourceMapping(s.Ctx, &influxdb.UserResourceMapping{
+		if err := s.UserResourceMappingService.CreateUserResourceMapping(s.Ctx, &influxdb.UserResourceMapping{
 			ResourceType: influxdb.OrgsResourceType,
 			ResourceID:   o.ID,
 			UserID:       u.ID,
@@ -1701,7 +1711,7 @@ func creds(t *testing.T, s *System) TestCreds {
 			UserID:      u.ID,
 			Permissions: influxdb.OperPermissions(),
 		}
-		if err := s.I.CreateAuthorization(context.Background(), &authz); err != nil {
+		if err := s.AuthorizationService.CreateAuthorization(context.Background(), &authz); err != nil {
 			t.Fatal(err)
 		}
 		return TestCreds{

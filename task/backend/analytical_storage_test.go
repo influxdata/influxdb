@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -24,6 +25,8 @@ import (
 	"github.com/influxdata/influxdb/v2/storage/readservice"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/servicetest"
+	"github.com/influxdata/influxdb/v2/tenant"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -43,11 +46,20 @@ func TestAnalyticalStore(t *testing.T) {
 				FluxLanguageService: fluxlang.DefaultService,
 			})
 
+			tenantStore := tenant.NewStore(store)
+			ts := tenant.NewService(tenantStore)
+
+			authStore, err := authorization.NewStore(store)
+			require.NoError(t, err)
+			authSvc := authorization.NewService(authStore, ts)
+
 			var (
-				ab       = newAnalyticalBackend(t, svc, svc)
+				ab       = newAnalyticalBackend(t, ts.OrganizationService, ts.BucketService, store)
 				rr       = backend.NewStoragePointsWriterRecorder(logger, ab.PointsWriter())
-				svcStack = backend.NewAnalyticalRunStorage(logger, svc, svc, svc, rr, ab.QueryService())
+				svcStack = backend.NewAnalyticalRunStorage(logger, svc, ts.BucketService, svc, rr, ab.QueryService())
 			)
+
+			ts.BucketService = storage.NewBucketService(ts.BucketService, ab.storageEngine)
 
 			go func() {
 				<-ctx.Done()
@@ -59,10 +71,13 @@ func TestAnalyticalStore(t *testing.T) {
 			})
 
 			return &servicetest.System{
-				TaskControlService: svcStack,
-				TaskService:        svcStack,
-				I:                  svc,
-				Ctx:                authCtx,
+				TaskControlService:         svcStack,
+				TaskService:                svcStack,
+				OrganizationService:        ts.OrganizationService,
+				UserService:                ts.UserService,
+				UserResourceMappingService: ts.UserResourceMappingService,
+				AuthorizationService:       authSvc,
+				Ctx:                        authCtx,
 			}, cancelFunc
 		},
 	)
@@ -75,9 +90,10 @@ func TestDeduplicateRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc := kv.NewService(logger, store)
+	tenantStore := tenant.NewStore(store)
+	ts := tenant.NewService(tenantStore)
 
-	ab := newAnalyticalBackend(t, svc, svc)
+	ab := newAnalyticalBackend(t, ts.OrganizationService, ts.BucketService, store)
 	defer ab.Close(t)
 
 	mockTS := &mock.TaskService{
@@ -144,7 +160,7 @@ func (ab *analyticalBackend) Close(t *testing.T) {
 	}
 }
 
-func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, bucketSvc influxdb.BucketService) *analyticalBackend {
+func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, bucketSvc influxdb.BucketService, store kv.Store) *analyticalBackend {
 	// Mostly copied out of cmd/influxd/main.go.
 	logger := zaptest.NewLogger(t)
 

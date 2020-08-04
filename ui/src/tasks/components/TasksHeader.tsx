@@ -6,7 +6,6 @@ import {
   InputLabel,
   SlideToggle,
   ComponentSize,
-  ComponentStatus,
   Page,
   Sort,
   FlexBox,
@@ -57,6 +56,7 @@ export default class TasksHeader extends PureComponent<Props> {
       sortType,
       sortDirection,
       onSort,
+      limitStatus,
     } = this.props
 
     return (
@@ -98,19 +98,11 @@ export default class TasksHeader extends PureComponent<Props> {
               onSelectImport={onImportTask}
               onSelectTemplate={onImportFromTemplate}
               resourceName="Task"
-              status={this.addResourceStatus}
+              limitStatus={limitStatus}
             />
           </Page.ControlBarRight>
         </Page.ControlBar>
       </>
     )
-  }
-
-  private get addResourceStatus(): ComponentStatus {
-    const {limitStatus} = this.props
-    if (limitStatus === LimitStatus.EXCEEDED) {
-      return ComponentStatus.Disabled
-    }
-    return ComponentStatus.Default
   }
 }

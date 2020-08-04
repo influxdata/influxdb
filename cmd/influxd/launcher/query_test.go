@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
+	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
@@ -2274,5 +2275,61 @@ from(bucket: v.bucket)
 				t.Fatalf("unexpected sample count -want/+got:\n\t- %d\n\t+ %d", want, got)
 			}
 		})
+	}
+}
+
+func TestLauncher_Query_Buckets_MultiplePages(t *testing.T) {
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
+	l.SetupOrFail(t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	// Create a large number of buckets. This is above the default
+	// page size of 20.
+	for i := 0; i < 50; i++ {
+		b := &influxdb.Bucket{
+			OrgID: l.Org.ID,
+			Name:  fmt.Sprintf("b%02d", i),
+		}
+		if err := l.BucketService(t).CreateBucket(ctx, b); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString(`
+#datatype,string,long,string
+#group,false,false,false
+#default,_result,,
+,result,table,name
+,,0,BUCKET
+,,0,_monitoring
+,,0,_tasks
+`)
+	for i := 0; i < 50; i++ {
+		_, _ = fmt.Fprintf(&sb, ",,0,b%02d\n", i)
+	}
+	data := sb.String()
+
+	bucketsQuery := `
+buckets()
+	|> keep(columns: ["name"])
+	|> sort(columns: ["name"])
+`
+	res := l.MustExecuteQuery(bucketsQuery)
+	defer res.Done()
+
+	firstResult := func(ri flux.ResultIterator) flux.Result {
+		ri.More()
+		return ri.Next()
+	}
+	got := firstResult(flux.NewSliceResultIterator(res.Results))
+
+	want, err := csv.NewResultDecoder(csv.ResultDecoderConfig{}).Decode(strings.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := table.Diff(want.Tables(), got.Tables()); diff != "" {
+		t.Fatalf("unexpected output -want/+got:\n%s", diff)
 	}
 }

@@ -3623,15 +3623,15 @@ func TestService(t *testing.T) {
 						Resources: []StackResource{
 							{
 								APIVersion: APIVersion,
-								ID:         1,
-								Kind:       KindLabel,
-								MetaName:   "meta-label",
-							},
-							{
-								APIVersion: APIVersion,
 								ID:         2,
 								Kind:       KindLabel,
 								MetaName:   "collision-1-" + influxdb.ID(333).String()[10:],
+							},
+							{
+								APIVersion: APIVersion,
+								ID:         1,
+								Kind:       KindLabel,
+								MetaName:   "meta-label",
 							},
 						},
 						UpdatedAt: now,

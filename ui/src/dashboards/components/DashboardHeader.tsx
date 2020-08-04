@@ -27,7 +27,6 @@ import {
 
 // Utils
 import {event} from 'src/cloud/utils/reporting'
-import {resetQueryCache} from 'src/shared/apis/queryCache'
 
 // Selectors
 import {getTimeRange} from 'src/dashboards/selectors'
@@ -126,12 +125,6 @@ const DashboardHeader: FC<Props> = ({
     }
   }
 
-  const resetCacheAndRefresh = (): void => {
-    // We want to invalidate the existing cache when a user manually refreshes the dashboard
-    resetQueryCache()
-    onManualRefresh()
-  }
-
   return (
     <>
       <Page.Header fullWidth={true}>
@@ -176,7 +169,7 @@ const DashboardHeader: FC<Props> = ({
           <TimeZoneDropdown />
           <AutoRefreshDropdown
             onChoose={handleChooseAutoRefresh}
-            onManualRefresh={resetCacheAndRefresh}
+            onManualRefresh={onManualRefresh}
             selected={autoRefresh}
           />
           <TimeRangeDropdown

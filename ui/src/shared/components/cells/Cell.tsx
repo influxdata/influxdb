@@ -11,6 +11,9 @@ import RefreshingView from 'src/shared/components/RefreshingView'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
+// Action
+import {setCellMount as setCellMountAction} from 'src/perf/actions'
+
 // Utils
 import {getByID} from 'src/resources/selectors'
 
@@ -30,10 +33,20 @@ interface State {
   inView: boolean
 }
 
-type Props = StateProps & OwnProps
+interface DispatchProps {
+  setCellMount: typeof setCellMountAction
+}
+
+type Props = StateProps & OwnProps & DispatchProps
 
 @ErrorHandling
 class CellComponent extends Component<Props, State> {
+  componentDidMount() {
+    const {cell, setCellMount} = this.props
+
+    setCellMount(cell.id, new Date().getTime())
+  }
+
   public render() {
     const {cell, view} = this.props
 
@@ -100,6 +113,7 @@ class CellComponent extends Component<Props, State> {
 
     return (
       <RefreshingView
+        id={view.id}
         properties={view.properties}
         manualRefresh={manualRefresh}
       />
@@ -117,4 +131,11 @@ const mstp = (state: AppState, ownProps: OwnProps) => {
   return {view}
 }
 
-export default connect<StateProps, {}, OwnProps>(mstp, null)(CellComponent)
+const mdtp = {
+  setCellMount: setCellMountAction,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(CellComponent)

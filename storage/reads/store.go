@@ -72,6 +72,8 @@ type GroupCursor interface {
 	Err() error
 
 	Stats() cursors.CursorStats
+
+	Aggregate() *datatypes.Aggregate
 }
 
 type Store interface {

@@ -36,6 +36,7 @@ import {
   patchDashboardsCellsView as apiPatchDashboardsCellsView,
   deleteStack as apiDeleteStack,
   getStacks,
+  patchStack,
   postTemplatesApply,
   Error as PkgError,
   TemplateApply,
@@ -530,6 +531,23 @@ export const fetchStacks = async (orgID: string) => {
 export const deleteStack = async (stackId, orgID) => {
   const resp = await apiDeleteStack({stack_id: stackId, query: {orgID}})
 
+  if (resp.status >= 300) {
+    throw new Error((resp.data as PkgError).message)
+  }
+
+  return resp
+}
+
+export const updateStackName = async (stackID, name) => {
+  const resp = await patchStack({
+    stack_id: stackID,
+    data: {
+      name,
+      description: null,
+      templateURLs: null,
+      additionalResources: null,
+    },
+  })
   if (resp.status >= 300) {
     throw new Error((resp.data as PkgError).message)
   }

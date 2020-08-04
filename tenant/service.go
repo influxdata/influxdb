@@ -1,6 +1,8 @@
 package tenant
 
 import (
+	"context"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/metric"
 	"github.com/influxdata/influxdb/v2/label"
@@ -9,48 +11,67 @@ import (
 	"go.uber.org/zap"
 )
 
+type contextKey string
+
+const (
+	ctxInternal contextKey = "influx/tenant/internal"
+)
+
+func internalCtx(ctx context.Context) context.Context {
+	return context.WithValue(ctx, ctxInternal, true)
+}
+
+func isInternal(ctx context.Context) bool {
+	_, ok := ctx.Value(ctxInternal).(bool)
+	return ok
+}
+
 type Service struct {
 	store *Store
+	influxdb.UserService
+	influxdb.PasswordsService
+	influxdb.UserResourceMappingService
+	influxdb.OrganizationService
+	influxdb.BucketService
 }
 
-func NewService(st *Store) influxdb.TenantService {
-	return &Service{
-		store: st,
-	}
+// NewService creates a new base tenant service.
+func NewService(st *Store) *Service {
+	svc := &Service{store: st}
+	userSvc := NewUserSvc(st, svc)
+	svc.UserService = userSvc
+	svc.PasswordsService = userSvc
+	svc.UserResourceMappingService = NewUserResourceMappingSvc(st, svc)
+	svc.OrganizationService = NewOrganizationSvc(st, svc)
+	svc.BucketService = NewBucketSvc(st, svc)
+
+	return svc
 }
 
-type TenantSystem struct {
-	UserSvc     influxdb.UserService
-	PasswordSvc influxdb.PasswordsService
-	UrmSvc      influxdb.UserResourceMappingService
-	OrgSvc      influxdb.OrganizationService
-	BucketSvc   influxdb.BucketService
-}
-
-func NewSystem(store *Store, log *zap.Logger, reg prometheus.Registerer, metricOpts ...metric.ClientOptFn) *TenantSystem {
+// creates a new Service with logging and metrics middleware wrappers.
+func NewSystem(store *Store, log *zap.Logger, reg prometheus.Registerer, metricOpts ...metric.ClientOptFn) *Service {
 	ts := NewService(store)
-	return &TenantSystem{
-		UserSvc:     NewUserLogger(log, NewUserMetrics(reg, ts, metricOpts...)),
-		PasswordSvc: NewPasswordLogger(log, NewPasswordMetrics(reg, ts, metricOpts...)),
-		UrmSvc:      NewURMLogger(log, NewUrmMetrics(reg, ts, metricOpts...)),
-		OrgSvc:      NewOrgLogger(log, NewOrgMetrics(reg, ts, metricOpts...)),
-		BucketSvc:   NewBucketLogger(log, NewBucketMetrics(reg, ts, metricOpts...)),
-	}
+	ts.UserService = NewUserLogger(log, NewUserMetrics(reg, ts.UserService, metricOpts...))
+	ts.PasswordsService = NewPasswordLogger(log, NewPasswordMetrics(reg, ts.PasswordsService, metricOpts...))
+	ts.UserResourceMappingService = NewURMLogger(log, NewUrmMetrics(reg, ts.UserResourceMappingService, metricOpts...))
+	ts.OrganizationService = NewOrgLogger(log, NewOrgMetrics(reg, ts.OrganizationService, metricOpts...))
+	ts.BucketService = NewBucketLogger(log, NewBucketMetrics(reg, ts.BucketService, metricOpts...))
+
+	return ts
 }
 
-func (ts *TenantSystem) NewOrgHTTPHandler(log *zap.Logger, labelSvc influxdb.LabelService, secretSvc influxdb.SecretService) *OrgHandler {
+func (ts *Service) NewOrgHTTPHandler(log *zap.Logger, secretSvc influxdb.SecretService) *OrgHandler {
 	secretHandler := secret.NewHandler(log, "id", secret.NewAuthedService(secretSvc))
-	urmHandler := NewURMHandler(log.With(zap.String("handler", "urm")), influxdb.OrgsResourceType, "id", ts.UserSvc, NewAuthedURMService(ts.OrgSvc, ts.UrmSvc))
-	labelHandler := label.NewHTTPEmbeddedHandler(log.With(zap.String("handler", "label")), influxdb.OrgsResourceType, labelSvc)
-	return NewHTTPOrgHandler(log.With(zap.String("handler", "org")), NewAuthedOrgService(ts.OrgSvc), urmHandler, labelHandler, secretHandler)
+	urmHandler := NewURMHandler(log.With(zap.String("handler", "urm")), influxdb.OrgsResourceType, "id", ts.UserService, NewAuthedURMService(ts.OrganizationService, ts.UserResourceMappingService))
+	return NewHTTPOrgHandler(log.With(zap.String("handler", "org")), NewAuthedOrgService(ts.OrganizationService), urmHandler, secretHandler)
 }
 
-func (ts *TenantSystem) NewBucketHTTPHandler(log *zap.Logger, labelSvc influxdb.LabelService) *BucketHandler {
-	urmHandler := NewURMHandler(log.With(zap.String("handler", "urm")), influxdb.OrgsResourceType, "id", ts.UserSvc, NewAuthedURMService(ts.OrgSvc, ts.UrmSvc))
+func (ts *Service) NewBucketHTTPHandler(log *zap.Logger, labelSvc influxdb.LabelService) *BucketHandler {
+	urmHandler := NewURMHandler(log.With(zap.String("handler", "urm")), influxdb.OrgsResourceType, "id", ts.UserService, NewAuthedURMService(ts.OrganizationService, ts.UserResourceMappingService))
 	labelHandler := label.NewHTTPEmbeddedHandler(log.With(zap.String("handler", "label")), influxdb.BucketsResourceType, labelSvc)
-	return NewHTTPBucketHandler(log.With(zap.String("handler", "bucket")), NewAuthedBucketService(ts.BucketSvc), labelSvc, urmHandler, labelHandler)
+	return NewHTTPBucketHandler(log.With(zap.String("handler", "bucket")), NewAuthedBucketService(ts.BucketService), labelSvc, urmHandler, labelHandler)
 }
 
-func (ts *TenantSystem) NewUserHTTPHandler(log *zap.Logger) *UserHandler {
-	return NewHTTPUserHandler(log.With(zap.String("handler", "user")), NewAuthedUserService(ts.UserSvc), NewAuthedPasswordService(ts.PasswordSvc))
+func (ts *Service) NewUserHTTPHandler(log *zap.Logger) *UserHandler {
+	return NewHTTPUserHandler(log.With(zap.String("handler", "user")), NewAuthedUserService(ts.UserService), NewAuthedPasswordService(ts.PasswordsService))
 }

@@ -9,7 +9,7 @@ import {
 } from 'src/cloud/apis/reporting'
 
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
-
+import {GIT_SHA} from 'src/shared/constants'
 export {Point, PointTags, PointFields} from 'src/cloud/apis/reporting'
 
 let reportingTags = {}
@@ -61,7 +61,7 @@ const pooledEvent = ({timestamp, measurement, fields, tags}: Point) => {
   reportingPoints.push(
     cleanTags({
       measurement,
-      tags: {...reportingTags, ...tags},
+      tags: {...reportingTags, ...tags, version: GIT_SHA},
       fields,
       timestamp,
     })
@@ -141,8 +141,15 @@ export const event = (
     /* eslint-disable no-console */
     console.log(`Event:  [ ${measurement} ]`)
     if (Object.keys(meta).length) {
+      console.log('tags')
       console.log(
         Object.entries(meta)
+          .map(([k, v]) => `        ${k}: ${v}`)
+          .join('\n')
+      )
+      console.log('fields')
+      console.log(
+        Object.entries(values)
           .map(([k, v]) => `        ${k}: ${v}`)
           .join('\n')
       )
@@ -169,5 +176,5 @@ export const useLoadTimeReporting = (measurement: string) => {
     event(measurement, {
       time: loadStartTime,
     })
-  }, [event, loadStartTime])
+  }, [measurement, loadStartTime])
 }

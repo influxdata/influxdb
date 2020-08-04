@@ -29,7 +29,7 @@ func (h *OrgHandler) Prefix() string {
 }
 
 // NewHTTPOrgHandler constructs a new http server.
-func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService, urm http.Handler, labelHandler http.Handler, secretHandler http.Handler) *OrgHandler {
+func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService, urm http.Handler, secretHandler http.Handler) *OrgHandler {
 	svr := &OrgHandler{
 		api:    kithttp.NewAPI(kithttp.WithLog(log)),
 		log:    log,
@@ -56,7 +56,6 @@ func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService,
 			mountableRouter := r.With(kithttp.ValidResource(svr.api, svr.lookupOrgByID))
 			mountableRouter.Mount("/members", urm)
 			mountableRouter.Mount("/owners", urm)
-			mountableRouter.Mount("/labels", labelHandler)
 			mountableRouter.Mount("/secrets", secretHandler)
 		})
 	})

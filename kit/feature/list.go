@@ -212,20 +212,6 @@ func MemoryOptimizedSchemaMutation() BoolFlag {
 	return memoryOptimizedSchemaMutation
 }
 
-var urmFreeTasks = MakeBoolFlag(
-	"Urm Free Tasks",
-	"urmFreeTasks",
-	"Lyon Hill",
-	false,
-	Temporary,
-	false,
-)
-
-// UrmFreeTasks - allow task system to operate without creating additional urms
-func UrmFreeTasks() BoolFlag {
-	return urmFreeTasks
-}
-
 var simpleTaskOptionsExtraction = MakeBoolFlag(
 	"Simple Task Options Extraction",
 	"simpleTaskOptionsExtraction",
@@ -298,7 +284,6 @@ var all = []Flag{
 	hydratevars,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
-	urmFreeTasks,
 	simpleTaskOptionsExtraction,
 	useUserPermission,
 	mergeFiltersRule,
@@ -321,7 +306,6 @@ var byKey = map[string]Flag{
 	"hydratevars":                   hydratevars,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
-	"urmFreeTasks":                  urmFreeTasks,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"useUserPermission":             useUserPermission,
 	"mergeFiltersRule":              mergeFiltersRule,

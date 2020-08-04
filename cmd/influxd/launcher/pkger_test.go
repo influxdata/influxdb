@@ -535,53 +535,99 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("updating a stack", func(t *testing.T) {
-			stack, cleanup := newStackFn(t, pkger.StackCreate{
-				OrgID:        l.Org.ID,
-				Name:         "first name",
-				Description:  "first desc",
-				TemplateURLs: []string{},
-			})
-			defer cleanup()
+			t.Run("bootstrapped updates successfully", func(t *testing.T) {
+				stack, cleanup := newStackFn(t, pkger.StackCreate{
+					OrgID:        l.Org.ID,
+					Name:         "first name",
+					Description:  "first desc",
+					TemplateURLs: []string{},
+				})
+				defer cleanup()
 
-			assertStack := func(t *testing.T, st pkger.Stack) {
-				t.Helper()
-				assert.Equal(t, stack.ID, st.ID)
-				ev := st.LatestEvent()
-				assert.Equal(t, "2nd name", ev.Name)
-				assert.Equal(t, "2nd desc", ev.Description)
-				assert.Equal(t, []string{"http://example.com"}, ev.TemplateURLs)
-				resources := []pkger.StackResource{
-					{
-						APIVersion: pkger.APIVersion,
-						ID:         1,
-						Kind:       pkger.KindBucket,
-						MetaName:   "bucket-meta",
-					},
+				assertStack := func(t *testing.T, st pkger.Stack) {
+					t.Helper()
+					assert.Equal(t, stack.ID, st.ID)
+					ev := st.LatestEvent()
+					assert.Equal(t, "2nd name", ev.Name)
+					assert.Equal(t, "2nd desc", ev.Description)
+					assert.Equal(t, []string{"http://example.com"}, ev.TemplateURLs)
+					resources := []pkger.StackResource{
+						{
+							APIVersion: pkger.APIVersion,
+							ID:         1,
+							Kind:       pkger.KindBucket,
+							MetaName:   "bucket-meta",
+						},
+					}
+					assert.Equal(t, resources, ev.Resources)
+					assert.True(t, ev.UpdatedAt.After(stack.LatestEvent().UpdatedAt))
 				}
-				assert.Equal(t, resources, ev.Resources)
-				assert.True(t, ev.UpdatedAt.After(stack.LatestEvent().UpdatedAt))
-			}
 
-			updStack, err := svc.UpdateStack(ctx, pkger.StackUpdate{
-				ID:           stack.ID,
-				Name:         strPtr("2nd name"),
-				Description:  strPtr("2nd desc"),
-				TemplateURLs: []string{"http://example.com"},
-				AdditionalResources: []pkger.StackAdditionalResource{
-					{
+				updStack, err := svc.UpdateStack(ctx, pkger.StackUpdate{
+					ID:           stack.ID,
+					Name:         strPtr("2nd name"),
+					Description:  strPtr("2nd desc"),
+					TemplateURLs: []string{"http://example.com"},
+					AdditionalResources: []pkger.StackAdditionalResource{
+						{
+							APIVersion: pkger.APIVersion,
+							ID:         1,
+							Kind:       pkger.KindBucket,
+							MetaName:   "bucket-meta",
+						},
+					},
+				})
+				require.NoError(t, err)
+				assertStack(t, updStack)
+
+				readStack, err := svc.ReadStack(ctx, stack.ID)
+				require.NoError(t, err)
+				assertStack(t, readStack)
+			})
+
+			t.Run("associated with installed template returns valid resources", func(t *testing.T) {
+				tmpl := newTemplate(newLabelObject("label-1", "", "", ""))
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkger.ApplyWithTemplate(tmpl))
+				require.NoError(t, err)
+				defer deleteStackFn(t, impact.StackID)
+
+				stack, err := svc.ReadStack(ctx, impact.StackID)
+				require.NoError(t, err)
+
+				assertStack := func(t *testing.T, st pkger.Stack) {
+					t.Helper()
+					assert.Equal(t, stack.ID, st.ID)
+					ev := st.LatestEvent()
+					assert.Equal(t, "2nd name", ev.Name)
+					resources := []pkger.StackResource{{
 						APIVersion: pkger.APIVersion,
 						ID:         1,
 						Kind:       pkger.KindBucket,
 						MetaName:   "bucket-meta",
-					},
-				},
-			})
-			require.NoError(t, err)
-			assertStack(t, updStack)
+					}}
+					resources = append(resources, stack.LatestEvent().Resources...)
+					assert.Equal(t, resources, ev.Resources)
+				}
 
-			readStack, err := svc.ReadStack(ctx, stack.ID)
-			require.NoError(t, err)
-			assertStack(t, readStack)
+				updStack, err := svc.UpdateStack(ctx, pkger.StackUpdate{
+					ID:   stack.ID,
+					Name: strPtr("2nd name"),
+					AdditionalResources: []pkger.StackAdditionalResource{
+						{
+							APIVersion: pkger.APIVersion,
+							ID:         1,
+							Kind:       pkger.KindBucket,
+							MetaName:   "bucket-meta",
+						},
+					},
+				})
+				require.NoError(t, err)
+				assertStack(t, updStack)
+
+				readStack, err := svc.ReadStack(ctx, stack.ID)
+				require.NoError(t, err)
+				assertStack(t, readStack)
+			})
 		})
 
 		t.Run("apply with only a stackID succeeds when stack has URLs", func(t *testing.T) {
@@ -2470,7 +2516,7 @@ spec:
 
 			impact, err := svc.DryRun(ctx, l.Org.ID, l.User.ID,
 				pkger.ApplyWithTemplate(pkg),
-				pkger.ApplyWithEnvRefs(map[string]string{
+				pkger.ApplyWithEnvRefs(map[string]interface{}{
 					"bkt-1-name-ref":   "new-bkt-name",
 					"label-1-name-ref": "new-label-name",
 				}),
@@ -2522,7 +2568,8 @@ spec:
 							Name string `json:"name"`
 						}{},
 						AggregateWindow: struct {
-							Period string `json:"period"`
+							Period     string `json:"period"`
+							FillValues bool   `json:"fillValues"`
 						}{},
 					},
 					Text:     "from(v.bucket) |> count()",
@@ -3687,7 +3734,7 @@ spec:
 
 		impact, err = svc.Apply(ctx, l.Org.ID, l.User.ID,
 			pkger.ApplyWithTemplate(pkg),
-			pkger.ApplyWithEnvRefs(map[string]string{
+			pkger.ApplyWithEnvRefs(map[string]interface{}{
 				"bkt-1-name-ref":      "rucket_threeve",
 				"check-1-name-ref":    "check_threeve",
 				"dash-1-name-ref":     "dash_threeve",

@@ -225,7 +225,7 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 	if r, err := l.FluxQueryService().Query(ctx, req); err != nil {
 		t.Fatal(err)
 	} else {
-		results := make( map[string]*bytes.Buffer )
+		results := make(map[string]*bytes.Buffer)
 
 		for r.More() {
 			v := r.Next()
@@ -242,14 +242,14 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 			t.Error(err)
 		}
 
-		logFormatted := func( name string, results map[string]*bytes.Buffer ) {
+		logFormatted := func(name string, results map[string]*bytes.Buffer) {
 			if _, ok := results[name]; ok {
 				scanner := bufio.NewScanner(results[name])
 				for scanner.Scan() {
-					t.Log( scanner.Text())
+					t.Log(scanner.Text())
 				}
 			} else {
-				t.Log( "table ", name, " not present in results" )
+				t.Log("table ", name, " not present in results")
 			}
 		}
 		if _, ok := results["diff"]; ok {
