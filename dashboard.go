@@ -826,6 +826,7 @@ type MosaicViewProperties struct {
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 	TimeFormat        string           `json:"timeFormat"`
 }
+
 // GaugeViewProperties represents options for gauge view in Chronograf
 type GaugeViewProperties struct {
 	Type              string           `json:"type"`
