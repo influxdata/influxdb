@@ -16,6 +16,8 @@ import {
   PopoverPosition,
   Appearance,
   ComponentColor,
+  ComponentSize,
+  List,
 } from '@influxdata/clockface'
 import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
@@ -65,12 +67,10 @@ const SelectorListCreateBucket: FC<Props> = ({
 
   const limitExceeded = limitStatus === LimitStatus.EXCEEDED
 
-  let selectorItemClassName = 'selector-list--item'
   let titleText = 'Click to create a bucket'
   let buttonDisabled = false
 
   if (limitExceeded) {
-    selectorItemClassName = 'selector-list--item__disabled'
     titleText = 'This account has the maximum number of buckets allowed'
     buttonDisabled = true
   }
@@ -117,15 +117,17 @@ const SelectorListCreateBucket: FC<Props> = ({
 
   return (
     <>
-      <button
-        className={selectorItemClassName}
+      <List.Item
+        className="selector-list--item"
         data-testid="selector-list add-bucket"
         disabled={buttonDisabled}
         title={titleText}
         ref={triggerRef}
+        onClick={() => {}}
+        size={ComponentSize.ExtraSmall}
       >
         + Create Bucket
-      </button>
+      </List.Item>
       <Popover
         triggerRef={triggerRef}
         appearance={Appearance.Outline}
