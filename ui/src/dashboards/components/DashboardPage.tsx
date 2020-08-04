@@ -66,6 +66,21 @@ class DashboardPage extends Component<Props> {
     }
   }
 
+  public componentDidUpdate(prevProps) {
+    const {setRenderID, dashboard} = this.props
+
+    if (prevProps.manualRefresh !== this.props.autoRefresh) {
+      const renderID = uuid.v4()
+      setRenderID('dashboard', renderID)
+      const tags = {
+        dashboardID: dashboard.id,
+      }
+      const fields = {renderID}
+
+      event('Dashboard Mounted', tags, fields)
+    }
+  }
+
   public componentWillUnmount() {
     if (isFlagEnabled('queryCacheForDashboards')) {
       resetQueryCache()
