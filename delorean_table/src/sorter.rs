@@ -94,15 +94,27 @@ fn quicksort_by(packers: &mut [Packers], range: Range<usize>, sort_by: &[usize])
 
 fn partition(packers: &mut [Packers], range: &Range<usize>, sort_by: &[usize]) -> usize {
     let pivot = (range.start + range.end) / 2;
+    let (lo, hi) = (range.start, range.end);
+    if cmp(packers, pivot as usize, lo as usize, sort_by) == Ordering::Less {
+        swap(packers, lo as usize, pivot as usize);
+    }
+    if cmp(packers, hi as usize, lo as usize, sort_by) == Ordering::Less {
+        swap(packers, lo as usize, hi as usize);
+    }
+    if cmp(packers, pivot as usize, hi as usize, sort_by) == Ordering::Less {
+        swap(packers, hi as usize, pivot as usize);
+    }
+
+    let pivot = hi;
     let mut i = range.start;
     let mut j = range.end;
 
     loop {
-        while cmp(packers, i, pivot, sort_by) == Ordering::Less {
+        while cmp(packers, i as usize, pivot as usize, sort_by) == Ordering::Less {
             i += 1;
         }
 
-        while cmp(packers, j, pivot, sort_by) == Ordering::Greater {
+        while cmp(packers, j as usize, pivot as usize, sort_by) == Ordering::Greater {
             j -= 1;
         }
 
@@ -110,7 +122,7 @@ fn partition(packers: &mut [Packers], range: &Range<usize>, sort_by: &[usize]) -
             return j;
         }
 
-        swap(packers, i, j);
+        swap(packers, i as usize, j as usize);
         i += 1;
         j -= 1;
     }
@@ -160,6 +172,7 @@ fn swap(packers: &mut [Packers], a: usize, b: usize) {
 #[cfg(test)]
 mod test {
     use super::*;
+    use rand::Rng;
 
     #[test]
     fn packers_sort() {
@@ -278,5 +291,77 @@ mod test {
         );
 
         sort(&mut packers, &[0]).unwrap();
+    }
+
+    #[test]
+    fn packers_almost_equal() {
+        let packer: Packer<i64> = Packer::from(vec![
+            1588834100000000,
+            1588834100000000,
+            1588834100000000,
+            1588834110000000,
+            1588834100000000,
+            1588834100000000,
+            1588834100000000,
+            1588834110000000,
+            1588834100000000,
+            1588834100000000,
+            1588834100000000,
+            1588834100000000,
+            1588834100000000,
+            1588834100000000,
+            1588834100000000,
+            1588834100000000,
+            1588834110000000,
+        ]);
+        let mut packers = vec![Packers::Integer(packer)];
+
+        sort(&mut packers, &[0]).unwrap();
+
+        let values = packers[0].i64_packer_mut().values();
+
+        let exp: Vec<Option<i64>> = vec![
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834100000000),
+            Some(1588834110000000),
+            Some(1588834110000000),
+            Some(1588834110000000),
+        ];
+        assert_eq!(values, exp.as_slice());
+    }
+
+    #[test]
+    fn packers_random() {
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..250 {
+            let packer: Packer<i64> = Packer::from(
+                (0..1000)
+                    .map(|_| rng.gen_range(0, 20))
+                    .collect::<Vec<i64>>(),
+            );
+            let mut packers = vec![Packers::Integer(packer)];
+
+            sort(&mut packers, &[0]).unwrap();
+
+            let values = packers[0].i64_packer_mut().values();
+            let mut prev = values[0];
+            for v in values.iter() {
+                assert!(prev <= *v);
+                prev = *v;
+            }
+        }
     }
 }

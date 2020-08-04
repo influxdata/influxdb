@@ -8,7 +8,7 @@ edition = "2018"
 [dependencies]
 snafu = "0.6.2"
 log = "0.4.8"
-
+rand = "0.7.3"
 human_format = "1.0.3"
 
 # Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time
