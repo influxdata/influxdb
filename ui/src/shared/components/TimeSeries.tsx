@@ -46,6 +46,7 @@ import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 // Actions & Selectors
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {hasUpdatedTimeRangeInVEO} from 'src/shared/selectors/app'
+import {setCellMount as setCellMountAction} from 'src/perf/actions'
 
 // Types
 import {
@@ -71,6 +72,7 @@ interface QueriesState {
 }
 
 interface OwnProps {
+  cellID?: string
   className?: string
   style?: CSSProperties
   queries: DashboardQuery[]
@@ -126,11 +128,19 @@ class TimeSeries extends Component<Props, State> {
   private pendingCheckStatuses: CancelBox<StatusRow[][]> = null
 
   public componentDidMount() {
+    const {cellID, setCellMount} = this.props
     this.observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
         const {isIntersecting} = entry
-        if (!this.isIntersecting && isIntersecting && this.pendingReload) {
+        const reload =
+          !this.isIntersecting && isIntersecting && this.pendingReload
+
+        if (reload) {
           this.reload()
+        }
+
+        if (reload && cellID) {
+          setCellMount(cellID, new Date().getTime())
         }
 
         this.isIntersecting = isIntersecting
@@ -141,8 +151,14 @@ class TimeSeries extends Component<Props, State> {
   }
 
   public componentDidUpdate(prevProps: Props) {
-    if (this.shouldReload(prevProps) && this.isIntersecting) {
+    const {setCellMount, cellID} = this.props
+    const reload = this.shouldReload(prevProps) && this.isIntersecting
+    if (reload) {
       this.reload()
+    }
+
+    if (reload && cellID) {
+      setCellMount(cellID, new Date().getTime())
     }
   }
 
@@ -383,6 +399,7 @@ const mstp = (state: AppState, props: OwnProps) => {
 const mdtp = {
   notify: notifyAction,
   onGetCachedResultsThunk: getCachedResultsThunk,
+  setCellMount: setCellMountAction,
 }
 
 const connector = connect(mstp, mdtp)
