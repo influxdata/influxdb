@@ -5,7 +5,6 @@ import {
   getTimeRangeWithTimezone,
 } from 'src/dashboards/selectors/index'
 import {getTimezoneOffset} from 'src/dashboards/utils/getTimezoneOffset'
-import moment from 'moment'
 
 jest.mock('src/dashboards/utils/getTimezoneOffset')
 
@@ -44,11 +43,9 @@ describe('Dashboards.Selector', () => {
     '04c6f3976f4b8003',
     '04c6f3976f4b8004',
   ]
-  const lower = `2020-05-05T10:00:00-07:00`
-  const upper = `2020-05-05T11:00:00-07:00`
   const customTimeRangePST = {
-    lower,
-    upper,
+    lower: '2020-05-05T10:00:00-07:00',
+    upper: '2020-05-05T11:00:00-07:00',
     type: 'custom',
   } as CustomTimeRange
   const customTimeRangeCET = {
