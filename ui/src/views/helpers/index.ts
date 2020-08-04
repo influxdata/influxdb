@@ -281,7 +281,10 @@ const NEW_VIEW_CREATORS = {
               },
             ],
             functions: [{name: 'mean'}],
-            aggregateWindow: {period: DEFAULT_CHECK_EVERY},
+            aggregateWindow: {
+              period: DEFAULT_CHECK_EVERY,
+              fillValues: DEFAULT_FILLVALUES,
+            },
           },
         },
       ],
