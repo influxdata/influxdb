@@ -3,6 +3,7 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"sort"
 	"time"
