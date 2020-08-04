@@ -3,8 +3,8 @@
 //! order.
 //!
 //! `sorter::sort` implements Quicksort using Hoare's partitioning scheme (how
-//! you choose the pivot). This partitioning scheme typically reduces
-//! significantly the number of swaps necessary but it does have some drawbacks.
+//! you choose the pivot). This partitioning scheme typically significantly
+//! reduces the number of swaps necessary but it does have some drawbacks.
 //!
 //! Firstly, the worse case runtime of this implementation is `O(n^2)` when the
 //! input set of columns are sorted according to the desired sort order. To
@@ -18,6 +18,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::ops::Range;
 
+use snafu::ensure;
 use snafu::Snafu;
 
 use super::*;
@@ -28,37 +29,35 @@ pub enum Error {
     TooManyColumns,
 
     #[snafu(display(r#"Same column specified as sort column multiple times"#))]
-    RepeatedColumns,
+    RepeatedColumns { index: usize },
 
     #[snafu(display(r#"Specified column index is out bounds"#))]
-    OutOfBoundsColumnIndex,
+    OutOfBoundsColumn { index: usize },
 }
 
-// Any Packers inputs with more than this many rows will have a linear
-// comparison scan performed on them to ensure they're not already sorted.
+/// Any Packers inputs with more than this many rows will have a linear
+/// comparison scan performed on them to ensure they're not already sorted.
 const SORTED_CHECK_SIZE: usize = 1000;
 
 /// Sort a slice of `Packers` based on the provided column indexes.
 ///
-/// All chosen columns will sorted in ascending order; the sort is *not*
+/// All chosen columns will be sorted in ascending order; the sort is *not*
 /// stable.
 pub fn sort(packers: &mut [Packers], sort_by: &[usize]) -> Result<(), Error> {
     if packers.is_empty() || sort_by.is_empty() {
         return Ok(());
-    } else if sort_by.len() > packers.len() {
-        return Err(Error::TooManyColumns);
     }
 
-    let col_set = sort_by.iter().collect::<BTreeSet<&usize>>();
-    if col_set.len() < sort_by.len() {
-        return Err(Error::RepeatedColumns);
+    ensure!(sort_by.len() <= packers.len(), TooManyColumns);
+
+    let mut col_set = BTreeSet::new();
+    for &index in sort_by {
+        ensure!(col_set.insert(index), RepeatedColumns { index });
     }
 
     // TODO(edd): map first/last still unstable https://github.com/rust-lang/rust/issues/62924
-    for i in col_set {
-        if *i >= packers.len() {
-            return Err(Error::OutOfBoundsColumnIndex);
-        }
+    if let Some(index) = col_set.range(packers.len()..).next() {
+        return OutOfBoundsColumn { index: *index }.fail();
     }
 
     // Hoare's partitioning scheme can have quadratic runtime behaviour in
@@ -118,32 +117,28 @@ fn partition(packers: &mut [Packers], range: &Range<usize>, sort_by: &[usize]) -
 }
 
 fn cmp(packers: &[Packers], a: usize, b: usize, sort_by: &[usize]) -> Ordering {
-    for idx in sort_by {
-        match &packers[*idx] {
+    for &idx in sort_by {
+        match &packers[idx] {
             Packers::String(p) => {
                 let a_val = p.get(a);
                 let b_val = p.get(b);
 
-                if a_val.is_none() && b_val.is_none() {
+                match (a_val, b_val) {
                     // if cmp equal then try next packer column.
-                    continue;
-                } else if a_val.is_none() {
-                    return Ordering::Greater;
-                } else if b_val.is_none() {
-                    return Ordering::Less;
-                }
-
-                let cmp = &str::cmp(
-                    a_val.unwrap().as_utf8().unwrap(),
-                    b_val.unwrap().as_utf8().unwrap(),
-                );
-                if *cmp != Ordering::Equal {
-                    // if cmp equal then try next packer column.
-                    return *cmp;
+                    (None, None) => continue,
+                    (None, _) => return Ordering::Greater,
+                    (_, None) => return Ordering::Less,
+                    (Some(a_val), Some(b_val)) => {
+                        let cmp = &str::cmp(a_val.as_utf8().unwrap(), b_val.as_utf8().unwrap());
+                        if *cmp != Ordering::Equal {
+                            // if cmp equal then try next packer column.
+                            return *cmp;
+                        }
+                    }
                 }
             }
             Packers::Integer(p) => {
-                let cmp = Option::<&i64>::cmp(&p.get(a), &p.get(b));
+                let cmp = p.get(a).cmp(&p.get(b));
                 if cmp != Ordering::Equal {
                     // if cmp equal then try next packer column.
                     return cmp;
@@ -268,7 +263,7 @@ mod test {
 
         assert_eq!(
             sorter::sort(&mut packers, &[2]),
-            Err(Error::OutOfBoundsColumnIndex)
+            Err(Error::OutOfBoundsColumn { index: 2 })
         );
 
         sort(&mut packers, &[0]).unwrap();
