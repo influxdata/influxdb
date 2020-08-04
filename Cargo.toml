@@ -103,3 +103,7 @@ harness = false
 [[bench]]
 name = "line_protocol_to_parquet"
 harness = false
+
+[[bench]]
+name = "packers"
+harness = false
