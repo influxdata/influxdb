@@ -26,13 +26,13 @@ func TestSQLIndexExporter_ExportIndex(t *testing.T) {
 	// Expected output.
 	want := `
 BEGIN TRANSACTION;
-INSERT INTO measurement_series (name, series_id) VALUES ('cpu', 1);
-INSERT INTO measurement_series (name, series_id) VALUES ('disk', 5);
-INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('disk', 'region', 'east', 1);
-INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('disk', 'region', 'west', 5);
-INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('disk', 'status', 'ok', 1);
-INSERT INTO measurement_series (name, series_id) VALUES ('memory', 2);
-INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('memory', 'region', 'east', 2);
+INSERT INTO measurement_series (name, series_id) VALUES ('cpu', 3);
+INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('cpu', 'region', 'east', 3);
+INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('cpu', 'status', 'ok', 3);
+INSERT INTO measurement_series (name, series_id) VALUES ('disk', 7);
+INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('disk', 'region', 'west', 7);
+INSERT INTO measurement_series (name, series_id) VALUES ('memory', 8);
+INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('memory', 'region', 'east', 8);
 COMMIT;
 `[1:]
 
