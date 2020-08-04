@@ -707,16 +707,18 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pageFaultLimiter = rate.NewLimiter(rate.Limit(m.pageFaultRate), 1)
 	}
 
+	bucketFinder := storage.NewAllBucketsFinder(ts.BucketService)
+
 	if m.testing {
 		// the testing engine will write/read into a temporary directory
-		engine := NewTemporaryEngine(m.StorageConfig, storage.WithRetentionEnforcer(ts.BucketService))
+		engine := NewTemporaryEngine(m.StorageConfig, storage.WithRetentionEnforcer(bucketFinder))
 		flushers = append(flushers, engine)
 		m.engine = engine
 	} else {
 		m.engine = storage.NewEngine(
 			m.enginePath,
 			m.StorageConfig,
-			storage.WithRetentionEnforcer(ts.BucketService),
+			storage.WithRetentionEnforcer(bucketFinder),
 			storage.WithPageFaultLimiter(pageFaultLimiter),
 		)
 	}
@@ -972,7 +974,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		NewQueryService:      source.NewQueryService,
 		PointsWriter: &storage.LoggingPointsWriter{
 			Underlying:    pointsWriter,
-			BucketFinder:  ts.BucketService,
+			BucketFinder:  bucketFinder,
 			LogBucketName: platform.MonitoringSystemBucketName,
 		},
 		DeleteService:        deleteService,

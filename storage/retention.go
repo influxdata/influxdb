@@ -30,8 +30,9 @@ type Snapshotter interface {
 }
 
 // A BucketFinder is responsible for providing access to buckets via a filter.
+// It does not provide support for find options, and instead returns all buckets without a limit.
 type BucketFinder interface {
-	FindBuckets(context.Context, influxdb.BucketFilter, ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error)
+	FindBuckets(context.Context, influxdb.BucketFilter) ([]*influxdb.Bucket, int, error)
 }
 
 // ErrServiceClosed is returned when the service is unavailable.

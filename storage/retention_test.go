@@ -334,19 +334,19 @@ func (s *TestSnapshotter) WriteSnapshot(ctx context.Context, status tsm1.CacheSt
 }
 
 type TestBucketFinder struct {
-	FindBucketsFn func(context.Context, influxdb.BucketFilter, ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error)
+	FindBucketsFn func(context.Context, influxdb.BucketFilter) ([]*influxdb.Bucket, int, error)
 }
 
 func NewTestBucketFinder() *TestBucketFinder {
 	return &TestBucketFinder{
-		FindBucketsFn: func(context.Context, influxdb.BucketFilter, ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+		FindBucketsFn: func(context.Context, influxdb.BucketFilter) ([]*influxdb.Bucket, int, error) {
 			return nil, 0, nil
 		},
 	}
 }
 
-func (f *TestBucketFinder) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
-	return f.FindBucketsFn(ctx, filter, opts...)
+func (f *TestBucketFinder) FindBuckets(ctx context.Context, filter influxdb.BucketFilter) ([]*influxdb.Bucket, int, error) {
+	return f.FindBucketsFn(ctx, filter)
 }
 
 func MustTempDir() string {

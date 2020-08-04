@@ -73,8 +73,8 @@ func TestLoggingPointsWriter(t *testing.T) {
 			}
 		}
 
-		var bs mock.BucketService
-		bs.FindBucketsFn = func(ctx context.Context, filter influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+		var bf mock.BucketFinder
+		bf.FindBucketsFn = func(ctx context.Context, filter influxdb.BucketFilter) ([]*influxdb.Bucket, int, error) {
 			if got, want := *filter.OrganizationID, influxdb.ID(1); got != want {
 				t.Fatalf("orgID=%d, want %d", got, want)
 			} else if got, want := *filter.Name, "logbkt"; got != want {
@@ -85,7 +85,7 @@ func TestLoggingPointsWriter(t *testing.T) {
 
 		lpw := &storage.LoggingPointsWriter{
 			Underlying:    &pw,
-			BucketFinder:  &bs,
+			BucketFinder:  &bf,
 			LogBucketName: "logbkt",
 		}
 
@@ -106,8 +106,8 @@ func TestLoggingPointsWriter(t *testing.T) {
 
 	// Ensure an error is returned if logging bucket cannot be found.
 	t.Run("BucketError", func(t *testing.T) {
-		var bs mock.BucketService
-		bs.FindBucketsFn = func(ctx context.Context, filter influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+		var bf mock.BucketFinder
+		bf.FindBucketsFn = func(ctx context.Context, filter influxdb.BucketFilter) ([]*influxdb.Bucket, int, error) {
 			return nil, 0, errors.New("bucket error")
 		}
 
@@ -117,7 +117,7 @@ func TestLoggingPointsWriter(t *testing.T) {
 					return errors.New("point error")
 				},
 			},
-			BucketFinder:  &bs,
+			BucketFinder:  &bf,
 			LogBucketName: "logbkt",
 		}
 
