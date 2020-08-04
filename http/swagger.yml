@@ -9019,7 +9019,7 @@ components:
         - note
         - showNoteWhenEmpty
         - xColumn
-        - yColumn
+        - ySeriesColumns
         - fillColumns
         - xDomain
         - yDomain
@@ -9054,7 +9054,7 @@ components:
           type: boolean
         xColumn:
           type: string
-        yColumn:
+        ySeriesColumns:
           type: array
           items:
             type: string

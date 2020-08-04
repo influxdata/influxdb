@@ -813,7 +813,7 @@ type MosaicViewProperties struct {
 	ViewColors        []string         `json:"colors"`
 	FillColumns       []string         `json:"fillColumns"`
 	XColumn           string           `json:"xColumn"`
-	YColumn           []string         `json:"yColumn"`
+	YSeriesColumns    []string         `json:"ySeriesColumns"`
 	XDomain           []float64        `json:"xDomain,omitempty"`
 	YDomain           []float64        `json:"yDomain,omitempty"`
 	XAxisLabel        string           `json:"xAxisLabel"`
