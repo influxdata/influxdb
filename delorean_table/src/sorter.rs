@@ -218,7 +218,10 @@ mod test {
         // NULL   "d"    "zebra"  NULL    105
 
         if let Packers::Integer(p) = &packers[0] {
-            assert_eq!(p.values(), vec![Some(200), Some(100), None, None,]);
+            assert_eq!(
+                p.values(),
+                vec![Some(200), Some(100), None, None,].as_slice()
+            );
         };
 
         if let Packers::String(p) = &packers[1] {
@@ -230,6 +233,7 @@ mod test {
                     Some(ByteArray::from("c")),
                     Some(ByteArray::from("d"))
                 ]
+                .as_slice()
             );
         };
 
@@ -242,15 +246,22 @@ mod test {
                     Some(ByteArray::from("bee")),
                     Some(ByteArray::from("zebra"))
                 ]
+                .as_slice()
             );
         };
 
         if let Packers::Float(p) = &packers[3] {
-            assert_eq!(p.values(), vec![Some(3.22), Some(1.23), Some(45.33), None]);
+            assert_eq!(
+                p.values(),
+                vec![Some(3.22), Some(1.23), Some(45.33), None].as_slice()
+            );
         };
 
         if let Packers::Integer(p) = &packers[4] {
-            assert_eq!(p.values(), vec![Some(99), Some(100), None, Some(105),]);
+            assert_eq!(
+                p.values(),
+                vec![Some(99), Some(100), None, Some(105),].as_slice()
+            );
         };
     }
 
