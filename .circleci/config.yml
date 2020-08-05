@@ -7,7 +7,7 @@ commands:
     steps:
       - run:
           name: Install clang
-          command: sudo apt-get install -y --no-install-recommends clang musl-tools
+          command: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang musl-tools
       - run:
           name: Install rust compiler
           command: |
@@ -22,13 +22,13 @@ commands:
       - run:
           name: Install linux cross compilers
           command: >
-            sudo apt-get install -y --no-install-recommends
-            gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
-            gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends
+              gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+              gcc-aarch64-linux-gnu libc6-dev-arm64-cross
       - run:
           name: Install macOS cross compilers
           command: |
-            sudo apt-get install -y --no-install-recommends \
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends \
               cmake patch libxml2-dev libssl-dev zlib1g-dev
             sudo mkdir -p /opt/osxcross
             cd /opt
@@ -143,6 +143,7 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
+      - run: sudo apt-get update
       - run: sudo apt-get install -y netcat-openbsd
       - run: sudo apt-get install -y bzr
       - install_rust_compiler
@@ -289,7 +290,7 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
-      - run: sudo apt-get install -y bzr
+      - run: sudo apt-get update && sudo apt-get install -y bzr
       - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
@@ -340,7 +341,7 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - run: sudo apt-get install -y bzr
+      - run: sudo apt-get update && sudo apt-get install -y bzr
       - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
       - run: |
@@ -373,7 +374,7 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - run: sudo apt-get install -y bzr
+      - run: sudo apt-get update && sudo apt-get install -y bzr
       - install_rust_compiler
       - run: make checkcommit
 
@@ -419,7 +420,7 @@ jobs:
       - run:
           name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: sudo apt-get install -y bzr
+      - run: sudo apt-get update && sudo apt-get install -y bzr
       - install_rust_compiler
       - install_release_tools
       - run: make protoc # installs protoc
@@ -456,7 +457,7 @@ jobs:
       - run:
           name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: sudo apt-get install -y bzr
+      - run: sudo apt-get update && sudo apt-get install -y bzr
       - install_rust_compiler
       - install_release_tools
       - run: make protoc # installs protoc
