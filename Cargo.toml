@@ -12,6 +12,7 @@ members = [
     "delorean_ingest",
     "delorean_line_parser",
     "delorean_object_store",
+    "delorean_mem_qe",
     "delorean_parquet",
     "delorean_partitioned_store",
     "delorean_table",
@@ -33,6 +34,7 @@ delorean_arrow = { path = "delorean_arrow" }
 delorean_generated_types = { path = "delorean_generated_types" }
 delorean_ingest = { path = "delorean_ingest" }
 delorean_line_parser = { path = "delorean_line_parser" }
+delorean_mem_qe = { path = "delorean_mem_qe" }
 delorean_parquet = { path = "delorean_parquet" }
 delorean_partitioned_store = { path = "delorean_partitioned_store" }
 delorean_table = { path = "delorean_table" }
