@@ -3762,11 +3762,12 @@ spec:
 	})
 
 	t.Run("apply a template with query refs", func(t *testing.T) {
-		dashName := "dash-1"
-		newDashTmpl := func(t *testing.T) *pkger.Template {
-			t.Helper()
+		t.Run("dashboard", func(t *testing.T) {
+			dashName := "dash-1"
+			newDashTmpl := func(t *testing.T) *pkger.Template {
+				t.Helper()
 
-			tmplStr := `
+				tmplStr := `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -3816,24 +3817,24 @@ spec:
           type: text
           hex: "#8F8AF4"
           value: 3`
-			tmplStr = fmt.Sprintf(tmplStr, dashName)
+				tmplStr = fmt.Sprintf(tmplStr, dashName)
 
-			template, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(tmplStr))
-			require.NoError(t, err)
-			return template
-		}
+				template, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(tmplStr))
+				require.NoError(t, err)
+				return template
+			}
 
-		isExpectedQuery := func(t *testing.T, actual pkger.SummaryDashboard, expectedParams string) {
-			t.Helper()
+			isExpectedQuery := func(t *testing.T, actual pkger.SummaryDashboard, expectedParams string) {
+				t.Helper()
 
-			require.Len(t, actual.Charts, 1)
+				require.Len(t, actual.Charts, 1)
 
-			props, ok := actual.Charts[0].Properties.(influxdb.SingleStatViewProperties)
-			require.True(t, ok, "unexpected chart properties")
+				props, ok := actual.Charts[0].Properties.(influxdb.SingleStatViewProperties)
+				require.True(t, ok, "unexpected chart properties")
 
-			require.Len(t, props.Queries, 1)
+				require.Len(t, props.Queries, 1)
 
-			expectedQuery := expectedParams + `
+				expectedQuery := expectedParams + `
 
 from(bucket: params.bucket)
 	|> range(start: params.start, end: params.stop)
@@ -3846,33 +3847,33 @@ from(bucket: params.bucket)
 	|> aggregateWindow(every: v.windowPeriod, fn: max)
 	|> yield(name: params.name)`
 
-			assert.Equal(t, expectedQuery, props.Queries[0].Text)
-			assert.Equal(t, "advanced", props.Queries[0].EditMode)
-		}
+				assert.Equal(t, expectedQuery, props.Queries[0].Text)
+				assert.Equal(t, "advanced", props.Queries[0].EditMode)
+			}
 
-		envKey := func(paramKey string) string {
-			return fmt.Sprintf(
-				"dashboards[%s].spec.charts[0].queries[0].params.%s",
-				dashName,
-				paramKey,
-			)
-		}
+			envKey := func(paramKey string) string {
+				return fmt.Sprintf(
+					"dashboards[%s].spec.charts[0].queries[0].params.%s",
+					dashName,
+					paramKey,
+				)
+			}
 
-		t.Run("using default values", func(t *testing.T) {
-			stack, cleanup := newStackFn(t, pkger.StackCreate{})
-			defer cleanup()
+			t.Run("using default values", func(t *testing.T) {
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
+				defer cleanup()
 
-			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-				pkger.ApplyWithStackID(stack.ID),
-				pkger.ApplyWithTemplate(newDashTmpl(t)),
-			)
-			require.NoError(t, err)
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithStackID(stack.ID),
+					pkger.ApplyWithTemplate(newDashTmpl(t)),
+				)
+				require.NoError(t, err)
 
-			require.Len(t, impact.Summary.Dashboards, 1)
+				require.Len(t, impact.Summary.Dashboards, 1)
 
-			actual := impact.Summary.Dashboards[0]
+				actual := impact.Summary.Dashboards[0]
 
-			expectedParams := `option params = {
+				expectedParams := `option params = {
 	bucket: "bar",
 	start: -24h0m0s,
 	stop: now(),
@@ -3880,85 +3881,85 @@ from(bucket: params.bucket)
 	floatVal: 37.2,
 	minVal: 10,
 }`
-			isExpectedQuery(t, actual, expectedParams)
+				isExpectedQuery(t, actual, expectedParams)
 
-			require.Len(t, actual.EnvReferences, 6)
+				require.Len(t, actual.EnvReferences, 6)
 
-			expectedRefs := []pkger.SummaryReference{
-				{
-					Field:        "spec.charts[0].queries[0].params.bucket",
-					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.bucket`,
-					ValType:      "string",
-					DefaultValue: "bar",
-				},
-				{
-					Field:        "spec.charts[0].queries[0].params.floatVal",
-					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.floatVal`,
-					ValType:      "float",
-					DefaultValue: 37.2,
-				},
-			}
-			assert.Equal(t, expectedRefs, actual.EnvReferences[:len(expectedRefs)])
+				expectedRefs := []pkger.SummaryReference{
+					{
+						Field:        "spec.charts[0].queries[0].params.bucket",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.bucket`,
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.floatVal",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.floatVal`,
+						ValType:      "float",
+						DefaultValue: 37.2,
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences[:len(expectedRefs)])
 
-			// check necessary since json can flip int to float type and fail assertions
-			// in a flakey manner
-			expectedIntRef := pkger.SummaryReference{
-				Field:        "spec.charts[0].queries[0].params.minVal",
-				EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.minVal`,
-				ValType:      "integer",
-				DefaultValue: int64(10),
-			}
-			actualIntRef := actual.EnvReferences[len(expectedRefs)]
-			if f, ok := actualIntRef.DefaultValue.(float64); ok {
-				actualIntRef.DefaultValue = int64(f)
-			}
-			assert.Equal(t, expectedIntRef, actualIntRef)
+				// check necessary since json can flip int to float type and fail assertions
+				// in a flakey manner
+				expectedIntRef := pkger.SummaryReference{
+					Field:        "spec.charts[0].queries[0].params.minVal",
+					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.minVal`,
+					ValType:      "integer",
+					DefaultValue: int64(10),
+				}
+				actualIntRef := actual.EnvReferences[len(expectedRefs)]
+				if f, ok := actualIntRef.DefaultValue.(float64); ok {
+					actualIntRef.DefaultValue = int64(f)
+				}
+				assert.Equal(t, expectedIntRef, actualIntRef)
 
-			expectedRefs = []pkger.SummaryReference{
-				{
-					Field:        "spec.charts[0].queries[0].params.name",
-					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.name`,
-					ValType:      "string",
-					DefaultValue: "max",
-				},
-				{
-					Field:        "spec.charts[0].queries[0].params.start",
-					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.start`,
-					ValType:      "duration",
-					DefaultValue: "-24h0m0s",
-				},
-				{
-					Field:        "spec.charts[0].queries[0].params.stop",
-					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.stop`,
-					ValType:      "time",
-					DefaultValue: "now()",
-				},
-			}
-			assert.Equal(t, expectedRefs, actual.EnvReferences[3:])
-		})
+				expectedRefs = []pkger.SummaryReference{
+					{
+						Field:        "spec.charts[0].queries[0].params.name",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.name`,
+						ValType:      "string",
+						DefaultValue: "max",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.start",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.start`,
+						ValType:      "duration",
+						DefaultValue: "-24h0m0s",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.stop",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.stop`,
+						ValType:      "time",
+						DefaultValue: "now()",
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences[3:])
+			})
 
-		t.Run("with user provided values", func(t *testing.T) {
-			stack, cleanup := newStackFn(t, pkger.StackCreate{})
-			defer cleanup()
+			t.Run("with user provided values", func(t *testing.T) {
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
+				defer cleanup()
 
-			impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
-				pkger.ApplyWithStackID(stack.ID),
-				pkger.ApplyWithTemplate(newDashTmpl(t)),
-				pkger.ApplyWithEnvRefs(map[string]interface{}{
-					envKey("bucket"):   "foobar",
-					envKey("name"):     "min",
-					envKey("start"):    "-5d",
-					envKey("floatVal"): 33.3,
-					envKey("minVal"):   3,
-				}),
-			)
-			require.NoError(t, err)
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithStackID(stack.ID),
+					pkger.ApplyWithTemplate(newDashTmpl(t)),
+					pkger.ApplyWithEnvRefs(map[string]interface{}{
+						envKey("bucket"):   "foobar",
+						envKey("name"):     "min",
+						envKey("start"):    "-5d",
+						envKey("floatVal"): 33.3,
+						envKey("minVal"):   3,
+					}),
+				)
+				require.NoError(t, err)
 
-			require.Len(t, impact.Summary.Dashboards, 1)
+				require.Len(t, impact.Summary.Dashboards, 1)
 
-			actual := impact.Summary.Dashboards[0]
+				actual := impact.Summary.Dashboards[0]
 
-			expectedParams := `option params = {
+				expectedParams := `option params = {
 	bucket: "foobar",
 	start: -5d,
 	stop: now(),
@@ -3966,69 +3967,321 @@ from(bucket: params.bucket)
 	floatVal: 33.3,
 	minVal: 3,
 }`
-			isExpectedQuery(t, actual, expectedParams)
+				isExpectedQuery(t, actual, expectedParams)
 
-			require.Len(t, actual.EnvReferences, 6)
+				require.Len(t, actual.EnvReferences, 6)
 
-			expectedRefs := []pkger.SummaryReference{
-				{
-					Field:        "spec.charts[0].queries[0].params.bucket",
-					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.bucket`,
-					ValType:      "string",
-					Value:        "foobar",
-					DefaultValue: "bar",
-				},
-				{
-					Field:        "spec.charts[0].queries[0].params.floatVal",
-					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.floatVal`,
-					ValType:      "float",
-					Value:        33.3,
-					DefaultValue: 37.2,
-				},
-			}
-			assert.Equal(t, expectedRefs, actual.EnvReferences[:len(expectedRefs)])
+				expectedRefs := []pkger.SummaryReference{
+					{
+						Field:        "spec.charts[0].queries[0].params.bucket",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.bucket`,
+						ValType:      "string",
+						Value:        "foobar",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.floatVal",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.floatVal`,
+						ValType:      "float",
+						Value:        33.3,
+						DefaultValue: 37.2,
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences[:len(expectedRefs)])
 
-			// check necessary since json can flip int to float type and fail assertions
-			// in a flakey manner
-			expectedIntRef := pkger.SummaryReference{
-				Field:        "spec.charts[0].queries[0].params.minVal",
-				EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.minVal`,
-				ValType:      "integer",
-				Value:        int64(3),
-				DefaultValue: int64(10),
-			}
-			actualIntRef := actual.EnvReferences[len(expectedRefs)]
-			if f, ok := actualIntRef.DefaultValue.(float64); ok {
-				actualIntRef.DefaultValue = int64(f)
-			}
-			if f, ok := actualIntRef.Value.(float64); ok {
-				actualIntRef.Value = int64(f)
-			}
-			assert.Equal(t, expectedIntRef, actualIntRef)
+				// check necessary since json can flip int to float type and fail assertions
+				// in a flakey manner
+				expectedIntRef := pkger.SummaryReference{
+					Field:        "spec.charts[0].queries[0].params.minVal",
+					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.minVal`,
+					ValType:      "integer",
+					Value:        int64(3),
+					DefaultValue: int64(10),
+				}
+				actualIntRef := actual.EnvReferences[len(expectedRefs)]
+				if f, ok := actualIntRef.DefaultValue.(float64); ok {
+					actualIntRef.DefaultValue = int64(f)
+				}
+				if f, ok := actualIntRef.Value.(float64); ok {
+					actualIntRef.Value = int64(f)
+				}
+				assert.Equal(t, expectedIntRef, actualIntRef)
 
-			expectedRefs = []pkger.SummaryReference{
-				{
-					Field:        "spec.charts[0].queries[0].params.name",
-					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.name`,
-					ValType:      "string",
-					Value:        "min",
-					DefaultValue: "max",
-				},
-				{
-					Field:        "spec.charts[0].queries[0].params.start",
-					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.start`,
-					ValType:      "duration",
-					Value:        "-5d",
-					DefaultValue: "-24h0m0s",
-				},
-				{
-					Field:        "spec.charts[0].queries[0].params.stop",
-					EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.stop`,
-					ValType:      "time",
-					DefaultValue: "now()",
-				},
+				expectedRefs = []pkger.SummaryReference{
+					{
+						Field:        "spec.charts[0].queries[0].params.name",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.name`,
+						ValType:      "string",
+						Value:        "min",
+						DefaultValue: "max",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.start",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.start`,
+						ValType:      "duration",
+						Value:        "-5d",
+						DefaultValue: "-24h0m0s",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.stop",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.stop`,
+						ValType:      "time",
+						DefaultValue: "now()",
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences[3:])
+			})
+		})
+
+		t.Run("task", func(t *testing.T) {
+			taskName := "task-1"
+			newDashTmpl := func(t *testing.T) *pkger.Template {
+				t.Helper()
+
+				tmplStr := `
+apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name: %s
+spec:
+  every: 10m
+  query: |
+    option params = {
+      bucket:   "foo",
+      start:    -1d,
+      stop:     now(),
+      name:     "max",
+      floatVal: 1.0,
+      minVal:   10
+    }
+
+    from(bucket: params.bucket)
+      |> range(start: params.start, stop: params.stop)
+      |> filter(fn: (r) => r._measurement == "processes")
+      |> filter(fn: (r) => r.floater == params.floatVal)
+      |> filter(fn: (r) => r._value > params.minVal)
+      |> aggregateWindow(every: 1m, fn: max)
+      |> yield(name: params.name)
+  params:
+    - key: bucket
+      default: "bar"
+      type: string
+    - key: start
+      type: duration
+    - key: stop
+      type: time
+    - key: floatVal
+      default: 37.2
+      type: float
+    - key: minVal
+      type: int
+    - key: name # infer type`
+				tmplStr = fmt.Sprintf(tmplStr, taskName)
+
+				template, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(tmplStr))
+				require.NoError(t, err)
+				return template
 			}
-			assert.Equal(t, expectedRefs, actual.EnvReferences[3:])
+
+			isExpectedQuery := func(t *testing.T, actual pkger.SummaryTask, expectedParams string) {
+				t.Helper()
+
+				expectedQuery := expectedParams + `
+
+from(bucket: params.bucket)
+	|> range(start: params.start, stop: params.stop)
+	|> filter(fn: (r) =>
+		(r._measurement == "processes"))
+	|> filter(fn: (r) =>
+		(r.floater == params.floatVal))
+	|> filter(fn: (r) =>
+		(r._value > params.minVal))
+	|> aggregateWindow(every: 1m, fn: max)
+	|> yield(name: params.name)`
+
+				assert.Equal(t, expectedQuery, actual.Query)
+			}
+
+			envKey := func(paramKey string) string {
+				return fmt.Sprintf(
+					"tasks[%s].spec.params.%s",
+					taskName,
+					paramKey,
+				)
+			}
+
+			t.Run("using default values", func(t *testing.T) {
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
+				defer cleanup()
+
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithStackID(stack.ID),
+					pkger.ApplyWithTemplate(newDashTmpl(t)),
+				)
+				require.NoError(t, err)
+
+				require.Len(t, impact.Summary.Tasks, 1)
+
+				actual := impact.Summary.Tasks[0]
+
+				expectedParams := `option params = {
+	bucket: "bar",
+	start: -24h0m0s,
+	stop: now(),
+	name: "max",
+	floatVal: 37.2,
+	minVal: 10,
+}`
+				isExpectedQuery(t, actual, expectedParams)
+
+				require.Len(t, actual.EnvReferences, 6)
+
+				expectedRefs := []pkger.SummaryReference{
+					{
+						Field:        "spec.params.bucket",
+						EnvRefKey:    `tasks[task-1].spec.params.bucket`,
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.params.floatVal",
+						EnvRefKey:    `tasks[task-1].spec.params.floatVal`,
+						ValType:      "float",
+						DefaultValue: 37.2,
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences[:len(expectedRefs)])
+
+				// check necessary since json can flip int to float type and fail assertions
+				// in a flakey manner
+				expectedIntRef := pkger.SummaryReference{
+					Field:        "spec.params.minVal",
+					EnvRefKey:    `tasks[task-1].spec.params.minVal`,
+					ValType:      "integer",
+					DefaultValue: int64(10),
+				}
+				actualIntRef := actual.EnvReferences[len(expectedRefs)]
+				if f, ok := actualIntRef.DefaultValue.(float64); ok {
+					actualIntRef.DefaultValue = int64(f)
+				}
+				assert.Equal(t, expectedIntRef, actualIntRef)
+
+				expectedRefs = []pkger.SummaryReference{
+					{
+						Field:        "spec.params.name",
+						EnvRefKey:    `tasks[task-1].spec.params.name`,
+						ValType:      "string",
+						DefaultValue: "max",
+					},
+					{
+						Field:        "spec.params.start",
+						EnvRefKey:    `tasks[task-1].spec.params.start`,
+						ValType:      "duration",
+						DefaultValue: "-24h0m0s",
+					},
+					{
+						Field:        "spec.params.stop",
+						EnvRefKey:    `tasks[task-1].spec.params.stop`,
+						ValType:      "time",
+						DefaultValue: "now()",
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences[3:])
+			})
+
+			t.Run("with user provided values", func(t *testing.T) {
+				stack, cleanup := newStackFn(t, pkger.StackCreate{})
+				defer cleanup()
+
+				impact, err := svc.Apply(ctx, l.Org.ID, l.User.ID,
+					pkger.ApplyWithStackID(stack.ID),
+					pkger.ApplyWithTemplate(newDashTmpl(t)),
+					pkger.ApplyWithEnvRefs(map[string]interface{}{
+						envKey("bucket"):   "foobar",
+						envKey("name"):     "min",
+						envKey("start"):    "-5d",
+						envKey("floatVal"): 33.3,
+						envKey("minVal"):   3,
+					}),
+				)
+				require.NoError(t, err)
+
+				require.Len(t, impact.Summary.Tasks, 1)
+
+				actual := impact.Summary.Tasks[0]
+
+				expectedParams := `option params = {
+	bucket: "foobar",
+	start: -5d,
+	stop: now(),
+	name: "min",
+	floatVal: 33.3,
+	minVal: 3,
+}`
+				isExpectedQuery(t, actual, expectedParams)
+
+				require.Len(t, actual.EnvReferences, 6)
+
+				expectedRefs := []pkger.SummaryReference{
+					{
+						Field:        "spec.params.bucket",
+						EnvRefKey:    `tasks[task-1].spec.params.bucket`,
+						ValType:      "string",
+						Value:        "foobar",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.params.floatVal",
+						EnvRefKey:    `tasks[task-1].spec.params.floatVal`,
+						ValType:      "float",
+						Value:        33.3,
+						DefaultValue: 37.2,
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences[:len(expectedRefs)])
+
+				// check necessary since json can flip int to float type and fail assertions
+				// in a flakey manner
+				expectedIntRef := pkger.SummaryReference{
+					Field:        "spec.params.minVal",
+					EnvRefKey:    `tasks[task-1].spec.params.minVal`,
+					ValType:      "integer",
+					Value:        int64(3),
+					DefaultValue: int64(10),
+				}
+				actualIntRef := actual.EnvReferences[len(expectedRefs)]
+				if f, ok := actualIntRef.DefaultValue.(float64); ok {
+					actualIntRef.DefaultValue = int64(f)
+				}
+				if f, ok := actualIntRef.Value.(float64); ok {
+					actualIntRef.Value = int64(f)
+				}
+				assert.Equal(t, expectedIntRef, actualIntRef)
+
+				expectedRefs = []pkger.SummaryReference{
+					{
+						Field:        "spec.params.name",
+						EnvRefKey:    `tasks[task-1].spec.params.name`,
+						ValType:      "string",
+						Value:        "min",
+						DefaultValue: "max",
+					},
+					{
+						Field:        "spec.params.start",
+						EnvRefKey:    `tasks[task-1].spec.params.start`,
+						ValType:      "duration",
+						Value:        "-5d",
+						DefaultValue: "-24h0m0s",
+					},
+					{
+						Field:        "spec.params.stop",
+						EnvRefKey:    `tasks[task-1].spec.params.stop`,
+						ValType:      "time",
+						DefaultValue: "now()",
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences[3:])
+			})
 		})
 	})
 }
