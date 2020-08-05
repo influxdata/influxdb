@@ -26,7 +26,7 @@ class templatesSteps extends baseSteps{
     async verifyImportTemplatePopupLoaded(){
         await this.assertVisible(await this.tmTab.getImportTemplateUploadButton());
         await this.assertVisible(await this.tmTab.getImportTemplatePasteButton());
-        await this.assertVisible(await this.tmTab.getPopupSubmit());
+        await this.assertVisible(await this.tmTab.getImportTemplateSubmitButton());
         await this.assertVisible(await this.tmTab.getPopupDismiss());
         await this.assertVisible(await this.tmTab.getPopupFileUploadHeader());
         await this.verifyElementContainsText(await this.tmTab.getPopupTitle(), 'Import Template');
@@ -58,9 +58,9 @@ class templatesSteps extends baseSteps{
 
     async verifyImportTemplatePopupSubmitEnabled(enabled){
         if(enabled){
-            await this.verifyElementEnabled(await this.tmTab.getPopupSubmit());
+            await this.verifyElementEnabled(await this.tmTab.getImportTemplateSubmitButton());
         }else{
-            await this.verifyElementDisabled(await this.tmTab.getPopupSubmit());
+            await this.verifyElementDisabled(await this.tmTab.getImportTemplateSubmitButton());
         }
     }
 
@@ -90,6 +90,10 @@ class templatesSteps extends baseSteps{
                 await this.delay(200); //debug wait - todo better wait
             });
         });
+    }
+
+    async clickImportTemplateSubmitButton(){
+        await this.clickAndWait(await this.tmTab.getImportTemplateSubmitButton());
     }
 
     async verifyTemplateCardVisibility(name){

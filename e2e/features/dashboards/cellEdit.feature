@@ -621,7 +621,7 @@ Feature: Dashboards - Dashboard - Cell Edit
     Then the cell named "Kliky" contains a graph
 
 
-@error-collateral
+@error-collateral @download-file
   Scenario: Download results as CSV
     When remove files ".*chronograf_data.csv" if exists
     When toggle context menu of dashboard cell named "Kliky"

@@ -1,7 +1,7 @@
 const influxPage = require(__srcdir + '/pages/influxPage.js');
 const { By } = require('selenium-webdriver');
 
-const logoutButton = '[data-testid=button][title=Logout]';
+const logoutButton = '[title=Logout]';
 const getStartedDataCollect = '//*[@data-testid=\'panel\'][./div[contains(@class, \'getting-started\')]][.//span[text()=\'Load your data\']]';
 const getStartedDashboard = '//*[@data-testid=\'panel\'][./div[contains(@class, \'getting-started\')]][.//span[text()=\'Build a dashboard\']]';
 const getStartedAlerting = '//*[@data-testid=\'panel\'][./div[contains(@class, \'getting-started\')]][.//span[text()=\'Set up alerting\']]';
