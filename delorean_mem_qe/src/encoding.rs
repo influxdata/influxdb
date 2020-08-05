@@ -18,30 +18,53 @@ impl<T> PlainFixedOption<T> {
 // No compression
 pub struct PlainFixed<T> {
     values: Vec<T>,
+    total_order: bool, // if true the column is totally ordered ascending.
 }
 
-impl<T> PlainFixed<T> {
+impl<T> PlainFixed<T>
+where
+    T: PartialEq + Copy,
+{
     pub fn size(&self) -> usize {
         self.values.len() * std::mem::size_of::<T>()
+    }
+
+    pub fn row_id_for_value(&self, v: T) -> Option<usize> {
+        self.values.iter().position(|x| *x == v)
+    }
+
+    // get value at row_id. Panics if out of bounds.
+    pub fn value(&self, row_id: usize) -> T {
+        self.values[row_id]
     }
 }
 
 impl From<&[i64]> for PlainFixed<i64> {
     fn from(v: &[i64]) -> Self {
-        Self { values: v.to_vec() }
+        Self {
+            values: v.to_vec(),
+            total_order: false,
+        }
     }
 }
 
 impl From<&[f64]> for PlainFixed<f64> {
     fn from(v: &[f64]) -> Self {
-        Self { values: v.to_vec() }
+        Self {
+            values: v.to_vec(),
+            total_order: false,
+        }
     }
 }
 
 #[derive(Debug, Default)]
 pub struct DictionaryRLE {
     // stores the mapping between an entry and its assigned index.
-    map: BTreeMap<String, usize>,
+    entry_index: BTreeMap<String, usize>,
+
+    // stores the mapping between an index and its entry.
+    index_entry: BTreeMap<usize, String>,
+
     map_size: usize, // TODO(edd) this isn't perfect at all
 
     // stores tuples where each pair refers to a dictionary entry and the number
@@ -55,7 +78,8 @@ pub struct DictionaryRLE {
 impl DictionaryRLE {
     pub fn new() -> Self {
         Self {
-            map: BTreeMap::new(),
+            entry_index: BTreeMap::new(),
+            index_entry: BTreeMap::new(),
             map_size: 0,
             run_lengths: Vec::new(),
             run_length_size: 0,
@@ -69,7 +93,7 @@ impl DictionaryRLE {
 
     pub fn push_additional(&mut self, v: &str, additional: u64) {
         self.total += additional;
-        let idx = self.map.get(v);
+        let idx = self.entry_index.get(v);
         match idx {
             Some(idx) => {
                 if let Some((last_idx, rl)) = self.run_lengths.last_mut() {
@@ -86,9 +110,10 @@ impl DictionaryRLE {
             None => {
                 // New dictionary entry.
                 if idx.is_none() {
-                    let idx = self.map.len();
+                    let idx = self.entry_index.len();
 
-                    self.map.insert(String::from(v), idx);
+                    self.entry_index.insert(String::from(v), idx);
+                    self.index_entry.insert(idx, String::from(v));
                     self.map_size += v.len() + std::mem::size_of::<usize>();
 
                     self.run_lengths.push((idx, additional));
@@ -103,7 +128,7 @@ impl DictionaryRLE {
     // value.
     pub fn row_ids(&self, value: &str) -> impl iter::Iterator<Item = usize> {
         let mut out: Vec<usize> = vec![];
-        if let Some(idx) = self.map.get(value) {
+        if let Some(idx) = self.entry_index.get(value) {
             let mut index: usize = 0;
             for (other_idx, other_rl) in &self.run_lengths {
                 let start = index;
@@ -120,7 +145,7 @@ impl DictionaryRLE {
     // value.
     pub fn row_ids_roaring(&self, value: &str) -> croaring::Bitmap {
         let mut bm = croaring::Bitmap::create();
-        if let Some(idx) = self.map.get(value) {
+        if let Some(idx) = self.entry_index.get(value) {
             let mut index: u64 = 0;
             for (other_idx, other_rl) in &self.run_lengths {
                 let start = index;
@@ -155,24 +180,20 @@ impl DictionaryRLE {
     // }
 
     pub fn dictionary(&self) -> BTreeSet<String> {
-        self.map.keys().cloned().collect::<BTreeSet<String>>()
+        self.entry_index
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<String>>()
     }
 
     // get the logical value at the provided index, or None if there is no value
     // at index.
-    pub fn value(&self, index: usize) -> Option<&str> {
+    pub fn value(&self, index: usize) -> Option<&String> {
         if index < self.total as usize {
-            // build reverse mapping.
-            let mut idx_value = BTreeMap::new();
-            for (k, v) in &self.map {
-                idx_value.insert(v, k.as_str());
-            }
-            assert_eq!(idx_value.len(), self.map.len());
-
             let mut total = 0;
             for (idx, rl) in &self.run_lengths {
                 if total + rl > index as u64 {
-                    return idx_value.get(idx).cloned();
+                    return self.index_entry.get(idx);
                 }
                 total += rl;
             }
@@ -187,10 +208,10 @@ impl DictionaryRLE {
 
         // build reverse mapping.
         let mut idx_value = BTreeMap::new();
-        for (k, v) in &self.map {
+        for (k, v) in &self.entry_index {
             idx_value.insert(v, k.as_str());
         }
-        assert_eq!(idx_value.len(), self.map.len());
+        assert_eq!(idx_value.len(), self.entry_index.len());
 
         for (idx, rl) in &self.run_lengths {
             let &v = idx_value.get(&idx).unwrap();
@@ -200,7 +221,8 @@ impl DictionaryRLE {
     }
 
     pub fn size(&self) -> usize {
-        self.map_size + self.run_length_size
+        // mapping and reverse mapping then the rles
+        2 * self.map_size + self.run_length_size
     }
 }
 

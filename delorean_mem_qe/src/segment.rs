@@ -9,6 +9,7 @@ pub struct Segment {
 
     // Columns within a segment
     columns: Vec<column::Column>,
+    time_column_idx: usize,
 }
 
 impl Segment {
@@ -26,6 +27,14 @@ impl Segment {
         &self.meta.column_names
     }
 
+    /// column returns the column with name
+    pub fn column(&self, name: &str) -> Option<&column::Column> {
+        if let Some(id) = &self.meta.column_names.iter().position(|c| c == name) {
+            return self.columns.get(*id);
+        }
+        None
+    }
+
     pub fn time_range(&self) -> (i64, i64) {
         self.meta.time_range
     }
@@ -38,6 +47,7 @@ impl Segment {
             } else {
                 panic!("incorrect column type for time");
             }
+            self.time_column_idx = self.columns.len();
         }
         self.meta.rows = c.num_rows();
 
@@ -105,6 +115,60 @@ impl<'a> Segments<'a> {
         }
 
         min_min
+    }
+
+    /// Returns the maximum value for a column in a set of segments.
+    pub fn column_max(&self, column_name: &str) -> Option<column::Scalar> {
+        if self.segments.is_empty() {
+            return None;
+        }
+
+        let mut max_max: Option<column::Scalar> = None;
+        for segment in self.segments {
+            if let Some(i) = segment.column_names().iter().position(|c| c == column_name) {
+                let max = Some(segment.columns[i].max());
+                if max_max.is_none() {
+                    max_max = max
+                } else if max_max < max {
+                    max_max = max;
+                }
+            }
+        }
+
+        max_max
+    }
+
+    /// Returns the first value for a column in a set of segments.
+    ///
+    /// TODO(edd): could return NULL value..
+    pub fn first(&self, column_name: &str) -> Option<(i64, Option<column::Scalar>)> {
+        if self.segments.is_empty() {
+            return None;
+        }
+
+        let mut first_first: Option<(i64, Option<column::Scalar>)> = None;
+        for segment in self.segments {
+            // first find the logical row id of the minimum timestamp value
+            if let Column::Integer(ts_col) = &segment.columns[segment.time_column_idx] {
+                // TODO(edd): clean up unwr
+                let min_ts = ts_col.column_range().0;
+                let min_ts_id = ts_col.row_id_for_value(min_ts).unwrap();
+
+                // now we have row id we can get value for that row id
+                let value = segment.column(column_name).unwrap().value(min_ts_id);
+
+                match &first_first {
+                    Some(prev) => {
+                        if prev.0 > min_ts {
+                            first_first = Some((min_ts, value));
+                        }
+                    }
+                    None => first_first = Some((min_ts, value)),
+                }
+            }
+        }
+
+        first_first
     }
 }
 

@@ -35,11 +35,45 @@ impl Column {
         }
     }
 
+    pub fn value(&self, row_id: usize) -> Option<Scalar> {
+        match self {
+            Column::String(c) => {
+                if row_id >= self.num_rows() {
+                    return None;
+                }
+                if let Some(v) = c.value(row_id) {
+                    return Some(Scalar::String(v));
+                };
+                None
+            }
+            Column::Float(c) => {
+                if row_id >= self.num_rows() {
+                    return None;
+                }
+                Some(Scalar::Float(c.value(row_id)))
+            }
+            Column::Integer(c) => {
+                if row_id >= self.num_rows() {
+                    return None;
+                }
+                Some(Scalar::Integer(c.value(row_id)))
+            }
+        }
+    }
+
     pub fn min(&self) -> Scalar {
         match self {
             Column::String(c) => Scalar::String(c.meta.range().0),
             Column::Float(c) => Scalar::Float(c.meta.range().0),
             Column::Integer(c) => Scalar::Integer(c.meta.range().0),
+        }
+    }
+
+    pub fn max(&self) -> Scalar {
+        match self {
+            Column::String(c) => Scalar::String(c.meta.range().1),
+            Column::Float(c) => Scalar::Float(c.meta.range().1),
+            Column::Integer(c) => Scalar::Integer(c.meta.range().1),
         }
     }
 }
@@ -82,6 +116,10 @@ impl String {
     pub fn size(&self) -> usize {
         self.meta.size() + self.data.size()
     }
+
+    pub fn value(&self, row_id: usize) -> Option<&std::string::String> {
+        self.data.value(row_id)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -99,6 +137,10 @@ impl Float {
 
     pub fn size(&self) -> usize {
         self.meta.size() + self.data.size()
+    }
+
+    pub fn value(&self, row_id: usize) -> f64 {
+        self.data.value(row_id)
     }
 }
 
@@ -136,6 +178,18 @@ impl Integer {
 
     pub fn size(&self) -> usize {
         self.meta.size() + self.data.size()
+    }
+
+    pub fn value(&self, row_id: usize) -> i64 {
+        self.data.value(row_id)
+    }
+
+    /// Find the first logical row that contains this value.
+    pub fn row_id_for_value(&self, v: i64) -> Option<usize> {
+        if !self.meta.maybe_contains_value(v) {
+            return None;
+        }
+        self.data.row_id_for_value(v)
     }
 }
 
@@ -231,6 +285,10 @@ pub mod metadata {
                 range,
                 num_rows: rows,
             }
+        }
+
+        pub fn maybe_contains_value(&self, v: i64) -> bool {
+            self.range.0 <= v && v <= self.range.1
         }
 
         pub fn num_rows(&self) -> usize {

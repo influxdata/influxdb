@@ -36,26 +36,9 @@ fn main() {
         store.size(),
     );
 
-    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-    let mut total_min = 0;
-    for _ in 1..10000 {
-        let now = std::time::Instant::now();
-        let segments = store.segments();
-        let min = segments.column_min("time").unwrap();
-        total_time += now.elapsed();
-
-        if let Scalar::Integer(v) = min {
-            total_min += v
-        }
-    }
-    println!(
-        "Ran {:?} in {:?} {:?} / call {:?}",
-        10000,
-        total_time,
-        total_time / 10000,
-        total_min
-    );
-    // println!("{:?} min -> {:?} in {:?}", "time", min, elapsed);
+    // time_column_min_time(&store);
+    // time_column_max_time(&store);
+    time_column_first(&store);
 }
 
 fn build_store(
@@ -119,4 +102,70 @@ fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
         }
     }
     Ok(segment)
+}
+
+fn time_column_min_time(store: &Store) {
+    let repeat = 1000;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut total_min = 0;
+    for _ in 1..repeat {
+        let now = std::time::Instant::now();
+        let segments = store.segments();
+        let min = segments.column_min("time").unwrap();
+        total_time += now.elapsed();
+
+        if let Scalar::Integer(v) = min {
+            total_min += v
+        }
+    }
+    println!(
+        "Ran {:?} in {:?} {:?} / call {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        total_min
+    );
+}
+
+fn time_column_max_time(store: &Store) {
+    let repeat = 1000;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut total_max = 0;
+    for _ in 1..repeat {
+        let now = std::time::Instant::now();
+        let segments = store.segments();
+        let max = segments.column_max("time").unwrap();
+        total_time += now.elapsed();
+
+        if let Scalar::Integer(v) = max {
+            total_max += v
+        }
+    }
+    println!(
+        "Ran {:?} in {:?} {:?} / call {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        total_max
+    );
+}
+
+fn time_column_first(store: &Store) {
+    let repeat = 100000;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut total_max = 0;
+    for _ in 1..repeat {
+        let now = std::time::Instant::now();
+        let segments = store.segments();
+        let res = segments.first("host").unwrap();
+        total_time += now.elapsed();
+        total_max += res.0;
+    }
+    println!(
+        "Ran {:?} in {:?} {:?} / call {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        total_max
+    );
 }
