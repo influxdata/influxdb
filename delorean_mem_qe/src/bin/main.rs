@@ -43,7 +43,9 @@ fn main() {
     let res = segments.last("host").unwrap();
     println!("{:?}", res);
 
-    let segments = segments.filter_by_time(1590036110000000, 1590044410000000);
+    let segments = segments
+        .filter_by_time(1590036110000000, 1590044410000000)
+        .filter_by_predicate_eq("env", &column::Scalar::String("toolsus1"));
     let res = segments.first("env").unwrap();
     println!("{:?}", res);
 }
@@ -66,6 +68,9 @@ fn convert_record_batch<'a>(rb: RecordBatch) -> Result<Segment, Error> {
     for (i, column) in rb.columns().iter().enumerate() {
         match *column.data_type() {
             datatypes::DataType::Float64 => {
+                if column.null_count() > 0 {
+                    panic!("null floats");
+                }
                 let arr = column
                     .as_any()
                     .downcast_ref::<array::Float64Array>()
@@ -75,18 +80,24 @@ fn convert_record_batch<'a>(rb: RecordBatch) -> Result<Segment, Error> {
                 segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Int64 => {
+                if column.null_count() > 0 {
+                    panic!("null times");
+                }
                 let arr = column.as_any().downcast_ref::<array::Int64Array>().unwrap();
 
                 let column = Column::from(arr.value_slice(0, rb.num_rows()));
                 segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Utf8 => {
+                if column.null_count() > 0 {
+                    panic!("null tag");
+                }
                 let arr = column
                     .as_any()
                     .downcast_ref::<array::StringArray>()
                     .unwrap();
 
-                let mut column = column::String::default();
+                let mut c = column::String::default();
                 let mut prev = arr.value(0);
                 let mut count = 1_u64;
                 for j in 1..arr.len() {
@@ -94,13 +105,13 @@ fn convert_record_batch<'a>(rb: RecordBatch) -> Result<Segment, Error> {
                     if prev == next {
                         count += 1;
                     } else {
-                        column.add_additional(prev, count);
+                        c.add_additional(prev, count);
                         prev = next;
                         count = 1;
                     }
                 }
 
-                segment.add_column(rb.schema().field(i).name(), Column::String(column));
+                segment.add_column(rb.schema().field(i).name(), Column::String(c));
             }
             datatypes::DataType::Boolean => {
                 panic!("unsupported");

@@ -106,6 +106,22 @@ impl<'a> Segments<'a> {
         Self::new(segments)
     }
 
+    pub fn filter_by_predicate_eq(
+        &self,
+        column_name: &str,
+        value: &column::Scalar,
+    ) -> Segments<'a> {
+        let mut segments: Vec<&Segment> = vec![];
+        for segment in &self.segments {
+            if let Some(col) = segment.column(column_name) {
+                if col.maybe_contains(&value) {
+                    segments.push(segment);
+                }
+            }
+        }
+        Self::new(segments)
+    }
+
     /// Returns the minimum value for a column in a set of segments.
     pub fn column_min(&self, column_name: &str) -> Option<column::Scalar> {
         if self.segments.is_empty() {

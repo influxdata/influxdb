@@ -61,6 +61,32 @@ impl Column {
         }
     }
 
+    pub fn maybe_contains(&self, value: &Scalar) -> bool {
+        match self {
+            Column::String(c) => {
+                if let Scalar::String(v) = value {
+                    c.meta.maybe_contains_value(v.to_string())
+                } else {
+                    panic!("invalid value");
+                }
+            }
+            Column::Float(c) => {
+                if let Scalar::Float(v) = value {
+                    c.meta.maybe_contains_value(v.to_owned())
+                } else {
+                    panic!("invalid value");
+                }
+            }
+            Column::Integer(c) => {
+                if let Scalar::Integer(v) = value {
+                    c.meta.maybe_contains_value(v.to_owned())
+                } else {
+                    panic!("invalid value");
+                }
+            }
+        }
+    }
+
     pub fn min(&self) -> Scalar {
         match self {
             Column::String(c) => Scalar::String(c.meta.range().0),
@@ -237,6 +263,15 @@ pub mod metadata {
             self.num_rows
         }
 
+        pub fn maybe_contains_value(&self, v: String) -> bool {
+            let res = self.range.0 <= v && v <= self.range.1;
+            println!(
+                "column with ({:?}) maybe contain {:?} -- {:?}",
+                self.range, v, res
+            );
+            res
+        }
+
         pub fn range(&self) -> (&str, &str) {
             (&self.range.0, &self.range.1)
         }
@@ -258,6 +293,15 @@ pub mod metadata {
                 range,
                 num_rows: rows,
             }
+        }
+
+        pub fn maybe_contains_value(&self, v: f64) -> bool {
+            let res = self.range.0 <= v && v <= self.range.1;
+            println!(
+                "column with ({:?}) maybe contain {:?} -- {:?}",
+                self.range, v, res
+            );
+            res
         }
 
         pub fn num_rows(&self) -> usize {
