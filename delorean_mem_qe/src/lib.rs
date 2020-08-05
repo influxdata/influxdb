@@ -27,6 +27,6 @@ impl Store {
     }
 
     pub fn segments(&self) -> Segments {
-        Segments::new(&self.segments)
+        Segments::new(self.segments.iter().collect::<Vec<&Segment>>())
     }
 }

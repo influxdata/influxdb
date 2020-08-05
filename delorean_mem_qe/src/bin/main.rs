@@ -38,7 +38,14 @@ fn main() {
 
     // time_column_min_time(&store);
     // time_column_max_time(&store);
-    time_column_first(&store);
+    // time_column_first(&store);
+    let segments = store.segments();
+    let res = segments.last("host").unwrap();
+    println!("{:?}", res);
+
+    let segments = segments.filter_by_time(1590036110000000, 1590044410000000);
+    let res = segments.first("env").unwrap();
+    println!("{:?}", res);
 }
 
 fn build_store(
@@ -52,7 +59,7 @@ fn build_store(
     Ok(())
 }
 
-fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
+fn convert_record_batch<'a>(rb: RecordBatch) -> Result<Segment, Error> {
     let mut segment = Segment::default();
 
     // println!("cols {:?} rows {:?}", rb.num_columns(), rb.num_rows());
