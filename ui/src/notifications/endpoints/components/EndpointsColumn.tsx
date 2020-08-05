@@ -15,10 +15,13 @@ import {getAll} from 'src/resources/selectors'
 interface StateProps {
   endpoints: NotificationEndpoint[]
 }
-type OwnProps = {}
+interface OwnProps {
+  tabIndex: number
+}
+
 type Props = OwnProps & RouteComponentProps<{orgID: string}> & StateProps
 
-const EndpointsColumn: FC<Props> = ({history, match, endpoints}) => {
+const EndpointsColumn: FC<Props> = ({history, match, endpoints, tabIndex}) => {
   const handleOpenOverlay = () => {
     const newRuleRoute = `/orgs/${match.params.orgID}/alerting/endpoints/new`
     history.push(newRuleRoute)
@@ -58,6 +61,7 @@ const EndpointsColumn: FC<Props> = ({history, match, endpoints}) => {
       title="Notification Endpoints"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
+      tabIndex={tabIndex}
     >
       {searchTerm => (
         <EndpointCards endpoints={endpoints} searchTerm={searchTerm} />
