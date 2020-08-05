@@ -444,22 +444,20 @@ export const multiSelectBuilderFunction = (name: string) => (
   getState: GetState
 ) => {
   const {draftQueries, activeQueryIndex} = getActiveTimeMachine(getState())
-
   const functions = draftQueries[activeQueryIndex].builderConfig.functions
 
-  let newFunctions: BuilderFunctionsType[]
+  const functionNames = functions.map(f => f.name)
+  const clickedFunctionAlreadySelected = functionNames.includes(name)
 
-  if (functions.find(f => f.name === name)) {
-    if (functions.length == 1) {
-      // at least one function must be selected
-      return
-    }
-    newFunctions = functions.filter(f => f.name !== name)
+  if (!clickedFunctionAlreadySelected) {
+    // add clicked to selected
+    dispatch(setFunctions([...functionNames, name]))
   } else {
-    newFunctions = [...functions, {name}]
+    if (functions.length > 1) {
+      // if more than one function is selected, remove clicked from selected
+      dispatch(setFunctions(functionNames.filter(n => n != name)))
+    }
   }
-
-  dispatch(setFunctions(newFunctions.map(f => f.name)))
 }
 
 export const singleSelectBuilderFunction = (name: string) => (
@@ -467,22 +465,20 @@ export const singleSelectBuilderFunction = (name: string) => (
   getState: GetState
 ) => {
   const {draftQueries, activeQueryIndex} = getActiveTimeMachine(getState())
-
   const functions = draftQueries[activeQueryIndex].builderConfig.functions
 
-  let newFunctions: BuilderFunctionsType[]
+  const functionNames = functions.map(f => f.name)
+  const clickedFunctionAlreadySelected = functionNames.includes(name)
 
-  if (functions.find(f => f.name === name)) {
-    if (functions.length == 1) {
-      // at least one function must be selected
-      return
-    }
-    newFunctions = functions.filter(f => f.name !== name)
+  if (!clickedFunctionAlreadySelected) {
+    // select clicked function
+    dispatch(setFunctions([name]))
   } else {
-    newFunctions = [{name}]
+    if (functions.length > 1) {
+      // if more than one function is selected, remove clicked from selected
+      dispatch(setFunctions(functionNames.filter(n => n != name)))
+    }
   }
-
-  dispatch(setFunctions(newFunctions.map(f => f.name)))
 }
 
 export const selectTagKey = (index: number, key: string) => (

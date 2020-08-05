@@ -65,10 +65,8 @@ const DurationInput: FC<Props> = ({
 
   let inputStatus = controlledStatus || ComponentStatus.Default
 
-  if (inputStatus === ComponentStatus.Default) {
-    inputStatus = isValid(inputValue)
-      ? ComponentStatus.Default
-      : ComponentStatus.Error
+  if (inputStatus === ComponentStatus.Default && !isValid(inputValue)) {
+    inputStatus = ComponentStatus.Error
   }
 
   const onChange = (i: string) => {
