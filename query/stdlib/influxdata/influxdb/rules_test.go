@@ -1209,11 +1209,7 @@ func meanProcedureSpec() *universe.MeanProcedureSpec {
 func TestPushDownWindowAggregateRule(t *testing.T) {
 	// Turn on all variants.
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
-		feature.PushDownWindowAggregateCount(): true,
-		feature.PushDownWindowAggregateSum():   true,
-		feature.PushDownWindowAggregateMin():   true,
-		feature.PushDownWindowAggregateMax():   true,
-		feature.PushDownWindowAggregateMean():  true,
+		feature.PushDownWindowAggregateMean(): true,
 	})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flagger)
@@ -1955,10 +1951,6 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 	// Turn on all variants.
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.GroupWindowAggregateTranspose(): true,
-		feature.PushDownWindowAggregateCount():  true,
-		feature.PushDownWindowAggregateSum():    true,
-		feature.PushDownWindowAggregateMin():    true,
-		feature.PushDownWindowAggregateMax():    true,
 		feature.PushDownWindowAggregateMean():   true,
 	})
 
@@ -2507,10 +2499,7 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 
 func TestPushDownBareAggregateRule(t *testing.T) {
 	// Turn on support for window aggregate count
-	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
-		feature.PushDownWindowAggregateCount(): true,
-		feature.PushDownWindowAggregateSum():   true,
-	})
+	flagger := mock.NewFlagger(map[feature.Flag]interface{}{})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flagger)
 
@@ -2633,22 +2622,6 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("ReadRange", readRange),
 					plan.CreatePhysicalNode("count", countProcedureSpec()),
-				},
-				Edges: [][2]int{
-					{0, 1},
-				},
-			},
-			NoChange: true,
-		},
-		{
-			// unsupported aggregate
-			Context: haveCaps,
-			Name:    "no push down min",
-			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
-			Before: &plantest.PlanSpec{
-				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", readRange),
-					plan.CreatePhysicalNode("count", minProcedureSpec()),
 				},
 				Edges: [][2]int{
 					{0, 1},
