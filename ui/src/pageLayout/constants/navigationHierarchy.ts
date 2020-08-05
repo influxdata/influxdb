@@ -84,15 +84,6 @@ export const generateNavItems = (orgID: string): NavItem[] => {
             location: `${orgPrefix}/load-data/tokens`,
           },
         },
-        {
-          id: 'client-libraries',
-          testID: 'nav-subitem-client-libraries',
-          label: 'Client Libraries',
-          link: {
-            type: 'link',
-            location: `${orgPrefix}/load-data/client-libraries`,
-          },
-        },
       ],
     },
     {
