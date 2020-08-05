@@ -5,20 +5,18 @@ import {Switch, Route} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
-import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import {Page} from '@influxdata/clockface'
 import ClientLibraries from 'src/clientLibraries/components/ClientLibraries'
-import ArduinoOverlay from 'src/clientLibraries/components/ClientArduinoOverlay'
-import CSharpOverlay from 'src/clientLibraries/components/ClientCSharpOverlay'
-import GoOverlay from 'src/clientLibraries/components/ClientGoOverlay'
-import JavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
-import JSOverlay from 'src/clientLibraries/components/ClientJSOverlay'
-import KotlinOverlay from 'src/clientLibraries/components/ClientKotlinOverlay'
-import PHPOverlay from 'src/clientLibraries/components/ClientPHPOverlay'
-import PythonOverlay from 'src/clientLibraries/components/ClientPythonOverlay'
-import RubyOverlay from 'src/clientLibraries/components/ClientRubyOverlay'
-import ScalaOverlay from 'src/clientLibraries/components/ClientScalaOverlay'
+import ArduinoPage from 'src/clientLibraries/components/ClientArduinoPage'
+import CSharpPage from 'src/clientLibraries/components/ClientCSharpPage'
+import GoPage from 'src/clientLibraries/components/ClientGoPage'
+import JavaPage from 'src/clientLibraries/components/ClientJavaPage'
+import JSPage from 'src/clientLibraries/components/ClientJSPage'
+import KotlinPage from 'src/clientLibraries/components/ClientKotlinPage'
+import PHPPage from 'src/clientLibraries/components/ClientPHPPage'
+import PythonPage from 'src/clientLibraries/components/ClientPythonPage'
+import RubyPage from 'src/clientLibraries/components/ClientRubyPage'
+import ScalaPage from 'src/clientLibraries/components/ClientScalaPage'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -43,25 +41,24 @@ class ClientLibrariesPage extends PureComponent<StateProps> {
     return (
       <>
         <Page titleTag={pageTitleSuffixer(['Client Libraries', 'Load Data'])}>
-          <LoadDataHeader />
-          <LoadDataTabbedPage activeTab="client-libraries" orgID={org.id}>
+          <Page.Header fullWidth={false}>
+            <Page.Title title="Client Libraries" />
+          </Page.Header>
+          <Page.Contents fullWidth={false}>
             <ClientLibraries orgID={org.id} />
-          </LoadDataTabbedPage>
+          </Page.Contents>
         </Page>
         <Switch>
-          <Route path={`${clientLibPath}/arduino`} component={ArduinoOverlay} />
-          <Route path={`${clientLibPath}/csharp`} component={CSharpOverlay} />
-          <Route path={`${clientLibPath}/go`} component={GoOverlay} />
-          <Route path={`${clientLibPath}/java`} component={JavaOverlay} />
-          <Route
-            path={`${clientLibPath}/javascript-node`}
-            component={JSOverlay}
-          />
-          <Route path={`${clientLibPath}/kotlin`} component={KotlinOverlay} />
-          <Route path={`${clientLibPath}/php`} component={PHPOverlay} />
-          <Route path={`${clientLibPath}/python`} component={PythonOverlay} />
-          <Route path={`${clientLibPath}/ruby`} component={RubyOverlay} />
-          <Route path={`${clientLibPath}/scala`} component={ScalaOverlay} />
+          <Route path={`${clientLibPath}/arduino`} component={ArduinoPage} />
+          <Route path={`${clientLibPath}/csharp`} component={CSharpPage} />
+          <Route path={`${clientLibPath}/go`} component={GoPage} />
+          <Route path={`${clientLibPath}/java`} component={JavaPage} />
+          <Route path={`${clientLibPath}/javascript-node`} component={JSPage} />
+          <Route path={`${clientLibPath}/kotlin`} component={KotlinPage} />
+          <Route path={`${clientLibPath}/php`} component={PHPPage} />
+          <Route path={`${clientLibPath}/python`} component={PythonPage} />
+          <Route path={`${clientLibPath}/ruby`} component={RubyPage} />
+          <Route path={`${clientLibPath}/scala`} component={ScalaPage} />
         </Switch>
         {children}
       </>
