@@ -90,6 +90,7 @@ export type Action =
   | SetShadeBelowAction
   | SetHoverDimensionAction
   | ReturnType<typeof toggleVisOptions>
+  | ReturnType<typeof resetActiveQueryWithBuilder>
 
 type ExternalActions =
   | ReturnType<typeof loadBuckets>
@@ -349,6 +350,19 @@ export const editActiveQueryWithBuilderSync = (): EditActiveQueryWithBuilderActi
 
 export const editActiveQueryWithBuilder = () => dispatch => {
   dispatch(editActiveQueryWithBuilderSync())
+  dispatch(saveAndExecuteQueries())
+}
+
+interface ResetActiveQueryWithBuilder {
+  type: 'RESET_QUERY_AND_EDIT_WITH_BUILDER'
+}
+
+export const resetActiveQueryWithBuilder = (): ResetActiveQueryWithBuilder => ({
+  type: 'RESET_QUERY_AND_EDIT_WITH_BUILDER',
+})
+
+export const resetActiveQuerySwitchToBuilder = () => dispatch => {
+  dispatch(resetActiveQueryWithBuilder())
   dispatch(saveAndExecuteQueries())
 }
 

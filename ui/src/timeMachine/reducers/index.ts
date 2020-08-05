@@ -604,6 +604,16 @@ export const timeMachineReducer = (
       })
     }
 
+    case 'RESET_QUERY_AND_EDIT_WITH_BUILDER': {
+      return produce(state, draftState => {
+        draftState.draftQueries[draftState.activeQueryIndex] = {
+          ...defaultViewQuery(),
+          editMode: 'builder',
+          hidden: false,
+        }
+      })
+    }
+
     case 'EDIT_ACTIVE_QUERY_AS_FLUX': {
       const {activeQueryIndex} = state
       const draftQueries = [...state.draftQueries]
