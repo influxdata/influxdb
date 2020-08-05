@@ -99,7 +99,7 @@ checksum:
 
 # Do not make github release
 release:
-  name_template: "v{{.Version}}"
+  name_template: "{{.Tag}}"
   prerelease: auto # when we go to GA remove this line
   draft: false # This needs to be false, or the container image will not be published
   disable: true # we keep the artifacts in S3 and link from the website
