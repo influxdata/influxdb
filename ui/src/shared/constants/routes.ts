@@ -22,3 +22,7 @@ export const TELEGRAFS = 'telegrafs'
 export const TOKENS = 'tokens'
 
 export const VARIABLES = 'variables'
+
+export const TELEGRAF_PLUGINS = 'telegraf-plugins'
+
+export const LOAD_DATA = 'load-data'

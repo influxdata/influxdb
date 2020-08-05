@@ -18,6 +18,7 @@ import TokensIndex from 'src/authorizations/containers/TokensIndex'
 import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
 import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
+import WriteDataPage from 'src/writeData/containers/WriteDataPage'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
@@ -27,12 +28,18 @@ import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
 import CheckHistory from 'src/checks/components/CheckHistory'
 import MembersIndex from 'src/members/containers/MembersIndex'
 import RouteToDashboardList from 'src/dashboards/components/RouteToDashboardList'
+import Bcache from 'src/writeData/components/telegrafPlugins/Bcache'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
 
 // Constants
 import {CLOUD} from 'src/shared/constants'
+import {
+  LOAD_DATA,
+  TELEGRAF_PLUGINS,
+  CLIENT_LIBS,
+} from 'src/shared/constants/routes'
 
 // Actions
 import {setOrg} from 'src/organizations/actions/creators'
@@ -134,20 +141,40 @@ const SetOrg: FC<Props> = ({
 
         {/* Load Data */}
         <Route
-          path={`${orgPath}/load-data/client-libraries`}
+          path={`${orgPath}/${LOAD_DATA}/browse`}
+          component={WriteDataPage}
+        />
+        <Route
+          path={`${orgPath}/${LOAD_DATA}/${CLIENT_LIBS}`}
           component={ClientLibrariesPage}
         />
         <Route
-          path={`${orgPath}/load-data/scrapers`}
+          path={`${orgPath}/${LOAD_DATA}/scrapers`}
           component={ScrapersIndex}
         />
         <Route
-          path={`${orgPath}/load-data/telegrafs`}
+          path={`${orgPath}/${LOAD_DATA}/telegrafs`}
           component={TelegrafsPage}
         />
-        <Route path={`${orgPath}/load-data/tokens`} component={TokensIndex} />
-        <Route path={`${orgPath}/load-data/buckets`} component={BucketsIndex} />
-        <Route exact path={`${orgPath}/load-data`} component={BucketsIndex} />
+        <Route
+          path={`${orgPath}/${LOAD_DATA}/tokens`}
+          component={TokensIndex}
+        />
+        <Route
+          path={`${orgPath}/${LOAD_DATA}/buckets`}
+          component={BucketsIndex}
+        />
+        <Route
+          exact
+          path={`${orgPath}/${LOAD_DATA}`}
+          component={BucketsIndex}
+        />
+
+        {/* Telegraf Plugins */}
+        <Route
+          path={`${orgPath}/${LOAD_DATA}/${TELEGRAF_PLUGINS}/bcache`}
+          component={Bcache}
+        />
 
         {/* Settings */}
         <Route
