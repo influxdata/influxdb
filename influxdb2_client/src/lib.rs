@@ -60,7 +60,7 @@ use reqwest::Body;
 use snafu::{ResultExt, Snafu};
 use std::io::{self, Write};
 
-mod data_point;
+pub mod data_point;
 pub use data_point::{DataPoint, FieldValue, WriteDataPoint};
 
 /// Errors that occur while making requests to the Influx server.
