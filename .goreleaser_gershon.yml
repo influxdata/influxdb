@@ -28,7 +28,6 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm
 
     main: ./cmd/influxd/
     flags:
@@ -47,7 +46,7 @@ builds:
 
 snapshot:
   name_template: 9.9.9
-  
+
 nfpms:
   -
     id: "influxdata"
