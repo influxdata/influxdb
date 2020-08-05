@@ -34,13 +34,6 @@ type OnboardingRequest struct {
 }
 
 func (r *OnboardingRequest) Valid() error {
-	if r.Password == "" {
-		return &Error{
-			Code: EEmptyValue,
-			Msg:  "password is empty",
-		}
-	}
-
 	if r.User == "" {
 		return &Error{
 			Code: EEmptyValue,

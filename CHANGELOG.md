@@ -11,6 +11,7 @@
 1. [19075](https://github.com/influxdata/influxdb/pull/19075): Add resource links to a stack's resources from public HTTP API list/read calls
 1. [19103](https://github.com/influxdata/influxdb/pull/19103): Enhance resource creation experience when limits are reached
 1. [19223](https://github.com/influxdata/influxdb/pull/19223): Add dashboards command to influx CLI
+1. [19225](https://github.com/influxdata/influxdb/pull/19225): Allow user onboarding to optionally set passwords
 
 ### Bug Fixes
 
