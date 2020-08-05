@@ -44,6 +44,7 @@ const CommunityTemplateName: FC<Props> = ({
         color={ComponentColor.Success}
         size={ComponentSize.Medium}
         onClick={onClickInstall}
+        testID="template-install-button"
       />
     )
   }
@@ -61,7 +62,7 @@ const CommunityTemplateName: FC<Props> = ({
           width={54}
           height={54}
         />
-        <FlexBox.Child grow={1} shrink={0}>
+        <FlexBox.Child grow={1} shrink={0} testID="template-install-title">
           <Heading
             className="community-templates--template-name"
             element={HeadingElement.H4}

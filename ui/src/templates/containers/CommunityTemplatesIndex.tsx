@@ -110,6 +110,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                     size={ComponentSize.Small}
                     target={LinkTarget.Blank}
                     text="Browse Community Templates"
+                    testID="browse-template-button"
                   />
                 </Panel.SymbolHeader>
               </Panel>
@@ -131,11 +132,13 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                       placeholder="Enter the URL of an InfluxDB Template..."
                       style={{width: '80%'}}
                       value={this.state.templateUrl}
+                      testID="lookup-template-input"
                     />
                     <Button
                       onClick={this.startTemplateInstall}
                       size={ComponentSize.Small}
                       text="Lookup Template"
+                      testID="lookup-template-button"
                     />
                   </div>
                 </Panel.Body>

@@ -150,7 +150,7 @@ jobs:
       - run: make protoc
       - run: make build
       - run:
-          command: ./bin/linux/influxd --store=memory --e2e-testing=true
+          command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
           background: true
       - run: make e2e
       - store_test_results:
