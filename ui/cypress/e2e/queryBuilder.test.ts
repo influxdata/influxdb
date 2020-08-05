@@ -106,7 +106,7 @@ describe('The Query Builder', () => {
       cy.getByTestID('switch-to-script-editor').click()
 
       cy.contains(
-        '|> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: true)'
+        '|> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)'
       ).should('exist')
 
       cy.getByTestID('switch-to-query-builder').click()
@@ -118,12 +118,13 @@ describe('The Query Builder', () => {
       cy.getByTestID('duration-input--error').should('exist')
 
       cy.getByTestID('auto-window-period').click()
+      cy.getByTestID('auto-window-period').click()
 
       cy.getByTestID('duration-input--error').should('not.exist')
       cy.getByTestID('toggle').click()
       cy.getByTestID('switch-to-script-editor').click()
       cy.contains(
-        '|> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)'
+        '|> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: true)'
       ).should('exist')
     })
 
