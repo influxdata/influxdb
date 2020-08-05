@@ -3432,7 +3432,7 @@ spec:
 			}, varArgs.Values)
 		})
 
-		t.Run("error incurs during template application when resources already exist rollsback to prev state", func(t *testing.T) {
+		t.Run("error incurred during template application when resources already exist rollsback to prev state", func(t *testing.T) {
 			updatePkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(updatePkgYMLStr))
 			require.NoError(t, err)
 

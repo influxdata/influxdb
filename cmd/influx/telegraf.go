@@ -280,7 +280,7 @@ func writeTelegrafRows(tabW *internal.TabWriter, cfgs ...*influxdb.TelegrafConfi
 	for _, cfg := range cfgs {
 		tabW.Write(map[string]interface{}{
 			"ID":          cfg.ID,
-			"OrgID":       cfg.OrgID,
+			"OrgID":       cfg.OrgID.String(),
 			"Name":        cfg.Name,
 			"Description": cfg.Description,
 		})
