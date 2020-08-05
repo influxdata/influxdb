@@ -52,6 +52,7 @@ builds:
 snapshot:
   name_template: 9.9.9
 
+<<<<<<< HEAD
 signs:
   -
     signature: "${artifact}.asc"
@@ -59,6 +60,8 @@ signs:
     args: [ "--passphrase", "{{.Env.PASSPHRASE}}",  "--pinentry-mode=loopback", "--batch", "--armor",  "--detach-sign", "${artifact}"]
     artifacts: all
 
+=======
+>>>>>>> chore: Updated configuration to be able to test release process
 nfpms:
   -
     id: "influxdata"
