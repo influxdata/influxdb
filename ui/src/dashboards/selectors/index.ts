@@ -1,5 +1,8 @@
+// Libraries
 import {get} from 'lodash'
 import moment from 'moment'
+
+// Types
 import {
   AppState,
   Check,
@@ -9,7 +12,10 @@ import {
   View,
   ViewType,
 } from 'src/types'
+
+// Utility
 import {currentContext} from 'src/shared/selectors/currentContext'
+import {getTimezoneOffset} from 'src/dashboards/utils/getTimezoneOffset'
 
 // Constants
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
@@ -53,25 +59,16 @@ export const isCurrentPageDashboard = (state: AppState): boolean =>
 // from the local time to the same time in UTC if UTC is selected from the
 // timezone dropdown. This is feature was original requested here:
 // https://github.com/influxdata/influxdb/issues/17877
+// and finalized across the dashboards & the data explorer here:
+// https://github.com/influxdata/influxdb/pull/19146
 // Example: user selected 10-11:00am and sets the dropdown to UTC
 // Query should run against 10-11:00am UTC rather than querying
 // 10-11:00am local time (offset depending on timezone)
-export const setTimeToUTC = (date: string): string => {
-  const offset = new Date(date).getTimezoneOffset()
-  if (offset > 0) {
-    return moment
-      .utc(date)
-      .subtract(offset, 'minutes')
-      .format()
-  }
-  if (offset < 0) {
-    return moment
-      .utc(date)
-      .add(offset, 'minutes')
-      .format()
-  }
-  return moment.utc(date).format()
-}
+export const setTimeToUTC = (date: string): string =>
+  moment
+    .utc(date)
+    .subtract(getTimezoneOffset(), 'minutes')
+    .format()
 
 export const getTimeZone = (state: AppState): TimeZone => {
   return state.app.persisted.timeZone || 'Local'
