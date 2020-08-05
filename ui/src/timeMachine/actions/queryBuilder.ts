@@ -18,7 +18,6 @@ import {
   ResourceType,
 } from 'src/types'
 import {Dispatch} from 'react'
-import {BuilderFunctionsType} from '@influxdata/influx'
 import {
   Action as AlertBuilderAction,
   setEvery,
