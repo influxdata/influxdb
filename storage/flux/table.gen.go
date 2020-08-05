@@ -7,6 +7,7 @@
 package storageflux
 
 import (
+	"fmt"
 	"math"
 	"sync"
 
@@ -746,49 +747,29 @@ func (t *floatGroupTable) advance() bool {
 		return true
 	}
 
-	// handle the group with aggregate case
-	var value float64
-	// For group count, sum, min, and max, the timestamp here is always math.MaxInt64.
-	// their final result does not contain _time, so this timestamp value can be anything
-	// and it won't matter.
-	// For group first, we need to assign the initial value to math.MaxInt64 so
-	// we can find the row with the smallest timestamp.
-	// Do not worry about data with math.MaxInt64 as its real timestamp.
-	// In OSS we require a |> range() call in the query and a math.MaxInt64 timestamp
-	// cannot make it through.
-	var timestamp int64 = math.MaxInt64
-	if t.gc.Aggregate().Type == datatypes.AggregateTypeLast {
-		timestamp = math.MinInt64
+	aggregate, err := determineFloatAggregateMethod(t.gc.Aggregate().Type)
+	if err != nil {
+		t.err = err
+		return false
 	}
+
+	ts, v := aggregate(arr.Timestamps, arr.Values)
+	timestamps, values := []int64{ts}, []float64{v}
 	for {
-		// note that for the group aggregate case, len here should always be 1
-		for i := 0; i < len; i++ {
-			switch t.gc.Aggregate().Type {
-			case datatypes.AggregateTypeCount:
-				panic("unsupported for aggregate count: Float")
-			case datatypes.AggregateTypeSum:
-				value += arr.Values[i]
-			case datatypes.AggregateTypeFirst:
-				if arr.Timestamps[i] < timestamp {
-					timestamp = arr.Timestamps[i]
-					value = arr.Values[i]
-				}
-			case datatypes.AggregateTypeLast:
-				if arr.Timestamps[i] > timestamp {
-					timestamp = arr.Timestamps[i]
-					value = arr.Values[i]
-				}
-			}
-		}
 		arr = t.cur.Next()
-		len = arr.Len()
-		if len > 0 {
+		if arr.Len() > 0 {
+			ts, v := aggregate(arr.Timestamps, arr.Values)
+			timestamps = append(timestamps, ts)
+			values = append(values, v)
 			continue
 		}
+
 		if !t.advanceCursor() {
 			break
 		}
 	}
+	timestamp, value := aggregate(timestamps, values)
+
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
 		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
@@ -799,6 +780,113 @@ func (t *floatGroupTable) advance() bool {
 	t.appendTags(colReader)
 	t.appendBounds(colReader)
 	return true
+}
+
+type floatAggregateMethod func([]int64, []float64) (int64, float64)
+
+// determineFloatAggregateMethod returns the method for aggregating
+// returned points within the same group. The incoming points are the
+// ones returned for each series and the method returned here will
+// aggregate the aggregates.
+func determineFloatAggregateMethod(agg datatypes.Aggregate_AggregateType) (floatAggregateMethod, error) {
+	switch agg {
+	case datatypes.AggregateTypeFirst:
+		return aggregateFirstGroupsFloat, nil
+	case datatypes.AggregateTypeLast:
+		return aggregateLastGroupsFloat, nil
+	case datatypes.AggregateTypeCount:
+
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unsupported for aggregate count: Float",
+		}
+
+	case datatypes.AggregateTypeSum:
+
+		return aggregateSumGroupsFloat, nil
+
+	case datatypes.AggregateTypeMin:
+
+		return aggregateMinGroupsFloat, nil
+
+	case datatypes.AggregateTypeMax:
+
+		return aggregateMaxGroupsFloat, nil
+
+	default:
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
+	}
+}
+
+func aggregateMinGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value > values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateMaxGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value < values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+// For group count and sum, the timestamp here is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be anything
+// and it won't matter.
+
+func aggregateSumGroupsFloat(_ []int64, values []float64) (int64, float64) {
+	var sum float64
+	for _, v := range values {
+		sum += v
+	}
+	return math.MaxInt64, sum
+}
+
+func aggregateFirstGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp > timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateLastGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp < timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
 }
 
 func (t *floatGroupTable) advanceCursor() bool {
@@ -1567,49 +1655,29 @@ func (t *integerGroupTable) advance() bool {
 		return true
 	}
 
-	// handle the group with aggregate case
-	var value int64
-	// For group count, sum, min, and max, the timestamp here is always math.MaxInt64.
-	// their final result does not contain _time, so this timestamp value can be anything
-	// and it won't matter.
-	// For group first, we need to assign the initial value to math.MaxInt64 so
-	// we can find the row with the smallest timestamp.
-	// Do not worry about data with math.MaxInt64 as its real timestamp.
-	// In OSS we require a |> range() call in the query and a math.MaxInt64 timestamp
-	// cannot make it through.
-	var timestamp int64 = math.MaxInt64
-	if t.gc.Aggregate().Type == datatypes.AggregateTypeLast {
-		timestamp = math.MinInt64
+	aggregate, err := determineIntegerAggregateMethod(t.gc.Aggregate().Type)
+	if err != nil {
+		t.err = err
+		return false
 	}
+
+	ts, v := aggregate(arr.Timestamps, arr.Values)
+	timestamps, values := []int64{ts}, []int64{v}
 	for {
-		// note that for the group aggregate case, len here should always be 1
-		for i := 0; i < len; i++ {
-			switch t.gc.Aggregate().Type {
-			case datatypes.AggregateTypeCount:
-				fallthrough
-			case datatypes.AggregateTypeSum:
-				value += arr.Values[i]
-			case datatypes.AggregateTypeFirst:
-				if arr.Timestamps[i] < timestamp {
-					timestamp = arr.Timestamps[i]
-					value = arr.Values[i]
-				}
-			case datatypes.AggregateTypeLast:
-				if arr.Timestamps[i] > timestamp {
-					timestamp = arr.Timestamps[i]
-					value = arr.Values[i]
-				}
-			}
-		}
 		arr = t.cur.Next()
-		len = arr.Len()
-		if len > 0 {
+		if arr.Len() > 0 {
+			ts, v := aggregate(arr.Timestamps, arr.Values)
+			timestamps = append(timestamps, ts)
+			values = append(values, v)
 			continue
 		}
+
 		if !t.advanceCursor() {
 			break
 		}
 	}
+	timestamp, value := aggregate(timestamps, values)
+
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
 		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
@@ -1620,6 +1688,114 @@ func (t *integerGroupTable) advance() bool {
 	t.appendTags(colReader)
 	t.appendBounds(colReader)
 	return true
+}
+
+type integerAggregateMethod func([]int64, []int64) (int64, int64)
+
+// determineIntegerAggregateMethod returns the method for aggregating
+// returned points within the same group. The incoming points are the
+// ones returned for each series and the method returned here will
+// aggregate the aggregates.
+func determineIntegerAggregateMethod(agg datatypes.Aggregate_AggregateType) (integerAggregateMethod, error) {
+	switch agg {
+	case datatypes.AggregateTypeFirst:
+		return aggregateFirstGroupsInteger, nil
+	case datatypes.AggregateTypeLast:
+		return aggregateLastGroupsInteger, nil
+	case datatypes.AggregateTypeCount:
+
+		return aggregateCountGroupsInteger, nil
+
+	case datatypes.AggregateTypeSum:
+
+		return aggregateSumGroupsInteger, nil
+
+	case datatypes.AggregateTypeMin:
+
+		return aggregateMinGroupsInteger, nil
+
+	case datatypes.AggregateTypeMax:
+
+		return aggregateMaxGroupsInteger, nil
+
+	default:
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
+	}
+}
+
+func aggregateMinGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value > values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateMaxGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value < values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+// For group count and sum, the timestamp here is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be anything
+// and it won't matter.
+
+func aggregateCountGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
+	return aggregateSumGroupsInteger(timestamps, values)
+}
+
+func aggregateSumGroupsInteger(_ []int64, values []int64) (int64, int64) {
+	var sum int64
+	for _, v := range values {
+		sum += v
+	}
+	return math.MaxInt64, sum
+}
+
+func aggregateFirstGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp > timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateLastGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp < timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
 }
 
 func (t *integerGroupTable) advanceCursor() bool {
@@ -2386,49 +2562,29 @@ func (t *unsignedGroupTable) advance() bool {
 		return true
 	}
 
-	// handle the group with aggregate case
-	var value uint64
-	// For group count, sum, min, and max, the timestamp here is always math.MaxInt64.
-	// their final result does not contain _time, so this timestamp value can be anything
-	// and it won't matter.
-	// For group first, we need to assign the initial value to math.MaxInt64 so
-	// we can find the row with the smallest timestamp.
-	// Do not worry about data with math.MaxInt64 as its real timestamp.
-	// In OSS we require a |> range() call in the query and a math.MaxInt64 timestamp
-	// cannot make it through.
-	var timestamp int64 = math.MaxInt64
-	if t.gc.Aggregate().Type == datatypes.AggregateTypeLast {
-		timestamp = math.MinInt64
+	aggregate, err := determineUnsignedAggregateMethod(t.gc.Aggregate().Type)
+	if err != nil {
+		t.err = err
+		return false
 	}
+
+	ts, v := aggregate(arr.Timestamps, arr.Values)
+	timestamps, values := []int64{ts}, []uint64{v}
 	for {
-		// note that for the group aggregate case, len here should always be 1
-		for i := 0; i < len; i++ {
-			switch t.gc.Aggregate().Type {
-			case datatypes.AggregateTypeCount:
-				panic("unsupported for aggregate count: Unsigned")
-			case datatypes.AggregateTypeSum:
-				value += arr.Values[i]
-			case datatypes.AggregateTypeFirst:
-				if arr.Timestamps[i] < timestamp {
-					timestamp = arr.Timestamps[i]
-					value = arr.Values[i]
-				}
-			case datatypes.AggregateTypeLast:
-				if arr.Timestamps[i] > timestamp {
-					timestamp = arr.Timestamps[i]
-					value = arr.Values[i]
-				}
-			}
-		}
 		arr = t.cur.Next()
-		len = arr.Len()
-		if len > 0 {
+		if arr.Len() > 0 {
+			ts, v := aggregate(arr.Timestamps, arr.Values)
+			timestamps = append(timestamps, ts)
+			values = append(values, v)
 			continue
 		}
+
 		if !t.advanceCursor() {
 			break
 		}
 	}
+	timestamp, value := aggregate(timestamps, values)
+
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
 		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
@@ -2439,6 +2595,113 @@ func (t *unsignedGroupTable) advance() bool {
 	t.appendTags(colReader)
 	t.appendBounds(colReader)
 	return true
+}
+
+type unsignedAggregateMethod func([]int64, []uint64) (int64, uint64)
+
+// determineUnsignedAggregateMethod returns the method for aggregating
+// returned points within the same group. The incoming points are the
+// ones returned for each series and the method returned here will
+// aggregate the aggregates.
+func determineUnsignedAggregateMethod(agg datatypes.Aggregate_AggregateType) (unsignedAggregateMethod, error) {
+	switch agg {
+	case datatypes.AggregateTypeFirst:
+		return aggregateFirstGroupsUnsigned, nil
+	case datatypes.AggregateTypeLast:
+		return aggregateLastGroupsUnsigned, nil
+	case datatypes.AggregateTypeCount:
+
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unsupported for aggregate count: Unsigned",
+		}
+
+	case datatypes.AggregateTypeSum:
+
+		return aggregateSumGroupsUnsigned, nil
+
+	case datatypes.AggregateTypeMin:
+
+		return aggregateMinGroupsUnsigned, nil
+
+	case datatypes.AggregateTypeMax:
+
+		return aggregateMaxGroupsUnsigned, nil
+
+	default:
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
+	}
+}
+
+func aggregateMinGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value > values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateMaxGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value < values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+// For group count and sum, the timestamp here is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be anything
+// and it won't matter.
+
+func aggregateSumGroupsUnsigned(_ []int64, values []uint64) (int64, uint64) {
+	var sum uint64
+	for _, v := range values {
+		sum += v
+	}
+	return math.MaxInt64, sum
+}
+
+func aggregateFirstGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp > timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateLastGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp < timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
 }
 
 func (t *unsignedGroupTable) advanceCursor() bool {
@@ -3205,49 +3468,29 @@ func (t *stringGroupTable) advance() bool {
 		return true
 	}
 
-	// handle the group with aggregate case
-	var value string
-	// For group count, sum, min, and max, the timestamp here is always math.MaxInt64.
-	// their final result does not contain _time, so this timestamp value can be anything
-	// and it won't matter.
-	// For group first, we need to assign the initial value to math.MaxInt64 so
-	// we can find the row with the smallest timestamp.
-	// Do not worry about data with math.MaxInt64 as its real timestamp.
-	// In OSS we require a |> range() call in the query and a math.MaxInt64 timestamp
-	// cannot make it through.
-	var timestamp int64 = math.MaxInt64
-	if t.gc.Aggregate().Type == datatypes.AggregateTypeLast {
-		timestamp = math.MinInt64
+	aggregate, err := determineStringAggregateMethod(t.gc.Aggregate().Type)
+	if err != nil {
+		t.err = err
+		return false
 	}
+
+	ts, v := aggregate(arr.Timestamps, arr.Values)
+	timestamps, values := []int64{ts}, []string{v}
 	for {
-		// note that for the group aggregate case, len here should always be 1
-		for i := 0; i < len; i++ {
-			switch t.gc.Aggregate().Type {
-			case datatypes.AggregateTypeCount:
-				panic("unsupported for aggregate count: String")
-			case datatypes.AggregateTypeSum:
-				panic("unsupported for aggregate sum: String")
-			case datatypes.AggregateTypeFirst:
-				if arr.Timestamps[i] < timestamp {
-					timestamp = arr.Timestamps[i]
-					value = arr.Values[i]
-				}
-			case datatypes.AggregateTypeLast:
-				if arr.Timestamps[i] > timestamp {
-					timestamp = arr.Timestamps[i]
-					value = arr.Values[i]
-				}
-			}
-		}
 		arr = t.cur.Next()
-		len = arr.Len()
-		if len > 0 {
+		if arr.Len() > 0 {
+			ts, v := aggregate(arr.Timestamps, arr.Values)
+			timestamps = append(timestamps, ts)
+			values = append(values, v)
 			continue
 		}
+
 		if !t.advanceCursor() {
 			break
 		}
 	}
+	timestamp, value := aggregate(timestamps, values)
+
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
 		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
@@ -3258,6 +3501,86 @@ func (t *stringGroupTable) advance() bool {
 	t.appendTags(colReader)
 	t.appendBounds(colReader)
 	return true
+}
+
+type stringAggregateMethod func([]int64, []string) (int64, string)
+
+// determineStringAggregateMethod returns the method for aggregating
+// returned points within the same group. The incoming points are the
+// ones returned for each series and the method returned here will
+// aggregate the aggregates.
+func determineStringAggregateMethod(agg datatypes.Aggregate_AggregateType) (stringAggregateMethod, error) {
+	switch agg {
+	case datatypes.AggregateTypeFirst:
+		return aggregateFirstGroupsString, nil
+	case datatypes.AggregateTypeLast:
+		return aggregateLastGroupsString, nil
+	case datatypes.AggregateTypeCount:
+
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unsupported for aggregate count: String",
+		}
+
+	case datatypes.AggregateTypeSum:
+
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unsupported for aggregate sum: String",
+		}
+
+	case datatypes.AggregateTypeMin:
+
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unsupported for aggregate min: String",
+		}
+
+	case datatypes.AggregateTypeMax:
+
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unsupported for aggregate max: String",
+		}
+
+	default:
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
+	}
+}
+
+// For group count and sum, the timestamp here is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be anything
+// and it won't matter.
+
+func aggregateFirstGroupsString(timestamps []int64, values []string) (int64, string) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp > timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateLastGroupsString(timestamps []int64, values []string) (int64, string) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp < timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
 }
 
 func (t *stringGroupTable) advanceCursor() bool {
@@ -4024,49 +4347,29 @@ func (t *booleanGroupTable) advance() bool {
 		return true
 	}
 
-	// handle the group with aggregate case
-	var value bool
-	// For group count, sum, min, and max, the timestamp here is always math.MaxInt64.
-	// their final result does not contain _time, so this timestamp value can be anything
-	// and it won't matter.
-	// For group first, we need to assign the initial value to math.MaxInt64 so
-	// we can find the row with the smallest timestamp.
-	// Do not worry about data with math.MaxInt64 as its real timestamp.
-	// In OSS we require a |> range() call in the query and a math.MaxInt64 timestamp
-	// cannot make it through.
-	var timestamp int64 = math.MaxInt64
-	if t.gc.Aggregate().Type == datatypes.AggregateTypeLast {
-		timestamp = math.MinInt64
+	aggregate, err := determineBooleanAggregateMethod(t.gc.Aggregate().Type)
+	if err != nil {
+		t.err = err
+		return false
 	}
+
+	ts, v := aggregate(arr.Timestamps, arr.Values)
+	timestamps, values := []int64{ts}, []bool{v}
 	for {
-		// note that for the group aggregate case, len here should always be 1
-		for i := 0; i < len; i++ {
-			switch t.gc.Aggregate().Type {
-			case datatypes.AggregateTypeCount:
-				panic("unsupported for aggregate count: Boolean")
-			case datatypes.AggregateTypeSum:
-				panic("unsupported for aggregate sum: Boolean")
-			case datatypes.AggregateTypeFirst:
-				if arr.Timestamps[i] < timestamp {
-					timestamp = arr.Timestamps[i]
-					value = arr.Values[i]
-				}
-			case datatypes.AggregateTypeLast:
-				if arr.Timestamps[i] > timestamp {
-					timestamp = arr.Timestamps[i]
-					value = arr.Values[i]
-				}
-			}
-		}
 		arr = t.cur.Next()
-		len = arr.Len()
-		if len > 0 {
+		if arr.Len() > 0 {
+			ts, v := aggregate(arr.Timestamps, arr.Values)
+			timestamps = append(timestamps, ts)
+			values = append(values, v)
 			continue
 		}
+
 		if !t.advanceCursor() {
 			break
 		}
 	}
+	timestamp, value := aggregate(timestamps, values)
+
 	colReader := t.allocateBuffer(1)
 	if IsSelector(t.gc.Aggregate()) {
 		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
@@ -4077,6 +4380,86 @@ func (t *booleanGroupTable) advance() bool {
 	t.appendTags(colReader)
 	t.appendBounds(colReader)
 	return true
+}
+
+type booleanAggregateMethod func([]int64, []bool) (int64, bool)
+
+// determineBooleanAggregateMethod returns the method for aggregating
+// returned points within the same group. The incoming points are the
+// ones returned for each series and the method returned here will
+// aggregate the aggregates.
+func determineBooleanAggregateMethod(agg datatypes.Aggregate_AggregateType) (booleanAggregateMethod, error) {
+	switch agg {
+	case datatypes.AggregateTypeFirst:
+		return aggregateFirstGroupsBoolean, nil
+	case datatypes.AggregateTypeLast:
+		return aggregateLastGroupsBoolean, nil
+	case datatypes.AggregateTypeCount:
+
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unsupported for aggregate count: Boolean",
+		}
+
+	case datatypes.AggregateTypeSum:
+
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unsupported for aggregate sum: Boolean",
+		}
+
+	case datatypes.AggregateTypeMin:
+
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unsupported for aggregate min: Boolean",
+		}
+
+	case datatypes.AggregateTypeMax:
+
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "unsupported for aggregate max: Boolean",
+		}
+
+	default:
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
+	}
+}
+
+// For group count and sum, the timestamp here is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be anything
+// and it won't matter.
+
+func aggregateFirstGroupsBoolean(timestamps []int64, values []bool) (int64, bool) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp > timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateLastGroupsBoolean(timestamps []int64, values []bool) (int64, bool) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp < timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
 }
 
 func (t *booleanGroupTable) advanceCursor() bool {
