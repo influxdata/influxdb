@@ -2316,11 +2316,7 @@ from(bucket: v.bucket)
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			l := launcher.RunTestLauncherOrFail(t, ctx, mock.NewFlagger(map[feature.Flag]interface{}{
-				feature.PushDownWindowAggregateCount(): true,
-				feature.PushDownWindowAggregateSum():   true,
 				feature.PushDownWindowAggregateMean():  true,
-				feature.PushDownWindowAggregateMin():   true,
-				feature.PushDownWindowAggregateMax():   true,
 				feature.PushDownGroupAggregateMinMax(): true,
 			}))
 
