@@ -29,7 +29,7 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 	svc.OrgBucketIDs = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	if f.TimeGenerator == nil {
-		svc.TimeGenerator = platform.RealTimeGenerator{}
+		f.TimeGenerator = platform.RealTimeGenerator{}
 	}
 	svc.TimeGenerator = f.TimeGenerator
 
