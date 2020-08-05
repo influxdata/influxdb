@@ -1,0 +1,72 @@
+project_name: influxdb
+builds:
+  - id: influx
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/influx/
+    flags:
+      - -tags={{if and (eq .Os "linux") (eq .Arch "amd64")}}osusergo,netgo,static_build{{end}}
+    env:
+      - GO111MODULE=on
+      - CGO_ENABLED=1
+      - CC=xcc
+      - PKG_CONFIG=$GOPATH/bin/pkg-config
+      - MACOSX_DEPLOYMENT_TARGET=10.11
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if and (eq .Os "linux") (eq .Arch "amd64")}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
+    binary: influx
+  - id: influxd
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/influxd/
+    flags:
+      - -tags=assets{{if and (eq .Os "linux") (eq .Arch "amd64")}},osusergo,netgo,static_build{{end}}
+    env:
+      - GO111MODULE=on
+      - CGO_ENABLED=1
+      - CC=xcc
+      - PKG_CONFIG=$GOPATH/bin/pkg-config
+      - MACOSX_DEPLOYMENT_TARGET=10.11
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if and (eq .Os "linux") (eq .Arch "amd64")}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
+    binary: influxd
+    hooks:
+      pre: make generate
+
+archives:
+  - id: influxdb_client
+    builds: ["influx"]
+    format: tar.gz
+    wrap_in_directory: true
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    files:
+      - LICENSE
+      - README.md
+  - id: influxdb_single_binary
+    format: tar.gz
+    wrap_in_directory: true
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "influxdb_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    files:
+      - LICENSE
+      - README.md
+
+# Do not make github release
+release:
+  name_template: "v{{.Version}}"
+  prerelease: auto # when we go to GA remove this line
+  draft: false # This needs to be false, or the container image will not be published
+  disable: true # we keep the artifacts in S3 and link from the website
