@@ -24,8 +24,8 @@ export interface QueryFn {
 
 export const genFlux = (
   func: string,
-  period?: string,
-  fillValues?: boolean
+  period: string,
+  fillValues: boolean = false
 ) => {
   if (period === AGG_WINDOW_NONE) {
     return `|> ${func}()`
@@ -66,8 +66,8 @@ export const AUTO_FUNCTIONS: QueryFn[] = [
     flux: (period, fillValues) => genFlux('median', period, fillValues),
   },
   {
-    name: 'first',
-    flux: (period, fillValues) => genFlux('first', period, fillValues),
+    name: 'last',
+    flux: (period, fillValues) => genFlux('last', period, fillValues),
   },
 ]
 
@@ -119,11 +119,11 @@ export const FUNCTIONS: QueryFn[] = [
     name: 'stddev',
     flux: (period, fillValues) => genFlux('stddev', period, fillValues),
   },
-  AUTO_FUNCTIONS[2],
   {
-    name: 'last',
-    flux: (period, fillValues) => genFlux('last', period, fillValues),
+    name: 'first',
+    flux: (period, fillValues) => genFlux('first', period, fillValues),
   },
+  AUTO_FUNCTIONS[2],
   {
     name: 'unique',
     flux: (period, fillValues) => genFlux('unique', period, fillValues),
