@@ -3,6 +3,8 @@ import {NormalizedSchema} from 'normalizr'
 import {RemoteDataState, CellEntities} from 'src/types'
 import {setLabelOnResource} from 'src/labels/actions/creators'
 
+import {setViewsAndCells} from 'src/views/actions/creators'
+
 export const SET_CELL = 'SET_CELL'
 export const SET_CELLS = 'SET_CELLS'
 export const REMOVE_CELL = 'REMOVE_CELL'
@@ -11,10 +13,14 @@ export type Action =
   | ReturnType<typeof setCell>
   | ReturnType<typeof removeCell>
   | ReturnType<typeof setCells>
+  | ReturnType<typeof setViewsAndCells>
   | ReturnType<typeof setLabelOnResource>
 
 // R is the type of the value of the "result" key in normalizr's normalization
-type CellSchema<R extends string | string[]> = NormalizedSchema<CellEntities, R>
+export type CellSchema<R extends string | string[]> = NormalizedSchema<
+  CellEntities,
+  R
+>
 
 export const setCell = (
   id: string,
