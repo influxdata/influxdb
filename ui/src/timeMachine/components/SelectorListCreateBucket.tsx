@@ -125,7 +125,7 @@ const SelectorListCreateBucket: FC<Props> = ({
         title={titleText}
         ref={triggerRef}
         onClick={() => {}}
-        wrapText={true}
+        wrapText={false}
         size={ComponentSize.ExtraSmall}
       >
         + Create Bucket
