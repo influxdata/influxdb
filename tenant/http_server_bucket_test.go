@@ -60,5 +60,5 @@ func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.Buck
 }
 
 func TestBucketService(t *testing.T) {
-	itesting.BucketService(initBucketHttpService, t, itesting.WithoutHooks())
+	itesting.BucketService(initBucketHttpService, t, itesting.WithoutHooks(), itesting.WithHTTPValidation())
 }

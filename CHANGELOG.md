@@ -18,6 +18,7 @@
 1. [19043](https://github.com/influxdata/influxdb/pull/19043): Enforce all influx CLI flag args are valid
 1. [19188](https://github.com/influxdata/influxdb/pull/19188): Dashboard cells correctly map results when multiple queries exist
 1. [19146](https://github.com/influxdata/influxdb/pull/19146): Dashboard cells and overlay use UTC as query time when toggling to UTC timezone
+1. [19222](https://github.com/influxdata/influxdb/pull/19222): Bucket names may not include quotation marks
 
 ## v2.0.0-beta.15 [2020-07-23]
 
