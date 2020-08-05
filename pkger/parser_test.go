@@ -2425,6 +2425,10 @@ from(bucket: params.bucket)
 
 				expected := []SummaryReference{
 					{
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
+					},
+					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
 						DefaultValue: "meta",
@@ -2433,10 +2437,6 @@ from(bucket: params.bucket)
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
 						DefaultValue: "spectacles",
-					},
-					{
-						Field:     "spec.associations[0].name",
-						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expected, actual[0].EnvReferences)
@@ -3343,12 +3343,89 @@ spec:
 			})
 		})
 
+		t.Run("with params option should be parameterizable", func(t *testing.T) {
+			testfileRunner(t, "testdata/tasks_params.yml", func(t *testing.T, template *Template) {
+				sum := template.Summary()
+				require.Len(t, sum.Tasks, 1)
+
+				actual := sum.Tasks[0]
+				assert.Equal(t, KindTask, actual.Kind)
+				assert.Equal(t, "task-uuid", actual.MetaName)
+
+				queryText := `option params = {
+	bucket: "bar",
+	start: -24h0m0s,
+	stop: now(),
+	name: "max",
+	floatVal: 37.2,
+	minVal: 10,
+}
+
+from(bucket: params.bucket)
+	|> range(start: params.start, end: params.stop)
+	|> filter(fn: (r) =>
+		(r._measurement == "processes"))
+	|> filter(fn: (r) =>
+		(r.floater == params.floatVal))
+	|> filter(fn: (r) =>
+		(r._value > params.minVal))
+	|> aggregateWindow(every: v.windowPeriod, fn: max)
+	|> yield(name: params.name)`
+
+				assert.Equal(t, queryText, actual.Query)
+
+				expectedRefs := []SummaryReference{
+					{
+						Field:        "spec.params.bucket",
+						EnvRefKey:    `tasks[task-uuid].spec.params.bucket`,
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.params.floatVal",
+						EnvRefKey:    `tasks[task-uuid].spec.params.floatVal`,
+						ValType:      "float",
+						DefaultValue: 37.2,
+					},
+					{
+						Field:        "spec.params.minVal",
+						EnvRefKey:    `tasks[task-uuid].spec.params.minVal`,
+						ValType:      "integer",
+						DefaultValue: int64(10),
+					},
+					{
+						Field:        "spec.params.name",
+						EnvRefKey:    `tasks[task-uuid].spec.params.name`,
+						ValType:      "string",
+						DefaultValue: "max",
+					},
+					{
+						Field:        "spec.params.start",
+						EnvRefKey:    `tasks[task-uuid].spec.params.start`,
+						ValType:      "duration",
+						DefaultValue: "-24h0m0s",
+					},
+					{
+						Field:        "spec.params.stop",
+						EnvRefKey:    `tasks[task-uuid].spec.params.stop`,
+						ValType:      "time",
+						DefaultValue: "now()",
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences)
+			})
+		})
+
 		t.Run("with env refs should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/task_ref.yml", func(t *testing.T, template *Template) {
 				actual := template.Summary().Tasks
 				require.Len(t, actual, 1)
 
 				expectedEnvRefs := []SummaryReference{
+					{
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
+					},
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
@@ -3358,10 +3435,6 @@ spec:
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
 						DefaultValue: "spectacles",
-					},
-					{
-						Field:     "spec.associations[0].name",
-						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)

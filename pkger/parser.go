@@ -1109,9 +1109,11 @@ func (p *Template) graphTasks() *parseErr {
 			description: o.Spec.stringShort(fieldDescription),
 			every:       o.Spec.durationShort(fieldEvery),
 			offset:      o.Spec.durationShort(fieldOffset),
-			query:       strings.TrimSpace(o.Spec.stringShort(fieldQuery)),
 			status:      normStr(o.Spec.stringShort(fieldStatus)),
 		}
+
+		prefix := fmt.Sprintf("tasks[%s].spec", t.MetaName())
+		t.query, _ = p.parseQuery(prefix, o.Spec.stringShort(fieldQuery), o.Spec.slcResource(fieldParams))
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			t.labels = append(t.labels, l)
@@ -1121,7 +1123,7 @@ func (p *Template) graphTasks() *parseErr {
 		sort.Sort(t.labels)
 
 		p.mTasks[t.MetaName()] = t
-		p.setRefs(t.name, t.displayName)
+		p.setRefs(t.refs()...)
 		return append(failures, t.valid()...)
 	})
 }
