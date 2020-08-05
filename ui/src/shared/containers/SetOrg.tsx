@@ -28,7 +28,7 @@ import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
 import CheckHistory from 'src/checks/components/CheckHistory'
 import MembersIndex from 'src/members/containers/MembersIndex'
 import RouteToDashboardList from 'src/dashboards/components/RouteToDashboardList'
-import Bcache from 'src/writeData/components/telegrafPlugins/Bcache'
+import TelegrafPluginsIndex from 'src/writeData/components/telegrafPlugins/TelegrafPluginsIndex'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -172,8 +172,8 @@ const SetOrg: FC<Props> = ({
 
         {/* Telegraf Plugins */}
         <Route
-          path={`${orgPath}/${LOAD_DATA}/${TELEGRAF_PLUGINS}/bcache`}
-          component={Bcache}
+          path={`${orgPath}/${LOAD_DATA}/${TELEGRAF_PLUGINS}`}
+          component={TelegrafPluginsIndex}
         />
 
         {/* Settings */}
