@@ -7,6 +7,7 @@
 // soon... We'll see how long that actually takes...
 use core::iter::Iterator;
 use std::iter;
+use std::slice::Chunks;
 
 use delorean_arrow::parquet::data_type::ByteArray;
 use std::default::Default;
@@ -44,7 +45,16 @@ macro_rules! typed_packer_accessors {
     };
 }
 
-impl Packers {
+impl<'a> Packers {
+    pub fn chunk_values(&self, chunk_size: usize) -> PackerChunker<'_> {
+        match self {
+            Self::Float(p) => PackerChunker::Float(p.values.chunks(chunk_size)),
+            Self::Integer(p) => PackerChunker::Integer(p.values.chunks(chunk_size)),
+            Self::String(p) => PackerChunker::String(p.values.chunks(chunk_size)),
+            Self::Boolean(p) => PackerChunker::Boolean(p.values.chunks(chunk_size)),
+        }
+    }
+
     /// Create a String Packers with repeated values.
     pub fn from_elem_str(v: &str, n: usize) -> Self {
         Self::String(Packer::from(vec![ByteArray::from(v); n]))
@@ -205,6 +215,15 @@ impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
     }
 }
 
+/// PackerChunker represents chunkable Packer variants.
+#[derive(Debug)]
+pub enum PackerChunker<'a> {
+    Float(Chunks<'a, Option<f64>>),
+    Integer(Chunks<'a, Option<i64>>),
+    String(Chunks<'a, Option<ByteArray>>),
+    Boolean(Chunks<'a, Option<bool>>),
+}
+
 #[derive(Debug, Default, PartialEq)]
 pub struct Packer<T>
 where
@@ -259,7 +278,13 @@ where
         &self.values
     }
 
-    /// returns a binary vector indicating which indexes have null values.
+    /// Returns an iterator that emits `chunk_size` values from the Packer until
+    /// all values are returned.
+    pub fn chunk_values(&self, chunk_size: usize) -> std::slice::Chunks<'_, Option<T>> {
+        self.values.chunks(chunk_size)
+    }
+
+    /// Returns a binary vector indicating which indexes have null values.
     pub fn def_levels(&self) -> Vec<i16> {
         self.values
             .iter()
@@ -371,6 +396,21 @@ where
         let mut packer = Self::new();
         for v in values {
             packer.push_option(v);
+        }
+        packer
+    }
+}
+
+// Convert `&[<Option<T>]`, e.g., `&[Option<f64>]` into the appropriate
+// `Packer<T>` value, e.g., `Packer<f64>`.
+impl<T> std::convert::From<&[Option<T>]> for Packer<T>
+where
+    T: Default + Clone + std::fmt::Debug,
+{
+    fn from(values: &[Option<T>]) -> Self {
+        let mut packer = Self::new();
+        for v in values {
+            packer.push_option(v.clone());
         }
         packer
     }
