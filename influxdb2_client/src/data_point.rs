@@ -1,3 +1,5 @@
+//! Data point building and writing
+
 use snafu::{ensure, Snafu};
 use std::{collections::BTreeMap, io};
 
