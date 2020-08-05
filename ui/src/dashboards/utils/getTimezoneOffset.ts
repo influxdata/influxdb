@@ -1,5 +1,4 @@
 /**
- * PLEASE READ
  * This files has been created as a way to effectively test
  * the getTimeRangeWithTimezone function since current system (circleCI, Jenkins)
  * and JS Date limitations prevent us from fully testing out its dependent functions

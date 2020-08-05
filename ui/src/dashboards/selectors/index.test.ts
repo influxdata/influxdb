@@ -135,7 +135,7 @@ describe('Dashboards.Selector', () => {
       upper: `2020-05-05T11:00:00Z`,
       type: 'custom',
     }
-
+    // Offset for PST
     mocked(getTimezoneOffset).mockImplementation(() => 420)
 
     expect(
@@ -166,7 +166,7 @@ describe('Dashboards.Selector', () => {
       upper: `2020-05-05T11:00:00Z`,
       type: 'custom',
     }
-
+    // Offset for CET
     mocked(getTimezoneOffset).mockImplementation(() => -120)
 
     expect(
