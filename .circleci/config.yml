@@ -465,6 +465,38 @@ jobs:
           name: "Build release"
           command: make release
 
+  gershon-release:
+    docker:
+      - image: circleci/golang:1.13-node-browsers
+    environment:
+      GOCACHE: /tmp/go-cache
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
+      DOCKER_VERSION: 2.0.0-beta
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+
+      # Speed up `make nightly` by restoring caches from previous runs.
+      - restore_cache:
+          name: Restoring GOCACHE
+          keys:
+            - influxdb-gocache- # Just match the most recent Go cache.
+      - restore_cache:
+          name: Restoring GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
+      - setup_remote_docker
+      - run:
+          name: "Docker Login"
+          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - run: sudo apt-get update && sudo apt-get install -y bzr
+      - install_rust_compiler
+      - install_release_tools
+      - run: make protoc # installs protoc
+      - run:
+          name: "Build release"
+          command: make gershon-release
+
 workflows:
   version: 2
   build:
@@ -578,3 +610,48 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+
+  gershon_test:
+    jobs:
+#      - gotest:
+#          filters:
+#            branches:
+#              ignore: /.*/
+#            tags:
+#              only: /^gershon-test$/
+#      - golint:
+#          filters:
+#            branches:
+#              ignore: /.*/
+#            tags:
+#              only: /^gershon-test$/
+#      - lint-feature-flags:
+#          filters:
+#            branches:
+#              ignore: /.*/
+#            tags:
+#              only: /^gershon-test$/
+#      - jstest:
+#          filters:
+#            branches:
+#              ignore: /.*/
+#            tags:
+#              only: /^gershon-test$/
+#      - jslint:
+#          filters:
+#            branches:
+#              ignore: /.*/
+#            tags:
+#              only: /^gershon-test$/
+      - gershon-release:
+#          requires:
+#            - gotest
+#            - golint
+#            - lint-feature-flags
+#            - jstest
+#            - jslint
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^gershon-test$/
