@@ -52,12 +52,6 @@ class LoadDataNavigation extends PureComponent<Props> {
         cloudExclude: false,
         featureFlag: null,
       },
-      {
-        text: 'Client Libraries',
-        id: 'client-libraries',
-        cloudExclude: false,
-        featureFlag: null,
-      },
     ]
 
     const activeTabName = tabs.find(t => t.id === activeTab).text
