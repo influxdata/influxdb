@@ -6,7 +6,6 @@ import {PipeProp} from 'src/notebooks'
 
 // Components
 import BucketSelector from 'src/notebooks/pipes/Data/BucketSelector'
-import TimeSelector from 'src/notebooks/pipes/Data/TimeSelector'
 import {FlexBox, ComponentSize} from '@influxdata/clockface'
 import BucketProvider from 'src/notebooks/context/buckets'
 
@@ -23,7 +22,6 @@ const DataSource: FC<PipeProp> = ({Context}) => {
           className="data-source"
         >
           <BucketSelector />
-          <TimeSelector />
         </FlexBox>
       </Context>
     </BucketProvider>
