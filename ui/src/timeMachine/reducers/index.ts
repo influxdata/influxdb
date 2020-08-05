@@ -384,6 +384,7 @@ export const timeMachineReducer = (
         case 'histogram':
         case 'heatmap':
         case 'scatter':
+        case 'mosaic':
           return setViewProperties(state, {xAxisLabel})
         default:
           return setYAxis(state, {label: xAxisLabel})
@@ -397,6 +398,7 @@ export const timeMachineReducer = (
         case 'histogram':
         case 'heatmap':
         case 'scatter':
+        case 'mosaic':
           return setViewProperties(state, {yAxisLabel})
         default:
           return setYAxis(state, {label: yAxisLabel})

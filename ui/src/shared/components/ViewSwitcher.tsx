@@ -8,6 +8,7 @@ import SingleStat from 'src/shared/components/SingleStat'
 import TableGraphs from 'src/shared/components/tables/TableGraphs'
 import HistogramPlot from 'src/shared/components/HistogramPlot'
 import HeatmapPlot from 'src/shared/components/HeatmapPlot'
+import MosaicPlot from 'src/shared/components/MosaicPlot'
 import FluxTablesTransform from 'src/shared/components/FluxTablesTransform'
 import XYPlot from 'src/shared/components/XYPlot'
 import ScatterPlot from 'src/shared/components/ScatterPlot'
@@ -173,6 +174,19 @@ const ViewSwitcher: FunctionComponent<Props> = ({
         >
           {config => <Plot config={config} />}
         </HeatmapPlot>
+      )
+
+    case 'mosaic':
+      return (
+        <MosaicPlot
+          timeRange={timeRange}
+          table={table}
+          timeZone={timeZone}
+          viewProperties={properties}
+          theme={theme}
+        >
+          {config => <Plot config={config} />}
+        </MosaicPlot>
       )
 
     case 'scatter':

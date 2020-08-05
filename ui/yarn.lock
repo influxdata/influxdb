@@ -762,7 +762,11 @@
   resolved "https://registry.yarnpkg.com/@influxdata/flux/-/flux-0.5.1.tgz#e39e7a7af9163fc9494422c8fed77f3ae1b68f56"
   integrity sha512-GHlkXBhSdJ2m56JzDkbnKPAqLj3/lexPooacu14AWTO4f2sDGLmzM7r0AxgdtU1M2x7EXNBwgGOI5EOAdN6mkw==
 
+<<<<<<< HEAD
 "@influxdata/giraffe@0.24.0":
+=======
+"@influxdata/giraffe@^0.24.0":
+>>>>>>> chore(mosaic graph): add mosaic type to frontend
   version "0.24.0"
   resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.24.0.tgz#d48eb242a1af7f3adfeac9eb4b12c10de4f5919b"
   integrity sha512-t5t75gX/zO2hUaY7xsRFc/QzyvZzc29z5+J1BmInS1n/Ytb7+1vU7JalwAZrG7UnuPmKj/S4RYh0FMEaWRwCoQ==

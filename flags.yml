@@ -120,6 +120,14 @@
   contact: Query Team
   lifetime: temporary
 
+- name: Mosaic Graph Type
+  description: Enables the creation of a mosaic graph in Dashboards
+  key: mosaicGraphType
+  default: false
+  contact: Monitoring Team
+  expose: true
+  lifetime: temporary
+
 - name: Notebooks
   description: Determine if the notebook feature's route and navbar icon are visible to the user
   key: notebooks

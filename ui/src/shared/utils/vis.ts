@@ -210,8 +210,22 @@ export const getNumberColumns = (table: Table): string[] => {
   return numberColumnKeys
 }
 
+export const getStringColumns = (table: Table): string[] => {
+  const stringColumnKeys = table.columnKeys.filter(k => {
+    if (k === 'result' || k === 'table') {
+      return false
+    }
+
+    const columnType = table.getColumnType(k)
+
+    return columnType === 'string'
+  })
+
+  return stringColumnKeys
+}
+
 export const getGroupableColumns = (table: Table): string[] => {
-  const invalidGroupColumns = new Set(['_value', '_time', 'table'])
+  const invalidGroupColumns = new Set(['_value', '_time', 'table']) //'_value',
   const groupableColumns = table.columnKeys.filter(
     name => !invalidGroupColumns.has(name)
   )
@@ -235,6 +249,7 @@ export const getGroupableColumns = (table: Table): string[] => {
   A `null` result from this function indicates that no valid selection could be
   made.
 */
+
 export const defaultXColumn = (
   table: Table,
   preferredColumnKey?: string
@@ -279,6 +294,34 @@ export const defaultYColumn = (
     return validColumnKeys[0]
   }
 
+  return null
+}
+
+export const mosaicYcolumn = (
+  table: Table,
+  preferredColumnKey?: string
+): string | null => {
+  const validColumnKeys = getStringColumns(table)
+  if (validColumnKeys.includes(preferredColumnKey)) {
+    return preferredColumnKey
+  }
+
+  const invalidMosaicYColumns = new Set([
+    '_value',
+    'status',
+    '_field',
+    '_measurement',
+  ])
+  const preferredValidColumnKeys = validColumnKeys.filter(
+    name => !invalidMosaicYColumns.has(name)
+  )
+  if (preferredValidColumnKeys.length) {
+    return preferredValidColumnKeys[0]
+  }
+
+  if (validColumnKeys.length) {
+    return validColumnKeys[0]
+  }
   return null
 }
 
