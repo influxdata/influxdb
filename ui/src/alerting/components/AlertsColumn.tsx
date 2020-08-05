@@ -38,6 +38,7 @@ interface OwnProps {
   createButton: JSX.Element
   questionMarkTooltipContents: JSX.Element | string
   children: (searchTerm: string) => ReactChild
+  tabIndex: number
 }
 
 interface StateProps {
@@ -51,6 +52,7 @@ const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
   limitStatus,
   createButton,
   questionMarkTooltipContents,
+  tabIndex,
 }) => {
   const [searchTerm, onChangeSearchTerm] = useState('')
 
@@ -96,6 +98,7 @@ const AlertsColumnHeader: FC<OwnProps & StateProps> = ({
           value={searchTerm}
           onChange={e => onChangeSearchTerm(e.target.value)}
           testID={`filter--input ${type}`}
+          tabIndex={tabIndex}
         />
       </div>
       <div className="alerting-index--column-body">

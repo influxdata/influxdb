@@ -20,6 +20,9 @@
 1. [19146](https://github.com/influxdata/influxdb/pull/19146): Dashboard cells and overlay use UTC as query time when toggling to UTC timezone
 1. [19222](https://github.com/influxdata/influxdb/pull/19222): Bucket names may not include quotation marks
 
+### UI Improvements
+1. [19231](https://github.com/influxdata/influxdb/pull/19231): Alerts page filter inputs now have tab indices for keyboard navigation
+
 ## v2.0.0-beta.15 [2020-07-23]
 
 ### Breaking

@@ -24,18 +24,23 @@ import AlertsColumn from 'src/alerting/components/AlertsColumn'
 // Selectors
 import {getAll} from 'src/resources/selectors'
 
+interface OwnProps {
+  tabIndex: number
+}
+
 interface StateProps {
   rules: NotificationRuleDraft[]
   endpoints: NotificationEndpoint[]
 }
 
-type Props = StateProps & RouteComponentProps<{orgID: string}>
+type Props = OwnProps & StateProps & RouteComponentProps<{orgID: string}>
 
 const NotificationRulesColumn: FunctionComponent<Props> = ({
   rules,
   history,
   match,
   endpoints,
+  tabIndex,
 }) => {
   const handleOpenOverlay = () => {
     const newRuleRoute = `/orgs/${match.params.orgID}/alerting/rules/new`
@@ -88,6 +93,7 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
       title="Notification Rules"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
+      tabIndex={tabIndex}
     >
       {searchTerm => (
         <NotificationRuleCards rules={rules} searchTerm={searchTerm} />
