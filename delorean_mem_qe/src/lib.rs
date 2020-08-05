@@ -2,7 +2,7 @@ pub mod column;
 pub mod encoding;
 pub mod segment;
 
-use segment::Segment;
+use segment::{Segment, Segments};
 
 #[derive(Debug, Default)]
 pub struct Store {
@@ -24,5 +24,9 @@ impl Store {
 
     pub fn segment_total(&self) -> usize {
         self.segments.len()
+    }
+
+    pub fn segments(&self) -> Segments {
+        Segments::new(&self.segments)
     }
 }

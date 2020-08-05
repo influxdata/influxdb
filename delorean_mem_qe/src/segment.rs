@@ -9,8 +9,6 @@ pub struct Segment {
 
     // Columns within a segment
     columns: Vec<column::Column>,
-    // string_columns: Vec<column::String>,
-    // f64_columns: Vec<column::F64>,
 }
 
 impl Segment {
@@ -24,8 +22,8 @@ impl Segment {
         self.meta.rows
     }
 
-    pub fn column_names(&self) -> Vec<String> {
-        self.meta.column_names.clone()
+    pub fn column_names(&self) -> &[String] {
+        &self.meta.column_names
     }
 
     pub fn time_range(&self) -> (i64, i64) {
@@ -65,17 +63,48 @@ impl Segment {
         for (i, column) in self.columns.iter().enumerate() {
             match column {
                 Column::String(c) => {
-                    column_sizes.insert(names[i].clone(), c.size());
+                    column_sizes.insert(names[i].to_owned(), c.size());
                 }
                 Column::Float(c) => {
-                    column_sizes.insert(names[i].clone(), c.size());
+                    column_sizes.insert(names[i].to_owned(), c.size());
                 }
                 Column::Integer(c) => {
-                    column_sizes.insert(names[i].clone(), c.size());
+                    column_sizes.insert(names[i].to_owned(), c.size());
                 }
             }
         }
         column_sizes
+    }
+}
+
+pub struct Segments<'a> {
+    segments: &'a [Segment],
+}
+
+impl<'a> Segments<'a> {
+    pub fn new(segments: &'a [Segment]) -> Self {
+        Self { segments }
+    }
+
+    /// Returns the minimum value for a column in a set of segments.
+    pub fn column_min(&self, column_name: &str) -> Option<column::Scalar> {
+        if self.segments.is_empty() {
+            return None;
+        }
+
+        let mut min_min: Option<column::Scalar> = None;
+        for segment in self.segments {
+            if let Some(i) = segment.column_names().iter().position(|c| c == column_name) {
+                let min = Some(segment.columns[i].min());
+                if min_min.is_none() {
+                    min_min = min
+                } else if min_min > min {
+                    min_min = min;
+                }
+            }
+        }
+
+        min_min
     }
 }
 

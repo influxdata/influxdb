@@ -4,7 +4,7 @@ use arrow::record_batch::{RecordBatch, RecordBatchReader};
 use arrow::{array, array::Array, datatypes, ipc};
 
 use delorean_mem_qe::column;
-use delorean_mem_qe::column::Column;
+use delorean_mem_qe::column::{Column, Scalar};
 use delorean_mem_qe::segment::Segment;
 use delorean_mem_qe::Store;
 
@@ -24,26 +24,52 @@ pub enum Error {
 }
 
 fn main() {
+    let r = File::open(Path::new("/Users/edd/work/InfluxData/delorean_misc/in-memory-sort/env_role_path_time/http_api_requests_total.arrow")).unwrap();
+    let reader = ipc::reader::StreamReader::try_new(r).unwrap();
+
     let mut store = Store::default();
-    read_arrow_file(&mut store);
+    build_store(reader, &mut store).unwrap();
 
     println!(
         "total segments {:?} with total size {:?}",
         store.segment_total(),
         store.size(),
     );
+
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut total_min = 0;
+    for _ in 1..10000 {
+        let now = std::time::Instant::now();
+        let segments = store.segments();
+        let min = segments.column_min("time").unwrap();
+        total_time += now.elapsed();
+
+        if let Scalar::Integer(v) = min {
+            total_min += v
+        }
+    }
+    println!(
+        "Ran {:?} in {:?} {:?} / call {:?}",
+        10000,
+        total_time,
+        total_time / 10000,
+        total_min
+    );
+    // println!("{:?} min -> {:?} in {:?}", "time", min, elapsed);
 }
 
-fn read_arrow_file(store: &mut Store) {
-    let r = File::open(Path::new("/Users/edd/work/InfluxData/delorean_misc/in-memory-sort/env_role_path_time/http_api_requests_total.arrow")).unwrap();
-    let mut reader = ipc::reader::StreamReader::try_new(r).unwrap();
-    while let Some(batch) = reader.next_batch().unwrap() {
-        let segment = record_batch_to_segment(&batch).unwrap();
+fn build_store(
+    mut reader: arrow::ipc::reader::StreamReader<File>,
+    store: &mut Store,
+) -> Result<(), Error> {
+    while let Some(rb) = reader.next_batch().unwrap() {
+        let segment = convert_record_batch(rb)?;
         store.add_segment(segment);
     }
+    Ok(())
 }
 
-fn record_batch_to_segment(rb: &RecordBatch) -> Result<Segment, Error> {
+fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
     let mut segment = Segment::default();
 
     // println!("cols {:?} rows {:?}", rb.num_columns(), rb.num_rows());
@@ -54,11 +80,13 @@ fn record_batch_to_segment(rb: &RecordBatch) -> Result<Segment, Error> {
                     .as_any()
                     .downcast_ref::<array::Float64Array>()
                     .unwrap();
+
                 let column = Column::from(arr.value_slice(0, rb.num_rows()));
                 segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Int64 => {
                 let arr = column.as_any().downcast_ref::<array::Int64Array>().unwrap();
+
                 let column = Column::from(arr.value_slice(0, rb.num_rows()));
                 segment.add_column(rb.schema().field(i).name(), column);
             }
@@ -81,6 +109,7 @@ fn record_batch_to_segment(rb: &RecordBatch) -> Result<Segment, Error> {
                         count = 1;
                     }
                 }
+
                 segment.add_column(rb.schema().field(i).name(), Column::String(column));
             }
             datatypes::DataType::Boolean => {

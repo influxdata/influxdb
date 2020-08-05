@@ -2,6 +2,13 @@ use std::convert::From;
 
 use super::encoding;
 
+#[derive(Debug, PartialEq, PartialOrd)]
+pub enum Scalar<'a> {
+    String(&'a str),
+    Float(f64),
+    Integer(i64),
+}
+
 #[derive(Debug)]
 pub enum Column {
     String(String),
@@ -25,6 +32,14 @@ impl Column {
             Column::String(c) => c.size(),
             Column::Float(c) => c.size(),
             Column::Integer(c) => c.size(),
+        }
+    }
+
+    pub fn min(&self) -> Scalar {
+        match self {
+            Column::String(c) => Scalar::String(c.meta.range().0),
+            Column::Float(c) => Scalar::Float(c.meta.range().0),
+            Column::Integer(c) => Scalar::Integer(c.meta.range().0),
         }
     }
 }
