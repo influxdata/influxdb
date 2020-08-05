@@ -3,7 +3,7 @@ import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
+import ClientLibraryPageTemplate from 'src/clientLibraries/components/ClientLibraryPageTemplate'
 import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
 
 // Constants
@@ -34,7 +34,7 @@ const ClientKotlinOverlay: FunctionComponent<Props> = props => {
   const server = window.location.origin
 
   return (
-    <ClientLibraryOverlay title={`${name} Client Library`}>
+    <ClientLibraryPageTemplate title={`${name} Client Library`}>
       <p>
         For more detailed and up to date information check out the{' '}
         <a href={url} target="_blank">
@@ -69,7 +69,7 @@ const ClientKotlinOverlay: FunctionComponent<Props> = props => {
         template={executeQueryCodeSnippet}
         label="Kotlin Code"
       />
-    </ClientLibraryOverlay>
+    </ClientLibraryPageTemplate>
   )
 }
 

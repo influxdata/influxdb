@@ -1,12 +1,10 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Page} from '@influxdata/clockface'
-import ClientLibraries from 'src/clientLibraries/components/ClientLibraries'
+import ClientLibrariesRoot from 'src/clientLibraries/components/ClientLibrariesRoot'
 import ArduinoPage from 'src/clientLibraries/components/ClientArduinoPage'
 import CSharpPage from 'src/clientLibraries/components/ClientCSharpPage'
 import GoPage from 'src/clientLibraries/components/ClientGoPage'
@@ -18,37 +16,20 @@ import PythonPage from 'src/clientLibraries/components/ClientPythonPage'
 import RubyPage from 'src/clientLibraries/components/ClientRubyPage'
 import ScalaPage from 'src/clientLibraries/components/ClientScalaPage'
 
-// Types
-import {AppState, Organization} from 'src/types'
-
-// Utils
-import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-import {getOrg} from 'src/organizations/selectors'
-
-interface StateProps {
-  org: Organization
-}
-
+// Constants
 import {ORGS, ORG_ID, CLIENT_LIBS} from 'src/shared/constants/routes'
 
 const clientLibPath = `/${ORGS}/${ORG_ID}/load-data/${CLIENT_LIBS}`
 
 @ErrorHandling
-class ClientLibrariesPage extends PureComponent<StateProps> {
+class ClientLibrariesPage extends PureComponent<{}> {
   public render() {
-    const {org, children} = this.props
+    const {children} = this.props
 
     return (
       <>
-        <Page titleTag={pageTitleSuffixer(['Client Libraries', 'Load Data'])}>
-          <Page.Header fullWidth={false}>
-            <Page.Title title="Client Libraries" />
-          </Page.Header>
-          <Page.Contents fullWidth={false}>
-            <ClientLibraries orgID={org.id} />
-          </Page.Contents>
-        </Page>
         <Switch>
+          <Route path={clientLibPath} exact component={ClientLibrariesRoot} />
           <Route path={`${clientLibPath}/arduino`} component={ArduinoPage} />
           <Route path={`${clientLibPath}/csharp`} component={CSharpPage} />
           <Route path={`${clientLibPath}/go`} component={GoPage} />
@@ -66,8 +47,4 @@ class ClientLibrariesPage extends PureComponent<StateProps> {
   }
 }
 
-const mstp = (state: AppState) => ({
-  org: getOrg(state),
-})
-
-export default connect<StateProps>(mstp)(ClientLibrariesPage)
+export default ClientLibrariesPage
