@@ -18,7 +18,7 @@ type UserClientService struct {
 
 // FindMe returns user information about the owner of the token
 func (s *UserClientService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
-	var res userResponse
+	var res UserResponse
 	err := s.Client.
 		Get(prefixMe).
 		DecodeJSON(&res).
@@ -31,7 +31,7 @@ func (s *UserClientService) FindMe(ctx context.Context, id influxdb.ID) (*influx
 
 // FindUserByID returns a single user by ID.
 func (s *UserClientService) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
-	var res userResponse
+	var res UserResponse
 	err := s.Client.
 		Get(prefixUsers, id.String()).
 		DecodeJSON(&res).
@@ -105,7 +105,7 @@ func (s *UserClientService) CreateUser(ctx context.Context, u *influxdb.User) er
 // UpdateUser updates a single user with changeset.
 // Returns the new user state after update.
 func (s *UserClientService) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
-	var res userResponse
+	var res UserResponse
 	err := s.Client.
 		PatchJSON(upd, prefixUsers, id.String()).
 		DecodeJSON(&res).

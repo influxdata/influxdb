@@ -256,7 +256,7 @@ Feature: Dashboards - Base
     When click the Export Dashboard dismiss button
     Then popup is not loaded
 
-@error-collateral
+@error-collateral @download-file
   Scenario: Export Dashboard to file
     When remove file "tau_ceti.json" if exists
     When hover over dashboard card named "Tau Ceti"

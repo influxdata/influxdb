@@ -16,6 +16,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/edit"
+	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"gopkg.in/yaml.v3"
@@ -948,7 +951,7 @@ func (p *Template) graphDashboards() *parseErr {
 		sort.Sort(dash.labels)
 
 		for i, cr := range o.Spec.slcResource(fieldDashCharts) {
-			ch, fails := parseChart(cr)
+			ch, fails := p.parseChart(dash.MetaName(), i, cr)
 			if fails != nil {
 				failures = append(failures,
 					objectValidationErr(fieldSpec, validationErr{
@@ -963,7 +966,7 @@ func (p *Template) graphDashboards() *parseErr {
 		}
 
 		p.mDashboards[dash.MetaName()] = dash
-		p.setRefs(dash.name, dash.displayName)
+		p.setRefs(dash.refs()...)
 
 		return append(failures, dash.valid()...)
 	})
@@ -1383,10 +1386,10 @@ func (p *Template) setRefs(refs ...*references) {
 	}
 }
 
-func parseChart(r Resource) (chart, []validationErr) {
+func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*chart, []validationErr) {
 	ck, err := r.chartKind()
 	if err != nil {
-		return chart{}, []validationErr{{
+		return nil, []validationErr{{
 			Field: fieldKind,
 			Msg:   err.Error(),
 		}}
@@ -1415,6 +1418,7 @@ func parseChart(r Resource) (chart, []validationErr) {
 		XPos:           r.intShort(fieldChartXPos),
 		YPos:           r.intShort(fieldChartYPos),
 		FillColumns:    r.slcStr(fieldChartFillColumns),
+		YSeriesColumns: r.slcStr(fieldChartYSeriesColumns),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {
@@ -1435,11 +1439,14 @@ func parseChart(r Resource) (chart, []validationErr) {
 	if presentQueries, ok := r[fieldChartQueries].(queries); ok {
 		c.Queries = presentQueries
 	} else {
-		for _, rq := range r.slcResource(fieldChartQueries) {
-			c.Queries = append(c.Queries, query{
-				Query: strings.TrimSpace(rq.stringShort(fieldQuery)),
+		q, vErrs := p.parseChartQueries(dashMetaName, chartIdx, r.slcResource(fieldChartQueries))
+		if len(vErrs) > 0 {
+			failures = append(failures, validationErr{
+				Field:  "queries",
+				Nested: vErrs,
 			})
 		}
+		c.Queries = q
 	}
 
 	if presentColors, ok := r[fieldChartColors].(colors); ok {
@@ -1504,10 +1511,132 @@ func parseChart(r Resource) (chart, []validationErr) {
 	}
 
 	if failures = append(failures, c.validProperties()...); len(failures) > 0 {
-		return chart{}, failures
+		return nil, failures
 	}
 
-	return c, nil
+	return &c, nil
+}
+
+func (p *Template) parseChartQueries(dashMetaName string, chartIdx int, resources []Resource) (queries, []validationErr) {
+	var (
+		q     queries
+		vErrs []validationErr
+	)
+	for i, rq := range resources {
+		source := rq.stringShort(fieldQuery)
+		if source == "" {
+			continue
+		}
+		prefix := fmt.Sprintf("dashboards[%s].spec.charts[%d].queries[%d]", dashMetaName, chartIdx, i)
+		qq, err := p.parseQuery(prefix, source, rq.slcResource(fieldParams))
+		if err != nil {
+			vErrs = append(vErrs, validationErr{
+				Field: "query",
+				Index: intPtr(i),
+				Msg:   err.Error(),
+			})
+		}
+		q = append(q, qq)
+	}
+	return q, vErrs
+}
+
+func (p *Template) parseQuery(prefix, source string, params []Resource) (query, error) {
+	files := parser.ParseSource(source).Files
+	if len(files) != 1 {
+		return query{}, influxErr(influxdb.EInvalid, "invalid query source")
+	}
+
+	q := query{
+		Query: strings.TrimSpace(source),
+	}
+
+	opt, err := edit.GetOption(files[0], "params")
+	if err != nil {
+		return q, nil
+	}
+	obj, ok := opt.(*ast.ObjectExpression)
+	if !ok {
+		return q, nil
+	}
+
+	mParams := make(map[string]*references)
+	for _, p := range obj.Properties {
+		sl, ok := p.Key.(*ast.Identifier)
+		if !ok {
+			continue
+		}
+
+		mParams[sl.Name] = &references{
+			EnvRef:     sl.Name,
+			defaultVal: valFromExpr(p.Value),
+			valType:    p.Value.Type(),
+		}
+	}
+
+	for _, pr := range params {
+		field := pr.stringShort(fieldKey)
+		if field == "" {
+			continue
+		}
+
+		if _, ok := mParams[field]; !ok {
+			mParams[field] = &references{EnvRef: field}
+		}
+
+		if def, ok := pr[fieldDefault]; ok {
+			mParams[field].defaultVal = def
+		}
+		if valtype, ok := pr.string(fieldType); ok {
+			mParams[field].valType = valtype
+		}
+	}
+
+	for _, ref := range mParams {
+		envRef := fmt.Sprintf("%s.params.%s", prefix, ref.EnvRef)
+		q.params = append(q.params, &references{
+			EnvRef:     envRef,
+			defaultVal: ref.defaultVal,
+			val:        p.mEnvVals[envRef],
+			valType:    ref.valType,
+		})
+	}
+	return q, nil
+}
+
+func valFromExpr(p ast.Expression) interface{} {
+	switch literal := p.(type) {
+	case *ast.CallExpression:
+		sl, ok := literal.Callee.(*ast.Identifier)
+		if ok && sl.Name == "now" {
+			return "now()"
+		}
+		return nil
+	case *ast.DateTimeLiteral:
+		return ast.DateTimeFromLiteral(literal)
+	case *ast.FloatLiteral:
+		return ast.FloatFromLiteral(literal)
+	case *ast.IntegerLiteral:
+		return ast.IntegerFromLiteral(literal)
+	case *ast.DurationLiteral:
+		dur, _ := ast.DurationFrom(literal, time.Time{})
+		return dur
+	case *ast.StringLiteral:
+		return ast.StringFromLiteral(literal)
+	case *ast.UnaryExpression:
+		// a signed duration is represented by a UnaryExpression.
+		// it is the only unary expression allowed.
+		v := valFromExpr(literal.Argument)
+		if dur, ok := v.(time.Duration); ok {
+			switch literal.Operator {
+			case ast.SubtractionOperator:
+				return "-" + dur.String()
+			}
+		}
+		return v
+	default:
+		return nil
+	}
 }
 
 // dns1123LabelMaxLength is a label's max length in DNS (RFC 1123)

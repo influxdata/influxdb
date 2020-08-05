@@ -122,6 +122,10 @@ class influxSteps extends baseSteps {
         await this.clickAndWait(await this.getNavMenuElem(item), wait);
     }
 
+    async clickUserMenuItem(item){
+        await this.clickAndWait(await this.getUserMenuElem(item.toLowerCase()));
+    }
+
     async clickSubMenuItem(item,
                            wait = async () => { await this.driver.sleep(1000); }){
         if(item.toLowerCase() === 'dashboards'){//troubleshoot issue in circleci

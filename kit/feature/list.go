@@ -282,6 +282,20 @@ func Notebooks() BoolFlag {
 	return notebooks
 }
 
+var pushDownGroupAggregateMinMax = MakeBoolFlag(
+	"Push Down Group Aggregate Min Max",
+	"pushDownGroupAggregateMinMax",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownGroupAggregateMinMax - Enable the min and max variants of the PushDownGroupAggregate planner rule
+func PushDownGroupAggregateMinMax() BoolFlag {
+	return pushDownGroupAggregateMinMax
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -303,6 +317,7 @@ var all = []Flag{
 	useUserPermission,
 	mergeFiltersRule,
 	notebooks,
+	pushDownGroupAggregateMinMax,
 }
 
 var byKey = map[string]Flag{
@@ -326,4 +341,5 @@ var byKey = map[string]Flag{
 	"useUserPermission":             useUserPermission,
 	"mergeFiltersRule":              mergeFiltersRule,
 	"notebooks":                     notebooks,
+	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
 }

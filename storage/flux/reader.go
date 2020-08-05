@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
@@ -273,6 +274,12 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 	req.Range.Start = int64(gi.spec.Bounds.Start)
 	req.Range.End = int64(gi.spec.Bounds.Stop)
 
+	if len(gi.spec.GroupKeys) > 0 && gi.spec.GroupMode == query.GroupModeNone {
+		return &influxdb.Error{
+			Code: influxdb.EInternal,
+			Msg:  "cannot have group mode none with group key values",
+		}
+	}
 	req.Group = convertGroupMode(gi.spec.GroupMode)
 	req.GroupKeys = gi.spec.GroupKeys
 

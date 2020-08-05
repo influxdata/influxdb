@@ -17,7 +17,7 @@ import {getCachedResultsThunk} from 'src/shared/apis/queryCache'
 
 // Utils
 import {
-  getTimeRange,
+  getTimeRangeWithTimezone,
   isCurrentPageDashboard as isCurrentPageDashboardSelector,
 } from 'src/dashboards/selectors'
 import {getVariables, asAssignment} from 'src/variables/selectors'
@@ -369,7 +369,7 @@ class TimeSeries extends Component<Props, State> {
 }
 
 const mstp = (state: AppState, props: OwnProps) => {
-  const timeRange = getTimeRange(state)
+  const timeRange = getTimeRangeWithTimezone(state)
 
   // NOTE: cannot use getAllVariables here because the TimeSeries
   // component appends it automatically. That should be fixed

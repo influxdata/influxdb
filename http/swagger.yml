@@ -7531,8 +7531,13 @@ components:
             type: string
             description: Key identified as environment reference and is the key identified in the template
           value:
-            type: string
             description: Value provided to fulfill reference
+            nullable: true
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: boolean
           defaultValue:
             description: Default value that will be provided for the reference when no value is provided
             nullable: true
@@ -9009,6 +9014,81 @@ components:
           type: string
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+    MosaicViewProperties:
+      type: object
+      required:
+        - type
+        - queries
+        - colors
+        - shape
+        - note
+        - showNoteWhenEmpty
+        - xColumn
+        - ySeriesColumns
+        - fillColumns
+        - xDomain
+        - yDomain
+        - xAxisLabel
+        - yAxisLabel
+        - xPrefix
+        - yPrefix
+        - xSuffix
+        - ySuffix
+      properties:
+        timeFormat:
+          type: string
+        type:
+          type: string
+          enum: [mosaic]
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+            type: string
+        shape:
+          type: string
+          enum: ["chronograf-v2"]
+        note:
+          type: string
+        showNoteWhenEmpty:
+          description: If true, will display note when empty
+          type: boolean
+        xColumn:
+          type: string
+        ySeriesColumns:
+          type: array
+          items:
+            type: string
+        fillColumns:
+          type: array
+          items:
+            type: string
+        xDomain:
+          type: array
+          items:
+            type: number
+          maxItems: 2
+        yDomain:
+          type: array
+          items:
+            type: number
+          maxItems: 2
+        xAxisLabel:
+          type: string
+        yAxisLabel:
+          type: string
+        xPrefix:
+          type: string
+        xSuffix:
+          type: string
+        yPrefix:
+          type: string
+        ySuffix:
+          type: string
     ScatterViewProperties:
       type: object
       required:
@@ -9591,6 +9671,7 @@ components:
         - $ref: "#/components/schemas/CheckViewProperties"
         - $ref: "#/components/schemas/ScatterViewProperties"
         - $ref: "#/components/schemas/HeatmapViewProperties"
+        - $ref: "#/components/schemas/MosaicViewProperties"
     View:
       required:
         - name

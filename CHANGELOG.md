@@ -10,11 +10,13 @@
 
 1. [19075](https://github.com/influxdata/influxdb/pull/19075): Add resource links to a stack's resources from public HTTP API list/read calls
 1. [19103](https://github.com/influxdata/influxdb/pull/19103): Enhance resource creation experience when limits are reached
+1. [19223](https://github.com/influxdata/influxdb/pull/19223): Add dashboards command to influx CLI
 
 ### Bug Fixes
 
 1. [19043](https://github.com/influxdata/influxdb/pull/19043): Enforce all influx CLI flag args are valid
 1. [19188](https://github.com/influxdata/influxdb/pull/19188): Dashboard cells correctly map results when multiple queries exist
+1. [19146](https://github.com/influxdata/influxdb/pull/19146): Dashboard cells and overlay use UTC as query time when toggling to UTC timezone
 
 ## v2.0.0-beta.15 [2020-07-23]
 

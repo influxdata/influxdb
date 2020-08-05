@@ -71,7 +71,7 @@ func (t *table) isCancelled() bool {
 }
 
 func (t *table) init(advance func() bool) {
-	t.empty = !advance()
+	t.empty = !advance() && t.err == nil
 }
 
 func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
@@ -81,6 +81,12 @@ func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
 		return errors.New("table already used")
 	}
 	defer t.closeDone()
+
+	// If an error occurred during initialization, that is
+	// returned here.
+	if t.err != nil {
+		return t.err
+	}
 
 	if !t.Empty() {
 		t.err = f(t.colBufs)

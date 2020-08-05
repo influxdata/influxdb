@@ -35,20 +35,22 @@ process.argv.slice(2).forEach((val) => {
     let pair = val.split('=');
 
     switch(pair[0]){
-    case 'headless': //overrides value in config file
-        //config.headless = (pair[1] === 'true');
-        setHeadless = true;
-        newHeadless = (pair[1] === 'true');
-        break;
-    case 'sel_docker':
-    case 'selDocker':
-        //config.sel_docker = (pair[1] === 'true');
-        selDocker = (pair[1] === 'true');
-        break;
+        case 'headless': //overrides value in config file
+            setHeadless = true;
+            newHeadless = (pair[1] === 'true');
+        // Need to pop our args out, otherwise they will interfere with cucumber ArgvParser
+            process.argv.splice(process.argv.indexOf(val), 1);
+            break;
+        case 'sel_docker':
+        case 'selDocker':
+            selDocker = (pair[1] === 'true');
+            process.argv.splice(process.argv.indexOf(val), 1);
+            break;
     case 'activeConf':
     case 'active_conf':
-        //config = require(__basedir + '/e2e.conf.json')[pair[1]];
-        active_config = pair[1];
+            active_config = pair[1];
+            process.argv.splice(process.argv.indexOf(val), 1);
+            break;
     }
 });
 
@@ -63,13 +65,66 @@ global.__users = { 'init': undefined };
 global.__killLiveDataGen = false;
 global.__liveDataGenRunning = false;
 global.__reportedResetOnce = false;
+global.__dockerRun = false;
+global.__currentFeature = 'jar';
+global.__currentScenario = 'pickle';
+
+if(typeof __config.download_dir === 'undefined'){
+    __config.download_dir = __basedir;
+}
 
 console.log(config.headless ? 'running headless' : 'running headed');
 console.log(config.sel_docker ? 'running for selenium in docker' : 'running for selenium standard');
 console.log(`active configuration ${JSON.stringify(config)}`);
 
+__config.download_dir = __config.download_dir + '/etc/';
+/*
+if(typeof process.env['HOSTNAME'] !== 'undefined' && process.env['HOSTNAME'].match(/^[a-f0-9]{12}/)){
+    console.log("MATCHED docker style hostname");
+    __dockerRun = true;
+    __config.download_dir = __config.download_dir + '/etc/';
+}
+*/
+//redefine any config fields based on ENV Properties of the form E2E_<ACTIVE_CONF>_<FIELD_KEY>
+/*
+Object.keys(__config).forEach(k => {
+    let envar = `E2E_${active_config.toUpperCase()}_${k.toUpperCase()}`;
+    console.log(`${envar}=${process.env[envar]} typeof ${typeof __config[k]}`);
+    if(typeof process.env[envar] !== 'undefined'){
+        console.log('DEBUG redefining var ' + process.env[envar]);
+        __config[k] = process.env[envar];
+    }
+});
+*/
+
+const resetConfigFieldsToEnvar = (base, o) => {
+//    console.log(`DEBUG o ${JSON.stringify(o)}`);
+    Object.keys(o).forEach( k => {
+        let envar = `${base}_${k.toUpperCase()}`;
+        switch(typeof o[k]){
+            case 'string':
+                if(typeof process.env[envar] !== 'undefined'){
+                    console.log(`--- resetting config val ${k} to ${envar} ---`)
+                    o[k] = process.env[envar];
+                }
+                break;
+            case 'object':
+                resetConfigFieldsToEnvar(envar, o[k]);
+                break;
+            default: //i.e. undefined
+                //do nothing
+                break;
+        }
+    })
+};
+
+resetConfigFieldsToEnvar(`E2E_${active_config.toUpperCase()}`, __config);
+
 //Need to keep axios for calls to /debug/flush
 axios.defaults.baseURL = `${config.influx_url}`;
+
+
+//Object.keys(__config).forEach(k => console.log(`__Config.${k} = ${__config[k]}`));
 
 /* Uncomment to debug axios
 axios.interceptors.request.use(request => {
@@ -98,7 +153,7 @@ const removeConfInDocker = async () => {
 //for compatibility with old test style - until all are updated
 const setupUser = async(newUser) => {
 
-    console.warn("WARNING: call to user old style start " + JSON.stringify(newUser));
+    console.warn("WARNING: call to user old style start " + newUser.username);
 
     if(newUser.username === 'ENV'){
         await resolveUsernameFromEnv(newUser);
@@ -176,7 +231,7 @@ const setupNewUser = async(newUser) => {
 const resolvePasswordFromEnv = async(user) => {
 
     if(user.password.toUpperCase() === 'ENV'){
-        let envar = `${__config.config_id.toUpperCase()}_DEFAULT_USER_PASSWORD`;
+        let envar = `E2E_${__config.config_id.toUpperCase()}_DEFAULT_USER_PASSWORD`;
         user.password = process.env[envar]
     }
 
@@ -185,7 +240,7 @@ const resolvePasswordFromEnv = async(user) => {
 const resolveUsernameFromEnv = async(user) => {
 
     if(user.password.toUpperCase() === 'ENV'){
-        let envar = `${__config.config_id.toUpperCase()}_DEFAULT_USERNAME`;
+        let envar = `E2E_${__config.config_id.toUpperCase()}_DEFAULT_USER_USERNAME`;
         user.username = process.env[envar]
     }
 
@@ -198,7 +253,7 @@ const resolveUserTokenBeforeCreate = async(user) => {
     }
     if(user.token.toUpperCase() === 'ENV'){
 
-        let envar = `${__config.config_id.toUpperCase()}_DEFAULT_USER_TOKEN`;
+        let envar = `E2E_${__config.config_id.toUpperCase()}_DEFAULT_USER_TOKEN`;
         user.token = process.env[envar]
     }
 };
@@ -219,12 +274,12 @@ const setupUserRest = async(user) => {
             await setupAPI.postSetup({
                 body: body,
             });
-            console.log(`--- Setup user ${JSON.stringify(user)} at ${__config.influx_url} success ---`)
+            console.log(`--- Setup user ${user.username} at ${__config.influx_url} success ---`)
         }else{
-          console.error(`--- Failed to setup user ${JSON.stringify(user)} at ${__config.influx_url} ---`);
+          console.error(`--- Failed to setup user ${user.username} at ${__config.influx_url} ---`);
         }
     }).catch(async error => {
-        console.error(`\n--- Setup user ${JSON.stringify(user)} ended in ERROR ---`);
+        console.error(`\n--- Setup user ${user.username} ended in ERROR ---`);
         console.error(error)
     });
 };
@@ -757,25 +812,42 @@ const removeFileIfExists = async function(filepath){
     }
 };
 
-const removeFilesByRegex = async function(regex){
+const removeDownloadFilesByRegex = async function(regex){
   let re = new RegExp(regex)
-  await fs.readdir('.', (err, files) => {
+  await fs.readdir(__config.download_dir, (err, files) => {
         for(var i = 0; i < files.length; i++){
             var match = files[i].match(re);
             if(match !== null){
-                fs.unlinkSync(match[0]);
+                fs.unlinkSync(__config.download_dir + '/' +match[0]);
             }
         }
     });
 };
 
 const fileExists = async function(filePath){
-    return fs.existsSync(filePath);
+    return fs.existsSync(__config.download_dir + '/' + filePath);
 };
 
-const verifyFileMatchingRegexFilesExist = async function(regex, callback){
+const dumpDownloadDir = async function(){
+    console.log("DEBUG __config.download_dir: " + __config.download_dir )
+    let files = fs.readdirSync(__config.download_dir);
+    for(var file of files){
+        console.log("   " + file );
+    }
+    console.log("DEBUG __config.download_dir/..: " + __config.download_dir )
+    files = fs.readdirSync(__config.download_dir + '/..');
+    for(var file of files){
+        console.log("   " + file );
+    }
+
+
+}
+
+const verifyDownloadFileMatchingRegexFilesExist = async function(regex, callback){
     let re = new RegExp(regex);
-    let files = fs.readdirSync('.');
+    let files = fs.readdirSync(__config.download_dir);
+
+    console.log("DEBUG files to be matched: \n" + files);
 
     for(var i = 0; i < files.length; i++){
         var match = files[i].match(re);
@@ -791,14 +863,15 @@ const waitForFileToExist = async function(filePath, timeout = 60000){
     let sleepTime = 3000;
     let totalSleep = 0;
     while (totalSleep < timeout){
-        if(fs.existsSync(filePath)){
+        if(fs.existsSync(__config.download_dir + '/' + filePath)){
             return true;
         }
         await __wdriver.sleep(sleepTime);
         totalSleep += sleepTime;
     }
 
-    throw `Timed out ${timeout}ms waiting for file ${filePath}`;
+
+    throw `Timed out ${timeout}ms waiting for file ${__config.download_dir}/${filePath}`;
 
 };
 
@@ -878,6 +951,7 @@ module.exports = { flush,
     writeData,
     createDashboard,
     createVariable,
+    dumpDownloadDir,
     getDashboards,
     query,
     createBucket,
@@ -896,12 +970,12 @@ module.exports = { flush,
     getAuthorizations,
     removeConfInDocker,
     removeFileIfExists,
-    removeFilesByRegex,
+    removeDownloadFilesByRegex,
     setupNewUser,
     startLiveDataGen,
     stopLiveDataGen,
     fileExists,
-    verifyFileMatchingRegexFilesExist,
+    verifyDownloadFileMatchingRegexFilesExist,
     waitForFileToExist
 };
 

@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/metadata"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/mock"
@@ -58,7 +59,9 @@ func TestLoggingProxyQueryService(t *testing.T) {
 		ExecuteDuration: time.Second,
 		Concurrency:     2,
 		MaxAllocated:    2048,
+		Metadata:        make(metadata.Metadata),
 	}
+	wantStats.Metadata.Add("some-mock-metadata", 42)
 	wantBytes := 10
 	pqs := &mock.ProxyQueryService{
 		QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
@@ -138,6 +141,36 @@ func TestLoggingProxyQueryService(t *testing.T) {
 
 		ctx := context.WithValue(context.Background(), loggingCtxKey, true)
 		_, err = lpqs.Query(ctx, ioutil.Discard, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(logs) != 1 {
+			t.Fatal("expected query service to log")
+		}
+	})
+
+	t.Run("require metadata key", func(t *testing.T) {
+		defer func() {
+			logs = nil
+		}()
+
+		reqMeta1 := query.RequireMetadataKey("this-metadata-wont-be-found")
+		lpqs1 := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs, reqMeta1)
+
+		_, err := lpqs1.Query(context.Background(), ioutil.Discard, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(logs) != 0 {
+			t.Fatal("expected query service not to log")
+		}
+
+		reqMeta2 := query.RequireMetadataKey("some-mock-metadata")
+		lpqs2 := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs, reqMeta2)
+
+		_, err = lpqs2.Query(context.Background(), ioutil.Discard, req)
 		if err != nil {
 			t.Fatal(err)
 		}
