@@ -11,7 +11,7 @@
 
 use delorean_line_parser::{FieldValue, ParsedLine};
 use delorean_table::{
-    packers::{Packer, Packers},
+    packers::{Packer, PackerChunker, Packers},
     ByteArray, DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError,
 };
 use delorean_table_schema::{DataType, Schema, SchemaBuilder};
@@ -508,6 +508,154 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
     packers
 }
 
+use arrow::array;
+use arrow::datatypes;
+use arrow::ipc::writer;
+use arrow::record_batch;
+use std::fs::File;
+use std::sync::Arc;
+
+fn arrow_datatype(datatype: DataType) -> datatypes::DataType {
+    match datatype {
+        DataType::Float => datatypes::DataType::Float64,
+        DataType::Integer => datatypes::DataType::Int64,
+        DataType::String => datatypes::DataType::Utf8,
+        // DataType::String => datatypes::DataType::Dictionary(
+        //     std::boxed::Box::new(datatypes::DataType::Int16),
+        //     std::boxed::Box::new(datatypes::DataType::Utf8),
+        // ),
+        DataType::Boolean => datatypes::DataType::Boolean,
+        DataType::Timestamp => datatypes::DataType::Int64,
+    }
+}
+
+fn write_arrow_file(parquet_schema: Schema, packers: Vec<Packers>) -> Result<(), Error> {
+    let file = File::create("/tmp/http_api_requests_total.arrow").unwrap();
+
+    let mut record_batch_fields: Vec<datatypes::Field> = vec![];
+    // no default() on Field...
+    record_batch_fields.resize(
+        parquet_schema.get_col_defs().len(),
+        datatypes::Field::new("foo", datatypes::DataType::Int64, false),
+    );
+
+    for col_def in parquet_schema.get_col_defs() {
+        let nullable = col_def.data_type != DataType::Timestamp;
+        // if col_def.data_type == DataType::Timestamp {
+        //     nullable = false;
+        // } else {
+        //     nullable = true;
+        // }
+
+        record_batch_fields[col_def.index as usize] = datatypes::Field::new(
+            col_def.name.as_str(),
+            arrow_datatype(col_def.data_type),
+            nullable,
+        );
+    }
+    println!("{:?}", record_batch_fields);
+    println!("{:?}", parquet_schema.get_col_defs());
+    let schema = datatypes::Schema::new(record_batch_fields);
+
+    let mut writer = writer::StreamWriter::try_new(file, &schema).unwrap();
+
+    // let num_rows = packers[0].num_rows();
+    let batch_size = 60_000;
+
+    let mut packer_chunkers: Vec<PackerChunker<'_>> = vec![];
+    for packer in &packers {
+        packer_chunkers.push(packer.chunk_values(batch_size));
+    }
+
+    loop {
+        let mut chunked_packers: Vec<Packers> = Vec::with_capacity(packers.len());
+        for chunker in &mut packer_chunkers {
+            match chunker {
+                PackerChunker::Float(c) => {
+                    if let Some(chunk) = c.next() {
+                        chunked_packers.push(Packers::Float(Packer::from(chunk)));
+                    }
+                }
+                PackerChunker::Integer(c) => {
+                    if let Some(chunk) = c.next() {
+                        chunked_packers.push(Packers::Integer(Packer::from(chunk)));
+                    }
+                }
+                PackerChunker::String(c) => {
+                    if let Some(chunk) = c.next() {
+                        chunked_packers.push(Packers::String(Packer::from(chunk)));
+                    }
+                }
+                PackerChunker::Boolean(c) => {
+                    if let Some(chunk) = c.next() {
+                        chunked_packers.push(Packers::Boolean(Packer::from(chunk)));
+                    }
+                }
+            }
+        }
+
+        if chunked_packers.is_empty() {
+            break;
+        }
+
+        // let sort = [0, 7, 6, 12];
+        // let sort = [8, 4, 9, 0, 1, 7, 10, 6, 5, 2, 3, 12];
+        let sort = [3, 2, 5, 6, 10, 7, 1, 0, 9, 4, 8, 12];
+        delorean_table::sorter::sort(&mut chunked_packers, &sort).unwrap();
+
+        println!(
+            "Writing {:?} packers with size: {:?}",
+            chunked_packers.len(),
+            chunked_packers[0].num_rows()
+        );
+        write_arrow_batch(&mut writer, Arc::new(schema.clone()), chunked_packers);
+    }
+
+    writer.finish().unwrap();
+    Ok(())
+}
+
+fn write_arrow_batch(
+    w: &mut writer::StreamWriter<File>,
+    schema: Arc<datatypes::Schema>,
+    packers: Vec<Packers>,
+) {
+    let mut record_batch_arrays: Vec<array::ArrayRef> = vec![];
+
+    for packer in packers {
+        match packer {
+            Packers::Float(p) => {
+                record_batch_arrays.push(Arc::new(array::Float64Array::from(p.values().to_vec())));
+            }
+            Packers::Integer(p) => {
+                record_batch_arrays.push(Arc::new(array::Int64Array::from(p.values().to_vec())));
+            }
+            Packers::String(p) => {
+                let mut builder = array::StringBuilder::new(p.num_rows());
+                for v in p.values() {
+                    match v {
+                        Some(v) => {
+                            builder.append_value(v.as_utf8().unwrap()).unwrap();
+                        }
+                        None => {
+                            builder.append_null().unwrap();
+                        }
+                    }
+                }
+                let array = builder.finish();
+                record_batch_arrays.push(Arc::new(array));
+            }
+            Packers::Boolean(p) => {
+                let array = array::BooleanArray::from(p.values().to_vec());
+                record_batch_arrays.push(Arc::new(array));
+            }
+        }
+    }
+
+    let record_batch = record_batch::RecordBatch::try_new(schema, record_batch_arrays).unwrap();
+    w.write(&record_batch).unwrap();
+}
+
 /// Converts one or more TSM files into the delorean_table internal columnar
 /// data format and then passes that converted data to a `DeloreanTableWriter`.
 pub struct TSMFileConverter {
@@ -571,18 +719,131 @@ impl TSMFileConverter {
 
             match next_measurement {
                 Some(mut table) => {
+                    if table.name != "http_api_requests_total" {
+                        continue;
+                    }
                     // convert (potentially merged) measurement..
-                    let (schema, packed_columns) =
+                    let (schema, mut packed_columns) =
                         Self::process_measurement_table(&mut block_reader, &mut table)?;
-                    let mut table_writer = self
-                        .table_writer_source
-                        .next_writer(&schema)
-                        .context(WriterCreation)?;
 
-                    table_writer
-                        .write_batch(&packed_columns)
-                        .context(WriterCreation)?;
-                    table_writer.close().context(WriterCreation)?;
+                    // println!("col def {:?}", schema.get_col_defs());
+                    // // cardinality
+                    // for (i, col) in packed_columns.iter().enumerate() {
+                    //     println!("processing column {:?}", i);
+                    //     if let Packers::String(p) = col {
+                    //         let mut set: std::collections::BTreeSet<_> = BTreeSet::new();
+                    //         for v in p.iter() {
+                    //             if let Some(v) = v {
+                    //                 set.insert(String::from(v.as_utf8().unwrap()));
+                    //             }
+                    //         }
+                    //         println!("Cardinality for col is {:?}", set.len());
+                    //     }
+                    // }
+                    // col def [ColumnDefinition { name: "env", index: 0, data_type: String },
+                    // ColumnDefinition { name: "handler", index: 1, data_type: String },
+                    // ColumnDefinition { name: "host", index: 2, data_type: String },
+                    // ColumnDefinition { name: "hostname", index: 3, data_type: String },
+                    //  ColumnDefinition { name: "method", index: 4, data_type: String },
+                    //  ColumnDefinition { name: "nodename", index: 5, data_type: String },
+                    //   ColumnDefinition { name: "path", index: 6, data_type: String },
+                    //   ColumnDefinition { name: "role", index: 7, data_type: String },
+                    //   ColumnDefinition { name: "status", index: 8, data_type: String },
+                    //    ColumnDefinition { name: "url", index: 9, data_type: String },
+                    //    ColumnDefinition { name: "user_agent", index: 10, data_type: String },
+                    //    ColumnDefinition { name: "counter", index: 11, data_type: Float },
+                    //    ColumnDefinition { name: "time", index: 12, data_type: Timestamp }]
+                    // processing column 0
+                    // Cardinality for col is 8
+                    // processing column 1
+                    // Cardinality for col is 8
+                    // processing column 2
+                    // Cardinality for col is 3005
+                    // processing column 3
+                    // Cardinality for col is 3005
+                    // processing column 4
+                    // Cardinality for col is 6
+                    // processing column 5
+                    // Cardinality for col is 148
+                    // processing column 6
+                    // Cardinality for col is 78
+                    // processing column 7
+                    // Cardinality for col is 14
+                    // processing column 8
+                    // Cardinality for col is 4
+                    // processing column 9
+                    // Cardinality for col is 6
+                    // processing column 10
+                    // Cardinality for col is 71
+                    // processing column 11
+                    // processing column 12
+                    // got all card
+                    // println!("got all card");
+
+                    // sort low to high ==
+                    //
+                    // status       8  (4)
+                    // method       4  (6)
+                    // url          9  (6)
+                    // env          0  (8)
+                    // handler      1  (8)
+                    // role         7  (14)
+                    // user_agent   10 (71)
+                    // path         6  (78)
+                    // nodename     5  (148)
+                    // host         2  (3005)
+                    // hostname     3  (3005)
+                    //
+                    // time         12
+
+                    if packed_columns.len() < 13 {
+                        continue;
+                    }
+
+                    println!("length of column s is {:?}", packed_columns.len());
+                    // let sort = [0, 7, 6, 12];
+                    // let sort = [8, 4, 9, 0, 1, 7, 10, 6, 5, 2, 3, 12];
+                    // let sort = [3, 2, 5, 6, 10, 7, 1, 0, 9, 4, 8, 12];
+                    let sort = [12];
+                    println!("Starting sort with {:?}", sort);
+                    let now = std::time::Instant::now();
+
+                    delorean_table::sorter::sort(&mut packed_columns, &sort).unwrap();
+
+                    println!("verifying order");
+                    let values = packed_columns[12].i64_packer_mut().values();
+                    let mut last = values[0];
+                    for i in 1..values.len() {
+                        assert!(values[i] >= last);
+                        last = values[i];
+                    }
+                    println!("finished sort in {:?}", now.elapsed());
+
+                    println!("Writing to arrow file!");
+                    write_arrow_file(schema, packed_columns).unwrap();
+                    println!("Done!");
+
+                    // if packed_columns.len() < 13 {
+                    //     continue;
+                    // }
+                    // println!("length of column s is {:?}", packed_columns.len());
+                    // // let sort = [0, 7, 6, 12];
+                    // // let sort = [8, 4, 9, 0, 1, 7, 10, 6, 5, 2, 3, 12];
+                    // let sort = [3, 2, 5, 6, 10, 7, 1, 0, 9, 4, 8, 12];
+                    // println!("Starting sort with {:?}", sort);
+                    // let now = std::time::Instant::now();
+                    // delorean_table::sorter::sort(&mut packed_columns, &sort).unwrap();
+                    // println!("finished sort in {:?}", now.elapsed());
+
+                    // let mut table_writer = self
+                    //     .table_writer_source
+                    //     .next_writer(&schema)
+                    //     .context(WriterCreation)?;
+
+                    // table_writer
+                    //     .write_batch(&packed_columns)
+                    //     .context(WriterCreation)?;
+                    // table_writer.close().context(WriterCreation)?;
                 }
                 None => break,
             }
