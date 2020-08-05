@@ -41,10 +41,11 @@ impl Column {
                 if row_id >= self.num_rows() {
                     return None;
                 }
-                if let Some(v) = c.value(row_id) {
-                    return Some(Scalar::String(v));
-                };
-                None
+
+                match c.value(row_id) {
+                    Some(v) => Some(Scalar::String(v)),
+                    None => None,
+                }
             }
             Column::Float(c) => {
                 if row_id >= self.num_rows() {
@@ -65,7 +66,7 @@ impl Column {
         match self {
             Column::String(c) => {
                 if let Scalar::String(v) = value {
-                    c.meta.maybe_contains_value(v.to_string())
+                    c.meta.maybe_contains_value(&v.to_string())
                 } else {
                     panic!("invalid value");
                 }
@@ -87,19 +88,31 @@ impl Column {
         }
     }
 
-    pub fn min(&self) -> Scalar {
+    // FIXME(edd): Support NULL integers and floats
+    pub fn min(&self) -> Option<Scalar> {
         match self {
-            Column::String(c) => Scalar::String(c.meta.range().0),
-            Column::Float(c) => Scalar::Float(c.meta.range().0),
-            Column::Integer(c) => Scalar::Integer(c.meta.range().0),
+            Column::String(c) => {
+                if let Some(min) = c.meta.range().0 {
+                    return Some(Scalar::String(min));
+                }
+                None
+            }
+            Column::Float(c) => Some(Scalar::Float(c.meta.range().0)),
+            Column::Integer(c) => Some(Scalar::Integer(c.meta.range().0)),
         }
     }
 
-    pub fn max(&self) -> Scalar {
+    // FIXME(edd): Support NULL integers and floats
+    pub fn max(&self) -> Option<Scalar> {
         match self {
-            Column::String(c) => Scalar::String(c.meta.range().1),
-            Column::Float(c) => Scalar::Float(c.meta.range().1),
-            Column::Integer(c) => Scalar::Integer(c.meta.range().1),
+            Column::String(c) => {
+                if let Some(max) = c.meta.range().1 {
+                    return Some(Scalar::String(max));
+                }
+                None
+            }
+            Column::Float(c) => Some(Scalar::Float(c.meta.range().1)),
+            Column::Integer(c) => Some(Scalar::Integer(c.meta.range().1)),
         }
     }
 }
@@ -126,16 +139,16 @@ pub struct String {
 
 impl String {
     pub fn add(&mut self, s: &str) {
-        self.meta.add(s);
+        self.meta.add(Some(s.to_string()));
         self.data.push(s);
     }
 
-    pub fn add_additional(&mut self, s: &str, additional: u64) {
-        self.meta.add(s);
+    pub fn add_additional(&mut self, s: Option<std::string::String>, additional: u64) {
+        self.meta.add(s.clone());
         self.data.push_additional(s, additional);
     }
 
-    pub fn column_range(&self) -> (&str, &str) {
+    pub fn column_range(&self) -> (Option<&std::string::String>, Option<&std::string::String>) {
         self.meta.range()
     }
 
@@ -241,21 +254,21 @@ impl From<&[i64]> for Integer {
 pub mod metadata {
     #[derive(Debug, Default)]
     pub struct Str {
-        range: (String, String),
+        range: (Option<String>, Option<String>),
         num_rows: usize,
         // sparse_index: BTreeMap<String, usize>,
     }
 
     impl Str {
-        pub fn add(&mut self, s: &str) {
+        pub fn add(&mut self, s: Option<String>) {
             self.num_rows += 1;
 
-            if self.range.0.as_str() > s {
-                self.range.0 = s.to_owned();
+            if self.range.0 > s {
+                self.range.0 = s.clone();
             }
 
-            if self.range.1.as_str() < s {
-                self.range.1 = s.to_owned();
+            if self.range.1 < s {
+                self.range.1 = s;
             }
         }
 
@@ -263,8 +276,8 @@ pub mod metadata {
             self.num_rows
         }
 
-        pub fn maybe_contains_value(&self, v: String) -> bool {
-            let res = self.range.0 <= v && v <= self.range.1;
+        pub fn maybe_contains_value(&self, v: &str) -> bool {
+            let res = self.range.0 <= Some(v.to_string()) && Some(v.to_string()) <= self.range.1;
             println!(
                 "column with ({:?}) maybe contain {:?} -- {:?}",
                 self.range, v, res
@@ -272,12 +285,13 @@ pub mod metadata {
             res
         }
 
-        pub fn range(&self) -> (&str, &str) {
-            (&self.range.0, &self.range.1)
+        pub fn range(&self) -> (Option<&String>, Option<&String>) {
+            (self.range.0.as_ref(), self.range.1.as_ref())
         }
 
         pub fn size(&self) -> usize {
-            self.range.0.len() + self.range.1.len() + std::mem::size_of::<usize>()
+            // TODO!!!!
+            0 //self.range.0.len() + self.range.1.len() + std::mem::size_of::<usize>()
         }
     }
 

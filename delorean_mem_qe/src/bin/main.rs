@@ -45,8 +45,8 @@ fn main() {
 
     let segments = segments
         .filter_by_time(1590036110000000, 1590044410000000)
-        .filter_by_predicate_eq("env", &column::Scalar::String("toolsus1"));
-    let res = segments.first("env").unwrap();
+        .filter_by_predicate_eq("env", &column::Scalar::String("prod01-eu-central-1"));
+    let res = segments.first("env");
     println!("{:?}", res);
 }
 
@@ -61,7 +61,7 @@ fn build_store(
     Ok(())
 }
 
-fn convert_record_batch<'a>(rb: RecordBatch) -> Result<Segment, Error> {
+fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
     let mut segment = Segment::default();
 
     // println!("cols {:?} rows {:?}", rb.num_columns(), rb.num_rows());
@@ -89,23 +89,31 @@ fn convert_record_batch<'a>(rb: RecordBatch) -> Result<Segment, Error> {
                 segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Utf8 => {
-                if column.null_count() > 0 {
-                    panic!("null tag");
-                }
                 let arr = column
                     .as_any()
                     .downcast_ref::<array::StringArray>()
                     .unwrap();
 
                 let mut c = column::String::default();
-                let mut prev = arr.value(0);
+                let mut prev: Option<&str> = None;
+                if !column.is_null(0) {
+                    prev = Some(arr.value(0));
+                }
+
                 let mut count = 1_u64;
                 for j in 1..arr.len() {
-                    let next = arr.value(j);
+                    let mut next = Some(arr.value(j));
+                    if column.is_null(j) {
+                        next = None;
+                    }
+
                     if prev == next {
                         count += 1;
                     } else {
-                        c.add_additional(prev, count);
+                        match prev {
+                            Some(x) => c.add_additional(Some(x.to_string()), count),
+                            None => c.add_additional(None, count),
+                        }
                         prev = next;
                         count = 1;
                     }

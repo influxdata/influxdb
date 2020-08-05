@@ -87,6 +87,24 @@ impl Segment {
     }
 }
 
+/// Meta data for a segment. This data is mainly used to determine if a segment
+/// may contain value for answering a query.
+#[derive(Debug, Default)]
+pub struct SegmentMetaData {
+    size: usize, // TODO
+    rows: usize,
+
+    column_names: Vec<String>,
+    time_range: (i64, i64),
+    // TODO column sort order
+}
+
+impl SegmentMetaData {
+    pub fn overlaps_time_range(&self, from: i64, to: i64) -> bool {
+        self.time_range.0 <= to && from <= self.time_range.1
+    }
+}
+
 pub struct Segments<'a> {
     segments: Vec<&'a Segment>,
 }
@@ -100,6 +118,7 @@ impl<'a> Segments<'a> {
         let mut segments: Vec<&Segment> = vec![];
         for segment in &self.segments {
             if segment.meta.overlaps_time_range(min, max) {
+                println!("Segement {:?} overlaps", segment.meta);
                 segments.push(segment);
             }
         }
@@ -131,7 +150,7 @@ impl<'a> Segments<'a> {
         let mut min_min: Option<column::Scalar> = None;
         for segment in &self.segments {
             if let Some(i) = segment.column_names().iter().position(|c| c == column_name) {
-                let min = Some(segment.columns[i].min());
+                let min = segment.columns[i].min();
                 if min_min.is_none() {
                     min_min = min
                 } else if min_min > min {
@@ -152,7 +171,7 @@ impl<'a> Segments<'a> {
         let mut max_max: Option<column::Scalar> = None;
         for segment in &self.segments {
             if let Some(i) = segment.column_names().iter().position(|c| c == column_name) {
-                let max = Some(segment.columns[i].max());
+                let max = segment.columns[i].max();
                 if max_max.is_none() {
                     max_max = max
                 } else if max_max < max {
@@ -228,29 +247,6 @@ impl<'a> Segments<'a> {
         }
 
         last_last
-    }
-}
-
-/// Meta data for a segment. This data is mainly used to determine if a segment
-/// may contain value for answering a query.
-#[derive(Debug, Default)]
-pub struct SegmentMetaData {
-    size: usize, // TODO
-    rows: usize,
-
-    column_names: Vec<String>,
-    time_range: (i64, i64),
-    // TODO column sort order
-}
-
-impl SegmentMetaData {
-    pub fn overlaps_time_range(&self, from: i64, to: i64) -> bool {
-        let result = self.time_range.0 <= to && from <= self.time_range.1;
-        println!(
-            "segment with ({:?}) overlaps ({:?}, {:?}) -- {:?}",
-            self.time_range, from, to, result
-        );
-        result
     }
 }
 

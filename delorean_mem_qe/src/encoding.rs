@@ -60,10 +60,10 @@ impl From<&[f64]> for PlainFixed<f64> {
 #[derive(Debug, Default)]
 pub struct DictionaryRLE {
     // stores the mapping between an entry and its assigned index.
-    entry_index: BTreeMap<String, usize>,
+    entry_index: BTreeMap<Option<String>, usize>,
 
     // stores the mapping between an index and its entry.
-    index_entry: BTreeMap<usize, String>,
+    index_entry: BTreeMap<usize, Option<String>>,
 
     map_size: usize, // TODO(edd) this isn't perfect at all
 
@@ -88,12 +88,16 @@ impl DictionaryRLE {
     }
 
     pub fn push(&mut self, v: &str) {
-        self.push_additional(v, 1);
+        self.push_additional(Some(v.to_owned()), 1);
     }
 
-    pub fn push_additional(&mut self, v: &str, additional: u64) {
+    pub fn push_none(&mut self) {
+        self.push_additional(None, 1);
+    }
+
+    pub fn push_additional(&mut self, v: Option<String>, additional: u64) {
         self.total += additional;
-        let idx = self.entry_index.get(v);
+        let idx = self.entry_index.get(&v);
         match idx {
             Some(idx) => {
                 if let Some((last_idx, rl)) = self.run_lengths.last_mut() {
@@ -112,9 +116,12 @@ impl DictionaryRLE {
                 if idx.is_none() {
                     let idx = self.entry_index.len();
 
-                    self.entry_index.insert(String::from(v), idx);
-                    self.index_entry.insert(idx, String::from(v));
-                    self.map_size += v.len() + std::mem::size_of::<usize>();
+                    self.entry_index.insert(v.clone(), idx);
+                    if let Some(value) = &v {
+                        self.map_size += value.len();
+                    }
+                    self.index_entry.insert(idx, v);
+                    self.map_size += 8 + std::mem::size_of::<usize>(); // TODO(edd): clean this option size up
 
                     self.run_lengths.push((idx, additional));
                     self.run_length_size += std::mem::size_of::<(usize, u64)>();
@@ -126,9 +133,9 @@ impl DictionaryRLE {
 
     // row_ids returns an iterator over the set of row ids matching the provided
     // value.
-    pub fn row_ids(&self, value: &str) -> impl iter::Iterator<Item = usize> {
+    pub fn row_ids(&self, value: Option<String>) -> impl iter::Iterator<Item = usize> {
         let mut out: Vec<usize> = vec![];
-        if let Some(idx) = self.entry_index.get(value) {
+        if let Some(idx) = self.entry_index.get(&value) {
             let mut index: usize = 0;
             for (other_idx, other_rl) in &self.run_lengths {
                 let start = index;
@@ -143,9 +150,9 @@ impl DictionaryRLE {
 
     // row_ids returns an iterator over the set of row ids matching the provided
     // value.
-    pub fn row_ids_roaring(&self, value: &str) -> croaring::Bitmap {
+    pub fn row_ids_roaring(&self, value: Option<String>) -> croaring::Bitmap {
         let mut bm = croaring::Bitmap::create();
-        if let Some(idx) = self.entry_index.get(value) {
+        if let Some(idx) = self.entry_index.get(&value) {
             let mut index: u64 = 0;
             for (other_idx, other_rl) in &self.run_lengths {
                 let start = index;
@@ -179,11 +186,11 @@ impl DictionaryRLE {
     //     unreachable!("for now");
     // }
 
-    pub fn dictionary(&self) -> BTreeSet<String> {
+    pub fn dictionary(&self) -> BTreeSet<Option<String>> {
         self.entry_index
             .keys()
             .cloned()
-            .collect::<BTreeSet<String>>()
+            .collect::<BTreeSet<Option<String>>>()
     }
 
     // get the logical value at the provided index, or None if there is no value
@@ -193,7 +200,12 @@ impl DictionaryRLE {
             let mut total = 0;
             for (idx, rl) in &self.run_lengths {
                 if total + rl > index as u64 {
-                    return self.index_entry.get(idx);
+                    // TODO(edd): Can this really be idiomatic???
+                    match self.index_entry.get(idx) {
+                        Some(&Some(ref result)) => return Some(result),
+                        Some(&None) => return None,
+                        None => return None,
+                    }
                 }
                 total += rl;
             }
@@ -203,19 +215,20 @@ impl DictionaryRLE {
 
     // values materialises a vector of references to all logical values in the
     // encoding.
-    pub fn values(&mut self) -> Vec<&str> {
-        let mut out = Vec::with_capacity(self.total as usize);
+    pub fn values(&mut self) -> Vec<Option<&String>> {
+        let mut out: Vec<Option<&String>> = Vec::with_capacity(self.total as usize);
 
         // build reverse mapping.
         let mut idx_value = BTreeMap::new();
         for (k, v) in &self.entry_index {
-            idx_value.insert(v, k.as_str());
+            idx_value.insert(v, k);
         }
         assert_eq!(idx_value.len(), self.entry_index.len());
 
         for (idx, rl) in &self.run_lengths {
-            let &v = idx_value.get(&idx).unwrap();
-            out.extend(iter::repeat(&v).take(*rl as usize));
+            // TODO(edd): fix unwrap - we know that the value exists in map...
+            let v = idx_value.get(&idx).unwrap().as_ref();
+            out.extend(iter::repeat(v).take(*rl as usize));
         }
         out
     }
@@ -261,17 +274,34 @@ mod test {
         drle.push("world");
         drle.push("hello");
         drle.push("hello");
-        drle.push_additional("hello", 1);
+        drle.push_additional(Some("hello".to_string()), 1);
 
         assert_eq!(
             drle.values(),
-            ["hello", "hello", "world", "hello", "hello", "hello",]
+            [
+                Some(&"hello".to_string()),
+                Some(&"hello".to_string()),
+                Some(&"world".to_string()),
+                Some(&"hello".to_string()),
+                Some(&"hello".to_string()),
+                Some(&"hello".to_string())
+            ]
         );
 
-        drle.push_additional("zoo", 3);
+        drle.push_additional(Some("zoo".to_string()), 3);
         assert_eq!(
             drle.values(),
-            ["hello", "hello", "world", "hello", "hello", "hello", "zoo", "zoo", "zoo"]
+            [
+                Some(&"hello".to_string()),
+                Some(&"hello".to_string()),
+                Some(&"world".to_string()),
+                Some(&"hello".to_string()),
+                Some(&"hello".to_string()),
+                Some(&"hello".to_string()),
+                Some(&"zoo".to_string()),
+                Some(&"zoo".to_string()),
+                Some(&"zoo".to_string()),
+            ]
         );
 
         assert_eq!(drle.value(0).unwrap(), "hello");
@@ -288,34 +318,49 @@ mod test {
     #[test]
     fn row_ids() {
         let mut drle = super::DictionaryRLE::new();
-        drle.push_additional("abc", 3);
-        drle.push_additional("dre", 2);
+        drle.push_additional(Some("abc".to_string()), 3);
+        drle.push_additional(Some("dre".to_string()), 2);
         drle.push("abc");
 
-        let ids = drle.row_ids("abc").collect::<Vec<usize>>();
+        let ids = drle
+            .row_ids(Some("abc".to_string()))
+            .collect::<Vec<usize>>();
         assert_eq!(ids, vec![0, 1, 2, 5]);
 
-        let ids = drle.row_ids("dre").collect::<Vec<usize>>();
+        let ids = drle
+            .row_ids(Some("dre".to_string()))
+            .collect::<Vec<usize>>();
         assert_eq!(ids, vec![3, 4]);
 
-        let ids = drle.row_ids("foo").collect::<Vec<usize>>();
+        let ids = drle
+            .row_ids(Some("foo".to_string()))
+            .collect::<Vec<usize>>();
         assert_eq!(ids, vec![]);
     }
 
     #[test]
     fn row_ids_roaring() {
         let mut drle = super::DictionaryRLE::new();
-        drle.push_additional("abc", 3);
-        drle.push_additional("dre", 2);
+        drle.push_additional(Some("abc".to_string()), 3);
+        drle.push_additional(Some("dre".to_string()), 2);
         drle.push("abc");
 
-        let ids = drle.row_ids_roaring("abc").iter().collect::<Vec<u32>>();
+        let ids = drle
+            .row_ids_roaring(Some("abc".to_string()))
+            .iter()
+            .collect::<Vec<u32>>();
         assert_eq!(ids, vec![0, 1, 2, 5]);
 
-        let ids = drle.row_ids_roaring("dre").iter().collect::<Vec<u32>>();
+        let ids = drle
+            .row_ids_roaring(Some("dre".to_string()))
+            .iter()
+            .collect::<Vec<u32>>();
         assert_eq!(ids, vec![3, 4]);
 
-        let ids = drle.row_ids_roaring("foo").iter().collect::<Vec<u32>>();
+        let ids = drle
+            .row_ids_roaring(Some("foo".to_string()))
+            .iter()
+            .collect::<Vec<u32>>();
         assert_eq!(ids, vec![]);
     }
 }
