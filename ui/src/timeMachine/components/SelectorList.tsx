@@ -11,6 +11,7 @@ interface Props {
   multiSelect: boolean
   children?: JSX.Element | JSX.Element[]
   testID?: string
+  wrapText?: boolean
 }
 
 const SelectorList: SFC<Props> = props => {
@@ -21,6 +22,7 @@ const SelectorList: SFC<Props> = props => {
     multiSelect,
     children,
     testID,
+    wrapText,
   } = props
 
   return (
@@ -37,7 +39,7 @@ const SelectorList: SFC<Props> = props => {
         return (
           <List.Item
             className="selector-list--item"
-            data-testid={`selector-list ${item}`}
+            testID={`selector-list ${item}`}
             key={item}
             value={item}
             onClick={onSelectItem}
@@ -45,7 +47,7 @@ const SelectorList: SFC<Props> = props => {
             selected={selected}
             size={ComponentSize.ExtraSmall}
             gradient={Gradients.GundamPilot}
-            wrapText={true}
+            wrapText={wrapText}
           >
             {indicator}
             {item}

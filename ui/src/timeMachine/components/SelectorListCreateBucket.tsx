@@ -120,11 +120,12 @@ const SelectorListCreateBucket: FC<Props> = ({
     <>
       <List.Item
         className="selector-list--item"
-        data-testid="selector-list add-bucket"
+        testID="selector-list add-bucket"
         disabled={buttonDisabled}
         title={titleText}
         ref={triggerRef}
         onClick={() => {}}
+        wrapText={true}
         size={ComponentSize.ExtraSmall}
       >
         + Create Bucket
