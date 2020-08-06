@@ -84,7 +84,29 @@ fn main() {
     }
     println!("{:?}", rows.cardinality());
 
-    time_row_by_preds(&store);
+    // time_row_by_preds(&store);
+
+    let group_ids = segments
+        .segments()
+        .last()
+        .unwrap()
+        .group_by_column_ids("env")
+        .unwrap();
+
+    for (col_values, row_ids) in group_ids {
+        let (min, max) = segments.segments().last().unwrap().time_range();
+        println!(
+            "({:?}, {:?}) SUM OF COLUMN env={:?} is {:?}",
+            min,
+            max,
+            col_values,
+            segments
+                .segments()
+                .last()
+                .unwrap()
+                .sum_column(&"counter", &row_ids)
+        );
+    }
 }
 
 fn build_store(

@@ -118,6 +118,23 @@ impl Segment {
         )
     }
 
+    pub fn group_by_column_ids(
+        &self,
+        name: &str,
+    ) -> Option<&std::collections::BTreeMap<Option<std::string::String>, croaring::Bitmap>> {
+        if let Some(c) = self.column(name) {
+            return Some(c.group_by_ids());
+        }
+        None
+    }
+
+    pub fn sum_column(&self, name: &str, row_ids: &croaring::Bitmap) -> Option<column::Scalar> {
+        if let Some(c) = self.column(name) {
+            return c.sum_by_ids(row_ids);
+        }
+        None
+    }
+
     pub fn filter_by_predicate_eq(
         &self,
         time_range: Option<(i64, i64)>,
@@ -156,21 +173,31 @@ impl Segment {
         }
 
         // now intersect matching rows for each column
-        let mut bm = bm.unwrap();
+        // let mut bm = bm.unwrap();
         for (col_pred_name, col_pred_value) in predicates {
             if let Some(c) = self.column(col_pred_name) {
                 match c.row_ids_eq(col_pred_value) {
                     Some(row_ids) => {
-                        bm.and_inplace(&row_ids);
-                        if bm.is_empty() {
+                        if row_ids.is_empty() {
                             return None;
+                        }
+
+                        match &mut bm {
+                            Some(all) => {
+                                all.and_inplace(&row_ids);
+                                if all.is_empty() {
+                                    // no rows intersect
+                                    return None;
+                                }
+                            }
+                            None => bm = Some(row_ids),
                         }
                     }
                     None => return None, // if this predicate doesn't match then no rows match
                 }
             }
         }
-        Some(bm)
+        bm
     }
 }
 

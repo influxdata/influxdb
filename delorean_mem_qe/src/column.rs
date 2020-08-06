@@ -245,6 +245,24 @@ impl Column {
         }
     }
 
+    pub fn sum_by_ids(&self, row_ids: &croaring::Bitmap) -> Option<Scalar> {
+        match self {
+            Column::String(_) => unimplemented!("not implemented"),
+            Column::Float(c) => Some(Scalar::Float(c.sum_by_ids(row_ids))),
+            Column::Integer(_) => unimplemented!("not implemented"),
+        }
+    }
+
+    pub fn group_by_ids(
+        &self,
+    ) -> &std::collections::BTreeMap<Option<std::string::String>, croaring::Bitmap> {
+        match self {
+            Column::String(c) => c.data.group_row_ids(),
+            Column::Float(_) => unimplemented!("not implemented"),
+            Column::Integer(_) => unimplemented!("not implemented"),
+        }
+    }
+
     // TODO(edd) shouldn't let roaring stuff leak out...
     pub fn row_ids_eq(&self, value: Option<&Scalar>) -> Option<croaring::Bitmap> {
         if !self.maybe_contains(value) {
@@ -353,6 +371,13 @@ impl String {
         unreachable!("don't need this");
         // self.data.scan_from_until_some(row_id)
     }
+
+    // TODO(edd) shouldn't let roaring stuff leak out...
+    pub fn group_row_ids(
+        &self,
+    ) -> &std::collections::BTreeMap<Option<std::string::String>, croaring::Bitmap> {
+        self.data.group_row_ids()
+    }
 }
 
 #[derive(Debug, Default)]
@@ -382,6 +407,10 @@ impl Float {
 
     pub fn scan_from_until_some(&self, row_id: usize) -> Option<f64> {
         self.data.scan_from_until_some(row_id)
+    }
+
+    pub fn sum_by_ids(&self, row_ids: &croaring::Bitmap) -> f64 {
+        self.data.sum_by_ids(row_ids)
     }
 }
 

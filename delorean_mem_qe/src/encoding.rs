@@ -23,7 +23,7 @@ pub struct PlainFixed<T> {
 
 impl<T> PlainFixed<T>
 where
-    T: PartialEq + PartialOrd + Copy + std::fmt::Debug,
+    T: Default + PartialEq + PartialOrd + Copy + std::fmt::Debug + std::ops::AddAssign,
 {
     pub fn size(&self) -> usize {
         self.values.len() * std::mem::size_of::<T>()
@@ -88,6 +88,17 @@ where
         }
         bm
     }
+
+    // TODO(edd): make faster
+    pub fn sum_by_ids(&self, row_ids: &croaring::Bitmap) -> T {
+        let mut res = T::default();
+        row_ids.iter().for_each(|x| res += self.value(x as usize));
+        res
+    }
+
+    pub fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64 {
+        row_ids.cardinality()
+    }
 }
 
 impl From<&[i64]> for PlainFixed<i64> {
@@ -113,6 +124,9 @@ pub struct DictionaryRLE {
     // stores the mapping between an entry and its assigned index.
     entry_index: BTreeMap<Option<String>, usize>,
 
+    // Experiment - store rows that each entry has a value for
+    entry_row_ids: BTreeMap<Option<String>, croaring::Bitmap>,
+
     // stores the mapping between an index and its entry.
     index_entry: BTreeMap<usize, Option<String>>,
 
@@ -130,6 +144,7 @@ impl DictionaryRLE {
     pub fn new() -> Self {
         Self {
             entry_index: BTreeMap::new(),
+            entry_row_ids: BTreeMap::new(),
             index_entry: BTreeMap::new(),
             map_size: 0,
             run_lengths: Vec::new(),
@@ -147,7 +162,6 @@ impl DictionaryRLE {
     }
 
     pub fn push_additional(&mut self, v: Option<String>, additional: u64) {
-        self.total += additional;
         let idx = self.entry_index.get(&v);
         match idx {
             Some(idx) => {
@@ -160,6 +174,10 @@ impl DictionaryRLE {
                         self.run_lengths.push((*idx, additional));
                         self.run_length_size += std::mem::size_of::<(usize, u64)>();
                     }
+                    self.entry_row_ids
+                        .get_mut(&v)
+                        .unwrap()
+                        .add_range(self.total..self.total + additional);
                 }
             }
             None => {
@@ -168,18 +186,24 @@ impl DictionaryRLE {
                     let idx = self.entry_index.len();
 
                     self.entry_index.insert(v.clone(), idx);
+                    self.entry_row_ids
+                        .insert(v.clone(), croaring::Bitmap::create());
                     if let Some(value) = &v {
                         self.map_size += value.len();
                     }
-                    self.index_entry.insert(idx, v);
+                    self.index_entry.insert(idx, v.clone());
                     self.map_size += 8 + std::mem::size_of::<usize>(); // TODO(edd): clean this option size up
 
                     self.run_lengths.push((idx, additional));
+                    self.entry_row_ids
+                        .get_mut(&v)
+                        .unwrap()
+                        .add_range(self.total..self.total + additional);
                     self.run_length_size += std::mem::size_of::<(usize, u64)>();
-                    return;
                 }
             }
         }
+        self.total += additional;
     }
 
     // row_ids returns an iterator over the set of row ids matching the provided
@@ -214,6 +238,11 @@ impl DictionaryRLE {
             }
         }
         bm
+    }
+
+    // get the set of row ids for each distinct value
+    pub fn group_row_ids(&self) -> &BTreeMap<Option<String>, croaring::Bitmap> {
+        &self.entry_row_ids
     }
 
     // row_ids returns an iterator over the set of row ids matching the provided
@@ -457,6 +486,27 @@ mod test {
         assert_eq!(drle.value(6).unwrap(), "zoo");
         assert_eq!(drle.value(7).unwrap(), "zoo");
         assert_eq!(drle.value(8).unwrap(), "zoo");
+
+        let row_ids = drle
+            .entry_row_ids
+            .get(&Some("hello".to_string()))
+            .unwrap()
+            .to_vec();
+        assert_eq!(row_ids, vec![0, 1, 3, 4, 5]);
+
+        let row_ids = drle
+            .entry_row_ids
+            .get(&Some("world".to_string()))
+            .unwrap()
+            .to_vec();
+        assert_eq!(row_ids, vec![2]);
+
+        let row_ids = drle
+            .entry_row_ids
+            .get(&Some("zoo".to_string()))
+            .unwrap()
+            .to_vec();
+        assert_eq!(row_ids, vec![6, 7, 8]);
     }
 
     #[test]
