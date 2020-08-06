@@ -63,7 +63,7 @@ func (h *urmHandler) getURMsByType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users := make([]*influxdb.User, 0, len(mappings))
+	users := make([]influxdb.User, 0, len(mappings))
 	for _, m := range mappings {
 		if m.MappingType == influxdb.OrgMappingType {
 			continue
@@ -74,7 +74,7 @@ func (h *urmHandler) getURMsByType(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		users = append(users, user)
+		users = append(users, *user)
 	}
 	h.log.Debug("Members/owners retrieved", zap.String("users", fmt.Sprint(users)))
 
@@ -134,7 +134,7 @@ func (h *urmHandler) postURMByType(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debug("Member/owner created", zap.String("mapping", fmt.Sprint(mapping)))
 
-	h.api.Respond(w, r, http.StatusCreated, newResourceUserResponse(user, userType))
+	h.api.Respond(w, r, http.StatusCreated, newResourceUserResponse(*user, userType))
 }
 
 type postRequest struct {
@@ -229,15 +229,27 @@ func (h *urmHandler) decodeDeleteRequest(ctx context.Context, r *http.Request) (
 	}, nil
 }
 
-type resourceUserResponse struct {
-	Role influxdb.UserType `json:"role"`
-	*UserResponse
+type URMUserResponse struct {
+	Links  map[string]string `json:"links"`
+	ID     influxdb.ID       `json:"id,omitempty"`
+	Status influxdb.Status   `json:"status"`
 }
 
-func newResourceUserResponse(u *influxdb.User, userType influxdb.UserType) *resourceUserResponse {
+type resourceUserResponse struct {
+	Role influxdb.UserType `json:"role"`
+	*URMUserResponse
+}
+
+func newResourceUserResponse(u influxdb.User, userType influxdb.UserType) *resourceUserResponse {
 	return &resourceUserResponse{
-		Role:         userType,
-		UserResponse: newUserResponse(u),
+		Role: userType,
+		URMUserResponse: &URMUserResponse{
+			Links: map[string]string{
+				"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
+			},
+			ID:     u.ID,
+			Status: u.Status,
+		},
 	}
 }
 
@@ -246,7 +258,7 @@ type resourceUsersResponse struct {
 	Users []*resourceUserResponse `json:"users"`
 }
 
-func newResourceUsersResponse(f influxdb.UserResourceMappingFilter, users []*influxdb.User) *resourceUsersResponse {
+func newResourceUsersResponse(f influxdb.UserResourceMappingFilter, users []influxdb.User) *resourceUsersResponse {
 	rs := resourceUsersResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/%s/%s/%ss", f.ResourceType, f.ResourceID, f.UserType),
