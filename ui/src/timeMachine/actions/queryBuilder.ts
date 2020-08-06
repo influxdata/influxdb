@@ -18,19 +18,21 @@ import {
   ResourceType,
 } from 'src/types'
 import {Dispatch} from 'react'
-import {BuilderFunctionsType} from '@influxdata/influx'
 import {
   Action as AlertBuilderAction,
   setEvery,
 } from 'src/alerting/actions/alertBuilder'
-import {Action as BucketAction} from 'src/buckets/actions/creators'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
 import {getStatus} from 'src/resources/selectors'
 import {getTimeRangeWithTimezone} from 'src/dashboards/selectors'
-import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {
+  getActiveQuery,
+  getActiveTimeMachine,
+  getWindowPeriodFromTimeRange,
+} from 'src/timeMachine/selectors'
 
 //Actions
 import {editActiveQueryWithBuilderSync} from 'src/timeMachine/actions'
@@ -38,6 +40,7 @@ import {setBuckets} from 'src/buckets/actions/creators'
 
 // Constants
 import {LIMIT} from 'src/resources/constants'
+import {AGG_WINDOW_AUTO} from 'src/timeMachine/constants/queryBuilder'
 
 // Schemas
 import {arrayOfBuckets} from 'src/schemas'
@@ -57,6 +60,7 @@ export type Action =
   | ReturnType<typeof removeTagSelectorSync>
   | ReturnType<typeof setFunctions>
   | ReturnType<typeof setAggregateWindow>
+  | ReturnType<typeof setAggregateFillValues>
   | ReturnType<typeof setValuesSearchTerm>
   | ReturnType<typeof setKeysSearchTerm>
   | ReturnType<typeof setBuilderTagsStatus>
@@ -131,7 +135,7 @@ const removeTagSelectorSync = (index: number) => ({
   payload: {index},
 })
 
-export const setFunctions = (functions: BuilderFunctionsType[]) => ({
+export const setFunctions = (functions: string[]) => ({
   type: 'SELECT_BUILDER_FUNCTION' as 'SELECT_BUILDER_FUNCTION',
   payload: {functions},
 })
@@ -139,6 +143,11 @@ export const setFunctions = (functions: BuilderFunctionsType[]) => ({
 export const setAggregateWindow = (period: string) => ({
   type: 'SET_AGGREGATE_WINDOW' as 'SET_AGGREGATE_WINDOW',
   payload: {period},
+})
+
+export const setAggregateFillValues = (fillValues: boolean) => ({
+  type: 'SET_AGGREGATE_FILL_VALUES' as 'SET_AGGREGATE_FILL_VALUES',
+  payload: {fillValues},
 })
 
 export const setValuesSearchTerm = (index: number, searchTerm: string) => ({
@@ -151,6 +160,20 @@ export const setKeysSearchTerm = (index: number, searchTerm: string) => ({
   payload: {index, searchTerm},
 })
 
+export const setWindowPeriodSelectionMode = (mode: 'custom' | 'auto') => (
+  dispatch: Dispatch<Action | AlertBuilderAction>,
+  getState: GetState
+) => {
+  if (mode === 'custom') {
+    const windowPeriod = getWindowPeriodFromTimeRange(getState())
+
+    dispatch(setAggregateWindow(windowPeriod))
+  }
+  if (mode === 'auto') {
+    dispatch(setAggregateWindow(AGG_WINDOW_AUTO))
+  }
+}
+
 export const selectAggregateWindow = (period: string) => (
   dispatch: Dispatch<Action | AlertBuilderAction>
 ) => {
@@ -159,7 +182,9 @@ export const selectAggregateWindow = (period: string) => (
 }
 
 export const loadBuckets = () => async (
-  dispatch: Dispatch<Action | ReturnType<typeof selectBucket> | BucketAction>,
+  dispatch: Dispatch<
+    Action | ReturnType<typeof selectBucket> | ReturnType<typeof setBuckets>
+  >,
   getState: GetState
 ) => {
   if (
@@ -413,28 +438,46 @@ export const selectTagValue = (index: number, value: string) => (
   }
 }
 
-export const selectBuilderFunction = (name: string) => (
+export const multiSelectBuilderFunction = (name: string) => (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const state = getState()
-  const {
-    timeMachines: {activeTimeMachineID},
-  } = state
-  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
-
+  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(getState())
   const functions = draftQueries[activeQueryIndex].builderConfig.functions
 
-  let newFunctions: BuilderFunctionsType[]
+  const functionNames = functions.map(f => f.name)
+  const clickedFunctionAlreadySelected = functionNames.includes(name)
 
-  if (functions.find(f => f.name === name)) {
-    newFunctions = functions.filter(f => f.name !== name)
-  } else if (activeTimeMachineID === 'alerting') {
-    newFunctions = [{name}]
+  if (!clickedFunctionAlreadySelected) {
+    // add clicked to selected
+    dispatch(setFunctions([...functionNames, name]))
   } else {
-    newFunctions = [...functions, {name}]
+    if (functions.length > 1) {
+      // if more than one function is selected, remove clicked from selected
+      dispatch(setFunctions(functionNames.filter(n => n != name)))
+    }
   }
-  dispatch(setFunctions(newFunctions))
+}
+
+export const singleSelectBuilderFunction = (name: string) => (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(getState())
+  const functions = draftQueries[activeQueryIndex].builderConfig.functions
+
+  const functionNames = functions.map(f => f.name)
+  const clickedFunctionAlreadySelected = functionNames.includes(name)
+
+  if (!clickedFunctionAlreadySelected) {
+    // select clicked function
+    dispatch(setFunctions([name]))
+  } else {
+    if (functions.length > 1) {
+      // if more than one function is selected, remove clicked from selected
+      dispatch(setFunctions(functionNames.filter(n => n != name)))
+    }
+  }
 }
 
 export const selectTagKey = (index: number, key: string) => (
