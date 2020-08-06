@@ -10,7 +10,7 @@ import {
   PythonLogo,
   RubyLogo,
   ScalaLogo,
-} from '../graphics'
+} from 'src/writeData/graphics'
 
 export interface ClientLibrary {
   id: string
