@@ -3,9 +3,10 @@ import {produce} from 'immer'
 
 // Types
 import {
+  RESET_VIEWS,
   SET_VIEW,
   SET_VIEWS,
-  RESET_VIEWS,
+  SET_VIEWS_AND_CELLS,
   Action,
 } from 'src/views/actions/creators'
 import {SET_DASHBOARD} from 'src/dashboards/actions/creators'
@@ -34,6 +35,14 @@ const viewsReducer = (
 
       case SET_VIEWS: {
         setResource<View>(draftState, action, ResourceType.Views)
+
+        return
+      }
+      case SET_VIEWS_AND_CELLS: {
+        const {viewsArray} = action
+        viewsArray.forEach(view => {
+          setResource<View>(draftState, view, ResourceType.Views)
+        })
 
         return
       }
