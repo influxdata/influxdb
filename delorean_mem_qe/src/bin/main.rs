@@ -56,7 +56,35 @@ fn main() {
     // println!("{:?}", segments.last("host"));
     // println!("{:?}", segments.segments().last().unwrap().row(14899));
 
-    time_row_by_last_ts(&store);
+    // time_row_by_last_ts(&store);
+
+    let rows = segments
+        .segments()
+        .last()
+        .unwrap()
+        .filter_by_predicate_eq(
+            Some((1590040770000000, 1590040790000000)),
+            vec![
+                ("env", Some(&column::Scalar::String("prod01-us-west-2"))),
+                ("method", Some(&column::Scalar::String("GET"))),
+                (
+                    "host",
+                    Some(&column::Scalar::String("queryd-v1-75bc6f7886-57pxd")),
+                ),
+            ],
+        )
+        .unwrap();
+
+    for row_id in rows.iter() {
+        println!(
+            "{:?} - {:?}",
+            row_id,
+            segments.segments().last().unwrap().row(row_id as usize)
+        );
+    }
+    println!("{:?}", rows.cardinality());
+
+    time_row_by_preds(&store);
 }
 
 fn build_store(
@@ -226,6 +254,51 @@ fn time_row_by_last_ts(store: &Store) {
         let res = segments.segments().last().unwrap().row(row_id).unwrap();
         total_time += now.elapsed();
         total_max += res.len();
+    }
+    println!(
+        "Ran {:?} in {:?} {:?} / call {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        total_max
+    );
+}
+
+fn time_row_by_preds(store: &Store) {
+    let repeat = 100000;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut total_max = 0;
+    let segments = store.segments();
+    for _ in 0..repeat {
+        let now = std::time::Instant::now();
+
+        let rows = segments
+            .segments()
+            .last()
+            .unwrap()
+            .filter_by_predicate_eq(
+                Some((1590040770000000, 1590040790000000)),
+                vec![
+                    ("env", Some(&column::Scalar::String("prod01-us-west-2"))),
+                    ("method", Some(&column::Scalar::String("GET"))),
+                    (
+                        "host",
+                        Some(&column::Scalar::String("queryd-v1-75bc6f7886-57pxd")),
+                    ),
+                ],
+            )
+            .unwrap();
+
+        // for row_id in rows.iter() {
+        //     println!(
+        //         "{:?} - {:?}",
+        //         row_id,
+        //         segments.segments().last().unwrap().row(row_id as usize)
+        //     );
+        // }
+
+        total_time += now.elapsed();
+        total_max += rows.cardinality();
     }
     println!(
         "Ran {:?} in {:?} {:?} / call {:?}",

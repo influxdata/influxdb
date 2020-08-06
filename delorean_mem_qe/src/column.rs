@@ -127,27 +127,89 @@ impl Column {
         }
     }
 
-    pub fn maybe_contains(&self, value: &Scalar) -> bool {
+    pub fn maybe_contains(&self, value: Option<&Scalar>) -> bool {
         match self {
-            Column::String(c) => {
-                if let Scalar::String(v) = value {
-                    c.meta.maybe_contains_value(&v.to_string())
-                } else {
-                    panic!("invalid value");
+            Column::String(c) => match value {
+                Some(scalar) => {
+                    if let Scalar::String(v) = scalar {
+                        c.meta.maybe_contains_value(Some(v.to_string()))
+                    } else {
+                        panic!("invalid value");
+                    }
                 }
-            }
+                None => c.meta.maybe_contains_value(None),
+            },
             Column::Float(c) => {
-                if let Scalar::Float(v) = value {
+                if let Some(Scalar::Float(v)) = value {
                     c.meta.maybe_contains_value(v.to_owned())
                 } else {
-                    panic!("invalid value");
+                    panic!("invalid value or unsupported null");
                 }
             }
             Column::Integer(c) => {
-                if let Scalar::Integer(v) = value {
+                if let Some(Scalar::Integer(v)) = value {
                     c.meta.maybe_contains_value(v.to_owned())
                 } else {
-                    panic!("invalid value");
+                    panic!("invalid value or unsupported null");
+                }
+            }
+        }
+    }
+
+    /// returns true if the column cannot contain
+    pub fn max_less_than(&self, value: Option<&Scalar>) -> bool {
+        match self {
+            Column::String(c) => match value {
+                Some(scalar) => {
+                    if let Scalar::String(v) = scalar {
+                        c.meta.range().1 < Some(&v.to_string())
+                    } else {
+                        panic!("invalid value");
+                    }
+                }
+                None => c.meta.range().1 < None,
+            },
+            Column::Float(c) => {
+                if let Some(Scalar::Float(v)) = value {
+                    c.meta.range().1 < *v
+                } else {
+                    panic!("invalid value or unsupported null");
+                }
+            }
+            Column::Integer(c) => {
+                if let Some(Scalar::Integer(v)) = value {
+                    c.meta.range().1 < *v
+                } else {
+                    panic!("invalid value or unsupported null");
+                }
+            }
+        }
+    }
+
+    pub fn min_greater_than(&self, value: Option<&Scalar>) -> bool {
+        match self {
+            Column::String(c) => match value {
+                Some(scalar) => {
+                    if let Scalar::String(v) = scalar {
+                        c.meta.range().0 > Some(&v.to_string())
+                    } else {
+                        panic!("invalid value");
+                    }
+                }
+                None => c.meta.range().0 > None,
+            },
+            Column::Float(c) => {
+                if let Some(Scalar::Float(v)) = value {
+                    c.meta.range().0 > *v
+                } else {
+                    panic!("invalid value or unsupported null");
+                }
+            }
+            Column::Integer(c) => {
+                if let Some(Scalar::Integer(v)) = value {
+                    c.meta.range().0 > *v
+                } else {
+                    panic!("invalid value or unsupported null");
                 }
             }
         }
@@ -180,6 +242,62 @@ impl Column {
             }
             Column::Float(c) => Some(Scalar::Float(c.meta.range().1)),
             Column::Integer(c) => Some(Scalar::Integer(c.meta.range().1)),
+        }
+    }
+
+    // TODO(edd) shouldn't let roaring stuff leak out...
+    pub fn row_ids_eq(&self, value: Option<&Scalar>) -> Option<croaring::Bitmap> {
+        if !self.maybe_contains(value) {
+            return None;
+        }
+        self.row_ids(value, std::cmp::Ordering::Equal)
+    }
+
+    pub fn row_ids_gt(&self, value: Option<&Scalar>) -> Option<croaring::Bitmap> {
+        if self.max_less_than(value) {
+            return None;
+        }
+        self.row_ids(value, std::cmp::Ordering::Greater)
+    }
+
+    pub fn row_ids_lt(&self, value: Option<&Scalar>) -> Option<croaring::Bitmap> {
+        if self.min_greater_than(value) {
+            return None;
+        }
+        self.row_ids(value, std::cmp::Ordering::Less)
+    }
+
+    // TODO(edd) shouldn't let roaring stuff leak out...
+    fn row_ids(
+        &self,
+        value: Option<&Scalar>,
+        order: std::cmp::Ordering,
+    ) -> Option<croaring::Bitmap> {
+        match self {
+            Column::String(c) => match value {
+                Some(scalar) => {
+                    if let Scalar::String(v) = scalar {
+                        Some(c.data.row_ids_roaring(Some(v.to_string())))
+                    } else {
+                        panic!("invalid value");
+                    }
+                }
+                None => Some(c.data.row_ids_roaring(None)),
+            },
+            Column::Float(c) => {
+                if let Some(Scalar::Float(v)) = value {
+                    Some(c.data.row_ids_roaring(v, order))
+                } else {
+                    panic!("invalid value or unsupported null");
+                }
+            }
+            Column::Integer(c) => {
+                if let Some(Scalar::Integer(v)) = value {
+                    Some(c.data.row_ids_roaring(v, order))
+                } else {
+                    panic!("invalid value or unsupported null");
+                }
+            }
         }
     }
 }
@@ -388,13 +506,8 @@ pub mod metadata {
             self.num_rows
         }
 
-        pub fn maybe_contains_value(&self, v: &str) -> bool {
-            let res = self.range.0 <= Some(v.to_string()) && Some(v.to_string()) <= self.range.1;
-            println!(
-                "column with ({:?}) maybe contain {:?} -- {:?}",
-                self.range, v, res
-            );
-            res
+        pub fn maybe_contains_value(&self, v: Option<String>) -> bool {
+            self.range.0 <= v && v <= self.range.1
         }
 
         pub fn range(&self) -> (Option<&String>, Option<&String>) {

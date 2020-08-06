@@ -117,6 +117,61 @@ impl Segment {
                 .collect::<Vec<Option<column::Scalar>>>(),
         )
     }
+
+    pub fn filter_by_predicate_eq(
+        &self,
+        time_range: Option<(i64, i64)>,
+        predicates: Vec<(&str, Option<&column::Scalar>)>,
+    ) -> Option<croaring::Bitmap> {
+        let mut bm = None;
+        if let Some((min, max)) = time_range {
+            if !self.meta.overlaps_time_range(min, max) {
+                return None; // segment doesn't have time range
+            }
+
+            // TODO THIS COULD BE FASTER!
+
+            // find all timestamps row ids > min time
+            let rows_gt_min =
+                self.columns[self.time_column_idx].row_ids_gt(Some(&column::Scalar::Integer(min)));
+            // find all timestamps < max time
+            let rows_lt_max =
+                self.columns[self.time_column_idx].row_ids_lt(Some(&column::Scalar::Integer(max)));
+
+            // Finally intersect matching timestamp rows
+            if rows_gt_min.is_none() && rows_lt_max.is_none() {
+                return None;
+            } else if rows_gt_min.is_none() {
+                bm = rows_lt_max;
+            } else if rows_lt_max.is_none() {
+                bm = rows_gt_min;
+            } else {
+                let mut rows = rows_gt_min.unwrap();
+                rows.and_inplace(&rows_lt_max.unwrap());
+                if rows.is_empty() {
+                    return None;
+                }
+                bm = Some(rows);
+            }
+        }
+
+        // now intersect matching rows for each column
+        let mut bm = bm.unwrap();
+        for (col_pred_name, col_pred_value) in predicates {
+            if let Some(c) = self.column(col_pred_name) {
+                match c.row_ids_eq(col_pred_value) {
+                    Some(row_ids) => {
+                        bm.and_inplace(&row_ids);
+                        if bm.is_empty() {
+                            return None;
+                        }
+                    }
+                    None => return None, // if this predicate doesn't match then no rows match
+                }
+            }
+        }
+        Some(bm)
+    }
 }
 
 /// Meta data for a segment. This data is mainly used to determine if a segment
@@ -168,21 +223,29 @@ impl<'a> Segments<'a> {
         Self::new(segments)
     }
 
-    pub fn filter_by_predicate_eq(
-        &self,
-        column_name: &str,
-        value: &column::Scalar,
-    ) -> Segments<'a> {
-        let mut segments: Vec<&Segment> = vec![];
-        for segment in &self.segments {
-            if let Some(col) = segment.column(column_name) {
-                if col.maybe_contains(&value) {
-                    segments.push(segment);
-                }
-            }
-        }
-        Self::new(segments)
-    }
+    // pub fn filter_by_predicate_eq(
+    //     &self,
+    //     time_range: Option<(i64, i64)>,
+    //     predicates: Vec<(&str, &column::Scalar)>,
+    // ) -> Option<croaring::Bitmap> {
+    //     let bm = None;
+    //     for segment in self.segments {
+    //         if let Some((min, max)) = time_range {
+    //             if !segment.meta.overlaps_time_range(min, max) {
+    //                 continue; // segment doesn't have time range
+    //             }
+    //         }
+
+    //         // build set of
+
+    //         if let Some(col) = segment.column(column_name) {
+    //             if col.maybe_contains(&value) {
+    //                 segments.push(segment);
+    //             }
+    //         }
+    //     }
+    //     Self::new(segments)
+    // }
 
     /// Returns the minimum value for a column in a set of segments.
     pub fn column_min(&self, column_name: &str) -> Option<column::Scalar> {

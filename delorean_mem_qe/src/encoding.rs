@@ -54,6 +54,40 @@ where
     pub fn scan_from(&self, row_id: usize) -> &[T] {
         &self.values[row_id..]
     }
+
+    /// returns a set of row ids that match an ordering on a desired value
+    pub fn row_ids_roaring(&self, wanted: &T, order: std::cmp::Ordering) -> croaring::Bitmap {
+        let mut bm = croaring::Bitmap::create();
+
+        let mut found = false; //self.values[0];
+        let mut count = 0;
+        for (i, next) in self.values.iter().enumerate() {
+            if next.partial_cmp(wanted) != Some(order) && found {
+                let (min, max) = (i as u64 - count as u64, i as u64);
+                bm.add_range(min..max);
+                found = false;
+                count = 0;
+                continue;
+            } else if next.partial_cmp(wanted) != Some(order) {
+                continue;
+            }
+
+            if !found {
+                found = true;
+            }
+            count += 1;
+        }
+
+        // add any remaining range.
+        if found {
+            let (min, max) = (
+                (self.values.len()) as u64 - count as u64,
+                (self.values.len()) as u64,
+            );
+            bm.add_range(min..max);
+        }
+        bm
+    }
 }
 
 impl From<&[i64]> for PlainFixed<i64> {
@@ -338,6 +372,45 @@ impl std::convert::From<&delorean_table::Packer<delorean_table::ByteArray>> for 
 #[cfg(test)]
 mod test {
     #[test]
+    fn plain_row_ids_roaring_eq() {
+        let input = vec![1, 1, 1, 1, 3, 4, 4, 5, 6, 5, 5, 5, 1, 5];
+        let col = super::PlainFixed::from(input.as_slice());
+
+        let bm = col.row_ids_roaring(&4, std::cmp::Ordering::Equal);
+        assert_eq!(bm.to_vec(), vec![5, 6]);
+
+        let bm = col.row_ids_roaring(&1, std::cmp::Ordering::Equal);
+        assert_eq!(bm.to_vec(), vec![0, 1, 2, 3, 12]);
+
+        let bm = col.row_ids_roaring(&6, std::cmp::Ordering::Equal);
+        assert_eq!(bm.to_vec(), vec![8]);
+
+        let bm = col.row_ids_roaring(&5, std::cmp::Ordering::Equal);
+        assert_eq!(bm.to_vec(), vec![7, 9, 10, 11, 13]);
+
+        let bm = col.row_ids_roaring(&20, std::cmp::Ordering::Equal);
+        assert_eq!(bm.to_vec(), vec![]);
+    }
+
+    #[test]
+    fn plain_row_ids_roaring_gt() {
+        let input = vec![1, 1, 1, 1, 3, 4, 4, 5, 6, 5, 5, 5, 1, 5];
+        let col = super::PlainFixed::from(input.as_slice());
+
+        let bm = col.row_ids_roaring(&0, std::cmp::Ordering::Greater);
+        let exp: Vec<u32> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+        assert_eq!(bm.to_vec(), exp);
+
+        let bm = col.row_ids_roaring(&4, std::cmp::Ordering::Greater);
+        let exp: Vec<u32> = vec![7, 8, 9, 10, 11, 13];
+        assert_eq!(bm.to_vec(), exp);
+
+        let bm = col.row_ids_roaring(&5, std::cmp::Ordering::Greater);
+        let exp: Vec<u32> = vec![8];
+        assert_eq!(bm.to_vec(), exp);
+    }
+
+    #[test]
     fn dict_rle() {
         let mut drle = super::DictionaryRLE::new();
         drle.push("hello");
@@ -427,7 +500,7 @@ mod test {
     }
 
     #[test]
-    fn row_ids() {
+    fn rle_dict_row_ids() {
         let mut drle = super::DictionaryRLE::new();
         drle.push_additional(Some("abc".to_string()), 3);
         drle.push_additional(Some("dre".to_string()), 2);
@@ -451,7 +524,7 @@ mod test {
     }
 
     #[test]
-    fn row_ids_roaring() {
+    fn dict_rle_row_ids_roaring() {
         let mut drle = super::DictionaryRLE::new();
         drle.push_additional(Some("abc".to_string()), 3);
         drle.push_additional(Some("dre".to_string()), 2);
