@@ -16,7 +16,7 @@ import {
   PythonLogo,
   RubyLogo,
   ScalaLogo,
-} from 'src/clientLibraries/graphics'
+} from 'src/writeData/graphics'
 
 export const WRITE_DATA_CLIENT_LIBRARIES: WriteDataItem[] = [
   {

@@ -15,11 +15,7 @@ const ClientLibraryPage: FunctionComponent<Props> = ({title, children}) => {
       <Page.Header fullWidth={false}>
         <Page.Title title={title} />
       </Page.Header>
-      <Page.Contents
-        fullWidth={false}
-        className="client-library-overlay"
-        scrollable={true}
-      >
+      <Page.Contents fullWidth={false} scrollable={true}>
         {children}
       </Page.Contents>
     </Page>
