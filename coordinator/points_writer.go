@@ -309,7 +309,7 @@ func (w *PointsWriter) WritePointsPrivileged(database, retentionPolicy string, c
 // WritePointsPrivilegedWithContext writes the data to the underlying storage,
 // consitencyLevel is only used for clustered scenarios
 //
-// If a request for StatPointsWritten or StatValueWritten of type MetricKey is
+// If a request for StatPointsWritten or StatValuesWritten of type MetricKey is
 // sent via context values, this stores the total points and fields written in
 // the memory pointed to by the associated wth the int64 pointers.
 //
@@ -333,9 +333,9 @@ func (w *PointsWriter) WritePointsPrivilegedWithContext(ctx context.Context, dat
 	// Write each shard in it's own goroutine and return as soon as one fails.
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
-		go func(shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {
+		go func(ctx context.Context, shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {
 			var numPoints, numValues int64
-			ctx := context.WithValue(ctx, tsdb.StatPointsWritten, &numPoints)
+			ctx = context.WithValue(ctx, tsdb.StatPointsWritten, &numPoints)
 			ctx = context.WithValue(ctx, tsdb.StatValuesWritten, &numValues)
 
 			err := w.writeToShardWithContext(ctx, shard, database, retentionPolicy, points)
@@ -352,7 +352,7 @@ func (w *PointsWriter) WritePointsPrivilegedWithContext(ctx context.Context, dat
 			}
 
 			ch <- err
-		}(shardMappings.Shards[shardID], database, retentionPolicy, points)
+		}(ctx, shardMappings.Shards[shardID], database, retentionPolicy, points)
 	}
 
 	// Send points to subscriptions if possible.
