@@ -1,5 +1,4 @@
 import {Bucket, Organization} from '../../src/types'
-import {base64StringToBlob} from 'cypress/types/blob-util'
 
 describe('Buckets', () => {
   beforeEach(() => {
@@ -327,7 +326,7 @@ describe('Buckets', () => {
       cy.getByTestID('bucket-add-line-protocol').click()
       cy.getByTestID('Upload File').click()
 
-      // cy.getByTestID('next').should('be.disabled')
+      cy.getByTestID('write-data--button').should('be.disabled')
 
       const fileName = 'data-big.txt'
       cy.fixture(fileName, 'base64')

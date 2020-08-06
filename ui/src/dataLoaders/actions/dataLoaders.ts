@@ -6,7 +6,6 @@ import {normalize} from 'normalizr'
 import {client} from 'src/utils/api'
 import {ScraperTargetRequest, PermissionResource} from '@influxdata/influx'
 import {createAuthorization} from 'src/authorizations/apis'
-import {postWrite as apiPostWrite} from 'src/client'
 
 // Schemas
 import {authSchema} from 'src/schemas'
@@ -30,14 +29,12 @@ import {
   TelegrafPlugin,
   TelegrafPluginName,
   DataLoaderType,
-  LineProtocolTab,
   Plugin,
   BundleName,
   ConfigurationState,
 } from 'src/types/dataLoaders'
 import {
   GetState,
-  RemoteDataState,
   Authorization,
   AuthEntities,
   ResourceType,
@@ -45,7 +42,6 @@ import {
   Telegraf,
 } from 'src/types'
 import {
-  WritePrecision,
   TelegrafRequest,
   TelegrafPluginOutputInfluxDBV2,
   Permission,
@@ -57,7 +53,6 @@ import {addTelegraf, editTelegraf} from 'src/telegrafs/actions/creators'
 import {addAuthorization} from 'src/authorizations/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
 import {
-  readWriteCardinalityLimitReached,
   TelegrafConfigCreationError,
   TelegrafConfigCreationSuccess,
   TokenCreationError,
@@ -72,10 +67,6 @@ export type Action =
   | AddConfigValue
   | RemoveConfigValue
   | SetActiveTelegrafPlugin
-  | SetLineProtocolBody
-  | SetActiveLPTab
-  | SetLPStatus
-  | SetPrecision
   | UpdateTelegrafPlugin
   | AddPluginBundle
   | AddTelegrafPlugins
@@ -91,13 +82,7 @@ export type Action =
   | SetTelegrafConfigName
   | SetTelegrafConfigDescription
   | SetToken
-  | ReturnType<typeof setLpFileStatus>
 
-export const setLpFileStatus = (lpFileStatus: RemoteDataState) =>
-  ({
-    type: 'SET_LP_FILE_STATUS',
-    payload: {lpFileStatus},
-  } as const)
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
   payload: {type: DataLoaderType}
@@ -558,83 +543,6 @@ export const setPluginConfiguration = (
   type: 'SET_PLUGIN_CONFIGURATION_STATE',
   payload: {telegrafPlugin},
 })
-
-interface SetLineProtocolBody {
-  type: 'SET_LINE_PROTOCOL_BODY'
-  payload: {lineProtocolBody: string}
-}
-
-export const setLineProtocolBody = (
-  lineProtocolBody: string
-): SetLineProtocolBody => ({
-  type: 'SET_LINE_PROTOCOL_BODY',
-  payload: {lineProtocolBody},
-})
-
-interface SetActiveLPTab {
-  type: 'SET_ACTIVE_LP_TAB'
-  payload: {activeLPTab: LineProtocolTab}
-}
-
-export const setActiveLPTab = (
-  activeLPTab: LineProtocolTab
-): SetActiveLPTab => ({
-  type: 'SET_ACTIVE_LP_TAB',
-  payload: {activeLPTab},
-})
-
-interface SetLPStatus {
-  type: 'SET_LP_STATUS'
-  payload: {lpStatus: RemoteDataState; lpError: string}
-}
-
-export const setLPStatus = (
-  lpStatus: RemoteDataState,
-  lpError: string = ''
-): SetLPStatus => ({
-  type: 'SET_LP_STATUS',
-  payload: {lpStatus, lpError},
-})
-
-interface SetPrecision {
-  type: 'SET_PRECISION'
-  payload: {precision: WritePrecision}
-}
-
-export const setPrecision = (precision: WritePrecision): SetPrecision => ({
-  type: 'SET_PRECISION',
-  payload: {precision},
-})
-
-export const writeLineProtocolAction = (
-  org: string,
-  bucket: string,
-  body: string,
-  precision: WritePrecision
-) => async dispatch => {
-  try {
-    dispatch(setLPStatus(RemoteDataState.Loading))
-
-    const resp = await apiPostWrite({
-      data: body,
-      query: {org, bucket, precision},
-    })
-
-    if (resp.status === 204) {
-      dispatch(setLPStatus(RemoteDataState.Done))
-    } else if (resp.status === 429) {
-      dispatch(notify(readWriteCardinalityLimitReached(resp.data.message)))
-      dispatch(setLPStatus(RemoteDataState.Error))
-    } else if (resp.status === 403) {
-      dispatch(setLPStatus(RemoteDataState.Error, resp.data.message))
-    } else {
-      dispatch(setLPStatus(RemoteDataState.Error, 'failed to write data'))
-      throw new Error(get(resp, 'data.message', 'Failed to write data'))
-    }
-  } catch (error) {
-    console.error(error)
-  }
-}
 
 export const saveScraperTarget = () => async (
   dispatch: Dispatch<Action>,

@@ -1,5 +1,8 @@
 // function definitions
+import {WritePrecision as WritePrecisionS} from '@influxdata/influx'
 import {Source} from 'src/types'
+
+export type WritePrecision = WritePrecisionS
 export type OnDeleteFuncNode = (ids: DeleteFuncNodeArgs) => void
 export type OnChangeArg = (inputArg: InputArg) => void
 export type OnAddNode = (
