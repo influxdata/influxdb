@@ -4,17 +4,17 @@ import {Switch, Route} from 'react-router-dom'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import ClientLibrariesRoot from 'src/clientLibraries/components/ClientLibrariesRoot'
-import ArduinoPage from 'src/clientLibraries/components/ClientArduinoPage'
-import CSharpPage from 'src/clientLibraries/components/ClientCSharpPage'
-import GoPage from 'src/clientLibraries/components/ClientGoPage'
-import JavaPage from 'src/clientLibraries/components/ClientJavaPage'
-import JSPage from 'src/clientLibraries/components/ClientJSPage'
-import KotlinPage from 'src/clientLibraries/components/ClientKotlinPage'
-import PHPPage from 'src/clientLibraries/components/ClientPHPPage'
-import PythonPage from 'src/clientLibraries/components/ClientPythonPage'
-import RubyPage from 'src/clientLibraries/components/ClientRubyPage'
-import ScalaPage from 'src/clientLibraries/components/ClientScalaPage'
+import ClientLibrariesIndex from 'src/writeData/components/clientLibraries/ClientLibrariesIndex'
+import ArduinoPage from 'src/writeData/components/clientLibraries/ArduinoPage'
+import CSharpPage from 'src/writeData/components/clientLibraries/CSharpPage'
+import GoPage from 'src/writeData/components/clientLibraries/GoPage'
+import JavaPage from 'src/writeData/components/clientLibraries/JavaPage'
+import JSPage from 'src/writeData/components/clientLibraries/JSPage'
+import KotlinPage from 'src/writeData/components/clientLibraries/KotlinPage'
+import PHPPage from 'src/writeData/components/clientLibraries/PHPPage'
+import PythonPage from 'src/writeData/components/clientLibraries/PythonPage'
+import RubyPage from 'src/writeData/components/clientLibraries/RubyPage'
+import ScalaPage from 'src/writeData/components/clientLibraries/ScalaPage'
 
 // Constants
 import {ORGS, ORG_ID, CLIENT_LIBS} from 'src/shared/constants/routes'
@@ -29,7 +29,7 @@ class ClientLibrariesPage extends PureComponent<{}> {
     return (
       <>
         <Switch>
-          <Route path={clientLibPath} exact component={ClientLibrariesRoot} />
+          <Route path={clientLibPath} exact component={ClientLibrariesIndex} />
           <Route path={`${clientLibPath}/arduino`} component={ArduinoPage} />
           <Route path={`${clientLibPath}/csharp`} component={CSharpPage} />
           <Route path={`${clientLibPath}/go`} component={GoPage} />
