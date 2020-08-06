@@ -57,8 +57,13 @@ var (
 		Code: EInvalid,
 	}
 
+	// ErrPageSizeTooLarge indicates the page size is too large. This error is only
+	// used in the kv task service implementation. The name of this error may lead it
+	// to be used in a place that is not useful. The TaskMaxPageSize is the only one
+	// at 500, the rest at 100. This would likely benefit from a more specific name
+	// since those limits aren't shared globally.
 	ErrPageSizeTooLarge = &Error{
-		Msg:  fmt.Sprintf("cannot use page size larger then %d", MaxPageSize),
+		Msg:  fmt.Sprintf("cannot use page size larger then %d", TaskMaxPageSize),
 		Code: EInvalid,
 	}
 
