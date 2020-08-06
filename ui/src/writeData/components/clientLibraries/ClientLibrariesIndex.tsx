@@ -1,46 +1,19 @@
 // Libraries
-import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import React, {FC} from 'react'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Page} from '@influxdata/clockface'
-import ClientLibraries from 'src/clientLibraries/components/ClientLibraries'
+import WriteDataIndexView from 'src/writeData/components/pageTemplates/WriteDataIndexView'
 
-// Types
-import {AppState, Organization} from 'src/types'
+// Constants
+import WRITE_DATA_CLIENT_LIBRARIES_SECTION from 'src/writeData/constants/contentClientLibraries'
 
-// Utils
-import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-import {getOrg} from 'src/organizations/selectors'
-
-interface StateProps {
-  org: Organization
+const ClientLibrariesIndex: FC = ({children}) => {
+  return (
+    <>
+      <WriteDataIndexView content={WRITE_DATA_CLIENT_LIBRARIES_SECTION} />
+      {children}
+    </>
+  )
 }
 
-@ErrorHandling
-class ClientLibrariesRoot extends PureComponent<StateProps> {
-  public render() {
-    const {org, children} = this.props
-
-    return (
-      <>
-        <Page titleTag={pageTitleSuffixer(['Client Libraries', 'Load Data'])}>
-          <Page.Header fullWidth={false}>
-            <Page.Title title="Client Libraries" />
-          </Page.Header>
-          <Page.Contents fullWidth={false}>
-            <ClientLibraries orgID={org.id} />
-          </Page.Contents>
-        </Page>
-        {children}
-      </>
-    )
-  }
-}
-
-const mstp = (state: AppState) => ({
-  org: getOrg(state),
-})
-
-export default connect<StateProps>(mstp)(ClientLibrariesRoot)
+export default ClientLibrariesIndex

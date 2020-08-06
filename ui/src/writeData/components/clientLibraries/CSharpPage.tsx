@@ -3,7 +3,7 @@ import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import ClientLibraryPageTemplate from 'src/clientLibraries/components/ClientLibraryPageTemplate'
+import ClientLibraryPage from 'src/writeData/components/clientLibraries/ClientLibraryPage'
 import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
 
 // Constants
@@ -39,7 +39,7 @@ const ClientCSharpPage: FunctionComponent<Props> = props => {
   const server = window.location.origin
 
   return (
-    <ClientLibraryPageTemplate title={`${name} Client Library`}>
+    <ClientLibraryPage title={`${name} Client Library`}>
       <p>
         For more detailed and up to date information check out the{' '}
         <a href={url} target="_blank">
@@ -99,7 +99,7 @@ const ClientCSharpPage: FunctionComponent<Props> = props => {
         template={executeQueryCodeSnippet}
         label="C# Code"
       />
-    </ClientLibraryPageTemplate>
+    </ClientLibraryPage>
   )
 }
 
