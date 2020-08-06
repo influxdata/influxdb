@@ -45,7 +45,7 @@ blobs:
   - provider: "s3"
     bucket: "dl.influxdata.com"
     region: "us-east-1"
-    folder: "influxdb/gershon_test"
+    folder: "influxdb/gershon_test/"
 
 archives:
   - id: influxdb_client
