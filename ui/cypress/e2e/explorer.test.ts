@@ -690,7 +690,7 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list first').click({force: true})
+        cy.getByTestID('selector-list last').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
