@@ -28,7 +28,7 @@ import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
 import CheckHistory from 'src/checks/components/CheckHistory'
 import MembersIndex from 'src/members/containers/MembersIndex'
 import RouteToDashboardList from 'src/dashboards/components/RouteToDashboardList'
-import TelegrafPluginsIndex from 'src/writeData/components/telegrafPlugins/TelegrafPluginsIndex'
+import TelegrafPluginsPage from 'src/writeData/containers/TelegrafPluginsPage'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -139,7 +139,7 @@ const SetOrg: FC<Props> = ({
           <Route path={`${orgPath}/notebooks`} component={NotebookPage} />
         )}
 
-        {/* Load Data */}
+        {/* Write Data */}
         <Route
           path={`${orgPath}/${LOAD_DATA}/browse`}
           component={WriteDataPage}
@@ -147,6 +147,17 @@ const SetOrg: FC<Props> = ({
         <Route
           path={`${orgPath}/${LOAD_DATA}/${CLIENT_LIBS}`}
           component={ClientLibrariesPage}
+        />
+        <Route
+          path={`${orgPath}/${LOAD_DATA}/${TELEGRAF_PLUGINS}`}
+          component={TelegrafPluginsPage}
+        />
+
+        {/* Load Data */}
+        <Route
+          exact
+          path={`${orgPath}/${LOAD_DATA}`}
+          component={WriteDataPage}
         />
         <Route
           path={`${orgPath}/${LOAD_DATA}/scrapers`}
@@ -163,17 +174,6 @@ const SetOrg: FC<Props> = ({
         <Route
           path={`${orgPath}/${LOAD_DATA}/buckets`}
           component={BucketsIndex}
-        />
-        <Route
-          exact
-          path={`${orgPath}/${LOAD_DATA}`}
-          component={BucketsIndex}
-        />
-
-        {/* Telegraf Plugins */}
-        <Route
-          path={`${orgPath}/${LOAD_DATA}/${TELEGRAF_PLUGINS}`}
-          component={TelegrafPluginsIndex}
         />
 
         {/* Settings */}

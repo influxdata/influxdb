@@ -3,7 +3,7 @@ import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import TelegrafPluginPage from 'src/writeData/components/pageTemplates/TelegrafPluginPage'
+import TelegrafPluginPage from 'src/writeData/components/telegrafPlugins/TelegrafPluginPage'
 
 // Types
 import {AppState} from 'src/types'
@@ -17,7 +17,7 @@ interface StateProps {
 
 type Props = StateProps
 
-const Bcache: FunctionComponent<Props> = () => {
+const BcachePage: FunctionComponent<Props> = () => {
   return (
     <TelegrafPluginPage title="Bcache">
       <p>Docs go here</p>
@@ -31,5 +31,4 @@ const mstp = (state: AppState) => {
   }
 }
 
-export {Bcache}
-export default connect<StateProps, {}, Props>(mstp, null)(Bcache)
+export default connect<StateProps, {}, Props>(mstp, null)(BcachePage)
