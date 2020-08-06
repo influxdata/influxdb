@@ -56,7 +56,7 @@ fn main() {
     // println!("{:?}", segments.last("host"));
     // println!("{:?}", segments.segments().last().unwrap().row(14899));
 
-    time_row_by_id(&store, 14899);
+    time_row_by_last_ts(&store);
 }
 
 fn build_store(
@@ -214,13 +214,15 @@ fn time_column_first(store: &Store) {
     );
 }
 
-fn time_row_by_id(store: &Store, row_id: usize) {
+fn time_row_by_last_ts(store: &Store) {
     let repeat = 100000;
     let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
     let mut total_max = 0;
-    for _ in 1..repeat {
+    let segments = store.segments();
+    for _ in 0..repeat {
         let now = std::time::Instant::now();
-        let segments = store.segments();
+
+        let (_, _, row_id) = segments.last("time").unwrap();
         let res = segments.segments().last().unwrap().row(row_id).unwrap();
         total_time += now.elapsed();
         total_max += res.len();

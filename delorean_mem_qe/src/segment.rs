@@ -234,7 +234,7 @@ impl<'a> Segments<'a> {
     /// If the time column has multiple max time values then the result is abitrary.
     ///
     /// TODO(edd): could return NULL value..
-    pub fn first(&self, column_name: &str) -> Option<(i64, Option<column::Scalar>)> {
+    pub fn first(&self, column_name: &str) -> Option<(i64, Option<column::Scalar>, usize)> {
         // First let's find the segment with the latest time range.
         // notice we order  a < b on max time range.
         let segment = self
@@ -250,10 +250,9 @@ impl<'a> Segments<'a> {
 
             let min_ts_id = ts_col.row_id_eq_value(min_ts).unwrap();
 
-            println!("first ts is {:?} at row {:?}", min_ts, min_ts_id);
             // now we have row id we can get value for that row id
             let value = segment.column(column_name).unwrap().value(min_ts_id);
-            Some((min_ts, value))
+            Some((min_ts, value, min_ts_id))
         } else {
             panic!("time column wrong type!");
         }
@@ -267,7 +266,7 @@ impl<'a> Segments<'a> {
     /// If the time column has multiple max time values then the result is abitrary.
     ///
     /// TODO(edd): could return NULL value..
-    pub fn last(&self, column_name: &str) -> Option<(i64, Option<column::Scalar>)> {
+    pub fn last(&self, column_name: &str) -> Option<(i64, Option<column::Scalar>, usize)> {
         // First let's find the segment with the latest time range.
         // notice we order a > b on max time range.
         let segment = self
@@ -283,10 +282,9 @@ impl<'a> Segments<'a> {
 
             let max_ts_id = ts_col.row_id_eq_value(max_ts).unwrap();
 
-            println!("last ts is {:?} at row {:?}", max_ts, max_ts_id);
             // now we have row id we can get value for that row id
             let value = segment.column(column_name).unwrap().value(max_ts_id);
-            Some((max_ts, value))
+            Some((max_ts, value, max_ts_id))
         } else {
             panic!("time column wrong type!");
         }
