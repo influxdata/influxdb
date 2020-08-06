@@ -193,6 +193,59 @@ http.post(
             })
         })
     })
+
+    it('can clone a task and edit it', () => {
+      //clone a task
+      cy.getByTestID('task-card')
+        .first()
+        .trigger('mouseover')
+        .then(() => {
+          cy.get('.context-menu--container')
+            .eq(1)
+            .within(() => {
+              cy.getByTestID('context-menu')
+                .click()
+                .then(() => {
+                  cy.getByTestID('context-menu-item')
+                    .contains('Clone')
+                    .click()
+                })
+            })
+        })
+
+      cy.getByTestID('task-card').should('have.length', 2)
+
+      //assert the values of the task and change them
+      cy.getByTestID('task-card--name')
+        .eq(1)
+        .click()
+        .then(() => {
+          cy.getByTestID('task-form-name')
+            .should('have.value', '🦄ask')
+            .then(() => {
+              cy.getByTestID('task-form-name')
+                .click()
+                .clear()
+                .type('Copy task test')
+                .then(() => {
+                  cy.getByTestID('task-form-schedule-input')
+                    .should('have.value', '24h')
+                    .clear()
+                    .type('12h')
+                    .should('have.value', '12h')
+                  cy.getByTestID('task-form-offset-input')
+                    .should('have.value', '20m')
+                    .clear()
+                    .type('10m')
+                    .should('have.value', '10m')
+                  cy.getByTestID('task-save-btn').click()
+                })
+            })
+        })
+
+      //assert changed task name
+      cy.getByTestID('task-card--name').contains('Copy task test')
+    })
   })
 
   describe('Searching and filtering', () => {
