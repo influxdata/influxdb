@@ -1281,7 +1281,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 // returns an error if new points are added to an existing key.
 //
 // In addition, it accepts a context.Context value. It stores write statstics
-// to context values passed in of type tsdb.MetricKey. The metrics it stores
+// to context values passed in of type tsdb.ContextKey. The metrics it stores
 // are points written and values (fields) written.
 //
 // It expects int64 pointers to be stored in the tsdb.StatPointsWritten and

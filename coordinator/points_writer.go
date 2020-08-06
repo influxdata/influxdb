@@ -289,10 +289,10 @@ func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistency
 
 }
 
-type MetricKey int
+type ContextKey int
 
 const (
-	StatPointsWritten = MetricKey(iota)
+	StatPointsWritten = ContextKey(iota)
 	StatValuesWritten
 )
 
@@ -309,7 +309,7 @@ func (w *PointsWriter) WritePointsPrivileged(database, retentionPolicy string, c
 // WritePointsPrivilegedWithContext writes the data to the underlying storage,
 // consitencyLevel is only used for clustered scenarios
 //
-// If a request for StatPointsWritten or StatValuesWritten of type MetricKey is
+// If a request for StatPointsWritten or StatValuesWritten of type ContextKey is
 // sent via context values, this stores the total points and fields written in
 // the memory pointed to by the associated wth the int64 pointers.
 //

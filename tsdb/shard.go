@@ -500,17 +500,17 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	return s.WritePointsWithContext(context.Background(), points)
 }
 
-type MetricKey int
+type ConetextKey int
 
 const (
-	StatPointsWritten = MetricKey(iota)
+	StatPointsWritten = ConetextKey(iota)
 	StatValuesWritten
 )
 
 // WritePointsWithContext() will write the raw data points and any new metadata
 // to the index in the shard.
 //
-// If a context key of type MetricKey is passed in, WritePointsWithContext()
+// If a context key of type ConetextKey is passed in, WritePointsWithContext()
 // will store points written stats into the int64 pointer associated with
 // StatPointsWritten and the number of values written in the int64 pointer
 // stored in the StatValuesWritten context values.
