@@ -1,98 +1,16 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {connect} from 'react-redux'
 
 // Components
-import ClientLibraryPage from 'src/writeData/components/clientLibraries/ClientLibraryPage'
-import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
+import TelegrafPluginPage from 'src/writeData/components/telegrafPlugins/TelegrafPluginPage'
 
-// Constants
-import {clientArduinoLibrary} from 'src/clientLibraries/constants'
+// Markdown
+import markdown from 'src/writeData/components/clientLibraries/Arduino.md'
 
-// Types
-import {AppState} from 'src/types'
-
-// Selectors
-import {getOrg} from 'src/organizations/selectors'
-
-interface StateProps {
-  org: string
-}
-
-type Props = StateProps
-
-const ClientArduinoPage: FunctionComponent<Props> = props => {
-  const {
-    name,
-    url,
-    installingLibraryManagerCodeSnippet,
-    installingManualCodeSnippet,
-    initializeClientCodeSnippet,
-    writingDataPointCodeSnippet,
-    executeQueryCodeSnippet,
-  } = clientArduinoLibrary
-  const {org} = props
-  const server = window.location.origin
-
+const ClientArduinoPage: FunctionComponent = () => {
   return (
-    <ClientLibraryPage title={`${name} Client Library`}>
-      <p>
-        For more detailed and up to date information check out the{' '}
-        <a href={url} target="_blank">
-          GitHub Repository
-        </a>
-      </p>
-      <h5>Install Library</h5>
-      <p>Library Manager</p>
-      <TemplatedCodeSnippet
-        template={installingLibraryManagerCodeSnippet}
-        label="Guide"
-      />
-      <p>Manual Installation</p>
-      <TemplatedCodeSnippet
-        template={installingManualCodeSnippet}
-        label="Guide"
-        defaults={{
-          url: 'url',
-        }}
-        values={{
-          url,
-        }}
-      />
-      <h5>Initialize the Client</h5>
-      <TemplatedCodeSnippet
-        template={initializeClientCodeSnippet}
-        label="Arduino Code"
-        defaults={{
-          server: 'basepath',
-          token: 'token',
-          org: 'orgID',
-          bucket: 'bucketID',
-        }}
-        values={{
-          server,
-          org,
-        }}
-      />
-      <h5>Write Data</h5>
-      <TemplatedCodeSnippet
-        template={writingDataPointCodeSnippet}
-        label="Arduino Code"
-      />
-      <h5>Execute a Flux query</h5>
-      <TemplatedCodeSnippet
-        template={executeQueryCodeSnippet}
-        label="Arduino Code"
-      />
-    </ClientLibraryPage>
+    <TelegrafPluginPage title="Arduino Client Library" markdown={markdown} />
   )
 }
 
-const mstp = (state: AppState) => {
-  return {
-    org: getOrg(state).id,
-  }
-}
-
-export {ClientArduinoPage}
-export default connect<StateProps, {}, Props>(mstp, null)(ClientArduinoPage)
+export default ClientArduinoPage

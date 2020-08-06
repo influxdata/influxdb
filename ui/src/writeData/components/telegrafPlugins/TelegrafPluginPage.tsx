@@ -12,7 +12,7 @@ interface Props {
   children?: ReactNode
 }
 
-const codeRenderer: Renderer<HTMLPreElement> = (props: HTMLPreElement): any => {
+const codeRenderer: Renderer<HTMLPreElement> = (props: any): any => {
   return <CodeSnippet copyText={props.value} label={props.language} />
 }
 
