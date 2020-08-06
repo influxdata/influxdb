@@ -2,21 +2,11 @@
 import {SFC} from 'react'
 
 // Constants
-import {CLIENT_LIBS, TELEGRAF_PLUGINS} from 'src/shared/constants/routes'
-
-// Graphics
-import {
-  ArduinoLogo,
-  CSharpLogo,
-  GoLogo,
-  JavaLogo,
-  JSLogo,
-  KotlinLogo,
-  PHPLogo,
-  PythonLogo,
-  RubyLogo,
-  ScalaLogo,
-} from 'src/clientLibraries/graphics'
+import WRITE_DATA_CLIENT_LIBRARIES_SECTION from 'src/writeData/constants/contentClientLibraries'
+import WRITE_DATA_TELEGRAF_PLUGINS_SECTION from 'src/writeData/constants/contentTelegrafPlugins'
+import WRITE_DATA_INTEGRATIONS_SECTION from 'src/writeData/constants/contentIntegrations'
+import WRITE_DATA_FLUX_SOURCES_SECTION from 'src/writeData/constants/contentFluxSources'
+import WRITE_DATA_DEVELOPER_TOOLS_SECTION from 'src/writeData/constants/contentDeveloperTools'
 
 // Types
 export interface WriteDataItem {
@@ -33,107 +23,13 @@ export interface WriteDataSection {
   items: WriteDataItem[]
 }
 
-// Section Items
-// NOTE: url begins with `orgs/orgid/load-data/`
-export const WRITE_DATA_CLIENT_LIBRARIES: WriteDataItem[] = [
-  {
-    id: 'arduino',
-    name: 'Arduino',
-    url: `${CLIENT_LIBS}/arduino`,
-    image: ArduinoLogo,
-  },
-  {
-    id: 'csharp',
-    name: 'C#',
-    url: `${CLIENT_LIBS}/csharp`,
-    image: CSharpLogo,
-  },
-  {
-    id: 'go',
-    name: 'GO',
-    url: `${CLIENT_LIBS}/go`,
-    image: GoLogo,
-  },
-  {
-    id: 'java',
-    name: 'Java',
-    url: `${CLIENT_LIBS}/java`,
-    image: JavaLogo,
-  },
-  {
-    id: 'javascript-node',
-    name: 'JavaScript/Node.js',
-    url: `${CLIENT_LIBS}/javascript-node`,
-    image: JSLogo,
-  },
-  {
-    id: 'python',
-    name: 'Python',
-    url: `${CLIENT_LIBS}/python`,
-    image: PythonLogo,
-  },
-  {
-    id: 'ruby',
-    name: 'Ruby',
-    url: `${CLIENT_LIBS}/ruby`,
-    image: RubyLogo,
-  },
-  {
-    id: 'php',
-    name: 'PHP',
-    url: `${CLIENT_LIBS}/php`,
-    image: PHPLogo,
-  },
-  {
-    id: 'kotlin',
-    name: 'Kotlin',
-    url: `${CLIENT_LIBS}/kotlin`,
-    image: KotlinLogo,
-  },
-  {
-    id: 'scala',
-    name: 'Scala',
-    url: `${CLIENT_LIBS}/scala`,
-    image: ScalaLogo,
-  },
-]
-
-export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
-  {
-    id: 'bcache',
-    name: 'Bcache',
-    url: `${TELEGRAF_PLUGINS}/bcache`,
-  },
-]
-
-export const WRITE_DATA_INTEGRATIONS: WriteDataItem[] = [
-  {
-    id: 'integrationa',
-    name: 'IntegrationA',
-    url: '',
-  },
-]
-
 // Sections
 export const WRITE_DATA_SECTIONS: WriteDataSection[] = [
-  {
-    id: 'client-libraries',
-    name: 'Client Libraries',
-    description: 'Back-end, front-end, and mobile applications',
-    items: WRITE_DATA_CLIENT_LIBRARIES,
-  },
-  {
-    id: 'telegraf-plugins',
-    name: 'Telegraf Plugins',
-    description: 'Description goes here',
-    items: WRITE_DATA_TELEGRAF_PLUGINS,
-  },
-  {
-    id: 'integrations',
-    name: 'Integrations',
-    description: 'Description goes here',
-    items: WRITE_DATA_INTEGRATIONS,
-  },
+  WRITE_DATA_CLIENT_LIBRARIES_SECTION,
+  WRITE_DATA_TELEGRAF_PLUGINS_SECTION,
+  WRITE_DATA_INTEGRATIONS_SECTION,
+  WRITE_DATA_DEVELOPER_TOOLS_SECTION,
+  WRITE_DATA_FLUX_SOURCES_SECTION,
 ]
 
 // Functions

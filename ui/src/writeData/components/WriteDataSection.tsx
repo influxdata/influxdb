@@ -47,7 +47,6 @@ const WriteDataSection: FC<WriteDataSection> = ({
       <Heading
         element={HeadingElement.H5}
         weight={FontWeight.Regular}
-        underline={true}
         style={{marginBottom: '12px'}}
       >
         {description}
