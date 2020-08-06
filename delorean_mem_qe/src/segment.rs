@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use super::column;
 use super::column::Column;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Segment {
     meta: SegmentMetaData,
 
@@ -14,9 +14,13 @@ pub struct Segment {
 
 impl Segment {
     pub fn new(rows: usize) -> Self {
-        let mut segment = Self::default();
-        segment.meta.rows = rows;
-        segment
+        let mut meta = SegmentMetaData::default();
+        meta.rows = rows;
+        Self {
+            meta,
+            columns: vec![],
+            time_column_idx: 0,
+        }
     }
 
     pub fn num_rows(&self) -> usize {
@@ -40,6 +44,15 @@ impl Segment {
     }
 
     pub fn add_column(&mut self, name: &str, c: column::Column) {
+        assert_eq!(
+            self.meta.rows,
+            c.num_rows(),
+            "Column {:?} has {:?} rows but wanted {:?}",
+            name,
+            c.num_rows(),
+            self.meta.rows
+        );
+
         // TODO(edd) yuk
         if name == "time" {
             if let column::Column::Integer(ts) = &c {
@@ -49,7 +62,6 @@ impl Segment {
             }
             self.time_column_idx = self.columns.len();
         }
-        self.meta.rows = c.num_rows();
 
         // validate column doesn't already exist in segment
         assert!(!self.meta.column_names.contains(&name.to_owned()));
@@ -85,6 +97,13 @@ impl Segment {
         }
         column_sizes
     }
+
+    pub fn scan_from(&self, column_name: &str, row_id: usize) -> Option<column::Vector> {
+        if let Some(i) = self.column_names().iter().position(|c| c == column_name) {
+            return self.columns[i].scan_from(row_id);
+        }
+        None
+    }
 }
 
 /// Meta data for a segment. This data is mainly used to determine if a segment
@@ -114,11 +133,14 @@ impl<'a> Segments<'a> {
         Self { segments }
     }
 
+    pub fn segments(&self) -> &Vec<&'a Segment> {
+        &self.segments
+    }
+
     pub fn filter_by_time(&self, min: i64, max: i64) -> Segments<'a> {
         let mut segments: Vec<&Segment> = vec![];
         for segment in &self.segments {
             if segment.meta.overlaps_time_range(min, max) {
-                println!("Segement {:?} overlaps", segment.meta);
                 segments.push(segment);
             }
         }
@@ -186,7 +208,7 @@ impl<'a> Segments<'a> {
     /// Returns the first value for a column in a set of segments.
     ///
     /// TODO(edd): could return NULL value..
-    pub fn first(&self, column_name: &str) -> Option<(i64, Option<column::Scalar>)> {
+    pub fn first(&self, column_name: &str, min_ts: i64) -> Option<(i64, Option<column::Scalar>)> {
         if self.segments.is_empty() {
             return None;
         }
@@ -195,12 +217,14 @@ impl<'a> Segments<'a> {
         for segment in &self.segments {
             // first find the logical row id of the minimum timestamp value
             if let Column::Integer(ts_col) = &segment.columns[segment.time_column_idx] {
-                // TODO(edd): clean up unwr
-                let min_ts = ts_col.column_range().0;
-                let min_ts_id = ts_col.row_id_for_value(min_ts).unwrap();
+                let first_ts_id = ts_col.row_id_ge_value(min_ts)?;
 
+                println!("first ts is {:?}", first_ts_id);
                 // now we have row id we can get value for that row id
-                let value = segment.column(column_name).unwrap().value(min_ts_id);
+                let value = segment
+                    .column(column_name)
+                    .unwrap()
+                    .scan_from_until_some(first_ts_id);
 
                 match &first_first {
                     Some(prev) => {
@@ -230,7 +254,7 @@ impl<'a> Segments<'a> {
             if let Column::Integer(ts_col) = &segment.columns[segment.time_column_idx] {
                 // TODO(edd): clean up unwr
                 let max_ts = ts_col.column_range().1;
-                let max_ts_id = ts_col.row_id_for_value(max_ts).unwrap();
+                let max_ts_id = ts_col.row_id_eq_value(max_ts).unwrap();
 
                 // now we have row id we can get value for that row id
                 let value = segment.column(column_name).unwrap().value(max_ts_id);

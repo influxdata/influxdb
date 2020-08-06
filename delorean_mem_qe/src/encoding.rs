@@ -23,19 +23,36 @@ pub struct PlainFixed<T> {
 
 impl<T> PlainFixed<T>
 where
-    T: PartialEq + Copy,
+    T: PartialEq + PartialOrd + Copy + std::fmt::Debug,
 {
     pub fn size(&self) -> usize {
         self.values.len() * std::mem::size_of::<T>()
     }
 
-    pub fn row_id_for_value(&self, v: T) -> Option<usize> {
+    pub fn row_id_eq_value(&self, v: T) -> Option<usize> {
         self.values.iter().position(|x| *x == v)
+    }
+
+    pub fn row_id_ge_value(&self, v: T) -> Option<usize> {
+        self.values.iter().position(|x| *x >= v)
     }
 
     // get value at row_id. Panics if out of bounds.
     pub fn value(&self, row_id: usize) -> T {
         self.values[row_id]
+    }
+
+    // TODO(edd): fix this when added NULL support
+    pub fn scan_from_until_some(&self, row_id: usize) -> Option<T> {
+        unreachable!("to remove");
+        // for v in self.values.iter().skip(row_id) {
+        //     return Some(*v);
+        // }
+        // None
+    }
+
+    pub fn scan_from(&self, row_id: usize) -> &[T] {
+        &self.values[row_id..]
     }
 }
 
@@ -213,6 +230,60 @@ impl DictionaryRLE {
         None
     }
 
+    // materialise a slice of rows starting from index.
+    pub fn scan_from(&self, index: usize) -> Vec<&Option<String>> {
+        let mut result = vec![];
+        if index >= self.total as usize {
+            return result;
+        }
+
+        let start_row_id = index as u64;
+
+        let mut curr_row_id = 0_u64; // this tracks the logical row id.
+        for (idx, rl) in &self.run_lengths {
+            // Fast path - at this point we are just materialising the RLE
+            // contents.
+            if curr_row_id > start_row_id {
+                let row_entry = self.index_entry.get(idx).unwrap();
+                result.extend(vec![row_entry; *rl as usize]);
+                curr_row_id += rl;
+                continue;
+            }
+
+            // Once we have reached the desired starting row_id we can emit values.
+            if (curr_row_id + *rl) >= start_row_id {
+                // Since it's unlikely that the desired row falls on a new RLE
+                // boundary we need to account for a partial RLE entry and only
+                // populate some of the remaining entry
+                let remainder = (curr_row_id + rl) - start_row_id;
+                let row_entry = self.index_entry.get(idx).unwrap();
+                result.extend(vec![row_entry; remainder as usize]);
+            }
+
+            // move onto next RLE entry.
+            curr_row_id += *rl;
+        }
+        result
+    }
+
+    // // get the logical value at the provided index, or scan to the next value
+    // // that is non-null.
+    // pub fn scan_from_until_some(&self, index: usize) -> Option<&String> {
+    //     if index < self.total as usize {
+    //         let mut total = 0;
+    //         for (idx, rl) in &self.run_lengths {
+    //             if total + rl > index as u64 {
+    //                 // If there is a value then return otherwise continue.
+    //                 if let Some(v) = self.index_entry.get(idx) {
+    //                     return v.as_ref();
+    //                 }
+    //             }
+    //             total += rl;
+    //         }
+    //     }
+    //     None
+    // }
+
     // values materialises a vector of references to all logical values in the
     // encoding.
     pub fn values(&mut self) -> Vec<Option<&String>> {
@@ -316,6 +387,46 @@ mod test {
     }
 
     #[test]
+    fn dict_rle_scan_from() {
+        let mut drle = super::DictionaryRLE::new();
+        let west = Some("west".to_string());
+        let east = Some("east".to_string());
+        let north = Some("north".to_string());
+        drle.push_additional(west.clone(), 3);
+        drle.push_additional(east.clone(), 2);
+        drle.push_additional(north.clone(), 4);
+
+        // all entries
+        let results = drle.scan_from(0);
+        let mut exp = vec![&west; 3];
+        exp.extend(vec![&east; 2].iter());
+        exp.extend(vec![&north; 4].iter());
+        assert_eq!(results, exp);
+
+        // partial results from an RLE entry
+        let results = drle.scan_from(2);
+        let mut exp = vec![&west; 1]; // notice partial results
+        exp.extend(vec![&east; 2].iter());
+        exp.extend(vec![&north; 4].iter());
+        assert_eq!(results, exp);
+
+        // right on a boundary
+        let results = drle.scan_from(3);
+        let mut exp = vec![&east; 2];
+        exp.extend(vec![&north; 4].iter());
+        assert_eq!(results, exp);
+
+        // partial final result
+        let results = drle.scan_from(6);
+        assert_eq!(results, vec![&north; 3]);
+
+        // out of bounds
+        let results = drle.scan_from(9);
+        let exp: Vec<&Option<String>> = vec![];
+        assert_eq!(results, exp);
+    }
+
+    #[test]
     fn row_ids() {
         let mut drle = super::DictionaryRLE::new();
         drle.push_additional(Some("abc".to_string()), 3);
@@ -335,7 +446,8 @@ mod test {
         let ids = drle
             .row_ids(Some("foo".to_string()))
             .collect::<Vec<usize>>();
-        assert_eq!(ids, vec![]);
+        let empty: Vec<usize> = vec![];
+        assert_eq!(ids, empty);
     }
 
     #[test]
@@ -361,6 +473,7 @@ mod test {
             .row_ids_roaring(Some("foo".to_string()))
             .iter()
             .collect::<Vec<u32>>();
-        assert_eq!(ids, vec![]);
+        let empty: Vec<u32> = vec![];
+        assert_eq!(ids, empty);
     }
 }

@@ -10,6 +10,13 @@ pub enum Scalar<'a> {
 }
 
 #[derive(Debug)]
+pub enum Vector<'a> {
+    String(Vec<&'a Option<std::string::String>>),
+    Float(&'a [f64]),
+    Integer(&'a [i64]),
+}
+
+#[derive(Debug)]
 pub enum Column {
     String(String),
     Float(Float),
@@ -58,6 +65,64 @@ impl Column {
                     return None;
                 }
                 Some(Scalar::Integer(c.value(row_id)))
+            }
+        }
+    }
+
+    /// materialise all rows including and after row_id
+    pub fn scan_from(&self, row_id: usize) -> Option<Vector> {
+        if row_id >= self.num_rows() {
+            println!(
+                "asking for {:?} but only got {:?} rows",
+                row_id,
+                self.num_rows()
+            );
+            return None;
+        }
+
+        println!(
+            "asking for {:?} with a column having {:?} rows",
+            row_id,
+            self.num_rows()
+        );
+        match self {
+            Column::String(c) => Some(Vector::String(c.scan_from(row_id))),
+            Column::Float(c) => Some(Vector::Float(c.scan_from(row_id))),
+            Column::Integer(c) => Some(Vector::Integer(c.scan_from(row_id))),
+        }
+    }
+
+    /// Given the provided row_id scans the column until a non-null value found
+    /// or the column is exhausted.
+    pub fn scan_from_until_some(&self, row_id: usize) -> Option<Scalar> {
+        match self {
+            Column::String(c) => {
+                if row_id >= self.num_rows() {
+                    return None;
+                }
+
+                match c.scan_from_until_some(row_id) {
+                    Some(v) => Some(Scalar::String(v)),
+                    None => None,
+                }
+            }
+            Column::Float(c) => {
+                if row_id >= self.num_rows() {
+                    return None;
+                }
+                match c.scan_from_until_some(row_id) {
+                    Some(v) => Some(Scalar::Float(v)),
+                    None => None,
+                }
+            }
+            Column::Integer(c) => {
+                if row_id >= self.num_rows() {
+                    return None;
+                }
+                match c.scan_from_until_some(row_id) {
+                    Some(v) => Some(Scalar::Integer(v)),
+                    None => None,
+                }
             }
         }
     }
@@ -144,7 +209,7 @@ impl String {
     }
 
     pub fn add_additional(&mut self, s: Option<std::string::String>, additional: u64) {
-        self.meta.add(s.clone());
+        self.meta.add_repeated(s.clone(), additional as usize);
         self.data.push_additional(s, additional);
     }
 
@@ -158,6 +223,15 @@ impl String {
 
     pub fn value(&self, row_id: usize) -> Option<&std::string::String> {
         self.data.value(row_id)
+    }
+
+    pub fn scan_from(&self, row_id: usize) -> Vec<&Option<std::string::String>> {
+        self.data.scan_from(row_id)
+    }
+
+    pub fn scan_from_until_some(&self, row_id: usize) -> Option<&std::string::String> {
+        unreachable!("don't need this");
+        // self.data.scan_from_until_some(row_id)
     }
 }
 
@@ -180,6 +254,14 @@ impl Float {
 
     pub fn value(&self, row_id: usize) -> f64 {
         self.data.value(row_id)
+    }
+
+    pub fn scan_from(&self, row_id: usize) -> &[f64] {
+        self.data.scan_from(row_id)
+    }
+
+    pub fn scan_from_until_some(&self, row_id: usize) -> Option<f64> {
+        self.data.scan_from_until_some(row_id)
     }
 }
 
@@ -223,12 +305,28 @@ impl Integer {
         self.data.value(row_id)
     }
 
+    pub fn scan_from(&self, row_id: usize) -> &[i64] {
+        self.data.scan_from(row_id)
+    }
+
+    pub fn scan_from_until_some(&self, row_id: usize) -> Option<i64> {
+        self.data.scan_from_until_some(row_id)
+    }
+
     /// Find the first logical row that contains this value.
-    pub fn row_id_for_value(&self, v: i64) -> Option<usize> {
+    pub fn row_id_eq_value(&self, v: i64) -> Option<usize> {
         if !self.meta.maybe_contains_value(v) {
             return None;
         }
-        self.data.row_id_for_value(v)
+        self.data.row_id_eq_value(v)
+    }
+
+    /// Find the first logical row that contains a value >= v
+    pub fn row_id_ge_value(&self, v: i64) -> Option<usize> {
+        if self.meta.max() < v {
+            return None;
+        }
+        self.data.row_id_ge_value(v)
     }
 }
 
@@ -263,11 +361,23 @@ pub mod metadata {
         pub fn add(&mut self, s: Option<String>) {
             self.num_rows += 1;
 
-            if self.range.0 > s {
+            if s < self.range.0 {
                 self.range.0 = s.clone();
             }
 
-            if self.range.1 < s {
+            if s > self.range.1 {
+                self.range.1 = s;
+            }
+        }
+
+        pub fn add_repeated(&mut self, s: Option<String>, additional: usize) {
+            self.num_rows += additional;
+
+            if s < self.range.0 {
+                self.range.0 = s.clone();
+            }
+
+            if s > self.range.1 {
                 self.range.1 = s;
             }
         }
@@ -347,6 +457,10 @@ pub mod metadata {
 
         pub fn maybe_contains_value(&self, v: i64) -> bool {
             self.range.0 <= v && v <= self.range.1
+        }
+
+        pub fn max(&self) -> i64 {
+            self.range.1
         }
 
         pub fn num_rows(&self) -> usize {

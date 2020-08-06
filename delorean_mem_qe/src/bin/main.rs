@@ -43,11 +43,16 @@ fn main() {
     let res = segments.last("host").unwrap();
     println!("{:?}", res);
 
-    let segments = segments
-        .filter_by_time(1590036110000000, 1590044410000000)
-        .filter_by_predicate_eq("env", &column::Scalar::String("prod01-eu-central-1"));
-    let res = segments.first("env");
-    println!("{:?}", res);
+    // let segments = segments
+    //     .filter_by_time(1590036110000000, 1590044410000000)
+    //     .filter_by_predicate_eq("env", &column::Scalar::String("prod01-eu-central-1"));
+    // let res = segments.first(
+    //     "env",
+    //     &column::Scalar::String("prod01-eu-central-1"),
+    //     1590036110000000,
+    // );
+    // println!("{:?}", res);
+    // let segments = segments.filter_by_time(1590036110000000, 1590044410000000);
 }
 
 fn build_store(
@@ -62,7 +67,7 @@ fn build_store(
 }
 
 fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
-    let mut segment = Segment::default();
+    let mut segment = Segment::new(rb.num_rows());
 
     // println!("cols {:?} rows {:?}", rb.num_columns(), rb.num_rows());
     for (i, column) in rb.columns().iter().enumerate() {
@@ -95,28 +100,37 @@ fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
                     .unwrap();
 
                 let mut c = column::String::default();
-                let mut prev: Option<&str> = None;
-                if !column.is_null(0) {
-                    prev = Some(arr.value(0));
-                }
+                let mut prev = if !column.is_null(0) {
+                    Some(arr.value(0))
+                } else {
+                    None
+                };
 
                 let mut count = 1_u64;
                 for j in 1..arr.len() {
-                    let mut next = Some(arr.value(j));
-                    if column.is_null(j) {
-                        next = None;
-                    }
+                    let next = if column.is_null(j) {
+                        None
+                    } else {
+                        Some(arr.value(j))
+                    };
 
                     if prev == next {
                         count += 1;
-                    } else {
-                        match prev {
-                            Some(x) => c.add_additional(Some(x.to_string()), count),
-                            None => c.add_additional(None, count),
-                        }
-                        prev = next;
-                        count = 1;
+                        continue;
                     }
+
+                    match prev {
+                        Some(x) => c.add_additional(Some(x.to_string()), count),
+                        None => c.add_additional(None, count),
+                    }
+                    prev = next;
+                    count = 1;
+                }
+
+                // Add final batch to column if any
+                match prev {
+                    Some(x) => c.add_additional(Some(x.to_string()), count),
+                    None => c.add_additional(None, count),
                 }
 
                 segment.add_column(rb.schema().field(i).name(), Column::String(c));
@@ -183,7 +197,7 @@ fn time_column_first(store: &Store) {
     for _ in 1..repeat {
         let now = std::time::Instant::now();
         let segments = store.segments();
-        let res = segments.first("host").unwrap();
+        let res = segments.first("host", 0).unwrap();
         total_time += now.elapsed();
         total_max += res.0;
     }
