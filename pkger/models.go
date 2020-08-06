@@ -650,7 +650,8 @@ type SummaryLabelMapping struct {
 type SummaryReference struct {
 	Field        string      `json:"resourceField"`
 	EnvRefKey    string      `json:"envRefKey"`
-	Value        string      `json:"value"`
+	ValType      string      `json:"valueType"`
+	Value        interface{} `json:"value"`
 	DefaultValue interface{} `json:"defaultValue"`
 }
 

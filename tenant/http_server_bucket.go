@@ -313,10 +313,7 @@ func (b *postBucketRequest) OK() error {
 
 	// names starting with an underscore are reserved for system buckets
 	if err := validBucketName(b.toInfluxDB()); err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
-			Msg:  err.Error(),
-		}
+		return err
 	}
 
 	return nil
@@ -496,6 +493,14 @@ func validBucketName(bucket *influxdb.Bucket) error {
 			Code: influxdb.EInvalid,
 			Op:   "http/bucket",
 			Msg:  fmt.Sprintf("bucket name %s is invalid. Buckets may not start with underscore", bucket.Name),
+		}
+	}
+	// quotation marks will cause queries to fail
+	if strings.Contains(bucket.Name, "\"") {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Op:   "http/bucket",
+			Msg:  fmt.Sprintf("bucket name %s is invalid. Bucket names may not include quotation marks", bucket.Name),
 		}
 	}
 	return nil

@@ -19,7 +19,6 @@ import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 
 // Utilities
-import {writeNavigationTimingMetrics} from 'src/cloud/utils/rum'
 import {getRootNode} from 'src/utils/nodes'
 import {updateReportingContext} from 'src/cloud/utils/reporting'
 
@@ -87,7 +86,3 @@ class Root extends PureComponent {
 if (rootNode) {
   render(<Root />, rootNode)
 }
-
-window.addEventListener('load', () => {
-  writeNavigationTimingMetrics()
-})

@@ -9,6 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/edit"
+	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
@@ -63,6 +66,7 @@ const (
 	fieldName         = "name"
 	fieldOffset       = "offset"
 	fieldOperator     = "operator"
+	fieldParams       = "params"
 	fieldPrefix       = "prefix"
 	fieldQuery        = "query"
 	fieldSuffix       = "suffix"
@@ -422,6 +426,7 @@ const (
 	chartKindHeatMap            chartKind = "heatmap"
 	chartKindHistogram          chartKind = "histogram"
 	chartKindMarkdown           chartKind = "markdown"
+	chartKindMosaic             chartKind = "mosaic"
 	chartKindScatter            chartKind = "scatter"
 	chartKindSingleStat         chartKind = "single_stat"
 	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
@@ -432,8 +437,9 @@ const (
 func (c chartKind) ok() bool {
 	switch c {
 	case chartKindGauge, chartKindHeatMap, chartKindHistogram,
-		chartKindMarkdown, chartKindScatter, chartKindSingleStat,
-		chartKindSingleStatPlusLine, chartKindTable, chartKindXY:
+		chartKindMarkdown, chartKindMosaic, chartKindScatter,
+		chartKindSingleStat, chartKindSingleStatPlusLine, chartKindTable,
+		chartKindXY:
 		return true
 	default:
 		return false
@@ -455,7 +461,7 @@ type dashboard struct {
 	identity
 
 	Description string
-	Charts      []chart
+	Charts      []*chart
 
 	labels sortedLabels
 }
@@ -468,8 +474,16 @@ func (d *dashboard) ResourceType() influxdb.ResourceType {
 	return KindDashboard.ResourceType()
 }
 
+func (d *dashboard) refs() []*references {
+	var queryRefs []*references
+	for _, c := range d.Charts {
+		queryRefs = append(queryRefs, c.Queries.references()...)
+	}
+	return append([]*references{d.name, d.displayName}, queryRefs...)
+}
+
 func (d *dashboard) summarize() SummaryDashboard {
-	iDash := SummaryDashboard{
+	sum := SummaryDashboard{
 		SummaryIdentifier: SummaryIdentifier{
 			Kind:          KindDashboard,
 			MetaName:      d.MetaName(),
@@ -479,16 +493,27 @@ func (d *dashboard) summarize() SummaryDashboard {
 		Description:       d.Description,
 		LabelAssociations: toSummaryLabels(d.labels...),
 	}
-	for _, c := range d.Charts {
-		iDash.Charts = append(iDash.Charts, SummaryChart{
+
+	for chartIdx, c := range d.Charts {
+		sum.Charts = append(sum.Charts, SummaryChart{
 			Properties: c.properties(),
 			Height:     c.Height,
 			Width:      c.Width,
 			XPosition:  c.XPos,
 			YPosition:  c.YPos,
 		})
+		for qIdx, q := range c.Queries {
+			for _, ref := range q.params {
+				parts := strings.Split(ref.EnvRef, ".")
+				field := fmt.Sprintf("spec.charts[%d].queries[%d].params.%s", chartIdx, qIdx, parts[len(parts)-1])
+				sum.EnvReferences = append(sum.EnvReferences, convertRefToRefSummary(field, ref))
+			}
+		}
 	}
-	return iDash
+	sort.Slice(sum.EnvReferences, func(i, j int) bool {
+		return sum.EnvReferences[i].EnvRefKey < sum.EnvReferences[j].EnvRefKey
+	})
+	return sum
 }
 
 func (d *dashboard) valid() []validationErr {
@@ -526,6 +551,7 @@ const (
 	fieldChartTickPrefix     = "tickPrefix"
 	fieldChartTickSuffix     = "tickSuffix"
 	fieldChartTimeFormat     = "timeFormat"
+	fieldChartYSeriesColumns = "ySeriesColumns"
 	fieldChartWidth          = "width"
 	fieldChartXCol           = "xCol"
 	fieldChartXPos           = "xPos"
@@ -551,6 +577,7 @@ type chart struct {
 	Queries         queries
 	Axes            axes
 	Geom            string
+	YSeriesColumns  []string
 	XCol, YCol      string
 	XPos, YPos      int
 	Height, Width   int
@@ -563,7 +590,7 @@ type chart struct {
 	TimeFormat      string
 }
 
-func (c chart) properties() influxdb.ViewProperties {
+func (c *chart) properties() influxdb.ViewProperties {
 	switch c.Kind {
 	case chartKindGauge:
 		return influxdb.GaugeViewProperties{
@@ -619,6 +646,25 @@ func (c chart) properties() influxdb.ViewProperties {
 		return influxdb.MarkdownViewProperties{
 			Type: influxdb.ViewPropertyTypeMarkdown,
 			Note: c.Note,
+		}
+	case chartKindMosaic:
+		return influxdb.MosaicViewProperties{
+			Type:              influxdb.ViewPropertyTypeMosaic,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.strings(),
+			XColumn:           c.XCol,
+			YSeriesColumns:    c.YSeriesColumns,
+			XDomain:           c.Axes.get("x").Domain,
+			YDomain:           c.Axes.get("y").Domain,
+			XPrefix:           c.Axes.get("x").Prefix,
+			YPrefix:           c.Axes.get("y").Prefix,
+			XSuffix:           c.Axes.get("x").Suffix,
+			YSuffix:           c.Axes.get("y").Suffix,
+			XAxisLabel:        c.Axes.get("x").Label,
+			YAxisLabel:        c.Axes.get("y").Label,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
 		}
 	case chartKindScatter:
 		return influxdb.ScatterViewProperties{
@@ -729,7 +775,7 @@ func (c chart) properties() influxdb.ViewProperties {
 	}
 }
 
-func (c chart) validProperties() []validationErr {
+func (c *chart) validProperties() []validationErr {
 	if c.Kind == chartKindMarkdown {
 		// at the time of writing, there's nothing to validate for markdown types
 		return nil
@@ -781,6 +827,24 @@ func validPosition(pos string) []validationErr {
 	return nil
 }
 
+func (c *chart) validBaseProps() []validationErr {
+	var fails []validationErr
+	if c.Width <= 0 {
+		fails = append(fails, validationErr{
+			Field: fieldChartWidth,
+			Msg:   "must be greater than 0",
+		})
+	}
+
+	if c.Height <= 0 {
+		fails = append(fails, validationErr{
+			Field: fieldChartHeight,
+			Msg:   "must be greater than 0",
+		})
+	}
+	return fails
+}
+
 var geometryTypes = map[string]bool{
 	"line":      true,
 	"step":      true,
@@ -802,24 +866,6 @@ func validGeometry(geom string) []validationErr {
 	}
 
 	return nil
-}
-
-func (c chart) validBaseProps() []validationErr {
-	var fails []validationErr
-	if c.Width <= 0 {
-		fails = append(fails, validationErr{
-			Field: fieldChartWidth,
-			Msg:   "must be greater than 0",
-		})
-	}
-
-	if c.Height <= 0 {
-		fails = append(fails, validationErr{
-			Field: fieldChartHeight,
-			Msg:   "must be greater than 0",
-		})
-	}
-	return fails
 }
 
 const (
@@ -931,7 +977,7 @@ func (c colors) strings() []string {
 }
 
 // TODO: looks like much of these are actually getting defaults in
-//  the UI. looking at sytem charts, seeign lots of failures for missing
+//  the UI. looking at system charts, seeing lots of failures for missing
 //  color types or no colors at all.
 func (c colors) hasTypes(types ...string) []validationErr {
 	tMap := make(map[string]bool)
@@ -974,7 +1020,40 @@ func (c colors) valid() []validationErr {
 }
 
 type query struct {
-	Query string `json:"query" yaml:"query"`
+	Query  string `json:"query" yaml:"query"`
+	params []*references
+}
+
+func (q query) DashboardQuery() string {
+	if len(q.params) == 0 {
+		return q.Query
+	}
+
+	files := parser.ParseSource(q.Query).Files
+	if len(files) != 1 {
+		return q.Query
+	}
+
+	opt, err := edit.GetOption(files[0], "params")
+	if err != nil {
+		// no params option present in query
+		return q.Query
+	}
+
+	obj, ok := opt.(*ast.ObjectExpression)
+	if !ok {
+		// params option present is invalid. Should always be an Object.
+		return q.Query
+	}
+
+	for _, ref := range q.params {
+		parts := strings.Split(ref.EnvRef, ".")
+		key := parts[len(parts)-1]
+		edit.SetProperty(obj, key, ref.expression())
+	}
+
+	edit.SetOption(files[0], "params", obj)
+	return ast.Format(files[0])
 }
 
 type queries []query
@@ -982,15 +1061,20 @@ type queries []query
 func (q queries) influxDashQueries() []influxdb.DashboardQuery {
 	var iQueries []influxdb.DashboardQuery
 	for _, qq := range q {
-		newQuery := influxdb.DashboardQuery{
-			Text:     qq.Query,
+		iQueries = append(iQueries, influxdb.DashboardQuery{
+			Text:     qq.DashboardQuery(),
 			EditMode: "advanced",
-		}
-		// TODO: axe this builder configs when issue https://github.com/influxdata/influxdb/issues/15708 is fixed up
-		newQuery.BuilderConfig.Tags = append(newQuery.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
-		iQueries = append(iQueries, newQuery)
+		})
 	}
 	return iQueries
+}
+
+func (q queries) references() []*references {
+	var refs []*references
+	for _, qq := range q {
+		refs = append(refs, qq.params...)
+	}
+	return refs
 }
 
 const (
@@ -1708,7 +1792,7 @@ type task struct {
 	description string
 	every       time.Duration
 	offset      time.Duration
-	query       string
+	query       query
 	status      string
 
 	labels sortedLabels
@@ -1735,24 +1819,37 @@ func (t *task) flux() string {
 		cron:     t.cron,
 		every:    t.every,
 		offset:   t.offset,
-		rawQuery: t.query,
+		rawQuery: t.query.DashboardQuery(),
 	}
 	return translator.flux()
 }
 
+func (t *task) refs() []*references {
+	return append(t.query.params, t.name, t.displayName)
+}
+
 func (t *task) summarize() SummaryTask {
+	refs := summarizeCommonReferences(t.identity, t.labels)
+	for _, ref := range t.query.params {
+		parts := strings.Split(ref.EnvRef, ".")
+		field := fmt.Sprintf("spec.params.%s", parts[len(parts)-1])
+		refs = append(refs, convertRefToRefSummary(field, ref))
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		return refs[i].EnvRefKey < refs[j].EnvRefKey
+	})
 	return SummaryTask{
 		SummaryIdentifier: SummaryIdentifier{
 			Kind:          KindTask,
 			MetaName:      t.MetaName(),
-			EnvReferences: summarizeCommonReferences(t.identity, t.labels),
+			EnvReferences: refs,
 		},
 		Name:        t.Name(),
 		Cron:        t.cron,
 		Description: t.description,
 		Every:       durToStr(t.every),
 		Offset:      durToStr(t.offset),
-		Query:       t.query,
+		Query:       t.query.DashboardQuery(),
 		Status:      t.Status(),
 
 		LabelAssociations: toSummaryLabels(t.labels...),
@@ -1777,7 +1874,7 @@ func (t *task) valid() []validationErr {
 		)
 	}
 
-	if t.query == "" {
+	if t.query.Query == "" {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldQuery,
 			Msg:   "must provide a non zero value",
@@ -2055,6 +2152,7 @@ type references struct {
 
 	val        interface{}
 	defaultVal interface{}
+	valType    string
 }
 
 func (r *references) hasValue() bool {
@@ -2063,6 +2161,51 @@ func (r *references) hasValue() bool {
 
 func (r *references) hasEnvRef() bool {
 	return r != nil && r.EnvRef != ""
+}
+
+func (r *references) expression() ast.Expression {
+	v := r.val
+	if v == nil {
+		v = r.defaultVal
+	}
+	if v == nil {
+		return nil
+	}
+
+	switch strings.ToLower(r.valType) {
+	case "bool", "booleanliteral":
+		return astBoolFromIface(v)
+	case "duration", "durationliteral":
+		return astDurationFromIface(v)
+	case "float", "floatliteral":
+		return astFloatFromIface(v)
+	case "int", "integerliteral":
+		return astIntegerFromIface(v)
+	case "string", "stringliteral":
+		return astStringFromIface(v)
+	case "time", "datetimeliteral":
+		if v == "now()" {
+			return astNow()
+		}
+		return astTimeFromIface(v)
+	}
+	return nil
+}
+
+func (r *references) Float64() float64 {
+	if r == nil || r.val == nil {
+		return 0
+	}
+	i, _ := r.val.(float64)
+	return i
+}
+
+func (r *references) Int64() int64 {
+	if r == nil || r.val == nil {
+		return 0
+	}
+	i, _ := r.val.(int64)
+	return i
 }
 
 func (r *references) String() string {
@@ -2097,12 +2240,84 @@ func (r *references) SecretField() influxdb.SecretField {
 }
 
 func convertRefToRefSummary(field string, ref *references) SummaryReference {
+	var valType string
+	switch strings.ToLower(ref.valType) {
+	case "bool", "booleanliteral":
+		valType = "bool"
+	case "duration", "durationliteral":
+		valType = "duration"
+	case "float", "floatliteral":
+		valType = "float"
+	case "int", "integerliteral":
+		valType = "integer"
+	case "string", "stringliteral":
+		valType = "string"
+	case "time", "datetimeliteral":
+		valType = "time"
+	}
+
 	return SummaryReference{
 		Field:        field,
 		EnvRefKey:    ref.EnvRef,
-		Value:        ref.StringVal(),
+		ValType:      valType,
+		Value:        ref.val,
 		DefaultValue: ref.defaultVal,
 	}
+}
+
+func astBoolFromIface(v interface{}) *ast.BooleanLiteral {
+	b, _ := v.(bool)
+	return ast.BooleanLiteralFromValue(b)
+}
+
+func astDurationFromIface(v interface{}) *ast.DurationLiteral {
+	s, ok := v.(string)
+	if !ok {
+		return nil
+	}
+	dur, _ := parser.ParseSignedDuration(s)
+	return dur
+}
+
+func astFloatFromIface(v interface{}) *ast.FloatLiteral {
+	if i, ok := v.(int); ok {
+		return ast.FloatLiteralFromValue(float64(i))
+	}
+	f, _ := v.(float64)
+	return ast.FloatLiteralFromValue(f)
+}
+
+func astIntegerFromIface(v interface{}) *ast.IntegerLiteral {
+	if f, ok := v.(float64); ok {
+		return ast.IntegerLiteralFromValue(int64(f))
+	}
+	i, _ := v.(int64)
+	return ast.IntegerLiteralFromValue(i)
+}
+
+func astNow() *ast.CallExpression {
+	return &ast.CallExpression{
+		Callee: &ast.Identifier{Name: "now"},
+	}
+}
+
+func astStringFromIface(v interface{}) *ast.StringLiteral {
+	s, _ := v.(string)
+	return ast.StringLiteralFromValue(s)
+}
+
+func astTimeFromIface(v interface{}) *ast.DateTimeLiteral {
+	if t, ok := v.(time.Time); ok {
+		return ast.DateTimeLiteralFromValue(t)
+	}
+
+	s, ok := v.(string)
+	if !ok {
+		return nil
+	}
+
+	t, _ := parser.ParseTime(s)
+	return t
 }
 
 func isValidName(name string, minLength int) (validationErr, bool) {

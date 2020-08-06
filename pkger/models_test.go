@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPkg(t *testing.T) {
+func TestTemplate(t *testing.T) {
 	t.Run("Summary", func(t *testing.T) {
 		t.Run("buckets returned in asc order by name", func(t *testing.T) {
 			pkg := Template{

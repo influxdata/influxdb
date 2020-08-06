@@ -62,6 +62,7 @@ const AlertingIndex: FunctionComponent = () => {
                   name="alerting-active-tab"
                   active={activeColumn === 'checks'}
                   testID="alerting-tab--checks"
+                  tabIndex={1}
                 >
                   Checks
                 </SelectGroup.Option>
@@ -72,6 +73,7 @@ const AlertingIndex: FunctionComponent = () => {
                   name="alerting-active-tab"
                   active={activeColumn === 'endpoints'}
                   testID="alerting-tab--endpoints"
+                  tabIndex={2}
                 >
                   Notification Endpoints
                 </SelectGroup.Option>
@@ -82,19 +84,20 @@ const AlertingIndex: FunctionComponent = () => {
                   name="alerting-active-tab"
                   active={activeColumn === 'rules'}
                   testID="alerting-tab--rules"
+                  tabIndex={3}
                 >
                   Notification Rules
                 </SelectGroup.Option>
               </SelectGroup>
               <div className="alerting-index--columns">
                 <GetResources resources={[ResourceType.Checks]}>
-                  <ChecksColumn />
+                  <ChecksColumn tabIndex={1} />
                 </GetResources>
                 <GetResources resources={[ResourceType.NotificationEndpoints]}>
-                  <EndpointsColumn />
+                  <EndpointsColumn tabIndex={2} />
                 </GetResources>
                 <GetResources resources={[ResourceType.NotificationRules]}>
-                  <RulesColumn />
+                  <RulesColumn tabIndex={3} />
                 </GetResources>
               </div>
             </GetAssetLimits>

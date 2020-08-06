@@ -2237,16 +2237,87 @@ from(bucket: v.bucket)
 ,,1,kk1,35
 `,
 		},
+		{
+			name: "min group",
+			data: []string{
+				"m0,k=k0,kk=kk0 f=0i 0",
+				"m0,k=k0,kk=kk1 f=1i 1000000000",
+				"m0,k=k0,kk=kk0 f=2i 2000000000",
+				"m0,k=k0,kk=kk1 f=3i 3000000000",
+				"m0,k=k0,kk=kk0 f=4i 4000000000",
+				"m0,k=k0,kk=kk1 f=5i 5000000000",
+				"m0,k=k0,kk=kk0 f=6i 6000000000",
+				"m0,k=k0,kk=kk1 f=5i 7000000000",
+				"m0,k=k0,kk=kk0 f=0i 8000000000",
+				"m0,k=k0,kk=kk1 f=6i 9000000000",
+				"m0,k=k0,kk=kk0 f=6i 10000000000",
+				"m0,k=k0,kk=kk1 f=7i 11000000000",
+				"m0,k=k0,kk=kk0 f=5i 12000000000",
+				"m0,k=k0,kk=kk1 f=8i 13000000000",
+				"m0,k=k0,kk=kk0 f=9i 14000000000",
+				"m0,k=k0,kk=kk1 f=5i 15000000000",
+			},
+			op: "readGroup(min)",
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> group(columns: ["kk"])
+	|> min()
+	|> keep(columns: ["kk", "_value"])
+`,
+			want: `
+#datatype,string,long,string,long
+#group,false,false,true,false
+#default,_result,,,
+,result,table,kk,_value
+,,0,kk0,0
+,,1,kk1,1
+`,
+		},
+		{
+			name: "max group",
+			data: []string{
+				"m0,k=k0,kk=kk0 f=0i 0",
+				"m0,k=k0,kk=kk1 f=1i 1000000000",
+				"m0,k=k0,kk=kk0 f=2i 2000000000",
+				"m0,k=k0,kk=kk1 f=3i 3000000000",
+				"m0,k=k0,kk=kk0 f=4i 4000000000",
+				"m0,k=k0,kk=kk1 f=5i 5000000000",
+				"m0,k=k0,kk=kk0 f=6i 6000000000",
+				"m0,k=k0,kk=kk1 f=5i 7000000000",
+				"m0,k=k0,kk=kk0 f=0i 8000000000",
+				"m0,k=k0,kk=kk1 f=6i 9000000000",
+				"m0,k=k0,kk=kk0 f=6i 10000000000",
+				"m0,k=k0,kk=kk1 f=7i 11000000000",
+				"m0,k=k0,kk=kk0 f=5i 12000000000",
+				"m0,k=k0,kk=kk1 f=8i 13000000000",
+				"m0,k=k0,kk=kk0 f=9i 14000000000",
+				"m0,k=k0,kk=kk1 f=5i 15000000000",
+			},
+			op: "readGroup(max)",
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> group(columns: ["kk"])
+	|> max()
+	|> keep(columns: ["kk", "_value"])
+`,
+			want: `
+#datatype,string,long,string,long
+#group,false,false,true,false
+#default,_result,,,
+,result,table,kk,_value
+,,0,kk0,9
+,,1,kk1,8
+`,
+		},
 	}
 	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			l := launcher.RunTestLauncherOrFail(t, ctx, mock.NewFlagger(map[feature.Flag]interface{}{
-				feature.PushDownWindowAggregateCount(): true,
-				feature.PushDownWindowAggregateSum():   true,
 				feature.PushDownWindowAggregateMean():  true,
-				feature.PushDownWindowAggregateMin():   true,
-				feature.PushDownWindowAggregateMax():   true,
+				feature.PushDownGroupAggregateMinMax(): true,
 			}))
 
 			l.SetupOrFail(t)

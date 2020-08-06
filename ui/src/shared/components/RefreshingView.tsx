@@ -12,7 +12,7 @@ import CellEvent from 'src/perf/components/CellEvent'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
-import {getTimeRange} from 'src/dashboards/selectors'
+import {getTimeRangeWithTimezone} from 'src/dashboards/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
 
@@ -71,6 +71,7 @@ class RefreshingView extends PureComponent<Props, State> {
 
     return (
       <TimeSeries
+        cellID={id}
         submitToken={submitToken}
         queries={this.queries}
         key={manualRefresh}
@@ -146,7 +147,7 @@ class RefreshingView extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState, ownProps: OwnProps) => {
-  const timeRange = getTimeRange(state)
+  const timeRange = getTimeRangeWithTimezone(state)
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
   const {timeZone, theme} = state.app.persisted
 

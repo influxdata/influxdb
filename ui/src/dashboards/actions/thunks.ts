@@ -358,17 +358,25 @@ export const getDashboard = (
 
     const cellViews: CellsWithViewProperties = resp.data.cells || []
     const viewsData = viewsFromCells(cellViews, dashboardID)
+    setTimeout(() => {
+      const normCells = normalize<Dashboard, DashboardEntities, string[]>(
+        cellViews,
+        arrayOfCells
+      )
 
-    const normViews = normalize<View, ViewEntities, string[]>(
-      viewsData,
-      arrayOfViews
-    )
+      dispatch(setCells(dashboardID, RemoteDataState.Done, normCells))
+      const normViews = normalize<View, ViewEntities, string[]>(
+        viewsData,
+        arrayOfViews
+      )
 
-    dispatch(setViews(RemoteDataState.Done, normViews))
-
-    // Now that all the necessary state has been loaded, set the dashboard
-    dispatch(creators.setDashboard(dashboardID, RemoteDataState.Done, normDash))
-    dispatch(updateTimeRangeFromQueryParams(dashboardID))
+      dispatch(setViews(RemoteDataState.Done, normViews))
+      // Now that all the necessary state has been loaded, set the dashboard
+      dispatch(
+        creators.setDashboard(dashboardID, RemoteDataState.Done, normDash)
+      )
+      dispatch(updateTimeRangeFromQueryParams(dashboardID))
+    }, 0)
   } catch (error) {
     if (error.name === 'AbortError') {
       return

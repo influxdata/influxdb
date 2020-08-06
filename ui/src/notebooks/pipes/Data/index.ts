@@ -10,7 +10,5 @@ register({
   button: 'Bucket',
   initial: {
     bucketName: '',
-    timeStart: '-1h',
-    timeStop: 'now()',
   },
 })

@@ -1209,11 +1209,7 @@ func meanProcedureSpec() *universe.MeanProcedureSpec {
 func TestPushDownWindowAggregateRule(t *testing.T) {
 	// Turn on all variants.
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
-		feature.PushDownWindowAggregateCount(): true,
-		feature.PushDownWindowAggregateSum():   true,
-		feature.PushDownWindowAggregateMin():   true,
-		feature.PushDownWindowAggregateMax():   true,
-		feature.PushDownWindowAggregateMean():  true,
+		feature.PushDownWindowAggregateMean(): true,
 	})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flagger)
@@ -1955,10 +1951,6 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 	// Turn on all variants.
 	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
 		feature.GroupWindowAggregateTranspose(): true,
-		feature.PushDownWindowAggregateCount():  true,
-		feature.PushDownWindowAggregateSum():    true,
-		feature.PushDownWindowAggregateMin():    true,
-		feature.PushDownWindowAggregateMax():    true,
 		feature.PushDownWindowAggregateMean():   true,
 	})
 
@@ -2507,10 +2499,7 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 
 func TestPushDownBareAggregateRule(t *testing.T) {
 	// Turn on support for window aggregate count
-	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
-		feature.PushDownWindowAggregateCount(): true,
-		feature.PushDownWindowAggregateSum():   true,
-	})
+	flagger := mock.NewFlagger(map[feature.Flag]interface{}{})
 
 	withFlagger, _ := feature.Annotate(context.Background(), flagger)
 
@@ -2640,22 +2629,6 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			},
 			NoChange: true,
 		},
-		{
-			// unsupported aggregate
-			Context: haveCaps,
-			Name:    "no push down min",
-			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
-			Before: &plantest.PlanSpec{
-				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", readRange),
-					plan.CreatePhysicalNode("count", minProcedureSpec()),
-				},
-				Edges: [][2]int{
-					{0, 1},
-				},
-			},
-			NoChange: true,
-		},
 	}
 
 	for _, tc := range testcases {
@@ -2672,7 +2645,9 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 //
 func TestPushDownGroupAggregateRule(t *testing.T) {
 	// Turn on all flags
-	ctx, _ := feature.Annotate(context.Background(), mock.NewFlagger(map[feature.Flag]interface{}{}))
+	ctx, _ := feature.Annotate(context.Background(), mock.NewFlagger(map[feature.Flag]interface{}{
+		feature.PushDownGroupAggregateMinMax(): true,
+	}))
 
 	caps := func(c query.GroupCapability) context.Context {
 		deps := influxdb.StorageDependencies{
@@ -2723,6 +2698,20 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		return &universe.MinProcedureSpec{
 			SelectorConfig: execute.SelectorConfig{
 				Column: execute.DefaultTimeColLabel,
+			},
+		}
+	}
+	minProcedureSpecVal := func() *universe.MinProcedureSpec {
+		return &universe.MinProcedureSpec{
+			SelectorConfig: execute.SelectorConfig{
+				Column: execute.DefaultValueColLabel,
+			},
+		}
+	}
+	maxProcedureSpecVal := func() *universe.MaxProcedureSpec {
+		return &universe.MaxProcedureSpec{
+			SelectorConfig: execute.SelectorConfig{
+				Column: execute.DefaultValueColLabel,
 			},
 		}
 	}
@@ -2829,9 +2818,53 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 	// ReadGroup() -> last => ReadGroup() -> last
 	tests = append(tests, plantest.RuleTestCase{
 		Context:  caps(mockGroupCapability{}),
-		Name:     "RewriteGroupLast",
+		Name:     "NoLastCapability",
 		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
 		Before:   simplePlanWithAgg("last", lastProcedureSpec()),
+		NoChange: true,
+	})
+
+	// ReadGroup() -> max => ReadGroup(max)
+	tests = append(tests, plantest.RuleTestCase{
+		Context: caps(mockGroupCapability{max: true}),
+		Name:    "RewriteGroupMax",
+		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:  simplePlanWithAgg("max", maxProcedureSpecVal()),
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("max")),
+			},
+		},
+	})
+
+	// ReadGroup() -> max => ReadGroup() -> max
+	tests = append(tests, plantest.RuleTestCase{
+		Context:  caps(mockGroupCapability{}),
+		Name:     "NoMaxCapability",
+		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:   simplePlanWithAgg("max", maxProcedureSpecVal()),
+		NoChange: true,
+	})
+
+	// ReadGroup() -> min => ReadGroup(min)
+	tests = append(tests, plantest.RuleTestCase{
+		Context: caps(mockGroupCapability{min: true}),
+		Name:    "RewriteGroupMin",
+		Rules:   []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:  simplePlanWithAgg("min", minProcedureSpecVal()),
+		After: &plantest.PlanSpec{
+			Nodes: []plan.Node{
+				plan.CreateLogicalNode("ReadGroupAggregate", readGroupAgg("min")),
+			},
+		},
+	})
+
+	// ReadGroup() -> min => ReadGroup() -> min
+	tests = append(tests, plantest.RuleTestCase{
+		Context:  caps(mockGroupCapability{}),
+		Name:     "NoMinCapability",
+		Rules:    []plan.Rule{influxdb.PushDownGroupAggregateRule{}},
+		Before:   simplePlanWithAgg("min", minProcedureSpecVal()),
 		NoChange: true,
 	})
 

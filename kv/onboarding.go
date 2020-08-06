@@ -129,8 +129,10 @@ func (s *Service) OnboardInitialUser(ctx context.Context, req *influxdb.Onboardi
 			return err
 		}
 
-		if err := s.setPassword(ctx, tx, u.ID, req.Password); err != nil {
-			return err
+		if req.Password != "" {
+			if err := s.setPassword(ctx, tx, u.ID, req.Password); err != nil {
+				return err
+			}
 		}
 
 		if err := s.createOrganization(ctx, tx, o); err != nil {

@@ -687,7 +687,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 	// and check the feature flag associated with the aggregate function.
 	switch fnNode.Kind() {
 	case universe.MinKind:
-		if !feature.PushDownWindowAggregateMin().Enabled(ctx) || !caps.HaveMin() {
+		if !caps.HaveMin() {
 			return false
 		}
 		minSpec := fnNode.ProcedureSpec().(*universe.MinProcedureSpec)
@@ -695,7 +695,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 			return false
 		}
 	case universe.MaxKind:
-		if !feature.PushDownWindowAggregateMax().Enabled(ctx) || !caps.HaveMax() {
+		if !caps.HaveMax() {
 			return false
 		}
 		maxSpec := fnNode.ProcedureSpec().(*universe.MaxProcedureSpec)
@@ -711,7 +711,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 			return false
 		}
 	case universe.CountKind:
-		if !feature.PushDownWindowAggregateCount().Enabled(ctx) || !caps.HaveCount() {
+		if !caps.HaveCount() {
 			return false
 		}
 		countSpec := fnNode.ProcedureSpec().(*universe.CountProcedureSpec)
@@ -719,7 +719,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 			return false
 		}
 	case universe.SumKind:
-		if !feature.PushDownWindowAggregateSum().Enabled(ctx) || !caps.HaveSum() {
+		if !caps.HaveSum() {
 			return false
 		}
 		sumSpec := fnNode.ProcedureSpec().(*universe.SumProcedureSpec)
@@ -1023,6 +1023,8 @@ func (rule PushDownGroupAggregateRule) Pattern() plan.Pattern {
 			universe.SumKind,
 			universe.FirstKind,
 			universe.LastKind,
+			universe.MinKind,
+			universe.MaxKind,
 		},
 		plan.Pat(ReadGroupPhysKind))
 }
@@ -1075,6 +1077,28 @@ func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (pl
 			AggregateMethod:   universe.LastKind,
 		})
 		return node, true, nil
+	case universe.MinKind:
+		// ReadGroup() -> min => ReadGroup(min)
+		if feature.PushDownGroupAggregateMinMax().Enabled(ctx) {
+			node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+				ReadRangePhysSpec: group.ReadRangePhysSpec,
+				GroupMode:         group.GroupMode,
+				GroupKeys:         group.GroupKeys,
+				AggregateMethod:   universe.MinKind,
+			})
+			return node, true, nil
+		}
+	case universe.MaxKind:
+		// ReadGroup() -> max => ReadGroup(max)
+		if feature.PushDownGroupAggregateMinMax().Enabled(ctx) {
+			node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+				ReadRangePhysSpec: group.ReadRangePhysSpec,
+				GroupMode:         group.GroupMode,
+				GroupKeys:         group.GroupKeys,
+				AggregateMethod:   universe.MaxKind,
+			})
+			return node, true, nil
+		}
 	}
 	return pn, false, nil
 }
@@ -1102,6 +1126,12 @@ func canPushGroupedAggregate(ctx context.Context, pn plan.Node) bool {
 	case universe.LastKind:
 		agg := pn.ProcedureSpec().(*universe.LastProcedureSpec)
 		return caps.HaveLast() && agg.Column == execute.DefaultValueColLabel
+	case universe.MaxKind:
+		agg := pn.ProcedureSpec().(*universe.MaxProcedureSpec)
+		return caps.HaveMax() && agg.Column == execute.DefaultValueColLabel
+	case universe.MinKind:
+		agg := pn.ProcedureSpec().(*universe.MinProcedureSpec)
+		return caps.HaveMin() && agg.Column == execute.DefaultValueColLabel
 	}
 	return false
 }

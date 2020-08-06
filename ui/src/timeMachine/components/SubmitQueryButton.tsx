@@ -111,8 +111,6 @@ class SubmitQueryButton extends PureComponent<Props> {
   private abortController: AbortController
 
   private handleClick = (): void => {
-    // Optimistic UI, set the state to loading when the event
-    // happens rather than when the event trickles down to execution
     event('SubmitQueryButton click')
     // We need to instantiate a new AbortController per request
     // In order to allow for requests after cancellations:
