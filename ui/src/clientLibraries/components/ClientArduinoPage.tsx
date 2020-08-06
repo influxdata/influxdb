@@ -21,7 +21,7 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientArduinoOverlay: FunctionComponent<Props> = props => {
+const ClientArduinoPage: FunctionComponent<Props> = props => {
   const {
     name,
     url,
@@ -94,5 +94,5 @@ const mstp = (state: AppState) => {
   }
 }
 
-export {ClientArduinoOverlay}
-export default connect<StateProps, {}, Props>(mstp, null)(ClientArduinoOverlay)
+export {ClientArduinoPage}
+export default connect<StateProps, {}, Props>(mstp, null)(ClientArduinoPage)

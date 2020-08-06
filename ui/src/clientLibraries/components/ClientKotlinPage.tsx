@@ -21,7 +21,7 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientKotlinOverlay: FunctionComponent<Props> = props => {
+const ClientKotlinPage: FunctionComponent<Props> = props => {
   const {
     name,
     url,
@@ -79,5 +79,5 @@ const mstp = (state: AppState) => {
   }
 }
 
-export {ClientKotlinOverlay}
-export default connect<StateProps, {}, Props>(mstp, null)(ClientKotlinOverlay)
+export {ClientKotlinPage}
+export default connect<StateProps, {}, Props>(mstp, null)(ClientKotlinPage)

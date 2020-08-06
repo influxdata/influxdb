@@ -21,7 +21,7 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientRubyOverlay: FunctionComponent<Props> = props => {
+const ClientRubyPage: FunctionComponent<Props> = props => {
   const {
     name,
     url,
@@ -99,5 +99,5 @@ const mstp = (state: AppState) => {
   }
 }
 
-export {ClientRubyOverlay}
-export default connect<StateProps, {}, Props>(mstp, null)(ClientRubyOverlay)
+export {ClientRubyPage}
+export default connect<StateProps, {}, Props>(mstp, null)(ClientRubyPage)

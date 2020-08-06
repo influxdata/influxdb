@@ -21,7 +21,7 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientGoOverlay: FunctionComponent<Props> = props => {
+const ClientGoPage: FunctionComponent<Props> = props => {
   const {
     name,
     url,
@@ -82,5 +82,5 @@ const mstp = (state: AppState) => {
   }
 }
 
-export {ClientGoOverlay}
-export default connect<StateProps, {}, Props>(mstp, null)(ClientGoOverlay)
+export {ClientGoPage}
+export default connect<StateProps, {}, Props>(mstp, null)(ClientGoPage)

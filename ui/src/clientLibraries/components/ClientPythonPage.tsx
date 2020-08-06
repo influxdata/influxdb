@@ -21,7 +21,7 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientPythonOverlay: FunctionComponent<Props> = props => {
+const ClientPythonPage: FunctionComponent<Props> = props => {
   const {
     name,
     url,
@@ -96,5 +96,5 @@ const mstp = (state: AppState) => {
   }
 }
 
-export {ClientPythonOverlay}
-export default connect<StateProps, {}, Props>(mstp, null)(ClientPythonOverlay)
+export {ClientPythonPage}
+export default connect<StateProps, {}, Props>(mstp, null)(ClientPythonPage)
