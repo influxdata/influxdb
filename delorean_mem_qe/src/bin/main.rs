@@ -53,6 +53,10 @@ fn main() {
     // );
     // println!("{:?}", res);
     // let segments = segments.filter_by_time(1590036110000000, 1590044410000000);
+    // println!("{:?}", segments.last("host"));
+    // println!("{:?}", segments.segments().last().unwrap().row(14899));
+
+    time_row_by_id(&store, 14899);
 }
 
 fn build_store(
@@ -197,9 +201,29 @@ fn time_column_first(store: &Store) {
     for _ in 1..repeat {
         let now = std::time::Instant::now();
         let segments = store.segments();
-        let res = segments.first("host", 0).unwrap();
+        let res = segments.first("host").unwrap();
         total_time += now.elapsed();
         total_max += res.0;
+    }
+    println!(
+        "Ran {:?} in {:?} {:?} / call {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        total_max
+    );
+}
+
+fn time_row_by_id(store: &Store, row_id: usize) {
+    let repeat = 100000;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut total_max = 0;
+    for _ in 1..repeat {
+        let now = std::time::Instant::now();
+        let segments = store.segments();
+        let res = segments.segments().last().unwrap().row(row_id).unwrap();
+        total_time += now.elapsed();
+        total_max += res.len();
     }
     println!(
         "Ran {:?} in {:?} {:?} / call {:?}",

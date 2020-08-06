@@ -153,6 +153,7 @@ impl Column {
         }
     }
 
+    /// Returns the minimum value contained within this column.
     // FIXME(edd): Support NULL integers and floats
     pub fn min(&self) -> Option<Scalar> {
         match self {
@@ -167,6 +168,7 @@ impl Column {
         }
     }
 
+    /// Returns the maximum value contained within this column.
     // FIXME(edd): Support NULL integers and floats
     pub fn max(&self) -> Option<Scalar> {
         match self {

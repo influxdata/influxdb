@@ -98,11 +98,24 @@ impl Segment {
         column_sizes
     }
 
-    pub fn scan_from(&self, column_name: &str, row_id: usize) -> Option<column::Vector> {
+    pub fn scan_column_from(&self, column_name: &str, row_id: usize) -> Option<column::Vector> {
         if let Some(i) = self.column_names().iter().position(|c| c == column_name) {
             return self.columns[i].scan_from(row_id);
         }
         None
+    }
+
+    pub fn row(&self, row_id: usize) -> Option<Vec<Option<column::Scalar>>> {
+        if row_id >= self.num_rows() {
+            return None;
+        }
+
+        Some(
+            self.columns
+                .iter()
+                .map(|c| c.value(row_id))
+                .collect::<Vec<Option<column::Scalar>>>(),
+        )
     }
 }
 
@@ -135,6 +148,14 @@ impl<'a> Segments<'a> {
 
     pub fn segments(&self) -> &Vec<&'a Segment> {
         &self.segments
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.segments.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.segments.len()
     }
 
     pub fn filter_by_time(&self, min: i64, max: i64) -> Segments<'a> {
@@ -207,70 +228,68 @@ impl<'a> Segments<'a> {
 
     /// Returns the first value for a column in a set of segments.
     ///
+    /// The first value is based on the time column, therefore the returned value
+    /// may not be at the end of the column.
+    ///
+    /// If the time column has multiple max time values then the result is abitrary.
+    ///
     /// TODO(edd): could return NULL value..
-    pub fn first(&self, column_name: &str, min_ts: i64) -> Option<(i64, Option<column::Scalar>)> {
-        if self.segments.is_empty() {
-            return None;
+    pub fn first(&self, column_name: &str) -> Option<(i64, Option<column::Scalar>)> {
+        // First let's find the segment with the latest time range.
+        // notice we order  a < b on max time range.
+        let segment = self
+            .segments
+            .iter()
+            .min_by(|a, b| a.meta.time_range.0.cmp(&b.meta.time_range.0))?;
+
+        // first find the logical row id of the minimum timestamp value
+        if let Column::Integer(ts_col) = &segment.columns[segment.time_column_idx] {
+            // TODO(edd): clean up unwrap
+            let min_ts = ts_col.column_range().0;
+            assert_eq!(min_ts, segment.meta.time_range.0);
+
+            let min_ts_id = ts_col.row_id_eq_value(min_ts).unwrap();
+
+            println!("first ts is {:?} at row {:?}", min_ts, min_ts_id);
+            // now we have row id we can get value for that row id
+            let value = segment.column(column_name).unwrap().value(min_ts_id);
+            Some((min_ts, value))
+        } else {
+            panic!("time column wrong type!");
         }
-
-        let mut first_first: Option<(i64, Option<column::Scalar>)> = None;
-        for segment in &self.segments {
-            // first find the logical row id of the minimum timestamp value
-            if let Column::Integer(ts_col) = &segment.columns[segment.time_column_idx] {
-                let first_ts_id = ts_col.row_id_ge_value(min_ts)?;
-
-                println!("first ts is {:?}", first_ts_id);
-                // now we have row id we can get value for that row id
-                let value = segment
-                    .column(column_name)
-                    .unwrap()
-                    .scan_from_until_some(first_ts_id);
-
-                match &first_first {
-                    Some(prev) => {
-                        if prev.0 > min_ts {
-                            first_first = Some((min_ts, value));
-                        }
-                    }
-                    None => first_first = Some((min_ts, value)),
-                }
-            }
-        }
-
-        first_first
     }
 
     /// Returns the last value for a column in a set of segments.
     ///
+    /// The last value is based on the time column, therefore the returned value
+    /// may not be at the end of the column.
+    ///
+    /// If the time column has multiple max time values then the result is abitrary.
+    ///
     /// TODO(edd): could return NULL value..
     pub fn last(&self, column_name: &str) -> Option<(i64, Option<column::Scalar>)> {
-        if self.segments.is_empty() {
-            return None;
+        // First let's find the segment with the latest time range.
+        // notice we order a > b on max time range.
+        let segment = self
+            .segments
+            .iter()
+            .max_by(|a, b| a.meta.time_range.1.cmp(&b.meta.time_range.1))?;
+
+        // first find the logical row id of the minimum timestamp value
+        if let Column::Integer(ts_col) = &segment.columns[segment.time_column_idx] {
+            // TODO(edd): clean up unwrap
+            let max_ts = ts_col.column_range().1;
+            assert_eq!(max_ts, segment.meta.time_range.1);
+
+            let max_ts_id = ts_col.row_id_eq_value(max_ts).unwrap();
+
+            println!("last ts is {:?} at row {:?}", max_ts, max_ts_id);
+            // now we have row id we can get value for that row id
+            let value = segment.column(column_name).unwrap().value(max_ts_id);
+            Some((max_ts, value))
+        } else {
+            panic!("time column wrong type!");
         }
-
-        let mut last_last: Option<(i64, Option<column::Scalar>)> = None;
-        for segment in &self.segments {
-            // first find the logical row id of the minimum timestamp value
-            if let Column::Integer(ts_col) = &segment.columns[segment.time_column_idx] {
-                // TODO(edd): clean up unwr
-                let max_ts = ts_col.column_range().1;
-                let max_ts_id = ts_col.row_id_eq_value(max_ts).unwrap();
-
-                // now we have row id we can get value for that row id
-                let value = segment.column(column_name).unwrap().value(max_ts_id);
-
-                match &last_last {
-                    Some(prev) => {
-                        if prev.0 < max_ts {
-                            last_last = Some((max_ts, value));
-                        }
-                    }
-                    None => last_last = Some((max_ts, value)),
-                }
-            }
-        }
-
-        last_last
     }
 }
 
