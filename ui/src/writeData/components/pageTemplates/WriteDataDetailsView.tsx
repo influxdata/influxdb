@@ -1,5 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
+import {useParams} from 'react-router-dom'
 import ReactMarkdown, {Renderer} from 'react-markdown'
 
 // Components
@@ -13,7 +14,6 @@ import {WriteDataSection} from 'src/writeData/constants'
 import placeholderLogo from 'src/writeData/graphics/placeholderLogo.svg'
 
 interface Props {
-  itemID: string
   section: WriteDataSection
 }
 
@@ -21,13 +21,23 @@ const codeRenderer: Renderer<HTMLPreElement> = (props: any): any => {
   return <CodeSnippet copyText={props.value} label={props.language} />
 }
 
-const WriteDataDetailsView: FC<Props> = ({itemID, section, children}) => {
-  const {name, markdown, image} = section.items.find(item => item.id === itemID)
+const WriteDataDetailsView: FC<Props> = ({section, children}) => {
+  const {contentID} = useParams()
+  const {name, markdown, image} = section.items.find(
+    item => item.id === contentID
+  )
 
   let thumbnail = <img src={placeholderLogo} />
+  let pageContent = <></>
 
   if (image) {
     thumbnail = <img src={image} />
+  }
+
+  if (markdown) {
+    pageContent = (
+      <ReactMarkdown source={markdown} renderers={{code: codeRenderer}} />
+    )
   }
 
   return (
@@ -38,7 +48,7 @@ const WriteDataDetailsView: FC<Props> = ({itemID, section, children}) => {
       <Page.Contents fullWidth={false} scrollable={true}>
         {thumbnail}
         {children}
-        <ReactMarkdown source={markdown} renderers={{code: codeRenderer}} />
+        {pageContent}
       </Page.Contents>
     </Page>
   )
