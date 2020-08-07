@@ -226,7 +226,7 @@ describe('query', () => {
         }
       })
     })
-    it.only('deduplicates windowPeriod variables and returns the cached results when an unexpired match with the same variable is found', done => {
+    it('deduplicates windowPeriod variables and returns the cached results when an unexpired match with the same variable is found', done => {
       mocked(runQuery).mockImplementation(() => ({
         promise,
         cancel: jest.fn(),
