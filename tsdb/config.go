@@ -68,8 +68,7 @@ const (
 	DefaultMaxIndexLogFileSize = 1 * 1024 * 1024 // 1MB
 
 	// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache in the TSI index.
-	// It is disabled by default.
-	DefaultSeriesIDSetCacheSize = 0
+	DefaultSeriesIDSetCacheSize = 100
 
 	// DefaultSeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent series
 	// partition snapshot compactions that can run at one time.
