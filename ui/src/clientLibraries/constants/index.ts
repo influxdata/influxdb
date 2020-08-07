@@ -1,29 +1,13 @@
-import {SFC} from 'react'
-import {
-  ArduinoLogo,
-  CSharpLogo,
-  GoLogo,
-  JavaLogo,
-  JSLogo,
-  KotlinLogo,
-  PHPLogo,
-  PythonLogo,
-  RubyLogo,
-  ScalaLogo,
-} from 'src/writeData/graphics'
-
 export interface ClientLibrary {
   id: string
   name: string
   url: string
-  image: SFC
 }
 
 export const clientArduinoLibrary = {
   id: 'arduino',
   name: 'Arduino',
   url: 'https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino',
-  image: ArduinoLogo,
   installingLibraryManagerCodeSnippet: `1. Open the Arduino IDE and click to the "Sketch" menu and then Include Library > Manage Libraries.
 2. Type 'influxdb' in the search box
 3. Install the 'InfluxDBClient for Arduino' library`,
@@ -189,7 +173,6 @@ export const clientCSharpLibrary = {
   id: 'csharp',
   name: 'C#',
   url: 'https://github.com/influxdata/influxdb-client-csharp',
-  image: CSharpLogo,
   installingPackageManagerCodeSnippet: `Install-Package InfluxDB.Client`,
   installingPackageDotNetCLICodeSnippet: `dotnet add package InfluxDB.Client`,
   packageReferenceCodeSnippet: `<PackageReference Include="InfluxDB.Client" />`,
@@ -252,7 +235,6 @@ export const clientGoLibrary = {
   id: 'go',
   name: 'GO',
   url: 'https://github.com/influxdata/influxdb-client-go',
-  image: GoLogo,
   initializeClientCodeSnippet: `package main
 
 import (
@@ -325,7 +307,6 @@ export const clientJavaLibrary = {
   id: 'java',
   name: 'Java',
   url: 'https://github.com/influxdata/influxdb-client-java',
-  image: JavaLogo,
   buildWithMavenCodeSnippet: `<dependency>
   <groupId>com.influxdb</groupId>
   <artifactId>influxdb-client-java</artifactId>
@@ -397,7 +378,6 @@ export const clientJSLibrary = {
   id: 'javascript-node',
   name: 'JavaScript/Node.js',
   url: 'https://github.com/influxdata/influxdb-client-js',
-  image: JSLogo,
   initializeNPMCodeSnippet: `npm i @influxdata/influxdb-client`,
   initializeClientCodeSnippet: `const {InfluxDB} = require('@influxdata/influxdb-client')
 
@@ -447,7 +427,6 @@ export const clientPythonLibrary = {
   id: 'python',
   name: 'Python',
   url: 'https://github.com/influxdata/influxdb-client-python',
-  image: PythonLogo,
   initializePackageCodeSnippet: `pip install influxdb-client`,
   initializeClientCodeSnippet: `from datetime import datetime
 
@@ -481,7 +460,6 @@ export const clientRubyLibrary = {
   id: 'ruby',
   name: 'Ruby',
   url: 'https://github.com/influxdata/influxdb-client-ruby',
-  image: RubyLogo,
   initializeGemCodeSnippet: `gem install influxdb-client`,
   initializeClientCodeSnippet: `require 'influxdb-client'
 
@@ -529,7 +507,6 @@ export const clientPHPLibrary = {
   id: 'php',
   name: 'PHP',
   url: 'https://github.com/influxdata/influxdb-client-php',
-  image: PHPLogo,
   initializeComposerCodeSnippet: `composer require influxdata/influxdb-client-php`,
   initializeClientCodeSnippet: `use InfluxDB2\\Client;
 use InfluxDB2\\Model\\WritePrecision;
@@ -570,7 +547,6 @@ export const clientKotlinLibrary = {
   name: 'Kotlin',
   url:
     'https://github.com/influxdata/influxdb-client-java/tree/master/client-kotlin',
-  image: KotlinLogo,
   buildWithMavenCodeSnippet: `<dependency>
   <groupId>com.influxdb</groupId>
   <artifactId>influxdb-client-kotlin</artifactId>
@@ -620,7 +596,6 @@ export const clientScalaLibrary = {
   name: 'Scala',
   url:
     'https://github.com/influxdata/influxdb-client-java/tree/master/client-scala',
-  image: ScalaLogo,
   buildWithSBTCodeSnippet: `libraryDependencies += "com.influxdb" % "influxdb-client-scala" % "1.8.0"`,
   buildWithMavenCodeSnippet: `<dependency>
   <groupId>com.influxdb</groupId>

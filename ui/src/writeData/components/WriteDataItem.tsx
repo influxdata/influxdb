@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, createElement} from 'react'
+import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
 
@@ -8,6 +8,9 @@ import {SelectableCard, SquareGrid, ComponentSize} from '@influxdata/clockface'
 
 // Utils
 import {getOrg} from 'src/organizations/selectors'
+
+// Graphics
+import placeholderLogo from 'src/writeData/graphics/placeholderLogo.svg'
 
 // Types
 import {WriteDataItem} from 'src/writeData/constants'
@@ -30,7 +33,7 @@ const WriteDataItem: FC<Props> = ({id, name, url, image, history, orgID}) => {
   let cardBody = <>{name}</>
 
   if (image) {
-    cardBody = createElement(image)
+    cardBody = <img src={image} />
   }
 
   return (

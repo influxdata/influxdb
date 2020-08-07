@@ -5,79 +5,77 @@ import {CLIENT_LIBS} from 'src/shared/constants/routes'
 import {WriteDataItem, WriteDataSection} from 'src/writeData/constants'
 
 // Graphics
-import {
-  ArduinoLogo,
-  CSharpLogo,
-  GoLogo,
-  JavaLogo,
-  JSLogo,
-  KotlinLogo,
-  PHPLogo,
-  PythonLogo,
-  RubyLogo,
-  ScalaLogo,
-} from 'src/writeData/graphics'
+import arduinoLogo from 'src/writeData/graphics/arduinoLogo.svg'
+import csharpLogo from 'src/writeData/graphics/csharpLogo.svg'
+import goLogo from 'src/writeData/graphics/goLogo.svg'
+import javaLogo from 'src/writeData/graphics/javaLogo.svg'
+import nodeLogo from 'src/writeData/graphics/nodeLogo.svg'
+import pythonLogo from 'src/writeData/graphics/pythonLogo.svg'
+import rubyLogo from 'src/writeData/graphics/rubyLogo.svg'
+import phpLogo from 'src/writeData/graphics/phpLogo.svg'
+import kotlinLogo from 'src/writeData/graphics/kotlinLogo.svg'
+import scalaLogo from 'src/writeData/graphics/scalaLogo.svg'
 
 export const WRITE_DATA_CLIENT_LIBRARIES: WriteDataItem[] = [
   {
     id: 'arduino',
     name: 'Arduino',
     url: `${CLIENT_LIBS}/arduino`,
-    image: ArduinoLogo,
+    image: arduinoLogo,
   },
   {
     id: 'csharp',
     name: 'C#',
     url: `${CLIENT_LIBS}/csharp`,
-    image: CSharpLogo,
+    image: csharpLogo,
   },
   {
     id: 'go',
     name: 'GO',
     url: `${CLIENT_LIBS}/go`,
-    image: GoLogo,
+    image: goLogo,
   },
   {
     id: 'java',
     name: 'Java',
     url: `${CLIENT_LIBS}/java`,
-    image: JavaLogo,
+    image: javaLogo,
   },
   {
     id: 'javascript-node',
     name: 'JavaScript/Node.js',
     url: `${CLIENT_LIBS}/javascript-node`,
-    image: JSLogo,
+    image: nodeLogo,
   },
   {
     id: 'python',
     name: 'Python',
     url: `${CLIENT_LIBS}/python`,
-    image: PythonLogo,
+    image: pythonLogo,
   },
   {
     id: 'ruby',
     name: 'Ruby',
     url: `${CLIENT_LIBS}/ruby`,
-    image: RubyLogo,
+    image: rubyLogo,
   },
   {
     id: 'php',
     name: 'PHP',
     url: `${CLIENT_LIBS}/php`,
-    image: PHPLogo,
+    image: phpLogo,
   },
   {
     id: 'kotlin',
     name: 'Kotlin',
     url: `${CLIENT_LIBS}/kotlin`,
-    image: KotlinLogo,
+    image: kotlinLogo,
   },
   {
     id: 'scala',
     name: 'Scala',
     url: `${CLIENT_LIBS}/scala`,
-    image: ScalaLogo,
+    image: scalaLogo,
   },
 ]
 

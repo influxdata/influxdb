@@ -1,6 +1,3 @@
-// Libraries
-import {SFC} from 'react'
-
 // Constants
 import WRITE_DATA_CLIENT_LIBRARIES_SECTION from 'src/writeData/constants/contentClientLibraries'
 import WRITE_DATA_TELEGRAF_PLUGINS_SECTION from 'src/writeData/constants/contentTelegrafPlugins'
@@ -13,7 +10,7 @@ export interface WriteDataItem {
   id: string
   name: string
   url: string
-  image?: SFC
+  image?: string
 }
 
 export interface WriteDataSection {
