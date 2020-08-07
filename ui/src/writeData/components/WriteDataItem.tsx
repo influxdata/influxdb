@@ -30,7 +30,7 @@ const WriteDataItem: FC<Props> = ({id, name, url, image, history, orgID}) => {
     history.push(`/${ORGS}/${orgID}/load-data/${url}`)
   }
 
-  let cardBody = <>{name}</>
+  let cardBody = <img src={placeholderLogo} style={{opacity: 0.15}} />
 
   if (image) {
     cardBody = <img src={image} />
