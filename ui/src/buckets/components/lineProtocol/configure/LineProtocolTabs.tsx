@@ -46,7 +46,10 @@ const LineProtocolTabs: FC<Props> = ({tabs, onSubmit}) => {
     <>
       <div className="line-protocol--header">
         <TabSelector activeLPTab={tab} tabs={tabs} onClick={handleTabClick} />
-        <PrecisionDropdown setPrecision={handleSetPrecision} precision={precision} />
+        <PrecisionDropdown
+          setPrecision={handleSetPrecision}
+          precision={precision}
+        />
       </div>
       <TabBody onSubmit={onSubmit} />
     </>
