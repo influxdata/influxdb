@@ -17,8 +17,6 @@ const TabBody: FC<Props> = ({onSubmit}) => {
   const [{body, tab}, dispatch] = useContext(Context)
 
   const handleTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    console.log(e.target.value)
-    console.log('body: ', body)
     dispatch(setBody(e.target.value))
   }
 
