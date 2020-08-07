@@ -11,8 +11,11 @@ import {getWindowVars} from 'src/variables/utils/getWindowVars'
 // Types
 import {RunQueryResult} from 'src/shared/apis/query'
 import {CancelBox} from 'src/types/promises'
-import {AppState, GetState, Variable} from 'src/types'
+import {AppState, GetState, Variable, VariableAssignment} from 'src/types'
 import {RunQueryPromiseMutex} from './singleQuery'
+
+// Constants
+import {WINDOW_PERIOD} from 'src/variables/constants'
 
 export const TIME_INVALIDATION = 1000 * 60 * 10 // 10 minutes
 
@@ -143,6 +146,9 @@ export const resetQueryCacheByQuery = (query: string): void => {
   queryCache.resetCacheByID(queryID)
 }
 
+const hasWindowVars = (variables: VariableAssignment[]): boolean =>
+  variables.some(vari => vari.id.name === WINDOW_PERIOD)
+
 export const getCachedResultsOrRunQuery = (
   orgID: string,
   query: string,
@@ -173,7 +179,11 @@ export const getCachedResultsOrRunQuery = (
     .map(v => asAssignment(v))
     .filter(v => !!v)
 
-  const windowVars = getWindowVars(query, variableAssignments)
+  let windowVars = []
+
+  if (hasWindowVars(variableAssignments) === false) {
+    windowVars = getWindowVars(query, variableAssignments)
+  }
 
   // otherwise query & set results
   const extern = buildVarsOption([...variableAssignments, ...windowVars])
