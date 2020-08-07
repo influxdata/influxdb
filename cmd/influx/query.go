@@ -112,7 +112,6 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 	req, _ := http.NewRequest("POST", u.String(), bytes.NewReader(body))
 	req.Header.Set("Authorization", "Token "+flags.Token)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept-Encoding", "gzip")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
