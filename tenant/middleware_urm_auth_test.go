@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
@@ -36,7 +37,7 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to see all users by org auth",
+			name: "authorized to see all users",
 			fields: fields{
 				UserResourceMappingService: &mock.UserResourceMappingService{
 					FindMappingsFn: func(ctx context.Context, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, int, error) {
@@ -155,6 +156,13 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 			orgID := influxdbtesting.IDPtr(10)
 			ctx := context.WithValue(context.Background(), kithttp.CtxOrgKey, *orgID)
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
+			ctx, _ = feature.Annotate(ctx, feature.DefaultFlagger(), feature.MakeBoolFlag("Org Only Member list",
+				"orgOnlyMemberList",
+				"Compute Team",
+				true,
+				feature.Temporary,
+				false,
+			))
 
 			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)

@@ -133,3 +133,9 @@
   key: pushDownGroupAggregateMinMax
   default: false
   contact: Query Team
+
+- name: Org Only Member list
+  description: Enforce only org members have access to view members of org related resorces
+  key: orgOnlyMemberList
+  default: false
+  contact: Compute Team
