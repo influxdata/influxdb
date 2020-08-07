@@ -10706,7 +10706,6 @@ components:
           type: integer
       required:
         - username
-        - password
         - org
         - bucket
     OnboardingResponse:

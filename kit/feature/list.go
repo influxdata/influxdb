@@ -58,62 +58,6 @@ func FrontendExample() IntFlag {
 	return frontendExample
 }
 
-var pushDownWindowAggregateCount = MakeBoolFlag(
-	"Push Down Window Aggregate Count",
-	"pushDownWindowAggregateCount",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateCount - Enable Count variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateCount() BoolFlag {
-	return pushDownWindowAggregateCount
-}
-
-var pushDownWindowAggregateSum = MakeBoolFlag(
-	"Push Down Window Aggregate Sum",
-	"pushDownWindowAggregateSum",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateSum - Enable Sum variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateSum() BoolFlag {
-	return pushDownWindowAggregateSum
-}
-
-var pushDownWindowAggregateMin = MakeBoolFlag(
-	"Push Down Window Aggregate Min",
-	"pushDownWindowAggregateMin",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateMin - Enable Min variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateMin() BoolFlag {
-	return pushDownWindowAggregateMin
-}
-
-var pushDownWindowAggregateMax = MakeBoolFlag(
-	"Push Down Window Aggregate Max",
-	"pushDownWindowAggregateMax",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateMax - Enable Max variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateMax() BoolFlag {
-	return pushDownWindowAggregateMax
-}
-
 var pushDownWindowAggregateMean = MakeBoolFlag(
 	"Push Down Window Aggregate Mean",
 	"pushDownWindowAggregateMean",
@@ -301,10 +245,6 @@ var all = []Flag{
 	backendExample,
 	communityTemplates,
 	frontendExample,
-	pushDownWindowAggregateCount,
-	pushDownWindowAggregateSum,
-	pushDownWindowAggregateMin,
-	pushDownWindowAggregateMax,
 	pushDownWindowAggregateMean,
 	groupWindowAggregateTranspose,
 	newAuth,
@@ -325,10 +265,6 @@ var byKey = map[string]Flag{
 	"backendExample":                backendExample,
 	"communityTemplates":            communityTemplates,
 	"frontendExample":               frontendExample,
-	"pushDownWindowAggregateCount":  pushDownWindowAggregateCount,
-	"pushDownWindowAggregateSum":    pushDownWindowAggregateSum,
-	"pushDownWindowAggregateMin":    pushDownWindowAggregateMin,
-	"pushDownWindowAggregateMax":    pushDownWindowAggregateMax,
 	"pushDownWindowAggregateMean":   pushDownWindowAggregateMean,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newAuth":                       newAuth,

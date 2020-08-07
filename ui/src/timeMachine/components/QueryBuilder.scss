@@ -8,10 +8,6 @@
   display: flex;
   flex-direction: column;
   @include no-user-select();
-
-  .function-selector {
-    margin-left: $ix-marg-b;
-  }
 }
 
 .query-builder--cards {
@@ -19,12 +15,3 @@
   display: flex;
   justify-content: space-between;
 }
-
-.builder-card--list > .query-builder--add-card-button {
-  height: 100%;
-  background-color: $g4-onyx;
-  border-color: $g4-onyx;
-  flex-grow: 0;
-  flex-shrink: 0;
-}
-

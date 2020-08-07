@@ -13,6 +13,9 @@ import {getCachedResultsOrRunQuery} from 'src/shared/apis/queryCache'
 import * as copy from 'src/shared/copy/notifications'
 import {viewSchema} from 'src/schemas'
 
+// Utils
+import applyAutoAggregateRequirements from 'src/utils/autoAggregateRequirements'
+
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
@@ -115,12 +118,15 @@ export const getViewAndResultsForVEO = (
       view = (await getViewAJAX(dashboardID, cellID)) as QueryView
     }
 
+    const updatedView = applyAutoAggregateRequirements(view)
+
     dispatch(
       setActiveTimeMachine(timeMachineID, {
         contextID: dashboardID,
-        view,
+        view: updatedView,
       })
     )
+
     if (isFlagEnabled('queryCacheForDashboards')) {
       const queries = view.properties.queries.filter(({text}) => !!text.trim())
       if (!queries.length) {
@@ -140,6 +146,7 @@ export const getViewAndResultsForVEO = (
         return
       }
     }
+
     dispatch(executeQueries())
   } catch (error) {
     console.error(error)

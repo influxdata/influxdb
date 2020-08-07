@@ -89,6 +89,7 @@
     "cypress": "4.7.0",
     "cypress-file-upload": "^4.0.7",
     "cypress-pipe": "^1.5.0",
+    "cypress-plugin-tab": "^1.0.5",
     "enzyme": "^3.6.0",
     "enzyme-adapter-react-16": "^1.6.0",
     "enzyme-to-json": "^3.3.4",

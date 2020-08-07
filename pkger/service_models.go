@@ -1369,7 +1369,7 @@ func (t *stateTask) diffTask() DiffTask {
 			Description: t.parserTask.description,
 			Every:       durToStr(t.parserTask.every),
 			Offset:      durToStr(t.parserTask.offset),
-			Query:       t.parserTask.query,
+			Query:       t.parserTask.query.DashboardQuery(),
 			Status:      t.parserTask.Status(),
 		},
 	}
