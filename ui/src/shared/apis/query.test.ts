@@ -207,6 +207,45 @@ describe('query', () => {
         }
       })
     })
+    it('deduplicates variables and returns the cached results when an unexpired match with the same variable is found', done => {
+      mocked(runQuery).mockImplementation(() => ({
+        promise,
+        cancel: jest.fn(),
+      }))
+      const queryText = `|> v.bucket
+      |> v.bucket`
+      const result = getCachedResultsOrRunQuery(orgID, queryText, mockState)
+      expect(runQuery).toHaveBeenCalledTimes(1)
+      result.promise.then(() => {
+        try {
+          getCachedResultsOrRunQuery(orgID, queryText, mockState)
+          expect(runQuery).toHaveBeenCalledTimes(1)
+          done()
+        } catch (error) {
+          done(error)
+        }
+      })
+    })
+    it('deduplicates windowPeriod variables and returns the cached results when an unexpired match with the same variable is found', done => {
+      mocked(runQuery).mockImplementation(() => ({
+        promise,
+        cancel: jest.fn(),
+      }))
+      const queryText = `v.bucket
+      |> v.windowPeriod
+      |> v.windowPeriod`
+      const result = getCachedResultsOrRunQuery(orgID, queryText, mockState)
+      expect(runQuery).toHaveBeenCalledTimes(1)
+      result.promise.then(() => {
+        try {
+          getCachedResultsOrRunQuery(orgID, queryText, mockState)
+          expect(runQuery).toHaveBeenCalledTimes(1)
+          done()
+        } catch (error) {
+          done(error)
+        }
+      })
+    })
     it('resets the matching query if the variables do not match and reruns the query', done => {
       mocked(runQuery).mockImplementation(() => ({
         promise,
