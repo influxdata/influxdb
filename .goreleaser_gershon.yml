@@ -46,7 +46,6 @@ nfpms:
     builds: ["influx","influxd"]
     formats:
       - deb
-    name_template: "influxdb_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
 
 blobs:
   - provider: "s3"
