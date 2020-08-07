@@ -339,6 +339,10 @@ describe('Buckets', () => {
             .trigger('dragover', event)
             .trigger('drop', event)
         })
+
+      cy.getByTestID('waiting-text').should('exist')
+      cy.getByTestID('dnd--header-error').contains(fileName)
+      cy.getByTestID('cancel-upload--button').click()
     })
   })
 })

@@ -26,8 +26,6 @@ const TabBody: FC = () => {
         <DragAndDrop
           submitText="Upload File"
           handleSubmit={handleSetLineProtocol}
-          submitOnDrop={true}
-          submitOnUpload={true}
           className="line-protocol--content"
         />
       )

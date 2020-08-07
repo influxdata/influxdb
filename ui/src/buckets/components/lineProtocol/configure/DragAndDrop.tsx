@@ -1,51 +1,42 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  ButtonType,
-} from '@influxdata/clockface'
+
+// Components
+import DragAndDropHeader from './DragAndDropHeader'
+import DragAndDropButtons from './DragAndDropButtons'
+import DragInfo from './DragInfo'
+import {RemoteDataState} from '@influxdata/clockface'
 
 interface Props {
-  fileTypesToAccept?: string
-  containerClass?: string
   handleSubmit: (uploadContent: string) => void
-  submitText: string
-  submitOnDrop: boolean
-  submitOnUpload: boolean
   compact: boolean
   onCancel?: () => void
   className?: string
 }
 
 interface State {
+  fileSize: number
   inputContent: string
   uploadContent: string | ArrayBuffer
   fileName: string
   dragClass: string
+  readStatus: RemoteDataState
 }
 
 let dragCounter = 0
 class DragAndDrop extends PureComponent<Props, State> {
-  public static defaultProps = {
-    submitText: 'Write this File',
-    submitOnDrop: false,
-    submitOnUpload: false,
-    compact: false,
-    className: '',
-  }
-
   private fileInput: HTMLInputElement
 
   constructor(props: Props) {
     super(props)
 
     this.state = {
+      fileSize: -Infinity,
       inputContent: null,
       uploadContent: '',
       fileName: '',
       dragClass: 'drag-none',
+      readStatus: RemoteDataState.NotStarted,
     }
   }
 
@@ -64,20 +55,30 @@ class DragAndDrop extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {readStatus, uploadContent, fileName, fileSize} = this.state
+
     return (
       <div className={this.containerClass}>
         <div className={this.dragAreaClass} onClick={this.handleFileOpen}>
-          {this.dragAreaHeader}
-          <div className={this.infoClass} />
+          <DragAndDropHeader
+            uploadContent={uploadContent as string}
+            readStatus={readStatus}
+            fileName={fileName}
+            fileSize={fileSize}
+          />
+          <DragInfo uploadContent={uploadContent as string} />
           <input
             type="file"
             data-testid="drag-and-drop--input"
             ref={r => (this.fileInput = r)}
             className="drag-and-drop--input"
-            accept={this.fileTypesToAccept}
+            accept="*"
             onChange={this.handleFileClick}
           />
-          {this.buttons}
+          <DragAndDropButtons
+            onCancel={this.handleCancelFile}
+            uploadContent={uploadContent as string}
+          />
         </div>
       </div>
     )
@@ -85,16 +86,6 @@ class DragAndDrop extends PureComponent<Props, State> {
 
   private handleWindowDragOver = (event: DragEvent) => {
     event.preventDefault()
-  }
-
-  private get fileTypesToAccept(): string {
-    const {fileTypesToAccept} = this.props
-
-    if (!fileTypesToAccept) {
-      return '*'
-    }
-
-    return fileTypesToAccept
   }
 
   private get containerClass(): string {
@@ -108,72 +99,10 @@ class DragAndDrop extends PureComponent<Props, State> {
     })
   }
 
-  private get infoClass(): string {
-    const {uploadContent} = this.state
-
-    return classnames('drag-and-drop--graphic', {success: uploadContent})
-  }
-
   private get dragAreaClass(): string {
     const {uploadContent} = this.state
 
     return classnames('drag-and-drop--form', {active: !uploadContent})
-  }
-
-  private get dragAreaHeader(): JSX.Element {
-    const {uploadContent, fileName} = this.state
-
-    if (uploadContent) {
-      return <div className="drag-and-drop--header selected">{fileName}</div>
-    }
-
-    return (
-      <div className="drag-and-drop--header empty">
-        Drop a file here or click to upload
-      </div>
-    )
-  }
-
-  private get buttons(): JSX.Element | null {
-    const {uploadContent} = this.state
-    const {submitText, submitOnDrop} = this.props
-
-    if (!uploadContent) {
-      return null
-    }
-
-    if (submitOnDrop) {
-      return (
-        <span className="drag-and-drop--buttons">
-          <Button
-            color={ComponentColor.Default}
-            text="Cancel"
-            size={ComponentSize.Medium}
-            type={ButtonType.Button}
-            onClick={this.handleCancelFile}
-          />
-        </span>
-      )
-    }
-
-    return (
-      <span className="drag-and-drop--buttons">
-        <Button
-          color={ComponentColor.Primary}
-          text={submitText}
-          size={ComponentSize.Medium}
-          type={ButtonType.Submit}
-          onClick={this.handleSubmit}
-        />
-        <Button
-          color={ComponentColor.Default}
-          text="Cancel"
-          size={ComponentSize.Medium}
-          type={ButtonType.Submit}
-          onClick={this.handleCancelFile}
-        />
-      </span>
-    )
   }
 
   private handleSubmit = () => {
@@ -186,30 +115,10 @@ class DragAndDrop extends PureComponent<Props, State> {
   private handleFileClick = (e: any): void => {
     const file: File = e.currentTarget.files[0]
 
-    if (!file) {
-      return
-    }
-
-    e.preventDefault()
-    e.stopPropagation()
-
-    const reader = new FileReader()
-    reader.readAsText(file)
-    reader.onload = () => {
-      this.setState(
-        {
-          uploadContent: reader.result,
-          fileName: file.name,
-        },
-        () => this.submitOnUpload()
-      )
-    }
-  }
-
-  private handleFileDrop = (e: any): void => {
-    const file = e.dataTransfer.files[0]
     this.setState({
-      dragClass: 'drag-none',
+      fileName: file.name,
+      fileSize: file.size,
+      readStatus: RemoteDataState.Loading,
     })
 
     if (!file) {
@@ -219,31 +128,41 @@ class DragAndDrop extends PureComponent<Props, State> {
     e.preventDefault()
     e.stopPropagation()
 
+    this.uploadFile(file)
+  }
+
+  private handleFileDrop = (e: any): void => {
+    const file: File = e.dataTransfer.files[0]
+    this.setState({
+      fileName: file.name,
+      fileSize: file.size,
+      dragClass: 'drag-none',
+      readStatus: RemoteDataState.Loading,
+    })
+
+    if (!file) {
+      return
+    }
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    this.uploadFile(file)
+  }
+
+  private uploadFile = (file: File) => {
     const reader = new FileReader()
-    reader.readAsText(file)
     reader.onload = () => {
       this.setState(
         {
+          readStatus: RemoteDataState.Done,
           uploadContent: reader.result,
           fileName: file.name,
         },
-        () => this.submitOnDrop()
+        () => this.handleSubmit()
       )
     }
-  }
-
-  private submitOnDrop() {
-    const {submitOnDrop} = this.props
-    if (submitOnDrop) {
-      this.handleSubmit()
-    }
-  }
-
-  private submitOnUpload() {
-    const {submitOnUpload} = this.props
-    if (submitOnUpload) {
-      this.handleSubmit()
-    }
+    reader.readAsText(file)
   }
 
   private handleFileOpen = (): void => {
@@ -255,7 +174,7 @@ class DragAndDrop extends PureComponent<Props, State> {
 
   private handleCancelFile = (): void => {
     const {onCancel} = this.props
-    this.setState({uploadContent: ''})
+    this.setState({uploadContent: '', fileSize: -Infinity})
     this.fileInput.value = ''
     if (onCancel) {
       onCancel()
