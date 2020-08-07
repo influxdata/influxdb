@@ -62,6 +62,13 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
+						},
+					},
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
 							Type: influxdb.BucketsResourceType,
 							// ID:    &idOne,
 							OrgID: influxdbtesting.IDPtr(10),
@@ -97,6 +104,46 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 						ResourceID:   3,
 						ResourceType: influxdb.BucketsResourceType,
 					},
+				},
+			},
+		},
+		{
+			name: "authorized to see all users by org auth",
+			fields: fields{
+				UserResourceMappingService: &mock.UserResourceMappingService{
+					FindMappingsFn: func(ctx context.Context, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, int, error) {
+						return []*influxdb.UserResourceMapping{
+							{
+								ResourceID:   1,
+								ResourceType: influxdb.BucketsResourceType,
+							},
+							{
+								ResourceID:   2,
+								ResourceType: influxdb.BucketsResourceType,
+							},
+							{
+								ResourceID:   3,
+								ResourceType: influxdb.BucketsResourceType,
+							},
+						}, 3, nil
+					},
+				},
+			},
+			args: args{
+				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type:  influxdb.BucketsResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "read:orgs/000000000000000a is unauthorized",
+					Code: influxdb.EUnauthorized,
 				},
 			},
 		},
