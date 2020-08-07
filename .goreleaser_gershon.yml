@@ -41,6 +41,13 @@ builds:
     hooks:
       pre: make generate
 
+nfpms:
+  - id: "influxdata"
+    builds: ["influx","influxd"]
+    formats:
+      - deb
+    name_template: "influxdb_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+
 blobs:
   - provider: "s3"
     bucket: "dl.influxdata.com"
