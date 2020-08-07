@@ -1,4 +1,4 @@
-## v2.0.0-beta.16 [unreleased]
+## v2.0.0-beta.16 [2020-08-07]
 
 ### Breaking
 
