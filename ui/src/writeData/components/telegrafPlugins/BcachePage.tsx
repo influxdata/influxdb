@@ -2,13 +2,18 @@
 import React, {FC} from 'react'
 
 // Components
-import TelegrafPluginPage from 'src/writeData/components/telegrafPlugins/TelegrafPluginPage'
+import WriteDataDetailsView from 'src/writeData/components/pageTemplates/WriteDataDetailsView'
 
-// Markdown
-import markdown from 'src/writeData/components/telegrafPlugins/Bcache.md'
+// Constants
+import WRITE_DATA_TELEGRAF_PLUGINS_SECTION from 'src/writeData/constants/contentTelegrafPlugins'
 
 const BcachePage: FC = () => {
-  return <TelegrafPluginPage title="Bcache" markdown={markdown} />
+  return (
+    <WriteDataDetailsView
+      itemID="bcache"
+      section={WRITE_DATA_TELEGRAF_PLUGINS_SECTION}
+    />
+  )
 }
 
 export default BcachePage

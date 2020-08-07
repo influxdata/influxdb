@@ -11,6 +11,7 @@ export interface WriteDataItem {
   name: string
   url: string
   image?: string
+  markdown?: string
 }
 
 export interface WriteDataSection {
