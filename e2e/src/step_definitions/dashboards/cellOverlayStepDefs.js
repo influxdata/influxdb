@@ -288,8 +288,20 @@ Then(/^the time machine query builder function duration period is "(.*)"$/, asyn
     await celOvSteps.verifyTMQueryBuilderFunctionDuration(duration);
 });
 
+When(/^click the custom function group$/, async () => {
+   await celOvSteps.clickCustomFunctionGroup();
+});
+
 When(/^click the time machine query builder function duration input$/, async () => {
     await celOvSteps.clickTMQueryBuilderFunctionDuration();
+});
+
+When(/^click the time machine query builder function custom duration tab$/, async () => {
+   await celOvSteps.clickTMQueryBuilderCustomDuration();
+});
+
+When(/^click the time machine query builder function auto duration tab$/, async () => {
+   await celOvSteps.clickTMQueryBuilderAutoDuration();
 });
 
 Then(/^the query builder function duration suggestion drop down contains "(.*)" suggestions$/, async count => {
