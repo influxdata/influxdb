@@ -197,6 +197,7 @@ Scenario: Exercise Initial Alerts view Controls
   { "state": "error", "text": "One or more thresholds"}]
   """
     Then the save check button is disabled
+  # 7.8.20 -- feature disabled - see issue 19249
     When click the time machine query builder function duration input
     When click the query builder function duration suggestion "5s"
     When click the time machine cell edit submit button
