@@ -8,6 +8,7 @@ import {
   SET_PRECISION,
   SET_WRITE_STATUS,
   SET_TAB,
+  RESET_LINE_PROTOCOL_STATE,
 } from 'src/buckets/components/lineProtocol/LineProtocol.creators'
 
 export interface LineProtocolState {
@@ -50,6 +51,13 @@ const lineProtocolReducer = (
       }
       case SET_PRECISION: {
         draftState.precision = action.precision
+
+        return
+      }
+      case RESET_LINE_PROTOCOL_STATE: {
+        draftState.body = ''
+        draftState.writeStatus = RemoteDataState.NotStarted
+        draftState.writeError = ''
 
         return
       }

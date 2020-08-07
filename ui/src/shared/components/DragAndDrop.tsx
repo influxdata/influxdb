@@ -194,7 +194,6 @@ class DragAndDrop extends PureComponent<Props, State> {
     e.stopPropagation()
 
     const reader = new FileReader()
-    const start = performance.now()
     reader.readAsText(file)
     reader.onload = () => {
       this.setState(
@@ -222,7 +221,6 @@ class DragAndDrop extends PureComponent<Props, State> {
 
     const reader = new FileReader()
     reader.readAsText(file)
-    const end = performance.now()
     reader.onload = () => {
       this.setState(
         {

@@ -5,12 +5,14 @@ export const SET_BODY = 'SET_BODY'
 export const SET_TAB = 'SET_TAB'
 export const SET_WRITE_STATUS = 'SET_WRITE_STATUS'
 export const SET_PRECISION = 'SET_PRECISION'
+export const RESET_LINE_PROTOCOL_STATE = 'RESET_LINE_PROTOCOL_STATE'
 
 export type Action =
   | ReturnType<typeof setBody>
   | ReturnType<typeof setTab>
   | ReturnType<typeof setWriteStatus>
   | ReturnType<typeof setPrecision>
+  | ReturnType<typeof reset>
 
 export const setBody = (body: string) =>
   ({
@@ -35,4 +37,9 @@ export const setPrecision = (precision: WritePrecision) =>
   ({
     type: SET_PRECISION,
     precision,
+  } as const)
+
+export const reset = () =>
+  ({
+    type: RESET_LINE_PROTOCOL_STATE,
   } as const)

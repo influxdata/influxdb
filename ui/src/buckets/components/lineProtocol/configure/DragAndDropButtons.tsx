@@ -7,26 +7,38 @@ import {
 } from '@influxdata/clockface'
 
 interface Props {
+  fileSize: number
   uploadContent: string
   onCancel: () => void
+  onSubmit: () => void
 }
 
-const DragAndDropButtons: FC<Props> = ({uploadContent, onCancel}) => {
+const MAX_FILE_SIZE = 1e7 // 10MB
+
+const DragAndDropButtons: FC<Props> = ({
+  fileSize,
+  uploadContent,
+  onCancel,
+  onSubmit,
+}) => {
+  if (fileSize > MAX_FILE_SIZE) {
+    return (
+      <span className="drag-and-drop--buttons">
+        <Button
+          color={ComponentColor.Default}
+          text="Cancel"
+          size={ComponentSize.Medium}
+          type={ButtonType.Button}
+          onClick={onCancel}
+          testID="cancel-upload--button"
+        />
+      </span>
+    )
+  }
+
   if (!uploadContent) {
     return null
   }
-
-  return (
-    <span className="drag-and-drop--buttons">
-      <Button
-        color={ComponentColor.Default}
-        text="Cancel"
-        size={ComponentSize.Medium}
-        type={ButtonType.Button}
-        onClick={onCancel}
-      />
-    </span>
-  )
 
   return (
     <span className="drag-and-drop--buttons">
@@ -35,7 +47,8 @@ const DragAndDropButtons: FC<Props> = ({uploadContent, onCancel}) => {
         text="Write Data"
         size={ComponentSize.Medium}
         type={ButtonType.Submit}
-        onClick={this.handleSubmit}
+        onClick={onSubmit}
+        testID="write-data--button"
       />
       <Button
         color={ComponentColor.Default}

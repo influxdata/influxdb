@@ -1,28 +1,14 @@
 // Libraries
 import React, {FC} from 'react'
-import {WaitingText} from '@influxdata/clockface'
-
-import {RemoteDataState} from 'src/types'
-
-const MAX_FILE_SIZE = 1e7
+import {MAX_FILE_SIZE} from './DragAndDrop'
 
 interface Props {
   uploadContent: string
   fileName: string
   fileSize: number
-  readStatus: RemoteDataState
 }
 
-const DragAndDropHeader: FC<Props> = ({
-  uploadContent,
-  fileName,
-  fileSize,
-  readStatus,
-}) => {
-  if (readStatus === RemoteDataState.Loading) {
-    return <WaitingText text="Reading file" testID="waiting-text" />
-  }
-
+const DragAndDropHeader: FC<Props> = ({uploadContent, fileName, fileSize}) => {
   if (fileSize > MAX_FILE_SIZE) {
     return (
       <div

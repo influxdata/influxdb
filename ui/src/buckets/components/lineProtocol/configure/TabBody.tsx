@@ -9,24 +9,30 @@ import {Context} from 'src/buckets/components/lineProtocol/LineProtocolWizard'
 // Action
 import {setBody} from 'src/buckets/components/lineProtocol/LineProtocol.creators'
 
-const TabBody: FC = () => {
+interface Props {
+  onSubmit: () => void
+}
+
+const TabBody: FC<Props> = ({onSubmit}) => {
   const [{body, tab}, dispatch] = useContext(Context)
 
   const handleTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    console.log(e.target.value)
+    console.log('body: ', body)
     dispatch(setBody(e.target.value))
   }
 
-  const handleSetLineProtocol = (body: string) => {
-    dispatch(setBody(body))
+  const handleSetBody = (b: string) => {
+    dispatch(setBody(b))
   }
 
   switch (tab) {
     case 'Upload File':
       return (
         <DragAndDrop
-          submitText="Upload File"
-          handleSubmit={handleSetLineProtocol}
           className="line-protocol--content"
+          onSubmit={onSubmit}
+          onSetBody={handleSetBody}
         />
       )
     case 'Enter Manually':
