@@ -13,6 +13,9 @@ import {WriteDataSection} from 'src/writeData/constants'
 // Graphics
 import placeholderLogo from 'src/writeData/graphics/placeholderLogo.svg'
 
+// Styles
+import 'src/writeData/components/WriteDataDetailsView.scss'
+
 interface Props {
   section: WriteDataSection
 }
@@ -36,7 +39,11 @@ const WriteDataDetailsView: FC<Props> = ({section, children}) => {
 
   if (markdown) {
     pageContent = (
-      <ReactMarkdown source={markdown} renderers={{code: codeRenderer}} />
+      <ReactMarkdown
+        source={markdown}
+        renderers={{code: codeRenderer}}
+        className="markdown-format write-data--details-markdown"
+      />
     )
   }
 
@@ -46,9 +53,13 @@ const WriteDataDetailsView: FC<Props> = ({section, children}) => {
         <Page.Title title={name} />
       </Page.Header>
       <Page.Contents fullWidth={false} scrollable={true}>
-        {thumbnail}
-        {children}
-        {pageContent}
+        <div className="write-data--details">
+          <div className="write-data--details-thumbnail">{thumbnail}</div>
+          <div className="write-data--details-content">
+            {children}
+            {pageContent}
+          </div>
+        </div>
       </Page.Contents>
     </Page>
   )
