@@ -4,6 +4,18 @@ import {CLIENT_LIBS} from 'src/shared/constants/routes'
 // Types
 import {WriteDataItem, WriteDataSection} from 'src/writeData/constants'
 
+// Markdown
+import ArduinoMarkdown from 'src/writeData/components/clientLibraries/Arduino.md'
+import CSharpMarkdown from 'src/writeData/components/clientLibraries/CSharp.md'
+import GoMarkdown from 'src/writeData/components/clientLibraries/Go.md'
+import JavaMarkdown from 'src/writeData/components/clientLibraries/Java.md'
+import NodeMarkdown from 'src/writeData/components/clientLibraries/Node.md'
+import PythonMarkdown from 'src/writeData/components/clientLibraries/Python.md'
+import RubyMarkdown from 'src/writeData/components/clientLibraries/Ruby.md'
+import PHPMarkdown from 'src/writeData/components/clientLibraries/PHP.md'
+import KotlinMarkdown from 'src/writeData/components/clientLibraries/Kotlin.md'
+import ScalaMarkdown from 'src/writeData/components/clientLibraries/Scala.md'
+
 // Graphics
 import arduinoLogo from 'src/writeData/graphics/arduinoLogo.svg'
 import csharpLogo from 'src/writeData/graphics/csharpLogo.svg'
@@ -22,60 +34,70 @@ export const WRITE_DATA_CLIENT_LIBRARIES: WriteDataItem[] = [
     name: 'Arduino',
     url: `${CLIENT_LIBS}/arduino`,
     image: arduinoLogo,
+    markdown: ArduinoMarkdown,
   },
   {
     id: 'csharp',
     name: 'C#',
     url: `${CLIENT_LIBS}/csharp`,
     image: csharpLogo,
+    markdown: CSharpMarkdown,
   },
   {
     id: 'go',
     name: 'GO',
     url: `${CLIENT_LIBS}/go`,
     image: goLogo,
+    markdown: GoMarkdown,
   },
   {
     id: 'java',
     name: 'Java',
     url: `${CLIENT_LIBS}/java`,
     image: javaLogo,
+    markdown: JavaMarkdown,
   },
   {
     id: 'javascript-node',
     name: 'JavaScript/Node.js',
     url: `${CLIENT_LIBS}/javascript-node`,
     image: nodeLogo,
+    markdown: NodeMarkdown,
   },
   {
     id: 'python',
     name: 'Python',
     url: `${CLIENT_LIBS}/python`,
     image: pythonLogo,
+    markdown: PythonMarkdown,
   },
   {
     id: 'ruby',
     name: 'Ruby',
     url: `${CLIENT_LIBS}/ruby`,
     image: rubyLogo,
+    markdown: RubyMarkdown,
   },
   {
     id: 'php',
     name: 'PHP',
     url: `${CLIENT_LIBS}/php`,
     image: phpLogo,
+    markdown: PHPMarkdown,
   },
   {
     id: 'kotlin',
     name: 'Kotlin',
     url: `${CLIENT_LIBS}/kotlin`,
     image: kotlinLogo,
+    markdown: KotlinMarkdown,
   },
   {
     id: 'scala',
     name: 'Scala',
     url: `${CLIENT_LIBS}/scala`,
     image: scalaLogo,
+    markdown: ScalaMarkdown,
   },
 ]
 
