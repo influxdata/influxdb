@@ -5,7 +5,7 @@ import {Switch, Route} from 'react-router-dom'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TelegrafPluginsIndex from 'src/writeData/components/telegrafPlugins/TelegrafPluginsIndex'
-import WriteDataDetailsView from 'src/writeData/components/pageTemplates/WriteDataDetailsView'
+import WriteDataDetailsView from 'src/writeData/components/WriteDataDetailsView'
 
 // Constants
 import {ORGS, ORG_ID, TELEGRAF_PLUGINS} from 'src/shared/constants/routes'

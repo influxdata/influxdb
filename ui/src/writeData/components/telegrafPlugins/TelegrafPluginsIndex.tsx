@@ -2,7 +2,7 @@
 import React, {FC} from 'react'
 
 // Components
-import WriteDataIndexView from 'src/writeData/components/pageTemplates/WriteDataIndexView'
+import WriteDataIndexView from 'src/writeData/components/WriteDataIndexView'
 
 // Constants
 import WRITE_DATA_TELEGRAF_PLUGINS_SECTION from 'src/writeData/constants/contentTelegrafPlugins'

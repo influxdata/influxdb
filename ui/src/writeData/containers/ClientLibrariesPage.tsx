@@ -5,7 +5,7 @@ import {Switch, Route} from 'react-router-dom'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import ClientLibrariesIndex from 'src/writeData/components/clientLibraries/ClientLibrariesIndex'
-import WriteDataDetailsView from 'src/writeData/components/pageTemplates/WriteDataDetailsView'
+import WriteDataDetailsView from 'src/writeData/components/WriteDataDetailsView'
 
 // Constants
 import {ORGS, ORG_ID, CLIENT_LIBS} from 'src/shared/constants/routes'
