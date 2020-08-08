@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FC, PureComponent} from 'react'
 import {Switch, Route} from 'react-router-dom'
 
 // Components

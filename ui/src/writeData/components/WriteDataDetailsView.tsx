@@ -30,7 +30,7 @@ const WriteDataDetailsView: FC<Props> = ({section, children}) => {
     item => item.id === contentID
   )
 
-  let thumbnail = <img src={placeholderLogo} />
+  let thumbnail = <img src={image || placeholderLogo} />
   let pageContent = <></>
 
   if (image) {
