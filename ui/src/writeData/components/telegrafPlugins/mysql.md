@@ -117,7 +117,7 @@ InfluxDB due to the change of types.  For this reason, you should keep the
 
 If preserving your old data is not required you may wish to drop conflicting
 measurements:
-```
+```sql
 DROP SERIES from mysql
 DROP SERIES from mysql_variables
 DROP SERIES from mysql_innodb

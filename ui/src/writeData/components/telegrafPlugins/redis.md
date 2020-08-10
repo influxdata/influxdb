@@ -2,7 +2,7 @@
 
 ### Configuration:
 
-```
+```toml
 # Read Redis's basic status information
 [[inputs.redis]]
   ## specify servers via a url matching:
@@ -153,7 +153,7 @@ Additionally the plugin also calculates the hit/miss ratio (keyspace\_hitrate) a
 ### Example Output:
 
 Using this configuration:
-```
+```toml
 [[inputs.redis]]
   ## specify servers via a url matching:
   ##  [protocol://][:password]@address[:port]

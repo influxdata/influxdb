@@ -62,17 +62,17 @@ For more details on the metrics see https://github.com/aristanetworks/goarista/b
 ### Sample Queries
 
 Get the max tx_latency for the last hour for all interfaces on all switches.
-```
+```sql
 SELECT max("tx_latency") AS "max_tx_latency" FROM "congestion_record" WHERE time > now() - 1h GROUP BY time(10s), "hostname", "intf_name"
 ```
 
 Get the max tx_latency for the last hour for all interfaces on all switches.
-```
+```sql
 SELECT max("queue_size") AS "max_queue_size" FROM "congestion_record" WHERE time > now() - 1h GROUP BY time(10s), "hostname", "intf_name"
 ```
 
 Get the max buffer_size for over the last hour for all switches.
-```
+```sql
 SELECT max("buffer_size") AS "max_buffer_size" FROM "global_buffer_usage_record" WHERE time > now() - 1h GROUP BY time(10s), "hostname"
 ```
 

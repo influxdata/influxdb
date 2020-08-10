@@ -19,7 +19,7 @@ For example, to disable collection of VMs, add this:
 vm_metric_exclude = [ "*" ]
 ```
 
-```
+```toml
 # Read metrics from one or many vCenters
 [[inputs.vsphere]]
     ## List of vCenter URLs to be monitored. These three lines must be uncommented
@@ -286,7 +286,7 @@ This distinction has an impact on how Telegraf collects metrics. A single instan
 
 This will disrupt the metric collection and can result in missed samples. The best practice workaround is to specify two instances of the vSphere plugin, one for the realtime metrics with a short collection interval and one for the historical metrics with a longer interval. You can use the ```*_metric_exclude``` to turn off the resources you don't want to collect metrics for in each instance. For example:
 
-```
+```toml
 ## Realtime instance
 [[inputs.vsphere]]
   interval = "60s"

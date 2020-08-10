@@ -3,7 +3,7 @@
 
 You should configure your Particle.io's Webhooks to point at the `webhooks` service. To do this go to [https://console.particle.io](https://console.particle.io/) and click `Integrations > New Integration > Webhook`. In the resulting page set `URL` to `http://<my_ip>:1619/particle`, and  under `Advanced Settings` click on `JSON` and add:
 
-```
+```json
 {
     "measurement": "your_measurement_name"
 }

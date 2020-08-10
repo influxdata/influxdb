@@ -4,7 +4,7 @@ Nginx Plus is a commercial version of the open source web server Nginx. The use 
 
 ### Configuration:
 
-```
+```toml
 # Read Nginx Plus API advanced status information
 [[inputs.nginx_plus_api]]
   ## An array of Nginx API URIs to gather stats.
@@ -201,14 +201,14 @@ Nginx Plus is a commercial version of the open source web server Nginx. The use 
 ### Example Output:
 
 Using this configuration:
-```
+```toml
 [[inputs.nginx_plus_api]]
   ## An array of Nginx Plus API URIs to gather stats.
   urls = ["http://localhost/api"]
 ```
 
 When run with:
-```
+```sh
 ./telegraf -config telegraf.conf -input-filter nginx_plus_api -test
 ```
 

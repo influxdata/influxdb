@@ -2,7 +2,7 @@
 
 ## Configuration:
 
-```
+```toml
 # Read per-node and per-bucket metrics from Couchbase
 [[inputs.couchbase]]
   ## specify servers via a url matching:

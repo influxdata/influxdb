@@ -51,7 +51,7 @@ services and hosts. You can read Icinga2's documentation for their remote API
 
 ### Sample Queries:
 
-```
+```sql
 SELECT * FROM "icinga2_services" WHERE state_code = 0 AND time > now() - 24h // Service with OK status
 SELECT * FROM "icinga2_services" WHERE state_code = 1 AND time > now() - 24h // Service with WARNING status
 SELECT * FROM "icinga2_services" WHERE state_code = 2 AND time > now() - 24h // Service with CRITICAL status

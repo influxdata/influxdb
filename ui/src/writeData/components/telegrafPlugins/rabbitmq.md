@@ -105,7 +105,6 @@ For additional details reference the [RabbitMQ Management HTTP Stats][management
     - sockets_used (int, sockets)
     - running (int, node up)
     - uptime (int, milliseconds)
-    - health_check_status (int, 1 or 0)
     - mnesia_disk_tx_count (int, number of disk transaction)
     - mnesia_ram_tx_count (int, number of ram transaction)
     - mnesia_disk_tx_count_rate (float, number of disk transaction per second)

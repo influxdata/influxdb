@@ -11,7 +11,7 @@ The example below has two queries are specified, with the following parameters:
 * The name of the measurement
 * A list of the columns to be defined as tags
 
-```
+```toml
 [[inputs.postgresql_extensible]]
   # specify address via a url matching:
   # postgres://[pqgotest[:password]]@host:port[/dbname]?sslmode=...
@@ -76,7 +76,7 @@ using postgresql extensions ([pg_stat_statements](http://www.postgresql.org/docs
 # Sample Queries :
 - telegraf.conf postgresql_extensible queries (assuming that you have configured
  correctly your connection)
-```
+```toml
 [[inputs.postgresql_extensible.query]]
   sqlquery="SELECT * FROM pg_stat_database"
   version=901

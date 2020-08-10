@@ -35,7 +35,9 @@ To use this plugin you must enable the [slapd monitoring](https://www.openldap.o
 
 All **monitorCounter**, **monitoredInfo**, **monitorOpInitiated**, and **monitorOpCompleted** attributes are gathered based on this LDAP query:
 
-```(|(objectClass=monitorCounterObject)(objectClass=monitorOperation)(objectClass=monitoredObject))```
+```
+(|(objectClass=monitorCounterObject)(objectClass=monitorOperation)(objectClass=monitoredObject))
+```
 
 Metric names are based on their entry DN with the cn=Monitor base removed. If `reverse_metric_names` is not set, metrics are based on their DN. If `reverse_metric_names` is set to `true`, the names are reversed. This is recommended as it allows the names to sort more naturally.
 

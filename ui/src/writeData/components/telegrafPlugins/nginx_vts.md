@@ -5,7 +5,7 @@ For module configuration details please see its [documentation](https://github.c
 
 ### Configuration:
 
-```
+```toml
 # Read nginx status information using nginx-module-vts module
 [[inputs.nginx_vts]]
   ## An array of Nginx status URIs to gather stats.
@@ -99,14 +99,14 @@ For module configuration details please see its [documentation](https://github.c
 ### Example Output:
 
 Using this configuration:
-```
+```toml
 [[inputs.nginx_vts]]
   ## An array of Nginx status URIs to gather stats.
   urls = ["http://localhost/status"]
 ```
 
 When run with:
-```
+```sh
 ./telegraf -config telegraf.conf -input-filter nginx_vts -test
 ```
 

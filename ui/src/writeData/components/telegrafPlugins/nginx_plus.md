@@ -7,7 +7,7 @@ Structures for Nginx Plus have been built based on history of
 
 ### Configuration:
 
-```
+```toml
 # Read Nginx Plus' advanced status information
 [[inputs.nginx_plus]]
   ## An array of Nginx status URIs to gather stats.
@@ -81,14 +81,14 @@ Structures for Nginx Plus have been built based on history of
 ### Example Output:
 
 Using this configuration:
-```
+```toml
 [[inputs.nginx_plus]]
   ## An array of Nginx Plus status URIs to gather stats.
   urls = ["http://localhost/status"]
 ```
 
 When run with:
-```
+```sh
 ./telegraf -config telegraf.conf -input-filter nginx_plus -test
 ```
 

@@ -129,7 +129,7 @@ from unsigned values).
 
 ### Example Output
 
-```
+```sh
 $ ./telegraf -config telegraf.conf -input-filter modbus -test
 modbus.InputRegisters,host=orangepizero Current=0,Energy=0,Frecuency=60,Power=0,PowerFactor=0,Voltage=123.9000015258789 1554079521000000000
 ```

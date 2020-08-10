@@ -71,7 +71,7 @@ programming. These tags are clearly marked in the list below and should be consi
 
 
 Get the max, mean, and min for the temperature in the last hour:
-```
+```sql
 SELECT mean("value") FROM "neptune_apex" WHERE ("probe_type" = 'Temp') AND time >= now() - 6h GROUP BY time(20s)
 ```
 
@@ -79,7 +79,7 @@ SELECT mean("value") FROM "neptune_apex" WHERE ("probe_type" = 'Temp') AND time 
 
 #### sendRequest failure
 This indicates a problem communicating with the local Apex controller. If on Mac/Linux, try curl:
-```
+```sh
 $ curl apex.local/cgi-bin/status.xml
 ```
 to isolate the problem.

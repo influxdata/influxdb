@@ -8,7 +8,7 @@ the [upgrading steps][upgrading].
 
 ### Configuration:
 
-```
+```toml
 # Read metrics about dovecot servers
 [[inputs.dovecot]]
   ## specify dovecot servers via an address:port list

@@ -29,14 +29,14 @@ The following synproxy counters are gathered
 ### Sample Queries
 
 Get the number of packets per 5 minutes for the measurement in the last hour from InfluxDB:
-```
+```sql
 SELECT difference(last("cookie_invalid")) AS "cookie_invalid", difference(last("cookie_retrans")) AS "cookie_retrans", difference(last("cookie_valid")) AS "cookie_valid", difference(last("entries")) AS "entries", difference(last("syn_received")) AS "syn_received", difference(last("conn_reopened")) AS "conn_reopened" FROM synproxy WHERE time > NOW() - 1h GROUP BY time(5m) FILL(null);
 ```
 
 ### Troubleshooting
 
 Execute the following CLI command in Linux to test the synproxy counters:
-```
+```sh
 cat /proc/net/stat/synproxy
 ```
 

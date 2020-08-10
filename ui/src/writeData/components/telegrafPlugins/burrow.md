@@ -7,7 +7,7 @@ Supported Burrow version: `1.x`
 
 ### Configuration
 
-```
+```toml
 [[inputs.burrow]]
   ## Burrow API endpoints in format "schema://host:port".
   ## Default is "http://localhost:8000".

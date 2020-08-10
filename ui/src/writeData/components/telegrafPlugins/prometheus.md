@@ -103,7 +103,7 @@ If you want to monitor Caddy, you need to use Caddy with its Prometheus plugin:
 * Restart Caddy
 * Configure Telegraf to fetch metrics on it:
 
-```
+```toml
 [[inputs.prometheus]]
 #   ## An array of urls to scrape metrics from.
   urls = ["http://localhost:9180/metrics"]

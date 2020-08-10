@@ -57,7 +57,7 @@ host=localhost user=pgotest dbname=app_production sslmode=require sslkey=/etc/te
 ```
 
 ### Configuration example
-```
+```toml
 [[inputs.postgresql]]
   address = "postgres://telegraf@localhost/someDB"
   ignored_databases = ["template0", "template1"]

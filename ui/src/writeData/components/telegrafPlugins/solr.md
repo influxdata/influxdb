@@ -9,7 +9,7 @@ Tested from 3.5 to 7.*
 
 ### Configuration:
 
-```
+```toml
 [[inputs.solr]]
   ## specify a list of one or more Solr servers
   servers = ["http://localhost:8983"]

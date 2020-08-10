@@ -57,7 +57,7 @@ You'll need to escape the `\` within the `telegraf.conf` like this: `C:\\Program
 
 The below query could be used to alert on the average temperature of the your GPUs over the last minute
 
-```
+```sql
 SELECT mean("temperature_gpu") FROM "nvidia_smi" WHERE time > now() - 5m GROUP BY time(1m), "index", "name", "host"
 ```
 
@@ -66,7 +66,7 @@ SELECT mean("temperature_gpu") FROM "nvidia_smi" WHERE time > now() - 5m GROUP B
 Check the full output by running `nvidia-smi` binary manually.
 
 Linux:
-```
+```sh
 sudo -u telegraf -- /usr/bin/nvidia-smi -q -x
 ```
 

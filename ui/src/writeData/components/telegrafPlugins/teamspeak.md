@@ -7,7 +7,7 @@ the [Teamspeak 3 ServerQuery Manual](http://media.teamspeak.com/ts3_literature/T
 
 ### Configuration:
 
-```
+```toml
 # Reads metrics from a Teamspeak 3 Server via ServerQuery
 [[inputs.teamspeak]]
   ## Server address for Teamspeak 3 ServerQuery
