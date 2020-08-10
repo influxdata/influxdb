@@ -13,9 +13,7 @@ describe('templates api calls', () => {
     mocked(postTemplatesApplyMock).mockImplementation(() => {
       return Promise.resolve({
         status: 200,
-        data: {
-          foo: 'hi!'
-        }
+        data: {}
       })
     })
 
