@@ -14,10 +14,8 @@ pub struct Segment {
 
 impl Segment {
     pub fn new(rows: usize) -> Self {
-        let mut meta = SegmentMetaData::default();
-        meta.rows = rows;
         Self {
-            meta,
+            meta: SegmentMetaData::new(rows),
             columns: vec![],
             time_column_idx: 0,
         }
@@ -128,52 +126,46 @@ impl Segment {
         None
     }
 
-    pub fn sum_column(&self, name: &str, row_ids: &croaring::Bitmap) -> Option<column::Scalar> {
+    pub fn sum_column(&self, name: &str, row_ids: &mut croaring::Bitmap) -> Option<column::Scalar> {
         if let Some(c) = self.column(name) {
             return c.sum_by_ids(row_ids);
         }
         None
     }
 
-    pub fn filter_by_predicate_eq(
+    pub fn filter_by_predicates_eq(
         &self,
-        time_range: Option<(i64, i64)>,
+        time_range: (i64, i64),
         predicates: Vec<(&str, Option<&column::Scalar>)>,
     ) -> Option<croaring::Bitmap> {
-        let mut bm = None;
-        if let Some((min, max)) = time_range {
-            if !self.meta.overlaps_time_range(min, max) {
-                return None; // segment doesn't have time range
-            }
-
-            // TODO THIS COULD BE FASTER!
-
-            // find all timestamps row ids > min time
-            let rows_gt_min =
-                self.columns[self.time_column_idx].row_ids_gt(Some(&column::Scalar::Integer(min)));
-            // find all timestamps < max time
-            let rows_lt_max =
-                self.columns[self.time_column_idx].row_ids_lt(Some(&column::Scalar::Integer(max)));
-
-            // Finally intersect matching timestamp rows
-            if rows_gt_min.is_none() && rows_lt_max.is_none() {
-                return None;
-            } else if rows_gt_min.is_none() {
-                bm = rows_lt_max;
-            } else if rows_lt_max.is_none() {
-                bm = rows_gt_min;
-            } else {
-                let mut rows = rows_gt_min.unwrap();
-                rows.and_inplace(&rows_lt_max.unwrap());
-                if rows.is_empty() {
-                    return None;
-                }
-                bm = Some(rows);
-            }
+        if !self.meta.overlaps_time_range(time_range.0, time_range.1) {
+            return None; // segment doesn't have time range
         }
 
+        let (seg_min, seg_max) = self.meta.time_range;
+        if seg_min <= time_range.0 && seg_max >= time_range.1 {
+            // the segment completely overlaps the time range of query so don't
+            // need to intersect with time column.
+            return self.filter_by_predicates_eq_no_time(predicates);
+        }
+
+        self.filter_by_predicates_eq_time(time_range, predicates)
+    }
+
+    fn filter_by_predicates_eq_time(
+        &self,
+        time_range: (i64, i64),
+        predicates: Vec<(&str, Option<&column::Scalar>)>,
+    ) -> Option<croaring::Bitmap> {
+        // Get all row_ids matching the time range:
+        //
+        //  time > time_range.0 AND time < time_range.1
+        let mut bm = self.columns[self.time_column_idx].row_ids_gte_lt(
+            &column::Scalar::Integer(time_range.0),
+            &column::Scalar::Integer(time_range.1),
+        )?;
+
         // now intersect matching rows for each column
-        // let mut bm = bm.unwrap();
         for (col_pred_name, col_pred_value) in predicates {
             if let Some(c) = self.column(col_pred_name) {
                 match c.row_ids_eq(col_pred_value) {
@@ -182,38 +174,91 @@ impl Segment {
                             return None;
                         }
 
-                        match &mut bm {
-                            Some(all) => {
-                                all.and_inplace(&row_ids);
-                                if all.is_empty() {
-                                    // no rows intersect
-                                    return None;
-                                }
-                            }
-                            None => bm = Some(row_ids),
+                        bm.and_inplace(&row_ids);
+                        if bm.is_empty() {
+                            return None;
                         }
                     }
                     None => return None, // if this predicate doesn't match then no rows match
                 }
             }
         }
-        bm
+        Some(bm)
+    }
+
+    // in this case the complete time range of segment covered so no need to intersect
+    // on time.
+    //
+    // We return an &Option here because we don't want to move the read-only
+    // meta row_ids bitmap.
+    fn filter_by_predicates_eq_no_time(
+        &self,
+        predicates: Vec<(&str, Option<&column::Scalar>)>,
+    ) -> Option<croaring::Bitmap> {
+        let mut bm: Option<croaring::Bitmap> = None;
+        // now intersect matching rows for each column
+        for (col_pred_name, col_pred_value) in predicates {
+            if let Some(c) = self.column(col_pred_name) {
+                match c.row_ids_eq(col_pred_value) {
+                    Some(row_ids) => {
+                        if row_ids.is_empty() {
+                            return None;
+                        }
+
+                        if let Some(bm) = &mut bm {
+                            bm.and_inplace(&row_ids);
+                            if bm.is_empty() {
+                                return None;
+                            }
+                        } else {
+                            bm = Some(row_ids);
+                        }
+                    }
+                    None => {
+                        return None;
+                    } // if this predicate doesn't match then no rows match
+                }
+            } else {
+                return None; // column doesn't exist - no matching rows
+            }
+        }
+
+        // In this case there are no predicates provided and we have no time
+        // range restrictions - we need to return a bitset for all row ids.
+        let mut bm = croaring::Bitmap::create_with_capacity(self.num_rows() as u32);
+        bm.add_range(0..self.num_rows() as u64);
+        Some(bm)
     }
 }
 
 /// Meta data for a segment. This data is mainly used to determine if a segment
 /// may contain value for answering a query.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SegmentMetaData {
     size: usize, // TODO
     rows: usize,
 
     column_names: Vec<String>,
     time_range: (i64, i64),
+
+    // row_ids is a bitmap containing all row ids.
+    row_ids: croaring::Bitmap,
     // TODO column sort order
 }
 
 impl SegmentMetaData {
+    pub fn new(rows: usize) -> Self {
+        let mut meta = Self {
+            size: 0,
+            rows,
+            column_names: vec![],
+            time_range: (0, 0),
+            row_ids: croaring::Bitmap::create_with_capacity(rows as u32),
+        };
+        meta.row_ids.add_range(0..rows as u64);
+        meta
+    }
+
     pub fn overlaps_time_range(&self, from: i64, to: i64) -> bool {
         self.time_range.0 <= to && from <= self.time_range.1
     }

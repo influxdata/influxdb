@@ -18,6 +18,7 @@ impl<T> PlainFixedOption<T> {
 // No compression
 pub struct PlainFixed<T> {
     values: Vec<T>,
+    buf: Vec<u32>,
     total_order: bool, // if true the column is totally ordered ascending.
 }
 
@@ -55,8 +56,14 @@ where
         &self.values[row_id..]
     }
 
-    /// returns a set of row ids that match an ordering on a desired value
-    pub fn row_ids_roaring(&self, wanted: &T, order: std::cmp::Ordering) -> croaring::Bitmap {
+    /// returns a set of row ids that match a single ordering on a desired value
+    ///
+    /// This supports `value = x` , `value < x` or `value > x`.
+    pub fn row_ids_single_cmp_roaring(
+        &self,
+        wanted: &T,
+        order: std::cmp::Ordering,
+    ) -> croaring::Bitmap {
         let mut bm = croaring::Bitmap::create();
 
         let mut found = false; //self.values[0];
@@ -89,10 +96,100 @@ where
         bm
     }
 
+    /// returns a set of row ids that match the half open interval `[from, to)`.
+    ///
+    /// The main use-case for this is time range filtering.
+    pub fn row_ids_gte_lt_roaring(&self, from: &T, to: &T) -> croaring::Bitmap {
+        let mut bm = croaring::Bitmap::create();
+
+        let mut found = false; //self.values[0];
+        let mut count = 0;
+        for (i, next) in self.values.iter().enumerate() {
+            if (next < from || next >= to) && found {
+                let (min, max) = (i as u64 - count as u64, i as u64);
+                bm.add_range(min..max);
+                found = false;
+                count = 0;
+                continue;
+            } else if next < from || next >= to {
+                continue;
+            }
+
+            if !found {
+                found = true;
+            }
+            count += 1;
+        }
+
+        // add any remaining range.
+        if found {
+            let (min, max) = (
+                (self.values.len()) as u64 - count as u64,
+                (self.values.len()) as u64,
+            );
+            bm.add_range(min..max);
+        }
+        bm
+    }
+
     // TODO(edd): make faster
-    pub fn sum_by_ids(&self, row_ids: &croaring::Bitmap) -> T {
+    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> T {
         let mut res = T::default();
-        row_ids.iter().for_each(|x| res += self.value(x as usize));
+        // println!(
+        //     "cardinality is {:?} out of {:?}",
+        //     row_ids.cardinality(),
+        //     self.values.len()
+        // );
+
+        // HMMMMM - materialising which has a memory cost.
+        // let vec = row_ids.to_vec();
+        // for v in vec.chunks_exact(4) {
+        //     res += self.value(v[0] as usize);
+        //     res += self.value(v[1] as usize);
+        //     res += self.value(v[2] as usize);
+        //     res += self.value(v[3] as usize);
+        // }
+
+        // HMMMMM - materialising which has a memory cost.
+        let vec = row_ids.to_vec();
+        for v in vec {
+            res += self.value(v as usize);
+        }
+
+        // for v in row_ids.iter() {
+        //     res += self.value(v as usize);
+        // }
+
+        // let step = 16_u64;
+        // for i in (0..self.values.len() as u64).step_by(step as usize) {
+        //     if row_ids.contains_range(i..i + step) {
+        //         res += self.value(i as usize + 15);
+        //         res += self.value(i as usize + 14);
+        //         res += self.value(i as usize + 13);
+        //         res += self.value(i as usize + 12);
+        //         res += self.value(i as usize + 11);
+        //         res += self.value(i as usize + 10);
+        //         res += self.value(i as usize + 9);
+        //         res += self.value(i as usize + 8);
+        //         res += self.value(i as usize + 7);
+        //         res += self.value(i as usize + 6);
+        //         res += self.value(i as usize + 5);
+        //         res += self.value(i as usize + 4);
+        //         res += self.value(i as usize + 3);
+        //         res += self.value(i as usize + 2);
+        //         res += self.value(i as usize + 1);
+        //         res += self.value(i as usize);
+        //         continue;
+        //     }
+
+        //     for j in i..i + step {
+        //         if row_ids.contains(j as u32) {
+        //             res += self.value(j as usize);
+        //         }
+        //     }
+        //  }
+
+        // row_ids.iter().for_each(|x| res += self.value(x as usize));
         res
     }
 
@@ -105,6 +202,7 @@ impl From<&[i64]> for PlainFixed<i64> {
     fn from(v: &[i64]) -> Self {
         Self {
             values: v.to_vec(),
+            buf: Vec::with_capacity(v.len()),
             total_order: false,
         }
     }
@@ -114,6 +212,7 @@ impl From<&[f64]> for PlainFixed<f64> {
     fn from(v: &[f64]) -> Self {
         Self {
             values: v.to_vec(),
+            buf: Vec::with_capacity(v.len()),
             total_order: false,
         }
     }
@@ -225,7 +324,7 @@ impl DictionaryRLE {
 
     // row_ids returns an iterator over the set of row ids matching the provided
     // value.
-    pub fn row_ids_roaring(&self, value: Option<String>) -> croaring::Bitmap {
+    pub fn row_ids_eq_roaring(&self, value: Option<String>) -> croaring::Bitmap {
         let mut bm = croaring::Bitmap::create();
         if let Some(idx) = self.entry_index.get(&value) {
             let mut index: u64 = 0;
@@ -405,37 +504,59 @@ mod test {
         let input = vec![1, 1, 1, 1, 3, 4, 4, 5, 6, 5, 5, 5, 1, 5];
         let col = super::PlainFixed::from(input.as_slice());
 
-        let bm = col.row_ids_roaring(&4, std::cmp::Ordering::Equal);
+        let bm = col.row_ids_single_cmp_roaring(&4, std::cmp::Ordering::Equal);
         assert_eq!(bm.to_vec(), vec![5, 6]);
 
-        let bm = col.row_ids_roaring(&1, std::cmp::Ordering::Equal);
+        let bm = col.row_ids_single_cmp_roaring(&1, std::cmp::Ordering::Equal);
         assert_eq!(bm.to_vec(), vec![0, 1, 2, 3, 12]);
 
-        let bm = col.row_ids_roaring(&6, std::cmp::Ordering::Equal);
+        let bm = col.row_ids_single_cmp_roaring(&6, std::cmp::Ordering::Equal);
         assert_eq!(bm.to_vec(), vec![8]);
 
-        let bm = col.row_ids_roaring(&5, std::cmp::Ordering::Equal);
+        let bm = col.row_ids_single_cmp_roaring(&5, std::cmp::Ordering::Equal);
         assert_eq!(bm.to_vec(), vec![7, 9, 10, 11, 13]);
 
-        let bm = col.row_ids_roaring(&20, std::cmp::Ordering::Equal);
+        let bm = col.row_ids_single_cmp_roaring(&20, std::cmp::Ordering::Equal);
         assert_eq!(bm.to_vec(), vec![]);
     }
 
     #[test]
-    fn plain_row_ids_roaring_gt() {
+    fn plain_row_ids_cmp_roaring_gt() {
         let input = vec![1, 1, 1, 1, 3, 4, 4, 5, 6, 5, 5, 5, 1, 5];
         let col = super::PlainFixed::from(input.as_slice());
 
-        let bm = col.row_ids_roaring(&0, std::cmp::Ordering::Greater);
+        let bm = col.row_ids_single_cmp_roaring(&0, std::cmp::Ordering::Greater);
         let exp: Vec<u32> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
         assert_eq!(bm.to_vec(), exp);
 
-        let bm = col.row_ids_roaring(&4, std::cmp::Ordering::Greater);
+        let bm = col.row_ids_single_cmp_roaring(&4, std::cmp::Ordering::Greater);
         let exp: Vec<u32> = vec![7, 8, 9, 10, 11, 13];
         assert_eq!(bm.to_vec(), exp);
 
-        let bm = col.row_ids_roaring(&5, std::cmp::Ordering::Greater);
+        let bm = col.row_ids_single_cmp_roaring(&5, std::cmp::Ordering::Greater);
         let exp: Vec<u32> = vec![8];
+        assert_eq!(bm.to_vec(), exp);
+    }
+
+    #[test]
+    fn plain_row_ids_gte_lt_roaring() {
+        let input = vec![1, 1, 1, 1, 3, 4, 4, 5, 6, 5, 5, 5, 1, 5];
+        let col = super::PlainFixed::from(input.as_slice());
+
+        let bm = col.row_ids_gte_lt_roaring(&-1, &7);
+        let exp: Vec<u32> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+        assert_eq!(bm.to_vec(), exp);
+
+        let bm = col.row_ids_gte_lt_roaring(&1, &5);
+        let exp: Vec<u32> = vec![0, 1, 2, 3, 4, 5, 6, 12];
+        assert_eq!(bm.to_vec(), exp);
+
+        let bm = col.row_ids_gte_lt_roaring(&0, &1);
+        let exp: Vec<u32> = vec![];
+        assert_eq!(bm.to_vec(), exp);
+
+        let bm = col.row_ids_gte_lt_roaring(&1, &2);
+        let exp: Vec<u32> = vec![0, 1, 2, 3, 12];
         assert_eq!(bm.to_vec(), exp);
     }
 
@@ -581,19 +702,19 @@ mod test {
         drle.push("abc");
 
         let ids = drle
-            .row_ids_roaring(Some("abc".to_string()))
+            .row_ids_eq_roaring(Some("abc".to_string()))
             .iter()
             .collect::<Vec<u32>>();
         assert_eq!(ids, vec![0, 1, 2, 5]);
 
         let ids = drle
-            .row_ids_roaring(Some("dre".to_string()))
+            .row_ids_eq_roaring(Some("dre".to_string()))
             .iter()
             .collect::<Vec<u32>>();
         assert_eq!(ids, vec![3, 4]);
 
         let ids = drle
-            .row_ids_roaring(Some("foo".to_string()))
+            .row_ids_eq_roaring(Some("foo".to_string()))
             .iter()
             .collect::<Vec<u32>>();
         let empty: Vec<u32> = vec![];

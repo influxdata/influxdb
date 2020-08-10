@@ -245,7 +245,7 @@ impl Column {
         }
     }
 
-    pub fn sum_by_ids(&self, row_ids: &croaring::Bitmap) -> Option<Scalar> {
+    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Scalar> {
         match self {
             Column::String(_) => unimplemented!("not implemented"),
             Column::Float(c) => Some(Scalar::Float(c.sum_by_ids(row_ids))),
@@ -285,6 +285,66 @@ impl Column {
         self.row_ids(value, std::cmp::Ordering::Less)
     }
 
+    // allows you to do:
+    //      WHERE time >= 0 AND time < 100
+    //
+    // or
+    //
+    //      WHERE counter >= 102.2 AND counter < 2929.32
+    pub fn row_ids_gte_lt(&self, low: &Scalar, high: &Scalar) -> Option<croaring::Bitmap> {
+        match self {
+            Column::String(c) => {
+                unimplemented!("not implemented yet");
+            }
+            Column::Float(c) => {
+                let (col_min, col_max) = c.meta.range();
+                if let (Scalar::Float(low), Scalar::Float(high)) = (low, high) {
+                    if *low >= col_min && *high < col_max {
+                        // In this case the column completely covers the range.
+                        // TODO: PERF - need to _not_ return a bitset rather than
+                        // return a full one. Need to differentiate between "no values"
+                        // and "all values" in the context of an Option. Right now
+                        // None means "no values"
+                        //
+                        let mut bm = croaring::Bitmap::create();
+                        bm.add_range(0..c.meta.num_rows() as u64); // all rows
+                        return Some(bm);
+                    }
+
+                    // The column has some values that are outside of the
+                    // desired range so we need to determine the set of matching
+                    // row ids.
+                    Some(c.data.row_ids_gte_lt_roaring(low, high))
+                } else {
+                    panic!("not supposed to be here");
+                }
+            }
+            Column::Integer(c) => {
+                let (col_min, col_max) = c.meta.range();
+                if let (Scalar::Integer(low), Scalar::Integer(high)) = (low, high) {
+                    if *low >= col_min && *high < col_max {
+                        // In this case the column completely covers the range.
+                        // TODO: PERF - need to _not_ return a bitset rather than
+                        // return a full one. Need to differentiate between "no values"
+                        // and "all values" in the context of an Option. Right now
+                        // None means "no values"
+                        //
+                        let mut bm = croaring::Bitmap::create();
+                        bm.add_range(0..c.meta.num_rows() as u64); // all rows
+                        return Some(bm);
+                    }
+
+                    // The column has some values that are outside of the
+                    // desired range so we need to determine the set of matching
+                    // row ids.
+                    Some(c.data.row_ids_gte_lt_roaring(low, high))
+                } else {
+                    panic!("not supposed to be here");
+                }
+            }
+        }
+    }
+
     // TODO(edd) shouldn't let roaring stuff leak out...
     fn row_ids(
         &self,
@@ -292,26 +352,31 @@ impl Column {
         order: std::cmp::Ordering,
     ) -> Option<croaring::Bitmap> {
         match self {
-            Column::String(c) => match value {
-                Some(scalar) => {
-                    if let Scalar::String(v) = scalar {
-                        Some(c.data.row_ids_roaring(Some(v.to_string())))
-                    } else {
-                        panic!("invalid value");
-                    }
+            Column::String(c) => {
+                if order != std::cmp::Ordering::Equal {
+                    unimplemented!("> < not supported on strings yet");
                 }
-                None => Some(c.data.row_ids_roaring(None)),
-            },
+                match value {
+                    Some(scalar) => {
+                        if let Scalar::String(v) = scalar {
+                            Some(c.data.row_ids_eq_roaring(Some(v.to_string())))
+                        } else {
+                            panic!("invalid value");
+                        }
+                    }
+                    None => Some(c.data.row_ids_eq_roaring(None)),
+                }
+            }
             Column::Float(c) => {
                 if let Some(Scalar::Float(v)) = value {
-                    Some(c.data.row_ids_roaring(v, order))
+                    Some(c.data.row_ids_single_cmp_roaring(v, order))
                 } else {
                     panic!("invalid value or unsupported null");
                 }
             }
             Column::Integer(c) => {
                 if let Some(Scalar::Integer(v)) = value {
-                    Some(c.data.row_ids_roaring(v, order))
+                    Some(c.data.row_ids_single_cmp_roaring(v, order))
                 } else {
                     panic!("invalid value or unsupported null");
                 }
@@ -409,7 +474,7 @@ impl Float {
         self.data.scan_from_until_some(row_id)
     }
 
-    pub fn sum_by_ids(&self, row_ids: &croaring::Bitmap) -> f64 {
+    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> f64 {
         self.data.sum_by_ids(row_ids)
     }
 }
