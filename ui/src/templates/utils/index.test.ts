@@ -4,7 +4,7 @@ import {
   findIncludedFromRelationship,
   findIncludedVariables,
   getTemplateDetails,
-  getGithubUrlFromTemplateDetails
+  getGithubUrlFromTemplateDetails,
 } from 'src/templates/utils/'
 import {TemplateType} from 'src/types'
 
@@ -51,14 +51,14 @@ describe('Templates utils', () => {
 
   describe('getTemplateDetailsGithub', () => {
     it('Confirm get template details returns the proper format for github url', () => {
-      const actual = getTemplateDetails("https://github.com/influxdata/community-templates/blob/master/modbus/modbus.yml")
-      const expected = [
-        {
-          directory: '/modbus/',
-          templateExtension: 'modbus',
-          templateName: 'yml',
-          }
-      ]
+      const actual = getTemplateDetails(
+        'https://github.com/influxdata/community-templates/blob/master/modbus/modbus.yml'
+      )
+      const expected = {
+        directory: 'modbus',
+        templateExtension: 'yml',
+        templateName: 'modbus',
+      }
 
       expect(actual).toEqual(expected)
     })
@@ -66,14 +66,12 @@ describe('Templates utils', () => {
 
   describe('getTemplateDetailsSource', () => {
     it('Confirm get template details returns the proper format for Source url', () => {
-      const actual = getTemplateDetails("file://")
-      const expected = [
-        {
+      const actual = getTemplateDetails('file://')
+      const expected = {
         directory: '',
         templateExtension: '',
         templateName: '',
-        }
-      ]
+      }
 
       expect(actual).toEqual(expected)
     })
@@ -82,27 +80,24 @@ describe('Templates utils', () => {
   describe('getTemplateDetailsError', () => {
     it('Confirm get template details returns the proper format for wrong url', () => {
       expect(() => {
-        getTemplateDetails('octopus');
-      }).toThrowError();
+        getTemplateDetails('octopus')
+      }).toThrowError()
     })
   })
 
   describe('getTemplateDetailsError', () => {
     it('Confirm get template details returns the proper format for wrong url', () => {
       expect(() => {
-        getTemplateDetails('octopus');
-      }).toThrowError();
+        getTemplateDetails('octopus')
+      }).toThrowError()
     })
   })
 
   describe('getGithubUrlFromTemplateDetailsTest1', () => {
     it('Get back the proper url', () => {
-      const actual = getGithubUrlFromTemplateDetails(        {
-        directory: '/modbus/',
-        templateExtension: 'modbus',
-        templateName: 'yml',
-        })
-      const expected = "https://github.com/influxdata/community-templates/blob/master/modbus/modbus.yml"
+      const actual = getGithubUrlFromTemplateDetails('modbus', 'modbus', 'yml')
+      const expected =
+        'https://github.com/influxdata/community-templates/blob/master/modbus/modbus.yml'
 
       expect(actual).toEqual(expected)
     })
@@ -110,12 +105,9 @@ describe('Templates utils', () => {
 
   describe('getGithubUrlFromTemplateDetailsTest2', () => {
     it('Get back the proper url', () => {
-      const actual = getGithubUrlFromTemplateDetails(        {
-        directory: '/docker/',
-        templateExtension: 'docker',
-        templateName: 'yml',
-        })
-      const expected = "https://github.com/influxdata/community-templates/blob/master/docker/docker.yml"
+      const actual = getGithubUrlFromTemplateDetails('docker', 'docker', 'yml')
+      const expected =
+        'https://github.com/influxdata/community-templates/blob/master/docker/docker.yml'
 
       expect(actual).toEqual(expected)
     })
@@ -123,18 +115,17 @@ describe('Templates utils', () => {
 
   describe('getGithubUrlFromTemplateDetailsTest3', () => {
     it('Get back the proper url', () => {
-      const actual = getGithubUrlFromTemplateDetails(        {
-        directory: '/kafka/',
-        templateExtension: 'kafka-template',
-        templateName: 'yml',
-        })
-      const expected = "https://github.com/influxdata/community-templates/blob/master/kafka/kafka-template.yml"
+      const actual = getGithubUrlFromTemplateDetails(
+        'kafka',
+        'kafka-template',
+        'yml'
+      )
+      const expected =
+        'https://github.com/influxdata/community-templates/blob/master/kafka/kafka-template.yml'
 
       expect(actual).toEqual(expected)
     })
   })
-
-
 })
 
 describe('the Community Template url utilities', () => {
