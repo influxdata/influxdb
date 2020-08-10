@@ -23,7 +23,7 @@ import {getResourceInstallCount} from 'src/templates/selectors'
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
-class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
+class CommunityTemplateOverlayContentsUnconnected extends PureComponent<Props> {
   render() {
     const {summary} = this.props
     if (!Object.keys(summary).length) {
@@ -228,6 +228,6 @@ const mdtp = {
 
 const connector = connect(mstp, mdtp)
 
-export const CommunityTemplateContents = connector(
-  CommunityTemplateContentsUnconnected
+export const CommunityTemplateOverlayContents = connector(
+  CommunityTemplateOverlayContentsUnconnected
 )
