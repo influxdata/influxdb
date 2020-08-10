@@ -17,8 +17,8 @@ const TelegrafPluginsExplainer: FC = () => {
             metrics from many different sources.
           </p>
           <p>
-            You will need to have Telegraf installed in order to use these
-            plugins. See our handy{' '}
+            You will need to have Telegraf installed in order to use this
+            plugin. See our handy{' '}
             <a
               href="https://docs.influxdata.com/telegraf/v1.15/introduction/installation/"
               target="_blank"

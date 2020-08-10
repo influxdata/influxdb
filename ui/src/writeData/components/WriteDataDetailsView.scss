@@ -10,7 +10,7 @@
   order: 1;
   width: 200px;
   margin-bottom: $cf-marg-c;
-  padding: $cf-marg-c;
+  padding: $cf-marg-d;
   background-color: $g3-castle;
   border-radius: $cf-radius;
 
@@ -31,6 +31,10 @@
   padding: $cf-marg-c;
   margin-top: $cf-marg-c;
   border-radius: $cf-radius;
+}
+
+.markdown-format .code-snippet--text {
+  background-color: $g1-raven;
 }
 
 @media screen and (min-width: $cf-grid--breakpoint-md) {

@@ -33,8 +33,6 @@ const WriteDataItem: FC<Props> = ({id, name, url, image, history, orgID}) => {
     history.push(`/${ORGS}/${orgID}/load-data/${url}`)
   }
 
-  console.log(id)
-
   let cardBody = (
     <img
       className="write-data--item-thumb"
@@ -44,6 +42,7 @@ const WriteDataItem: FC<Props> = ({id, name, url, image, history, orgID}) => {
   )
 
   if (image) {
+    // TODO: Won't need this one images are imported correctly
     const filePathIsCorrect = !image.replace(/[/]([\w\d])\w+[.]svg/, '').length
 
     if (filePathIsCorrect) {
