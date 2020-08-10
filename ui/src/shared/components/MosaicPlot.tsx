@@ -49,6 +49,7 @@ const MosaicPlot: FunctionComponent<Props> = ({
     xColumn: storedXColumn,
     yColumn: storedYColumn,
     timeFormat,
+    hoverDimension,
   },
   theme,
 }) => {
@@ -122,6 +123,7 @@ const MosaicPlot: FunctionComponent<Props> = ({
         y: yColumn,
         colors: colorHexes,
         fill: fillColumns,
+        hoverDimension,
       },
     ],
   }

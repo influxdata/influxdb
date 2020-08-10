@@ -3,8 +3,8 @@ import React, {SFC} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
 
 // Components
-import {Form, Input, Grid} from '@influxdata/clockface'
-import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
+import {Form, Grid, Dropdown, Input} from '@influxdata/clockface'
+//import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
 import TimeFormat from 'src/timeMachine/components/view_options/TimeFormat'
 
 // Actions
@@ -19,6 +19,7 @@ import {
   setXColumn,
   setYColumn,
   setTimeFormat,
+  SetHoverDimension,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -55,6 +56,7 @@ interface OwnProps {
   ySuffix: string
   colors: string[]
   showNoteWhenEmpty: boolean
+  hoverDimension?: 'auto' | 'x' | 'y' | 'xy'
 }
 
 type ReduxProps = ConnectedProps<typeof connector>
@@ -70,10 +72,10 @@ const MosaicOptions: SFC<Props> = props => {
     onSetColors,
     onSetYAxisLabel,
     onSetXAxisLabel,
-    yPrefix,
-    ySuffix,
-    onUpdateAxisSuffix,
-    onUpdateAxisPrefix,
+    //yPrefix,
+    //ySuffix,
+    //onUpdateAxisSuffix,
+    //onUpdateAxisPrefix,
     yDomain,
     onSetYDomain,
     xColumn,
@@ -84,6 +86,8 @@ const MosaicOptions: SFC<Props> = props => {
     onSetYColumn,
     onSetTimeFormat,
     timeFormat,
+    hoverDimension = 'auto',
+    onSetHoverDimension,
   } = props
 
   const handleFillColumnSelect = (column: string): void => {
@@ -107,14 +111,12 @@ const MosaicOptions: SFC<Props> = props => {
         availableColumns={numericColumns}
         axisName="x"
       />
-      <Form.Element label="Y Column">
-        <ColumnSelector
-          selectedColumn={yColumn}
-          onSelectColumn={onSetYColumn}
-          availableColumns={stringColumns}
-          axisName="y"
-        />
-      </Form.Element>
+      <ColumnSelector
+        selectedColumn={yColumn}
+        onSelectColumn={onSetYColumn}
+        availableColumns={stringColumns}
+        axisName="y"
+      />
       <Form.Element label="Time Format">
         <TimeFormat
           timeFormat={timeFormat}
@@ -128,6 +130,51 @@ const MosaicOptions: SFC<Props> = props => {
           selectedColorScheme={colors}
           onSelectColorScheme={onSetColors}
         />
+        <Form.Element label="Hover Dimension">
+          <Dropdown
+            button={(active, onClick) => (
+              <Dropdown.Button active={active} onClick={onClick}>
+                {hoverDimension}
+              </Dropdown.Button>
+            )}
+            menu={onCollapse => (
+              <Dropdown.Menu onCollapse={onCollapse}>
+                <Dropdown.Item
+                  id="auto"
+                  value="auto"
+                  onClick={onSetHoverDimension}
+                  selected={hoverDimension === 'auto'}
+                >
+                  Auto
+                </Dropdown.Item>
+                <Dropdown.Item
+                  id="x"
+                  value="x"
+                  onClick={onSetHoverDimension}
+                  selected={hoverDimension === 'x'}
+                >
+                  X Axis
+                </Dropdown.Item>
+                {/* <Dropdown.Item
+                id="y"
+                value="y"
+                onClick={onSetHoverDimension}
+                selected={hoverDimension === 'y'}
+              >
+                Y Axis
+              </Dropdown.Item> */}
+                <Dropdown.Item
+                  id="xy"
+                  value="xy"
+                  onClick={onSetHoverDimension}
+                  selected={hoverDimension === 'xy'}
+                >
+                  X & Y Axis
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            )}
+          />
+        </Form.Element>
       </Form.Element>
       <h5 className="view-options--header">X Axis</h5>
       <Form.Element label="X Axis Label">
@@ -142,16 +189,7 @@ const MosaicOptions: SFC<Props> = props => {
           value={yAxisLabel}
           onChange={e => onSetYAxisLabel(e.target.value)}
         />
-      </Form.Element>
-      <Grid.Row>
-        <AxisAffixes
-          prefix={yPrefix}
-          suffix={ySuffix}
-          axisName="y"
-          onUpdateAxisPrefix={prefix => onUpdateAxisPrefix(prefix, 'y')}
-          onUpdateAxisSuffix={suffix => onUpdateAxisSuffix(suffix, 'y')}
-        />
-      </Grid.Row>
+      </Form.Element>{' '}
       <AutoDomainInput
         domain={yDomain as [number, number]}
         onSetDomain={onSetYDomain}
@@ -193,6 +231,7 @@ const mdtp = {
   onSetXColumn: setXColumn,
   onSetYColumn: setYColumn,
   onSetTimeFormat: setTimeFormat,
+  onSetHoverDimension: SetHoverDimension,
 }
 
 const connector = connect(mstp, mdtp)
