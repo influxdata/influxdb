@@ -21,26 +21,39 @@ const SchemaFetcher: FC = () => {
       // |> pivot(valueColumn: "_value", rowKey: ["_measurement"], columnKey: ["_field"])`
       const text = `import "influxdata/influxdb/v1"
 from(bucket: "${data.bucketName}")
-    |> range(start: -10s)
-    |> last()
-    |> drop(columns: ["_start","_stop"])
-    |> v1.fieldsAsCols()`
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> first()
+  |> v1.fieldsAsCols()`
       const result = await query(text)
       const parsedTable = result.parsed.table
 
-      // const keys = parsedTable.columnKeys
+      const keys = parsedTable.columnKeys
 
-      // const simpleSchema = keys.map(k => {
-      //   const keyValues: string[] = uniq(
-      //     get(parsedTable, `columns[${k}].data`, [])
-      //   )
-      //   const name = get(parsedTable, `columns[${k}].name`)
+      /*const simpleSchema = keys.map(k => {
+        const keyValues: string[] = uniq(
+          get(parsedTable, `columns[${k}].data`, [])
+        )
+        const name = get(parsedTable, `columns[${k}].name`)
 
-      //   return {
-      //     name,
-      //     keyValues,
-      //   }
-      // })
+        return {
+          [name]: keyValues,
+          //keyValues,
+        }
+      })*/
+      const simpleSchema = keys.reduce((acc, k) => {
+        // TODO do we want to filter out undefined vaiables?
+        const keyValues: string[] = uniq(
+          get(parsedTable, `columns[${k}].data`, [])
+        )
+        const name = get(parsedTable, `columns[${k}].name`)
+        acc[name] = keyValues
+        return acc
+      }, {})
+
+      // set simpleSchema to local storage with bucket as the associated key
+      window.localStorage.setItem(data.bucketName, JSON.stringify(simpleSchema))
+
+      console.log(simpleSchema)
 
       setSchema(result)
     }
