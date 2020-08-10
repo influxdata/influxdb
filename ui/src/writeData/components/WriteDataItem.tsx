@@ -19,6 +19,9 @@ import {AppState} from 'src/types'
 // Constants
 import {ORGS} from 'src/shared/constants/routes'
 
+// Styles
+import 'src/writeData/components/WriteDataItem.scss'
+
 interface StateProps {
   orgID: string
 }
@@ -30,10 +33,22 @@ const WriteDataItem: FC<Props> = ({id, name, url, image, history, orgID}) => {
     history.push(`/${ORGS}/${orgID}/load-data/${url}`)
   }
 
-  let cardBody = <img src={placeholderLogo} style={{opacity: 0.15}} />
+  console.log(id)
+
+  let cardBody = (
+    <img
+      className="write-data--item-thumb"
+      src={placeholderLogo}
+      style={{opacity: 0.15}}
+    />
+  )
 
   if (image) {
-    cardBody = <img src={image} />
+    const filePathIsCorrect = !image.replace(/[/]([\w\d])\w+[.]svg/, '').length
+
+    if (filePathIsCorrect) {
+      cardBody = <img className="write-data--item-thumb" src={image} />
+    }
   }
 
   return (
@@ -46,6 +61,7 @@ const WriteDataItem: FC<Props> = ({id, name, url, image, history, orgID}) => {
         selected={false}
         onClick={handleClick}
         fontSize={ComponentSize.ExtraSmall}
+        className="write-data--item"
       >
         {cardBody}
       </SelectableCard>

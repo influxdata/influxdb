@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, ReactNode} from 'react'
 import {useParams} from 'react-router-dom'
 import ReactMarkdown, {Renderer} from 'react-markdown'
 
@@ -18,6 +18,7 @@ import 'src/writeData/components/WriteDataDetailsView.scss'
 
 interface Props {
   section: WriteDataSection
+  children?: ReactNode
 }
 
 const codeRenderer: Renderer<HTMLPreElement> = (props: any): any => {
@@ -39,11 +40,7 @@ const WriteDataDetailsView: FC<Props> = ({section, children}) => {
 
   if (markdown) {
     pageContent = (
-      <ReactMarkdown
-        source={markdown}
-        renderers={{code: codeRenderer}}
-        className="markdown-format write-data--details-markdown"
-      />
+      <ReactMarkdown source={markdown} renderers={{code: codeRenderer}} />
     )
   }
 
@@ -55,7 +52,7 @@ const WriteDataDetailsView: FC<Props> = ({section, children}) => {
       <Page.Contents fullWidth={false} scrollable={true}>
         <div className="write-data--details">
           <div className="write-data--details-thumbnail">{thumbnail}</div>
-          <div className="write-data--details-content">
+          <div className="write-data--details-content markdown-format">
             {children}
             {pageContent}
           </div>

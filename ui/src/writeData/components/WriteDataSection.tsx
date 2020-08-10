@@ -1,5 +1,6 @@
 // Libraries
 import React, {FC, useContext} from 'react'
+import {sortBy} from 'lodash'
 
 // Contexts
 import {WriteDataSearchContext} from 'src/writeData/containers/WriteDataPage'
@@ -32,6 +33,8 @@ const WriteDataSection: FC<WriteDataSection> = ({
     doesItemMatchSearchTerm(item.name, searchTerm)
   )
 
+  const sortedItems = sortBy(filteredItems, item => item.name)
+
   return (
     <div
       className="write-data--section"
@@ -51,8 +54,8 @@ const WriteDataSection: FC<WriteDataSection> = ({
       >
         {description}
       </Heading>
-      <SquareGrid cardSize="200px" gutter={ComponentSize.Small}>
-        {filteredItems.map(item => (
+      <SquareGrid cardSize="170px" gutter={ComponentSize.Small}>
+        {sortedItems.map(item => (
           <WriteDataItem
             key={item.id}
             id={item.id}

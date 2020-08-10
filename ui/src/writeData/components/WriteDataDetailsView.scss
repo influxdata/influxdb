@@ -22,14 +22,10 @@
 .write-data--details-content {
   order: 2;
   width: 100%;
+  font-size: 1.3em;
 }
 
-.write-data--details-markdown {
-  font-size: 1.25em;
-}
-
-.write-data--details-sidebar {
-  order: 3;
+.write-data--details-widget {
   width: 100%;
   background-color: $g3-castle;
   padding: $cf-marg-c;
