@@ -4,7 +4,6 @@ import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Form, Grid, Dropdown, Input} from '@influxdata/clockface'
-//import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
 import TimeFormat from 'src/timeMachine/components/view_options/TimeFormat'
 
 // Actions
@@ -72,10 +71,6 @@ const MosaicOptions: SFC<Props> = props => {
     onSetColors,
     onSetYAxisLabel,
     onSetXAxisLabel,
-    //yPrefix,
-    //ySuffix,
-    //onUpdateAxisSuffix,
-    //onUpdateAxisPrefix,
     yDomain,
     onSetYDomain,
     xColumn,
@@ -155,14 +150,6 @@ const MosaicOptions: SFC<Props> = props => {
                 >
                   X Axis
                 </Dropdown.Item>
-                {/* <Dropdown.Item
-                id="y"
-                value="y"
-                onClick={onSetHoverDimension}
-                selected={hoverDimension === 'y'}
-              >
-                Y Axis
-              </Dropdown.Item> */}
                 <Dropdown.Item
                   id="xy"
                   value="xy"

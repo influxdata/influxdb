@@ -47,15 +47,14 @@ const MosaicPlot: FunctionComponent<Props> = ({
     xDomain: storedXDomain,
     yDomain: storedYDomain,
     xColumn: storedXColumn,
-    yColumn: storedYColumn,
+    ySeriesColumns: storedYColumn,
     timeFormat,
-    hoverDimension,
   },
   theme,
 }) => {
   const fillColumns = storedFill || []
   const xColumn = storedXColumn || defaultXColumn(table)
-  const yColumn = storedYColumn || mosaicYcolumn(table)
+  const yColumn = storedYColumn[0] || mosaicYcolumn(table)
 
   const columnKeys = table.columnKeys
 
@@ -123,7 +122,6 @@ const MosaicPlot: FunctionComponent<Props> = ({
         y: yColumn,
         colors: colorHexes,
         fill: fillColumns,
-        hoverDimension,
       },
     ],
   }
