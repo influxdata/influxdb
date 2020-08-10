@@ -24,7 +24,7 @@ const WriteDataIndexView: FC<Props> = ({children, content}) => {
         <Page.Header fullWidth={false}>
           <Page.Title title={name} />
         </Page.Header>
-        <Page.Contents fullWidth={false}>
+        <Page.Contents fullWidth={false} scrollable={true}>
           <SquareGrid cardSize="200px" gutter={ComponentSize.Small}>
             {items.map(item => (
               <WriteDataItem
