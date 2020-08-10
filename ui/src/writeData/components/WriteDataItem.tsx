@@ -33,20 +33,14 @@ const WriteDataItem: FC<Props> = ({id, name, url, image, history, orgID}) => {
     history.push(`/${ORGS}/${orgID}/load-data/${url}`)
   }
 
-  let cardBody = (
-    <img
-      className="write-data--item-thumb"
-      src={placeholderLogo}
-      style={{opacity: 0.15}}
-    />
-  )
+  let thumbnailStyle = {backgroundImage: `url(${placeholderLogo})`}
 
   if (image) {
     // TODO: Won't need this one images are imported correctly
     const filePathIsCorrect = !image.replace(/[/]([\w\d])\w+[.]svg/, '').length
 
     if (filePathIsCorrect) {
-      cardBody = <img className="write-data--item-thumb" src={image} />
+      thumbnailStyle = {backgroundImage: `url(${image})`}
     }
   }
 
@@ -62,7 +56,7 @@ const WriteDataItem: FC<Props> = ({id, name, url, image, history, orgID}) => {
         fontSize={ComponentSize.ExtraSmall}
         className="write-data--item"
       >
-        {cardBody}
+        <div className="write-data--item-thumb" style={thumbnailStyle} />
       </SelectableCard>
     </SquareGrid.Card>
   )

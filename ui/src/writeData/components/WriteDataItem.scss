@@ -8,5 +8,13 @@
 }
 
 .write-data--item-thumb {
-  width: 100%;
+  width: 90%;
+  height: 90%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center center;
+}
+
+.write-data--item.cf-selectable-card .cf-selectable-card--children {
+  position: relative;
 }
