@@ -246,6 +246,68 @@ http.post(
       //assert changed task name
       cy.getByTestID('task-card--name').contains('Copy task test')
     })
+
+    it.skip('can add a comment into a task', () => {
+      cy.getByTestID('task-card--name')
+        .first()
+        .click()
+
+      //assert textarea and write a comment
+      cy.getByTestID('flux-editor').within(() => {
+        cy.get('textarea.inputarea')
+          .should(
+            'have.value',
+            'option task = {\n' +
+              '    name: "🦄ask",\n' +
+              '    every: 24h,\n' +
+              '    offset: 20m\n' +
+              '  }\n' +
+              '  from(bucket: "defbuck")\n' +
+              '        |> range(start: -2m)'
+          )
+          .click()
+          .focused()
+          .type('{end} {enter} //this is a test comment')
+          .then(() => {
+            cy.get('textarea.inputarea').should(
+              'have.value',
+              'option task = {\n' +
+                '    name: "🦄ask",\n' +
+                '    every: 24h,\n' +
+                '    offset: 20m\n' +
+                '  }\n' +
+                '  from(bucket: "defbuck")\n' +
+                '        |> range(start: -2m) \n' +
+                '         //this is a test comment'
+            )
+          })
+      })
+
+      //save and assert notification
+      cy.getByTestID('task-save-btn')
+        .click()
+        .then(() => {
+          cy.getByTestID('notification-success').contains(
+            'Task was updated successfully'
+          )
+        })
+
+      cy.getByTestID('task-card--name')
+        .first()
+        .click()
+
+      //assert the comment
+      cy.getByTestID('flux-editor').within(() => {
+        cy.get('textarea.inputarea').should(
+          'have.value',
+          'option task = {name: "🦄ask", every: 24h, offset: 20m}\n' +
+            '\n' +
+            'from(bucket: "defbuck")\n' +
+            '\t|> range(start: -2m)\n' +
+            '    //this is a test comment'
+        )
+      })
+    })
   })
 
   describe('Searching and filtering', () => {
