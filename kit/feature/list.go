@@ -137,9 +137,23 @@ var queryCacheForDashboards = MakeBoolFlag(
 	true,
 )
 
-// QueryCacheForDashboardsUi - Enables a Dashboard Cache on the uI
+// QueryCacheForDashboardsUi - Enables a Dashboard Cache on the UI
 func QueryCacheForDashboardsUi() BoolFlag {
 	return queryCacheForDashboards
+}
+
+var dashboardVariableContext = MakeBoolFlag(
+	"Contextualizing Variable Hydration for Get Dashboard UI",
+	"dashboardVariableContext",
+	"Ariel Salem / Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// ContextualizingVariableHydrationForGetDashboardUi - Contextualized Variable Hydration for the Dashboard UI
+func ContextualizingVariableHydrationForGetDashboardUi() BoolFlag {
+	return dashboardVariableContext
 }
 
 var memoryOptimizedFill = MakeBoolFlag(
@@ -251,6 +265,7 @@ var all = []Flag{
 	newLabels,
 	hydratevars,
 	queryCacheForDashboards,
+	dashboardVariableContext,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	simpleTaskOptionsExtraction,
@@ -271,6 +286,7 @@ var byKey = map[string]Flag{
 	"newLabels":                     newLabels,
 	"hydratevars":                   hydratevars,
 	"queryCacheForDashboards":       queryCacheForDashboards,
+	"dashboardVariableContext":      dashboardVariableContext,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,

@@ -50,6 +50,7 @@ import {incrementCloneName} from 'src/utils/naming'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
 import {getAll, getByID, getStatus} from 'src/resources/selectors'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -360,6 +361,11 @@ export const getDashboard = (
       throw new Error(resp.data.message)
     }
 
+    if (!isFlagEnabled('dashboardVariableContext')) {
+      const skipCache = true
+      dispatch(hydrateVariables(skipCache, controller))
+    }
+
     const normDash = normalize<Dashboard, DashboardEntities, string>(
       resp.data,
       dashboardSchema
@@ -385,11 +391,13 @@ export const getDashboard = (
         creators.setDashboard(dashboardID, RemoteDataState.Done, normDash)
       )
       dispatch(updateTimeRangeFromQueryParams(dashboardID))
-      // Hydrating the variables after the views have been set creates context
-      // for the variable hydration process and limits the number of variables
-      // we are querying to only the ones that exist within the view
-      const skipCache = true
-      dispatch(hydrateVariables(skipCache, controller))
+      if (isFlagEnabled('dashboardVariableContext')) {
+        // Hydrating the variables after the views have been set creates context
+        // for the variable hydration process and limits the number of variables
+        // we are querying to only the ones that exist within the view
+        const skipCache = true
+        dispatch(hydrateVariables(skipCache, controller))
+      }
     }, 0)
   } catch (error) {
     if (error.name === 'AbortError') {

@@ -78,8 +78,16 @@
   expose: true
 
 - name: Query Cache for Dashboards UI
-  description: Enables a Dashboard Cache on the uI
+  description: Enables a Dashboard Cache on the UI
   key: queryCacheForDashboards
+  default: false
+  contact: Ariel Salem / Monitoring Team
+  lifetime: temporary
+  expose: true
+
+- name: Contextualizing Variable Hydration for Get Dashboard UI
+  description: Contextualized Variable Hydration for the Dashboard UI
+  key: dashboardVariableContext
   default: false
   contact: Ariel Salem / Monitoring Team
   lifetime: temporary
