@@ -59,7 +59,6 @@ import conntrackMarkdown from 'src/writeData/components/telegrafPlugins/conntrac
 import kapacitorMarkdown from 'src/writeData/components/telegrafPlugins/kapacitor.md'
 import bondMarkdown from 'src/writeData/components/telegrafPlugins/bond.md'
 import processesMarkdown from 'src/writeData/components/telegrafPlugins/processes.md'
-import inputsMarkdown from 'src/writeData/components/telegrafPlugins/inputs.md'
 import snmp_trapMarkdown from 'src/writeData/components/telegrafPlugins/snmp_trap.md'
 import fail2banMarkdown from 'src/writeData/components/telegrafPlugins/fail2ban.md'
 import multifileMarkdown from 'src/writeData/components/telegrafPlugins/multifile.md'
@@ -248,7 +247,6 @@ import conntrackLogo from 'src/writeData/graphics/conntrack.svg'
 import kapacitorLogo from 'src/writeData/graphics/kapacitor.svg'
 import bondLogo from 'src/writeData/graphics/bond.svg'
 import processesLogo from 'src/writeData/graphics/processes.svg'
-import inputsLogo from 'src/writeData/graphics/inputs.svg'
 import snmp_trapLogo from 'src/writeData/graphics/snmp_trap.svg'
 import fail2banLogo from 'src/writeData/graphics/fail2ban.svg'
 import multifileLogo from 'src/writeData/graphics/multifile.svg'
@@ -530,20 +528,20 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     markdown: syslogMarkdown,
     image: syslogLogo,
   },
-//   {
-//     id: 'net',
-//     name: 'net',
-//     url: `${TELEGRAF_PLUGINS}/net`,
-//     markdown: netMarkdown,
-//     image: netLogo,
-//   },
-//   {
-//     id: 'net',
-//     name: 'net',
-//     url: `${TELEGRAF_PLUGINS}/net`,
-//     markdown: netMarkdown,
-//     image: netLogo,
-//   },
+  //   {
+  //     id: 'net',
+  //     name: 'net',
+  //     url: `${TELEGRAF_PLUGINS}/net`,
+  //     markdown: netMarkdown,
+  //     image: netLogo,
+  //   },
+  //   {
+  //     id: 'net',
+  //     name: 'net',
+  //     url: `${TELEGRAF_PLUGINS}/net`,
+  //     markdown: netMarkdown,
+  //     image: netLogo,
+  //   },
   {
     id: 'logparser',
     name: 'logparser',
@@ -760,13 +758,6 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     url: `${TELEGRAF_PLUGINS}/processes`,
     markdown: processesMarkdown,
     image: processesLogo,
-  },
-  {
-    id: 'inputs',
-    name: 'inputs',
-    url: `${TELEGRAF_PLUGINS}/inputs`,
-    markdown: inputsMarkdown,
-    image: inputsLogo,
   },
   {
     id: 'snmp_trap',
