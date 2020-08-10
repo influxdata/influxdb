@@ -62,10 +62,6 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 
   public render() {
-    if (!this.props.flags.communityTemplates) {
-      return null
-    }
-
     return (
       <CommunityTemplateInstallerOverlay
         onDismissOverlay={this.onDismiss}
