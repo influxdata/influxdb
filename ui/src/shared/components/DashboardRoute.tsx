@@ -1,10 +1,21 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import qs from 'qs'
 import {connect, ConnectedProps} from 'react-redux'
 import {withRouter, RouteComponentProps} from 'react-router-dom'
+
+// Actions
 import {setDashboard} from 'src/shared/actions/currentDashboard'
-import {getVariables} from 'src/variables/selectors'
 import {selectValue} from 'src/variables/actions/thunks'
+import {dashboardVisit as dashboardVisitAction} from 'src/perf/actions'
+
+// Utils
+import {event} from 'src/cloud/utils/reporting'
+
+// Selector
+import {getVariables} from 'src/variables/selectors'
+
+// Types
 import {AppState} from 'src/types'
 
 type ReduxProps = ConnectedProps<typeof connector>
@@ -44,8 +55,10 @@ class DashboardRoute extends PureComponent<Props> {
   }
 
   componentDidMount() {
-    const {dashboard, updateDashboard, variables} = this.props
+    const {dashboard, updateDashboard, variables, dashboardVisit} = this.props
     const dashboardID = this.props.match.params.dashboardID
+    dashboardVisit(dashboardID, new Date().getTime())
+    event('Dashboard Visit', {dashboardID})
     const urlVars = qs.parse(this.props.location.search, {
       ignoreQueryPrefix: true,
     })
@@ -113,6 +126,7 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
+  dashboardVisit: dashboardVisitAction,
   updateDashboard: setDashboard,
   selectValue: selectValue,
 }

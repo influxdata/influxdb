@@ -3,7 +3,7 @@ import {produce} from 'immer'
 
 // Actions
 import {
-  SET_RENDER_ID,
+  SET_DASHBOARD_VISIT,
   SET_SCROLL,
   Action,
   SET_CELL_MOUNT,
@@ -12,7 +12,11 @@ import {
 export interface PerfState {
   dashboard: {
     scroll: 'not scrolled' | 'scrolled'
-    renderID: string
+    byID: {
+      [id: string]: {
+        startVisitMs: number
+      }
+    }
   }
   cells: {
     byID: {
@@ -26,7 +30,7 @@ export interface PerfState {
 const initialState = (): PerfState => ({
   dashboard: {
     scroll: 'not scrolled',
-    renderID: '',
+    byID: {},
   },
   cells: {
     byID: {},
@@ -39,18 +43,24 @@ const perfReducer = (
 ): PerfState =>
   produce(state, draftState => {
     switch (action.type) {
-      case SET_RENDER_ID: {
-        const {component, renderID} = action
-        draftState[component].renderID = renderID
-
-        return
-      }
-
       case SET_SCROLL: {
         const {component, scroll} = action
         draftState[component].scroll = scroll
 
         return
+      }
+
+      case SET_DASHBOARD_VISIT: {
+        const {dashboardID, startVisitMs} = action
+        const exists = draftState.dashboard.byID[dashboardID]
+
+        if (!exists) {
+          draftState.dashboard.byID[dashboardID] = {startVisitMs}
+
+          return
+        }
+
+        draftState.dashboard.byID[dashboardID].startVisitMs = startVisitMs
       }
 
       case SET_CELL_MOUNT: {

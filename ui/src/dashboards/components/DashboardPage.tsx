@@ -2,7 +2,6 @@
 import React, {Component} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
-import uuid from 'uuid'
 
 // Components
 import {Page} from '@influxdata/clockface'
@@ -24,8 +23,7 @@ import {event} from 'src/cloud/utils/reporting'
 import {resetQueryCache} from 'src/shared/apis/queryCache'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
-// Selectors & Actions
-import {setRenderID as setRenderIDAction} from 'src/perf/actions'
+// Selectors
 import {getByID} from 'src/resources/selectors'
 
 // Types
@@ -51,34 +49,11 @@ const dashRoute = `/${ORGS}/${ORG_ID}/${DASHBOARDS}/${DASHBOARD_ID}`
 @ErrorHandling
 class DashboardPage extends Component<Props> {
   public componentDidMount() {
-    const {dashboard, setRenderID} = this.props
-    const renderID = uuid.v4()
-    setRenderID('dashboard', renderID)
-
-    const tags = {
-      dashboardID: dashboard.id,
-    }
-    const fields = {renderID}
-
-    event('Dashboard Mounted', tags, fields)
     if (isFlagEnabled('queryCacheForDashboards')) {
       resetQueryCache()
     }
-  }
 
-  public componentDidUpdate(prevProps) {
-    const {setRenderID, dashboard, manualRefresh} = this.props
-
-    if (prevProps.manualRefresh !== manualRefresh) {
-      const renderID = uuid.v4()
-      setRenderID('dashboard', renderID)
-      const tags = {
-        dashboardID: dashboard.id,
-      }
-      const fields = {renderID}
-
-      event('Dashboard Mounted', tags, fields)
-    }
+    this.emitRenderCycleEvent()
   }
 
   public componentWillUnmount() {
@@ -124,6 +99,20 @@ class DashboardPage extends Component<Props> {
 
     return pageTitleSuffixer([title])
   }
+
+  private emitRenderCycleEvent = () => {
+    const {dashboard, startVisitMs} = this.props
+
+    const tags = {
+      dashboardID: dashboard.id,
+    }
+
+    const now = new Date().getTime()
+    const timeToAppearMs = now - startVisitMs
+
+    const fields = {timeToAppearMs}
+    event('Dashboard and Variable Initial Render', tags, fields)
+  }
 }
 
 const mstp = (state: AppState) => {
@@ -134,14 +123,11 @@ const mstp = (state: AppState) => {
   )
 
   return {
+    startVisitMs: state.perf.dashboard.byID[dashboard.id]?.startVisitMs,
     dashboard,
   }
 }
 
-const mdtp = {
-  setRenderID: setRenderIDAction,
-}
-
-const connector = connect(mstp, mdtp)
+const connector = connect(mstp)
 
 export default connector(ManualRefresh<OwnProps>(DashboardPage))
