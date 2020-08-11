@@ -10,8 +10,6 @@ import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 import TemplatesPage from 'src/templates/components/TemplatesPage'
 import GetResources from 'src/resources/components/GetResources'
-import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
-import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
 import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
 import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
 
@@ -48,14 +46,6 @@ class TemplatesIndex extends Component<Props> {
           </SettingsTabbedPage>
         </Page>
         <Switch>
-          <Route
-            path={`${templatesPath}/import`}
-            component={TemplateImportOverlay}
-          />
-          <Route
-            path={`${templatesPath}/:id/export`}
-            component={TemplateExportOverlay}
-          />
           <Route
             path={`${templatesPath}/:id/view`}
             component={TemplateViewOverlay}

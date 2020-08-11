@@ -11,15 +11,11 @@ import {createDashboard} from 'src/dashboards/actions/thunks'
 interface ComponentProps {
   searchTerm?: string
   onCreateDashboard: typeof createDashboard
-  summonImportOverlay: () => void
-  summonImportFromTemplateOverlay: () => void
 }
 
 const DashboardsTableEmpty: FC<ComponentProps> = ({
   searchTerm,
   onCreateDashboard,
-  summonImportOverlay,
-  summonImportFromTemplateOverlay,
 }) => {
   if (searchTerm) {
     return (
@@ -36,10 +32,7 @@ const DashboardsTableEmpty: FC<ComponentProps> = ({
       </EmptyState.Text>
       <AddResourceDropdown
         onSelectNew={onCreateDashboard}
-        onSelectImport={summonImportOverlay}
-        onSelectTemplate={summonImportFromTemplateOverlay}
         resourceName="Dashboard"
-        canImportFromTemplate={true}
       />
     </EmptyState>
   )

@@ -12,19 +12,11 @@ interface Props {
   searchTerm: string
   onCreate: () => void
   totalCount: number
-  onImportTask: () => void
-  onImportFromTemplate: () => void
 }
 
 export default class EmptyTasksLists extends PureComponent<Props> {
   public render() {
-    const {
-      searchTerm,
-      onCreate,
-      totalCount,
-      onImportTask,
-      onImportFromTemplate,
-    } = this.props
+    const {searchTerm, onCreate, totalCount} = this.props
 
     if (totalCount && searchTerm === '') {
       return (
@@ -40,13 +32,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
           <EmptyState.Text>
             Looks like you don't have any <b>Tasks</b>, why not create one?"
           </EmptyState.Text>
-          <AddResourceDropdown
-            canImportFromTemplate
-            onSelectNew={onCreate}
-            onSelectImport={onImportTask}
-            onSelectTemplate={onImportFromTemplate}
-            resourceName="Task"
-          />
+          <AddResourceDropdown onSelectNew={onCreate} resourceName="Task" />
         </EmptyState>
       )
     }

@@ -19,7 +19,7 @@ import GetResources from 'src/resources/components/GetResources'
 import {Sort} from '@influxdata/clockface'
 
 // Types
-import {AppState, OverlayState, ResourceType, Variable} from 'src/types'
+import {AppState, ResourceType, Variable} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {VariableSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
@@ -29,7 +29,6 @@ type Props = RouteComponentProps<{orgID: string}> & ReduxProps
 
 interface State {
   searchTerm: string
-  importOverlayState: OverlayState
   sortKey: VariableSortKey
   sortDirection: Sort
   sortType: SortTypes
@@ -40,7 +39,6 @@ const FilterList = Filter<Variable>()
 class VariablesTab extends PureComponent<Props, State> {
   public state: State = {
     searchTerm: '',
-    importOverlayState: OverlayState.Closed,
     sortKey: 'name',
     sortDirection: Sort.Ascending,
     sortType: SortTypes.String,
@@ -70,7 +68,6 @@ class VariablesTab extends PureComponent<Props, State> {
     const rightHeaderItems = (
       <AddResourceDropdown
         resourceName="Variable"
-        onSelectImport={this.handleOpenImportOverlay}
         onSelectNew={this.handleOpenCreateOverlay}
       />
     )
@@ -123,7 +120,6 @@ class VariablesTab extends PureComponent<Props, State> {
           </EmptyState.Text>
           <AddResourceDropdown
             resourceName="Variable"
-            onSelectImport={this.handleOpenImportOverlay}
             onSelectNew={this.handleOpenCreateOverlay}
           />
         </EmptyState>
@@ -143,12 +139,6 @@ class VariablesTab extends PureComponent<Props, State> {
 
   private handleFilterUpdate = (searchTerm: string) => {
     this.setState({searchTerm})
-  }
-
-  private handleOpenImportOverlay = (): void => {
-    const {history, match} = this.props
-
-    history.push(`/orgs/${match.params.orgID}/settings/variables/import`)
   }
 
   private handleOpenCreateOverlay = (): void => {

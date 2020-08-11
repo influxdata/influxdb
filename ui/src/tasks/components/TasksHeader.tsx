@@ -27,9 +27,7 @@ interface Props {
   onCreateTask: () => void
   setShowInactive: () => void
   showInactive: boolean
-  onImportTask: () => void
   limitStatus: LimitStatus
-  onImportFromTemplate: () => void
   searchTerm: string
   setSearchTerm: typeof setSearchTermAction
   sortKey: TaskSortKey
@@ -48,8 +46,6 @@ export default class TasksHeader extends PureComponent<Props> {
       onCreateTask,
       setShowInactive,
       showInactive,
-      onImportTask,
-      onImportFromTemplate,
       setSearchTerm,
       searchTerm,
       sortKey,
@@ -93,10 +89,7 @@ export default class TasksHeader extends PureComponent<Props> {
               />
             </FlexBox>
             <AddResourceDropdown
-              canImportFromTemplate
               onSelectNew={onCreateTask}
-              onSelectImport={onImportTask}
-              onSelectTemplate={onImportFromTemplate}
               resourceName="Task"
               limitStatus={limitStatus}
             />
