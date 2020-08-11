@@ -289,26 +289,10 @@ func FromScriptAST(lang FluxLanguageService, script string) (Options, error) {
 	if offsetErr == nil {
 		switch offsetExprV := offsetExpr.(type) {
 		case *ast.UnaryExpression:
-			multiplier := int64(1)
-
-			switch operator := offsetExprV.Operator; operator {
-			case ast.AdditionOperator:
-			case ast.SubtractionOperator:
-				multiplier = -1
-			default:
-				return opts, fmt.Errorf("unexpected unary operator: %q", operator.String())
+			offsetDur, err := ParseSignedDuration(offsetExprV.Loc.Source)
+			if err != nil {
+				return opts, err
 			}
-
-			offsetDur, ok := offsetExprV.Argument.(*ast.DurationLiteral)
-			if !ok {
-				return opts, unexpectedKindError{
-					Got:      offsetExpr.Type(),
-					Expected: "DurationLiteral",
-				}
-			}
-
-			offsetDur.Values[0].Magnitude *= multiplier
-
 			opts.Offset = &Duration{Node: *offsetDur}
 		case *ast.DurationLiteral:
 			opts.Offset = &Duration{Node: *offsetExprV}
