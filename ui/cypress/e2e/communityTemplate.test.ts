@@ -157,68 +157,87 @@ describe('Community Templates', () => {
     })
 
     it('Can click on template resources', () => {
+      cy.getByTestID('template-resource-link').click()
       //buckets
-      cy.getByTestID('template-resource-link')
+      cy.get('.community-templates--resources-table')
         .contains('Bucket')
-        .click()
+        .siblings('td')
+        .click('left') // force a click on the far left of the target, in case the text is aligned left and short
       cy.url().should('include', 'load-data/buckets')
       cy.go('back')
 
+      cy.getByTestID('template-resource-link').click()
       //telegraf
-      cy.getByTestID('template-resource-link')
+      cy.get('.community-templates--resources-table')
         .contains('Telegraf')
-        .click()
+        .siblings('td')
+        .click('left')
       cy.url().should('include', 'load-data/telegrafs')
       cy.go('back')
 
+      cy.getByTestID('template-resource-link').click()
       //check
-      cy.getByTestID('template-resource-link')
+      cy.get('.community-templates--resources-table')
         .contains('Check')
-        .click()
+        .siblings('td')
+        .click('left')
       cy.url().should('include', 'alerting/checks')
       cy.go('back')
 
+      cy.getByTestID('template-resource-link').click()
       //label
-      cy.getByTestID('template-resource-link')
+      cy.get('.community-templates--resources-table')
         .contains('Label')
-        .click()
+        .siblings('td')
+        .click('left')
       cy.url().should('include', 'settings/labels')
       cy.go('back')
 
+      cy.getByTestID('template-resource-link').click()
       //Dashboard
-      cy.getByTestID('template-resource-link')
+      cy.get('.community-templates--resources-table')
         .contains('Dashboard')
-        .click()
+        .siblings('td')
+        .click('left')
       cy.url().should('include', 'dashboards')
       cy.go('back')
 
+      cy.getByTestID('template-resource-link').click()
       //Notification Endpoint
-      cy.getByTestID('template-resource-link')
+      cy.get('.community-templates--resources-table')
         .contains('NotificationEndpoint')
-        .click()
+        .siblings('td')
+        .click('left')
       cy.url().should('include', 'alerting')
       cy.go('back')
 
+      cy.getByTestID('template-resource-link').click()
       //Notification Rule
-      cy.getByTestID('template-resource-link')
+      cy.get('.community-templates--resources-table')
         .contains('NotificationRule')
-        .click()
+        .siblings('td')
+        .click('left')
       cy.url().should('include', 'alerting')
       cy.go('back')
 
+      cy.getByTestID('template-resource-link').click()
       //Variable
-      cy.getByTestID('template-resource-link')
+      cy.get('.community-templates--resources-table')
         .contains('Variable')
-        .click()
+        .siblings('td')
+        .click('left')
       cy.url().should('include', 'settings/variables')
       cy.go('back')
     })
 
-    it('Click on source takes you to github', () => {
-      cy.getByTestID('template-source-link').should(
-        'contain',
-        'https://github.com/influxdata/community-templates/blob/master/docker/docker.yml'
-      )
+    it('takes you to github when you click on the Community Templates link', () => {
+      cy.getByTestID('template-source-link').within(() => {
+        cy.contains('Community Templates').should(
+          'have.attr',
+          'href',
+          'https://github.com/influxdata/community-templates/blob/master/docker/docker.yml'
+        )
+      })
       //TODO: add the link from CLI
     })
 
