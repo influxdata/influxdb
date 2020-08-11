@@ -1688,7 +1688,8 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
 const WRITE_DATA_TELEGRAF_PLUGINS_SECTION: WriteDataSection = {
   id: TELEGRAF_PLUGINS,
   name: 'Telegraf Plugins',
-  description: 'Description goes here',
+  description:
+    'An open-source agent for collecting data and reporting metrics via a vast library of plugins',
   items: WRITE_DATA_TELEGRAF_PLUGINS,
 }
 
