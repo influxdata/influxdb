@@ -9,6 +9,7 @@ import {
   ComponentColor,
   ComponentSize,
   ButtonShape,
+  IconFont,
 } from '@influxdata/clockface'
 
 // Constants
