@@ -28,7 +28,7 @@ func (s *AuthedURMService) FindUserResourceMappings(ctx context.Context, filter 
 		// Check if user making request has read access to organization prior to listing URMs.
 		if orgID != nil {
 			if _, _, err := authorizer.AuthorizeReadResource(ctx, influxdb.OrgsResourceType, *orgID); err != nil {
-				return nil, 0, err
+				return nil, 0, ErrNotFound
 			}
 		}
 	}

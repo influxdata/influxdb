@@ -142,10 +142,7 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a is unauthorized",
-					Code: influxdb.EUnauthorized,
-				},
+				err: ErrNotFound,
 			},
 		},
 	}
