@@ -17,6 +17,7 @@ const WRITE_DATA_FLUX_SOURCES_SECTION: WriteDataSection = {
   name: 'Flux Sources',
   description: 'Description goes here',
   items: WRITE_DATA_FLUX_SOURCES,
+  featureFlag: 'write-data-flux-sources',
 }
 
 export default WRITE_DATA_FLUX_SOURCES_SECTION

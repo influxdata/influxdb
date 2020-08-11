@@ -21,7 +21,7 @@ import {doesItemMatchSearchTerm} from 'src/writeData/constants'
 // Types
 import {WriteDataSection} from 'src/writeData/constants'
 
-const WriteDataSection: FC<WriteDataSection> = ({
+const WriteDataSection: FC<Omit<WriteDataSection, 'featureFlag'>> = ({
   id,
   name,
   description,

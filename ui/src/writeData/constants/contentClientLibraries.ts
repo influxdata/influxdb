@@ -106,6 +106,7 @@ const WRITE_DATA_CLIENT_LIBRARIES_SECTION: WriteDataSection = {
   name: 'Client Libraries',
   description: 'Back-end, front-end, and mobile applications',
   items: WRITE_DATA_CLIENT_LIBRARIES,
+  featureFlag: 'write-data-client-libraries',
 }
 
 export default WRITE_DATA_CLIENT_LIBRARIES_SECTION

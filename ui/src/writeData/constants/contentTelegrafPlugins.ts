@@ -1691,6 +1691,7 @@ const WRITE_DATA_TELEGRAF_PLUGINS_SECTION: WriteDataSection = {
   description:
     'An open-source agent for collecting data and reporting metrics via a vast library of plugins',
   items: WRITE_DATA_TELEGRAF_PLUGINS,
+  featureFlag: 'write-data-telegraf-plugins',
 }
 
 export default WRITE_DATA_TELEGRAF_PLUGINS_SECTION

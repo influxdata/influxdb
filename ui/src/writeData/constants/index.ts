@@ -19,6 +19,7 @@ export interface WriteDataSection {
   name: string
   description: string
   items: WriteDataItem[]
+  featureFlag: string
 }
 
 // Sections

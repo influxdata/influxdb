@@ -10,6 +10,9 @@ import {
   sectionContainsMatchingItems,
 } from 'src/writeData/constants'
 
+// Utils
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+
 // Components
 import {EmptyState, ComponentSize} from '@influxdata/clockface'
 import WriteDataSection from 'src/writeData/components/WriteDataSection'
@@ -17,9 +20,12 @@ import WriteDataSection from 'src/writeData/components/WriteDataSection'
 const WriteDataSections: FC = () => {
   const {searchTerm} = useContext(WriteDataSearchContext)
 
-  const filteredSections = WRITE_DATA_SECTIONS.filter(section =>
-    sectionContainsMatchingItems(section, searchTerm)
-  )
+  const filteredSections = WRITE_DATA_SECTIONS.filter(section => {
+    const containsMatches = sectionContainsMatchingItems(section, searchTerm)
+    const featureFlagEnabled = isFlagEnabled(section.featureFlag)
+
+    return containsMatches && featureFlagEnabled
+  })
 
   if (!filteredSections.length) {
     return (
