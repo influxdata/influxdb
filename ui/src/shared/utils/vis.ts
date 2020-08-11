@@ -225,7 +225,7 @@ export const getStringColumns = (table: Table): string[] => {
 }
 
 export const getGroupableColumns = (table: Table): string[] => {
-  const invalidGroupColumns = new Set(['_value', '_time', 'table']) //'_value',
+  const invalidGroupColumns = new Set(['_value', '_time', 'table'])
   const groupableColumns = table.columnKeys.filter(
     name => !invalidGroupColumns.has(name)
   )

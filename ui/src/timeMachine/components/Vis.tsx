@@ -136,14 +136,14 @@ const mstp = (state: AppState) => {
   const giraffeResult = getVisTable(state)
   const xColumn = getXColumnSelection(state)
 
-  let yColumn, fillColumns
+  let yColumn = getYColumnSelection(state)
+  let fillColumns = getFillColumnsSelection(state)
+
   if (activeTimeMachine.view.properties.type === 'mosaic') {
     yColumn = getMosaicYColumnSelection(state)
     fillColumns = getMosaicFillColumnsSelection(state)
-  } else {
-    yColumn = getYColumnSelection(state)
-    fillColumns = getFillColumnsSelection(state)
   }
+
   const symbolColumns = getSymbolColumnsSelection(state)
 
   const timeZone = getTimeZone(state)
