@@ -408,7 +408,7 @@ type runsResponse struct {
 	Runs  []*runResponse    `json:"runs"`
 }
 
-func newRunsResponse(rs []*influxdb.Run, taskID influxdb.ID) runsResponse {
+func newRunsResponse(rs []*influxdb.Run, taskID influxdb.ID) runsResponse { //important
 	r := runsResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/tasks/%s/runs", taskID),
@@ -908,7 +908,9 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	req, err := decodeGetRunsRequest(ctx, r)
+	fmt.Printf("\n THIS IS MY FILTERED REQUEST: %v \n", req)
 	if err != nil {
+		//fmt.Printf("THIS IS THE ISSUE: %v", err)
 		err = &influxdb.Error{
 			Err:  err,
 			Code: influxdb.EInvalid,
@@ -976,6 +978,7 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 
 	req := &getRunsRequest{}
 	taskID, err := influxdb.IDFromString(id)
+
 	if err != nil {
 		return nil, err
 	}
@@ -985,19 +988,29 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 
 	if id := qp.Get("after"); id != "" {
 		afterID, err := influxdb.IDFromString(id)
+
 		if err != nil {
 			return nil, err
 		}
 		req.filter.After = afterID
 	}
 
-	if limit := qp.Get("limit"); limit != "" {
+	if limit := qp.Get("limit"); limit != "0" { //THIS IS THE FIX
+		fmt.Printf("THIS IS LIMIT SIR: %v", limit)
 		i, err := strconv.Atoi(limit)
+
+		//i := limit
+
+		fmt.Printf("\n THIS IS I RIGHT NOW: %v THIS IS THE ERROR: %v \n", i, err)
+
 		if err != nil {
+			fmt.Printf("\n I WANT THIS ERROR NOW: %v \n", err)
 			return nil, err
 		}
 
 		if i < 1 || i > influxdb.TaskMaxPageSize {
+			fmt.Printf("\n THIS IS INSIDE I: %v \n", i)
+			fmt.Printf("\n MAX PAGE SIZE: %v \n", influxdb.TaskMaxPageSize)
 			return nil, influxdb.ErrOutOfBoundsLimit
 		}
 		req.filter.Limit = i
@@ -1006,7 +1019,9 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 	var at, bt string
 	var afterTime, beforeTime time.Time
 	if at = qp.Get("afterTime"); at != "" {
+		fmt.Printf("I GOT IN HERE: %v", at)
 		afterTime, err = time.Parse(time.RFC3339, at)
+		//fmt.Printf("I WANT TO KNOW THIS: %v", err)
 		if err != nil {
 			return nil, err
 		}
@@ -1014,12 +1029,16 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 	}
 
 	if bt = qp.Get("beforeTime"); bt != "" {
+		fmt.Printf("I GOT IN HERE: %v", bt)
 		beforeTime, err = time.Parse(time.RFC3339, bt)
+		//fmt.Printf("I WANT TO KNOW THIS 2: %v", err)
 		if err != nil {
 			return nil, err
 		}
 		req.filter.BeforeTime = bt
 	}
+
+	//No code here to actually output tasks within a given time frame
 
 	if at != "" && bt != "" && !beforeTime.After(afterTime) {
 		return nil, &influxdb.Error{
@@ -1564,7 +1583,16 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 		params = append(params, [2]string{"after", filter.After.String()})
 	}
 
-	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
+	if filter.AfterTime != "" {
+		params = append(params, [2]string{"afterTime", filter.AfterTime})
+	}
+
+	if filter.BeforeTime != "" {
+		params = append(params, [2]string{"beforeTime", filter.BeforeTime})
+	}
+
+	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize { //possible area of error
+		fmt.Printf("ERRORING HERE: %v, %v", influxdb.TaskMaxPageSize, filter.Limit)
 		return nil, 0, influxdb.ErrOutOfBoundsLimit
 	}
 
@@ -1578,6 +1606,59 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 		Do(ctx)
 	if err != nil {
 		return nil, 0, err
+	}
+
+	if filter.BeforeTime != "" || filter.AfterTime != "" {
+		var timeStampBefore time.Time
+		var err error
+		if filter.BeforeTime != "" {
+			timeStampBefore, err = time.Parse(time.RFC3339, filter.BeforeTime)
+			if err != nil {
+				return nil, 0, err
+			}
+		}
+
+		var timeStampAfter time.Time
+		if filter.AfterTime != "" {
+			timeStampAfter, err = time.Parse(time.RFC3339, filter.AfterTime)
+			if err != nil {
+				return nil, 0, err
+			}
+		}
+
+		var myRuns []*influxdb.Run //potentially dangerous bc dynamic allocation as slice grows in run-time (consider refactor here)
+		var myHTTPRun httpRun
+		var temp time.Time
+		if filter.BeforeTime != "" && filter.AfterTime != "" {
+			for j := range rs.Runs {
+				myHTTPRun = rs.Runs[j].httpRun
+				temp = *myHTTPRun.ScheduledFor
+				if (timeStampAfter.Before(temp)) && (temp.Before(timeStampBefore)) {
+					myRuns = append(myRuns, convertRun(myHTTPRun))
+				}
+			}
+		} else if filter.BeforeTime != "" {
+			for j := range rs.Runs {
+				myHTTPRun = rs.Runs[j].httpRun
+				temp = *myHTTPRun.ScheduledFor
+				if temp.Before(timeStampBefore) {
+					myRuns = append(myRuns, convertRun(myHTTPRun))
+				}
+			}
+		} else if filter.AfterTime != "" {
+			for j := range rs.Runs {
+				myHTTPRun = rs.Runs[j].httpRun
+				temp = *myHTTPRun.ScheduledFor
+				if timeStampAfter.Before(temp) {
+					myRuns = append(myRuns, convertRun(myHTTPRun))
+				}
+			}
+		} else {
+			fmt.Print("\n No tasks found in this timeframe \n")
+			return nil, 0, errors.New("no tasks found in this timeframe")
+		}
+
+		return myRuns, len(myRuns), nil
 	}
 
 	runs := make([]*influxdb.Run, len(rs.Runs))
