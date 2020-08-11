@@ -38,25 +38,24 @@ const MosaicPlot: FunctionComponent<Props> = ({
   viewProperties: {
     xAxisLabel,
     yAxisLabel,
-    xPrefix,
-    xSuffix,
-    yPrefix,
-    ySuffix,
     fillColumns: storedFill,
     colors,
     xDomain: storedXDomain,
     yDomain: storedYDomain,
     xColumn: storedXColumn,
-    yColumn: storedYColumn,
+    ySeriesColumns: storedYColumn,
     timeFormat,
-    hoverDimension,
   },
   theme,
 }) => {
   const fillColumns = storedFill || []
   const xColumn = storedXColumn || defaultXColumn(table)
-  const yColumn = storedYColumn || mosaicYcolumn(table)
-
+  let yColumn
+  if (storedYColumn) {
+    yColumn = storedYColumn[0]
+  } else {
+    yColumn = mosaicYcolumn(table)
+  }
   const columnKeys = table.columnKeys
 
   const [xDomain, onSetXDomain, onResetXDomain] = useVisXDomainSettings(
@@ -86,15 +85,11 @@ const MosaicPlot: FunctionComponent<Props> = ({
     colors && colors.length ? colors : DEFAULT_LINE_COLORS.map(c => c.hex)
 
   const xFormatter = getFormatter(table.getColumnType(xColumn), {
-    prefix: xPrefix,
-    suffix: xSuffix,
     timeZone,
     timeFormat,
   })
 
   const yFormatter = getFormatter(table.getColumnType(yColumn), {
-    prefix: yPrefix,
-    suffix: ySuffix,
     timeZone,
     timeFormat,
   })
@@ -123,7 +118,6 @@ const MosaicPlot: FunctionComponent<Props> = ({
         y: yColumn,
         colors: colorHexes,
         fill: fillColumns,
-        hoverDimension,
       },
     ],
   }

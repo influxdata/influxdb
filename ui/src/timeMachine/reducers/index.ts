@@ -377,6 +377,11 @@ export const timeMachineReducer = (
       return setViewProperties(state, {yColumn})
     }
 
+    case 'SET_Y_SERIES_COLUMNS': {
+      const {ySeriesColumns} = action.payload
+      return setViewProperties(state, {ySeriesColumns})
+    }
+
     case 'SET_X_AXIS_LABEL': {
       const {xAxisLabel} = action.payload
 

@@ -3,8 +3,7 @@ import React, {SFC} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
 
 // Components
-import {Form, Grid, Dropdown, Input} from '@influxdata/clockface'
-//import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
+import {Form, Grid, Input} from '@influxdata/clockface'
 import TimeFormat from 'src/timeMachine/components/view_options/TimeFormat'
 
 // Actions
@@ -12,14 +11,11 @@ import {
   setFillColumns,
   setYAxisLabel,
   setXAxisLabel,
-  setAxisPrefix,
-  setAxisSuffix,
   setColorHexes,
   setYDomain,
   setXColumn,
-  setYColumn,
+  setYSeriesColumns,
   setTimeFormat,
-  SetHoverDimension,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -50,13 +46,8 @@ interface OwnProps {
   yDomain: number[]
   xAxisLabel: string
   yAxisLabel: string
-  xPrefix: string
-  xSuffix: string
-  yPrefix: string
-  ySuffix: string
   colors: string[]
   showNoteWhenEmpty: boolean
-  hoverDimension?: 'auto' | 'x' | 'y' | 'xy'
 }
 
 type ReduxProps = ConnectedProps<typeof connector>
@@ -72,10 +63,6 @@ const MosaicOptions: SFC<Props> = props => {
     onSetColors,
     onSetYAxisLabel,
     onSetXAxisLabel,
-    //yPrefix,
-    //ySuffix,
-    //onUpdateAxisSuffix,
-    //onUpdateAxisPrefix,
     yDomain,
     onSetYDomain,
     xColumn,
@@ -83,16 +70,18 @@ const MosaicOptions: SFC<Props> = props => {
     stringColumns,
     numericColumns,
     onSetXColumn,
-    onSetYColumn,
+    onSetYSeriesColumns,
     onSetTimeFormat,
     timeFormat,
-    hoverDimension = 'auto',
-    onSetHoverDimension,
   } = props
 
   const handleFillColumnSelect = (column: string): void => {
     const fillColumn = [column]
     onSetFillColumns(fillColumn)
+  }
+
+  const onSelectYSeriesColumns = (colName: string) => {
+    onSetYSeriesColumns([colName])
   }
 
   return (
@@ -113,7 +102,7 @@ const MosaicOptions: SFC<Props> = props => {
       />
       <ColumnSelector
         selectedColumn={yColumn}
-        onSelectColumn={onSetYColumn}
+        onSelectColumn={onSelectYSeriesColumns}
         availableColumns={stringColumns}
         axisName="y"
       />
@@ -130,51 +119,6 @@ const MosaicOptions: SFC<Props> = props => {
           selectedColorScheme={colors}
           onSelectColorScheme={onSetColors}
         />
-        <Form.Element label="Hover Dimension">
-          <Dropdown
-            button={(active, onClick) => (
-              <Dropdown.Button active={active} onClick={onClick}>
-                {hoverDimension}
-              </Dropdown.Button>
-            )}
-            menu={onCollapse => (
-              <Dropdown.Menu onCollapse={onCollapse}>
-                <Dropdown.Item
-                  id="auto"
-                  value="auto"
-                  onClick={onSetHoverDimension}
-                  selected={hoverDimension === 'auto'}
-                >
-                  Auto
-                </Dropdown.Item>
-                <Dropdown.Item
-                  id="x"
-                  value="x"
-                  onClick={onSetHoverDimension}
-                  selected={hoverDimension === 'x'}
-                >
-                  X Axis
-                </Dropdown.Item>
-                {/* <Dropdown.Item
-                id="y"
-                value="y"
-                onClick={onSetHoverDimension}
-                selected={hoverDimension === 'y'}
-              >
-                Y Axis
-              </Dropdown.Item> */}
-                <Dropdown.Item
-                  id="xy"
-                  value="xy"
-                  onClick={onSetHoverDimension}
-                  selected={hoverDimension === 'xy'}
-                >
-                  X & Y Axis
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            )}
-          />
-        </Form.Element>
       </Form.Element>
       <h5 className="view-options--header">X Axis</h5>
       <Form.Element label="X Axis Label">
@@ -225,13 +169,10 @@ const mdtp = {
   onSetColors: setColorHexes,
   onSetYAxisLabel: setYAxisLabel,
   onSetXAxisLabel: setXAxisLabel,
-  onUpdateAxisPrefix: setAxisPrefix,
-  onUpdateAxisSuffix: setAxisSuffix,
   onSetYDomain: setYDomain,
   onSetXColumn: setXColumn,
-  onSetYColumn: setYColumn,
+  onSetYSeriesColumns: setYSeriesColumns,
   onSetTimeFormat: setTimeFormat,
-  onSetHoverDimension: SetHoverDimension,
 }
 
 const connector = connect(mstp, mdtp)
