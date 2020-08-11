@@ -4,7 +4,7 @@ import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Alignment, Orientation, Overlay, Tabs} from '@influxdata/clockface'
-import CommunityTemplateName from 'src/templates/components/CommunityTemplateName'
+import {CommunityTemplateInstallInstructions} from 'src/templates/components/CommunityTemplateInstallInstructions'
 import {CommunityTemplateReadme} from 'src/templates/components/CommunityTemplateReadme'
 import {CommunityTemplateOverlayContents} from 'src/templates/components/CommunityTemplateOverlayContents'
 
@@ -54,7 +54,7 @@ class CommunityTemplateOverlayUnconnected extends PureComponent<Props, State> {
             onDismiss={this.onDismiss}
           />
           <Overlay.Body>
-            <CommunityTemplateName
+            <CommunityTemplateInstallInstructions
               templateName={templateName}
               resourceCount={resourceCount}
               onClickInstall={onInstall}
