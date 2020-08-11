@@ -1,362 +1,64 @@
-# github webhooks
+# GitHub Input Plugin
 
-You should configure your Organization's Webhooks to point at the `webhooks` service. To do this go to `github.com/{my_organization}` and click `Settings > Webhooks > Add webhook`. In the resulting menu set `Payload URL` to `http://<my_ip>:1619/github`, `Content type` to `application/json` and under the section `Which events would you like to trigger this webhook?` select 'Send me <b>everything</b>'. By default all of the events will write to the `github_webhooks` measurement, this is configurable by setting the `measurement_name` in the config file.
+Gather repository information from [GitHub][] hosted repositories.
 
-You can also add a secret that will be used by telegraf to verify the authenticity of the requests.
+**Note:** Telegraf also contains the [webhook][] input which can be used as an
+alternative method for collecting repository information.
 
-## Events
+### Configuration
 
-The titles of the following sections are links to the full payloads and details for each event. The body contains what information from the event is persisted. The format is as follows:
+```toml
+[[inputs.github]]
+  ## List of repositories to monitor
+  repositories = [
+	  "influxdata/telegraf",
+	  "influxdata/influxdb"
+  ]
+
+  ## Github API access token.  Unauthenticated requests are limited to 60 per hour.
+  # access_token = ""
+
+  ## Github API enterprise url. Github Enterprise accounts must specify their base url.
+  # enterprise_base_url = ""
+
+  ## Timeout for HTTP requests.
+  # http_timeout = "5s"
 ```
-# TAGS
-* 'tagKey' = `tagValue` type
-# FIELDS 
-* 'fieldKey' = `fieldValue` type
+
+### Metrics
+
+- github_repository
+  - tags:
+    - name - The repository name
+    - owner - The owner of the repository
+    - language - The primary language of the repository
+    - license - The license set for the repository
+  - fields:
+    - forks (int)
+    - open_issues (int)
+    - networks (int)
+    - size (int)
+    - subscribers (int)
+    - stars (int)
+    - watchers (int)
+
+When the [internal][] input is enabled:
+
++ internal_github
+  - tags:
+    - access_token - An obfuscated reference to the configured access token or "Unauthenticated"
+  - fields:
+    - limit - How many requests you are limited to (per hour)
+    - remaining - How many requests you have remaining (per hour)
+    - blocks - How many requests have been blocked due to rate limit
+
+### Example Output
+
 ```
-The tag values and field values show the place on the incoming JSON object where the data is sourced from. 
+github_repository,language=Go,license=MIT\ License,name=telegraf,owner=influxdata forks=2679i,networks=2679i,open_issues=794i,size=23263i,stars=7091i,subscribers=316i,watchers=7091i 1563901372000000000
+internal_github,access_token=Unauthenticated rate_limit_remaining=59i,rate_limit_limit=60i,rate_limit_blocks=0i 1552653551000000000
+```
 
-#### [`commit_comment` event](https://developer.github.com/v3/activity/events/types/#commitcommentevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'commit' = `event.comment.commit_id` string
-* 'comment' = `event.comment.body` string
-
-#### [`create` event](https://developer.github.com/v3/activity/events/types/#createevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'ref' = `event.ref` string
-* 'refType' = `event.ref_type` string
-
-#### [`delete` event](https://developer.github.com/v3/activity/events/types/#deleteevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'ref' = `event.ref` string
-* 'refType' = `event.ref_type` string
-
-#### [`deployment` event](https://developer.github.com/v3/activity/events/types/#deploymentevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'commit' = `event.deployment.sha` string
-* 'task' = `event.deployment.task` string
-* 'environment' = `event.deployment.environment` string
-* 'description' = `event.deployment.description` string
-
-#### [`deployment_status` event](https://developer.github.com/v3/activity/events/types/#deploymentstatusevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'commit' = `event.deployment.sha` string
-* 'task' = `event.deployment.task` string
-* 'environment' = `event.deployment.environment` string
-* 'description' = `event.deployment.description` string
-* 'depState' = `event.deployment_status.state` string
-* 'depDescription' = `event.deployment_status.description` string
-
-#### [`fork` event](https://developer.github.com/v3/activity/events/types/#forkevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'forkee' = `event.forkee.repository` string
-
-#### [`gollum` event](https://developer.github.com/v3/activity/events/types/#gollumevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-
-#### [`issue_comment` event](https://developer.github.com/v3/activity/events/types/#issuecommentevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-* 'issue' = `event.issue.number` int
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'title' = `event.issue.title` string
-* 'comments' = `event.issue.comments` int
-* 'body' = `event.comment.body` string
-
-#### [`issues` event](https://developer.github.com/v3/activity/events/types/#issuesevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-* 'issue' = `event.issue.number` int
-* 'action' = `event.action` string
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'title' = `event.issue.title` string
-* 'comments' = `event.issue.comments` int
-
-#### [`member` event](https://developer.github.com/v3/activity/events/types/#memberevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'newMember' = `event.sender.login` string
-* 'newMemberStatus' = `event.sender.site_admin` bool
-
-#### [`membership` event](https://developer.github.com/v3/activity/events/types/#membershipevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-* 'action' = `event.action` string
-
-**Fields:**
-* 'newMember' = `event.sender.login` string
-* 'newMemberStatus' = `event.sender.site_admin` bool
-
-#### [`page_build` event](https://developer.github.com/v3/activity/events/types/#pagebuildevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-
-#### [`public` event](https://developer.github.com/v3/activity/events/types/#publicevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-
-#### [`pull_request_review_comment` event](https://developer.github.com/v3/activity/events/types/#pullrequestreviewcommentevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'action' = `event.action` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-* 'prNumber' = `event.pull_request.number` int
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'state' = `event.pull_request.state` string
-* 'title' = `event.pull_request.title` string
-* 'comments' = `event.pull_request.comments` int
-* 'commits' = `event.pull_request.commits` int
-* 'additions' = `event.pull_request.additions` int
-* 'deletions' = `event.pull_request.deletions` int
-* 'changedFiles' = `event.pull_request.changed_files` int
-* 'commentFile' = `event.comment.file` string
-* 'comment' = `event.comment.body` string
-
-#### [`pull_request` event](https://developer.github.com/v3/activity/events/types/#pullrequestevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'action' = `event.action` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-* 'prNumber' = `event.pull_request.number` int
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'state' = `event.pull_request.state` string
-* 'title' = `event.pull_request.title` string
-* 'comments' = `event.pull_request.comments` int
-* 'commits' = `event.pull_request.commits` int
-* 'additions' = `event.pull_request.additions` int
-* 'deletions' = `event.pull_request.deletions` int
-* 'changedFiles' = `event.pull_request.changed_files` int
-
-#### [`push` event](https://developer.github.com/v3/activity/events/types/#pushevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'ref' = `event.ref` string
-* 'before' = `event.before` string
-* 'after' = `event.after` string
-
-#### [`repository` event](https://developer.github.com/v3/activity/events/types/#repositoryevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-
-#### [`release` event](https://developer.github.com/v3/activity/events/types/#releaseevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'tagName' = `event.release.tag_name` string
-
-#### [`status` event](https://developer.github.com/v3/activity/events/types/#statusevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'commit' = `event.sha` string
-* 'state' = `event.state` string
-
-#### [`team_add` event](https://developer.github.com/v3/activity/events/types/#teamaddevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
-* 'teamName' = `event.team.name` string
-
-#### [`watch` event](https://developer.github.com/v3/activity/events/types/#watchevent)
-
-**Tags:**
-* 'event' = `headers[X-Github-Event]` string
-* 'repository' = `event.repository.full_name` string
-* 'private' = `event.repository.private` bool
-* 'user' = `event.sender.login` string
-* 'admin' = `event.sender.site_admin` bool
-
-**Fields:**
-* 'stars' = `event.repository.stargazers_count` int
-* 'forks' = `event.repository.forks_count` int
-* 'issues' = `event.repository.open_issues_count` int
+[GitHub]: https://www.github.com
+[internal]: /plugins/inputs/internal
+[webhook]: /plugins/inputs/webhooks/github
