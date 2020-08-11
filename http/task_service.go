@@ -1637,8 +1637,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 				}
 			}
 		} else {
-			fmt.Print("\n No tasks found in this timeframe \n")
-			return nil, 0, errors.New("no tasks found in this timeframe")
+			return nil, 0, errors.New("error finding task runs")
 		}
 
 		return flagRuns, len(flagRuns), nil
