@@ -51,7 +51,7 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
 
     return (
       <Overlay visible={isVisible}>
-        <Overlay.Container maxWidth={800}>
+        <Overlay.Container maxWidth={800} testID="template-install-overlay">
           <Overlay.Header
             title="Template Installer"
             onDismiss={this.onDismiss}

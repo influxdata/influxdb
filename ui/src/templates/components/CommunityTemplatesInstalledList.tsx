@@ -238,20 +238,26 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
           <Table.Body>
             {this.props.stacks.map(stack => {
               return (
-                <Table.Row key={`stack-${stack.id}`}>
-                  <Table.Cell>{stack.name}</Table.Cell>
-                  <Table.Cell>
+                <Table.Row
+                  testID="installed-template-list"
+                  key={`stack-${stack.id}`}
+                >
+                  <Table.Cell testID={`installed-template-${stack.name}`}>
+                    {stack.name}
+                  </Table.Cell>
+                  <Table.Cell testID="template-resource-link">
                     {this.renderStackResources(stack.resources)}
                   </Table.Cell>
                   <Table.Cell>
                     {new Date(stack.createdAt).toDateString()}
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell testID="template-source-link">
                     {this.renderStackSources(stack.sources)}
                   </Table.Cell>
                   <Table.Cell>
                     <ConfirmationButton
                       confirmationButtonText="Delete"
+                      testID={`template-delete-button-${stack.name}`}
                       confirmationButtonColor={ComponentColor.Danger}
                       confirmationLabel="Really Delete All Resources?"
                       popoverColor={ComponentColor.Default}
