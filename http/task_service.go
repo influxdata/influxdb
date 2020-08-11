@@ -1637,7 +1637,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 					myRuns = append(myRuns, convertRun(myHTTPRun))
 				}
 			}
-		} else if filter.BeforeTime != "" {
+		} else if filter.BeforeTime != "" { //final
 			for j := range rs.Runs {
 				myHTTPRun = rs.Runs[j].httpRun
 				temp = *myHTTPRun.ScheduledFor
