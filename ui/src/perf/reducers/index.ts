@@ -61,6 +61,8 @@ const perfReducer = (
         }
 
         draftState.dashboard.byID[dashboardID].startVisitMs = startVisitMs
+
+        return
       }
 
       case SET_CELL_MOUNT: {

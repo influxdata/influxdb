@@ -5,6 +5,7 @@ export const SET_DASHBOARD_VISIT = 'SET_DASHBOARD_VISIT'
 export type Action =
   | ReturnType<typeof setScroll>
   | ReturnType<typeof setCellMount>
+  | ReturnType<typeof setDashboardVisit>
 
 export type ComponentKey = 'dashboard'
 export type ScrollState = 'not scrolled' | 'scrolled'
@@ -23,7 +24,7 @@ export const setCellMount = (cellID: string, mountStartMs: number) =>
     mountStartMs,
   } as const)
 
-export const dashboardVisit = (dashboardID: string, startVisitMs: number) =>
+export const setDashboardVisit = (dashboardID: string, startVisitMs: number) =>
   ({
     type: SET_DASHBOARD_VISIT,
     dashboardID,

@@ -7,7 +7,7 @@ import {withRouter, RouteComponentProps} from 'react-router-dom'
 // Actions
 import {setDashboard} from 'src/shared/actions/currentDashboard'
 import {selectValue} from 'src/variables/actions/thunks'
-import {dashboardVisit as dashboardVisitAction} from 'src/perf/actions'
+import {setDashboardVisit} from 'src/perf/actions'
 
 // Utils
 import {event} from 'src/cloud/utils/reporting'
@@ -126,7 +126,7 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  dashboardVisit: dashboardVisitAction,
+  dashboardVisit: setDashboardVisit,
   updateDashboard: setDashboard,
   selectValue: selectValue,
 }
