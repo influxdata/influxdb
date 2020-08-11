@@ -908,9 +908,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	req, err := decodeGetRunsRequest(ctx, r)
-	fmt.Printf("\n THIS IS MY FILTERED REQUEST: %v \n", req)
 	if err != nil {
-		//fmt.Printf("THIS IS THE ISSUE: %v", err)
 		err = &influxdb.Error{
 			Err:  err,
 			Code: influxdb.EInvalid,
@@ -995,22 +993,13 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 		req.filter.After = afterID
 	}
 
-	if limit := qp.Get("limit"); limit != "0" { //THIS IS THE FIX
-		fmt.Printf("THIS IS LIMIT SIR: %v", limit)
+	if limit := qp.Get("limit"); limit != "0" {
 		i, err := strconv.Atoi(limit)
-
-		//i := limit
-
-		fmt.Printf("\n THIS IS I RIGHT NOW: %v THIS IS THE ERROR: %v \n", i, err)
-
 		if err != nil {
-			fmt.Printf("\n I WANT THIS ERROR NOW: %v \n", err)
 			return nil, err
 		}
 
 		if i < 1 || i > influxdb.TaskMaxPageSize {
-			fmt.Printf("\n THIS IS INSIDE I: %v \n", i)
-			fmt.Printf("\n MAX PAGE SIZE: %v \n", influxdb.TaskMaxPageSize)
 			return nil, influxdb.ErrOutOfBoundsLimit
 		}
 		req.filter.Limit = i
@@ -1019,9 +1008,7 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 	var at, bt string
 	var afterTime, beforeTime time.Time
 	if at = qp.Get("afterTime"); at != "" {
-		fmt.Printf("I GOT IN HERE: %v", at)
 		afterTime, err = time.Parse(time.RFC3339, at)
-		//fmt.Printf("I WANT TO KNOW THIS: %v", err)
 		if err != nil {
 			return nil, err
 		}
@@ -1029,16 +1016,12 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 	}
 
 	if bt = qp.Get("beforeTime"); bt != "" {
-		fmt.Printf("I GOT IN HERE: %v", bt)
 		beforeTime, err = time.Parse(time.RFC3339, bt)
-		//fmt.Printf("I WANT TO KNOW THIS 2: %v", err)
 		if err != nil {
 			return nil, err
 		}
 		req.filter.BeforeTime = bt
 	}
-
-	//No code here to actually output tasks within a given time frame
 
 	if at != "" && bt != "" && !beforeTime.After(afterTime) {
 		return nil, &influxdb.Error{
@@ -1637,7 +1620,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 					myRuns = append(myRuns, convertRun(myHTTPRun))
 				}
 			}
-		} else if filter.BeforeTime != "" { //final
+		} else if filter.BeforeTime != "" {
 			for j := range rs.Runs {
 				myHTTPRun = rs.Runs[j].httpRun
 				temp = *myHTTPRun.ScheduledFor
