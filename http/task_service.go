@@ -408,7 +408,7 @@ type runsResponse struct {
 	Runs  []*runResponse    `json:"runs"`
 }
 
-func newRunsResponse(rs []*influxdb.Run, taskID influxdb.ID) runsResponse { //important
+func newRunsResponse(rs []*influxdb.Run, taskID influxdb.ID) runsResponse {
 	r := runsResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/tasks/%s/runs", taskID),
@@ -1575,7 +1575,6 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 	}
 
 	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize { //possible area of error
-		fmt.Printf("ERRORING HERE: %v, %v", influxdb.TaskMaxPageSize, filter.Limit)
 		return nil, 0, influxdb.ErrOutOfBoundsLimit
 	}
 
@@ -1591,6 +1590,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 		return nil, 0, err
 	}
 
+	//handles usage of after and before time flags to filter runs output
 	if filter.BeforeTime != "" || filter.AfterTime != "" {
 		var timeStampBefore time.Time
 		var err error
@@ -1609,31 +1609,31 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 			}
 		}
 
-		var myRuns []*influxdb.Run //potentially dangerous bc dynamic allocation as slice grows in run-time (consider refactor here)
-		var myHTTPRun httpRun
+		var flagRuns []*influxdb.Run //potentially dangerous bc dynamic allocation as slice grows in run-time (consider refactor here)
+		var run httpRun
 		var temp time.Time
 		if filter.BeforeTime != "" && filter.AfterTime != "" {
 			for j := range rs.Runs {
-				myHTTPRun = rs.Runs[j].httpRun
-				temp = *myHTTPRun.ScheduledFor
+				run = rs.Runs[j].httpRun
+				temp = *run.ScheduledFor
 				if (timeStampAfter.Before(temp)) && (temp.Before(timeStampBefore)) {
-					myRuns = append(myRuns, convertRun(myHTTPRun))
+					flagRuns = append(flagRuns, convertRun(run))
 				}
 			}
 		} else if filter.BeforeTime != "" {
 			for j := range rs.Runs {
-				myHTTPRun = rs.Runs[j].httpRun
-				temp = *myHTTPRun.ScheduledFor
+				run = rs.Runs[j].httpRun
+				temp = *run.ScheduledFor
 				if temp.Before(timeStampBefore) {
-					myRuns = append(myRuns, convertRun(myHTTPRun))
+					flagRuns = append(flagRuns, convertRun(run))
 				}
 			}
 		} else if filter.AfterTime != "" {
 			for j := range rs.Runs {
-				myHTTPRun = rs.Runs[j].httpRun
-				temp = *myHTTPRun.ScheduledFor
+				run = rs.Runs[j].httpRun
+				temp = *run.ScheduledFor
 				if timeStampAfter.Before(temp) {
-					myRuns = append(myRuns, convertRun(myHTTPRun))
+					flagRuns = append(flagRuns, convertRun(run))
 				}
 			}
 		} else {
@@ -1641,7 +1641,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 			return nil, 0, errors.New("no tasks found in this timeframe")
 		}
 
-		return myRuns, len(myRuns), nil
+		return flagRuns, len(flagRuns), nil
 	}
 
 	runs := make([]*influxdb.Run, len(rs.Runs))
