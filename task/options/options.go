@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/cron"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
@@ -204,6 +205,152 @@ type FluxLanguageService interface {
 
 	// EvalAST will evaluate and run an AST.
 	EvalAST(ctx context.Context, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error)
+}
+
+type unexpectedKindError struct {
+	Got      string
+	Expected string
+}
+
+func (err unexpectedKindError) Error() string {
+	return fmt.Sprintf("unexpected kind: got %q; expected %q", err.Got, err.Expected)
+}
+
+func FromScriptAST(lang FluxLanguageService, script string) (Options, error) {
+	opts := Options{
+		Retry:       pointer.Int64(1),
+		Concurrency: pointer.Int64(1),
+	}
+
+	fluxAST, err := parse(lang, script)
+	if err != nil {
+		return opts, err
+	}
+
+	file := fluxAST.Files[0]
+	obj, err := edit.GetOption(file, "task")
+	if err != nil {
+		return opts, err
+	}
+
+	objExpr, ok := obj.(*ast.ObjectExpression)
+	if !ok {
+		return opts, unexpectedKindError{
+			Got:      obj.Type(),
+			Expected: "ObjectExpression",
+		}
+	}
+
+	nameExpr, err := edit.GetProperty(objExpr, optName)
+	if err != nil {
+		return opts, ErrMissingRequiredTaskOption("name")
+	}
+	nameStr, ok := nameExpr.(*ast.StringLiteral)
+	if !ok {
+		return opts, unexpectedKindError{
+			Got:      nameExpr.Type(),
+			Expected: "StringLiteral",
+		}
+	}
+	opts.Name = ast.StringFromLiteral(nameStr)
+
+	cronExpr, cronErr := edit.GetProperty(objExpr, optCron)
+	everyExpr, everyErr := edit.GetProperty(objExpr, optEvery)
+	if cronErr == nil && everyErr == nil {
+		return opts, ErrDuplicateIntervalField
+	}
+	if cronErr != nil && everyErr != nil {
+		return opts, ErrMissingRequiredTaskOption("cron or every is required")
+	}
+
+	if cronErr == nil {
+		cronExprStr, ok := cronExpr.(*ast.StringLiteral)
+		if !ok {
+			return opts, unexpectedKindError{
+				Got:      cronExpr.Type(),
+				Expected: "StringLiteral",
+			}
+		}
+		opts.Cron = ast.StringFromLiteral(cronExprStr)
+	}
+
+	if everyErr == nil {
+		everyDur, ok := everyExpr.(*ast.DurationLiteral)
+		if !ok {
+			return opts, unexpectedKindError{
+				Got:      everyExpr.Type(),
+				Expected: "StringLiteral",
+			}
+		}
+		opts.Every = Duration{Node: *everyDur}
+	}
+
+	offsetExpr, offsetErr := edit.GetProperty(objExpr, optOffset)
+	if offsetErr == nil {
+		switch offsetExprV := offsetExpr.(type) {
+		case *ast.UnaryExpression:
+			multiplier := int64(1)
+
+			switch operator := offsetExprV.Operator; operator {
+			case ast.AdditionOperator:
+			case ast.SubtractionOperator:
+				multiplier = -1
+			default:
+				return opts, fmt.Errorf("unexpected unary operator: %q", operator.String())
+			}
+
+			offsetDur, ok := offsetExprV.Argument.(*ast.DurationLiteral)
+			if !ok {
+				return opts, unexpectedKindError{
+					Got:      offsetExpr.Type(),
+					Expected: "DurationLiteral",
+				}
+			}
+
+			offsetDur.Values[0].Magnitude *= multiplier
+
+			opts.Offset = &Duration{Node: *offsetDur}
+		case *ast.DurationLiteral:
+			opts.Offset = &Duration{Node: *offsetExprV}
+		default:
+			return opts, unexpectedKindError{
+				Got:      offsetExpr.Type(),
+				Expected: "DurationLiteral",
+			}
+		}
+	}
+
+	concurExpr, concurErr := edit.GetProperty(objExpr, optConcurrency)
+	if concurErr == nil {
+		concurInt, ok := concurExpr.(*ast.IntegerLiteral)
+		if !ok {
+			return opts, unexpectedKindError{
+				Got:      concurExpr.Type(),
+				Expected: "IntegerLiteral",
+			}
+		}
+		val := ast.IntegerFromLiteral(concurInt)
+		opts.Concurrency = &val
+	}
+
+	retryExpr, retryErr := edit.GetProperty(objExpr, optRetry)
+	if retryErr == nil {
+		retryInt, ok := retryExpr.(*ast.IntegerLiteral)
+		if !ok {
+			return opts, unexpectedKindError{
+				Got:      retryExpr.Type(),
+				Expected: "IntegerLiteral",
+			}
+		}
+		val := ast.IntegerFromLiteral(retryInt)
+		opts.Retry = &val
+	}
+
+	if err := opts.Validate(); err != nil {
+		return opts, err
+	}
+
+	return opts, nil
 }
 
 // FromScript extracts Options from a Flux script.

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
@@ -54,6 +56,72 @@ func TestNegDurations(t *testing.T) {
 	}
 	if d != -time.Minute {
 		t.Fatalf("expected duration to be -1m but was %s", d)
+	}
+}
+
+func TestFromScriptAST(t *testing.T) {
+	for _, c := range []struct {
+		script    string
+		exp       options.Options
+		shouldErr bool
+	}{
+		{script: scriptGenerator(options.Options{Name: "name0", Cron: "* * * * *", Concurrency: pointer.Int64(2), Retry: pointer.Int64(3), Offset: options.MustParseDuration("-1m")}, ""),
+			exp: options.Options{Name: "name0",
+				Cron:        "* * * * *",
+				Concurrency: pointer.Int64(2),
+				Retry:       pointer.Int64(3),
+				Offset:      options.MustParseDuration("-1m")}},
+		{script: scriptGenerator(options.Options{Name: "name1", Every: *(options.MustParseDuration("5s"))}, ""), exp: options.Options{Name: "name1", Every: *(options.MustParseDuration("5s")), Concurrency: pointer.Int64(1), Retry: pointer.Int64(1)}},
+		{script: scriptGenerator(options.Options{Name: "name2", Cron: "* * * * *"}, ""), exp: options.Options{Name: "name2", Cron: "* * * * *", Concurrency: pointer.Int64(1), Retry: pointer.Int64(1)}},
+		{script: scriptGenerator(options.Options{Name: "name3", Every: *(options.MustParseDuration("1h")), Cron: "* * * * *"}, ""), shouldErr: true},
+		{script: scriptGenerator(options.Options{Name: "name4", Concurrency: pointer.Int64(1000), Every: *(options.MustParseDuration("1h"))}, ""), shouldErr: true},
+		{script: "option task = {\n  name: \"name5\",\n  concurrency: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
+		{script: "option task = {\n  name: \"name6\",\n  concurrency: 1,\n  every: 1,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
+		{script: scriptGenerator(options.Options{Name: "name7", Retry: pointer.Int64(20), Every: *(options.MustParseDuration("1h"))}, ""), shouldErr: true},
+		{script: "option task = {\n  name: \"name8\",\n  retry: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
+		{script: scriptGenerator(options.Options{Name: "name9"}, ""), shouldErr: true},
+		{script: scriptGenerator(options.Options{}, ""), shouldErr: true},
+		{script: `option task = {
+			name: "name10",
+			every: 1d,
+			offset: 1m,
+		}
+			from(bucket: "metrics")
+			|> range(start: now(), stop: 8w)
+		`,
+			exp: options.Options{Name: "name10", Every: *(options.MustParseDuration("1d")), Concurrency: pointer.Int64(1), Retry: pointer.Int64(1), Offset: options.MustParseDuration("1m")},
+		},
+		{script: `option task = {
+			name: "name11",
+			every: 1m,
+			offset: 1d,
+		}
+			from(bucket: "metrics")
+			|> range(start: now(), stop: 8w)
+
+		`,
+			exp: options.Options{Name: "name11", Every: *(options.MustParseDuration("1m")), Concurrency: pointer.Int64(1), Retry: pointer.Int64(1), Offset: options.MustParseDuration("1d")},
+		},
+		{script: "option task = {name:\"test_task_smoke_name\", every:30s} from(bucket:\"test_tasks_smoke_bucket_source\") |> range(start: -1h) |> map(fn: (r) => ({r with _time: r._time, _value:r._value, t : \"quality_rocks\"}))|> to(bucket:\"test_tasks_smoke_bucket_dest\", orgID:\"3e73e749495d37d5\")",
+			exp: options.Options{Name: "test_task_smoke_name", Every: *(options.MustParseDuration("30s")), Retry: pointer.Int64(1), Concurrency: pointer.Int64(1)}, shouldErr: false}, // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
+
+	} {
+		o, err := options.FromScriptAST(fluxlang.DefaultService, c.script)
+		if c.shouldErr && err == nil {
+			t.Fatalf("script %q should have errored but didn't", c.script)
+		} else if !c.shouldErr && err != nil {
+			t.Fatalf("script %q should not have errored, but got %v", c.script, err)
+		}
+
+		if err != nil {
+			continue
+		}
+
+		ignoreLocation := cmpopts.IgnoreFields(ast.BaseNode{}, "Loc")
+
+		if !cmp.Equal(o, c.exp, ignoreLocation) {
+			t.Fatalf("script %q got unexpected result -got/+exp\n%s", c.script, cmp.Diff(o, c.exp))
+		}
 	}
 }
 

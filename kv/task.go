@@ -3,7 +3,6 @@ package kv
 import (
 	"context"
 	"encoding/json"
-	"regexp"
 	"strings"
 	"time"
 
@@ -1661,8 +1660,6 @@ func taskRunKey(taskID, runID influxdb.ID) ([]byte, error) {
 	return []byte(string(encodedID) + "/" + string(encodedRunID)), nil
 }
 
-var taskOptionsPattern = regexp.MustCompile(`option\s+task\s*=\s*{.*}`)
-
 // ExtractTaskOptions is a feature-flag driven switch between normal options
 // parsing and a more simplified variant.
 //
@@ -1677,21 +1674,7 @@ func ExtractTaskOptions(ctx context.Context, lang influxdb.FluxLanguageService, 
 	if !feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
 		return options.FromScript(lang, flux)
 	}
-
-	matches := taskOptionsPattern.FindAllString(flux, -1)
-	if len(matches) == 0 {
-		return options.Options{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "no task options defined",
-		}
-	}
-	if len(matches) > 1 {
-		return options.Options{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "multiple task options defined",
-		}
-	}
-	return options.FromScript(lang, matches[0])
+	return options.FromScriptAST(lang, flux)
 }
 
 func (s *Service) maxPermissions(ctx context.Context, tx Tx, userID influxdb.ID) ([]influxdb.Permission, error) {
