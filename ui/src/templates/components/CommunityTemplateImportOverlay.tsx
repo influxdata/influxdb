@@ -3,7 +3,7 @@ import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect, ConnectedProps} from 'react-redux'
 
 // Components
-import {CommunityTemplateInstallerOverlay} from 'src/templates/components/CommunityTemplateInstallerOverlay'
+import {CommunityTemplateOverlay} from 'src/templates/components/CommunityTemplateOverlay'
 
 // Actions
 import {setCommunityTemplateToInstall} from 'src/templates/actions/creators'
@@ -63,7 +63,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
 
   public render() {
     return (
-      <CommunityTemplateInstallerOverlay
+      <CommunityTemplateOverlay
         onDismissOverlay={this.onDismiss}
         onInstall={this.handleInstallTemplate}
         resourceCount={this.props.resourceCount}
