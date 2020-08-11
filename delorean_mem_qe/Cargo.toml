@@ -11,6 +11,7 @@ delorean_table = { path = "../delorean_table" }
 arrow = { git = "https://github.com/apache/arrow.git", rev="aa6889a74c57d6faea0d27ea8013d9b0c7ef809a", version = "2.0.0-SNAPSHOT" } 
 snafu = "0.6.8"
 croaring = "0.4.5"
+chrono = "0.4"
 
 [dev-dependencies]
 

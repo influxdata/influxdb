@@ -765,6 +765,7 @@ name = "delorean_mem_qe"
 version = "0.1.0"
 dependencies = [
  "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a)",
+ "chrono",
  "croaring",
  "delorean_table",
  "snafu",

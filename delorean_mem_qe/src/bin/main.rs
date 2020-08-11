@@ -5,7 +5,7 @@ use arrow::{array, array::Array, datatypes, ipc};
 
 use delorean_mem_qe::column;
 use delorean_mem_qe::column::{Column, Scalar};
-use delorean_mem_qe::segment::Segment;
+use delorean_mem_qe::segment::{Aggregate, Segment};
 use delorean_mem_qe::Store;
 
 // use snafu::ensure;
@@ -35,6 +35,8 @@ fn main() {
         store.segment_total(),
         store.size(),
     );
+
+    time_group_by_agg(&store);
 
     // time_column_min_time(&store);
     // time_column_max_time(&store);
@@ -86,31 +88,37 @@ fn main() {
 
     // time_row_by_preds(&store);
 
-    let segments = store.segments();
-    let columns = segments.read_filter_eq(
-        (1590040770000000, 1590044410000000),
-        &[
-            ("env", Some(&column::Scalar::String("prod01-us-west-2"))),
-            ("method", Some(&column::Scalar::String("GET"))),
-            (
-                "host",
-                Some(&column::Scalar::String("queryd-v1-75bc6f7886-57pxd")),
-            ),
-        ],
-        vec![
-            "env".to_string(),
-            "method".to_string(),
-            "host".to_string(),
-            "counter".to_string(),
-            "time".to_string(),
-        ],
-    );
+    // let segments = store.segments();
+    // let columns = segments.read_filter_eq(
+    //     (1590036110000000, 1590040770000000),
+    //     &[("env", Some(&column::Scalar::String("prod01-eu-central-1")))],
+    //     vec![
+    //         "env".to_string(),
+    //         "method".to_string(),
+    //         "host".to_string(),
+    //         "counter".to_string(),
+    //         "time".to_string(),
+    //     ],
+    // );
 
-    for (k, v) in columns {
-        println!("COLUMN {:?}", k);
-        println!("ROWS ({:?}) {:?}", v.len(), 0);
-        // println!("ROWS ({:?}) {:?}", v, v.len());
-    }
+    // for (k, v) in columns {
+    //     println!("COLUMN {:?}", k);
+    //     // println!("ROWS ({:?}) {:?}", v.len(), 0);
+    //     println!("ROWS ({}) {:?}", v, v.len());
+    // }
+
+    // let now = std::time::Instant::now();
+    // let segments = store.segments();
+    // let groups = segments.read_group_eq(
+    //     (0, 1590044410000000),
+    //     &[],
+    //     vec!["env".to_string()],
+    //     vec![
+    //         // ("counter".to_string(), Aggregate::Sum),
+    //         ("counter".to_string(), Aggregate::Count),
+    //     ],
+    // );
+    // println!("{:?} {:?}", groups, now.elapsed());
 
     // loop {
     //     let mut total_count = 0.0;
@@ -149,7 +157,12 @@ fn build_store(
     mut reader: arrow::ipc::reader::StreamReader<File>,
     store: &mut Store,
 ) -> Result<(), Error> {
+    // let mut i = 0;
     while let Some(rb) = reader.next_batch().unwrap() {
+        // if i < 363 {
+        //     i += 1;
+        //     continue;
+        // }
         let segment = convert_record_batch(rb)?;
         store.add_segment(segment);
     }
@@ -357,6 +370,36 @@ fn time_row_by_preds(store: &Store) {
 
         total_time += now.elapsed();
         total_max += rows.cardinality();
+    }
+    println!(
+        "Ran {:?} in {:?} {:?} / call {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        total_max
+    );
+}
+
+fn time_group_by_agg(store: &Store) {
+    let repeat = 100;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut total_max = 0;
+    let segments = store.segments();
+    for _ in 0..repeat {
+        let now = std::time::Instant::now();
+
+        let groups = segments.read_group_eq(
+            (0, 1590044410000000),
+            &[("method", Some(&column::Scalar::String("GET")))],
+            vec!["env".to_string()],
+            vec![
+                ("counter".to_string(), Aggregate::Sum),
+                // ("counter".to_string(), Aggregate::Count),
+            ],
+        );
+
+        total_time += now.elapsed();
+        total_max += groups.len();
     }
     println!(
         "Ran {:?} in {:?} {:?} / call {:?}",

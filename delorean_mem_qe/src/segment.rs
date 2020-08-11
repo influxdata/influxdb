@@ -148,6 +148,18 @@ impl Segment {
         None
     }
 
+    // Returns the count aggregate for a given column name.
+    //
+    // Since we guarantee to provide row ids for the segment, and all columns
+    // have the same number of logical rows, the count is just the number of
+    // requested logical rows.
+    pub fn count_column(&self, name: &str, row_ids: &mut croaring::Bitmap) -> Option<u64> {
+        if self.column(name).is_some() {
+            return Some(row_ids.cardinality() as u64);
+        }
+        None
+    }
+
     pub fn filter_by_predicates_eq(
         &self,
         time_range: (i64, i64),
@@ -247,6 +259,72 @@ impl Segment {
         }
         bm
     }
+
+    pub fn group_agg_by_predicate_eq(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, Option<&column::Scalar>)],
+        group_columns: &Vec<String>,
+        aggregates: &Vec<(String, Aggregate)>,
+    ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
+        let mut grouped_results = BTreeMap::new();
+
+        let filter_row_ids: croaring::Bitmap;
+        match self.filter_by_predicates_eq(time_range, predicates) {
+            Some(row_ids) => filter_row_ids = row_ids,
+            None => {
+                return grouped_results;
+            }
+        }
+
+        if let Some(grouped_row_ids) = self.group_by_column_ids(&group_columns[0]) {
+            for (group_key_value, row_ids) in grouped_row_ids.iter() {
+                let mut filtered_row_ids = row_ids.and(&filter_row_ids);
+                if !filtered_row_ids.is_empty() {
+                    // First calculate all of the aggregates for this grouped value
+                    let mut aggs: Vec<((String, Aggregate), column::Aggregate)> =
+                        Vec::with_capacity(aggregates.len());
+
+                    for (col_name, agg) in aggregates {
+                        match &agg {
+                            Aggregate::Sum => {
+                                aggs.push((
+                                    (col_name.to_string(), agg.clone()),
+                                    column::Aggregate::Sum(
+                                        self.sum_column(col_name, &mut filtered_row_ids).unwrap(),
+                                    ), // assuming no non-null group keys
+                                ));
+                            }
+                            Aggregate::Count => {
+                                aggs.push((
+                                    (col_name.to_string(), agg.clone()),
+                                    column::Aggregate::Count(
+                                        self.count_column(col_name, &mut filtered_row_ids).unwrap(),
+                                    ), // assuming no non-null group keys
+                                ));
+                            }
+                        }
+                    }
+
+                    // Next add these aggregates to the result set, keyed
+                    // by the grouped value.
+                    assert_eq!(aggs.len(), aggregates.len());
+                    grouped_results.insert(vec![group_key_value.clone().unwrap()], aggs);
+                } else {
+                    // In this case there are grouped values in the column with no
+                    // rows falling into time-range/predicate set.
+                    println!(
+                        "grouped value {:?} has no rows in time-range/predicate set",
+                        group_key_value
+                    );
+                }
+            }
+        } else {
+            // segment doesn't have the column so can't group on it.
+            println!("don't have column - can't group");
+        }
+        grouped_results
+    }
 }
 
 /// Meta data for a segment. This data is mainly used to determine if a segment
@@ -280,6 +358,12 @@ impl SegmentMetaData {
     pub fn overlaps_time_range(&self, from: i64, to: i64) -> bool {
         self.time_range.0 <= to && from <= self.time_range.1
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum Aggregate {
+    Count,
+    Sum,
 }
 
 pub struct Segments<'a> {
@@ -331,7 +415,6 @@ impl<'a> Segments<'a> {
             if !segment.meta.overlaps_time_range(min, max) {
                 continue; // segment doesn't have time range
             }
-
             if let Some(bm) = segment.filter_by_predicates_eq(time_range, predicates) {
                 let bm_vec = bm.to_vec();
                 let row_ids = bm_vec.iter().map(|v| *v as usize).collect::<Vec<usize>>();
@@ -350,6 +433,59 @@ impl<'a> Segments<'a> {
         }
 
         columns
+    }
+
+    // read_group_eq returns grouped aggregates of for the specified columns.
+    // Results may be filtered by (currently) equality predicates and ranged
+    // by time.
+    pub fn read_group_eq(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, Option<&column::Scalar>)],
+        group_columns: Vec<String>,
+        aggregates: Vec<(String, Aggregate)>,
+    ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
+        // TODO(edd): support multi column groups
+        assert_eq!(group_columns.len(), 1);
+
+        let (min, max) = time_range;
+        if max <= min {
+            panic!("max <= min");
+        }
+
+        let mut cum_results: BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> =
+            BTreeMap::new();
+
+        for segment in &self.segments {
+            let segment_results = segment.group_agg_by_predicate_eq(
+                time_range,
+                predicates,
+                &group_columns,
+                &aggregates,
+            );
+
+            for (k, segment_aggs) in segment_results {
+                // assert_eq!(v.len(), aggregates.len());
+                let cum_result = cum_results.get_mut(&k);
+                match cum_result {
+                    Some(cum) => {
+                        assert_eq!(cum.len(), segment_aggs.len());
+                        // In this case we need to aggregate the aggregates from
+                        // each segment.
+                        for i in 0..cum.len() {
+                            // TODO(edd): this is more expensive than necessary
+                            cum[i] = (cum[i].0.clone(), cum[i].1.clone() + &segment_aggs[i].1);
+                        }
+                    }
+                    None => {
+                        cum_results.insert(k, segment_aggs);
+                    }
+                }
+            }
+        }
+
+        // columns
+        cum_results
     }
 
     /// Returns the minimum value for a column in a set of segments.

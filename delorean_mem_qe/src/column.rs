@@ -2,14 +2,68 @@ use std::convert::From;
 
 use super::encoding;
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Scalar<'a> {
     String(&'a str),
     Float(f64),
     Integer(i64),
 }
 
-#[derive(Debug)]
+impl<'a> std::ops::Add<&Scalar<'a>> for Scalar<'a> {
+    type Output = Scalar<'a>;
+
+    fn add(self, _rhs: &Scalar<'a>) -> Self::Output {
+        match self {
+            Self::Float(v) => {
+                if let Self::Float(other) = _rhs {
+                    return Self::Float(v + other);
+                } else {
+                    panic!("invalid");
+                };
+            }
+            Self::Integer(v) => {
+                if let Self::Integer(other) = _rhs {
+                    return Self::Integer(v + other);
+                } else {
+                    panic!("invalid");
+                };
+            }
+            Self::String(_) => {
+                unreachable!("not possible to add strings");
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum Aggregate<'a> {
+    Count(u64),
+    Sum(Scalar<'a>),
+}
+
+impl<'a> std::ops::Add<&Aggregate<'a>> for Aggregate<'a> {
+    type Output = Aggregate<'a>;
+
+    fn add(self, _rhs: &Aggregate<'a>) -> Self::Output {
+        match self {
+            Self::Count(c) => {
+                if let Self::Count(other) = _rhs {
+                    return Self::Count(c + other);
+                } else {
+                    panic!("invalid");
+                };
+            }
+            Self::Sum(s) => {
+                if let Self::Sum(other) = _rhs {
+                    return Self::Sum(s + other);
+                } else {
+                    panic!("invalid");
+                };
+            }
+        }
+    }
+}
+
 pub enum Vector<'a> {
     String(Vec<&'a Option<std::string::String>>),
     Float(Vec<&'a f64>),
@@ -50,6 +104,24 @@ impl<'a> Vector<'a> {
                 } else {
                     unreachable!("string can't be extended");
                 }
+            }
+        }
+    }
+}
+
+use chrono::prelude::*;
+
+impl<'a> std::fmt::Display for Vector<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::String(v) => write!(f, "{:?}", v),
+            Self::Float(v) => write!(f, "{:?}", v),
+            Self::Integer(v) => {
+                for x in v {
+                    let ts = NaiveDateTime::from_timestamp(*x / 1000 / 1000, 0);
+                    write!(f, "{}, ", ts)?;
+                }
+                Ok(())
             }
         }
     }
