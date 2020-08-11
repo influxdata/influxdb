@@ -17,9 +17,10 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
+	ast2 "github.com/influxdata/influxdb/v2/pkg/flux/ast"
+	"github.com/influxdata/influxdb/v2/pkg/flux/ast/edit"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"gopkg.in/yaml.v3"
 )
@@ -1615,16 +1616,16 @@ func valFromExpr(p ast.Expression) interface{} {
 		}
 		return nil
 	case *ast.DateTimeLiteral:
-		return ast.DateTimeFromLiteral(literal)
+		return ast2.DateTimeFromLiteral(literal)
 	case *ast.FloatLiteral:
-		return ast.FloatFromLiteral(literal)
+		return ast2.FloatFromLiteral(literal)
 	case *ast.IntegerLiteral:
-		return ast.IntegerFromLiteral(literal)
+		return ast2.IntegerFromLiteral(literal)
 	case *ast.DurationLiteral:
 		dur, _ := ast.DurationFrom(literal, time.Time{})
 		return dur
 	case *ast.StringLiteral:
-		return ast.StringFromLiteral(literal)
+		return ast2.StringFromLiteral(literal)
 	case *ast.UnaryExpression:
 		// a signed duration is represented by a UnaryExpression.
 		// it is the only unary expression allowed.
