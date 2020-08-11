@@ -103,17 +103,32 @@ impl Segment {
         None
     }
 
-    pub fn row(&self, row_id: usize) -> Option<Vec<Option<column::Scalar>>> {
-        if row_id >= self.num_rows() {
-            return None;
+    // Materialise all rows for each desired column. `rows` expects `row_ids` to
+    // be ordered in ascending order.
+    //
+    // `columns` determines which column values are returned. An empty `columns`
+    // value will result in rows for all columns being returned.
+    pub fn rows(&self, row_ids: &[usize], columns: &[String]) -> BTreeMap<String, column::Vector> {
+        let mut rows: BTreeMap<String, column::Vector> = BTreeMap::new();
+        if row_ids.is_empty() {
+            // nothing to return
+            return rows;
         }
 
-        Some(
-            self.columns
-                .iter()
-                .map(|c| c.value(row_id))
-                .collect::<Vec<Option<column::Scalar>>>(),
-        )
+        let cols_to_process = if columns.is_empty() {
+            &self.meta.column_names
+        } else {
+            columns
+        };
+
+        for col_name in cols_to_process {
+            let column = self.column(col_name.as_str());
+            if let Some(column) = column {
+                rows.insert(col_name.clone(), column.rows(row_ids));
+            };
+        }
+
+        rows
     }
 
     pub fn group_by_column_ids(
@@ -136,20 +151,19 @@ impl Segment {
     pub fn filter_by_predicates_eq(
         &self,
         time_range: (i64, i64),
-        predicates: Vec<(&str, Option<&column::Scalar>)>,
+        predicates: &[(&str, Option<&column::Scalar>)],
     ) -> Option<croaring::Bitmap> {
         if !self.meta.overlaps_time_range(time_range.0, time_range.1) {
             return None; // segment doesn't have time range
         }
 
         let (seg_min, seg_max) = self.meta.time_range;
-        if seg_min <= time_range.0 && seg_max >= time_range.1 {
-            // the segment completely overlaps the time range of query so don't
-            // need to intersect with time column.
+        if time_range.0 <= seg_min && time_range.1 > seg_max {
+            // the segment is completely overlapped by the time range of query,
+            // so don't  need to intersect predicate results with time column.
             return self.filter_by_predicates_eq_no_time(predicates);
         }
-
-        self.filter_by_predicates_eq_time(time_range, predicates)
+        self.filter_by_predicates_eq_time(time_range, predicates.to_vec())
     }
 
     fn filter_by_predicates_eq_time(
@@ -193,13 +207,22 @@ impl Segment {
     // meta row_ids bitmap.
     fn filter_by_predicates_eq_no_time(
         &self,
-        predicates: Vec<(&str, Option<&column::Scalar>)>,
+        predicates: &[(&str, Option<&column::Scalar>)],
     ) -> Option<croaring::Bitmap> {
+        if predicates.is_empty() {
+            // In this case there are no predicates provided and we have no time
+            // range restrictions - we need to return a bitset for all row ids.
+            let mut bm = croaring::Bitmap::create_with_capacity(self.num_rows() as u32);
+            bm.add_range(0..self.num_rows() as u64);
+            return Some(bm);
+        }
+
         let mut bm: Option<croaring::Bitmap> = None;
         // now intersect matching rows for each column
         for (col_pred_name, col_pred_value) in predicates {
             if let Some(c) = self.column(col_pred_name) {
-                match c.row_ids_eq(col_pred_value) {
+                // TODO(edd): rework this clone
+                match c.row_ids_eq(*col_pred_value) {
                     Some(row_ids) => {
                         if row_ids.is_empty() {
                             return None;
@@ -222,12 +245,7 @@ impl Segment {
                 return None; // column doesn't exist - no matching rows
             }
         }
-
-        // In this case there are no predicates provided and we have no time
-        // range restrictions - we need to return a bitset for all row ids.
-        let mut bm = croaring::Bitmap::create_with_capacity(self.num_rows() as u32);
-        bm.add_range(0..self.num_rows() as u64);
-        Some(bm)
+        bm
     }
 }
 
@@ -295,29 +313,44 @@ impl<'a> Segments<'a> {
         Self::new(segments)
     }
 
-    // pub fn filter_by_predicate_eq(
-    //     &self,
-    //     time_range: Option<(i64, i64)>,
-    //     predicates: Vec<(&str, &column::Scalar)>,
-    // ) -> Option<croaring::Bitmap> {
-    //     let bm = None;
-    //     for segment in self.segments {
-    //         if let Some((min, max)) = time_range {
-    //             if !segment.meta.overlaps_time_range(min, max) {
-    //                 continue; // segment doesn't have time range
-    //             }
-    //         }
+    // read_filter_eq returns rows of data for the desired columns. Results may
+    // be filtered by (currently) equality predicates and ranged by time.
+    pub fn read_filter_eq(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, Option<&column::Scalar>)],
+        select_columns: Vec<String>,
+    ) -> BTreeMap<String, column::Vector> {
+        let (min, max) = time_range;
+        if max <= min {
+            panic!("max <= min");
+        }
 
-    //         // build set of
+        let mut columns: BTreeMap<String, column::Vector> = BTreeMap::new();
+        for segment in &self.segments {
+            if !segment.meta.overlaps_time_range(min, max) {
+                continue; // segment doesn't have time range
+            }
 
-    //         if let Some(col) = segment.column(column_name) {
-    //             if col.maybe_contains(&value) {
-    //                 segments.push(segment);
-    //             }
-    //         }
-    //     }
-    //     Self::new(segments)
-    // }
+            if let Some(bm) = segment.filter_by_predicates_eq(time_range, predicates) {
+                let bm_vec = bm.to_vec();
+                let row_ids = bm_vec.iter().map(|v| *v as usize).collect::<Vec<usize>>();
+
+                let rows = segment.rows(&row_ids, &select_columns);
+                for (k, v) in rows {
+                    let segment_values = columns.get_mut(&k);
+                    match segment_values {
+                        Some(values) => values.extend(v),
+                        None => {
+                            columns.insert(k.to_owned(), v);
+                        }
+                    }
+                }
+            };
+        }
+
+        columns
+    }
 
     /// Returns the minimum value for a column in a set of segments.
     pub fn column_min(&self, column_name: &str) -> Option<column::Scalar> {

@@ -39,9 +39,9 @@ fn main() {
     // time_column_min_time(&store);
     // time_column_max_time(&store);
     // time_column_first(&store);
-    let segments = store.segments();
-    let res = segments.last("host").unwrap();
-    println!("{:?}", res);
+    // let segments = store.segments();
+    // let res = segments.last("host").unwrap();
+    // println!("{:?}", res);
 
     // let segments = segments
     //     .filter_by_time(1590036110000000, 1590044410000000)
@@ -85,35 +85,64 @@ fn main() {
     // println!("{:?}", rows.cardinality());
 
     // time_row_by_preds(&store);
-    loop {
-        let mut total_count = 0.0;
-        let now = std::time::Instant::now();
-        for segment in segments.segments() {
-            let (min, max) = segment.time_range();
-            let time_ids = segment.filter_by_predicates_eq((min, max), vec![]).unwrap();
 
-            let group_ids = segment.group_by_column_ids("env").unwrap();
-            for (col_values, row_ids) in group_ids {
-                // filter ids by time
-                let mut result = row_ids.and(&time_ids);
-                // let
-                // println!(
-                //     "({:?}, {:?}) SUM OF COLUMN env={:?} is {:?} (count is {:?})",
-                //     min,
-                //     max,
-                //     col_values,
-                //     segment.sum_column(&"counter", &result),
-                //     result.cardinality(),
-                // );
-                if let column::Scalar::Float(x) =
-                    segment.sum_column(&"counter", &mut result).unwrap()
-                {
-                    total_count += x;
-                }
-            }
-        }
-        println!("Done ({:?}) in {:?}", total_count, now.elapsed());
+    let segments = store.segments();
+    let columns = segments.read_filter_eq(
+        (1590040770000000, 1590044410000000),
+        &[
+            ("env", Some(&column::Scalar::String("prod01-us-west-2"))),
+            ("method", Some(&column::Scalar::String("GET"))),
+            (
+                "host",
+                Some(&column::Scalar::String("queryd-v1-75bc6f7886-57pxd")),
+            ),
+        ],
+        vec![
+            "env".to_string(),
+            "method".to_string(),
+            "host".to_string(),
+            "counter".to_string(),
+            "time".to_string(),
+        ],
+    );
+
+    for (k, v) in columns {
+        println!("COLUMN {:?}", k);
+        println!("ROWS ({:?}) {:?}", v.len(), 0);
+        // println!("ROWS ({:?}) {:?}", v, v.len());
     }
+
+    // loop {
+    //     let mut total_count = 0.0;
+    //     let now = std::time::Instant::now();
+    //     for segment in segments.segments() {
+    //         let (min, max) = segment.time_range();
+    //         let time_ids = segment
+    //             .filter_by_predicates_eq((min, max), &vec![])
+    //             .unwrap();
+
+    //         let group_ids = segment.group_by_column_ids("env").unwrap();
+    //         for (col_values, row_ids) in group_ids {
+    //             // filter ids by time
+    //             let mut result = row_ids.and(&time_ids);
+    //             // let
+    //             // println!(
+    //             //     "({:?}, {:?}) SUM OF COLUMN env={:?} is {:?} (count is {:?})",
+    //             //     min,
+    //             //     max,
+    //             //     col_values,
+    //             //     segment.sum_column(&"counter", &result),
+    //             //     result.cardinality(),
+    //             // );
+    //             if let column::Scalar::Float(x) =
+    //                 segment.sum_column(&"counter", &mut result).unwrap()
+    //             {
+    //                 total_count += x;
+    //             }
+    //         }
+    //     }
+    //     println!("Done ({:?}) in {:?}", total_count, now.elapsed());
+    // }
 }
 
 fn build_store(
@@ -271,27 +300,27 @@ fn time_column_first(store: &Store) {
     );
 }
 
-fn time_row_by_last_ts(store: &Store) {
-    let repeat = 100000;
-    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-    let mut total_max = 0;
-    let segments = store.segments();
-    for _ in 0..repeat {
-        let now = std::time::Instant::now();
+// fn time_row_by_last_ts(store: &Store) {
+//     let repeat = 100000;
+//     let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+//     let mut total_max = 0;
+//     let segments = store.segments();
+//     for _ in 0..repeat {
+//         let now = std::time::Instant::now();
 
-        let (_, _, row_id) = segments.last("time").unwrap();
-        let res = segments.segments().last().unwrap().row(row_id).unwrap();
-        total_time += now.elapsed();
-        total_max += res.len();
-    }
-    println!(
-        "Ran {:?} in {:?} {:?} / call {:?}",
-        repeat,
-        total_time,
-        total_time / repeat,
-        total_max
-    );
-}
+//         let (_, _, row_id) = segments.last("time").unwrap();
+//         let res = segments.segments().last().unwrap().row(row_id).unwrap();
+//         total_time += now.elapsed();
+//         total_max += res.len();
+//     }
+//     println!(
+//         "Ran {:?} in {:?} {:?} / call {:?}",
+//         repeat,
+//         total_time,
+//         total_time / repeat,
+//         total_max
+//     );
+// }
 
 fn time_row_by_preds(store: &Store) {
     let repeat = 100000;
@@ -307,7 +336,7 @@ fn time_row_by_preds(store: &Store) {
             .unwrap()
             .filter_by_predicates_eq(
                 (1590040770000000, 1590040790000000),
-                vec![
+                &vec![
                     ("env", Some(&column::Scalar::String("prod01-us-west-2"))),
                     ("method", Some(&column::Scalar::String("GET"))),
                     (

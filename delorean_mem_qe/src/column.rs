@@ -12,8 +12,47 @@ pub enum Scalar<'a> {
 #[derive(Debug)]
 pub enum Vector<'a> {
     String(Vec<&'a Option<std::string::String>>),
-    Float(&'a [f64]),
-    Integer(&'a [i64]),
+    Float(Vec<&'a f64>),
+    Integer(Vec<&'a i64>),
+}
+
+impl<'a> Vector<'a> {
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::String(v) => v.len(),
+            Self::Float(v) => v.len(),
+            Self::Integer(v) => v.len(),
+        }
+    }
+    pub fn extend(&mut self, other: Self) {
+        match self {
+            Self::String(v) => {
+                if let Self::String(other) = other {
+                    v.extend(other);
+                } else {
+                    unreachable!("string can't be extended");
+                }
+            }
+            Self::Float(v) => {
+                if let Self::Float(other) = other {
+                    v.extend(other);
+                } else {
+                    unreachable!("string can't be extended");
+                }
+            }
+            Self::Integer(v) => {
+                if let Self::Integer(other) = other {
+                    v.extend(other);
+                } else {
+                    unreachable!("string can't be extended");
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -69,27 +108,43 @@ impl Column {
         }
     }
 
-    /// materialise all rows including and after row_id
-    pub fn scan_from(&self, row_id: usize) -> Option<Vector> {
-        if row_id >= self.num_rows() {
-            println!(
-                "asking for {:?} but only got {:?} rows",
-                row_id,
-                self.num_rows()
-            );
-            return None;
-        }
-
-        println!(
-            "asking for {:?} with a column having {:?} rows",
-            row_id,
-            self.num_rows()
+    /// materialise rows for each row_id
+    pub fn rows(&self, row_ids: &[usize]) -> Vector {
+        assert!(
+            row_ids.len() == 1 || row_ids[row_ids.len() - 1] > row_ids[0],
+            "got last row_id={:?} and first row_id={:?}",
+            row_ids[row_ids.len() - 1],
+            row_ids[0]
         );
         match self {
-            Column::String(c) => Some(Vector::String(c.scan_from(row_id))),
-            Column::Float(c) => Some(Vector::Float(c.scan_from(row_id))),
-            Column::Integer(c) => Some(Vector::Integer(c.scan_from(row_id))),
+            Column::String(c) => Vector::String(c.values(row_ids)),
+            Column::Float(c) => Vector::Float(c.values(row_ids)),
+            Column::Integer(c) => Vector::Integer(c.values(row_ids)),
         }
+    }
+
+    /// materialise all rows including and after row_id
+    pub fn scan_from(&self, row_id: usize) -> Option<Vector> {
+        unimplemented!("todo");
+        // if row_id >= self.num_rows() {
+        //     println!(
+        //         "asking for {:?} but only got {:?} rows",
+        //         row_id,
+        //         self.num_rows()
+        //     );
+        //     return None;
+        // }
+
+        // println!(
+        //     "asking for {:?} with a column having {:?} rows",
+        //     row_id,
+        //     self.num_rows()
+        // );
+        // match self {
+        //     Column::String(c) => Some(Vector::String(c.scan_from(row_id))),
+        //     Column::Float(c) => Some(Vector::Float(c.scan_from(row_id))),
+        //     Column::Integer(c) => Some(Vector::Integer(c.scan_from(row_id))),
+        // }
     }
 
     /// Given the provided row_id scans the column until a non-null value found
@@ -299,8 +354,8 @@ impl Column {
             Column::Float(c) => {
                 let (col_min, col_max) = c.meta.range();
                 if let (Scalar::Float(low), Scalar::Float(high)) = (low, high) {
-                    if *low >= col_min && *high < col_max {
-                        // In this case the column completely covers the range.
+                    if *low <= col_min && *high > col_max {
+                        // In this case the query completely covers the range of the column.
                         // TODO: PERF - need to _not_ return a bitset rather than
                         // return a full one. Need to differentiate between "no values"
                         // and "all values" in the context of an Option. Right now
@@ -322,8 +377,8 @@ impl Column {
             Column::Integer(c) => {
                 let (col_min, col_max) = c.meta.range();
                 if let (Scalar::Integer(low), Scalar::Integer(high)) = (low, high) {
-                    if *low >= col_min && *high < col_max {
-                        // In this case the column completely covers the range.
+                    if *low <= col_min && *high > col_max {
+                        // In this case the query completely covers the range of the column.
                         // TODO: PERF - need to _not_ return a bitset rather than
                         // return a full one. Need to differentiate between "no values"
                         // and "all values" in the context of an Option. Right now
@@ -428,6 +483,10 @@ impl String {
         self.data.value(row_id)
     }
 
+    pub fn values(&self, row_ids: &[usize]) -> Vec<&Option<std::string::String>> {
+        self.data.values(row_ids)
+    }
+
     pub fn scan_from(&self, row_id: usize) -> Vec<&Option<std::string::String>> {
         self.data.scan_from(row_id)
     }
@@ -464,6 +523,10 @@ impl Float {
 
     pub fn value(&self, row_id: usize) -> f64 {
         self.data.value(row_id)
+    }
+
+    pub fn values(&self, row_ids: &[usize]) -> Vec<&f64> {
+        self.data.values(row_ids)
     }
 
     pub fn scan_from(&self, row_id: usize) -> &[f64] {
@@ -517,6 +580,10 @@ impl Integer {
 
     pub fn value(&self, row_id: usize) -> i64 {
         self.data.value(row_id)
+    }
+
+    pub fn values(&self, row_ids: &[usize]) -> Vec<&i64> {
+        self.data.values(row_ids)
     }
 
     pub fn scan_from(&self, row_id: usize) -> &[i64] {

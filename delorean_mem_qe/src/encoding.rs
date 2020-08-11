@@ -43,6 +43,14 @@ where
         self.values[row_id]
     }
 
+    pub fn values(&self, row_ids: &[usize]) -> Vec<&T> {
+        let mut out = Vec::with_capacity(row_ids.len());
+        for row_id in row_ids {
+            out.push(&self.values[*row_id]);
+        }
+        out
+    }
+
     // TODO(edd): fix this when added NULL support
     pub fn scan_from_until_some(&self, row_id: usize) -> Option<T> {
         unreachable!("to remove");
@@ -392,6 +400,61 @@ impl DictionaryRLE {
         None
     }
 
+    // materialises a vector of references to logical values in the
+    // encoding for each provided row_id.
+    pub fn values(&self, row_ids: &[usize]) -> Vec<&Option<String>> {
+        let mut out: Vec<&Option<String>> = Vec::with_capacity(row_ids.len());
+
+        let mut curr_logical_row_id = 0;
+
+        let mut run_lengths_iter = self.run_lengths.iter();
+        let (mut curr_entry_id, mut curr_entry_rl) = run_lengths_iter.next().unwrap();
+
+        for wanted_row_id in row_ids {
+            while curr_logical_row_id + curr_entry_rl <= *wanted_row_id as u64 {
+                // this encoded entry does not cover the row we need.
+                // move on to next entry
+                curr_logical_row_id += curr_entry_rl;
+                match run_lengths_iter.next() {
+                    Some(res) => {
+                        curr_entry_id = res.0;
+                        curr_entry_rl = res.1;
+                    }
+                    None => panic!("shouldn't get here"),
+                }
+            }
+
+            // this encoded entry covers the row_id we want.
+            let value = self.index_entry.get(&curr_entry_id).unwrap();
+            out.push(value);
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+
+        assert_eq!(row_ids.len(), out.len());
+        out
+    }
+
+    // values materialises a vector of references to all logical values in the
+    // encoding.
+    pub fn all_values(&mut self) -> Vec<Option<&String>> {
+        let mut out: Vec<Option<&String>> = Vec::with_capacity(self.total as usize);
+
+        // build reverse mapping.
+        let mut idx_value = BTreeMap::new();
+        for (k, v) in &self.entry_index {
+            idx_value.insert(v, k);
+        }
+        assert_eq!(idx_value.len(), self.entry_index.len());
+
+        for (idx, rl) in &self.run_lengths {
+            // TODO(edd): fix unwrap - we know that the value exists in map...
+            let v = idx_value.get(&idx).unwrap().as_ref();
+            out.extend(iter::repeat(v).take(*rl as usize));
+        }
+        out
+    }
+
     // materialise a slice of rows starting from index.
     pub fn scan_from(&self, index: usize) -> Vec<&Option<String>> {
         let mut result = vec![];
@@ -426,44 +489,6 @@ impl DictionaryRLE {
             curr_row_id += *rl;
         }
         result
-    }
-
-    // // get the logical value at the provided index, or scan to the next value
-    // // that is non-null.
-    // pub fn scan_from_until_some(&self, index: usize) -> Option<&String> {
-    //     if index < self.total as usize {
-    //         let mut total = 0;
-    //         for (idx, rl) in &self.run_lengths {
-    //             if total + rl > index as u64 {
-    //                 // If there is a value then return otherwise continue.
-    //                 if let Some(v) = self.index_entry.get(idx) {
-    //                     return v.as_ref();
-    //                 }
-    //             }
-    //             total += rl;
-    //         }
-    //     }
-    //     None
-    // }
-
-    // values materialises a vector of references to all logical values in the
-    // encoding.
-    pub fn values(&mut self) -> Vec<Option<&String>> {
-        let mut out: Vec<Option<&String>> = Vec::with_capacity(self.total as usize);
-
-        // build reverse mapping.
-        let mut idx_value = BTreeMap::new();
-        for (k, v) in &self.entry_index {
-            idx_value.insert(v, k);
-        }
-        assert_eq!(idx_value.len(), self.entry_index.len());
-
-        for (idx, rl) in &self.run_lengths {
-            // TODO(edd): fix unwrap - we know that the value exists in map...
-            let v = idx_value.get(&idx).unwrap().as_ref();
-            out.extend(iter::repeat(v).take(*rl as usize));
-        }
-        out
     }
 
     pub fn size(&self) -> usize {
@@ -571,7 +596,7 @@ mod test {
         drle.push_additional(Some("hello".to_string()), 1);
 
         assert_eq!(
-            drle.values(),
+            drle.all_values(),
             [
                 Some(&"hello".to_string()),
                 Some(&"hello".to_string()),
@@ -584,7 +609,7 @@ mod test {
 
         drle.push_additional(Some("zoo".to_string()), 3);
         assert_eq!(
-            drle.values(),
+            drle.all_values(),
             [
                 Some(&"hello".to_string()),
                 Some(&"hello".to_string()),
@@ -667,6 +692,41 @@ mod test {
         // out of bounds
         let results = drle.scan_from(9);
         let exp: Vec<&Option<String>> = vec![];
+        assert_eq!(results, exp);
+    }
+
+    #[test]
+    fn dict_rle_values() {
+        let mut drle = super::DictionaryRLE::new();
+        let west = Some("west".to_string());
+        let east = Some("east".to_string());
+        let north = Some("north".to_string());
+        drle.push_additional(west.clone(), 3);
+        drle.push_additional(east.clone(), 2);
+        drle.push_additional(north.clone(), 4);
+        drle.push_additional(west.clone(), 3);
+
+        let results = drle.values(&[0, 1, 4, 5]);
+
+        // w,w,w,e,e,n,n,n,n,w, w, w
+        // 0 1 2 3 4 5 6 7 8 9 10 11
+        let exp = vec![&west, &west, &east, &north];
+        assert_eq!(results, exp);
+
+        let results = drle.values(&[10, 11]);
+        let exp = vec![&west, &west];
+        assert_eq!(results, exp);
+
+        let results = drle.values(&[0, 3, 5, 11]);
+        let exp = vec![&west, &east, &north, &west];
+        assert_eq!(results, exp);
+
+        let results = drle.values(&[0]);
+        let exp = vec![&west];
+        assert_eq!(results, exp);
+
+        let results = drle.values(&[0, 9]);
+        let exp = vec![&west, &west];
         assert_eq!(results, exp);
     }
 
