@@ -10,5 +10,7 @@ register({
   button: 'Bucket',
   initial: {
     bucketName: '',
+    field: '',
+    measurement: '',
   },
 })

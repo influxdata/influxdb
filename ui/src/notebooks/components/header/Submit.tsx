@@ -79,9 +79,15 @@ export const Submit: FC = () => {
               requirements,
             })
           } else if (pipe.type === 'data') {
-            const {bucketName} = pipe
+            const {bucketName, field, measurement} = pipe
 
-            const text = `from(bucket: "${bucketName}")|>range(start: v.timeRangeStart, stop: v.timeRangeStop)`
+            let text = `from(bucket: "${bucketName}")|>range(start: v.timeRangeStart, stop: v.timeRangeStop)`
+            if (measurement) {
+              text += `|> filter(fn: (r) => r["_measurement"] == "${measurement}")`
+            }
+            if (field) {
+              text += `|> filter(fn: (r) => r["_field"] == "${field}")`
+            }
 
             stages.push({
               text,

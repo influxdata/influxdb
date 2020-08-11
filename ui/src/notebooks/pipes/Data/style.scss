@@ -63,3 +63,19 @@
   background-color: $c-pool;
   color: $g20-white;
 }
+
+.fetch-schema--block {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.2);
+  height: 180px;
+  width: 100%;
+  margin: 0 10px;
+}
+
+.data-subset--list,
+.data-subset--list__empty {
+  flex: 1 0 0;
+  margin-left: 20px;
+}

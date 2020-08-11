@@ -16,7 +16,11 @@ import {PipeContext} from 'src/notebooks/context/pipe'
 // Types
 import {Bucket} from 'src/types'
 
-const BucketSelector: FC = () => {
+type Props = {
+  resetSchema: () => void
+}
+
+const BucketSelector: FC<Props> = ({resetSchema}) => {
   const {data, update} = useContext(PipeContext)
   const {buckets, loading} = useContext(BucketContext)
 
@@ -25,6 +29,7 @@ const BucketSelector: FC = () => {
   const updateBucket = useCallback(
     (updatedBucket: Bucket): void => {
       update({bucketName: updatedBucket.name})
+      resetSchema()
     },
     [update]
   )
