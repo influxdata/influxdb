@@ -222,6 +222,7 @@ func TestShard_MaxTagValuesLimit(t *testing.T) {
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 	opts.Config.MaxValuesPerTag = 1000
 	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
+	opts.IndexVersion = tsdb.InmemIndexName
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 
