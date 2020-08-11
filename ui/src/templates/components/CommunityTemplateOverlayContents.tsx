@@ -219,7 +219,7 @@ class CommunityTemplateOverlayContentsUnconnected extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  return {summary: state.resources.templates.communityTemplateToInstall.summary}
+  return {summary: state.resources.templates.stagedCommunityTemplate.summary}
 }
 
 const mdtp = {

@@ -31,7 +31,7 @@ export type Action =
   | ReturnType<typeof setExportTemplate>
   | ReturnType<typeof setTemplatesStatus>
   | ReturnType<typeof setTemplateSummary>
-  | ReturnType<typeof setCommunityTemplateToInstall>
+  | ReturnType<typeof setStagedCommunityTemplate>
   | ReturnType<typeof toggleTemplateResourceInstall>
   | ReturnType<typeof setStacks>
   | ReturnType<typeof removeStack>
@@ -91,7 +91,7 @@ export const setTemplateSummary = (
     schema,
   } as const)
 
-export const setCommunityTemplateToInstall = (template: CommunityTemplate) =>
+export const setStagedCommunityTemplate = (template: CommunityTemplate) =>
   ({
     type: SET_COMMUNITY_TEMPLATE_TO_INSTALL,
     template,
