@@ -39,7 +39,7 @@ var deadman1 = &check.Deadman{
 	Base: check.Base{
 		Name:        "name1",
 		ID:          MustIDBase16(checkOneID),
-		OrgID:       MustIDBase16(orgOneID),
+		OrgID:       idOne,
 		OwnerID:     MustIDBase16(sixID),
 		Description: "desc1",
 		TaskID:      1,
@@ -84,7 +84,7 @@ var threshold1 = &check.Threshold{
 	Base: check.Base{
 		Name:                  "name2",
 		ID:                    MustIDBase16(checkTwoID),
-		OrgID:                 MustIDBase16(orgTwoID),
+		OrgID:                 idTwo,
 		OwnerID:               MustIDBase16(sixID),
 		TaskID:                1,
 		Description:           "desc2",
@@ -244,24 +244,24 @@ func CreateCheck(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				UserResourceMappings: []*influxdb.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(orgOneID),
+						ResourceID:   idOne,
 						ResourceType: influxdb.OrgsResourceType,
 						UserID:       MustIDBase16(fiveID),
 						UserType:     influxdb.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(orgOneID),
+						ResourceID:   idOne,
 						ResourceType: influxdb.OrgsResourceType,
 						UserID:       MustIDBase16(sixID),
 						UserType:     influxdb.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(orgOneID),
+						ResourceID:   idOne,
 						ResourceType: influxdb.OrgsResourceType,
 						UserID:       MustIDBase16(twoID),
 						UserType:     influxdb.Member,
@@ -273,7 +273,7 @@ func CreateCheck(
 				check: &check.Deadman{
 					Base: check.Base{
 						Name:        "name1",
-						OrgID:       MustIDBase16(orgOneID),
+						OrgID:       idOne,
 						Description: "desc1",
 						Query: influxdb.DashboardQuery{
 							Text: script,
@@ -330,7 +330,7 @@ func CreateCheck(
 						Base: check.Base{
 							Name:    "name1",
 							ID:      MustIDBase16(checkOneID),
-							OrgID:   MustIDBase16(orgOneID),
+							OrgID:   idOne,
 							OwnerID: MustIDBase16(twoID),
 							Query: influxdb.DashboardQuery{
 								Text: script,
@@ -382,13 +382,13 @@ func CreateCheck(
 				},
 				UserResourceMappings: []*influxdb.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(orgTwoID),
+						ResourceID:   idTwo,
 						ResourceType: influxdb.OrgsResourceType,
 						UserID:       MustIDBase16(sixID),
 						UserType:     influxdb.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(orgOneID),
+						ResourceID:   idOne,
 						ResourceType: influxdb.OrgsResourceType,
 						UserID:       MustIDBase16(sixID),
 						UserType:     influxdb.Owner,
@@ -407,11 +407,11 @@ func CreateCheck(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
+						ID:   idTwo,
 					},
 				},
 			},
@@ -420,7 +420,7 @@ func CreateCheck(
 				check: &check.Threshold{
 					Base: check.Base{
 						Name:                  "name2",
-						OrgID:                 MustIDBase16(orgTwoID),
+						OrgID:                 idTwo,
 						OwnerID:               MustIDBase16(twoID),
 						Description:           "desc2",
 						StatusMessageTemplate: "msg2",
@@ -482,13 +482,13 @@ func CreateCheck(
 			fields: CheckFields{
 				UserResourceMappings: []*influxdb.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(orgTwoID),
+						ResourceID:   idTwo,
 						ResourceType: influxdb.OrgsResourceType,
 						UserID:       MustIDBase16(sixID),
 						UserType:     influxdb.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(orgOneID),
+						ResourceID:   idOne,
 						ResourceType: influxdb.OrgsResourceType,
 						UserID:       MustIDBase16(sixID),
 						UserType:     influxdb.Owner,
@@ -512,11 +512,11 @@ func CreateCheck(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
+						ID:   idTwo,
 					},
 				},
 			},
@@ -525,7 +525,7 @@ func CreateCheck(
 				check: &check.Threshold{
 					Base: check.Base{
 						Name:        "name1",
-						OrgID:       MustIDBase16(orgOneID),
+						OrgID:       idOne,
 						Description: "desc1",
 						Every:       mustDuration("1m"),
 						Query: influxdb.DashboardQuery{
@@ -582,13 +582,13 @@ func CreateCheck(
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				UserResourceMappings: []*influxdb.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(orgTwoID),
+						ResourceID:   idTwo,
 						ResourceType: influxdb.OrgsResourceType,
 						UserID:       MustIDBase16(twoID),
 						UserType:     influxdb.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(orgOneID),
+						ResourceID:   idOne,
 						ResourceType: influxdb.OrgsResourceType,
 						UserID:       MustIDBase16(sixID),
 						UserType:     influxdb.Owner,
@@ -603,11 +603,11 @@ func CreateCheck(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
+						ID:   idTwo,
 					},
 				},
 				Checks: []influxdb.Check{
@@ -619,7 +619,7 @@ func CreateCheck(
 				check: &check.Threshold{
 					Base: check.Base{
 						Name:        "name1",
-						OrgID:       MustIDBase16(orgTwoID),
+						OrgID:       idTwo,
 						Description: "desc2",
 						Every:       mustDuration("1m"),
 						Query: influxdb.DashboardQuery{
@@ -667,7 +667,7 @@ func CreateCheck(
 						Base: check.Base{
 							ID:    MustIDBase16(checkTwoID),
 							Name:  "name1",
-							OrgID: MustIDBase16(orgTwoID),
+							OrgID: idTwo,
 							Every: mustDuration("1m"),
 							Query: influxdb.DashboardQuery{
 								Text: script,
@@ -718,7 +718,7 @@ func CreateCheck(
 				check: &check.Threshold{
 					Base: check.Base{
 						Name:  "name1",
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
 						Every: mustDuration("1m"),
 						Query: influxdb.DashboardQuery{
 							Text: script,
@@ -819,7 +819,7 @@ func FindCheckByID(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 			},
@@ -840,7 +840,7 @@ func FindCheckByID(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 			},
@@ -917,11 +917,11 @@ func FindChecks(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
+						ID:   idTwo,
 					},
 				},
 				Checks: []influxdb.Check{
@@ -959,7 +959,7 @@ func FindChecks(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				Checks: []influxdb.Check{
@@ -999,7 +999,7 @@ func FindChecks(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				Checks: []influxdb.Check{
@@ -1040,11 +1040,11 @@ func FindChecks(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
+						ID:   idTwo,
 					},
 				},
 				Checks: []influxdb.Check{
@@ -1082,11 +1082,11 @@ func FindChecks(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
+						ID:   idTwo,
 					},
 				},
 				Checks: []influxdb.Check{
@@ -1096,7 +1096,7 @@ func FindChecks(
 			},
 			args: args{
 				userID: MustIDBase16(sixID),
-				OrgID:  MustIDBase16(orgTwoID),
+				OrgID:  idTwo,
 			},
 			wants: wants{
 				checks: []influxdb.Check{
@@ -1110,7 +1110,7 @@ func FindChecks(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				UserResourceMappings: []*influxdb.UserResourceMapping{
@@ -1148,7 +1148,7 @@ func FindChecks(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				Checks: []influxdb.Check{},
@@ -1223,7 +1223,7 @@ func DeleteCheck(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				UserResourceMappings: []*influxdb.UserResourceMapping{
@@ -1244,7 +1244,7 @@ func DeleteCheck(
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 data = from(bucket: "telegraf") |> range(start: -1m)`,
-						OrganizationID: MustIDBase16(orgOneID),
+						OrganizationID: idOne,
 						OwnerID:        MustIDBase16(sixID),
 					},
 				},
@@ -1270,7 +1270,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				UserResourceMappings: []*influxdb.UserResourceMapping{
@@ -1291,7 +1291,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 		data = from(bucket: "telegraf") |> range(start: -1m)`,
-						OrganizationID: MustIDBase16(orgOneID),
+						OrganizationID: idOne,
 						OwnerID:        MustIDBase16(sixID),
 					},
 				},
@@ -1370,11 +1370,11 @@ func FindCheck(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 					{
 						Name: "theorg2",
-						ID:   MustIDBase16(orgTwoID),
+						ID:   idTwo,
 					},
 				},
 				Checks: []influxdb.Check{
@@ -1384,7 +1384,7 @@ func FindCheck(
 			},
 			args: args{
 				name:  "name1",
-				OrgID: MustIDBase16(orgOneID),
+				OrgID: idOne,
 			},
 			wants: wants{
 				check: deadman1,
@@ -1396,14 +1396,14 @@ func FindCheck(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				Checks: []influxdb.Check{},
 			},
 			args: args{
 				name:  "name2",
-				OrgID: MustIDBase16(orgOneID),
+				OrgID: idOne,
 			},
 			wants: wants{
 				err: &influxdb.Error{
@@ -1419,14 +1419,14 @@ func FindCheck(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				Checks: []influxdb.Check{},
 			},
 			args: args{
 				name:  "xyz",
-				OrgID: MustIDBase16(orgOneID),
+				OrgID: idOne,
 			},
 			wants: wants{
 				err: &influxdb.Error{
@@ -1489,14 +1489,14 @@ func UpdateCheck(
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				Tasks: []influxdb.TaskCreate{
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 data = from(bucket: "telegraf") |> range(start: -1m)`,
-						OrganizationID: MustIDBase16(orgOneID),
+						OrganizationID: idOne,
 						OwnerID:        MustIDBase16(sixID),
 					},
 				},
@@ -1509,7 +1509,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 				check: &check.Threshold{
 					Base: check.Base{
 						ID:      MustIDBase16(checkTwoID),
-						OrgID:   MustIDBase16(orgOneID),
+						OrgID:   idOne,
 						OwnerID: MustIDBase16(twoID),
 						Every:   mustDuration("1m"),
 						Query: influxdb.DashboardQuery{
@@ -1570,7 +1570,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 				check: &check.Threshold{
 					Base: check.Base{
 						ID:      MustIDBase16(checkOneID),
-						OrgID:   MustIDBase16(orgOneID),
+						OrgID:   idOne,
 						Name:    "changed",
 						Every:   mustDuration("1m"),
 						OwnerID: MustIDBase16(sixID),
@@ -1635,7 +1635,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				Checks: []influxdb.Check{
@@ -1643,7 +1643,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 					&check.Deadman{
 						Base: check.Base{
 							ID:    MustIDBase16(checkTwoID),
-							OrgID: MustIDBase16(orgOneID),
+							OrgID: idOne,
 							Every: mustDuration("1m"),
 							Query: influxdb.DashboardQuery{
 								Text: script,
@@ -1673,7 +1673,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 				id: MustIDBase16(checkOneID),
 				check: &check.Deadman{
 					Base: check.Base{
-						OrgID:                 MustIDBase16(orgOneID),
+						OrgID:                 idOne,
 						OwnerID:               MustIDBase16(twoID),
 						Name:                  "check2",
 						Description:           "desc changed",
@@ -1754,14 +1754,14 @@ func PatchCheck(
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 data = from(bucket: "telegraf") |> range(start: -1m)`,
-						OrganizationID: MustIDBase16(orgOneID),
+						OrganizationID: idOne,
 						OwnerID:        MustIDBase16(sixID),
 					},
 				},
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				Checks: []influxdb.Check{
@@ -1780,7 +1780,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 				check: &check.Deadman{
 					Base: check.Base{
 						ID:          MustIDBase16(checkOneID),
-						OrgID:       MustIDBase16(orgOneID),
+						OrgID:       idOne,
 						Name:        "changed",
 						OwnerID:     MustIDBase16(sixID),
 						Every:       mustDuration("1m"),
@@ -1829,7 +1829,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						ID:   idOne,
 					},
 				},
 				Checks: []influxdb.Check{
@@ -1837,7 +1837,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 					&check.Deadman{
 						Base: check.Base{
 							ID:      MustIDBase16(checkTwoID),
-							OrgID:   MustIDBase16(orgOneID),
+							OrgID:   idOne,
 							Every:   mustDuration("1m"),
 							Name:    "check2",
 							OwnerID: MustIDBase16(sixID),

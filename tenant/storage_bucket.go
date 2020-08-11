@@ -3,7 +3,6 @@ package tenant
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -276,13 +275,11 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID influxdb.I
 	return bs, cursor.Err()
 }
 
-func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Bucket) error {
-	if !bucket.ID.Valid() {
-		id, err := s.generateSafeOrgBucketID(ctx, tx, bucketBucket)
-		if err != nil {
-			return err
-		}
-		bucket.ID = id
+func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Bucket) (err error) {
+	// generate new bucket ID
+	bucket.ID, err = s.generateSafeID(ctx, tx, bucketBucket, s.BucketIDGen)
+	if err != nil {
+		return err
 	}
 
 	encodedID, err := bucket.ID.Encode()
@@ -294,8 +291,8 @@ func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Buc
 		return err
 	}
 
-	bucket.SetCreatedAt(time.Now())
-	bucket.SetUpdatedAt(time.Now())
+	bucket.SetCreatedAt(s.now())
+	bucket.SetUpdatedAt(s.now())
 	idx, err := tx.Bucket(bucketIndex)
 	if err != nil {
 		return err
@@ -338,10 +335,15 @@ func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id influxdb.ID, upd 
 		return nil, err
 	}
 
-	bucket.SetUpdatedAt(time.Now())
+	bucket.SetUpdatedAt(s.now())
 	if upd.Name != nil && bucket.Name != *upd.Name {
+		// validation
 		if bucket.Type == influxdb.BucketTypeSystem {
 			return nil, errRenameSystemBucket
+		}
+
+		if err := validBucketName(*upd.Name, bucket.Type); err != nil {
+			return nil, err
 		}
 
 		if err := s.uniqueBucketName(ctx, tx, bucket.OrgID, *upd.Name); err != nil {

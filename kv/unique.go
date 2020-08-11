@@ -79,14 +79,10 @@ func (s *Service) uniqueID(ctx context.Context, tx Tx, bucket []byte, id influxd
 
 // generateSafeID attempts to create ids for buckets
 // and orgs that are without backslash, commas, and spaces, BUT ALSO do not already exist.
-func (s *Service) generateSafeID(ctx context.Context, tx Tx, bucket []byte) (influxdb.ID, error) {
+func (s *Service) generateSafeID(ctx context.Context, tx Tx, bucket []byte, gen influxdb.IDGenerator) (influxdb.ID, error) {
 	for i := 0; i < MaxIDGenerationN; i++ {
-		id := s.OrgBucketIDs.ID()
-		// we have reserved a certain number of IDs
-		// for orgs and buckets.
-		if id < ReservedIDs {
-			continue
-		}
+		id := gen.ID()
+
 		err := s.uniqueID(ctx, tx, bucket, id)
 		if err == nil {
 			return id, nil
