@@ -3,6 +3,8 @@ const expect = require('chai').expect;
 const Key = require('selenium-webdriver').Key;
 const { By, Origin } = require('selenium-webdriver');
 
+const influxUtils = require(__srcdir + '/utils/influxUtils.js');
+
 const influxSteps = require(__srcdir + '/steps/influx/influxSteps.js');
 const cellEditOverlay = require(__srcdir + '/pages/dashboards/cellEditOverlay.js');
 
@@ -995,6 +997,7 @@ class cellOverlaySteps extends influxSteps {
     async clickTMDownloadCSV(){
         await this.clickAndWait(await this.cellOverlay.getTMDownloadCSV(),
             async () => { await this.driver.sleep(2000) }); //todo better wait - 2 sec to download
+        await influxUtils.dumpDownloadDir();
     }
 
     async clickTMQEVariablesTab(){

@@ -54,15 +54,12 @@ export type Action =
   | SetDecimalPlaces
   | SetBackgroundThresholdColoringAction
   | SetTextThresholdColoringAction
-  | SetAxes
-  | SetStaticLegend
   | SetColors
   | SetYAxisLabel
   | SetYAxisBounds
   | SetAxisPrefix
   | SetAxisSuffix
   | SetYAxisBase
-  | SetYAxisScale
   | SetPrefix
   | SetTickPrefix
   | SetSuffix
@@ -93,6 +90,7 @@ export type Action =
   | SetShadeBelowAction
   | SetHoverDimensionAction
   | ReturnType<typeof toggleVisOptions>
+  | ReturnType<typeof resetActiveQueryWithBuilder>
 
 type ExternalActions =
   | ReturnType<typeof loadBuckets>
@@ -206,16 +204,6 @@ export const setGeom = (geom: XYGeom): SetGeomAction => ({
   payload: {geom},
 })
 
-interface SetAxes {
-  type: 'SET_AXES'
-  payload: {axes: Axes}
-}
-
-export const setAxes = (axes: Axes): SetAxes => ({
-  type: 'SET_AXES',
-  payload: {axes},
-})
-
 interface SetYAxisLabel {
   type: 'SET_Y_AXIS_LABEL'
   payload: {yAxisLabel: string}
@@ -274,16 +262,6 @@ export const setYAxisBase = (base: string): SetYAxisBase => ({
   payload: {base},
 })
 
-interface SetYAxisScale {
-  type: 'SET_Y_AXIS_SCALE'
-  payload: {scale: string}
-}
-
-export const setYAxisScale = (scale: string): SetYAxisScale => ({
-  type: 'SET_Y_AXIS_SCALE',
-  payload: {scale},
-})
-
 interface SetPrefix {
   type: 'SET_PREFIX'
   payload: {prefix: string}
@@ -322,16 +300,6 @@ interface SetTickSuffix {
 export const setTickSuffix = (tickSuffix: string): SetTickSuffix => ({
   type: 'SET_TICK_SUFFIX',
   payload: {tickSuffix},
-})
-
-interface SetStaticLegend {
-  type: 'SET_STATIC_LEGEND'
-  payload: {staticLegend: boolean}
-}
-
-export const setStaticLegend = (staticLegend: boolean): SetStaticLegend => ({
-  type: 'SET_STATIC_LEGEND',
-  payload: {staticLegend},
 })
 
 interface SetColors {
@@ -382,6 +350,19 @@ export const editActiveQueryWithBuilderSync = (): EditActiveQueryWithBuilderActi
 
 export const editActiveQueryWithBuilder = () => dispatch => {
   dispatch(editActiveQueryWithBuilderSync())
+  dispatch(saveAndExecuteQueries())
+}
+
+interface ResetActiveQueryWithBuilder {
+  type: 'RESET_QUERY_AND_EDIT_WITH_BUILDER'
+}
+
+export const resetActiveQueryWithBuilder = (): ResetActiveQueryWithBuilder => ({
+  type: 'RESET_QUERY_AND_EDIT_WITH_BUILDER',
+})
+
+export const resetActiveQuerySwitchToBuilder = () => dispatch => {
+  dispatch(resetActiveQueryWithBuilder())
   dispatch(saveAndExecuteQueries())
 }
 

@@ -329,11 +329,11 @@ Then(/^the file "(.*)" has been downloaded$/, async filePath => {
 });
 
 When(/^remove files "(.*)" if exists$/, async regex => {
-    await influxUtils.removeFilesByRegex(regex);
+    await influxUtils.removeDownloadFilesByRegex(regex);
 });
 
 Then(/^a file matching "(.*)" exists$/, async regex => {
-    await bSteps.verifyFileMatchingRegexExists(regex);
+    await bSteps.verifyDownloadFileMatchingRegexExists(regex);
 });
 
 When(/^verify first CSV file matching "(.*)" as containing$/, async (path, dataDesc) => {

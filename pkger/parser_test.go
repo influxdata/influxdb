@@ -1249,6 +1249,48 @@ spec:
 				})
 			})
 
+			t.Run("mosaic chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_mosaic.yml", func(t *testing.T, template *Template) {
+						sum := template.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
+						assert.Equal(t, "dash-0", actual.Name)
+						assert.Equal(t, "a dashboard w/ single mosaic chart", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.MosaicViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "mosaic note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+						assert.Equal(t, expectedQuery, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						assert.Equal(t, []string{"_value", "foo"}, props.YSeriesColumns)
+						assert.Equal(t, []float64{0, 10}, props.XDomain)
+						assert.Equal(t, []float64{0, 100}, props.YDomain)
+						assert.Equal(t, "x_label", props.XAxisLabel)
+						assert.Equal(t, "y_label", props.YAxisLabel)
+						assert.Equal(t, "x_prefix", props.XPrefix)
+						assert.Equal(t, "y_prefix", props.YPrefix)
+						assert.Equal(t, "x_suffix", props.XSuffix)
+						assert.Equal(t, "y_suffix", props.YSuffix)
+					})
+				})
+			})
+
 			t.Run("scatter chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
 					testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, template *Template) {
@@ -2058,7 +2100,7 @@ spec:
       colors:
         - name: laser
           type: min
-          hex: 
+          hex:
           value: 3.0`,
 						},
 						{
@@ -2288,12 +2330,104 @@ spec:
 			})
 		})
 
+		t.Run("with params option should be parameterizable", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_params.yml", func(t *testing.T, template *Template) {
+				sum := template.Summary()
+				require.Len(t, sum.Dashboards, 1)
+
+				actual := sum.Dashboards[0]
+				assert.Equal(t, KindDashboard, actual.Kind)
+				assert.Equal(t, "dash-1", actual.MetaName)
+
+				require.Len(t, actual.Charts, 1)
+				actualChart := actual.Charts[0]
+				assert.Equal(t, 3, actualChart.Height)
+				assert.Equal(t, 6, actualChart.Width)
+				assert.Equal(t, 1, actualChart.XPosition)
+				assert.Equal(t, 2, actualChart.YPosition)
+
+				props, ok := actualChart.Properties.(influxdb.SingleStatViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "single-stat", props.GetType())
+
+				require.Len(t, props.Queries, 1)
+
+				queryText := `option params = {
+	bucket: "bar",
+	start: -24h0m0s,
+	stop: now(),
+	name: "max",
+	floatVal: 37.2,
+	minVal: 10,
+}
+
+from(bucket: params.bucket)
+	|> range(start: params.start, end: params.stop)
+	|> filter(fn: (r) =>
+		(r._measurement == "processes"))
+	|> filter(fn: (r) =>
+		(r.floater == params.floatVal))
+	|> filter(fn: (r) =>
+		(r._value > params.minVal))
+	|> aggregateWindow(every: v.windowPeriod, fn: max)
+	|> yield(name: params.name)`
+
+				q := props.Queries[0]
+				assert.Equal(t, queryText, q.Text)
+				assert.Equal(t, "advanced", q.EditMode)
+
+				expectedRefs := []SummaryReference{
+					{
+						Field:        "spec.charts[0].queries[0].params.bucket",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.bucket`,
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.floatVal",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.floatVal`,
+						ValType:      "float",
+						DefaultValue: 37.2,
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.minVal",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.minVal`,
+						ValType:      "integer",
+						DefaultValue: int64(10),
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.name",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.name`,
+						ValType:      "string",
+						DefaultValue: "max",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.start",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.start`,
+						ValType:      "duration",
+						DefaultValue: "-24h0m0s",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.stop",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.stop`,
+						ValType:      "time",
+						DefaultValue: "now()",
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences)
+			})
+		})
+
 		t.Run("with env refs should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_ref.yml", func(t *testing.T, template *Template) {
 				actual := template.Summary().Dashboards
 				require.Len(t, actual, 1)
 
 				expected := []SummaryReference{
+					{
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
+					},
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
@@ -2303,10 +2437,6 @@ spec:
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
 						DefaultValue: "spectacles",
-					},
-					{
-						Field:     "spec.associations[0].name",
-						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expected, actual[0].EnvReferences)
@@ -3213,12 +3343,89 @@ spec:
 			})
 		})
 
+		t.Run("with params option should be parameterizable", func(t *testing.T) {
+			testfileRunner(t, "testdata/tasks_params.yml", func(t *testing.T, template *Template) {
+				sum := template.Summary()
+				require.Len(t, sum.Tasks, 1)
+
+				actual := sum.Tasks[0]
+				assert.Equal(t, KindTask, actual.Kind)
+				assert.Equal(t, "task-uuid", actual.MetaName)
+
+				queryText := `option params = {
+	bucket: "bar",
+	start: -24h0m0s,
+	stop: now(),
+	name: "max",
+	floatVal: 37.2,
+	minVal: 10,
+}
+
+from(bucket: params.bucket)
+	|> range(start: params.start, end: params.stop)
+	|> filter(fn: (r) =>
+		(r._measurement == "processes"))
+	|> filter(fn: (r) =>
+		(r.floater == params.floatVal))
+	|> filter(fn: (r) =>
+		(r._value > params.minVal))
+	|> aggregateWindow(every: v.windowPeriod, fn: max)
+	|> yield(name: params.name)`
+
+				assert.Equal(t, queryText, actual.Query)
+
+				expectedRefs := []SummaryReference{
+					{
+						Field:        "spec.params.bucket",
+						EnvRefKey:    `tasks[task-uuid].spec.params.bucket`,
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.params.floatVal",
+						EnvRefKey:    `tasks[task-uuid].spec.params.floatVal`,
+						ValType:      "float",
+						DefaultValue: 37.2,
+					},
+					{
+						Field:        "spec.params.minVal",
+						EnvRefKey:    `tasks[task-uuid].spec.params.minVal`,
+						ValType:      "integer",
+						DefaultValue: int64(10),
+					},
+					{
+						Field:        "spec.params.name",
+						EnvRefKey:    `tasks[task-uuid].spec.params.name`,
+						ValType:      "string",
+						DefaultValue: "max",
+					},
+					{
+						Field:        "spec.params.start",
+						EnvRefKey:    `tasks[task-uuid].spec.params.start`,
+						ValType:      "duration",
+						DefaultValue: "-24h0m0s",
+					},
+					{
+						Field:        "spec.params.stop",
+						EnvRefKey:    `tasks[task-uuid].spec.params.stop`,
+						ValType:      "time",
+						DefaultValue: "now()",
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences)
+			})
+		})
+
 		t.Run("with env refs should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/task_ref.yml", func(t *testing.T, template *Template) {
 				actual := template.Summary().Tasks
 				require.Len(t, actual, 1)
 
 				expectedEnvRefs := []SummaryReference{
+					{
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
+					},
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
@@ -3228,10 +3435,6 @@ spec:
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
 						DefaultValue: "spectacles",
-					},
-					{
-						Field:     "spec.associations[0].name",
-						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)

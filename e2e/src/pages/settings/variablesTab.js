@@ -22,7 +22,7 @@ const urlCtx = 'variables';
 const uploadRadioButton = '[data-testid=overlay--body] [data-testid=select-group--option][title=Upload]';
 const pasteRadioButton = '[data-testid=overlay--body] [data-testid=select-group--option][title=Paste]';
 const dragNDropFile = 'input[type=file]'; //N.B. has display:none
-const importButton = '[data-testid=overlay--footer] [data-testid=button]';
+const importButton = '[data-testid=overlay--footer] [data-testid=\'submit-button Variable\']';
 const pasteJSONTextarea = '[data-testid=overlay--body] [data-testid=import-overlay--textarea]';
 const importVariableDragNDropHeader = '.drag-and-drop--header';
 

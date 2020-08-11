@@ -293,6 +293,7 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdBackup,
 		cmdBucket,
 		cmdConfig,
+		cmdDashboard,
 		cmdDelete,
 		cmdExport,
 		cmdOrganization,

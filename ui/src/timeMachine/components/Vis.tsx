@@ -21,7 +21,7 @@ import {
   getFillColumnsSelection,
   getSymbolColumnsSelection,
 } from 'src/timeMachine/selectors'
-import {getTimeRange, getTimeZone} from 'src/dashboards/selectors'
+import {getTimeRangeWithTimezone, getTimeZone} from 'src/dashboards/selectors'
 
 // Types
 import {RemoteDataState, AppState} from 'src/types'
@@ -126,7 +126,7 @@ const mstp = (state: AppState) => {
       statuses,
     },
   } = activeTimeMachine
-  const timeRange = getTimeRange(state)
+  const timeRange = getTimeRangeWithTimezone(state)
   const {
     alertBuilder: {type: checkType, thresholds: checkThresholds},
   } = state

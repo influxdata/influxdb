@@ -58,62 +58,6 @@ func FrontendExample() IntFlag {
 	return frontendExample
 }
 
-var pushDownWindowAggregateCount = MakeBoolFlag(
-	"Push Down Window Aggregate Count",
-	"pushDownWindowAggregateCount",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateCount - Enable Count variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateCount() BoolFlag {
-	return pushDownWindowAggregateCount
-}
-
-var pushDownWindowAggregateSum = MakeBoolFlag(
-	"Push Down Window Aggregate Sum",
-	"pushDownWindowAggregateSum",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateSum - Enable Sum variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateSum() BoolFlag {
-	return pushDownWindowAggregateSum
-}
-
-var pushDownWindowAggregateMin = MakeBoolFlag(
-	"Push Down Window Aggregate Min",
-	"pushDownWindowAggregateMin",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateMin - Enable Min variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateMin() BoolFlag {
-	return pushDownWindowAggregateMin
-}
-
-var pushDownWindowAggregateMax = MakeBoolFlag(
-	"Push Down Window Aggregate Max",
-	"pushDownWindowAggregateMax",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateMax - Enable Max variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateMax() BoolFlag {
-	return pushDownWindowAggregateMax
-}
-
 var pushDownWindowAggregateMean = MakeBoolFlag(
 	"Push Down Window Aggregate Mean",
 	"pushDownWindowAggregateMean",
@@ -182,6 +126,20 @@ var hydratevars = MakeBoolFlag(
 // NewHydrateVarsFunctionality - Enables a minimalistic variable hydration
 func NewHydrateVarsFunctionality() BoolFlag {
 	return hydratevars
+}
+
+var queryCacheForDashboards = MakeBoolFlag(
+	"Query Cache for Dashboards UI",
+	"queryCacheForDashboards",
+	"Ariel Salem / Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// QueryCacheForDashboardsUi - Enables a Dashboard Cache on the uI
+func QueryCacheForDashboardsUi() BoolFlag {
+	return queryCacheForDashboards
 }
 
 var memoryOptimizedFill = MakeBoolFlag(
@@ -268,26 +226,38 @@ func Notebooks() BoolFlag {
 	return notebooks
 }
 
+var pushDownGroupAggregateMinMax = MakeBoolFlag(
+	"Push Down Group Aggregate Min Max",
+	"pushDownGroupAggregateMinMax",
+	"Query Team",
+	false,
+	Temporary,
+	false,
+)
+
+// PushDownGroupAggregateMinMax - Enable the min and max variants of the PushDownGroupAggregate planner rule
+func PushDownGroupAggregateMinMax() BoolFlag {
+	return pushDownGroupAggregateMinMax
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
 	communityTemplates,
 	frontendExample,
-	pushDownWindowAggregateCount,
-	pushDownWindowAggregateSum,
-	pushDownWindowAggregateMin,
-	pushDownWindowAggregateMax,
 	pushDownWindowAggregateMean,
 	groupWindowAggregateTranspose,
 	newAuth,
 	newLabels,
 	hydratevars,
+	queryCacheForDashboards,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	simpleTaskOptionsExtraction,
 	useUserPermission,
 	mergeFiltersRule,
 	notebooks,
+	pushDownGroupAggregateMinMax,
 }
 
 var byKey = map[string]Flag{
@@ -295,19 +265,17 @@ var byKey = map[string]Flag{
 	"backendExample":                backendExample,
 	"communityTemplates":            communityTemplates,
 	"frontendExample":               frontendExample,
-	"pushDownWindowAggregateCount":  pushDownWindowAggregateCount,
-	"pushDownWindowAggregateSum":    pushDownWindowAggregateSum,
-	"pushDownWindowAggregateMin":    pushDownWindowAggregateMin,
-	"pushDownWindowAggregateMax":    pushDownWindowAggregateMax,
 	"pushDownWindowAggregateMean":   pushDownWindowAggregateMean,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newAuth":                       newAuth,
 	"newLabels":                     newLabels,
 	"hydratevars":                   hydratevars,
+	"queryCacheForDashboards":       queryCacheForDashboards,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"useUserPermission":             useUserPermission,
 	"mergeFiltersRule":              mergeFiltersRule,
 	"notebooks":                     notebooks,
+	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
 }

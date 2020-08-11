@@ -403,10 +403,27 @@ class baseSteps{
 
     async typeTextAndWait(input, text,
         wait = async () => { await this.driver.sleep((await this.driver.manage().getTimeouts()).implicit/20); }) { //wait 1/10th implicit timeout)
+
         await input.sendKeys(text).then(async() => {
             await wait();
         });
     }
+
+    //Sometimes - rare times - sendKeys in typeTextAndWait() above seems to drop a char
+    //Use this as a work around
+    async typeTextParanoAndWait(input, text,
+        wait = async () => { await this.driver.sleep((await this.driver.manage().getTimeouts()).implicit/20); }){
+
+        let chars = text.split('');
+
+        for(let c of chars){
+            await input.sendKeys(c).then(async () => {
+                this.driver.sleep(167)
+            })
+        }
+        await wait();
+    }
+
 
     async verifyElementText(element, text){
         await element.getText().then(async elText => {
@@ -605,6 +622,9 @@ class baseSteps{
     }
 
     async setFileUpload(filePath){
+        await fs.readdir('etc/test-data', function(err, items){
+            console.log("DEBUG etc/test-data: \n" + items);
+        });
         await this.basePage.getPopupFileUpload().then(async elem => {
             await elem.sendKeys(process.cwd() + '/' + filePath).then(async () => {
                 await this.delay(200); //debug wait - todo better wait
@@ -649,8 +669,8 @@ class baseSteps{
         await expect(await influxUtils.fileExists(filePath)).to.be.true;
     }
 
-    async verifyFileMatchingRegexExists(regex){
-        let res = await influxUtils.verifyFileMatchingRegexFilesExist(regex);
+    async verifyDownloadFileMatchingRegexExists(regex){
+        let res = await influxUtils.verifyDownloadFileMatchingRegexFilesExist(regex);
         await expect(res).to.be.true;
     }
 

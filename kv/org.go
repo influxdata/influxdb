@@ -18,9 +18,6 @@ import (
 const (
 	// MaxIDGenerationN is the maximum number of times an ID generation is done before failing.
 	MaxIDGenerationN = 100
-	// ReservedIDs are the number of IDs reserved from 1 - ReservedIDs we use
-	// for our system org/buckets
-	ReservedIDs = 1000
 )
 
 var (
@@ -335,7 +332,7 @@ func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Org
 }
 
 func (s *Service) generateOrgID(ctx context.Context, tx Tx) (influxdb.ID, error) {
-	return s.generateSafeID(ctx, tx, organizationBucket)
+	return s.generateSafeID(ctx, tx, organizationBucket, s.OrgIDs)
 }
 
 // PutOrganization will put a organization without setting an ID.

@@ -244,8 +244,8 @@ func testLookupName(newStore StoreFn, t *testing.T) {
 			defer done()
 
 			svc.IDGenerator = mock.NewMockIDGenerator()
-			svc.OrgBucketIDs = mock.NewMockIDGenerator()
-			svc.WithSpecialOrgBucketIDs(svc.IDGenerator)
+			svc.OrgIDs = svc.IDGenerator
+			svc.BucketIDs = svc.IDGenerator
 			ctx := context.Background()
 			if tt.args.init != nil {
 				if err := tt.args.init(ctx, svc); err != nil {

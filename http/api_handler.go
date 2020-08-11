@@ -125,7 +125,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 		Router: NewBaseChiRouter(kithttp.NewAPI(kithttp.WithLog(b.Logger))),
 	}
 
-	noAuthUserResourceMappingService := b.UserResourceMappingService
 	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
 
 	h.Mount("/api/v2", serveLinksHandler(b.HTTPErrorHandler))
@@ -169,7 +168,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	sourceBackend := NewSourceBackend(b.Logger.With(zap.String("handler", "source")), b)
 	sourceBackend.SourceService = authorizer.NewSourceService(b.SourceService)
-	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService, noAuthUserResourceMappingService)
+	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService)
 	h.Mount(prefixSources, NewSourceHandler(b.Logger, sourceBackend))
 
 	h.Mount("/api/v2/swagger.json", newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")), b.HTTPErrorHandler))

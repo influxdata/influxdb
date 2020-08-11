@@ -63,7 +63,7 @@ class basePage{
     }
 
     async waitUntilElementVisibleCss(selector){
-        await this.driver.wait(until.elementIsVisible(this.driver.findElement(By.css(selector))));
+        await this.driver.wait(until.elementIsVisible(await this.driver.findElement(By.css(selector))));
     }
 
 

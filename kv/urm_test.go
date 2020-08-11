@@ -67,6 +67,7 @@ func initUserResourceMappingService(s kv.SchemaStore, f influxdbtesting.UserReso
 	}
 
 	for _, b := range f.Buckets {
+		b.ID = svc.BucketIDs.ID()
 		if err := svc.PutBucket(ctx, b); err != nil {
 			t.Fatalf("failed to create bucket %q", err)
 		}

@@ -99,7 +99,7 @@ class checkEditSteps extends influxSteps {
 
     async setCheckIntervalInput(duration){
         await this.clearInputText(await this.ckEdPage.getConfChkIntervalInput());
-        await this.typeTextAndWait(await this.ckEdPage.getConfChkIntervalInput(), duration);
+        await this.typeTextParanoAndWait(await this.ckEdPage.getConfChkIntervalInput(), duration);
     }
 
     async verifyCkEdIntervalInput(duration){
@@ -118,12 +118,12 @@ class checkEditSteps extends influxSteps {
 
     async setCheckOffsetInput(val){
         await this.clearInputText(await this.ckEdPage.getConfChkOffset());
-        await this.typeTextAndWait(await this.ckEdPage.getConfChkOffset(), val);
+        await this.typeTextParanoAndWait(await this.ckEdPage.getConfChkOffset(), val);
     }
 
     async enterIntoIntervalOffset(offset){
         await this.clearInputText(await this.ckEdPage.getConfChkOffset());
-        await this.typeTextAndWait(await this.ckEdPage.getConfChkOffset(), offset);
+        await this.typeTextParanoAndWait(await this.ckEdPage.getConfChkOffset(), offset);
     }
 
     async verifyCkEdHintDropdownNotVisible(){
@@ -177,7 +177,7 @@ class checkEditSteps extends influxSteps {
 
     async setUnaryThresholdBoundaryValue(threshold, val1){
         await this.clearInputText(await this.ckEdPage.getConfNthThresholdDefInput(threshold));
-        await this.typeTextAndWait(await this.ckEdPage.getConfNthThresholdDefInput(threshold), val1);
+        await this.typeTextParanoAndWait(await this.ckEdPage.getConfNthThresholdDefInput(threshold), val1);
     }
 
     async verifyBinaryThresholdBoundaryValues(threshold, lower, upper){
@@ -273,7 +273,7 @@ class checkEditSteps extends influxSteps {
 
     async setValueDefinitionStopInput(val){
         await this.clearInputText(await this.ckEdPage.getConfDeadmanStopInput());
-        await this.typeTextAndWait(await this.ckEdPage.getConfDeadmanStopInput(), val);
+        await this.typeTextParanoAndWait(await this.ckEdPage.getConfDeadmanStopInput(), val);
     };
 
     async verifyCellEditPreviewThresholdMarkers(markers){

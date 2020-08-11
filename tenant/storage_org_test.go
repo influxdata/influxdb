@@ -3,12 +3,15 @@ package tenant_test
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // type Organization struct {
@@ -18,19 +21,49 @@ import (
 // 	CRUDLog
 // }
 
+const (
+	firstOrgID influxdb.ID = (iota + 1)
+	secondOrgID
+	thirdOrgID
+	fourthOrgID
+	fifthOrgID
+)
+
 func TestOrg(t *testing.T) {
-	simpleSetup := func(t *testing.T, store *tenant.Store, tx kv.Tx) {
-		for i := 1; i <= 10; i++ {
-			err := store.CreateOrg(context.Background(), tx, &influxdb.Organization{
-				ID:          influxdb.ID(i),
-				Name:        fmt.Sprintf("org%d", i),
-				Description: "words",
-			})
-			if err != nil {
-				t.Fatal(err)
+	var (
+		aTime    = time.Date(2020, 7, 23, 10, 0, 0, 0, time.UTC)
+		testOrgs = func(count int, visit ...func(*influxdb.Organization)) (orgs []*influxdb.Organization) {
+			for i := 1; i <= count; i++ {
+				org := &influxdb.Organization{
+					ID:          influxdb.ID(i),
+					Name:        fmt.Sprintf("org%d", i),
+					Description: "words",
+				}
+
+				if len(visit) > 0 {
+					visit[0](org)
+				}
+
+				orgs = append(orgs, org)
+			}
+
+			return
+		}
+
+		withCrudLog = func(o *influxdb.Organization) {
+			o.CRUDLog = influxdb.CRUDLog{
+				CreatedAt: aTime,
+				UpdatedAt: aTime,
 			}
 		}
-	}
+
+		simpleSetup = func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+			store.OrgIDGen = mock.NewIncrementingIDGenerator(1)
+			for _, org := range testOrgs(10) {
+				require.NoError(t, store.CreateOrg(context.Background(), tx, org))
+			}
+		}
+	)
 
 	st := []struct {
 		name    string
@@ -47,38 +80,23 @@ func TestOrg(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				if len(orgs) != 10 {
-					t.Fatalf("expected 10 orgs got: %d", len(orgs))
-				}
+				assert.Len(t, orgs, 10)
 
-				expected := []*influxdb.Organization{}
-				for i := 1; i <= 10; i++ {
-					expected = append(expected, &influxdb.Organization{
-						ID:          influxdb.ID(i),
-						Name:        fmt.Sprintf("org%d", i),
-						Description: "words",
-						CRUDLog: influxdb.CRUDLog{
-							CreatedAt: orgs[i-1].CreatedAt,
-							UpdatedAt: orgs[i-1].UpdatedAt,
-						},
-					})
-				}
-				if !reflect.DeepEqual(orgs, expected) {
-					t.Fatalf("expected identical orgs: \n%+v\n%+v", orgs, expected)
-				}
+				expected := testOrgs(10, withCrudLog)
+				assert.Equal(t, expected, orgs)
 			},
 		},
 		{
 			name:  "get",
 			setup: simpleSetup,
 			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
-				org, err := store.GetOrg(context.Background(), tx, 5)
+				org, err := store.GetOrg(context.Background(), tx, fifthOrgID)
 				if err != nil {
 					t.Fatal(err)
 				}
 
 				expected := &influxdb.Organization{
-					ID:          5,
+					ID:          fifthOrgID,
 					Name:        "org5",
 					Description: "words",
 					CRUDLog: influxdb.CRUDLog{
@@ -86,19 +104,13 @@ func TestOrg(t *testing.T) {
 						UpdatedAt: org.UpdatedAt,
 					},
 				}
-
-				if !reflect.DeepEqual(org, expected) {
-					t.Fatalf("expected identical org: \n%+v\n%+v", org, expected)
-				}
+				require.Equal(t, expected, org)
 
 				org, err = store.GetOrgByName(context.Background(), tx, "org5")
 				if err != nil {
 					t.Fatal(err)
 				}
-
-				if !reflect.DeepEqual(org, expected) {
-					t.Fatalf("expected identical org: \n%+v\n%+v", org, expected)
-				}
+				require.Equal(t, expected, org)
 
 				if _, err := store.GetOrg(context.Background(), tx, 500); err != tenant.ErrOrgNotFound {
 					t.Fatal("failed to get correct error when looking for invalid org by id")
@@ -119,49 +131,19 @@ func TestOrg(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				if len(orgs) != 10 {
-					t.Fatalf("expected 10 orgs got: %d", len(orgs))
-				}
+				require.Len(t, orgs, 10)
 
-				expected := []*influxdb.Organization{}
-				for i := 1; i <= 10; i++ {
-					expected = append(expected, &influxdb.Organization{
-						ID:          influxdb.ID(i),
-						Name:        fmt.Sprintf("org%d", i),
-						Description: "words",
-						CRUDLog: influxdb.CRUDLog{
-							CreatedAt: orgs[i-1].CreatedAt,
-							UpdatedAt: orgs[i-1].UpdatedAt,
-						},
-					})
-				}
-				if !reflect.DeepEqual(orgs, expected) {
-					t.Fatalf("expected identical orgs: \n%+v\n%+v", orgs, expected)
-				}
-
+				expected := testOrgs(10, withCrudLog)
+				require.Equal(t, expected, orgs)
 				orgs, err = store.ListOrgs(context.Background(), tx, influxdb.FindOptions{Limit: 4})
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if len(orgs) != 4 {
-					t.Fatalf("expected 4 orgs got: %d", len(orgs))
-				}
-				if !reflect.DeepEqual(orgs, expected[:4]) {
-					t.Fatalf("expected identical orgs with limit: \n%+v\n%+v", orgs, expected[:4])
-				}
+				require.NoError(t, err)
+				assert.Len(t, orgs, 4)
+				assert.Equal(t, expected[:4], orgs)
 
 				orgs, err = store.ListOrgs(context.Background(), tx, influxdb.FindOptions{Offset: 3})
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if len(orgs) != 7 {
-					t.Fatalf("expected 7 orgs got: %d", len(orgs))
-				}
-				if !reflect.DeepEqual(orgs, expected[3:]) {
-					t.Fatalf("expected identical orgs with limit: \n%+v\n%+v", orgs, expected[3:])
-				}
+				require.NoError(t, err)
+				assert.Len(t, orgs, 7)
+				assert.Equal(t, expected[3:], orgs)
 			},
 		},
 		{
@@ -169,99 +151,55 @@ func TestOrg(t *testing.T) {
 			setup: simpleSetup,
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				org5 := "org5"
-				_, err := store.UpdateOrg(context.Background(), tx, influxdb.ID(3), influxdb.OrganizationUpdate{Name: &org5})
+				_, err := store.UpdateOrg(context.Background(), tx, thirdOrgID, influxdb.OrganizationUpdate{Name: &org5})
 				if err.Error() != tenant.OrgAlreadyExistsError(org5).Error() {
 					t.Fatal("failed to error on duplicate orgname")
 				}
 
 				org30 := "org30"
-				_, err = store.UpdateOrg(context.Background(), tx, influxdb.ID(3), influxdb.OrganizationUpdate{Name: &org30})
-				if err != nil {
-					t.Fatal(err)
-				}
+				_, err = store.UpdateOrg(context.Background(), tx, thirdOrgID, influxdb.OrganizationUpdate{Name: &org30})
+				require.NoError(t, err)
 
 				description := "notWords"
-				_, err = store.UpdateOrg(context.Background(), tx, influxdb.ID(3), influxdb.OrganizationUpdate{Description: &description})
-				if err != nil {
-					t.Fatal(err)
-				}
+				_, err = store.UpdateOrg(context.Background(), tx, thirdOrgID, influxdb.OrganizationUpdate{Description: &description})
+				require.NoError(t, err)
 			},
 			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				orgs, err := store.ListOrgs(context.Background(), tx)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 
-				if len(orgs) != 10 {
-					t.Fatalf("expected 10 orgs got: %d", len(orgs))
-				}
+				assert.Len(t, orgs, 10)
 
-				expected := []*influxdb.Organization{}
-				for i := 1; i <= 10; i++ {
-					expected = append(expected, &influxdb.Organization{
-						ID:          influxdb.ID(i),
-						Name:        fmt.Sprintf("org%d", i),
-						Description: "words",
-						CRUDLog: influxdb.CRUDLog{
-							CreatedAt: orgs[i-1].CreatedAt,
-							UpdatedAt: orgs[i-1].UpdatedAt,
-						},
-					})
-				}
+				expected := testOrgs(10, withCrudLog)
 				expected[2].Name = "org30"
 				expected[2].Description = "notWords"
-				if !reflect.DeepEqual(orgs, expected) {
-					t.Fatalf("expected identical orgs: \n%+v\n%+v", orgs, expected)
-				}
+				require.Equal(t, expected, orgs)
 			},
 		},
 		{
 			name:  "delete",
 			setup: simpleSetup,
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
-				err := store.DeleteOrg(context.Background(), tx, 1)
-				if err != nil {
-					t.Fatal(err)
-				}
+				err := store.DeleteOrg(context.Background(), tx, firstOrgID)
+				require.NoError(t, err)
 
-				err = store.DeleteOrg(context.Background(), tx, 1)
+				err = store.DeleteOrg(context.Background(), tx, firstOrgID)
 				if err != tenant.ErrOrgNotFound {
 					t.Fatal("invalid error when deleting org that has already been deleted", err)
 				}
 
-				err = store.DeleteOrg(context.Background(), tx, 3)
-				if err != nil {
-					t.Fatal(err)
-				}
+				err = store.DeleteOrg(context.Background(), tx, thirdOrgID)
+				require.NoError(t, err)
 			},
 			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				orgs, err := store.ListOrgs(context.Background(), tx)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
+				assert.Len(t, orgs, 8)
 
-				if len(orgs) != 8 {
-					t.Fatalf("expected 10 orgs got: %d", len(orgs))
-				}
-
-				expected := []*influxdb.Organization{}
-				for i := 1; i <= 10; i++ {
-					if i != 1 && i != 3 {
-						expected = append(expected, &influxdb.Organization{
-							ID:          influxdb.ID(i),
-							Name:        fmt.Sprintf("org%d", i),
-							Description: "words",
-						})
-					}
-				}
-				for i, exp := range expected {
-					exp.CRUDLog.CreatedAt = orgs[i].CreatedAt
-					exp.CRUDLog.UpdatedAt = orgs[i].UpdatedAt
-				}
-
-				if !reflect.DeepEqual(orgs, expected) {
-					t.Fatalf("expected identical orgs: \n%+v\n%+v", orgs, expected)
-				}
+				all := testOrgs(10, withCrudLog)
+				// deleted first and third item
+				expected := append(all[1:2], all[3:]...)
+				require.Equal(t, expected, orgs)
 			},
 		},
 	}
@@ -273,7 +211,9 @@ func TestOrg(t *testing.T) {
 			}
 			defer closeS()
 
-			ts := tenant.NewStore(s)
+			ts := tenant.NewStore(s, tenant.WithNow(func() time.Time {
+				return aTime
+			}))
 
 			// setup
 			if testScenario.setup != nil {

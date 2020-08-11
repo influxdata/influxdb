@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
-	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -154,13 +153,12 @@ func (s *Store) ListOrgs(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpti
 	return us, cursor.Err()
 }
 
-func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organization) error {
-	if !o.ID.Valid() {
-		id, err := s.generateSafeOrgBucketID(ctx, tx, organizationBucket)
-		if err != nil {
-			return err
-		}
-		o.ID = id
+func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organization) (err error) {
+	// if ID is provided then ensure it is unique
+	// generate new bucket ID
+	o.ID, err = s.generateSafeID(ctx, tx, organizationBucket, s.OrgIDGen)
+	if err != nil {
+		return err
 	}
 
 	encodedID, err := o.ID.Encode()
@@ -172,8 +170,8 @@ func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organizatio
 		return err
 	}
 
-	o.SetCreatedAt(time.Now())
-	o.SetUpdatedAt(time.Now())
+	o.SetCreatedAt(s.now())
+	o.SetUpdatedAt(s.now())
 	idx, err := tx.Bucket(organizationIndex)
 	if err != nil {
 		return err
@@ -211,7 +209,7 @@ func (s *Store) UpdateOrg(ctx context.Context, tx kv.Tx, id influxdb.ID, upd inf
 		return nil, err
 	}
 
-	u.SetUpdatedAt(time.Now())
+	u.SetUpdatedAt(s.now())
 	if upd.Name != nil && u.Name != *upd.Name {
 		if err := s.uniqueOrgName(ctx, tx, *upd.Name); err != nil {
 			return nil, err

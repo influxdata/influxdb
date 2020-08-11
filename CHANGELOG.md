@@ -1,4 +1,4 @@
-## v2.0.0-beta.16 [unreleased]
+## v2.0.0-beta.16 [2020-08-07]
 
 ### Breaking
 
@@ -10,11 +10,19 @@
 
 1. [19075](https://github.com/influxdata/influxdb/pull/19075): Add resource links to a stack's resources from public HTTP API list/read calls
 1. [19103](https://github.com/influxdata/influxdb/pull/19103): Enhance resource creation experience when limits are reached
+1. [19223](https://github.com/influxdata/influxdb/pull/19223): Add dashboards command to influx CLI
+1. [19225](https://github.com/influxdata/influxdb/pull/19225): Allow user onboarding to optionally set passwords
+1. [18841](https://github.com/influxdata/influxdb/pull/18841): Limit query response sizes for queries built in QueryBuilder by requiring an aggregate window
 
 ### Bug Fixes
 
 1. [19043](https://github.com/influxdata/influxdb/pull/19043): Enforce all influx CLI flag args are valid
 1. [19188](https://github.com/influxdata/influxdb/pull/19188): Dashboard cells correctly map results when multiple queries exist
+1. [19146](https://github.com/influxdata/influxdb/pull/19146): Dashboard cells and overlay use UTC as query time when toggling to UTC timezone
+1. [19222](https://github.com/influxdata/influxdb/pull/19222): Bucket names may not include quotation marks
+
+### UI Improvements
+1. [19231](https://github.com/influxdata/influxdb/pull/19231): Alerts page filter inputs now have tab indices for keyboard navigation
 
 ## v2.0.0-beta.15 [2020-07-23]
 

@@ -26,10 +26,11 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 	store := NewTestInmemStore(t)
 	svc := kv.NewService(zaptest.NewLogger(t), store)
 	svc.IDGenerator = f.IDGenerator
-	svc.OrgBucketIDs = f.IDGenerator
+	svc.OrgIDs = f.IDGenerator
+	svc.BucketIDs = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	if f.TimeGenerator == nil {
-		svc.TimeGenerator = platform.RealTimeGenerator{}
+		f.TimeGenerator = platform.RealTimeGenerator{}
 	}
 	svc.TimeGenerator = f.TimeGenerator
 

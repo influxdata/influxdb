@@ -43,30 +43,6 @@
   contact: Gavin Cabbage
   expose: true
 
-- name: Push Down Window Aggregate Count
-  description: Enable Count variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateCount
-  default: false
-  contact: Query Team
-
-- name: Push Down Window Aggregate Sum
-  description: Enable Sum variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateSum
-  default: false
-  contact: Query Team
-
-- name: Push Down Window Aggregate Min
-  description: Enable Min variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateMin
-  default: false
-  contact: Query Team
-
-- name: Push Down Window Aggregate Max
-  description: Enable Max variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateMax
-  default: false
-  contact: Query Team
-
 - name: Push Down Window Aggregate Mean
   description: Enable Mean variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
   key: pushDownWindowAggregateMean
@@ -96,6 +72,14 @@
 - name: New Hydrate Vars Functionality
   description: Enables a minimalistic variable hydration
   key: hydratevars
+  default: false
+  contact: Ariel Salem / Monitoring Team
+  lifetime: temporary
+  expose: true
+
+- name: Query Cache for Dashboards UI
+  description: Enables a Dashboard Cache on the uI
+  key: queryCacheForDashboards
   default: false
   contact: Ariel Salem / Monitoring Team
   lifetime: temporary
@@ -143,3 +127,9 @@
   contact: Monitoring Team
   lifetime: temporary
   expose: true
+
+- name: Push Down Group Aggregate Min Max
+  description: Enable the min and max variants of the PushDownGroupAggregate planner rule
+  key: pushDownGroupAggregateMinMax
+  default: false
+  contact: Query Team
