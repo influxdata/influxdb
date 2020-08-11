@@ -6,6 +6,7 @@ import ReactMarkdown, {Renderer} from 'react-markdown'
 // Components
 import {Page} from '@influxdata/clockface'
 import CodeSnippet from 'src/shared/components/CodeSnippet'
+import WriteDataHelper from 'src/writeData/components/WriteDataHelper'
 
 // Types
 import {WriteDataSection} from 'src/writeData/constants'
@@ -54,6 +55,7 @@ const WriteDataDetailsView: FC<Props> = ({section, children}) => {
           <div className="write-data--details-thumbnail">{thumbnail}</div>
           <div className="write-data--details-content markdown-format">
             {children}
+            <WriteDataHelper />
             {pageContent}
           </div>
         </div>

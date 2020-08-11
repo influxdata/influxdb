@@ -62,3 +62,13 @@
     margin-top: 0;
   }
 }
+
+// Helper Widget
+.markdown-format code.write-data--helper-code {
+  margin-right: $cf-marg-a;
+}
+
+.write-data--helper-bucket {
+  word-wrap: pre;
+  word-break: break-all;
+}
