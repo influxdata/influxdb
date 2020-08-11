@@ -1,4 +1,4 @@
-# Zipkin Plugin
+# Zipkin Input Plugin
 
 This plugin implements the Zipkin http server to gather trace and timing data needed to troubleshoot latency problems in microservice architectures.
 

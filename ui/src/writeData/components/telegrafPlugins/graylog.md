@@ -1,4 +1,4 @@
-# GrayLog plugin
+# GrayLog Input Plugin
 
 The Graylog plugin can collect data from remote Graylog service URLs.
 

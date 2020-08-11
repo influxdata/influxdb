@@ -1,4 +1,4 @@
-# gNMI (gRPC Network Management Interface)
+# gNMI (gRPC Network Management Interface) Input Plugin
 
 This plugin consumes telemetry data based on the [gNMI](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md) Subscribe method. TLS is supported for authentication and encryption.  This input plugin is vendor-agnostic and is supported on any platform that supports the gNMI spec.
 

@@ -1,4 +1,4 @@
-# Kafka Consumer Input Plugin
+# Kafka Consumer Legacy Input Plugin
 
 The [Kafka](http://kafka.apache.org/) consumer plugin polls a specified Kafka
 topic and adds messages to InfluxDB. The plugin assumes messages follow the

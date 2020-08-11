@@ -1,4 +1,4 @@
-## Telegraf Plugin: PuppetAgent
+# PuppetAgent Input Plugin
 
 #### Description
 

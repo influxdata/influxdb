@@ -1,4 +1,4 @@
-# Telegraf Plugin: Nginx
+# Nginx Input Plugin
 
 ### Configuration:
 

@@ -1,4 +1,4 @@
-# Jolokia2 Input Plugins
+# Jolokia2 Input Plugin
 
 The [Jolokia](http://jolokia.org) _agent_ and _proxy_ input plugins collect JMX metrics from an HTTP endpoint using Jolokia's [JSON-over-HTTP protocol](https://jolokia.org/reference/html/protocol.html).
 

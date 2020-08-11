@@ -1,4 +1,4 @@
-# Iptables Plugin
+# Iptables Input Plugin
 
 The iptables plugin gathers packets and bytes counters for rules within a set of table and chain from the Linux's iptables firewall.
 

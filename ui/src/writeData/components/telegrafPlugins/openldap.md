@@ -1,4 +1,4 @@
-# Openldap Input Plugin
+# OpenLDAP Input Plugin
 
 This plugin gathers metrics from OpenLDAP's cn=Monitor backend.
 

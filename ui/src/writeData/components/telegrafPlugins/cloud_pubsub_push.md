@@ -1,4 +1,4 @@
-# Google Cloud PubSub Push Input Service Plugin
+# Google Cloud PubSub Push Input Plugin
 
 The Google Cloud PubSub Push listener is a service input plugin that listens for messages sent via an HTTP POST from [Google Cloud PubSub][pubsub].
 The plugin expects messages in Google's Pub/Sub JSON Format ONLY.

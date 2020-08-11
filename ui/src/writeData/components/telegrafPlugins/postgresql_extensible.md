@@ -1,4 +1,4 @@
-# PostgreSQL plugin
+# PostgreSQL Extensible Input Plugin
 
 This postgresql plugin provides metrics for your postgres database. It has been
 designed to parse SQL queries in the plugin section of your `telegraf.conf`.

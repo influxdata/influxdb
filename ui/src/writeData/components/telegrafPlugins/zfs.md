@@ -1,4 +1,4 @@
-# ZFS plugin
+# ZFS Input Plugin
 
 This ZFS plugin provides metrics from your ZFS filesystems. It supports ZFS on
 Linux and FreeBSD. It gets ZFS stat from `/proc/spl/kstat/zfs` on Linux and

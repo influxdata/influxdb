@@ -1,4 +1,4 @@
-# `nvidia-smi` Input Plugin
+# Nvidia System Management Interface (SMI) Input Plugin
 
 This plugin uses a query on the [`nvidia-smi`](https://developer.nvidia.com/nvidia-system-management-interface) binary to pull GPU stats including memory and GPU usage, temp and other.
 

@@ -1,4 +1,4 @@
-# Mailchimp Input
+# Mailchimp Input Plugin
 
 Pulls campaign reports from the [Mailchimp API](https://developer.mailchimp.com/).
 

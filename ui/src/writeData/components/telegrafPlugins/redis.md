@@ -1,4 +1,4 @@
-# Telegraf Plugin: Redis
+# Redis Input Plugin
 
 ### Configuration:
 

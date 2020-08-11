@@ -1,4 +1,4 @@
-# socket listener service input plugin
+# Socket Listener Input Plugin
 
 The Socket Listener is a service input plugin that listens for messages from
 streaming (tcp, unix) or datagram (udp, unixgram) protocols.

@@ -1,4 +1,4 @@
-# sensors Input Plugin
+# LM Sensors Input Plugin
 
 Collect [lm-sensors](https://en.wikipedia.org/wiki/Lm_sensors) metrics - requires the lm-sensors
 package installed.

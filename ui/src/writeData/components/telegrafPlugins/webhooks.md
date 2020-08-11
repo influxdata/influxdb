@@ -1,4 +1,4 @@
-# Webhooks
+# Webhooks Input Plugin
 
 This is a Telegraf service plugin that start an http server and register multiple webhook listeners.
 

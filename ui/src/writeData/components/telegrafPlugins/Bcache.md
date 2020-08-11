@@ -1,4 +1,4 @@
-# Telegraf plugin: bcache
+# bcache Input Plugin
 
 Get bcache stat from stats_total directory and dirty_data file.
 

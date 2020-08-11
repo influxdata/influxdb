@@ -1,4 +1,4 @@
-# Telegraf Plugin: Nginx_upstream_check
+# Nginx Upstream Check Input Plugin
 
 Read the status output of the nginx_upstream_check (https://github.com/yaoweibin/nginx_upstream_check_module).
 This module can periodically check the servers in the Nginx's upstream with configured request and interval to determine

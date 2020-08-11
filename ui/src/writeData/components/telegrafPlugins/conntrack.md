@@ -1,4 +1,4 @@
-# Conntrack Plugin
+# Conntrack Input Plugin
 
 Collects stats from Netfilter's conntrack-tools.
 

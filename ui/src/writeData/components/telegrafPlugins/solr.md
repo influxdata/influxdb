@@ -1,4 +1,4 @@
-# Solr input plugin
+# Solr Input Plugin
 
 The [solr](http://lucene.apache.org/solr/) plugin collects stats via the
 [MBean Request Handler](https://cwiki.apache.org/confluence/display/solr/MBean+Request+Handler)

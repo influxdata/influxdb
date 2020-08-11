@@ -1,4 +1,4 @@
-# Temp Input plugin
+# Temperature Input Plugin
 
 The temp input plugin gather metrics on system temperature.  This plugin is
 meant to be multi platform and uses platform specific collection methods.

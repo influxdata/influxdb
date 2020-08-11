@@ -1,4 +1,4 @@
-# win_perf_counters readme
+# Windows Performance Counters Input Plugin
 
 This document presents the input plugin to read Performance Counters on Windows operating systems.
 

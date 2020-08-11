@@ -1,4 +1,4 @@
-# SNMP Input Plugin
+# SNMP Legacy Input Plugin
 
 The SNMP input plugin gathers metrics from SNMP agents
 

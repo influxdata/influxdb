@@ -1,4 +1,4 @@
-# Cisco model-driven telemetry (MDT)
+# Cisco Model-Driven Telemetry (MDT) Input Plugin
 
 Cisco model-driven telemetry (MDT) is an input plugin that consumes
 telemetry data from Cisco IOS XR, IOS XE and NX-OS platforms. It supports TCP & GRPC dialout transports.

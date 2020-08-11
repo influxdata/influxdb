@@ -1,4 +1,4 @@
-# Amazon CloudWatch Statistics Input
+# Amazon CloudWatch Statistics Input Plugin
 
 This plugin will pull Metric Statistics from Amazon CloudWatch.
 

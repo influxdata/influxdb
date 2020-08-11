@@ -1,4 +1,4 @@
-# Telegraf Plugin: Couchbase
+# Couchbase Input Plugin
 
 ## Configuration:
 

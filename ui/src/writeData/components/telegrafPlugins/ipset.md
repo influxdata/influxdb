@@ -1,4 +1,4 @@
-# Ipset Plugin
+# Ipset Input Plugin
 
 The ipset plugin gathers packets and bytes counters from Linux ipset.
 It uses the output of the command "ipset save".

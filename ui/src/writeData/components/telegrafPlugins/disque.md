@@ -1,4 +1,4 @@
-# Disque Input
+# Disque Input Plugin
 
 [Disque](https://github.com/antirez/disque) is an ongoing experiment to build a distributed, in-memory, message broker.
 
