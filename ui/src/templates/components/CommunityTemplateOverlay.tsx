@@ -34,10 +34,7 @@ type ActiveTab = Tab.IncludedResources | Tab.Readme
 
 type Props = OwnProps & RouteComponentProps<{orgID: string}>
 
-class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
-  Props,
-  State
-> {
+class CommunityTemplateOverlayUnconnected extends PureComponent<Props, State> {
   state: State = {
     activeTab: Tab.IncludedResources,
   }
@@ -102,6 +99,6 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
   }
 }
 
-export const CommunityTemplateInstallerOverlay = withRouter(
-  CommunityTemplateInstallerOverlayUnconnected
+export const CommunityTemplateOverlay = withRouter(
+  CommunityTemplateOverlayUnconnected
 )
