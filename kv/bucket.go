@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
@@ -463,7 +464,11 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) (
 		}
 	}
 
-	if err := s.validBucketName(ctx, tx, b); err != nil {
+	if err := s.uniqueBucketName(ctx, tx, b); err != nil {
+		return err
+	}
+
+	if err := validBucketName(b.Name, b.Type); err != nil {
 		return err
 	}
 
@@ -505,7 +510,7 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) (
 }
 
 func (s *Service) generateBucketID(ctx context.Context, tx Tx) (influxdb.ID, error) {
-	return s.generateSafeID(ctx, tx, bucketBucket)
+	return s.generateSafeID(ctx, tx, bucketBucket, s.BucketIDs)
 }
 
 // PutBucket will put a bucket without setting an ID.
@@ -618,10 +623,7 @@ func (s *Service) forEachBucket(ctx context.Context, tx Tx, descending bool, fn 
 	return nil
 }
 
-func (s *Service) validBucketName(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
+func (s *Service) uniqueBucketName(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
 	key, err := bucketIndexKey(b)
 	if err != nil {
 		return err
@@ -635,6 +637,27 @@ func (s *Service) validBucketName(ctx context.Context, tx Tx, b *influxdb.Bucket
 	}
 
 	return err
+}
+
+// validBucketName reports any errors with bucket names
+func validBucketName(name string, typ influxdb.BucketType) error {
+	// names starting with an underscore are reserved for system buckets
+	if strings.HasPrefix(name, "_") && typ != influxdb.BucketTypeSystem {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("bucket name %s is invalid. Buckets may not start with underscore", name),
+			Op:   influxdb.OpCreateBucket,
+		}
+	}
+	// quotation marks will cause queries to fail
+	if strings.Contains(name, "\"") {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("bucket name %s is invalid. Bucket names may not include quotation marks", name),
+			Op:   influxdb.OpCreateBucket,
+		}
+	}
+	return nil
 }
 
 // UpdateBucket updates a bucket according the parameters set on upd.
@@ -689,6 +712,11 @@ func (s *Service) updateBucket(ctx context.Context, tx Tx, id influxdb.ID, upd i
 				Msg:  "bucket name is not unique",
 			}
 		}
+
+		if err := validBucketName(*upd.Name, b.Type); err != nil {
+			return nil, err
+		}
+
 		key, err := bucketIndexKey(b)
 		if err != nil {
 			return nil, err
