@@ -314,7 +314,6 @@ func (t *TaskUpdate) UpdateFlux(parser FluxLanguageService, oldFlux string) (err
 	if t.Flux != nil && *t.Flux != "" {
 		oldFlux = *t.Flux
 	}
-	toDelete := map[string]struct{}{}
 	parsedPKG, err := safeParseSource(parser, oldFlux)
 	if err != nil {
 		return err
@@ -324,94 +323,41 @@ func (t *TaskUpdate) UpdateFlux(parser FluxLanguageService, oldFlux string) (err
 	if !t.Options.Every.IsZero() && t.Options.Cron != "" {
 		return errors.New("cannot specify both cron and every")
 	}
-	op := make(map[string]ast.Expression, 4)
+
+	taskOptions, err := edit.GetOption(parsed, "task")
+	if err != nil {
+		return err
+	}
+
+	optsExpr := taskOptions.(*ast.ObjectExpression)
 
 	if t.Options.Name != "" {
-		op["name"] = &ast.StringLiteral{Value: t.Options.Name}
+		edit.SetProperty(optsExpr, "name", &ast.StringLiteral{
+			Value: t.Options.Name,
+		})
 	}
 	if !t.Options.Every.IsZero() {
-		op["every"] = &t.Options.Every.Node
+		edit.SetProperty(optsExpr, "every", t.Options.Every.Node.Copy().(*ast.DurationLiteral))
+		edit.DeleteProperty(optsExpr, "cron")
 	}
 	if t.Options.Cron != "" {
-		op["cron"] = &ast.StringLiteral{Value: t.Options.Cron}
+		edit.SetProperty(optsExpr, "cron", &ast.StringLiteral{
+			Value: t.Options.Cron,
+		})
+		edit.DeleteProperty(optsExpr, "every")
 	}
 	if t.Options.Offset != nil {
 		if !t.Options.Offset.IsZero() {
-			op["offset"] = &t.Options.Offset.Node
+			edit.SetProperty(optsExpr, "offset", t.Options.Offset.Node.Copy().(*ast.DurationLiteral))
 		} else {
-			toDelete["offset"] = struct{}{}
+			edit.DeleteProperty(optsExpr, "offset")
 		}
 	}
-	if len(op) > 0 || len(toDelete) > 0 {
-		editFunc := func(opt *ast.OptionStatement) (ast.Expression, error) {
-			a, ok := opt.Assignment.(*ast.VariableAssignment)
-			if !ok {
-				return nil, errors.New("option assignment must be variable assignment")
-			}
-			obj, ok := a.Init.(*ast.ObjectExpression)
-			if !ok {
-				return nil, fmt.Errorf("value is is %s, not an object expression", a.Init.Type())
-			}
-			// modify in the keys and values that already are in the ast
-			for i, p := range obj.Properties {
-				k := p.Key.Key()
-				if _, ok := toDelete[k]; ok {
-					obj.Properties = append(obj.Properties[:i], obj.Properties[i+1:]...)
-				}
-				switch k {
-				case "name":
-					if name, ok := op["name"]; ok && t.Options.Name != "" {
-						delete(op, "name")
-						p.Value = name
-					}
-				case "offset":
-					if offset, ok := op["offset"]; ok && t.Options.Offset != nil {
-						delete(op, "offset")
-						p.Value = offset.Copy().(*ast.DurationLiteral)
-					}
-				case "every":
-					if every, ok := op["every"]; ok && !t.Options.Every.IsZero() {
-						p.Value = every.Copy().(*ast.DurationLiteral)
-						delete(op, "every")
-					} else if cron, ok := op["cron"]; ok && t.Options.Cron != "" {
-						delete(op, "cron")
-						p.Value = cron
-						p.Key = &ast.Identifier{Name: "cron"}
-					}
-				case "cron":
-					if cron, ok := op["cron"]; ok && t.Options.Cron != "" {
-						delete(op, "cron")
-						p.Value = cron
-					} else if every, ok := op["every"]; ok && !t.Options.Every.IsZero() {
-						delete(op, "every")
-						p.Key = &ast.Identifier{Name: "every"}
-						p.Value = every.Copy().(*ast.DurationLiteral)
-					}
-				}
-			}
-			// add in new keys and values to the ast
-			for k := range op {
-				obj.Properties = append(obj.Properties, &ast.Property{
-					Key:   &ast.Identifier{Name: k},
-					Value: op[k],
-				})
-			}
-			return nil, nil
-		}
 
-		ok, err := edit.Option(parsed, "task", editFunc)
+	t.Options.Clear()
+	s := ast.Format(parsed)
+	t.Flux = &s
 
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return errors.New("unable to edit option")
-		}
-
-		t.Options.Clear()
-		s := ast.Format(parsed)
-		t.Flux = &s
-	}
 	return nil
 }
 

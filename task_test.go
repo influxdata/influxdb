@@ -94,7 +94,7 @@ from(bucket: "x")
 			t.Error(err)
 		}
 		if op.Offset == nil || op.Offset.String() != "30s" {
-			t.Fatalf("expected every to be 30s but was %s", op.Every)
+			t.Fatalf("expected offset to be 30s but was %s", op.Offset)
 		}
 	})
 	t.Run("switching from every to cron", func(t *testing.T) {
