@@ -12,5 +12,6 @@ register({
     bucketName: '',
     field: '',
     measurement: '',
+    tags: {},
   },
 })

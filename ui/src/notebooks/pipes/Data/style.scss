@@ -7,7 +7,7 @@
 }
 
 .data-source--block {
-  flex: 1 0 350px;
+  flex: 1 0 200px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -23,6 +23,7 @@
   margin-bottom: $cf-marg-b;
   color: $g13-mist;
   border-bottom: $cf-border solid $g3-castle;
+  text-transform: capitalize;
 }
 
 .data-source--list,
