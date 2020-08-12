@@ -27,6 +27,7 @@ const (
 	statWriteRequestBytesReceived    = "writeReqBytes"          // Sum of all bytes in write requests.
 	statQueryRequestBytesTransmitted = "queryRespBytes"         // Sum of all bytes returned in query reponses.
 	statPointsWrittenOK              = "pointsWrittenOK"        // Number of points written OK.
+	statValuesWrittenOK              = "valuesWrittenOK"        // Number of values (fields) written OK.
 	statPointsWrittenDropped         = "pointsWrittenDropped"   // Number of points dropped by the storage engine.
 	statPointsWrittenFail            = "pointsWrittenFail"      // Number of points that failed to be written.
 	statAuthFail                     = "authFail"               // Number of authentication failures.

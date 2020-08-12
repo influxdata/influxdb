@@ -29,6 +29,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
@@ -352,6 +353,7 @@ type Statistics struct {
 	WriteRequestBytesReceived    int64
 	QueryRequestBytesTransmitted int64
 	PointsWrittenOK              int64
+	ValuesWrittenOK              int64
 	PointsWrittenDropped         int64
 	PointsWrittenFail            int64
 	AuthenticationFailures       int64
@@ -383,6 +385,7 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 			statWriteRequestBytesReceived:    atomic.LoadInt64(&h.stats.WriteRequestBytesReceived),
 			statQueryRequestBytesTransmitted: atomic.LoadInt64(&h.stats.QueryRequestBytesTransmitted),
 			statPointsWrittenOK:              atomic.LoadInt64(&h.stats.PointsWrittenOK),
+			statValuesWrittenOK:              atomic.LoadInt64(&h.stats.ValuesWrittenOK),
 			statPointsWrittenDropped:         atomic.LoadInt64(&h.stats.PointsWrittenDropped),
 			statPointsWrittenFail:            atomic.LoadInt64(&h.stats.PointsWrittenFail),
 			statAuthFail:                     atomic.LoadInt64(&h.stats.AuthenticationFailures),
@@ -968,8 +971,31 @@ func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http
 		}
 	}
 
+	type pointsWriterWithContext interface {
+		WritePointsWithContext(context.Context, string, string, models.ConsistencyLevel, meta.User, []models.Point) error
+	}
+
+	writePoints := func() error {
+		switch pw := h.PointsWriter.(type) {
+		case pointsWriterWithContext:
+			var npoints, nvalues int64
+			ctx := context.WithValue(context.Background(), coordinator.StatPointsWritten, &npoints)
+			ctx = context.WithValue(ctx, coordinator.StatValuesWritten, &nvalues)
+
+			// for now, just store the number of values used.
+			err := pw.WritePointsWithContext(ctx, database, retentionPolicy, consistency, user, points)
+			atomic.AddInt64(&h.stats.ValuesWrittenOK, nvalues)
+			if err != nil {
+				return err
+			}
+			return nil
+		default:
+			return h.PointsWriter.WritePoints(database, retentionPolicy, consistency, user, points)
+		}
+	}
+
 	// Write points.
-	if err := h.PointsWriter.WritePoints(database, retentionPolicy, consistency, user, points); influxdb.IsClientError(err) {
+	if err := writePoints(); influxdb.IsClientError(err) {
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
