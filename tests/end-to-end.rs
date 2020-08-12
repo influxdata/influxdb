@@ -22,10 +22,9 @@ use delorean_generated_types::{
     read_group_request::Group,
     read_response::{frame::Data, DataType},
     storage_client::StorageClient,
-    Bucket, CreateBucketRequest, MeasurementFieldsRequest, MeasurementNamesRequest,
-    MeasurementTagKeysRequest, MeasurementTagValuesRequest, Node, Organization, Predicate,
-    ReadFilterRequest, ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest,
-    TimestampRange,
+    MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
+    MeasurementTagValuesRequest, Node, Organization, Predicate, ReadFilterRequest,
+    ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 use delorean_test_helpers::*;
 use futures::prelude::*;
@@ -125,18 +124,7 @@ async fn read_and_write_data() -> Result<()> {
     // This checks that gRPC is functioning and that we're starting from an org without buckets.
     assert!(org_buckets.is_empty());
 
-    let create_bucket_request = tonic::Request::new(CreateBucketRequest {
-        org_id,
-        bucket: Some(Bucket {
-            org_id,
-            id: 0,
-            name: bucket_id_str.to_string(),
-            retention: "0".to_string(),
-            posting_list_rollover: 10_000,
-            index_levels: vec![],
-        }),
-    });
-    grpc_client.create_bucket(create_bucket_request).await?;
+    client2.create_bucket(org_id_str, bucket_id_str).await?;
 
     let start_time = SystemTime::now();
     let ns_since_epoch: i64 = start_time

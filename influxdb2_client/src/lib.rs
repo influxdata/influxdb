@@ -24,16 +24,22 @@
 //!
 //! ## Quick start
 //!
-//! This example creates a client to an InfluxDB server running at `http://localhost:8888`, builds
-//! two points, and writes them to InfluxDB in the organization with ID `0000111100001111` and the
-//! bucket with the ID `1111000011110000`.
+//! This example creates a client to an InfluxDB server running at `http://localhost:8888`, creates
+//! a bucket with the id `1111000011110000` in the organization with ID `0000111100001111`, builds
+//! two points, and writes the points to the bucket.
 //!
 //! ```
 //! async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //!     use influxdb2_client::{Client, DataPoint};
 //!     use futures::stream;
 //!
+//!     let org_id = "0000111100001111";
+//!     let bucket_id = "1111000011110000";
+//!
 //!     let client = Client::new("http://localhost:8888");
+//!
+//!     client.create_bucket(org_id, bucket_id).await?;
+//!
 //!     let points = vec![
 //!         DataPoint::builder("cpu")
 //!             .tag("host", "server01")
@@ -46,9 +52,6 @@
 //!             .build()?,
 //!     ];
 //!
-//!     let org_id = "0000111100001111";
-//!     let bucket_id = "1111000011110000";
-//!
 //!     client.write(org_id, bucket_id, stream::iter(points)).await?;
 //!     Ok(())
 //! }
@@ -57,6 +60,7 @@
 use bytes::buf::ext::BufMutExt;
 use futures::{Stream, StreamExt};
 use reqwest::Body;
+use serde::Serialize;
 use snafu::{ResultExt, Snafu};
 use std::io::{self, Write};
 
@@ -81,6 +85,14 @@ pub enum RequestError {
         status: reqwest::StatusCode,
         /// Any text data returned from the request
         text: String,
+    },
+
+    /// While serializing data as JSON to send in a request, the underlying `serde_json` library
+    /// returned an error.
+    #[snafu(display("Error while serializing to JSON: {}", source))]
+    Serializing {
+        /// The underlying error object from `serde_json`.
+        source: serde_json::error::Error,
     },
 }
 
@@ -154,6 +166,46 @@ impl Client {
 
         Ok(self.write_line_protocol(org_id, bucket_id, body).await?)
     }
+
+    /// Create a new bucket in the organization specified by `org_id` and with the bucket ID
+    /// `bucket_id`.
+    pub async fn create_bucket(&self, org_id: &str, bucket_id: &str) -> Result<(), RequestError> {
+        let create_bucket_url = format!("{}/api/v2/buckets", self.url);
+
+        #[derive(Serialize, Debug, Default)]
+        struct CreateBucketInfo {
+            #[serde(rename = "orgID")]
+            org_id: String,
+            name: String,
+            #[serde(rename = "retentionRules")]
+            // The type of `retentionRules` isn't `String`; this is included and always set to
+            // an empty vector to be compatible with the Influx 2.0 API where `retentionRules` is
+            // a required parameter. Delorean ignores this parameter.
+            retention_rules: Vec<String>,
+        }
+
+        let body = CreateBucketInfo {
+            org_id: org_id.into(),
+            name: bucket_id.into(),
+            ..Default::default()
+        };
+
+        let response = self
+            .reqwest
+            .post(&create_bucket_url)
+            .body(serde_json::to_string(&body).context(Serializing)?)
+            .send()
+            .await
+            .context(ReqwestProcessing)?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.context(ReqwestProcessing)?;
+            Http { status, text }.fail()?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -201,6 +253,29 @@ cpu,host=server01,region=us-west usage=0.87
         // The error messages that Mockito provides are much clearer for explaining why a test
         // failed than just that the server returned 501, so don't use `?` here.
         let _result = client.write(org_id, bucket_id, stream::iter(points)).await;
+
+        mock_server.assert();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_bucket() -> Result {
+        let org_id = "0000111100001111";
+        let bucket_id = "1111000011110000";
+
+        let mock_server = mock("POST", "/api/v2/buckets")
+            .match_body(
+                format!(
+                    r#"{{"orgID":"{}","name":"{}","retentionRules":[]}}"#,
+                    org_id, bucket_id
+                )
+                .as_str(),
+            )
+            .create();
+
+        let client = Client::new(&mockito::server_url());
+
+        let _result = client.create_bucket(org_id, bucket_id).await;
 
         mock_server.assert();
         Ok(())

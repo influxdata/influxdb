@@ -41,6 +41,7 @@ pub struct GrpcServer {
 
 #[tonic::async_trait]
 impl Delorean for GrpcServer {
+    // TODO: Do we want to keep this gRPC request?
     #[tracing::instrument(level = "debug")]
     async fn create_bucket(
         &self,
