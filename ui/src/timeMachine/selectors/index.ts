@@ -199,12 +199,15 @@ export const getMosaicFillColumnsSelection = (state: AppState): string[] => {
     'view.properties.fillColumns'
   )
 
+  //user hasn't selected a fill column yet
   if (preference === null) {
+    //check if value is a string[]
     for (const key of validFillColumns) {
       if (key.startsWith('_value')) {
         return [key]
       }
     }
+    //check if value is a numeric column
     if (table.columnKeys.includes('_value')) {
       return []
     }
