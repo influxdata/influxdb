@@ -3,6 +3,7 @@ package influxdb
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 )
 
@@ -220,6 +221,13 @@ type Permission struct {
 
 // Matches returns whether or not one permission matches the other.
 func (p Permission) Matches(perm Permission) bool {
+	if _, set := os.LookupEnv("MATCHER_BEHAVIOR"); set {
+		return p.matchesV2(perm)
+	}
+	return p.matchesV1(perm)
+}
+
+func (p Permission) matchesV1(perm Permission) bool {
 	if p.Action != perm.Action {
 		return false
 	}
@@ -232,6 +240,13 @@ func (p Permission) Matches(perm Permission) bool {
 		return true
 	}
 
+	if p.Resource.OrgID != nil && perm.Resource.OrgID != nil && p.Resource.ID != nil && perm.Resource.ID != nil {
+		if *p.Resource.OrgID != *perm.Resource.OrgID && *p.Resource.ID == *perm.Resource.ID {
+			fmt.Printf("Old match used: p.Resource.OrgID=%s perm.Resource.OrgID=%s p.Resource.ID=%s",
+				*p.Resource.OrgID, *perm.Resource.OrgID, *p.Resource.ID)
+		}
+	}
+
 	if p.Resource.OrgID != nil && p.Resource.ID == nil {
 		pOrgID := *p.Resource.OrgID
 		if perm.Resource.OrgID != nil {
@@ -239,6 +254,46 @@ func (p Permission) Matches(perm Permission) bool {
 			if pOrgID == permOrgID {
 				return true
 			}
+		}
+	}
+
+	if p.Resource.ID != nil {
+		pID := *p.Resource.ID
+		if perm.Resource.ID != nil {
+			permID := *perm.Resource.ID
+			if pID == permID {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (p Permission) matchesV2(perm Permission) bool {
+	if p.Action != perm.Action {
+		return false
+	}
+
+	if p.Resource.Type != perm.Resource.Type {
+		return false
+	}
+
+	if p.Resource.OrgID == nil && p.Resource.ID == nil {
+		return true
+	}
+
+	if p.Resource.OrgID != nil {
+		if perm.Resource.OrgID != nil {
+			if *p.Resource.OrgID == *perm.Resource.OrgID {
+				if p.Resource.ID == nil {
+					return true
+				}
+				if perm.Resource.ID != nil {
+					return *p.Resource.ID == *perm.Resource.ID
+				}
+			}
+			return false
 		}
 	}
 
