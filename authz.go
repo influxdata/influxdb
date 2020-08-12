@@ -232,13 +232,18 @@ func (p Permission) Matches(perm Permission) bool {
 		return true
 	}
 
-	if p.Resource.OrgID != nil && p.Resource.ID == nil {
-		pOrgID := *p.Resource.OrgID
+	if p.Resource.OrgID != nil {
 		if perm.Resource.OrgID != nil {
-			permOrgID := *perm.Resource.OrgID
-			if pOrgID == permOrgID {
-				return true
+			if *p.Resource.OrgID == *perm.Resource.OrgID {
+				if p.Resource.ID == nil {
+					return true
+				} else {
+					if perm.Resource.ID != nil {
+						return *p.Resource.ID == *perm.Resource.ID
+					}
+				}
 			}
+			return false
 		}
 	}
 
