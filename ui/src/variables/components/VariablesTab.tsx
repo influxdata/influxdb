@@ -13,7 +13,7 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import VariableList from 'src/variables/components/VariableList'
 import Filter from 'src/shared/components/FilterList'
-import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import AddResourceButton from 'src/shared/components/AddResourceButton'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import GetResources from 'src/resources/components/GetResources'
 import {Sort} from '@influxdata/clockface'
@@ -66,7 +66,7 @@ class VariablesTab extends PureComponent<Props, State> {
     )
 
     const rightHeaderItems = (
-      <AddResourceDropdown
+      <AddResourceButton
         resourceName="Variable"
         onSelectNew={this.handleOpenCreateOverlay}
       />
@@ -118,7 +118,7 @@ class VariablesTab extends PureComponent<Props, State> {
           <EmptyState.Text>
             Looks like there aren't any <b>Variables</b>, why not create one?
           </EmptyState.Text>
-          <AddResourceDropdown
+          <AddResourceButton
             resourceName="Variable"
             onSelectNew={this.handleOpenCreateOverlay}
           />

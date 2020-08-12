@@ -3,7 +3,7 @@ import React, {FC} from 'react'
 
 // Components
 import {EmptyState, ComponentSize} from '@influxdata/clockface'
-import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import AddResourceButton from 'src/shared/components/AddResourceButton'
 
 // Actions
 import {createDashboard} from 'src/dashboards/actions/thunks'
@@ -30,7 +30,7 @@ const DashboardsTableEmpty: FC<ComponentProps> = ({
       <EmptyState.Text>
         Looks like you don't have any <b>Dashboards</b>, why not create one?
       </EmptyState.Text>
-      <AddResourceDropdown
+      <AddResourceButton
         onSelectNew={onCreateDashboard}
         resourceName="Dashboard"
       />

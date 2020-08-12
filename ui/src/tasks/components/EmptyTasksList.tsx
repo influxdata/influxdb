@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {EmptyState} from '@influxdata/clockface'
-import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import AddResourceButton from 'src/shared/components/AddResourceButton'
 
 // Types
 import {ComponentSize} from '@influxdata/clockface'
@@ -32,7 +32,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
           <EmptyState.Text>
             Looks like you don't have any <b>Tasks</b>, why not create one?"
           </EmptyState.Text>
-          <AddResourceDropdown onSelectNew={onCreate} resourceName="Task" />
+          <AddResourceButton onSelectNew={onCreate} resourceName="Task" />
         </EmptyState>
       )
     }

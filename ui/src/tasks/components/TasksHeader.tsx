@@ -11,7 +11,7 @@ import {
   FlexBox,
   FlexDirection,
 } from '@influxdata/clockface'
-import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import AddResourceButton from 'src/shared/components/AddResourceButton'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
@@ -88,7 +88,7 @@ export default class TasksHeader extends PureComponent<Props> {
                 onChange={setShowInactive}
               />
             </FlexBox>
-            <AddResourceDropdown
+            <AddResourceButton
               onSelectNew={onCreateTask}
               resourceName="Task"
               limitStatus={limitStatus}

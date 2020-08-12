@@ -81,15 +81,6 @@ class AddResourceButton extends PureComponent<Props> {
 
     const items = [
       <Dropdown.Item
-        id={newOption}
-        key={newOption}
-        onClick={this.handleSelect}
-        value={newOption}
-        testID="add-resource-dropdown--new"
-      >
-        {newOption}
-      </Dropdown.Item>,
-      <Dropdown.Item
         id={importOption}
         key={importOption}
         onClick={this.handleSelect}

@@ -10,7 +10,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Page} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import AddResourceButton from 'src/shared/components/AddResourceButton'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
@@ -76,7 +76,7 @@ class DashboardIndex extends PureComponent<Props, State> {
               />
             </Page.ControlBarLeft>
             <Page.ControlBarRight>
-              <AddResourceDropdown
+              <AddResourceButton
                 onSelectNew={createDashboard}
                 resourceName="Dashboard"
                 limitStatus={limitStatus}
