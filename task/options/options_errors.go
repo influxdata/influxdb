@@ -19,4 +19,5 @@ func ErrTaskInvalidDuration(err error) error {
 
 var (
 	ErrDuplicateIntervalField = fmt.Errorf("cannot use both cron and every in task options")
+	ErrNoTaskOptions          = fmt.Errorf("no task options defined")
 )

@@ -230,7 +230,7 @@ func FromScriptAST(lang FluxLanguageService, script string) (Options, error) {
 	file := fluxAST.Files[0]
 	obj, err := edit.GetOption(file, "task")
 	if err != nil {
-		return opts, err
+		return opts, ErrNoTaskOptions
 	}
 
 	objExpr, ok := obj.(*ast.ObjectExpression)
