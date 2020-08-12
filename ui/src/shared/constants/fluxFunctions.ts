@@ -5,12 +5,36 @@ export const FROM: FluxToolbarFunction = {
   args: [
     {
       name: 'bucket',
-      desc: 'The name of the bucket to query.',
+      desc: 'Name of the bucket to query.',
       type: 'String',
     },
     {
       name: 'bucketID',
-      desc: 'The string-encoded ID of the bucket to query.',
+      desc: 'String-encoded ID of the bucket to query.',
+      type: 'String',
+    },
+    {
+      name: 'host',
+      desc:
+        'URL of the InfluxDB instance to query (only required when querying a different organization or remote InfluxDB instance).',
+      type: 'String',
+    },
+    {
+      name: 'org',
+      desc:
+        'Organization name (only required when querying a different organization or remote InfluxDB instance).',
+      type: 'String',
+    },
+    {
+      name: 'orgID',
+      desc:
+        'String-encoded organization ID (only required when querying a different organization or remote InfluxDB instance).',
+      type: 'String',
+    },
+    {
+      name: 'token',
+      desc:
+        'InfluxDB authentication token (only required when querying a different organization or remote InfluxDB instance).',
       type: 'String',
     },
   ],
@@ -29,12 +53,12 @@ export const RANGE: FluxToolbarFunction = {
     {
       name: 'start',
       desc: 'The earliest time to include in results.',
-      type: 'Duration | Time',
+      type: 'Duration | Time | Integer',
     },
     {
       name: 'stop',
       desc: 'The latest time to include in results. Defaults to `now()`.',
-      type: 'Duration | Time',
+      type: 'Duration | Time | Integer',
     },
   ],
   package: '',
@@ -225,6 +249,24 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/aggregatewindow/',
+  },
+  {
+    name: 'array.from',
+    args: [
+      {
+        name: 'rows',
+        desc:
+          'The Google Cloud IAM token to use to access the Cloud Bigtable database.',
+        type: 'Array of Objects',
+      },
+    ],
+    package: 'experimental/array',
+    desc: 'Constructs a table from an array of objects.',
+    example:
+      'array.from(rows: [{_time: 2020-01-01T00:00:00Z, _value: "foo"},{_time: 2020-01-02T00:00:00Z, _value: "bar"}])',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/array/from/',
   },
   {
     name: 'bigtable.from',
@@ -526,7 +568,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -542,7 +584,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -559,7 +601,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -576,7 +618,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -593,7 +635,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -609,7 +651,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -626,7 +668,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -643,7 +685,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -660,7 +702,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -677,7 +719,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
       {
         name: 'unit',
@@ -700,7 +742,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -717,7 +759,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -734,7 +776,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -750,7 +792,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 't',
         desc: 'The time to operate on.',
-        type: 'Time | Duration | Integer',
+        type: 'Time | Duration',
       },
     ],
     package: 'date',
@@ -1344,12 +1386,6 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Integer',
       },
       {
-        name: 'correlationKey',
-        desc:
-          'List of columns used to uniquely identify a row for output. Default is `["_time"]`.',
-        type: 'Array of Strings',
-      },
-      {
         name: 'strict',
         desc: 'Enable strict geographic data filtering. Default is `true`',
         type: 'Boolean',
@@ -1461,6 +1497,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/s2cellidtoken/',
   },
   {
+    name: 'geo.s2CellLatLon',
+    args: [
+      {
+        name: 'token',
+        desc: 'S2 cell ID token.',
+        type: 'String',
+      },
+    ],
+    package: 'experimental/geo',
+    desc: 'Returns the latitude and longitude of the center of an S2 cell.',
+    example: 'geo.s2CellLatLon(token: "89c284")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/s2celllatlon/',
+  },
+  {
     name: 'geo.shapeData',
     args: [
       {
@@ -1478,12 +1530,6 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc: 'S2 cell level to use when generating the S2 cell ID token.',
         type: 'Integer',
       },
-      {
-        name: 'correlationKey',
-        desc:
-          'List of columns used to uniquely identify a row for output. Default is `["_time"]`.',
-        type: 'Array of Strings',
-      },
     ],
     package: 'experimental/geo',
     desc:
@@ -1493,6 +1539,133 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/shapedata/',
+  },
+  {
+    name: 'geo.ST_Contains',
+    args: [
+      {
+        name: 'region',
+        desc: 'Region to test.',
+        type: 'Object',
+      },
+      {
+        name: 'geometry',
+        desc:
+          'GIS geometry to test. Can be either point or linestring geometry.',
+        type: 'Object',
+      },
+    ],
+    package: 'experimental/geo',
+    desc: 'Tests if the region contains the GIS geometry.',
+    example:
+      'geo.ST_Contains(region: {lat: 40.7, lon: -73.3, radius: 20.0}, geometry: {lon: 39.7515, lat: 15.08433})',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/st_contains/',
+  },
+  {
+    name: 'geo.ST_Distance',
+    args: [
+      {
+        name: 'region',
+        desc: 'Region to test.',
+        type: 'Object',
+      },
+      {
+        name: 'geometry',
+        desc:
+          'GIS geometry to test. Can be either point or linestring geometry.',
+        type: 'Object',
+      },
+    ],
+    package: 'experimental/geo',
+    desc: 'Returns the distance between the regio and GIS geometry.',
+    example:
+      'geo.ST_Distance(region: {lat: 40.7, lon: -73.3, radius: 20.0}, geometry: {lon: 39.7515, lat: 15.08433})',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/st_distance/',
+  },
+  {
+    name: 'geo.ST_DWithin',
+    args: [
+      {
+        name: 'region',
+        desc: 'Region to test.',
+        type: 'Object',
+      },
+      {
+        name: 'geometry',
+        desc:
+          'GIS geometry to test. Can be either point or linestring geometry.',
+        type: 'Object',
+      },
+      {
+        name: 'distance',
+        desc:
+          'Maximum distance allowed between the region and geometry.',
+        type: 'Float',
+      },
+    ],
+    package: 'experimental/geo',
+    desc: 'Tests if a region is within a specified distance from GIS geometry.',
+    example:
+      'geo.ST_DWithin(region: {lat: 40.7, lon: -73.3, radius: 20.0}, geometry: {lon: 39.7515, lat: 15.08433}, distance: 1000.0)',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/st_dwithin/',
+  },
+  {
+    name: 'geo.ST_Intersects',
+    args: [
+      {
+        name: 'region',
+        desc: 'Region to test.',
+        type: 'Object',
+      },
+      {
+        name: 'geometry',
+        desc:
+          'GIS geometry to test. Can be either point or linestring geometry.',
+        type: 'Object',
+      },
+    ],
+    package: 'experimental/geo',
+    desc: 'Tests if a region intersects with GIS geometry.',
+    example:
+      'geo.ST_Intersects(region: {lat: 40.7, lon: -73.3, radius: 20.0}, geometry: {linestring: "39.7515 14.01433, 38.3527 13.9228, 36.9978 15.08433"})',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/st_intersects/',
+  },
+  {
+    name: 'geo.ST_Length',
+    args: [
+      {
+        name: 'geometry',
+        desc:
+          'GIS geometry to test. Can be either point or linestring geometry.',
+        type: 'Object',
+      },
+    ],
+    package: 'experimental/geo',
+    desc: 'Returns the spherical length of GIS geometry.',
+    example:
+      'geo.ST_Length(geometry: {linestring: "39.7515 14.01433, 38.3527 13.9228, 36.9978 15.08433"})',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/st_length/',
+  },
+  {
+    name: 'geo.ST_LineString',
+    args: [],
+    package: 'experimental/geo',
+    desc: 'Converts a series of geographic points into linestring',
+    example:
+      'geo.ST_LineString()',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/st_linestring/',
   },
   {
     name: 'geo.strictFilter',
@@ -1513,14 +1686,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   },
   {
     name: 'geo.toRows',
-    args: [
-      {
-        name: 'correlationKey',
-        desc:
-          'List of columns used to uniquely identify a row for output. Default is `["_time"]`.',
-        type: 'Array of Strings',
-      },
-    ],
+    args: [],
     package: 'experimental/geo',
     desc:
       'Pivots geo-temporal data into row-wise sets based on time and other correlation columns.',
@@ -2092,12 +2258,6 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc:
           'A list of columns from which values are extracted. All columns indicated must be of the same type.',
         type: 'Array of Strings',
-      },
-      {
-        name: 'fn',
-        desc:
-          'Function used to identify a set of columns. All columns indicated must be of the same type.',
-        type: 'Function',
       },
     ],
     package: '',
@@ -3644,12 +3804,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'start',
         desc: 'The earliest time to include in results.',
-        type: 'Duration | Time',
+        type: 'Duration | Time | Integer',
       },
       {
         name: 'stop',
         desc: 'The latest time to include in results. Defaults to `now()`.',
-        type: 'Duration | Time',
+        type: 'Duration | Time | Integer',
       },
     ],
     package: 'experimental/query',
@@ -3671,12 +3831,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'start',
         desc: 'The earliest time to include in results.',
-        type: 'Duration | Time',
+        type: 'Duration | Time | Integer',
       },
       {
         name: 'stop',
         desc: 'The latest time to include in results. Defaults to `now()`.',
-        type: 'Duration | Time',
+        type: 'Duration | Time | Integer',
       },
       {
         name: 'measurement',
