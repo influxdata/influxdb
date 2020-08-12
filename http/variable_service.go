@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
@@ -483,6 +484,7 @@ func (s *VariableService) FindVariables(ctx context.Context, filter influxdb.Var
 
 // CreateVariable creates a new variable and assigns it an influxdb.ID
 func (s *VariableService) CreateVariable(ctx context.Context, m *influxdb.Variable) error {
+	m.Name = strings.TrimSpace(m.Name)
 	if err := m.Valid(); err != nil {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
