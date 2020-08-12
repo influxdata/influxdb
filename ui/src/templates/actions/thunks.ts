@@ -2,7 +2,6 @@
 import {fetchStacks} from 'src/templates/api'
 
 // Actions
-import {Action as NotifyAction} from 'src/shared/actions/notifications'
 import {
   setStacks,
   Action as TemplateAction,
@@ -11,7 +10,7 @@ import {
 // Types
 import {Dispatch} from 'react'
 
-type Action = TemplateAction | NotifyAction
+type Action = TemplateAction
 
 export const fetchAndSetStacks = (orgID: string) => async (
   dispatch: Dispatch<Action>
