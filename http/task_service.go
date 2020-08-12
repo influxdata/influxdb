@@ -993,7 +993,7 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 		req.filter.After = afterID
 	}
 
-	if limit := qp.Get("limit"); limit != "0" {
+	if limit := qp.Get("limit"); limit != "" && limit != "0" {
 		i, err := strconv.Atoi(limit)
 		if err != nil {
 			return nil, err
@@ -1574,7 +1574,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 		params = append(params, [2]string{"beforeTime", filter.BeforeTime})
 	}
 
-	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize { //possible area of error
+	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
 		return nil, 0, influxdb.ErrOutOfBoundsLimit
 	}
 
@@ -1590,65 +1590,95 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 		return nil, 0, err
 	}
 
-	//handles usage of after and before time flags to filter runs output
-	if filter.BeforeTime != "" || filter.AfterTime != "" {
-		var timeStampBefore time.Time
+	// //handles usage of after and before time flags to filter runs output
+	// if filter.BeforeTime != "" || filter.AfterTime != "" {
+	// 	var timeStampBefore time.Time
+	// 	var err error
+	// 	if filter.BeforeTime != "" {
+	// 		timeStampBefore, err = time.Parse(time.RFC3339, filter.BeforeTime)
+	// 		if err != nil {
+	// 			return nil, 0, err
+	// 		}
+	// 	}
+
+	// 	var timeStampAfter time.Time
+	// 	if filter.AfterTime != "" {
+	// 		timeStampAfter, err = time.Parse(time.RFC3339, filter.AfterTime)
+	// 		if err != nil {
+	// 			return nil, 0, err
+	// 		}
+	// 	}
+
+	// 	var flagRuns []*influxdb.Run //potentially dangerous bc dynamic allocation as slice grows in run-time (consider refactor here)
+	// 	var run httpRun
+	// 	var temp time.Time
+	// 	if filter.BeforeTime != "" && filter.AfterTime != "" {
+	// 		for j := range rs.Runs {
+	// 			run = rs.Runs[j].httpRun
+	// 			temp = *run.ScheduledFor
+	// 			if (timeStampAfter.Before(temp)) && (temp.Before(timeStampBefore)) {
+	// 				flagRuns = append(flagRuns, convertRun(run))
+	// 			}
+	// 		}
+	// 	} else if filter.BeforeTime != "" {
+	// 		for j := range rs.Runs {
+	// 			run = rs.Runs[j].httpRun
+	// 			temp = *run.ScheduledFor
+	// 			if temp.Before(timeStampBefore) {
+	// 				flagRuns = append(flagRuns, convertRun(run))
+	// 			}
+	// 		}
+	// 	} else if filter.AfterTime != "" {
+	// 		for j := range rs.Runs {
+	// 			run = rs.Runs[j].httpRun
+	// 			temp = *run.ScheduledFor
+	// 			if timeStampAfter.Before(temp) {
+	// 				flagRuns = append(flagRuns, convertRun(run))
+	// 			}
+	// 		}
+	// 	} else {
+	// 		return nil, 0, errors.New("error finding task runs")
+	// 	}
+
+	// 	return flagRuns, len(flagRuns), nil
+	// }
+
+	// runs := make([]*influxdb.Run, len(rs.Runs))
+	// for i := range rs.Runs {
+	// 	runs[i] = convertRun(rs.Runs[i].httpRun)
+	// }
+
+	var flagRuns []*influxdb.Run
+
+	var before time.Time
+	if filter.BeforeTime != "" {
 		var err error
-		if filter.BeforeTime != "" {
-			timeStampBefore, err = time.Parse(time.RFC3339, filter.BeforeTime)
-			if err != nil {
-				return nil, 0, err
-			}
+		before, err = time.Parse(time.RFC3339, filter.BeforeTime)
+		if err != nil {
+			return nil, 0, err
 		}
-
-		var timeStampAfter time.Time
-		if filter.AfterTime != "" {
-			timeStampAfter, err = time.Parse(time.RFC3339, filter.AfterTime)
-			if err != nil {
-				return nil, 0, err
-			}
-		}
-
-		var flagRuns []*influxdb.Run //potentially dangerous bc dynamic allocation as slice grows in run-time (consider refactor here)
-		var run httpRun
-		var temp time.Time
-		if filter.BeforeTime != "" && filter.AfterTime != "" {
-			for j := range rs.Runs {
-				run = rs.Runs[j].httpRun
-				temp = *run.ScheduledFor
-				if (timeStampAfter.Before(temp)) && (temp.Before(timeStampBefore)) {
-					flagRuns = append(flagRuns, convertRun(run))
-				}
-			}
-		} else if filter.BeforeTime != "" {
-			for j := range rs.Runs {
-				run = rs.Runs[j].httpRun
-				temp = *run.ScheduledFor
-				if temp.Before(timeStampBefore) {
-					flagRuns = append(flagRuns, convertRun(run))
-				}
-			}
-		} else if filter.AfterTime != "" {
-			for j := range rs.Runs {
-				run = rs.Runs[j].httpRun
-				temp = *run.ScheduledFor
-				if timeStampAfter.Before(temp) {
-					flagRuns = append(flagRuns, convertRun(run))
-				}
-			}
-		} else {
-			return nil, 0, errors.New("error finding task runs")
-		}
-
-		return flagRuns, len(flagRuns), nil
 	}
 
-	runs := make([]*influxdb.Run, len(rs.Runs))
-	for i := range rs.Runs {
-		runs[i] = convertRun(rs.Runs[i].httpRun)
+	var after time.Time
+	if filter.AfterTime != "" {
+		var err error
+		after, err = time.Parse(time.RFC3339, filter.AfterTime)
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 
-	return runs, len(runs), nil
+	between := func(scheduled time.Time) bool {
+		return (after.IsZero() || after.Before(scheduled)) && (before.IsZero() || scheduled.Before(before))
+	}
+
+	for j := range rs.Runs {
+		if run := rs.Runs[j].httpRun; between(*run.ScheduledFor) {
+			flagRuns = append(flagRuns, convertRun(run))
+		}
+	}
+
+	return flagRuns, len(flagRuns), nil
 }
 
 // FindRunByID returns a single run of a specific task.
