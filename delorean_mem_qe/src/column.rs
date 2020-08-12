@@ -66,8 +66,8 @@ impl<'a> std::ops::Add<&Aggregate<'a>> for Aggregate<'a> {
 
 pub enum Vector<'a> {
     String(Vec<&'a Option<std::string::String>>),
-    Float(Vec<&'a f64>),
-    Integer(Vec<&'a i64>),
+    Float(Vec<f64>),
+    Integer(Vec<i64>),
 }
 
 impl<'a> Vector<'a> {
@@ -117,7 +117,7 @@ impl<'a> std::fmt::Display for Vector<'a> {
             Self::String(v) => write!(f, "{:?}", v),
             Self::Float(v) => write!(f, "{:?}", v),
             Self::Integer(v) => {
-                for x in v {
+                for x in v.iter() {
                     let ts = NaiveDateTime::from_timestamp(*x / 1000 / 1000, 0);
                     write!(f, "{}, ", ts)?;
                 }
@@ -153,6 +153,8 @@ impl Column {
         }
     }
 
+    /// Materialise all of the decoded values matching the provided logical
+    /// row ids.
     pub fn value(&self, row_id: usize) -> Option<Scalar> {
         match self {
             Column::String(c) => {
@@ -180,18 +182,50 @@ impl Column {
         }
     }
 
+    /// Materialise all of the encoded values matching the provided logical
+    /// row ids.
+    pub fn encoded_values(&self, row_ids: &croaring::Bitmap) -> Vector {
+        match self {
+            Column::String(c) => {
+                if row_ids.is_empty() {
+                    return Vector::Integer(vec![]);
+                }
+
+                let row_id_vec = row_ids.to_vec();
+                Vector::Integer(c.encoded_values(&row_id_vec))
+            }
+            Column::Float(c) => {
+                if row_ids.is_empty() {
+                    return Vector::Float(vec![]);
+                }
+
+                let row_id_vec = row_ids.to_vec();
+                Vector::Float(c.encoded_values(&row_id_vec))
+            }
+            Column::Integer(c) => {
+                if row_ids.is_empty() {
+                    return Vector::Integer(vec![]);
+                }
+
+                let row_id_vec = row_ids.to_vec();
+                Vector::Integer(c.encoded_values(&row_id_vec))
+            }
+        }
+    }
+
     /// materialise rows for each row_id
-    pub fn rows(&self, row_ids: &[usize]) -> Vector {
+    pub fn rows(&self, row_ids: &croaring::Bitmap) -> Vector {
+        let row_ids_vec = row_ids.to_vec();
         assert!(
-            row_ids.len() == 1 || row_ids[row_ids.len() - 1] > row_ids[0],
+            row_ids_vec.len() == 1 || row_ids_vec[row_ids_vec.len() - 1] > row_ids_vec[0],
             "got last row_id={:?} and first row_id={:?}",
-            row_ids[row_ids.len() - 1],
-            row_ids[0]
+            row_ids_vec[row_ids_vec.len() - 1],
+            row_ids_vec[0]
         );
         match self {
-            Column::String(c) => Vector::String(c.values(row_ids)),
-            Column::Float(c) => Vector::Float(c.values(row_ids)),
-            Column::Integer(c) => Vector::Integer(c.values(row_ids)),
+            Column::String(c) => Vector::String(c.values(&row_ids_vec)),
+            Column::Float(c) => Vector::Float(c.values(&row_ids_vec)),
+            Column::Integer(c) => Vector::Integer(c.values(&row_ids_vec)),
         }
     }
 
@@ -555,8 +589,12 @@ impl String {
         self.data.value(row_id)
     }
 
-    pub fn values(&self, row_ids: &[usize]) -> Vec<&Option<std::string::String>> {
+    pub fn values(&self, row_ids: &[u32]) -> Vec<&Option<std::string::String>> {
         self.data.values(row_ids)
+    }
+
+    pub fn encoded_values(&self, row_ids: &[u32]) -> Vec<i64> {
+        self.data.encoded_values(row_ids)
     }
 
     pub fn scan_from(&self, row_id: usize) -> Vec<&Option<std::string::String>> {
@@ -597,8 +635,12 @@ impl Float {
         self.data.value(row_id)
     }
 
-    pub fn values(&self, row_ids: &[usize]) -> Vec<&f64> {
+    pub fn values(&self, row_ids: &[u32]) -> Vec<f64> {
         self.data.values(row_ids)
+    }
+
+    pub fn encoded_values(&self, row_ids: &[u32]) -> Vec<f64> {
+        self.data.encoded_values(row_ids)
     }
 
     pub fn scan_from(&self, row_id: usize) -> &[f64] {
@@ -654,8 +696,12 @@ impl Integer {
         self.data.value(row_id)
     }
 
-    pub fn values(&self, row_ids: &[usize]) -> Vec<&i64> {
+    pub fn values(&self, row_ids: &[u32]) -> Vec<i64> {
         self.data.values(row_ids)
+    }
+
+    pub fn encoded_values(&self, row_ids: &[u32]) -> Vec<i64> {
+        self.data.encoded_values(row_ids)
     }
 
     pub fn scan_from(&self, row_id: usize) -> &[i64] {

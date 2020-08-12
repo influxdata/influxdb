@@ -157,12 +157,12 @@ fn build_store(
     mut reader: arrow::ipc::reader::StreamReader<File>,
     store: &mut Store,
 ) -> Result<(), Error> {
-    // let mut i = 0;
+    let mut i = 0;
     while let Some(rb) = reader.next_batch().unwrap() {
-        // if i < 363 {
-        //     i += 1;
-        //     continue;
-        // }
+        if i < 364 {
+            i += 1;
+            continue;
+        }
         let segment = convert_record_batch(rb)?;
         store.add_segment(segment);
     }
@@ -391,7 +391,7 @@ fn time_group_by_agg(store: &Store) {
         let groups = segments.read_group_eq(
             (0, 1590044410000000),
             &[("method", Some(&column::Scalar::String("GET")))],
-            vec!["env".to_string()],
+            vec!["env".to_string(), "status".to_string()],
             vec![
                 ("counter".to_string(), Aggregate::Sum),
                 // ("counter".to_string(), Aggregate::Count),

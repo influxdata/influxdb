@@ -43,12 +43,19 @@ where
         self.values[row_id]
     }
 
-    pub fn values(&self, row_ids: &[usize]) -> Vec<&T> {
+    /// Return the decoded values for the provided logical row ids.
+    pub fn values(&self, row_ids: &[u32]) -> Vec<T> {
         let mut out = Vec::with_capacity(row_ids.len());
         for row_id in row_ids {
-            out.push(&self.values[*row_id]);
+            out.push(self.values[*row_id as usize]);
         }
         out
+    }
+
+    /// Return the raw encoded values for the provided logical row ids. For Plain
+    /// encoding this is just the decoded values.
+    pub fn encoded_values(&self, row_ids: &[u32]) -> Vec<T> {
+        self.values(row_ids)
     }
 
     // TODO(edd): fix this when added NULL support
@@ -400,9 +407,9 @@ impl DictionaryRLE {
         None
     }
 
-    // materialises a vector of references to logical values in the
-    // encoding for each provided row_id.
-    pub fn values(&self, row_ids: &[usize]) -> Vec<&Option<String>> {
+    // materialises a vector of references to the decoded values in the
+    // each provided row_id.
+    pub fn values(&self, row_ids: &[u32]) -> Vec<&Option<String>> {
         let mut out: Vec<&Option<String>> = Vec::with_capacity(row_ids.len());
 
         let mut curr_logical_row_id = 0;
@@ -427,6 +434,42 @@ impl DictionaryRLE {
             // this encoded entry covers the row_id we want.
             let value = self.index_entry.get(&curr_entry_id).unwrap();
             out.push(value);
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+
+        assert_eq!(row_ids.len(), out.len());
+        out
+    }
+
+    /// Return the raw encoded values for the provided logical row ids.
+    ///
+    /// TODO(edd): return type is wrong but I'm making it fit
+    ///
+    pub fn encoded_values(&self, row_ids: &[u32]) -> Vec<i64> {
+        let mut out: Vec<i64> = Vec::with_capacity(row_ids.len());
+
+        let mut curr_logical_row_id = 0;
+
+        let mut run_lengths_iter = self.run_lengths.iter();
+        let (mut curr_entry_id, mut curr_entry_rl) = run_lengths_iter.next().unwrap();
+
+        for wanted_row_id in row_ids {
+            while curr_logical_row_id + curr_entry_rl <= *wanted_row_id as u64 {
+                // this encoded entry does not cover the row we need.
+                // move on to next entry
+                curr_logical_row_id += curr_entry_rl;
+                match run_lengths_iter.next() {
+                    Some(res) => {
+                        curr_entry_id = res.0;
+                        curr_entry_rl = res.1;
+                    }
+                    None => panic!("shouldn't get here"),
+                }
+            }
+
+            // this entry covers the row_id we want.
+            out.push(curr_entry_id as i64);
             curr_logical_row_id += 1;
             curr_entry_rl -= 1;
         }
@@ -727,6 +770,41 @@ mod test {
 
         let results = drle.values(&[0, 9]);
         let exp = vec![&west, &west];
+        assert_eq!(results, exp);
+    }
+
+    #[test]
+    fn dict_rle_encoded_values() {
+        let mut drle = super::DictionaryRLE::new();
+        let west = Some("west".to_string());
+        let east = Some("east".to_string());
+        let north = Some("north".to_string());
+        drle.push_additional(west.clone(), 3);
+        drle.push_additional(east.clone(), 2);
+        drle.push_additional(north.clone(), 4);
+        drle.push_additional(west.clone(), 3);
+
+        let results = drle.encoded_values(&[0, 1, 4, 5]);
+
+        // w,w,w,e,e,n,n,n,n,w,w,w
+        // 0,0,0,1,1,2,2,2,2,0,0,0
+        let exp = vec![0, 0, 1, 2];
+        assert_eq!(results, exp);
+
+        let results = drle.encoded_values(&[10, 11]);
+        let exp = vec![0, 0];
+        assert_eq!(results, exp);
+
+        let results = drle.encoded_values(&[0, 3, 5, 11]);
+        let exp = vec![0, 1, 2, 0];
+        assert_eq!(results, exp);
+
+        let results = drle.encoded_values(&[0]);
+        let exp = vec![0];
+        assert_eq!(results, exp);
+
+        let results = drle.encoded_values(&[0, 9]);
+        let exp = vec![0, 0];
         assert_eq!(results, exp);
     }
 

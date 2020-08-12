@@ -103,12 +103,15 @@ impl Segment {
         None
     }
 
-    // Materialise all rows for each desired column. `rows` expects `row_ids` to
-    // be ordered in ascending order.
+    // Materialise all rows for each desired column.
     //
     // `columns` determines which column values are returned. An empty `columns`
     // value will result in rows for all columns being returned.
-    pub fn rows(&self, row_ids: &[usize], columns: &[String]) -> BTreeMap<String, column::Vector> {
+    pub fn rows(
+        &self,
+        row_ids: &croaring::Bitmap,
+        columns: &[String],
+    ) -> BTreeMap<String, column::Vector> {
         let mut rows: BTreeMap<String, column::Vector> = BTreeMap::new();
         if row_ids.is_empty() {
             // nothing to return
@@ -139,6 +142,37 @@ impl Segment {
             return Some(c.group_by_ids());
         }
         None
+    }
+
+    pub fn aggregate_by_groups(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, Option<&column::Scalar>)],
+        group_columns: Vec<String>,
+        aggregates: &Vec<(String, Aggregate)>,
+    ) -> BTreeMap<Vec<String>, Vec<(String, Aggregate)>> {
+        // Build a hash table - essentially, scan columns for matching row ids,
+        // emitting the encoded value for each column and track those value
+        // combinations in a hashmap with running aggregates.
+
+        // filter on predicates and time
+        let filtered_row_ids: croaring::Bitmap;
+        if let Some(row_ids) = self.filter_by_predicates_eq(time_range, predicates) {
+            filtered_row_ids = row_ids;
+        } else {
+            return BTreeMap::new();
+        }
+
+        // materialise all encoded values for the matching rows.
+        // let mut column_encoded_values = Vec::with_capacity(group_columns.len());
+        for group_column in group_columns {
+            // if let Some(column) = self.column(&group_column) {
+            //     column_encoded_values.push(Some(column.encoded_values(&filtered_row_ids));
+            // } else {
+            //     column_encoded_values.push(None);
+            // }
+        }
+        BTreeMap::new()
     }
 
     pub fn sum_column(&self, name: &str, row_ids: &mut croaring::Bitmap) -> Option<column::Scalar> {
@@ -416,10 +450,7 @@ impl<'a> Segments<'a> {
                 continue; // segment doesn't have time range
             }
             if let Some(bm) = segment.filter_by_predicates_eq(time_range, predicates) {
-                let bm_vec = bm.to_vec();
-                let row_ids = bm_vec.iter().map(|v| *v as usize).collect::<Vec<usize>>();
-
-                let rows = segment.rows(&row_ids, &select_columns);
+                let rows = segment.rows(&bm, &select_columns);
                 for (k, v) in rows {
                     let segment_values = columns.get_mut(&k);
                     match segment_values {
