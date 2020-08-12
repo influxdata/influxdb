@@ -91,7 +91,7 @@ pub enum RequestError {
     /// returned an error.
     #[snafu(display("Error while serializing to JSON: {}", source))]
     Serializing {
-        /// The underlynig error object from `serde_json`.
+        /// The underlying error object from `serde_json`.
         source: serde_json::error::Error,
     },
 }
