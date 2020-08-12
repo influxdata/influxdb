@@ -325,16 +325,16 @@ describe('Buckets', () => {
 
       // When a file is larger than 10MB
       const bigFile = 'data-big.txt'
-      cy.fixture(bigFile, 'base64')
-        .then(Cypress.Blob.base64StringToBlob)
-        .then(blob => {
-          const type = 'plain/text'
-          const testFile = new File([blob], bigFile, {type})
-          const event = {dataTransfer: {files: [testFile]}, force: true}
-          cy.getByTestID('drag-and-drop--input')
-            .trigger('dragover', event)
-            .trigger('drop', event)
-        })
+      const type = 'plain/text'
+      const testFile = new File(
+        ['a'.repeat(1e7) + 'just a bit over 10mb'],
+        bigFile,
+        {type}
+      )
+      const event = {dataTransfer: {files: [testFile]}, force: true}
+      cy.getByTestID('drag-and-drop--input')
+        .trigger('dragover', event)
+        .trigger('drop', event)
 
       cy.getByTestID('dnd--header-error').contains(bigFile)
       cy.getByTestID('cancel-upload--button').click()
