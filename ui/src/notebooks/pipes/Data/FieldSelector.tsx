@@ -29,10 +29,12 @@ const FieldSelector: FC<Props> = ({schema}) => {
   const updateSelection = useCallback(
     (value: string): void => {
       let updated = value
+      let selectedTags = data?.tags
       if (updated === selectedField) {
         updated = ''
+        selectedTags = {}
       }
-      update({field: updated})
+      update({field: updated, tags: selectedTags})
     },
     [update]
   )
