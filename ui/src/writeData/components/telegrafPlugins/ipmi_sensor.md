@@ -1,7 +1,7 @@
 # IPMI Sensor Input Plugin
 
 Get bare metal metrics using the command line utility
-[`ipmitool`](https://sourceforge.net/projects/ipmitool/files/ipmitool/).
+[`ipmitool`](https://github.com/ipmitool/ipmitool).
 
 If no servers are specified, the plugin will query the local machine sensor stats via the following command:
 

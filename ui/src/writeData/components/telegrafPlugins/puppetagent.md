@@ -4,7 +4,7 @@
 
 The puppetagent plugin collects variables outputted from the 'last_run_summary.yaml' file
 usually located in `/var/lib/puppet/state/`
-[PuppetAgent Runs](https://puppetlabs.com/blog/puppet-monitoring-how-to-monitor-the-success-or-failure-of-puppet-runs).
+[PuppetAgent Runs](https://puppet.com/blog/puppet-monitoring-how-to-monitor-success-or-failure-of-puppet-runs/).
 
 ```
 cat /var/lib/puppet/state/last_run_summary.yaml
