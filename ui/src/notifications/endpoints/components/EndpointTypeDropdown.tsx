@@ -22,6 +22,9 @@ function isFlaggedOn(type: string) {
   if (type === 'telegram') {
     return isFlagEnabled('notification-endpoint-telegram')
   }
+  if (type === 'teams') {
+    return isFlagEnabled('notification-endpoint-teams')
+  }
   return true
 }
 
