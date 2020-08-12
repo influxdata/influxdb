@@ -1578,7 +1578,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'experimental/geo',
-    desc: 'Returns the distance between the regio and GIS geometry.',
+    desc: 'Returns the distance between the region and GIS geometry.',
     example:
       'geo.ST_Distance(region: {lat: 40.7, lon: -73.3, radius: 20.0}, geometry: {lon: 39.7515, lat: 15.08433})',
     category: 'Transformations',
@@ -1601,8 +1601,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'distance',
-        desc:
-          'Maximum distance allowed between the region and geometry.',
+        desc: 'Maximum distance allowed between the region and geometry.',
         type: 'Float',
       },
     ],
@@ -1660,8 +1659,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [],
     package: 'experimental/geo',
     desc: 'Converts a series of geographic points into linestring',
-    example:
-      'geo.ST_LineString()',
+    example: 'geo.ST_LineString()',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/st_linestring/',
