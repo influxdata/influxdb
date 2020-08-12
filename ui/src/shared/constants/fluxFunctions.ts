@@ -196,7 +196,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'unit',
         desc:
           'Time duration to use when calculating the rate. Defaults to `1s`.',
-        type: 'Array of Strings',
+        type: 'Duration',
       },
     ],
     package: 'experimental/aggregate',
