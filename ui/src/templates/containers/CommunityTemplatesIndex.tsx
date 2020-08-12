@@ -22,8 +22,6 @@ import {
   Heading,
   HeadingElement,
   Input,
-  LinkButton,
-  LinkTarget,
   Page,
   Panel,
   FlexDirection,
