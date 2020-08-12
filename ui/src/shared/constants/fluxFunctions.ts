@@ -255,8 +255,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'rows',
-        desc:
-          'The Google Cloud IAM token to use to access the Cloud Bigtable database.',
+        desc: 'Array of records to construct a table with.',
         type: 'Array of Objects',
       },
     ],
