@@ -41,7 +41,7 @@ func (s *UserResourceMappingClient) FindUserResourceMappings(ctx context.Context
 		urs[k] = &influxdb.UserResourceMapping{
 			ResourceID:   f.ResourceID,
 			ResourceType: f.ResourceType,
-			UserID:       item.ID,
+			UserID:       item.User.ID,
 			UserType:     item.Role,
 		}
 	}
@@ -90,7 +90,7 @@ func (s *SpecificURMSvc) FindUserResourceMappings(ctx context.Context, f influxd
 		urs[k] = &influxdb.UserResourceMapping{
 			ResourceID:   f.ResourceID,
 			ResourceType: f.ResourceType,
-			UserID:       item.ID,
+			UserID:       item.User.ID,
 			UserType:     item.Role,
 		}
 	}
