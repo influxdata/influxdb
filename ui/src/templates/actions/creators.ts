@@ -18,7 +18,7 @@ export type Action =
   | ReturnType<typeof removeStack>
 
 // Action Creators
-export const setCommunityTemplateToInstall = (template: CommunityTemplate) =>
+export const setStagedCommunityTemplate = (template: CommunityTemplate) =>
   ({
     type: SET_STAGED_TEMPLATE,
     template,
