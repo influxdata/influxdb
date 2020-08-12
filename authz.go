@@ -219,9 +219,15 @@ type Permission struct {
 	Resource Resource `json:"resource"`
 }
 
+var newMatchBehavior bool
+
+func init() {
+	_, newMatchBehavior = os.LookupEnv("MATCHER_BEHAVIOR")
+}
+
 // Matches returns whether or not one permission matches the other.
 func (p Permission) Matches(perm Permission) bool {
-	if _, set := os.LookupEnv("MATCHER_BEHAVIOR"); set {
+	if newMatchBehavior {
 		return p.matchesV2(perm)
 	}
 	return p.matchesV1(perm)
