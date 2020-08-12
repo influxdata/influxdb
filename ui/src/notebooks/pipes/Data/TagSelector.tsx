@@ -100,7 +100,7 @@ const TagSelector: FC<Props> = ({schema}) => {
             if (tagName.includes(searchTerm)) {
               return true
             }
-            return values.some(val => val.includes(searchTerm))
+            return values?.some(val => val.includes(searchTerm))
           })
           .map(([tagName, tagValues]) => {
             const values = tagValues as any[]
@@ -120,12 +120,11 @@ const TagSelector: FC<Props> = ({schema}) => {
                 </List.Item>
                 <div className="data-subset--list">
                   {values
-                    .filter(([tagName, tagValues]) => {
-                      const values = tagValues as any[]
+                    .filter(val => {
                       if (tagName.includes(searchTerm)) {
                         return true
                       }
-                      return values.some(val => val.includes(searchTerm))
+                      return val.includes(searchTerm)
                     })
                     .map(val => (
                       <List.Item
