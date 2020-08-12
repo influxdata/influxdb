@@ -106,7 +106,7 @@ pub enum ApplicationError {
     #[snafu(display("Invalid request body '{}': {}", request_body, source))]
     InvalidRequestBody {
         request_body: String,
-        source: serde_urlencoded::de::Error,
+        source: serde_json::error::Error,
     },
 
     #[snafu(display("Invalid duration '{}': {}", duration, source))]
@@ -362,7 +362,9 @@ async fn ping(req: hyper::Request<Body>) -> Result<Option<Body>, ApplicationErro
 
 #[derive(Deserialize, Debug)]
 struct CreateBucketInfo {
+    #[serde(rename = "orgID")]
     org: Id,
+    #[serde(rename = "name")]
     bucket: Id,
 }
 
@@ -376,7 +378,7 @@ async fn create_bucket(
     let request_body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
 
     let create_bucket_info: CreateBucketInfo =
-        serde_urlencoded::from_str(request_body).context(InvalidRequestBody { request_body })?;
+        serde_json::from_str(request_body).context(InvalidRequestBody { request_body })?;
 
     let org = create_bucket_info.org;
     let bucket_name = create_bucket_info.bucket.to_string();
@@ -409,7 +411,7 @@ pub async fn service(
         (&Method::POST, "/api/v2/write") => write(req, app).await,
         (&Method::GET, "/ping") => ping(req).await,
         (&Method::GET, "/api/v2/read") => read(req, app).await,
-        (&Method::POST, "/api/v2/create_bucket") => create_bucket(req, app).await,
+        (&Method::POST, "/api/v2/buckets") => create_bucket(req, app).await,
         _ => Err(ApplicationError::RouteNotFound {
             method: method.clone(),
             path: uri.to_string(),
