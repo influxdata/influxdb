@@ -16,7 +16,13 @@ interface EndpointType {
   id: NotificationEndpointType
   type: NotificationEndpointType
   name: string
-  flag?: string // feature flag that enable/disable endpoint type
+}
+
+function isFlaggedOn(type: string) {
+  if (type === 'telegram') {
+    return isFlagEnabled('notification-endpoint-telegram')
+  }
+  return true
 }
 
 interface StateProps {
@@ -34,12 +40,7 @@ const types: EndpointType[] = [
   {name: 'HTTP', type: 'http', id: 'http'},
   {name: 'Slack', type: 'slack', id: 'slack'},
   {name: 'Pagerduty', type: 'pagerduty', id: 'pagerduty'},
-  {
-    name: 'Telegram',
-    type: 'telegram',
-    id: 'telegram',
-    flag: 'notification-endpoint-telegram',
-  },
+  {name: 'Telegram', type: 'telegram', id: 'telegram'},
 ]
 
 const EndpointTypeDropdown: FC<Props> = ({
@@ -48,10 +49,7 @@ const EndpointTypeDropdown: FC<Props> = ({
   blockedEndpoints,
 }) => {
   const items = types
-    .filter(
-      ({type, flag}) =>
-        !blockedEndpoints.includes(type) && (!flag || isFlagEnabled(flag))
-    )
+    .filter(({type}) => !blockedEndpoints.includes(type) && isFlaggedOn(type))
     .map(({id, type, name}) => (
       <Dropdown.Item
         key={id}
