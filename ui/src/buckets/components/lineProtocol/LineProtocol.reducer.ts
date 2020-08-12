@@ -1,5 +1,4 @@
-import {RemoteDataState} from 'src/types'
-import {WritePrecision} from '@influxdata/influx'
+import {RemoteDataState, WritePrecision} from 'src/types'
 import {produce} from 'immer'
 
 import {
