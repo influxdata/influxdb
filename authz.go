@@ -240,13 +240,6 @@ func (p Permission) matchesV1(perm Permission) bool {
 		return true
 	}
 
-	if p.Resource.OrgID != nil && perm.Resource.OrgID != nil && p.Resource.ID != nil && perm.Resource.ID != nil {
-		if *p.Resource.OrgID != *perm.Resource.OrgID && *p.Resource.ID == *perm.Resource.ID {
-			fmt.Printf("Old match used: p.Resource.OrgID=%s perm.Resource.OrgID=%s p.Resource.ID=%s",
-				*p.Resource.OrgID, *perm.Resource.OrgID, *p.Resource.ID)
-		}
-	}
-
 	if p.Resource.OrgID != nil && p.Resource.ID == nil {
 		pOrgID := *p.Resource.OrgID
 		if perm.Resource.OrgID != nil {
