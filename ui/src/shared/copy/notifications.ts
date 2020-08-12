@@ -375,36 +375,6 @@ export const createResourceFromTemplateFailed = (
   message: `Failed to create from template: ${error}`,
 })
 
-export const updateTemplateSucceeded = (): Notification => ({
-  ...defaultSuccessNotification,
-  message: `Successfully updated template.`,
-})
-
-export const updateTemplateFailed = (error: string): Notification => ({
-  ...defaultErrorNotification,
-  message: `Failed to update template: ${error}`,
-})
-
-export const deleteTemplateFailed = (error: string): Notification => ({
-  ...defaultErrorNotification,
-  message: `Failed to delete template: ${error}`,
-})
-
-export const deleteTemplateSuccess = (): Notification => ({
-  ...defaultSuccessNotification,
-  message: 'Template was deleted successfully',
-})
-
-export const cloneTemplateFailed = (error: string): Notification => ({
-  ...defaultErrorNotification,
-  message: `Failed to clone template: ${error}`,
-})
-
-export const cloneTemplateSuccess = (): Notification => ({
-  ...defaultSuccessNotification,
-  message: 'Template cloned successfully',
-})
-
 export const resourceSavedAsTemplate = (
   resourceName: string
 ): Notification => ({

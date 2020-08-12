@@ -6,7 +6,6 @@ import {push} from 'connected-react-router'
 // APIs
 import * as dashAPI from 'src/dashboards/apis'
 import * as api from 'src/client'
-import * as tempAPI from 'src/templates/api'
 import {createCellWithView} from 'src/cells/actions/thunks'
 
 // Schemas
@@ -29,7 +28,6 @@ import {
   updateTimeRangeFromQueryParams,
 } from 'src/dashboards/actions/ranges'
 import {getVariables, hydrateVariables} from 'src/variables/actions/thunks'
-import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 import {setCells, Action as CellAction} from 'src/cells/actions/creators'
 import {
@@ -42,9 +40,6 @@ import {setLabelOnResource} from 'src/labels/actions/creators'
 import * as creators from 'src/dashboards/actions/creators'
 
 // Utils
-import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
-import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
-import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
 import {isLimitError} from 'src/cloud/utils/limits'
@@ -62,18 +57,14 @@ import {
   GetState,
   View,
   Cell,
-  DashboardTemplate,
   Label,
   RemoteDataState,
   DashboardEntities,
   ViewEntities,
   ResourceType,
-  VariableEntities,
-  Variable,
   LabelEntities,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
-import {arrayOfVariables} from 'src/schemas/variables'
 
 type Action = creators.Action
 
@@ -291,37 +282,6 @@ export const getDashboards = () => async (
   }
 }
 
-export const createDashboardFromTemplate = (
-  template: DashboardTemplate
-) => async (dispatch, getState: GetState) => {
-  try {
-    const org = getOrg(getState())
-
-    await tempAPI.createDashboardFromTemplate(template, org.id)
-
-    const resp = await api.getDashboards({query: {orgID: org.id}})
-
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    const dashboards = normalize<Dashboard, DashboardEntities, string[]>(
-      resp.data.dashboards,
-      arrayOfDashboards
-    )
-
-    dispatch(creators.setDashboards(RemoteDataState.Done, dashboards))
-    dispatch(notify(copy.importDashboardSucceeded()))
-    dispatch(checkDashboardLimits())
-  } catch (error) {
-    if (isLimitError(error)) {
-      dispatch(notify(copy.resourceLimitReached('dashboards')))
-    } else {
-      dispatch(notify(copy.importDashboardFailed(error)))
-    }
-  }
-}
-
 export const deleteDashboard = (dashboardID: string, name: string) => async (
   dispatch
 ): Promise<void> => {
@@ -492,70 +452,6 @@ export const removeDashboardLabel = (
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.removedDashboardLabelFailed()))
-  }
-}
-
-export const convertToTemplate = (dashboardID: string) => async (
-  dispatch,
-  getState: GetState
-): Promise<void> => {
-  try {
-    dispatch(setExportTemplate(RemoteDataState.Loading))
-    const state = getState()
-    const org = getOrg(state)
-
-    const dashResp = await api.getDashboard({dashboardID})
-
-    if (dashResp.status !== 200) {
-      throw new Error(dashResp.data.message)
-    }
-
-    const {entities, result} = normalize<Dashboard, DashboardEntities, string>(
-      dashResp.data,
-      dashboardSchema
-    )
-
-    const dashboard = entities.dashboards[result]
-    const cells = dashboard.cells.map(cellID => entities.cells[cellID])
-
-    const pendingViews = dashboard.cells.map(cellID =>
-      dashAPI.getView(dashboardID, cellID)
-    )
-
-    const views = await Promise.all(pendingViews)
-    const resp = await api.getVariables({query: {orgID: org.id}})
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    let vars = []
-
-    // dumb bug
-    // https://github.com/paularmstrong/normalizr/issues/290
-    if (resp.data.variables.length) {
-      const normVars = normalize<Variable, VariableEntities, string>(
-        resp.data.variables,
-        arrayOfVariables
-      )
-
-      vars = Object.values(normVars.entities.variables)
-    }
-
-    const variables = filterUnusedVars(vars, views)
-    const exportedVariables = exportVariables(variables, vars)
-    const dashboardTemplate = dashboardToTemplate(
-      state,
-      dashboard,
-      cells,
-      views,
-      exportedVariables
-    )
-
-    dispatch(setExportTemplate(RemoteDataState.Done, dashboardTemplate))
-  } catch (error) {
-    console.error(error)
-    dispatch(setExportTemplate(RemoteDataState.Error))
-    dispatch(notify(copy.createTemplateFailed(error)))
   }
 }
 

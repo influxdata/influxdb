@@ -7,7 +7,7 @@ import {CommunityTemplateOverlay} from 'src/templates/components/CommunityTempla
 
 // Actions
 import {setStagedCommunityTemplate} from 'src/templates/actions/creators'
-import {createTemplate, fetchAndSetStacks} from 'src/templates/actions/thunks'
+import {fetchAndSetStacks} from 'src/templates/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 import {getTotalResourceCount} from 'src/templates/selectors'
@@ -151,7 +151,6 @@ const mstp = (state: AppState, props: RouterProps) => {
 }
 
 const mdtp = {
-  createTemplate,
   notify,
   setStagedCommunityTemplate,
   fetchAndSetStacks,
