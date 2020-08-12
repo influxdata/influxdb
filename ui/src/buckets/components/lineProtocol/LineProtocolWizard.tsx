@@ -36,14 +36,14 @@ const getState = (bucketID: string) => (state: AppState) => {
 
 const LineProtocolWizard = () => {
   const history = useHistory()
-  const {bucketID} = useParams()
+  const {bucketID, orgID} = useParams()
   const {bucket, org} = useSelector(getState(bucketID))
 
   const [state, dispatch] = useReducer(reducer, initialState())
   const {body, precision} = state
 
   const handleDismiss = () => {
-    history.goBack()
+    history.push(`/orgs/${orgID}/load-data/buckets`)
   }
 
   const handleSubmit = () => {

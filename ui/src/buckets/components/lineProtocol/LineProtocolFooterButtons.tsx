@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useContext} from 'react'
-import {useHistory} from 'react-router'
+import {useHistory, useParams} from 'react-router'
 
 // Actions
 import {reset} from 'src/buckets/components/lineProtocol/LineProtocol.creators'
@@ -16,13 +16,14 @@ interface Props {
 
 const LineProtocolButtons: FC<Props> = ({onSubmit}) => {
   const history = useHistory()
+  const {orgID} = useParams<{orgID: string}>()
   const [{tab}, dispatch] = useContext(Context)
   const handleCancel = () => {
     dispatch(reset())
   }
 
   const handleClose = () => {
-    history.goBack()
+    history.push(`/orgs/${orgID}/load-data/buckets`)
   }
 
   if (tab === 'Enter Manually') {
