@@ -136,6 +136,7 @@ import powerdnsMarkdown from 'src/writeData/components/telegrafPlugins/powerdns.
 import processesMarkdown from 'src/writeData/components/telegrafPlugins/processes.md'
 import procstatMarkdown from 'src/writeData/components/telegrafPlugins/procstat.md'
 import prometheusMarkdown from 'src/writeData/components/telegrafPlugins/prometheus.md'
+import proxmoxMarkdown from 'src/writeData/components/telegrafPlugins/proxmox.md'
 import puppetagentMarkdown from 'src/writeData/components/telegrafPlugins/puppetagent.md'
 import rabbitmqMarkdown from 'src/writeData/components/telegrafPlugins/rabbitmq.md'
 import raindropsMarkdown from 'src/writeData/components/telegrafPlugins/raindrops.md'
@@ -315,6 +316,7 @@ import powerdnsLogo from 'src/writeData/graphics/powerdns.svg'
 import processesLogo from 'src/writeData/graphics/processes.svg'
 import procstatLogo from 'src/writeData/graphics/procstat.svg'
 import prometheusLogo from 'src/writeData/graphics/prometheus.svg'
+import proxmoxLogo from 'src/writeData/graphics/proxmox.svg'
 import puppetagentLogo from 'src/writeData/graphics/puppetagent.svg'
 import rabbitmqLogo from 'src/writeData/graphics/rabbitmq.svg'
 import raindropsLogo from 'src/writeData/graphics/raindrops.svg'
@@ -1279,6 +1281,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     url: `${TELEGRAF_PLUGINS}/prometheus`,
     markdown: prometheusMarkdown,
     image: prometheusLogo,
+  },
+  {
+    id: 'proxmox',
+    name: 'Proxmox',
+    url: `${TELEGRAF_PLUGINS}/proxmox`,
+    markdown: proxmoxMarkdown,
+    image: proxmoxLogo,
   },
   {
     id: 'puppetagent',

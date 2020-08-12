@@ -7,7 +7,7 @@ This plugin gathers the statistic data from [ClickHouse](https://github.com/Clic
 # Read metrics from one or many ClickHouse servers
 [[inputs.clickhouse]]
   ## Username for authorization on ClickHouse server
-  ## example: user = "default"
+  ## example: username = "default"
   username = "default"
 
   ## Password for authorization on ClickHouse server
@@ -109,6 +109,80 @@ This plugin gathers the statistic data from [ClickHouse](https://github.com/Clic
     - parts
     - rows
 
+- clickhouse_zookeeper
+  - tags:
+    - source (ClickHouse server hostname)
+    - cluster (Name of the cluster [optional])
+    - shard_num (Shard number in the cluster [optional])
+  - fields:
+    - root_nodes (count of node from [system.zookeeper][] where path=/)   
+
++ clickhouse_replication_queue
+  - tags:
+    - source (ClickHouse server hostname)
+    - cluster (Name of the cluster [optional])
+    - shard_num (Shard number in the cluster [optional])
+  - fields:
+    - too_many_tries_replicas (count of replicas which have  num_tries > 1 in `system.replication_queue`)
+
+- clickhouse_detached_parts
+  - tags:
+    - source (ClickHouse server hostname)
+    - cluster (Name of the cluster [optional])
+    - shard_num (Shard number in the cluster [optional])
+  - fields:
+    - detached_parts (total detached parts for all tables and databases from [system.detached_parts][])
+    
++ clickhouse_dictionaries
+  - tags:
+    - source (ClickHouse server hostname)
+    - cluster (Name of the cluster [optional])
+    - shard_num (Shard number in the cluster [optional])
+    - dict_origin (xml Filename when dictionary created from *_dictionary.xml, database.table when dictionary created from DDL)
+  - fields:
+    - is_loaded (0 - when dictionary data not successful load, 1 - when dictionary data loading fail, see [system.dictionaries][] for details)
+    - bytes_allocated (how many bytes allocated in RAM after a dictionary loaded)
+
+- clickhouse_mutations
+  - tags:
+    - source (ClickHouse server hostname)
+    - cluster (Name of the cluster [optional])
+    - shard_num (Shard number in the cluster [optional])
+  - fields:
+    - running - gauge which show how much mutation doesn't complete now, see [system.mutations][] for details
+    - failed - counter which show total failed mutations from first clickhouse-server run
+    - completed - counter which show total successful finished mutations from first clickhouse-server run
+
++ clickhouse_disks
+  - tags:
+    - source (ClickHouse server hostname)
+    - cluster (Name of the cluster [optional])
+    - shard_num (Shard number in the cluster [optional])
+    - name (disk name in storage configuration)
+    - path (path to disk)
+  - fields:
+    - free_space_percent - 0-100, gauge which show current percent of free disk space bytes relative to total disk space bytes        
+    - keep_free_space_percent - 0-100, gauge which show current percent of required keep free disk bytes relative to total disk space bytes             
+
+- clickhouse_processes
+  - tags:
+    - source (ClickHouse server hostname)
+    - cluster (Name of the cluster [optional])
+    - shard_num (Shard number in the cluster [optional])
+  - fields:
+    - percentile_50 - float gauge which show 50% percentile (quantile 0.5) for `elapsed` field of running processes, see [system.processes][] for details     
+    - percentile_90 - float gauge which show 90% percentile (quantile 0.9) for `elapsed` field of running processes, see [system.processes][] for details     
+    - longest_running - float gauge which show maximum value for `elapsed` field of running processes, see [system.processes][] for details
+
+- clickhouse_text_log
+  - tags:
+    - source (ClickHouse server hostname)
+    - cluster (Name of the cluster [optional])
+    - shard_num (Shard number in the cluster [optional])
+    - level (message level, only message with level less or equal Notice is collects), see details on [system.text_log][]   
+  - fields:
+    - messages_last_10_min - gauge which show how many messages collected
+           
 ### Example Output
 
 ```
@@ -119,6 +193,13 @@ clickhouse_tables,cluster=test_cluster_two_shards_localhost,database=system,host
 clickhouse_tables,cluster=test_cluster_two_shards_localhost,database=default,host=kshvakov,source=localhost,shard_num=1,table=example bytes=326i,parts=2i,rows=2i 1569421000000000000
 ```
 
-[system.events]: https://clickhouse.tech/docs/en/operations/system_tables/#system_tables-events
-[system.metrics]: https://clickhouse.tech/docs/en/operations/system_tables/#system_tables-metrics
-[system.asynchronous_metrics]: https://clickhouse.tech/docs/en/operations/system_tables/#system_tables-asynchronous_metrics
+[system.events]: https://clickhouse.tech/docs/en/operations/system-tables/events/
+[system.metrics]: https://clickhouse.tech/docs/en/operations/system-tables/metrics/
+[system.asynchronous_metrics]: https://clickhouse.tech/docs/en/operations/system-tables/asynchronous_metrics/
+[system.zookeeper]: https://clickhouse.tech/docs/en/operations/system-tables/zookeeper/ 
+[system.detached_parts]: https://clickhouse.tech/docs/en/operations/system-tables/detached_parts/
+[system.dictionaries]: https://clickhouse.tech/docs/en/operations/system-tables/dictionaries/  
+[system.mutations]: https://clickhouse.tech/docs/en/operations/system-tables/mutations/  
+[system.disks]: https://clickhouse.tech/docs/en/operations/system-tables/disks/  
+[system.processes]: https://clickhouse.tech/docs/en/operations/system-tables/processes/  
+[system.text_log]: https://clickhouse.tech/docs/en/operations/system-tables/text_log/  
