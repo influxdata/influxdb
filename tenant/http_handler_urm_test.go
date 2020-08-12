@@ -87,6 +87,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 				"self": "/api/v2/users/0000000000000001"
 			},
 			"id": "0000000000000001",
+			"name": "user0000000000000001",
 			"status": "active"
 		},
 		{
@@ -95,6 +96,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 				"self": "/api/v2/users/0000000000000002"
 			},
 			"id": "0000000000000002",
+			"name": "user0000000000000002",
 			"status": "active"
 		}
 	]
@@ -148,6 +150,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 				"self": "/api/v2/users/0000000000000001"
 			},
 			"id": "0000000000000001",
+			"name": "user0000000000000001",
 			"status": "active"
 		},
 		{
@@ -156,6 +159,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 				"self": "/api/v2/users/0000000000000002"
 			},
 			"id": "0000000000000002",
+			"name": "user0000000000000002",
 			"status": "active"
 		}
 	]
@@ -267,6 +271,7 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 		"self": "/api/v2/users/0000000000000001"
 	},
 	"id": "0000000000000001",
+	"name": "user0000000000000001",
 	"status": "active"
 }`,
 			},
@@ -304,6 +309,7 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 		"self": "/api/v2/users/0000000000000002"
 	},
 	"id": "0000000000000002",
+	"name": "user0000000000000002",
 	"status": "active"
 }`,
 			},

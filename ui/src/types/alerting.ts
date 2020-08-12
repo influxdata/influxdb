@@ -19,6 +19,8 @@ import {
   Threshold,
   CheckBase as GenCheckBase,
   NotificationEndpointBase as GenEndpointBase,
+  TelegramNotificationRuleBase,
+  TelegramNotificationEndpoint,
 } from 'src/client'
 
 import {RemoteDataState} from 'src/types'
@@ -50,6 +52,8 @@ export type NotificationEndpoint =
   | (Omit<PagerDutyNotificationEndpoint, 'status' | 'labels'> &
       EndpointOverrides)
   | (Omit<HTTPNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides)
+  | (Omit<TelegramNotificationEndpoint, 'status' | 'labels'> &
+      EndpointOverrides)
 export type NotificationEndpointBase = Omit<GenEndpointBase, 'labels'> &
   EndpointOverrides
 
@@ -76,7 +80,7 @@ export type NotificationRuleBaseDraft = Overwrite<
   }
 >
 
-type RuleDraft = SlackRule | SMTPRule | PagerDutyRule | HTTPRule
+type RuleDraft = SlackRule | SMTPRule | PagerDutyRule | HTTPRule | TelegramRule
 
 export type NotificationRuleDraft = RuleDraft
 
@@ -94,6 +98,10 @@ type PagerDutyRule = NotificationRuleBaseDraft &
 
 type HTTPRule = NotificationRuleBaseDraft &
   HTTPNotificationRuleBase &
+  RuleOverrides
+
+type TelegramRule = NotificationRuleBaseDraft &
+  TelegramNotificationRuleBase &
   RuleOverrides
 
 export type LowercaseCheckStatusLevel =
@@ -189,4 +197,7 @@ export {
   PostNotificationRule,
   CheckPatch,
   TaskStatusType,
+  TelegramNotificationEndpoint,
+  TelegramNotificationRuleBase,
+  TelegramNotificationRule,
 } from '../client'

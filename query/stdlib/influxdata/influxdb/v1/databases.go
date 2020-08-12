@@ -69,7 +69,7 @@ func init() {
 type DatabasesDecoder struct {
 	orgID     platform.ID
 	deps      *DatabasesDependencies
-	databases []*platform.DBRPMapping
+	databases []*platform.DBRPMappingV2
 	alloc     *memory.Allocator
 }
 
@@ -78,7 +78,7 @@ func (bd *DatabasesDecoder) Connect(ctx context.Context) error {
 }
 
 func (bd *DatabasesDecoder) Fetch(ctx context.Context) (bool, error) {
-	b, _, err := bd.deps.DBRP.FindMany(ctx, platform.DBRPMappingFilter{})
+	b, _, err := bd.deps.DBRP.FindMany(ctx, platform.DBRPMappingFilterV2{})
 	if err != nil {
 		return false, err
 	}
@@ -88,7 +88,7 @@ func (bd *DatabasesDecoder) Fetch(ctx context.Context) (bool, error) {
 
 func (bd *DatabasesDecoder) Decode(ctx context.Context) (flux.Table, error) {
 	type databaseInfo struct {
-		*platform.DBRPMapping
+		*platform.DBRPMappingV2
 		RetentionPeriod time.Duration
 	}
 
@@ -103,7 +103,7 @@ func (bd *DatabasesDecoder) Decode(ctx context.Context) (flux.Table, error) {
 			return nil, err
 		}
 		databases = append(databases, databaseInfo{
-			DBRPMapping:     db,
+			DBRPMappingV2:   db,
 			RetentionPeriod: bucket.RetentionPeriod,
 		})
 	}
@@ -198,7 +198,7 @@ type key int
 const dependenciesKey key = iota
 
 type DatabasesDependencies struct {
-	DBRP         platform.DBRPMappingService
+	DBRP         platform.DBRPMappingServiceV2
 	BucketLookup platform.BucketService
 }
 
