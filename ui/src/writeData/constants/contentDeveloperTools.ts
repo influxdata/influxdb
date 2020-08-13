@@ -17,7 +17,7 @@ const WRITE_DATA_DEVELOPER_TOOLS_SECTION: WriteDataSection = {
   name: 'Developer Tools',
   description: 'Description goes here',
   items: WRITE_DATA_DEVELOPER_TOOLS,
-  featureFlag: 'write-data-dev-tools',
+  featureFlag: 'load-data-dev-tools',
 }
 
 export default WRITE_DATA_DEVELOPER_TOOLS_SECTION

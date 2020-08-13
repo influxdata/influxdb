@@ -17,7 +17,7 @@ const WRITE_DATA_INTEGRATIONS_SECTION: WriteDataSection = {
   name: 'Integrations',
   description: 'Description goes here',
   items: WRITE_DATA_INTEGRATIONS,
-  featureFlag: 'write-data-integrations',
+  featureFlag: 'load-data-integrations',
 }
 
 export default WRITE_DATA_INTEGRATIONS_SECTION

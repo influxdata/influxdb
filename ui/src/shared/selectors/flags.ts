@@ -16,11 +16,11 @@ export const OSS_FLAGS = {
   'notebook-panel--spotify': false,
   'notebook-panel--test-flux': false,
   disableDefaultTableSort: false,
-  'write-data-client-libraries': true,
-  'write-data-telegraf-plugins': true,
-  'write-data-dev-tools': false,
-  'write-data-flux-sources': false,
-  'write-data-integrations': false,
+  'load-data-client-libraries': true,
+  'load-data-telegraf-plugins': true,
+  'load-data-dev-tools': false,
+  'load-data-flux-sources': false,
+  'load-data-integrations': false,
 }
 
 export const CLOUD_FLAGS = {
@@ -38,11 +38,11 @@ export const CLOUD_FLAGS = {
   'notebook-panel--spotify': false,
   'notebook-panel--test-flux': false,
   disableDefaultTableSort: false,
-  'write-data-client-libraries': true,
-  'write-data-telegraf-plugins': true,
-  'write-data-dev-tools': false,
-  'write-data-flux-sources': false,
-  'write-data-integrations': false,
+  'load-data-client-libraries': true,
+  'load-data-telegraf-plugins': true,
+  'load-data-dev-tools': false,
+  'load-data-flux-sources': false,
+  'load-data-integrations': false,
 }
 
 export const activeFlags = (state: AppState): FlagMap => {
