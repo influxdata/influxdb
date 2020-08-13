@@ -267,6 +267,31 @@ impl DictionaryRLE {
         }
     }
 
+    pub fn with_dictionary(dictionary: BTreeSet<Option<String>>) -> Self {
+        let mut _self = Self {
+            entry_index: BTreeMap::new(),
+            entry_row_ids: BTreeMap::new(),
+            index_entry: BTreeMap::new(),
+            map_size: 0,
+            run_lengths: Vec::new(),
+            run_length_size: 0,
+            total: 0,
+        };
+
+        for (next_idx, k) in dictionary.iter().enumerate() {
+            _self.entry_index.insert(k.to_owned(), next_idx);
+            _self.index_entry.insert(next_idx, k.to_owned());
+
+            _self
+                .entry_row_ids
+                .insert(k.to_owned(), croaring::Bitmap::create());
+
+            _self.run_lengths.push((next_idx, 0)); // could this cause a bug?ta
+        }
+
+        _self
+    }
+
     pub fn push(&mut self, v: &str) {
         self.push_additional(Some(v.to_owned()), 1);
     }
@@ -380,11 +405,8 @@ impl DictionaryRLE {
     //     unreachable!("for now");
     // }
 
-    pub fn dictionary(&self) -> BTreeSet<Option<String>> {
-        self.entry_index
-            .keys()
-            .cloned()
-            .collect::<BTreeSet<Option<String>>>()
+    pub fn dictionary(&self) -> BTreeMap<Option<String>, usize> {
+        self.entry_index.clone()
     }
 
     // get the logical value at the provided index, or None if there is no value
