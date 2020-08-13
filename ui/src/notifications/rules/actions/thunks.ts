@@ -48,7 +48,7 @@ import {
 } from 'src/types'
 
 // Constants
-import {LIMIT} from 'src/resources/constants'
+import {RULE_LIMIT} from 'src/resources/constants'
 
 export const getNotificationRules = () => async (
   dispatch: Dispatch<
@@ -67,7 +67,9 @@ export const getNotificationRules = () => async (
 
     const {id: orgID} = getOrg(state)
 
-    const resp = await api.getNotificationRules({query: {orgID, limit: LIMIT}})
+    const resp = await api.getNotificationRules({
+      query: {orgID, limit: RULE_LIMIT},
+    })
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
