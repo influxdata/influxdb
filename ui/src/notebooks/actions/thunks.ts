@@ -19,7 +19,6 @@ import {
 
 // Utils
 import {getOrg} from 'src/organizations/selectors'
-import {getStatus} from 'src/resources/selectors'
 
 // Actions
 import {setSchema, Action as BucketAction} from 'src/notebooks/actions/creators'
@@ -28,33 +27,39 @@ import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 // Constants
 import {getBucketsFailed} from 'src/shared/copy/notifications'
 
+// DUMMY DATA TO DELETE
+import {results} from 'src/notebooks/pipes/Data/dummyData'
+
 type Action = BucketAction | NotifyAction
 
 export const fetchSchemaForBucket = async (
   bucketName: string,
   orgID: string
 ) => {
-  const text = `import "influxdata/influxdb/v1"
-  from(bucket: "${bucketName}")
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> first()`
+  // TODO(ariel): make this work with the query
+  // const text = `import "influxdata/influxdb/v1"
+  // from(bucket: "${bucketName}")
+  // |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  // |> first()`
 
-  const result = await runQuery(orgID, text)
-    .promise.then(raw => {
-      if (raw.type !== 'SUCCESS') {
-        throw new Error(raw.message)
-      }
+  // const result = await runQuery(orgID, text)
+  //   .promise.then(raw => {
+  //     if (raw.type !== 'SUCCESS') {
+  //       throw new Error(raw.message)
+  //     }
 
-      return raw
-    })
-    .then(raw => {
-      return {
-        source: text,
-        raw: raw.csv,
-        parsed: parse(raw.csv),
-        error: null,
-      }
-    })
+  //     return raw
+  //   })
+  //   .then(raw => {
+  //     return {
+  //       source: text,
+  //       raw: raw.csv,
+  //       parsed: parse(raw.csv),
+  //       error: null,
+  //     }
+  //   })
+
+  const result = await new Promise(resolve => resolve(results))
   return result
 }
 
@@ -65,13 +70,12 @@ export const getAndSetBucketSchema = (bucketName: string) => async (
   try {
     const state = getState()
     if (bucketName) {
-      dispatch(setSchema(RemoteDataState.Loading))
+      dispatch(setSchema(RemoteDataState.Loading, bucketName, []))
     }
     const orgID = getOrg(state).id
 
     const schema = await fetchSchemaForBucket(bucketName, orgID)
-
-    dispatch(setSchema(RemoteDataState.Done, schema))
+    dispatch(setSchema(RemoteDataState.Done, bucketName, schema as any[]))
   } catch (error) {
     console.error(error)
     dispatch(setSchema(RemoteDataState.Error))

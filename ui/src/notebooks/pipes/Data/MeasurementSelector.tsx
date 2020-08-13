@@ -57,29 +57,66 @@ const MeasurementSelector: FC<Props> = ({schema}) => {
   // if (loading === RemoteDataState.Done) {
   const body = (
     <List className="data-source--list" backgroundColor={InfluxColors.Obsidian}>
-      {schema
-        .filter(name => name.includes(searchTerm))
-        .map(name => (
-          <List.Item
-            key={name}
-            value={name}
-            onClick={() => updateSelection(name)}
-            selected={name === selected}
-            title={name}
-            gradient={Gradients.GundamPilot}
-            wrapText={true}
-          >
-            <List.Indicator type="dot" />
-            {name}
-          </List.Item>
-        ))}
+      {Object.entries(schema)
+        .filter(([measurement, values]) => {
+          const {fields} = values
+          if (measurement.includes(searchTerm)) {
+            return true
+          }
+          return fields.some(field => field)
+        })
+        .map(([measurement, values]) => {
+          const {fields} = values
+          return (
+            <>
+              <List.Item
+                key={measurement}
+                value={measurement}
+                onClick={() => updateSelection(measurement)}
+                selected={measurement === selected}
+                title={measurement}
+                gradient={Gradients.GundamPilot}
+                wrapText={true}
+              >
+                <List.Indicator type="dot" />
+                {measurement}
+              </List.Item>
+              <div className="data-subset--list">
+                {fields
+                  .filter(field => {
+                    console.log('field: ', field)
+                    if (measurement.includes(searchTerm)) {
+                      return true
+                    }
+                    return field.includes(searchTerm)
+                  })
+                  .map(field => (
+                    <List.Item
+                      key={field}
+                      value={field}
+                      // onClick={(event: MouseEvent) =>
+                      //   handleSubListItemClick(event, tagName, val)
+                      // }
+                      // selected={selectedTags[tagName]?.includes(val)}
+                      title={field}
+                      gradient={Gradients.GundamPilot}
+                      wrapText={true}
+                    >
+                      <List.Indicator type="checkbox" />
+                      {field}
+                    </List.Item>
+                  ))}
+              </div>
+            </>
+          )
+        })}
     </List>
   )
   // }
 
   return (
     <div className="data-source--block">
-      <div className="data-source--block-title">Measurement</div>
+      <div className="data-source--block-title">Measurement & Fields</div>
       <Input
         value={searchTerm}
         placeholder="Search for a measurement"

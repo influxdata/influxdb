@@ -31,6 +31,7 @@ import {CurrentPage} from 'src/shared/reducers/currentPage'
 import {DemoDataState} from 'src/cloud/reducers/demodata'
 import {OrgSettingsState} from 'src/cloud/reducers/orgsettings'
 import {PerfState} from 'src/perf/reducers'
+import {SchemaState} from 'src/notebooks/reducers'
 
 export interface AppState {
   router: RouterState
@@ -45,9 +46,10 @@ export interface AppState {
   currentPage: CurrentPage
   currentDashboard: CurrentDashboardState
   dataLoading: DataLoadingState
+  flags: FlagState
   links: Links
   me: MeState
-  flags: FlagState
+  notebook: SchemaState
   noteEditor: NoteEditorState
   notifications: Notification[]
   onboarding: OnboardingState

@@ -1,12 +1,22 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useContext, useCallback} from 'react'
 import {Button} from '@influxdata/clockface'
 
-type Props = {
-  handleClick: () => void
-}
+// Components
+import {SchemaContext} from 'src/notebooks/context/schemaProvider'
+import {PipeContext} from 'src/notebooks/context/pipe'
 
-const SchemaFetcher: FC<Props> = ({handleClick}) => {
+const SchemaFetcher: FC = () => {
+  const {data} = useContext(PipeContext)
+  const {localFetchSchema} = useContext(SchemaContext)
+
+  const selectedBucketName = data.bucketName
+
+  const handleClick = useCallback(() => localFetchSchema(selectedBucketName), [
+    localFetchSchema,
+    selectedBucketName,
+  ])
+
   return (
     <div className="fetch-schema--block">
       <Button

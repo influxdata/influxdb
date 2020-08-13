@@ -2,10 +2,13 @@
 import {RemoteDataState} from 'src/types'
 import {SET_SCHEMA, Action, REMOVE_SCHEMA} from 'src/notebooks/actions/creators'
 
-type SchemaState = {
+export type SchemaState = {
   status: RemoteDataState
   schema: {
-    [key: string]: any[]
+    [bucketName: string]: {
+      measurements: any[]
+      status: RemoteDataState
+    }
   }
 }
 
@@ -20,11 +23,14 @@ export const schemaReducer = (
 ): SchemaState => {
   switch (action.type) {
     case SET_SCHEMA: {
-      const {bucketName, schema} = action
+      const {bucketName, schema, status} = action
       return {
         ...state,
         schema: {
-          [bucketName]: schema,
+          [bucketName]: {
+            measurements: schema,
+            status,
+          },
         },
       }
     }
@@ -35,6 +41,10 @@ export const schemaReducer = (
       if (bucketName in schema) {
         delete schema[bucketName]
       }
+      return state
+    }
+
+    default: {
       return state
     }
   }
