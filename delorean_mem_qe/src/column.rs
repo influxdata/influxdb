@@ -334,6 +334,26 @@ impl Column {
         }
     }
 
+    /// Given an encoded value for a row, materialise and return the decoded
+    /// version.
+    ///
+    /// This currently just supports decoding integer scalars back into dictionary
+    /// strings.
+    pub fn decode_value(&self, encoded_id: i64) -> std::string::String {
+        match self {
+            Column::String(c) => {
+                // FIX THIS UNWRAP AND HOPE THERE ARE NO NULL VALUES!
+                c.decode_id(encoded_id).unwrap()
+            }
+            Column::Float(c) => {
+                unreachable!("this isn't supported right now");
+            }
+            Column::Integer(c) => {
+                unreachable!("this isn't supported right now");
+            }
+        }
+    }
+
     /// materialise rows for each row_id
     pub fn rows(&self, row_ids: &croaring::Bitmap) -> Vector {
         let row_ids_vec = row_ids.to_vec();
@@ -716,6 +736,13 @@ impl String {
 
     pub fn encoded_values(&self, row_ids: &[u32]) -> Vec<i64> {
         self.data.encoded_values(row_ids)
+    }
+
+    /// Return the decoded value for an encoded ID.
+    ///
+    /// Panics if there is no decoded value for the provided id
+    pub fn decode_id(&self, encoded_id: i64) -> Option<std::string::String> {
+        self.data.decode_id(encoded_id as usize)
     }
 
     pub fn scan_from(&self, row_id: usize) -> Vec<&Option<std::string::String>> {

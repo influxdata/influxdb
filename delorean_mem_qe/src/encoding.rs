@@ -442,6 +442,13 @@ impl DictionaryRLE {
         out
     }
 
+    /// Return the decoded value for an encoded ID.
+    ///
+    /// Panics if there is no decoded value for the provided id
+    pub fn decode_id(&self, encoded_id: usize) -> Option<String> {
+        self.index_entry.get(&encoded_id).unwrap().clone()
+    }
+
     /// Return the raw encoded values for the provided logical row ids.
     ///
     /// TODO(edd): return type is wrong but I'm making it fit
