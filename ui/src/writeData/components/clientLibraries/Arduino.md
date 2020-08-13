@@ -14,7 +14,7 @@ Manual Installation
 
 ```
 1. cd <arduino-sketch-location>/library.
-2. git clone <%= url %>
+2. git clone https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino
 3. Restart the Arduino IDE
 ```
 
