@@ -35,7 +35,6 @@ import {GIRAFFE_COLOR_SCHEMES} from 'src/shared/constants'
 // Types
 import {AppState, NewView, MosaicViewProperties} from 'src/types'
 import HexColorSchemeDropdown from 'src/shared/components/HexColorSchemeDropdown'
-import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 import ColumnSelector from 'src/shared/components/ColumnSelector'
 
 interface OwnProps {
@@ -63,8 +62,6 @@ const MosaicOptions: SFC<Props> = props => {
     onSetColors,
     onSetYAxisLabel,
     onSetXAxisLabel,
-    yDomain,
-    onSetYDomain,
     xColumn,
     yColumn,
     stringColumns,
@@ -134,11 +131,6 @@ const MosaicOptions: SFC<Props> = props => {
           onChange={e => onSetYAxisLabel(e.target.value)}
         />
       </Form.Element>{' '}
-      <AutoDomainInput
-        domain={yDomain as [number, number]}
-        onSetDomain={onSetYDomain}
-        label="Y Axis Domain"
-      />
     </Grid.Column>
   )
 }
