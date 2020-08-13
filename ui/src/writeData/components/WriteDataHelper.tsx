@@ -12,6 +12,7 @@ import {
   Columns,
   Icon,
   IconFont,
+  ComponentSize,
 } from '@influxdata/clockface'
 import WriteDataHelperTokens from 'src/writeData/components/WriteDataHelperTokens'
 import WriteDataHelperBuckets from 'src/writeData/components/WriteDataHelperBuckets'
@@ -29,7 +30,7 @@ const WriteDataHelper: FC<{}> = () => {
 
   return (
     <Panel backgroundColor={InfluxColors.Castle}>
-      <Panel.Header>
+      <Panel.Header size={ComponentSize.ExtraSmall}>
         <div
           className={`write-data-helper--heading write-data-helper--heading__${mode}`}
           onClick={handleToggleClick}
@@ -48,10 +49,10 @@ const WriteDataHelper: FC<{}> = () => {
         </div>
       </Panel.Header>
       {mode === 'expanded' && (
-        <Panel.Body>
+        <Panel.Body size={ComponentSize.ExtraSmall}>
           <p>
             Control how code samples in the documentation are populated with
-            system resources
+            system resources. Not all code samples make use of system resources.
           </p>
           <Grid>
             <Grid.Row>
