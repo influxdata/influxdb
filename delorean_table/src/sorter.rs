@@ -67,7 +67,7 @@ pub fn sort(packers: &mut [Packers], sort_by: &[usize]) -> Result<(), Error> {
     if n > SORTED_CHECK_SIZE {
         let mut sorted = true;
         for i in 1..n {
-            if cmp(packers, 0, i, sort_by) != Ordering::Equal {
+            if cmp(packers, i - 1, i, sort_by) == Ordering::Greater {
                 sorted = false;
                 break;
             }
