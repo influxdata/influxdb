@@ -10,14 +10,11 @@ import {
   FontWeight,
   Grid,
   Columns,
+  Icon,
+  IconFont,
 } from '@influxdata/clockface'
-import WriteDataHelperInfo from 'src/writeData/components/WriteDataHelperInfo'
 import WriteDataHelperTokens from 'src/writeData/components/WriteDataHelperTokens'
 import WriteDataHelperBuckets from 'src/writeData/components/WriteDataHelperBuckets'
-import GetResources from 'src/resources/components/GetResources'
-
-// Types
-import {ResourceType} from 'src/types'
 
 const WriteDataHelper: FC<{}> = () => {
   const [mode, changeMode] = useState<'expanded' | 'collapsed'>('expanded')
@@ -31,35 +28,44 @@ const WriteDataHelper: FC<{}> = () => {
   }
 
   return (
-    <GetResources
-      resources={[ResourceType.Authorizations, ResourceType.Buckets]}
-    >
-      <Panel backgroundColor={InfluxColors.Castle}>
-        <Panel.Header>
-          <Heading element={HeadingElement.H4} weight={FontWeight.Regular}>
-            Resources
-            <button onClick={handleToggleClick}>Toggle</button>
+    <Panel backgroundColor={InfluxColors.Castle}>
+      <Panel.Header>
+        <div
+          className={`write-data-helper--heading write-data-helper--heading__${mode}`}
+          onClick={handleToggleClick}
+        >
+          <Icon
+            glyph={IconFont.CaretRight}
+            className="write-data-helper--caret"
+          />
+          <Heading
+            element={HeadingElement.H5}
+            weight={FontWeight.Regular}
+            selectable={true}
+          >
+            Code Sample Options
           </Heading>
-        </Panel.Header>
-        {mode === 'expanded' && (
-          <Panel.Body>
-            <Grid>
-              <Grid.Row>
-                <Grid.Column widthSM={Columns.Four}>
-                  <WriteDataHelperInfo />
-                </Grid.Column>
-                <Grid.Column widthSM={Columns.Four}>
-                  <WriteDataHelperTokens />
-                </Grid.Column>
-                <Grid.Column widthSM={Columns.Four}>
-                  <WriteDataHelperBuckets />
-                </Grid.Column>
-              </Grid.Row>
-            </Grid>
-          </Panel.Body>
-        )}
-      </Panel>
-    </GetResources>
+        </div>
+      </Panel.Header>
+      {mode === 'expanded' && (
+        <Panel.Body>
+          <p>
+            Control how code samples in the documentation are populated with
+            system resources
+          </p>
+          <Grid>
+            <Grid.Row>
+              <Grid.Column widthSM={Columns.Six}>
+                <WriteDataHelperTokens />
+              </Grid.Column>
+              <Grid.Column widthSM={Columns.Six}>
+                <WriteDataHelperBuckets />
+              </Grid.Column>
+            </Grid.Row>
+          </Grid>
+        </Panel.Body>
+      )}
+    </Panel>
   )
 }
 
