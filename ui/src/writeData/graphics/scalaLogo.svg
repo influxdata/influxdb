@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Generator: Adobe Illustrator 24.2.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
 <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 150 150" style="enable-background:new 0 0 150 150;" xml:space="preserve">
+	 viewBox="0 0 54 88" style="enable-background:new 0 0 54 88;" xml:space="preserve">
 <style type="text/css">
 	.st0{fill:url(#XMLID_8_);}
 	.st1{fill:url(#XMLID_9_);}
@@ -11,36 +11,36 @@
 </style>
 <g id="XMLID_1_">
 	
-		<linearGradient id="XMLID_8_" gradientUnits="userSpaceOnUse" x1="-174.1289" y1="-174.9115" x2="-173.918" y2="-174.9115" gradientTransform="matrix(256 0 0 -96 44625 -16703)">
+		<linearGradient id="XMLID_8_" gradientUnits="userSpaceOnUse" x1="-222.1289" y1="293.9118" x2="-221.918" y2="293.9118" gradientTransform="matrix(256 0 0 96 56865 -28158)">
 		<stop  offset="0" style="stop-color:#4F4F4F"/>
 		<stop  offset="1" style="stop-color:#000000"/>
 	</linearGradient>
-	<path id="XMLID_3_" class="st0" d="M48,85.1v6.8c0,1.1,24.5,3,40.5,6.7c7.7-1.8,13.5-4,13.5-6.7v-6.8c0-2.7-5.7-5-13.5-6.7
-		C72.5,82.1,48,84,48,85.1"/>
+	<path id="XMLID_3_" class="st0" d="M0,54.1v6.8c0,1.1,24.5,3,40.5,6.7c7.7-1.8,13.5-4,13.5-6.7v-6.8c0-2.7-5.7-5-13.5-6.7
+		C24.5,51.1,0,53,0,54.1"/>
 	
-		<linearGradient id="XMLID_9_" gradientUnits="userSpaceOnUse" x1="-174.1289" y1="-175.9635" x2="-173.918" y2="-175.9635" gradientTransform="matrix(256 0 0 -96 44625 -16831)">
+		<linearGradient id="XMLID_9_" gradientUnits="userSpaceOnUse" x1="-222.1289" y1="294.9627" x2="-221.918" y2="294.9627" gradientTransform="matrix(256 0 0 96 56865 -28286)">
 		<stop  offset="0" style="stop-color:#4F4F4F"/>
 		<stop  offset="1" style="stop-color:#000000"/>
 	</linearGradient>
-	<path id="XMLID_4_" class="st1" d="M48,58.1v6.7c0,1.1,24.5,3,40.5,6.7c7.7-1.8,13.5-4,13.5-6.7v-6.7c0-2.7-5.7-5-13.5-6.7
-		C72.5,55.1,48,57,48,58.1"/>
+	<path id="XMLID_4_" class="st1" d="M0,27.1v6.7c0,1.1,24.5,3,40.5,6.7c7.7-1.8,13.5-4,13.5-6.7v-6.7c0-2.7-5.7-5-13.5-6.7
+		C24.5,24.1,0,26,0,27.1"/>
 	
-		<linearGradient id="XMLID_10_" gradientUnits="userSpaceOnUse" x1="-174.1289" y1="-175.2625" x2="-173.918" y2="-175.2625" gradientTransform="matrix(256 0 0 -160 44625 -27967)">
+		<linearGradient id="XMLID_10_" gradientUnits="userSpaceOnUse" x1="-222.1289" y1="294.2625" x2="-221.918" y2="294.2625" gradientTransform="matrix(256 0 0 160 56865 -47038)">
 		<stop  offset="0" style="stop-color:#C40000"/>
 		<stop  offset="1" style="stop-color:#FF0000"/>
 	</linearGradient>
-	<path id="XMLID_5_" class="st2" d="M48,71.6v20.3c0-1.7,54-5.1,54-13.5V58.1C102,66.6,48,69.9,48,71.6"/>
+	<path id="XMLID_5_" class="st2" d="M0,40.6v20.3c0-1.7,54-5.1,54-13.5V27.1C54,35.6,0,38.9,0,40.6"/>
 	
-		<linearGradient id="XMLID_11_" gradientUnits="userSpaceOnUse" x1="-174.1289" y1="-175.8938" x2="-173.918" y2="-175.8938" gradientTransform="matrix(256 0 0 -160 44625 -28095)">
+		<linearGradient id="XMLID_11_" gradientUnits="userSpaceOnUse" x1="-222.1289" y1="294.8934" x2="-221.918" y2="294.8934" gradientTransform="matrix(256 0 0 160 56865 -47166)">
 		<stop  offset="0" style="stop-color:#C40000"/>
 		<stop  offset="1" style="stop-color:#FF0000"/>
 	</linearGradient>
-	<path id="XMLID_6_" class="st3" d="M48,44.6v20.3c0-1.7,54-5.1,54-13.5V31.1C102,39.6,48,42.9,48,44.6"/>
+	<path id="XMLID_6_" class="st3" d="M0,13.5v20.3c0-1.7,54-5.1,54-13.5V0C54,8.5,0,11.8,0,13.5"/>
 	
-		<linearGradient id="XMLID_12_" gradientUnits="userSpaceOnUse" x1="-174.1289" y1="-174.6313" x2="-173.918" y2="-174.6313" gradientTransform="matrix(256 0 0 -160 44625 -27839)">
+		<linearGradient id="XMLID_12_" gradientUnits="userSpaceOnUse" x1="-222.1289" y1="293.6316" x2="-221.918" y2="293.6316" gradientTransform="matrix(256 0 0 160 56865 -46910)">
 		<stop  offset="0" style="stop-color:#C40000"/>
 		<stop  offset="1" style="stop-color:#FF0000"/>
 	</linearGradient>
-	<path id="XMLID_7_" class="st4" d="M48,98.6v20.3c0-1.7,54-5.1,54-13.5V85.1C102,93.6,48,96.9,48,98.6"/>
+	<path id="XMLID_7_" class="st4" d="M0,67.7V88c0-1.7,54-5.1,54-13.5V54.1C54,62.6,0,65.9,0,67.7"/>
 </g>
 </svg>
