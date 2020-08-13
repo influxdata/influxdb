@@ -707,7 +707,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 	// update the flux script
 	if !upd.Options.IsZero() || upd.Flux != nil {
-		if err = upd.UpdateFlux(s.FluxLanguageService, task.Flux); err != nil {
+		if err = upd.UpdateFlux(ctx, s.FluxLanguageService, task.Flux); err != nil {
 			return nil, err
 		}
 		task.Flux = *upd.Flux
