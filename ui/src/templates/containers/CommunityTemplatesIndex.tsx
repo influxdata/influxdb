@@ -49,6 +49,8 @@ import {communityTemplateUnsupportedFormatError} from 'src/shared/copy/notificat
 // Types
 import {AppState, ResourceType} from 'src/types'
 
+import {event} from 'src/cloud/utils/reporting'
+
 const communityTemplatesUrl =
   'https://github.com/influxdata/community-templates#templates'
 const templatesPath = '/orgs/:orgID/settings/templates'
@@ -107,11 +109,11 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                   }
                   size={ComponentSize.Small}
                 >
-                  <LinkButton
+                  <Button
                     color={ComponentColor.Primary}
-                    href={communityTemplatesUrl}
                     size={ComponentSize.Large}
                     target={LinkTarget.Blank}
+                    onClick={this.browseCommunityTemplates}
                     text="Browse Community Templates"
                     testID="browse-template-button"
                     icon={IconFont.GitHub}
@@ -187,7 +189,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       const {directory, templateExtension, templateName} = getTemplateDetails(
         this.state.templateUrl
       )
-
+      event('template_click_lookup', {templateName: templateName})
       this.props.history.push(
         `/orgs/${this.props.org.id}/settings/templates/import/${directory}/${templateName}/${templateExtension}`
       )
@@ -199,8 +201,14 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     }
   }
 
-  private handleTemplateChange = event => {
-    this.setState({templateUrl: event.target.value})
+  private handleTemplateChange = evt => {
+    this.setState({templateUrl: evt.target.value})
+  }
+
+  private browseCommunityTemplates = (evt) => {
+    event('template_click_browse')
+
+    window.open(communityTemplatesUrl)
   }
 }
 
