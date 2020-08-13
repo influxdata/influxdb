@@ -676,4 +676,4 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v1.2.3-gershontest$/
+              only: /^v9.9.9$/

@@ -7,6 +7,12 @@ builds:
     goarch:
       - amd64
       - arm64
+      - 386
+      - arm
+    goarm:
+      - 5
+      - 6
+      - 7
     main: ./cmd/influx/
     flags:
       - -tags={{if and (eq .Os "linux") (eq .Arch "amd64")}}osusergo,netgo,static_build{{end}}
@@ -26,6 +32,12 @@ builds:
     goarch:
       - amd64
       - arm64
+      - 386
+      - arm
+    goarm:
+      - 5
+      - 6
+      - 7
     main: ./cmd/influxd/
     flags:
       - -tags=assets{{if and (eq .Os "linux") (eq .Arch "amd64")}},osusergo,netgo,static_build{{end}}
