@@ -254,15 +254,6 @@ func FromScriptAST(lang FluxLanguageService, script string) (Options, error) {
 	return opts, nil
 }
 
-type unexpectedKindError struct {
-	Got      string
-	Expected string
-}
-
-func (err unexpectedKindError) Error() string {
-	return fmt.Sprintf("unexpected kind: got %q; expected %q", err.Got, err.Expected)
-}
-
 // hasDuplicateOptions determines whether or not there are multiple assignments
 // to the same option variable.
 //
