@@ -1671,10 +1671,10 @@ func taskRunKey(taskID, runID influxdb.ID) ([]byte, error) {
 //
 // [1]: https://github.com/influxdata/influxdb/issues/17666
 func ExtractTaskOptions(ctx context.Context, lang influxdb.FluxLanguageService, flux string) (options.Options, error) {
-	if !feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
-		return options.FromScript(lang, flux)
+	if feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
+		return options.FromScriptAST(lang, flux)
 	}
-	return options.FromScriptAST(lang, flux)
+	return options.FromScript(lang, flux)
 }
 
 func (s *Service) maxPermissions(ctx context.Context, tx Tx, userID influxdb.ID) ([]influxdb.Permission, error) {

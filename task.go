@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/task/options"
 )
 
@@ -308,9 +309,122 @@ func safeParseSource(parser FluxLanguageService, f string) (pkg *ast.Package, er
 	return parser.Parse(f)
 }
 
-// UpdateFlux updates the TaskUpdate to go from updating options to updating a flux string, that now has those updated options in it
-// It zeros the options in the TaskUpdate.
-func (t *TaskUpdate) UpdateFlux(parser FluxLanguageService, oldFlux string) (err error) {
+// UpdateFlux updates the TaskUpdate to go from updating options to updating a
+// flux string, that now has those updated options in it. It zeros the options
+// in the TaskUpdate.
+func (t *TaskUpdate) UpdateFlux(ctx context.Context, parser FluxLanguageService, oldFlux string) error {
+	if !feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
+		return t.updateFluxAST(parser, oldFlux)
+	}
+	return t.updateFlux(parser, oldFlux)
+}
+
+func (t *TaskUpdate) updateFlux(parser FluxLanguageService, oldFlux string) error {
+	if t.Flux != nil && *t.Flux != "" {
+		oldFlux = *t.Flux
+	}
+	toDelete := map[string]struct{}{}
+	parsedPKG, err := safeParseSource(parser, oldFlux)
+	if err != nil {
+		return err
+	}
+
+	parsed := parsedPKG.Files[0]
+	if !t.Options.Every.IsZero() && t.Options.Cron != "" {
+		return errors.New("cannot specify both cron and every")
+	}
+	op := make(map[string]ast.Expression, 4)
+
+	if t.Options.Name != "" {
+		op["name"] = &ast.StringLiteral{Value: t.Options.Name}
+	}
+	if !t.Options.Every.IsZero() {
+		op["every"] = &t.Options.Every.Node
+	}
+	if t.Options.Cron != "" {
+		op["cron"] = &ast.StringLiteral{Value: t.Options.Cron}
+	}
+	if t.Options.Offset != nil {
+		if !t.Options.Offset.IsZero() {
+			op["offset"] = &t.Options.Offset.Node
+		} else {
+			toDelete["offset"] = struct{}{}
+		}
+	}
+	if len(op) > 0 || len(toDelete) > 0 {
+		editFunc := func(opt *ast.OptionStatement) (ast.Expression, error) {
+			a, ok := opt.Assignment.(*ast.VariableAssignment)
+			if !ok {
+				return nil, errors.New("option assignment must be variable assignment")
+			}
+			obj, ok := a.Init.(*ast.ObjectExpression)
+			if !ok {
+				return nil, fmt.Errorf("value is is %s, not an object expression", a.Init.Type())
+			}
+			// modify in the keys and values that already are in the ast
+			for i, p := range obj.Properties {
+				k := p.Key.Key()
+				if _, ok := toDelete[k]; ok {
+					obj.Properties = append(obj.Properties[:i], obj.Properties[i+1:]...)
+				}
+				switch k {
+				case "name":
+					if name, ok := op["name"]; ok && t.Options.Name != "" {
+						delete(op, "name")
+						p.Value = name
+					}
+				case "offset":
+					if offset, ok := op["offset"]; ok && t.Options.Offset != nil {
+						delete(op, "offset")
+						p.Value = offset.Copy().(*ast.DurationLiteral)
+					}
+				case "every":
+					if every, ok := op["every"]; ok && !t.Options.Every.IsZero() {
+						p.Value = every.Copy().(*ast.DurationLiteral)
+						delete(op, "every")
+					} else if cron, ok := op["cron"]; ok && t.Options.Cron != "" {
+						delete(op, "cron")
+						p.Value = cron
+						p.Key = &ast.Identifier{Name: "cron"}
+					}
+				case "cron":
+					if cron, ok := op["cron"]; ok && t.Options.Cron != "" {
+						delete(op, "cron")
+						p.Value = cron
+					} else if every, ok := op["every"]; ok && !t.Options.Every.IsZero() {
+						delete(op, "every")
+						p.Key = &ast.Identifier{Name: "every"}
+						p.Value = every.Copy().(*ast.DurationLiteral)
+					}
+				}
+			}
+			// add in new keys and values to the ast
+			for k := range op {
+				obj.Properties = append(obj.Properties, &ast.Property{
+					Key:   &ast.Identifier{Name: k},
+					Value: op[k],
+				})
+			}
+			return nil, nil
+		}
+
+		ok, err := edit.Option(parsed, "task", editFunc)
+
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return errors.New("unable to edit option")
+		}
+
+		t.Options.Clear()
+		s := ast.Format(parsed)
+		t.Flux = &s
+	}
+	return nil
+}
+
+func (t *TaskUpdate) updateFluxAST(parser FluxLanguageService, oldFlux string) error {
 	if t.Flux != nil && *t.Flux != "" {
 		oldFlux = *t.Flux
 	}
