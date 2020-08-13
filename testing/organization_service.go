@@ -414,8 +414,9 @@ func FindOrganizations(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   influxdb.ID
-		name string
+		ID          influxdb.ID
+		name        string
+		findOptions influxdb.FindOptions
 	}
 
 	type wants struct {
@@ -451,6 +452,42 @@ func FindOrganizations(
 						ID:   idOne,
 						Name: "abc",
 					},
+					{
+						ID:          idTwo,
+						Name:        "xyz",
+						Description: "desc xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find all organizations by offset and limit",
+			fields: OrganizationFields{
+				OrgBucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "abc",
+					},
+					{
+						// ID(2)
+						Name:        "xyz",
+						Description: "desc xyz",
+					},
+					{
+						// ID(3)
+						Name: "ijk",
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					Offset: 1,
+					Limit:  1,
+				},
+			},
+			wants: wants{
+				organizations: []*influxdb.Organization{
 					{
 						ID:          idTwo,
 						Name:        "xyz",
@@ -583,7 +620,7 @@ func FindOrganizations(
 				filter.Name = &tt.args.name
 			}
 
-			organizations, _, err := s.FindOrganizations(ctx, filter)
+			organizations, _, err := s.FindOrganizations(ctx, filter, tt.args.findOptions)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
