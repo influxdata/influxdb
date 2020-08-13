@@ -381,6 +381,14 @@ func TestExtractTaskOptions(t *testing.T) {
 			flux:   `doesntexist()`,
 			errMsg: "no task options defined",
 		},
+		{
+			name: "multiple assignments",
+			flux: `
+			option task = {name: "whatever", every: 1s, offset: 0s, concurrency: 2, retry: 2}
+			option task = {name: "whatever", every: 1s, offset: 0s, concurrency: 2, retry: 2}
+			`,
+			errMsg: "multiple task options defined",
+		},
 	}
 
 	for _, tc := range tcs {

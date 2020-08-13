@@ -207,15 +207,10 @@ type FluxLanguageService interface {
 	EvalAST(ctx context.Context, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error)
 }
 
-type unexpectedKindError struct {
-	Got      string
-	Expected string
-}
-
-func (err unexpectedKindError) Error() string {
-	return fmt.Sprintf("unexpected kind: got %q; expected %q", err.Got, err.Expected)
-}
-
+// FromScriptAST extracts Task options from a Flux script using only the AST (no
+// evaluation of the script). Using AST here allows us to avoid having to
+// contend with functions that aren't available in some parsing contexts (within
+// Gateway for example).
 func FromScriptAST(lang FluxLanguageService, script string) (Options, error) {
 	opts := Options{
 		Retry:       pointer.Int64(1),
@@ -227,107 +222,29 @@ func FromScriptAST(lang FluxLanguageService, script string) (Options, error) {
 		return opts, err
 	}
 
+	if len(fluxAST.Files) == 0 {
+		return opts, ErrNoASTFile
+	}
+
 	file := fluxAST.Files[0]
+	if hasDuplicateOptions(file, "task") {
+		return opts, ErrMultipleTaskOptionsDefined
+	}
+
 	obj, err := edit.GetOption(file, "task")
 	if err != nil {
-		return opts, ErrNoTaskOptions
+		return opts, ErrNoTaskOptionsDefined
 	}
 
 	objExpr, ok := obj.(*ast.ObjectExpression)
 	if !ok {
-		return opts, unexpectedKindError{
-			Got:      obj.Type(),
-			Expected: "ObjectExpression",
-		}
+		return opts, ErrTaskOptionNotObjectExpression(objExpr.Type())
 	}
 
-	nameExpr, err := edit.GetProperty(objExpr, optName)
-	if err != nil {
-		return opts, ErrMissingRequiredTaskOption("name")
-	}
-	nameStr, ok := nameExpr.(*ast.StringLiteral)
-	if !ok {
-		return opts, unexpectedKindError{
-			Got:      nameExpr.Type(),
-			Expected: "StringLiteral",
+	for _, fn := range taskOptionExtractors {
+		if err := fn(&opts, objExpr); err != nil {
+			return opts, err
 		}
-	}
-	opts.Name = ast.StringFromLiteral(nameStr)
-
-	cronExpr, cronErr := edit.GetProperty(objExpr, optCron)
-	everyExpr, everyErr := edit.GetProperty(objExpr, optEvery)
-	if cronErr == nil && everyErr == nil {
-		return opts, ErrDuplicateIntervalField
-	}
-	if cronErr != nil && everyErr != nil {
-		return opts, ErrMissingRequiredTaskOption("cron or every is required")
-	}
-
-	if cronErr == nil {
-		cronExprStr, ok := cronExpr.(*ast.StringLiteral)
-		if !ok {
-			return opts, unexpectedKindError{
-				Got:      cronExpr.Type(),
-				Expected: "StringLiteral",
-			}
-		}
-		opts.Cron = ast.StringFromLiteral(cronExprStr)
-	}
-
-	if everyErr == nil {
-		everyDur, ok := everyExpr.(*ast.DurationLiteral)
-		if !ok {
-			return opts, unexpectedKindError{
-				Got:      everyExpr.Type(),
-				Expected: "StringLiteral",
-			}
-		}
-		opts.Every = Duration{Node: *everyDur}
-	}
-
-	offsetExpr, offsetErr := edit.GetProperty(objExpr, optOffset)
-	if offsetErr == nil {
-		switch offsetExprV := offsetExpr.(type) {
-		case *ast.UnaryExpression:
-			offsetDur, err := ParseSignedDuration(offsetExprV.Loc.Source)
-			if err != nil {
-				return opts, err
-			}
-			opts.Offset = &Duration{Node: *offsetDur}
-		case *ast.DurationLiteral:
-			opts.Offset = &Duration{Node: *offsetExprV}
-		default:
-			return opts, unexpectedKindError{
-				Got:      offsetExpr.Type(),
-				Expected: "DurationLiteral",
-			}
-		}
-	}
-
-	concurExpr, concurErr := edit.GetProperty(objExpr, optConcurrency)
-	if concurErr == nil {
-		concurInt, ok := concurExpr.(*ast.IntegerLiteral)
-		if !ok {
-			return opts, unexpectedKindError{
-				Got:      concurExpr.Type(),
-				Expected: "IntegerLiteral",
-			}
-		}
-		val := ast.IntegerFromLiteral(concurInt)
-		opts.Concurrency = &val
-	}
-
-	retryExpr, retryErr := edit.GetProperty(objExpr, optRetry)
-	if retryErr == nil {
-		retryInt, ok := retryExpr.(*ast.IntegerLiteral)
-		if !ok {
-			return opts, unexpectedKindError{
-				Got:      retryExpr.Type(),
-				Expected: "IntegerLiteral",
-			}
-		}
-		val := ast.IntegerFromLiteral(retryInt)
-		opts.Retry = &val
 	}
 
 	if err := opts.Validate(); err != nil {
@@ -335,6 +252,143 @@ func FromScriptAST(lang FluxLanguageService, script string) (Options, error) {
 	}
 
 	return opts, nil
+}
+
+type unexpectedKindError struct {
+	Got      string
+	Expected string
+}
+
+func (err unexpectedKindError) Error() string {
+	return fmt.Sprintf("unexpected kind: got %q; expected %q", err.Got, err.Expected)
+}
+
+// hasDuplicateOptions determines whether or not there are multiple assignments
+// to the same option variable.
+//
+// TODO(brett): This will be superceded by edit.HasDuplicateOptions once its available.
+func hasDuplicateOptions(file *ast.File, name string) bool {
+	var n int
+	for _, st := range file.Body {
+		if val, ok := st.(*ast.OptionStatement); ok {
+			assign := val.Assignment
+			if va, ok := assign.(*ast.VariableAssignment); ok {
+				if va.ID.Name == name {
+					if ok {
+						n++
+					}
+				}
+			}
+		}
+	}
+	return n > 1
+}
+
+type extractFn func(*Options, *ast.ObjectExpression) error
+
+var taskOptionExtractors = []extractFn{
+	extractNameOption,
+	extractScheduleOptions,
+	extractOffsetOption,
+	extractConcurrencyOption,
+	extractRetryOption,
+}
+
+func extractNameOption(opts *Options, objExpr *ast.ObjectExpression) error {
+	nameExpr, err := edit.GetProperty(objExpr, optName)
+	if err != nil {
+		return ErrMissingRequiredTaskOption(optName)
+	}
+	nameStr, ok := nameExpr.(*ast.StringLiteral)
+	if !ok {
+		return ErrParseTaskOptionField(optName)
+	}
+	opts.Name = ast.StringFromLiteral(nameStr)
+
+	return nil
+}
+
+func extractScheduleOptions(opts *Options, objExpr *ast.ObjectExpression) error {
+	cronExpr, cronErr := edit.GetProperty(objExpr, optCron)
+	everyExpr, everyErr := edit.GetProperty(objExpr, optEvery)
+	if cronErr == nil && everyErr == nil {
+		return ErrDuplicateIntervalField
+	}
+	if cronErr != nil && everyErr != nil {
+		return ErrMissingRequiredTaskOption("cron or every")
+	}
+
+	if cronErr == nil {
+		cronExprStr, ok := cronExpr.(*ast.StringLiteral)
+		if !ok {
+			return ErrParseTaskOptionField(optCron)
+		}
+		opts.Cron = ast.StringFromLiteral(cronExprStr)
+	}
+
+	if everyErr == nil {
+		everyDur, ok := everyExpr.(*ast.DurationLiteral)
+		if !ok {
+			return ErrParseTaskOptionField(optEvery)
+		}
+		opts.Every = Duration{Node: *everyDur}
+	}
+
+	return nil
+}
+
+func extractOffsetOption(opts *Options, objExpr *ast.ObjectExpression) error {
+	offsetExpr, offsetErr := edit.GetProperty(objExpr, optOffset)
+	if offsetErr != nil {
+		return nil
+	}
+
+	switch offsetExprV := offsetExpr.(type) {
+	case *ast.UnaryExpression:
+		offsetDur, err := ParseSignedDuration(offsetExprV.Loc.Source)
+		if err != nil {
+			return err
+		}
+		opts.Offset = &Duration{Node: *offsetDur}
+	case *ast.DurationLiteral:
+		opts.Offset = &Duration{Node: *offsetExprV}
+	default:
+		return ErrParseTaskOptionField(optOffset)
+	}
+
+	return nil
+}
+
+func extractConcurrencyOption(opts *Options, objExpr *ast.ObjectExpression) error {
+	concurExpr, err := edit.GetProperty(objExpr, optConcurrency)
+	if err != nil {
+		return nil
+	}
+
+	concurInt, ok := concurExpr.(*ast.IntegerLiteral)
+	if !ok {
+		return ErrParseTaskOptionField(optConcurrency)
+	}
+	val := ast.IntegerFromLiteral(concurInt)
+	opts.Concurrency = &val
+
+	return nil
+}
+
+func extractRetryOption(opts *Options, objExpr *ast.ObjectExpression) error {
+	retryExpr, err := edit.GetProperty(objExpr, optRetry)
+	if err != nil {
+		return nil
+	}
+
+	retryInt, ok := retryExpr.(*ast.IntegerLiteral)
+	if !ok {
+		return ErrParseTaskOptionField(optRetry)
+	}
+	val := ast.IntegerFromLiteral(retryInt)
+	opts.Retry = &val
+
+	return nil
 }
 
 // FromScript extracts Options from a Flux script.
