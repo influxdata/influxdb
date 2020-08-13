@@ -1,5 +1,12 @@
-v1.8.2 [unreleased]
+v1.8.3 [unreleased]
 -------------------
+
+v1.8.2 [2020-08-13]
+-------------------
+
+### Bugfixes
+
+-	[#19253](https://github.com/influxdata/influxdb/pull/19253): fix(tsdb): Revert disable series id set cache size by default.
 
 v1.8.1 [2020-07-08]
 -------------------
