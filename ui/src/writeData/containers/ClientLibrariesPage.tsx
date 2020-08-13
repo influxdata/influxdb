@@ -6,6 +6,7 @@ import {Switch, Route} from 'react-router-dom'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import ClientLibrariesIndex from 'src/writeData/components/clientLibraries/ClientLibrariesIndex'
 import WriteDataDetailsView from 'src/writeData/components/WriteDataDetailsView'
+import WriteDataHelper from 'src/writeData/components/WriteDataHelper'
 
 // Constants
 import {ORGS, ORG_ID, CLIENT_LIBS} from 'src/shared/constants/routes'
@@ -14,7 +15,11 @@ import WRITE_DATA_CLIENT_LIBRARIES_SECTION from 'src/writeData/constants/content
 const clientLibPath = `/${ORGS}/${ORG_ID}/load-data/${CLIENT_LIBS}`
 
 const ClientLibrariesDetailsPage: FC = () => {
-  return <WriteDataDetailsView section={WRITE_DATA_CLIENT_LIBRARIES_SECTION} />
+  return (
+    <WriteDataDetailsView section={WRITE_DATA_CLIENT_LIBRARIES_SECTION}>
+      <WriteDataHelper />
+    </WriteDataDetailsView>
+  )
 }
 
 @ErrorHandling
