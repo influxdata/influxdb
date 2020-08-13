@@ -232,9 +232,7 @@ func (dec *{{.Name}}PointDecoder) Decode{{.Name}}Point(p *{{.Name}}Point) error 
 		}
 
 		if len(pb.Trace) > 0 {
-			var err error
-			err = decodeIteratorTrace(dec.ctx, pb.Trace)
-			if err != nil {
+			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
 				return err
 			}
 			continue

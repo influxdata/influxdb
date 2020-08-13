@@ -900,7 +900,7 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 
 		switch expr := expr.(type) {
 		case *influxql.VarRef:
-			if strings.ToLower(expr.Val) == "time" {
+			if strings.EqualFold(expr.Val, "time") {
 				return errors.New("time() is a function and expects at least one argument")
 			}
 		case *influxql.Call:
