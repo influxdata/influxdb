@@ -45,7 +45,7 @@ class BucketsIndex extends Component<StateProps> {
         <Page titleTag={pageTitleSuffixer(['Buckets', 'Load Data'])}>
           <LimitChecker>
             <LoadDataHeader />
-            <LoadDataTabbedPage activeTab="buckets" orgID={org.id}>
+            <LoadDataTabbedPage activeTab="buckets">
               <GetResources
                 resources={[
                   ResourceType.Buckets,

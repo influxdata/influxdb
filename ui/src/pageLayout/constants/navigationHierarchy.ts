@@ -50,7 +50,7 @@ export const generateNavItems = (orgID: string): NavItem[] => {
         {
           id: 'browse',
           testID: 'nav-subitem-browse',
-          label: 'Write Data',
+          label: 'Browse',
           link: {
             type: 'link',
             location: `${orgPrefix}/load-data/browse`,

@@ -5,6 +5,8 @@ import React, {FC, useState, createContext} from 'react'
 import {Page} from '@influxdata/clockface'
 import WriteDataSearchBar from 'src/writeData/components/WriteDataSearchBar'
 import WriteDataSections from 'src/writeData/components/WriteDataSections'
+import LoadDataHeader from 'src/settings/components/LoadDataHeader'
+import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -24,20 +26,14 @@ export const WriteDataSearchContext = createContext<WriteDataSearchContextType>(
 const WriteDataPage: FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('')
 
-  const FULL_WIDTH = false
-
   return (
     <WriteDataSearchContext.Provider value={{searchTerm, setSearchTerm}}>
-      <Page titleTag={pageTitleSuffixer(['Write Data', 'Load Data'])}>
-        <Page.Header fullWidth={FULL_WIDTH}>
-          <Page.Title title="Write Data to InfluxDB Cloud" />
-        </Page.Header>
-        <Page.ControlBar fullWidth={FULL_WIDTH}>
+      <Page titleTag={pageTitleSuffixer(['Browse', 'Load Data'])}>
+        <LoadDataHeader />
+        <LoadDataTabbedPage activeTab="browse">
           <WriteDataSearchBar />
-        </Page.ControlBar>
-        <Page.Contents fullWidth={FULL_WIDTH} scrollable={true}>
           <WriteDataSections />
-        </Page.Contents>
+        </LoadDataTabbedPage>
       </Page>
     </WriteDataSearchContext.Provider>
   )

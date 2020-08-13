@@ -1,6 +1,5 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 // Components
@@ -13,33 +12,26 @@ import CreateScraperOverlay from 'src/scrapers/components/CreateScraperOverlay'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-import {getOrg} from 'src/organizations/selectors'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {AppState, Organization, ResourceType} from 'src/types'
+import {ResourceType} from 'src/types'
 
 // Constants
 import {ORGS, ORG_ID, SCRAPERS} from 'src/shared/constants/routes'
 
-interface StateProps {
-  org: Organization
-}
-
 const scrapersPath = `/${ORGS}/${ORG_ID}/load-data/${SCRAPERS}`
 
 @ErrorHandling
-class ScrapersIndex extends Component<StateProps> {
+class ScrapersIndex extends Component<{}> {
   public render() {
-    const {org} = this.props
-
     return (
       <>
         <Page titleTag={pageTitleSuffixer(['Scrapers', 'Load Data'])}>
           <LoadDataHeader />
-          <LoadDataTabbedPage activeTab="scrapers" orgID={org.id}>
+          <LoadDataTabbedPage activeTab="scrapers">
             <GetResources
               resources={[ResourceType.Scrapers, ResourceType.Buckets]}
             >
@@ -58,6 +50,4 @@ class ScrapersIndex extends Component<StateProps> {
   }
 }
 
-const mstp = (state: AppState) => ({org: getOrg(state)})
-
-export default connect(mstp)(ScrapersIndex)
+export default ScrapersIndex
