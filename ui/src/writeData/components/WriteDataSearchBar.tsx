@@ -20,6 +20,7 @@ const WriteDataSearchBar: FC = () => {
       size={ComponentSize.Large}
       icon={IconFont.Search}
       onChange={handleInputChange}
+      autoFocus={true}
     />
   )
 }
