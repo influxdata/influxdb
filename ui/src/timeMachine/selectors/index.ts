@@ -138,22 +138,24 @@ export const getXColumnSelection = (state: AppState): string => {
 
 export const getYColumnSelection = (state: AppState): string => {
   const {table} = getVisTable(state)
-  const preferredYColumnKey = get(
+  const tm = getActiveTimeMachine(state)
+  let preferredYColumnKey
+
+  if (tm.view.properties.type === 'mosaic') {
+    preferredYColumnKey = get(
+      getActiveTimeMachine(state),
+      'view.properties.ySeriesColumns[0]'
+    )
+
+    return mosaicYcolumn(table, preferredYColumnKey)
+  }
+
+  preferredYColumnKey = get(
     getActiveTimeMachine(state),
     'view.properties.yColumn'
   )
 
   return defaultYColumn(table, preferredYColumnKey)
-}
-
-export const getMosaicYColumnSelection = (state: AppState): string => {
-  const {table} = getVisTable(state)
-  const preferredYColumnKey = get(
-    getActiveTimeMachine(state),
-    'view.properties.ySeriesColumns[0]'
-  )
-
-  return mosaicYcolumn(table, preferredYColumnKey)
 }
 
 const getGroupableColumnSelection = (
@@ -175,12 +177,36 @@ const getSymbolColumnsSelectionMemoized = memoizeOne(
 )
 
 export const getFillColumnsSelection = (state: AppState): string[] => {
-  const validFillColumns = getGroupableColumns(state)
+  const {table} = getVisTable(state)
+  const tm = getActiveTimeMachine(state)
+  const graphType = tm.view.properties.type
+  let validFillColumns
+  if (graphType === 'mosaic') {
+    validFillColumns = getStringColumnsMemoized(table)
+  } else {
+    validFillColumns = getGroupableColumns(state)
+  }
 
   const preference = get(
     getActiveTimeMachine(state),
     'view.properties.fillColumns'
   )
+
+  if (graphType === 'mosaic') {
+    //user hasn't selected a fill column yet
+    if (preference === null) {
+      //check if value is a string[]
+      for (const key of validFillColumns) {
+        if (key.startsWith('_value')) {
+          return [key]
+        }
+      }
+      //check if value is a numeric column
+      if (table.columnKeys.includes('_value')) {
+        return []
+      }
+    }
+  }
 
   const {fluxGroupKeyUnion} = getVisTable(state)
 
@@ -188,35 +214,6 @@ export const getFillColumnsSelection = (state: AppState): string[] => {
     validFillColumns,
     preference,
     fluxGroupKeyUnion
-  )
-}
-
-export const getMosaicFillColumnsSelection = (state: AppState): string[] => {
-  const {table} = getVisTable(state)
-  const validFillColumns = getStringColumnsMemoized(table)
-  const preference = get(
-    getActiveTimeMachine(state),
-    'view.properties.fillColumns'
-  )
-
-  //user hasn't selected a fill column yet
-  if (preference === null) {
-    //check if value is a string[]
-    for (const key of validFillColumns) {
-      if (key.startsWith('_value')) {
-        return [key]
-      }
-    }
-    //check if value is a numeric column
-    if (table.columnKeys.includes('_value')) {
-      return []
-    }
-  }
-
-  return getFillColumnsSelectionMemoized(
-    validFillColumns,
-    preference,
-    validFillColumns
   )
 }
 
@@ -306,8 +303,8 @@ export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
       properties: {
         ...saveableView.properties,
         xColumn: getXColumnSelection(state),
-        ySeriesColumns: [getMosaicYColumnSelection(state)],
-        fillColumns: getMosaicFillColumnsSelection(state),
+        ySeriesColumns: [getYColumnSelection(state)],
+        fillColumns: getFillColumnsSelection(state),
       },
     }
   }

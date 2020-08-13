@@ -21,9 +21,9 @@ import {
 // Utils
 import {
   getGroupableColumns,
-  getMosaicFillColumnsSelection,
+  getFillColumnsSelection,
   getXColumnSelection,
-  getMosaicYColumnSelection,
+  getYColumnSelection,
   getNumericColumns,
   getStringColumns,
   getActiveTimeMachine,
@@ -137,9 +137,9 @@ const MosaicOptions: SFC<Props> = props => {
 
 const mstp = (state: AppState) => {
   const availableGroupColumns = getGroupableColumns(state)
-  const fillColumns = getMosaicFillColumnsSelection(state)
+  const fillColumns = getFillColumnsSelection(state)
   const xColumn = getXColumnSelection(state)
-  const yColumn = getMosaicYColumnSelection(state)
+  const yColumn = getYColumnSelection(state)
   const stringColumns = getStringColumns(state)
   const numericColumns = getNumericColumns(state)
   const view = getActiveTimeMachine(state).view as NewView<MosaicViewProperties>
