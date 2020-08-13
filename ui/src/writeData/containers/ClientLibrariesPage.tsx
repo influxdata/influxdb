@@ -23,7 +23,7 @@ const ClientLibrariesDetailsPage: FC = () => {
 }
 
 @ErrorHandling
-class ClientLibrariesPage extends PureComponent<{}> {
+class ClientLibrariesPage extends PureComponent {
   public render() {
     const {children} = this.props
 

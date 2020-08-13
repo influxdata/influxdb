@@ -23,7 +23,7 @@ const TelegrafPluginsDetailsPage: FC = () => {
 }
 
 @ErrorHandling
-class TelegrafPluginsPage extends PureComponent<{}> {
+class TelegrafPluginsPage extends PureComponent {
   public render() {
     const {children} = this.props
 

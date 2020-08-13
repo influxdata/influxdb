@@ -25,7 +25,7 @@ import {ORGS, ORG_ID, SCRAPERS} from 'src/shared/constants/routes'
 const scrapersPath = `/${ORGS}/${ORG_ID}/load-data/${SCRAPERS}`
 
 @ErrorHandling
-class ScrapersIndex extends Component<{}> {
+class ScrapersIndex extends Component {
   public render() {
     return (
       <>

@@ -43,7 +43,7 @@ import {ORGS, ORG_ID, TELEGRAFS} from 'src/shared/constants/routes'
 const telegrafsPath = `/${ORGS}/${ORG_ID}/load-data/${TELEGRAFS}`
 
 @ErrorHandling
-class TelegrafsPage extends PureComponent<{}> {
+class TelegrafsPage extends PureComponent {
   public render() {
     return (
       <>

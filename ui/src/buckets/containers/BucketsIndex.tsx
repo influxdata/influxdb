@@ -30,7 +30,7 @@ import {ResourceType} from 'src/types'
 const bucketsPath = `/${ORGS}/${ORG_ID}/load-data/${BUCKETS}/${BUCKET_ID}`
 
 @ErrorHandling
-class BucketsIndex extends Component<{}> {
+class BucketsIndex extends Component {
   public render() {
     return (
       <>
