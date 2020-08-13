@@ -43,17 +43,17 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       shortLabel: 'Data',
       link: {
         type: 'link',
-        location: `${orgPrefix}/load-data/browse`,
+        location: `${orgPrefix}/load-data/sources`,
       },
       activeKeywords: ['load-data'],
       menu: [
         {
-          id: 'browse',
-          testID: 'nav-subitem-browse',
-          label: 'Browse',
+          id: 'sources',
+          testID: 'nav-subitem-sources',
+          label: 'Sources',
           link: {
             type: 'link',
-            location: `${orgPrefix}/load-data/browse`,
+            location: `${orgPrefix}/load-data/sources`,
           },
         },
         {

@@ -29,8 +29,8 @@ class LoadDataNavigation extends PureComponent<Props> {
 
     const tabs = [
       {
-        text: 'Browse',
-        id: 'browse',
+        text: 'Sources',
+        id: 'sources',
         cloudExclude: false,
         featureFlag: null,
       },

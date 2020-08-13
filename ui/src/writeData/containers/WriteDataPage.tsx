@@ -28,9 +28,9 @@ const WriteDataPage: FC = () => {
 
   return (
     <WriteDataSearchContext.Provider value={{searchTerm, setSearchTerm}}>
-      <Page titleTag={pageTitleSuffixer(['Browse', 'Load Data'])}>
+      <Page titleTag={pageTitleSuffixer(['Sources', 'Load Data'])}>
         <LoadDataHeader />
-        <LoadDataTabbedPage activeTab="browse">
+        <LoadDataTabbedPage activeTab="sources">
           <WriteDataSearchBar />
           <WriteDataSections />
         </LoadDataTabbedPage>

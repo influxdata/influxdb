@@ -141,7 +141,7 @@ const SetOrg: FC<Props> = ({
 
         {/* Write Data */}
         <Route
-          path={`${orgPath}/${LOAD_DATA}/browse`}
+          path={`${orgPath}/${LOAD_DATA}/sources`}
           component={WriteDataPage}
         />
         <Route
