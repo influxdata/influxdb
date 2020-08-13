@@ -1,6 +1,8 @@
 package tsm1
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -1937,6 +1939,82 @@ func BenchmarkBlockIterator_Next(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		bi := r.BlockIterator()
 		for bi.Next() {
+		}
+	}
+}
+
+func TestVerifyVersion(t *testing.T) {
+	// write a valid MagicNumber and Version to a bytes buffer.
+	tests := map[string]struct {
+		shouldErr bool
+		buf       func() *bytes.Buffer
+	}{
+		"Well Formed Header": {
+			buf: func() *bytes.Buffer {
+				buf := &bytes.Buffer{}
+				binary.Write(buf, binary.BigEndian, MagicNumber)
+				binary.Write(buf, binary.BigEndian, Version)
+				return buf
+			},
+		},
+		"Header With Bad Version": {
+			shouldErr: true,
+			buf: func() *bytes.Buffer {
+				buf := &bytes.Buffer{}
+				binary.Write(buf, binary.BigEndian, MagicNumber)
+				binary.Write(buf, binary.BigEndian, byte(128))
+				return buf
+			},
+		},
+		"Header With Bad Magic": {
+			shouldErr: true,
+			buf: func() *bytes.Buffer {
+				buf := &bytes.Buffer{}
+				binary.Write(buf, binary.BigEndian, uint32(0xffffffff))
+				binary.Write(buf, binary.BigEndian, Version)
+				return buf
+			},
+		},
+		"Emtpy Header": {
+			shouldErr: true,
+			buf: func() *bytes.Buffer {
+				buf := &bytes.Buffer{}
+				return buf
+			},
+		},
+	}
+
+	t.Parallel()
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			buf := test.buf()
+			// Attempt to read MagicNumber and Version
+			err := verifyVersion(buf)
+
+			if testing.Verbose() {
+				t.Logf("note: err is %v", err)
+			}
+
+			if !test.shouldErr && err != nil {
+				t.Fatal(err)
+			}
+
+			if test.shouldErr && err == nil {
+				t.Fatal("expected a non-nil error from verifyVersion() but got nil")
+			}
+		})
+	}
+}
+
+func BenchmarkVerifyVersion(b *testing.B) {
+	header := &bytes.Buffer{}
+	binary.Write(header, binary.BigEndian, MagicNumber)
+	binary.Write(header, binary.BigEndian, Version)
+
+	for i := 0; i < b.N; i++ {
+		buf := bytes.NewBuffer(header.Bytes())
+		if err := verifyVersion(buf); err != nil {
+			b.Fatal(err)
 		}
 	}
 }
