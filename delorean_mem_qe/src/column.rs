@@ -35,6 +35,30 @@ impl<'a> std::ops::Add<&Scalar<'a>> for Scalar<'a> {
     }
 }
 
+impl<'a> std::ops::AddAssign<&Scalar<'a>> for Scalar<'a> {
+    fn add_assign(&mut self, _rhs: &Scalar<'a>) {
+        match self {
+            Self::Float(v) => {
+                if let Self::Float(other) = _rhs {
+                    *v += *other;
+                } else {
+                    panic!("invalid");
+                };
+            }
+            Self::Integer(v) => {
+                if let Self::Integer(other) = _rhs {
+                    *v += *other;
+                } else {
+                    panic!("invalid");
+                };
+            }
+            Self::String(_) => {
+                unreachable!("not possible to add strings");
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Aggregate<'a> {
     Count(u64),
@@ -64,6 +88,35 @@ impl<'a> std::ops::Add<&Aggregate<'a>> for Aggregate<'a> {
     }
 }
 
+// impl<'a> std::ops::Add<&Scalar<'a>> for Aggregate<'a> {
+//     type Output = Aggregate<'a>;
+
+//     fn add(self, _rhs: &Scalar<'a>) -> Self::Output {
+//         match _rhs {
+//             Scalar::String(v) => {}
+//             Scalar::Float(v) => {}
+//             Scalar::Integer(v) => {}
+//         }
+//         // match self {
+//         //     Self::Count(c) => {
+//         //         match
+//         //         if let Scalar::Count(other) = _rhs {
+//         //             return Self::Count(c + other);
+//         //         } else {
+//         //             panic!("invalid");
+//         //         };
+//         //     }
+//         //     Self::Sum(s) => {
+//         //         if let Self::Sum(other) = _rhs {
+//         //             return Self::Sum(s + other);
+//         //         } else {
+//         //             panic!("invalid");
+//         //         };
+//         //     }
+//         // }
+//     }
+// }
+
 pub enum Vector<'a> {
     String(Vec<&'a Option<std::string::String>>),
     Float(Vec<f64>),
@@ -82,6 +135,16 @@ impl<'a> Vector<'a> {
             Self::Integer(v) => v.len(),
         }
     }
+
+    pub fn get(&self, i: usize) -> Scalar<'a> {
+        match self {
+            // FIXME(edd): SORT THIS OPTION OUT
+            Self::String(v) => Scalar::String(v[i].as_ref().unwrap()),
+            Self::Float(v) => Scalar::Float(v[i]),
+            Self::Integer(v) => Scalar::Integer(v[i]),
+        }
+    }
+
     pub fn extend(&mut self, other: Self) {
         match self {
             Self::String(v) => {
@@ -106,6 +169,33 @@ impl<'a> Vector<'a> {
                 }
             }
         }
+    }
+}
+
+/// VectorIterator allows a `Vector` to be iterated. Until vectors are drained
+/// Scalar values are emitted.
+pub struct VectorIterator<'a> {
+    v: Vector<'a>,
+    next_i: usize,
+}
+
+impl<'a> VectorIterator<'a> {
+    pub fn new(v: Vector<'a>) -> Self {
+        Self { v, next_i: 0 }
+    }
+}
+impl<'a> Iterator for VectorIterator<'a> {
+    type Item = Scalar<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let curr_i = self.next_i;
+        self.next_i += 1;
+
+        if curr_i == self.v.len() {
+            return None;
+        }
+
+        Some(self.v.get(curr_i))
     }
 }
 
@@ -178,6 +268,37 @@ impl Column {
                     return None;
                 }
                 Some(Scalar::Integer(c.value(row_id)))
+            }
+        }
+    }
+
+    /// Materialise all of the decoded values matching the provided logical
+    /// row ids.
+    pub fn values(&self, row_ids: &croaring::Bitmap) -> Vector {
+        match self {
+            Column::String(c) => {
+                if row_ids.is_empty() {
+                    return Vector::String(vec![]);
+                }
+
+                let row_id_vec = row_ids.to_vec();
+                Vector::String(c.values(&row_id_vec))
+            }
+            Column::Float(c) => {
+                if row_ids.is_empty() {
+                    return Vector::Float(vec![]);
+                }
+
+                let row_id_vec = row_ids.to_vec();
+                Vector::Float(c.values(&row_id_vec))
+            }
+            Column::Integer(c) => {
+                if row_ids.is_empty() {
+                    return Vector::Integer(vec![]);
+                }
+
+                let row_id_vec = row_ids.to_vec();
+                Vector::Integer(c.values(&row_id_vec))
             }
         }
     }

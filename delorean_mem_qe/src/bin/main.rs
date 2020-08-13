@@ -36,7 +36,7 @@ fn main() {
         store.size(),
     );
 
-    time_group_by_agg(&store);
+    // time_group_by_agg(&store);
 
     // time_column_min_time(&store);
     // time_column_max_time(&store);
@@ -107,18 +107,20 @@ fn main() {
     //     println!("ROWS ({}) {:?}", v, v.len());
     // }
 
-    // let now = std::time::Instant::now();
-    // let segments = store.segments();
-    // let groups = segments.read_group_eq(
-    //     (0, 1590044410000000),
-    //     &[],
-    //     vec!["env".to_string()],
-    //     vec![
-    //         // ("counter".to_string(), Aggregate::Sum),
-    //         ("counter".to_string(), Aggregate::Count),
-    //     ],
-    // );
-    // println!("{:?} {:?}", groups, now.elapsed());
+    loop {
+        let now = std::time::Instant::now();
+        let segments = store.segments();
+        let groups = segments.read_group_eq(
+            (0, 1590044410000000),
+            &[],
+            vec!["env".to_string(), "status".to_string()],
+            vec![
+                ("counter".to_string(), Aggregate::Sum),
+                // ("counter".to_string(), Aggregate::Count),
+            ],
+        );
+        println!("{:?} {:?}", groups, now.elapsed());
+    }
 
     // loop {
     //     let mut total_count = 0.0;
@@ -157,12 +159,12 @@ fn build_store(
     mut reader: arrow::ipc::reader::StreamReader<File>,
     store: &mut Store,
 ) -> Result<(), Error> {
-    let mut i = 0;
+    // let mut i = 0;
     while let Some(rb) = reader.next_batch().unwrap() {
-        if i < 364 {
-            i += 1;
-            continue;
-        }
+        // if i < 364 {
+        //     i += 1;
+        //     continue;
+        // }
         let segment = convert_record_batch(rb)?;
         store.add_segment(segment);
     }

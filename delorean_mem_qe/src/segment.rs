@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use super::column;
 use super::column::Column;
@@ -148,9 +148,10 @@ impl Segment {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
-        group_columns: Vec<String>,
-        aggregates: &Vec<(String, Aggregate)>,
-    ) -> BTreeMap<Vec<String>, Vec<(String, Aggregate)>> {
+        group_columns: &[String],
+        aggregates: &[(String, Aggregate)],
+    ) -> BTreeMap<Vec<String>, Vec<(String, Option<column::Aggregate>)>> {
+        // println!("working segment {:?}", time_range);
         // Build a hash table - essentially, scan columns for matching row ids,
         // emitting the encoded value for each column and track those value
         // combinations in a hashmap with running aggregates.
@@ -162,16 +163,163 @@ impl Segment {
         } else {
             return BTreeMap::new();
         }
+        let total_rows = &filtered_row_ids.cardinality();
+        // println!("TOTAL FILTERED ROWS {:?}", total_rows);
 
-        // materialise all encoded values for the matching rows.
-        // let mut column_encoded_values = Vec::with_capacity(group_columns.len());
+        // materialise all encoded values for the matching rows in the columns
+        // we are grouping on and store each group as an iterator.
+        let mut group_column_encoded_values = Vec::with_capacity(group_columns.len());
         for group_column in group_columns {
-            // if let Some(column) = self.column(&group_column) {
-            //     column_encoded_values.push(Some(column.encoded_values(&filtered_row_ids));
-            // } else {
-            //     column_encoded_values.push(None);
-            // }
+            if let Some(column) = self.column(&group_column) {
+                let encoded_values: Vec<i64>;
+                if let column::Vector::Integer(vector) = column.encoded_values(&filtered_row_ids) {
+                    encoded_values = vector;
+                } else {
+                    unimplemented!("currently you can only group on encoded string columns");
+                }
+
+                assert_eq!(
+                    filtered_row_ids.cardinality() as usize,
+                    encoded_values.len()
+                );
+                group_column_encoded_values.push(Some(encoded_values));
+            } else {
+                group_column_encoded_values.push(None);
+            }
         }
+        // println!("grouped columns {:?}", group_column_encoded_values);
+
+        // TODO(edd): we could do this with an iterator I expect.
+        //
+        // materialise all decoded values for the rows in the columns we are
+        // aggregating on.
+        let mut aggregate_column_decoded_values = Vec::with_capacity(aggregates.len());
+        for (column_name, _) in aggregates {
+            if let Some(column) = self.column(&column_name) {
+                let decoded_values = column.values(&filtered_row_ids);
+                assert_eq!(
+                    filtered_row_ids.cardinality() as usize,
+                    decoded_values.len()
+                );
+                aggregate_column_decoded_values.push((column_name, Some(decoded_values)));
+            } else {
+                aggregate_column_decoded_values.push((column_name, None));
+            }
+        }
+
+        // now we have all the matching rows for each grouping column and each aggregation
+        // column. Materialised values for grouping are in encoded form.
+        //
+        // Next we iterate all rows in all columns and create a hash entry with
+        // running aggregates.
+
+        // First we will build a collection of iterators over the columns we
+        // are grouping on. For columns that have no matching rows from the
+        // filtering stage we will just emit None.
+        let mut group_itrs = group_column_encoded_values
+            .iter()
+            .map(|x| match x {
+                Some(values) => Some(values.iter()),
+                None => None,
+            })
+            .collect::<Vec<_>>();
+
+        // Next we will build a collection of iterators over the columns we
+        // are aggregating on. For columns that have no matching rows from the
+        // filtering stage we will just emit None.
+        let mut aggregate_itrs = aggregate_column_decoded_values
+            .into_iter()
+            .map(|(col_name, values)| match values {
+                Some(values) => (col_name.as_str(), Some(column::VectorIterator::new(values))),
+                None => (col_name.as_str(), None),
+            })
+            .collect::<Vec<_>>();
+
+        let mut hash_table: HashMap<
+            Vec<Option<&i64>>,
+            Vec<(&String, &Aggregate, Option<column::Aggregate>)>,
+        > = HashMap::with_capacity(30000);
+
+        let mut aggregate_row: Vec<(&str, Option<column::Scalar>)> =
+            std::iter::repeat_with(|| ("", None))
+                .take(aggregate_itrs.len())
+                .collect();
+
+        let mut processed_rows = 0;
+        while processed_rows < *total_rows {
+            let group_row: Vec<Option<&i64>> = group_itrs
+                .iter_mut()
+                .map(|x| match x {
+                    Some(itr) => itr.next(),
+                    None => None,
+                })
+                .collect();
+
+            // let aggregate_row: Vec<(&str, Option<column::Scalar>)> = aggregate_itrs
+            //     .iter_mut()
+            //     .map(|&mut (col_name, ref mut itr)| match itr {
+            //         Some(itr) => (col_name, itr.next()),
+            //         None => (col_name, None),
+            //     })
+            //     .collect();
+
+            // re-use aggregate_row vector.
+            for (i, &mut (col_name, ref mut itr)) in aggregate_itrs.iter_mut().enumerate() {
+                match itr {
+                    Some(itr) => aggregate_row[i] = (col_name, itr.next()),
+                    None => aggregate_row[i] = (col_name, None),
+                }
+            }
+
+            // Lookup the group key in the hash map - if it's empty then insert
+            // a place-holder for each aggregate being executed.
+            let group_key_entry = hash_table.entry(group_row).or_insert_with(|| {
+                // TODO COULD BE MAP/COLLECT
+                let mut agg_results: Vec<(&String, &Aggregate, Option<column::Aggregate>)> =
+                    Vec::with_capacity(aggregates.len());
+                for (col_name, agg_type) in aggregates {
+                    agg_results.push((col_name, agg_type, None)); // switch out Aggregate for Option<column::Aggregate>
+                }
+                agg_results
+            });
+
+            // Update aggregates - we process each row value and for each one
+            // check which aggregates apply to it.
+            //
+            // TODO(edd): this is probably a bit of a perf suck.
+            for (col_name, row_value) in &aggregate_row {
+                for &mut (cum_col_name, agg_type, ref mut cum_agg_value) in
+                    group_key_entry.iter_mut()
+                {
+                    if col_name != cum_col_name {
+                        continue;
+                    }
+
+                    // TODO(edd): remove unwrap - it should work because we are
+                    // tracking iteration count in loop.
+                    let row_value = row_value.as_ref().unwrap();
+
+                    match cum_agg_value {
+                        Some(agg) => match agg {
+                            column::Aggregate::Count(cum_count) => {
+                                *cum_count += 1;
+                            }
+                            column::Aggregate::Sum(cum_sum) => {
+                                *cum_sum += row_value;
+                            }
+                        },
+                        None => {
+                            *cum_agg_value = match agg_type {
+                                Aggregate::Count => Some(column::Aggregate::Count(0)),
+                                Aggregate::Sum => Some(column::Aggregate::Sum(row_value.clone())),
+                            }
+                        }
+                    }
+                }
+            }
+            processed_rows += 1;
+        }
+        // println!("{:?}", hash_table.len());
         BTreeMap::new()
     }
 
@@ -476,46 +624,47 @@ impl<'a> Segments<'a> {
         group_columns: Vec<String>,
         aggregates: Vec<(String, Aggregate)>,
     ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
-        // TODO(edd): support multi column groups
-        assert_eq!(group_columns.len(), 1);
-
         let (min, max) = time_range;
         if max <= min {
             panic!("max <= min");
         }
 
+        for segment in &self.segments {
+            segment.aggregate_by_groups(time_range, predicates, &group_columns, &aggregates);
+        }
+
         let mut cum_results: BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> =
             BTreeMap::new();
 
-        for segment in &self.segments {
-            let segment_results = segment.group_agg_by_predicate_eq(
-                time_range,
-                predicates,
-                &group_columns,
-                &aggregates,
-            );
+        // for segment in &self.segments {
+        //     let segment_results = segment.group_agg_by_predicate_eq(
+        //         time_range,
+        //         predicates,
+        //         &group_columns,
+        //         &aggregates,
+        //     );
 
-            for (k, segment_aggs) in segment_results {
-                // assert_eq!(v.len(), aggregates.len());
-                let cum_result = cum_results.get_mut(&k);
-                match cum_result {
-                    Some(cum) => {
-                        assert_eq!(cum.len(), segment_aggs.len());
-                        // In this case we need to aggregate the aggregates from
-                        // each segment.
-                        for i in 0..cum.len() {
-                            // TODO(edd): this is more expensive than necessary
-                            cum[i] = (cum[i].0.clone(), cum[i].1.clone() + &segment_aggs[i].1);
-                        }
-                    }
-                    None => {
-                        cum_results.insert(k, segment_aggs);
-                    }
-                }
-            }
-        }
+        //     for (k, segment_aggs) in segment_results {
+        //         // assert_eq!(v.len(), aggregates.len());
+        //         let cum_result = cum_results.get_mut(&k);
+        //         match cum_result {
+        //             Some(cum) => {
+        //                 assert_eq!(cum.len(), segment_aggs.len());
+        //                 // In this case we need to aggregate the aggregates from
+        //                 // each segment.
+        //                 for i in 0..cum.len() {
+        //                     // TODO(edd): this is more expensive than necessary
+        //                     cum[i] = (cum[i].0.clone(), cum[i].1.clone() + &segment_aggs[i].1);
+        //                 }
+        //             }
+        //             None => {
+        //                 cum_results.insert(k, segment_aggs);
+        //             }
+        //         }
+        //     }
+        // }
 
-        // columns
+        // // columns
         cum_results
     }
 
