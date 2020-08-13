@@ -32,7 +32,6 @@ func init() {
 		GroupWindowAggregateTransposeRule{},
 		PushDownGroupAggregateRule{},
 		SwitchFillImplRule{},
-		SwitchSchemaMutationImplRule{},
 	)
 	plan.RegisterLogicalRules(
 		MergeFiltersRule{},
@@ -1155,26 +1154,6 @@ func (r SwitchFillImplRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Nod
 		}
 	}
 	return pn, false, nil
-}
-
-type SwitchSchemaMutationImplRule struct{}
-
-func (SwitchSchemaMutationImplRule) Name() string {
-	return "SwitchSchemaMutationImplRule"
-}
-
-func (SwitchSchemaMutationImplRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.SchemaMutationKind, plan.Any())
-}
-
-func (r SwitchSchemaMutationImplRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
-	spec, ok := pn.ProcedureSpec().(*universe.DualImplProcedureSpec)
-	if !ok || spec.UseDeprecated {
-		return pn, false, nil
-	}
-
-	spec.UseDeprecated = !feature.MemoryOptimizedSchemaMutation().Enabled(ctx)
-	return pn, spec.UseDeprecated, nil
 }
 
 func asSchemaMutationProcedureSpec(spec plan.ProcedureSpec) *universe.SchemaMutationProcedureSpec {

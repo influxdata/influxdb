@@ -156,20 +156,6 @@ func MemoryOptimizedFill() BoolFlag {
 	return memoryOptimizedFill
 }
 
-var memoryOptimizedSchemaMutation = MakeBoolFlag(
-	"Memory Optimized Schema Mutation",
-	"memoryOptimizedSchemaMutation",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// MemoryOptimizedSchemaMutation - Enable the memory optimized schema mutation functions
-func MemoryOptimizedSchemaMutation() BoolFlag {
-	return memoryOptimizedSchemaMutation
-}
-
 var simpleTaskOptionsExtraction = MakeBoolFlag(
 	"Simple Task Options Extraction",
 	"simpleTaskOptionsExtraction",
@@ -252,7 +238,6 @@ var all = []Flag{
 	hydratevars,
 	queryCacheForDashboards,
 	memoryOptimizedFill,
-	memoryOptimizedSchemaMutation,
 	simpleTaskOptionsExtraction,
 	useUserPermission,
 	mergeFiltersRule,
@@ -272,7 +257,6 @@ var byKey = map[string]Flag{
 	"hydratevars":                   hydratevars,
 	"queryCacheForDashboards":       queryCacheForDashboards,
 	"memoryOptimizedFill":           memoryOptimizedFill,
-	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"useUserPermission":             useUserPermission,
 	"mergeFiltersRule":              mergeFiltersRule,

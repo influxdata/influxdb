@@ -92,13 +92,6 @@
   contact: Query Team
   lifetime: temporary
 
-- name: Memory Optimized Schema Mutation
-  description: Enable the memory optimized schema mutation functions
-  key: memoryOptimizedSchemaMutation
-  default: false
-  contact: Query Team
-  lifetime: temporary
-
 - name: Simple Task Options Extraction
   description: Simplified task options extraction to avoid undefined functions when saving tasks
   key: simpleTaskOptionsExtraction
