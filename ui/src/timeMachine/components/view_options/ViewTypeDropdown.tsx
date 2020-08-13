@@ -10,6 +10,7 @@ import {Dropdown, DropdownMenuTheme} from '@influxdata/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {VIS_GRAPHICS} from 'src/timeMachine/constants/visGraphics'
@@ -53,18 +54,25 @@ class ViewTypeDropdown extends PureComponent<Props> {
   }
 
   private get dropdownItems(): JSX.Element[] {
-    return VIS_GRAPHICS.map(g => (
-      <Dropdown.Item
-        key={`view-type--${g.type}`}
-        id={`${g.type}`}
-        testID={`view-type--${g.type}`}
-        value={g.type}
-        onClick={this.handleChange}
-        selected={`${g.type}` === this.selectedView}
-      >
-        {this.getVewTypeGraphic(g.type)}
-      </Dropdown.Item>
-    ))
+    return VIS_GRAPHICS.filter(g => {
+      if (g.type === 'mosaic' && !isFlagEnabled('mosaicGraphType')) {
+        return false
+      }
+      return true
+    }).map(g => {
+      return (
+        <Dropdown.Item
+          key={`view-type--${g.type}`}
+          id={`${g.type}`}
+          testID={`view-type--${g.type}`}
+          value={g.type}
+          onClick={this.handleChange}
+          selected={`${g.type}` === this.selectedView}
+        >
+          {this.getVewTypeGraphic(g.type)}
+        </Dropdown.Item>
+      )
+    })
   }
 
   private get dropdownStatus(): ComponentStatus {

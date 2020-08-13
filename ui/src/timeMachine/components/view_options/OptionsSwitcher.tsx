@@ -9,6 +9,7 @@ import TableOptions from 'src/timeMachine/components/view_options/TableOptions'
 import HistogramOptions from 'src/timeMachine/components/view_options/HistogramOptions'
 import HeatmapOptions from 'src/timeMachine/components/view_options/HeatmapOptions'
 import ScatterOptions from 'src/timeMachine/components/view_options/ScatterOptions'
+import MosaicOptions from 'src/timeMachine/components/view_options/MosaicOptions'
 
 // Types
 import {View, NewView} from 'src/types'
@@ -43,6 +44,8 @@ class OptionsSwitcher extends PureComponent<Props> {
         return <HeatmapOptions {...view.properties} />
       case 'scatter':
         return <ScatterOptions {...view.properties} />
+      case 'mosaic':
+        return <MosaicOptions {...view.properties} />
       default:
         return <div />
     }

@@ -77,6 +77,7 @@ export type Action =
   | SetTimeFormatAction
   | SetXColumnAction
   | SetYColumnAction
+  | SetYSeriesColumnsAction
   | SetBinSizeAction
   | SetColorHexesAction
   | SetFillColumnsAction
@@ -527,6 +528,18 @@ interface SetYColumnAction {
 export const setYColumn = (yColumn: string): SetYColumnAction => ({
   type: 'SET_Y_COLUMN',
   payload: {yColumn},
+})
+
+interface SetYSeriesColumnsAction {
+  type: 'SET_Y_SERIES_COLUMNS'
+  payload: {ySeriesColumns: string[]}
+}
+
+export const setYSeriesColumns = (
+  ySeriesColumns: string[]
+): SetYSeriesColumnsAction => ({
+  type: 'SET_Y_SERIES_COLUMNS',
+  payload: {ySeriesColumns},
 })
 
 interface SetShadeBelowAction {

@@ -696,11 +696,17 @@ describe('DataExplorer', () => {
 
         // cycle through all the visualizations of the data
         VIS_TYPES.forEach(({type}) => {
-          cy.getByTestID('view-type--dropdown').click()
-          cy.getByTestID(`view-type--${type}`).click()
-          cy.getByTestID(`vis-graphic--${type}`).should('exist')
-          if (type.includes('single-stat')) {
-            cy.getByTestID('single-stat--text').should('contain', `${numLines}`)
+          if (type != 'mosaic') {
+            //mosaic graph is behind feature flag
+            cy.getByTestID('view-type--dropdown').click()
+            cy.getByTestID(`view-type--${type}`).click()
+            cy.getByTestID(`vis-graphic--${type}`).should('exist')
+            if (type.includes('single-stat')) {
+              cy.getByTestID('single-stat--text').should(
+                'contain',
+                `${numLines}`
+              )
+            }
           }
         })
 
