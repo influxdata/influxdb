@@ -9,7 +9,6 @@ builds:
       - arm64
       - arm
     goarm:
-      - 5
       - 6
       - 7
     main: ./cmd/influx/
@@ -33,7 +32,6 @@ builds:
       - arm64
       - arm
     goarm:
-      - 5
       - 6
       - 7
     main: ./cmd/influxd/
