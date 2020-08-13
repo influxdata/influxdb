@@ -81,6 +81,7 @@ export {
   LinePlusSingleStatProperties,
   ScatterViewProperties,
   HeatmapViewProperties,
+  MosaicViewProperties,
   SingleStatViewProperties,
   HistogramViewProperties,
   GaugeViewProperties,
