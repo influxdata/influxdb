@@ -33,7 +33,7 @@ const WriteDataSection: FC<Omit<WriteDataSection, 'featureFlag'>> = ({
     doesItemMatchSearchTerm(item.name, searchTerm)
   )
 
-  const sortedItems = sortBy(filteredItems, item => item.name)
+  const sortedItems = sortBy(filteredItems, item => item.name.toLowerCase())
 
   return (
     <div
