@@ -1313,9 +1313,41 @@ type mmapAccessor struct {
 	index *indirectIndex
 }
 
+// verifyVersion verifies that the reader's bytes are a TSM byte
+// stream of the correct version (1)
+func verifyVersion(r io.Reader) error {
+	// Attempt to read magic number.
+	var magic uint32
+	if err := binary.Read(r, binary.BigEndian, &magic); err != nil {
+		return fmt.Errorf("init: error reading magic number of file: %v", err)
+	}
+
+	// Attempt to read version.
+	var version byte
+	if err := binary.Read(r, binary.BigEndian, &version); err != nil {
+		return fmt.Errorf("init: error reading version: %v", err)
+	}
+
+	// Ensure magic matches expectations.
+	if magic != MagicNumber {
+		return fmt.Errorf("can only read from tsm file")
+	}
+
+	// Ensure version matches expectations.
+	if version != Version {
+		return fmt.Errorf("init: file is version %b. expected %b", version, Version)
+	}
+
+	return nil
+}
+
 func (m *mmapAccessor) init() (*indirectIndex, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if _, err := m.f.Seek(0, 0); err != nil {
+		return nil, fmt.Errorf("init: failed to seek: %v", err)
+	}
 
 	if err := verifyVersion(m.f); err != nil {
 		return nil, err

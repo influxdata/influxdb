@@ -796,29 +796,3 @@ func (t *tsmWriter) Remove() error {
 func (t *tsmWriter) Size() uint32 {
 	return uint32(t.n) + t.index.Size()
 }
-
-// verifyVersion verifies that the reader's bytes are a TSM byte
-// stream of the correct version (1)
-func verifyVersion(r io.ReadSeeker) error {
-	_, err := r.Seek(0, 0)
-	if err != nil {
-		return fmt.Errorf("init: failed to seek: %v", err)
-	}
-	var b [4]byte
-	_, err = io.ReadFull(r, b[:])
-	if err != nil {
-		return fmt.Errorf("init: error reading magic number of file: %v", err)
-	}
-	if binary.BigEndian.Uint32(b[:]) != MagicNumber {
-		return fmt.Errorf("can only read from tsm file")
-	}
-	_, err = io.ReadFull(r, b[:1])
-	if err != nil {
-		return fmt.Errorf("init: error reading version: %v", err)
-	}
-	if b[0] != Version {
-		return fmt.Errorf("init: file is version %b. expected %b", b[0], Version)
-	}
-
-	return nil
-}
