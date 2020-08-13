@@ -111,9 +111,9 @@ fn main() {
         let now = std::time::Instant::now();
         let segments = store.segments();
         let groups = segments.read_group_eq(
-            (0, 1590044410000000),
+            (0, 1890040790000000),
             &[],
-            vec!["env".to_string(), "status".to_string()],
+            vec!["env".to_string(), "role".to_string()],
             vec![
                 ("counter".to_string(), Aggregate::Sum),
                 // ("counter".to_string(), Aggregate::Count),
@@ -159,12 +159,12 @@ fn build_store(
     mut reader: arrow::ipc::reader::StreamReader<File>,
     store: &mut Store,
 ) -> Result<(), Error> {
-    // let mut i = 0;
+    let mut i = 0;
     while let Some(rb) = reader.next_batch().unwrap() {
-        // if i < 364 {
-        //     i += 1;
-        //     continue;
-        // }
+        if i < 363 {
+            i += 1;
+            continue;
+        }
         let segment = convert_record_batch(rb)?;
         store.add_segment(segment);
     }
@@ -204,7 +204,26 @@ fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
                     .downcast_ref::<array::StringArray>()
                     .unwrap();
 
-                let mut c = column::String::default();
+                // IMPORTANT - build a set of values (dictionary) ahead of
+                // time so we can ensure we encoded the column in an ordinally
+                // correct manner.
+                //
+                // We can use a trick where encoded integers are ordered according
+                // to the decoded values, making sorting, comparison and grouping
+                // more efficient.
+                //
+                let mut dictionary: std::collections::BTreeSet<Option<String>> =
+                    std::collections::BTreeSet::new();
+                for j in 1..arr.len() {
+                    let next = if column.is_null(j) {
+                        None
+                    } else {
+                        Some(arr.value(j).to_string())
+                    };
+                    dictionary.insert(next);
+                }
+
+                let mut c = column::String::with_dictionary(dictionary);
                 let mut prev = if !column.is_null(0) {
                     Some(arr.value(0))
                 } else {

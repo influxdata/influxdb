@@ -274,14 +274,53 @@ impl Column {
 
     /// Materialise all of the decoded values matching the provided logical
     /// row ids.
-    pub fn values(&self, row_ids: &croaring::Bitmap) -> Vector {
+    pub fn values(&self, row_ids: &[usize]) -> Vector {
         match self {
             Column::String(c) => {
                 if row_ids.is_empty() {
                     return Vector::String(vec![]);
                 }
 
-                let row_id_vec = row_ids.to_vec();
+                Vector::String(c.values(row_ids))
+            }
+            Column::Float(c) => {
+                if row_ids.is_empty() {
+                    return Vector::Float(vec![]);
+                }
+
+                let now = std::time::Instant::now();
+                let v = c.values(row_ids);
+                println!("time getting decoded values for float {:?}", now.elapsed());
+
+                Vector::Float(v)
+            }
+            Column::Integer(c) => {
+                if row_ids.is_empty() {
+                    return Vector::Integer(vec![]);
+                }
+
+                let now = std::time::Instant::now();
+                let v = c.values(row_ids);
+                println!("time getting decoded values for int {:?}", now.elapsed());
+                Vector::Integer(v)
+            }
+        }
+    }
+
+    /// Materialise all of the decoded values matching the provided logical
+    /// row ids within the bitmap
+    pub fn values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector {
+        match self {
+            Column::String(c) => {
+                if row_ids.is_empty() {
+                    return Vector::String(vec![]);
+                }
+
+                let row_id_vec = row_ids
+                    .to_vec()
+                    .iter()
+                    .map(|v| *v as usize)
+                    .collect::<Vec<_>>();
                 Vector::String(c.values(&row_id_vec))
             }
             Column::Float(c) => {
@@ -289,7 +328,11 @@ impl Column {
                     return Vector::Float(vec![]);
                 }
 
-                let row_id_vec = row_ids.to_vec();
+                let row_id_vec = row_ids
+                    .to_vec()
+                    .iter()
+                    .map(|v| *v as usize)
+                    .collect::<Vec<_>>();
                 Vector::Float(c.values(&row_id_vec))
             }
             Column::Integer(c) => {
@@ -297,7 +340,11 @@ impl Column {
                     return Vector::Integer(vec![]);
                 }
 
-                let row_id_vec = row_ids.to_vec();
+                let row_id_vec = row_ids
+                    .to_vec()
+                    .iter()
+                    .map(|v| *v as usize)
+                    .collect::<Vec<_>>();
                 Vector::Integer(c.values(&row_id_vec))
             }
         }
@@ -305,31 +352,70 @@ impl Column {
 
     /// Materialise all of the encoded values matching the provided logical
     /// row ids.
-    pub fn encoded_values(&self, row_ids: &croaring::Bitmap) -> Vector {
+    pub fn encoded_values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector {
+        let now = std::time::Instant::now();
+        let row_ids_vec = row_ids
+            .to_vec()
+            .iter()
+            .map(|v| *v as usize)
+            .collect::<Vec<_>>();
+        println!("time unpacking bitmap {:?}", now.elapsed());
+
         match self {
             Column::String(c) => {
                 if row_ids.is_empty() {
                     return Vector::Integer(vec![]);
                 }
 
-                let row_id_vec = row_ids.to_vec();
-                Vector::Integer(c.encoded_values(&row_id_vec))
+                let now = std::time::Instant::now();
+                let v = c.encoded_values(&row_ids_vec);
+                println!("time getting encoded values {:?}", now.elapsed());
+                Vector::Integer(v)
             }
             Column::Float(c) => {
                 if row_ids.is_empty() {
                     return Vector::Float(vec![]);
                 }
 
-                let row_id_vec = row_ids.to_vec();
-                Vector::Float(c.encoded_values(&row_id_vec))
+                Vector::Float(c.encoded_values(&row_ids_vec))
             }
             Column::Integer(c) => {
                 if row_ids.is_empty() {
                     return Vector::Integer(vec![]);
                 }
 
-                let row_id_vec = row_ids.to_vec();
-                Vector::Integer(c.encoded_values(&row_id_vec))
+                Vector::Integer(c.encoded_values(&row_ids_vec))
+            }
+        }
+    }
+
+    /// Materialise all of the encoded values matching the provided logical
+    /// row ids.
+    pub fn encoded_values(&self, row_ids: &[usize]) -> Vector {
+        match self {
+            Column::String(c) => {
+                if row_ids.is_empty() {
+                    return Vector::Integer(vec![]);
+                }
+
+                let now = std::time::Instant::now();
+                let v = c.encoded_values(&row_ids);
+                println!("time getting encoded values {:?}", now.elapsed());
+                Vector::Integer(v)
+            }
+            Column::Float(c) => {
+                if row_ids.is_empty() {
+                    return Vector::Float(vec![]);
+                }
+
+                Vector::Float(c.encoded_values(&row_ids))
+            }
+            Column::Integer(c) => {
+                if row_ids.is_empty() {
+                    return Vector::Integer(vec![]);
+                }
+
+                Vector::Integer(c.encoded_values(&row_ids))
             }
         }
     }
@@ -356,7 +442,14 @@ impl Column {
 
     /// materialise rows for each row_id
     pub fn rows(&self, row_ids: &croaring::Bitmap) -> Vector {
-        let row_ids_vec = row_ids.to_vec();
+        let now = std::time::Instant::now();
+        let row_ids_vec = row_ids
+            .to_vec()
+            .iter()
+            .map(|v| *v as usize)
+            .collect::<Vec<_>>();
+        println!("time unpacking bitmap {:?}", now.elapsed());
+
         assert!(
             row_ids_vec.len() == 1 || row_ids_vec[row_ids_vec.len() - 1] > row_ids_vec[0],
             "got last row_id={:?} and first row_id={:?}",
@@ -555,9 +648,7 @@ impl Column {
         }
     }
 
-    pub fn group_by_ids(
-        &self,
-    ) -> &std::collections::BTreeMap<Option<std::string::String>, croaring::Bitmap> {
+    pub fn group_by_ids(&self) -> &std::collections::BTreeMap<u32, croaring::Bitmap> {
         match self {
             Column::String(c) => c.data.group_row_ids(),
             Column::Float(_) => unimplemented!("not implemented"),
@@ -708,6 +799,14 @@ pub struct String {
 }
 
 impl String {
+    pub fn with_dictionary(
+        dictionary: std::collections::BTreeSet<Option<std::string::String>>,
+    ) -> Self {
+        let mut c = Self::default();
+        c.data = encoding::DictionaryRLE::with_dictionary(dictionary);
+        c
+    }
+
     pub fn add(&mut self, s: &str) {
         self.meta.add(Some(s.to_string()));
         self.data.push(s);
@@ -730,11 +829,11 @@ impl String {
         self.data.value(row_id)
     }
 
-    pub fn values(&self, row_ids: &[u32]) -> Vec<&Option<std::string::String>> {
+    pub fn values(&self, row_ids: &[usize]) -> Vec<&Option<std::string::String>> {
         self.data.values(row_ids)
     }
 
-    pub fn encoded_values(&self, row_ids: &[u32]) -> Vec<i64> {
+    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<i64> {
         self.data.encoded_values(row_ids)
     }
 
@@ -755,9 +854,7 @@ impl String {
     }
 
     // TODO(edd) shouldn't let roaring stuff leak out...
-    pub fn group_row_ids(
-        &self,
-    ) -> &std::collections::BTreeMap<Option<std::string::String>, croaring::Bitmap> {
+    pub fn group_row_ids(&self) -> &std::collections::BTreeMap<u32, croaring::Bitmap> {
         self.data.group_row_ids()
     }
 }
@@ -783,11 +880,11 @@ impl Float {
         self.data.value(row_id)
     }
 
-    pub fn values(&self, row_ids: &[u32]) -> Vec<f64> {
+    pub fn values(&self, row_ids: &[usize]) -> Vec<f64> {
         self.data.values(row_ids)
     }
 
-    pub fn encoded_values(&self, row_ids: &[u32]) -> Vec<f64> {
+    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<f64> {
         self.data.encoded_values(row_ids)
     }
 
@@ -844,11 +941,11 @@ impl Integer {
         self.data.value(row_id)
     }
 
-    pub fn values(&self, row_ids: &[u32]) -> Vec<i64> {
+    pub fn values(&self, row_ids: &[usize]) -> Vec<i64> {
         self.data.values(row_ids)
     }
 
-    pub fn encoded_values(&self, row_ids: &[u32]) -> Vec<i64> {
+    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<i64> {
         self.data.encoded_values(row_ids)
     }
 

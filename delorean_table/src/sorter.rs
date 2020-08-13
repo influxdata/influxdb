@@ -76,9 +76,14 @@ pub fn sort(packers: &mut [Packers], sort_by: &[usize]) -> Result<(), Error> {
         if sorted {
             return Ok(());
         }
+        // if packers_sorted_asc(packers, n, sort_by) {
+        //     return Ok(());
+        // }
+        // return Ok(());
     }
-
+    let now = std::time::Instant::now();
     quicksort_by(packers, 0..n - 1, sort_by);
+    println!("sorted in {:?}", now.elapsed());
     Ok(())
 }
 
@@ -152,14 +157,49 @@ fn cmp(packers: &[Packers], a: usize, b: usize, sort_by: &[usize]) -> Ordering {
             Packers::Integer(p) => {
                 let cmp = p.get(a).cmp(&p.get(b));
                 if cmp != Ordering::Equal {
-                    // if cmp equal then try next packer column.
                     return cmp;
                 }
+                // if cmp equal then try next packer column.
             }
             _ => continue, // don't compare on non-string / timestamp cols
         }
     }
     Ordering::Equal
+}
+
+fn packers_sorted_asc(packers: &[Packers], len: usize, sort_by: &[usize]) -> bool {
+    'row_wise: for i in 1..len {
+        for &idx in sort_by {
+            match &packers[idx] {
+                Packers::String(p) => {
+                    let vec = p.values();
+                    if vec[i - 1] < vec[i] {
+                        continue 'row_wise;
+                    } else if vec[i - 1] == vec[i] {
+                        // try next column
+                        continue;
+                    } else {
+                        // value is > so
+                        return false;
+                    }
+                }
+                Packers::Integer(p) => {
+                    let vec = p.values();
+                    if vec[i - 1] < vec[i] {
+                        continue 'row_wise;
+                    } else if vec[i - 1] == vec[i] {
+                        // try next column
+                        continue;
+                    } else {
+                        // value is > so
+                        return false;
+                    }
+                }
+                _ => continue, // don't compare on non-string / timestamp cols
+            }
+        }
+    }
+    true
 }
 
 // Swap the same pair of elements in each packer column
