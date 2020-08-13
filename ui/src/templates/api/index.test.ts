@@ -112,6 +112,25 @@ describe('templates api calls', () => {
     expect(mockArguments.query.orgID).toBe(orgID)
   })
 
+  it('fetchStack Fail', async () => {
+    const orgID = '1234'
+    mocked(getStacksMock).mockImplementation(() => {
+      return Promise.resolve({
+        status: 404,
+        data: {
+          message: 'whoops',
+        },
+      })
+    })
+
+    try {
+      await fetchStacks(orgID)
+    } catch (error) {
+      expect(error.message).toBe('whoops')
+    }
+
+  })
+
   it('deleteStack pass', async () => {
     const orgID = '1234'
     const stackID = '63728'
@@ -129,6 +148,26 @@ describe('templates api calls', () => {
     expect(mockArguments.stack_id).toBe(stackID)
   })
 
+  it('deleteStack Fail', async () => {
+    const orgID = '1234'
+    const stackID = '63728'
+    mocked(deleteStackMock).mockImplementation(() => {
+      return Promise.resolve({
+        status: 404,
+        data: {
+          message: 'whoops',
+        },
+      })
+    })
+
+    try {
+      await deleteStack(orgID,stackID)
+    } catch (error) {
+      expect(error.message).toBe('whoops')
+    }
+
+  })
+
   it('updateStackName', async () => {
     const name = 'test rule'
     const stackID = '63728'
@@ -144,5 +183,25 @@ describe('templates api calls', () => {
 
     expect(mockArguments.data.name).toBe(name)
     expect(mockArguments.stack_id).toBe(stackID)
+  })
+
+  it('updateStackName Fail', async () => {
+    const name = 'test rule'
+    const stackID = '63728'
+    mocked(patchStackMock).mockImplementation(() => {
+      return Promise.resolve({
+        status: 404,
+        data: {
+          message: 'whoops',
+        },
+      })
+    })
+
+    try {
+      await updateStackName(stackID, name)
+    } catch (error) {
+      expect(error.message).toBe('whoops')
+    }
+
   })
 })
