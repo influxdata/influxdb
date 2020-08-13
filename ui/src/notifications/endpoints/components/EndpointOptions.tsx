@@ -5,6 +5,7 @@ import React, {FC, ChangeEvent} from 'react'
 import EndpointOptionsSlack from './EndpointOptionsSlack'
 import EndpointOptionsPagerDuty from './EndpointOptionsPagerDuty'
 import EndpointOptionsHTTP from './EndpointOptionsHTTP'
+import EndpointOptionsTelegram from './EndpointOptionsTelegram'
 
 // Types
 import {
@@ -12,6 +13,7 @@ import {
   SlackNotificationEndpoint,
   PagerDutyNotificationEndpoint,
   HTTPNotificationEndpoint,
+  TelegramNotificationEndpoint,
 } from 'src/types'
 
 interface Props {
@@ -36,6 +38,16 @@ const EndpointOptions: FC<Props> = ({
         <EndpointOptionsPagerDuty
           clientURL={clientURL}
           routingKey={routingKey}
+          onChange={onChange}
+        />
+      )
+    }
+    case 'telegram': {
+      const {token, channel} = endpoint as TelegramNotificationEndpoint
+      return (
+        <EndpointOptionsTelegram
+          token={token}
+          channel={channel}
           onChange={onChange}
         />
       )

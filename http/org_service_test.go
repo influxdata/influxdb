@@ -42,13 +42,18 @@ func initOrganizationService(f influxdbtesting.OrganizationFields, t *testing.T)
 	store := NewTestInmemStore(t)
 	svc := kv.NewService(logger, store)
 	svc.IDGenerator = f.IDGenerator
-	svc.OrgBucketIDs = f.OrgBucketIDs
+	svc.OrgIDs = f.OrgBucketIDs
+	svc.BucketIDs = f.OrgBucketIDs
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
 
 	for _, o := range f.Organizations {
+		// PutOrgs no longer creates an ID
+		// that is what CreateOrganization does
+		// so we have to generate one
+		o.ID = svc.OrgIDs.ID()
 		if err := svc.PutOrganization(ctx, o); err != nil {
 			t.Fatalf("failed to populate organizations")
 		}

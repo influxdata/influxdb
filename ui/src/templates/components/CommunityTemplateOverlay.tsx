@@ -4,9 +4,9 @@ import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import {Alignment, Orientation, Overlay, Tabs} from '@influxdata/clockface'
-import CommunityTemplateName from 'src/templates/components/CommunityTemplateName'
+import {CommunityTemplateInstallInstructions} from 'src/templates/components/CommunityTemplateInstallInstructions'
 import {CommunityTemplateReadme} from 'src/templates/components/CommunityTemplateReadme'
-import {CommunityTemplateContents} from 'src/templates/components/CommunityTemplateContents'
+import {CommunityTemplateOverlayContents} from 'src/templates/components/CommunityTemplateOverlayContents'
 
 // Types
 import {ComponentStatus} from '@influxdata/clockface'
@@ -34,10 +34,7 @@ type ActiveTab = Tab.IncludedResources | Tab.Readme
 
 type Props = OwnProps & RouteComponentProps<{orgID: string}>
 
-class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
-  Props,
-  State
-> {
+class CommunityTemplateOverlayUnconnected extends PureComponent<Props, State> {
   state: State = {
     activeTab: Tab.IncludedResources,
   }
@@ -51,13 +48,13 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
 
     return (
       <Overlay visible={isVisible}>
-        <Overlay.Container maxWidth={800}>
+        <Overlay.Container maxWidth={800} testID="template-install-overlay">
           <Overlay.Header
             title="Template Installer"
             onDismiss={this.onDismiss}
           />
           <Overlay.Body>
-            <CommunityTemplateName
+            <CommunityTemplateInstallInstructions
               templateName={templateName}
               resourceCount={resourceCount}
               onClickInstall={onInstall}
@@ -78,7 +75,7 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
                 />
               </Tabs.Tabs>
               {this.state.activeTab === Tab.IncludedResources ? (
-                <CommunityTemplateContents />
+                <CommunityTemplateOverlayContents />
               ) : (
                 <CommunityTemplateReadme />
               )}
@@ -102,6 +99,6 @@ class CommunityTemplateInstallerOverlayUnconnected extends PureComponent<
   }
 }
 
-export const CommunityTemplateInstallerOverlay = withRouter(
-  CommunityTemplateInstallerOverlayUnconnected
+export const CommunityTemplateOverlay = withRouter(
+  CommunityTemplateOverlayUnconnected
 )

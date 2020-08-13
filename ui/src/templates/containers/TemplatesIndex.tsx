@@ -12,7 +12,6 @@ import TemplatesPage from 'src/templates/components/TemplatesPage'
 import GetResources from 'src/resources/components/GetResources'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
-import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
 import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
 import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
 
@@ -53,10 +52,6 @@ class TemplatesIndex extends Component<Props> {
           <Route
             path={`${templatesPath}/import`}
             component={TemplateImportOverlay}
-          />
-          <Route
-            path={`${templatesPath}/import/:templateName`}
-            component={CommunityTemplateImportOverlay}
           />
           <Route
             path={`${templatesPath}/:id/export`}

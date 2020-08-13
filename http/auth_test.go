@@ -870,6 +870,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 
 	store := NewTestInmemStore(t)
 	svc := kv.NewService(zaptest.NewLogger(t), store)
+	svc.OrgIDs = f.OrgIDGenerator
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	svc.TimeGenerator = f.TimeGenerator
@@ -883,6 +884,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 
 	for _, o := range f.Orgs {
+		o.ID = svc.OrgIDs.ID()
 		if err := svc.PutOrganization(ctx, o); err != nil {
 			t.Fatalf("failed to populate orgs")
 		}

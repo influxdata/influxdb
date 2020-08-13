@@ -2,6 +2,8 @@ package tenant
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -178,6 +180,10 @@ func (s *BucketSvc) CreateBucket(ctx context.Context, b *influxdb.Bucket) error 
 		return ErrOrgNotFound
 	}
 
+	if err := validBucketName(b.Name, b.Type); err != nil {
+		return err
+	}
+
 	// make sure the org exists
 	if _, err := s.svc.FindOrganizationByID(ctx, b.OrgID); err != nil {
 		return err
@@ -243,6 +249,27 @@ func (s *BucketSvc) removeResourceRelations(ctx context.Context, resourceID infl
 		err := s.svc.DeleteUserResourceMapping(ctx, urm.ResourceID, urm.UserID)
 		if err != nil && err != ErrURMNotFound {
 			return err
+		}
+	}
+	return nil
+}
+
+// validBucketName reports any errors with bucket names
+func validBucketName(name string, typ influxdb.BucketType) error {
+	// names starting with an underscore are reserved for system buckets
+	if strings.HasPrefix(name, "_") && typ != influxdb.BucketTypeSystem {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("bucket name %s is invalid. Buckets may not start with underscore", name),
+			Op:   influxdb.OpCreateBucket,
+		}
+	}
+	// quotation marks will cause queries to fail
+	if strings.Contains(name, "\"") {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("bucket name %s is invalid. Bucket names may not include quotation marks", name),
+			Op:   influxdb.OpCreateBucket,
 		}
 	}
 	return nil

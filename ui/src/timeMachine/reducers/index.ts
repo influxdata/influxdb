@@ -377,6 +377,11 @@ export const timeMachineReducer = (
       return setViewProperties(state, {yColumn})
     }
 
+    case 'SET_Y_SERIES_COLUMNS': {
+      const {ySeriesColumns} = action.payload
+      return setViewProperties(state, {ySeriesColumns})
+    }
+
     case 'SET_X_AXIS_LABEL': {
       const {xAxisLabel} = action.payload
 
@@ -384,6 +389,7 @@ export const timeMachineReducer = (
         case 'histogram':
         case 'heatmap':
         case 'scatter':
+        case 'mosaic':
           return setViewProperties(state, {xAxisLabel})
         default:
           return setYAxis(state, {label: xAxisLabel})
@@ -397,6 +403,7 @@ export const timeMachineReducer = (
         case 'histogram':
         case 'heatmap':
         case 'scatter':
+        case 'mosaic':
           return setViewProperties(state, {yAxisLabel})
         default:
           return setYAxis(state, {label: yAxisLabel})

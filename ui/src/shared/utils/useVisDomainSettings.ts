@@ -19,7 +19,7 @@ import {TimeRange} from 'src/types'
   passed to the plot.
 */
 export const getValidRange = (
-  data: NumericColumnData = [],
+  data: string[] | NumericColumnData = [],
   timeRange: TimeRange | null
 ) => {
   const range = extent(data as number[])
@@ -60,7 +60,7 @@ const isValidStoredDomainValue = (value): boolean => {
 }
 
 export const getRemainingRange = (
-  data: NumericColumnData = [],
+  data: string[] | NumericColumnData = [],
   timeRange: TimeRange | null,
   storedDomain: number[]
 ) => {
@@ -81,7 +81,7 @@ export const getRemainingRange = (
 
 export const useVisYDomainSettings = (
   storedDomain: number[],
-  data: NumericColumnData,
+  data: NumericColumnData | string[],
   timeRange: TimeRange | null = null
 ) => {
   const initialDomain = useMemo(() => {
@@ -99,6 +99,5 @@ export const useVisYDomainSettings = (
 
   const [domain, setDomain] = useOneWayState(initialDomain)
   const resetDomain = () => setDomain(initialDomain)
-
   return [domain, setDomain, resetDomain]
 }

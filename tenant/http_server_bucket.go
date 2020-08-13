@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -271,11 +270,6 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 
 	bucket := b.toInfluxDB()
 
-	if err := validBucketName(bucket); err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-
 	if err := h.bucketSvc.CreateBucket(r.Context(), bucket); err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -309,11 +303,6 @@ func (b *postBucketRequest) OK() error {
 				Msg:  err.Error(),
 			}
 		}
-	}
-
-	// names starting with an underscore are reserved for system buckets
-	if err := validBucketName(b.toInfluxDB()); err != nil {
-		return err
 	}
 
 	return nil
@@ -460,10 +449,6 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 			return
 		}
 		b.Name = *reqBody.Name
-		if err := validBucketName(b); err != nil {
-			h.api.Err(w, r, err)
-			return
-		}
 	}
 
 	b, err := h.bucketSvc.UpdateBucket(r.Context(), *id, *reqBody.toInfluxDB())
@@ -483,25 +468,4 @@ func (h *BucketHandler) lookupOrgByBucketID(ctx context.Context, id influxdb.ID)
 		return 0, err
 	}
 	return b.OrgID, nil
-}
-
-// validBucketName reports any errors with bucket names
-func validBucketName(bucket *influxdb.Bucket) error {
-	// names starting with an underscore are reserved for system buckets
-	if strings.HasPrefix(bucket.Name, "_") && bucket.Type != influxdb.BucketTypeSystem {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Op:   "http/bucket",
-			Msg:  fmt.Sprintf("bucket name %s is invalid. Buckets may not start with underscore", bucket.Name),
-		}
-	}
-	// quotation marks will cause queries to fail
-	if strings.Contains(bucket.Name, "\"") {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Op:   "http/bucket",
-			Msg:  fmt.Sprintf("bucket name %s is invalid. Bucket names may not include quotation marks", bucket.Name),
-		}
-	}
-	return nil
 }

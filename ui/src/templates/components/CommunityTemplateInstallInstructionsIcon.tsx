@@ -8,7 +8,7 @@ interface Props {
   height: number
 }
 
-const CommunityTemplateNameIcon: FC<Props> = ({
+export const CommunityTemplateInstallInstructionsIcon: FC<Props> = ({
   strokeColor,
   fillColor = 'none',
   strokeWidth = 2,
@@ -73,5 +73,3 @@ const CommunityTemplateNameIcon: FC<Props> = ({
     </svg>
   )
 }
-
-export default CommunityTemplateNameIcon

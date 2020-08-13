@@ -15,7 +15,8 @@ import {
   AlignItems,
   InfluxColors,
 } from '@influxdata/clockface'
-import CommunityTemplateNameIcon from 'src/templates/components/CommunityTemplateNameIcon'
+
+import {CommunityTemplateInstallInstructionsIcon} from 'src/templates/components/CommunityTemplateInstallInstructionsIcon'
 
 interface Props {
   templateName: string
@@ -23,9 +24,7 @@ interface Props {
   onClickInstall?: () => void
 }
 
-import {} from 'react'
-
-const CommunityTemplateName: FC<Props> = ({
+export const CommunityTemplateInstallInstructions: FC<Props> = ({
   templateName,
   resourceCount,
   onClickInstall,
@@ -44,6 +43,7 @@ const CommunityTemplateName: FC<Props> = ({
         color={ComponentColor.Success}
         size={ComponentSize.Medium}
         onClick={onClickInstall}
+        testID="template-install-button"
       />
     )
   }
@@ -55,13 +55,13 @@ const CommunityTemplateName: FC<Props> = ({
         direction={FlexDirection.Row}
         alignItems={AlignItems.Center}
       >
-        <CommunityTemplateNameIcon
+        <CommunityTemplateInstallInstructionsIcon
           strokeWidth={2}
           strokeColor={InfluxColors.Neutrino}
           width={54}
           height={54}
         />
-        <FlexBox.Child grow={1} shrink={0}>
+        <FlexBox.Child grow={1} shrink={0} testID="template-install-title">
           <Heading
             className="community-templates--template-name"
             element={HeadingElement.H4}
@@ -86,5 +86,3 @@ const CommunityTemplateName: FC<Props> = ({
     </Panel>
   )
 }
-
-export default CommunityTemplateName

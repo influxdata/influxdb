@@ -359,6 +359,50 @@ export const createTelegraf = (
   })
 }
 
+export const createRule = (
+  orgID: string,
+  endpointID: string,
+  name = ''
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.request({
+    method: 'POST',
+    url: 'api/v2/notificationRules',
+    body: genRule({endpointID, orgID, name}),
+  })
+}
+
+type RuleArgs = {
+  endpointID: string
+  orgID: string
+  type?: string
+  name?: string
+}
+
+const genRule = ({
+  endpointID,
+  orgID,
+  type = 'slack',
+  name = 'r1',
+}: RuleArgs) => ({
+  type,
+  every: '20m',
+  offset: '1m',
+  url: '',
+  orgID,
+  name,
+  activeStatus: 'active',
+  status: 'active',
+  endpointID,
+  tagRules: [],
+  labels: [],
+  statusRules: [
+    {currentLevel: 'CRIT', period: '1h', count: 1, previousLevel: 'INFO'},
+  ],
+  description: '',
+  messageTemplate: 'im a message',
+  channel: '',
+})
+
 /*
 [{action: 'write', resource: {type: 'views'}},
       {action: 'write', resource: {type: 'documents'}},
@@ -478,6 +522,8 @@ export const createEndpoint = (
 /* eslint-disable */
 // notification endpoints
 Cypress.Commands.add('createEndpoint', createEndpoint)
+// notification rules
+Cypress.Commands.add('createRule', createRule)
 
 // assertions
 Cypress.Commands.add('fluxEqual', fluxEqual)

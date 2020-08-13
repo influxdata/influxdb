@@ -19,6 +19,10 @@ export const VIS_TYPES: VisType[] = [
     name: 'Heatmap',
   },
   {
+    type: 'mosaic',
+    name: 'Mosaic',
+  },
+  {
     type: 'histogram',
     name: 'Histogram',
   },
