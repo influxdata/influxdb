@@ -14,53 +14,37 @@ describe('Load Data Sources', () => {
     })
   })
 
-  it('navigate to arduino details page', () => {
-    cy.getByTestID('client-libraries-cards--arduino').click()
-    cy.getByTestID('page-title').contains('Arduino')
+  it('navigate to Client Library details view and render it with essentials', () => {
+    cy.getByTestID('write-data--section client-libraries').within(() => {
+      cy.getByTestID('square-grid').within(() => {
+        cy.getByTestIDSubStr('load-data-item')
+          .first()
+          .click()
+      })
+    })
+
+    const contentContainer = cy.getByTestID('load-data-details-content')
+    contentContainer.should('exist')
+    contentContainer.children().should('exist')
+
+    const logoElement = cy.getByTestID('load-data-details-thumb')
+    logoElement.should('exist')
   })
 
-  it('navigate to csharp details page', () => {
-    cy.getByTestID('client-libraries-cards--csharp').click()
-    cy.getByTestID('page-title').contains('C#')
-  })
+  it('navigate to Telegraf Plugin details view and render it with essentials', () => {
+    cy.getByTestID('write-data--section telegraf-plugins').within(() => {
+      cy.getByTestID('square-grid').within(() => {
+        cy.getByTestIDSubStr('load-data-item')
+          .first()
+          .click()
+      })
+    })
 
-  it('navigate to go details page', () => {
-    cy.getByTestID('client-libraries-cards--go').click()
-    cy.getByTestID('page-title').contains('GO')
-  })
+    const contentContainer = cy.getByTestID('load-data-details-content')
+    contentContainer.should('exist')
+    contentContainer.children().should('exist')
 
-  it('navigate to java details page', () => {
-    cy.getByTestID('client-libraries-cards--java').click()
-    cy.getByTestID('page-title').contains('Java')
-  })
-
-  it('navigate to javascript details page', () => {
-    cy.getByTestID('client-libraries-cards--javascript-node').click()
-    cy.getByTestID('page-title').contains('JavaScript/Node.js')
-  })
-
-  it('navigate to Kotlin details page', () => {
-    cy.getByTestID('client-libraries-cards--kotlin').click()
-    cy.getByTestID('page-title').contains('Kotlin')
-  })
-
-  it('navigate to php details page', () => {
-    cy.getByTestID('client-libraries-cards--php').click()
-    cy.getByTestID('page-title').contains('PHP')
-  })
-
-  it('navigate to python details page', () => {
-    cy.getByTestID('client-libraries-cards--python').click()
-    cy.getByTestID('page-title').contains('Python')
-  })
-
-  it('navigate to ruby details page', () => {
-    cy.getByTestID('client-libraries-cards--ruby').click()
-    cy.getByTestID('page-title').contains('Ruby')
-  })
-
-  it('navigate to scala details page', () => {
-    cy.getByTestID('client-libraries-cards--scala').click()
-    cy.getByTestID('page-title').contains('Scala')
+    const logoElement = cy.getByTestID('load-data-details-thumb')
+    logoElement.should('exist')
   })
 })

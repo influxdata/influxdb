@@ -34,11 +34,13 @@ const WriteDataDetailsView: FC<Props> = ({section, children}) => {
     item => item.id === contentID
   )
 
-  let thumbnail = <img src={image || placeholderLogo} />
+  let thumbnail = (
+    <img data-testid="load-data-details-thumb" src={image || placeholderLogo} />
+  )
   let pageContent = <></>
 
   if (image) {
-    thumbnail = <img src={image} />
+    thumbnail = <img data-testid="load-data-details-thumb" src={image} />
   }
 
   if (markdown) {
@@ -59,7 +61,10 @@ const WriteDataDetailsView: FC<Props> = ({section, children}) => {
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="write-data--details">
               <div className="write-data--details-thumbnail">{thumbnail}</div>
-              <div className="write-data--details-content markdown-format">
+              <div
+                className="write-data--details-content markdown-format"
+                data-testid="load-data-details-content"
+              >
                 {children}
                 {pageContent}
               </div>

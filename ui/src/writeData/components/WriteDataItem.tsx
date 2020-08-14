@@ -48,9 +48,9 @@ const WriteDataItem: FC<Props> = ({id, name, url, image, history, orgID}) => {
     <SquareGrid.Card key={id}>
       <SelectableCard
         id={id}
-        formName="client-libraries-cards"
+        formName="load-data-cards"
         label={name}
-        testID={`client-libraries-cards--${id}`}
+        testID={`load-data-item ${id}`}
         selected={false}
         onClick={handleClick}
         fontSize={ComponentSize.ExtraSmall}
