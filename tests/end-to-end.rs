@@ -178,6 +178,14 @@ async fn read_and_write_data() -> Result<()> {
             .field("out", 4)
             .timestamp(ns_since_epoch + 6)
             .build()?,
+        influxdb2_client::DataPoint::builder("status")
+            .field("active", true)
+            .timestamp(ns_since_epoch + 7)
+            .build()?,
+        influxdb2_client::DataPoint::builder("attributes")
+            .field("color", "blue")
+            .timestamp(ns_since_epoch + 8)
+            .build()?,
     ];
     write_data(&client2, org_id_str, bucket_id_str, points).await?;
 
@@ -519,7 +527,10 @@ swap,server01,disk0,out,{},4
     let values = &responses[0].values;
     let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
-    assert_eq!(values, vec!["cpu_load_short", "swap", "system"]);
+    assert_eq!(
+        values,
+        vec!["attributes", "cpu_load_short", "status", "swap", "system"]
+    );
 
     let measurement_tag_keys_request = tonic::Request::new(MeasurementTagKeysRequest {
         source: read_source.clone(),

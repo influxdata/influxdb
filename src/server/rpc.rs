@@ -10,7 +10,8 @@ use delorean::generated_types::{
     delorean_server::Delorean,
     measurement_fields_response::MessageField,
     read_response::{
-        frame::Data, DataType, FloatPointsFrame, Frame, GroupFrame, IntegerPointsFrame, SeriesFrame,
+        frame::Data, BooleanPointsFrame, DataType, FloatPointsFrame, Frame, GroupFrame,
+        IntegerPointsFrame, SeriesFrame, StringPointsFrame,
     },
     storage_server::Storage,
     CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
@@ -627,6 +628,8 @@ impl Storage for GrpcServer {
                             let field_type = match field_type {
                                 SeriesDataType::F64 => DataType::Float,
                                 SeriesDataType::I64 => DataType::Integer,
+                                SeriesDataType::String => DataType::String,
+                                SeriesDataType::Bool => DataType::Boolean,
                             } as _;
 
                             MessageField {
@@ -695,6 +698,8 @@ async fn send_series_filters(
             let data_type = match batch.values {
                 ReadValues::F64(_) => DataType::Float,
                 ReadValues::I64(_) => DataType::Integer,
+                ReadValues::String(_) => DataType::String,
+                ReadValues::Bool(_) => DataType::Boolean,
             } as _;
 
             let series_frame_response_header = Ok(ReadResponse {
@@ -809,6 +814,29 @@ async fn send_points(
             let data_frame_response = Ok(ReadResponse {
                 frames: vec![Frame {
                     data: Some(Data::IntegerPoints(IntegerPointsFrame {
+                        timestamps,
+                        values,
+                    })),
+                }],
+            });
+
+            tx.send(data_frame_response).await.unwrap();
+        }
+        ReadValues::String(values) => {
+            let (timestamps, values) = values.into_iter().map(|p| (p.time, p.value)).unzip();
+            let data_frame_response = Ok(ReadResponse {
+                frames: vec![Frame {
+                    data: Some(Data::StringPoints(StringPointsFrame { timestamps, values })),
+                }],
+            });
+
+            tx.send(data_frame_response).await.unwrap();
+        }
+        ReadValues::Bool(values) => {
+            let (timestamps, values) = values.into_iter().map(|p| (p.time, p.value)).unzip();
+            let data_frame_response = Ok(ReadResponse {
+                frames: vec![Frame {
+                    data: Some(Data::BooleanPoints(BooleanPointsFrame {
                         timestamps,
                         values,
                     })),

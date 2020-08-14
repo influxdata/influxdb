@@ -55,6 +55,8 @@ impl<T> Point<T> {
 pub enum PointType {
     I64(Point<i64>),
     F64(Point<f64>),
+    String(Point<String>),
+    Bool(Point<bool>),
 }
 
 impl PointType {
@@ -76,10 +78,30 @@ impl PointType {
         })
     }
 
+    pub fn new_string(series: String, value: impl Into<String>, time: i64) -> Self {
+        Self::String(Point {
+            series,
+            series_id: None,
+            value: value.into(),
+            time,
+        })
+    }
+
+    pub fn new_bool(series: String, value: bool, time: i64) -> Self {
+        Self::Bool(Point {
+            series,
+            series_id: None,
+            value,
+            time,
+        })
+    }
+
     pub fn series(&self) -> &String {
         match self {
             Self::I64(p) => &p.series,
             Self::F64(p) => &p.series,
+            Self::String(p) => &p.series,
+            Self::Bool(p) => &p.series,
         }
     }
 
@@ -87,6 +109,8 @@ impl PointType {
         match self {
             Self::I64(p) => p.time,
             Self::F64(p) => p.time,
+            Self::String(p) => p.time,
+            Self::Bool(p) => p.time,
         }
     }
 
@@ -94,6 +118,8 @@ impl PointType {
         match self {
             Self::I64(p) => p.time = t,
             Self::F64(p) => p.time = t,
+            Self::String(p) => p.time = t,
+            Self::Bool(p) => p.time = t,
         }
     }
 
@@ -101,6 +127,8 @@ impl PointType {
         match self {
             Self::I64(p) => p.series_id,
             Self::F64(p) => p.series_id,
+            Self::String(p) => p.series_id,
+            Self::Bool(p) => p.series_id,
         }
     }
 
@@ -108,6 +136,8 @@ impl PointType {
         match self {
             Self::I64(p) => p.series_id = Some(id),
             Self::F64(p) => p.series_id = Some(id),
+            Self::String(p) => p.series_id = Some(id),
+            Self::Bool(p) => p.series_id = Some(id),
         }
     }
 
@@ -129,6 +159,8 @@ impl PointType {
         match self {
             Self::I64(p) => p.index_pairs(),
             Self::F64(p) => p.index_pairs(),
+            Self::String(p) => p.index_pairs(),
+            Self::Bool(p) => p.index_pairs(),
         }
     }
 }
@@ -223,8 +255,8 @@ fn line_to_points(
         match field_value {
             FieldValue::I64(value) => PointType::new_i64(series, value, timestamp),
             FieldValue::F64(value) => PointType::new_f64(series, value, timestamp),
-            FieldValue::String(_) => unimplemented!("String support for points"),
-            FieldValue::Boolean(_) => unimplemented!("Boolean support for points"),
+            FieldValue::String(value) => PointType::new_string(series, value, timestamp),
+            FieldValue::Boolean(value) => PointType::new_bool(series, value, timestamp),
         }
     }))
 }
