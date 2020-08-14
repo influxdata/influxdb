@@ -24,6 +24,8 @@ pub enum Error {
 }
 
 fn main() {
+    env_logger::init();
+
     let r = File::open(Path::new("/Users/edd/work/InfluxData/delorean_misc/in-memory-sort/env_role_path_time/http_api_requests_total.arrow")).unwrap();
     let reader = ipc::reader::StreamReader::try_new(r).unwrap();
 
@@ -36,7 +38,7 @@ fn main() {
         store.size(),
     );
 
-    // time_group_by_agg(&store);
+    time_group_by_agg(&store);
 
     // time_column_min_time(&store);
     // time_column_max_time(&store);
@@ -107,20 +109,20 @@ fn main() {
     //     println!("ROWS ({}) {:?}", v, v.len());
     // }
 
-    loop {
-        let now = std::time::Instant::now();
-        let segments = store.segments();
-        let groups = segments.read_group_eq(
-            (0, 1890040790000000),
-            &[],
-            vec!["env".to_string(), "role".to_string()],
-            vec![
-                ("counter".to_string(), Aggregate::Sum),
-                // ("counter".to_string(), Aggregate::Count),
-            ],
-        );
-        println!("{:?} {:?}", groups, now.elapsed());
-    }
+    // loop {
+    //     let now = std::time::Instant::now();
+    //     let segments = store.segments();
+    //     let groups = segments.read_group_eq(
+    //         (0, 1590044410000000),
+    //         &[],
+    //         vec!["env".to_string(), "role".to_string()],
+    //         vec![
+    //             ("counter".to_string(), Aggregate::Sum),
+    //             // ("counter".to_string(), Aggregate::Count),
+    //         ],
+    //     );
+    //     println!("{:?} {:?}", groups, now.elapsed());
+    // }
 
     // loop {
     //     let mut total_count = 0.0;
@@ -159,12 +161,12 @@ fn build_store(
     mut reader: arrow::ipc::reader::StreamReader<File>,
     store: &mut Store,
 ) -> Result<(), Error> {
-    let mut i = 0;
+    // let mut i = 0;
     while let Some(rb) = reader.next_batch().unwrap() {
-        if i < 363 {
-            i += 1;
-            continue;
-        }
+        // if i < 363 {
+        //     i += 1;
+        //     continue;
+        // }
         let segment = convert_record_batch(rb)?;
         store.add_segment(segment);
     }
@@ -402,7 +404,7 @@ fn time_row_by_preds(store: &Store) {
 }
 
 fn time_group_by_agg(store: &Store) {
-    let repeat = 100;
+    let repeat = 10;
     let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
     let mut total_max = 0;
     let segments = store.segments();
@@ -411,8 +413,8 @@ fn time_group_by_agg(store: &Store) {
 
         let groups = segments.read_group_eq(
             (0, 1590044410000000),
-            &[("method", Some(&column::Scalar::String("GET")))],
-            vec!["env".to_string(), "status".to_string()],
+            &[],
+            vec!["status".to_string(), "method".to_string()],
             vec![
                 ("counter".to_string(), Aggregate::Sum),
                 // ("counter".to_string(), Aggregate::Count),

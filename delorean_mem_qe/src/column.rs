@@ -9,6 +9,44 @@ pub enum Scalar<'a> {
     Integer(i64),
 }
 
+impl<'a> Scalar<'a> {
+    pub fn reset(&mut self) {
+        match self {
+            Scalar::String(s) => {
+                panic!("not supported");
+            }
+            Scalar::Float(v) => {
+                *v = 0.0;
+            }
+            Scalar::Integer(v) => {
+                *v = 0;
+            }
+        }
+    }
+
+    pub fn add(&mut self, other: Scalar<'a>) {
+        match self {
+            Self::Float(v) => {
+                if let Self::Float(other) = other {
+                    *v += other;
+                } else {
+                    panic!("invalid");
+                };
+            }
+            Self::Integer(v) => {
+                if let Self::Integer(other) = other {
+                    *v += other;
+                } else {
+                    panic!("invalid");
+                };
+            }
+            Self::String(_) => {
+                unreachable!("not possible to add strings");
+            }
+        }
+    }
+}
+
 impl<'a> std::ops::Add<&Scalar<'a>> for Scalar<'a> {
     type Output = Scalar<'a>;
 
@@ -63,6 +101,30 @@ impl<'a> std::ops::AddAssign<&Scalar<'a>> for Scalar<'a> {
 pub enum Aggregate<'a> {
     Count(u64),
     Sum(Scalar<'a>),
+}
+
+impl<'a> Aggregate<'a> {
+    pub fn update_with(&mut self, other: Scalar<'a>) {
+        match self {
+            Self::Count(v) => {
+                *v = *v + 1;
+            }
+            Self::Sum(v) => {
+                v.add(other);
+            }
+        }
+    }
+}
+
+impl<'a> std::ops::Add<Scalar<'a>> for Aggregate<'a> {
+    type Output = Aggregate<'a>;
+
+    fn add(self, _rhs: Scalar<'a>) -> Self::Output {
+        match self {
+            Self::Count(c) => Self::Count(c + 1),
+            Self::Sum(s) => Self::Sum(s + &_rhs),
+        }
+    }
 }
 
 impl<'a> std::ops::Add<&Aggregate<'a>> for Aggregate<'a> {
@@ -170,17 +232,31 @@ impl<'a> Vector<'a> {
             }
         }
     }
+
+    pub fn swap(&mut self, a: usize, b: usize) {
+        match self {
+            Self::String(v) => {
+                v.swap(a, b);
+            }
+            Self::Float(v) => {
+                v.swap(a, b);
+            }
+            Self::Integer(v) => {
+                v.swap(a, b);
+            }
+        }
+    }
 }
 
 /// VectorIterator allows a `Vector` to be iterated. Until vectors are drained
 /// Scalar values are emitted.
 pub struct VectorIterator<'a> {
-    v: Vector<'a>,
+    v: &'a Vector<'a>,
     next_i: usize,
 }
 
 impl<'a> VectorIterator<'a> {
-    pub fn new(v: Vector<'a>) -> Self {
+    pub fn new(v: &'a Vector<'a>) -> Self {
         Self { v, next_i: 0 }
     }
 }
@@ -290,7 +366,7 @@ impl Column {
 
                 let now = std::time::Instant::now();
                 let v = c.values(row_ids);
-                println!("time getting decoded values for float {:?}", now.elapsed());
+                log::debug!("time getting decoded values for float {:?}", now.elapsed());
 
                 Vector::Float(v)
             }
@@ -301,7 +377,7 @@ impl Column {
 
                 let now = std::time::Instant::now();
                 let v = c.values(row_ids);
-                println!("time getting decoded values for int {:?}", now.elapsed());
+                log::debug!("time getting decoded values for int {:?}", now.elapsed());
                 Vector::Integer(v)
             }
         }
@@ -359,7 +435,7 @@ impl Column {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
-        println!("time unpacking bitmap {:?}", now.elapsed());
+        log::debug!("time unpacking bitmap {:?}", now.elapsed());
 
         match self {
             Column::String(c) => {
@@ -369,7 +445,7 @@ impl Column {
 
                 let now = std::time::Instant::now();
                 let v = c.encoded_values(&row_ids_vec);
-                println!("time getting encoded values {:?}", now.elapsed());
+                log::debug!("time getting encoded values {:?}", now.elapsed());
                 Vector::Integer(v)
             }
             Column::Float(c) => {
@@ -400,7 +476,9 @@ impl Column {
 
                 let now = std::time::Instant::now();
                 let v = c.encoded_values(&row_ids);
-                println!("time getting encoded values {:?}", now.elapsed());
+                log::debug!("time getting encoded values {:?}", now.elapsed());
+
+                log::debug!("dictionary {:?}", c.data.dictionary());
                 Vector::Integer(v)
             }
             Column::Float(c) => {
@@ -448,7 +526,7 @@ impl Column {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
-        println!("time unpacking bitmap {:?}", now.elapsed());
+        log::debug!("time unpacking bitmap {:?}", now.elapsed());
 
         assert!(
             row_ids_vec.len() == 1 || row_ids_vec[row_ids_vec.len() - 1] > row_ids_vec[0],
@@ -1060,9 +1138,11 @@ pub mod metadata {
 
         pub fn maybe_contains_value(&self, v: f64) -> bool {
             let res = self.range.0 <= v && v <= self.range.1;
-            println!(
+            log::debug!(
                 "column with ({:?}) maybe contain {:?} -- {:?}",
-                self.range, v, res
+                self.range,
+                v,
+                res
             );
             res
         }

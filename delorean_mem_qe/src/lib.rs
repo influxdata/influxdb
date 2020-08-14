@@ -1,6 +1,7 @@
 pub mod column;
 pub mod encoding;
 pub mod segment;
+pub mod sorter;
 
 use segment::{Segment, Segments};
 

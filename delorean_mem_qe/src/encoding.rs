@@ -297,7 +297,6 @@ impl DictionaryRLE {
 
             _self.run_lengths.push((next_idx, 0)); // could this cause a bug?ta
         }
-
         _self
     }
 
