@@ -14,10 +14,17 @@ describe('Community Templates', () => {
     })
   })
 
-  it.skip('The browse community template button launches github', () => {
-    //tried a few ways, so far no good solution
-    // cy.getByTestID('browse-template-button').invoke('removeAttr', 'target').click()
-    // cy.url().should('include', 'https://github.com/influxdata/community-templates#templates')
+  it('The browse community template button launches github', () => {
+    cy.window().then(win => {
+      cy.stub(win, 'open').as('windowOpenSpy')
+    })
+
+    cy.getByTestID('browse-template-button').click()
+
+    cy.get('@windowOpenSpy').should(
+      'be.calledWith',
+      'https://github.com/influxdata/community-templates#templates'
+    )
   })
 
   it('The lookup template errors on invalid data', () => {
