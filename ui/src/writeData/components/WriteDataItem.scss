@@ -1,0 +1,20 @@
+@import '@influxdata/clockface/dist/variables.scss';
+
+.write-data--item.cf-selectable-card.cf-selectable-card__xs
+  .cf-selectable-card--label {
+  font-size: 14px;
+  line-height: 14px;
+  padding-bottom: 11px;
+}
+
+.write-data--item-thumb {
+  width: 90%;
+  height: 90%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center center;
+}
+
+.write-data--item.cf-selectable-card .cf-selectable-card--children {
+  position: relative;
+}

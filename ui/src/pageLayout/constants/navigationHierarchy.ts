@@ -43,10 +43,19 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       shortLabel: 'Data',
       link: {
         type: 'link',
-        location: `${orgPrefix}/load-data/buckets`,
+        location: `${orgPrefix}/load-data/sources`,
       },
       activeKeywords: ['load-data'],
       menu: [
+        {
+          id: 'sources',
+          testID: 'nav-subitem-sources',
+          label: 'Sources',
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/load-data/sources`,
+          },
+        },
         {
           id: 'buckets',
           testID: 'nav-subitem-buckets',
@@ -82,15 +91,6 @@ export const generateNavItems = (orgID: string): NavItem[] => {
           link: {
             type: 'link',
             location: `${orgPrefix}/load-data/tokens`,
-          },
-        },
-        {
-          id: 'client-libraries',
-          testID: 'nav-subitem-client-libraries',
-          label: 'Client Libraries',
-          link: {
-            type: 'link',
-            location: `${orgPrefix}/load-data/client-libraries`,
           },
         },
       ],
