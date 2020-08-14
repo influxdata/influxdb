@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/dbrp/mocks"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/internal"
@@ -15,12 +18,27 @@ import (
 )
 
 func TestLocalShardMapper(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
+	orgID := influxdb.ID(0xff00)
+	bucketID := influxdb.ID(0xffee)
+	db := "db0"
+	rp := "rp0"
+	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &db, RetentionPolicy: &rp}
+	res := []*influxdb.DBRPMappingV2{{Database: db, RetentionPolicy: rp, OrganizationID: orgID, BucketID: bucketID}}
+	dbrp.EXPECT().
+		FindMany(gomock.Any(), filt).
+		Times(2).
+		Return(res, 1, nil)
+
 	var metaClient MetaClient
 	metaClient.ShardGroupsByTimeRangeFn = func(database, policy string, min, max time.Time) ([]meta.ShardGroupInfo, error) {
-		if database != "db0" {
+		if database != bucketID.String() {
 			t.Errorf("unexpected database: %s", database)
 		}
-		if policy != "rp0" {
+		if policy != meta.DefaultRetentionPolicyName {
 			t.Errorf("unexpected retention policy: %s", policy)
 		}
 		return []meta.ShardGroupInfo{
@@ -55,15 +73,16 @@ func TestLocalShardMapper(t *testing.T) {
 	shardMapper := &coordinator.LocalShardMapper{
 		MetaClient: &metaClient,
 		TSDBStore:  tsdbStore,
+		DBRP:       dbrp,
 	}
 
 	// Normal measurement.
 	measurement := &influxql.Measurement{
-		Database:        "db0",
-		RetentionPolicy: "rp0",
+		Database:        db,
+		RetentionPolicy: rp,
 		Name:            "cpu",
 	}
-	ic, err := shardMapper.MapShards([]influxql.Source{measurement}, influxql.TimeRange{}, query.SelectOptions{})
+	ic, err := shardMapper.MapShards(context.Background(), []influxql.Source{measurement}, influxql.TimeRange{}, query.SelectOptions{OrgID: orgID})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -76,7 +95,7 @@ func TestLocalShardMapper(t *testing.T) {
 		t.Fatalf("unexpected number of shard mappings: %d", len(m.ShardMap))
 	}
 
-	if _, err := ic.CreateIterator(context.Background(), measurement, query.IteratorOptions{}); err != nil {
+	if _, err := ic.CreateIterator(context.Background(), measurement, query.IteratorOptions{OrgID: orgID}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
@@ -86,7 +105,7 @@ func TestLocalShardMapper(t *testing.T) {
 			Sources: []influxql.Source{measurement},
 		},
 	}
-	ic, err = shardMapper.MapShards([]influxql.Source{subquery}, influxql.TimeRange{}, query.SelectOptions{})
+	ic, err = shardMapper.MapShards(context.Background(), []influxql.Source{subquery}, influxql.TimeRange{}, query.SelectOptions{OrgID: orgID})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -99,7 +118,7 @@ func TestLocalShardMapper(t *testing.T) {
 		t.Fatalf("unexpected number of shard mappings: %d", len(m.ShardMap))
 	}
 
-	if _, err := ic.CreateIterator(context.Background(), measurement, query.IteratorOptions{}); err != nil {
+	if _, err := ic.CreateIterator(context.Background(), measurement, query.IteratorOptions{OrgID: orgID}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }

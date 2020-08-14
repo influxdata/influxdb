@@ -13,14 +13,21 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/golang/mock/gomock"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/dbrp/mocks"
+	influxql2 "github.com/influxdata/influxdb/v2/influxql"
+	"github.com/influxdata/influxdb/v2/influxql/control"
 	"github.com/influxdata/influxdb/v2/influxql/query"
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/internal"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"github.com/influxdata/influxql"
+	"go.uber.org/zap/zaptest"
 )
 
 const (
@@ -33,7 +40,19 @@ const (
 
 // Ensure query executor can execute a simple SELECT statement.
 func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
-	e := DefaultQueryExecutor()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
+	orgID := influxdb.ID(0xff00)
+	empty := ""
+	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty}
+	res := []*influxdb.DBRPMappingV2{{}}
+	dbrp.EXPECT().
+		FindMany(gomock.Any(), filt).
+		Return(res, 1, nil)
+
+	e := DefaultQueryExecutor(t, WithDBRP(dbrp))
 
 	// The meta client should return a single shard owned by the local node.
 	e.MetaClient.ShardGroupsByTimeRangeFn = func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
@@ -68,7 +87,7 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 	}
 
 	// Verify all results from the query.
-	if a := ReadAllResults(e.ExecuteQuery(`SELECT * FROM cpu`, "db0", 0)); !reflect.DeepEqual(a, []*query.Result{
+	if a := ReadAllResults(e.ExecuteQuery(context.Background(), `SELECT * FROM cpu`, "db0", 0, orgID)); !reflect.DeepEqual(a, []*query.Result{
 		{
 			StatementID: 0,
 			Series: []*models.Row{{
@@ -87,7 +106,20 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 
 // Ensure query executor can enforce a maximum bucket selection count.
 func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
-	e := DefaultQueryExecutor()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
+	orgID := influxdb.ID(0xff00)
+	empty := ""
+	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty}
+	res := []*influxdb.DBRPMappingV2{{}}
+	dbrp.EXPECT().
+		FindMany(gomock.Any(), filt).
+		Return(res, 1, nil)
+
+	e := DefaultQueryExecutor(t, WithDBRP(dbrp))
+
 	e.StatementExecutor.MaxSelectBucketsN = 3
 
 	// The meta client should return a single shards on the local node.
@@ -120,115 +152,13 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	}
 
 	// Verify all results from the query.
-	if a := ReadAllResults(e.ExecuteQuery(`SELECT count(value) FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`, "db0", 0)); !reflect.DeepEqual(a, []*query.Result{
+	if a := ReadAllResults(e.ExecuteQuery(context.Background(), `SELECT count(value) FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`, "db0", 0, orgID)); !reflect.DeepEqual(a, []*query.Result{
 		{
 			StatementID: 0,
 			Err:         errors.New("max-select-buckets limit exceeded: (4/3)"),
 		},
 	}) {
 		t.Fatalf("unexpected results: %s", spew.Sdump(a))
-	}
-}
-
-func TestStatementExecutor_ExecuteQuery_WriteInto(t *testing.T) {
-	for _, tt := range []struct {
-		name    string
-		pw      func(t *testing.T, req *coordinator.IntoWriteRequest) error
-		query   string
-		source  func() query.Iterator
-		written int64
-	}{
-		{
-			name: "DropNullPoints",
-			pw: func(t *testing.T, req *coordinator.IntoWriteRequest) error {
-				if want, got := len(req.Points), 0; want != got {
-					t.Errorf("unexpected written points: %d != %d", want, got)
-				}
-				return nil
-			},
-			query: `SELECT stddev(value) INTO cpu_stddev FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`,
-			source: func() query.Iterator {
-				return &FloatIterator{
-					Points: []query.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Value: 100}},
-				}
-			},
-			written: 0,
-		},
-		{
-			name: "PartialDrop",
-			pw: func(t *testing.T, req *coordinator.IntoWriteRequest) error {
-				if want, got := len(req.Points), 1; want != got {
-					t.Errorf("unexpected written points: %d != %d", want, got)
-				} else {
-					fields, err := req.Points[0].Fields()
-					if err != nil {
-						return err
-					} else if want, got := len(fields), 1; want != got {
-						t.Errorf("unexpected number of fields: %d != %d", want, got)
-					}
-				}
-				return nil
-			},
-			query: `SELECT max(value), stddev(value) INTO cpu_agg FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`,
-			source: func() query.Iterator {
-				return &FloatIterator{
-					Points: []query.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Value: 100}},
-				}
-			},
-			written: 1,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			e := DefaultQueryExecutor()
-			e.StatementExecutor.PointsWriter = writePointsIntoFunc(func(req *coordinator.IntoWriteRequest) error {
-				return tt.pw(t, req)
-			})
-
-			// The meta client should return a single shards on the local node.
-			e.MetaClient.ShardGroupsByTimeRangeFn = func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
-				return []meta.ShardGroupInfo{
-					{ID: 1, Shards: []meta.ShardInfo{
-						{ID: 100, Owners: []meta.ShardOwner{{NodeID: 0}}},
-					}},
-				}, nil
-			}
-
-			e.TSDBStore.ShardGroupFn = func(ids []uint64) tsdb.ShardGroup {
-				if !reflect.DeepEqual(ids, []uint64{100}) {
-					t.Fatalf("unexpected shard ids: %v", ids)
-				}
-
-				var sh MockShard
-				sh.CreateIteratorFn = func(_ context.Context, _ *influxql.Measurement, _ query.IteratorOptions) (query.Iterator, error) {
-					return tt.source(), nil
-				}
-				sh.FieldDimensionsFn = func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-					if !reflect.DeepEqual(measurements, []string{"cpu"}) {
-						t.Fatalf("unexpected source: %#v", measurements)
-					}
-					return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
-				}
-				return &sh
-			}
-
-			// Verify all results from the query.
-			if a := ReadAllResults(e.ExecuteQuery(tt.query, "db0", 0)); !reflect.DeepEqual(a, []*query.Result{
-				{
-					StatementID: 0,
-					Series: models.Rows{
-						{
-							Name:    "result",
-							Columns: []string{"time", "written"},
-							Values: [][]interface{}{
-								{ts("1970-01-01T00:00:00Z"), int64(tt.written)},
-							},
-						},
-					},
-				},
-			}) {
-				t.Fatalf("unexpected results: %s", spew.Sdump(a))
-			}
-		})
 	}
 }
 
@@ -294,6 +224,20 @@ func TestStatementExecutor_NormalizeStatement(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
+			orgID := influxdb.ID(0xff00)
+			bucketID := influxdb.ID(0xffee)
+			filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &testCase.expectedDB}
+			res := []*influxdb.DBRPMappingV2{{Database: testCase.expectedDB, RetentionPolicy: testCase.expectedRP, OrganizationID: orgID, BucketID: bucketID, Default: true}}
+			dbrp.EXPECT().
+				FindMany(gomock.Any(), filt).
+				Return(res, 1, nil)
+
+			e := DefaultQueryExecutor(t, WithDBRP(dbrp))
+
 			q, err := influxql.ParseQuery(testCase.query)
 			if err != nil {
 				t.Fatalf("unexpected error parsing query: %v", err)
@@ -301,7 +245,7 @@ func TestStatementExecutor_NormalizeStatement(t *testing.T) {
 
 			stmt := q.Statements[0].(*influxql.SelectStatement)
 
-			err = DefaultQueryExecutor().StatementExecutor.NormalizeStatement(stmt, testCase.defaultDB, testCase.defaultRP)
+			err = e.StatementExecutor.NormalizeStatement(context.Background(), stmt, testCase.defaultDB, testCase.defaultRP, &query.ExecutionContext{ExecutionOptions: query.ExecutionOptions{OrgID: orgID}})
 			if err != nil {
 				t.Fatalf("unexpected error normalizing statement: %v", err)
 			}
@@ -333,7 +277,7 @@ func TestStatementExecutor_NormalizeDropSeries(t *testing.T) {
 			},
 		},
 	}
-	if err := s.NormalizeStatement(stmt, "foo", "bar"); err != nil {
+	if err := s.NormalizeStatement(context.Background(), stmt, "foo", "bar", &query.ExecutionContext{}); err != nil {
 		t.Fatalf("unexpected error normalizing statement: %v", err)
 	}
 
@@ -366,7 +310,7 @@ func TestStatementExecutor_NormalizeDeleteSeries(t *testing.T) {
 			},
 		},
 	}
-	if err := s.NormalizeStatement(stmt, "foo", "bar"); err != nil {
+	if err := s.NormalizeStatement(context.Background(), stmt, "foo", "bar", &query.ExecutionContext{}); err != nil {
 		t.Fatalf("unexpected error normalizing statement: %v", err)
 	}
 
@@ -404,23 +348,29 @@ func (m *mockAuthorizer) AuthorizeSeriesWrite(database string, measurement []byt
 }
 
 func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
-	qe := query.NewExecutor()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
+	orgID := influxdb.ID(0xff00)
+	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID}
+	res := []*influxdb.DBRPMappingV2{
+		{Database: "db1", OrganizationID: orgID, BucketID: 0xffe0},
+		{Database: "db2", OrganizationID: orgID, BucketID: 0xffe1},
+		{Database: "db3", OrganizationID: orgID, BucketID: 0xffe2},
+		{Database: "db4", OrganizationID: orgID, BucketID: 0xffe3},
+	}
+	dbrp.EXPECT().
+		FindMany(gomock.Any(), filt).
+		Return(res, 4, nil)
+
+	qe := query.NewExecutor(zaptest.NewLogger(t), control.NewControllerMetrics([]string{}))
 	qe.StatementExecutor = &coordinator.StatementExecutor{
-		MetaClient: &internal.MetaClientMock{
-			DatabasesFn: func() []meta.DatabaseInfo {
-				return []meta.DatabaseInfo{
-					{Name: "db1"}, {Name: "db2"}, {Name: "db3"}, {Name: "db4"},
-				}
-			},
-		},
+		DBRP: dbrp,
 	}
 
 	opt := query.ExecutionOptions{
-		Authorizer: &mockAuthorizer{
-			AuthorizeDatabaseFn: func(p influxql.Privilege, name string) bool {
-				return name == "db2" || name == "db4"
-			},
-		},
+		OrgID: orgID,
 	}
 
 	q, err := influxql.ParseQuery("SHOW DATABASES")
@@ -428,7 +378,18 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := ReadAllResults(qe.ExecuteQuery(q, opt, make(chan struct{})))
+	ctx := context.Background()
+	ctx = icontext.SetAuthorizer(ctx, &influxdb.Authorization{
+		ID:     orgID,
+		OrgID:  orgID,
+		Status: influxdb.Active,
+		Permissions: []influxdb.Permission{
+			*itesting.MustNewPermissionAtID(0xffe1, influxdb.ReadAction, influxdb.BucketsResourceType, orgID),
+			*itesting.MustNewPermissionAtID(0xffe3, influxdb.ReadAction, influxdb.BucketsResourceType, orgID),
+		},
+	})
+
+	results := ReadAllResults(qe.ExecuteQuery(ctx, q, opt))
 	exp := []*query.Result{
 		{
 			StatementID: 0,
@@ -452,16 +413,21 @@ type QueryExecutor struct {
 
 	MetaClient        MetaClient
 	TSDBStore         *internal.TSDBStoreMock
+	DBRP              *mocks.MockDBRPMappingServiceV2
 	StatementExecutor *coordinator.StatementExecutor
 	LogOutput         bytes.Buffer
 }
 
 // NewQueryExecutor returns a new instance of Executor.
 // This query executor always has a node id of 0.
-func NewQueryExecutor() *QueryExecutor {
+func NewQueryExecutor(t *testing.T, opts ...optFn) *QueryExecutor {
 	e := &QueryExecutor{
-		Executor:  query.NewExecutor(),
+		Executor:  query.NewExecutor(zaptest.NewLogger(t), control.NewControllerMetrics([]string{})),
 		TSDBStore: &internal.TSDBStoreMock{},
+	}
+
+	for _, opt := range opts {
+		opt(e)
 	}
 
 	e.TSDBStore.CreateShardFn = func(database, policy string, shardID uint64, enabled bool) error {
@@ -479,9 +445,11 @@ func NewQueryExecutor() *QueryExecutor {
 	e.StatementExecutor = &coordinator.StatementExecutor{
 		MetaClient: &e.MetaClient,
 		TSDBStore:  e.TSDBStore,
+		DBRP:       e.DBRP,
 		ShardMapper: &coordinator.LocalShardMapper{
 			MetaClient: &e.MetaClient,
 			TSDBStore:  e.TSDBStore,
+			DBRP:       e.DBRP,
 		},
 	}
 	e.Executor.StatementExecutor = e.StatementExecutor
@@ -490,24 +458,32 @@ func NewQueryExecutor() *QueryExecutor {
 	if testing.Verbose() {
 		out = io.MultiWriter(out, os.Stderr)
 	}
-	e.Executor.WithLogger(logger.New(out))
 
 	return e
 }
 
+type optFn func(qe *QueryExecutor)
+
+func WithDBRP(dbrp *mocks.MockDBRPMappingServiceV2) optFn {
+	return func(qe *QueryExecutor) {
+		qe.DBRP = dbrp
+	}
+}
+
 // DefaultQueryExecutor returns a Executor with a database (db0) and retention policy (rp0).
-func DefaultQueryExecutor() *QueryExecutor {
-	e := NewQueryExecutor()
+func DefaultQueryExecutor(t *testing.T, opts ...optFn) *QueryExecutor {
+	e := NewQueryExecutor(t, opts...)
 	e.MetaClient.DatabaseFn = DefaultMetaClientDatabaseFn
 	return e
 }
 
 // ExecuteQuery parses query and executes against the database.
-func (e *QueryExecutor) ExecuteQuery(q, database string, chunkSize int) <-chan *query.Result {
-	return e.Executor.ExecuteQuery(MustParseQuery(q), query.ExecutionOptions{
+func (e *QueryExecutor) ExecuteQuery(ctx context.Context, q, database string, chunkSize int, orgID influxdb.ID) (<-chan *query.Result, *influxql2.Statistics) {
+	return e.Executor.ExecuteQuery(ctx, MustParseQuery(q), query.ExecutionOptions{
+		OrgID:     orgID,
 		Database:  database,
 		ChunkSize: chunkSize,
-	}, make(chan struct{}))
+	})
 }
 
 type MockShard struct {
@@ -573,7 +549,7 @@ func MustParseQuery(s string) *influxql.Query {
 }
 
 // ReadAllResults reads all results from c and returns as a slice.
-func ReadAllResults(c <-chan *query.Result) []*query.Result {
+func ReadAllResults(c <-chan *query.Result, _ *influxql2.Statistics) []*query.Result {
 	var a []*query.Result
 	for result := range c {
 		a = append(a, result)
@@ -599,18 +575,4 @@ func (itr *FloatIterator) Next() (*query.FloatPoint, error) {
 	v := &itr.Points[0]
 	itr.Points = itr.Points[1:]
 	return v, nil
-}
-
-func ts(s string) time.Time {
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
-
-type writePointsIntoFunc func(req *coordinator.IntoWriteRequest) error
-
-func (fn writePointsIntoFunc) WritePointsInto(req *coordinator.IntoWriteRequest) error {
-	return fn(req)
 }

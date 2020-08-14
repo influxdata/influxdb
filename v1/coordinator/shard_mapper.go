@@ -61,17 +61,17 @@ func (e *LocalShardMapper) mapShards(ctx context.Context, a *LocalShardMapping, 
 			// using.
 			if _, ok := a.ShardMap[source]; !ok {
 				// lookup bucket and create info
-				mappings, n, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilterV2{
+				mappings, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilterV2{
 					OrgID:           &orgID,
 					Database:        &s.Database,
 					RetentionPolicy: &s.RetentionPolicy,
 				})
 				if err != nil {
 					return fmt.Errorf("finding DBRP mappings: %v", err)
-				} else if n == 0 {
+				} else if len(mappings) == 0 {
 					return fmt.Errorf("retention policy not found: %s", s.RetentionPolicy)
-				} else if n != 1 {
-					return fmt.Errorf("finding DBRP mappings: expected 1, found %d", n)
+				} else if len(mappings) != 1 {
+					return fmt.Errorf("finding DBRP mappings: expected 1, found %d", len(mappings))
 				}
 
 				mapping := mappings[0]
