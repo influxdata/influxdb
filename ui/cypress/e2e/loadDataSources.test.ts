@@ -1,4 +1,4 @@
-describe('Client Libraries', () => {
+describe('Load Data Sources', () => {
   beforeEach(() => {
     cy.flush()
 
