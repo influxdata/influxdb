@@ -43,6 +43,8 @@ struct SeriesData {
     current_size: usize,
     i64_series: HashMap<u64, SeriesBuffer<i64>>,
     f64_series: HashMap<u64, SeriesBuffer<f64>>,
+    string_series: HashMap<u64, SeriesBuffer<String>>,
+    bool_series: HashMap<u64, SeriesBuffer<bool>>,
 }
 
 #[derive(Debug, Clone)]
@@ -73,6 +75,8 @@ impl StoreInSeriesData for PointType {
         match self {
             Self::I64(inner) => inner.write(series_data),
             Self::F64(inner) => inner.write(series_data),
+            Self::String(inner) => inner.write(series_data),
+            Self::Bool(inner) => inner.write(series_data),
         }
     }
 }
@@ -106,6 +110,44 @@ impl StoreInSeriesData for Point<f64> {
                     values: vec![point],
                 };
                 series_data.f64_series.insert(self.series_id.unwrap(), buff);
+            }
+        }
+    }
+}
+
+impl StoreInSeriesData for Point<String> {
+    fn write(&self, series_data: &mut SeriesData) {
+        let point: ReadPoint<_> = self.into();
+        series_data.current_size += std::mem::size_of::<Self>();
+
+        match series_data.string_series.get_mut(&self.series_id.unwrap()) {
+            Some(buff) => buff.values.push(point),
+            None => {
+                let buff = SeriesBuffer {
+                    values: vec![point],
+                };
+                series_data
+                    .string_series
+                    .insert(self.series_id.unwrap(), buff);
+            }
+        }
+    }
+}
+
+impl StoreInSeriesData for Point<bool> {
+    fn write(&self, series_data: &mut SeriesData) {
+        let point: ReadPoint<_> = self.into();
+        series_data.current_size += std::mem::size_of::<Self>();
+
+        match series_data.bool_series.get_mut(&self.series_id.unwrap()) {
+            Some(buff) => buff.values.push(point),
+            None => {
+                let buff = SeriesBuffer {
+                    values: vec![point],
+                };
+                series_data
+                    .bool_series
+                    .insert(self.series_id.unwrap(), buff);
             }
         }
     }
@@ -150,6 +192,8 @@ impl SeriesMap {
         let series_type = match point {
             PointType::I64(_) => SeriesDataType::I64,
             PointType::F64(_) => SeriesDataType::F64,
+            PointType::String(_) => SeriesDataType::String,
+            PointType::Bool(_) => SeriesDataType::Bool,
         };
         self.series_id_to_key_and_type
             .insert(self.last_id, (point.series().clone(), series_type));
@@ -266,6 +310,14 @@ impl MemDB {
                 SeriesDataType::F64 => {
                     let buff = self.series_data.f64_series.get(&id).unwrap();
                     ReadValues::F64(buff.read(range))
+                }
+                SeriesDataType::String => {
+                    let buff = self.series_data.string_series.get(&id).unwrap();
+                    ReadValues::String(buff.read(range))
+                }
+                SeriesDataType::Bool => {
+                    let buff = self.series_data.bool_series.get(&id).unwrap();
+                    ReadValues::Bool(buff.read(range))
                 }
             };
 
@@ -388,6 +440,20 @@ impl MemDB {
                 }
                 SeriesDataType::F64 => {
                     let buff = self.series_data.f64_series.get(&series_id).unwrap();
+                    buff.read(&range)
+                        .last()
+                        .map(|point| point.time)
+                        .unwrap_or(std::i64::MIN)
+                }
+                SeriesDataType::String => {
+                    let buff = self.series_data.string_series.get(&series_id).unwrap();
+                    buff.read(&range)
+                        .last()
+                        .map(|point| point.time)
+                        .unwrap_or(std::i64::MIN)
+                }
+                SeriesDataType::Bool => {
+                    let buff = self.series_data.bool_series.get(&series_id).unwrap();
                     buff.read(&range)
                         .last()
                         .map(|point| point.time)

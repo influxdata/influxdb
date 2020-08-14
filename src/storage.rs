@@ -14,12 +14,12 @@ pub struct ReadPoint<T: Clone> {
     pub value: T,
 }
 
-impl<T: Copy + Clone> From<&'_ crate::line_parser::Point<T>> for ReadPoint<T> {
+impl<T: Clone> From<&'_ crate::line_parser::Point<T>> for ReadPoint<T> {
     fn from(other: &'_ crate::line_parser::Point<T>) -> Self {
         let crate::line_parser::Point { time, value, .. } = other;
         Self {
             time: *time,
-            value: *value,
+            value: value.clone(),
         }
     }
 }
@@ -32,9 +32,9 @@ impl<T: Copy + Clone> From<&'_ crate::line_parser::Point<T>> for ReadPoint<T> {
 pub enum SeriesDataType {
     I64 = 0,
     F64 = 1,
+    String = 2,
+    Bool = 3,
     //    U64,
-    //    String,
-    //    Bool,
 }
 
 impl From<SeriesDataType> for u8 {
@@ -52,6 +52,8 @@ impl TryFrom<u8> for SeriesDataType {
         match other {
             v if v == I64 as u8 => Ok(I64),
             v if v == F64 as u8 => Ok(F64),
+            v if v == String as u8 => Ok(String),
+            v if v == Bool as u8 => Ok(Bool),
             _ => Err(other),
         }
     }

@@ -336,6 +336,24 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
                     wtr.write_record(&vals).unwrap();
                 }
             }
+            ReadValues::String(values) => {
+                for val in values {
+                    let t = val.time.to_string();
+                    let v = val.value.to_string();
+                    vals[vcol] = v;
+                    vals[tcol] = t;
+                    wtr.write_record(&vals).unwrap();
+                }
+            }
+            ReadValues::Bool(values) => {
+                for val in values {
+                    let t = val.time.to_string();
+                    let v = val.value.to_string();
+                    vals[vcol] = v;
+                    vals[tcol] = t;
+                    wtr.write_record(&vals).unwrap();
+                }
+            }
         }
 
         let mut data = wtr

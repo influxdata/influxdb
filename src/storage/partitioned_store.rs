@@ -428,6 +428,41 @@ fn points_to_flatbuffer(points: &[PointType]) -> flatbuffers::FlatBufferBuilder<
                         },
                     )
                 }
+                PointType::String(inner_point) => {
+                    let string_value = builder.create_string(&inner_point.value);
+                    let value = wal::StringValue::create(
+                        &mut builder,
+                        &wal::StringValueArgs {
+                            value: Some(string_value),
+                        },
+                    );
+                    wal::Point::create(
+                        &mut builder,
+                        &wal::PointArgs {
+                            key: Some(key),
+                            time: p.time(),
+                            value_type: wal::PointValue::StringValue,
+                            value: Some(value.as_union_value()),
+                        },
+                    )
+                }
+                PointType::Bool(inner_point) => {
+                    let value = wal::BoolValue::create(
+                        &mut builder,
+                        &wal::BoolValueArgs {
+                            value: inner_point.value,
+                        },
+                    );
+                    wal::Point::create(
+                        &mut builder,
+                        &wal::PointArgs {
+                            key: Some(key),
+                            time: p.time(),
+                            value_type: wal::PointValue::BoolValue,
+                            value: Some(value.as_union_value()),
+                        },
+                    )
+                }
             }
         })
         .collect();
@@ -482,6 +517,22 @@ impl From<wal::Point<'_>> for PointType {
                     .expect("Value should match value type")
                     .value();
                 Self::new_f64(key, value, time)
+            }
+            wal::PointValue::StringValue => {
+                let value = other
+                    .value_as_string_value()
+                    .expect("Value should match value type")
+                    .value()
+                    .expect("Value should have a string value")
+                    .to_string();
+                Self::new_string(key, value, time)
+            }
+            wal::PointValue::BoolValue => {
+                let value = other
+                    .value_as_bool_value()
+                    .expect("Value should match value type")
+                    .value();
+                Self::new_bool(key, value, time)
             }
             _ => unimplemented!(),
         }
@@ -728,6 +779,8 @@ impl Stream for ReadMergeStream<'_> {
 pub enum ReadValues {
     I64(Vec<ReadPoint<i64>>),
     F64(Vec<ReadPoint<f64>>),
+    String(Vec<ReadPoint<String>>),
+    Bool(Vec<ReadPoint<bool>>),
 }
 
 impl ReadValues {
@@ -735,6 +788,8 @@ impl ReadValues {
         match self {
             Self::I64(vals) => vals.is_empty(),
             Self::F64(vals) => vals.is_empty(),
+            Self::String(vals) => vals.is_empty(),
+            Self::Bool(vals) => vals.is_empty(),
         }
     }
 }
@@ -755,6 +810,8 @@ impl ReadBatch {
         match &self.values {
             ReadValues::I64(vals) => (vals.first().unwrap().time, vals.last().unwrap().time),
             ReadValues::F64(vals) => (vals.first().unwrap().time, vals.last().unwrap().time),
+            ReadValues::String(vals) => (vals.first().unwrap().time, vals.last().unwrap().time),
+            ReadValues::Bool(vals) => (vals.first().unwrap().time, vals.last().unwrap().time),
         }
     }
 
@@ -762,6 +819,8 @@ impl ReadBatch {
         match &mut self.values {
             ReadValues::I64(vals) => vals.sort_by_key(|v| v.time),
             ReadValues::F64(vals) => vals.sort_by_key(|v| v.time),
+            ReadValues::String(vals) => vals.sort_by_key(|v| v.time),
+            ReadValues::Bool(vals) => vals.sort_by_key(|v| v.time),
         }
     }
 
