@@ -425,6 +425,7 @@ func Test_fluxWriteF(t *testing.T) {
 		flags.Token = prevToken
 	}()
 	useTestServer := func() {
+		httpClient = nil
 		lineData = lineData[:0]
 		flags.Token = "myToken"
 		flags.Host = server.URL
