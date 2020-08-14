@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -19,7 +20,7 @@ type CompileOptions struct {
 type Statement interface {
 	// Prepare prepares the statement by mapping shards and finishing the creation
 	// of the query plan.
-	Prepare(shardMapper ShardMapper, opt SelectOptions) (PreparedStatement, error)
+	Prepare(ctx context.Context, shardMapper ShardMapper, opt SelectOptions) (PreparedStatement, error)
 }
 
 // compiledStatement represents a select statement that has undergone some initial processing to
@@ -1087,7 +1088,7 @@ func (c *compiledStatement) subquery(stmt *influxql.SelectStatement) error {
 	return subquery.compile(stmt)
 }
 
-func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions) (PreparedStatement, error) {
+func (c *compiledStatement) Prepare(ctx context.Context, shardMapper ShardMapper, sopt SelectOptions) (PreparedStatement, error) {
 	// If this is a query with a grouping, there is a bucket limit, and the minimum time has not been specified,
 	// we need to limit the possible time range that can be used when mapping shards but not when actually executing
 	// the select statement. Determine the shard time range here.
@@ -1144,13 +1145,13 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 	}
 
 	// Create an iterator creator based on the shards in the cluster.
-	shards, err := shardMapper.MapShards(c.stmt.Sources, timeRange, sopt)
+	shards, err := shardMapper.MapShards(ctx, c.stmt.Sources, timeRange, sopt)
 	if err != nil {
 		return nil, err
 	}
 
 	// Rewrite wildcards, if any exist.
-	mapper := FieldMapper{FieldMapper: shards}
+	mapper := queryFieldMapper{FieldMapper: newFieldMapperAdapter(shards, ctx)}
 	stmt, err := c.stmt.RewriteFields(mapper)
 	if err != nil {
 		shards.Close()

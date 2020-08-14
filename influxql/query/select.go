@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2"
+	iql "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/influxql/query/internal/gota"
-	"github.com/influxdata/influxdb/v2/pkg/tracing"
 	"github.com/influxdata/influxql"
 	"golang.org/x/sync/errgroup"
 )
@@ -22,8 +22,8 @@ var DefaultTypeMapper = influxql.MultiTypeMapper(
 
 // SelectOptions are options that customize the select call.
 type SelectOptions struct {
-	// Authorizer is used to limit access to data
-	Authorizer Authorizer
+	// OrgID is the organization for which this query is being executed.
+	OrgID influxdb.ID
 
 	// Node to exclusively read from.
 	// If zero, all nodes are used.
@@ -39,12 +39,45 @@ type SelectOptions struct {
 
 	// Maximum number of buckets for a statement.
 	MaxBucketsN int
+
+	// StatisticsGatherer gathers metrics about the execution of the query.
+	StatisticsGatherer *iql.StatisticsGatherer
 }
 
 // ShardMapper retrieves and maps shards into an IteratorCreator that can later be
 // used for executing queries.
 type ShardMapper interface {
-	MapShards(sources influxql.Sources, t influxql.TimeRange, opt SelectOptions) (ShardGroup, error)
+	MapShards(ctx context.Context, sources influxql.Sources, t influxql.TimeRange, opt SelectOptions) (ShardGroup, error)
+}
+
+// TypeMapper maps a data type to the measurement and field.
+type TypeMapper interface {
+	MapType(ctx context.Context, m *influxql.Measurement, field string) influxql.DataType
+}
+
+// FieldMapper returns the data type for the field inside of the measurement.
+type FieldMapper interface {
+	TypeMapper
+	FieldDimensions(ctx context.Context, m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+}
+
+// contextFieldMapper adapts a FieldMapper to an influxql.FieldMapper as
+// FieldMapper requires a context.Context and orgID
+type fieldMapperAdapter struct {
+	fm  FieldMapper
+	ctx context.Context
+}
+
+func newFieldMapperAdapter(fm FieldMapper, ctx context.Context) *fieldMapperAdapter {
+	return &fieldMapperAdapter{fm: fm, ctx: ctx}
+}
+
+func (c *fieldMapperAdapter) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+	return c.fm.FieldDimensions(c.ctx, m)
+}
+
+func (c *fieldMapperAdapter) MapType(measurement *influxql.Measurement, field string) influxql.DataType {
+	return c.fm.MapType(c.ctx, measurement, field)
 }
 
 // ShardGroup represents a shard or a collection of shards that can be accessed
@@ -58,7 +91,7 @@ type ShardMapper interface {
 // after creating the iterators, but before the iterators are actually read.
 type ShardGroup interface {
 	IteratorCreator
-	influxql.FieldMapper
+	FieldMapper
 	io.Closer
 }
 
@@ -68,7 +101,7 @@ type PreparedStatement interface {
 	Select(ctx context.Context) (Cursor, error)
 
 	// Explain outputs the explain plan for this statement.
-	Explain() (string, error)
+	Explain(ctx context.Context) (string, error)
 
 	// Close closes the resources associated with this prepared statement.
 	// This must be called as the mapped shards may hold open resources such
@@ -78,18 +111,18 @@ type PreparedStatement interface {
 
 // Prepare will compile the statement with the default compile options and
 // then prepare the query.
-func Prepare(stmt *influxql.SelectStatement, shardMapper ShardMapper, opt SelectOptions) (PreparedStatement, error) {
+func Prepare(ctx context.Context, stmt *influxql.SelectStatement, shardMapper ShardMapper, opt SelectOptions) (PreparedStatement, error) {
 	c, err := Compile(stmt, CompileOptions{})
 	if err != nil {
 		return nil, err
 	}
-	return c.Prepare(shardMapper, opt)
+	return c.Prepare(ctx, shardMapper, opt)
 }
 
 // Select compiles, prepares, and then initiates execution of the query using the
 // default compile options.
 func Select(ctx context.Context, stmt *influxql.SelectStatement, shardMapper ShardMapper, opt SelectOptions) (Cursor, error) {
-	s, err := Prepare(stmt, shardMapper, opt)
+	s, err := Prepare(ctx, stmt, shardMapper, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -110,11 +143,15 @@ type preparedStatement struct {
 	now       time.Time
 }
 
+type contextKey string
+
+const nowKey contextKey = "now"
+
 func (p *preparedStatement) Select(ctx context.Context) (Cursor, error) {
 	// TODO(jsternberg): Remove this hacky method of propagating now.
 	// Each level of the query should use a time range discovered during
 	// compilation, but that requires too large of a refactor at the moment.
-	ctx = context.WithValue(ctx, "now", p.now)
+	ctx = context.WithValue(ctx, nowKey, p.now)
 
 	opt := p.opt
 	opt.InterruptCh = ctx.Done()
@@ -123,14 +160,6 @@ func (p *preparedStatement) Select(ctx context.Context) (Cursor, error) {
 		return nil, err
 	}
 
-	// If a monitor exists and we are told there is a maximum number of points,
-	// register the monitor function.
-	if m := MonitorFromContext(ctx); m != nil {
-		if p.maxPointN > 0 {
-			monitor := PointLimitMonitor(cur, DefaultStatsInterval, p.maxPointN)
-			m.Monitor(monitor)
-		}
-	}
 	return cur, nil
 }
 
@@ -246,7 +275,7 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 		h := expr.Args[1].(*influxql.IntegerLiteral)
 		m := expr.Args[2].(*influxql.IntegerLiteral)
 
-		includeFitData := "holt_winters_with_fit" == expr.Name
+		includeFitData := expr.Name == "holt_winters_with_fit"
 
 		interval := opt.Interval.Duration
 		// Redefine interval to be unbounded to capture all aggregate results
@@ -621,15 +650,6 @@ func (b *exprIteratorBuilder) callIterator(ctx context.Context, expr *influxql.C
 }
 
 func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic IteratorCreator, opt IteratorOptions) (Cursor, error) {
-	span := tracing.SpanFromContext(ctx)
-	if span != nil {
-		span = span.StartSpan("build_cursor")
-		defer span.Finish()
-
-		span.SetLabels("statement", stmt.String())
-		ctx = tracing.NewContextWithSpan(ctx, span)
-	}
-
 	switch opt.Fill {
 	case influxql.NumberFill:
 		if v, ok := opt.FillValue.(int); ok {
@@ -777,19 +797,6 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 }
 
 func buildAuxIterator(ctx context.Context, ic IteratorCreator, sources influxql.Sources, opt IteratorOptions) (Iterator, error) {
-	span := tracing.SpanFromContext(ctx)
-	if span != nil {
-		span = span.StartSpan("iterator_scanner")
-		defer span.Finish()
-
-		auxFieldNames := make([]string, len(opt.Aux))
-		for i, ref := range opt.Aux {
-			auxFieldNames[i] = ref.String()
-		}
-		span.SetLabels("auxiliary_fields", strings.Join(auxFieldNames, ", "))
-		ctx = tracing.NewContextWithSpan(ctx, span)
-	}
-
 	inputs := make([]Iterator, 0, len(sources))
 	if err := func() error {
 		for _, source := range sources {
@@ -850,23 +857,6 @@ func buildAuxIterator(ctx context.Context, ic IteratorCreator, sources influxql.
 }
 
 func buildFieldIterator(ctx context.Context, expr influxql.Expr, ic IteratorCreator, sources influxql.Sources, opt IteratorOptions, selector, writeMode bool) (Iterator, error) {
-	span := tracing.SpanFromContext(ctx)
-	if span != nil {
-		span = span.StartSpan("iterator_scanner")
-		defer span.Finish()
-
-		labels := []string{"expr", expr.String()}
-		if len(opt.Aux) > 0 {
-			auxFieldNames := make([]string, len(opt.Aux))
-			for i, ref := range opt.Aux {
-				auxFieldNames[i] = ref.String()
-			}
-			labels = append(labels, "auxiliary_fields", strings.Join(auxFieldNames, ", "))
-		}
-		span.SetLabels(labels...)
-		ctx = tracing.NewContextWithSpan(ctx, span)
-	}
-
 	input, err := buildExprIterator(ctx, expr, ic, sources, opt, selector, writeMode)
 	if err != nil {
 		return nil, err

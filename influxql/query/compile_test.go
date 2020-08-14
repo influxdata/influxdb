@@ -1,6 +1,7 @@
 package query_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
@@ -419,7 +420,7 @@ func TestPrepare_MapShardsTimeRange(t *testing.T) {
 			}
 
 			shardMapper := ShardMapper{
-				MapShardsFn: func(_ influxql.Sources, tr influxql.TimeRange) query.ShardGroup {
+				MapShardsFn: func(_ context.Context, _ influxql.Sources, tr influxql.TimeRange) query.ShardGroup {
 					if got, want := tr.Min, mustParseTime(tt.start); !got.Equal(want) {
 						t.Errorf("unexpected start time: got=%s want=%s", got, want)
 					}
@@ -430,7 +431,7 @@ func TestPrepare_MapShardsTimeRange(t *testing.T) {
 				},
 			}
 
-			if _, err := c.Prepare(&shardMapper, query.SelectOptions{}); err != nil {
+			if _, err := c.Prepare(context.Background(), &shardMapper, query.SelectOptions{}); err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
 		})

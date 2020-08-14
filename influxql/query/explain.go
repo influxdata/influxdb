@@ -10,11 +10,11 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-func (p *preparedStatement) Explain() (string, error) {
+func (p *preparedStatement) Explain(ctx context.Context) (string, error) {
 	// Determine the cost of all iterators created as part of this plan.
 	ic := &explainIteratorCreator{ic: p.ic}
 	p.ic = ic
-	cur, err := p.Select(context.Background())
+	cur, err := p.Select(ctx)
 	p.ic = ic.ic
 
 	if err != nil {
@@ -65,7 +65,7 @@ type explainIteratorCreator struct {
 }
 
 func (e *explainIteratorCreator) CreateIterator(ctx context.Context, m *influxql.Measurement, opt IteratorOptions) (Iterator, error) {
-	cost, err := e.ic.IteratorCost(m, opt)
+	cost, err := e.ic.IteratorCost(ctx, m, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -77,8 +77,8 @@ func (e *explainIteratorCreator) CreateIterator(ctx context.Context, m *influxql
 	return &nilFloatIterator{}, nil
 }
 
-func (e *explainIteratorCreator) IteratorCost(m *influxql.Measurement, opt IteratorOptions) (IteratorCost, error) {
-	return e.ic.IteratorCost(m, opt)
+func (e *explainIteratorCreator) IteratorCost(ctx context.Context, m *influxql.Measurement, opt IteratorOptions) (IteratorCost, error) {
+	return e.ic.IteratorCost(ctx, m, opt)
 }
 
 func (e *explainIteratorCreator) Close() error {

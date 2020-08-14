@@ -11,13 +11,13 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-// FieldMapper is a FieldMapper that wraps another FieldMapper and exposes
+// queryFieldMapper is a FieldMapper that wraps another FieldMapper and exposes
 // the functions implemented by the query engine.
-type FieldMapper struct {
+type queryFieldMapper struct {
 	influxql.FieldMapper
 }
 
-func (m FieldMapper) CallType(name string, args []influxql.DataType) (influxql.DataType, error) {
+func (m queryFieldMapper) CallType(name string, args []influxql.DataType) (influxql.DataType, error) {
 	if mapper, ok := m.FieldMapper.(influxql.CallTypeMapper); ok {
 		typ, err := mapper.CallType(name, args)
 		if err != nil {

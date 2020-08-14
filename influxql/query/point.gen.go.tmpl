@@ -1,5 +1,7 @@
 package query
 
+//lint:file-ignore U1000 Ignore all unused code, it's generated
+
 import (
 	"context"
 	"encoding/binary"
@@ -228,13 +230,6 @@ func (dec *{{.Name}}PointDecoder) Decode{{.Name}}Point(p *{{.Name}}Point) error 
 		// If the point contains stats then read stats and retry.
 		if pb.Stats != nil {
 			dec.stats = decodeIteratorStats(pb.Stats)
-			continue
-		}
-
-		if len(pb.Trace) > 0 {
-			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
-				return err
-			}
 			continue
 		}
 

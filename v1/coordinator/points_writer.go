@@ -276,12 +276,6 @@ func (l sgList) Append(sgi meta.ShardGroupInfo) sgList {
 	return next
 }
 
-// WritePointsInto is a copy of WritePoints that uses a tsdb structure instead of
-// a cluster structure for information. This is to avoid a circular dependency.
-func (w *PointsWriter) WritePointsInto(p *IntoWriteRequest) error {
-	return w.WritePointsPrivileged(p.Database, p.RetentionPolicy, models.ConsistencyLevelOne, p.Points)
-}
-
 // WritePoints writes the data to the underlying storage. consitencyLevel and user are only used for clustered scenarios
 func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
 	return w.WritePointsPrivileged(database, retentionPolicy, consistencyLevel, points)

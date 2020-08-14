@@ -6,6 +6,8 @@
 
 package query
 
+//lint:file-ignore U1000 Ignore all unused code, it's generated
+
 import (
 	"context"
 	"encoding/binary"
@@ -221,13 +223,6 @@ func (dec *FloatPointDecoder) DecodeFloatPoint(p *FloatPoint) error {
 		// If the point contains stats then read stats and retry.
 		if pb.Stats != nil {
 			dec.stats = decodeIteratorStats(pb.Stats)
-			continue
-		}
-
-		if len(pb.Trace) > 0 {
-			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
-				return err
-			}
 			continue
 		}
 
@@ -447,13 +442,6 @@ func (dec *IntegerPointDecoder) DecodeIntegerPoint(p *IntegerPoint) error {
 			continue
 		}
 
-		if len(pb.Trace) > 0 {
-			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
-				return err
-			}
-			continue
-		}
-
 		// Decode into point object.
 		*p = *decodeIntegerPoint(&pb)
 
@@ -665,13 +653,6 @@ func (dec *UnsignedPointDecoder) DecodeUnsignedPoint(p *UnsignedPoint) error {
 		// If the point contains stats then read stats and retry.
 		if pb.Stats != nil {
 			dec.stats = decodeIteratorStats(pb.Stats)
-			continue
-		}
-
-		if len(pb.Trace) > 0 {
-			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
-				return err
-			}
 			continue
 		}
 
@@ -891,13 +872,6 @@ func (dec *StringPointDecoder) DecodeStringPoint(p *StringPoint) error {
 			continue
 		}
 
-		if len(pb.Trace) > 0 {
-			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
-				return err
-			}
-			continue
-		}
-
 		// Decode into point object.
 		*p = *decodeStringPoint(&pb)
 
@@ -1111,13 +1085,6 @@ func (dec *BooleanPointDecoder) DecodeBooleanPoint(p *BooleanPoint) error {
 		// If the point contains stats then read stats and retry.
 		if pb.Stats != nil {
 			dec.stats = decodeIteratorStats(pb.Stats)
-			continue
-		}
-
-		if len(pb.Trace) > 0 {
-			if err := decodeIteratorTrace(dec.ctx, pb.Trace); err != nil {
-				return err
-			}
 			continue
 		}
 

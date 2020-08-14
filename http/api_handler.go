@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/http/metric"
+	"github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -76,6 +77,7 @@ type APIBackend struct {
 	VariableService                 influxdb.VariableService
 	PasswordsService                influxdb.PasswordsService
 	InfluxQLService                 query.ProxyQueryService
+	InfluxqldService                influxql.ProxyQueryService
 	FluxService                     query.ProxyQueryService
 	FluxLanguageService             influxdb.FluxLanguageService
 	TaskService                     influxdb.TaskService

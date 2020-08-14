@@ -2837,7 +2837,7 @@ func TestSelect(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			shardMapper := ShardMapper{
-				MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+				MapShardsFn: func(_ context.Context, sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
 					var fields map[string]influxql.DataType
 					if tt.typ != influxql.Unknown {
 						fields = map[string]influxql.DataType{"value": tt.typ}
@@ -2881,7 +2881,7 @@ func TestSelect(t *testing.T) {
 					return nil, err
 				}
 
-				p, err := c.Prepare(&shardMapper, query.SelectOptions{})
+				p, err := c.Prepare(context.Background(), &shardMapper, query.SelectOptions{})
 				if err != nil {
 					return nil, err
 				}
@@ -2907,7 +2907,7 @@ func TestSelect(t *testing.T) {
 // Ensure a SELECT with raw fields works for all types.
 func TestSelect_Raw(t *testing.T) {
 	shardMapper := ShardMapper{
-		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+		MapShardsFn: func(_ context.Context, sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
 			return &ShardGroup{
 				Fields: map[string]influxql.DataType{
 					"f": influxql.Float,
@@ -2979,7 +2979,7 @@ func TestSelect_Raw(t *testing.T) {
 // Ensure a SELECT binary expr queries can be executed as floats.
 func TestSelect_BinaryExpr(t *testing.T) {
 	shardMapper := ShardMapper{
-		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+		MapShardsFn: func(_ context.Context, sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
 			return &ShardGroup{
 				Fields: map[string]influxql.DataType{
 					"f": influxql.Float,
@@ -3870,7 +3870,7 @@ func TestSelect_BinaryExpr(t *testing.T) {
 // Ensure a SELECT binary expr queries can be executed as booleans.
 func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 	shardMapper := ShardMapper{
-		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+		MapShardsFn: func(_ context.Context, sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
 			return &ShardGroup{
 				Fields: map[string]influxql.DataType{
 					"one": influxql.Boolean,
@@ -3950,7 +3950,7 @@ func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 // but not the other.
 func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 	shardMapper := ShardMapper{
-		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+		MapShardsFn: func(_ context.Context, sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
 			return &ShardGroup{
 				Fields: map[string]influxql.DataType{
 					"total": influxql.Float,
@@ -4028,11 +4028,11 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 }
 
 type ShardMapper struct {
-	MapShardsFn func(sources influxql.Sources, t influxql.TimeRange) query.ShardGroup
+	MapShardsFn func(ctx context.Context, sources influxql.Sources, t influxql.TimeRange) query.ShardGroup
 }
 
-func (m *ShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange, opt query.SelectOptions) (query.ShardGroup, error) {
-	shards := m.MapShardsFn(sources, t)
+func (m *ShardMapper) MapShards(ctx context.Context, sources influxql.Sources, t influxql.TimeRange, opt query.SelectOptions) (query.ShardGroup, error) {
+	shards := m.MapShardsFn(ctx, sources, t)
 	return shards, nil
 }
 
@@ -4046,11 +4046,11 @@ func (sh *ShardGroup) CreateIterator(ctx context.Context, m *influxql.Measuremen
 	return sh.CreateIteratorFn(ctx, m, opt)
 }
 
-func (sh *ShardGroup) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {
+func (sh *ShardGroup) IteratorCost(ctx context.Context, source *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {
 	return query.IteratorCost{}, nil
 }
 
-func (sh *ShardGroup) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+func (sh *ShardGroup) FieldDimensions(ctx context.Context, m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 	fields = make(map[string]influxql.DataType)
 	dimensions = make(map[string]struct{})
 
@@ -4063,7 +4063,7 @@ func (sh *ShardGroup) FieldDimensions(m *influxql.Measurement) (fields map[strin
 	return fields, dimensions, nil
 }
 
-func (sh *ShardGroup) MapType(m *influxql.Measurement, field string) influxql.DataType {
+func (sh *ShardGroup) MapType(ctx context.Context, measurement *influxql.Measurement, field string) influxql.DataType {
 	if typ, ok := sh.Fields[field]; ok {
 		return typ
 	}
@@ -4101,7 +4101,7 @@ func benchmarkSelect(b *testing.B, stmt *influxql.SelectStatement, shardMapper q
 // NewRawBenchmarkIteratorCreator returns a new mock iterator creator with generated fields.
 func NewRawBenchmarkIteratorCreator(pointN int) query.ShardMapper {
 	return &ShardMapper{
-		MapShardsFn: func(sources influxql.Sources, t influxql.TimeRange) query.ShardGroup {
+		MapShardsFn: func(_ context.Context, sources influxql.Sources, t influxql.TimeRange) query.ShardGroup {
 			return &ShardGroup{
 				Fields: map[string]influxql.DataType{
 					"fval": influxql.Float,
@@ -4140,7 +4140,7 @@ func benchmarkSelectDedupe(b *testing.B, seriesN, pointsPerSeries int) {
 	stmt.Dedupe = true
 
 	shardMapper := ShardMapper{
-		MapShardsFn: func(sources influxql.Sources, t influxql.TimeRange) query.ShardGroup {
+		MapShardsFn: func(_ context.Context, sources influxql.Sources, t influxql.TimeRange) query.ShardGroup {
 			return &ShardGroup{
 				Fields: map[string]influxql.DataType{
 					"sval": influxql.String,
@@ -4174,7 +4174,7 @@ func benchmarkSelectTop(b *testing.B, seriesN, pointsPerSeries int) {
 	stmt := MustParseSelectStatement(`SELECT top(sval, 10) FROM cpu`)
 
 	shardMapper := ShardMapper{
-		MapShardsFn: func(sources influxql.Sources, t influxql.TimeRange) query.ShardGroup {
+		MapShardsFn: func(_ context.Context, sources influxql.Sources, t influxql.TimeRange) query.ShardGroup {
 			return &ShardGroup{
 				Fields: map[string]influxql.DataType{
 					"sval": influxql.Float,

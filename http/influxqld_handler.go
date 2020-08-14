@@ -1,0 +1,194 @@
+package http
+
+import (
+	"context"
+	"encoding/json"
+	"io/ioutil"
+	"mime"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/influxdata/flux/iocounter"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/influxql"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
+)
+
+func (h *InfluxqlHandler) PrometheusCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		h.Metrics.Requests,
+		h.Metrics.RequestsLatency,
+	}
+}
+
+// HandleQuery mimics the influxdb 1.0 /query
+func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "handleInfluxqldQuery")
+	defer span.Finish()
+
+	if id, _, found := tracing.InfoFromSpan(span); found {
+		w.Header().Set(traceIDHeader, id)
+	}
+
+	ctx := r.Context()
+	defer r.Body.Close()
+
+	auth, err := getAuthorization(ctx)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	if !auth.IsActive() {
+		h.HandleHTTPError(ctx, &influxdb.Error{
+			Code: influxdb.EForbidden,
+			Msg:  "insufficient permissions",
+		}, w)
+		return
+	}
+
+	o, err := h.OrganizationService.FindOrganization(ctx, influxdb.OrganizationFilter{
+		ID: &auth.OrgID,
+	})
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	var query string
+	// Attempt to read the form value from the "q" form value.
+	if qp := strings.TrimSpace(r.FormValue("q")); qp != "" {
+		query = qp
+	} else if r.MultipartForm != nil && r.MultipartForm.File != nil {
+		// If we have a multipart/form-data, try to retrieve a file from 'q'.
+		if fhs := r.MultipartForm.File["q"]; len(fhs) > 0 {
+			d, err := ioutil.ReadFile(fhs[0].Filename)
+			if err != nil {
+				h.HandleHTTPError(ctx, err, w)
+				return
+			}
+			query = string(d)
+		}
+	} else {
+		ct := r.Header.Get("Content-Type")
+		mt, _, err := mime.ParseMediaType(ct)
+		if err != nil {
+			h.HandleHTTPError(ctx, &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Err:  err,
+			}, w)
+			return
+		}
+
+		if mt == "application/vnd.influxql" {
+			if d, err := ioutil.ReadAll(r.Body); err != nil {
+				h.HandleHTTPError(ctx, err, w)
+				return
+			} else {
+				query = string(d)
+			}
+		}
+	}
+
+	// parse the parameters
+	rawParams := r.FormValue("params")
+	var params map[string]interface{}
+	if rawParams != "" {
+		decoder := json.NewDecoder(strings.NewReader(rawParams))
+		decoder.UseNumber()
+		if err := decoder.Decode(&params); err != nil {
+			h.HandleHTTPError(ctx, &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "error parsing query parameters",
+				Err:  err,
+			}, w)
+			return
+		}
+
+		// Convert json.Number into int64 and float64 values
+		for k, v := range params {
+			if v, ok := v.(json.Number); ok {
+				var err error
+				if strings.Contains(string(v), ".") {
+					params[k], err = v.Float64()
+				} else {
+					params[k], err = v.Int64()
+				}
+
+				if err != nil {
+					h.HandleHTTPError(ctx, &influxdb.Error{
+						Code: influxdb.EInvalid,
+						Msg:  "error parsing json value",
+						Err:  err,
+					}, w)
+					return
+				}
+			}
+		}
+	}
+
+	// Parse chunk size. Use default if not provided or cannot be parsed
+	chunked := r.FormValue("chunked") == "true"
+	chunkSize := DefaultChunkSize
+	if chunked {
+		if n, err := strconv.ParseInt(r.FormValue("chunk_size"), 10, 64); err == nil && int(n) > 0 {
+			chunkSize = int(n)
+		}
+	}
+
+	req := &influxql.QueryRequest{
+		DB:             r.FormValue("db"),
+		RP:             r.FormValue("rp"),
+		Epoch:          r.FormValue("epoch"),
+		EncodingFormat: influxql.EncodingFormatFromMimeType(r.Header.Get("Accept")),
+		OrganizationID: o.ID,
+		Query:          query,
+		Params:         params,
+		Source:         r.Header.Get("User-Agent"),
+		Authorization:  auth,
+		Chunked:        chunked,
+		ChunkSize:      chunkSize,
+	}
+
+	var respSize int64
+	cw := iocounter.Writer{Writer: w}
+	_, err = h.InfluxqldQueryService.Query(ctx, &cw, req)
+	respSize = cw.Count()
+
+	if err != nil {
+		if respSize == 0 {
+			// Only record the error headers IFF nothing has been written to w.
+			h.HandleHTTPError(ctx, err, w)
+			return
+		}
+		h.Logger.Info("error writing response to client",
+			zap.String("org", o.Name),
+			zap.String("handler", "influxql"),
+			zap.Error(err),
+		)
+	}
+}
+
+
+// getAuthorization extracts authorization information from a context.Context.
+// It guards against non influxdb.Authorization values for authorization and
+// InfluxQL feature flag not enabled.
+func getAuthorization(ctx context.Context) (*influxdb.Authorization, error) {
+	authorizer, err := pcontext.GetAuthorizer(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	a, ok := authorizer.(*influxdb.Authorization)
+	if !ok {
+		return nil, &influxdb.Error{
+			Code: influxdb.EForbidden,
+			Msg:  "insufficient permissions; session not supported",
+		}
+	}
+	return a, nil
+}

@@ -27,6 +27,8 @@ import (
 	"github.com/influxdata/influxdb/v2/endpoints"
 	"github.com/influxdata/influxdb/v2/gather"
 	"github.com/influxdata/influxdb/v2/http"
+	iqlcontrol "github.com/influxdata/influxdb/v2/influxql/control"
+	iqlquery "github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
@@ -64,6 +66,7 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
+	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"
 	_ "github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1" // needed for tsm1
@@ -845,6 +848,25 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	dbrpSvc := dbrp.NewService(ctx, authorizer.NewBucketService(ts.BucketService), m.kvStore)
 	dbrpSvc = dbrp.NewAuthorizedService(dbrpSvc)
 
+	cm := iqlcontrol.NewControllerMetrics([]string{})
+	m.reg.MustRegister(cm.PrometheusCollectors()...)
+
+	mapper := &iqlcoordinator.LocalShardMapper{
+		MetaClient: metaClient,
+		TSDBStore:  m.engine.TSDBStore,
+		DBRP:       dbrpSvc,
+	}
+
+	qe := iqlquery.NewExecutor(m.log, cm)
+	se := &iqlcoordinator.StatementExecutor{
+		MetaClient:  metaClient,
+		TSDBStore:   m.engine.TSDBStore,
+		ShardMapper: mapper,
+		DBRP:        dbrpSvc,
+	}
+	qe.StatementExecutor = se
+	qe.StatementNormalizer = se
+
 	var checkSvc platform.CheckService
 	{
 		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
@@ -1022,6 +1044,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		VariableService:                 variableSvc,
 		PasswordsService:                ts.PasswordsService,
 		InfluxQLService:                 storageQueryService,
+		InfluxqldService:                iqlquery.NewProxyExecutor(m.log, qe),
 		FluxService:                     storageQueryService,
 		FluxLanguageService:             fluxlang.DefaultService,
 		TaskService:                     taskSvc,

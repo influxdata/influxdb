@@ -2,9 +2,11 @@ package coordinator
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/tsdb"
@@ -27,24 +29,26 @@ type LocalShardMapper struct {
 	TSDBStore interface {
 		ShardGroup(ids []uint64) tsdb.ShardGroup
 	}
+
+	DBRP influxdb.DBRPMappingServiceV2
 }
 
 // MapShards maps the sources to the appropriate shards into an IteratorCreator.
-func (e *LocalShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange, opt query.SelectOptions) (query.ShardGroup, error) {
+func (e *LocalShardMapper) MapShards(ctx context.Context, sources influxql.Sources, t influxql.TimeRange, opt query.SelectOptions) (query.ShardGroup, error) {
 	a := &LocalShardMapping{
 		ShardMap: make(map[Source]tsdb.ShardGroup),
 	}
 
 	tmin := time.Unix(0, t.MinTimeNano())
 	tmax := time.Unix(0, t.MaxTimeNano())
-	if err := e.mapShards(a, sources, tmin, tmax); err != nil {
+	if err := e.mapShards(ctx, a, sources, tmin, tmax, opt.OrgID); err != nil {
 		return nil, err
 	}
 	a.MinTime, a.MaxTime = tmin, tmax
 	return a, nil
 }
 
-func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sources, tmin, tmax time.Time) error {
+func (e *LocalShardMapper) mapShards(ctx context.Context, a *LocalShardMapping, sources influxql.Sources, tmin, tmax time.Time, orgID influxdb.ID) error {
 	for _, s := range sources {
 		switch s := s.(type) {
 		case *influxql.Measurement:
@@ -56,7 +60,22 @@ func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sour
 			// shards is always the same regardless of which measurement we are
 			// using.
 			if _, ok := a.ShardMap[source]; !ok {
-				groups, err := e.MetaClient.ShardGroupsByTimeRange(s.Database, s.RetentionPolicy, tmin, tmax)
+				// lookup bucket and create info
+				mappings, n, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilterV2{
+					OrgID:           &orgID,
+					Database:        &s.Database,
+					RetentionPolicy: &s.RetentionPolicy,
+				})
+				if err != nil {
+					return fmt.Errorf("finding DBRP mappings: %v", err)
+				} else if n == 0 {
+					return fmt.Errorf("retention policy not found: %s", s.RetentionPolicy)
+				} else if n != 1 {
+					return fmt.Errorf("finding DBRP mappings: expected 1, found %d", n)
+				}
+
+				mapping := mappings[0]
+				groups, err := e.MetaClient.ShardGroupsByTimeRange(mapping.BucketID.String(), meta.DefaultRetentionPolicyName, tmin, tmax)
 				if err != nil {
 					return err
 				}
@@ -75,7 +94,7 @@ func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sour
 				a.ShardMap[source] = e.TSDBStore.ShardGroup(shardIDs)
 			}
 		case *influxql.SubQuery:
-			if err := e.mapShards(a, s.Statement.Sources, tmin, tmax); err != nil {
+			if err := e.mapShards(ctx, a, s.Statement.Sources, tmin, tmax, orgID); err != nil {
 				return err
 			}
 		}
@@ -98,7 +117,7 @@ type LocalShardMapping struct {
 	MaxTime time.Time
 }
 
-func (a *LocalShardMapping) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+func (a *LocalShardMapping) FieldDimensions(ctx context.Context, m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 	source := Source{
 		Database:        m.Database,
 		RetentionPolicy: m.RetentionPolicy,
@@ -132,7 +151,7 @@ func (a *LocalShardMapping) FieldDimensions(m *influxql.Measurement) (fields map
 	return
 }
 
-func (a *LocalShardMapping) MapType(m *influxql.Measurement, field string) influxql.DataType {
+func (a *LocalShardMapping) MapType(ctx context.Context, m *influxql.Measurement, field string) influxql.DataType {
 	source := Source{
 		Database:        m.Database,
 		RetentionPolicy: m.RetentionPolicy,
@@ -208,7 +227,7 @@ func (a *LocalShardMapping) CreateIterator(ctx context.Context, m *influxql.Meas
 	return sg.CreateIterator(ctx, m, opt)
 }
 
-func (a *LocalShardMapping) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {
+func (a *LocalShardMapping) IteratorCost(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {
 	source := Source{
 		Database:        m.Database,
 		RetentionPolicy: m.RetentionPolicy,

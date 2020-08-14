@@ -5,7 +5,6 @@ package coordinator
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/toml"
 	"github.com/influxdata/influxdb/v2/v1/monitor/diagnostics"
 )
@@ -31,7 +30,6 @@ const (
 type Config struct {
 	WriteTimeout         toml.Duration `toml:"write-timeout"`
 	MaxConcurrentQueries int           `toml:"max-concurrent-queries"`
-	QueryTimeout         toml.Duration `toml:"query-timeout"`
 	LogQueriesAfter      toml.Duration `toml:"log-queries-after"`
 	MaxSelectPointN      int           `toml:"max-select-point"`
 	MaxSelectSeriesN     int           `toml:"max-select-series"`
@@ -42,7 +40,6 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		WriteTimeout:         toml.Duration(DefaultWriteTimeout),
-		QueryTimeout:         toml.Duration(query.DefaultQueryTimeout),
 		MaxConcurrentQueries: DefaultMaxConcurrentQueries,
 		MaxSelectPointN:      DefaultMaxSelectPointN,
 		MaxSelectSeriesN:     DefaultMaxSelectSeriesN,
@@ -54,7 +51,6 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 	return diagnostics.RowFromMap(map[string]interface{}{
 		"write-timeout":          c.WriteTimeout,
 		"max-concurrent-queries": c.MaxConcurrentQueries,
-		"query-timeout":          c.QueryTimeout,
 		"log-queries-after":      c.LogQueriesAfter,
 		"max-select-point":       c.MaxSelectPointN,
 		"max-select-series":      c.MaxSelectSeriesN,

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/influxdata/influxdb/v2"
 	internal "github.com/influxdata/influxdb/v2/influxql/query/internal"
-	"github.com/influxdata/influxdb/v2/pkg/tracing"
 	"github.com/influxdata/influxql"
 )
 
@@ -407,25 +407,6 @@ func NewInterruptIterator(input Iterator, closing <-chan struct{}) Iterator {
 	}
 }
 
-// NewCloseInterruptIterator returns an iterator that will invoke the Close() method on an
-// iterator when the passed-in channel has been closed.
-func NewCloseInterruptIterator(input Iterator, closing <-chan struct{}) Iterator {
-	switch input := input.(type) {
-	case FloatIterator:
-		return newFloatCloseInterruptIterator(input, closing)
-	case IntegerIterator:
-		return newIntegerCloseInterruptIterator(input, closing)
-	case UnsignedIterator:
-		return newUnsignedCloseInterruptIterator(input, closing)
-	case StringIterator:
-		return newStringCloseInterruptIterator(input, closing)
-	case BooleanIterator:
-		return newBooleanCloseInterruptIterator(input, closing)
-	default:
-		panic(fmt.Sprintf("unsupported close iterator iterator type: %T", input))
-	}
-}
-
 // IteratorScanner is used to scan the results of an iterator into a map.
 type IteratorScanner interface {
 	// Peek retrieves information about the next point. It returns a timestamp, the name, and the tags.
@@ -554,11 +535,14 @@ type IteratorCreator interface {
 	CreateIterator(ctx context.Context, source *influxql.Measurement, opt IteratorOptions) (Iterator, error)
 
 	// Determines the potential cost for creating an iterator.
-	IteratorCost(source *influxql.Measurement, opt IteratorOptions) (IteratorCost, error)
+	IteratorCost(ctx context.Context, source *influxql.Measurement, opt IteratorOptions) (IteratorCost, error)
 }
 
 // IteratorOptions is an object passed to CreateIterator to specify creation options.
 type IteratorOptions struct {
+	// OrgID is the organization for which this query is being executed.
+	OrgID influxdb.ID
+
 	// Expression to iterate for.
 	// This can be VarRef or a Call.
 	Expr influxql.Expr
@@ -681,14 +665,14 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	opt.Limit, opt.Offset = stmt.Limit, stmt.Offset
 	opt.SLimit, opt.SOffset = stmt.SLimit, stmt.SOffset
 	opt.MaxSeriesN = sopt.MaxSeriesN
-	opt.Authorizer = sopt.Authorizer
+	opt.OrgID = sopt.OrgID
 
 	return opt, nil
 }
 
 func newIteratorOptionsSubstatement(ctx context.Context, stmt *influxql.SelectStatement, opt IteratorOptions) (IteratorOptions, error) {
 	subOpt, err := newIteratorOptionsStmt(stmt, SelectOptions{
-		Authorizer: opt.Authorizer,
+		OrgID:      opt.OrgID,
 		MaxSeriesN: opt.MaxSeriesN,
 	})
 	if err != nil {
@@ -702,7 +686,7 @@ func newIteratorOptionsSubstatement(ctx context.Context, stmt *influxql.SelectSt
 		subOpt.EndTime = opt.EndTime
 	}
 	if !subOpt.Interval.IsZero() && subOpt.EndTime == influxql.MaxTime {
-		if now := ctx.Value("now"); now != nil {
+		if now := ctx.Value(nowKey); now != nil {
 			subOpt.EndTime = now.(time.Time).UnixNano()
 		}
 	}
@@ -1219,22 +1203,6 @@ func decodeIteratorStats(pb *internal.IteratorStats) IteratorStats {
 	}
 }
 
-func decodeIteratorTrace(ctx context.Context, data []byte) error {
-	pt := tracing.TraceFromContext(ctx)
-	if pt == nil {
-		return nil
-	}
-
-	var ct tracing.Trace
-	if err := ct.UnmarshalBinary(data); err != nil {
-		return err
-	}
-
-	pt.Merge(&ct)
-
-	return nil
-}
-
 // IteratorCost contains statistics retrieved for explaining what potential
 // cost may be incurred by instantiating an iterator.
 type IteratorCost struct {
@@ -1327,12 +1295,6 @@ type fastDedupeKey struct {
 	values [2]interface{}
 }
 
-type reverseStringSlice []string
-
-func (p reverseStringSlice) Len() int           { return len(p) }
-func (p reverseStringSlice) Less(i, j int) bool { return p[i] > p[j] }
-func (p reverseStringSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
 func abs(v int64) int64 {
 	sign := v >> 63
 	return (v ^ sign) - sign
@@ -1369,33 +1331,6 @@ func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
 	default:
 		panic(fmt.Sprintf("unsupported iterator for encoder: %T", itr))
 	}
-}
-
-func (enc *IteratorEncoder) EncodeTrace(trace *tracing.Trace) error {
-	data, err := trace.MarshalBinary()
-	if err != nil {
-		return err
-	}
-
-	buf, err := proto.Marshal(&internal.Point{
-		Name: proto.String(""),
-		Tags: proto.String(""),
-		Time: proto.Int64(0),
-		Nil:  proto.Bool(false),
-
-		Trace: data,
-	})
-	if err != nil {
-		return err
-	}
-
-	if err = binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
-		return err
-	}
-	if _, err = enc.w.Write(buf); err != nil {
-		return err
-	}
-	return nil
 }
 
 // encode a stats object in the point stream.
