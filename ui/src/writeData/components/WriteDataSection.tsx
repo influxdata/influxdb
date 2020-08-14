@@ -1,6 +1,5 @@
 // Libraries
 import React, {FC, useContext} from 'react'
-import {sortBy} from 'lodash'
 
 // Contexts
 import {WriteDataSearchContext} from 'src/writeData/containers/WriteDataPage'
@@ -33,7 +32,9 @@ const WriteDataSection: FC<Omit<WriteDataSection, 'featureFlag'>> = ({
     doesItemMatchSearchTerm(item.name, searchTerm)
   )
 
-  const sortedItems = sortBy(filteredItems, item => item.name.toLowerCase())
+  const sortedItems = filteredItems.sort((a, b) =>
+    a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+  )
 
   return (
     <div
