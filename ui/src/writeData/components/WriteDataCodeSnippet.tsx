@@ -1,11 +1,15 @@
 // Libraries
 import React, {FC, useContext} from 'react'
+import {useParams} from 'react-router-dom'
 
 // Contexts
 import {WriteDataDetailsContext} from 'src/writeData/components/WriteDataDetailsContext'
 
 // Components
 import CodeSnippet from 'src/shared/components/CodeSnippet'
+
+// Utils
+import {event} from 'src/cloud/utils/reporting'
 
 interface Props {
   code: string
@@ -28,6 +32,7 @@ function transform(template, vars) {
 }
 
 const WriteDataCodeSnippet: FC<Props> = ({code, language}) => {
+  const {contentID} = useParams()
   const {bucket, token, origin, organization} = useContext(
     WriteDataDetailsContext
   )
@@ -41,7 +46,13 @@ const WriteDataCodeSnippet: FC<Props> = ({code, language}) => {
 
   const copyText = transform(code, vars)
 
-  return <CodeSnippet copyText={copyText} label={language} />
+  const sendCopyEvent = (): void => {
+    event('dataSources_copyCode', {dataSourceName: `${contentID}`})
+  }
+
+  return (
+    <CodeSnippet copyText={copyText} label={language} onClick={sendCopyEvent} />
+  )
 }
 
 export default WriteDataCodeSnippet

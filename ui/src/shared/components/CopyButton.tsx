@@ -32,6 +32,7 @@ interface OwnProps {
   color: ComponentColor
   onCopyText?: (text: string, status: boolean) => Notification
   testID: string
+  onClick?: () => void
 }
 
 type ReduxProps = ConnectedProps<typeof connector>
@@ -79,7 +80,11 @@ class CopyButton extends PureComponent<Props> {
     copiedText: string,
     isSuccessful: boolean
   ): void => {
-    const {notify, onCopyText} = this.props
+    const {notify, onCopyText, onClick} = this.props
+
+    if (onClick) {
+      onClick()
+    }
 
     if (onCopyText) {
       notify(onCopyText(copiedText, isSuccessful))
