@@ -989,6 +989,28 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 		return nil, 0, influxdb.ErrOutOfBoundsLimit
 	}
 
+	var before time.Time
+	if filter.BeforeTime != "" {
+		var err error
+		before, err = time.Parse(time.RFC3339, filter.BeforeTime)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	var after time.Time
+	if filter.AfterTime != "" {
+		var err error
+		after, err = time.Parse(time.RFC3339, filter.AfterTime)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	between := func(scheduled time.Time) bool {
+		return (after.IsZero() || after.Before(scheduled)) && (before.IsZero() || scheduled.Before(before))
+	}
+
 	var runs []*influxdb.Run
 	// manual runs
 	manualRuns, err := s.manualRuns(ctx, tx, filter.Task)
@@ -996,9 +1018,11 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 		return nil, 0, err
 	}
 	for _, run := range manualRuns {
-		runs = append(runs, run)
-		if len(runs) >= filter.Limit {
-			return runs, len(runs), nil
+		if between(run.ScheduledFor) {
+			runs = append(runs, run)
+			if len(runs) >= filter.Limit {
+				return runs, len(runs), nil
+			}
 		}
 	}
 
@@ -1008,9 +1032,11 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 		return nil, 0, err
 	}
 	for _, run := range currentlyRunning {
-		runs = append(runs, run)
-		if len(runs) >= filter.Limit {
-			return runs, len(runs), nil
+		if between(run.ScheduledFor) {
+			runs = append(runs, run)
+			if len(runs) >= filter.Limit {
+				return runs, len(runs), nil
+			}
 		}
 	}
 

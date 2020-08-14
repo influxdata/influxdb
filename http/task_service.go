@@ -1643,12 +1643,12 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 	// 	return flagRuns, len(flagRuns), nil
 	// }
 
-	// runs := make([]*influxdb.Run, len(rs.Runs))
-	// for i := range rs.Runs {
-	// 	runs[i] = convertRun(rs.Runs[i].httpRun)
-	// }
+	runs := make([]*influxdb.Run, len(rs.Runs))
+	for i := range rs.Runs {
+		runs[i] = convertRun(rs.Runs[i].httpRun)
+	}
 
-	var flagRuns []*influxdb.Run
+	/*var flagRuns []*influxdb.Run
 
 	var before time.Time
 	if filter.BeforeTime != "" {
@@ -1678,7 +1678,19 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 		}
 	}
 
-	return flagRuns, len(flagRuns), nil
+	return flagRuns, len(flagRuns), nil*/
+
+	type myFunc = kv.FindRuns
+
+	runs, length, err := myFunc(t).FindRuns(ctx, filter)
+
+	//runs, length, err := kv.(&t).FindRuns(ctx, filter) //need to fix syntax here
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return runs, len(runs), nil
+
 }
 
 // FindRunByID returns a single run of a specific task.
