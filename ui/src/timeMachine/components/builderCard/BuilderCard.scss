@@ -39,6 +39,10 @@ $builder-card--header-margin: $ix-marg-b + $ix-border;
   display: flex;
   align-items: center;
   justify-content: space-between;
+
+  &.aggregation-selector-header {
+    flex: 0 0 25px;
+  }
 }
 
 .builder-card--title {
@@ -70,10 +74,10 @@ $builder-card--header-margin: $ix-marg-b + $ix-border;
   }
 
   &:before {
-    transform: translate(-50%,-50%) rotate(45deg);
+    transform: translate(-50%, -50%) rotate(45deg);
   }
   &:after {
-    transform: translate(-50%,-50%) rotate(-45deg);
+    transform: translate(-50%, -50%) rotate(-45deg);
   }
 
   &:hover {
@@ -143,11 +147,19 @@ $builder-card--header-margin: $ix-marg-b + $ix-border;
 .builder-card--menu {
   border-bottom: $ix-border solid $g5-pepper;
   padding: $ix-marg-b;
+  &.aggregation-selector-menu {
+    padding: 2px;
+  }
 }
 
 .builder-card--body {
   flex: 1 1 0;
   overflow: hidden;
+  &.aggregation-selector-body {
+    flex: unset;
+    padding: 2px;
+    overflow: visible;
+  }
 }
 
 .builder-card--empty {
@@ -166,4 +178,30 @@ $builder-card--header-margin: $ix-marg-b + $ix-border;
 
 .builder-card--contents {
   padding: $ix-marg-b;
+}
+
+.builder-card--list > .query-builder--add-card-button {
+  height: 100%;
+  background-color: $g4-onyx;
+  border-color: $g4-onyx;
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
+.cf-input-label.fill-values-checkbox--label {
+  color: $g11-sidewalk;
+}
+
+.duration-input {
+  position: relative;
+  width: 100%;
+}
+
+.duration-input--menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: $g3-castle;
+  z-index: 100;
 }

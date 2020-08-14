@@ -11169,6 +11169,7 @@ components:
         - $ref: "#/components/schemas/SMTPNotificationRule"
         - $ref: "#/components/schemas/PagerDutyNotificationRule"
         - $ref: "#/components/schemas/HTTPNotificationRule"
+        - $ref: "#/components/schemas/TelegramNotificationRule"
       discriminator:
         propertyName: type
         mapping:
@@ -11176,6 +11177,7 @@ components:
           smtp: "#/components/schemas/SMTPNotificationRule"
           pagerduty: "#/components/schemas/PagerDutyNotificationRule"
           http: "#/components/schemas/HTTPNotificationRule"
+          telegram: "#/components/schemas/TelegramNotificationRule"
     NotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleDiscriminator"
@@ -11377,6 +11379,31 @@ components:
           enum: [pagerduty]
         messageTemplate:
           type: string
+    TelegramNotificationRule:
+      allOf:
+        - $ref: "#/components/schemas/NotificationRuleBase"
+        - $ref: "#/components/schemas/TelegramNotificationRuleBase"
+    TelegramNotificationRuleBase:
+      type: object
+      required: [type, messageTemplate, channel]
+      properties:
+        type:
+          description: The discriminator between other types of notification rules is "telegram".
+          type: string
+          enum: [telegram]
+        messageTemplate:
+          description: The message template as a flux interpolated string.
+          type: string
+        parseMode:
+          description: Parse mode of the message text per https://core.telegram.org/bots/api#formatting-options . Defaults to "MarkdownV2" .
+          type: string
+          enum:
+            - MarkdownV2
+            - HTML
+            - Markdown
+        disableWebPagePreview:
+          description: Disables preview of web links in the sent messages when "true". Defaults to "false" .
+          type: boolean
     NotificationEndpointUpdate:
       type: object
 
@@ -11395,12 +11422,14 @@ components:
         - $ref: "#/components/schemas/SlackNotificationEndpoint"
         - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
         - $ref: "#/components/schemas/HTTPNotificationEndpoint"
+        - $ref: "#/components/schemas/TelegramNotificationEndpoint"
       discriminator:
         propertyName: type
         mapping:
           slack: "#/components/schemas/SlackNotificationEndpoint"
           pagerduty: "#/components/schemas/PagerDutyNotificationEndpoint"
           http: "#/components/schemas/HTTPNotificationEndpoint"
+          telegram: "#/components/schemas/TelegramNotificationEndpoint"
     NotificationEndpoint:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
@@ -11519,9 +11548,22 @@ components:
               description: Customized headers.
               additionalProperties:
                 type: string
+    TelegramNotificationEndpoint:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/NotificationEndpointBase"
+        - type: object
+          required: [token, channel]
+          properties:
+            token:
+              description: Specifies the Telegram bot token. See https://core.telegram.org/bots#creating-a-new-bot .
+              type: string
+            channel:
+              description: ID of the telegram channel, a chat_id in https://core.telegram.org/bots/api#sendmessage .
+              type: string
     NotificationEndpointType:
       type: string
-      enum: ["slack", "pagerduty", "http"]
+      enum: ["slack", "pagerduty", "http", "telegram"]
     DBRP:
       required:
         - orgID

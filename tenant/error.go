@@ -14,9 +14,9 @@ var (
 		Msg:  "name is empty",
 	}
 
-	// NotUniqueIDError is used when attempting to create an org or bucket that already
+	// ErrIDNotUnique is used when attempting to create an org or bucket that already
 	// exists.
-	NotUniqueIDError = &influxdb.Error{
+	ErrIDNotUnique = &influxdb.Error{
 		Code: influxdb.EConflict,
 		Msg:  "ID already exists",
 	}

@@ -376,22 +376,29 @@ func convertQueries(qs []chronograf.DashboardQuery) []influxdb.DashboardQuery {
 	return ds
 }
 
-type dbrpMapper struct {
+type dbrpMapper struct{}
+
+// FindBy returns the dbrp mapping for the specified ID.
+func (d dbrpMapper) FindByID(ctx context.Context, orgID influxdb.ID, id influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+	return nil, errors.New("mapping not found")
 }
 
-func (m dbrpMapper) FindBy(ctx context.Context, cluster string, db string, rp string) (*influxdb.DBRPMapping, error) {
-	return nil, errors.New("mapping not found")
-}
-func (m dbrpMapper) Find(ctx context.Context, filter influxdb.DBRPMappingFilter) (*influxdb.DBRPMapping, error) {
-	return nil, errors.New("mapping not found")
-}
-func (m dbrpMapper) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.DBRPMapping, int, error) {
+// FindMany returns a list of dbrp mappings that match filter and the total count of matching dbrp mappings.
+func (d dbrpMapper) FindMany(ctx context.Context, dbrp influxdb.DBRPMappingFilterV2, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMappingV2, int, error) {
 	return nil, 0, errors.New("mapping not found")
-
 }
-func (m dbrpMapper) Create(ctx context.Context, dbrpMap *influxdb.DBRPMapping) error {
+
+// Create creates a new dbrp mapping, if a different mapping exists an error is returned.
+func (d dbrpMapper) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error {
 	return errors.New("dbrpMapper does not support creating new mappings")
 }
-func (m dbrpMapper) Delete(ctx context.Context, cluster string, db string, rp string) error {
-	return errors.New("dbrpMapper does not support deleteing mappings")
+
+// Update a new dbrp mapping
+func (d dbrpMapper) Update(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error {
+	return errors.New("dbrpMapper does not support updating mappings")
+}
+
+// Delete removes a dbrp mapping.
+func (d dbrpMapper) Delete(ctx context.Context, orgID influxdb.ID, id influxdb.ID) error {
+	return errors.New("dbrpMapper does not support deleting mappings")
 }

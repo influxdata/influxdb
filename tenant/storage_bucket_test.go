@@ -7,10 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // type Bucket struct {
@@ -24,17 +26,55 @@ import (
 // 	CRUDLog
 // }
 
+const (
+	firstBucketID influxdb.ID = (iota + 1)
+	secondBucketID
+	thirdBucketID
+	fourthBucketID
+	fifthBucketID
+)
+
+var orgIDs = []influxdb.ID{firstOrgID, secondOrgID}
+
 func TestBucket(t *testing.T) {
+	var (
+		aTime = time.Date(2020, 7, 23, 10, 0, 0, 0, time.UTC)
+		// generate 10 buckets to test with
+		// optionally provide a visit function to manipulate
+		// the generated slice (for convenience)
+		testBuckets = func(count int, visit ...func(*influxdb.Bucket)) (buckets []*influxdb.Bucket) {
+			buckets = make([]*influxdb.Bucket, count)
+			for i := range buckets {
+				id := firstBucketID + influxdb.ID(i)
+				// flip-flop between (reserved_id + reserved_id+1)
+				orgID := orgIDs[i%2]
+				buckets[i] = &influxdb.Bucket{
+					ID:                  id,
+					OrgID:               orgID,
+					Name:                fmt.Sprintf("bucket%d", int(id)),
+					Description:         "words",
+					RetentionPolicyName: "name",
+					RetentionPeriod:     time.Second,
+				}
+
+				for _, fn := range visit {
+					fn(buckets[i])
+				}
+			}
+			return
+		}
+		withCrudLog = func(bkt *influxdb.Bucket) {
+			bkt.CRUDLog = influxdb.CRUDLog{
+				CreatedAt: aTime,
+				UpdatedAt: aTime,
+			}
+		}
+	)
+
 	simpleSetup := func(t *testing.T, store *tenant.Store, tx kv.Tx) {
-		for i := 1; i <= 10; i++ {
-			err := store.CreateBucket(context.Background(), tx, &influxdb.Bucket{
-				ID:                  influxdb.ID(i),
-				OrgID:               influxdb.ID(i%2 + 1),
-				Name:                fmt.Sprintf("bucket%d", i),
-				Description:         "words",
-				RetentionPolicyName: "name",
-				RetentionPeriod:     time.Second,
-			})
+		store.BucketIDGen = mock.NewIncrementingIDGenerator(1)
+		for _, bucket := range testBuckets(10) {
+			err := store.CreateBucket(context.Background(), tx, bucket)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,128 +100,66 @@ func TestBucket(t *testing.T) {
 					t.Fatalf("expected 10 buckets got: %d", len(buckets))
 				}
 
-				expected := []*influxdb.Bucket{}
-				for i := 1; i <= 10; i++ {
-					expected = append(expected, &influxdb.Bucket{
-						ID:                  influxdb.ID(i),
-						OrgID:               influxdb.ID(i%2 + 1),
-						Name:                fmt.Sprintf("bucket%d", i),
-						Description:         "words",
-						RetentionPolicyName: "name",
-						RetentionPeriod:     time.Second,
-						CRUDLog: influxdb.CRUDLog{
-							CreatedAt: buckets[i-1].CreatedAt,
-							UpdatedAt: buckets[i-1].UpdatedAt,
-						},
-					})
-				}
-				if !cmp.Equal(buckets, expected) {
-					t.Fatalf("expected identical buckets: \n%+v", cmp.Diff(buckets, expected))
-				}
+				expected := testBuckets(10, withCrudLog)
+				assert.Equal(t, expected, buckets)
 			},
 		},
 		{
 			name:  "get",
 			setup: simpleSetup,
 			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
-				bucket, err := store.GetBucket(context.Background(), tx, 5)
-				if err != nil {
-					t.Fatal(err)
-				}
+				bucket, err := store.GetBucket(context.Background(), tx, fifthBucketID)
+				assert.NoError(t, err)
 
 				expected := &influxdb.Bucket{
-					ID:                  5,
-					OrgID:               2,
+					ID:                  fifthBucketID,
+					OrgID:               firstOrgID,
 					Name:                "bucket5",
 					Description:         "words",
 					RetentionPolicyName: "name",
 					RetentionPeriod:     time.Second,
 					CRUDLog: influxdb.CRUDLog{
-						CreatedAt: bucket.CreatedAt,
-						UpdatedAt: bucket.UpdatedAt,
+						CreatedAt: aTime,
+						UpdatedAt: aTime,
 					},
 				}
 
-				if !reflect.DeepEqual(bucket, expected) {
-					t.Fatalf("expected identical bucket: \n%+v\n%+v", bucket, expected)
-				}
+				assert.Equal(t, expected, bucket)
 
-				bucket, err = store.GetBucketByName(context.Background(), tx, influxdb.ID(2), "bucket5")
-				if err != nil {
-					t.Fatal(err)
-				}
+				bucket, err = store.GetBucketByName(context.Background(), tx, firstOrgID, "bucket5")
+				require.NoError(t, err)
+				assert.Equal(t, expected, bucket)
 
-				if !reflect.DeepEqual(bucket, expected) {
-					t.Fatalf("expected identical bucket: \n%+v\n%+v", bucket, expected)
-				}
-
-				if _, err := store.GetBucket(context.Background(), tx, 500); err != tenant.ErrBucketNotFound {
-					t.Fatal("failed to get correct error when looking for invalid bucket by id")
+				if _, err := store.GetBucket(context.Background(), tx, 11); err != tenant.ErrBucketNotFound {
+					t.Fatal("failed to get correct error when looking for non present bucket by id")
 				}
 
 				if _, err := store.GetBucketByName(context.Background(), tx, 3, "notabucket"); err.Error() != tenant.ErrBucketNotFoundByName("notabucket").Error() {
 					t.Fatal("failed to get correct error when looking for invalid bucket by name")
 				}
-
 			},
 		},
 		{
 			name:  "list",
 			setup: simpleSetup,
 			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
-				buckets, err := store.ListBuckets(context.Background(), tx, tenant.BucketFilter{})
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if len(buckets) != 10 {
-					t.Fatalf("expected 10 buckets got: %d", len(buckets))
-				}
-
-				expected := []*influxdb.Bucket{}
-				for i := 1; i <= 10; i++ {
-					expected = append(expected, &influxdb.Bucket{
-						ID:                  influxdb.ID(i),
-						OrgID:               influxdb.ID(i%2 + 1),
-						Name:                fmt.Sprintf("bucket%d", i),
-						Description:         "words",
-						RetentionPolicyName: "name",
-						RetentionPeriod:     time.Second,
-						CRUDLog: influxdb.CRUDLog{
-							CreatedAt: buckets[i-1].CreatedAt,
-							UpdatedAt: buckets[i-1].UpdatedAt,
-						},
-					})
-				}
-				if !reflect.DeepEqual(buckets, expected) {
-					t.Fatalf("expected identical buckets: \n%+v\n%+v", buckets, expected)
-				}
-
-				orgid := influxdb.ID(1)
-				buckets, err = store.ListBuckets(context.Background(), tx, tenant.BucketFilter{OrganizationID: &orgid})
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if len(buckets) != 5 {
-					t.Fatalf("expected 5 buckets got: %d", len(buckets))
-				}
+				expected := testBuckets(10, withCrudLog)
+				orgID := firstOrgID
+				buckets, err := store.ListBuckets(context.Background(), tx, tenant.BucketFilter{OrganizationID: &orgID})
+				require.NoError(t, err)
+				assert.Len(t, buckets, 5)
 
 				orgExpected := []*influxdb.Bucket{
-					expected[9], // id 10 => 000a which is alphabetically first
-					expected[1],
-					expected[3],
-					expected[5],
-					expected[7],
+					expected[0], // id 10 => 000a which is alphabetically first
+					expected[2],
+					expected[4],
+					expected[6],
+					expected[8],
 				}
-				if !cmp.Equal(buckets, orgExpected) {
-					t.Fatalf("expected identical buckets with limit: \n%+v", cmp.Diff(buckets, orgExpected))
-				}
+				assert.Equal(t, orgExpected, buckets)
 
 				buckets, err = store.ListBuckets(context.Background(), tx, tenant.BucketFilter{}, influxdb.FindOptions{Limit: 4})
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 
 				if len(buckets) != 4 {
 					t.Fatalf("expected 4 buckets got: %d", len(buckets))
@@ -208,22 +186,18 @@ func TestBucket(t *testing.T) {
 			setup: simpleSetup,
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				bucket5 := "bucket5"
-				_, err := store.UpdateBucket(context.Background(), tx, influxdb.ID(3), influxdb.BucketUpdate{Name: &bucket5})
+				_, err := store.UpdateBucket(context.Background(), tx, thirdBucketID, influxdb.BucketUpdate{Name: &bucket5})
 				if err != tenant.ErrBucketNameNotUnique {
 					t.Fatal("failed to error on duplicate bucketname")
 				}
 
 				bucket30 := "bucket30"
-				_, err = store.UpdateBucket(context.Background(), tx, influxdb.ID(3), influxdb.BucketUpdate{Name: &bucket30})
-				if err != nil {
-					t.Fatal(err)
-				}
+				_, err = store.UpdateBucket(context.Background(), tx, thirdBucketID, influxdb.BucketUpdate{Name: &bucket30})
+				require.NoError(t, err)
 
 				description := "notWords"
-				_, err = store.UpdateBucket(context.Background(), tx, influxdb.ID(3), influxdb.BucketUpdate{Description: &description})
-				if err != nil {
-					t.Fatal(err)
-				}
+				_, err = store.UpdateBucket(context.Background(), tx, thirdBucketID, influxdb.BucketUpdate{Description: &description})
+				require.NoError(t, err)
 			},
 			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				buckets, err := store.ListBuckets(context.Background(), tx, tenant.BucketFilter{})
@@ -231,50 +205,26 @@ func TestBucket(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				if len(buckets) != 10 {
-					t.Fatalf("expected 10 buckets got: %d", len(buckets))
-				}
-
-				expected := []*influxdb.Bucket{}
-				for i := 1; i <= 10; i++ {
-					expected = append(expected, &influxdb.Bucket{
-						ID:                  influxdb.ID(i),
-						OrgID:               influxdb.ID(i%2 + 1),
-						Name:                fmt.Sprintf("bucket%d", i),
-						Description:         "words",
-						RetentionPolicyName: "name",
-						RetentionPeriod:     time.Second,
-						CRUDLog: influxdb.CRUDLog{
-							CreatedAt: buckets[i-1].CreatedAt,
-							UpdatedAt: buckets[i-1].UpdatedAt,
-						},
-					})
-				}
+				expected := testBuckets(10, withCrudLog)
 				expected[2].Name = "bucket30"
 				expected[2].Description = "notWords"
-				if !reflect.DeepEqual(buckets, expected) {
-					t.Fatalf("expected identical buckets: \n%+v\n%+v", buckets, expected)
-				}
+				assert.Equal(t, expected, buckets)
 			},
 		},
 		{
 			name:  "delete",
 			setup: simpleSetup,
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
-				err := store.DeleteBucket(context.Background(), tx, 1)
-				if err != nil {
-					t.Fatal(err)
-				}
+				err := store.DeleteBucket(context.Background(), tx, firstBucketID)
+				require.NoError(t, err)
 
-				err = store.DeleteBucket(context.Background(), tx, 1)
+				err = store.DeleteBucket(context.Background(), tx, firstBucketID)
 				if err != tenant.ErrBucketNotFound {
 					t.Fatal("invalid error when deleting bucket that has already been deleted", err)
 				}
 
-				err = store.DeleteBucket(context.Background(), tx, 3)
-				if err != nil {
-					t.Fatal(err)
-				}
+				err = store.DeleteBucket(context.Background(), tx, secondBucketID)
+				require.NoError(t, err)
 			},
 			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				buckets, err := store.ListBuckets(context.Background(), tx, tenant.BucketFilter{})
@@ -282,31 +232,8 @@ func TestBucket(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				if len(buckets) != 8 {
-					t.Fatalf("expected 10 buckets got: %d", len(buckets))
-				}
-
-				expected := []*influxdb.Bucket{}
-				for i := 1; i <= 10; i++ {
-					if i != 1 && i != 3 {
-						expected = append(expected, &influxdb.Bucket{
-							ID:                  influxdb.ID(i),
-							OrgID:               influxdb.ID(i%2 + 1),
-							Name:                fmt.Sprintf("bucket%d", i),
-							Description:         "words",
-							RetentionPolicyName: "name",
-							RetentionPeriod:     time.Second,
-						})
-					}
-				}
-				for i, exp := range expected {
-					exp.CRUDLog.CreatedAt = buckets[i].CreatedAt
-					exp.CRUDLog.UpdatedAt = buckets[i].UpdatedAt
-				}
-
-				if !reflect.DeepEqual(buckets, expected) {
-					t.Fatalf("expected identical buckets: \n%+v\n%+v", buckets, expected)
-				}
+				expected := testBuckets(10, withCrudLog)[2:]
+				assert.Equal(t, expected, buckets)
 			},
 		},
 	}
@@ -318,7 +245,9 @@ func TestBucket(t *testing.T) {
 			}
 			defer closeS()
 
-			ts := tenant.NewStore(s)
+			ts := tenant.NewStore(s, tenant.WithNow(func() time.Time {
+				return aTime
+			}))
 
 			// setup
 			if testScenario.setup != nil {

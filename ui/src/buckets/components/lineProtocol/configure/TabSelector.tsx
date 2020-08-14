@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {SelectGroup, ButtonShape} from '@influxdata/clockface'
 import {LineProtocolTab} from 'src/types'
 
-import Tab from 'src/dataLoaders/components/lineProtocolWizard/configure/Tab'
+import Tab from 'src/buckets/components/lineProtocol/configure/Tab'
 
 interface Props {
   tabs: LineProtocolTab[]

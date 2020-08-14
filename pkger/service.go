@@ -3394,7 +3394,7 @@ func (s *Service) getAllTasks(ctx context.Context, orgID influxdb.ID) ([]*influx
 	for {
 		f := influxdb.TaskFilter{
 			OrganizationID: &orgID,
-			Limit:          100,
+			Limit:          influxdb.TaskMaxPageSize,
 		}
 		if afterID != nil {
 			f.After = afterID

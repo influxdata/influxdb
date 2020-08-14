@@ -3,10 +3,10 @@ import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect, ConnectedProps} from 'react-redux'
 
 // Components
-import {CommunityTemplateInstallerOverlay} from 'src/templates/components/CommunityTemplateInstallerOverlay'
+import {CommunityTemplateOverlay} from 'src/templates/components/CommunityTemplateOverlay'
 
 // Actions
-import {setCommunityTemplateToInstall} from 'src/templates/actions/creators'
+import {setStagedCommunityTemplate} from 'src/templates/actions/creators'
 import {createTemplate, fetchAndSetStacks} from 'src/templates/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
@@ -62,12 +62,8 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 
   public render() {
-    if (!this.props.flags.communityTemplates) {
-      return null
-    }
-
     return (
-      <CommunityTemplateInstallerOverlay
+      <CommunityTemplateOverlay
         onDismissOverlay={this.onDismiss}
         onInstall={this.handleInstallTemplate}
         resourceCount={this.props.resourceCount}
@@ -93,7 +89,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
     try {
       const summary = await reviewTemplate(orgID, yamlLocation)
 
-      this.props.setCommunityTemplateToInstall(summary)
+      this.props.setStagedCommunityTemplate(summary)
       return summary
     } catch (err) {
       this.props.notify(communityTemplateInstallFailed(err.message))
@@ -161,17 +157,17 @@ const mstp = (state: AppState, props: RouterProps) => {
     templateExtension: props.match.params.templateExtension,
     flags: state.flags.original,
     resourceCount: getTotalResourceCount(
-      state.resources.templates.communityTemplateToInstall.summary
+      state.resources.templates.stagedCommunityTemplate.summary
     ),
     resourcesToSkip:
-      state.resources.templates.communityTemplateToInstall.resourcesToSkip,
+      state.resources.templates.stagedCommunityTemplate.resourcesToSkip,
   }
 }
 
 const mdtp = {
   createTemplate,
   notify,
-  setCommunityTemplateToInstall,
+  setStagedCommunityTemplate,
   fetchAndSetStacks,
 }
 

@@ -22,8 +22,8 @@ commands:
       - run:
           name: Install linux cross compilers
           command: >
-            sudo apt-get update && sudo apt-get install -y --no-install-recommends
-              gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+              gcc-arm-linux-gnueabihf libc6-dev-armhf-cross \
               gcc-aarch64-linux-gnu libc6-dev-arm64-cross
       - run:
           name: Install macOS cross compilers
@@ -150,7 +150,7 @@ jobs:
       - run: make protoc
       - run: make build
       - run:
-          command: ./bin/linux/influxd --store=memory --e2e-testing=true
+          command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
           background: true
       - run: make e2e
       - store_test_results:

@@ -65,7 +65,17 @@ func initBoltTenantService(t *testing.T, f influxdbtesting.TenantFields) (influx
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
 
-	svc := tenant.NewService(tenant.NewStore(s))
+	store := tenant.NewStore(s)
+
+	if f.OrgIDGenerator != nil {
+		store.OrgIDGen = f.OrgIDGenerator
+	}
+
+	if f.BucketIDGenerator != nil {
+		store.BucketIDGen = f.BucketIDGenerator
+	}
+
+	svc := tenant.NewService(store)
 
 	for _, u := range f.Users {
 		if err := svc.CreateUser(context.Background(), u); err != nil {

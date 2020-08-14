@@ -1,4 +1,4 @@
-## v2.0.0-beta.16 [unreleased]
+## v2.0.0-beta.16 [2020-08-07]
 
 ### Breaking
 
@@ -12,6 +12,8 @@
 1. [19103](https://github.com/influxdata/influxdb/pull/19103): Enhance resource creation experience when limits are reached
 1. [19223](https://github.com/influxdata/influxdb/pull/19223): Add dashboards command to influx CLI
 1. [19225](https://github.com/influxdata/influxdb/pull/19225): Allow user onboarding to optionally set passwords
+1. [18841](https://github.com/influxdata/influxdb/pull/18841): Limit query response sizes for queries built in QueryBuilder by requiring an aggregate window
+1. [19135](https://github.com/influxdata/influxdb/pull/19135): Add telegram notification.
 
 ### Bug Fixes
 

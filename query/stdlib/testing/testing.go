@@ -98,6 +98,10 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"join":      "unbounded test",
 		"alignTime": "unbounded test",
 	},
+	"experimental/array": {
+		"from":       "test not meant to be consumed by influxdb",
+		"from_group": "test not meant to be consumed by influxdb",
+	},
 	"experimental/geo": {
 		"filterRowsNotStrict": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
 		"filterRowsStrict":    "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",

@@ -30,7 +30,8 @@ func initBoltBucketService(f influxdbtesting.BucketFields, t *testing.T) (influx
 func initBucketService(s kv.SchemaStore, f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
 	ctx := context.Background()
 	svc := kv.NewService(zaptest.NewLogger(t), s)
-	svc.OrgBucketIDs = f.OrgBucketIDs
+	svc.OrgIDs = f.OrgIDs
+	svc.BucketIDs = f.BucketIDs
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
@@ -38,15 +39,21 @@ func initBucketService(s kv.SchemaStore, f influxdbtesting.BucketFields, t *test
 	}
 
 	for _, o := range f.Organizations {
+		// new tenant services do this properly
+		o.ID = svc.OrgIDs.ID()
 		if err := svc.PutOrganization(ctx, o); err != nil {
-			t.Fatalf("failed to populate organizations")
+			t.Fatalf("failed to populate organizations: %s", err)
 		}
 	}
+
 	for _, b := range f.Buckets {
+		// new tenant services do this properly
+		b.ID = svc.BucketIDs.ID()
 		if err := svc.PutBucket(ctx, b); err != nil {
-			t.Fatalf("failed to populate buckets")
+			t.Fatalf("failed to populate buckets: %s", err)
 		}
 	}
+
 	return svc, kv.OpPrefix, func() {
 		for _, o := range f.Organizations {
 			if err := svc.DeleteOrganization(ctx, o.ID); err != nil {
