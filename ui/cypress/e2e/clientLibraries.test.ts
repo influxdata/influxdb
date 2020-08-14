@@ -9,60 +9,58 @@ describe('Client Libraries', () => {
       cy.wrap(body.org).as('org')
 
       cy.fixture('routes').then(({orgs}) => {
-        cy.visit(`${orgs}/${id}/load-data/client-libraries`)
+        cy.visit(`${orgs}/${id}/load-data/sources`)
       })
     })
   })
 
-  it('open arduino popup', () => {
+  it('navigate to arduino details page', () => {
     cy.getByTestID('client-libraries-cards--arduino').click()
-    cy.getByTestID('overlay--header').contains('Arduino Client Library')
+    cy.getByTestID('page-title').contains('Arduino')
   })
 
-  it('open csharp popup', () => {
+  it('navigate to csharp details page', () => {
     cy.getByTestID('client-libraries-cards--csharp').click()
-    cy.getByTestID('overlay--header').contains('C# Client Library')
+    cy.getByTestID('page-title').contains('C#')
   })
 
-  it('open go popup', () => {
+  it('navigate to go details page', () => {
     cy.getByTestID('client-libraries-cards--go').click()
-    cy.getByTestID('overlay--header').contains('GO Client Library')
+    cy.getByTestID('page-title').contains('GO')
   })
 
-  it('open java popup', () => {
+  it('navigate to java details page', () => {
     cy.getByTestID('client-libraries-cards--java').click()
-    cy.getByTestID('overlay--header').contains('Java Client Library')
+    cy.getByTestID('page-title').contains('Java')
   })
 
-  it('open javascript popup', () => {
+  it('navigate to javascript details page', () => {
     cy.getByTestID('client-libraries-cards--javascript-node').click()
-    cy.getByTestID('overlay--header').contains(
-      'JavaScript/Node.js Client Library'
-    )
+    cy.getByTestID('page-title').contains('JavaScript/Node.js')
   })
 
-  it('open Kotlin popup', () => {
+  it('navigate to Kotlin details page', () => {
     cy.getByTestID('client-libraries-cards--kotlin').click()
-    cy.getByTestID('overlay--header').contains('Kotlin Client Library')
+    cy.getByTestID('page-title').contains('Kotlin')
   })
 
-  it('open php popup', () => {
+  it('navigate to php details page', () => {
     cy.getByTestID('client-libraries-cards--php').click()
-    cy.getByTestID('overlay--header').contains('PHP Client Library')
+    cy.getByTestID('page-title').contains('PHP')
   })
 
-  it('open python popup', () => {
+  it('navigate to python details page', () => {
     cy.getByTestID('client-libraries-cards--python').click()
-    cy.getByTestID('overlay--header').contains('Python Client Library')
+    cy.getByTestID('page-title').contains('Python')
   })
 
-  it('open ruby popup', () => {
+  it('navigate to ruby details page', () => {
     cy.getByTestID('client-libraries-cards--ruby').click()
-    cy.getByTestID('overlay--header').contains('Ruby Client Library')
+    cy.getByTestID('page-title').contains('Ruby')
   })
 
-  it('open scala popup', () => {
+  it('navigate to scala details page', () => {
     cy.getByTestID('client-libraries-cards--scala').click()
-    cy.getByTestID('overlay--header').contains('Scala Client Library')
+    cy.getByTestID('page-title').contains('Scala')
   })
 })
