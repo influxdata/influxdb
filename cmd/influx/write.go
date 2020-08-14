@@ -285,11 +285,12 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	ac := flags.config()
 	// write to InfluxDB
 	s := write.Batcher{
 		Service: &ihttp.WriteService{
-			Addr:               flags.Host,
-			Token:              flags.Token,
+			Addr:               ac.Host,
+			Token:              ac.Token,
 			Precision:          writeFlags.Precision,
 			InsecureSkipVerify: flags.skipVerify,
 		},

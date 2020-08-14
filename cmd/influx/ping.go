@@ -19,7 +19,7 @@ func cmdPing(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: flags.skipVerify},
 			},
 		}
-		url := flags.Host + "/health"
+		url := flags.config().Host + "/health"
 		resp, err := c.Get(url)
 		if err != nil {
 			return err
