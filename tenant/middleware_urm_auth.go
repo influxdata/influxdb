@@ -5,6 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
 
@@ -21,13 +22,23 @@ func NewAuthedURMService(orgSvc influxdb.OrganizationService, s influxdb.UserRes
 }
 
 func (s *AuthedURMService) FindUserResourceMappings(ctx context.Context, filter influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, int, error) {
+	orgID := kithttp.OrgIDFromContext(ctx) // resource's orgID
+
+	if feature.OrgOnlyMemberList().Enabled(ctx) {
+		// Check if user making request has read access to organization prior to listing URMs.
+		if orgID != nil {
+			if _, _, err := authorizer.AuthorizeReadResource(ctx, influxdb.OrgsResourceType, *orgID); err != nil {
+				return nil, 0, ErrNotFound
+			}
+		}
+	}
+
 	urms, _, err := s.s.FindUserResourceMappings(ctx, filter, opt...)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	authedUrms := urms[:0]
-	orgID := kithttp.OrgIDFromContext(ctx)
 	for _, urm := range urms {
 		if orgID != nil {
 			if _, _, err := authorizer.AuthorizeRead(ctx, urm.ResourceType, urm.ResourceID, *orgID); err != nil {
