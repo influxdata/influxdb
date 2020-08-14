@@ -1,3 +1,9 @@
+## v2.0.0-beta.17 [unreleased]
+
+### Bug Fixes
+
+1. [19331](https://github.com/influxdata/influxdb/pull/19331): Add description to auth influx command outputs.
+
 ## v2.0.0-beta.16 [2020-08-07]
 
 ### Breaking

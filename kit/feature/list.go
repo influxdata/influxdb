@@ -212,6 +212,20 @@ func MergedFiltersRule() BoolFlag {
 	return mergeFiltersRule
 }
 
+var mosaicGraphType = MakeBoolFlag(
+	"Mosaic Graph Type",
+	"mosaicGraphType",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// MosaicGraphType - Enables the creation of a mosaic graph in Dashboards
+func MosaicGraphType() BoolFlag {
+	return mosaicGraphType
+}
+
 var notebooks = MakeBoolFlag(
 	"Notebooks",
 	"notebooks",
@@ -240,6 +254,20 @@ func PushDownGroupAggregateMinMax() BoolFlag {
 	return pushDownGroupAggregateMinMax
 }
 
+var orgOnlyMemberList = MakeBoolFlag(
+	"Org Only Member list",
+	"orgOnlyMemberList",
+	"Compute Team",
+	false,
+	Temporary,
+	false,
+)
+
+// OrgOnlyMemberList - Enforce only org members have access to view members of org related resorces
+func OrgOnlyMemberList() BoolFlag {
+	return orgOnlyMemberList
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -256,8 +284,10 @@ var all = []Flag{
 	simpleTaskOptionsExtraction,
 	useUserPermission,
 	mergeFiltersRule,
+	mosaicGraphType,
 	notebooks,
 	pushDownGroupAggregateMinMax,
+	orgOnlyMemberList,
 }
 
 var byKey = map[string]Flag{
@@ -276,6 +306,8 @@ var byKey = map[string]Flag{
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"useUserPermission":             useUserPermission,
 	"mergeFiltersRule":              mergeFiltersRule,
+	"mosaicGraphType":               mosaicGraphType,
 	"notebooks":                     notebooks,
 	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
+	"orgOnlyMemberList":             orgOnlyMemberList,
 }

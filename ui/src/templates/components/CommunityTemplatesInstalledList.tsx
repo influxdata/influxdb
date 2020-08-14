@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
-import {Link} from 'react-router-dom'
 
 // Components
 import {
@@ -11,7 +10,12 @@ import {
   ConfirmationButton,
   IconFont,
   Table,
+  LinkButton,
+  VerticalAlignment,
+  ButtonShape,
+  Alignment,
 } from '@influxdata/clockface'
+import {CommunityTemplatesResourceSummary} from 'src/templates/components/CommunityTemplatesResourceSummary'
 
 // Redux
 import {notify} from 'src/shared/actions/notifications'
@@ -40,7 +44,7 @@ type ReduxProps = ConnectedProps<typeof connector>
 
 type Props = OwnProps & ReduxProps
 
-interface Resource {
+export interface Resource {
   apiVersion?: string
   resourceID?: string
   kind?: TemplateKind
@@ -61,137 +65,19 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
     }
   }
 
-  private renderStackResources(resources: Resource[]) {
-    return resources.map(resource => {
-      switch (resource.kind) {
-        case 'Bucket': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link to={`/orgs/${this.props.orgID}/load-data/buckets`}>
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'Check':
-        case 'CheckDeadman':
-        case 'CheckThreshold': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link
-                to={`/orgs/${this.props.orgID}/alerting/checks/${resource.resourceID}/edit`}
-              >
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'Dashboard': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link
-                to={`/orgs/${this.props.orgID}/dashboards/${resource.resourceID}`}
-              >
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'Label': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link to={`/orgs/${this.props.orgID}/settings/labels`}>
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'NotificationEndpoint':
-        case 'NotificationEndpointHTTP':
-        case 'NotificationEndpointPagerDuty':
-        case 'NotificationEndpointSlack': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link
-                to={`/orgs/${this.props.orgID}/alerting/endpoints/${resource.resourceID}/edit`}
-              >
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'NotificationRule': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link
-                to={`/orgs/${this.props.orgID}/alerting/rules/${resource.resourceID}/edit`}
-              >
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'Task': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link
-                to={`/orgs/${this.props.orgID}/tasks/${resource.resourceID}/edit`}
-              >
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'Telegraf': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link
-                to={`/orgs/${this.props.orgID}/load-data/telegrafs/${resource.resourceID}/view`}
-              >
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        case 'Variable': {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              <Link
-                to={`/orgs/${this.props.orgID}/settings/variables/${resource.resourceID}/edit`}
-              >
-                {resource.kind} <code>{resource.templateMetaName}</code>
-              </Link>
-              <br />
-            </React.Fragment>
-          )
-        }
-        default: {
-          return (
-            <React.Fragment key={resource.templateMetaName}>
-              {resource.kind}
-              <br />
-            </React.Fragment>
-          )
-        }
-      }
-    })
-  }
-
   private renderStackSources(sources: string[]) {
     return sources.map(source => {
-      if (source.includes('github')) {
+      if (source.includes('github') && source.includes('influxdata')) {
         return (
-          <a key={source} href={source}>
-            {source}
-          </a>
+          <LinkButton
+            key={source}
+            text="Community Templates"
+            icon={IconFont.GitHub}
+            href={source}
+            size={ComponentSize.Small}
+            style={{display: 'inline-block'}}
+            target="_blank"
+          />
         )
       }
 
@@ -228,11 +114,21 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
         <Table striped={true} highlight={true}>
           <Table.Header>
             <Table.Row>
-              <Table.HeaderCell>Template Name</Table.HeaderCell>
-              <Table.HeaderCell>Resources Created</Table.HeaderCell>
-              <Table.HeaderCell>Install Date</Table.HeaderCell>
-              <Table.HeaderCell>Source</Table.HeaderCell>
-              <Table.HeaderCell>&nbsp;</Table.HeaderCell>
+              <Table.HeaderCell style={{width: '250px'}}>
+                Template Name
+              </Table.HeaderCell>
+              <Table.HeaderCell style={{width: 'calc(100% - 700px)'}}>
+                Installed Resources
+              </Table.HeaderCell>
+              <Table.HeaderCell style={{width: '180px'}}>
+                Install Date
+              </Table.HeaderCell>
+              <Table.HeaderCell style={{width: '210px'}}>
+                Source
+              </Table.HeaderCell>
+              <Table.HeaderCell style={{width: '60px'}}>
+                &nbsp;
+              </Table.HeaderCell>
             </Table.Row>
           </Table.Header>
           <Table.Body>
@@ -242,19 +138,39 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
                   testID="installed-template-list"
                   key={`stack-${stack.id}`}
                 >
-                  <Table.Cell testID={`installed-template-${stack.name}`}>
-                    {stack.name}
+                  <Table.Cell
+                    testID={`installed-template-${stack.name}`}
+                    verticalAlignment={VerticalAlignment.Top}
+                  >
+                    <span className="community-templates--resources-table-item">
+                      {stack.name}
+                    </span>
                   </Table.Cell>
-                  <Table.Cell testID="template-resource-link">
-                    {this.renderStackResources(stack.resources)}
+                  <Table.Cell
+                    testID="template-resource-link"
+                    verticalAlignment={VerticalAlignment.Top}
+                  >
+                    <CommunityTemplatesResourceSummary
+                      resources={stack.resources}
+                      stackID={stack.id}
+                      orgID={this.props.orgID}
+                    />
                   </Table.Cell>
-                  <Table.Cell>
-                    {new Date(stack.createdAt).toDateString()}
+                  <Table.Cell verticalAlignment={VerticalAlignment.Top}>
+                    <span className="community-templates--resources-table-item">
+                      {new Date(stack.createdAt).toDateString()}
+                    </span>
                   </Table.Cell>
-                  <Table.Cell testID="template-source-link">
+                  <Table.Cell
+                    testID="template-source-link"
+                    verticalAlignment={VerticalAlignment.Top}
+                  >
                     {this.renderStackSources(stack.sources)}
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell
+                    verticalAlignment={VerticalAlignment.Top}
+                    horizontalAlignment={Alignment.Right}
+                  >
                     <ConfirmationButton
                       confirmationButtonText="Delete"
                       testID={`template-delete-button-${stack.name}`}
@@ -270,6 +186,7 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
                       color={ComponentColor.Danger}
                       size={ComponentSize.Small}
                       status={ComponentStatus.Default}
+                      shape={ButtonShape.Square}
                     />
                   </Table.Cell>
                 </Table.Row>

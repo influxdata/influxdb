@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
@@ -36,7 +37,7 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to see all users by org auth",
+			name: "authorized to see all users",
 			fields: fields{
 				UserResourceMappingService: &mock.UserResourceMappingService{
 					FindMappingsFn: func(ctx context.Context, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, int, error) {
@@ -59,6 +60,13 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 			},
 			args: args{
 				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
+						},
+					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
@@ -100,6 +108,43 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "authorized to see all users by org auth",
+			fields: fields{
+				UserResourceMappingService: &mock.UserResourceMappingService{
+					FindMappingsFn: func(ctx context.Context, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, int, error) {
+						return []*influxdb.UserResourceMapping{
+							{
+								ResourceID:   1,
+								ResourceType: influxdb.BucketsResourceType,
+							},
+							{
+								ResourceID:   2,
+								ResourceType: influxdb.BucketsResourceType,
+							},
+							{
+								ResourceID:   3,
+								ResourceType: influxdb.BucketsResourceType,
+							},
+						}, 3, nil
+					},
+				},
+			},
+			args: args{
+				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type:  influxdb.BucketsResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: ErrNotFound,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -108,6 +153,13 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 			orgID := influxdbtesting.IDPtr(10)
 			ctx := context.WithValue(context.Background(), kithttp.CtxOrgKey, *orgID)
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
+			ctx, _ = feature.Annotate(ctx, feature.DefaultFlagger(), feature.MakeBoolFlag("Org Only Member list",
+				"orgOnlyMemberList",
+				"Compute Team",
+				true,
+				feature.Temporary,
+				false,
+			))
 
 			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)

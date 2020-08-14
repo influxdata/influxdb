@@ -50,13 +50,13 @@ import {
   addBucketLabelFailed,
   removeBucketLabelFailed,
 } from 'src/shared/copy/notifications'
-import {LIMIT} from 'src/resources/constants'
+import {BUCKET_LIMIT} from 'src/resources/constants'
 
 type Action = BucketAction | NotifyAction
 
 export const fetchAllBuckets = async (orgID: string) => {
   const resp = await api.getBuckets({
-    query: {orgID, limit: LIMIT},
+    query: {orgID, limit: BUCKET_LIMIT},
   })
 
   if (resp.status !== 200) {

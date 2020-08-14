@@ -32,6 +32,7 @@ import {setLabelOnResource} from 'src/labels/actions/creators'
 import {draftRuleToPostRule} from 'src/notifications/rules/utils'
 import {getOrg} from 'src/organizations/selectors'
 import {getAll, getStatus} from 'src/resources/selectors'
+import {incrementCloneName} from 'src/utils/naming'
 
 // Types
 import {
@@ -45,7 +46,9 @@ import {
   RuleEntities,
   ResourceType,
 } from 'src/types'
-import {incrementCloneName} from 'src/utils/naming'
+
+// Constants
+import {RULE_LIMIT} from 'src/resources/constants'
 
 export const getNotificationRules = () => async (
   dispatch: Dispatch<
@@ -64,7 +67,9 @@ export const getNotificationRules = () => async (
 
     const {id: orgID} = getOrg(state)
 
-    const resp = await api.getNotificationRules({query: {orgID}})
+    const resp = await api.getNotificationRules({
+      query: {orgID, limit: RULE_LIMIT},
+    })
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
