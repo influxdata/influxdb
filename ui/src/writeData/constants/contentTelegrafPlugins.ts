@@ -794,7 +794,7 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
   },
   {
     id: 'internal',
-    name: 'Internal',
+    name: 'Telegraf Internal',
     url: `${TELEGRAF_PLUGINS}/internal`,
     markdown: internalMarkdown,
     image: internalLogo,
