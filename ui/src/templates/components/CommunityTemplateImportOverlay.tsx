@@ -33,6 +33,8 @@ import {
   communityTemplateRenameFailed,
 } from 'src/shared/copy/notifications'
 
+import {event} from 'src/cloud/utils/reporting'
+
 interface State {
   status: ComponentStatus
 }
@@ -131,6 +133,8 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
 
     try {
       await updateStackName(summary.stackID, templateName)
+
+      event('template_install', {templateName: templateName})
 
       this.props.notify(communityTemplateInstallSucceeded(templateName))
     } catch (err) {

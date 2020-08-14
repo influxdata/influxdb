@@ -15,12 +15,16 @@ describe('Community Templates', () => {
   })
 
   it('The browse community template button launches github', () => {
-    cy.getByTestID('browse-template-button')
-      .should('have.prop', 'href')
-      .and(
-        'equal',
-        'https://github.com/influxdata/community-templates#templates'
-      )
+    cy.window().then(win => {
+      cy.stub(win, 'open').as('windowOpenSpy')
+    })
+
+    cy.getByTestID('browse-template-button').click()
+
+    cy.get('@windowOpenSpy').should(
+      'be.calledWith',
+      'https://github.com/influxdata/community-templates#templates'
+    )
   })
 
   it('The lookup template errors on invalid data', () => {
