@@ -27,7 +27,7 @@ builds:
     goarch:
       - amd64
       - arm64
- 
+
     main: ./cmd/influxd/
     flags:
       - -tags=assets{{if and (eq .Os "linux") (eq .Arch "amd64")}},osusergo,netgo,static_build{{end}}
@@ -77,6 +77,10 @@ archives:
     files:
       - LICENSE
       - README.md
+
+checksum:
+  name_template: "influxdb_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}.md5"
+  algorithm: md5
 
 # Do not make github release
 release:
