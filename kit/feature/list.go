@@ -254,6 +254,20 @@ func PushDownGroupAggregateMinMax() BoolFlag {
 	return pushDownGroupAggregateMinMax
 }
 
+var orgOnlyMemberList = MakeBoolFlag(
+	"Org Only Member list",
+	"orgOnlyMemberList",
+	"Compute Team",
+	false,
+	Temporary,
+	false,
+)
+
+// OrgOnlyMemberList - Enforce only org members have access to view members of org related resorces
+func OrgOnlyMemberList() BoolFlag {
+	return orgOnlyMemberList
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -273,6 +287,7 @@ var all = []Flag{
 	mosaicGraphType,
 	notebooks,
 	pushDownGroupAggregateMinMax,
+	orgOnlyMemberList,
 }
 
 var byKey = map[string]Flag{
@@ -294,4 +309,5 @@ var byKey = map[string]Flag{
 	"mosaicGraphType":               mosaicGraphType,
 	"notebooks":                     notebooks,
 	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
+	"orgOnlyMemberList":             orgOnlyMemberList,
 }
