@@ -2433,6 +2433,9 @@ paths:
       summary: Get all dashboards
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Descending"
         - in: query
           name: owner
           description: The owner ID.
