@@ -65,6 +65,20 @@ func (cfgs Configs) Switch(name string) error {
 	return nil
 }
 
+func (cfgs Configs) Active() Config {
+	for _, cfg := range cfgs {
+		if cfg.Active {
+			return cfg
+		}
+	}
+	if len(cfgs) > 0 {
+		for _, cfg := range cfgs {
+			return cfg
+		}
+	}
+	return DefaultConfig
+}
+
 // localConfigsSVC has the path and dir to write and parse configs.
 type localConfigsSVC struct {
 	store

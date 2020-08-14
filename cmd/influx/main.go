@@ -69,7 +69,8 @@ func newHTTPClient() (*httpc.Client, error) {
 		opts = append(opts, httpc.WithHeader("jaeger-debug-id", flags.traceDebugID))
 	}
 
-	c, err := http.NewHTTPClient(flags.Host, flags.Token, flags.skipVerify, opts...)
+	ac := flags.config()
+	c, err := http.NewHTTPClient(ac.Host, ac.Token, flags.skipVerify, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -144,10 +145,32 @@ func out(w io.Writer) genericCLIOptFn {
 }
 
 type globalFlags struct {
-	config.Config
 	skipVerify   bool
+	token        string
+	host         string
 	traceDebugID string
 	filepath     string
+	activeConfig string
+	configs      config.Configs
+}
+
+func (g *globalFlags) config() config.Config {
+	if ac := g.activeConfig; ac != "" {
+		c, ok := g.configs[ac]
+		if !ok {
+			// this is unrecoverable
+			fmt.Fprintf(os.Stderr, "Err: active config %q was not found\n", ac)
+			os.Exit(1)
+		}
+		if g.host != "" {
+			c.Host = g.host
+		}
+		if g.token != "" {
+			c.Token = g.token
+		}
+		return c
+	}
+	return g.configs.Active()
 }
 
 func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
@@ -162,13 +185,13 @@ func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
 
 	fOpts := flagOpts{
 		{
-			DestP: &g.Token,
+			DestP: &g.token,
 			Flag:  "token",
 			Short: 't',
 			Desc:  "Authentication token",
 		},
 		{
-			DestP: &g.Host,
+			DestP: &g.host,
 			Flag:  "host",
 			Desc:  "HTTP address of InfluxDB",
 		},
@@ -182,6 +205,12 @@ func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
 			Flag:    "configs-path",
 			Desc:    "Path to the influx CLI configurations",
 			Default: defaultConfigsPath,
+		},
+		{
+			DestP: &g.activeConfig,
+			Flag:  "active-config",
+			Desc:  "Config name to use for command",
+			Short: 'c',
 		},
 	}
 
@@ -247,19 +276,21 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		// this is after the flagOpts register b/c we don't want to show the default value
 		// in the usage display. This will add it as the config, then if a token flag
 		// is provided too, the flag will take precedence.
-		cfg := getConfigFromDefaultPath(flags.filepath)
+		flags.configs = getConfigFromDefaultPath(flags.filepath)
+
+		cfg := flags.configs.Active()
 
 		// we have some indirection here b/c of how the Config is embedded on the
 		// global flags type. For the time being, we check to see if there was a
 		// value set on flags registered (via env vars), and override the host/token
 		// values if they are.
-		if flags.Token != "" {
-			cfg.Token = flags.Token
+		if flags.token != "" {
+			cfg.Token = flags.token
 		}
-		if flags.Host != "" {
-			cfg.Host = flags.Host
+		if flags.host != "" {
+			cfg.Host = flags.host
 		}
-		flags.Config = cfg
+		flags.configs[cfg.Name] = cfg
 	}
 
 	// Update help description for all commands in command tree
@@ -340,18 +371,25 @@ func seeHelp(c *cobra.Command, args []string) {
 	c.Printf("See '%s -h' for help\n", c.CommandPath())
 }
 
-func getConfigFromDefaultPath(configsPath string) config.Config {
+func getConfigFromDefaultPath(configsPath string) config.Configs {
 	r, err := os.Open(configsPath)
 	if err != nil {
-		return config.DefaultConfig
+		return config.Configs{
+			config.DefaultConfig.Name: config.DefaultConfig,
+		}
 	}
 	defer r.Close()
 
-	activated, err := config.ParseActiveConfig(r)
+	cfgs, err := config.
+		NewLocalConfigSVC(configsPath, filepath.Dir(configsPath)).
+		ListConfigs()
 	if err != nil {
-		return config.DefaultConfig
+		return map[string]config.Config{
+			config.DefaultConfig.Name: config.DefaultConfig,
+		}
 	}
-	return activated
+
+	return cfgs
 }
 
 func defaultConfigPath() (string, string, error) {
@@ -426,7 +464,8 @@ func checkSetupRunEMiddleware(f *globalFlags) cobraRunEMiddleware {
 				return nil
 			}
 
-			if setupErr := checkSetup(f.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+			ac := f.config()
+			if setupErr := checkSetup(ac.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
 				cmd.OutOrStderr().Write([]byte(fmt.Sprintf("Error: %s\n", internal.ErrorFmt(err).Error())))
 				return internal.ErrorFmt(setupErr)
 			}
@@ -489,15 +528,15 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 		return getOrgByName(o.name)
 	}
 	// last check is for the org set in the CLI config. This will be last in priority.
-	if flags.Org != "" {
-		return getOrgByName(flags.Org)
+	if ac := flags.config(); ac.Org != "" {
+		return getOrgByName(ac.Org)
 	}
 	return 0, fmt.Errorf("failed to locate organization criteria")
 }
 
 func (o *organization) validOrgFlags(f *globalFlags) error {
 	if o.id == "" && o.name == "" && f != nil {
-		o.name = f.Org
+		o.name = flags.config().Org
 	}
 
 	if o.id == "" && o.name == "" {

@@ -132,12 +132,13 @@ func setupF(cmd *cobra.Command, args []string) error {
 	s := tenant.OnboardClientService{
 		Client: client,
 	}
+	activeConfig := flags.config()
 	allowed, err := s.IsOnboarding(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to determine if instance has been configured: %v", err)
 	}
 	if !allowed {
-		return fmt.Errorf("instance at %q has already been setup", flags.Host)
+		return fmt.Errorf("instance at %q has already been setup", activeConfig.Host)
 	}
 
 	existingConfigs := make(config.Configs)
@@ -171,8 +172,8 @@ func setupF(cmd *cobra.Command, args []string) error {
 	if len(existingConfigs) > 0 {
 		p.Name = setupFlags.name
 	}
-	if flags.Host != "" {
-		p.Host = flags.Host
+	if activeConfig.Host != "" {
+		p.Host = activeConfig.Host
 	}
 
 	if _, err = localConfigSVC.CreateConfig(p); err != nil {
