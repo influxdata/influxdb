@@ -110,8 +110,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                   <Button
                     color={ComponentColor.Primary}
                     size={ComponentSize.Large}
-                    target={LinkTarget.Blank}
-                    onClick={this.browseCommunityTemplates}
+                    onClick={this.onClickBrowseCommunityTemplates}
                     text="Browse Community Templates"
                     testID="browse-template-button"
                     icon={IconFont.GitHub}
@@ -203,7 +202,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     this.setState({templateUrl: evt.target.value})
   }
 
-  private browseCommunityTemplates = (evt) => {
+  private onClickBrowseCommunityTemplates = () => {
     event('template_click_browse')
 
     window.open(communityTemplatesUrl)
