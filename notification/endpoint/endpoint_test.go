@@ -189,7 +189,7 @@ func TestValidEndpoint(t *testing.T) {
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "empty teams URL",
+				Msg:  "teams: empty URL",
 			},
 		},
 		{
@@ -325,7 +325,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "teams without secretURLSuffix",
-			src: &endpoint.Slack{
+			src: &endpoint.Teams{
 				Base: endpoint.Base{
 					ID:     influxTesting.MustIDBase16Ptr(id1),
 					Name:   "name1",

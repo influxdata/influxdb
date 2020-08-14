@@ -109,13 +109,13 @@ func (s Teams) Valid() error {
 	if s.Title == "" {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
-			Msg:  "Teams Title is empty",
+			Msg:  "teams: empty title",
 		}
 	}
 	if s.MessageTemplate == "" {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
-			Msg:  "Teams MessageTemplate is empty",
+			Msg:  "teams: empty messageTemplate",
 		}
 	}
 	return nil
@@ -123,5 +123,5 @@ func (s Teams) Valid() error {
 
 // Type returns the type of the rule config.
 func (s Teams) Type() string {
-	return "teams"
+	return endpoint.TeamsType
 }

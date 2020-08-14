@@ -46,15 +46,16 @@ func (s Teams) Valid() error {
 	if s.URL == "" {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
-			Msg:  "empty teams URL",
+			Msg:  "teams: empty URL",
 		}
 	}
 	return nil
 }
 
+type teamsAlias Teams
+
 // MarshalJSON implement json.Marshaler interface.
 func (s Teams) MarshalJSON() ([]byte, error) {
-	type teamsAlias Teams
 	return json.Marshal(
 		struct {
 			teamsAlias

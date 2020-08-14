@@ -272,7 +272,7 @@ func TestTeams_Valid(t *testing.T) {
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "Teams MessageTemplate is empty",
+				Msg:  "teams: empty messageTemplate",
 			},
 		},
 		{
@@ -297,7 +297,7 @@ func TestTeams_Valid(t *testing.T) {
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "Teams Title is empty",
+				Msg:  "teams: empty title",
 			},
 		},
 		{
