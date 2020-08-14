@@ -79,7 +79,7 @@ archives:
       - README.md
 
 checksum:
-  name_template: "influxdb_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}.md5"
+  name_template: "influxdb_{{ .Version }}.md5"
   algorithm: md5
 
 # Do not make github release
