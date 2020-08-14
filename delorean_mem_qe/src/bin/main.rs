@@ -5,7 +5,7 @@ use arrow::{array, array::Array, datatypes, ipc};
 
 use delorean_mem_qe::column;
 use delorean_mem_qe::column::{Column, Scalar};
-use delorean_mem_qe::segment::{Aggregate, Segment};
+use delorean_mem_qe::segment::{Aggregate, GroupingStrategy, Segment};
 use delorean_mem_qe::Store;
 
 // use snafu::ensure;
@@ -38,7 +38,13 @@ fn main() {
         store.size(),
     );
 
-    time_group_by_agg(&store);
+    time_select_with_pred(&store);
+    time_first_host(&store);
+    time_sum_range(&store);
+    time_count_range(&store);
+    time_group_single_with_pred(&store);
+    time_group_by_multi_agg_count(&store);
+    time_group_by_multi_agg_SORTED_count(&store);
 
     // time_column_min_time(&store);
     // time_column_max_time(&store);
@@ -270,165 +276,242 @@ fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
     Ok(segment)
 }
 
-fn time_column_min_time(store: &Store) {
-    let repeat = 1000;
+//
+// SELECT FIRST(host) FROM measurement
+//
+fn time_first_host(store: &Store) {
+    let repeat = 100;
     let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-    let mut total_min = 0;
-    for _ in 1..repeat {
-        let now = std::time::Instant::now();
-        let segments = store.segments();
-        let min = segments.column_min("time").unwrap();
-        total_time += now.elapsed();
-
-        if let Scalar::Integer(v) = min {
-            total_min += v
-        }
-    }
-    println!(
-        "Ran {:?} in {:?} {:?} / call {:?}",
-        repeat,
-        total_time,
-        total_time / repeat,
-        total_min
-    );
-}
-
-fn time_column_max_time(store: &Store) {
-    let repeat = 1000;
-    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-    let mut total_max = 0;
-    for _ in 1..repeat {
-        let now = std::time::Instant::now();
-        let segments = store.segments();
-        let max = segments.column_max("time").unwrap();
-        total_time += now.elapsed();
-
-        if let Scalar::Integer(v) = max {
-            total_max += v
-        }
-    }
-    println!(
-        "Ran {:?} in {:?} {:?} / call {:?}",
-        repeat,
-        total_time,
-        total_time / repeat,
-        total_max
-    );
-}
-
-fn time_column_first(store: &Store) {
-    let repeat = 100000;
-    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-    let mut total_max = 0;
-    for _ in 1..repeat {
-        let now = std::time::Instant::now();
-        let segments = store.segments();
-        let res = segments.first("host").unwrap();
-        total_time += now.elapsed();
-        total_max += res.0;
-    }
-    println!(
-        "Ran {:?} in {:?} {:?} / call {:?}",
-        repeat,
-        total_time,
-        total_time / repeat,
-        total_max
-    );
-}
-
-// fn time_row_by_last_ts(store: &Store) {
-//     let repeat = 100000;
-//     let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-//     let mut total_max = 0;
-//     let segments = store.segments();
-//     for _ in 0..repeat {
-//         let now = std::time::Instant::now();
-
-//         let (_, _, row_id) = segments.last("time").unwrap();
-//         let res = segments.segments().last().unwrap().row(row_id).unwrap();
-//         total_time += now.elapsed();
-//         total_max += res.len();
-//     }
-//     println!(
-//         "Ran {:?} in {:?} {:?} / call {:?}",
-//         repeat,
-//         total_time,
-//         total_time / repeat,
-//         total_max
-//     );
-// }
-
-fn time_row_by_preds(store: &Store) {
-    let repeat = 100000;
-    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-    let mut total_max = 0;
+    let mut track = 0;
     let segments = store.segments();
     for _ in 0..repeat {
         let now = std::time::Instant::now();
 
-        let rows = segments
-            .segments()
-            .last()
-            .unwrap()
-            .filter_by_predicates_eq(
-                (1590040770000000, 1590040790000000),
-                &vec![
-                    ("env", Some(&column::Scalar::String("prod01-us-west-2"))),
-                    ("method", Some(&column::Scalar::String("GET"))),
-                    (
-                        "host",
-                        Some(&column::Scalar::String("queryd-v1-75bc6f7886-57pxd")),
-                    ),
-                ],
-            )
-            .unwrap();
-
-        // for row_id in rows.iter() {
-        //     println!(
-        //         "{:?} - {:?}",
-        //         row_id,
-        //         segments.segments().last().unwrap().row(row_id as usize)
-        //     );
-        // }
+        let (ts, _, _) = segments.first("host").unwrap();
 
         total_time += now.elapsed();
-        total_max += rows.cardinality();
+        track += ts;
     }
     println!(
-        "Ran {:?} in {:?} {:?} / call {:?}",
+        "time_first_host ran {:?} in {:?} {:?} / call {:?}",
         repeat,
         total_time,
         total_time / repeat,
-        total_max
+        track
     );
 }
 
-fn time_group_by_agg(store: &Store) {
-    let repeat = 10;
+//
+// SELECT SUM(counter) FROM measurement
+// WHERE time >= "2020-05-07 06:48:00" AND time < "2020-05-21 07:00:10"
+//
+fn time_sum_range(store: &Store) {
+    let repeat = 100;
     let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-    let mut total_max = 0;
+    let segments = store.segments();
+    let mut track = 0.0;
+    for _ in 0..repeat {
+        let now = std::time::Instant::now();
+
+        for segment in segments.segments() {
+            let filtered_ids =
+                segment.filter_by_predicates_eq((1588834080000000, 1590044410000000), &[]);
+            if let Some(mut row_ids) = filtered_ids {
+                if let column::Scalar::Float(v) =
+                    segment.sum_column("counter", &mut row_ids).unwrap()
+                {
+                    track += v;
+                }
+            }
+        }
+
+        total_time += now.elapsed();
+    }
+    println!(
+        "time_sum_range ran {:?} in {:?} {:?} / total {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        track
+    );
+}
+
+//
+// SELECT COUNT(counter) FROM measurement
+// WHERE time >= "2020-05-07 06:48:00" AND time < "2020-05-21 07:00:10"
+//
+fn time_count_range(store: &Store) {
+    let repeat = 100;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut track = 0;
     let segments = store.segments();
     for _ in 0..repeat {
         let now = std::time::Instant::now();
 
-        let groups = segments.read_group_eq(
-            (0, 1590044410000000),
-            &[],
-            vec!["status".to_string(), "method".to_string()],
+        for segment in segments.segments() {
+            let filtered_ids =
+                segment.filter_by_predicates_eq((1588834080000000, 1590044410000000), &[]);
+            if let Some(mut row_ids) = filtered_ids {
+                track += segment.count_column("counter", &mut row_ids).unwrap();
+            }
+        }
+
+        total_time += now.elapsed();
+    }
+    println!(
+        "time_count_range ran {:?} in {:?} {:?} / total {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        track
+    );
+}
+
+//
+// SELECT env, method, host, counter, time
+// FROM measurement
+// WHERE time >= "2020-05-21 04:41:50" AND time < "2020-05-21 05:59:30"
+// AND "env" = "prod01-eu-central-1"
+//
+fn time_select_with_pred(store: &Store) {
+    let repeat = 100;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut track = 0;
+    let segments = store.segments();
+    for _ in 0..repeat {
+        let now = std::time::Instant::now();
+
+        let columns = segments.read_filter_eq(
+            (1590036110000000, 1590040770000000),
+            &[("env", Some(&column::Scalar::String("prod01-eu-central-1")))],
             vec![
-                ("counter".to_string(), Aggregate::Sum),
-                // ("counter".to_string(), Aggregate::Count),
+                "env".to_string(),
+                "method".to_string(),
+                "host".to_string(),
+                "counter".to_string(),
+                "time".to_string(),
             ],
         );
 
         total_time += now.elapsed();
-        total_max += groups.len();
+        track += columns.len();
     }
     println!(
-        "Ran {:?} in {:?} {:?} / call {:?}",
+        "time_select_with_pred ran {:?} in {:?} {:?} / call {:?}",
         repeat,
         total_time,
         total_time / repeat,
-        total_max
+        track
     );
+}
+
+//
+// SELECT env, method, host, counter, time
+// FROM measurement
+// WHERE time >= "2020-05-21 04:41:50" AND time < "2020-05-21 05:59:30"
+// AND "env" = "prod01-eu-central-1"
+//
+fn time_group_single_with_pred(store: &Store) {
+    let repeat = 100;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut track = 0;
+    let segments = store.segments();
+    for _ in 0..repeat {
+        let now = std::time::Instant::now();
+
+        for segment in segments.segments() {
+            let results = segment.group_single_agg_by_predicate_eq(
+                (1588834080000000, 1590044410000000),
+                &[],
+                &"env".to_string(),
+                &vec![("counter".to_string(), Aggregate::Count)],
+            );
+            track += results.len();
+        }
+
+        total_time += now.elapsed();
+    }
+    println!(
+        "time_group_single_with_pred ran {:?} in {:?} {:?} / call {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        track
+    );
+}
+
+fn time_group_by_multi_agg_count(store: &Store) {
+    let strats = vec![
+        GroupingStrategy::HashGroup,
+        GroupingStrategy::HashGroupConcurrent,
+        GroupingStrategy::SortGroup,
+        GroupingStrategy::SortGroupConcurrent,
+    ];
+
+    for strat in &strats {
+        let repeat = 10;
+        let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+        let mut total_max = 0;
+        let segments = store.segments();
+        for _ in 0..repeat {
+            let now = std::time::Instant::now();
+
+            let groups = segments.read_group_eq(
+                (1589000000000001, 1590044410000000),
+                &[],
+                vec!["status".to_string(), "method".to_string()],
+                vec![("counter".to_string(), Aggregate::Count)],
+                strat,
+            );
+
+            total_time += now.elapsed();
+            total_max += groups.len();
+        }
+        println!(
+            "time_group_by_multi_agg_count_{:?} ran {:?} in {:?} {:?} / call {:?}",
+            strat,
+            repeat,
+            total_time,
+            total_time / repeat,
+            total_max
+        );
+    }
+}
+
+fn time_group_by_multi_agg_SORTED_count(store: &Store) {
+    let strats = vec![
+        GroupingStrategy::HashGroup,
+        GroupingStrategy::HashGroupConcurrent,
+        GroupingStrategy::SortGroup,
+        GroupingStrategy::SortGroupConcurrent,
+    ];
+
+    for strat in &strats {
+        let repeat = 10;
+        let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+        let mut total_max = 0;
+        let segments = store.segments();
+        for _ in 0..repeat {
+            let now = std::time::Instant::now();
+
+            let groups = segments.read_group_eq(
+                (1589000000000001, 1590044410000000),
+                &[],
+                vec!["env".to_string(), "role".to_string()],
+                vec![("counter".to_string(), Aggregate::Count)],
+                strat,
+            );
+
+            total_time += now.elapsed();
+            total_max += groups.len();
+        }
+        println!(
+            "time_group_by_multi_agg_SORTED_count_{:?} ran {:?} in {:?} {:?} / call {:?}",
+            strat,
+            repeat,
+            total_time,
+            total_time / repeat,
+            total_max
+        );
+    }
 }

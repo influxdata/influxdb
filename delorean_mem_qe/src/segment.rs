@@ -3,6 +3,9 @@ use std::collections::{BTreeMap, HashMap};
 use super::column;
 use super::column::Column;
 
+// Only used in a couple of specific places for experimentation.
+const THREADS: usize = 16;
+
 #[derive(Debug)]
 pub struct Segment {
     meta: SegmentMetaData,
@@ -137,12 +140,11 @@ impl Segment {
     pub fn group_by_column_ids(
         &self,
         name: &str,
-    ) -> Option<&std::collections::BTreeMap<Option<std::string::String>, croaring::Bitmap>> {
-        unimplemented!("just need to convert encoded keys into decoded strings");
-        // if let Some(c) = self.column(name) {
-        //     return Some(c.group_by_ids());
-        // }
-        // None
+    ) -> Option<&std::collections::BTreeMap<u32, croaring::Bitmap>> {
+        if let Some(c) = self.column(name) {
+            return Some(c.group_by_ids());
+        }
+        None
     }
 
     pub fn aggregate_by_group_with_hash(
@@ -639,7 +641,7 @@ impl Segment {
         predicates: &[(&str, Option<&column::Scalar>)],
         group_column: &String,
         aggregates: &Vec<(String, Aggregate)>,
-    ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
+    ) -> BTreeMap<u32, Vec<((String, Aggregate), column::Aggregate)>> {
         let mut grouped_results = BTreeMap::new();
 
         let filter_row_ids: croaring::Bitmap;
@@ -682,7 +684,7 @@ impl Segment {
                     // Next add these aggregates to the result set, keyed
                     // by the grouped value.
                     assert_eq!(aggs.len(), aggregates.len());
-                    grouped_results.insert(vec![group_key_value.clone().unwrap()], aggs);
+                    grouped_results.insert(*group_key_value, aggs);
                 } else {
                     // In this case there are grouped values in the column with no
                     // rows falling into time-range/predicate set.
@@ -814,16 +816,118 @@ impl<'a> Segments<'a> {
         predicates: &[(&str, Option<&column::Scalar>)],
         group_columns: Vec<String>,
         aggregates: Vec<(String, Aggregate)>,
+        strategy: &GroupingStrategy,
     ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
         let (min, max) = time_range;
         if max <= min {
             panic!("max <= min");
         }
 
-        //
-        //  TODO - just need to sum up the aggregates within each segment here to get
-        // the final result.
-        //
+        match strategy {
+            GroupingStrategy::HashGroup => {
+                return self.read_group_eq_hash(
+                    time_range,
+                    predicates,
+                    group_columns,
+                    aggregates,
+                    false,
+                )
+            }
+            GroupingStrategy::HashGroupConcurrent => {
+                return self.read_group_eq_hash(
+                    time_range,
+                    predicates,
+                    group_columns,
+                    aggregates,
+                    true,
+                )
+            }
+            GroupingStrategy::SortGroup => {
+                return self.read_group_eq_sort(
+                    time_range,
+                    predicates,
+                    group_columns,
+                    aggregates,
+                    false,
+                )
+            }
+            GroupingStrategy::SortGroupConcurrent => {
+                return self.read_group_eq_sort(
+                    time_range,
+                    predicates,
+                    group_columns,
+                    aggregates,
+                    true,
+                )
+            }
+        }
+
+        // TODO(edd): merge results - not expensive really...
+        let mut cum_results: BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> =
+            BTreeMap::new();
+
+        cum_results
+    }
+
+    fn read_group_eq_hash(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, Option<&column::Scalar>)],
+        group_columns: Vec<String>,
+        aggregates: Vec<(String, Aggregate)>,
+        concurrent: bool,
+    ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
+        if concurrent {
+            let group_columns_arc = std::sync::Arc::new(group_columns);
+            let aggregates_arc = std::sync::Arc::new(aggregates);
+
+            for chunked_segments in self.segments.chunks(THREADS) {
+                crossbeam::scope(|scope| {
+                    for segment in chunked_segments {
+                        let group_columns = group_columns_arc.clone();
+                        let aggregates = aggregates_arc.clone();
+
+                        scope.spawn(move |_| {
+                            let now = std::time::Instant::now();
+                            segment.aggregate_by_group_with_hash(
+                                time_range,
+                                predicates,
+                                &group_columns,
+                                &aggregates,
+                            );
+                            log::info!(
+                                "processed segment {:?} using multi-threaded hash-grouping in {:?}",
+                                segment.time_range(),
+                                now.elapsed()
+                            )
+                        });
+                    }
+                })
+                .unwrap();
+            }
+
+            let rem = self.segments.len() % THREADS;
+            for segment in &self.segments[self.segments.len() - rem..] {
+                let now = std::time::Instant::now();
+                segment.aggregate_by_group_with_hash(
+                    time_range,
+                    predicates,
+                    &group_columns_arc.clone(),
+                    &aggregates_arc.clone(),
+                );
+                log::info!(
+                    "processed segment {:?} using multi-threaded hash-grouping in {:?}",
+                    segment.time_range(),
+                    now.elapsed()
+                )
+            }
+
+            // TODO(edd): aggregate the aggregates. not expensive
+            return BTreeMap::new();
+        }
+
+        // Single threaded
+
         for segment in &self.segments {
             let now = std::time::Instant::now();
             segment.aggregate_by_group_with_hash(
@@ -832,57 +936,91 @@ impl<'a> Segments<'a> {
                 &group_columns,
                 &aggregates,
             );
-
-            // segment.aggregate_by_group_with_sort(
-            //     time_range,
-            //     predicates,
-            //     &group_columns,
-            //     &aggregates,
-            // );
             log::info!(
-                "processed segment {:?} in {:?}",
+                "processed segment {:?} using single-threaded hash-grouping in {:?}",
                 segment.time_range(),
                 now.elapsed()
             )
         }
 
-        // let group_columns_arc = std::sync::Arc::new(group_columns);
-        // let aggregates_arc = std::sync::Arc::new(aggregates);
+        BTreeMap::new()
+    }
 
-        // for chunked_segments in self.segments.chunks(16) {
-        //     crossbeam::scope(|scope| {
-        //         for segment in chunked_segments {
-        //             let group_columns = group_columns_arc.clone();
-        //             let aggregates = aggregates_arc.clone();
+    fn read_group_eq_sort(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, Option<&column::Scalar>)],
+        group_columns: Vec<String>,
+        aggregates: Vec<(String, Aggregate)>,
+        concurrent: bool,
+    ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
+        if concurrent {
+            let group_columns_arc = std::sync::Arc::new(group_columns);
+            let aggregates_arc = std::sync::Arc::new(aggregates);
 
-        //             scope.spawn(move |_| {
-        //                 segment.aggregate_by_group_with_sort(
-        //                     time_range,
-        //                     predicates,
-        //                     &group_columns,
-        //                     &aggregates,
-        //                 );
-        //             });
-        //         }
-        //     })
-        //     .unwrap();
-        // }
+            for chunked_segments in self.segments.chunks(THREADS) {
+                crossbeam::scope(|scope| {
+                    for segment in chunked_segments {
+                        let group_columns = group_columns_arc.clone();
+                        let aggregates = aggregates_arc.clone();
 
-        // let rem = self.segments.len() % 16;
-        // for segment in &self.segments[self.segments.len() - rem..] {
-        //     segment.aggregate_by_group_with_sort(
-        //         time_range,
-        //         predicates,
-        //         &group_columns_arc.clone(),
-        //         &aggregates_arc.clone(),
-        //     );
-        // }
+                        scope.spawn(move |_| {
+                            let now = std::time::Instant::now();
+                            segment.aggregate_by_group_with_sort(
+                                time_range,
+                                predicates,
+                                &group_columns,
+                                &aggregates,
+                            );
+                            log::info!(
+                                "processed segment {:?} using multi-threaded hash-grouping in {:?}",
+                                segment.time_range(),
+                                now.elapsed()
+                            )
+                        });
+                    }
+                })
+                .unwrap();
+            }
 
-        // TODO(edd): merge results - not expensive really...
-        let mut cum_results: BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> =
-            BTreeMap::new();
+            let rem = self.segments.len() % THREADS;
+            for segment in &self.segments[self.segments.len() - rem..] {
+                let now = std::time::Instant::now();
+                segment.aggregate_by_group_with_sort(
+                    time_range,
+                    predicates,
+                    &group_columns_arc.clone(),
+                    &aggregates_arc.clone(),
+                );
+                log::info!(
+                    "processed segment {:?} using multi-threaded hash-grouping in {:?}",
+                    segment.time_range(),
+                    now.elapsed()
+                )
+            }
 
-        cum_results
+            // TODO(edd): aggregate the aggregates. not expensive
+            return BTreeMap::new();
+        }
+
+        // Single threaded
+
+        for segment in &self.segments {
+            let now = std::time::Instant::now();
+            segment.aggregate_by_group_with_sort(
+                time_range,
+                predicates,
+                &group_columns,
+                &aggregates,
+            );
+            log::info!(
+                "processed segment {:?} using single-threaded hash-grouping in {:?}",
+                segment.time_range(),
+                now.elapsed()
+            )
+        }
+
+        BTreeMap::new()
     }
 
     /// Returns the minimum value for a column in a set of segments.
@@ -936,7 +1074,7 @@ impl<'a> Segments<'a> {
     ///
     /// TODO(edd): could return NULL value..
     pub fn first(&self, column_name: &str) -> Option<(i64, Option<column::Scalar>, usize)> {
-        // First let's find the segment with the latest time range.
+        // First let's find the segment with the earliest time range.
         // notice we order  a < b on max time range.
         let segment = self
             .segments
@@ -990,6 +1128,14 @@ impl<'a> Segments<'a> {
             panic!("time column wrong type!");
         }
     }
+}
+
+#[derive(Debug)]
+pub enum GroupingStrategy {
+    HashGroup,
+    HashGroupConcurrent,
+    SortGroup,
+    SortGroupConcurrent,
 }
 
 #[cfg(test)]
