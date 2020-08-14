@@ -48,6 +48,7 @@ nfpms:
     builds: ["influx","influxd"]
     formats:
       - deb
+      - rpm
 
 blobs:
   - provider: "s3"
