@@ -11,10 +11,9 @@ import CopyButton from 'src/shared/components/CopyButton'
 
 export interface Props {
   copyText: string
-  onCopyText?: (text?: string, status?: boolean) => Notification
+  onCopyText?: (text: string, status: boolean) => Notification
   testID?: string
   label: string
-  onClick?: () => void
 }
 
 @ErrorHandling
@@ -24,7 +23,7 @@ class CodeSnippet extends PureComponent<Props> {
   }
 
   public render() {
-    const {copyText, label, onCopyText, onClick} = this.props
+    const {copyText, label, onCopyText} = this.props
     const testID = this.props.testID || 'code-snippet'
 
     return (
@@ -45,7 +44,6 @@ class CodeSnippet extends PureComponent<Props> {
             textToCopy={copyText}
             onCopyText={onCopyText}
             contentName="Script"
-            onClick={onClick}
           />
           <label className="code-snippet--label">{label}</label>
         </div>

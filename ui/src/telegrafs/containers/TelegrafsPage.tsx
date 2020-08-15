@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 import {Route, Switch} from 'react-router-dom'
 
 // Components
@@ -33,24 +34,31 @@ const TelegrafOutputOverlay = RouteOverlay(
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {ResourceType} from 'src/types'
+import {AppState, Organization, ResourceType} from 'src/types'
 
 // Constant
 import {ORGS, ORG_ID, TELEGRAFS} from 'src/shared/constants/routes'
 
+interface StateProps {
+  org: Organization
+}
+
 const telegrafsPath = `/${ORGS}/${ORG_ID}/load-data/${TELEGRAFS}`
 
 @ErrorHandling
-class TelegrafsPage extends PureComponent {
+class TelegrafsPage extends PureComponent<StateProps> {
   public render() {
+    const {org} = this.props
+
     return (
       <>
         <Page titleTag={pageTitleSuffixer(['Telegraf', 'Load Data'])}>
           <LimitChecker>
             <LoadDataHeader />
-            <LoadDataTabbedPage activeTab="telegrafs">
+            <LoadDataTabbedPage activeTab="telegrafs" orgID={org.id}>
               <GetResources
                 resources={[ResourceType.Buckets, ResourceType.Telegrafs]}
               >
@@ -79,4 +87,9 @@ class TelegrafsPage extends PureComponent {
   }
 }
 
-export default TelegrafsPage
+const mstp = (state: AppState) => {
+  const org = getOrg(state)
+  return {org}
+}
+
+export default connect<StateProps>(mstp)(TelegrafsPage)

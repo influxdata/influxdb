@@ -37,7 +37,7 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
     }
 
     return (
-      <Overlay.Container maxWidth={830}>
+      <Overlay.Container>
         <Overlay.Header
           title={description}
           onDismiss={this.handleDismiss}
