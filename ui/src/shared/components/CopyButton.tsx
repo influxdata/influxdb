@@ -4,13 +4,7 @@ import CopyToClipboard from 'react-copy-to-clipboard'
 import {connect, ConnectedProps} from 'react-redux'
 
 // Components
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  ButtonShape,
-  IconFont,
-} from '@influxdata/clockface'
+import {Button, ComponentColor, ComponentSize} from '@influxdata/clockface'
 
 // Constants
 import {
@@ -23,16 +17,11 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {Notification} from 'src/types'
 
 interface OwnProps {
-  shape: ButtonShape
-  icon?: IconFont
-  buttonText: string
   textToCopy: string
   contentName: string // if copying a script, its "script"
   size: ComponentSize
   color: ComponentColor
   onCopyText?: (text: string, status: boolean) => Notification
-  testID: string
-  onClick?: () => void
 }
 
 type ReduxProps = ConnectedProps<typeof connector>
@@ -40,33 +29,22 @@ type Props = OwnProps & ReduxProps
 
 class CopyButton extends PureComponent<Props> {
   public static defaultProps = {
-    shape: ButtonShape.Default,
-    buttonText: 'Copy to Clipboard',
     size: ComponentSize.ExtraSmall,
     color: ComponentColor.Secondary,
-    testID: 'button-copy',
   }
 
   public render() {
-    const {textToCopy, color, size, icon, shape, testID} = this.props
-
-    let buttonText = this.props.buttonText
-
-    if (shape === ButtonShape.Square) {
-      buttonText = undefined
-    }
+    const {textToCopy, color, size} = this.props
 
     return (
       <CopyToClipboard text={textToCopy} onCopy={this.handleCopyAttempt}>
         <Button
-          shape={shape}
-          icon={icon}
           size={size}
           color={color}
-          titleText={buttonText}
-          text={buttonText}
+          titleText="Copy to Clipboard"
+          text="Copy to Clipboard"
           onClick={this.handleClickCopy}
-          testID={testID}
+          testID="button-copy"
         />
       </CopyToClipboard>
     )
@@ -80,11 +58,7 @@ class CopyButton extends PureComponent<Props> {
     copiedText: string,
     isSuccessful: boolean
   ): void => {
-    const {notify, onCopyText, onClick} = this.props
-
-    if (onClick) {
-      onClick()
-    }
+    const {notify, onCopyText} = this.props
 
     if (onCopyText) {
       notify(onCopyText(copiedText, isSuccessful))

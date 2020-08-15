@@ -65,10 +65,6 @@ module.exports = {
         ],
       },
       {
-        test: /\.md$/,
-        use: [{loader: 'raw-loader'}],
-      },
-      {
         test: /\.s?css$/i,
         use: [
           MiniCssExtractPlugin.loader,
