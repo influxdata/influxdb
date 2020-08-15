@@ -175,11 +175,11 @@ func TestTagKeyValue_Concurrent(t *testing.T) {
 				case 1:
 					v.Cardinality()
 				case 2:
-					v.Contains(string(rand.Intn(52) + 65))
+					v.Contains(fmt.Sprint(rand.Intn(52) + 65))
 				case 3:
-					v.InsertSeriesIDByte([]byte(string(rand.Intn(52)+65)), rand.Uint64()%1000)
+					v.InsertSeriesIDByte([]byte(fmt.Sprint(rand.Intn(52)+65)), rand.Uint64()%1000)
 				case 4:
-					v.Load(string(rand.Intn(52) + 65))
+					v.Load(fmt.Sprint(rand.Intn(52) + 65))
 				case 5:
 					v.Range(func(tagValue string, a seriesIDs) bool {
 						return rand.Intn(10) == 0
