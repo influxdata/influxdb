@@ -7,6 +7,7 @@ builds:
     goarch:
       - amd64
       - arm64
+      - arm
 
     main: ./cmd/influx/
     flags:
@@ -80,8 +81,8 @@ archives:
       - README.md
 
 checksum:
-  name_template: "influxdb_{{ .Version }}.md5"
-  algorithm: md5
+  name_template: "influxdb_{{ .Version }}.sha256"
+  algorithm: sha256
 
 # Do not make github release
 release:
