@@ -7,7 +7,6 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm
 
     main: ./cmd/influx/
     flags:
