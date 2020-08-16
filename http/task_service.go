@@ -1648,6 +1648,8 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 		runs[i] = convertRun(rs.Runs[i].httpRun)
 	}
 
+	return runs, len(runs), nil
+
 	/*var flagRuns []*influxdb.Run
 
 	var before time.Time
@@ -1680,16 +1682,16 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 
 	return flagRuns, len(flagRuns), nil*/
 
-	type myFunc = kv.FindRuns
+	// type myFunc = kv.t.FindRuns
 
-	runs, length, err := myFunc(t).FindRuns(ctx, filter)
+	// runs, length, err := myFunc(&t).FindRuns(ctx, filter)
 
-	//runs, length, err := kv.(&t).FindRuns(ctx, filter) //need to fix syntax here
-	if err != nil {
-		return nil, 0, err
-	}
+	// //runs, length, err := kv.(&t).FindRuns(ctx, filter) //need to fix syntax here
+	// if err != nil {
+	// 	return nil, 0, err
+	// }
 
-	return runs, len(runs), nil
+	// return runs, len(runs), nil
 
 }
 

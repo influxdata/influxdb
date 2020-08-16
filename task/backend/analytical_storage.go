@@ -152,9 +152,50 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 		filterPart = fmt.Sprintf(`|> filter(fn: (r) => r.runID > %q)`, filter.After.String())
 	}
 
+	//|> range(start: -14d)
+
+	// var before time.Time
+	// if filter.BeforeTime != "" {
+	// 	var err error
+	// 	before, err = time.Parse(time.RFC3339, filter.BeforeTime)
+	// 	if err != nil {
+	// 		return nil, 0, err
+	// 	}
+	// }
+
+	// var after time.Time
+	// if filter.AfterTime != "" {
+	// 	var err error
+	// 	after, err = time.Parse(time.RFC3339, filter.AfterTime)
+	// 	if err != nil {
+	// 		return nil, 0, err
+	// 	}
+	// }
+
+	// flag := 0
+	// if !after.IsZero() && !before.IsZero() {
+	// 	flag = 1
+	// 	fmt.Sprintf(`|> range(start: %q, stop: %q)`, after, before)
+	// }else if !after.IsZero() {
+	// 	flag = 2
+	// 	fmt.Sprintf(`|> range(start: )`)
+	// }else if !before.IsZero() {
+	// 	flag = 3
+	// }
+
 	// the data will be stored for 7 days in the system bucket so pulling 14d's is sufficient.
-	runsScript := fmt.Sprintf(`from(bucketID: %q)
-	  |> range(start: -14d)
+	runsScript := fmt.Sprintf(
+		`bucketID = %q
+	  a = %q //afterTime post parse 
+	  b = %q //beforeTime post parse 
+
+	  if a != "" or b != "" 
+		  then if a != "" and b != "" 
+			  then from(bucketID: %q) |> range(start: a, stop: b)
+			  else if a != "" 
+			  then from(bucketID: %q) |> range(start: a)
+			  else from(bucketID: %q) |> range(stop: b)
+	  else from(bucketID: %q) |> range(start: -14d)
 	  |> filter(fn: (r) => r._field != "status")
 	  |> filter(fn: (r) => r._measurement == "runs" and r.taskID == %q)
 	  %s
@@ -163,7 +204,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	  |> sort(columns:["scheduledFor"], desc: true)
 	  |> limit(n:%d)
 
-	  `, sb.ID.String(), filter.Task.String(), filterPart, filter.Limit-len(runs))
+	  `, sb.ID.String(), filter.AfterTime, filter.BeforeTime, filter.Task.String(), filterPart, filter.Limit-len(runs))
 
 	// At this point we are behind authorization
 	// so we are faking a read only permission to the org's system bucket
