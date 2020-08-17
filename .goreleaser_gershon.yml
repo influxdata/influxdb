@@ -31,9 +31,6 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm
-    goarm:
-      - 5
 
     main: ./cmd/influxd/
     flags:
@@ -53,7 +50,7 @@ builds:
 
 nfpms:
   - id: "influxdata"
-    builds: ["influx"]
+    builds: ["influx", "influxd"]
     formats:
       - deb
       - rpm
