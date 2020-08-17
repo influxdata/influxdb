@@ -24,7 +24,9 @@ commands:
           command: >
             sudo apt-get update && sudo apt-get install -y --no-install-recommends \
               gcc-arm-linux-gnueabihf libc6-dev-armhf-cross \
-              gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+              gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
+              lib6-dev:i386 gcc:i386
+
       - run:
           name: Install macOS cross compilers
           command: |
