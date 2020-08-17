@@ -78,6 +78,7 @@ export {
   ViewProperties,
   QueryEditMode,
   XYViewProperties,
+  BandViewProperties,
   LinePlusSingleStatProperties,
   ScatterViewProperties,
   HeatmapViewProperties,
