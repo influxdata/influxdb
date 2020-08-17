@@ -40,6 +40,8 @@ describe('Buckets', () => {
       const labelName = 'l1'
       cy.getByTestID('inline-labels--popover--contents').type(labelName)
       cy.getByTestID('inline-labels--create-new').click()
+      // Wait for animation to complete
+      cy.wait(500)
       cy.getByTestID('create-label-form--submit').click()
 
       // Delete the label
