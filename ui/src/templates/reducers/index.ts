@@ -1,6 +1,7 @@
 import {produce} from 'immer'
 import {
   Action,
+  SET_STACKS,
   SET_STAGED_TEMPLATE,
   SET_STAGED_TEMPLATE_URL,
   TOGGLE_TEMPLATE_RESOURCE_INSTALL,
