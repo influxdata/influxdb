@@ -53,7 +53,7 @@ snapshot:
 
 nfpms:
   - id: "influxdata"
-    builds: ["influx"]
+    builds: ["influx", "influxd"]
     formats:
       - deb
       - rpm
