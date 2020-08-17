@@ -1,6 +1,5 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 // Components
@@ -21,31 +20,24 @@ import {Page} from '@influxdata/clockface'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-import {getOrg} from 'src/organizations/selectors'
 
 // Constants
 import {ORGS, ORG_ID, BUCKETS, BUCKET_ID} from 'src/shared/constants/routes'
 
 // Types
-import {AppState, Organization, ResourceType} from 'src/types'
-
-interface StateProps {
-  org: Organization
-}
+import {ResourceType} from 'src/types'
 
 const bucketsPath = `/${ORGS}/${ORG_ID}/load-data/${BUCKETS}/${BUCKET_ID}`
 
 @ErrorHandling
-class BucketsIndex extends Component<StateProps> {
+class BucketsIndex extends Component {
   public render() {
-    const {org} = this.props
-
     return (
       <>
         <Page titleTag={pageTitleSuffixer(['Buckets', 'Load Data'])}>
           <LimitChecker>
             <LoadDataHeader />
-            <LoadDataTabbedPage activeTab="buckets" orgID={org.id}>
+            <LoadDataTabbedPage activeTab="buckets">
               <GetResources
                 resources={[
                   ResourceType.Buckets,
@@ -88,10 +80,4 @@ class BucketsIndex extends Component<StateProps> {
   }
 }
 
-const mstp = (state: AppState) => {
-  const org = getOrg(state)
-
-  return {org}
-}
-
-export default connect<StateProps, {}, {}>(mstp, null)(BucketsIndex)
+export default BucketsIndex
