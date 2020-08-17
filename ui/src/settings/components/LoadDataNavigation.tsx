@@ -29,6 +29,12 @@ class LoadDataNavigation extends PureComponent<Props> {
 
     const tabs = [
       {
+        text: 'Sources',
+        id: 'sources',
+        cloudExclude: false,
+        featureFlag: null,
+      },
+      {
         text: 'Buckets',
         id: 'buckets',
         cloudExclude: false,
@@ -49,12 +55,6 @@ class LoadDataNavigation extends PureComponent<Props> {
       {
         text: 'Tokens',
         id: 'tokens',
-        cloudExclude: false,
-        featureFlag: null,
-      },
-      {
-        text: 'Client Libraries',
-        id: 'client-libraries',
         cloudExclude: false,
         featureFlag: null,
       },

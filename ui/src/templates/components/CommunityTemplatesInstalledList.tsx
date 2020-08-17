@@ -36,6 +36,8 @@ import {deleteStack} from 'src/templates/api'
 //Utils
 import {reportError} from 'src/shared/utils/errors'
 
+import {event} from 'src/cloud/utils/reporting'
+
 interface OwnProps {
   orgID: string
 }
@@ -92,6 +94,8 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
     return async () => {
       try {
         await deleteStack(stackID, this.props.orgID)
+
+        event('template_delete', {templateName: stackName})
 
         this.props.notify(communityTemplateDeleteSucceeded(stackName))
       } catch (err) {
