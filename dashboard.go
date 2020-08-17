@@ -376,6 +376,7 @@ const (
 	ViewPropertyTypeTable              = "table"
 	ViewPropertyTypeXY                 = "xy"
 	ViewPropertyTypeMosaic             = "mosaic"
+	ViewPropertyTypeBand               = "band"
 )
 
 // ViewProperties is used to mark other structures as conforming to a View.
@@ -491,6 +492,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = mv
+		case ViewPropertyTypeBand:
+			var bv BandViewProperties
+			if err := json.Unmarshal(v.B, &bv); err != nil {
+				return nil, err
+			}
+			vis = bv
 		}
 	case "empty":
 		var ev EmptyViewProperties
@@ -544,6 +551,15 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape: "chronograf-v2",
 
 			XYViewProperties: vis,
+		}
+	case BandViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			BandViewProperties
+		}{
+			Shape: "chronograf-v2",
+
+			BandViewProperties: vis,
 		}
 	case LinePlusSingleStatProperties:
 		s = struct {
@@ -726,6 +742,24 @@ type XYViewProperties struct {
 	HoverDimension    string           `json:"hoverDimension"`
 }
 
+// BandViewProperties represents options for the band view
+type BandViewProperties struct {
+	Queries           []DashboardQuery `json:"queries"`
+	Axes              map[string]Axis  `json:"axes"`
+	Type              string           `json:"type"`
+	Legend            Legend           `json:"legend"`
+	Geom              string           `json:"geom"`
+	ViewColors        []ViewColor      `json:"colors"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+	TimeFormat        string           `json:"timeFormat"`
+	HoverDimension    string           `json:"hoverDimension"`
+	XColumn           string           `json:"xColumn"`
+	YColumn           string           `json:"yColumn"`
+	UpperColumn       string           `json:"upperColumn"`
+	LowerColumn       string           `json:"lowerColumn"`
+}
+
 // CheckViewProperties represents options for a view representing a check
 type CheckViewProperties struct {
 	Type       string           `json:"type"`
@@ -880,6 +914,7 @@ type LogColumnSetting struct {
 }
 
 func (XYViewProperties) viewProperties()             {}
+func (BandViewProperties) viewProperties()           {}
 func (LinePlusSingleStatProperties) viewProperties() {}
 func (SingleStatViewProperties) viewProperties()     {}
 func (HistogramViewProperties) viewProperties()      {}
@@ -893,6 +928,7 @@ func (LogViewProperties) viewProperties()            {}
 func (CheckViewProperties) viewProperties()          {}
 
 func (v XYViewProperties) GetType() string             { return v.Type }
+func (v BandViewProperties) GetType() string           { return v.Type }
 func (v LinePlusSingleStatProperties) GetType() string { return v.Type }
 func (v SingleStatViewProperties) GetType() string     { return v.Type }
 func (v HistogramViewProperties) GetType() string      { return v.Type }
