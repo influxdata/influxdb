@@ -16,6 +16,9 @@ import {ResourceType} from 'src/types'
 // Graphics
 import placeholderLogo from 'src/writeData/graphics/placeholderLogo.svg'
 
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+
 // Styles
 import 'src/writeData/components/WriteDataDetailsView.scss'
 
@@ -54,7 +57,9 @@ const WriteDataDetailsView: FC<Props> = ({section, children}) => {
       resources={[ResourceType.Authorizations, ResourceType.Buckets]}
     >
       <WriteDataDetailsContextProvider>
-        <Page>
+        <Page
+          titleTag={pageTitleSuffixer([section.name, 'Sources', 'Load Data'])}
+        >
           <Page.Header fullWidth={false}>
             <Page.Title title={name} />
           </Page.Header>
