@@ -24,7 +24,7 @@ const WriteDataHelperTokens: FC = () => {
     </EmptyState>
   )
 
-  if (tokens.legnth) {
+  if (tokens.length) {
     body = (
       <List
         backgroundColor={InfluxColors.Obsidian}
