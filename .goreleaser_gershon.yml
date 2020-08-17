@@ -29,6 +29,7 @@ builds:
       - linux
       - darwin
     goarch:
+      - 386
       - amd64
       - arm64
       - arm
