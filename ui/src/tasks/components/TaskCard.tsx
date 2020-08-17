@@ -41,7 +41,7 @@ interface PassedProps {
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = PassedProps & ReduxProps
 
-class TaskCard extends PureComponent<
+export class TaskCard extends PureComponent<
   Props & RouteComponentProps<{orgID: string}>
 > {
   public render() {

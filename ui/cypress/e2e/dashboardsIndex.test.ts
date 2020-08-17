@@ -28,7 +28,7 @@ describe('Dashboards', () => {
             "Looks like you don't have any Dashboards, why not create one?"
           )
         })
-        cy.getByTestID('add-resource-dropdown--button').should($b => {
+        cy.getByTestID('add-resource-button').should($b => {
           expect($b).to.have.length(1)
           expect($b).to.contain('Create Dashboard')
         })
@@ -39,18 +39,16 @@ describe('Dashboards', () => {
   it('can CRUD dashboards from empty state, header, and a Template', () => {
     // Create from empty state
     cy.getByTestID('empty-dashboards-list').within(() => {
-      cy.getByTestID('add-resource-dropdown--button').click()
-    })
-
-    cy.getByTestID('add-resource-dropdown--new')
-      .click()
-      .then(() => {
-        cy.fixture('routes').then(({orgs}) => {
-          cy.get('@org').then(({id}: Organization) => {
-            cy.visit(`${orgs}/${id}/dashboards-list`)
+      cy.getByTestID('add-resource-button')
+        .click()
+        .then(() => {
+          cy.fixture('routes').then(({orgs}) => {
+            cy.get('@org').then(({id}: Organization) => {
+              cy.visit(`${orgs}/${id}/dashboards-list`)
+            })
           })
         })
-      })
+    })
 
     const newName = 'new 🅱️ashboard'
 
@@ -70,35 +68,14 @@ describe('Dashboards', () => {
 
     cy.getByTestID('dashboard-card').should('contain', newName)
 
-    // Open Export overlay
-    cy.getByTestID('context-menu-item-export').click({force: true})
-    cy.getByTestID('export-overlay--text-area').should('exist')
-    cy.get('.cf-overlay--dismiss').click()
-
     // Create from header
-    cy.getByTestID('add-resource-dropdown--button').click()
-    cy.getByTestID('add-resource-dropdown--new').click()
+    cy.getByTestID('add-resource-button').click()
 
     cy.fixture('routes').then(({orgs}) => {
       cy.get('@org').then(({id}: Organization) => {
         cy.visit(`${orgs}/${id}/dashboards-list`)
       })
     })
-
-    // Create from Template
-    cy.get('@org').then(({id}: Organization) => {
-      cy.createDashboardTemplate(id)
-    })
-
-    cy.getByTestID('empty-dashboards-list').within(() => {
-      cy.getByTestID('add-resource-dropdown--button').click()
-      cy.getByTestID('add-resource-dropdown--template').click()
-    })
-    cy.getByTestID('template--Bashboard-Template').click()
-    cy.getByTestID('template-panel').should('exist')
-    cy.getByTestID('create-dashboard-button').click()
-
-    cy.getByTestID('dashboard-card').should('have.length', 3)
 
     // Delete dashboards
     cy.getByTestID('dashboard-card')
@@ -117,40 +94,7 @@ describe('Dashboards', () => {
         cy.getByTestID('context-delete-dashboard').click()
       })
 
-    cy.getByTestID('dashboard-card')
-      .first()
-      .trigger('mouseover')
-      .within(() => {
-        cy.getByTestID('context-delete-menu').click()
-        cy.getByTestID('context-delete-dashboard').click()
-      })
-
     cy.getByTestID('empty-dashboards-list').should('exist')
-  })
-
-  it('keeps user input in text area when attempting to import invalid JSON', () => {
-    cy.getByTestID('page-control-bar').within(() => {
-      cy.getByTestID('add-resource-dropdown--button').click()
-    })
-
-    cy.getByTestID('add-resource-dropdown--import').click()
-    cy.contains('Paste').click()
-    cy.getByTestID('import-overlay--textarea')
-      .click()
-      .type('this is invalid JSON')
-    cy.get('button[title*="Import JSON"]').click()
-    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
-    cy.getByTestID('import-overlay--textarea').should($s =>
-      expect($s).to.contain('this is invalid JSON')
-    )
-    cy.getByTestID('import-overlay--textarea').type(
-      '{backspace}{backspace}{backspace}{backspace}{backspace}'
-    )
-    cy.get('button[title*="Import JSON"]').click()
-    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
-    cy.getByTestID('import-overlay--textarea').should($s =>
-      expect($s).to.contain('this is invalid')
-    )
   })
 
   describe('Dashboard List', () => {
