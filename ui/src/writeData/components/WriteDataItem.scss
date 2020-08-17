@@ -8,11 +8,18 @@
 }
 
 .write-data--item-thumb {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  align-content: center;
   width: 90%;
   height: 90%;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center center;
+
+  img {
+    max-width: 100%;
+    max-height: 80px;
+  }
 }
 
 .write-data--item.cf-selectable-card .cf-selectable-card--children {
