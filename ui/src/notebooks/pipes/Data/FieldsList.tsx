@@ -33,23 +33,8 @@ const FieldsList: FC = () => {
   }
 
   if (loading === RemoteDataState.Done && Object.keys(schema).length > 0) {
-    console.log('schema in here: ', schema)
-    body = (
-      <>
-        <MeasurementSelector schema={schema.measurements} />
-        {/*<FieldSelector schema={fields} />
-    <TagSelector schema={fields} />*/}
-      </>
-    )
+    body = <MeasurementSelector schema={schema.measurements} />
   }
-
-  // if (measurements !== null && fields === null) {
-  //   body = (
-  //     <>
-  //       <MeasurementSelector schema={measurements} />
-  //     </>
-  //   )
-  // }
 
   return body
 }

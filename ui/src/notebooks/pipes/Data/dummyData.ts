@@ -1,5 +1,6 @@
 export const results = {
   cpu: {
+    type: 'string',
     fields: [
       'usage_guest',
       'usage_guest_nice',

@@ -14,6 +14,14 @@
   max-width: 320px;
   height: 180px;
 }
+.data-source--block-results {
+  flex: 1 0 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 100%;
+  height: 180px;
+}
 
 .data-source--block-title {
   font-size: 14px;
@@ -78,5 +86,30 @@
 .data-subset--list,
 .data-subset--list__empty {
   flex: 1 0 0;
-  margin-left: 20px;
+}
+
+.data-measurement--equation,
+.data-measurement--name,
+.data-measurement--type {
+  flex-direction: row;
+  margin: 0 2px;
+}
+
+.data-measurement--type {
+  text-transform: uppercase;
+}
+
+.data-measurement--equation {
+  flex-direction: row;
+  color: hotpink;
+}
+
+.data-field--equation {
+  flex-direction: row;
+  color: lightskyblue;
+}
+
+.data-tag--equation {
+  flex-direction: row;
+  color: limegreen;
 }

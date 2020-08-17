@@ -19,7 +19,7 @@ type Props = {
   schema: any
 }
 
-const TagSelector: FC<Props> = ({schema}) => {
+const TagSelector: FC<Props> = ({tags}) => {
   // TODO(ariel): refactor so that the measurement and fields are separate
   const {data, update} = useContext(PipeContext)
   // const {buckets, loading} = useContext(BucketContext)

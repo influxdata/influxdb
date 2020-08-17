@@ -39,25 +39,8 @@ const FieldSelector: FC<Props> = ({schema}) => {
     [update]
   )
 
-  // TODO(ariel): add some context
-
   let body
 
-  // if (loading === RemoteDataState.Loading) {
-  //   body = (
-  //     <div className="data-source--list__empty">
-  //       <TechnoSpinner strokeWidth={ComponentSize.Small} diameterPixels={32} />
-  //     </div>
-  //   )
-  // }
-
-  // if (loading === RemoteDataState.Error) {
-  //   body = (
-  //     <div className="data-source--list__empty">
-  //       <p>Could not fetch schema</p>
-  //     </div>
-  //   )
-  // }
   if (/*loading === RemoteDataState.Done*/ selectedMeasurement) {
     body = (
       <List
