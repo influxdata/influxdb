@@ -12,19 +12,20 @@ import {
   HeadingElement,
   Gradients,
   InfluxColors,
+  EmptyState,
 } from '@influxdata/clockface'
 
 const WriteDataHelperBuckets: FC = () => {
   const {bucket, buckets, changeBucket} = useContext(WriteDataDetailsContext)
 
-  return (
-    <>
-      <Heading
-        element={HeadingElement.H6}
-        className="write-data--details-widget-title"
-      >
-        Bucket
-      </Heading>
+  let body = (
+    <EmptyState size={ComponentSize.Small}>
+      <p>You don't have any Buckets</p>
+    </EmptyState>
+  )
+
+  if (buckets.length) {
+    body = (
       <List
         backgroundColor={InfluxColors.Obsidian}
         style={{height: '200px'}}
@@ -44,6 +45,18 @@ const WriteDataHelperBuckets: FC = () => {
           </List.Item>
         ))}
       </List>
+    )
+  }
+
+  return (
+    <>
+      <Heading
+        element={HeadingElement.H6}
+        className="write-data--details-widget-title"
+      >
+        Bucket
+      </Heading>
+      {body}
     </>
   )
 }

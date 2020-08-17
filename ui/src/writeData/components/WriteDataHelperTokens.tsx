@@ -12,19 +12,20 @@ import {
   HeadingElement,
   Gradients,
   InfluxColors,
+  EmptyState,
 } from '@influxdata/clockface'
 
 const WriteDataHelperTokens: FC = () => {
   const {token, tokens, changeToken} = useContext(WriteDataDetailsContext)
 
-  return (
-    <>
-      <Heading
-        element={HeadingElement.H6}
-        className="write-data--details-widget-title"
-      >
-        Token
-      </Heading>
+  let body = (
+    <EmptyState size={ComponentSize.Small}>
+      <p>You don't have any Tokens</p>
+    </EmptyState>
+  )
+
+  if (tokens.legnth) {
+    body = (
       <List
         backgroundColor={InfluxColors.Obsidian}
         style={{height: '200px'}}
@@ -44,6 +45,18 @@ const WriteDataHelperTokens: FC = () => {
           </List.Item>
         ))}
       </List>
+    )
+  }
+
+  return (
+    <>
+      <Heading
+        element={HeadingElement.H6}
+        className="write-data--details-widget-title"
+      >
+        Token
+      </Heading>
+      {body}
     </>
   )
 }
