@@ -682,6 +682,17 @@ func convertCellView(cell influxdb.Cell) chart {
 				Visible:     fieldOpt.Visible,
 			})
 		}
+	case influxdb.BandViewProperties:
+		setCommon(chartKindBand, p.ViewColors, influxdb.DecimalPlaces{}, p.Queries)
+		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, "", "")
+		setLegend(p.Legend)
+		ch.Axes = convertAxes(p.Axes)
+		ch.Geom = p.Geom
+		ch.HoverDimension = p.HoverDimension
+		ch.XCol = p.XColumn
+		ch.YCol = p.YColumn
+		ch.UpperColumn = p.UpperColumn
+		ch.LowerColumn = p.LowerColumn
 	case influxdb.XYViewProperties:
 		setCommon(chartKindXY, p.ViewColors, influxdb.DecimalPlaces{}, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, "", "")
@@ -725,6 +736,12 @@ func convertChartToResource(ch chart) Resource {
 	}
 	if len(ch.YSeriesColumns) > 0 {
 		r[fieldChartYSeriesColumns] = ch.YSeriesColumns
+	}
+	if len(ch.UpperColumn) > 0 {
+		r[fieldChartUpperColumn] = ch.UpperColumn
+	}
+	if len(ch.LowerColumn) > 0 {
+		r[fieldChartLowerColumn] = ch.LowerColumn
 	}
 	if ch.EnforceDecimals {
 		r[fieldChartDecimalPlaces] = ch.DecimalPlaces
