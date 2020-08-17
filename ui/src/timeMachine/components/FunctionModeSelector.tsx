@@ -17,8 +17,8 @@ import SelectorList from 'src/timeMachine/components/SelectorList'
 //Actions
 import {
   multiSelectBuilderFunction,
-  singleSelectBuilderFunction,
   setFunctions,
+  singleSelectBuilderFunction,
 } from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
@@ -36,16 +36,13 @@ type Props = ReduxProps
 const FunctionSelector: FunctionComponent<Props> = ({
   onSetFunctions,
   selectedFunctions,
-  onSingleSelectBuilderFunction,
-  onMultiSelectBuilderFunction,
+  onSingleSelectFunc,
+  onMultiSelectFunc,
   isInCheckOverlay,
 }) => {
   const autoFunctions = AUTO_FUNCTIONS.map(f => f.name)
-  const [isAutoFunction, setIsAutoFunction] = useState(
-    !isInCheckOverlay &&
-      selectedFunctions.length === 1 &&
-      autoFunctions.includes(selectedFunctions[0])
-  )
+
+  const [isAutoFunction, setIsAutoFunction] = useState(!isInCheckOverlay)
 
   const functionList = isAutoFunction
     ? autoFunctions
@@ -56,23 +53,19 @@ const FunctionSelector: FunctionComponent<Props> = ({
       setIsAutoFunction(false)
       return
     }
+
     const newFunctions = selectedFunctions.filter(f =>
       autoFunctions.includes(f)
     )
+
     if (newFunctions.length === 0) {
-      onSetFunctions([autoFunctions[0]])
-    } else if (newFunctions.length > 1) {
-      onSetFunctions([newFunctions[0]])
+      onSetFunctions(['mean', 'max', 'min'])
     } else {
       onSetFunctions(newFunctions)
     }
 
     setIsAutoFunction(true)
   }
-
-  const onSelectFunction = isAutoFunction
-    ? onSingleSelectBuilderFunction
-    : onMultiSelectBuilderFunction
 
   if (isInCheckOverlay) {
     return (
@@ -84,7 +77,7 @@ const FunctionSelector: FunctionComponent<Props> = ({
         <SelectorList
           items={functionList}
           selectedItems={selectedFunctions}
-          onSelectItem={onSingleSelectBuilderFunction}
+          onSelectItem={onSingleSelectFunc}
           multiSelect={false}
         />
       </>
@@ -135,8 +128,8 @@ const FunctionSelector: FunctionComponent<Props> = ({
       <SelectorList
         items={functionList}
         selectedItems={selectedFunctions}
-        onSelectItem={onSelectFunction}
-        multiSelect={!isAutoFunction}
+        onSelectItem={onMultiSelectFunc}
+        multiSelect={true}
       />
     </>
   )
@@ -152,8 +145,8 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  onMultiSelectBuilderFunction: multiSelectBuilderFunction,
-  onSingleSelectBuilderFunction: singleSelectBuilderFunction,
+  onMultiSelectFunc: multiSelectBuilderFunction,
+  onSingleSelectFunc: singleSelectBuilderFunction,
   onSetFunctions: setFunctions,
 }
 

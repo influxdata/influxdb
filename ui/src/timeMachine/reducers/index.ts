@@ -41,10 +41,12 @@ import {Action} from 'src/timeMachine/actions'
 import {TimeMachineTab} from 'src/types/timeMachine'
 import {BuilderAggregateFunctionType} from 'src/client/generatedRoutes'
 
+type Functions = {name: string}[]
+
 interface QueryBuilderState {
   buckets: string[]
   bucketsStatus: RemoteDataState
-  functions: Array<[{name: string}]>
+  functions: Functions[]
   aggregateWindow: BuilderConfigAggregateWindow
   tags: Array<{
     aggregateFunctionType: BuilderAggregateFunctionType
