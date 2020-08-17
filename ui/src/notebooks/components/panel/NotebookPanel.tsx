@@ -23,6 +23,7 @@ import InsertCellButton from 'src/notebooks/components/panel/InsertCellButton'
 import PanelVisibilityToggle from 'src/notebooks/components/panel/PanelVisibilityToggle'
 import MovePanelButton from 'src/notebooks/components/panel/MovePanelButton'
 import NotebookPanelTitle from 'src/notebooks/components/panel/NotebookPanelTitle'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Types
 import {PipeContextProps} from 'src/notebooks'
@@ -81,16 +82,18 @@ const NotebookPanelHeader: FC<HeaderProps> = ({id, controls}) => {
         justifyContent={JustifyContent.FlexEnd}
       >
         {controls}
-        <MovePanelButton
-          direction="up"
-          onClick={moveUp}
-          active={canBeMovedUp}
-        />
-        <MovePanelButton
-          direction="down"
-          onClick={moveDown}
-          active={canBeMovedDown}
-        />
+        <FeatureFlag name="notebook-move-cells">
+          <MovePanelButton
+            direction="up"
+            onClick={moveUp}
+            active={canBeMovedUp}
+          />
+          <MovePanelButton
+            direction="down"
+            onClick={moveDown}
+            active={canBeMovedDown}
+          />
+        </FeatureFlag>
         <PanelVisibilityToggle id={id} />
         <RemovePanelButton onRemove={remove} />
       </FlexBox>
