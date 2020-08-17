@@ -161,9 +161,7 @@ export const getCachedResultsOrRunQuery = (
   event('Starting Query Cache Process ', {context: 'queryCache', queryID})
   const usedVars = filterUnusedVarsBasedOnQuery(getAllVariables(state), [query])
   const variables = sortBy(usedVars, ['name'])
-  console.log('variables', variables)
   const simplifiedVariables = variables.map(v => asSimplyKeyValueVariables(v))
-  console.log('simplifiedVariables: ', simplifiedVariables)
   const stringifiedVars = JSON.stringify(simplifiedVariables)
   // create the queryID based on the query & vars
   const hashedVariables = `${hashCode(stringifiedVars)}`
