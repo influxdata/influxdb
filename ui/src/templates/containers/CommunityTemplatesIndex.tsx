@@ -22,8 +22,6 @@ import {
   Heading,
   HeadingElement,
   Input,
-  LinkButton,
-  LinkTarget,
   Page,
   Panel,
   FlexDirection,
@@ -48,6 +46,8 @@ import {reportError} from 'src/shared/utils/errors'
 import {communityTemplateUnsupportedFormatError} from 'src/shared/copy/notifications'
 // Types
 import {AppState, ResourceType} from 'src/types'
+
+import {event} from 'src/cloud/utils/reporting'
 
 const communityTemplatesUrl =
   'https://github.com/influxdata/community-templates#templates'
@@ -107,11 +107,10 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                   }
                   size={ComponentSize.Small}
                 >
-                  <LinkButton
+                  <Button
                     color={ComponentColor.Primary}
-                    href={communityTemplatesUrl}
                     size={ComponentSize.Large}
-                    target={LinkTarget.Blank}
+                    onClick={this.onClickBrowseCommunityTemplates}
                     text="Browse Community Templates"
                     testID="browse-template-button"
                     icon={IconFont.GitHub}
@@ -187,7 +186,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       const {directory, templateExtension, templateName} = getTemplateDetails(
         this.state.templateUrl
       )
-
+      event('template_click_lookup', {templateName: templateName})
       this.props.history.push(
         `/orgs/${this.props.org.id}/settings/templates/import/${directory}/${templateName}/${templateExtension}`
       )
@@ -199,8 +198,14 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     }
   }
 
-  private handleTemplateChange = event => {
-    this.setState({templateUrl: event.target.value})
+  private handleTemplateChange = evt => {
+    this.setState({templateUrl: evt.target.value})
+  }
+
+  private onClickBrowseCommunityTemplates = () => {
+    event('template_click_browse')
+
+    window.open(communityTemplatesUrl)
   }
 }
 

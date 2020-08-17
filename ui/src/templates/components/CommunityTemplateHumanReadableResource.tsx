@@ -6,6 +6,8 @@ import {connect, ConnectedProps} from 'react-redux'
 // Selectors
 import {getAll} from 'src/resources/selectors'
 
+import {event} from 'src/cloud/utils/reporting'
+
 // Types
 import {
   AppState,
@@ -31,6 +33,10 @@ type ReduxProps = ConnectedProps<typeof connector>
 
 type Props = ComponentProps & ReduxProps
 
+const recordClick = () => {
+  event('template_view_resource')
+}
+
 const CommunityTemplateHumanReadableResourceUnconnected: FC<Props> = ({
   link,
   metaName,
@@ -44,7 +50,7 @@ const CommunityTemplateHumanReadableResourceUnconnected: FC<Props> = ({
   const humanName = matchingResource ? matchingResource.name : metaName
 
   return (
-    <Link to={link}>
+    <Link to={link} onClick={recordClick}>
       <code>{humanName}</code>
     </Link>
   )
