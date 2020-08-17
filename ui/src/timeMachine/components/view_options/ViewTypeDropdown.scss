@@ -1,7 +1,8 @@
-@import "src/style/modules";
+@import 'src/style/modules';
 
 .view-type-dropdown {
-  .cf-dropdown-item--children, .cf-dropdown--selected {
+  .cf-dropdown-item--children,
+  .cf-dropdown--selected {
     display: flex;
     align-items: center;
   }
@@ -50,6 +51,11 @@
   stroke: $g13-mist;
 }
 
+.vis-graphic--line-e {
+  stroke: $c-honeydew;
+  stroke-width: 4px;
+}
+
 .vis-graphic--fill-a {
   fill: $g11-sidewalk;
 }
@@ -93,6 +99,11 @@
 
 .vis-graphic--fill-c {
   fill: $c-honeydew;
+}
+
+.vis-graphic--fill-e {
+  fill: $c-honeydew;
+  opacity: 0.3;
 }
 
 .vis-graphic--fill-a,
