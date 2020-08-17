@@ -21,7 +21,7 @@ export const TIME_INVALIDATION = 1000 * 60 * 10 // 10 minutes
 
 const asSimplyKeyValueVariables = (vari: Variable) => {
   if (vari.arguments?.type === 'system') {
-    return [vari.name]: vari.arguments.values || []
+    return {[vari.name]: vari.arguments.values || []}
   }
   return {
     [vari.name]: vari.selected || [],
