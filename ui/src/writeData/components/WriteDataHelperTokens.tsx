@@ -24,6 +24,14 @@ const WriteDataHelperTokens: FC = () => {
     </EmptyState>
   )
 
+  const isSelected = (tokenID: string): boolean => {
+    if (!token) {
+      return false
+    }
+
+    return tokenID === token.id
+  }
+
   if (tokens.length) {
     body = (
       <List
@@ -35,7 +43,7 @@ const WriteDataHelperTokens: FC = () => {
           <List.Item
             size={ComponentSize.Small}
             key={t.id}
-            selected={t.id === token.id}
+            selected={isSelected(t.id)}
             value={t}
             onClick={changeToken}
             wrapText={true}
