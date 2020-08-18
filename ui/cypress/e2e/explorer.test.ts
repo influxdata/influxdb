@@ -390,10 +390,7 @@ describe('DataExplorer', () => {
       cy.get('.view-line')
         .first()
         .contains('import')
-      // check to see if new aggregate rate is at the bottom
-      cy.get('.view-line')
-        .last()
-        .contains('aggregate.')
+
       cy.getByTestID('flux-editor').should('exist')
       cy.getByTestID('flux-editor').within(() => {
         cy.get('textarea').type('yoyoyoyoyo', {force: true})
