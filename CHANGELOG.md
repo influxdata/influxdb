@@ -35,6 +35,7 @@
 
 ### UI Improvements
 1. [19231](https://github.com/influxdata/influxdb/pull/19231): Alerts page filter inputs now have tab indices for keyboard navigation
+1. [19364](https://github.com/influxdata/influxdb/pull/19364): Errors in OSS are now properly printed to the console
 
 ## v2.0.0-beta.15 [2020-07-23]
 
