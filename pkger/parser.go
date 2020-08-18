@@ -1113,7 +1113,27 @@ func (p *Template) graphTasks() *parseErr {
 		}
 
 		prefix := fmt.Sprintf("tasks[%s].spec", t.MetaName())
-		t.query, _ = p.parseQuery(prefix, o.Spec.stringShort(fieldQuery), o.Spec.slcResource(fieldParams))
+		params := o.Spec.slcResource(fieldParams)
+		task := o.Spec.slcResource("task")
+		t.query, _ = p.parseQuery(prefix, o.Spec.stringShort(fieldQuery), params, task)
+
+		if o.APIVersion == APIVersion2 {
+			for _, ref := range t.query.task {
+				switch ref.EnvRef {
+				case prefix + ".task.name", prefix + ".params.name":
+					t.displayName = ref
+				case prefix + ".task.every": //, prefix + ".params.every":
+					t.every = ref.defaultVal.(time.Duration)
+				case prefix + ".task.offset": //, prefix + ".params.offset":
+					t.offset = ref.defaultVal.(time.Duration)
+				// case prefix + "concurrency":
+				// 	t.concurrency = ref.defaultVal.(*int64)
+				// case prefix + "retry":
+				// 	t.retry = ref.defaultVal.(*int64)
+				default:
+				}
+			}
+		}
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			t.labels = append(t.labels, l)
@@ -1123,6 +1143,7 @@ func (p *Template) graphTasks() *parseErr {
 		sort.Sort(t.labels)
 
 		p.mTasks[t.MetaName()] = t
+
 		p.setRefs(t.refs()...)
 		return append(failures, t.valid()...)
 	})
@@ -1217,14 +1238,14 @@ func (p *Template) eachResource(resourceKind Kind, fn func(o Object) []validatio
 			continue
 		}
 
-		if k.APIVersion != APIVersion {
+		if k.APIVersion != APIVersion && k.APIVersion != APIVersion2 {
 			pErr.append(resourceErr{
 				Kind: k.Kind.String(),
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
 					{
 						Field: fieldAPIVersion,
-						Msg:   fmt.Sprintf("invalid API version provided %q; must be 1 in [%s]", k.APIVersion, APIVersion),
+						Msg:   fmt.Sprintf("invalid API version provided %q; must be 1 in [%s, %s]", k.APIVersion, APIVersion, APIVersion2),
 					},
 				},
 			})
@@ -1532,7 +1553,7 @@ func (p *Template) parseChartQueries(dashMetaName string, chartIdx int, resource
 			continue
 		}
 		prefix := fmt.Sprintf("dashboards[%s].spec.charts[%d].queries[%d]", dashMetaName, chartIdx, i)
-		qq, err := p.parseQuery(prefix, source, rq.slcResource(fieldParams))
+		qq, err := p.parseQuery(prefix, source, rq.slcResource(fieldParams), nil)
 		if err != nil {
 			vErrs = append(vErrs, validationErr{
 				Field: "query",
@@ -1545,7 +1566,7 @@ func (p *Template) parseChartQueries(dashMetaName string, chartIdx int, resource
 	return q, vErrs
 }
 
-func (p *Template) parseQuery(prefix, source string, params []Resource) (query, error) {
+func (p *Template) parseQuery(prefix, source string, params, task []Resource) (query, error) {
 	files := parser.ParseSource(source).Files
 	if len(files) != 1 {
 		return query{}, influxErr(influxdb.EInvalid, "invalid query source")
@@ -1555,29 +1576,52 @@ func (p *Template) parseQuery(prefix, source string, params []Resource) (query, 
 		Query: strings.TrimSpace(source),
 	}
 
-	opt, err := edit.GetOption(files[0], "params")
-	if err != nil {
-		return q, nil
-	}
-	obj, ok := opt.(*ast.ObjectExpression)
-	if !ok {
-		return q, nil
-	}
-
 	mParams := make(map[string]*references)
-	for _, p := range obj.Properties {
-		sl, ok := p.Key.(*ast.Identifier)
-		if !ok {
-			continue
-		}
+	tParams := make(map[string]*references)
 
-		mParams[sl.Name] = &references{
-			EnvRef:     sl.Name,
-			defaultVal: valFromExpr(p.Value),
-			valType:    p.Value.Type(),
+	opt, err := edit.GetOption(files[0], "params")
+	topt, err2 := edit.GetOption(files[0], "task") // parse the task out of the query. need to use these params to set the task bits
+	if err != nil && err2 != nil {
+		return q, nil
+	}
+
+	if err == nil {
+		obj, ok := opt.(*ast.ObjectExpression)
+		if ok {
+			for _, p := range obj.Properties {
+				sl, ok := p.Key.(*ast.Identifier)
+				if !ok {
+					continue
+				}
+
+				mParams[sl.Name] = &references{
+					EnvRef:     sl.Name,
+					defaultVal: valFromExpr(p.Value),
+					valType:    p.Value.Type(),
+				}
+			}
 		}
 	}
 
+	if err2 == nil {
+		tobj, ok := topt.(*ast.ObjectExpression)
+		if ok {
+			for _, p := range tobj.Properties {
+				sl, ok := p.Key.(*ast.Identifier)
+				if !ok {
+					continue
+				}
+
+				tParams[sl.Name] = &references{
+					EnvRef:     sl.Name,
+					defaultVal: valFromExpr(p.Value),
+					valType:    p.Value.Type(),
+				}
+			}
+		}
+	}
+
+	// override defaults here maybe?
 	for _, pr := range params {
 		field := pr.stringShort(fieldKey)
 		if field == "" {
@@ -1587,7 +1631,6 @@ func (p *Template) parseQuery(prefix, source string, params []Resource) (query, 
 		if _, ok := mParams[field]; !ok {
 			mParams[field] = &references{EnvRef: field}
 		}
-
 		if def, ok := pr[fieldDefault]; ok {
 			mParams[field].defaultVal = def
 		}
@@ -1596,9 +1639,40 @@ func (p *Template) parseQuery(prefix, source string, params []Resource) (query, 
 		}
 	}
 
+	for _, pr := range task {
+		field := pr.stringShort(fieldKey)
+		if field == "" {
+			continue
+		}
+		if _, ok := tParams[field]; !ok {
+			tParams[field] = &references{EnvRef: field}
+		}
+		if valtype, ok := pr.string(fieldType); ok {
+			tParams[field].valType = valtype
+		}
+		if def, ok := pr[fieldDefault]; ok {
+			switch tParams[field].valType {
+			case "duration":
+				tParams[field].defaultVal, _ = time.ParseDuration(def.(string))
+			default:
+				tParams[field].defaultVal = def
+			}
+		}
+	}
+
 	for _, ref := range mParams {
 		envRef := fmt.Sprintf("%s.params.%s", prefix, ref.EnvRef)
 		q.params = append(q.params, &references{
+			EnvRef:     envRef,
+			defaultVal: ref.defaultVal,
+			val:        p.mEnvVals[envRef],
+			valType:    ref.valType,
+		})
+	}
+
+	for _, ref := range tParams {
+		envRef := fmt.Sprintf("%s.task.%s", prefix, ref.EnvRef)
+		q.task = append(q.task, &references{
 			EnvRef:     envRef,
 			defaultVal: ref.defaultVal,
 			val:        p.mEnvVals[envRef],

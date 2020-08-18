@@ -1044,10 +1044,11 @@ func (c colors) valid() []validationErr {
 type query struct {
 	Query  string `json:"query" yaml:"query"`
 	params []*references
+	task   []*references
 }
 
 func (q query) DashboardQuery() string {
-	if len(q.params) == 0 {
+	if len(q.params) == 0 && len(q.task) == 0 {
 		return q.Query
 	}
 
@@ -1057,24 +1058,36 @@ func (q query) DashboardQuery() string {
 	}
 
 	opt, err := edit.GetOption(files[0], "params")
-	if err != nil {
-		// no params option present in query
+	topt, err2 := edit.GetOption(files[0], "task")
+	if err2 != nil && err != nil {
 		return q.Query
 	}
 
-	obj, ok := opt.(*ast.ObjectExpression)
-	if !ok {
-		// params option present is invalid. Should always be an Object.
-		return q.Query
+	if err == nil {
+		obj, ok := opt.(*ast.ObjectExpression)
+		if ok {
+			for _, ref := range q.params {
+				parts := strings.Split(ref.EnvRef, ".")
+				key := parts[len(parts)-1]
+				edit.SetProperty(obj, key, ref.expression())
+			}
+
+			edit.SetOption(files[0], "params", obj)
+		}
 	}
 
-	for _, ref := range q.params {
-		parts := strings.Split(ref.EnvRef, ".")
-		key := parts[len(parts)-1]
-		edit.SetProperty(obj, key, ref.expression())
-	}
+	if err2 == nil {
+		tobj, ok := topt.(*ast.ObjectExpression)
+		if ok {
+			for _, ref := range q.task {
+				parts := strings.Split(ref.EnvRef, ".")
+				key := parts[len(parts)-1]
+				edit.SetProperty(tobj, key, ref.expression())
+			}
 
-	edit.SetOption(files[0], "params", obj)
+			edit.SetOption(files[0], "task", tobj)
+		}
+	}
 	return ast.Format(files[0])
 }
 
@@ -1805,6 +1818,7 @@ func toSummaryTagRules(tagRules []struct{ k, v, op string }) []SummaryTagRule {
 
 const (
 	fieldTaskCron = "cron"
+	fieldTask     = "task"
 )
 
 type task struct {
@@ -1857,9 +1871,15 @@ func (t *task) summarize() SummaryTask {
 		field := fmt.Sprintf("spec.params.%s", parts[len(parts)-1])
 		refs = append(refs, convertRefToRefSummary(field, ref))
 	}
+	for _, ref := range t.query.task {
+		parts := strings.Split(ref.EnvRef, ".")
+		field := fmt.Sprintf("spec.task.%s", parts[len(parts)-1])
+		refs = append(refs, convertRefToRefSummary(field, ref))
+	}
 	sort.Slice(refs, func(i, j int) bool {
 		return refs[i].EnvRefKey < refs[j].EnvRefKey
 	})
+
 	return SummaryTask{
 		SummaryIdentifier: SummaryIdentifier{
 			Kind:          KindTask,
@@ -1883,6 +1903,7 @@ func (t *task) valid() []validationErr {
 	if err, ok := isValidName(t.Name(), 1); !ok {
 		vErrs = append(vErrs, err)
 	}
+
 	if t.cron == "" && t.every == 0 {
 		vErrs = append(vErrs,
 			validationErr{
@@ -2169,7 +2190,7 @@ const (
 )
 
 type references struct {
-	EnvRef string
+	EnvRef string // key used to reference parameterized field
 	Secret string
 
 	val        interface{}
@@ -2295,7 +2316,11 @@ func astBoolFromIface(v interface{}) *ast.BooleanLiteral {
 func astDurationFromIface(v interface{}) *ast.DurationLiteral {
 	s, ok := v.(string)
 	if !ok {
-		return nil
+		d, ok := v.(time.Duration)
+		if !ok {
+			return nil
+		}
+		s = d.String()
 	}
 	dur, _ := parser.ParseSignedDuration(s)
 	return dur

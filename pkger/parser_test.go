@@ -2403,6 +2403,7 @@ spec:
 
 				require.Len(t, props.Queries, 1)
 
+				// parmas
 				queryText := `option params = {
 	bucket: "bar",
 	start: -24h0m0s,
@@ -3361,6 +3362,7 @@ spec:
 
 				for _, ta := range tasks {
 					assert.Equal(t, KindTask, ta.Kind)
+					fmt.Println("REFERENCES", ta.EnvReferences)
 				}
 
 				sort.Slice(tasks, func(i, j int) bool {
@@ -3464,6 +3466,121 @@ from(bucket: params.bucket)
 					},
 				}
 				assert.Equal(t, expectedRefs, actual.EnvReferences)
+			})
+		})
+
+		t.Run("with task option should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/task_v2.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Tasks
+				require.Len(t, actual, 1)
+
+				expectedEnvRefs := []SummaryReference{
+					{
+						Field:        "spec.task.every",
+						EnvRefKey:    "tasks[task-1].spec.task.every",
+						ValType:      "duration",
+						DefaultValue: time.Minute,
+					},
+					{
+						Field:        "spec.name",
+						EnvRefKey:    "tasks[task-1].spec.task.name",
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.task.name",
+						EnvRefKey:    "tasks[task-1].spec.task.name",
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.task.offset",
+						EnvRefKey:    "tasks[task-1].spec.task.offset",
+						ValType:      "duration",
+						DefaultValue: time.Minute * 3,
+					},
+				}
+				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
+			})
+		})
+
+		t.Run("with task spec should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/task_v2_taskSpec.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Tasks
+				require.Len(t, actual, 1)
+
+				expectedEnvRefs := []SummaryReference{
+					{
+						Field:        "spec.task.every",
+						EnvRefKey:    "tasks[task-1].spec.task.every",
+						ValType:      "duration",
+						DefaultValue: time.Minute,
+					},
+					{
+						Field:        "spec.name",
+						EnvRefKey:    "tasks[task-1].spec.task.name",
+						ValType:      "string",
+						DefaultValue: "foo",
+					},
+					{
+						Field:        "spec.task.name",
+						EnvRefKey:    "tasks[task-1].spec.task.name",
+						ValType:      "string",
+						DefaultValue: "foo",
+					},
+					{
+						Field:        "spec.task.offset",
+						EnvRefKey:    "tasks[task-1].spec.task.offset",
+						ValType:      "duration",
+						DefaultValue: time.Minute,
+					},
+				}
+
+				queryText := `option task = {name: "foo", every: 1m0s, offset: 1m0s}
+
+from(bucket: "rucket_1")
+	|> range(start: -5d, stop: -1h)
+	|> filter(fn: (r) =>
+		(r._measurement == "cpu"))
+	|> filter(fn: (r) =>
+		(r._field == "usage_idle"))
+	|> aggregateWindow(every: 1m, fn: mean)
+	|> yield(name: "mean")`
+
+				assert.Equal(t, queryText, actual[0].Query)
+
+				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
+			})
+		})
+
+		t.Run("with params option should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/task_v2_params.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Tasks
+				require.Len(t, actual, 1)
+
+				expectedEnvRefs := []SummaryReference{
+					{
+						Field:        "spec.params.this",
+						EnvRefKey:    "tasks[task-1].spec.params.this",
+						ValType:      "string",
+						DefaultValue: "foo",
+					},
+				}
+
+				queryText := `option params = {this: "foo"}
+
+from(bucket: "rucket_1")
+	|> range(start: -5d, stop: -1h)
+	|> filter(fn: (r) =>
+		(r._measurement == params.this))
+	|> filter(fn: (r) =>
+		(r._field == "usage_idle"))
+	|> aggregateWindow(every: 1m, fn: mean)
+	|> yield(name: "mean")`
+
+				assert.Equal(t, queryText, actual[0].Query)
+
+				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
 			})
 		})
 
@@ -4661,9 +4778,9 @@ func newParsedTemplate(t *testing.T, fn ReaderFn, encoding Encoding, opts ...Val
 	template, err := Parse(encoding, fn, opts...)
 	require.NoError(t, err)
 
-	for _, k := range template.Objects {
-		require.Equal(t, APIVersion, k.APIVersion)
-	}
+	// for _, k := range template.Objects {
+	// 	require.Equal(t, APIVersion2, k.APIVersion)
+	// }
 
 	require.True(t, template.isParsed)
 	return template
