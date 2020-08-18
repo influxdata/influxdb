@@ -37,6 +37,20 @@ import {
   TimeRange,
 } from 'src/types'
 
+export const getHasQueryText = (state: AppState) => {
+  if (!state.timeMachines) {
+    return null
+  }
+
+  const timeMachine = getActiveTimeMachine(state)
+
+  if (!timeMachine.draftQueries) {
+    return null
+  }
+
+  return timeMachine.draftQueries.some(q => !!q.text)
+}
+
 export const getActiveTimeMachine = (state: AppState) => {
   if (!state.timeMachines) {
     return null

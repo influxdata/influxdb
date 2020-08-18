@@ -15,4 +15,10 @@ export interface LocalStorage {
     orgs: ResourceState['orgs']
     variables: ResourceState['variables']
   }
+  timeMachines: {
+    activeTimeMachineID: AppState['timeMachines']['activeTimeMachineID']
+    timeMachines: {
+      de: AppState['timeMachines']['timeMachines']['de']
+    }
+  }
 }

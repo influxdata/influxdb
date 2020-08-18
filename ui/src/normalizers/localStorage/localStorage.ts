@@ -10,6 +10,7 @@ import {VERSION} from 'src/shared/constants'
 
 // Utils
 import {
+  timeMachines,
   getLocalStateRanges,
   setLocalStateRanges,
   normalizeApp,
@@ -31,11 +32,14 @@ export const normalizeGetLocalStorage = (state: LocalStorage): LocalStorage => {
     }
   }
 
+  newState.timeMachines = timeMachines(state)
+
   return newState
 }
 
 export const normalizeSetLocalStorage = (state: LocalStorage): LocalStorage => {
-  const {app, flags, ranges, autoRefresh, userSettings} = state
+  const {app, flags, ranges, autoRefresh, userSettings, timeMachines} = state
+  delete timeMachines.timeMachines.de.queryResults.files
   return {
     VERSION,
     autoRefresh,
@@ -44,5 +48,11 @@ export const normalizeSetLocalStorage = (state: LocalStorage): LocalStorage => {
     app: normalizeApp(app),
     ranges: setLocalStateRanges(ranges),
     resources: normalizeResources(state),
+    timeMachines: {
+      activeTimeMachineID: timeMachines.activeTimeMachineID,
+      timeMachines: {
+        de: timeMachines.timeMachines.de,
+      },
+    },
   }
 }

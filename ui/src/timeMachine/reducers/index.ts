@@ -186,6 +186,7 @@ export const timeMachinesReducer = (
     const queryBuilder = initialQueryBuilderState(draftQueries[0].builderConfig)
 
     const queryResults = initialQueryResultsState()
+
     const timeRange =
       activeTimeMachineID === 'alerting'
         ? DEFAULT_TIME_RANGE
