@@ -770,6 +770,26 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		}
 	}
 
+	if upd.LatestSuccess != nil {
+		// make sure we only update latest completed one way
+		tlc := task.LatestSuccess
+		ulc := *upd.LatestSuccess
+
+		if !ulc.IsZero() && ulc.After(tlc) {
+			task.LatestSuccess = *upd.LatestSuccess
+		}
+	}
+
+	if upd.LatestFailure != nil {
+		// make sure we only update latest completed one way
+		tlc := task.LatestFailure
+		ulc := *upd.LatestFailure
+
+		if !ulc.IsZero() && ulc.After(tlc) {
+			task.LatestFailure = *upd.LatestFailure
+		}
+	}
+
 	if upd.LastRunStatus != nil {
 		task.LastRunStatus = *upd.LastRunStatus
 		if *upd.LastRunStatus == "failed" && upd.LastRunError != nil {
@@ -1480,8 +1500,19 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 
 	// tell task to update latest completed
 	scheduled := r.ScheduledFor
+
+	var latestSuccess, latestFailure *time.Time
+
+	if r.Status == "failed" {
+		latestFailure = &scheduled
+	} else {
+		latestSuccess = &scheduled
+	}
+
 	_, err = s.updateTask(ctx, tx, taskID, influxdb.TaskUpdate{
 		LatestCompleted: &scheduled,
+		LatestSuccess:   latestSuccess,
+		LatestFailure:   latestFailure,
 		LastRunStatus:   &r.Status,
 		LastRunError: func() *string {
 			if r.Status == "failed" {
