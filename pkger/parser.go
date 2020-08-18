@@ -1422,6 +1422,8 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 		YPos:           r.intShort(fieldChartYPos),
 		FillColumns:    r.slcStr(fieldChartFillColumns),
 		YSeriesColumns: r.slcStr(fieldChartYSeriesColumns),
+		UpperColumn:    r.stringShort(fieldChartUpperColumn),
+		LowerColumn:    r.stringShort(fieldChartLowerColumn),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {

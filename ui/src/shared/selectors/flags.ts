@@ -16,6 +16,11 @@ export const OSS_FLAGS = {
   'notebook-panel--spotify': false,
   'notebook-panel--test-flux': false,
   disableDefaultTableSort: false,
+  'load-data-client-libraries': true,
+  'load-data-telegraf-plugins': true,
+  'load-data-dev-tools': false,
+  'load-data-flux-sources': false,
+  'load-data-integrations': false,
   'notification-endpoint-telegram': false,
 }
 
@@ -34,6 +39,11 @@ export const CLOUD_FLAGS = {
   'notebook-panel--spotify': false,
   'notebook-panel--test-flux': false,
   disableDefaultTableSort: false,
+  'load-data-client-libraries': true,
+  'load-data-telegraf-plugins': true,
+  'load-data-dev-tools': false,
+  'load-data-flux-sources': false,
+  'load-data-integrations': false,
   'notification-endpoint-telegram': false,
 }
 

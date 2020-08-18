@@ -433,6 +433,7 @@ const (
 	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
 	chartKindTable              chartKind = "table"
 	chartKindXY                 chartKind = "xy"
+	chartKindBand               chartKind = "band"
 )
 
 func (c chartKind) ok() bool {
@@ -440,7 +441,7 @@ func (c chartKind) ok() bool {
 	case chartKindGauge, chartKindHeatMap, chartKindHistogram,
 		chartKindMarkdown, chartKindMosaic, chartKindScatter,
 		chartKindSingleStat, chartKindSingleStatPlusLine, chartKindTable,
-		chartKindXY:
+		chartKindXY, chartKindBand:
 		return true
 	default:
 		return false
@@ -553,6 +554,8 @@ const (
 	fieldChartTickSuffix     = "tickSuffix"
 	fieldChartTimeFormat     = "timeFormat"
 	fieldChartYSeriesColumns = "ySeriesColumns"
+	fieldChartUpperColumn    = "upperColumn"
+	fieldChartLowerColumn    = "lowerColumn"
 	fieldChartWidth          = "width"
 	fieldChartXCol           = "xCol"
 	fieldChartXPos           = "xPos"
@@ -580,6 +583,8 @@ type chart struct {
 	Geom            string
 	YSeriesColumns  []string
 	XCol, YCol      string
+	UpperColumn     string
+	LowerColumn     string
 	XPos, YPos      int
 	Height, Width   int
 	BinSize         int
@@ -663,6 +668,23 @@ func (c *chart) properties() influxdb.ViewProperties {
 			YSuffix:           c.Axes.get("y").Suffix,
 			XAxisLabel:        c.Axes.get("x").Label,
 			YAxisLabel:        c.Axes.get("y").Label,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
+		}
+	case chartKindBand:
+		return influxdb.BandViewProperties{
+			Type:              influxdb.ViewPropertyTypeBand,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.influxViewColors(),
+			Legend:            c.Legend.influxLegend(),
+			HoverDimension:    c.HoverDimension,
+			XColumn:           c.XCol,
+			YColumn:           c.YCol,
+			UpperColumn:       c.UpperColumn,
+			LowerColumn:       c.LowerColumn,
+			Axes:              c.Axes.influxAxes(),
+			Geom:              c.Geom,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
 			TimeFormat:        c.TimeFormat,

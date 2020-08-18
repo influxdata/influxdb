@@ -55,11 +55,7 @@ export const reportError = (
 
     event('ui error', {error: errorType}, {errorCount: 1})
   } else {
-    const honeyBadgerContext = (HoneyBadger as any).context
-    /* eslint-disable no-console */
-    console.log('Context that would have been sent to HoneyBadger:')
-    console.table({...honeyBadgerContext, ...context, ...options})
-    /* eslint-enable no-console */
+    console.error(error)
   }
 }
 

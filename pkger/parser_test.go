@@ -1291,6 +1291,57 @@ spec:
 				})
 			})
 
+			t.Run("band chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_band.yml", func(t *testing.T, template *Template) {
+						sum := template.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
+						assert.Equal(t, "dash-1", actual.Name)
+						assert.Equal(t, "a dashboard w/ single band chart", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.BandViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "band note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
+						assert.Equal(t, "y", props.HoverDimension)
+						assert.Equal(t, "foo", props.UpperColumn)
+						assert.Equal(t, "bar", props.LowerColumn)
+
+						require.Len(t, props.ViewColors, 1)
+						c := props.ViewColors[0]
+						assert.Equal(t, "laser", c.Name)
+						assert.Equal(t, "scale", c.Type)
+						assert.Equal(t, "#8F8AF4", c.Hex)
+						assert.Equal(t, 3.0, c.Value)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+						assert.Equal(t, expectedQuery, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						for _, key := range []string{"x", "y"} {
+							xAxis, ok := props.Axes[key]
+							require.True(t, ok, "key="+key)
+							assert.Equal(t, key+"_label", xAxis.Label, "key="+key)
+							assert.Equal(t, key+"_prefix", xAxis.Prefix, "key="+key)
+							assert.Equal(t, key+"_suffix", xAxis.Suffix, "key="+key)
+						}
+
+					})
+				})
+			})
+
 			t.Run("scatter chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
 					testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, template *Template) {

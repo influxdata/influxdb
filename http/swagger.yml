@@ -4483,7 +4483,7 @@ paths:
                         type: string
                       templateMetaName:
                         type: string
-                    required: ["kind","resourceID"]
+                    required: ["kind", "resourceID"]
       responses:
         "200":
           description: Influx stack updated
@@ -8954,6 +8954,58 @@ components:
     XYGeom:
       type: string
       enum: [line, step, stacked, bar, monotoneX]
+    BandViewProperties:
+      type: object
+      required:
+        - type
+        - geom
+        - queries
+        - shape
+        - axes
+        - colors
+        - legend
+        - note
+        - showNoteWhenEmpty
+      properties:
+        timeFormat:
+          type: string
+        type:
+          type: string
+          enum: [band]
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardColor"
+        shape:
+          type: string
+          enum: ["chronograf-v2"]
+        note:
+          type: string
+        showNoteWhenEmpty:
+          description: If true, will display note when empty
+          type: boolean
+        axes:
+          $ref: "#/components/schemas/Axes"
+        legend:
+          $ref: "#/components/schemas/Legend"
+        xColumn:
+          type: string
+        yColumn:
+          type: string
+        upperColumn:
+          type: string
+        lowerColumn:
+          type: string
+        hoverDimension:
+          type: string
+          enum: [auto, x, y, xy]
+        geom:
+          $ref: "#/components/schemas/XYGeom"
     LinePlusSingleStatProperties:
       type: object
       required:
@@ -9672,6 +9724,7 @@ components:
         - $ref: "#/components/schemas/ScatterViewProperties"
         - $ref: "#/components/schemas/HeatmapViewProperties"
         - $ref: "#/components/schemas/MosaicViewProperties"
+        - $ref: "#/components/schemas/BandViewProperties"
     View:
       required:
         - name
