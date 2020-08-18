@@ -25,13 +25,23 @@ const Selectors: FC<Props> = ({schema}) => {
       {Object.entries(schema)
         .filter(([measurement, values]) => {
           if (!!selectedMeasurement) {
+            // filter out non-selected measurements
             return measurement === selectedMeasurement
           }
-          const {fields} = values
+          const {fields, tags} = values
+          if (!!selectedField) {
+            // filter out measurements that are not associated with the selected field
+            return fields.some(field => field === selectedField)
+          }
+          if (Object.keys(selectedTags)?.length > 0) {
+            const tagNames = Object.keys(selectedTags)
+            // TODO(ariel): do we care about matching the values as well?
+            return tagNames.some(tagName => tagName in tags)
+          }
           if (measurement.includes(searchTerm)) {
             return true
           }
-          return fields.some(field => field)
+          return fields.some(field => field.includes(searchTerm))
         })
         .map(([measurement, values]) => {
           const {fields, tags} = values
