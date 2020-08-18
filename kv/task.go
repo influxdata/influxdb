@@ -771,7 +771,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 	}
 
 	if upd.LatestSuccess != nil {
-		// make sure we only update latest completed one way
+		// make sure we only update latest success one way
 		tlc := task.LatestSuccess
 		ulc := *upd.LatestSuccess
 
@@ -781,7 +781,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 	}
 
 	if upd.LatestFailure != nil {
-		// make sure we only update latest completed one way
+		// make sure we only update latest failure one way
 		tlc := task.LatestFailure
 		ulc := *upd.LatestFailure
 
