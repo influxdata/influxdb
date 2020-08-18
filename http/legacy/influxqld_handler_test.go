@@ -1,4 +1,4 @@
-package http
+package legacy
 
 import (
 	"context"
@@ -233,7 +233,7 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 				InfluxqldQueryService: tt.fields.ProxyQueryService,
 			}
 
-			h := NewInfluxQLHandler(b, LegacyHandlerConfig{})
+			h := NewInfluxQLHandler(b, HandlerConfig{})
 
 			if tt.context != nil {
 				tt.args.r = tt.args.r.WithContext(tt.context)

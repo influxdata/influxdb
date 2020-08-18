@@ -1,7 +1,6 @@
-package http
+package legacy
 
 import (
-	"context"
 	"encoding/json"
 	"io/ioutil"
 	"mime"
@@ -11,11 +10,14 @@ import (
 
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/influxdb/v2"
-	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+)
+
+const (
+	traceIDHeader = "Trace-Id"
 )
 
 func (h *InfluxqlHandler) PrometheusCollectors() []prometheus.Collector {
@@ -171,24 +173,4 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 			zap.Error(err),
 		)
 	}
-}
-
-
-// getAuthorization extracts authorization information from a context.Context.
-// It guards against non influxdb.Authorization values for authorization and
-// InfluxQL feature flag not enabled.
-func getAuthorization(ctx context.Context) (*influxdb.Authorization, error) {
-	authorizer, err := pcontext.GetAuthorizer(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	a, ok := authorizer.(*influxdb.Authorization)
-	if !ok {
-		return nil, &influxdb.Error{
-			Code: influxdb.EForbidden,
-			Msg:  "insufficient permissions; session not supported",
-		}
-	}
-	return a, nil
 }

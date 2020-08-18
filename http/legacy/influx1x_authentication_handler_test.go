@@ -1,4 +1,4 @@
-package http
+package legacy
 
 import (
 	"context"
@@ -11,6 +11,12 @@ import (
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 )
+
+const tokenScheme = "Token " // TODO(goller): I'd like this to be Bearer
+
+func setToken(token string, req *http.Request) {
+	req.Header.Set("Authorization", fmt.Sprintf("%s%s", tokenScheme, token))
+}
 
 func TestInflux1xAuthenticationHandler(t *testing.T) {
 	var one = influxdb.ID(1)
@@ -34,9 +40,9 @@ func TestInflux1xAuthenticationHandler(t *testing.T) {
 	token := func(u, p string) func(r *http.Request) {
 		return func(r *http.Request) {
 			if u == "" {
-				SetToken(p, r)
+				setToken(p, r)
 			} else {
-				SetToken(u+":"+p, r)
+				setToken(u+":"+p, r)
 			}
 		}
 	}

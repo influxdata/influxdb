@@ -1,6 +1,7 @@
-package http
+package legacy
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -39,13 +40,13 @@ func (h *Influx1xAuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http
 
 	creds, err := h.parseCredentials(r)
 	if err != nil {
-		UnauthorizedError(ctx, h, w)
+		unauthorizedError(ctx, h, w)
 		return
 	}
 
 	auth, err := h.auth.FindAuthorizationByToken(ctx, creds.Token)
 	if err != nil {
-		UnauthorizedError(ctx, h, w)
+		unauthorizedError(ctx, h, w)
 		return
 	}
 
@@ -53,7 +54,7 @@ func (h *Influx1xAuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http
 	if creds.Username != "" {
 		user, err = h.user.FindUser(ctx, influxdb.UserFilter{Name: &creds.Username})
 		if err != nil {
-			UnauthorizedError(ctx, h, w)
+			unauthorizedError(ctx, h, w)
 			return
 		}
 
@@ -67,13 +68,13 @@ func (h *Influx1xAuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http
 	} else {
 		user, err = h.user.FindUserByID(ctx, auth.UserID)
 		if err != nil {
-			UnauthorizedError(ctx, h, w)
+			unauthorizedError(ctx, h, w)
 			return
 		}
 	}
 
 	if err = h.isUserActive(user); err != nil {
-		InactiveUserError(ctx, h, w)
+		inactiveUserError(ctx, h, w)
 		return
 	}
 
@@ -155,4 +156,20 @@ func (h *Influx1xAuthenticationHandler) parseCredentials(r *http.Request) (*cred
 	}
 
 	return nil, fmt.Errorf("unable to parse authentication credentials")
+}
+
+// unauthorizedError encodes a error message and status code for unauthorized access.
+func unauthorizedError(ctx context.Context, h influxdb.HTTPErrorHandler, w http.ResponseWriter) {
+	h.HandleHTTPError(ctx, &influxdb.Error{
+		Code: influxdb.EUnauthorized,
+		Msg:  "unauthorized access",
+	}, w)
+}
+
+// inactiveUserError encode a error message and status code for inactive users.
+func inactiveUserError(ctx context.Context, h influxdb.HTTPErrorHandler, w http.ResponseWriter) {
+	h.HandleHTTPError(ctx, &influxdb.Error{
+		Code: influxdb.EForbidden,
+		Msg:  "User is inactive",
+	}, w)
 }

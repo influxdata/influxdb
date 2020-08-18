@@ -6,9 +6,10 @@ package mocks
 
 import (
 	context "context"
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	metric "github.com/influxdata/influxdb/v2/http/metric"
-	reflect "reflect"
 )
 
 // MockEventRecorder is a mock of EventRecorder interface

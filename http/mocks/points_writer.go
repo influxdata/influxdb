@@ -6,9 +6,11 @@ package mocks
 
 import (
 	context "context"
-	gomock "github.com/golang/mock/gomock"
-	models "github.com/influxdata/influxdb/v2/models"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
+	influxdb "github.com/influxdata/influxdb/v2"
+	models "github.com/influxdata/influxdb/v2/models"
 )
 
 // MockPointsWriter is a mock of PointsWriter interface
@@ -35,15 +37,15 @@ func (m *MockPointsWriter) EXPECT() *MockPointsWriterMockRecorder {
 }
 
 // WritePoints mocks base method
-func (m *MockPointsWriter) WritePoints(arg0 context.Context, arg1 []models.Point) error {
+func (m *MockPointsWriter) WritePoints(arg0 context.Context, arg1, arg2 influxdb.ID, arg3 []models.Point) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WritePoints", arg0, arg1)
+	ret := m.ctrl.Call(m, "WritePoints", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WritePoints indicates an expected call of WritePoints
-func (mr *MockPointsWriterMockRecorder) WritePoints(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockPointsWriterMockRecorder) WritePoints(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePoints", reflect.TypeOf((*MockPointsWriter)(nil).WritePoints), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePoints", reflect.TypeOf((*MockPointsWriter)(nil).WritePoints), arg0, arg1, arg2, arg3)
 }

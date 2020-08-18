@@ -3,31 +3,20 @@ package http
 import (
 	"compress/gzip"
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/http/metric"
-	kitio "github.com/influxdata/influxdb/v2/kit/io"
+	"github.com/influxdata/influxdb/v2/http/points"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
-	"istio.io/pkg/log"
-)
-
-var (
-	// ErrMaxBatchSizeExceeded is returned when a points batch exceeds
-	// the defined upper limit in bytes. This pertains to the size of the
-	// batch after inflation from any compression (i.e. ungzipped).
-	ErrMaxBatchSizeExceeded = errors.New("points batch is too large")
 )
 
 // WriteBackend is all services and associated parameters required to construct
@@ -92,14 +81,12 @@ func (*WriteHandler) Prefix() string {
 }
 
 const (
-	prefixWrite              = "/api/v2/write"
-	msgInvalidGzipHeader     = "gzipped HTTP body contains an invalid header"
-	msgInvalidPrecision      = "invalid precision; valid precision units are ns, us, ms, and s"
-	msgUnableToReadData      = "unable to read data"
-	msgWritingRequiresPoints = "writing requires points"
-	msgUnexpectedWriteError  = "unexpected error writing points to database"
+	prefixWrite          = "/api/v2/write"
+	msgInvalidGzipHeader = "gzipped HTTP body contains an invalid header"
+	msgInvalidPrecision  = "invalid precision; valid precision units are ns, us, ms, and s"
 
-	opPointsWriter = "http/pointsWriter"
+	msgUnexpectedWriteError = "unexpected error writing points to database"
+
 	opWriteHandler = "http/writeHandler"
 )
 
@@ -194,7 +181,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	// TODO: Backport?
 	//opts := append([]models.ParserOption{}, h.parserOptions...)
 	//opts = append(opts, models.WithParserPrecision(req.Precision))
-	parsed, err := NewPointsParser().ParsePoints(ctx, org.ID, bucket.ID, req.Body)
+	parsed, err := points.NewParser().Parse(ctx, org.ID, bucket.ID, req.Body)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, sw)
 		return
@@ -237,132 +224,6 @@ func checkBucketWritePermissions(auth influxdb.Authorizer, orgID, bucketID influ
 	return nil
 }
 
-// PointBatchReadCloser (potentially) wraps an io.ReadCloser in Gzip
-// decompression and limits the reading to a specific number of bytes.
-func PointBatchReadCloser(rc io.ReadCloser, encoding string, maxBatchSizeBytes int64) (io.ReadCloser, error) {
-	switch encoding {
-	case "gzip", "x-gzip":
-		var err error
-		rc, err = gzip.NewReader(rc)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if maxBatchSizeBytes > 0 {
-		rc = kitio.NewLimitedReadCloser(rc, maxBatchSizeBytes)
-	}
-	return rc, nil
-}
-
-// NewPointsParser returns a new PointsParser
-func NewPointsParser( /*parserOptions ...models.ParserOption*/ ) *PointsParser {
-	return &PointsParser{
-		//ParserOptions: parserOptions,
-	}
-}
-
-// ParsedPoints contains the points parsed as well as the total number of bytes
-// after decompression.
-type ParsedPoints struct {
-	Points  models.Points
-	RawSize int
-}
-
-// PointsParser parses batches of Points.
-type PointsParser struct {
-	//ParserOptions []models.ParserOption
-}
-
-// ParsePoints parses the points from an io.ReadCloser for a specific Bucket.
-func (pw *PointsParser) ParsePoints(ctx context.Context, orgID, bucketID influxdb.ID, rc io.ReadCloser) (*ParsedPoints, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "write points")
-	defer span.Finish()
-	return pw.parsePoints(ctx, orgID, bucketID, rc)
-}
-
-func (pw *PointsParser) parsePoints(ctx context.Context, orgID, bucketID influxdb.ID, rc io.ReadCloser) (*ParsedPoints, error) {
-	data, err := readAll(ctx, rc)
-	if err != nil {
-		code := influxdb.EInternal
-		if errors.Is(err, ErrMaxBatchSizeExceeded) {
-			code = influxdb.ETooLarge
-		} else if errors.Is(err, gzip.ErrHeader) || errors.Is(err, gzip.ErrChecksum) {
-			code = influxdb.EInvalid
-		}
-		return nil, &influxdb.Error{
-			Code: code,
-			Op:   opPointsWriter,
-			Msg:  msgUnableToReadData,
-			Err:  err,
-		}
-	}
-
-	requestBytes := len(data)
-	if requestBytes == 0 {
-		return nil, &influxdb.Error{
-			Op:   opPointsWriter,
-			Code: influxdb.EInvalid,
-			Msg:  msgWritingRequiresPoints,
-		}
-	}
-
-	span, _ := tracing.StartSpanFromContextWithOperationName(ctx, "encoding and parsing")
-	// encoded := tsdb.EncodeName(org.ID, bucket.ID)
-	// mm := models.EscapeMeasurement(encoded[:])
-
-	points, err := models.ParsePoints(data)
-	span.LogKV("values_total", len(points))
-	span.Finish()
-	if err != nil {
-		log.Error("Error parsing points", zap.Error(err))
-
-		code := influxdb.EInvalid
-		// TODO - backport these
-		// if errors.Is(err, models.ErrLimitMaxBytesExceeded) ||
-		// 	errors.Is(err, models.ErrLimitMaxLinesExceeded) ||
-		// 	errors.Is(err, models.ErrLimitMaxValuesExceeded) {
-		// 	code = influxdb.ETooLarge
-		// }
-
-		return nil, &influxdb.Error{
-			Code: code,
-			Op:   opPointsWriter,
-			Msg:  "",
-			Err:  err,
-		}
-	}
-
-	return &ParsedPoints{
-		Points:  points,
-		RawSize: requestBytes,
-	}, nil
-}
-
-func readAll(ctx context.Context, rc io.ReadCloser) (data []byte, err error) {
-	defer func() {
-		if cerr := rc.Close(); cerr != nil && err == nil {
-			if errors.Is(cerr, kitio.ErrReadLimitExceeded) {
-				cerr = ErrMaxBatchSizeExceeded
-			}
-			err = cerr
-		}
-	}()
-
-	span, _ := tracing.StartSpanFromContextWithOperationName(ctx, "read request body")
-
-	defer func() {
-		span.LogKV("request_bytes", len(data))
-		span.Finish()
-	}()
-
-	data, err = ioutil.ReadAll(rc)
-	if err != nil {
-		return nil, err
-
-	}
-	return data, nil
-}
-
 // writeRequest is a request object holding information about a batch of points
 // to be written to a Bucket.
 type writeRequest struct {
@@ -381,14 +242,13 @@ func decodeWriteRequest(ctx context.Context, r *http.Request, maxBatchSizeBytes 
 		precision = "ns"
 	}
 
-	// TODO backport?
-	//if !models.ValidPrecision(precision) {
-	//	return nil, &influxdb.Error{
-	//		Code: influxdb.EInvalid,
-	//		Op:   "http/newWriteRequest",
-	//		Msg:  msgInvalidPrecision,
-	//	}
-	//}
+	if !models.ValidPrecision(precision) {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Op:   "http/newWriteRequest",
+			Msg:  msgInvalidPrecision,
+		}
+	}
 
 	bucket := qp.Get("bucket")
 	if bucket == "" {
@@ -400,7 +260,7 @@ func decodeWriteRequest(ctx context.Context, r *http.Request, maxBatchSizeBytes 
 	}
 
 	encoding := r.Header.Get("Content-Encoding")
-	body, err := PointBatchReadCloser(r.Body, encoding, maxBatchSizeBytes)
+	body, err := points.BatchReadCloser(r.Body, encoding, maxBatchSizeBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -429,14 +289,13 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID influxdb.ID, r
 		precision = "ns"
 	}
 
-	// TODO backport?
-	// if !models.ValidPrecision(precision) {
-	// 	return &influxdb.Error{
-	// 		Code: influxdb.EInvalid,
-	// 		Op:   "http/Write",
-	// 		Msg:  msgInvalidPrecision,
-	// 	}
-	// }
+	if !models.ValidPrecision(precision) {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Op:   "http/Write",
+			Msg:  msgInvalidPrecision,
+		}
+	}
 
 	u, err := NewURL(s.Addr, prefixWrite)
 	if err != nil {

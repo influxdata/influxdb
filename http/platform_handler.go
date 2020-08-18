@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/http/legacy"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
@@ -38,28 +39,27 @@ func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler
 	wrappedHandler := kithttp.SetCORS(h)
 	wrappedHandler = kithttp.SkipOptions(wrappedHandler)
 
-	legacyBackend := NewLegacyBackend(b)
-	lh := NewLegacyHandler(legacyBackend, LegacyHandlerConfig{})
+	legacyBackend := newLegacyBackend(b)
+	lh := newLegacyHandler(legacyBackend, legacy.HandlerConfig{})
 
 	return &PlatformHandler{
-		AssetHandler: assetHandler,
-		DocsHandler:  Redoc("/api/v2/swagger.json"),
-		APIHandler:   wrappedHandler,
-		LegacyHandler: NewInflux1xAuthenticationHandler(lh, b.AuthorizationService, b.UserService, b.HTTPErrorHandler),
+		AssetHandler:  assetHandler,
+		DocsHandler:   Redoc("/api/v2/swagger.json"),
+		APIHandler:    wrappedHandler,
+		LegacyHandler: legacy.NewInflux1xAuthenticationHandler(lh, b.AuthorizationService, b.UserService, b.HTTPErrorHandler),
 	}
 }
 
 // ServeHTTP delegates a request to the appropriate subhandler.
 func (h *PlatformHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// TODO(affo): change this to be mounted prefixes: https://github.com/influxdata/idpe/issues/6689.
-	if r.URL.Path == "/v1/write" ||
-		r.URL.Path == "/write" ||
+	if r.URL.Path == "/write" ||
 		r.URL.Path == "/query" ||
 		r.URL.Path == "/ping" {
 		h.LegacyHandler.ServeHTTP(w, r)
 		return
 	}
-	
+
 	if strings.HasPrefix(r.URL.Path, "/docs") {
 		h.DocsHandler.ServeHTTP(w, r)
 		return

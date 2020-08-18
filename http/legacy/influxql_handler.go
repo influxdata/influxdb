@@ -1,4 +1,4 @@
-package http
+package legacy
 
 import (
 	"net/http"
@@ -14,7 +14,7 @@ import (
 // with org and forwards requests to the transpiler service.
 type InfluxqlHandler struct {
 	*InfluxQLBackend
-	LegacyHandlerConfig
+	HandlerConfig
 	Metrics *control.ControllerMetrics
 }
 
@@ -28,7 +28,7 @@ type InfluxQLBackend struct {
 }
 
 // NewInfluxQLBackend constructs an InfluxQLBackend from a LegacyBackend.
-func NewInfluxQLBackend(b *LegacyBackend) *InfluxQLBackend {
+func NewInfluxQLBackend(b *Backend) *InfluxQLBackend {
 	return &InfluxQLBackend{
 		HTTPErrorHandler:      b.HTTPErrorHandler,
 		Logger:                b.Logger.With(zap.String("handler", "influxql")),
@@ -39,11 +39,11 @@ func NewInfluxQLBackend(b *LegacyBackend) *InfluxQLBackend {
 }
 
 // NewInfluxQLHandler returns a new instance of InfluxqlHandler to handle influxql v1 queries
-func NewInfluxQLHandler(b *InfluxQLBackend, config LegacyHandlerConfig) *InfluxqlHandler {
+func NewInfluxQLHandler(b *InfluxQLBackend, config HandlerConfig) *InfluxqlHandler {
 	return &InfluxqlHandler{
-		InfluxQLBackend:     b,
-		LegacyHandlerConfig: config,
-		Metrics:             control.NewControllerMetrics([]string{}),
+		InfluxQLBackend: b,
+		HandlerConfig:   config,
+		Metrics:         control.NewControllerMetrics([]string{}),
 	}
 }
 
