@@ -8,7 +8,7 @@ import {
   RemoteDataState,
 } from '@influxdata/clockface'
 import Schema from 'src/notebooks/pipes/Data/Schema'
-import MeasurementSelector from 'src/notebooks/pipes/Data/MeasurementSelector'
+import Selectors from 'src/notebooks/pipes/Data/Selectors'
 import {SchemaContext} from 'src/notebooks/context/schemaProvider'
 
 const FieldsList: FC = () => {
@@ -33,7 +33,7 @@ const FieldsList: FC = () => {
   }
 
   if (loading === RemoteDataState.Done && Object.keys(schema).length > 0) {
-    body = <MeasurementSelector schema={schema.measurements} />
+    body = <Selectors schema={schema.measurements} />
   }
 
   return body

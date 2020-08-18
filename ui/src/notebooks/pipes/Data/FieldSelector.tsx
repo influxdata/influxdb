@@ -1,83 +1,42 @@
 // Libraries
-import React, {FC, useContext, useCallback, useState} from 'react'
+import React, {FC, useContext, useCallback} from 'react'
 
 // Components
-import {
-  // TechnoSpinner,
-  // ComponentSize,
-  // RemoteDataState,
-  InfluxColors,
-  Input,
-  List,
-  Gradients,
-} from '@influxdata/clockface'
-// import {BucketContext} from 'src/notebooks/context/buckets'
+import {List, Gradients} from '@influxdata/clockface'
 import {PipeContext} from 'src/notebooks/context/pipe'
 
 type Props = {
-  schema: any
+  field: string
 }
 
-const FieldSelector: FC<Props> = ({schema}) => {
-  // TODO(ariel): refactor so that the measurement and fields are separate
+const FieldSelector: FC<Props> = ({field}) => {
   const {data, update} = useContext(PipeContext)
-  // const {buckets, loading} = useContext(BucketContext)
-  const [searchTerm, setSearchTerm] = useState('')
   const selectedField = data.field
-  const selectedMeasurement = data.measurement
-
-  const updateSelection = useCallback(
-    (value: string): void => {
-      let updated = value
-      let selectedTags = data?.tags
+  const updateFieldSelection = useCallback(
+    (field: string): void => {
+      let updated = field
       if (updated === selectedField) {
         updated = ''
-        selectedTags = {}
       }
-      update({field: updated, tags: selectedTags})
+      update({field: updated})
     },
     [update]
   )
 
-  let body
-
-  if (/*loading === RemoteDataState.Done*/ selectedMeasurement) {
-    body = (
-      <List
-        className="data-source--list"
-        backgroundColor={InfluxColors.Obsidian}
-      >
-        {schema[selectedMeasurement].fields
-          .filter(name => name.includes(searchTerm))
-          .map(name => (
-            <List.Item
-              key={name}
-              value={name}
-              onClick={() => updateSelection(name)}
-              selected={name === selectedField}
-              title={name}
-              gradient={Gradients.GundamPilot}
-              wrapText={true}
-            >
-              <List.Indicator type="dot" />
-              {name}
-            </List.Item>
-          ))}
-      </List>
-    )
-  }
-
   return (
-    <div className="data-source--block">
-      <div className="data-source--block-title">Field</div>
-      <Input
-        value={searchTerm}
-        placeholder="Search for a field"
-        className="tag-selector--search"
-        onChange={e => setSearchTerm(e.target.value)}
-      />
-      {body}
-    </div>
+    <List.Item
+      value={field}
+      onClick={() => updateFieldSelection(field)}
+      selected={field === selectedField}
+      title={field}
+      gradient={Gradients.GundamPilot}
+      wrapText={true}
+    >
+      <List.Indicator type="dot" />
+      <div className="data-field--equation">{`_field = ${field}`}</div>
+      <div className="data-measurement--name">&nbsp;field&nbsp;</div>
+      <div className="data-measurement--type">string</div>
+    </List.Item>
   )
 }
 
