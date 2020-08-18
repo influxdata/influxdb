@@ -367,7 +367,11 @@ describe('resourceToTemplate', () => {
                             aggregateFunctionType: 'filter',
                           },
                         ],
-                        functions: [{name: 'mean'}],
+                        functions: [
+                          {name: 'mean'},
+                          {name: 'min'},
+                          {name: 'max'},
+                        ],
                         aggregateWindow: {period: 'auto', fillValues: false},
                       },
                     },
