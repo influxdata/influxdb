@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {useDispatch, useSelector} from 'react-redux'
+import {useDispatch} from 'react-redux'
 
 // Components
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
@@ -15,24 +15,17 @@ import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 import {readQueryParams} from 'src/shared/utils/queryParams'
-import {getHasQueryText} from 'src/timeMachine/selectors'
 
 const DataExplorer: FC = () => {
   const dispatch = useDispatch()
-  const hasQueryText = useSelector(getHasQueryText)
 
   useEffect(() => {
     const bucketQP = readQueryParams()['bucket']
     dispatch(setActiveTimeMachine('de'))
     queryBuilderFetcher.clearCache()
     dispatch(setBuilderBucketIfExists(bucketQP))
+    dispatch(saveAndExecuteQueries())
   }, [dispatch])
-
-  useEffect(() => {
-    if (hasQueryText) {
-      dispatch(saveAndExecuteQueries)
-    }
-  }, [dispatch, hasQueryText])
 
   return (
     <LimitChecker>
