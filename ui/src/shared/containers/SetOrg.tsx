@@ -17,7 +17,7 @@ import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
 import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
-import WriteDataPage from 'src/writeData/containers/WriteDataPage'
+import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
@@ -27,19 +27,12 @@ import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
 import CheckHistory from 'src/checks/components/CheckHistory'
 import MembersIndex from 'src/members/containers/MembersIndex'
 import RouteToDashboardList from 'src/dashboards/components/RouteToDashboardList'
-import ClientLibrariesPage from 'src/writeData/containers/ClientLibrariesPage'
-import TelegrafPluginsPage from 'src/writeData/containers/TelegrafPluginsPage'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
 
 // Constants
 import {CLOUD} from 'src/shared/constants'
-import {
-  LOAD_DATA,
-  TELEGRAF_PLUGINS,
-  CLIENT_LIBS,
-} from 'src/shared/constants/routes'
 
 // Actions
 import {setOrg} from 'src/organizations/actions/creators'
@@ -139,42 +132,22 @@ const SetOrg: FC<Props> = ({
           <Route path={`${orgPath}/notebooks`} component={NotebookPage} />
         )}
 
-        {/* Write Data */}
+        {/* Load Data */}
         <Route
-          path={`${orgPath}/${LOAD_DATA}/sources`}
-          component={WriteDataPage}
-        />
-        <Route
-          path={`${orgPath}/${LOAD_DATA}/${CLIENT_LIBS}`}
+          path={`${orgPath}/load-data/client-libraries`}
           component={ClientLibrariesPage}
         />
         <Route
-          path={`${orgPath}/${LOAD_DATA}/${TELEGRAF_PLUGINS}`}
-          component={TelegrafPluginsPage}
-        />
-
-        {/* Load Data */}
-        <Route
-          exact
-          path={`${orgPath}/${LOAD_DATA}`}
-          component={WriteDataPage}
-        />
-        <Route
-          path={`${orgPath}/${LOAD_DATA}/scrapers`}
+          path={`${orgPath}/load-data/scrapers`}
           component={ScrapersIndex}
         />
         <Route
-          path={`${orgPath}/${LOAD_DATA}/telegrafs`}
+          path={`${orgPath}/load-data/telegrafs`}
           component={TelegrafsPage}
         />
-        <Route
-          path={`${orgPath}/${LOAD_DATA}/tokens`}
-          component={TokensIndex}
-        />
-        <Route
-          path={`${orgPath}/${LOAD_DATA}/buckets`}
-          component={BucketsIndex}
-        />
+        <Route path={`${orgPath}/load-data/tokens`} component={TokensIndex} />
+        <Route path={`${orgPath}/load-data/buckets`} component={BucketsIndex} />
+        <Route exact path={`${orgPath}/load-data`} component={BucketsIndex} />
 
         {/* Settings */}
         <Route

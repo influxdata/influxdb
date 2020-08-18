@@ -64,12 +64,7 @@ describe('DataExplorer', () => {
         cy.get('.view-lines').type(fluxCode)
       })
       cy.contains('Submit').click()
-      cy.get('.cf-tree-nav--toggle').click()
-      // Can't use the testID to select this nav item because Clockface is silly and uses the same testID twice
-      // Issue: https://github.com/influxdata/clockface/issues/539
-      cy.get('.cf-tree-nav--sub-item-label')
-        .contains('Buckets')
-        .click()
+      cy.getByTestID('nav-item-load-data').click()
       cy.getByTestID('bucket--card--name _tasks').click()
       cy.getByTestID('query-builder').should('exist')
     })

@@ -2,7 +2,6 @@
 
 ### Features
 
-1. [19246](https://github.com/influxdata/influxdb/pull/19246): Redesign load data page to increase discovery and ease of use
 1. [19334](https://github.com/influxdata/influxdb/pull/19334): Add --active-config flag to influx to set config for single command
 
 ### Bug Fixes
