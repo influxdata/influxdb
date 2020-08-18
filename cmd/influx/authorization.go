@@ -12,6 +12,7 @@ import (
 
 type token struct {
 	ID          platform.ID `json:"id"`
+	Description string      `json:"description"`
 	Token       string      `json:"token"`
 	Status      string      `json:"status"`
 	UserName    string      `json:"userName"`
@@ -43,8 +44,9 @@ var authCRUDFlags struct {
 }
 
 var authCreateFlags struct {
-	user string
-	org  organization
+	user        string
+	description string
+	org         organization
 
 	writeUserPermission bool
 	readUserPermission  bool
@@ -90,6 +92,7 @@ func authCreateCmd(f *globalFlags) *cobra.Command {
 	f.registerFlags(cmd)
 	authCreateFlags.org.register(cmd, false)
 
+	cmd.Flags().StringVarP(&authCreateFlags.description, "description", "d", "", "Token description")
 	cmd.Flags().StringVarP(&authCreateFlags.user, "user", "u", "", "The user name")
 	registerPrintOptions(cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
 
@@ -250,6 +253,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	authorization := &platform.Authorization{
+		Description: authCreateFlags.description,
 		Permissions: permissions,
 		OrgID:       orgID,
 	}
@@ -288,6 +292,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 		hideHeaders: authCRUDFlags.hideHeaders,
 		token: token{
 			ID:          authorization.ID,
+			Description: authorization.Description,
 			Token:       authorization.Token,
 			Status:      string(authorization.Status),
 			UserName:    user.Name,
@@ -381,6 +386,7 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 
 		tokens = append(tokens, token{
 			ID:          a.ID,
+			Description: a.Description,
 			Token:       a.Token,
 			Status:      string(a.Status),
 			UserName:    user.Name,
@@ -453,6 +459,7 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) error {
 		hideHeaders: authCRUDFlags.hideHeaders,
 		token: token{
 			ID:          a.ID,
+			Description: a.Description,
 			Token:       a.Token,
 			Status:      string(a.Status),
 			UserName:    user.Name,
@@ -520,6 +527,7 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 		hideHeaders: authCRUDFlags.hideHeaders,
 		token: token{
 			ID:          a.ID,
+			Description: a.Description,
 			Token:       a.Token,
 			Status:      string(a.Status),
 			UserName:    user.Name,
@@ -587,6 +595,7 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) error {
 		hideHeaders: authCRUDFlags.hideHeaders,
 		token: token{
 			ID:          a.ID,
+			Description: a.Description,
 			Token:       a.Token,
 			Status:      string(a.Status),
 			UserName:    user.Name,
@@ -620,6 +629,7 @@ func writeTokens(w io.Writer, printOpts tokenPrintOpt) error {
 
 	headers := []string{
 		"ID",
+		"Description",
 		"Token",
 		"User Name",
 		"User ID",
@@ -637,6 +647,7 @@ func writeTokens(w io.Writer, printOpts tokenPrintOpt) error {
 	for _, t := range printOpts.tokens {
 		m := map[string]interface{}{
 			"ID":          t.ID.String(),
+			"Description": t.Description,
 			"Token":       t.Token,
 			"User Name":   t.UserName,
 			"User ID":     t.UserID.String(),

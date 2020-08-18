@@ -1,3 +1,13 @@
+## v2.0.0-beta.17 [unreleased]
+
+### Features
+
+1. [19334](https://github.com/influxdata/influxdb/pull/19334): Add --active-config flag to influx to set config for single command
+
+### Bug Fixes
+
+1. [19331](https://github.com/influxdata/influxdb/pull/19331): Add description to auth influx command outputs.
+
 ## v2.0.0-beta.16 [2020-08-07]
 
 ### Breaking

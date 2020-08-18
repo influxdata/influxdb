@@ -45,9 +45,10 @@ var backupFlags struct {
 }
 
 func newBackupService() (influxdb.BackupService, error) {
+	ac := flags.config()
 	return &http.BackupService{
-		Addr:  flags.Host,
-		Token: flags.Token,
+		Addr:  ac.Host,
+		Token: ac.Token,
 	}, nil
 }
 

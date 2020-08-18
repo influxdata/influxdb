@@ -943,7 +943,7 @@ func (b *cmdTemplateBuilder) newCmd(use string, runE func(*cobra.Command, []stri
 }
 
 func (b *cmdTemplateBuilder) registerTemplatePrintOpts(cmd *cobra.Command) {
-	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
+	cmd.Flags().BoolVar(&b.disableColor, "disable-color", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
 	registerPrintOptions(cmd, nil, &b.json)
 }
