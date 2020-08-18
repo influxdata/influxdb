@@ -12,6 +12,8 @@
     "jest.config.js"
   ],
   "include": [
+    "src/**/*.md",
+    "src/**/*.svg",
     "src/**/*.ts",
     "src/**/*.tsx",
     "cypress/**/*.ts",
