@@ -16,8 +16,17 @@ const TagSelector: FC<Props> = ({tagName, tagValue}) => {
 
   const handleSublistMultiSelect = useCallback(
     (tagName: string, tagValue: string): void => {
-      const tagValues = [...selectedTags[tagName], tagValue]
-      // do a multi select deselect
+      let tagValues = []
+      if (!selectedTags[tagName]) {
+        tagValues = [tagValue]
+      } else if (
+        selectedTags[tagName] &&
+        selectedTags[tagName].includes(tagValue)
+      ) {
+        tagValues = selectedTags[tagName].filter(v => v !== tagValue)
+      } else {
+        tagValues = [...selectedTags[tagName], tagValue]
+      }
       update({
         tags: {
           ...selectedTags,
@@ -56,9 +65,12 @@ const TagSelector: FC<Props> = ({tagName, tagValue}) => {
     <List.Item
       key={tagValue}
       value={tagValue}
-      onClick={(event: MouseEvent) =>
-        handleSubListItemClick(event, tagName, tagValue)
-      }
+      onClick={(
+        value: string,
+        event: MouseEvent<HTMLDivElement, MouseEvent>
+      ) => {
+        handleSubListItemClick(event, tagName, value)
+      }}
       selected={selectedTags[tagName]?.includes(tagValue)}
       title={tagValue}
       gradient={Gradients.GundamPilot}

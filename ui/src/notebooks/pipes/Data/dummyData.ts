@@ -14,7 +14,7 @@ export const results = {
       'usage_user',
     ],
     tags: {
-      host: ['ip-192-168-1-206.ec2.internal'],
+      host: ['MBP15.lan1'],
       cpu: [
         'cpu-total',
         'cpu0',

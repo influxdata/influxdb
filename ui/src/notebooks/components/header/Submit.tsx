@@ -89,23 +89,26 @@ export const Submit: FC = () => {
               text += `|> filter(fn: (r) => r["_field"] == "${field}")`
             }
             if (tags && Object.keys(tags)?.length > 0) {
-              Object.entries(tags).forEach(([tagName, tagValues]) => {
-                const values = tagValues as any[]
-                if (values.length === 1) {
-                  text += `|> filter(fn: (r) => r["${tagName}"] == "${values[0]}")`
-                } else {
-                  values.forEach((val, i) => {
-                    if (i === 0) {
-                      text += `|> filter(fn: (r) => r["${tagName}"] == "${val}" or r["cpu"] == "cpu0")`
-                    }
-                    if (values.length - 1 === i) {
-                      text += ` or r["${tagName}"] == "${val}")`
-                    } else {
-                      text += ` or r["${tagName}"] == "${val}"`
-                    }
-                  })
-                }
-              })
+              Object.keys(tags)
+                .filter(tagName => !!tags[tagName])
+                .forEach(tagName => {
+                  const tagValues = tags[tagName]
+                  const values = tagValues as any[]
+                  if (values.length === 1) {
+                    text += `|> filter(fn: (r) => r["${tagName}"] == "${values[0]}")`
+                  } else {
+                    values.forEach((val, i) => {
+                      if (i === 0) {
+                        text += `|> filter(fn: (r) => r["${tagName}"] == "${val}"`
+                      }
+                      if (values.length - 1 === i) {
+                        text += ` or r["${tagName}"] == "${val}")`
+                      } else {
+                        text += ` or r["${tagName}"] == "${val}"`
+                      }
+                    })
+                  }
+                })
             }
 
             stages.push({

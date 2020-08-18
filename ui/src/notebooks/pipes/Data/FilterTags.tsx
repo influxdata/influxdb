@@ -33,18 +33,25 @@ const constructFilters = (value: string, type: string) => {
       }
     }
     case 'tags': {
-      const [tagName] = Object.keys(value)
-      const [tagValues] = Object.values(value)
-      if (tagName && tagValues) {
-        return {
-          id: JSON.stringify(value),
-          name: `${tagName} = ${tagValues[0]}`,
-          properties: {
-            color: 'limegreen',
-            description: '',
-          },
-          type,
-        }
+      const tagNames = Object.keys(value)
+      if (tagNames) {
+        let tags = []
+        tagNames
+          .filter(tagName => !!value[tagName])
+          .forEach(tagName => {
+            const tagValues = value[tagName]
+            const mappedTags = tagValues.map(tagValue => ({
+              id: tagValue,
+              name: `${tagName} = ${tagValue}`,
+              properties: {
+                color: 'limegreen',
+                description: '',
+              },
+              type,
+            }))
+            tags.push(...mappedTags)
+          })
+        return tags
       }
       return null
     }
@@ -56,9 +63,27 @@ const constructFilters = (value: string, type: string) => {
 
 const FilterTags: FC = () => {
   const {data, update} = useContext(PipeContext)
-  const handleDeleteFilter = (type: string) => {
+  const handleDeleteFilter = (type: string, name: string) => {
     if (type === 'tags') {
-      update({tags: {}})
+      const [tagName, tagValue] = name.split(' = ')
+      let tagValues = []
+      const selectedTags = data?.tags
+      if (!selectedTags[tagName]) {
+        tagValues = [tagValue]
+      } else if (
+        selectedTags[tagName] &&
+        selectedTags[tagName].includes(tagValue)
+      ) {
+        tagValues = selectedTags[tagName].filter(v => v !== tagValue)
+      } else {
+        tagValues = [...selectedTags[tagName], tagValue]
+      }
+      update({
+        tags: {
+          ...selectedTags,
+          [tagName]: tagValues,
+        },
+      })
     } else {
       update({[type]: ''})
     }
@@ -75,7 +100,7 @@ const FilterTags: FC = () => {
     }
     const tags = constructFilters(data.tags, 'tags')
     if (tags) {
-      filters.push(tags)
+      filters.push(...tags)
     }
     if (filters.length) {
       return filters.map(_filter => {
@@ -88,7 +113,7 @@ const FilterTags: FC = () => {
             name={f.name}
             color={f.properties.color}
             description={f.properties.description}
-            onDelete={() => handleDeleteFilter(f.type)}
+            onDelete={() => handleDeleteFilter(f.type, f.name)}
           />
         )
       })
