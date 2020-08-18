@@ -30,11 +30,26 @@
 }
 
 .notebook-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   border-radius: $cf-radius;
   margin: 0 $notebook-panel--gutter;
+
+  &::after {
+    content: '';
+    position: absolute;
+    width: $cf-border;
+    background-color: $g5-pepper;
+    bottom: 0;
+    top: 0;
+    left: ($notebook-panel--node-gap / 2) - ($cf-border / 2);
+  }
+
+  &:first-child::after {
+    top: ($notebook-header-height - $notebook-panel--node-dot) / 2;
+  }
 }
 
 .notebook-panel--header,
@@ -46,7 +61,7 @@
   border-radius: $cf-radius $cf-radius 0 0;
   height: $notebook-header-height;
   flex: 0 0 $notebook-header-height;
-  padding: 0 $cf-marg-b;
+  padding-right: $cf-marg-b;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -60,6 +75,21 @@
 .notebook-panel--header-right > * {
   transition: all 0.25s ease;
   opacity: 0;
+}
+
+.notebook-panel--node-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  align-content: center;
+  width: $notebook-panel--node-gap;
+}
+
+.notebook-panel--node {
+  width: $notebook-panel--node-dot;
+  height: $notebook-panel--node-dot;
+  border-radius: 50%;
+  background-color: $g5-pepper;
 }
 
 .notebook-panel--title,
@@ -121,7 +151,7 @@
 .notebook-panel--body {
   border-radius: 0 0 $cf-radius $cf-radius;
   padding: $cf-marg-b;
-  padding-left: $cf-marg-d;
+  padding-left: $notebook-panel--node-gap;
   padding-top: 0;
   position: relative;
 }

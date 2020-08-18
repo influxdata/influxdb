@@ -66,6 +66,9 @@ const NotebookPanelHeader: FC<HeaderProps> = ({id, controls}) => {
 
   return (
     <div className="notebook-panel--header">
+      <div className="notebook-panel--node-wrapper">
+        <div className="notebook-panel--node" />
+      </div>
       <FlexBox
         className="notebook-panel--header-left"
         alignItems={AlignItems.Center}

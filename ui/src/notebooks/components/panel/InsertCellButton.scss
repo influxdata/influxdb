@@ -2,19 +2,18 @@
 @import '~src/notebooks/NotebookVariables.scss';
 
 .notebook-divider {
-  height: 12px;
-  margin: $cf-marg-a $notebook-panel--gutter;
+  height: 16px;
+  margin: 0 $notebook-panel--gutter;
   position: relative;
 
   &:after {
     content: '';
     position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    background-color: $notebook-divider-color;
-    height: $cf-border;
-    transform: translateY(-50%);
+    top: 0;
+    bottom: 0;
+    left: ($notebook-panel--node-gap / 2) - ($cf-border / 2);
+    background-color: $g5-pepper;
+    width: $cf-border;
     z-index: 0;
   }
 
@@ -23,6 +22,10 @@
   }
 
   &:last-of-type {
+    &:after {
+      bottom: 50%;
+    }
+
     margin-bottom: 25vh;
   }
 }
@@ -36,6 +39,7 @@
   position: absolute;
   z-index: 1;
   top: 50%;
+  left: $notebook-panel--node-gap / 2;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   opacity: 0;
