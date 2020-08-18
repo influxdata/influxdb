@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
@@ -749,6 +750,128 @@ from(bucket: "%s")
 	// Make sure that the data we stored matches the CSV
 	if err := executetest.EqualResultIterators(csvResultIterator, fromResultIterator); err != nil {
 		t.Fatal(err)
+	}
+}
+
+type FluxStatisticsTestProfiler struct{}
+
+func (s FluxStatisticsTestProfiler) Name() string {
+	return "TestFluxStatistics"
+}
+
+func (s FluxStatisticsTestProfiler) GetResult(q flux.Query, alloc *memory.Allocator) (flux.Table, error) {
+	groupKey := execute.NewGroupKey(
+		[]flux.ColMeta{
+			{
+				Label: "_measurement",
+				Type:  flux.TString,
+			},
+		},
+		[]values.Value{
+			values.NewString("profiler/FluxStatistics"),
+		},
+	)
+	b := execute.NewColListTableBuilder(groupKey, alloc)
+	for _, colName := range []string{"_measurement", "_field", execute.DefaultValueColLabel} {
+		if _, err := b.AddCol(flux.ColMeta{
+			Label: colName,
+			Type:  flux.TString,
+		}); err != nil {
+			return nil, err
+		}
+	}
+	q.Statistics().Range(func(key string, value string) {
+		b.AppendString(0, "profiler/FluxStatistics")
+		b.AppendString(1, key)
+		b.AppendString(2, key)
+	})
+	b.Sort([]string{"_field"}, false)
+	tbl, err := b.Table()
+	if err != nil {
+		return nil, err
+	}
+	return tbl, nil
+}
+
+func TestFluxProfiler(t *testing.T) {
+	testcases := []struct {
+		name  string
+		data  []string
+		query string
+		want  string
+	}{
+		{
+			name: "range last single point start time",
+			data: []string{
+				"m,tag=a f=1i 1",
+			},
+			query: `
+option profiler.enabledProfilers = ["TestFluxStatistics", "TestFluxStatistics", "NonExistent"]
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00.000000001Z, stop: 1970-01-01T01:00:00Z)
+	|> last()
+`,
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,tag
+,,0,1970-01-01T00:00:00.000000001Z,1970-01-01T01:00:00Z,1970-01-01T00:00:00.000000001Z,1,f,m,a
+
+#datatype,string,long,string,string,string
+#group,false,false,true,false,false
+#default,_profiler,,,,
+,result,table,_measurement,_field,_value
+,,0,profiler/FluxStatistics,CompileDuration,CompileDuration
+,,0,profiler/FluxStatistics,Concurrency,Concurrency
+,,0,profiler/FluxStatistics,ExecuteDuration,ExecuteDuration
+,,0,profiler/FluxStatistics,MaxAllocated,MaxAllocated
+,,0,profiler/FluxStatistics,PlanDuration,PlanDuration
+,,0,profiler/FluxStatistics,QueueDuration,QueueDuration
+,,0,profiler/FluxStatistics,RequeueDuration,RequeueDuration
+,,0,profiler/FluxStatistics,RuntimeErrors,RuntimeErrors
+,,0,profiler/FluxStatistics,TotalAllocated,TotalAllocated
+,,0,profiler/FluxStatistics,TotalDuration,TotalDuration
+,,0,profiler/FluxStatistics,flux/query-plan,flux/query-plan
+,,0,profiler/FluxStatistics,influxdb/scanned-bytes,influxdb/scanned-bytes
+,,0,profiler/FluxStatistics,influxdb/scanned-values,influxdb/scanned-values
+`,
+		},
+	}
+	execute.RegisterProfilers(&FluxStatisticsTestProfiler{})
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			l := launcher.RunTestLauncherOrFail(t, ctx, nil)
+
+			l.SetupOrFail(t)
+			defer l.ShutdownOrFail(t, ctx)
+
+			l.WritePointsOrFail(t, strings.Join(tc.data, "\n"))
+
+			queryStr := "import \"profiler\"\nv = {bucket: " + "\"" + l.Bucket.Name + "\"" + "}\n" + tc.query
+			req := &query.Request{
+				Authorization:  l.Auth,
+				OrganizationID: l.Org.ID,
+				Compiler: lang.FluxCompiler{
+					Query: queryStr,
+				},
+			}
+			if got, err := l.FluxQueryService().Query(ctx, req); err != nil {
+				t.Error(err)
+			} else {
+				dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
+				want, err := dec.Decode(ioutil.NopCloser(strings.NewReader(tc.want)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer want.Release()
+
+				if err := executetest.EqualResultIterators(want, got); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
 	}
 }
 
