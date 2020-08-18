@@ -21,33 +21,33 @@ var (
 	target1 = influxdb.ScraperTarget{
 		Name:     "name1",
 		Type:     influxdb.PrometheusScraperType,
-		OrgID:    MustIDBase16(orgOneID),
-		BucketID: MustIDBase16(bucketOneID),
+		OrgID:    idOne,
+		BucketID: idOne,
 		URL:      "url1",
 		ID:       MustIDBase16(targetOneID),
 	}
 	target2 = influxdb.ScraperTarget{
 		Name:     "name2",
 		Type:     influxdb.PrometheusScraperType,
-		OrgID:    MustIDBase16(orgTwoID),
-		BucketID: MustIDBase16(bucketTwoID),
+		OrgID:    idTwo,
+		BucketID: idTwo,
 		URL:      "url2",
 		ID:       MustIDBase16(targetTwoID),
 	}
 	target3 = influxdb.ScraperTarget{
 		Name:     "name3",
 		Type:     influxdb.PrometheusScraperType,
-		OrgID:    MustIDBase16(orgOneID),
-		BucketID: MustIDBase16(bucketThreeID),
+		OrgID:    idOne,
+		BucketID: idThree,
 		URL:      "url3",
 		ID:       MustIDBase16(targetThreeID),
 	}
 	org1 = influxdb.Organization{
-		ID:   MustIDBase16(orgOneID),
+		ID:   idOne,
 		Name: "org1",
 	}
 	org2 = influxdb.Organization{
-		ID:   MustIDBase16(orgTwoID),
+		ID:   idTwo,
 		Name: "org2",
 	}
 )
@@ -147,8 +147,8 @@ func AddTarget(
 				target: &influxdb.ScraperTarget{
 					Name:     "name1",
 					Type:     influxdb.PrometheusScraperType,
-					OrgID:    MustIDBase16(orgOneID),
-					BucketID: MustIDBase16(bucketOneID),
+					OrgID:    idOne,
+					BucketID: idOne,
 					URL:      "url1",
 				},
 			},
@@ -165,8 +165,8 @@ func AddTarget(
 					{
 						Name:     "name1",
 						Type:     influxdb.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
 					},
@@ -183,8 +183,8 @@ func AddTarget(
 					{
 						Name:     "name1",
 						Type:     influxdb.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
 					},
@@ -195,7 +195,7 @@ func AddTarget(
 					ID:       MustIDBase16(targetTwoID),
 					Name:     "name2",
 					Type:     influxdb.PrometheusScraperType,
-					BucketID: MustIDBase16(bucketTwoID),
+					BucketID: idTwo,
 					URL:      "url2",
 				},
 			},
@@ -210,8 +210,8 @@ func AddTarget(
 					{
 						Name:     "name1",
 						Type:     influxdb.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
 					},
@@ -228,8 +228,8 @@ func AddTarget(
 					{
 						Name:     "name1",
 						Type:     influxdb.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
 					},
@@ -240,7 +240,7 @@ func AddTarget(
 					ID:    MustIDBase16(targetTwoID),
 					Name:  "name2",
 					Type:  influxdb.PrometheusScraperType,
-					OrgID: MustIDBase16(orgTwoID),
+					OrgID: idTwo,
 					URL:   "url2",
 				},
 			},
@@ -255,8 +255,8 @@ func AddTarget(
 					{
 						Name:     "name1",
 						Type:     influxdb.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
 					},
@@ -271,8 +271,8 @@ func AddTarget(
 					{
 						Name:     "name1",
 						Type:     influxdb.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
 					},
@@ -293,8 +293,8 @@ func AddTarget(
 					ID:       MustIDBase16(targetTwoID),
 					Name:     "name2",
 					Type:     influxdb.PrometheusScraperType,
-					OrgID:    MustIDBase16(orgTwoID),
-					BucketID: MustIDBase16(bucketTwoID),
+					OrgID:    idTwo,
+					BucketID: idTwo,
 					URL:      "url2",
 				},
 			},
@@ -317,16 +317,16 @@ func AddTarget(
 					{
 						Name:     "name1",
 						Type:     influxdb.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
 					},
 					{
 						Name:     "name2",
 						Type:     influxdb.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgTwoID),
-						BucketID: MustIDBase16(bucketTwoID),
+						OrgID:    idTwo,
+						BucketID: idTwo,
 						URL:      "url2",
 						ID:       MustIDBase16(targetTwoID),
 					},
@@ -471,7 +471,7 @@ func ListTargets(
 			},
 			args: args{
 				filter: influxdb.ScraperTargetFilter{
-					OrgID: idPtr(MustIDBase16(orgOneID)),
+					OrgID: idPtr(idOne),
 				},
 			},
 			wants: wants{
@@ -495,7 +495,7 @@ func ListTargets(
 			},
 			args: args{
 				filter: influxdb.ScraperTargetFilter{
-					OrgID: idPtr(MustIDBase16(orgOneID)),
+					OrgID: idPtr(idOne),
 				},
 			},
 			wants: wants{
@@ -600,14 +600,14 @@ func GetTargetByID(
 					{
 						ID:       MustIDBase16(targetOneID),
 						Name:     "target1",
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 					{
 						ID:       MustIDBase16(targetTwoID),
 						Name:     "target2",
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 				},
 			},
@@ -618,8 +618,8 @@ func GetTargetByID(
 				target: &influxdb.ScraperTarget{
 					ID:       MustIDBase16(targetTwoID),
 					Name:     "target2",
-					OrgID:    MustIDBase16(orgOneID),
-					BucketID: MustIDBase16(bucketOneID),
+					OrgID:    idOne,
+					BucketID: idOne,
 				},
 			},
 		},
@@ -630,14 +630,14 @@ func GetTargetByID(
 					{
 						ID:       MustIDBase16(targetOneID),
 						Name:     "target1",
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 					{
 						ID:       MustIDBase16(targetTwoID),
 						Name:     "target2",
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 				},
 			},
@@ -709,13 +709,13 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 					{
 						ID:       MustIDBase16(targetTwoID),
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 				},
 			},
@@ -735,8 +735,8 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 				targets: []influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetTwoID),
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 				},
 			},
@@ -762,13 +762,13 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 					{
 						ID:       MustIDBase16(targetTwoID),
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 				},
 			},
@@ -785,13 +785,13 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 				targets: []influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 					{
 						ID:       MustIDBase16(targetTwoID),
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 				},
 				userResourceMappings: []*influxdb.UserResourceMapping{
@@ -869,14 +869,14 @@ func UpdateTarget(
 					{
 						ID:       MustIDBase16(targetOneID),
 						URL:      "url1",
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 					{
 						ID:       MustIDBase16(targetTwoID),
 						URL:      "url2",
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 				},
 			},
@@ -899,14 +899,14 @@ func UpdateTarget(
 					{
 						ID:       MustIDBase16(targetOneID),
 						URL:      "url1",
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 					{
 						ID:       MustIDBase16(targetTwoID),
 						URL:      "url2",
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 				},
 			},
@@ -930,14 +930,14 @@ func UpdateTarget(
 					{
 						ID:       MustIDBase16(targetOneID),
 						URL:      "url1",
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 					{
 						ID:       MustIDBase16(targetTwoID),
 						URL:      "url2",
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
+						OrgID:    idOne,
+						BucketID: idOne,
 					},
 				},
 			},
@@ -949,8 +949,8 @@ func UpdateTarget(
 				target: &influxdb.ScraperTarget{
 					ID:       MustIDBase16(targetOneID),
 					URL:      "changed",
-					OrgID:    MustIDBase16(orgOneID),
-					BucketID: MustIDBase16(bucketOneID),
+					OrgID:    idOne,
+					BucketID: idOne,
 				},
 			},
 		},

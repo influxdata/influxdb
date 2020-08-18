@@ -67,26 +67,6 @@ func OnboardInitialUser(
 			},
 		},
 		{
-			name: "missing password",
-			fields: OnboardingFields{
-				IDGenerator: &loopIDGenerator{
-					s: []string{oneID, twoID, threeID, fourID},
-				},
-				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
-				IsOnboarding:   true,
-			},
-			args: args{
-				request: &platform.OnboardingRequest{
-					User:   "admin",
-					Org:    "org1",
-					Bucket: "bucket1",
-				},
-			},
-			wants: wants{
-				errCode: platform.EEmptyValue,
-			},
-		},
-		{
 			name: "missing username",
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{
@@ -141,6 +121,63 @@ func OnboardInitialUser(
 			},
 			wants: wants{
 				errCode: platform.EEmptyValue,
+			},
+		},
+		{
+			name: "missing password should still work",
+			fields: OnboardingFields{
+				IDGenerator: &loopIDGenerator{
+					s: []string{oneID, twoID, threeID, fourID},
+				},
+				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
+				IsOnboarding:   true,
+			},
+			args: args{
+				request: &platform.OnboardingRequest{
+					User:   "admin",
+					Org:    "org1",
+					Bucket: "bucket1",
+				},
+			},
+			wants: wants{
+				results: &platform.OnboardingResults{
+					User: &platform.User{
+						ID:     MustIDBase16(oneID),
+						Name:   "admin",
+						Status: platform.Active,
+					},
+					Org: &platform.Organization{
+						ID:   MustIDBase16(twoID),
+						Name: "org1",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
+					},
+					Bucket: &platform.Bucket{
+						ID:              MustIDBase16(threeID),
+						Name:            "bucket1",
+						OrgID:           MustIDBase16(twoID),
+						RetentionPeriod: 0,
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
+					},
+					Auth: &platform.Authorization{
+						ID:          MustIDBase16(fourID),
+						Token:       oneToken,
+						Status:      platform.Active,
+						UserID:      MustIDBase16(oneID),
+						Description: "admin's Token",
+						OrgID:       MustIDBase16(twoID),
+						Permissions: platform.OperPermissions(),
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
+					},
+				},
 			},
 		},
 		{

@@ -98,6 +98,10 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"join":      "unbounded test",
 		"alignTime": "unbounded test",
 	},
+	"experimental/array": {
+		"from":       "test not meant to be consumed by influxdb",
+		"from_group": "test not meant to be consumed by influxdb",
+	},
 	"experimental/geo": {
 		"filterRowsNotStrict": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
 		"filterRowsStrict":    "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
@@ -155,41 +159,11 @@ type PerTestFeatureFlagMap = map[string]map[string]map[string]string
 
 var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{
 	"planner": {
-		"window_count_push": {
-			"pushDownWindowAggregateCount": "true",
-		},
-		"window_sum_push": {
-			"pushDownWindowAggregateSum": "true",
-		},
-		"bare_count_push": {
-			"pushDownWindowAggregateCount": "true",
-		},
-		"bare_sum_push": {
-			"pushDownWindowAggregateSum": "true",
-		},
 		"bare_mean_push": {
 			"pushDownWindowAggregateMean": "true",
 		},
 		"window_mean_push": {
 			"pushDownWindowAggregateMean": "true",
-		},
-		"bare_min_push": {
-			"pushDownWindowAggregateMin": "true",
-		},
-		"window_min_push": {
-			"pushDownWindowAggregateMin": "true",
-		},
-		"aggregate_window_min_push": {
-			"pushDownWindowAggregateMin": "true",
-		},
-		"bare_max_push": {
-			"pushDownWindowAggregateMax": "true",
-		},
-		"window_max_push": {
-			"pushDownWindowAggregateMax": "true",
-		},
-		"aggregate_window_max_push": {
-			"pushDownWindowAggregateMax": "true",
 		},
 		"merge_filters": {
 			"mergeFilterRule": "true",

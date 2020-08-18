@@ -68,9 +68,11 @@ func (b *cmdDeleteBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdDeleteBuilder) fluxDeleteF(cmd *cobra.Command, args []string) error {
+	ac := b.globalFlags.config()
+
 	org := b.flags.Org
 	if org == "" {
-		org = b.globalFlags.Org
+		org = ac.Org
 	}
 	if org == "" && b.flags.OrgID == "" {
 		return fmt.Errorf("please specify one of org or org-id")
@@ -85,8 +87,8 @@ func (b *cmdDeleteBuilder) fluxDeleteF(cmd *cobra.Command, args []string) error 
 	}
 
 	s := &http.DeleteService{
-		Addr:               flags.Host,
-		Token:              flags.Token,
+		Addr:               ac.Host,
+		Token:              ac.Token,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 

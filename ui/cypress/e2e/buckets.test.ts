@@ -40,6 +40,8 @@ describe('Buckets', () => {
       const labelName = 'l1'
       cy.getByTestID('inline-labels--popover--contents').type(labelName)
       cy.getByTestID('inline-labels--create-new').click()
+      // Wait for animation to complete
+      cy.wait(500)
       cy.getByTestID('create-label-form--submit').click()
 
       // Delete the label
@@ -278,8 +280,8 @@ describe('Buckets', () => {
     })
   })
 
-  describe('add data', () => {
-    it('writing data to buckets', () => {
+  describe('add data', function() {
+    it('can write data to buckets', () => {
       cy.get('@org').then(({id: orgID}: Organization) => {
         // writing a well-formed line is accepted
         cy.getByTestID('add-data--button').click()
@@ -293,31 +295,97 @@ describe('Buckets', () => {
 
         cy.getByTestID('bucket-add-line-protocol').click()
         cy.getByTestID('Enter Manually').click()
+        cy.getByTestID('lp-write-data--button').should('be.disabled')
         cy.getByTestID('line-protocol--text-area').type('m1,t1=v1 v=1.0')
-        cy.getByTestID('next').click()
-        cy.getByTestID('line-protocol--status').should('have.class', 'success')
-        cy.getByTestID('next').click()
+        cy.getByTestID('lp-write-data--button').click()
+        cy.getByTestID('line-protocol--status').contains('Success')
+        cy.getByTestID('lp-close--button').click()
 
         // writing a poorly-formed line errors
         cy.getByTestID('add-data--button').click()
         cy.getByTestID('bucket-add-line-protocol').click()
         cy.getByTestID('Enter Manually').click()
         cy.getByTestID('line-protocol--text-area').type('invalid invalid')
-        cy.getByTestID('next').click()
-        cy.getByTestID('line-protocol--status').should('have.class', 'error')
-        cy.getByTestID('next').click()
+        cy.getByTestID('lp-write-data--button').click()
+        cy.getByTestID('line-protocol--status').contains('Unable')
+        cy.getByTestID('lp-cancel--button').click()
 
         // writing a well-formed line with millisecond precision is accepted
-        cy.getByTestID('add-data--button').click()
-        cy.getByTestID('bucket-add-line-protocol').click()
-        cy.getByTestID('Enter Manually').click()
         cy.getByTestID('wizard-step--lp-precision--dropdown').click()
         cy.getByTestID('wizard-step--lp-precision-ms').click()
         const now = Date.now()
         cy.getByTestID('line-protocol--text-area').type(`m2,t2=v2 v=2.0 ${now}`)
-        cy.getByTestID('next').click()
-        cy.getByTestID('line-protocol--status').should('have.class', 'success')
-        cy.getByTestID('next').click()
+        cy.getByTestID('lp-write-data--button').click()
+        cy.getByTestID('line-protocol--status').contains('Success')
+      })
+    })
+
+    it('upload a file and write data', () => {
+      cy.getByTestID('add-data--button').click()
+      cy.getByTestID('bucket-add-line-protocol').click()
+      cy.getByTestID('Upload File').click()
+
+      // When a file is larger than 10MB
+      const bigFile = 'data-big.txt'
+      const type = 'plain/text'
+      const testFile = new File(
+        ['a'.repeat(1e7) + 'just a bit over 10mb'],
+        bigFile,
+        {type}
+      )
+      const event = {dataTransfer: {files: [testFile]}, force: true}
+      cy.getByTestID('drag-and-drop--input')
+        .trigger('dragover', event)
+        .trigger('drop', event)
+
+      cy.getByTestID('dnd--header-error').contains(bigFile)
+      cy.getByTestID('cancel-upload--button').click()
+
+      cy.getByTestID('wizard-step--lp-precision--dropdown').click()
+      cy.getByTestID('wizard-step--lp-precision-ms').click()
+      cy.getByTestID('wizard-step--lp-precision--dropdown').contains(
+        'Milliseconds'
+      )
+
+      // When a file is the correct size
+      const smallFile = 'data.txt'
+      cy.fixture(smallFile, 'base64')
+        .then(Cypress.Blob.base64StringToBlob)
+        .then(blob => {
+          const type = 'plain/text'
+          const testFile = new File([blob], smallFile, {type})
+          const event = {dataTransfer: {files: [testFile]}, force: true}
+          cy.getByTestID('drag-and-drop--input')
+            .trigger('dragover', event)
+            .trigger('drop', event)
+        })
+
+      cy.getByTestID('write-data--button').click()
+      cy.getByTestID('lp-close--button').click()
+
+      // navigate to data explorer to see data
+      cy.getByTestID('nav-item-data-explorer').click({force: true})
+      cy.getByTestID('timerange-dropdown').click()
+      cy.getByTestID('dropdown-item-customtimerange').click()
+
+      // time range start
+      cy.getByTestID('timerange--input')
+        .first()
+        .clear()
+        .type('2020-08-06 00:00:00.000')
+
+      // time range stop
+      cy.getByTestID('timerange--input')
+        .last()
+        .clear()
+        .type('2020-08-08 00:00:00.000')
+
+      cy.getByTestID('daterange--apply-btn').click()
+
+      cy.fixture('user.json').then(({bucket}) => {
+        cy.getByTestID(`selector-list ${bucket}`).click()
+        // mymeasurement comes from fixtures/data.txt
+        cy.getByTestID('selector-list mymeasurement').should('exist')
       })
     })
   })

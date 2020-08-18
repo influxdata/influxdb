@@ -31,7 +31,8 @@ func initOnboardingService(s kv.SchemaStore, f influxdbtesting.OnboardingFields,
 	ctx := context.Background()
 	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.IDGenerator = f.IDGenerator
-	svc.OrgBucketIDs = f.IDGenerator
+	svc.OrgIDs = f.IDGenerator
+	svc.BucketIDs = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {

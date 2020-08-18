@@ -71,6 +71,7 @@ class DragAndDrop extends PureComponent<Props, State> {
           <div className={this.infoClass} />
           <input
             type="file"
+            data-testid="drag-and-drop--input"
             ref={r => (this.fileInput = r)}
             className="drag-and-drop--input"
             accept={this.fileTypesToAccept}
@@ -183,7 +184,7 @@ class DragAndDrop extends PureComponent<Props, State> {
   }
 
   private handleFileClick = (e: any): void => {
-    const file = e.currentTarget.files[0]
+    const file: File = e.currentTarget.files[0]
 
     if (!file) {
       return

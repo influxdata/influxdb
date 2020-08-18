@@ -32,7 +32,11 @@ import {getVariables, hydrateVariables} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 import {setCells, Action as CellAction} from 'src/cells/actions/creators'
-import {setViews, Action as ViewAction} from 'src/views/actions/creators'
+import {
+  setViewsAndCells,
+  setViews,
+  Action as ViewAction,
+} from 'src/views/actions/creators'
 import {updateViewAndVariables} from 'src/views/actions/thunks'
 import {setLabelOnResource} from 'src/labels/actions/creators'
 import * as creators from 'src/dashboards/actions/creators'
@@ -238,15 +242,18 @@ export const getDashboards = () => async (
       return
     }
 
-    Object.values(dashboards.entities.dashboards)
-      .map(dashboard => {
-        return {
-          id: dashboard.id,
-          cells: dashboard.cells.map(cell => dashboards.entities.cells[cell]),
-        }
-      })
-      .forEach(entity => {
-        setTimeout(() => {
+    const normalizedCellsArray = []
+    const normalizedViewsArray = []
+
+    setTimeout(() => {
+      Object.values(dashboards.entities.dashboards)
+        .map(dashboard => {
+          return {
+            id: dashboard.id,
+            cells: dashboard.cells.map(cell => dashboards.entities.cells[cell]),
+          }
+        })
+        .forEach(entity => {
           const viewsData = viewsFromCells(entity.cells, entity.id)
 
           const normViews = normalize<View, ViewEntities, string[]>(
@@ -254,18 +261,23 @@ export const getDashboards = () => async (
             arrayOfViews
           )
 
-          dispatch(setViews(RemoteDataState.Done, normViews))
-        }, 0)
+          normalizedViewsArray.push(normViews)
 
-        setTimeout(() => {
           const normCells = normalize<Dashboard, DashboardEntities, string[]>(
             entity.cells,
             arrayOfCells
           )
 
-          dispatch(setCells(entity.id, RemoteDataState.Done, normCells))
-        }, 0)
-      })
+          normalizedCellsArray.push(normCells)
+        })
+      dispatch(
+        setViewsAndCells(
+          RemoteDataState.Done,
+          normalizedCellsArray,
+          normalizedViewsArray
+        )
+      )
+    }, 0)
   } catch (error) {
     dispatch(creators.setDashboards(RemoteDataState.Error))
     console.error(error)

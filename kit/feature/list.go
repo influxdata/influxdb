@@ -58,62 +58,6 @@ func FrontendExample() IntFlag {
 	return frontendExample
 }
 
-var pushDownWindowAggregateCount = MakeBoolFlag(
-	"Push Down Window Aggregate Count",
-	"pushDownWindowAggregateCount",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateCount - Enable Count variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateCount() BoolFlag {
-	return pushDownWindowAggregateCount
-}
-
-var pushDownWindowAggregateSum = MakeBoolFlag(
-	"Push Down Window Aggregate Sum",
-	"pushDownWindowAggregateSum",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateSum - Enable Sum variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateSum() BoolFlag {
-	return pushDownWindowAggregateSum
-}
-
-var pushDownWindowAggregateMin = MakeBoolFlag(
-	"Push Down Window Aggregate Min",
-	"pushDownWindowAggregateMin",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateMin - Enable Min variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateMin() BoolFlag {
-	return pushDownWindowAggregateMin
-}
-
-var pushDownWindowAggregateMax = MakeBoolFlag(
-	"Push Down Window Aggregate Max",
-	"pushDownWindowAggregateMax",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateMax - Enable Max variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateMax() BoolFlag {
-	return pushDownWindowAggregateMax
-}
-
 var pushDownWindowAggregateMean = MakeBoolFlag(
 	"Push Down Window Aggregate Mean",
 	"pushDownWindowAggregateMean",
@@ -268,6 +212,20 @@ func MergedFiltersRule() BoolFlag {
 	return mergeFiltersRule
 }
 
+var mosaicGraphType = MakeBoolFlag(
+	"Mosaic Graph Type",
+	"mosaicGraphType",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// MosaicGraphType - Enables the creation of a mosaic graph in Dashboards
+func MosaicGraphType() BoolFlag {
+	return mosaicGraphType
+}
+
 var notebooks = MakeBoolFlag(
 	"Notebooks",
 	"notebooks",
@@ -296,15 +254,25 @@ func PushDownGroupAggregateMinMax() BoolFlag {
 	return pushDownGroupAggregateMinMax
 }
 
+var orgOnlyMemberList = MakeBoolFlag(
+	"Org Only Member list",
+	"orgOnlyMemberList",
+	"Compute Team",
+	false,
+	Temporary,
+	false,
+)
+
+// OrgOnlyMemberList - Enforce only org members have access to view members of org related resorces
+func OrgOnlyMemberList() BoolFlag {
+	return orgOnlyMemberList
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
 	communityTemplates,
 	frontendExample,
-	pushDownWindowAggregateCount,
-	pushDownWindowAggregateSum,
-	pushDownWindowAggregateMin,
-	pushDownWindowAggregateMax,
 	pushDownWindowAggregateMean,
 	groupWindowAggregateTranspose,
 	newAuth,
@@ -316,8 +284,10 @@ var all = []Flag{
 	simpleTaskOptionsExtraction,
 	useUserPermission,
 	mergeFiltersRule,
+	mosaicGraphType,
 	notebooks,
 	pushDownGroupAggregateMinMax,
+	orgOnlyMemberList,
 }
 
 var byKey = map[string]Flag{
@@ -325,10 +295,6 @@ var byKey = map[string]Flag{
 	"backendExample":                backendExample,
 	"communityTemplates":            communityTemplates,
 	"frontendExample":               frontendExample,
-	"pushDownWindowAggregateCount":  pushDownWindowAggregateCount,
-	"pushDownWindowAggregateSum":    pushDownWindowAggregateSum,
-	"pushDownWindowAggregateMin":    pushDownWindowAggregateMin,
-	"pushDownWindowAggregateMax":    pushDownWindowAggregateMax,
 	"pushDownWindowAggregateMean":   pushDownWindowAggregateMean,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newAuth":                       newAuth,
@@ -340,6 +306,8 @@ var byKey = map[string]Flag{
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"useUserPermission":             useUserPermission,
 	"mergeFiltersRule":              mergeFiltersRule,
+	"mosaicGraphType":               mosaicGraphType,
 	"notebooks":                     notebooks,
 	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
+	"orgOnlyMemberList":             orgOnlyMemberList,
 }

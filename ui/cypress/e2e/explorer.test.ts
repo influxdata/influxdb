@@ -690,17 +690,23 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list max').click()
+        cy.getByTestID('selector-list last').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
         // cycle through all the visualizations of the data
         VIS_TYPES.forEach(({type}) => {
-          cy.getByTestID('view-type--dropdown').click()
-          cy.getByTestID(`view-type--${type}`).click()
-          cy.getByTestID(`vis-graphic--${type}`).should('exist')
-          if (type.includes('single-stat')) {
-            cy.getByTestID('single-stat--text').should('contain', `${numLines}`)
+          if (type != 'mosaic') {
+            //mosaic graph is behind feature flag
+            cy.getByTestID('view-type--dropdown').click()
+            cy.getByTestID(`view-type--${type}`).click()
+            cy.getByTestID(`vis-graphic--${type}`).should('exist')
+            if (type.includes('single-stat')) {
+              cy.getByTestID('single-stat--text').should(
+                'contain',
+                `${numLines}`
+              )
+            }
           }
         })
 
@@ -794,7 +800,8 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list sort').click()
+        cy.getByTestID(`custom-function`).click()
+        cy.getByTestID('selector-list sort').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
@@ -842,7 +849,8 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list sort').click()
+        cy.getByTestID(`custom-function`).click()
+        cy.getByTestID('selector-list sort').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
@@ -873,7 +881,8 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list sort').click()
+        cy.getByTestID(`custom-function`).click()
+        cy.getByTestID('selector-list sort').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 

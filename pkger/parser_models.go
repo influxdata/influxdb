@@ -432,6 +432,7 @@ const (
 	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
 	chartKindTable              chartKind = "table"
 	chartKindXY                 chartKind = "xy"
+	chartKindBand               chartKind = "band"
 )
 
 func (c chartKind) ok() bool {
@@ -439,7 +440,7 @@ func (c chartKind) ok() bool {
 	case chartKindGauge, chartKindHeatMap, chartKindHistogram,
 		chartKindMarkdown, chartKindMosaic, chartKindScatter,
 		chartKindSingleStat, chartKindSingleStatPlusLine, chartKindTable,
-		chartKindXY:
+		chartKindXY, chartKindBand:
 		return true
 	default:
 		return false
@@ -507,12 +508,12 @@ func (d *dashboard) summarize() SummaryDashboard {
 				parts := strings.Split(ref.EnvRef, ".")
 				field := fmt.Sprintf("spec.charts[%d].queries[%d].params.%s", chartIdx, qIdx, parts[len(parts)-1])
 				sum.EnvReferences = append(sum.EnvReferences, convertRefToRefSummary(field, ref))
-				sort.Slice(sum.EnvReferences, func(i, j int) bool {
-					return sum.EnvReferences[i].EnvRefKey < sum.EnvReferences[j].EnvRefKey
-				})
 			}
 		}
 	}
+	sort.Slice(sum.EnvReferences, func(i, j int) bool {
+		return sum.EnvReferences[i].EnvRefKey < sum.EnvReferences[j].EnvRefKey
+	})
 	return sum
 }
 
@@ -552,6 +553,8 @@ const (
 	fieldChartTickSuffix     = "tickSuffix"
 	fieldChartTimeFormat     = "timeFormat"
 	fieldChartYSeriesColumns = "ySeriesColumns"
+	fieldChartUpperColumn    = "upperColumn"
+	fieldChartLowerColumn    = "lowerColumn"
 	fieldChartWidth          = "width"
 	fieldChartXCol           = "xCol"
 	fieldChartXPos           = "xPos"
@@ -579,6 +582,8 @@ type chart struct {
 	Geom            string
 	YSeriesColumns  []string
 	XCol, YCol      string
+	UpperColumn     string
+	LowerColumn     string
 	XPos, YPos      int
 	Height, Width   int
 	BinSize         int
@@ -662,6 +667,23 @@ func (c *chart) properties() influxdb.ViewProperties {
 			YSuffix:           c.Axes.get("y").Suffix,
 			XAxisLabel:        c.Axes.get("x").Label,
 			YAxisLabel:        c.Axes.get("y").Label,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
+		}
+	case chartKindBand:
+		return influxdb.BandViewProperties{
+			Type:              influxdb.ViewPropertyTypeBand,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.influxViewColors(),
+			Legend:            c.Legend.influxLegend(),
+			HoverDimension:    c.HoverDimension,
+			XColumn:           c.XCol,
+			YColumn:           c.YCol,
+			UpperColumn:       c.UpperColumn,
+			LowerColumn:       c.LowerColumn,
+			Axes:              c.Axes.influxAxes(),
+			Geom:              c.Geom,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
 			TimeFormat:        c.TimeFormat,
@@ -1792,7 +1814,7 @@ type task struct {
 	description string
 	every       time.Duration
 	offset      time.Duration
-	query       string
+	query       query
 	status      string
 
 	labels sortedLabels
@@ -1819,24 +1841,37 @@ func (t *task) flux() string {
 		cron:     t.cron,
 		every:    t.every,
 		offset:   t.offset,
-		rawQuery: t.query,
+		rawQuery: t.query.DashboardQuery(),
 	}
 	return translator.flux()
 }
 
+func (t *task) refs() []*references {
+	return append(t.query.params, t.name, t.displayName)
+}
+
 func (t *task) summarize() SummaryTask {
+	refs := summarizeCommonReferences(t.identity, t.labels)
+	for _, ref := range t.query.params {
+		parts := strings.Split(ref.EnvRef, ".")
+		field := fmt.Sprintf("spec.params.%s", parts[len(parts)-1])
+		refs = append(refs, convertRefToRefSummary(field, ref))
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		return refs[i].EnvRefKey < refs[j].EnvRefKey
+	})
 	return SummaryTask{
 		SummaryIdentifier: SummaryIdentifier{
 			Kind:          KindTask,
 			MetaName:      t.MetaName(),
-			EnvReferences: summarizeCommonReferences(t.identity, t.labels),
+			EnvReferences: refs,
 		},
 		Name:        t.Name(),
 		Cron:        t.cron,
 		Description: t.description,
 		Every:       durToStr(t.every),
 		Offset:      durToStr(t.offset),
-		Query:       t.query,
+		Query:       t.query.DashboardQuery(),
 		Status:      t.Status(),
 
 		LabelAssociations: toSummaryLabels(t.labels...),
@@ -1861,7 +1896,7 @@ func (t *task) valid() []validationErr {
 		)
 	}
 
-	if t.query == "" {
+	if t.query.Query == "" {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldQuery,
 			Msg:   "must provide a non zero value",

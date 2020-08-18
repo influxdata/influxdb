@@ -13,9 +13,11 @@ import (
 )
 
 const (
-	bucketOneID   = "020f755c3c082000"
-	bucketTwoID   = "020f755c3c082001"
-	bucketThreeID = "9565493717473001"
+	idOne = influxdb.ID(iota + 1)
+	idTwo
+	idThree
+	idFour
+	idFive
 )
 
 var bucketCmpOptions = cmp.Options{
@@ -46,22 +48,11 @@ var bucketCmpOptions = cmp.Options{
 	}),
 }
 
-type BucketSvcOpts struct {
-	NoHooks bool
-}
-
-// WithoutHooks allows the test suite to be run without being able to hook into the underlying implementation of theservice
-// in most cases that is to remove specific id generation controls.
-func WithoutHooks() BucketSvcOpts {
-	return BucketSvcOpts{
-		NoHooks: true,
-	}
-}
-
 // BucketFields will include the IDGenerator, and buckets
 type BucketFields struct {
 	IDGenerator   influxdb.IDGenerator
-	OrgBucketIDs  influxdb.IDGenerator
+	OrgIDs        influxdb.IDGenerator
+	BucketIDs     influxdb.IDGenerator
 	TimeGenerator influxdb.TimeGenerator
 	Buckets       []*influxdb.Bucket
 	Organizations []*influxdb.Organization
@@ -75,8 +66,7 @@ type bucketServiceF func(
 // BucketService tests all the service functions.
 func BucketService(
 	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
-	t *testing.T,
-	opts ...BucketSvcOpts) {
+	t *testing.T) {
 	tests := []struct {
 		name string
 		fn   bucketServiceF
@@ -84,10 +74,6 @@ func BucketService(
 		{
 			name: "CreateBucket",
 			fn:   CreateBucket,
-		},
-		{
-			name: "IDUnique",
-			fn:   IDUnique,
 		},
 		{
 			name: "FindBucketByID",
@@ -110,12 +96,10 @@ func BucketService(
 			fn:   DeleteBucket,
 		},
 	}
+
 	for _, tt := range tests {
-		if tt.name == "IDUnique" && len(opts) > 0 && opts[0].NoHooks {
-			continue
-		}
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			tt := tt
 			t.Parallel()
 			tt.fn(init, t)
 		})
@@ -140,26 +124,26 @@ func CreateBucket(
 		fields BucketFields
 		args   args
 		wants  wants
-		skip   string
 	}{
 		{
 			name: "create buckets with empty set",
 			fields: BucketFields{
-				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(bucketOneID, t),
+				IDGenerator:   mock.NewStaticIDGenerator(idOne),
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Buckets:       []*influxdb.Bucket{},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 			},
 			args: args{
 				bucket: &influxdb.Bucket{
 					Name:        "name1",
-					OrgID:       MustIDBase16(orgOneID),
+					OrgID:       idOne,
 					Description: "desc1",
 				},
 			},
@@ -167,8 +151,8 @@ func CreateBucket(
 				buckets: []*influxdb.Bucket{
 					{
 						Name:        "name1",
-						ID:          MustIDBase16(bucketOneID),
-						OrgID:       MustIDBase16(orgOneID),
+						ID:          idOne,
+						OrgID:       idOne,
 						Description: "desc1",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -181,44 +165,45 @@ func CreateBucket(
 		{
 			name: "basic create bucket",
 			fields: BucketFields{
-				IDGenerator:   mock.NewIDGenerator(bucketTwoID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(bucketTwoID, t),
+				IDGenerator:   mock.NewStaticIDGenerator(idTwo),
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Buckets: []*influxdb.Bucket{
-					{
-						ID:    MustIDBase16(bucketOneID),
-						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
-					},
-				},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 					{
+						// ID(2)
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						Name:  "bucket1",
+						OrgID: idOne,
 					},
 				},
 			},
 			args: args{
 				bucket: &influxdb.Bucket{
 					Name:  "bucket2",
-					OrgID: MustIDBase16(orgTwoID),
+					OrgID: idTwo,
 				},
 			},
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
+						ID:    idOne,
 						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
+						ID:    idTwo,
 						Name:  "bucket2",
-						OrgID: MustIDBase16(orgTwoID),
+						OrgID: idTwo,
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -230,39 +215,40 @@ func CreateBucket(
 		{
 			name: "names should be unique within an organization",
 			fields: BucketFields{
-				IDGenerator:   mock.NewIDGenerator(bucketTwoID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(bucketTwoID, t),
+				IDGenerator:   mock.NewStaticIDGenerator(idTwo),
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Buckets: []*influxdb.Bucket{
-					{
-						ID:    MustIDBase16(bucketOneID),
-						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
-					},
-				},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 					{
+						// ID(2)
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						Name:  "bucket1",
+						OrgID: idOne,
 					},
 				},
 			},
 			args: args{
 				bucket: &influxdb.Bucket{
 					Name:  "bucket1",
-					OrgID: MustIDBase16(orgOneID),
+					OrgID: idOne,
 				},
 			},
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
+						ID:    idOne,
 						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
 					},
 				},
 				err: &influxdb.Error{
@@ -275,44 +261,47 @@ func CreateBucket(
 		{
 			name: "names should not be unique across organizations",
 			fields: BucketFields{
-				IDGenerator:   mock.NewIDGenerator(bucketTwoID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(bucketTwoID, t),
+				IDGenerator:   mock.NewStaticIDGenerator(idTwo),
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 					{
+						// ID(2)
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
+						// ID(1)
 						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
 					},
 				},
 			},
 			args: args{
 				bucket: &influxdb.Bucket{
 					Name:  "bucket1",
-					OrgID: MustIDBase16(orgTwoID),
+					OrgID: idTwo,
 				},
 			},
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
+						ID:    idOne,
 						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
+						// CRUDLog is missing because seed data is created through
+						// storage layer and not service layer (where CRUDLog is populated)
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
+						ID:    idTwo,
 						Name:  "bucket1",
-						OrgID: MustIDBase16(orgTwoID),
+						OrgID: idTwo,
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -320,13 +309,13 @@ func CreateBucket(
 					},
 				},
 			},
-			skip: "flaky test: https://github.com/influxdata/influxdb/issues/19109",
 		},
 		{
 			name: "create bucket with orgID not exist",
 			fields: BucketFields{
-				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(bucketOneID, t),
+				IDGenerator:   mock.NewStaticIDGenerator(idOne),
+				OrgIDs:        mock.NewStaticIDGenerator(idOne),
+				BucketIDs:     mock.NewStaticIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Buckets:       []*influxdb.Bucket{},
 				Organizations: []*influxdb.Organization{},
@@ -334,7 +323,7 @@ func CreateBucket(
 			args: args{
 				bucket: &influxdb.Bucket{
 					Name:  "name1",
-					OrgID: MustIDBase16(orgOneID),
+					OrgID: idOne,
 				},
 			},
 			wants: wants{
@@ -346,142 +335,32 @@ func CreateBucket(
 				},
 			},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.skip != "" {
-				t.Skip(tt.skip)
-			}
-
-			s, opPrefix, done := init(tt.fields, t)
-			defer done()
-			ctx := context.Background()
-			err := s.CreateBucket(ctx, tt.args.bucket)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
-
-			// Delete only newly created buckets - ie., with a not nil ID
-			// if tt.args.bucket.ID.Valid() {
-			defer s.DeleteBucket(ctx, tt.args.bucket.ID)
-			// }
-
-			buckets, _, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
-			if err != nil {
-				t.Fatalf("failed to retrieve buckets: %v", err)
-			}
-
-			// remove system buckets
-			filteredBuckets := []*influxdb.Bucket{}
-			for _, b := range buckets {
-				if b.Type != influxdb.BucketTypeSystem {
-					filteredBuckets = append(filteredBuckets, b)
-				}
-			}
-
-			if diff := cmp.Diff(filteredBuckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
-				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
-			}
-		})
-	}
-}
-
-// CreateBucket testing
-func IDUnique(
-	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
-	t *testing.T,
-) {
-	type args struct {
-		bucket *influxdb.Bucket
-	}
-	type wants struct {
-		err     error
-		buckets []*influxdb.Bucket
-	}
-
-	tests := []struct {
-		name   string
-		fields BucketFields
-		args   args
-		wants  wants
-	}{
 		{
-			name: "ids should be unique",
+			name: "create bucket with illegal quotation mark",
 			fields: BucketFields{
-				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(bucketOneID, t),
+				IDGenerator:   mock.NewStaticIDGenerator(idOne),
+				BucketIDs:     mock.NewStaticIDGenerator(idOne),
+				OrgIDs:        mock.NewStaticIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Buckets: []*influxdb.Bucket{
-					{
-						ID:    MustIDBase16(bucketOneID),
-						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
-					},
-				},
+				Buckets:       []*influxdb.Bucket{},
 				Organizations: []*influxdb.Organization{
 					{
-						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
+						Name: "org",
 					},
 				},
 			},
 			args: args{
 				bucket: &influxdb.Bucket{
-					ID:    MustIDBase16(bucketOneID),
-					Name:  "bucket2",
-					OrgID: MustIDBase16(orgOneID),
+					Name:  "namewith\"quote",
+					OrgID: idOne,
 				},
 			},
 			wants: wants{
-				buckets: []*influxdb.Bucket{
-					{
-						ID:    MustIDBase16(bucketOneID),
-						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
-					},
-				},
+				buckets: []*influxdb.Bucket{},
 				err: &influxdb.Error{
-					Code: influxdb.EInternal,
-					Msg:  "unable to generate valid id",
-				},
-			},
-		},
-		{
-			name: "reserved ids should not be created",
-			fields: BucketFields{
-				IDGenerator:   mock.NewIDGenerator("000000000000000a", t),
-				OrgBucketIDs:  mock.NewIDGenerator("000000000000000a", t),
-				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Buckets: []*influxdb.Bucket{
-					{
-						ID:    MustIDBase16(bucketOneID),
-						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
-					},
-				},
-				Organizations: []*influxdb.Organization{
-					{
-						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
-					},
-				},
-			},
-			args: args{
-				bucket: &influxdb.Bucket{
-					Name:  "bucket2",
-					OrgID: MustIDBase16(orgOneID),
-				},
-			},
-			wants: wants{
-				buckets: []*influxdb.Bucket{
-					{
-						ID:    MustIDBase16(bucketOneID),
-						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
-					},
-				},
-				err: &influxdb.Error{
-					Code: influxdb.EInternal,
-					Msg:  "unable to generate valid id",
+					Code: influxdb.EInvalid,
+					Op:   influxdb.OpCreateBucket,
+					Msg:  "bucket name namewith\"quote is invalid. Bucket names may not include quotation marks",
 				},
 			},
 		},
@@ -542,60 +421,65 @@ func FindBucketByID(
 		{
 			name: "basic find bucket by id",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+						ID:   idOne,
+					},
+				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "bucket1",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "bucket2",
-					},
-				},
-				Organizations: []*influxdb.Organization{
-					{
-						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 			},
 			args: args{
-				id: MustIDBase16(bucketTwoID),
+				id: idOne,
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:    MustIDBase16(bucketTwoID),
-					OrgID: MustIDBase16(orgOneID),
-					Name:  "bucket2",
+					ID:    idOne,
+					OrgID: idOne,
+					Name:  "bucket1",
 				},
 			},
 		},
 		{
 			name: "find bucket by id not exist",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "bucket1",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "bucket2",
-					},
-				},
-				Organizations: []*influxdb.Organization{
-					{
-						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 			},
 			args: args{
-				id: MustIDBase16(threeID),
+				id: idThree,
 			},
 			wants: wants{
 				err: &influxdb.Error{
@@ -649,25 +533,25 @@ func FindBuckets(
 		{
 			name: "find all buckets",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 					{
+						// ID(2)
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgTwoID),
+						OrgID: idTwo,
 						Name:  "xyz",
 					},
 				},
@@ -676,13 +560,13 @@ func FindBuckets(
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idOne,
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgTwoID),
+						ID:    idTwo,
+						OrgID: idTwo,
 						Name:  "xyz",
 					},
 				},
@@ -691,26 +575,28 @@ func FindBuckets(
 		{
 			name: "find all buckets by offset and limit",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "def",
 					},
 					{
-						ID:    MustIDBase16(bucketThreeID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(3)
+						OrgID: idOne,
 						Name:  "xyz",
 					},
 				},
@@ -724,8 +610,8 @@ func FindBuckets(
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idTwo,
+						OrgID: idOne,
 						Name:  "def",
 					},
 				},
@@ -734,26 +620,28 @@ func FindBuckets(
 		{
 			name: "find all buckets by descending",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "def",
 					},
 					{
-						ID:    MustIDBase16(bucketThreeID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(3)
+						OrgID: idOne,
 						Name:  "xyz",
 					},
 				},
@@ -767,13 +655,13 @@ func FindBuckets(
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idTwo,
+						OrgID: idOne,
 						Name:  "def",
 					},
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idOne,
+						OrgID: idOne,
 						Name:  "abc",
 					},
 				},
@@ -782,30 +670,32 @@ func FindBuckets(
 		{
 			name: "find buckets by organization name",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 					{
+						// ID(2)
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgTwoID),
+						// ID(2)
+						OrgID: idTwo,
 						Name:  "xyz",
 					},
 					{
-						ID:    MustIDBase16(bucketThreeID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(3)
+						OrgID: idOne,
 						Name:  "123",
 					},
 				},
@@ -816,13 +706,13 @@ func FindBuckets(
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idOne,
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketThreeID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idThree,
+						OrgID: idOne,
 						Name:  "123",
 					},
 				},
@@ -831,47 +721,49 @@ func FindBuckets(
 		{
 			name: "find buckets by organization id",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 					{
+						// ID(2)
 						Name: "otherorg",
-						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgTwoID),
+						// ID(2)
+						OrgID: idTwo,
 						Name:  "xyz",
 					},
 					{
-						ID:    MustIDBase16(bucketThreeID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(3)
+						OrgID: idOne,
 						Name:  "123",
 					},
 				},
 			},
 			args: args{
-				organizationID: MustIDBase16(orgOneID),
+				organizationID: idOne,
 			},
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idOne,
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketThreeID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idThree,
+						OrgID: idOne,
 						Name:  "123",
 					},
 				},
@@ -880,21 +772,23 @@ func FindBuckets(
 		{
 			name: "find bucket by name",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "xyz",
 					},
 				},
@@ -905,8 +799,8 @@ func FindBuckets(
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idTwo,
+						OrgID: idOne,
 						Name:  "xyz",
 					},
 				},
@@ -915,10 +809,12 @@ func FindBuckets(
 		{
 			name: "missing bucket returns no buckets",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{},
@@ -974,7 +870,7 @@ func DeleteBucket(
 	t *testing.T,
 ) {
 	type args struct {
-		ID string
+		ID influxdb.ID
 	}
 	type wants struct {
 		err     error
@@ -990,34 +886,36 @@ func DeleteBucket(
 		{
 			name: "delete buckets using exist id",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
+						// ID(1)
 						Name:  "A",
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
 					},
 					{
+						// ID(2)
 						Name:  "B",
-						ID:    MustIDBase16(bucketThreeID),
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
 					},
 				},
 			},
 			args: args{
-				ID: bucketOneID,
+				ID: idOne,
 			},
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
 						Name:  "B",
-						ID:    MustIDBase16(bucketThreeID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idTwo,
+						OrgID: idOne,
 					},
 				},
 			},
@@ -1025,27 +923,29 @@ func DeleteBucket(
 		{
 			name: "delete buckets using id that does not exist",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
+						// ID(1)
 						Name:  "A",
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
 					},
 					{
+						// ID(2)
 						Name:  "B",
-						ID:    MustIDBase16(bucketThreeID),
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
 					},
 				},
 			},
 			args: args{
-				ID: "1234567890654321",
+				ID: MustIDBase16("1234567890654321"),
 			},
 			wants: wants{
 				err: &influxdb.Error{
@@ -1056,13 +956,13 @@ func DeleteBucket(
 				buckets: []*influxdb.Bucket{
 					{
 						Name:  "A",
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idOne,
+						OrgID: idOne,
 					},
 					{
 						Name:  "B",
-						ID:    MustIDBase16(bucketThreeID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idTwo,
+						OrgID: idOne,
 					},
 				},
 			},
@@ -1070,23 +970,25 @@ func DeleteBucket(
 		{
 			name: "delete system buckets",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
+						// ID(1)
 						Name:  "A",
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						OrgID: idOne,
 						Type:  influxdb.BucketTypeSystem,
 					},
 				},
 			},
 			args: args{
-				ID: bucketOneID,
+				ID: idOne,
 			},
 			wants: wants{
 				err: &influxdb.Error{
@@ -1097,8 +999,8 @@ func DeleteBucket(
 				buckets: []*influxdb.Bucket{
 					{
 						Name:  "A",
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						ID:    idOne,
+						OrgID: idOne,
 						Type:  influxdb.BucketTypeSystem,
 					},
 				},
@@ -1111,7 +1013,7 @@ func DeleteBucket(
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			err := s.DeleteBucket(ctx, MustIDBase16(tt.args.ID))
+			err := s.DeleteBucket(ctx, tt.args.ID)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			filter := influxdb.BucketFilter{}
@@ -1160,33 +1062,35 @@ func FindBucket(
 		{
 			name: "find bucket by name",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "xyz",
 					},
 				},
 			},
 			args: args{
 				name:           "abc",
-				organizationID: MustIDBase16(orgOneID),
+				organizationID: idOne,
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:    MustIDBase16(bucketOneID),
-					OrgID: MustIDBase16(orgOneID),
+					ID:    idOne,
+					OrgID: idOne,
 					Name:  "abc",
 				},
 			},
@@ -1194,51 +1098,55 @@ func FindBucket(
 		{
 			name: "find bucket by id",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "abc",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "xyz",
 					},
 				},
 			},
 			args: args{
-				id:             MustIDBase16(bucketOneID),
-				organizationID: MustIDBase16(orgOneID),
+				id:             idTwo,
+				organizationID: idOne,
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:    MustIDBase16(bucketOneID),
-					OrgID: MustIDBase16(orgOneID),
-					Name:  "abc",
+					ID:    idTwo,
+					OrgID: idOne,
+					Name:  "xyz",
 				},
 			},
 		},
 		{
 			name: "missing bucket returns error",
 			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{},
 			},
 			args: args{
 				name:           "xyz",
-				organizationID: MustIDBase16(orgOneID),
+				organizationID: idOne,
 			},
 			wants: wants{
 				err: &influxdb.Error{
@@ -1301,34 +1209,36 @@ func UpdateBucket(
 		{
 			name: "update name",
 			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "bucket1",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "bucket2",
 					},
 				},
 			},
 			args: args{
-				id:   MustIDBase16(bucketOneID),
+				id:   idTwo,
 				name: "changed",
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:    MustIDBase16(bucketOneID),
-					OrgID: MustIDBase16(orgOneID),
+					ID:    idTwo,
+					OrgID: idOne,
 					Name:  "changed",
 					CRUDLog: influxdb.CRUDLog{
 						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -1339,28 +1249,30 @@ func UpdateBucket(
 		{
 			name: "update name unique",
 			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "bucket1",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "bucket2",
 					},
 				},
 			},
 			args: args{
-				id:   MustIDBase16(bucketOneID),
+				id:   idOne,
 				name: "bucket2",
 			},
 			wants: wants{
@@ -1373,24 +1285,26 @@ func UpdateBucket(
 		{
 			name: "update system bucket name",
 			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Type:  influxdb.BucketTypeSystem,
 						Name:  "bucket1",
 					},
 				},
 			},
 			args: args{
-				id:   MustIDBase16(bucketOneID),
+				id:   idOne,
 				name: "bucket2",
 			},
 			wants: wants{
@@ -1403,34 +1317,36 @@ func UpdateBucket(
 		{
 			name: "update retention",
 			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "bucket1",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "bucket2",
 					},
 				},
 			},
 			args: args{
-				id:        MustIDBase16(bucketOneID),
+				id:        idOne,
 				retention: 100,
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:              MustIDBase16(bucketOneID),
-					OrgID:           MustIDBase16(orgOneID),
+					ID:              idOne,
+					OrgID:           idOne,
 					Name:            "bucket1",
 					RetentionPeriod: 100 * time.Minute,
 					CRUDLog: influxdb.CRUDLog{
@@ -1442,34 +1358,36 @@ func UpdateBucket(
 		{
 			name: "update description",
 			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "bucket1",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "bucket2",
 					},
 				},
 			},
 			args: args{
-				id:          MustIDBase16(bucketOneID),
+				id:          idOne,
 				description: stringPtr("desc1"),
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:          MustIDBase16(bucketOneID),
-					OrgID:       MustIDBase16(orgOneID),
+					ID:          idOne,
+					OrgID:       idOne,
 					Name:        "bucket1",
 					Description: "desc1",
 					CRUDLog: influxdb.CRUDLog{
@@ -1481,35 +1399,37 @@ func UpdateBucket(
 		{
 			name: "update retention and name",
 			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "bucket1",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "bucket2",
 					},
 				},
 			},
 			args: args{
-				id:        MustIDBase16(bucketTwoID),
+				id:        idOne,
 				retention: 101,
 				name:      "changed",
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:              MustIDBase16(bucketTwoID),
-					OrgID:           MustIDBase16(orgOneID),
+					ID:              idOne,
+					OrgID:           idOne,
 					Name:            "changed",
 					RetentionPeriod: 101 * time.Minute,
 					CRUDLog: influxdb.CRUDLog{
@@ -1521,40 +1441,74 @@ func UpdateBucket(
 		{
 			name: "update retention and same name",
 			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
+						// ID(1)
 						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(1)
+						OrgID: idOne,
 						Name:  "bucket1",
 					},
 					{
-						ID:    MustIDBase16(bucketTwoID),
-						OrgID: MustIDBase16(orgOneID),
+						// ID(2)
+						OrgID: idOne,
 						Name:  "bucket2",
 					},
 				},
 			},
 			args: args{
-				id:        MustIDBase16(bucketTwoID),
+				id:        idTwo,
 				retention: 101,
 				name:      "bucket2",
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:              MustIDBase16(bucketTwoID),
-					OrgID:           MustIDBase16(orgOneID),
+					ID:              idTwo,
+					OrgID:           idOne,
 					Name:            "bucket2",
 					RetentionPeriod: 101 * time.Minute,
 					CRUDLog: influxdb.CRUDLog{
 						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 					},
+				},
+			},
+		},
+		{
+			name: "update bucket with illegal quotation mark",
+			fields: BucketFields{
+				OrgIDs:        mock.NewStaticIDGenerator(idOne),
+				BucketIDs:     mock.NewStaticIDGenerator(idOne),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "org",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						Name:  "valid name",
+						OrgID: idOne,
+					},
+				},
+			},
+			args: args{
+				id:   idOne,
+				name: "namewith\"quote",
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Code: influxdb.EInvalid,
+					Op:   influxdb.OpCreateBucket,
+					Msg:  "bucket name namewith\"quote is invalid. Bucket names may not include quotation marks",
 				},
 			},
 		},

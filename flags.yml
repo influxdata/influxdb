@@ -43,30 +43,6 @@
   contact: Gavin Cabbage
   expose: true
 
-- name: Push Down Window Aggregate Count
-  description: Enable Count variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateCount
-  default: false
-  contact: Query Team
-
-- name: Push Down Window Aggregate Sum
-  description: Enable Sum variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateSum
-  default: false
-  contact: Query Team
-
-- name: Push Down Window Aggregate Min
-  description: Enable Min variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateMin
-  default: false
-  contact: Query Team
-
-- name: Push Down Window Aggregate Max
-  description: Enable Max variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateMax
-  default: false
-  contact: Query Team
-
 - name: Push Down Window Aggregate Mean
   description: Enable Mean variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
   key: pushDownWindowAggregateMean
@@ -144,6 +120,14 @@
   contact: Query Team
   lifetime: temporary
 
+- name: Mosaic Graph Type
+  description: Enables the creation of a mosaic graph in Dashboards
+  key: mosaicGraphType
+  default: false
+  contact: Monitoring Team
+  expose: true
+  lifetime: temporary
+
 - name: Notebooks
   description: Determine if the notebook feature's route and navbar icon are visible to the user
   key: notebooks
@@ -157,3 +141,9 @@
   key: pushDownGroupAggregateMinMax
   default: false
   contact: Query Team
+
+- name: Org Only Member list
+  description: Enforce only org members have access to view members of org related resorces
+  key: orgOnlyMemberList
+  default: false
+  contact: Compute Team

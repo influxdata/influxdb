@@ -23,24 +23,40 @@ func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.Buck
 	}
 
 	store := tenant.NewStore(s)
-	svc := tenant.NewService(store)
+	if f.IDGenerator != nil {
+		store.IDGen = f.IDGenerator
+	}
+
+	if f.OrgIDs != nil {
+		store.OrgIDGen = f.OrgIDs
+	}
+
+	if f.BucketIDs != nil {
+		store.BucketIDGen = f.BucketIDs
+	}
 
 	ctx := context.Background()
-	for _, o := range f.Organizations {
-		// use storage create org in order to avoid creating system buckets
-		if err := s.Update(ctx, func(tx kv.Tx) error {
-			return store.CreateOrg(tx.Context(), tx, o)
-		}); err != nil {
-			t.Fatalf("failed to populate organizations: %s", err)
+
+	// go direct to storage for test data
+	if err := s.Update(ctx, func(tx kv.Tx) error {
+		for _, o := range f.Organizations {
+			if err := store.CreateOrg(tx.Context(), tx, o); err != nil {
+				return err
+			}
 		}
-	}
-	for _, b := range f.Buckets {
-		if err := svc.CreateBucket(ctx, b); err != nil {
-			t.Fatalf("failed to populate buckets")
+
+		for _, b := range f.Buckets {
+			if err := store.CreateBucket(tx.Context(), tx, b); err != nil {
+				return err
+			}
 		}
+
+		return nil
+	}); err != nil {
+		t.Fatalf("failed to seed data: %s", err)
 	}
 
-	handler := tenant.NewHTTPBucketHandler(zaptest.NewLogger(t), svc, nil, nil, nil)
+	handler := tenant.NewHTTPBucketHandler(zaptest.NewLogger(t), tenant.NewService(store), nil, nil, nil)
 	r := chi.NewRouter()
 	r.Mount(handler.Prefix(), handler)
 	server := httptest.NewServer(r)
@@ -59,6 +75,6 @@ func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.Buck
 	}
 }
 
-func TestBucketService(t *testing.T) {
-	itesting.BucketService(initBucketHttpService, t, itesting.WithoutHooks())
+func TestHTTPBucketService(t *testing.T) {
+	itesting.BucketService(initBucketHttpService, t)
 }

@@ -11,17 +11,26 @@ import {AppState, NotificationEndpoint, ResourceType} from 'src/types'
 
 // Utils
 import {getAll} from 'src/resources/selectors'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 interface StateProps {
   endpoints: NotificationEndpoint[]
 }
-type OwnProps = {}
+interface OwnProps {
+  tabIndex: number
+}
+
 type Props = OwnProps & RouteComponentProps<{orgID: string}> & StateProps
 
-const EndpointsColumn: FC<Props> = ({history, match, endpoints}) => {
+const EndpointsColumn: FC<Props> = ({history, match, endpoints, tabIndex}) => {
   const handleOpenOverlay = () => {
     const newRuleRoute = `/orgs/${match.params.orgID}/alerting/endpoints/new`
     history.push(newRuleRoute)
+  }
+
+  const conditionalEndpoints: Array<string> = []
+  if (isFlagEnabled('notification-endpoint-telegram')) {
+    conditionalEndpoints.push('Telegram')
   }
 
   const tooltipContents = (
@@ -30,7 +39,7 @@ const EndpointsColumn: FC<Props> = ({history, match, endpoints}) => {
       <br />
       to a third party service that can receive notifications
       <br />
-      like Slack, PagerDuty, or an HTTP server
+      like Slack, PagerDuty, {conditionalEndpoints.join(', ')}or an HTTP server
       <br />
       <br />
       <a
@@ -58,6 +67,7 @@ const EndpointsColumn: FC<Props> = ({history, match, endpoints}) => {
       title="Notification Endpoints"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
+      tabIndex={tabIndex}
     >
       {searchTerm => (
         <EndpointCards endpoints={endpoints} searchTerm={searchTerm} />

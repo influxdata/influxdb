@@ -2225,6 +2225,31 @@ func TestService(t *testing.T) {
 							},
 						},
 						{
+							name:    "band",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.BandViewProperties{
+									Type:              influxdb.ViewPropertyTypeBand,
+									Axes:              newAxes(),
+									Geom:              "step",
+									Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									HoverDimension:    "y",
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+									XColumn:           "x",
+									YColumn:           "y",
+									UpperColumn:       "upper",
+									LowerColumn:       "lower",
+									TimeFormat:        "",
+								},
+							},
+						},
+						{
 							name:    "markdown",
 							newName: "new name",
 							expectedView: influxdb.View{

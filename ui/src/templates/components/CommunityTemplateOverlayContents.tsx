@@ -20,10 +20,12 @@ import CommunityTemplateListGroup from 'src/templates/components/CommunityTempla
 import {toggleTemplateResourceInstall} from 'src/templates/actions/creators'
 import {getResourceInstallCount} from 'src/templates/selectors'
 
+import {event} from 'src/cloud/utils/reporting'
+
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps
 
-class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
+class CommunityTemplateOverlayContentsUnconnected extends PureComponent<Props> {
   render() {
     const {summary} = this.props
     if (!Object.keys(summary).length) {
@@ -51,6 +53,9 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
                 <CommunityTemplateListItem
                   shouldInstall={dashboard.shouldInstall}
                   handleToggle={() => {
+                    event('template_resource_uncheck', {
+                      templateResourceType: 'dashboards',
+                    })
                     this.props.toggleTemplateResourceInstall(
                       'dashboards',
                       dashboard.templateMetaName,
@@ -76,6 +81,9 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
                 <CommunityTemplateListItem
                   shouldInstall={telegrafConfig.shouldInstall}
                   handleToggle={() => {
+                    event('template_resource_uncheck', {
+                      templateResourceType: 'telegraf',
+                    })
                     this.props.toggleTemplateResourceInstall(
                       'telegrafConfigs',
                       telegrafConfig.templateMetaName,
@@ -100,6 +108,9 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
                   shouldDisableToggle={true}
                   shouldInstall={true}
                   handleToggle={() => {
+                    event('template_resource_uncheck', {
+                      templateResourceType: 'buckets',
+                    })
                     this.props.toggleTemplateResourceInstall(
                       'buckets',
                       bucket.templateMetaName,
@@ -123,6 +134,9 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
                 <CommunityTemplateListItem
                   shouldInstall={check.shouldInstall}
                   handleToggle={() => {
+                    event('template_resource_uncheck', {
+                      templateResourceType: 'checks',
+                    })
                     this.props.toggleTemplateResourceInstall(
                       'checks',
                       check.templateMetaName,
@@ -147,6 +161,9 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
                   shouldDisableToggle={true}
                   shouldInstall={true}
                   handleToggle={() => {
+                    event('template_resource_uncheck', {
+                      templateResourceType: 'variables',
+                    })
                     this.props.toggleTemplateResourceInstall(
                       'variables',
                       variable.templateMetaName,
@@ -172,6 +189,9 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
                 <CommunityTemplateListItem
                   shouldInstall={notificationRule.shouldInstall}
                   handleToggle={() => {
+                    event('template_resource_uncheck', {
+                      templateResourceType: 'notification rules',
+                    })
                     this.props.toggleTemplateResourceInstall(
                       'notificationRules',
                       notificationRule.templateMetaName,
@@ -195,6 +215,9 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
                 <CommunityTemplateListItem
                   shouldInstall={label.shouldInstall}
                   handleToggle={() => {
+                    event('template_resource_uncheck', {
+                      templateResourceType: 'labels',
+                    })
                     this.props.toggleTemplateResourceInstall(
                       'labels',
                       label.templateMetaName,
@@ -219,7 +242,7 @@ class CommunityTemplateContentsUnconnected extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  return {summary: state.resources.templates.communityTemplateToInstall.summary}
+  return {summary: state.resources.templates.stagedCommunityTemplate.summary}
 }
 
 const mdtp = {
@@ -228,6 +251,6 @@ const mdtp = {
 
 const connector = connect(mstp, mdtp)
 
-export const CommunityTemplateContents = connector(
-  CommunityTemplateContentsUnconnected
+export const CommunityTemplateOverlayContents = connector(
+  CommunityTemplateOverlayContentsUnconnected
 )

@@ -361,10 +361,7 @@ func (b *postBucketRequest) OK() error {
 
 	// names starting with an underscore are reserved for system buckets
 	if err := validBucketName(b.toInfluxDB()); err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
-			Msg:  err.Error(),
-		}
+		return err
 	}
 
 	return nil

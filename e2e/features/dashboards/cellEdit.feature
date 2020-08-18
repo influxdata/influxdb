@@ -219,35 +219,39 @@ Feature: Dashboards - Dashboard - Cell Edit
     # Then the time machine query builder function duration period is "auto"
     When click the tag "beat" in builder card "1"
     Then the time machine query builder function duration period is "auto (10s)"
+    When click the custom function group
     Then the query builder function list contains
   """
   mean, median, max, min, sum, derivative, nonnegative derivative, distinct, count, increase,
   skew, spread, stddev, first, last, unique, sort
   """
-    When filter the query builder function list with "rx"
-    Then the query builder function list has "0" items
-    When clear the query builder function lis filter
-    Then the query builder function list contains
-  """
-  mean, median, max, min, sum, derivative, nonnegative derivative, distinct, count, increase,
-  skew, spread, stddev, first, last, unique, sort
-  """
-    When filter the query builder function list with "in"
-    Then the query builder function list contains
-  """
-  min,distinct,increase
-  """
-    Then the query builder function list has "3" items
+     # 7.8.20 - filter feature no longer present
+#    When filter the query builder function list with "rx"
+#    Then the query builder function list has "0" items
+#    When clear the query builder function lis filter
+#    Then the query builder function list contains
+#  """
+#  mean, median, max, min, sum, derivative, nonnegative derivative, distinct, count, increase,
+#  skew, spread, stddev, first, last, unique, sort
+#  """
+#    When filter the query builder function list with "in"
+#    Then the query builder function list contains
+#  """
+#  min,distinct,increase
+#  """
+#    Then the query builder function list has "3" items
+    When click the time machine query builder function custom duration tab
     When click the time machine query builder function duration input
-    Then the query builder function duration suggestion drop down contains "14" suggestions
+    Then the query builder function duration suggestion drop down contains "12" suggestions
     Then the query builder function duration suggestion drop down includes
   """
-    auto (10s),none,5s,15s,1m,5m,15m,1h,6h,12h,24h,2d,7d,30d
+    5s,15s,1m,5m,15m,1h,6h,12h,24h,2d,7d,30d
   """
     When click the query builder function duration suggestion "7d"
     Then the time machine query builder function duration period is "7d"
     When click the time machine query builder function duration input
-    When click the query builder function duration suggestion "auto (10s)"
+    When click the time machine query builder function auto duration tab
+   # When click the query builder function duration suggestion "auto (10s)"
     Then the time machine query builder function duration period is "auto (10s)"
     When click dashboard cell edit cancel button
 
@@ -318,6 +322,7 @@ Feature: Dashboards - Dashboard - Cell Edit
     When click the tag "foo" in builder card "1"
     When click the tag "signal" in builder card "2"
     When click the query builder function "mean"
+    When click the time machine query builder function custom duration tab
     When click the time machine query builder function duration input
     When click the query builder function duration suggestion "1m"
     When click the time machine cell edit submit button
@@ -388,6 +393,8 @@ Feature: Dashboards - Dashboard - Cell Edit
     |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
     |> filter(fn: (r) => r["_measurement"] == "beat")
     |> filter(fn: (r) => r["_field"] == "pulse")
+    |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+    |> yield(name: "mean")
   """
     When change the time machine script editor contents to:
   """
@@ -424,8 +431,9 @@ Feature: Dashboards - Dashboard - Cell Edit
     When click the cell edit Query Builder confirm button
     Then the time machine query builder is visible
     # Issue 16731 todo - check how query is reflected in query builder state
-    Then the time machine preview canvas has changed
-    Then the time machine preview axes have changed
+    # 7.8.20 On change no longer changes canvas
+    #Then the time machine preview canvas has changed
+    #Then the time machine preview axes have changed
     When click dashboard cell edit cancel button
     Then the graph of the cell "Kliky" has not changed
 
@@ -477,14 +485,16 @@ Feature: Dashboards - Dashboard - Cell Edit
     When click the time machine cell edit submit button
     When get time machine preview canvas
     When get time machine preview axes
-    When click the time machine query builder function duration input
-    When click the query builder function duration suggestion "auto (10s)"
+    When click the time machine query builder function auto duration tab
+    #When click the time machine query builder function duration input
+    #When click the query builder function duration suggestion "auto (10s)"
     When click the query builder function "mean"
     When click the time machine cell edit submit button
     Then the time machine preview canvas has changed
     Then the time machine preview axes have changed
     When get time machine preview canvas
     When get time machine preview axes
+    When click the time machine query builder function custom duration tab
     When click the time machine query builder function duration input
     When click the query builder function duration suggestion "1m"
     When click the time machine cell edit submit button
@@ -492,6 +502,7 @@ Feature: Dashboards - Dashboard - Cell Edit
     Then the time machine preview axes have changed
     When get time machine preview canvas
     When get time machine preview axes
+    When click the custom function group
     When click the query builder function "mean"
     When click the query builder function "derivative"
     When click the time machine cell edit submit button
@@ -518,6 +529,8 @@ Feature: Dashboards - Dashboard - Cell Edit
     |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
     |> filter(fn: (r) => r["_measurement"] == "beat")
     |> filter(fn: (r) => r["_field"] == "pulse")
+    |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
+    |> yield(name: "mean")
   """
     Then the time machine query edit function categories are displayed:
   """
@@ -562,6 +575,8 @@ Feature: Dashboards - Dashboard - Cell Edit
     |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
     |> filter(fn: (r) => r["_measurement"] == "beat")
     |> filter(fn: (r) => r["_field"] == "pulse")
+    |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
+    |> yield(name: "mean")
   """
     When get time machine preview canvas
     When get time machine preview axes
@@ -574,6 +589,8 @@ Feature: Dashboards - Dashboard - Cell Edit
     |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
     |> filter(fn: (r) => r["_measurement"] == "beat")
     |> filter(fn: (r) => r["_field"] == "pulse")
+    |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
+    |> yield(name: "mean")
     |> aggregateWindow(every: v.windowPeriod, fn: mean)
   """
     # In CircleCi function popup can obscure the submit button

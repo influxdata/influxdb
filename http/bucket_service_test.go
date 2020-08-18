@@ -454,7 +454,7 @@ func TestService_handlePostBucket(t *testing.T) {
 				},
 			},
 			wants: wants{
-				statusCode: http.StatusUnprocessableEntity,
+				statusCode: http.StatusBadRequest,
 			},
 		},
 		{
@@ -1205,18 +1205,27 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (influxdb.B
 	store := NewTestInmemStore(t)
 	svc := kv.NewService(logger, store)
 	svc.IDGenerator = f.IDGenerator
-	svc.OrgBucketIDs = f.OrgBucketIDs
+	svc.OrgIDs = f.OrgIDs
+	svc.BucketIDs = f.BucketIDs
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
 
 	for _, o := range f.Organizations {
+		// PutOrgs no longer creates an ID
+		// that is what CreateOrganization does
+		// so we have to generate one
+		o.ID = svc.OrgIDs.ID()
 		if err := svc.PutOrganization(ctx, o); err != nil {
 			t.Fatalf("failed to populate organizations")
 		}
 	}
 	for _, b := range f.Buckets {
+		// PutBuckets no longer creates an ID
+		// that is what CreateBucket does
+		// so we have to generate one
+		b.ID = svc.BucketIDs.ID()
 		if err := svc.PutBucket(ctx, b); err != nil {
 			t.Fatalf("failed to populate buckets")
 		}

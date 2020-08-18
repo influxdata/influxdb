@@ -8,6 +8,10 @@ import {
   DEFAULT_THRESHOLDS_TABLE_COLORS,
 } from 'src/shared/constants/thresholds'
 import {DEFAULT_CHECK_EVERY} from 'src/alerting/constants'
+import {
+  DEFAULT_FILLVALUES,
+  AGG_WINDOW_AUTO,
+} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
 import {
@@ -22,6 +26,7 @@ import {
   HeatmapViewProperties,
   HistogramViewProperties,
   LinePlusSingleStatProperties,
+  MosaicViewProperties,
   MarkdownViewProperties,
   NewView,
   RemoteDataState,
@@ -53,8 +58,8 @@ export function defaultBuilderConfig(): BuilderConfig {
   return {
     buckets: [],
     tags: [{key: '_measurement', values: [], aggregateFunctionType: 'filter'}],
-    functions: [],
-    aggregateWindow: {period: 'auto'},
+    functions: [{name: 'mean'}],
+    aggregateWindow: {period: AGG_WINDOW_AUTO, fillValues: DEFAULT_FILLVALUES},
   }
 }
 
@@ -256,6 +261,28 @@ const NEW_VIEW_CREATORS = {
       ySuffix: '',
     },
   }),
+  mosaic: (): NewView<MosaicViewProperties> => ({
+    ...defaultView(),
+    properties: {
+      type: 'mosaic',
+      shape: 'chronograf-v2',
+      queries: [defaultViewQuery()],
+      colors: NINETEEN_EIGHTY_FOUR,
+      note: '',
+      showNoteWhenEmpty: false,
+      fillColumns: null,
+      xColumn: null,
+      xDomain: null,
+      ySeriesColumns: null,
+      yDomain: null,
+      xAxisLabel: '',
+      yAxisLabel: '',
+      xPrefix: '',
+      xSuffix: '',
+      yPrefix: '',
+      ySuffix: '',
+    },
+  }),
   threshold: (): NewView<CheckViewProperties> => ({
     ...defaultView('check'),
     properties: {
@@ -277,7 +304,10 @@ const NEW_VIEW_CREATORS = {
               },
             ],
             functions: [{name: 'mean'}],
-            aggregateWindow: {period: DEFAULT_CHECK_EVERY},
+            aggregateWindow: {
+              period: DEFAULT_CHECK_EVERY,
+              fillValues: DEFAULT_FILLVALUES,
+            },
           },
         },
       ],

@@ -687,7 +687,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 	// and check the feature flag associated with the aggregate function.
 	switch fnNode.Kind() {
 	case universe.MinKind:
-		if !feature.PushDownWindowAggregateMin().Enabled(ctx) || !caps.HaveMin() {
+		if !caps.HaveMin() {
 			return false
 		}
 		minSpec := fnNode.ProcedureSpec().(*universe.MinProcedureSpec)
@@ -695,7 +695,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 			return false
 		}
 	case universe.MaxKind:
-		if !feature.PushDownWindowAggregateMax().Enabled(ctx) || !caps.HaveMax() {
+		if !caps.HaveMax() {
 			return false
 		}
 		maxSpec := fnNode.ProcedureSpec().(*universe.MaxProcedureSpec)
@@ -711,7 +711,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 			return false
 		}
 	case universe.CountKind:
-		if !feature.PushDownWindowAggregateCount().Enabled(ctx) || !caps.HaveCount() {
+		if !caps.HaveCount() {
 			return false
 		}
 		countSpec := fnNode.ProcedureSpec().(*universe.CountProcedureSpec)
@@ -719,7 +719,7 @@ func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
 			return false
 		}
 	case universe.SumKind:
-		if !feature.PushDownWindowAggregateSum().Enabled(ctx) || !caps.HaveSum() {
+		if !caps.HaveSum() {
 			return false
 		}
 		sumSpec := fnNode.ProcedureSpec().(*universe.SumProcedureSpec)

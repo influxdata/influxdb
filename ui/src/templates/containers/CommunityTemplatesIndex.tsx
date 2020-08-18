@@ -22,16 +22,17 @@ import {
   Heading,
   HeadingElement,
   Input,
-  LinkButton,
-  LinkTarget,
   Page,
   Panel,
+  FlexDirection,
+  IconFont,
 } from '@influxdata/clockface'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 
 import {communityTemplatesImportPath} from 'src/templates/containers/TemplatesIndex'
 
+import GetResources from 'src/resources/components/GetResources'
 import {getOrg} from 'src/organizations/selectors'
 
 // Utils
@@ -44,7 +45,9 @@ import {reportError} from 'src/shared/utils/errors'
 
 import {communityTemplateUnsupportedFormatError} from 'src/shared/copy/notifications'
 // Types
-import {AppState} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
+
+import {event} from 'src/cloud/utils/reporting'
 
 const communityTemplatesUrl =
   'https://github.com/influxdata/community-templates#templates'
@@ -94,7 +97,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
           <SettingsTabbedPage activeTab="templates" orgID={org.id}>
             {/* todo: maybe make this not a div */}
             <div className="community-templates-upload">
-              <Panel className="community-templates-upload-panel">
+              <Panel className="community-templates-panel">
                 <Panel.SymbolHeader
                   symbol={<Bullet text={1} size={ComponentSize.Medium} />}
                   title={
@@ -104,12 +107,13 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                   }
                   size={ComponentSize.Small}
                 >
-                  <LinkButton
+                  <Button
                     color={ComponentColor.Primary}
-                    href={communityTemplatesUrl}
-                    size={ComponentSize.Small}
-                    target={LinkTarget.Blank}
+                    size={ComponentSize.Large}
+                    onClick={this.onClickBrowseCommunityTemplates}
                     text="Browse Community Templates"
+                    testID="browse-template-button"
+                    icon={IconFont.GitHub}
                   />
                 </Panel.SymbolHeader>
               </Panel>
@@ -121,26 +125,44 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                       Paste the Template's Github URL below
                     </Heading>
                   }
-                  size={ComponentSize.Medium}
+                  size={ComponentSize.Small}
                 />
-                <Panel.Body size={ComponentSize.Large}>
-                  <div>
-                    <Input
-                      className="community-templates-template-url"
-                      onChange={this.handleTemplateChange}
-                      placeholder="Enter the URL of an InfluxDB Template..."
-                      style={{width: '80%'}}
-                      value={this.state.templateUrl}
-                    />
-                    <Button
-                      onClick={this.startTemplateInstall}
-                      size={ComponentSize.Small}
-                      text="Lookup Template"
-                    />
-                  </div>
+                <Panel.Body
+                  size={ComponentSize.Large}
+                  direction={FlexDirection.Row}
+                >
+                  <Input
+                    className="community-templates-template-url"
+                    onChange={this.handleTemplateChange}
+                    placeholder="Enter the URL of an InfluxDB Template..."
+                    style={{flex: '1 0 0'}}
+                    value={this.state.templateUrl}
+                    testID="lookup-template-input"
+                    size={ComponentSize.Large}
+                  />
+                  <Button
+                    onClick={this.startTemplateInstall}
+                    size={ComponentSize.Large}
+                    text="Lookup Template"
+                    testID="lookup-template-button"
+                  />
                 </Panel.Body>
               </Panel>
-              <CommunityTemplatesInstalledList orgID={org.id} />
+              <GetResources
+                resources={[
+                  ResourceType.Buckets,
+                  ResourceType.Checks,
+                  ResourceType.Dashboards,
+                  ResourceType.Labels,
+                  ResourceType.NotificationEndpoints,
+                  ResourceType.NotificationRules,
+                  ResourceType.Tasks,
+                  ResourceType.Telegrafs,
+                  ResourceType.Variables,
+                ]}
+              >
+                <CommunityTemplatesInstalledList orgID={org.id} />
+              </GetResources>
             </div>
           </SettingsTabbedPage>
         </Page>
@@ -164,7 +186,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       const {directory, templateExtension, templateName} = getTemplateDetails(
         this.state.templateUrl
       )
-
+      event('template_click_lookup', {templateName: templateName})
       this.props.history.push(
         `/orgs/${this.props.org.id}/settings/templates/import/${directory}/${templateName}/${templateExtension}`
       )
@@ -176,8 +198,14 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     }
   }
 
-  private handleTemplateChange = event => {
-    this.setState({templateUrl: event.target.value})
+  private handleTemplateChange = evt => {
+    this.setState({templateUrl: evt.target.value})
+  }
+
+  private onClickBrowseCommunityTemplates = () => {
+    event('template_click_browse')
+
+    window.open(communityTemplatesUrl)
   }
 }
 

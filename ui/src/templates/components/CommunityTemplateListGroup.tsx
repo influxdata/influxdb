@@ -47,7 +47,9 @@ const CommunityTemplateListGroup: FC<Props> = ({title, count, children}) => {
         <div className="community-templates--list-toggle">
           <Icon glyph={IconFont.CaretRight} />
         </div>
-        <Heading element={HeadingElement.H5}>{title}</Heading>
+        <Heading element={HeadingElement.H5} testID={`heading-${title}`}>
+          {title}
+        </Heading>
         <Heading
           element={HeadingElement.Div}
           appearance={HeadingElement.H6}

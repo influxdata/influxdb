@@ -57,7 +57,7 @@ func (s *OnboardService) OnboardUser(ctx context.Context, req *influxdb.Onboardi
 
 // onboardUser allows us to onboard new users.
 func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID influxdb.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
-	if req == nil || req.User == "" || req.Password == "" || req.Org == "" || req.Bucket == "" {
+	if req == nil || req.User == "" || req.Org == "" || req.Bucket == "" {
 		return nil, ErrOnboardInvalid
 	}
 

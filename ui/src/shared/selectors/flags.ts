@@ -16,6 +16,7 @@ export const OSS_FLAGS = {
   'notebook-panel--spotify': false,
   'notebook-panel--test-flux': false,
   disableDefaultTableSort: false,
+  'notification-endpoint-telegram': false,
 }
 
 export const CLOUD_FLAGS = {
@@ -33,6 +34,7 @@ export const CLOUD_FLAGS = {
   'notebook-panel--spotify': false,
   'notebook-panel--test-flux': false,
   disableDefaultTableSort: false,
+  'notification-endpoint-telegram': false,
 }
 
 export const activeFlags = (state: AppState): FlagMap => {

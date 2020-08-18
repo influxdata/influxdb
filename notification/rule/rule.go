@@ -16,6 +16,7 @@ var typeToRule = map[string](func() influxdb.NotificationRule){
 	"slack":     func() influxdb.NotificationRule { return &Slack{} },
 	"pagerduty": func() influxdb.NotificationRule { return &PagerDuty{} },
 	"http":      func() influxdb.NotificationRule { return &HTTP{} },
+	"telegram":  func() influxdb.NotificationRule { return &Telegram{} },
 }
 
 // UnmarshalJSON will convert
