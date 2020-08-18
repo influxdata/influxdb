@@ -631,7 +631,7 @@ func FindVariableByID(init func(VariableFields, *testing.T) (influxdb.VariableSe
 				return
 			}
 
-			if diff := cmp.Diff(variable, tt.wants.variable); diff != "" {
+			if diff := cmp.Diff(variable, tt.wants.variable, variableCmpOptions...); diff != "" {
 				t.Fatalf("found unexpected variable -got/+want\ndiff %s", diff)
 			}
 		})
