@@ -169,7 +169,7 @@ describe('The Query Builder', () => {
       cy.getByTestID('builder-card')
         .last()
         .then($lastBuilderCard => {
-          $lastBuilderCard.find('.selector-list--item').each((index, $item) => {
+          $lastBuilderCard.find('.cf-list-item--text').each((index, $item) => {
             groupableColums.push($item.innerHTML)
           })
 
