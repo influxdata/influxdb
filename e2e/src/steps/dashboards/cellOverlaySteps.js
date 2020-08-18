@@ -466,8 +466,20 @@ class cellOverlaySteps extends influxSteps {
         await this.verifyInputEqualsValue(await this.cellOverlay.getTMBuilderCardMenuDurationInput(), duration);
     }
 
+    async clickCustomFunctionGroup(){
+        await this.clickAndWait(await this.cellOverlay.getTMQBCustomFunctionGroup());
+    }
+
     async clickTMQueryBuilderFunctionDuration(){
         await this.clickAndWait(await this.cellOverlay.getTMBuilderCardMenuDurationInput());
+    }
+
+    async clickTMQueryBuilderCustomDuration(){
+        await this.clickAndWait(await this.cellOverlay.getTMQBCustomWindowPeriod());
+    }
+
+    async clickTMQueryBuilderAutoDuration(){
+        await this.clickAndWait(await this.cellOverlay.getTMQBAutoWindowPeriod());
     }
 
     async verifyTMQBFunctionDurationSuggestionCount(count){

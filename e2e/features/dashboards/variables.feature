@@ -86,6 +86,8 @@ Feature: Dashboards - Dashboard - Variables
     |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
     |> filter(fn: (r) => r["_measurement"] == "beat")
     |> filter(fn: (r) => r["_field"] == "pulse")
+    |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+    |> yield(name: "mean")
   """
     When click the time machine script editor variables tab
     Then the time machine variables list contains
@@ -121,7 +123,7 @@ Feature: Dashboards - Dashboard - Variables
     When click cell content popover configure
     When click the cell edit Script Editor button
     # Move to end
-    When send keys "CTRL+END" to the time machine flux editor
+    When send keys "CTRL+END,AUP,AUP,END" to the time machine flux editor
     # Send cursor to start of field value
     When send keys "ALFT,ALFT,ALFT,ALFT,ALFT,ALFT,ALFT,ALFT" to the time machine flux editor
     # Delete field value
@@ -167,7 +169,7 @@ Feature: Dashboards - Dashboard - Variables
     When click cell content popover configure
     #When click the cell edit Script Editor button
     # Move to end
-    When send keys "CTRL+END" to the time machine flux editor
+    When send keys "CTRL+END,AUP,AUP,END" to the time machine flux editor
     # Send cursor to start of field value
     When send keys "ALFT,ALFT,ALFT,ALFT,ALFT,ALFT,ALFT,ALFT,ALFT" to the time machine flux editor
     # Delete field value
@@ -211,7 +213,7 @@ Feature: Dashboards - Dashboard - Variables
     When click cell content popover configure
     #When click the cell edit Script Editor button
     # Move to end
-    When send keys "CTRL+END" to the time machine flux editor
+    When send keys "CTRL+END,AUP,AUP,END" to the time machine flux editor
     # Send cursor to start of field value
     When send keys "ALFT,ALFT,ALFT,ALFT,ALFT,ALFT,ALFT,ALFT,ALFT" to the time machine flux editor
     # Delete field value
@@ -322,21 +324,21 @@ from(bucket: "qa")
 
   # NEED TO CLEAN UP
   # Variables cached in localstore can influence other tests
-@tested
-  Scenario Outline: Delete Variable
-    When click nav menu item "Settings"
-    When click the settings tab "Variables"
+#@tested
+#  Scenario Outline: Delete Variable
+#    When click nav menu item "Settings"
+#    When click the settings tab "Variables"
     #When hover over the "Settings" menu item
     #When click nav sub menu "Variables"
-    When hover over variable card named "<NAME>"
-    When click delete menu of variable card named "<NAME>"
-    When click delete confirm of variable card named "<NAME>"
-    Then the success notification contains "Successfully deleted the variable"
-    Then the variable card "<NAME>" is not present
-    When close all notifications
+#    When hover over variable card named "<NAME>"
+#    When click delete menu of variable card named "<NAME>"
+#    When click delete confirm of variable card named "<NAME>"
+#    Then the success notification contains "Successfully deleted the variable"
+#    Then the variable card "<NAME>" is not present
+#    When close all notifications
 
-    Examples:
-      |NAME|
-      |APIVAR|
-      |KARTA|
-      |POKUS|
+#    Examples:
+#      |NAME|
+#      |APIVAR|
+#      |KARTA|
+#      |POKUS|

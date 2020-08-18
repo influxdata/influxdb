@@ -555,7 +555,7 @@ class baseSteps{
         let text = await elem.getText();
         //await console.log("DEBUG text from monacoElement #" + text + "#");
         await monElem.sendKeys(Key.chord(Key.CONTROL, Key.END));
-        for( let i = 0; i < text.length; i++){
+        for( let i = 0; i < (text.length + 1); i++){
             await monElem.sendKeys(Key.BACK_SPACE);
         }
     }

@@ -106,6 +106,9 @@ const DashboardHeader: FC<Props> = ({
   }
 
   const handleChooseTimeRange = (timeRange: TimeRange) => {
+    if (isFlagEnabled('queryCacheForDashboards')) {
+      resetQueryCache()
+    }
     setDashboardTimeRange(dashboard.id, timeRange)
     updateQueryParams({
       lower: timeRange.lower,
