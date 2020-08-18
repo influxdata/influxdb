@@ -68,7 +68,7 @@ where
     }
 
     // TODO(edd): fix this when added NULL support
-    pub fn scan_from_until_some(&self, row_id: usize) -> Option<T> {
+    pub fn scan_from_until_some(&self, _row_id: usize) -> Option<T> {
         unreachable!("to remove");
         // for v in self.values.iter().skip(row_id) {
         //     return Some(*v);

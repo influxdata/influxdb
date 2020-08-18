@@ -771,6 +771,7 @@ dependencies = [
  "delorean_table",
  "env_logger",
  "log",
+ "parquet 2.0.0-SNAPSHOT",
  "snafu",
 ]
 

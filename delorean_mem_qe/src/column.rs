@@ -12,7 +12,7 @@ pub enum Scalar<'a> {
 impl<'a> Scalar<'a> {
     pub fn reset(&mut self) {
         match self {
-            Scalar::String(s) => {
+            Scalar::String(_s) => {
                 panic!("not supported");
             }
             Scalar::Float(v) => {
@@ -509,10 +509,10 @@ impl Column {
                 // FIX THIS UNWRAP AND HOPE THERE ARE NO NULL VALUES!
                 c.decode_id(encoded_id).unwrap()
             }
-            Column::Float(c) => {
+            Column::Float(_c) => {
                 unreachable!("this isn't supported right now");
             }
-            Column::Integer(c) => {
+            Column::Integer(_c) => {
                 unreachable!("this isn't supported right now");
             }
         }
@@ -542,7 +542,7 @@ impl Column {
     }
 
     /// materialise all rows including and after row_id
-    pub fn scan_from(&self, row_id: usize) -> Option<Vector> {
+    pub fn scan_from(&self, _row_id: usize) -> Option<Vector> {
         unimplemented!("todo");
         // if row_id >= self.num_rows() {
         //     println!(
@@ -764,7 +764,7 @@ impl Column {
     //      WHERE counter >= 102.2 AND counter < 2929.32
     pub fn row_ids_gte_lt(&self, low: &Scalar, high: &Scalar) -> Option<croaring::Bitmap> {
         match self {
-            Column::String(c) => {
+            Column::String(_c) => {
                 unimplemented!("not implemented yet");
             }
             Column::Float(c) => {
@@ -926,7 +926,7 @@ impl String {
         self.data.scan_from(row_id)
     }
 
-    pub fn scan_from_until_some(&self, row_id: usize) -> Option<&std::string::String> {
+    pub fn scan_from_until_some(&self, _row_id: usize) -> Option<&std::string::String> {
         unreachable!("don't need this");
         // self.data.scan_from_until_some(row_id)
     }

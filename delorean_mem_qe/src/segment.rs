@@ -863,10 +863,10 @@ impl<'a> Segments<'a> {
         }
 
         // TODO(edd): merge results - not expensive really...
-        let mut cum_results: BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> =
-            BTreeMap::new();
+        // let mut cum_results: BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> =
+        //     BTreeMap::new();
 
-        cum_results
+        // cum_results
     }
 
     fn read_group_eq_hash(

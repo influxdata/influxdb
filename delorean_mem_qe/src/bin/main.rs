@@ -1,12 +1,13 @@
-use std::{fs::File, path::Path};
+use std::{fs::File, rc::Rc};
 
 use arrow::record_batch::{RecordBatch, RecordBatchReader};
-use arrow::{array, array::Array, datatypes, ipc};
+use arrow::{array, array::Array, datatypes};
 
 use delorean_mem_qe::column;
-use delorean_mem_qe::column::{Column, Scalar};
+use delorean_mem_qe::column::{Column};
 use delorean_mem_qe::segment::{Aggregate, GroupingStrategy, Segment};
 use delorean_mem_qe::Store;
+use parquet::arrow::arrow_reader::ArrowReader;
 
 // use snafu::ensure;
 use snafu::Snafu;
@@ -26,11 +27,18 @@ pub enum Error {
 fn main() {
     env_logger::init();
 
-    let r = File::open(Path::new("/Users/edd/work/InfluxData/delorean_misc/in-memory-sort/env_role_path_time/http_api_requests_total.arrow")).unwrap();
-    let reader = ipc::reader::StreamReader::try_new(r).unwrap();
+    //let r = File::open(Path::new("/Users/edd/work/InfluxData/delorean_misc/in-memory-sort/env_role_path_time/http_api_requests_total.arrow")).unwrap();
+    println!("Opening the file....");
+    let r = File::open("/Users/alamb/Software/query_testing/cloud2_sli_dashboard_query.ingested/data/000000000089174-000000004/http_api_requests_total.parquet").unwrap();
+    let parquet_reader = parquet::file::reader::SerializedFileReader::new(r).unwrap();
+    let mut reader = parquet::arrow::arrow_reader::ParquetFileArrowReader::new(Rc::new(parquet_reader));
+    let batch_size = 60000;
+    let record_batch_reader = reader.get_record_reader(batch_size).unwrap();
+
+    //let reader = ipc::reader::StreamReader::try_new(r).unwrap();
 
     let mut store = Store::default();
-    build_store(reader, &mut store).unwrap();
+    build_store(record_batch_reader, &mut store).unwrap();
 
     println!(
         "total segments {:?} with total size {:?}",
@@ -44,7 +52,7 @@ fn main() {
     time_count_range(&store);
     time_group_single_with_pred(&store);
     time_group_by_multi_agg_count(&store);
-    time_group_by_multi_agg_SORTED_count(&store);
+    time_group_by_multi_agg_sorted_count(&store);
 
     // time_column_min_time(&store);
     // time_column_max_time(&store);
@@ -164,7 +172,7 @@ fn main() {
 }
 
 fn build_store(
-    mut reader: arrow::ipc::reader::StreamReader<File>,
+    mut reader: impl RecordBatchReader,
     store: &mut Store,
 ) -> Result<(), Error> {
     // let mut i = 0;
@@ -478,7 +486,7 @@ fn time_group_by_multi_agg_count(store: &Store) {
     }
 }
 
-fn time_group_by_multi_agg_SORTED_count(store: &Store) {
+fn time_group_by_multi_agg_sorted_count(store: &Store) {
     let strats = vec![
         GroupingStrategy::HashGroup,
         GroupingStrategy::HashGroupConcurrent,

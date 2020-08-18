@@ -156,6 +156,7 @@ fn cmp(vectors: &[column::Vector], a: usize, b: usize, sort_by: &[usize]) -> Ord
     Ordering::Equal
 }
 
+#[allow(dead_code)]
 fn vectors_sorted_asc(vectors: &[column::Vector], len: usize, sort_by: &[usize]) -> bool {
     'row_wise: for i in 1..len {
         for &idx in sort_by {

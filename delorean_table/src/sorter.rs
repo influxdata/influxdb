@@ -167,6 +167,7 @@ fn cmp(packers: &[Packers], a: usize, b: usize, sort_by: &[usize]) -> Ordering {
     Ordering::Equal
 }
 
+#[allow(dead_code)]
 fn packers_sorted_asc(packers: &[Packers], len: usize, sort_by: &[usize]) -> bool {
     'row_wise: for i in 1..len {
         for &idx in sort_by {
