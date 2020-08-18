@@ -5,7 +5,7 @@ import {initialStateHelper} from 'src/timeMachine/reducers'
 export const timeMachines = (state: LocalStorage): AppState['timeMachines'] => {
   const timeMachines = state.timeMachines
   const activeTimeMachineID = timeMachines?.activeTimeMachineID || 'de'
-  const de = timeMachines.timeMachines?.de || initialStateHelper()
+  const de = timeMachines?.timeMachines?.de || initialStateHelper()
 
   return {
     activeTimeMachineID,

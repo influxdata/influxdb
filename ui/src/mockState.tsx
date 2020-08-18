@@ -53,6 +53,10 @@ export const localState: LocalStorage = {
     },
     variables: initialVariablesState(),
   },
+  timeMachines: {
+    activeTimeMachineID: 'de',
+    timeMachines: null,
+  },
 }
 
 export function renderWithRedux(ui, initialState = s => s) {

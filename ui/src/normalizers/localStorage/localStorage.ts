@@ -1,5 +1,5 @@
 // Libraries
-import {get} from 'lodash'
+import {get, omit} from 'lodash'
 
 // Types
 import {LocalStorage} from 'src/types'
@@ -16,6 +16,7 @@ import {
   normalizeApp,
 } from 'src/normalizers/localStorage'
 import {normalizeResources} from './resources'
+import {TimeMachineState} from 'src/timeMachine/reducers'
 
 export const normalizeGetLocalStorage = (state: LocalStorage): LocalStorage => {
   let newState = state
@@ -39,7 +40,7 @@ export const normalizeGetLocalStorage = (state: LocalStorage): LocalStorage => {
 
 export const normalizeSetLocalStorage = (state: LocalStorage): LocalStorage => {
   const {app, flags, ranges, autoRefresh, userSettings, timeMachines} = state
-  delete timeMachines.timeMachines.de.queryResults.files
+
   return {
     VERSION,
     autoRefresh,
@@ -51,7 +52,7 @@ export const normalizeSetLocalStorage = (state: LocalStorage): LocalStorage => {
     timeMachines: {
       activeTimeMachineID: timeMachines.activeTimeMachineID,
       timeMachines: {
-        de: timeMachines.timeMachines.de,
+        de: omit(timeMachines.timeMachines.de, 'files') as TimeMachineState,
       },
     },
   }

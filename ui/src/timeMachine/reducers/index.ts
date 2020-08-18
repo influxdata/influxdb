@@ -173,6 +173,10 @@ export const timeMachinesReducer = (
   state: TimeMachinesState = initialState(),
   action: Action
 ): TimeMachinesState => {
+  if (action.type === 'SET_ACTIVE_TIME_MACHINE_ID') {
+    return {...state, activeTimeMachineID: action.id}
+  }
+
   if (action.type === 'SET_ACTIVE_TIME_MACHINE') {
     const {activeTimeMachineID, initialState} = action.payload
     const activeTimeMachine = state.timeMachines[activeTimeMachineID]

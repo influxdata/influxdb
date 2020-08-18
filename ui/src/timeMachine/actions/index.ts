@@ -92,6 +92,7 @@ export type Action =
   | SetHoverDimensionAction
   | ReturnType<typeof toggleVisOptions>
   | ReturnType<typeof resetActiveQueryWithBuilder>
+  | ReturnType<typeof setActiveTimeMachineID>
 
 type ExternalActions =
   | ReturnType<typeof loadBuckets>
@@ -664,6 +665,12 @@ export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
   type: 'SET_X_AXIS_LABEL',
   payload: {xAxisLabel},
 })
+
+export const setActiveTimeMachineID = (id: TimeMachineID) =>
+  ({
+    type: 'SET_ACTIVE_TIME_MACHINE_ID',
+    id,
+  } as const)
 
 export const loadNewVEO = () => (
   dispatch: Dispatch<Action | ExternalActions>
