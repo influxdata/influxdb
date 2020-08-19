@@ -55,7 +55,7 @@ func (a Duration) String() string {
 func (a *Duration) Parse(s string) error {
 	q, err := ParseSignedDuration(s)
 	if err != nil {
-		return ErrTaskInvalidDuration(err)
+		return errTaskInvalidDuration(err)
 	}
 	a.Node = *q
 	return nil
@@ -238,7 +238,7 @@ func FromScriptAST(lang FluxLanguageService, script string) (Options, error) {
 
 	objExpr, ok := obj.(*ast.ObjectExpression)
 	if !ok {
-		return opts, ErrTaskOptionNotObjectExpression(objExpr.Type())
+		return opts, errTaskOptionNotObjectExpression(objExpr.Type())
 	}
 
 	for _, fn := range taskOptionExtractors {
@@ -286,11 +286,11 @@ var taskOptionExtractors = []extractFn{
 func extractNameOption(opts *Options, objExpr *ast.ObjectExpression) error {
 	nameExpr, err := edit.GetProperty(objExpr, optName)
 	if err != nil {
-		return ErrMissingRequiredTaskOption(optName)
+		return errMissingRequiredTaskOption(optName)
 	}
 	nameStr, ok := nameExpr.(*ast.StringLiteral)
 	if !ok {
-		return ErrParseTaskOptionField(optName)
+		return errParseTaskOptionField(optName)
 	}
 	opts.Name = ast.StringFromLiteral(nameStr)
 
@@ -304,13 +304,13 @@ func extractScheduleOptions(opts *Options, objExpr *ast.ObjectExpression) error 
 		return ErrDuplicateIntervalField
 	}
 	if cronErr != nil && everyErr != nil {
-		return ErrMissingRequiredTaskOption("cron or every")
+		return errMissingRequiredTaskOption("cron or every")
 	}
 
 	if cronErr == nil {
 		cronExprStr, ok := cronExpr.(*ast.StringLiteral)
 		if !ok {
-			return ErrParseTaskOptionField(optCron)
+			return errParseTaskOptionField(optCron)
 		}
 		opts.Cron = ast.StringFromLiteral(cronExprStr)
 	}
@@ -318,7 +318,7 @@ func extractScheduleOptions(opts *Options, objExpr *ast.ObjectExpression) error 
 	if everyErr == nil {
 		everyDur, ok := everyExpr.(*ast.DurationLiteral)
 		if !ok {
-			return ErrParseTaskOptionField(optEvery)
+			return errParseTaskOptionField(optEvery)
 		}
 		opts.Every = Duration{Node: *everyDur}
 	}
@@ -342,7 +342,7 @@ func extractOffsetOption(opts *Options, objExpr *ast.ObjectExpression) error {
 	case *ast.DurationLiteral:
 		opts.Offset = &Duration{Node: *offsetExprV}
 	default:
-		return ErrParseTaskOptionField(optOffset)
+		return errParseTaskOptionField(optOffset)
 	}
 
 	return nil
@@ -356,7 +356,7 @@ func extractConcurrencyOption(opts *Options, objExpr *ast.ObjectExpression) erro
 
 	concurInt, ok := concurExpr.(*ast.IntegerLiteral)
 	if !ok {
-		return ErrParseTaskOptionField(optConcurrency)
+		return errParseTaskOptionField(optConcurrency)
 	}
 	val := ast.IntegerFromLiteral(concurInt)
 	opts.Concurrency = &val
@@ -372,7 +372,7 @@ func extractRetryOption(opts *Options, objExpr *ast.ObjectExpression) error {
 
 	retryInt, ok := retryExpr.(*ast.IntegerLiteral)
 	if !ok {
-		return ErrParseTaskOptionField(optRetry)
+		return errParseTaskOptionField(optRetry)
 	}
 	val := ast.IntegerFromLiteral(retryInt)
 	opts.Retry = &val
@@ -399,7 +399,7 @@ func FromScript(lang FluxLanguageService, script string) (Options, error) {
 	// pull options from the program scope
 	task, ok := scope.Lookup("task")
 	if !ok {
-		return opt, ErrMissingRequiredTaskOption("task")
+		return opt, errMissingRequiredTaskOption("task")
 	}
 	// check to make sure task is an object
 	if err := checkNature(task.Type().Nature(), semantic.Object); err != nil {
@@ -412,7 +412,7 @@ func FromScript(lang FluxLanguageService, script string) (Options, error) {
 
 	nameVal, ok := optObject.Get(optName)
 	if !ok {
-		return opt, ErrMissingRequiredTaskOption("name")
+		return opt, errMissingRequiredTaskOption("name")
 	}
 
 	if err := checkNature(nameVal.Type().Nature(), semantic.String); err != nil {
@@ -426,7 +426,7 @@ func FromScript(lang FluxLanguageService, script string) (Options, error) {
 	}
 
 	if !cronOK && !everyOK {
-		return opt, ErrMissingRequiredTaskOption("cron or every is required")
+		return opt, errMissingRequiredTaskOption("cron or every is required")
 	}
 
 	if cronOK {
@@ -442,7 +442,7 @@ func FromScript(lang FluxLanguageService, script string) (Options, error) {
 		}
 		dur, ok := durTypes["every"]
 		if !ok || dur == nil {
-			return opt, ErrParseTaskOptionField("every")
+			return opt, errParseTaskOptionField("every")
 		}
 		durNode, err := ParseSignedDuration(dur.Location().Source)
 		if err != nil {
@@ -450,7 +450,7 @@ func FromScript(lang FluxLanguageService, script string) (Options, error) {
 		}
 
 		if !ok || durNode == nil {
-			return opt, ErrParseTaskOptionField("every")
+			return opt, errParseTaskOptionField("every")
 		}
 
 		durNode.BaseNode = ast.BaseNode{}
@@ -463,14 +463,14 @@ func FromScript(lang FluxLanguageService, script string) (Options, error) {
 		}
 		dur, ok := durTypes["offset"]
 		if !ok || dur == nil {
-			return opt, ErrParseTaskOptionField("offset")
+			return opt, errParseTaskOptionField("offset")
 		}
 		durNode, err := ParseSignedDuration(dur.Location().Source)
 		if err != nil {
 			return opt, err
 		}
 		if !ok || durNode == nil {
-			return opt, ErrParseTaskOptionField("offset")
+			return opt, errParseTaskOptionField("offset")
 		}
 		durNode.BaseNode = ast.BaseNode{}
 		opt.Offset = &Duration{}

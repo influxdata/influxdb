@@ -5,26 +5,26 @@ import (
 	"fmt"
 )
 
-// ErrParseTaskOptionField is returned when we fail to parse a single field in
+// errParseTaskOptionField is returned when we fail to parse a single field in
 // task options.
-func ErrParseTaskOptionField(opt string) error {
+func errParseTaskOptionField(opt string) error {
 	return fmt.Errorf("failed to parse field '%s' in task options", opt)
 }
 
-// ErrMissingRequiredTaskOption is returned when we a required option is
+// errMissingRequiredTaskOption is returned when we a required option is
 // missing.
-func ErrMissingRequiredTaskOption(opt string) error {
+func errMissingRequiredTaskOption(opt string) error {
 	return fmt.Errorf("missing required option: %s", opt)
 }
 
-// ErrTaskInvalidDuration is returned when an "every" or "offset" option is invalid in a task.
-func ErrTaskInvalidDuration(err error) error {
+// errTaskInvalidDuration is returned when an "every" or "offset" option is invalid in a task.
+func errTaskInvalidDuration(err error) error {
 	return fmt.Errorf("invalid duration in task %s", err)
 }
 
-// ErrTaskOptionNotObjectExpression is returned when the type of an task option
+// errTaskOptionNotObjectExpression is returned when the type of an task option
 // value is not an object literal expression.
-func ErrTaskOptionNotObjectExpression(actualType string) error {
+func errTaskOptionNotObjectExpression(actualType string) error {
 	return fmt.Errorf("task option expected to be object literal, but found %q", actualType)
 }
 
