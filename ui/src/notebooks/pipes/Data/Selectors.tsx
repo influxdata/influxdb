@@ -21,7 +21,12 @@ const Selectors: FC<Props> = ({schema}) => {
   const selectedTags = data?.tags
 
   const body = (
-    <List className="data-source--list" backgroundColor={InfluxColors.Obsidian}>
+    <List
+      className="data-source--list"
+      backgroundColor={InfluxColors.Obsidian}
+      maxHeight="300px"
+      style={{height: '300px'}}
+    >
       {Object.entries(schema)
         .filter(([measurement, values]) => {
           if (!!selectedMeasurement) {

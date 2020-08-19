@@ -6,9 +6,7 @@ import {
   TechnoSpinner,
   ComponentSize,
   RemoteDataState,
-  InfluxColors,
-  List,
-  Gradients,
+  Dropdown,
 } from '@influxdata/clockface'
 import {BucketContext} from 'src/notebooks/context/buckets'
 import {PipeContext} from 'src/notebooks/context/pipe'
@@ -19,8 +17,7 @@ import {Bucket} from 'src/types'
 const BucketSelector: FC = () => {
   const {data, update} = useContext(PipeContext)
   const {buckets, loading} = useContext(BucketContext)
-
-  const selectedBucketName = data.bucketName
+  const selectedBucketName = data?.bucketName
 
   const updateBucket = useCallback(
     (updatedBucket: Bucket): void => {
@@ -39,54 +36,45 @@ const BucketSelector: FC = () => {
     }
   }, [buckets, selectedBucketName, updateBucket])
 
-  let body
+  let menuItems = (
+    <Dropdown.ItemEmpty>
+      <TechnoSpinner strokeWidth={ComponentSize.Small} diameterPixels={32} />
+    </Dropdown.ItemEmpty>
+  )
 
-  if (loading === RemoteDataState.Loading) {
-    body = (
-      <div className="data-source--list__empty">
-        <TechnoSpinner strokeWidth={ComponentSize.Small} diameterPixels={32} />
-      </div>
-    )
-  }
-
-  if (loading === RemoteDataState.Error) {
-    body = (
-      <div className="data-source--list__empty">
-        <p>Could not fetch Buckets</p>
-      </div>
-    )
-  }
-
-  if (loading === RemoteDataState.Done && selectedBucketName) {
-    body = (
-      <List
-        className="data-source--list"
-        backgroundColor={InfluxColors.Obsidian}
-      >
+  if (loading === RemoteDataState.Done && buckets.length) {
+    menuItems = (
+      <>
         {buckets.map(bucket => (
-          <List.Item
+          <Dropdown.Item
             key={bucket.name}
             value={bucket}
             onClick={updateBucket}
             selected={bucket.name === selectedBucketName}
             title={bucket.name}
-            gradient={Gradients.GundamPilot}
             wrapText={true}
           >
-            <List.Indicator type="dot" />
             {bucket.name}
-          </List.Item>
+          </Dropdown.Item>
         ))}
-      </List>
+      </>
     )
   }
 
-  return (
-    <div className="data-source--block">
-      <div className="data-source--block-title">Bucket</div>
-      {body}
-    </div>
+  const buttonText =
+    loading === RemoteDataState.Done ? selectedBucketName : 'Loading...'
+
+  const button = (active, onClick) => (
+    <Dropdown.Button onClick={onClick} active={active}>
+      {buttonText}
+    </Dropdown.Button>
   )
+
+  const menu = onCollapse => (
+    <Dropdown.Menu onCollapse={onCollapse}>{menuItems}</Dropdown.Menu>
+  )
+
+  return <Dropdown button={button} menu={menu} style={{width: '250px'}} />
 }
 
 export default BucketSelector

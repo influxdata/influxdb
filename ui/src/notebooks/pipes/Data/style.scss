@@ -1,26 +1,10 @@
 @import '@influxdata/clockface/dist/variables.scss';
 
-.data-source {
-  background-color: $g2-kevlar;
-  padding: $cf-marg-c;
-  border-radius: $cf-radius;
-}
-
-.data-source--block {
-  flex: 1 0 200px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  max-width: 320px;
-  height: 180px;
-}
 .data-source--block-results {
-  flex: 1 0 200px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  max-width: 100%;
-  height: 180px;
+  width: 100%;
 }
 
 .data-source--block-title {
@@ -32,11 +16,6 @@
   color: $g13-mist;
   border-bottom: $cf-border solid $g3-castle;
   text-transform: capitalize;
-}
-
-.data-source--list,
-.data-source--list__empty {
-  flex: 1 0 0;
 }
 
 .data-source--list__empty {

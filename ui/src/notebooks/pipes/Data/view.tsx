@@ -9,7 +9,6 @@ import BucketProvider from 'src/notebooks/context/buckets'
 // Components
 import BucketSelector from 'src/notebooks/pipes/Data/BucketSelector'
 import FieldsList from 'src/notebooks/pipes/Data/FieldsList'
-import {FlexBox, ComponentSize} from '@influxdata/clockface'
 
 // Styles
 import 'src/notebooks/pipes/Query/style.scss'
@@ -19,15 +18,8 @@ const DataSource: FC<PipeProp> = ({Context}) => {
   return (
     <BucketProvider>
       <SchemaProvider>
-        <Context>
-          <FlexBox
-            margin={ComponentSize.Large}
-            stretchToFitWidth={true}
-            className="data-source"
-          >
-            <BucketSelector />
-            <FieldsList />
-          </FlexBox>
+        <Context controls={<BucketSelector />}>
+          <FieldsList />
         </Context>
       </SchemaProvider>
     </BucketProvider>
