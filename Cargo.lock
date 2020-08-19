@@ -653,7 +653,7 @@ dependencies = [
  "crossbeam",
  "fnv",
  "num_cpus",
- "parquet",
+ "parquet 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
  "paste",
  "rustyline",
  "sqlparser",
@@ -716,7 +716,7 @@ version = "0.1.0"
 dependencies = [
  "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
  "datafusion",
- "parquet",
+ "parquet 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
 ]
 
 [[package]]
@@ -771,7 +771,7 @@ dependencies = [
  "delorean_table",
  "env_logger",
  "log",
- "parquet 2.0.0-SNAPSHOT",
+ "parquet 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a)",
  "snafu",
 ]
 
@@ -2043,6 +2043,25 @@ dependencies = [
  "lz4",
  "num-bigint 0.3.0",
  "parquet-format",
+ "snap",
+ "thrift",
+ "zstd",
+]
+
+[[package]]
+name = "parquet"
+version = "2.0.0-SNAPSHOT"
+source = "git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a#aa6889a74c57d6faea0d27ea8013d9b0c7ef809a"
+dependencies = [
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a)",
+ "brotli",
+ "byteorder",
+ "chrono",
+ "flate2",
+ "lz4",
+ "num-bigint 0.3.0",
+ "parquet-format",
+ "serde_json",
  "snap",
  "thrift",
  "zstd",
