@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use super::column;
 use super::column::Column;
+use arrow::datatypes::SchemaRef;
 
 // Only used in a couple of specific places for experimentation.
 const THREADS: usize = 16;
@@ -16,9 +17,9 @@ pub struct Segment {
 }
 
 impl Segment {
-    pub fn new(rows: usize) -> Self {
+    pub fn new(rows: usize, schema: SchemaRef) -> Self {
         Self {
-            meta: SegmentMetaData::new(rows),
+            meta: SegmentMetaData::new(rows, schema),
             columns: vec![],
             time_column_idx: 0,
         }
@@ -42,6 +43,10 @@ impl Segment {
 
     pub fn time_range(&self) -> (i64, i64) {
         self.meta.time_range
+    }
+
+    pub fn schema(&self) -> SchemaRef {
+        self.meta.schema()
     }
 
     pub fn add_column(&mut self, name: &str, c: column::Column) {
@@ -709,6 +714,7 @@ impl Segment {
 pub struct SegmentMetaData {
     size: usize, // TODO
     rows: usize,
+    schema: SchemaRef,
 
     column_names: Vec<String>,
     time_range: (i64, i64),
@@ -719,16 +725,21 @@ pub struct SegmentMetaData {
 }
 
 impl SegmentMetaData {
-    pub fn new(rows: usize) -> Self {
+    pub fn new(rows: usize, schema: SchemaRef) -> Self {
         let mut meta = Self {
             size: 0,
             rows,
+            schema,
             column_names: vec![],
             time_range: (0, 0),
             row_ids: croaring::Bitmap::create_with_capacity(rows as u32),
         };
         meta.row_ids.add_range(0..rows as u64);
         meta
+    }
+
+    pub fn schema(&self) -> SchemaRef {
+        self.schema.clone()
     }
 
     pub fn overlaps_time_range(&self, from: i64, to: i64) -> bool {

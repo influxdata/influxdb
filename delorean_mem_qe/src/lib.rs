@@ -1,8 +1,10 @@
+pub mod adapter;
 pub mod column;
 pub mod encoding;
 pub mod segment;
 pub mod sorter;
 
+use arrow::datatypes::SchemaRef;
 use segment::{Segment, Segments};
 
 #[derive(Debug, Default)]
@@ -30,5 +32,14 @@ impl Store {
 
     pub fn segments(&self) -> Segments {
         Segments::new(self.segments.iter().collect::<Vec<&Segment>>())
+    }
+
+    pub fn schema(&self) -> SchemaRef {
+        assert!(
+            !self.segments.is_empty(),
+            "Need to have at least one segment in a store"
+        );
+        // assume all segments have the same schema
+        self.segments[0].schema()
     }
 }

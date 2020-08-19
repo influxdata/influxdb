@@ -13,6 +13,8 @@ delorean_table = { path = "../delorean_table" }
 arrow = { path = "/Users/alamb/Software/arrow/rust/arrow" }
 #parquet = { git = "https://github.com/apache/arrow.git", rev="aa6889a74c57d6faea0d27ea8013d9b0c7ef809a", version = "2.0.0-SNAPSHOT" }
 parquet = { path = "/Users/alamb/Software/arrow/rust/parquet" }
+#datafusion = { git = "https://github.com/apache/arrow.git", rev="aa6889a74c57d6faea0d27ea8013d9b0c7ef809a", version = "2.0.0-SNAPSHOT" }
+datafusion = { path = "/Users/alamb/Software/arrow/rust/datafusion" }
 snafu = "0.6.8"
 croaring = "0.4.5"
 crossbeam = "0.7.3"
