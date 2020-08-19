@@ -117,6 +117,45 @@ http.post(
     )
   })
 
+  it('can create a cron task', () => {
+    cy.getByTestID('empty-tasks-list').within(() => {
+      cy.getByTestID('add-resource-dropdown--button').click()
+    })
+
+    cy.getByTestID('add-resource-dropdown--new').click()
+
+    cy.getByTestID('flux-editor').within(() => {
+      cy.get('textarea.inputarea').click().type('from(bucket: "defbuck")\n' +
+          '\t|> range(start: -2m)', {force: true, delay: 2})
+    })
+
+    cy.getByTestID('task-form-name')
+        .click()
+        .type('Cron task test')
+        .then(() => {
+          cy.getByTestID('task-card-cron-btn')
+              .click()
+          cy.getByTestID('task-form-schedule-input').click().type('0 4 8-14 * *')
+          cy.getByTestID('task-form-offset-input')
+              .click()
+              .type('10m')
+        })
+
+    cy.getByTestID('task-save-btn').click()
+
+    cy.getByTestID('task-card')
+        .contains('Cron task test')
+        .get('.cf-resource-meta--item')
+        .contains('Scheduled to run 0 4 8-14 * *')
+
+    cy.getByTestID('task-card')
+        .contains('Cron task test')
+        .click()
+        .then(() => {
+          cy.getByTestID('task-form-schedule-input').should('have.value', '0 4 8-14 * *')
+    })
+  })
+
   describe('When tasks already exist', () => {
     beforeEach(() => {
       cy.get('@org').then(({id}: Organization) => {
@@ -247,6 +286,7 @@ http.post(
       cy.getByTestID('task-card--name').contains('Copy task test')
     })
 
+    //skip until this problem is resolved
     it.skip('can add a comment into a task', () => {
       cy.getByTestID('task-card--name')
         .first()
