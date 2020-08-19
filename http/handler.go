@@ -155,7 +155,7 @@ func (h *Handler) initMetrics() {
 	const namespace = "http"
 	const handlerSubsystem = "api"
 
-	labelNames := []string{"handler", "method", "path", "status", "user_agent"}
+	labelNames := []string{"handler", "method", "path", "status", "user_agent", "response_code"}
 	h.requests = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: handlerSubsystem,
