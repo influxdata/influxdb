@@ -1,14 +1,19 @@
+// Libraries
 import React from 'react'
 import {Provider} from 'react-redux'
 import {Router} from 'react-router-dom'
 import {createMemoryHistory} from 'history'
-
 import {render} from '@testing-library/react'
+
+// Reducers
 import {initialState as initialVariablesState} from 'src/variables/reducers'
 import {initialState as initialUserSettingsState} from 'src/userSettings/reducers'
+import {initialStateHelper as timeMachineState} from 'src/timeMachine/reducers'
 import {default as configureStore, clearStore} from 'src/store/configureStore'
-import {RemoteDataState, TimeZone, LocalStorage, ResourceType} from 'src/types'
 import {pastFifteenMinTimeRange} from './shared/constants/timeRanges'
+
+// Types
+import {RemoteDataState, TimeZone, LocalStorage, ResourceType} from 'src/types'
 
 const {Orgs} = ResourceType
 const {Done} = RemoteDataState
@@ -55,7 +60,9 @@ export const localState: LocalStorage = {
   },
   timeMachines: {
     activeTimeMachineID: 'de',
-    timeMachines: null,
+    timeMachines: {
+      de: timeMachineState(),
+    },
   },
 }
 
