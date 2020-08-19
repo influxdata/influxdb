@@ -310,7 +310,7 @@ impl Column {
         }
     }
 
-    // Returns the size of the segment in bytes.
+    // Returns the size of the column in bytes.
     pub fn size(&self) -> usize {
         match self {
             Column::String(c) => c.size(),

@@ -1,4 +1,4 @@
-use std::{fs::File, rc::Rc};
+use std::{fs, fs::File, rc::Rc, path::PathBuf};
 
 use arrow::record_batch::{RecordBatch, RecordBatchReader};
 use arrow::{array, array::Array, datatypes};
@@ -11,6 +11,7 @@ use parquet::arrow::arrow_reader::ArrowReader;
 
 // use snafu::ensure;
 use snafu::Snafu;
+use datatypes::TimeUnit;
 
 #[derive(Snafu, Debug, Clone, Copy, PartialEq)]
 pub enum Error {
@@ -24,12 +25,23 @@ pub enum Error {
 // OutOfBoundsColumn { index: usize },
 }
 
+fn format_size(sz: usize) -> String {
+    human_format::Formatter::new().format(sz as f64)
+}
+
+
 fn main() {
     env_logger::init();
 
     //let r = File::open(Path::new("/Users/edd/work/InfluxData/delorean_misc/in-memory-sort/env_role_path_time/http_api_requests_total.arrow")).unwrap();
-    println!("Opening the file....");
-    let r = File::open("/Users/alamb/Software/query_testing/cloud2_sli_dashboard_query.ingested/data/000000000089174-000000004/http_api_requests_total.parquet").unwrap();
+    // This one was having issues being read into arrow with the last row groups
+    let path = PathBuf::from("/Users/alamb/Software/query_testing/cloud2_sli_dashboard_query.ingested/data/000000000089174-000000004/http_api_requests_total.parquet");
+    let r = File::open(&path).unwrap();
+    let file_size = fs::metadata(&path).expect("read metadata").len();
+    println!("Reading {} ({}) bytes of parquet from {:?}....",
+             format_size(file_size as usize), file_size, path);
+
+    //let r = File::open("/Users/alamb/Software/query_testing/cloud2_sli_dashboard_query.ingested/data/000000000095062-000000006/http_api_requests_total.parquet").unwrap();
     let parquet_reader = parquet::file::reader::SerializedFileReader::new(r).unwrap();
     let mut reader = parquet::arrow::arrow_reader::ParquetFileArrowReader::new(Rc::new(parquet_reader));
     let batch_size = 60000;
@@ -41,9 +53,10 @@ fn main() {
     build_store(record_batch_reader, &mut store).unwrap();
 
     println!(
-        "total segments {:?} with total size {:?}",
+        "total segments {:?} with total size {} ({})",
         store.segment_total(),
-        store.size(),
+        format_size(store.size()),
+        store.size()
     );
 
     time_select_with_pred(&store);
@@ -175,22 +188,34 @@ fn build_store(
     mut reader: impl RecordBatchReader,
     store: &mut Store,
 ) -> Result<(), Error> {
-    // let mut i = 0;
-    while let Some(rb) = reader.next_batch().unwrap() {
-        // if i < 363 {
-        //     i += 1;
-        //     continue;
-        // }
-        let segment = convert_record_batch(rb)?;
-        store.add_segment(segment);
+    let mut total_rows_read = 0;
+    let start = std::time::Instant::now();
+    loop {
+        let rb = reader.next_batch();
+        match rb {
+            Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
+            Ok(Some(rb)) => {
+                // if i < 363 {
+                //     i += 1;
+                //     continue;
+                // }
+                total_rows_read += rb.num_rows();
+                let segment = convert_record_batch(rb)?;
+                store.add_segment(segment);
+            },
+            Ok(None) => {
+                let now = std::time::Instant::now();
+                println!("Completed loading {} rows in {:?}", total_rows_read, now - start);
+                return Ok(())
+            }
+        }
     }
-    Ok(())
 }
 
 fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
     let mut segment = Segment::new(rb.num_rows());
 
-    // println!("cols {:?} rows {:?}", rb.num_columns(), rb.num_rows());
+    println!("Loading record batch: cols {:?} rows {:?}", rb.num_columns(), rb.num_rows());
     for (i, column) in rb.columns().iter().enumerate() {
         match *column.data_type() {
             datatypes::DataType::Float64 => {
@@ -210,6 +235,15 @@ fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
                     panic!("null times");
                 }
                 let arr = column.as_any().downcast_ref::<array::Int64Array>().unwrap();
+
+                let column = Column::from(arr.value_slice(0, rb.num_rows()));
+                segment.add_column(rb.schema().field(i).name(), column);
+            }
+            datatypes::DataType::Timestamp(TimeUnit::Microsecond, None) => {
+                if column.null_count() > 0 {
+                    panic!("null times");
+                }
+                let arr = column.as_any().downcast_ref::<array::TimestampMicrosecondArray>().unwrap();
 
                 let column = Column::from(arr.value_slice(0, rb.num_rows()));
                 segment.add_column(rb.schema().field(i).name(), column);
@@ -278,7 +312,7 @@ fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
             datatypes::DataType::Boolean => {
                 panic!("unsupported");
             }
-            _ => panic!("unsupported datatype"),
+            ref d @ _ => panic!("unsupported datatype: {:?}", d),
         }
     }
     Ok(segment)

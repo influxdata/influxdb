@@ -71,6 +71,7 @@ impl Segment {
     }
 
     // TODO - iterator....
+    /// Returns the size of the segment in bytes.
     pub fn size(&self) -> usize {
         let mut size = 0;
         for c in &self.columns {

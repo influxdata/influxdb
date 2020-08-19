@@ -9,6 +9,7 @@ use segment::{Segment, Segments};
 pub struct Store {
     segments: Vec<Segment>,
 
+    /// Total size of the store, in bytes
     store_size: usize,
 }
 
@@ -18,7 +19,7 @@ impl Store {
         self.segments.push(segment);
     }
 
-    /// The total size of all segments in the store.s
+    /// The total size of all segments in the store, in bytes.
     pub fn size(&self) -> usize {
         self.store_size
     }
