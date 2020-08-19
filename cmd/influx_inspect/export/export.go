@@ -36,6 +36,8 @@ type Command struct {
 	startTime       int64
 	endTime         int64
 	compress        bool
+	shouldWriteDML  bool
+	shouldWriteDDL  bool
 
 	manifest map[string]struct{}
 	tsmFiles map[string][]string
@@ -48,6 +50,9 @@ func NewCommand() *Command {
 		Stderr: os.Stderr,
 		Stdout: os.Stdout,
 
+		shouldWriteDML: true,
+		shouldWriteDDL: true,
+
 		manifest: make(map[string]struct{}),
 		tsmFiles: make(map[string][]string),
 		walFiles: make(map[string][]string),
@@ -57,6 +62,9 @@ func NewCommand() *Command {
 // Run executes the command.
 func (cmd *Command) Run(args ...string) error {
 	var start, end string
+	var nodml bool
+	var noddl bool
+
 	fs := flag.NewFlagSet("export", flag.ExitOnError)
 	fs.StringVar(&cmd.dataDir, "datadir", os.Getenv("HOME")+"/.influxdb/data", "Data storage path")
 	fs.StringVar(&cmd.walDir, "waldir", os.Getenv("HOME")+"/.influxdb/wal", "WAL storage path")
@@ -65,6 +73,8 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
 	fs.StringVar(&start, "start", "", "Optional: the start time to export (RFC3339 format)")
 	fs.StringVar(&end, "end", "", "Optional: the end time to export (RFC3339 format)")
+	fs.BoolVar(&nodml, "nodml", false, "Do not write DML")
+	fs.BoolVar(&nodml, "noddl", false, "Do not write DDL")
 	fs.BoolVar(&cmd.compress, "compress", false, "Compress the output")
 
 	fs.SetOutput(cmd.Stdout)
@@ -77,6 +87,9 @@ func (cmd *Command) Run(args ...string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+
+	cmd.shouldWriteDML = !nodml
+	cmd.shouldWriteDDL = !noddl
 
 	// set defaults
 	if start != "" {
@@ -187,6 +200,43 @@ func (cmd *Command) walkWALFiles() error {
 	})
 }
 
+func (cmd *Command) writeDML(w io.Writer) error {
+	fmt.Fprintln(w, "# DML")
+	for key := range cmd.manifest {
+		keys := strings.Split(key, string(os.PathSeparator))
+		fmt.Fprintf(w, "# CONTEXT-DATABASE:%s\n", keys[0])
+		fmt.Fprintf(w, "# CONTEXT-RETENTION-POLICY:%s\n", keys[1])
+		if files, ok := cmd.tsmFiles[key]; ok {
+			fmt.Fprintf(cmd.Stdout, "writing out tsm file data for %s...", key)
+			if err := cmd.writeTsmFiles(w, files); err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.Stdout, "complete.")
+		}
+		if _, ok := cmd.walFiles[key]; ok {
+			fmt.Fprintf(cmd.Stdout, "writing out wal file data for %s...", key)
+			if err := cmd.writeWALFiles(w, cmd.walFiles[key], key); err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.Stdout, "complete.")
+		}
+	}
+
+	return nil
+}
+
+func (cmd *Command) writeDDL(w io.Writer) error {
+	// Write out all the DDL
+	fmt.Fprintln(w, "# DDL")
+	for key := range cmd.manifest {
+		keys := strings.Split(key, string(os.PathSeparator))
+		db, rp := influxql.QuoteIdent(keys[0]), influxql.QuoteIdent(keys[1])
+		fmt.Fprintf(w, "CREATE DATABASE %s WITH NAME %s\n", db, rp)
+	}
+
+	return nil
+}
+
 func (cmd *Command) write() error {
 	// open our output file and create an output buffer
 	f, err := os.Create(cmd.out)
@@ -210,36 +260,23 @@ func (cmd *Command) write() error {
 	}
 
 	s, e := time.Unix(0, cmd.startTime).Format(time.RFC3339), time.Unix(0, cmd.endTime).Format(time.RFC3339)
-	fmt.Fprintf(w, "# INFLUXDB EXPORT: %s - %s\n", s, e)
 
-	// Write out all the DDL
-	fmt.Fprintln(w, "# DDL")
-	for key := range cmd.manifest {
-		keys := strings.Split(key, string(os.PathSeparator))
-		db, rp := influxql.QuoteIdent(keys[0]), influxql.QuoteIdent(keys[1])
-		fmt.Fprintf(w, "CREATE DATABASE %s WITH NAME %s\n", db, rp)
+	if cmd.shouldWriteDDL || cmd.shouldWriteDML {
+		fmt.Fprintf(w, "# INFLUXDB EXPORT: %s - %s\n", s, e)
 	}
 
-	fmt.Fprintln(w, "# DML")
-	for key := range cmd.manifest {
-		keys := strings.Split(key, string(os.PathSeparator))
-		fmt.Fprintf(w, "# CONTEXT-DATABASE:%s\n", keys[0])
-		fmt.Fprintf(w, "# CONTEXT-RETENTION-POLICY:%s\n", keys[1])
-		if files, ok := cmd.tsmFiles[key]; ok {
-			fmt.Fprintf(cmd.Stdout, "writing out tsm file data for %s...", key)
-			if err := cmd.writeTsmFiles(w, files); err != nil {
-				return err
-			}
-			fmt.Fprintln(cmd.Stdout, "complete.")
-		}
-		if _, ok := cmd.walFiles[key]; ok {
-			fmt.Fprintf(cmd.Stdout, "writing out wal file data for %s...", key)
-			if err := cmd.writeWALFiles(w, cmd.walFiles[key], key); err != nil {
-				return err
-			}
-			fmt.Fprintln(cmd.Stdout, "complete.")
+	if cmd.shouldWriteDDL {
+		if err := cmd.writeDDL(w); err != nil {
+			return err
 		}
 	}
+
+	if cmd.shouldWriteDML {
+		if err := cmd.writeDML(w); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
