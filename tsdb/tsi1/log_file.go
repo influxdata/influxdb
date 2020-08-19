@@ -1101,7 +1101,7 @@ type LogEntry struct {
 	Size     int           // total size of record, in bytes.
 
 	cached   bool        // Hint to LogFile that series data is already parsed
-	name     []byte      // series naem, this is a cached copy of the parsed measurement name
+	name     []byte      // series name, this is a cached copy of the parsed measurement name
 	tags     models.Tags // series tags, this is a cached copied of the parsed tags
 	batchidx int         // position of entry in batch.
 }
