@@ -24,6 +24,14 @@ const WriteDataHelperBuckets: FC = () => {
     </EmptyState>
   )
 
+  const isSelected = (bucketID: string): boolean => {
+    if (!bucket) {
+      return false
+    }
+
+    return bucketID === bucket.id
+  }
+
   if (buckets.length) {
     body = (
       <List
@@ -35,7 +43,7 @@ const WriteDataHelperBuckets: FC = () => {
           <List.Item
             size={ComponentSize.Small}
             key={b.id}
-            selected={b.id === bucket.id}
+            selected={isSelected(b.id)}
             value={b}
             onClick={changeBucket}
             wrapText={true}
