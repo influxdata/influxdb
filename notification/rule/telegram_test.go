@@ -125,7 +125,7 @@ crit = statuses
 		(r["_level"] == "crit"))
 all_statuses = crit
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: telegram_endpoint(mapFn: (r) =>
@@ -197,7 +197,7 @@ any = statuses
 		(true))
 all_statuses = any
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: telegram_endpoint(mapFn: (r) =>
