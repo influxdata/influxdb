@@ -52,7 +52,10 @@ export const normalizeSetLocalStorage = (state: LocalStorage): LocalStorage => {
     timeMachines: {
       activeTimeMachineID: timeMachines.activeTimeMachineID,
       timeMachines: {
-        de: omit(timeMachines.timeMachines.de, 'files') as TimeMachineState,
+        de: omit(
+          timeMachines.timeMachines.de,
+          'queryResults.files'
+        ) as TimeMachineState,
       },
     },
   }
