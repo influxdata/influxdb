@@ -20,7 +20,9 @@ const WriteDataHelperTokens: FC = () => {
 
   let body = (
     <EmptyState size={ComponentSize.Small}>
-      <p>You don't have any Tokens</p>
+      <p data-testid="write-data-tokens-list-empty">
+        You don't have any Tokens
+      </p>
     </EmptyState>
   )
 
@@ -38,11 +40,13 @@ const WriteDataHelperTokens: FC = () => {
         backgroundColor={InfluxColors.Obsidian}
         style={{height: '200px'}}
         maxHeight="200px"
+        testID="write-data-tokens-list"
       >
         {tokens.map(t => (
           <List.Item
             size={ComponentSize.Small}
             key={t.id}
+            testID={t.description}
             selected={isSelected(t.id)}
             value={t}
             onClick={changeToken}
