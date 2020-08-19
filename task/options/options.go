@@ -265,9 +265,7 @@ func hasDuplicateOptions(file *ast.File, name string) bool {
 			assign := val.Assignment
 			if va, ok := assign.(*ast.VariableAssignment); ok {
 				if va.ID.Name == name {
-					if ok {
-						n++
-					}
+					n++
 				}
 			}
 		}
