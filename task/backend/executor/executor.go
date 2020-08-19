@@ -2,11 +2,13 @@ package executor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/v2"
@@ -22,6 +24,9 @@ import (
 const (
 	maxPromises       = 1000
 	defaultMaxWorkers = 100
+
+	latestSuccessOption = "tasks.latestSuccessTime"
+	latestFailureOption = "tasks.latestFailureTime"
 )
 
 var _ scheduler.Executor = (*Executor)(nil)
@@ -70,7 +75,43 @@ func WithMaxWorkers(n int) executorOption {
 
 // CompilerBuilderFunc is a function that yields a new flux.Compiler. The
 // context.Context provided can be assumed to be an authorized context.
-type CompilerBuilderFunc func(ctx context.Context, query string, now time.Time) (flux.Compiler, error)
+type CompilerBuilderFunc func(ctx context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error)
+
+// CompilerBuilderTimestamps contains timestamps which should be provided along
+// with a Task query.
+type CompilerBuilderTimestamps struct {
+	Now           time.Time
+	LatestSuccess time.Time
+	LatestFailure time.Time
+}
+
+func (ts CompilerBuilderTimestamps) Extern() *ast.File {
+	var body []ast.Statement
+
+	if !ts.LatestSuccess.IsZero() {
+		body = append(body, &ast.OptionStatement{
+			Assignment: &ast.VariableAssignment{
+				ID: &ast.Identifier{Name: latestSuccessOption},
+				Init: &ast.DateTimeLiteral{
+					Value: ts.LatestSuccess,
+				},
+			},
+		})
+	}
+
+	if !ts.LatestFailure.IsZero() {
+		body = append(body, &ast.OptionStatement{
+			Assignment: &ast.VariableAssignment{
+				ID: &ast.Identifier{Name: latestFailureOption},
+				Init: &ast.DateTimeLiteral{
+					Value: ts.LatestFailure,
+				},
+			},
+		})
+	}
+
+	return &ast.File{Body: body}
+}
 
 // WithSystemCompilerBuilder is an Executor option that configures a
 // CompilerBuilderFunc to be used when compiling queries for System Tasks.
@@ -471,7 +512,11 @@ func (w *worker) executeQuery(p *promise) {
 	if p.task.Type != influxdb.TaskSystemType {
 		buildCompiler = w.nonSystemBuildCompiler
 	}
-	compiler, err := buildCompiler(ctx, p.task.Flux, p.run.ScheduledFor)
+	compiler, err := buildCompiler(ctx, p.task.Flux, CompilerBuilderTimestamps{
+		Now:           p.run.ScheduledFor,
+		LatestSuccess: p.task.LatestSuccess,
+		LatestFailure: p.task.LatestFailure,
+	})
 	if err != nil {
 		w.finish(p, influxdb.RunFail, influxdb.ErrFluxParseError(err))
 		return
@@ -592,21 +637,31 @@ func exhaustResultIterators(res flux.Result) error {
 }
 
 // NewASTCompiler parses a Flux query string into an AST representatation.
-func NewASTCompiler(_ context.Context, query string, now time.Time) (flux.Compiler, error) {
+func NewASTCompiler(_ context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
 	pkg, err := runtime.ParseToJSON(query)
 	if err != nil {
 		return nil, err
 	}
+	externBytes, err := json.Marshal(ts.Extern())
+	if err != nil {
+		return nil, err
+	}
 	return lang.ASTCompiler{
-		AST: pkg,
-		Now: now,
+		AST:    pkg,
+		Now:    ts.Now,
+		Extern: json.RawMessage(externBytes),
 	}, nil
 }
 
 // NewFluxCompiler wraps a Flux query string in a raw-query representation.
-func NewFluxCompiler(_ context.Context, query string, _ time.Time) (flux.Compiler, error) {
+func NewFluxCompiler(_ context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
+	externBytes, err := json.Marshal(ts.Extern())
+	if err != nil {
+		return nil, err
+	}
 	return lang.FluxCompiler{
-		Query: query,
+		Query:  query,
+		Extern: externBytes,
 		// TODO(brett): This mitigates an immediate problem where
 		// Checks/Notifications breaks when sending Now, and system Tasks do not
 		// break when sending Now. We are currently sending C+N through using
