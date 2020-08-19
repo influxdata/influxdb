@@ -520,6 +520,12 @@ export const createEndpoint = (
 }
 
 /* eslint-disable */
+Cypress.Commands.overwrite('clearLocalStorage', () => {
+  cy.on('window:before:load', window => {
+    window.localStorage.clear()
+  })
+})
+
 // notification endpoints
 Cypress.Commands.add('createEndpoint', createEndpoint)
 // notification rules

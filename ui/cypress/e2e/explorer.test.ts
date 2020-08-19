@@ -29,6 +29,7 @@ function getTimeMachineText() {
 
 describe('DataExplorer', () => {
   beforeEach(() => {
+    cy.clearLocalStorage()
     cy.flush()
 
     cy.signin().then(({body}) => {
@@ -82,6 +83,11 @@ describe('DataExplorer', () => {
       cy.getByTestID('cog-cell--button').click()
     })
 
+    afterEach(() => {
+      // close the options
+      cy.getByTestID('cog-cell--button').click()
+    })
+
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input').within(() => {
@@ -115,6 +121,12 @@ describe('DataExplorer', () => {
     beforeEach(() => {
       cy.getByTestID('view-type--dropdown').click()
       cy.getByTestID(`view-type--heatmap`).click()
+      // open the view options
+      cy.getByTestID('cog-cell--button').click()
+    })
+
+    afterEach(() => {
+      // close the view options
       cy.getByTestID('cog-cell--button').click()
     })
 
@@ -158,6 +170,12 @@ describe('DataExplorer', () => {
     beforeEach(() => {
       cy.getByTestID('view-type--dropdown').click()
       cy.getByTestID(`view-type--single-stat`).click()
+      // open the view options
+      cy.getByTestID('cog-cell--button').click()
+    })
+
+    afterEach(() => {
+      // close the view options
       cy.getByTestID('cog-cell--button').click()
     })
 
@@ -208,8 +226,15 @@ describe('DataExplorer', () => {
     beforeEach(() => {
       cy.getByTestID('view-type--dropdown').click()
       cy.getByTestID(`view-type--gauge`).click()
+      // open the view options
       cy.getByTestID('cog-cell--button').click()
     })
+
+    afterEach(() => {
+      // close the view options
+      cy.getByTestID('cog-cell--button').click()
+    })
+
     it('can add prefix and suffix values', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('prefix-input')
@@ -301,69 +326,6 @@ describe('DataExplorer', () => {
         cy.getByTestID('dropdown-item-customtimerange').click()
         cy.getByTestID('timerange-popover--dialog').should('have.length', 1)
       })
-
-      it.skip('should error when submitting stop dates that are before start dates', () => {
-        // TODO: complete with issue #15632
-        // https://github.com/influxdata/influxdb/issues/15632
-        cy.get('input[title="Start"]')
-          .should('have.length', 1)
-          .clear()
-          .type('2019-10-31')
-
-        cy.get('input[title="Stop"]')
-          .should('have.length', 1)
-          .clear()
-          .type('2019-10-29')
-
-        // click button and see if time range has been selected
-        cy.getByTestID('daterange--apply-btn').click()
-
-        // TODO: complete test once functionality is fleshed out
-
-        // cy.get('.cf-dropdown--selected')
-        //   .contains('2019-10-01 00:00 - 2019-10-31 00:00')
-        //   .should('have.length', 1)
-      })
-
-      it.skip('should error when invalid dates are input', () => {
-        // TODO: complete with issue #15632
-        // https://github.com/influxdata/influxdb/issues/15632
-        // default inputs should be valid
-        cy.getByTestID('input-error').should('not.exist')
-
-        // type incomplete input
-        cy.get('input[title="Start"]')
-          .should('have.length', 1)
-          .clear()
-          .type('2019-10')
-
-        // invalid date errors
-        cy.getByTestID('input-error').should('have.length', 1)
-
-        // modifies the input to be valid
-        cy.get('input[title="Start"]').type('-01')
-
-        // warnings should not appear
-        cy.getByTestID('input-error').should('not.exist')
-
-        // type invalid stop date
-        cy.get('input[title="Stop"]')
-          .should('have.length', 1)
-          .clear()
-          .type('2019-10-')
-
-        // invalid date errors
-        cy.getByTestID('input-error').should('have.length', 1)
-
-        // try submitting invalid date
-        cy.getByTestID('daterange--apply-btn').click()
-
-        // TODO: complete test once functionality is fleshed out
-
-        // cy.get('.cf-dropdown--selected')
-        //   .contains('2019-10-01 00:00 - 2019-10-31 00:00')
-        //   .should('have.length', 1)
-      })
     })
   })
 
@@ -431,7 +393,7 @@ describe('DataExplorer', () => {
     it('shows flux errors', () => {
       cy.getByTestID('time-machine--bottom').then(() => {
         cy.getByTestID('flux-editor').within(() => {
-          cy.get('textarea').type('foo |> bar', {force: true})
+          cy.get('textarea').type('foo |> bar')
 
           cy.get('.squiggly-error').should('be.visible')
         })
@@ -441,14 +403,14 @@ describe('DataExplorer', () => {
     it('shows flux signatures', () => {
       cy.getByTestID('time-machine--bottom').then(() => {
         cy.getByTestID('flux-editor').within(() => {
-          cy.get('textarea').type('from(', {force: true})
+          cy.get('textarea').type('from(')
 
           cy.get('.signature').should('be.visible')
         })
       })
     })
 
-    it('enables the submit button when a query is typed', () => {
+    it('shows the proper submit button state', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
 
       cy.getByTestID('flux-editor').within(() => {
@@ -456,23 +418,10 @@ describe('DataExplorer', () => {
           .should('be.visible')
           .click()
           .focused()
-          .type('yo', {force: true, delay: TYPE_DELAY})
-        cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
-      })
-    })
-
-    it('disables submit when a query is deleted', () => {
-      cy.getByTestID('time-machine--bottom').then(() => {
-        cy.get('.react-monaco-editor-container')
-          .should('be.visible')
-          .click()
-          .focused()
-          .type('from(bucket: "foo")', {force: true, delay: TYPE_DELAY})
-
+          .type('yo')
         cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
 
         cy.get('.react-monaco-editor-container')
-          .should('be.visible')
           .click()
           .focused()
           .type('{selectall} {backspace}', {force: true, delay: TYPE_DELAY})
@@ -926,74 +875,6 @@ describe('DataExplorer', () => {
           })
         })
       })
-    })
-  })
-
-  // skipping until feature flag feature is removed for deleteWithPredicate
-  describe.skip('delete with predicate', () => {
-    beforeEach(() => {
-      cy.getByTestID('delete-data-predicate').click()
-      cy.getByTestID('overlay--container').should('have.length', 1)
-    })
-
-    it('requires consent to perform delete with predicate', () => {
-      // confirm delete is disabled
-      cy.getByTestID('confirm-delete-btn').should('be.disabled')
-      // checks the consent input
-      cy.getByTestID('delete-checkbox').check({force: true})
-      // can delete
-      cy.getByTestID('confirm-delete-btn')
-        .should('not.be.disabled')
-        .click()
-    })
-
-    it('should set the default bucket in the dropdown to the selected bucket', () => {
-      cy.get('.cf-overlay--dismiss').click()
-      cy.getByTestID('selector-list defbuck').click()
-      cy.getByTestID('delete-data-predicate')
-        .click()
-        .then(() => {
-          cy.getByTestID('dropdown--button').contains('defbuck')
-          cy.get('.cf-overlay--dismiss').click()
-        })
-        .then(() => {
-          cy.getByTestID('selector-list _monitoring').click()
-          cy.getByTestID('delete-data-predicate')
-            .click()
-            .then(() => {
-              cy.getByTestID('dropdown--button').contains('_monitoring')
-              cy.get('.cf-overlay--dismiss').click()
-            })
-        })
-        .then(() => {
-          cy.getByTestID('selector-list _tasks').click()
-          cy.getByTestID('delete-data-predicate')
-            .click()
-            .then(() => {
-              cy.getByTestID('dropdown--button').contains('_tasks')
-            })
-        })
-    })
-
-    it('closes the overlay upon a successful delete with predicate submission', () => {
-      cy.getByTestID('delete-checkbox').check({force: true})
-      cy.getByTestID('confirm-delete-btn').click()
-      cy.getByTestID('overlay--container').should('not.exist')
-      cy.getByTestID('notification-success').should('have.length', 1)
-    })
-    // needs relevant data in order to test functionality
-    it.skip('should require key-value pairs when deleting predicate with filters', () => {
-      // confirm delete is disabled
-      cy.getByTestID('add-filter-btn').click()
-      // checks the consent input
-      cy.getByTestID('delete-checkbox').check({force: true})
-      // cannot delete
-      cy.getByTestID('confirm-delete-btn').should('be.disabled')
-
-      // should display warnings
-      cy.getByTestID('form--element-error').should('have.length', 2)
-
-      // TODO: add filter values based on dropdown selection in key / value
     })
   })
 })
