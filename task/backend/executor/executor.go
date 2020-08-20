@@ -82,7 +82,6 @@ type CompilerBuilderFunc func(ctx context.Context, query string, ts CompilerBuil
 type CompilerBuilderTimestamps struct {
 	Now           time.Time
 	LatestSuccess time.Time
-	LatestFailure time.Time
 }
 
 func (ts CompilerBuilderTimestamps) Extern() *ast.File {
@@ -94,17 +93,6 @@ func (ts CompilerBuilderTimestamps) Extern() *ast.File {
 				ID: &ast.Identifier{Name: latestSuccessOption},
 				Init: &ast.DateTimeLiteral{
 					Value: ts.LatestSuccess,
-				},
-			},
-		})
-	}
-
-	if !ts.LatestFailure.IsZero() {
-		body = append(body, &ast.OptionStatement{
-			Assignment: &ast.VariableAssignment{
-				ID: &ast.Identifier{Name: latestFailureOption},
-				Init: &ast.DateTimeLiteral{
-					Value: ts.LatestFailure,
 				},
 			},
 		})
@@ -513,7 +501,6 @@ func (w *worker) executeQuery(p *promise) {
 	compiler, err := buildCompiler(ctx, p.task.Flux, CompilerBuilderTimestamps{
 		Now:           p.run.ScheduledFor,
 		LatestSuccess: p.task.LatestSuccess,
-		LatestFailure: p.task.LatestFailure,
 	})
 	if err != nil {
 		w.finish(p, influxdb.RunFail, influxdb.ErrFluxParseError(err))
