@@ -67,6 +67,9 @@ const NotebookPanelHeader: FC<HeaderProps> = ({id, controls}) => {
 
   return (
     <div className="notebook-panel--header">
+      <div className="notebook-panel--node-wrapper">
+        <div className="notebook-panel--node" />
+      </div>
       <FlexBox
         className="notebook-panel--header-left"
         alignItems={AlignItems.Center}
@@ -142,15 +145,13 @@ const NotebookPanel: FC<Props> = ({id, children, controls}) => {
     return null
   }
   return (
-    <>
-      <ClickOutside onClickOutside={handleClickOutside}>
-        <div className={panelClassName} onClick={handleClick} ref={panelRef}>
-          <NotebookPanelHeader id={id} controls={controls} />
-          <div className="notebook-panel--body">{children}</div>
-        </div>
-      </ClickOutside>
-      {!notebook.readOnly && <InsertCellButton id={id} />}
-    </>
+    <ClickOutside onClickOutside={handleClickOutside}>
+      <div className={panelClassName} onClick={handleClick} ref={panelRef}>
+        <NotebookPanelHeader id={id} controls={controls} />
+        <div className="notebook-panel--body">{children}</div>
+        {!notebook.readOnly && <InsertCellButton id={id} />}
+      </div>
+    </ClickOutside>
   )
 }
 
