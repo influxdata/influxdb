@@ -1,20 +1,20 @@
 // Libraries
-import {normalize} from 'normalizr'
+// import {normalize} from 'normalizr'
 import {Dispatch} from 'react'
-import {fromFlux as parse} from '@influxdata/giraffe'
+// import {fromFlux as parse} from '@influxdata/giraffe'
 // API
-import {runQuery} from 'src/shared/apis/query'
+// import {runQuery} from 'src/shared/apis/query'
 
 // Schemas
-import {arrayOfBuckets} from 'src/schemas'
+// import {arrayOfBuckets} from 'src/schemas'
 
 // Types
 import {
   RemoteDataState,
   GetState,
-  Bucket,
-  BucketEntities,
-  ResourceType,
+  // Bucket,
+  // BucketEntities,
+  // ResourceType,
 } from 'src/types'
 
 // Utils
@@ -33,8 +33,8 @@ import {results} from 'src/notebooks/pipes/Data/dummyData'
 type Action = BucketAction | NotifyAction
 
 export const fetchSchemaForBucket = async (
-  bucketName: string,
-  orgID: string
+  bucketName: string, // tslint:disable-line
+  orgID: string // tslint:disable-line
 ) => {
   // TODO(ariel): make this work with the query
   // const text = `import "influxdata/influxdb/v1"

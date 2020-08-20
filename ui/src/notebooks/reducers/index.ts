@@ -6,7 +6,7 @@ export type SchemaState = {
   status: RemoteDataState
   schema: {
     [bucketName: string]: {
-      measurements: any[]
+      schema: any[]
       status: RemoteDataState
     }
   }
@@ -28,7 +28,7 @@ export const schemaReducer = (
         ...state,
         schema: {
           [bucketName]: {
-            measurements: schema,
+            schema,
             status,
           },
         },

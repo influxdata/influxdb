@@ -1,10 +1,12 @@
-import React, {FC, useCallback, useContext} from 'react'
+// Libraries
+import React, {FC, useCallback, useContext, useState} from 'react'
 import {useDispatch, useSelector} from 'react-redux'
 
 // Contexts
 import {PipeContext} from 'src/notebooks/context/pipe'
 
-// Actions
+// Utils
+import {normalizeSchema} from 'src/notebooks/context/utils'
 import {getAndSetBucketSchema} from 'src/notebooks/actions/thunks'
 
 // Types
@@ -15,15 +17,25 @@ export type Props = {
 }
 
 export interface SchemaContextType {
+  data: any
+  fields: string[]
   localFetchSchema: (bucketName: string) => void
   loading: RemoteDataState
-  schema: any
+  measurements: string[]
+  searchTerm: string
+  setSearchTerm: (value: string) => void
+  tags: any[]
 }
 
 export const DEFAULT_CONTEXT: SchemaContextType = {
+  data: {},
+  fields: [],
   localFetchSchema: (_: string): void => {},
   loading: RemoteDataState.NotStarted,
-  schema: {},
+  measurements: [],
+  searchTerm: '',
+  setSearchTerm: (_: string) => {},
+  tags: [],
 }
 
 export const SchemaContext = React.createContext<SchemaContextType>(
@@ -32,6 +44,7 @@ export const SchemaContext = React.createContext<SchemaContextType>(
 
 export const SchemaProvider: FC<Props> = React.memo(({children}) => {
   const {data} = useContext(PipeContext)
+  const [searchTerm, setSearchTerm] = useState('')
   const dispatch = useDispatch()
 
   const loading = useSelector(
@@ -52,15 +65,28 @@ export const SchemaProvider: FC<Props> = React.memo(({children}) => {
   )
 
   const schema = useSelector(
-    (state: AppState) => state.notebook.schema[data?.bucketName] || {}
+    (state: AppState) => state.notebook.schema[data?.bucketName]?.schema || {}
+  )
+
+  const schemaCopy = {...schema}
+
+  const {fields, measurements, tags} = normalizeSchema(
+    schemaCopy,
+    data,
+    searchTerm
   )
 
   return (
     <SchemaContext.Provider
       value={{
+        data: schema,
+        fields,
         loading,
         localFetchSchema,
-        schema,
+        measurements,
+        searchTerm,
+        setSearchTerm,
+        tags,
       }}
     >
       {children}

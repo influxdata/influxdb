@@ -12,7 +12,7 @@ import Selectors from 'src/notebooks/pipes/Data/Selectors'
 import {SchemaContext} from 'src/notebooks/context/schemaProvider'
 
 const FieldsList: FC = () => {
-  const {loading, schema} = useContext(SchemaContext)
+  const {loading, data} = useContext(SchemaContext)
 
   let body = <Schema />
 
@@ -32,8 +32,8 @@ const FieldsList: FC = () => {
     )
   }
 
-  if (loading === RemoteDataState.Done && Object.keys(schema).length > 0) {
-    body = <Selectors schema={schema.measurements} />
+  if (loading === RemoteDataState.Done && Object.keys(data).length > 0) {
+    body = <Selectors />
   }
 
   return body

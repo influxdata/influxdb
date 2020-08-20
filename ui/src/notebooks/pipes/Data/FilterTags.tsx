@@ -78,11 +78,18 @@ const FilterTags: FC = () => {
       } else {
         tagValues = [...selectedTags[tagName], tagValue]
       }
+
+      let tags = {
+        ...selectedTags,
+        [tagName]: tagValues,
+      }
+
+      if (tagValues.length === 0) {
+        tags = {}
+      }
+
       update({
-        tags: {
-          ...selectedTags,
-          [tagName]: tagValues,
-        },
+        tags,
       })
     } else {
       update({[type]: ''})
