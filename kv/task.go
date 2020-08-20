@@ -3,7 +3,6 @@ package kv
 import (
 	"context"
 	"encoding/json"
-	"regexp"
 	"strings"
 	"time"
 
@@ -708,7 +707,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 	// update the flux script
 	if !upd.Options.IsZero() || upd.Flux != nil {
-		if err = upd.UpdateFlux(s.FluxLanguageService, task.Flux); err != nil {
+		if err = upd.UpdateFlux(ctx, s.FluxLanguageService, task.Flux); err != nil {
 			return nil, err
 		}
 		task.Flux = *upd.Flux
@@ -1661,8 +1660,6 @@ func taskRunKey(taskID, runID influxdb.ID) ([]byte, error) {
 	return []byte(string(encodedID) + "/" + string(encodedRunID)), nil
 }
 
-var taskOptionsPattern = regexp.MustCompile(`option\s+task\s*=\s*{.*}`)
-
 // ExtractTaskOptions is a feature-flag driven switch between normal options
 // parsing and a more simplified variant.
 //
@@ -1674,24 +1671,10 @@ var taskOptionsPattern = regexp.MustCompile(`option\s+task\s*=\s*{.*}`)
 //
 // [1]: https://github.com/influxdata/influxdb/issues/17666
 func ExtractTaskOptions(ctx context.Context, lang influxdb.FluxLanguageService, flux string) (options.Options, error) {
-	if !feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
-		return options.FromScript(lang, flux)
+	if feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
+		return options.FromScriptAST(lang, flux)
 	}
-
-	matches := taskOptionsPattern.FindAllString(flux, -1)
-	if len(matches) == 0 {
-		return options.Options{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "no task options defined",
-		}
-	}
-	if len(matches) > 1 {
-		return options.Options{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "multiple task options defined",
-		}
-	}
-	return options.FromScript(lang, matches[0])
+	return options.FromScript(lang, flux)
 }
 
 func (s *Service) maxPermissions(ctx context.Context, tx Tx, userID influxdb.ID) ([]influxdb.Permission, error) {

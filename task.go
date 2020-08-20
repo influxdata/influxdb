@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/task/options"
 )
 
@@ -308,9 +309,17 @@ func safeParseSource(parser FluxLanguageService, f string) (pkg *ast.Package, er
 	return parser.Parse(f)
 }
 
-// UpdateFlux updates the TaskUpdate to go from updating options to updating a flux string, that now has those updated options in it
-// It zeros the options in the TaskUpdate.
-func (t *TaskUpdate) UpdateFlux(parser FluxLanguageService, oldFlux string) (err error) {
+// UpdateFlux updates the TaskUpdate to go from updating options to updating a
+// flux string, that now has those updated options in it. It zeros the options
+// in the TaskUpdate.
+func (t *TaskUpdate) UpdateFlux(ctx context.Context, parser FluxLanguageService, oldFlux string) error {
+	if !feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
+		return t.updateFluxAST(parser, oldFlux)
+	}
+	return t.updateFlux(parser, oldFlux)
+}
+
+func (t *TaskUpdate) updateFlux(parser FluxLanguageService, oldFlux string) error {
 	if t.Flux != nil && *t.Flux != "" {
 		oldFlux = *t.Flux
 	}
@@ -412,6 +421,57 @@ func (t *TaskUpdate) UpdateFlux(parser FluxLanguageService, oldFlux string) (err
 		s := ast.Format(parsed)
 		t.Flux = &s
 	}
+	return nil
+}
+
+func (t *TaskUpdate) updateFluxAST(parser FluxLanguageService, oldFlux string) error {
+	if t.Flux != nil && *t.Flux != "" {
+		oldFlux = *t.Flux
+	}
+	parsedPKG, err := safeParseSource(parser, oldFlux)
+	if err != nil {
+		return err
+	}
+
+	parsed := parsedPKG.Files[0]
+	if !t.Options.Every.IsZero() && t.Options.Cron != "" {
+		return errors.New("cannot specify both cron and every")
+	}
+
+	taskOptions, err := edit.GetOption(parsed, "task")
+	if err != nil {
+		return err
+	}
+
+	optsExpr := taskOptions.(*ast.ObjectExpression)
+
+	if t.Options.Name != "" {
+		edit.SetProperty(optsExpr, "name", &ast.StringLiteral{
+			Value: t.Options.Name,
+		})
+	}
+	if !t.Options.Every.IsZero() {
+		edit.SetProperty(optsExpr, "every", t.Options.Every.Node.Copy().(*ast.DurationLiteral))
+		edit.DeleteProperty(optsExpr, "cron")
+	}
+	if t.Options.Cron != "" {
+		edit.SetProperty(optsExpr, "cron", &ast.StringLiteral{
+			Value: t.Options.Cron,
+		})
+		edit.DeleteProperty(optsExpr, "every")
+	}
+	if t.Options.Offset != nil {
+		if !t.Options.Offset.IsZero() {
+			edit.SetProperty(optsExpr, "offset", t.Options.Offset.Node.Copy().(*ast.DurationLiteral))
+		} else {
+			edit.DeleteProperty(optsExpr, "offset")
+		}
+	}
+
+	t.Options.Clear()
+	s := ast.Format(parsed)
+	t.Flux = &s
+
 	return nil
 }
 

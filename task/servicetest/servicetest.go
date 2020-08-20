@@ -375,6 +375,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if origID != f.ID {
 		t.Fatalf("task ID unexpectedly changed during update, from %s to %s", origID.String(), f.ID.String())
 	}
+
 	if f.Flux != newFlux {
 		t.Fatalf("wrong flux from update; want %q, got %q", newFlux, f.Flux)
 	}
@@ -426,7 +427,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Update task: switch to every.
 	newStatus = string(influxdb.TaskActive)
-	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\tevery: 30s,\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
+	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\toffset: 5s,\n\tconcurrency: 100,\n\tevery: 30s,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Every: *(options.MustParseDuration("30s"))}})
 	if err != nil {
 		t.Fatal(err)
@@ -655,7 +656,7 @@ from(bucket: "b")
 		t.Fatal(err)
 	}
 	t.Run("update task and delete offset", func(t *testing.T) {
-		expectedFlux := `option task = {name: "task-Options-Update", every: 10s, concurrency: 100}
+		expectedFlux := `option task = {name: "task-Options-Update", concurrency: 100, every: 10s}
 
 from(bucket: "b")
 	|> to(bucket: "two", orgID: "000000000000000")`
@@ -675,8 +676,8 @@ from(bucket: "b")
 	t.Run("update task with different offset option", func(t *testing.T) {
 		expectedFlux := `option task = {
 	name: "task-Options-Update",
-	every: 10s,
 	concurrency: 100,
+	every: 10s,
 	offset: 10s,
 }
 
@@ -1738,14 +1739,14 @@ const (
 	concurrency: 100,
 }
 
-from(bucket:"b")
+from(bucket: "b")
 	|> to(bucket: "two", orgID: "000000000000000")`
 
 	scriptDifferentName = `option task = {
 	name: "task-changed #%d",
-	cron: "* * * * *",
 	offset: 5s,
 	concurrency: 100,
+	cron: "* * * * *",
 }
 
 from(bucket: "b")

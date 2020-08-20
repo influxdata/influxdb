@@ -1,10 +1,10 @@
 package feature
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
-	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 
@@ -44,8 +44,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HTTPErrorHandler is an influxdb.HTTPErrorHandler. It's defined here instead
+// of referencing the other interface type, because we want to try our best to
+// avoid cyclical dependencies when feature package is used throughout the
+// codebase.
+type HTTPErrorHandler interface {
+	HandleHTTPError(ctx context.Context, err error, w http.ResponseWriter)
+}
+
 // NewFlagsHandler returns a handler that returns the map of computed feature flags on the request context.
-func NewFlagsHandler(errorHandler influxdb.HTTPErrorHandler, byKey ByKeyFn) http.Handler {
+func NewFlagsHandler(errorHandler HTTPErrorHandler, byKey ByKeyFn) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
