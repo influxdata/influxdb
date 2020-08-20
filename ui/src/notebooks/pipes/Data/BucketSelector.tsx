@@ -22,8 +22,6 @@ const BucketSelector: FC = () => {
   const updateBucket = useCallback(
     (updatedBucket: Bucket): void => {
       update({bucketName: updatedBucket.name})
-      // TODO(resetSchema based on updated selection)
-      // resetSchema()
     },
     [update]
   )

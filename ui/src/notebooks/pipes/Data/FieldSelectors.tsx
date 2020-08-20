@@ -11,7 +11,7 @@ type Props = {
 
 const FieldSelectors: FC<Props> = ({fields}) => {
   const {data, update} = useContext(PipeContext)
-  const selectedField = data.field
+  const selectedField = data?.field
   const updateFieldSelection = useCallback(
     (field: string): void => {
       let updated = field

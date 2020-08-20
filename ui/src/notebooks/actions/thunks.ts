@@ -1,22 +1,12 @@
 // Libraries
-// import {normalize} from 'normalizr'
 import {Dispatch} from 'react'
 // import {fromFlux as parse} from '@influxdata/giraffe'
+
 // API
 // import {runQuery} from 'src/shared/apis/query'
 
-// Schemas
-// import {arrayOfBuckets} from 'src/schemas'
-
 // Types
-import {
-  RemoteDataState,
-  GetState,
-  // Bucket,
-  // BucketEntities,
-  // ResourceType,
-} from 'src/types'
-
+import {RemoteDataState, GetState} from 'src/types'
 // Utils
 import {getOrg} from 'src/organizations/selectors'
 
@@ -36,13 +26,14 @@ export const fetchSchemaForBucket = async (
   bucketName: string, // tslint:disable-line
   orgID: string // tslint:disable-line
 ) => {
-  // TODO(ariel): make this work with the query
+  // TODO(ariel): make this work with the query & the time range
   // const text = `import "influxdata/influxdb/v1"
   // from(bucket: "${bucketName}")
-  // |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  // |> first()`
+  // |> range(start: -1h)
+  // |> first()
+  // |> v1.fieldsAsCols()`
 
-  // const result = await runQuery(orgID, text)
+  // const res = await runQuery(orgID, text)
   //   .promise.then(raw => {
   //     if (raw.type !== 'SUCCESS') {
   //       throw new Error(raw.message)
@@ -73,7 +64,6 @@ export const getAndSetBucketSchema = (bucketName: string) => async (
       dispatch(setSchema(RemoteDataState.Loading, bucketName, []))
     }
     const orgID = getOrg(state).id
-
     const schema = await fetchSchemaForBucket(bucketName, orgID)
     dispatch(setSchema(RemoteDataState.Done, bucketName, schema as any[]))
   } catch (error) {

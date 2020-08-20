@@ -11,7 +11,7 @@ type Props = {
 
 const MeasurementSelectors: FC<Props> = ({measurements}) => {
   const {data, update} = useContext(PipeContext)
-  const selectedMeasurement = data.measurement
+  const selectedMeasurement = data?.measurement
   const updateMeasurementSelection = useCallback(
     (value: string): void => {
       let updated = value

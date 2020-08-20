@@ -3,7 +3,8 @@ import React, {FC, useContext, useCallback} from 'react'
 
 // Contexts
 import {NotebookContext} from 'src/notebooks/context/notebook'
-import {TimeContext, TimeBlock} from 'src/notebooks/context/time'
+import {TimeProvider, TimeContext, TimeBlock} from 'src/notebooks/context/time'
+import AppSettingProvider from 'src/notebooks/context/app'
 
 // Components
 import {Page} from '@influxdata/clockface'
@@ -58,4 +59,10 @@ const NotebookHeader: FC = () => {
   )
 }
 
-export default NotebookHeader
+export default () => (
+  <TimeProvider>
+    <AppSettingProvider>
+      <NotebookHeader />
+    </AppSettingProvider>
+  </TimeProvider>
+)

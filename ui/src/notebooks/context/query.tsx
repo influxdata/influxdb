@@ -64,9 +64,9 @@ export const QueryProvider: FC<Props> = ({children, variables, org}) => {
       })
   }
 
-  // if (!time) {
-  //   return null
-  // }
+  if (!time) {
+    return null
+  }
 
   return (
     <QueryContext.Provider value={{query}}>{children}</QueryContext.Provider>

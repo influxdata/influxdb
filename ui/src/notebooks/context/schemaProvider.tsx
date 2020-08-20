@@ -6,7 +6,7 @@ import {useDispatch, useSelector} from 'react-redux'
 import {PipeContext} from 'src/notebooks/context/pipe'
 
 // Utils
-import {normalizeSchema} from 'src/notebooks/context/utils'
+import {normalizeSchema} from 'src/notebooks/utils'
 import {getAndSetBucketSchema} from 'src/notebooks/actions/thunks'
 
 // Types
@@ -61,7 +61,7 @@ export const SchemaProvider: FC<Props> = React.memo(({children}) => {
         await dispatch(getAndSetBucketSchema(bucket))
       }
     },
-    [data?.bucketName]
+    [data?.bucketName, loading, dispatch]
   )
 
   const schema = useSelector(
