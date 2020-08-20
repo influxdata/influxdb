@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
@@ -65,19 +66,22 @@ func newWindowCountArrayCursor(cur cursors.Cursor, every, offset int64) cursors.
 	}
 }
 
-func newWindowSumArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
+func newWindowSumArrayCursor(cur cursors.Cursor, every, offset int64) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
 {{range .Aggs}}
 {{if eq .Name "Sum"}}
 	case cursors.{{$Type}}ArrayCursor:
-		return new{{$Type}}WindowSumArrayCursor(cur, every, offset)
+		return new{{$Type}}WindowSumArrayCursor(cur, every, offset), nil
 {{end}}
 {{end}}{{/* for each supported agg fn */}}
 {{end}}{{/* for each field type */}}
 	default:
-		panic(fmt.Sprintf("unsupported for aggregate sum: %T", cur))
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg: fmt.Sprintf("unsupported input type for sum aggregate: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
@@ -113,19 +117,22 @@ func newWindowMaxArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cu
 	}
 }
 
-func newWindowMeanArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
+func newWindowMeanArrayCursor(cur cursors.Cursor, every, offset int64) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
 {{range .Aggs}}
 {{if eq .Name "Mean"}}
 	case cursors.{{$Type}}ArrayCursor:
-		return new{{$Type}}WindowMeanArrayCursor(cur, every, offset)
+		return new{{$Type}}WindowMeanArrayCursor(cur, every, offset), nil
 {{end}}
 {{end}}{{/* for each supported agg fn */}}
 {{end}}{{/* for each field type */}}
 	default:
-		panic(fmt.Sprintf("unsupported for aggregate mean: %T", cur))
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg: fmt.Sprintf("unsupported input type for mean aggregate: %s", arrayCursorType(cur)),
+		}
 	}
 }
 {{range .}}
@@ -564,3 +571,14 @@ func (c *{{.name}}EmptyArrayCursor) Stats() cursors.CursorStats { return cursors
 func (c *{{.name}}EmptyArrayCursor) Next() {{$arrayType}} { return &c.res }
 
 {{end}}{{/* range . */}}
+
+func arrayCursorType(cur cursors.Cursor) string {
+	switch cur.(type) {
+	{{range .}}
+	case cursors.{{.Name}}ArrayCursor:
+		return "{{.name}}"
+	{{end}}{{/* range . */}}
+	default:
+		return "unknown"
+	}
+}
