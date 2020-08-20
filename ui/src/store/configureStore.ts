@@ -53,7 +53,7 @@ import {
 import {predicatesReducer} from 'src/shared/reducers/predicates'
 import alertBuilderReducer from 'src/alerting/reducers/alertBuilder'
 import perfReducer from 'src/perf/reducers'
-import {schemaReducer} from 'src/notebooks/reducers'
+import {schemaReducer} from 'src/shared/reducers/schema'
 
 // Types
 import {AppState, LocalStorage} from 'src/types'

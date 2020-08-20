@@ -11,7 +11,10 @@ import {RemoteDataState, GetState} from 'src/types'
 import {getOrg} from 'src/organizations/selectors'
 
 // Actions
-import {setSchema, Action as BucketAction} from 'src/notebooks/actions/creators'
+import {
+  setSchema,
+  Action as BucketAction,
+} from 'src/shared/actions/schemaCreator'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 
 // Constants

@@ -1,5 +1,5 @@
-// Libraries
-import {isEqual, uniq} from 'lodash'
+// Types
+import {PipeData} from 'src/notebooks'
 
 export const dedupeTags = (tags: any[]) => {
   const cache = {}
@@ -12,14 +12,14 @@ export const dedupeTags = (tags: any[]) => {
       values.sort()
       const vals = JSON.stringify(values)
       if (tagName in cache === false) {
-        cache[tagName] = values
+        cache[tagName] = vals
         set.add(vals)
         results = results.concat({
           [tagName]: values,
         })
         return
       }
-      if (isEqual(cache[tagName], values) || set.has(vals)) {
+      if (cache[tagName] === vals || set.has(vals)) {
         return
       } else {
         set.add(vals)
@@ -57,7 +57,22 @@ const filterTags = (tags: any[], searchTerm: string): any[] =>
       }).length !== 0
   )
 
-export const normalizeSchema = (schema: any, data: any, searchTerm: string) => {
+const dedupeArray = (array: string[]): string[] => {
+  const cache = {}
+  return array.filter(m => {
+    if (m in cache) {
+      return false
+    }
+    cache[m] = true
+    return true
+  })
+}
+
+export const normalizeSchema = (
+  schema: any,
+  data: PipeData,
+  searchTerm: string
+) => {
   const selectedMeasurement = data.measurement
   const selectedField = data.field
   const selectedTags = data?.tags
@@ -104,7 +119,7 @@ export const normalizeSchema = (schema: any, data: any, searchTerm: string) => {
 
   const dedupedTags = dedupeTags(tagResults)
   const filteredFields = filterFields(
-    uniq(fieldResults),
+    dedupeArray(fieldResults),
     searchTerm,
     data?.field
   )
@@ -112,7 +127,7 @@ export const normalizeSchema = (schema: any, data: any, searchTerm: string) => {
   const filteredTags = filterTags(dedupedTags, searchTerm)
 
   return {
-    measurements: uniq(measurements),
+    measurements: dedupeArray(measurements),
     fields: filteredFields,
     tags: filteredTags,
   }

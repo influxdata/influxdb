@@ -1,6 +1,10 @@
 // Types
 import {RemoteDataState} from 'src/types'
-import {SET_SCHEMA, Action, REMOVE_SCHEMA} from 'src/notebooks/actions/creators'
+import {
+  SET_SCHEMA,
+  Action,
+  REMOVE_SCHEMA,
+} from 'src/shared/actions/schemaCreator'
 
 export type SchemaState = {
   status: RemoteDataState

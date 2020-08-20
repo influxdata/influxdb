@@ -31,7 +31,7 @@ import {CurrentPage} from 'src/shared/reducers/currentPage'
 import {DemoDataState} from 'src/cloud/reducers/demodata'
 import {OrgSettingsState} from 'src/cloud/reducers/orgsettings'
 import {PerfState} from 'src/perf/reducers'
-import {SchemaState} from 'src/notebooks/reducers'
+import {SchemaState} from 'src/shared/reducers/schema'
 
 export interface AppState {
   router: RouterState

@@ -6,18 +6,19 @@ import {useDispatch, useSelector} from 'react-redux'
 import {PipeContext} from 'src/notebooks/context/pipe'
 
 // Utils
-import {normalizeSchema} from 'src/notebooks/utils'
-import {getAndSetBucketSchema} from 'src/notebooks/actions/thunks'
+import {normalizeSchema} from 'src/shared/utils/flowSchemaNormalizer'
+import {getAndSetBucketSchema} from 'src/shared/actions/schemaThunks'
 
 // Types
 import {AppState, RemoteDataState} from 'src/types'
+import {PipeData} from 'src/notebooks'
 
 export type Props = {
   children: JSX.Element
 }
 
 export interface SchemaContextType {
-  data: any
+  data: PipeData
   fields: string[]
   localFetchSchema: (bucketName: string) => void
   loading: RemoteDataState

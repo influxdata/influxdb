@@ -12,7 +12,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {event} from 'src/cloud/utils/reporting'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, TagValues} from 'src/types'
 
 const PREVIOUS_REGEXP = /__PREVIOUS_RESULT__/g
 const COMMENT_REMOVER = /(\/\*([\s\S]*?)\*\/)|(\/\/(.*)$)/gm
@@ -90,10 +90,10 @@ export const Submit: FC = () => {
             }
             if (tags && Object.keys(tags)?.length > 0) {
               Object.keys(tags)
-                .filter(tagName => !!tags[tagName])
-                .forEach(tagName => {
+                .filter((tagName: string) => !!tags[tagName])
+                .forEach((tagName: string) => {
                   const tagValues = tags[tagName]
-                  const values = tagValues as any[]
+                  const values = tagValues as TagValues
                   if (values.length === 1) {
                     text += `|> filter(fn: (r) => r["${tagName}"] == "${values[0]}")`
                   } else {
