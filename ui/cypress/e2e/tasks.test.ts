@@ -125,35 +125,84 @@ http.post(
     cy.getByTestID('add-resource-dropdown--new').click()
 
     cy.getByTestID('flux-editor').within(() => {
-      cy.get('textarea.inputarea').click().type('from(bucket: "defbuck")\n' +
-          '\t|> range(start: -2m)', {force: true, delay: 2})
+      cy.get('textarea.inputarea')
+        .click()
+        .type('from(bucket: "defbuck")\n' + '\t|> range(start: -2m)', {
+          force: true,
+          delay: 2,
+        })
     })
 
     cy.getByTestID('task-form-name')
-        .click()
-        .type('Cron task test')
-        .then(() => {
-          cy.getByTestID('task-card-cron-btn')
-              .click()
-          cy.getByTestID('task-form-schedule-input').click().type('0 4 8-14 * *')
-          cy.getByTestID('task-form-offset-input')
-              .click()
-              .type('10m')
-        })
+      .click()
+      .type('Cron task test')
+      .then(() => {
+        cy.getByTestID('task-card-cron-btn').click()
+        cy.getByTestID('task-form-schedule-input')
+          .click()
+          .type('0 4 8-14 * *')
+        cy.getByTestID('task-form-offset-input')
+          .click()
+          .type('10m')
+      })
 
     cy.getByTestID('task-save-btn').click()
 
     cy.getByTestID('task-card')
-        .contains('Cron task test')
-        .get('.cf-resource-meta--item')
-        .contains('Scheduled to run 0 4 8-14 * *')
+      .contains('Cron task test')
+      .get('.cf-resource-meta--item')
+      .contains('Scheduled to run 0 4 8-14 * *')
 
     cy.getByTestID('task-card')
-        .contains('Cron task test')
+      .contains('Cron task test')
+      .click()
+      .then(() => {
+        cy.getByTestID('task-form-schedule-input').should(
+          'have.value',
+          '0 4 8-14 * *'
+        )
+      })
+  })
+
+  //skip until this problem is resolved
+  it.skip('can create a task with an option parameter', () => {
+    cy.getByTestID('empty-tasks-list').within(() => {
+      cy.getByTestID('add-resource-dropdown--button')
         .click()
         .then(() => {
-          cy.getByTestID('task-form-schedule-input').should('have.value', '0 4 8-14 * *')
+          cy.getByTestID('add-resource-dropdown--new').click()
+        })
     })
+
+    cy.getByTestID('flux-editor').within(() => {
+      cy.get('textarea.inputarea')
+        .click()
+        .type(
+          'option task = \n' +
+            '{\n' +
+            'name: "Option Test", \n' +
+            'every: 24h, \n' +
+            'offset: 20m\n' +
+            '}\n' +
+            'from(bucket: "defbuck")\n' +
+            '\t|> range(start: -2m)'
+        )
+    })
+
+    cy.getByTestID('task-form-name')
+      .click()
+      .type('Option Test')
+      .then(() => {
+        cy.getByTestID('task-form-schedule-input')
+          .click()
+          .type('24h')
+        cy.getByTestID('task-form-offset-input')
+          .click()
+          .type('20m')
+      })
+
+    cy.getByTestID('task-save-btn').click()
+    cy.getByTestID('notification-success').should('exist')
   })
 
   describe('When tasks already exist', () => {
