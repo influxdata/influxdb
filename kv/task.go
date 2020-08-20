@@ -51,6 +51,8 @@ type kvTask struct {
 	Offset          influxdb.Duration      `json:"offset,omitempty"`
 	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
 	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
+	LatestSuccess   time.Time              `json:"latestSuccess,omitempty"`
+	LatestFailure   time.Time              `json:"latestFailure,omitempty"`
 	CreatedAt       time.Time              `json:"createdAt,omitempty"`
 	UpdatedAt       time.Time              `json:"updatedAt,omitempty"`
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`
@@ -74,6 +76,8 @@ func kvToInfluxTask(k *kvTask) *influxdb.Task {
 		Offset:          k.Offset.Duration,
 		LatestCompleted: k.LatestCompleted,
 		LatestScheduled: k.LatestScheduled,
+		LatestSuccess:   k.LatestSuccess,
+		LatestFailure:   k.LatestFailure,
 		CreatedAt:       k.CreatedAt,
 		UpdatedAt:       k.UpdatedAt,
 		Metadata:        k.Metadata,
