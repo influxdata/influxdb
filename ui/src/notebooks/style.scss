@@ -50,6 +50,10 @@
   &:first-child::after {
     top: ($notebook-header-height - $notebook-panel--node-dot) / 2;
   }
+
+  &:last-child {
+    margin-bottom: 25vh;
+  }
 }
 
 .notebook-panel--header,
@@ -83,13 +87,37 @@
   align-items: center;
   align-content: center;
   width: $notebook-panel--node-gap;
+  position: relative;
+  z-index: 2;
 }
 
 .notebook-panel--node {
   width: $notebook-panel--node-dot;
   height: $notebook-panel--node-dot;
   border-radius: 50%;
-  background-color: $g5-pepper;
+  background-color: $g1-raven;
+  border: $cf-border solid $g5-pepper;
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    background-color: $c-laser;
+    transform: translate(-50%, -50%) scale(1.5, 1.5);
+    width: $cf-marg-b;
+    height: $cf-marg-b;
+    box-shadow: 0 0 8px 2px $c-void, 0 0 4px 2px $c-pool, 0 0 1px 1px$c-laser;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    opacity: 0;
+  }
+
+  .notebook-panel__focus &:after {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
 }
 
 .notebook-panel--title,
