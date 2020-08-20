@@ -13,8 +13,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
-	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -143,16 +141,6 @@ func (t *TemporaryEngine) WithLogger(log *zap.Logger) {
 // the engine and its components.
 func (t *TemporaryEngine) PrometheusCollectors() []prometheus.Collector {
 	return t.engine.PrometheusCollectors()
-}
-
-// TagKeys calls into the underlying engines TagKeys.
-func (t *TemporaryEngine) TagKeys(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
-	return t.engine.TagKeys(ctx, orgID, bucketID, start, end, predicate)
-}
-
-// TagValues calls into the underlying engines TagValues.
-func (t *TemporaryEngine) TagValues(ctx context.Context, orgID, bucketID influxdb.ID, tagKey string, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
-	return t.engine.TagValues(ctx, orgID, bucketID, tagKey, start, end, predicate)
 }
 
 // Flush will remove the time-series files and re-open the engine.
