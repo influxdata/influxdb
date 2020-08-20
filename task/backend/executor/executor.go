@@ -457,8 +457,6 @@ func (w *worker) start(p *promise) {
 }
 
 func (w *worker) finish(p *promise, rs influxdb.RunStatus, err error) {
-
-	// trace
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
 	defer span.Finish()
 
@@ -642,22 +640,32 @@ func NewASTCompiler(_ context.Context, query string, ts CompilerBuilderTimestamp
 	if err != nil {
 		return nil, err
 	}
-	externBytes, err := json.Marshal(ts.Extern())
-	if err != nil {
-		return nil, err
+	extern := ts.Extern()
+	var externBytes []byte
+	if len(extern.Body) > 0 {
+		var err error
+		externBytes, err = json.Marshal(extern)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return lang.ASTCompiler{
 		AST:    pkg,
 		Now:    ts.Now,
-		Extern: json.RawMessage(externBytes),
+		Extern: externBytes,
 	}, nil
 }
 
 // NewFluxCompiler wraps a Flux query string in a raw-query representation.
 func NewFluxCompiler(_ context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
-	externBytes, err := json.Marshal(ts.Extern())
-	if err != nil {
-		return nil, err
+	extern := ts.Extern()
+	var externBytes []byte
+	if len(extern.Body) > 0 {
+		var err error
+		externBytes, err = json.Marshal(extern)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return lang.FluxCompiler{
 		Query:  query,
