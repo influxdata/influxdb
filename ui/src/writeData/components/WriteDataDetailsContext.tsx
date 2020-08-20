@@ -56,8 +56,9 @@ const WriteDataDetailsContextProvider: FC<Props> = ({
   children,
 }) => {
   const userBuckets = buckets.filter(b => b.type === 'user')
+  const initialToken = tokens.length ? tokens[0] : null
   const [bucket, changeBucket] = useState<Bucket>(userBuckets[0])
-  const [token, changeToken] = useState<Authorization>(tokens[0])
+  const [token, changeToken] = useState<Authorization>(initialToken)
   const origin = window.location.origin
 
   const value = {

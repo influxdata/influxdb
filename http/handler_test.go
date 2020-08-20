@@ -59,22 +59,24 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			}
 
 			c := promtest.MustFindMetric(t, mfs, "http_api_requests_total", map[string]string{
-				"handler":    "test",
-				"method":     "GET",
-				"path":       "/",
-				"status":     "2XX",
-				"user_agent": "ua1",
+				"handler":       "test",
+				"method":        "GET",
+				"path":          "/",
+				"status":        "2XX",
+				"user_agent":    "ua1",
+				"response_code": "200",
 			})
 			if got := c.GetCounter().GetValue(); got != 1 {
 				t.Fatalf("expected counter to be 1, got %v", got)
 			}
 
 			g := promtest.MustFindMetric(t, mfs, "http_api_request_duration_seconds", map[string]string{
-				"handler":    "test",
-				"method":     "GET",
-				"path":       "/",
-				"status":     "2XX",
-				"user_agent": "ua1",
+				"handler":       "test",
+				"method":        "GET",
+				"path":          "/",
+				"status":        "2XX",
+				"user_agent":    "ua1",
+				"response_code": "200",
 			})
 			if got := g.GetHistogram().GetSampleCount(); got != 1 {
 				t.Fatalf("expected histogram sample count to be 1, got %v", got)

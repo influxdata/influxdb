@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
+import BandOptions from 'src/timeMachine/components/view_options/BandOptions'
 import LineOptions from 'src/timeMachine/components/view_options/LineOptions'
 import GaugeOptions from 'src/timeMachine/components/view_options/GaugeOptions'
 import SingleStatOptions from 'src/timeMachine/components/view_options/SingleStatOptions'
@@ -32,6 +33,8 @@ class OptionsSwitcher extends PureComponent<Props> {
         )
       case 'xy':
         return <LineOptions {...view.properties} />
+      case 'band':
+        return <BandOptions {...view.properties} />
       case 'gauge':
         return <GaugeOptions {...view.properties} />
       case 'single-stat':

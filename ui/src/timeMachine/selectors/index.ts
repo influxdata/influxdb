@@ -355,6 +355,17 @@ export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
     }
   }
 
+  if (saveableView.properties.type === 'band') {
+    saveableView = {
+      ...saveableView,
+      properties: {
+        ...saveableView.properties,
+        xColumn: getXColumnSelection(state),
+        yColumn: getYColumnSelection(state),
+      },
+    }
+  }
+
   if (saveableView.properties.type === 'line-plus-single-stat') {
     saveableView = {
       ...saveableView,

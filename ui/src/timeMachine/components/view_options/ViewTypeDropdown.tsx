@@ -58,6 +58,9 @@ class ViewTypeDropdown extends PureComponent<Props> {
       if (g.type === 'mosaic' && !isFlagEnabled('mosaicGraphType')) {
         return false
       }
+      if (g.type === 'band' && !isFlagEnabled('bandPlotType')) {
+        return false
+      }
       return true
     }).map(g => {
       return (

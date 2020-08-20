@@ -107,3 +107,7 @@ export const GIRAFFE_COLOR_SCHEMES = [
   {name: 'Ectoplasm', colors: ECTOPLASM},
   {name: 'T-MAX 400 Film', colors: T_MAX_400_FILM},
 ]
+
+export const BAND_LINE_OPACITY = 0.7
+export const BAND_LINE_WIDTH = 3
+export const BAND_SHADE_OPACITY = 0.3

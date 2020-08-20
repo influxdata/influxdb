@@ -1,11 +1,14 @@
 package influxdb_test
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/mock"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"
@@ -53,10 +56,26 @@ func TestOptionsMarshal(t *testing.T) {
 	}
 }
 
+func TestOptionsEditWithAST(t *testing.T) {
+	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
+		feature.SimpleTaskOptionsExtraction(): true,
+	})
+	testOptionsEdit(t, flagger)
+}
+
 func TestOptionsEdit(t *testing.T) {
+	flagger := mock.NewFlagger(map[feature.Flag]interface{}{
+		feature.SimpleTaskOptionsExtraction(): false,
+	})
+	testOptionsEdit(t, flagger)
+}
+
+func testOptionsEdit(t *testing.T, flagger feature.Flagger) {
+	ctx, _ := feature.Annotate(context.Background(), flagger)
+
 	tu := &platform.TaskUpdate{}
 	tu.Options.Every = *(options.MustParseDuration("10s"))
-	if err := tu.UpdateFlux(fluxlang.DefaultService, `option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
+	if err := tu.UpdateFlux(ctx, fluxlang.DefaultService, `option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 		t.Fatal(err)
 	}
 	t.Run("zeroing", func(t *testing.T) {
@@ -86,7 +105,7 @@ from(bucket: "x")
 	t.Run("add new option", func(t *testing.T) {
 		tu := &platform.TaskUpdate{}
 		tu.Options.Offset = options.MustParseDuration("30s")
-		if err := tu.UpdateFlux(fluxlang.DefaultService, `option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
+		if err := tu.UpdateFlux(ctx, fluxlang.DefaultService, `option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
 		}
 		op, err := options.FromScript(fluxlang.DefaultService, *tu.Flux)
@@ -94,13 +113,13 @@ from(bucket: "x")
 			t.Error(err)
 		}
 		if op.Offset == nil || op.Offset.String() != "30s" {
-			t.Fatalf("expected every to be 30s but was %s", op.Every)
+			t.Fatalf("expected offset to be 30s but was %s", op.Offset)
 		}
 	})
 	t.Run("switching from every to cron", func(t *testing.T) {
 		tu := &platform.TaskUpdate{}
 		tu.Options.Cron = "* * * * *"
-		if err := tu.UpdateFlux(fluxlang.DefaultService, `option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
+		if err := tu.UpdateFlux(ctx, fluxlang.DefaultService, `option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
 		}
 		op, err := options.FromScript(fluxlang.DefaultService, *tu.Flux)
@@ -117,7 +136,7 @@ from(bucket: "x")
 	t.Run("switching from cron to every", func(t *testing.T) {
 		tu := &platform.TaskUpdate{}
 		tu.Options.Every = *(options.MustParseDuration("10s"))
-		if err := tu.UpdateFlux(fluxlang.DefaultService, `option task = {cron: "* * * * *", name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
+		if err := tu.UpdateFlux(ctx, fluxlang.DefaultService, `option task = {cron: "* * * * *", name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
 		}
 		op, err := options.FromScript(fluxlang.DefaultService, *tu.Flux)
@@ -138,7 +157,7 @@ from(bucket: "x")
 
 from(bucket: "x")
 	|> range(start: -1h)`
-		if err := tu.UpdateFlux(fluxlang.DefaultService, `option task = {cron: "* * * * *", name: "foo", offset: 10s} from(bucket:"x") |> range(start:-1h)`); err != nil {
+		if err := tu.UpdateFlux(ctx, fluxlang.DefaultService, `option task = {cron: "* * * * *", name: "foo", offset: 10s} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
 		}
 		op, err := options.FromScript(fluxlang.DefaultService, *tu.Flux)

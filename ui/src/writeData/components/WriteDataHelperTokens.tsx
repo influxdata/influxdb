@@ -20,9 +20,19 @@ const WriteDataHelperTokens: FC = () => {
 
   let body = (
     <EmptyState size={ComponentSize.Small}>
-      <p>You don't have any Tokens</p>
+      <p data-testid="write-data-tokens-list-empty">
+        You don't have any Tokens
+      </p>
     </EmptyState>
   )
+
+  const isSelected = (tokenID: string): boolean => {
+    if (!token) {
+      return false
+    }
+
+    return tokenID === token.id
+  }
 
   if (tokens.length) {
     body = (
@@ -30,12 +40,14 @@ const WriteDataHelperTokens: FC = () => {
         backgroundColor={InfluxColors.Obsidian}
         style={{height: '200px'}}
         maxHeight="200px"
+        testID="write-data-tokens-list"
       >
         {tokens.map(t => (
           <List.Item
             size={ComponentSize.Small}
             key={t.id}
-            selected={t.id === token.id}
+            testID={t.description}
+            selected={isSelected(t.id)}
             value={t}
             onClick={changeToken}
             wrapText={true}
