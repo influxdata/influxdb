@@ -3504,6 +3504,7 @@ paths:
         - $ref: "#/components/parameters/TraceSpan"
         - $ref: "#/components/parameters/Offset"
         - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/After"
         - in: query
           name: org
           description: The organization name.
@@ -6520,6 +6521,15 @@ components:
       required: false
       schema:
         type: string
+    After:
+      in: query
+      name: after
+      required: false
+      schema:
+        type: string
+      description: >
+        The last resource ID from which to seek from (but not including).
+        This is to be used instead of `offset`.
   schemas:
     LanguageRequest:
       description: Flux query to be analyzed.
