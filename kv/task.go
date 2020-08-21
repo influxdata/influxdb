@@ -1007,8 +1007,10 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 		}
 	}
 
+	//after.Before(scheduled)
+	//scheduled.After(after) - works not rlly
 	between := func(scheduled time.Time) bool {
-		return (after.IsZero() || after.Before(scheduled)) && (before.IsZero() || scheduled.Before(before))
+		return (after.IsZero() || scheduled.After(after)) && (before.IsZero() || scheduled.Before(before))
 	}
 
 	var runs []*influxdb.Run
