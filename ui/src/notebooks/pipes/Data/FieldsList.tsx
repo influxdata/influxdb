@@ -7,14 +7,14 @@ import {
   ComponentSize,
   RemoteDataState,
 } from '@influxdata/clockface'
-import Schema from 'src/notebooks/pipes/Data/Schema'
 import Selectors from 'src/notebooks/pipes/Data/Selectors'
 import {SchemaContext} from 'src/notebooks/context/schemaProvider'
 
 const FieldsList: FC = () => {
   const {loading, data} = useContext(SchemaContext)
+  console.log('data: ', data)
 
-  let body = <Schema />
+  let body = <span />
 
   if (loading === RemoteDataState.Loading) {
     body = (

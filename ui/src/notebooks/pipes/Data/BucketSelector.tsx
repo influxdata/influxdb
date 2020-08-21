@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useEffect, useContext, useCallback} from 'react'
+import React, {FC, useContext, useCallback} from 'react'
 
 // Components
 import {
@@ -9,8 +9,11 @@ import {
   Dropdown,
   IconFont,
 } from '@influxdata/clockface'
+
+// Contexts
 import {BucketContext} from 'src/notebooks/context/buckets'
 import {PipeContext} from 'src/notebooks/context/pipe'
+import {SchemaContext} from 'src/notebooks/context/schemaProvider'
 
 // Types
 import {Bucket} from 'src/types'
@@ -18,22 +21,17 @@ import {Bucket} from 'src/types'
 const BucketSelector: FC = () => {
   const {data, update} = useContext(PipeContext)
   const {buckets, loading} = useContext(BucketContext)
+  const {localFetchSchema} = useContext(SchemaContext)
   const selectedBucketName = data?.bucketName
+  let buttonText = 'Loading buckets...'
 
   const updateBucket = useCallback(
     (updatedBucket: Bucket): void => {
+      localFetchSchema(updatedBucket.name)
       update({bucketName: updatedBucket.name})
     },
-    [update]
+    [update, localFetchSchema]
   )
-
-  useEffect(() => {
-    // selectedBucketName will only evaluate false on the initial render
-    // because there is no default value
-    if (!!buckets.length && !selectedBucketName) {
-      updateBucket(buckets[0])
-    }
-  }, [buckets, selectedBucketName, updateBucket])
 
   let menuItems = (
     <Dropdown.ItemEmpty>
@@ -60,8 +58,11 @@ const BucketSelector: FC = () => {
     )
   }
 
-  const buttonText =
-    loading === RemoteDataState.Done ? selectedBucketName : 'Loading...'
+  if (loading === RemoteDataState.Done && !selectedBucketName) {
+    buttonText = 'Choose a bucket'
+  } else if (loading === RemoteDataState.Done && selectedBucketName) {
+    buttonText = selectedBucketName
+  }
 
   const button = (active, onClick) => (
     <Dropdown.Button onClick={onClick} active={active} icon={IconFont.Disks}>

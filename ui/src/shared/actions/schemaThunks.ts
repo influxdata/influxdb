@@ -69,6 +69,7 @@ export const getAndSetBucketSchema = (bucketName: string) => async (
     if (bucketName) {
       dispatch(setSchema(RemoteDataState.Loading, bucketName, {}))
     }
+    // TODO(ariel): check the reducer for a match otherwise do the rest
     const orgID = getOrg(state).id
     const schema = await fetchSchemaForBucket(bucketName, orgID)
     dispatch(setSchema(RemoteDataState.Done, bucketName, schema as Schema))
