@@ -79,7 +79,13 @@ export const Submit: FC = () => {
               requirements,
             })
           } else if (pipe.type === 'data') {
-            const {bucketName, field, measurement, tags} = pipe
+            const {
+              aggregateFunction,
+              bucketName,
+              field,
+              measurement,
+              tags,
+            } = pipe
 
             let text = `from(bucket: "${bucketName}")|>range(start: v.timeRangeStart, stop: v.timeRangeStop)`
             if (measurement) {
@@ -108,6 +114,11 @@ export const Submit: FC = () => {
                     })
                   }
                 })
+            }
+
+            if (aggregateFunction.flux && aggregateFunction.name) {
+              text += `  |> aggregateWindow(every: v.windowPeriod, fn: ${aggregateFunction.name}, createEmpty: false)
+              |> yield(name: "${aggregateFunction.name}")`
             }
 
             stages.push({
