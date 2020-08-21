@@ -224,16 +224,34 @@ func decodeOrgDashboardIndexKey(indexKey []byte) (orgID influxdb.ID, dashID infl
 }
 
 func (s *Service) findDashboards(ctx context.Context, tx Tx, filter influxdb.DashboardFilter, opts ...influxdb.FindOptions) ([]*influxdb.Dashboard, error) {
-	if filter.OrganizationID != nil {
-		return s.findOrganizationDashboards(ctx, tx, *filter.OrganizationID)
-	}
-
 	var offset, limit, count int
 	var descending bool
 	if len(opts) > 0 {
 		offset = opts[0].Offset
 		limit = opts[0].Limit
 		descending = opts[0].Descending
+	}
+
+	if filter.OrganizationID != nil {
+		orgDashboards, err := s.findOrganizationDashboards(ctx, tx, *filter.OrganizationID)
+		if err != nil {
+			return nil, &influxdb.Error{
+				Err: err,
+			}
+		}
+		if offset > 0 && offset < len(orgDashboards) {
+			orgDashboards = orgDashboards[offset:]
+		}
+		if limit > 0 && limit < len(orgDashboards) {
+			orgDashboards = orgDashboards[:limit]
+		}
+		if descending {
+			for i, j := 0, len(orgDashboards)-1; i < j; i, j = i+1, j-1 {
+				orgDashboards[i], orgDashboards[j] = orgDashboards[j], orgDashboards[i]
+			}
+		}
+
+		return orgDashboards, nil
 	}
 
 	ds := []*influxdb.Dashboard{}

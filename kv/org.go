@@ -222,6 +222,14 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 		return []*influxdb.Organization{o}, 1, nil
 	}
 
+	var offset, limit, count int
+	var descending bool
+	if len(opt) > 0 {
+		offset = opt[0].Offset
+		limit = opt[0].Limit
+		descending = opt[0].Descending
+	}
+
 	os := []*influxdb.Organization{}
 
 	if filter.UserID != nil {
@@ -229,7 +237,7 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 		urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
 			UserID:       *filter.UserID,
 			ResourceType: influxdb.OrgsResourceType,
-		}, opt...)
+		})
 
 		if err != nil {
 			return nil, 0, err
@@ -239,7 +247,18 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 			o, err := s.FindOrganizationByID(ctx, urm.ResourceID)
 			if err == nil {
 				// if there is an error then this is a crufty urm and we should just move on
-				os = append(os, o)
+				if count >= offset {
+					os = append(os, o)
+				}
+				count++
+			}
+			if limit > 0 && len(os) >= limit {
+				break
+			}
+		}
+		if descending {
+			for i, j := 0, len(os)-1; i < j; i, j = i+1, j-1 {
+				os[i], os[j] = os[j], os[i]
 			}
 		}
 
@@ -248,9 +267,15 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 
 	filterFn := filterOrganizationsFn(filter)
 	err := s.kv.View(ctx, func(tx Tx) error {
-		return forEachOrganization(ctx, tx, func(o *influxdb.Organization) bool {
-			if filterFn(o) {
-				os = append(os, o)
+		return forEachOrganization(ctx, tx, descending, func(o *influxdb.Organization) bool {
+			if filterFn(o) { // TODO: Currently filterFn is useless here as we have finished all filtering jobs before. Keep it for future changes.
+				if count >= offset {
+					os = append(os, o)
+				}
+				count++
+			}
+			if limit > 0 && len(os) >= limit {
+				return false
 			}
 			return true
 		})
@@ -398,13 +423,18 @@ func organizationIndexKey(n string) []byte {
 }
 
 // forEachOrganization will iterate through all organizations while fn returns true.
-func forEachOrganization(ctx context.Context, tx Tx, fn func(*influxdb.Organization) bool) error {
+func forEachOrganization(ctx context.Context, tx Tx, descending bool, fn func(*influxdb.Organization) bool) error {
 	b, err := tx.Bucket(organizationBucket)
 	if err != nil {
 		return err
 	}
 
-	cur, err := b.ForwardCursor(nil)
+	direction := CursorAscending
+	if descending {
+		direction = CursorDescending
+	}
+
+	cur, err := b.ForwardCursor(nil, WithCursorDirection(direction))
 	if err != nil {
 		return err
 	}
