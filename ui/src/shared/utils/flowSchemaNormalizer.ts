@@ -41,7 +41,7 @@ const filterFields = (
     if (!!selectedField) {
       return field === selectedField
     }
-    return field.includes(searchTerm)
+    return field.toLowerCase().includes(searchTerm)
   })
 }
 
@@ -50,10 +50,10 @@ const filterTags = (tags: any[], searchTerm: string): any[] =>
     tag =>
       Object.entries(tag).filter(([tagName, tagValues]) => {
         const values = tagValues as any[]
-        if (tagName.includes(searchTerm)) {
+        if (tagName.toLowerCase().includes(searchTerm)) {
           return true
         }
-        return values?.some(val => val.includes(searchTerm))
+        return values?.some(val => val.toLowerCase().includes(searchTerm))
       }).length !== 0
   )
 
@@ -73,6 +73,7 @@ export const normalizeSchema = (
   data: PipeData,
   searchTerm: string
 ) => {
+  const lowerCasedSearchTerm = searchTerm.toLowerCase()
   const selectedMeasurement = data.measurement
   const selectedField = data.field
   const selectedTags = data?.tags
@@ -95,18 +96,22 @@ export const normalizeSchema = (
         // TODO(ariel): do we care about matching the values as well?
         return tagNames.some(tagName => tagName in tags)
       }
-      if (measurement.includes(searchTerm)) {
+      if (measurement.toLowerCase().includes(lowerCasedSearchTerm)) {
         return true
       }
-      if (fields.some(field => field.includes(searchTerm))) {
+      if (
+        fields.some(field => field.toLowerCase().includes(lowerCasedSearchTerm))
+      ) {
         return true
       }
       return Object.entries(tags).some(([tag, tagValues]) => {
-        if (tag.includes(searchTerm)) {
+        if (tag.toLowerCase().includes(lowerCasedSearchTerm)) {
           return true
         }
         return (
-          tagValues?.some(tagValue => tagValue.includes(searchTerm)) || false
+          tagValues?.some(tagValue =>
+            tagValue.toLowerCase().includes(lowerCasedSearchTerm)
+          ) || false
         )
       })
     })
@@ -120,11 +125,11 @@ export const normalizeSchema = (
   const dedupedTags = dedupeTags(tagResults)
   const filteredFields = filterFields(
     dedupeArray(fieldResults),
-    searchTerm,
+    lowerCasedSearchTerm,
     data?.field
   )
 
-  const filteredTags = filterTags(dedupedTags, searchTerm)
+  const filteredTags = filterTags(dedupedTags, lowerCasedSearchTerm)
 
   return {
     measurements: dedupeArray(measurements),

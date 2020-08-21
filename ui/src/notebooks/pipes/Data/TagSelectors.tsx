@@ -72,7 +72,15 @@ const TagSelectors: FC<Props> = ({tags}) => {
               return (
                 <React.Fragment key={tagName}>
                   {values
-                    .filter(tagValue => tagValue.includes(searchTerm))
+                    .filter(
+                      tagValue =>
+                        tagName
+                          .toLowerCase()
+                          .includes(searchTerm.toLowerCase()) ||
+                        tagValue
+                          .toLowerCase()
+                          .includes(searchTerm.toLowerCase())
+                    )
                     .map(tagValue => (
                       <List.Item
                         key={tagValue}
