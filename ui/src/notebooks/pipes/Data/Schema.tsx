@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC, useContext, useCallback} from 'react'
-import {Button} from '@influxdata/clockface'
+import {Button, IconFont} from '@influxdata/clockface'
 
 // Components
 import {SchemaContext} from 'src/notebooks/context/schemaProvider'
@@ -18,8 +18,9 @@ const SchemaFetcher: FC = () => {
   ])
 
   return (
-    <div className="fetch-schema--block">
+    <div className="fetch-schema">
       <Button
+        icon={IconFont.Download}
         className="fetch-schema--btn"
         text="Fetch Schema"
         onClick={handleClick}

@@ -1,19 +1,21 @@
-// Types
-import {RemoteDataState} from 'src/types'
 import {
   SET_SCHEMA,
   Action,
   REMOVE_SCHEMA,
 } from 'src/shared/actions/schemaCreator'
+// Types
+import {RemoteDataState, Schema} from 'src/types'
+
+interface ReduxSchema {
+  bucketName: {
+    schema: Schema
+    status: RemoteDataState
+  }
+}
 
 export type SchemaState = {
   status: RemoteDataState
-  schema: {
-    [bucketName: string]: {
-      schema: any[]
-      status: RemoteDataState
-    }
-  }
+  schema: ReduxSchema | object
 }
 
 const initialState = (): SchemaState => ({

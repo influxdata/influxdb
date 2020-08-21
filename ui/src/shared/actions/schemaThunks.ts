@@ -1,3 +1,4 @@
+/*eslint no-unused-vars: ["error", { "varsIgnorePattern": "[iI]gnored" }]*/
 // Libraries
 import {Dispatch} from 'react'
 // import {fromFlux as parse} from '@influxdata/giraffe'
@@ -6,7 +7,7 @@ import {Dispatch} from 'react'
 // import {runQuery} from 'src/shared/apis/query'
 
 // Types
-import {RemoteDataState, GetState} from 'src/types'
+import {GetState, RemoteDataState, Schema} from 'src/types'
 // Utils
 import {getOrg} from 'src/organizations/selectors'
 
@@ -25,11 +26,13 @@ import {results} from 'src/notebooks/pipes/Data/dummyData'
 
 type Action = BucketAction | NotifyAction
 
+// TODO(ariel): make this work with the query & the time range
 export const fetchSchemaForBucket = async (
-  bucketName: string, // tslint:disable-line
-  orgID: string // tslint:disable-line
-) => {
-  // TODO(ariel): make this work with the query & the time range
+  // @ts-ignore
+  bucketName: string,
+  // @ts-ignore
+  orgID: string
+): Promise<Schema> => {
   // const text = `import "influxdata/influxdb/v1"
   // from(bucket: "${bucketName}")
   // |> range(start: -1h)
@@ -53,7 +56,7 @@ export const fetchSchemaForBucket = async (
   //     }
   //   })
 
-  const result = await new Promise(resolve => resolve(results))
+  const result: Schema = await new Promise(resolve => resolve(results))
   return result
 }
 
@@ -64,11 +67,11 @@ export const getAndSetBucketSchema = (bucketName: string) => async (
   try {
     const state = getState()
     if (bucketName) {
-      dispatch(setSchema(RemoteDataState.Loading, bucketName, []))
+      dispatch(setSchema(RemoteDataState.Loading, bucketName, {}))
     }
     const orgID = getOrg(state).id
     const schema = await fetchSchemaForBucket(bucketName, orgID)
-    dispatch(setSchema(RemoteDataState.Done, bucketName, schema as any[]))
+    dispatch(setSchema(RemoteDataState.Done, bucketName, schema as Schema))
   } catch (error) {
     console.error(error)
     dispatch(setSchema(RemoteDataState.Error))

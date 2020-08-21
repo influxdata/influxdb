@@ -85,11 +85,12 @@ const TagSelectors: FC<Props> = ({tags}) => {
                       <List.Item
                         key={tagValue}
                         value={tagValue}
-                        onClick={(
-                          value: string,
-                          event: MouseEvent<HTMLDivElement, MouseEvent>
-                        ) => {
-                          handleSubListItemClick(event, tagName, value)
+                        onClick={(value: string, event) => {
+                          handleSubListItemClick(
+                            event as MouseEvent,
+                            tagName,
+                            value
+                          )
                         }}
                         selected={selectedTags[tagName]?.includes(tagValue)}
                         title={tagValue}

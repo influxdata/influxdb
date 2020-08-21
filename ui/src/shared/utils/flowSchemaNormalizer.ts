@@ -1,21 +1,21 @@
 // Types
+import {Schema, Tag} from 'src/types'
 import {PipeData} from 'src/notebooks'
 
-export const dedupeTags = (tags: any[]) => {
+export const dedupeTags = (tags: Tag[]) => {
   const cache = {}
   const set = new Set()
   let results = []
   tags.forEach(tag => {
     Object.entries(tag).forEach(([tagName, tagValues]) => {
       // sorting tagValues to check for exact matches when doing string comparisons
-      const values = tagValues as string[]
-      values.sort()
-      const vals = JSON.stringify(values)
+      tagValues.sort()
+      const vals = JSON.stringify(tagValues)
       if (tagName in cache === false) {
         cache[tagName] = vals
         set.add(vals)
         results = results.concat({
-          [tagName]: values,
+          [tagName]: tagValues,
         })
         return
       }
@@ -24,7 +24,7 @@ export const dedupeTags = (tags: any[]) => {
       } else {
         set.add(vals)
         results = results.concat({
-          [tagName]: values,
+          [tagName]: tagValues,
         })
       }
     })
@@ -45,15 +45,14 @@ const filterFields = (
   })
 }
 
-const filterTags = (tags: any[], searchTerm: string): any[] =>
+const filterTags = (tags: Tag[], searchTerm: string): any[] =>
   tags.filter(
     tag =>
       Object.entries(tag).filter(([tagName, tagValues]) => {
-        const values = tagValues as any[]
         if (tagName.toLowerCase().includes(searchTerm)) {
           return true
         }
-        return values?.some(val => val.toLowerCase().includes(searchTerm))
+        return tagValues?.some(val => val.toLowerCase().includes(searchTerm))
       }).length !== 0
   )
 
@@ -69,7 +68,7 @@ const dedupeArray = (array: string[]): string[] => {
 }
 
 export const normalizeSchema = (
-  schema: any,
+  schema: Schema,
   data: PipeData,
   searchTerm: string
 ) => {

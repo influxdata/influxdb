@@ -1,6 +1,7 @@
-export const results = {
+import {Schema} from 'src/types'
+
+export const results: Schema = {
   cpu: {
-    type: 'string',
     fields: [
       'usage_guest',
       'usage_guest_nice',

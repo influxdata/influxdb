@@ -1,5 +1,5 @@
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, Schema} from 'src/types'
 
 export const SET_SCHEMA = 'SET_SCHEMA'
 export const REMOVE_SCHEMA = 'REMOVE_SCHEMA'
@@ -11,7 +11,7 @@ export type Action =
 export const setSchema = (
   status: RemoteDataState,
   bucketName?: string,
-  schema?: any[]
+  schema?: Schema | object
 ) =>
   ({
     type: SET_SCHEMA,

@@ -35,7 +35,7 @@ const constructFilters = (value: string, type: string) => {
     case 'tags': {
       const tagNames = Object.keys(value)
       if (tagNames) {
-        let tags = []
+        const tags = []
         tagNames
           .filter(tagName => !!value[tagName])
           .forEach(tagName => {
@@ -97,17 +97,17 @@ const FilterTags: FC = () => {
   }
   const currentFilters = () => {
     const measurement = constructFilters(data.measurement, 'measurement')
-    const filters = []
+    let filters = []
     if (measurement) {
-      filters.push(measurement)
+      filters = filters.concat(measurement)
     }
     const field = constructFilters(data.field, 'field')
     if (field) {
-      filters.push(field)
+      filters = filters.concat(field)
     }
     const tags = constructFilters(data.tags, 'tags')
     if (tags) {
-      filters.push(...tags)
+      filters = filters.concat(tags)
     }
     if (filters.length) {
       return filters.map(_filter => {
@@ -115,6 +115,7 @@ const FilterTags: FC = () => {
 
         return (
           <LabelComponent
+            className="data-source--filter"
             id={f.id}
             key={f.id}
             name={f.name}
@@ -128,10 +129,9 @@ const FilterTags: FC = () => {
     return <span />
   }
   return (
-    <div className="inline-labels">
-      <div className="inline-labels--container">
-        Filters:&nbsp;{currentFilters()}
-      </div>
+    <div className="data-source--filters">
+      <p className="data-source--filters-label">Filters:</p>
+      <div className="data-source--filters-list">{currentFilters()}</div>
     </div>
   )
 }

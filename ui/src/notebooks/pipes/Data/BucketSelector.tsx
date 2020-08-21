@@ -7,6 +7,7 @@ import {
   ComponentSize,
   RemoteDataState,
   Dropdown,
+  IconFont,
 } from '@influxdata/clockface'
 import {BucketContext} from 'src/notebooks/context/buckets'
 import {PipeContext} from 'src/notebooks/context/pipe'
@@ -63,7 +64,7 @@ const BucketSelector: FC = () => {
     loading === RemoteDataState.Done ? selectedBucketName : 'Loading...'
 
   const button = (active, onClick) => (
-    <Dropdown.Button onClick={onClick} active={active}>
+    <Dropdown.Button onClick={onClick} active={active} icon={IconFont.Disks}>
       {buttonText}
     </Dropdown.Button>
   )
