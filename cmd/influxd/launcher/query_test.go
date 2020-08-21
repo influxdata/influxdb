@@ -753,10 +753,12 @@ from(bucket: "%s")
 	}
 }
 
-type FluxStatisticsTestProfiler struct{}
+type FluxStatisticsTestProfiler struct{
+	start int64
+}
 
 func (s FluxStatisticsTestProfiler) Name() string {
-	return "TestFluxStatistics"
+	return fmt.Sprintf("FluxStatisticsTest%d", s.start)
 }
 
 func (s FluxStatisticsTestProfiler) GetResult(q flux.Query, alloc *memory.Allocator) (flux.Table, error) {
@@ -768,24 +770,96 @@ func (s FluxStatisticsTestProfiler) GetResult(q flux.Query, alloc *memory.Alloca
 			},
 		},
 		[]values.Value{
-			values.NewString("profiler/FluxStatistics"),
+			values.NewString(fmt.Sprintf("profiler/FluxStatisticsTest%d", s.start)),
 		},
 	)
 	b := execute.NewColListTableBuilder(groupKey, alloc)
-	for _, colName := range []string{"_measurement", "_field", execute.DefaultValueColLabel} {
-		if _, err := b.AddCol(flux.ColMeta{
-			Label: colName,
-			Type:  flux.TString,
-		}); err != nil {
+	colMeta := []flux.ColMeta{
+		{
+			Label: "_measurement",
+			Type: flux.TString,
+		},
+		{
+			Label: "TotalDuration",
+			Type: flux.TInt,
+		},
+		{
+			Label: "CompileDuration",
+			Type: flux.TInt,
+		},
+		{
+			Label: "QueueDuration",
+			Type: flux.TInt,
+		},
+		{
+			Label: "PlanDuration",
+			Type: flux.TInt,
+		},
+		{
+			Label: "RequeueDuration",
+			Type: flux.TInt,
+		},
+		{
+			Label: "ExecuteDuration",
+			Type: flux.TInt,
+		},
+		{
+			Label: "Concurrency",
+			Type: flux.TInt,
+		},
+		{
+			Label: "MaxAllocated",
+			Type: flux.TInt,
+		},
+		{
+			Label: "TotalAllocated",
+			Type: flux.TInt,
+		},
+		{
+			Label: "RuntimeErrors",
+			Type: flux.TString,
+		},
+		{
+			Label: "influxdb/scanned-bytes",
+			Type: flux.TInt,
+		},
+		{
+			Label: "influxdb/scanned-values",
+			Type: flux.TInt,
+		},
+		{
+			Label: "flux/query-plan",
+			Type: flux.TString,
+		},
+	}
+	colData := []interface{} {
+		fmt.Sprintf("profiler/FluxStatisticsTest%d", s.start),
+		s.start,
+		s.start + 1,
+		s.start + 2,
+		s.start + 3,
+		s.start + 4,
+		s.start + 5,
+		s.start + 6,
+		s.start + 7,
+		s.start + 8,
+		"error1\nerror2",
+		s.start + 9,
+		s.start + 10,
+		"query plan",
+	}
+	for _, col := range colMeta {
+		if _, err := b.AddCol(col); err != nil {
 			return nil, err
 		}
 	}
-	q.Statistics().Range(func(key string, value string) {
-		b.AppendString(0, "profiler/FluxStatistics")
-		b.AppendString(1, key)
-		b.AppendString(2, key)
-	})
-	b.Sort([]string{"_field"}, false)
+	for i := 0; i < len(colData); i++ {
+		if intValue, ok := colData[i].(int64); ok {
+			b.AppendInt(i, intValue)
+		} else {
+			b.AppendString(i, colData[i].(string))
+		}
+	}
 	tbl, err := b.Table()
 	if err != nil {
 		return nil, err
@@ -806,7 +880,7 @@ func TestFluxProfiler(t *testing.T) {
 				"m,tag=a f=1i 1",
 			},
 			query: `
-option profiler.enabledProfilers = ["TestFluxStatistics", "TestFluxStatistics", "NonExistent"]
+option profiler.enabledProfilers = ["FluxStatisticsTest0", "FluxStatisticsTest100", "FluxStatisticsTest100", "NonExistentProfiler"]
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00.000000001Z, stop: 1970-01-01T01:00:00Z)
 	|> last()
@@ -818,27 +892,18 @@ from(bucket: v.bucket)
 ,result,table,_start,_stop,_time,_value,_field,_measurement,tag
 ,,0,1970-01-01T00:00:00.000000001Z,1970-01-01T01:00:00Z,1970-01-01T00:00:00.000000001Z,1,f,m,a
 
-#datatype,string,long,string,string,string
-#group,false,false,true,false,false
-#default,_profiler,,,,
-,result,table,_measurement,_field,_value
-,,0,profiler/FluxStatistics,CompileDuration,CompileDuration
-,,0,profiler/FluxStatistics,Concurrency,Concurrency
-,,0,profiler/FluxStatistics,ExecuteDuration,ExecuteDuration
-,,0,profiler/FluxStatistics,MaxAllocated,MaxAllocated
-,,0,profiler/FluxStatistics,PlanDuration,PlanDuration
-,,0,profiler/FluxStatistics,QueueDuration,QueueDuration
-,,0,profiler/FluxStatistics,RequeueDuration,RequeueDuration
-,,0,profiler/FluxStatistics,RuntimeErrors,RuntimeErrors
-,,0,profiler/FluxStatistics,TotalAllocated,TotalAllocated
-,,0,profiler/FluxStatistics,TotalDuration,TotalDuration
-,,0,profiler/FluxStatistics,flux/query-plan,flux/query-plan
-,,0,profiler/FluxStatistics,influxdb/scanned-bytes,influxdb/scanned-bytes
-,,0,profiler/FluxStatistics,influxdb/scanned-values,influxdb/scanned-values
+#datatype,string,long,string,long,long,long,long,long,long,long,long,long,string,string,long,long
+#group,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false,false
+#default,_profiler,,,,,,,,,,,,,,,
+,result,table,_measurement,TotalDuration,CompileDuration,QueueDuration,PlanDuration,RequeueDuration,ExecuteDuration,Concurrency,MaxAllocated,TotalAllocated,RuntimeErrors,flux/query-plan,influxdb/scanned-bytes,influxdb/scanned-values
+,,0,profiler/FluxStatisticsTest0,0,1,2,3,4,5,6,7,8,"error1
+error2","query plan",9,10
+,,1,profiler/FluxStatisticsTest100,100,101,102,103,104,105,106,107,108,"error1
+error2","query plan",109,110
 `,
 		},
 	}
-	execute.RegisterProfilers(&FluxStatisticsTestProfiler{})
+	execute.RegisterProfilers(&FluxStatisticsTestProfiler{}, &FluxStatisticsTestProfiler{start: 100})
 	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
