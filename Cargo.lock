@@ -109,7 +109,6 @@ name = "arrow"
 version = "2.0.0-SNAPSHOT"
 source = "git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a#aa6889a74c57d6faea0d27ea8013d9b0c7ef809a"
 dependencies = [
- "arrow-flight",
  "chrono",
  "csv",
  "flatbuffers",
@@ -128,7 +127,9 @@ dependencies = [
 [[package]]
 name = "arrow"
 version = "2.0.0-SNAPSHOT"
+source = "git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a#aa6889a74c57d6faea0d27ea8013d9b0c7ef809a"
 dependencies = [
+ "arrow-flight",
  "chrono",
  "csv",
  "flatbuffers",
