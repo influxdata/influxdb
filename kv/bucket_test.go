@@ -11,7 +11,7 @@ import (
 )
 
 func TestBoltBucketService(t *testing.T) {
-	influxdbtesting.BucketService(initBoltBucketService, t)
+	influxdbtesting.BucketService(initBoltBucketService, t, influxdbtesting.WithLegacySystemBuckets())
 }
 
 func initBoltBucketService(f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {

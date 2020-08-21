@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 )
@@ -48,6 +49,45 @@ var bucketCmpOptions = cmp.Options{
 	}),
 }
 
+var systemBucketCmpOptions = cmp.Options{
+	cmpopts.IgnoreFields(influxdb.Bucket{}, "ID", "CreatedAt", "UpdatedAt"),
+	cmp.Comparer(func(x, y []byte) bool {
+		return bytes.Equal(x, y)
+	}),
+	cmp.Comparer(func(x, y *influxdb.Bucket) bool {
+		if x == nil && y == nil {
+			return true
+		}
+		if x != nil && y == nil || y != nil && x == nil {
+			return false
+		}
+
+		return x.OrgID == y.OrgID &&
+			x.Type == y.Type &&
+			x.Description == y.Description &&
+			x.RetentionPolicyName == y.RetentionPolicyName &&
+			x.RetentionPeriod == y.RetentionPeriod &&
+			x.Name == y.Name
+	}),
+	cmp.Transformer("Sort", func(in []*influxdb.Bucket) []*influxdb.Bucket {
+		out := append([]*influxdb.Bucket(nil), in...) // Copy input to avoid mutating it
+		sort.Slice(out, func(i, j int) bool {
+			return out[i].Name > out[j].Name
+		})
+		return out
+	}),
+}
+
+type BucketTestOpts struct {
+	LegacySystemBuckets bool
+}
+
+func WithLegacySystemBuckets() BucketTestOpts {
+	return BucketTestOpts{
+		LegacySystemBuckets: true,
+	}
+}
+
 // BucketFields will include the IDGenerator, and buckets
 type BucketFields struct {
 	IDGenerator   influxdb.IDGenerator
@@ -66,7 +106,8 @@ type bucketServiceF func(
 // BucketService tests all the service functions.
 func BucketService(
 	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
-	t *testing.T) {
+	t *testing.T,
+	opts ...BucketTestOpts) {
 	tests := []struct {
 		name string
 		fn   bucketServiceF
@@ -84,6 +125,10 @@ func BucketService(
 			fn:   FindBuckets,
 		},
 		{
+			name: "FindSystemBuckets",
+			fn:   FindSystemBuckets,
+		},
+		{
 			name: "FindBucket",
 			fn:   FindBucket,
 		},
@@ -98,6 +143,9 @@ func BucketService(
 	}
 
 	for _, tt := range tests {
+		if tt.name == "FindSystemBuckets" && len(opts) > 0 && opts[0].LegacySystemBuckets {
+			continue
+		}
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -907,6 +955,244 @@ func FindBuckets(
 			}
 
 			if diff := cmp.Diff(filteredBuckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
+				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+// FindSystemBuckets testing
+func FindSystemBuckets(
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		ID             influxdb.ID
+		name           string
+		organization   string
+		organizationID influxdb.ID
+		findOptions    influxdb.FindOptions
+	}
+
+	type wants struct {
+		buckets []*influxdb.Bucket
+		err     error
+	}
+	tests := []struct {
+		name   string
+		fields BucketFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "find legacy task and monitoring buckets",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						OrgID: idOne,
+						ID:    idOne,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				organizationID: idOne,
+			},
+			wants: wants{
+				buckets: []*influxdb.Bucket{
+					{
+						Name:            influxdb.TasksSystemBucketName,
+						ID:              influxdb.TasksSystemBucketID,
+						Type:            influxdb.BucketTypeSystem,
+						RetentionPeriod: influxdb.TasksSystemBucketRetention,
+						Description:     "System bucket for task logs",
+					},
+					{
+						Name:            influxdb.MonitoringSystemBucketName,
+						ID:              influxdb.MonitoringSystemBucketID,
+						Type:            influxdb.BucketTypeSystem,
+						RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
+						Description:     "System bucket for monitoring logs",
+					},
+					{
+						ID:    idOne,
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+		},
+		{
+			name: "offset and limit automatically adjusted when adding legacy buckets",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						OrgID: idOne,
+						ID:    idTwo,
+						Name:  "aaa",
+					},
+					{
+						OrgID: idOne,
+						ID:    idThree,
+						Name:  "abc",
+					},
+					{
+						OrgID: idOne,
+						ID:    idFour,
+						Name:  "xyz",
+					},
+					{
+						OrgID: idOne,
+						ID:    idFive,
+						Name:  "zzz",
+					},
+				},
+			},
+			args: args{
+				organizationID: idOne,
+				findOptions: influxdb.FindOptions{
+					Limit: 4,
+				},
+			},
+			wants: wants{
+				buckets: []*influxdb.Bucket{
+					{
+						Name:            influxdb.TasksSystemBucketName,
+						ID:              influxdb.TasksSystemBucketID,
+						Type:            influxdb.BucketTypeSystem,
+						RetentionPeriod: influxdb.TasksSystemBucketRetention,
+						Description:     "System bucket for task logs",
+					},
+					{
+						Name:            influxdb.MonitoringSystemBucketName,
+						ID:              influxdb.MonitoringSystemBucketID,
+						Type:            influxdb.BucketTypeSystem,
+						RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
+						Description:     "System bucket for monitoring logs",
+					},
+					{
+						OrgID: idOne,
+						ID:    idTwo,
+						Name:  "aaa",
+					},
+					{
+						OrgID: idOne,
+						ID:    idThree,
+						Name:  "abc",
+					},
+				},
+			},
+		},
+		{
+			name: "do not create duplicate legacy task and monitoring buckets",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						Name:            influxdb.MonitoringSystemBucketName,
+						OrgID:           idOne,
+						ID:              influxdb.MonitoringSystemBucketID,
+						Type:            influxdb.BucketTypeSystem,
+						RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
+						Description:     "System bucket for monitoring logs",
+					},
+					{
+						Name:            influxdb.TasksSystemBucketName,
+						OrgID:           idOne,
+						ID:              influxdb.TasksSystemBucketID,
+						Type:            influxdb.BucketTypeSystem,
+						RetentionPeriod: influxdb.TasksSystemBucketRetention,
+						Description:     "System bucket for task logs",
+					},
+					{
+						OrgID: idOne,
+						ID:    idTwo,
+						Name:  "abc",
+					},
+				},
+			},
+			args: args{
+				organizationID: idOne,
+			},
+			wants: wants{
+				buckets: []*influxdb.Bucket{
+					{
+						Name:            influxdb.MonitoringSystemBucketName,
+						ID:              influxdb.MonitoringSystemBucketID,
+						OrgID:           idOne,
+						Type:            influxdb.BucketTypeSystem,
+						RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
+						Description:     "System bucket for monitoring logs",
+					},
+					{
+						Name:            influxdb.TasksSystemBucketName,
+						ID:              influxdb.TasksSystemBucketID,
+						OrgID:           idOne,
+						Type:            influxdb.BucketTypeSystem,
+						RetentionPeriod: influxdb.TasksSystemBucketRetention,
+						Description:     "System bucket for task logs",
+					},
+					{
+						ID:    idTwo,
+						OrgID: idOne,
+						Name:  "abc",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+
+			filter := influxdb.BucketFilter{}
+			if tt.args.ID.Valid() {
+				filter.ID = &tt.args.ID
+			}
+			if tt.args.organizationID.Valid() {
+				filter.OrganizationID = &tt.args.organizationID
+			}
+			if tt.args.organization != "" {
+				filter.Org = &tt.args.organization
+			}
+			if tt.args.name != "" {
+				filter.Name = &tt.args.name
+			}
+
+			buckets, n, err := s.FindBuckets(ctx, filter, tt.args.findOptions)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			expected := tt.wants.buckets
+			if n != len(expected) {
+				t.Errorf("expected %d buckets, got: %d", len(expected), n)
+			}
+			if diff := cmp.Diff(buckets, expected, systemBucketCmpOptions...); diff != "" {
 				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
 			}
 		})

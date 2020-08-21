@@ -1246,7 +1246,7 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (influxdb.B
 }
 
 func TestBucketService(t *testing.T) {
-	platformtesting.BucketService(initBucketService, t)
+	platformtesting.BucketService(initBucketService, t, platformtesting.WithLegacySystemBuckets())
 }
 
 func mustNewHTTPClient(t *testing.T, addr, token string) *httpc.Client {

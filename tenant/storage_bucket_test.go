@@ -15,17 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// type Bucket struct {
-// 	ID                  ID            `json:"id,omitempty"`
-// 	OrgID               ID            `json:"bucketID,omitempty"`
-// 	Type                BucketType    `json:"type"`
-// 	Name                string        `json:"name"`
-// 	Description         string        `json:"description"`
-// 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
-// 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
-// 	CRUDLog
-// }
-
 const (
 	firstBucketID influxdb.ID = (iota + 1)
 	secondBucketID

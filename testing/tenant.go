@@ -869,7 +869,7 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nbs != baseNBuckets {
+		if nbs != 0 {
 			t.Errorf("expected buckets to be deleted, got: %+v", bs)
 		}
 	})
