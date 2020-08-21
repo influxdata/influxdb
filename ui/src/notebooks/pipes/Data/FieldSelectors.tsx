@@ -36,9 +36,11 @@ const FieldSelectors: FC<Props> = ({fields}) => {
           wrapText={true}
         >
           <List.Indicator type="dot" />
-          <div className="data-field--equation">{`_field = ${field}`}</div>
-          <div className="data-measurement--name">&nbsp;field&nbsp;</div>
-          <div className="data-measurement--type">string</div>
+          <div className="selectors--item-value selectors--item__field">
+            {field}
+          </div>
+          <div className="selectors--item-name">field</div>
+          <div className="selectors--item-type">string</div>
         </List.Item>
       ))}
     </>

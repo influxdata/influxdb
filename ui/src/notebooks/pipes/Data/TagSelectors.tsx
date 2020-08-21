@@ -98,11 +98,9 @@ const TagSelectors: FC<Props> = ({tags}) => {
                         wrapText={true}
                       >
                         <List.Indicator type="dot" />
-                        <div className="data-tag--equation">{`${tagName} = ${tagValue}`}</div>
-                        <div className="data-measurement--name">
-                          &nbsp;tag key&nbsp;
-                        </div>
-                        <div className="data-measurement--type">string</div>
+                        <div className="selectors--item-value selectors--item__tag">{`${tagName} = ${tagValue}`}</div>
+                        <div className="selectors--item-name">tag</div>
+                        <div className="selectors--item-type">string</div>
                       </List.Item>
                     ))}
                 </React.Fragment>

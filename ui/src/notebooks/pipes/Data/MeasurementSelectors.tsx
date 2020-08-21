@@ -36,11 +36,11 @@ const MeasurementSelectors: FC<Props> = ({measurements}) => {
           wrapText={true}
         >
           <List.Indicator type="dot" />
-          <div className="data-measurement--equation">
-            {`_measurement = ${measurement}`}
+          <div className="selectors--item-value selectors--item__measurement">
+            {measurement}
           </div>
-          <div className="data-measurement--name">&nbsp;measurement&nbsp;</div>
-          <div className="data-measurement--type">string</div>
+          <div className="selectors--item-name">measurement</div>
+          <div className="selectors--item-type">string</div>
         </List.Item>
       ))}
     </>
