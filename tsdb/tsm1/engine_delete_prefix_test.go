@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 )
@@ -44,7 +45,7 @@ func TestEngine_DeletePrefix(t *testing.T) {
 		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 	}
 
-	if err := e.DeletePrefixRange(context.Background(), []byte("mm0"), 0, 3, nil); err != nil {
+	if err := e.DeletePrefixRange(context.Background(), []byte("mm0"), 0, 3, nil, influxdb.DeletePrefixRangeOptions{}); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
@@ -90,7 +91,7 @@ func TestEngine_DeletePrefix(t *testing.T) {
 	iter.Close()
 
 	// Deleting remaining series should remove them from the series.
-	if err := e.DeletePrefixRange(context.Background(), []byte("mm0"), 0, 9, nil); err != nil {
+	if err := e.DeletePrefixRange(context.Background(), []byte("mm0"), 0, 9, nil, influxdb.DeletePrefixRangeOptions{}); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
@@ -149,7 +150,7 @@ func BenchmarkEngine_DeletePrefixRange(b *testing.B) {
 		}
 		b.StartTimer()
 
-		if err := e.DeletePrefixRange(context.Background(), []byte("mm0"), 0, 3, nil); err != nil {
+		if err := e.DeletePrefixRange(context.Background(), []byte("mm0"), 0, 3, nil, influxdb.DeletePrefixRangeOptions{}); err != nil {
 			b.Fatal(err)
 		} else if err := e.Close(); err != nil {
 			b.Fatal(err)
