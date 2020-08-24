@@ -622,18 +622,20 @@ func exhaustResultIterators(res flux.Result) error {
 }
 
 // NewASTCompiler parses a Flux query string into an AST representatation.
-func NewASTCompiler(_ context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
+func NewASTCompiler(ctx context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
 	pkg, err := runtime.ParseToJSON(query)
 	if err != nil {
 		return nil, err
 	}
-	extern := ts.Extern()
 	var externBytes []byte
-	if len(extern.Body) > 0 {
-		var err error
-		externBytes, err = json.Marshal(extern)
-		if err != nil {
-			return nil, err
+	if feature.InjectLatestSuccessTime().Enabled(ctx) {
+		extern := ts.Extern()
+		if len(extern.Body) > 0 {
+			var err error
+			externBytes, err = json.Marshal(extern)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return lang.ASTCompiler{
@@ -644,14 +646,16 @@ func NewASTCompiler(_ context.Context, query string, ts CompilerBuilderTimestamp
 }
 
 // NewFluxCompiler wraps a Flux query string in a raw-query representation.
-func NewFluxCompiler(_ context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
-	extern := ts.Extern()
+func NewFluxCompiler(ctx context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
 	var externBytes []byte
-	if len(extern.Body) > 0 {
-		var err error
-		externBytes, err = json.Marshal(extern)
-		if err != nil {
-			return nil, err
+	if feature.InjectLatestSuccessTime().Enabled(ctx) {
+		extern := ts.Extern()
+		if len(extern.Body) > 0 {
+			var err error
+			externBytes, err = json.Marshal(extern)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return lang.FluxCompiler{
@@ -667,7 +671,13 @@ func NewFluxCompiler(_ context.Context, query string, ts CompilerBuilderTimestam
 		// we are able to locate the root cause and use Flux Compiler for all
 		// Task types.
 		//
-		// This should be removed once we diagnose the problem.
+		// It turns out this is due to the exclusive nature of the stop time in
+		// Flux "from" and that we weren't including the left-hand boundary of
+		// the range check for notifications. We're shipping a fix soon in
+		//
+		// https://github.com/influxdata/influxdb/pull/19392
+		//
+		// Once this has merged, we can send Now again.
 		//
 		// Now: now,
 	}, nil
