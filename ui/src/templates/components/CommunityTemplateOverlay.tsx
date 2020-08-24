@@ -18,6 +18,7 @@ interface OwnProps {
   resourceCount: number
   status?: ComponentStatus
   templateName: string
+  templateDirectory: string
   updateStatus?: (status: ComponentStatus) => void
 }
 
@@ -44,7 +45,13 @@ class CommunityTemplateOverlayUnconnected extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {isVisible, onInstall, resourceCount, templateName} = this.props
+    const {
+      isVisible,
+      onInstall,
+      resourceCount,
+      templateName,
+      templateDirectory,
+    } = this.props
 
     return (
       <Overlay visible={isVisible}>
@@ -77,7 +84,7 @@ class CommunityTemplateOverlayUnconnected extends PureComponent<Props, State> {
               {this.state.activeTab === Tab.IncludedResources ? (
                 <CommunityTemplateOverlayContents />
               ) : (
-                <CommunityTemplateReadme />
+                <CommunityTemplateReadme directory={templateDirectory} />
               )}
             </Tabs.Container>
           </Overlay.Body>

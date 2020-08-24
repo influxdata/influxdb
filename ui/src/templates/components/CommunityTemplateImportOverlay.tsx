@@ -70,6 +70,7 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
         resourceCount={this.props.resourceCount}
         status={this.state.status}
         templateName={getTemplateNameFromUrl(this.props.stagedTemplateUrl).name}
+        templateDirectory={this.props.directory}
         updateStatus={this.updateOverlayStatus}
       />
     )
