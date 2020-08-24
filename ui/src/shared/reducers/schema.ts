@@ -60,7 +60,6 @@ export const schemaReducer = (
       const now = Date.now()
       const newSchema = {...schema}
       for (const bucket in schema) {
-        console.log('schema[bucket]: ', schema[bucket])
         if (now >= schema[bucket].exp) {
           delete newSchema[bucket]
         }
