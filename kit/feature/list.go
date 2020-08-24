@@ -282,6 +282,20 @@ func OrgOnlyMemberList() BoolFlag {
 	return orgOnlyMemberList
 }
 
+var enforceOrgDashboardLimits = MakeBoolFlag(
+	"Enforce Organization Dashboard Limits",
+	"enforceOrgDashboardLimits",
+	"Compute Team",
+	false,
+	Temporary,
+	false,
+)
+
+// EnforceOrganizationDashboardLimits - Enforces the default limit params for the dashboards api when orgs are set
+func EnforceOrganizationDashboardLimits() BoolFlag {
+	return enforceOrgDashboardLimits
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -303,6 +317,7 @@ var all = []Flag{
 	notebooks,
 	pushDownGroupAggregateMinMax,
 	orgOnlyMemberList,
+	enforceOrgDashboardLimits,
 }
 
 var byKey = map[string]Flag{
@@ -326,4 +341,5 @@ var byKey = map[string]Flag{
 	"notebooks":                     notebooks,
 	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
 	"orgOnlyMemberList":             orgOnlyMemberList,
+	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 }
