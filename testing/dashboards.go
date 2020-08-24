@@ -946,8 +946,6 @@ func FindDashboards(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.Background()
-
 			ctx, err := feature.Annotate(context.Background(), mock.NewFlagger(map[feature.Flag]interface{}{
 				feature.EnforceOrganizationDashboardLimits(): true,
 			}))
