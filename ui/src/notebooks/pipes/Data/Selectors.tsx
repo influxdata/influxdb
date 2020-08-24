@@ -10,6 +10,7 @@ import {SchemaContext} from 'src/notebooks/context/schemaProvider'
 
 const Selectors: FC = () => {
   const {fields, measurements, tags} = useContext(SchemaContext)
+  // TODO(ariel): conditionally render results based on focus state of search bar
   return (
     <div className="data-source--block-results">
       <List

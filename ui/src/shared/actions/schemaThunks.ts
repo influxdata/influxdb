@@ -9,23 +9,25 @@ import {Dispatch} from 'react'
 import {AppState, GetState, RemoteDataState, Schema} from 'src/types'
 
 // Utils
-import {getOrg} from 'src/organizations/selectors'
+// import {getOrg} from 'src/organizations/selectors'
 import {getSchemaByBucketName} from 'src/shared/selectors/schemaSelectors'
 
 // Actions
 import {
+  resetSchema,
   setSchema,
-  Action as BucketAction,
+  Action as SchemaAction,
 } from 'src/shared/actions/schemaCreator'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 
 // Constants
 import {getBucketsFailed} from 'src/shared/copy/notifications'
+import {TEN_MINUTES} from 'src/shared/reducers/schema'
 
 // DUMMY DATA TO DELETE
 import {results} from 'src/notebooks/pipes/Data/dummyData'
 
-type Action = BucketAction | NotifyAction
+type Action = SchemaAction | NotifyAction
 
 // TODO(ariel): make this work with the query & the time range
 export const fetchSchemaForBucket = async (): Promise<Schema> => {
@@ -73,6 +75,14 @@ const getUnexpiredSchema = (
   }
 }
 
+export const startWatchDog = () => (dispatch: Dispatch<Action>) => {
+  setInterval(() => {
+    dispatch(resetSchema())
+  }, TEN_MINUTES / 2)
+
+  dispatch(resetSchema())
+}
+
 export const getAndSetBucketSchema = (bucketName: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -89,8 +99,9 @@ export const getAndSetBucketSchema = (bucketName: string) => async (
     } else {
       dispatch(setSchema(RemoteDataState.Loading, bucketName, {}))
     }
-    const orgID = getOrg(state).id
-    const schema = await fetchSchemaForBucket(bucketName, orgID)
+    // const orgID = getOrg(state).id
+    const schema = await fetchSchemaForBucket()
+    // const schema = await fetchSchemaForBucket(bucketName, orgID)
     dispatch(setSchema(RemoteDataState.Done, bucketName, schema))
   } catch (error) {
     console.error(error)

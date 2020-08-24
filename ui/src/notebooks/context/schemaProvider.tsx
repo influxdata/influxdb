@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useCallback, useContext, useState} from 'react'
+import React, {FC, useCallback, useContext, useEffect, useState} from 'react'
 import {useDispatch, useSelector} from 'react-redux'
 
 // Contexts
@@ -7,7 +7,10 @@ import {PipeContext} from 'src/notebooks/context/pipe'
 
 // Utils
 import {normalizeSchema} from 'src/shared/utils/flowSchemaNormalizer'
-import {getAndSetBucketSchema} from 'src/shared/actions/schemaThunks'
+import {
+  getAndSetBucketSchema,
+  startWatchDog,
+} from 'src/shared/actions/schemaThunks'
 
 // Types
 import {AppState, RemoteDataState} from 'src/types'
@@ -47,6 +50,10 @@ export const SchemaProvider: FC<Props> = React.memo(({children}) => {
   const {data} = useContext(PipeContext)
   const [searchTerm, setSearchTerm] = useState('')
   const dispatch = useDispatch()
+
+  useEffect(() => {
+    dispatch(startWatchDog())
+  }, [startWatchDog])
 
   const loading = useSelector(
     (state: AppState) =>

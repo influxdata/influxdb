@@ -1,4 +1,5 @@
 import {
+  RESET_SCHEMA,
   SET_SCHEMA,
   Action,
   REMOVE_SCHEMA,
@@ -6,8 +7,7 @@ import {
 // Types
 import {RemoteDataState, Schema} from 'src/types'
 
-const TEN_MINUTES = 10 * 60 * 1000 // 10 muinutes in ms
-// TODO(ariel): setup a watchdog to reset stale data
+export const TEN_MINUTES = 10 * 60 * 1000 // 10 muinutes in ms
 export interface BucketSchema {
   schema: Schema
   exp: number
@@ -54,6 +54,21 @@ export const schemaReducer = (
         delete schema[bucketName]
       }
       return state
+    }
+    case RESET_SCHEMA: {
+      const {schema} = state
+      const now = Date.now()
+      const newSchema = {...schema}
+      for (const bucket in schema) {
+        console.log('schema[bucket]: ', schema[bucket])
+        if (now >= schema[bucket].exp) {
+          delete newSchema[bucket]
+        }
+      }
+      return {
+        ...state,
+        schema: newSchema,
+      }
     }
 
     default: {

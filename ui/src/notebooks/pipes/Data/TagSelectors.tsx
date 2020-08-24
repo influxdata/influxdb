@@ -40,7 +40,7 @@ const TagSelectors: FC<Props> = ({tags}) => {
         [tagName]: tagValues,
       }
 
-      if (tagValues.length < selectedTags[tagName].length) {
+      if (tagValues.length < selectedTags[tagName]?.length) {
         reportEvent(deselectEventText, {
           type: 'multi-select',
           tags: JSON.stringify(updatedTags),
