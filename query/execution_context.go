@@ -76,8 +76,9 @@ func (ctx *ExecutionContext) Done() <-chan struct{} {
 
 func (ctx *ExecutionContext) Err() error {
 	ctx.mu.RLock()
-	defer ctx.mu.RUnlock()
-	return ctx.err
+	rc := ctx.err
+	ctx.mu.RUnlock()
+	return rc
 }
 
 func (ctx *ExecutionContext) Value(key interface{}) interface{} {
