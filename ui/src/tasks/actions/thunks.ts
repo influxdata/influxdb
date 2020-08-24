@@ -52,6 +52,9 @@ import {checkTaskLimits} from 'src/cloud/actions/limits'
 import {getOrg} from 'src/organizations/selectors'
 import {getStatus} from 'src/resources/selectors'
 
+// Types
+import {TASK_LIMIT} from 'src/resources/constants'
+
 type Action = TaskAction | ExternalActions | ReturnType<typeof getTasks>
 type ExternalActions = NotifyAction | ReturnType<typeof checkTaskLimits>
 
@@ -68,7 +71,7 @@ export const getTasks = () => async (
 
     const org = getOrg(state)
 
-    const resp = await api.getTasks({query: {orgID: org.id}})
+    const resp = await api.getTasks({query: {orgID: org.id, limit: TASK_LIMIT}})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
