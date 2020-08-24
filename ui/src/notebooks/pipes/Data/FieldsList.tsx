@@ -12,7 +12,6 @@ import {SchemaContext} from 'src/notebooks/context/schemaProvider'
 
 const FieldsList: FC = () => {
   const {loading, data} = useContext(SchemaContext)
-  console.log('data: ', data)
 
   let body = <span />
 

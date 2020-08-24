@@ -6,9 +6,12 @@ import {
 // Types
 import {RemoteDataState, Schema} from 'src/types'
 
+const TEN_MINUTES = 10 * 60 * 1000 // 10 muinutes in ms
+// TODO(ariel): setup a watchdog to reset stale data
 interface ReduxSchema {
   bucketName: {
     schema: Schema
+    exp: number
     status: RemoteDataState
   }
 }
@@ -34,6 +37,7 @@ export const schemaReducer = (
         ...state,
         schema: {
           [bucketName]: {
+            exp: new Date().getTime() + TEN_MINUTES,
             schema,
             status,
           },

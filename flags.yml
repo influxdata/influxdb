@@ -69,22 +69,6 @@
   contact: Alirie Gray
   lifetime: temporary
 
-- name: New Hydrate Vars Functionality
-  description: Enables a minimalistic variable hydration
-  key: hydratevars
-  default: false
-  contact: Ariel Salem / Monitoring Team
-  lifetime: temporary
-  expose: true
-
-- name: Query Cache for Dashboards UI
-  description: Enables a Dashboard Cache on the uI
-  key: queryCacheForDashboards
-  default: false
-  contact: Ariel Salem / Monitoring Team
-  lifetime: temporary
-  expose: true
-
 - name: Memory Optimized Fill
   description: Enable the memory optimized fill()
   key: memoryOptimizedFill

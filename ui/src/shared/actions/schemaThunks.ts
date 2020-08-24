@@ -7,9 +7,11 @@ import {Dispatch} from 'react'
 // import {runQuery} from 'src/shared/apis/query'
 
 // Types
-import {GetState, RemoteDataState, Schema} from 'src/types'
+import {AppState, GetState, RemoteDataState, Schema} from 'src/types'
+
 // Utils
 import {getOrg} from 'src/organizations/selectors'
+import {getSchemaByBucketName} from 'src/shared/selectors/schemaSelectors'
 
 // Actions
 import {
@@ -60,16 +62,41 @@ export const fetchSchemaForBucket = async (
   return result
 }
 
+const getUnexpiredSchema = (
+  state: AppState,
+  bucketName: string
+): Schema | null => {
+  const storedSchema = getSchemaByBucketName(state, bucketName)
+
+  if (storedSchema?.schema && storedSchema?.exp > new Date().getTime()) {
+    return storedSchema
+  } else {
+    return null
+  }
+}
+
 export const getAndSetBucketSchema = (bucketName: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
   try {
     const state = getState()
+    let hasValidCacheResult = null
     if (bucketName) {
+      hasValidCacheResult = getUnexpiredSchema(state, bucketName)
+    }
+    if (hasValidCacheResult !== null) {
+      dispatch(
+        setSchema(
+          RemoteDataState.Done,
+          bucketName,
+          hasValidCacheResult as Schema
+        )
+      )
+      return
+    } else {
       dispatch(setSchema(RemoteDataState.Loading, bucketName, {}))
     }
-    // TODO(ariel): check the reducer for a match otherwise do the rest
     const orgID = getOrg(state).id
     const schema = await fetchSchemaForBucket(bucketName, orgID)
     dispatch(setSchema(RemoteDataState.Done, bucketName, schema as Schema))

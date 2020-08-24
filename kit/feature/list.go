@@ -114,34 +114,6 @@ func NewLabelPackage() BoolFlag {
 	return newLabels
 }
 
-var hydratevars = MakeBoolFlag(
-	"New Hydrate Vars Functionality",
-	"hydratevars",
-	"Ariel Salem / Monitoring Team",
-	false,
-	Temporary,
-	true,
-)
-
-// NewHydrateVarsFunctionality - Enables a minimalistic variable hydration
-func NewHydrateVarsFunctionality() BoolFlag {
-	return hydratevars
-}
-
-var queryCacheForDashboards = MakeBoolFlag(
-	"Query Cache for Dashboards UI",
-	"queryCacheForDashboards",
-	"Ariel Salem / Monitoring Team",
-	false,
-	Temporary,
-	true,
-)
-
-// QueryCacheForDashboardsUi - Enables a Dashboard Cache on the uI
-func QueryCacheForDashboardsUi() BoolFlag {
-	return queryCacheForDashboards
-}
-
 var memoryOptimizedFill = MakeBoolFlag(
 	"Memory Optimized Fill",
 	"memoryOptimizedFill",
@@ -291,8 +263,6 @@ var all = []Flag{
 	groupWindowAggregateTranspose,
 	newAuth,
 	newLabels,
-	hydratevars,
-	queryCacheForDashboards,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	simpleTaskOptionsExtraction,
@@ -314,8 +284,6 @@ var byKey = map[string]Flag{
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newAuth":                       newAuth,
 	"newLabels":                     newLabels,
-	"hydratevars":                   hydratevars,
-	"queryCacheForDashboards":       queryCacheForDashboards,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,

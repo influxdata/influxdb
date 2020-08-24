@@ -4,11 +4,12 @@ import './style.scss'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 
 register({
-  type: 'data',
+  type: 'queryBuilder',
   family: 'inputs',
   priority: 1,
   component: View,
-  button: 'Bucket',
+  button: 'Data',
+  featureFlag: 'flowsQueryBuilder',
   initial: {
     bucketName: '',
     field: '',
