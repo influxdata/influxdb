@@ -8,6 +8,7 @@
 ### Bug Fixes
 
 1. [19331](https://github.com/influxdata/influxdb/pull/19331): Add description to auth influx command outputs.
+1. [19392](https://github.com/influxdata/influxdb/pull/19392) Include the edge of the boundary we are observing.
 
 ## v2.0.0-beta.16 [2020-08-07]
 

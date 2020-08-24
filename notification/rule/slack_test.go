@@ -61,7 +61,7 @@ any = statuses
 		(true))
 all_statuses = any
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) =>
@@ -133,7 +133,7 @@ info_to_warn = statuses
 all_statuses = union(tables: [crit, info_to_warn])
 	|> sort(columns: ["_time"])
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) =>
@@ -210,7 +210,7 @@ info_to_warn = statuses
 all_statuses = union(tables: [crit, info_to_warn])
 	|> sort(columns: ["_time"])
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) =>
@@ -289,7 +289,7 @@ info_to_warn = statuses
 all_statuses = union(tables: [crit, info_to_warn])
 	|> sort(columns: ["_time"])
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) =>

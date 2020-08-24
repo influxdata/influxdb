@@ -114,8 +114,8 @@ func (t *TemporaryEngine) SeriesCardinality() int64 {
 }
 
 // DeleteBucketRangePredicate will delete a bucket from the range and predicate.
-func (t *TemporaryEngine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
-	return t.engine.DeleteBucketRangePredicate(ctx, orgID, bucketID, min, max, pred)
+func (t *TemporaryEngine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate, opts influxdb.DeletePrefixRangeOptions) error {
+	return t.engine.DeleteBucketRangePredicate(ctx, orgID, bucketID, min, max, pred, opts)
 
 }
 
