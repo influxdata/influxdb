@@ -1283,47 +1283,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-    patch:
-      operationId: PatchScrapersIDLabelsID
-      tags:
-        - ScraperTargets
-      summary: Update a label on a scraper target
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: scraperTargetID
-          schema:
-            type: string
-          required: true
-          description: The scraper target ID.
-        - in: path
-          name: labelID
-          schema:
-            type: string
-          required: true
-          description: The label ID.
-      requestBody:
-        description: Label update to apply
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Label"
-      responses:
-        "200":
-          description: Updated successfully
-        "404":
-          description: Scraper target not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   "/scrapers/{scraperTargetID}/members":
     get:
       operationId: GetScrapersIDMembers
