@@ -465,13 +465,13 @@ func (e *StatementExecutor) executeExplainAnalyzeStatement(q *influxql.ExplainSt
 		row, _, err = em.Emit()
 		if err != nil {
 			goto CLEANUP
-		} else if row == nil {
+		}
+
+		if row == nil {
 			// Check if the query was interrupted while emitting.
-			select {
-			case <-ectx.Done():
-				err = ectx.Err()
+			if e := ectx.Err(); e != nil {
+				err = e
 				goto CLEANUP
-			default:
 			}
 			break
 		}
@@ -561,12 +561,12 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 		row, partial, err := em.Emit()
 		if err != nil {
 			return err
-		} else if row == nil {
+		}
+
+		if row == nil {
 			// Check if the query was interrupted while emitting.
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
+			if err := ctx.Err(); err != nil {
+				return err
 			}
 			break
 		}
