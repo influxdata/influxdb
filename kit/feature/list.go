@@ -184,20 +184,6 @@ func SimpleTaskOptionsExtraction() BoolFlag {
 	return simpleTaskOptionsExtraction
 }
 
-var useUserPermission = MakeBoolFlag(
-	"Use User Permission",
-	"useUserPermission",
-	"Lyon Hill",
-	false,
-	Temporary,
-	false,
-)
-
-// UseUserPermission - When enabled we will use the new user service permission function
-func UseUserPermission() BoolFlag {
-	return useUserPermission
-}
-
 var mergeFiltersRule = MakeBoolFlag(
 	"Merged Filters Rule",
 	"mergeFiltersRule",
@@ -296,7 +282,6 @@ var all = []Flag{
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	simpleTaskOptionsExtraction,
-	useUserPermission,
 	mergeFiltersRule,
 	bandPlotType,
 	mosaicGraphType,
@@ -319,7 +304,6 @@ var byKey = map[string]Flag{
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
-	"useUserPermission":             useUserPermission,
 	"mergeFiltersRule":              mergeFiltersRule,
 	"bandPlotType":                  bandPlotType,
 	"mosaicGraphType":               mosaicGraphType,

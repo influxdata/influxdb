@@ -292,16 +292,9 @@ func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promi
 		return nil, err
 	}
 
-	var perm influxdb.PermissionSet
-	if e.flagger != nil && feature.UseUserPermission().Enabled(ctx, e.flagger) {
-		perm, err = e.ps.FindPermissionForUser(ctx, t.OwnerID)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if perm == nil {
-		perm = t.Authorization.Permissions
+	perm, err := e.ps.FindPermissionForUser(ctx, t.OwnerID)
+	if err != nil {
+		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
