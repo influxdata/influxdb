@@ -8,12 +8,14 @@ import {RemoteDataState, Schema} from 'src/types'
 
 const TEN_MINUTES = 10 * 60 * 1000 // 10 muinutes in ms
 // TODO(ariel): setup a watchdog to reset stale data
+export interface BucketSchema {
+  schema: Schema
+  exp: number
+  status: RemoteDataState
+}
+
 interface ReduxSchema {
-  bucketName: {
-    schema: Schema
-    exp: number
-    status: RemoteDataState
-  }
+  bucketName: BucketSchema
 }
 
 export type SchemaState = {

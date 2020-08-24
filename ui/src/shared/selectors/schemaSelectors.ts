@@ -1,9 +1,10 @@
 // Types
-import {AppState, Schema} from 'src/types'
+import {AppState} from 'src/types'
+import {BucketSchema} from 'src/shared/reducers/schema'
 
 export const getSchemaByBucketName = (
   state: AppState,
   bucketName: string
-): Schema | null => {
+): BucketSchema | null => {
   return state.notebook.schema[bucketName] || null
 }

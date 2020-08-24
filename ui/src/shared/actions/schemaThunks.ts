@@ -1,4 +1,3 @@
-/*eslint no-unused-vars: ["error", { "varsIgnorePattern": "[iI]gnored" }]*/
 // Libraries
 import {Dispatch} from 'react'
 // import {fromFlux as parse} from '@influxdata/giraffe'
@@ -30,11 +29,12 @@ type Action = BucketAction | NotifyAction
 
 // TODO(ariel): make this work with the query & the time range
 export const fetchSchemaForBucket = async (
-  // @ts-ignore
   bucketName: string,
-  // @ts-ignore
   orgID: string
 ): Promise<Schema> => {
+  /* eslint-disable no-console */
+  console.log(bucketName)
+  console.log(orgID)
   // const text = `import "influxdata/influxdb/v1"
   // from(bucket: "${bucketName}")
   // |> range(start: -1h)
@@ -69,7 +69,7 @@ const getUnexpiredSchema = (
   const storedSchema = getSchemaByBucketName(state, bucketName)
 
   if (storedSchema?.schema && storedSchema?.exp > new Date().getTime()) {
-    return storedSchema
+    return storedSchema.schema
   } else {
     return null
   }
@@ -81,18 +81,12 @@ export const getAndSetBucketSchema = (bucketName: string) => async (
 ) => {
   try {
     const state = getState()
-    let hasValidCacheResult = null
+    let validCachedResult = null
     if (bucketName) {
-      hasValidCacheResult = getUnexpiredSchema(state, bucketName)
+      validCachedResult = getUnexpiredSchema(state, bucketName)
     }
-    if (hasValidCacheResult !== null) {
-      dispatch(
-        setSchema(
-          RemoteDataState.Done,
-          bucketName,
-          hasValidCacheResult as Schema
-        )
-      )
+    if (validCachedResult !== null) {
+      dispatch(setSchema(RemoteDataState.Done, bucketName, validCachedResult))
       return
     } else {
       dispatch(setSchema(RemoteDataState.Loading, bucketName, {}))
