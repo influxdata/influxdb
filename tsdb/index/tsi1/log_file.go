@@ -1073,10 +1073,9 @@ func (f *LogFile) seriesSketches() (sketch, tSketch estimator.Sketch, err error)
 	return sketch, tSketch, nil
 }
 
-func (f *LogFile) Writes(entries []LogEntry) error {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
+func (f *LogFile) ExecEntries(entries []LogEntry) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	for i := range entries {
 		entry := &entries[i]
 		if err := f.appendEntry(entry); err != nil {
@@ -1084,6 +1083,14 @@ func (f *LogFile) Writes(entries []LogEntry) error {
 		}
 		f.execEntry(entry)
 	}
+	return nil
+}
+
+func (f *LogFile) Writes(entries []LogEntry) error {
+	if err := f.ExecEntries(entries); err != nil {
+		return err
+	}
+
 	// Flush buffer and sync to disk.
 	return f.FlushAndSync()
 }
