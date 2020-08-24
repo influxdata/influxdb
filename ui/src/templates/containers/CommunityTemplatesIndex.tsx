@@ -35,15 +35,18 @@ import {communityTemplatesImportPath} from 'src/templates/containers/TemplatesIn
 import GetResources from 'src/resources/components/GetResources'
 import {getOrg} from 'src/organizations/selectors'
 
+import {setStagedTemplateUrl} from 'src/templates/actions/creators'
+
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {
   getGithubUrlFromTemplateDetails,
-  getTemplateDetails,
+  getTemplateNameFromUrl,
 } from 'src/templates/utils'
 import {reportError} from 'src/shared/utils/errors'
 
 import {communityTemplateUnsupportedFormatError} from 'src/shared/copy/notifications'
+
 // Types
 import {AppState, ResourceType} from 'src/types'
 
@@ -168,7 +171,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
         </Page>
         <Switch>
           <Route
-            path={`${templatesPath}/import/:directory/:templateName/:templateExtension`}
+            path={`${templatesPath}/import`}
             component={CommunityTemplateImportOverlay}
           />
         </Switch>
@@ -183,12 +186,14 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     }
 
     try {
-      const {directory, templateExtension, templateName} = getTemplateDetails(
-        this.state.templateUrl
-      )
-      event('template_click_lookup', {templateName: templateName})
+      this.props.setStagedTemplateUrl(this.state.templateUrl)
+
+      event('template_click_lookup', {
+        templateName: getTemplateNameFromUrl(this.state.templateUrl).name,
+      })
+
       this.props.history.push(
-        `/orgs/${this.props.org.id}/settings/templates/import/${directory}/${templateName}/${templateExtension}`
+        `/orgs/${this.props.org.id}/settings/templates/import`
       )
     } catch (err) {
       this.props.notify(communityTemplateUnsupportedFormatError())
@@ -217,6 +222,7 @@ const mstp = (state: AppState) => {
 
 const mdtp = {
   notify,
+  setStagedTemplateUrl,
 }
 
 const connector = connect(mstp, mdtp)

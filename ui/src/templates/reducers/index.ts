@@ -4,12 +4,13 @@ import {
   ADD_TEMPLATE_SUMMARY,
   POPULATE_TEMPLATE_SUMMARIES,
   REMOVE_TEMPLATE_SUMMARY,
-  SET_COMMUNITY_TEMPLATE_TO_INSTALL,
   SET_EXPORT_TEMPLATE,
-  SET_TEMPLATE_SUMMARY,
-  SET_TEMPLATES_STATUS,
-  TOGGLE_TEMPLATE_RESOURCE_INSTALL,
   SET_STACKS,
+  SET_STAGED_TEMPLATE,
+  SET_STAGED_TEMPLATE_URL,
+  SET_TEMPLATES_STATUS,
+  SET_TEMPLATE_SUMMARY,
+  TOGGLE_TEMPLATE_RESOURCE_INSTALL,
 } from 'src/templates/actions/creators'
 import {
   CommunityTemplate,
@@ -37,6 +38,7 @@ const defaultCommunityTemplate = (): CommunityTemplate => {
 
 export const defaultState = (): TemplatesState => ({
   stagedCommunityTemplate: defaultCommunityTemplate(),
+  stagedTemplateUrl: '',
   status: RemoteDataState.NotStarted,
   byID: {},
   allIDs: [],
@@ -75,7 +77,14 @@ export const templatesReducer = (
         return
       }
 
-      case SET_COMMUNITY_TEMPLATE_TO_INSTALL: {
+      case SET_STAGED_TEMPLATE_URL: {
+        const {templateUrl} = action
+
+        draftState.stagedTemplateUrl = templateUrl
+        return
+      }
+
+      case SET_STAGED_TEMPLATE: {
         const {template} = action
 
         const stagedCommunityTemplate = {
