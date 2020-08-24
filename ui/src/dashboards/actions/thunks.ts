@@ -227,10 +227,10 @@ export const getDashboards = () => async (
     const org = getOrg(state)
 
     const resp = await api.getDashboards({
-        query: {
-            orgID: org.id,
-            limit: DASHBOARD_LIMIT
-        }
+      query: {
+        orgID: org.id,
+        limit: DASHBOARD_LIMIT,
+      },
     })
 
     if (resp.status !== 200) {
