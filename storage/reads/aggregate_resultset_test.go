@@ -71,13 +71,31 @@ func (i *mockIntegerArrayCursor) Next() *cursors.IntegerArray {
 	}
 }
 
-type mockCursorIterator struct{}
+type mockStringArrayCursor struct{}
+
+func (i *mockStringArrayCursor) Close()                     {}
+func (i *mockStringArrayCursor) Err() error                 { return nil }
+func (i *mockStringArrayCursor) Stats() cursors.CursorStats { return cursors.CursorStats{} }
+func (i *mockStringArrayCursor) Next() *cursors.StringArray {
+	return &cursors.StringArray{
+		Timestamps: []int64{1000000000},
+		Values:     []string{"a"},
+	}
+}
+
+type mockCursorIterator struct {
+	newCursorFn func() cursors.Cursor
+	statsFn     func() cursors.CursorStats
+}
 
 func (i *mockCursorIterator) Next(ctx context.Context, req *cursors.CursorRequest) (cursors.Cursor, error) {
-	return &mockIntegerArrayCursor{}, nil
+	return i.newCursorFn(), nil
 }
 func (i *mockCursorIterator) Stats() cursors.CursorStats {
-	return cursors.CursorStats{ScannedBytes: 500, ScannedValues: 10}
+	if i.statsFn == nil {
+		return cursors.CursorStats{}
+	}
+	return i.statsFn()
 }
 
 type mockReadCursor struct {
@@ -90,7 +108,14 @@ func newMockReadCursor(keys ...string) mockReadCursor {
 	for i := range keys {
 		rows[i].Name, rows[i].SeriesTags = models.ParseKeyBytes([]byte(keys[i]))
 		rows[i].Tags = rows[i].SeriesTags.Clone()
-		rows[i].Query = &mockCursorIterator{}
+		rows[i].Query = &mockCursorIterator{
+			newCursorFn: func() cursors.Cursor {
+				return &mockIntegerArrayCursor{}
+			},
+			statsFn: func() cursors.CursorStats {
+				return cursors.CursorStats{ScannedBytes: 500, ScannedValues: 10}
+			},
+		}
 	}
 
 	return mockReadCursor{rows: rows}
@@ -177,5 +202,39 @@ func TestNewWindowAggregateResultSet_Count(t *testing.T) {
 	}
 	if !reflect.DeepEqual(integerArray.Values, []int64{2, 5, 1}) {
 		t.Errorf("unexpected count values: %v", integerArray.Values)
+	}
+}
+
+func TestNewWindowAggregateResultSet_UnsupportedTyped(t *testing.T) {
+	newCursor := newMockReadCursor(
+		"clicks click=1 1",
+	)
+	newCursor.rows[0].Query = &mockCursorIterator{
+		newCursorFn: func() cursors.Cursor {
+			return &mockStringArrayCursor{}
+		},
+	}
+
+	request := datatypes.ReadWindowAggregateRequest{
+		Aggregate: []*datatypes.Aggregate{
+			{Type: datatypes.AggregateTypeMean},
+		},
+		WindowEvery: 10,
+	}
+	resultSet, err := reads.NewWindowAggregateResultSet(context.Background(), &request, &newCursor)
+
+	if err != nil {
+		t.Fatalf("error creating WindowAggregateResultSet: %s", err)
+	}
+
+	if resultSet.Next() {
+		t.Fatal("unexpected: resultSet should not have advanced")
+	}
+	err = resultSet.Err()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if want, got := "unsupported input type for mean aggregate: string", err.Error(); want != got {
+		t.Fatalf("unexpected error:\n\t- %q\n\t+ %q", want, got)
 	}
 }

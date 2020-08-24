@@ -120,6 +120,14 @@
   contact: Query Team
   lifetime: temporary
 
+- name: Band Plot Type
+  description: Enables the creation of a band plot in Dashboards
+  key: bandPlotType
+  default: false
+  contact: Monitoring Team
+  expose: true
+  lifetime: temporary
+
 - name: Mosaic Graph Type
   description: Enables the creation of a mosaic graph in Dashboards
   key: mosaicGraphType

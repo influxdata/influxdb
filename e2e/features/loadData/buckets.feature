@@ -175,10 +175,10 @@ Scenario: Add Manual Line Protocol Data to Default
   When click the Line Protocol wizard precision dropdown
   When click the line Protocol wizard precision "ms"
   When enter "12" datapoints with value named "foo" starting at "-2h" with "fibonacci" data of type "int" and prec "ms"
-  When click the Line Protocol wizard continue button
+  When click the Line Protocol wizard write button
   Then the line Protocol wizard second step opens
   Then the Line Protocol wizard step status message is "Data Written Successfully"
-  When click the Line Protocol wizard finish button
+  When click the Line Protocol wizard close button
   Then the line Protocol wizard is not present
   When API sign in user "DEFAULT"
   Then the bucket "DEFAULT" for user "DEFAULT" contains:
@@ -196,10 +196,12 @@ Scenario: Add Manual Line Protocol Data to Default
     When click radio button "Enter Manually"
     Then the data point text area is visible
     When enter "bad data" into the line protocol text area
-    When click the Line Protocol wizard continue button
+    When click the Line Protocol wizard write button
     Then the line Protocol wizard second step opens
     Then the Line Protocol wizard step status message contains "Unable to Write Data"
-    When click the Line Protocol wizard finish button
+    When click the Line Protocol wizard cancel button
+    Then the data point text area is visible
+    When click the Line Protocol wizard close icon
     Then the line Protocol wizard is not present
 
 @tested
@@ -215,18 +217,23 @@ Scenario: Add Manual Line Protocol Data to Default
     When click radio button "Upload File"
     When add the file "etc/test-data/line-protocol-bogus.txt" to the Line Protocol Wizard file upload
     Then the popup wizard import file header contains "line-protocol-bogus.txt"
-    When click the Line Protocol wizard continue button
+    When click the Line Protocol wizard write button
+    #When click the Line Protocol wizard continue button
     Then the popup wizard step state text contains "Unable to Write Data"
-    Then the popup wizard step is in state "error"
-    When click the bucket data wizard previous button
+    # appears error class no longer being used 13.8.20
+    #Then the popup wizard step is in state "error"
+    When click the Line Protocol wizard cancel button
+    #When click the bucket data wizard previous button
     When click the Line Protocol wizard precision dropdown
     When click the line Protocol wizard precision "ms"
     When add the file "etc/test-data/line-protocol-hydro.txt" to the Line Protocol Wizard file upload
     Then the popup wizard import file header contains "line-protocol-hydro.txt"
-    When click the Line Protocol wizard continue button
+    When click the Line Protocol wizard write button
+    #When click the Line Protocol wizard continue button
     Then the popup wizard step state text contains "Data Written Successfully"
-    Then the popup wizard step is in state "success"
-    When click the Line Protocol wizard finish button
+    # Success class no longer used 13.8.20
+    #Then the popup wizard step is in state "success"
+    When click the Line Protocol wizard close button
     Then the line Protocol wizard is not present
     #Then the bucket "DEFAULT" for user "DEFAULT" contains "20" datapoints of "hydro" data with value named "level" starting at "-60h"
     Then the bucket "DEFAULT" for user "DEFAULT" contains:

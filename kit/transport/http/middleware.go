@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"path"
 	"strings"
@@ -42,11 +43,12 @@ func Metrics(name string, reqMetric *prometheus.CounterVec, durMetric *prometheu
 
 			defer func(start time.Time) {
 				label := prometheus.Labels{
-					"handler":    name,
-					"method":     r.Method,
-					"path":       normalizePath(r.URL.Path),
-					"status":     statusW.StatusCodeClass(),
-					"user_agent": UserAgent(r),
+					"handler":       name,
+					"method":        r.Method,
+					"path":          normalizePath(r.URL.Path),
+					"status":        statusW.StatusCodeClass(),
+					"response_code": fmt.Sprintf("%d", statusW.Code()),
+					"user_agent":    UserAgent(r),
 				}
 				durMetric.With(label).Observe(time.Since(start).Seconds())
 				reqMetric.With(label).Inc()

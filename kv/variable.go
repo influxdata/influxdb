@@ -207,7 +207,6 @@ func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) erro
 			}
 		}
 
-		v.Name = strings.TrimSpace(v.Name) // TODO: move to service layer
 		v.ID = s.IDGenerator.ID()
 		now := s.Now()
 		v.CreatedAt = now

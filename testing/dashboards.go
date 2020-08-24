@@ -710,6 +710,44 @@ func FindDashboards(
 			},
 		},
 		{
+			name: "find all dashboards by offset and limit and org 1",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
+					},
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+					},
+					{
+						ID:             MustIDBase16(dashThreeID),
+						OrganizationID: 1,
+						Name:           "321",
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Limit:  1,
+					Offset: 1,
+				},
+				organizationID: idPtr(1),
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+					},
+				},
+			},
+		},
+		{
 			name: "find all dashboards sorted by created at",
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{

@@ -2,6 +2,7 @@
 
 ### Features
 
+1. [19246](https://github.com/influxdata/influxdb/pull/19246): Redesign load data page to increase discovery and ease of use
 1. [19334](https://github.com/influxdata/influxdb/pull/19334): Add --active-config flag to influx to set config for single command
 
 ### Bug Fixes
@@ -31,9 +32,11 @@
 1. [19188](https://github.com/influxdata/influxdb/pull/19188): Dashboard cells correctly map results when multiple queries exist
 1. [19146](https://github.com/influxdata/influxdb/pull/19146): Dashboard cells and overlay use UTC as query time when toggling to UTC timezone
 1. [19222](https://github.com/influxdata/influxdb/pull/19222): Bucket names may not include quotation marks
+1. [19317](https://github.com/influxdata/influxdb/pull/19317): Add validation to Variable name creation for valid Flux identifiers.
 
 ### UI Improvements
 1. [19231](https://github.com/influxdata/influxdb/pull/19231): Alerts page filter inputs now have tab indices for keyboard navigation
+1. [19364](https://github.com/influxdata/influxdb/pull/19364): Errors in OSS are now properly printed to the console
 
 ## v2.0.0-beta.15 [2020-07-23]
 

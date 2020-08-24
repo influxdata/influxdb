@@ -64,7 +64,12 @@ describe('DataExplorer', () => {
         cy.get('.view-lines').type(fluxCode)
       })
       cy.contains('Submit').click()
-      cy.getByTestID('nav-item-load-data').click()
+      cy.get('.cf-tree-nav--toggle').click()
+      // Can't use the testID to select this nav item because Clockface is silly and uses the same testID twice
+      // Issue: https://github.com/influxdata/clockface/issues/539
+      cy.get('.cf-tree-nav--sub-item-label')
+        .contains('Buckets')
+        .click()
       cy.getByTestID('bucket--card--name _tasks').click()
       cy.getByTestID('query-builder').should('exist')
     })
@@ -696,7 +701,7 @@ describe('DataExplorer', () => {
 
         // cycle through all the visualizations of the data
         VIS_TYPES.forEach(({type}) => {
-          if (type != 'mosaic') {
+          if (type !== 'mosaic' && type !== 'band') {
             //mosaic graph is behind feature flag
             cy.getByTestID('view-type--dropdown').click()
             cy.getByTestID(`view-type--${type}`).click()
