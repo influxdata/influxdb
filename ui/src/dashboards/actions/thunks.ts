@@ -54,6 +54,7 @@ import {getAll, getByID, getStatus} from 'src/resources/selectors'
 // Constants
 import * as copy from 'src/shared/copy/notifications'
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
+import {DASHBOARD_LIMIT} from 'src/resources/constants'
 
 // Types
 import {
@@ -225,7 +226,12 @@ export const getDashboards = () => async (
 
     const org = getOrg(state)
 
-    const resp = await api.getDashboards({query: {orgID: org.id}})
+    const resp = await api.getDashboards({
+      query: {
+        orgID: org.id,
+        limit: DASHBOARD_LIMIT,
+      },
+    })
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
