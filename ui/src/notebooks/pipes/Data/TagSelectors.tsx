@@ -6,6 +6,9 @@ import {List, Gradients} from '@influxdata/clockface'
 import {PipeContext} from 'src/notebooks/context/pipe'
 import {SchemaContext} from 'src/notebooks/context/schemaProvider'
 
+// Utils
+import {event as reportEvent} from 'src/cloud/utils/reporting'
+
 type Props = {
   tags: any[]
 }
@@ -19,13 +22,16 @@ const TagSelectors: FC<Props> = ({tags}) => {
     (tagName: string, tagValue: string): void => {
       let tagValues = []
       if (!selectedTags[tagName]) {
+        reportEvent('Selecting Multi-Tag in Flow Query Builder')
         tagValues = [tagValue]
       } else if (
         selectedTags[tagName] &&
         selectedTags[tagName].includes(tagValue)
       ) {
         tagValues = selectedTags[tagName].filter(v => v !== tagValue)
+        reportEvent('Deselecting Multi-Tag in Flow Query Builder')
       } else {
+        reportEvent('Selecting Multi-Tag in Flow Query Builder')
         tagValues = [...selectedTags[tagName], tagValue]
       }
       update({
@@ -41,9 +47,11 @@ const TagSelectors: FC<Props> = ({tags}) => {
   const handleSubListItemClick = useCallback(
     (event: MouseEvent, tagName: string, tagValue: string) => {
       if (event.metaKey) {
+        reportEvent('Multi-Select Tag Selection in Flow Query Builder')
         handleSublistMultiSelect(tagName, tagValue)
         return
       }
+      reportEvent('Single-Select Tag Selection in Flow Query Builder')
       let updatedValue = [tagValue]
       let tags = {
         [tagName]: updatedValue,
@@ -53,7 +61,10 @@ const TagSelectors: FC<Props> = ({tags}) => {
         tags[tagName] = updatedValue
       }
       if (tagName in selectedTags && updatedValue.length === 0) {
+        reportEvent('Deselecting Single-Tag in Flow Query Builder')
         tags = {}
+      } else {
+        reportEvent('Selecting Single-Tag in Flow Query Builder')
       }
       update({
         tags,

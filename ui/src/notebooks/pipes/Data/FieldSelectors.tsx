@@ -5,6 +5,9 @@ import React, {FC, useContext, useCallback} from 'react'
 import {List, Gradients} from '@influxdata/clockface'
 import {PipeContext} from 'src/notebooks/context/pipe'
 
+// Utils
+import {event} from 'src/cloud/utils/reporting'
+
 type Props = {
   fields: string[]
 }
@@ -16,7 +19,10 @@ const FieldSelectors: FC<Props> = ({fields}) => {
     (field: string): void => {
       let updated = field
       if (updated === selectedField) {
+        event('Deselecting Field in Flow Query Builder')
         updated = ''
+      } else {
+        event('Selecting Field in Flow Query Builder')
       }
       update({field: updated})
     },

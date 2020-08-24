@@ -15,6 +15,9 @@ import {BucketContext} from 'src/notebooks/context/buckets'
 import {PipeContext} from 'src/notebooks/context/pipe'
 import {SchemaContext} from 'src/notebooks/context/schemaProvider'
 
+// Utils
+import {event} from 'src/cloud/utils/reporting'
+
 // Types
 import {Bucket} from 'src/types'
 
@@ -27,6 +30,7 @@ const BucketSelector: FC = () => {
 
   const updateBucket = useCallback(
     (updatedBucket: Bucket): void => {
+      event('Updating Bucket Selection in Flow Query Builder')
       localFetchSchema(updatedBucket.name)
       update({bucketName: updatedBucket.name})
     },

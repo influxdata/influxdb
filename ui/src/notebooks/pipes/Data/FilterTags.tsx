@@ -5,6 +5,9 @@ import React, {FC, useContext} from 'react'
 import {Label as LabelComponent} from '@influxdata/clockface'
 import {PipeContext} from 'src/notebooks/context/pipe'
 
+// Utils
+import {event} from 'src/cloud/utils/reporting'
+
 const constructFilters = (value: string, type: string) => {
   if (!value) {
     return null
@@ -64,6 +67,7 @@ const constructFilters = (value: string, type: string) => {
 const FilterTags: FC = () => {
   const {data, update} = useContext(PipeContext)
   const handleDeleteFilter = (type: string, name: string) => {
+    event(`Removing ${type} By Label in Flow Query Builder`)
     if (type === 'tags') {
       const [tagName, tagValue] = name.split(' = ')
       let tagValues = []

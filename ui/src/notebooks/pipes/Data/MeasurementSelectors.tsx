@@ -5,6 +5,9 @@ import React, {FC, useContext, useCallback} from 'react'
 import {List, Gradients} from '@influxdata/clockface'
 import {PipeContext} from 'src/notebooks/context/pipe'
 
+// Utils
+import {event} from 'src/cloud/utils/reporting'
+
 type Props = {
   measurements: string[]
 }
@@ -16,7 +19,10 @@ const MeasurementSelectors: FC<Props> = ({measurements}) => {
     (value: string): void => {
       let updated = value
       if (updated === selectedMeasurement) {
+        event('Deselecting Measurement in Flow Query Builder')
         updated = ''
+      } else {
+        event('Selecting Measurement in Flow Query Builder')
       }
 
       update({measurement: updated})

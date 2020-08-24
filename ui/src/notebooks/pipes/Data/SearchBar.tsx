@@ -7,8 +7,17 @@ import {Input, IconFont, ComponentSize} from '@influxdata/clockface'
 // Contexts
 import {SchemaContext} from 'src/notebooks/context/schemaProvider'
 
+// Utils
+import {event} from 'src/cloud/utils/reporting'
+
 const SearchBar: FC = () => {
   const {searchTerm, setSearchTerm} = useContext(SchemaContext)
+
+  const handleSetSearch = (text: string): void => {
+    event('Searching in Flow Query Builder')
+    setSearchTerm(text)
+  }
+
   return (
     <Input
       icon={IconFont.Search}
@@ -16,7 +25,7 @@ const SearchBar: FC = () => {
       value={searchTerm}
       placeholder="Filter data by Measurement, Field, or Tag ..."
       className="tag-selector--search"
-      onChange={e => setSearchTerm(e.target.value)}
+      onChange={e => handleSetSearch(e.target.value)}
     />
   )
 }

@@ -10,12 +10,18 @@ import {PipeContext} from 'src/notebooks/context/pipe'
 // Constants
 import {FUNCTIONS, QueryFn} from 'src/timeMachine/constants/queryBuilder'
 
+// Utils
+import {event} from 'src/cloud/utils/reporting'
+
 const AggregateFunctionSelector: FC = () => {
   const {data, update} = useContext(PipeContext)
   const selectedFunction = data?.aggregateFunction || FUNCTIONS[0]
 
   const updateSelectedFunction = useCallback(
     (aggregateFunction: QueryFn): void => {
+      event(
+        `Updating the Aggregate function in the Flow Query Builder to ${aggregateFunction.name}`
+      )
       update({aggregateFunction})
     },
     [update]
