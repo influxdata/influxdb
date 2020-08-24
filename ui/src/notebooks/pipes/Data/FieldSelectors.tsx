@@ -22,7 +22,7 @@ const FieldSelectors: FC<Props> = ({fields}) => {
         event('Deselecting Field in Flow Query Builder')
         updated = ''
       } else {
-        event('Selecting Field in Flow Query Builder')
+        event('Selecting Field in Flow Query Builder', {field})
       }
       update({field: updated})
     },

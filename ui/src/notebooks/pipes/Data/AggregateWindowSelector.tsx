@@ -19,9 +19,9 @@ const AggregateFunctionSelector: FC = () => {
 
   const updateSelectedFunction = useCallback(
     (aggregateFunction: QueryFn): void => {
-      event(
-        `Updating the Aggregate function in the Flow Query Builder to ${aggregateFunction.name}`
-      )
+      event(`Updating the Aggregate function in the Flow Query Builder`, {
+        function: aggregateFunction.name,
+      })
       update({aggregateFunction})
     },
     [update]

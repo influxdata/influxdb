@@ -30,7 +30,9 @@ const BucketSelector: FC = () => {
 
   const updateBucket = useCallback(
     (updatedBucket: Bucket): void => {
-      event('Updating Bucket Selection in Flow Query Builder')
+      event('Updating Bucket Selection in Flow Query Builder', {
+        bucket: updatedBucket.name,
+      })
       localFetchSchema(updatedBucket.name)
       update({bucketName: updatedBucket.name})
     },

@@ -18,27 +18,41 @@ const TagSelectors: FC<Props> = ({tags}) => {
   const {searchTerm} = useContext(SchemaContext)
   const selectedTags = data?.tags
 
+  const selectEventText = 'Selecting Tag in Flow Query Builder'
+  const deselectEventText = 'Deselecting Tag in Flow Query Builder'
+
   const handleSublistMultiSelect = useCallback(
     (tagName: string, tagValue: string): void => {
       let tagValues = []
       if (!selectedTags[tagName]) {
-        reportEvent('Selecting Multi-Tag in Flow Query Builder')
         tagValues = [tagValue]
       } else if (
         selectedTags[tagName] &&
         selectedTags[tagName].includes(tagValue)
       ) {
         tagValues = selectedTags[tagName].filter(v => v !== tagValue)
-        reportEvent('Deselecting Multi-Tag in Flow Query Builder')
       } else {
-        reportEvent('Selecting Multi-Tag in Flow Query Builder')
         tagValues = [...selectedTags[tagName], tagValue]
       }
+
+      const updatedTags = {
+        ...selectedTags,
+        [tagName]: tagValues,
+      }
+
+      if (tagValues.length < selectedTags[tagName].length) {
+        reportEvent(deselectEventText, {
+          type: 'multi-select',
+          tags: JSON.stringify(updatedTags),
+        })
+      } else {
+        reportEvent(selectEventText, {
+          type: 'multi-select',
+          tags: JSON.stringify(updatedTags),
+        })
+      }
       update({
-        tags: {
-          ...selectedTags,
-          [tagName]: tagValues,
-        },
+        tags: updatedTags,
       })
     },
     [update]
@@ -47,27 +61,30 @@ const TagSelectors: FC<Props> = ({tags}) => {
   const handleSubListItemClick = useCallback(
     (event: MouseEvent, tagName: string, tagValue: string) => {
       if (event.metaKey) {
-        reportEvent('Multi-Select Tag Selection in Flow Query Builder')
         handleSublistMultiSelect(tagName, tagValue)
         return
       }
-      reportEvent('Single-Select Tag Selection in Flow Query Builder')
       let updatedValue = [tagValue]
-      let tags = {
+      let updatedTags = {
         [tagName]: updatedValue,
       }
       if (selectedTags[tagName]?.includes(tagValue)) {
         updatedValue = []
-        tags[tagName] = updatedValue
+        updatedTags[tagName] = updatedValue
       }
       if (tagName in selectedTags && updatedValue.length === 0) {
-        reportEvent('Deselecting Single-Tag in Flow Query Builder')
-        tags = {}
+        reportEvent(deselectEventText, {
+          type: 'single-select',
+        })
+        updatedTags = {}
       } else {
-        reportEvent('Selecting Single-Tag in Flow Query Builder')
+        reportEvent(selectEventText, {
+          type: 'single-select',
+          tags: JSON.stringify(updatedTags),
+        })
       }
       update({
-        tags,
+        tags: updatedTags,
       })
     },
     [update]

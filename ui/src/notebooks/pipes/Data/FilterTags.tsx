@@ -67,7 +67,7 @@ const constructFilters = (value: string, type: string) => {
 const FilterTags: FC = () => {
   const {data, update} = useContext(PipeContext)
   const handleDeleteFilter = (type: string, name: string) => {
-    event(`Removing ${type} By Label in Flow Query Builder`)
+    event('Deleting the Filter Label in Flow Query Builder', {type})
     if (type === 'tags') {
       const [tagName, tagValue] = name.split(' = ')
       let tagValues = []

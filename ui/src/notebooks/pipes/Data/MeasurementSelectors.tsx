@@ -16,13 +16,13 @@ const MeasurementSelectors: FC<Props> = ({measurements}) => {
   const {data, update} = useContext(PipeContext)
   const selectedMeasurement = data?.measurement
   const updateMeasurementSelection = useCallback(
-    (value: string): void => {
-      let updated = value
+    (measurement: string): void => {
+      let updated = measurement
       if (updated === selectedMeasurement) {
         event('Deselecting Measurement in Flow Query Builder')
         updated = ''
       } else {
-        event('Selecting Measurement in Flow Query Builder')
+        event('Selecting Measurement in Flow Query Builder', {measurement})
       }
 
       update({measurement: updated})

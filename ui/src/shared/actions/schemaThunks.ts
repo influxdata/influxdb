@@ -28,13 +28,11 @@ import {results} from 'src/notebooks/pipes/Data/dummyData'
 type Action = BucketAction | NotifyAction
 
 // TODO(ariel): make this work with the query & the time range
-export const fetchSchemaForBucket = async (
-  bucketName: string,
-  orgID: string
-): Promise<Schema> => {
-  /* eslint-disable no-console */
-  console.log(bucketName)
-  console.log(orgID)
+export const fetchSchemaForBucket = async (): Promise<Schema> => {
+  // export const fetchSchemaForBucket = async (
+  //   bucketName: string,
+  //   orgID: string
+  // ): Promise<Schema> => {
   // const text = `import "influxdata/influxdb/v1"
   // from(bucket: "${bucketName}")
   // |> range(start: -1h)
@@ -93,7 +91,7 @@ export const getAndSetBucketSchema = (bucketName: string) => async (
     }
     const orgID = getOrg(state).id
     const schema = await fetchSchemaForBucket(bucketName, orgID)
-    dispatch(setSchema(RemoteDataState.Done, bucketName, schema as Schema))
+    dispatch(setSchema(RemoteDataState.Done, bucketName, schema))
   } catch (error) {
     console.error(error)
     dispatch(setSchema(RemoteDataState.Error))
