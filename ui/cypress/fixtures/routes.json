@@ -7,5 +7,6 @@
   "endpoints": "/endpoints",
   "rules": "/rules",
   "buckets": "/load-data/buckets",
-  "telegrafs": "/load-data/telegrafs"
+  "telegrafs": "/load-data/telegrafs",
+  "flows": "/flows"
 }

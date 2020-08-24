@@ -29,6 +29,7 @@ import MembersIndex from 'src/members/containers/MembersIndex'
 import RouteToDashboardList from 'src/dashboards/components/RouteToDashboardList'
 import ClientLibrariesPage from 'src/writeData/containers/ClientLibrariesPage'
 import TelegrafPluginsPage from 'src/writeData/containers/TelegrafPluginsPage'
+import FlowsIndex from 'src/notebooks/components/FlowsIndex'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -138,6 +139,8 @@ const SetOrg: FC<Props> = ({
         {isFlagEnabled('notebooks') && (
           <Route path={`${orgPath}/notebooks`} component={NotebookPage} />
         )}
+
+        <Route path={`${orgPath}/flows`} component={FlowsIndex} />
 
         {/* Write Data */}
         <Route
