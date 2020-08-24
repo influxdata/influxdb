@@ -336,7 +336,7 @@ func (e *Engine) replayWAL() error {
 				}
 			}
 
-			return e.deleteBucketRangeLocked(context.Background(), en.OrgID, en.BucketID, en.Min, en.Max, pred)
+			return e.deleteBucketRangeLocked(context.Background(), en.OrgID, en.BucketID, en.Min, en.Max, pred, influxdb.DeletePrefixRangeOptions{KeepSeries: en.KeepSeries})
 		}
 
 		return nil
@@ -663,12 +663,12 @@ func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb
 		return err
 	}
 
-	return e.deleteBucketRangeLocked(ctx, orgID, bucketID, min, max, nil)
+	return e.deleteBucketRangeLocked(ctx, orgID, bucketID, min, max, nil, influxdb.DeletePrefixRangeOptions{})
 }
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
-func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
+func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate, opts influxdb.DeletePrefixRangeOptions) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -693,18 +693,18 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 		return err
 	}
 
-	return e.deleteBucketRangeLocked(ctx, orgID, bucketID, min, max, pred)
+	return e.deleteBucketRangeLocked(ctx, orgID, bucketID, min, max, pred, opts)
 }
 
 // deleteBucketRangeLocked does the work of deleting a bucket range and must be called under
 // some sort of lock.
-func (e *Engine) deleteBucketRangeLocked(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred tsm1.Predicate) error {
+func (e *Engine) deleteBucketRangeLocked(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred tsm1.Predicate, opts influxdb.DeletePrefixRangeOptions) error {
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.
 	encoded := tsdb.EncodeName(orgID, bucketID)
 	name := models.EscapeMeasurement(encoded[:])
 
-	return e.engine.DeletePrefixRange(ctx, name, min, max, pred)
+	return e.engine.DeletePrefixRange(ctx, name, min, max, pred, opts)
 }
 
 // CreateBackup creates a "snapshot" of all TSM data in the Engine.

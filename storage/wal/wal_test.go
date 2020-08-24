@@ -216,50 +216,87 @@ func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 }
 
 func TestWALWriter_DeleteBucketRange(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
-	w := NewWALSegmentWriter(f)
+	t.Run("DeleteSeries", func(t *testing.T) {
+		dir := MustTempDir()
+		defer os.RemoveAll(dir)
+		f := MustTempFile(dir)
+		w := NewWALSegmentWriter(f)
 
-	entry := &DeleteBucketRangeWALEntry{
-		OrgID:     influxdb.ID(1),
-		BucketID:  influxdb.ID(2),
-		Min:       3,
-		Max:       4,
-		Predicate: []byte("predicate"),
-	}
+		entry := &DeleteBucketRangeWALEntry{
+			OrgID:      influxdb.ID(1),
+			BucketID:   influxdb.ID(2),
+			Min:        3,
+			Max:        4,
+			Predicate:  []byte("predicate"),
+			KeepSeries: false,
+		}
 
-	if err := w.Write(mustMarshalEntry(entry)); err != nil {
-		fatal(t, "write points", err)
-	}
+		if err := w.Write(mustMarshalEntry(entry)); err != nil {
+			fatal(t, "write points", err)
+		} else if err := w.Flush(); err != nil {
+			fatal(t, "flush", err)
+		}
 
-	if err := w.Flush(); err != nil {
-		fatal(t, "flush", err)
-	}
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			fatal(t, "seek", err)
+		}
 
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		fatal(t, "seek", err)
-	}
+		r := NewWALSegmentReader(f)
+		if !r.Next() {
+			t.Fatalf("expected next, got false")
+		}
 
-	r := NewWALSegmentReader(f)
+		if e, err := r.Read(); err != nil {
+			fatal(t, "read entry", err)
+		} else if e, ok := e.(*DeleteBucketRangeWALEntry); !ok {
+			t.Fatalf("expected WriteWALEntry: got %#v", e)
+		} else if !reflect.DeepEqual(entry, e) {
+			t.Fatalf("expected %+v but got %+v", entry, e)
+		} else if got, want := e.Type(), DeleteBucketRangeWALEntryType; got != want {
+			t.Fatalf("Type()=%v, want %v", got, want)
+		}
+	})
 
-	if !r.Next() {
-		t.Fatalf("expected next, got false")
-	}
+	t.Run("KeepSeries", func(t *testing.T) {
+		dir := MustTempDir()
+		defer os.RemoveAll(dir)
+		f := MustTempFile(dir)
+		w := NewWALSegmentWriter(f)
 
-	we, err := r.Read()
-	if err != nil {
-		fatal(t, "read entry", err)
-	}
+		entry := &DeleteBucketRangeWALEntry{
+			OrgID:      influxdb.ID(1),
+			BucketID:   influxdb.ID(2),
+			Min:        3,
+			Max:        4,
+			Predicate:  []byte("predicate"),
+			KeepSeries: true,
+		}
 
-	e, ok := we.(*DeleteBucketRangeWALEntry)
-	if !ok {
-		t.Fatalf("expected WriteWALEntry: got %#v", e)
-	}
+		if err := w.Write(mustMarshalEntry(entry)); err != nil {
+			fatal(t, "write points", err)
+		} else if err := w.Flush(); err != nil {
+			fatal(t, "flush", err)
+		}
 
-	if !reflect.DeepEqual(entry, e) {
-		t.Fatalf("expected %+v but got %+v", entry, e)
-	}
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			fatal(t, "seek", err)
+		}
+
+		r := NewWALSegmentReader(f)
+		if !r.Next() {
+			t.Fatalf("expected next, got false")
+		}
+
+		if e, err := r.Read(); err != nil {
+			fatal(t, "read entry", err)
+		} else if e, ok := e.(*DeleteBucketRangeWALEntry); !ok {
+			t.Fatalf("expected WriteWALEntry: got %#v", e)
+		} else if !reflect.DeepEqual(entry, e) {
+			t.Fatalf("expected %+v but got %+v", entry, e)
+		} else if got, want := e.Type(), DeleteBucketRangeKeepSeriesWALEntryType; got != want {
+			t.Fatalf("Type()=%v, want %v", got, want)
+		}
+	})
 }
 
 func TestWAL_ClosedSegments(t *testing.T) {

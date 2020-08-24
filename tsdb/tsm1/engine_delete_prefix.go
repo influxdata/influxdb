@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
@@ -19,7 +20,7 @@ import (
 // DeletePrefixRange removes all TSM data belonging to a bucket, and removes all index
 // and series file data associated with the bucket. The provided time range ensures
 // that only bucket data for that range is removed.
-func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, max int64, pred Predicate) error {
+func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, max int64, pred Predicate, opts influxdb.DeletePrefixRangeOptions) error {
 	span, ctx := tracing.StartSpanFromContext(rootCtx)
 	span.LogKV("name_prefix", fmt.Sprintf("%x", name),
 		"min", time.Unix(0, min), "max", time.Unix(0, max),
@@ -198,7 +199,7 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 	span.LogKV("cache_cardinality", keysChecked)
 	span.Finish()
 
-	if len(possiblyDead.keys) > 0 {
+	if len(possiblyDead.keys) > 0 && !opts.KeepSeries {
 		buf := make([]byte, 1024)
 
 		// TODO(jeff): all of these methods have possible errors which opens us to partial
