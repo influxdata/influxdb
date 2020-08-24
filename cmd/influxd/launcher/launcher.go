@@ -730,6 +730,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	// check for 2.x data / state from a prior 2.x
+	if err := checkForPriorVersion(ctx, m.log, m.boltPath, m.enginePath, ts.BucketService, metaClient); err != nil {
+		os.Exit(1)
+	}
+
 	m.engine = storage.NewEngine(
 		m.enginePath,
 		m.StorageConfig,
@@ -1268,6 +1273,53 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 		log.Info("Stopping")
 	}(m.log)
+
+	return nil
+}
+
+func checkForPriorVersion(ctx context.Context, log *zap.Logger, boltPath string, enginePath string, bs platform.BucketService, metaClient *meta.Client) error {
+	buckets, _, err := bs.FindBuckets(ctx, platform.BucketFilter{})
+	if err != nil {
+		log.Error("Failed to retrieve buckets", zap.Error(err))
+		return err
+	}
+
+	hasErrors := false
+
+	// if there are no buckets, we will be fine
+	if len(buckets) > 0 {
+		log.Info("Checking InfluxDB metadata for prior version.", zap.String("bolt_path", boltPath))
+
+		for i := range buckets {
+			bucket := buckets[i]
+			if dbi := metaClient.Database(bucket.ID.String()); dbi == nil {
+				log.Error("Missing metadata for bucket.", zap.String("bucket", bucket.Name), zap.Stringer("bucket_id", bucket.ID))
+				hasErrors = true
+			}
+		}
+
+		if hasErrors {
+			log.Error("Incompatible InfluxDB 2.0 metadata found. File must be moved before influxd will start.", zap.String("path", boltPath))
+		}
+	}
+
+	// see if there are existing files which match the old directory structure
+	{
+		for _, name := range []string{"_series", "index"} {
+			dir := filepath.Join(enginePath, name)
+			if fi, err := os.Stat(dir); err == nil {
+				if fi.IsDir() {
+					log.Error("Found directory that is incompatible with this version of InfluxDB.", zap.String("path", dir))
+					hasErrors = true
+				}
+			}
+		}
+	}
+
+	if hasErrors {
+		log.Error("Incompatible InfluxDB 2.0 version found. Move all files outside of engine_path before influxd will start.", zap.String("engine_path", enginePath))
+		return errors.New("incompatible InfluxDB version")
+	}
 
 	return nil
 }
