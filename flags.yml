@@ -157,7 +157,7 @@
   contact: Compute Team
 
 - name: Enforce Organization Dashboard Limits
-  description: Enforces the default limit params for the dashboards api when orgs are set 
+  description: Enforces the default limit params for the dashboards api when orgs are set
   key: enforceOrgDashboardLimits
   default: false
   contact: Compute Team
