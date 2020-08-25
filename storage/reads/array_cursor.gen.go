@@ -55,8 +55,6 @@ func (c *floatArrayFilterCursor) Next() *cursors.FloatArray {
 
 	if c.tmp.Len() > 0 {
 		a = c.tmp
-		c.tmp.Timestamps = nil
-		c.tmp.Values = nil
 	} else {
 		a = c.FloatArrayCursor.Next()
 	}
@@ -76,6 +74,12 @@ LOOP:
 				}
 			}
 		}
+
+		// Clear buffered timestamps & values if we make it through a cursor.
+		// The break above will skip this if a cursor is partially read.
+		c.tmp.Timestamps = nil
+		c.tmp.Values = nil
+
 		a = c.FloatArrayCursor.Next()
 	}
 
@@ -284,8 +288,6 @@ func (c *integerArrayFilterCursor) Next() *cursors.IntegerArray {
 
 	if c.tmp.Len() > 0 {
 		a = c.tmp
-		c.tmp.Timestamps = nil
-		c.tmp.Values = nil
 	} else {
 		a = c.IntegerArrayCursor.Next()
 	}
@@ -305,6 +307,12 @@ LOOP:
 				}
 			}
 		}
+
+		// Clear buffered timestamps & values if we make it through a cursor.
+		// The break above will skip this if a cursor is partially read.
+		c.tmp.Timestamps = nil
+		c.tmp.Values = nil
+
 		a = c.IntegerArrayCursor.Next()
 	}
 
@@ -513,8 +521,6 @@ func (c *unsignedArrayFilterCursor) Next() *cursors.UnsignedArray {
 
 	if c.tmp.Len() > 0 {
 		a = c.tmp
-		c.tmp.Timestamps = nil
-		c.tmp.Values = nil
 	} else {
 		a = c.UnsignedArrayCursor.Next()
 	}
@@ -534,6 +540,12 @@ LOOP:
 				}
 			}
 		}
+
+		// Clear buffered timestamps & values if we make it through a cursor.
+		// The break above will skip this if a cursor is partially read.
+		c.tmp.Timestamps = nil
+		c.tmp.Values = nil
+
 		a = c.UnsignedArrayCursor.Next()
 	}
 
@@ -742,8 +754,6 @@ func (c *stringArrayFilterCursor) Next() *cursors.StringArray {
 
 	if c.tmp.Len() > 0 {
 		a = c.tmp
-		c.tmp.Timestamps = nil
-		c.tmp.Values = nil
 	} else {
 		a = c.StringArrayCursor.Next()
 	}
@@ -763,6 +773,12 @@ LOOP:
 				}
 			}
 		}
+
+		// Clear buffered timestamps & values if we make it through a cursor.
+		// The break above will skip this if a cursor is partially read.
+		c.tmp.Timestamps = nil
+		c.tmp.Values = nil
+
 		a = c.StringArrayCursor.Next()
 	}
 
@@ -931,8 +947,6 @@ func (c *booleanArrayFilterCursor) Next() *cursors.BooleanArray {
 
 	if c.tmp.Len() > 0 {
 		a = c.tmp
-		c.tmp.Timestamps = nil
-		c.tmp.Values = nil
 	} else {
 		a = c.BooleanArrayCursor.Next()
 	}
@@ -952,6 +966,12 @@ LOOP:
 				}
 			}
 		}
+
+		// Clear buffered timestamps & values if we make it through a cursor.
+		// The break above will skip this if a cursor is partially read.
+		c.tmp.Timestamps = nil
+		c.tmp.Values = nil
+
 		a = c.BooleanArrayCursor.Next()
 	}
 
