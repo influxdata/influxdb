@@ -114,34 +114,6 @@ func NewLabelPackage() BoolFlag {
 	return newLabels
 }
 
-var hydratevars = MakeBoolFlag(
-	"New Hydrate Vars Functionality",
-	"hydratevars",
-	"Ariel Salem / Monitoring Team",
-	false,
-	Temporary,
-	true,
-)
-
-// NewHydrateVarsFunctionality - Enables a minimalistic variable hydration
-func NewHydrateVarsFunctionality() BoolFlag {
-	return hydratevars
-}
-
-var queryCacheForDashboards = MakeBoolFlag(
-	"Query Cache for Dashboards UI",
-	"queryCacheForDashboards",
-	"Ariel Salem / Monitoring Team",
-	false,
-	Temporary,
-	true,
-)
-
-// QueryCacheForDashboardsUi - Enables a Dashboard Cache on the uI
-func QueryCacheForDashboardsUi() BoolFlag {
-	return queryCacheForDashboards
-}
-
 var memoryOptimizedFill = MakeBoolFlag(
 	"Memory Optimized Fill",
 	"memoryOptimizedFill",
@@ -182,20 +154,6 @@ var simpleTaskOptionsExtraction = MakeBoolFlag(
 // SimpleTaskOptionsExtraction - Simplified task options extraction to avoid undefined functions when saving tasks
 func SimpleTaskOptionsExtraction() BoolFlag {
 	return simpleTaskOptionsExtraction
-}
-
-var useUserPermission = MakeBoolFlag(
-	"Use User Permission",
-	"useUserPermission",
-	"Lyon Hill",
-	false,
-	Temporary,
-	false,
-)
-
-// UseUserPermission - When enabled we will use the new user service permission function
-func UseUserPermission() BoolFlag {
-	return useUserPermission
 }
 
 var mergeFiltersRule = MakeBoolFlag(
@@ -282,6 +240,20 @@ func OrgOnlyMemberList() BoolFlag {
 	return orgOnlyMemberList
 }
 
+var enforceOrgDashboardLimits = MakeBoolFlag(
+	"Enforce Organization Dashboard Limits",
+	"enforceOrgDashboardLimits",
+	"Compute Team",
+	false,
+	Temporary,
+	false,
+)
+
+// EnforceOrganizationDashboardLimits - Enforces the default limit params for the dashboards api when orgs are set
+func EnforceOrganizationDashboardLimits() BoolFlag {
+	return enforceOrgDashboardLimits
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -291,18 +263,16 @@ var all = []Flag{
 	groupWindowAggregateTranspose,
 	newAuth,
 	newLabels,
-	hydratevars,
-	queryCacheForDashboards,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	simpleTaskOptionsExtraction,
-	useUserPermission,
 	mergeFiltersRule,
 	bandPlotType,
 	mosaicGraphType,
 	notebooks,
 	pushDownGroupAggregateMinMax,
 	orgOnlyMemberList,
+	enforceOrgDashboardLimits,
 }
 
 var byKey = map[string]Flag{
@@ -314,16 +284,14 @@ var byKey = map[string]Flag{
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newAuth":                       newAuth,
 	"newLabels":                     newLabels,
-	"hydratevars":                   hydratevars,
-	"queryCacheForDashboards":       queryCacheForDashboards,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
-	"useUserPermission":             useUserPermission,
 	"mergeFiltersRule":              mergeFiltersRule,
 	"bandPlotType":                  bandPlotType,
 	"mosaicGraphType":               mosaicGraphType,
 	"notebooks":                     notebooks,
 	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
 	"orgOnlyMemberList":             orgOnlyMemberList,
+	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 }

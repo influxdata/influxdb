@@ -32,9 +32,7 @@ describe('Variables', () => {
       'windowPeriod'
     )
 
-    cy.getByTestID('add-resource-dropdown--button').click()
-
-    cy.getByTestID('add-resource-dropdown--new').click()
+    cy.getByTestID('add-resource-button').click()
 
     cy.getByTestID('variable-type-dropdown--button').click()
     cy.getByTestID('variable-type-dropdown-constant').click()
@@ -145,9 +143,7 @@ describe('Variables', () => {
     )
 
     // Create a Map variable from scratch
-    cy.getByTestID('add-resource-dropdown--button').click()
-
-    cy.getByTestID('add-resource-dropdown--new').click()
+    cy.getByTestID('add-resource-button').click()
 
     cy.getByTestID('variable-type-dropdown--button').click()
     cy.getByTestID('variable-type-dropdown-map').click()
@@ -171,9 +167,7 @@ describe('Variables', () => {
     cy.getByTestID(`variable-card--name ${mapVariableName}`).should('exist')
 
     // Create a Query variable from scratch
-    cy.getByTestID('add-resource-dropdown--button').click()
-
-    cy.getByTestID('add-resource-dropdown--new').click()
+    cy.getByTestID('add-resource-button').click()
 
     cy.getByTestID('variable-type-dropdown--button').click()
     cy.getByTestID('variable-type-dropdown-map').click()
@@ -201,45 +195,6 @@ describe('Variables', () => {
     cy.getByTestID(`variable-card--name ${queryVariableName}`).contains(
       queryVariableName
     )
-
-    //create variable by uploader
-    cy.getByTestID('add-resource-dropdown--button').click()
-
-    cy.getByTestID('add-resource-dropdown--import').click()
-
-    const yourFixturePath = 'data-for-variable.json'
-    cy.get('.drag-and-drop').attachFile(yourFixturePath, {
-      subjectType: 'drag-n-drop',
-    })
-
-    cy.getByTestID('submit-button Variable').click()
-
-    cy.getByTestID('resource-card variable')
-      .should('have.length', 4)
-      .contains('agent_host')
-  })
-
-  it('keeps user input in text area when attempting to import invalid JSON', () => {
-    cy.getByTestID('tabbed-page--header').within(() => {
-      cy.contains('Create').click()
-    })
-
-    cy.getByTestID('add-resource-dropdown--import').click()
-    cy.contains('Paste').click()
-    cy.getByTestID('import-overlay--textarea')
-      .click()
-      .type('this is invalid JSON')
-    cy.get('button[title*="Import JSON"]').click()
-    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
-    cy.getByTestID('import-overlay--textarea').should($s =>
-      expect($s).to.contain('this is invalid JSON')
-    )
-    cy.getByTestID('import-overlay--textarea').type(
-      '{backspace}{backspace}{backspace}{backspace}{backspace}'
-    )
-    cy.get('button[title*="Import JSON"]').click()
-    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
-    cy.getByTestID('import-overlay--textarea').contains('this is invalid')
   })
 
   it('can create and delete a label and filter a variable by label name & sort by variable name', () => {
@@ -254,11 +209,7 @@ describe('Variables', () => {
 
     cy.getByTestID('overlay--children').should('not.exist')
 
-    cy.getByTestID('add-resource-dropdown--button').click()
-
-    cy.getByTestID('add-resource-dropdown--new').should('have.length', 1)
-
-    cy.getByTestID('add-resource-dropdown--new').click()
+    cy.getByTestID('add-resource-button').click()
 
     cy.getByTestID('variable-type-dropdown--button').click()
     cy.getByTestID('variable-type-dropdown-constant').click()

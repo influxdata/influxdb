@@ -32,19 +32,7 @@ describe('Community Templates', () => {
     cy.getByTestID('lookup-template-button').click()
     cy.getByTestID('notification-error').should('be.visible')
 
-    //lookup template errors on bad url
-    cy.getByTestID('lookup-template-input').type('www.badURL.com')
-    cy.getByTestID('lookup-template-button').click()
-    cy.getByTestID('notification-error').should('be.visible')
-
-    //lookup template errors on bad file type
-    cy.getByTestID('lookup-template-input').clear()
-    cy.getByTestID('lookup-template-input').type('variables.html')
-    cy.getByTestID('lookup-template-button').click()
-    cy.getByTestID('notification-error').should('be.visible')
-
     //lookup template errors on github folder
-    cy.getByTestID('lookup-template-input').clear()
     cy.getByTestID('lookup-template-input').type(
       'https://github.com/influxdata/community-templates/tree/master/kafka'
     )

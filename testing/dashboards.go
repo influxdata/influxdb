@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/mock"
 )
 
@@ -945,7 +946,12 @@ func FindDashboards(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.Background()
+			ctx, err := feature.Annotate(context.Background(), mock.NewFlagger(map[feature.Flag]interface{}{
+				feature.EnforceOrganizationDashboardLimits(): true,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			filter := platform.DashboardFilter{}
 			if tt.args.IDs != nil {

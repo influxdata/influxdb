@@ -182,6 +182,43 @@ func TestBucket(t *testing.T) {
 			},
 		},
 		{
+			name:  "list all with limit 3 using after to paginate",
+			setup: simpleSetup,
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+				var (
+					expected  = testBuckets(10, withCrudLog)
+					found     []*influxdb.Bucket
+					lastID    *influxdb.ID
+					limit     = 3
+					listAfter = func(after *influxdb.ID) ([]*influxdb.Bucket, error) {
+						return store.ListBuckets(context.Background(), tx, tenant.BucketFilter{}, influxdb.FindOptions{
+							After: after,
+							Limit: limit,
+						})
+					}
+				)
+
+				var (
+					b   []*influxdb.Bucket
+					err error
+				)
+
+				for b, err = listAfter(lastID); err == nil; b, err = listAfter(lastID) {
+					lastID = &b[len(b)-1].ID
+					found = append(found, b...)
+
+					// given we've seen the last page
+					if len(b) < limit {
+						break
+					}
+				}
+
+				require.NoError(t, err)
+
+				assert.Equal(t, expected, found)
+			},
+		},
+		{
 			name:  "update",
 			setup: simpleSetup,
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {

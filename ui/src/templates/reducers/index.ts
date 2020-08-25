@@ -1,29 +1,12 @@
 import {produce} from 'immer'
 import {
   Action,
-  ADD_TEMPLATE_SUMMARY,
-  POPULATE_TEMPLATE_SUMMARIES,
-  REMOVE_TEMPLATE_SUMMARY,
-  SET_COMMUNITY_TEMPLATE_TO_INSTALL,
-  SET_EXPORT_TEMPLATE,
-  SET_TEMPLATE_SUMMARY,
-  SET_TEMPLATES_STATUS,
-  TOGGLE_TEMPLATE_RESOURCE_INSTALL,
   SET_STACKS,
+  SET_STAGED_TEMPLATE,
+  SET_STAGED_TEMPLATE_URL,
+  TOGGLE_TEMPLATE_RESOURCE_INSTALL,
 } from 'src/templates/actions/creators'
-import {
-  CommunityTemplate,
-  ResourceType,
-  RemoteDataState,
-  TemplateSummary,
-  TemplatesState,
-} from 'src/types'
-import {
-  addResource,
-  removeResource,
-  setResource,
-  setResourceAtID,
-} from 'src/resources/reducers/helpers'
+import {CommunityTemplate, RemoteDataState, TemplatesState} from 'src/types'
 
 const defaultCommunityTemplate = (): CommunityTemplate => {
   return {
@@ -37,6 +20,7 @@ const defaultCommunityTemplate = (): CommunityTemplate => {
 
 export const defaultState = (): TemplatesState => ({
   stagedCommunityTemplate: defaultCommunityTemplate(),
+  stagedTemplateUrl: '',
   status: RemoteDataState.NotStarted,
   byID: {},
   allIDs: [],
@@ -53,29 +37,14 @@ export const templatesReducer = (
 ): TemplatesState =>
   produce(state, draftState => {
     switch (action.type) {
-      case POPULATE_TEMPLATE_SUMMARIES: {
-        setResource<TemplateSummary>(draftState, action, ResourceType.Templates)
+      case SET_STAGED_TEMPLATE_URL: {
+        const {templateUrl} = action
 
+        draftState.stagedTemplateUrl = templateUrl
         return
       }
 
-      case SET_TEMPLATES_STATUS: {
-        const {status} = action
-        draftState.status = status
-        return
-      }
-
-      case SET_TEMPLATE_SUMMARY: {
-        setResourceAtID<TemplateSummary>(
-          draftState,
-          action,
-          ResourceType.Templates
-        )
-
-        return
-      }
-
-      case SET_COMMUNITY_TEMPLATE_TO_INSTALL: {
+      case SET_STAGED_TEMPLATE: {
         const {template} = action
 
         const stagedCommunityTemplate = {
@@ -165,30 +134,6 @@ export const templatesReducer = (
         })
 
         draftState.stagedCommunityTemplate = stagedCommunityTemplate
-        return
-      }
-
-      case SET_EXPORT_TEMPLATE: {
-        const {status, item} = action
-        draftState.exportTemplate.status = status
-
-        if (item) {
-          draftState.exportTemplate.item = item
-        } else {
-          draftState.exportTemplate.item = null
-        }
-        return
-      }
-
-      case REMOVE_TEMPLATE_SUMMARY: {
-        removeResource<TemplateSummary>(draftState, action)
-
-        return
-      }
-
-      case ADD_TEMPLATE_SUMMARY: {
-        addResource<TemplateSummary>(draftState, action, ResourceType.Templates)
-
         return
       }
 
