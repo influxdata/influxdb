@@ -441,14 +441,18 @@ func (e *Engine) InternalBackupPath(backupID int) string {
 }
 
 // SeriesCardinality returns the number of series in the engine.
-func (e *Engine) SeriesCardinality() int64 {
+func (e *Engine) SeriesCardinality(orgID, bucketID influxdb.ID) int64 {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {
 		return 0
 	}
-	// TODO	- get card from store
-	return 0
+
+	n, err := e.TSDBStore.SeriesCardinality(bucketID.String())
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // Path returns the path of the engine's base directory.

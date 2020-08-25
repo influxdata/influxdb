@@ -28,7 +28,7 @@ type Engine interface {
 	prom.PrometheusCollector
 	influxdb.BackupService
 
-	SeriesCardinality() int64
+	SeriesCardinality(orgID, bucketID influxdb.ID) int64
 
 	WithLogger(log *zap.Logger)
 	Open(context.Context) error
@@ -109,8 +109,8 @@ func (t *TemporaryEngine) WritePoints(ctx context.Context, points []models.Point
 }
 
 // SeriesCardinality returns the number of series in the engine.
-func (t *TemporaryEngine) SeriesCardinality() int64 {
-	return t.engine.SeriesCardinality()
+func (t *TemporaryEngine) SeriesCardinality(orgID, bucketID influxdb.ID) int64 {
+	return t.engine.SeriesCardinality(orgID, bucketID)
 }
 
 // DeleteBucketRangePredicate will delete a bucket from the range and predicate.
