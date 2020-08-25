@@ -1063,6 +1063,7 @@ func (q query) DashboardQuery() string {
 		return q.Query
 	}
 
+	// if params were found
 	if err == nil {
 		obj, ok := opt.(*ast.ObjectExpression)
 		if ok {
@@ -1076,6 +1077,7 @@ func (q query) DashboardQuery() string {
 		}
 	}
 
+	// if tasks were found
 	if err2 == nil {
 		tobj, ok := topt.(*ast.ObjectExpression)
 		if ok {
