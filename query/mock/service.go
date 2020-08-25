@@ -125,7 +125,3 @@ func (q *Query) Statistics() flux.Statistics {
 		Metadata: q.Metadata,
 	}
 }
-
-func (q *Query) ProfilerResults() (flux.ResultIterator, error) {
-	return nil, nil
-}
