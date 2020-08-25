@@ -65,6 +65,8 @@ type Task struct {
 	Offset          time.Duration          `json:"offset,omitempty"`
 	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
 	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
+	LatestSuccess   time.Time              `json:"latestSuccess,omitempty"`
+	LatestFailure   time.Time              `json:"latestFailure,omitempty"`
 	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
 	LastRunError    string                 `json:"lastRunError,omitempty"`
 	CreatedAt       time.Time              `json:"createdAt,omitempty"`
@@ -183,6 +185,8 @@ type TaskUpdate struct {
 	// LatestCompleted us to set latest completed on startup to skip task catchup
 	LatestCompleted *time.Time             `json:"-"`
 	LatestScheduled *time.Time             `json:"-"`
+	LatestSuccess   *time.Time             `json:"-"`
+	LatestFailure   *time.Time             `json:"-"`
 	LastRunStatus   *string                `json:"-"`
 	LastRunError    *string                `json:"-"`
 	Metadata        map[string]interface{} `json:"-"` // not to be set through a web request but rather used by a http service using tasks backend.
