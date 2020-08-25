@@ -189,7 +189,7 @@ func TestTaskExecutor_QuerySuccessWithExternInjection(t *testing.T) {
 	extern := &ast.File{
 		Body: []ast.Statement{&ast.OptionStatement{
 			Assignment: &ast.VariableAssignment{
-				ID: &ast.Identifier{Name: latestSuccessOption},
+				ID: &ast.Identifier{Name: lastSuccessOption},
 				Init: &ast.DateTimeLiteral{
 					Value: latestSuccess,
 				},

@@ -25,8 +25,7 @@ const (
 	maxPromises       = 1000
 	defaultMaxWorkers = 100
 
-	latestSuccessOption = "tasks.latestSuccessTime"
-	latestFailureOption = "tasks.latestFailureTime"
+	lastSuccessOption = "tasks.lastSuccessTime"
 )
 
 var _ scheduler.Executor = (*Executor)(nil)
@@ -90,7 +89,7 @@ func (ts CompilerBuilderTimestamps) Extern() *ast.File {
 	if !ts.LatestSuccess.IsZero() {
 		body = append(body, &ast.OptionStatement{
 			Assignment: &ast.VariableAssignment{
-				ID: &ast.Identifier{Name: latestSuccessOption},
+				ID: &ast.Identifier{Name: lastSuccessOption},
 				Init: &ast.DateTimeLiteral{
 					Value: ts.LatestSuccess,
 				},
