@@ -753,15 +753,15 @@ from(bucket: "%s")
 	}
 }
 
-type FluxStatisticsTestProfiler struct{
+type TestQueryProfiler struct{
 	start int64
 }
 
-func (s FluxStatisticsTestProfiler) Name() string {
-	return fmt.Sprintf("FluxStatisticsTest%d", s.start)
+func (s TestQueryProfiler) Name() string {
+	return fmt.Sprintf("query%d", s.start)
 }
 
-func (s FluxStatisticsTestProfiler) GetResult(q flux.Query, alloc *memory.Allocator) (flux.Table, error) {
+func (s TestQueryProfiler) GetResult(q flux.Query, alloc *memory.Allocator) (flux.Table, error) {
 	groupKey := execute.NewGroupKey(
 		[]flux.ColMeta{
 			{
@@ -770,7 +770,7 @@ func (s FluxStatisticsTestProfiler) GetResult(q flux.Query, alloc *memory.Alloca
 			},
 		},
 		[]values.Value{
-			values.NewString(fmt.Sprintf("profiler/FluxStatisticsTest%d", s.start)),
+			values.NewString(fmt.Sprintf("profiler/query%d", s.start)),
 		},
 	)
 	b := execute.NewColListTableBuilder(groupKey, alloc)
@@ -833,7 +833,7 @@ func (s FluxStatisticsTestProfiler) GetResult(q flux.Query, alloc *memory.Alloca
 		},
 	}
 	colData := []interface{} {
-		fmt.Sprintf("profiler/FluxStatisticsTest%d", s.start),
+		fmt.Sprintf("profiler/query%d", s.start),
 		s.start,
 		s.start + 1,
 		s.start + 2,
@@ -896,14 +896,14 @@ from(bucket: v.bucket)
 #group,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false,false
 #default,_profiler,,,,,,,,,,,,,,,
 ,result,table,_measurement,TotalDuration,CompileDuration,QueueDuration,PlanDuration,RequeueDuration,ExecuteDuration,Concurrency,MaxAllocated,TotalAllocated,RuntimeErrors,flux/query-plan,influxdb/scanned-bytes,influxdb/scanned-values
-,,0,profiler/FluxStatisticsTest0,0,1,2,3,4,5,6,7,8,"error1
+,,0,profiler/query0,0,1,2,3,4,5,6,7,8,"error1
 error2","query plan",9,10
-,,1,profiler/FluxStatisticsTest100,100,101,102,103,104,105,106,107,108,"error1
+,,1,profiler/query100,100,101,102,103,104,105,106,107,108,"error1
 error2","query plan",109,110
 `,
 		},
 	}
-	execute.RegisterProfilers(&FluxStatisticsTestProfiler{}, &FluxStatisticsTestProfiler{start: 100})
+	execute.RegisterProfilers(&TestQueryProfiler{}, &TestQueryProfiler{start: 100})
 	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
