@@ -432,8 +432,9 @@ func (q *Task) Monitor(fn MonitorFunc) {
 // the query.
 func (q *Task) Error() error {
 	q.mu.Lock()
-	defer q.mu.Unlock()
-	return q.err
+	err := q.err
+	q.mu.Unlock()
+	return err
 }
 
 func (q *Task) setError(err error) {
