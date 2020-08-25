@@ -618,6 +618,55 @@ func FindBuckets(
 			},
 		},
 		{
+			name: "find all buckets by after and limit",
+			fields: BucketFields{
+				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs: mock.NewIncrementingIDGenerator(idOne),
+				Organizations: []*influxdb.Organization{
+					{
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "abc",
+					},
+					{
+						// ID(2)
+						OrgID: idOne,
+						Name:  "def",
+					},
+					{
+						// ID(3)
+						OrgID: idOne,
+						Name:  "xyz",
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					After: idPtr(idOne),
+					Limit: 2,
+				},
+			},
+			wants: wants{
+				buckets: []*influxdb.Bucket{
+					{
+						ID:    idTwo,
+						OrgID: idOne,
+						Name:  "def",
+					},
+					{
+						ID:    idThree,
+						OrgID: idOne,
+						Name:  "xyz",
+					},
+				},
+			},
+		},
+		{
 			name: "find all buckets by descending",
 			fields: BucketFields{
 				OrgIDs:    mock.NewIncrementingIDGenerator(idOne),
