@@ -14,9 +14,10 @@ describe('Flows', () => {
     })
   })
 
-  it('can view the index page', () => {
-    cy.getByTestID('flows-index').within(() => {
-      cy.getByTestID('create-flow--button empty').click()
-    })
+  // TODO: write e2e tests when this is real
+  it.skip('CRUD a flow from the index page', () => {
+    cy.getByTestID('create-flow--button')
+      .first()
+      .click()
   })
 })

@@ -135,11 +135,8 @@ const SetOrg: FC<Props> = ({
           component={RouteToDashboardList}
         />
 
-        {/* Flows */}
-        {isFlagEnabled('notebooks') && (
-          <Route path={`${orgPath}/notebooks`} component={NotebookPage} />
-        )}
-
+        {/* Flows {isFlagEnabled('notebooks') */}
+        <Route path={`${orgPath}/notebooks/:id`} component={NotebookPage} />
         <Route path={`${orgPath}/flows`} component={FlowsIndex} />
 
         {/* Write Data */}
