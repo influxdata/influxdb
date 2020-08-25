@@ -23,7 +23,6 @@
 @import 'src/onboarding/OnboardingWizard.scss';
 @import 'src/shared/components/protoboard_icon/ProtoboardIcon.scss';
 @import 'src/shared/components/columns_options/ColumnsOptions.scss';
-@import 'src/shared/components/ImportOverlay.scss';
 @import 'src/shared/components/VersionInfo.scss';
 @import 'src/shared/components/WaitingText.scss';
 @import 'src/shared/components/cells/react-grid-layout.scss';
@@ -38,7 +37,6 @@
 @import 'src/shared/components/inlineLabels/InlineLabelsEditor.scss';
 @import 'src/shared/components/TagInput.scss';
 @import 'src/shared/components/ColorSchemeDropdownItem.scss';
-@import 'src/shared/components/ExportOverlay.scss';
 @import 'src/shared/components/EditableName.scss';
 @import 'src/shared/components/SingleStat.scss';
 @import 'src/shared/components/DragAndDrop.scss';
@@ -98,7 +96,6 @@
 @import 'src/shared/components/Checkbox.scss';
 @import 'src/shared/components/dapperScrollbars/DapperScrollbars.scss';
 @import 'src/shared/components/search_widget/SearchWidget.scss';
-@import 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay.scss';
 @import 'src/onboarding/components/SigninForm.scss';
 @import 'src/onboarding/containers/LoginPage.scss';
 @import 'src/shared/components/ThresholdsSettings.scss';
@@ -120,7 +117,6 @@
 @import 'src/notifications/rules/components/RuleOverlayFooter.scss';
 @import 'src/labels/components/LabelCard.scss';
 @import 'src/alerting/components/SearchBar.scss';
-@import 'src/clientLibraries/components/ClientLibraryOverlay.scss';
 @import 'src/dashboards/components/DashboardsCardGrid.scss';
 @import 'src/dashboards/components/DashboardLightMode.scss';
 @import 'src/buckets/components/DemoDataDropdown.scss';

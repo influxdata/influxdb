@@ -519,7 +519,8 @@ class bucketsSteps extends baseSteps {
             await this.assertVisible(await this.bucketsTab.getWizardRadioUploadFile());
             await this.assertVisible(await this.bucketsTab.getWizardRadioManual());
             await this.assertVisible(await this.bucketsTab.getWizardPrecisionDropdown());
-            await this.assertVisible(await this.bucketsTab.getWizardContinueButton());
+            // 13.8 following is no longer part of the popup - made dynamic based on content
+            //await this.assertVisible(await this.bucketsTab.getWizardContinueButton());
         }else{
             await this.assertNotPresent(await bucketsTab.getWizardStepTitleSelector());
             await this.assertNotPresent(await bucketsTab.getWizardStepSubTitleSelector());
@@ -601,6 +602,10 @@ class bucketsSteps extends baseSteps {
         });
     }
 
+    async clickLineProtocolWrite(){
+        await this.clickAndWait(await this.bucketsTab.getWizardWriteDataButton())
+    }
+
     async clickLineProtocolPrecisionItem(prec){
         await this.bucketsTab.getWizardDropdownPrecisionItem(prec).then(async elem => {
             await elem.click().then(async () => {
@@ -612,7 +617,7 @@ class bucketsSteps extends baseSteps {
     async verifyLineProtocolWizardSecondStep(){
         await this.assertVisible(await this.bucketsTab.getWizardSparkleSpinner());
         await this.assertVisible(await this.bucketsTab.getWizardStepStateText());
-        await this.assertVisible(await this.bucketsTab.getWizardFinishButton());
+        //await this.assertVisible(await this.bucketsTab.getWizardCloseButton());
 
     }
 
@@ -638,11 +643,11 @@ class bucketsSteps extends baseSteps {
                 await elem.getCssValue('color').then(async color => {
                     expect(color).to.equal('rgba(78, 216, 160, 1)');
                 });
-            }else{
+            }/*else{  //no longer colored -- 13.8.20
                 await elem.getCssValue('color').then(async color => {
                     expect(color).to.equal('rgba(255, 133, 100, 1)');
                 });
-            }
+            }*/
         });
 
     }
@@ -653,6 +658,18 @@ class bucketsSteps extends baseSteps {
                 await this.driver.sleep(500); //todo better wait
             });
         });
+    }
+
+    async clickLineProtocolClose(){
+        await this.clickAndWait(await this.bucketsTab.getWizardCloseButton());
+    }
+
+    async clickLineProtocolCancel(){
+        await this.clickAndWait(await this.bucketsTab.getWizardCancelButton());
+    }
+
+    async clickLineProtocolCancelIcon(){
+        await this.clickAndWait(await this.bucketsTab.getWizardDismissButton());
     }
 
     async clickDataWizardPreviousButton(){

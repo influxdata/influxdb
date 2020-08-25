@@ -36,6 +36,7 @@ import {
   ViewProperties,
   ViewType,
   XYViewProperties,
+  BandViewProperties,
 } from 'src/types'
 
 export const defaultView = (name: string = DEFAULT_CELL_NAME) => {
@@ -91,6 +92,32 @@ export function defaultLineViewProperties() {
   }
 }
 
+export function defaultBandViewProperties() {
+  return {
+    queries: [defaultViewQuery()],
+    colors: DEFAULT_LINE_COLORS as Color[],
+    legend: {},
+    note: '',
+    showNoteWhenEmpty: false,
+    axes: {
+      x: {
+        bounds: ['', ''],
+        label: '',
+        prefix: '',
+        suffix: '',
+        scale: 'linear',
+      } as Axis,
+      y: {
+        bounds: ['', ''],
+        label: '',
+        prefix: '',
+        suffix: '',
+        scale: 'linear',
+      } as Axis,
+    },
+  }
+}
+
 function defaultGaugeViewProperties() {
   return {
     queries: [defaultViewQuery()],
@@ -137,6 +164,17 @@ const NEW_VIEW_CREATORS = {
       xColumn: null,
       yColumn: null,
       position: 'overlaid',
+    },
+  }),
+  band: (): NewView<BandViewProperties> => ({
+    ...defaultView(),
+    properties: {
+      ...defaultBandViewProperties(),
+      type: 'band',
+      shape: 'chronograf-v2',
+      geom: 'line',
+      xColumn: null,
+      yColumn: null,
     },
   }),
   histogram: (): NewView<HistogramViewProperties> => ({

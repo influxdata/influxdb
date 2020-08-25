@@ -71,9 +71,6 @@ export const getLabelRelationships = (resource: {
   return [].concat(resource.relationships[TemplateType.Label].data)
 }
 
-export const getIncludedLabels = (included: {type: TemplateType}[]) =>
-  included.filter((i): i is LabelIncluded => i.type === TemplateType.Label)
-
 export interface TemplateDetails {
   directory: string
   templateExtension: string
@@ -99,6 +96,14 @@ const getTemplateDetailsFromFileSource = (_source: string): TemplateDetails => {
     templateExtension: '',
     templateName: '',
   }
+}
+
+export const getTemplateNameFromUrl = (
+  url: string
+): {name: string; extension: string} => {
+  const fullName = url.split('/').pop()
+  const [name, extension] = fullName.split('.')
+  return {name, extension}
 }
 
 export const getTemplateDetails = (source: string): TemplateDetails => {

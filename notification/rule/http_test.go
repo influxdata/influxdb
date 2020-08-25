@@ -33,7 +33,7 @@ crit = statuses
 		(r["_level"] == "crit"))
 all_statuses = crit
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
@@ -102,7 +102,7 @@ crit = statuses
 		(r["_level"] == "crit"))
 all_statuses = crit
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
@@ -177,7 +177,7 @@ crit = statuses
 		(r["_level"] == "crit"))
 all_statuses = crit
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
@@ -250,7 +250,7 @@ crit = statuses
 		(r["_level"] == "crit"))
 all_statuses = crit
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 5s)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 5s)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {

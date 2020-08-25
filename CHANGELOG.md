@@ -2,11 +2,16 @@
 
 ### Features
 
+1. [19246](https://github.com/influxdata/influxdb/pull/19246): Redesign load data page to increase discovery and ease of use
 1. [19334](https://github.com/influxdata/influxdb/pull/19334): Add --active-config flag to influx to set config for single command
+1. [19219](https://github.com/influxdata/influxdb/pull/19219): List buckets via the API now supports after (ID) parameter as an alternative to offset.
+1. [19390](https://github.com/influxdata/influxdb/pull/19390): Record last success and failure run times in the Task
+1. [19402](https://github.com/influxdata/influxdb/pull/19402): Inject Task's LatestSuccess Timestamp In Flux Extern
 
 ### Bug Fixes
 
 1. [19331](https://github.com/influxdata/influxdb/pull/19331): Add description to auth influx command outputs.
+1. [19392](https://github.com/influxdata/influxdb/pull/19392) Include the edge of the boundary we are observing.
 
 ## v2.0.0-beta.16 [2020-08-07]
 
@@ -31,9 +36,11 @@
 1. [19188](https://github.com/influxdata/influxdb/pull/19188): Dashboard cells correctly map results when multiple queries exist
 1. [19146](https://github.com/influxdata/influxdb/pull/19146): Dashboard cells and overlay use UTC as query time when toggling to UTC timezone
 1. [19222](https://github.com/influxdata/influxdb/pull/19222): Bucket names may not include quotation marks
+1. [19317](https://github.com/influxdata/influxdb/pull/19317): Add validation to Variable name creation for valid Flux identifiers.
 
 ### UI Improvements
 1. [19231](https://github.com/influxdata/influxdb/pull/19231): Alerts page filter inputs now have tab indices for keyboard navigation
+1. [19364](https://github.com/influxdata/influxdb/pull/19364): Errors in OSS are now properly printed to the console
 
 ## v2.0.0-beta.15 [2020-07-23]
 

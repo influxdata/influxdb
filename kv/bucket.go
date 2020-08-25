@@ -403,18 +403,34 @@ func (s *Service) findBuckets(ctx context.Context, tx Tx, filter influxdb.Bucket
 		filter.OrganizationID = &o.ID
 	}
 
-	var offset, limit, count int
-	var descending bool
+	var (
+		offset, limit, count int
+		descending           bool
+	)
+
+	after := func(*influxdb.Bucket) bool {
+		return true
+	}
+
 	if len(opts) > 0 {
 		offset = opts[0].Offset
 		limit = opts[0].Limit
 		descending = opts[0].Descending
+		if opts[0].After != nil {
+			after = func(b *influxdb.Bucket) bool {
+				if descending {
+					return b.ID < *opts[0].After
+				}
+
+				return b.ID > *opts[0].After
+			}
+		}
 	}
 
 	filterFn := filterBucketsFn(filter)
 	err := s.forEachBucket(ctx, tx, descending, func(b *influxdb.Bucket) bool {
 		if filterFn(b) {
-			if count >= offset {
+			if count >= offset && after(b) {
 				bs = append(bs, b)
 			}
 			count++

@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
-import {withRouter, RouteComponentProps} from 'react-router-dom'
 
 // Components
 import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
@@ -30,7 +29,7 @@ interface OwnProps {
 }
 
 type ReduxProps = ConnectedProps<typeof connector>
-type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
+type Props = OwnProps & ReduxProps
 
 class DashboardsTable extends PureComponent<Props> {
   public componentDidMount() {
@@ -55,8 +54,6 @@ class DashboardsTable extends PureComponent<Props> {
         <DashboardsTableEmpty
           searchTerm={searchTerm}
           onCreateDashboard={onCreateDashboard}
-          summonImportFromTemplateOverlay={this.summonImportFromTemplateOverlay}
-          summonImportOverlay={this.summonImportOverlay}
         />
       )
     }
@@ -70,26 +67,6 @@ class DashboardsTable extends PureComponent<Props> {
         onFilterChange={onFilterChange}
       />
     )
-  }
-
-  private summonImportOverlay = (): void => {
-    const {
-      history,
-      match: {
-        params: {orgID},
-      },
-    } = this.props
-    history.push(`/orgs/${orgID}/dashboards-list/import`)
-  }
-
-  private summonImportFromTemplateOverlay = (): void => {
-    const {
-      history,
-      match: {
-        params: {orgID},
-      },
-    } = this.props
-    history.push(`/orgs/${orgID}/dashboards-list/import/template`)
   }
 }
 
@@ -109,4 +86,4 @@ const mdtp = {
 
 const connector = connect(mstp, mdtp)
 
-export default connector(withRouter(DashboardsTable))
+export default connector(DashboardsTable)

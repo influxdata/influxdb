@@ -13,7 +13,6 @@ import {notify} from 'src/shared/actions/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
 import {CommunityTemplatesInstalledList} from 'src/templates/components/CommunityTemplatesInstalledList'
-
 import {
   Bullet,
   Button,
@@ -29,29 +28,30 @@ import {
 } from '@influxdata/clockface'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
-
-import {communityTemplatesImportPath} from 'src/templates/containers/TemplatesIndex'
-
 import GetResources from 'src/resources/components/GetResources'
-import {getOrg} from 'src/organizations/selectors'
+
+import {setStagedTemplateUrl} from 'src/templates/actions/creators'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {getOrg} from 'src/organizations/selectors'
 import {
   getGithubUrlFromTemplateDetails,
-  getTemplateDetails,
+  getTemplateNameFromUrl,
 } from 'src/templates/utils'
 import {reportError} from 'src/shared/utils/errors'
 
 import {communityTemplateUnsupportedFormatError} from 'src/shared/copy/notifications'
-// Types
-import {AppState, ResourceType} from 'src/types'
 
 import {event} from 'src/cloud/utils/reporting'
+
+// Types
+import {AppState, ResourceType} from 'src/types'
 
 const communityTemplatesUrl =
   'https://github.com/influxdata/community-templates#templates'
 const templatesPath = '/orgs/:orgID/settings/templates'
+const communityTemplatesImportPath = `${templatesPath}/import/:directory/:templateName/:templateExtension`
 
 type Params = {
   params: {directory: string; templateName: string; templateExtension: string}
@@ -168,7 +168,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
         </Page>
         <Switch>
           <Route
-            path={`${templatesPath}/import/:directory/:templateName/:templateExtension`}
+            path={`${templatesPath}/import`}
             component={CommunityTemplateImportOverlay}
           />
         </Switch>
@@ -183,12 +183,14 @@ class UnconnectedTemplatesIndex extends Component<Props> {
     }
 
     try {
-      const {directory, templateExtension, templateName} = getTemplateDetails(
-        this.state.templateUrl
-      )
-      event('template_click_lookup', {templateName: templateName})
+      this.props.setStagedTemplateUrl(this.state.templateUrl)
+
+      event('template_click_lookup', {
+        templateName: getTemplateNameFromUrl(this.state.templateUrl).name,
+      })
+
       this.props.history.push(
-        `/orgs/${this.props.org.id}/settings/templates/import/${directory}/${templateName}/${templateExtension}`
+        `/orgs/${this.props.org.id}/settings/templates/import`
       )
     } catch (err) {
       this.props.notify(communityTemplateUnsupportedFormatError())
@@ -217,6 +219,7 @@ const mstp = (state: AppState) => {
 
 const mdtp = {
   notify,
+  setStagedTemplateUrl,
 }
 
 const connector = connect(mstp, mdtp)

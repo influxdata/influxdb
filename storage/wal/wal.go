@@ -63,6 +63,10 @@ const (
 
 	// DeleteBucketRangeWALEntryType indicates a delete bucket range entry.
 	DeleteBucketRangeWALEntryType WalEntryType = 0x04
+
+	// DeleteBucketRangeKeepSeriesWALEntryType indicates a delete bucket range entry
+	// but the underlying series are not deleted.
+	DeleteBucketRangeKeepSeriesWALEntryType WalEntryType = 0x05
 )
 
 var (
@@ -993,10 +997,11 @@ func (w *WriteWALEntry) Type() WalEntryType {
 
 // DeleteBucketRangeWALEntry represents the deletion of data in a bucket.
 type DeleteBucketRangeWALEntry struct {
-	OrgID     influxdb.ID
-	BucketID  influxdb.ID
-	Min, Max  int64
-	Predicate []byte
+	OrgID      influxdb.ID
+	BucketID   influxdb.ID
+	Min, Max   int64
+	Predicate  []byte
+	KeepSeries bool
 }
 
 // MarshalBinary returns a binary representation of the entry in a new byte slice.
@@ -1062,6 +1067,9 @@ func (w *DeleteBucketRangeWALEntry) Encode(b []byte) ([]byte, error) {
 
 // Type returns DeleteBucketRangeWALEntryType.
 func (w *DeleteBucketRangeWALEntry) Type() WalEntryType {
+	if w.KeepSeries {
+		return DeleteBucketRangeKeepSeriesWALEntryType
+	}
 	return DeleteBucketRangeWALEntryType
 }
 
@@ -1203,13 +1211,15 @@ func (r *WALSegmentReader) Next() bool {
 	}
 
 	// and marshal it and send it to the cache
-	switch WalEntryType(entryType) {
+	switch typ := WalEntryType(entryType); typ {
 	case WriteWALEntryType:
 		r.entry = &WriteWALEntry{
 			Values: make(map[string][]value.Value),
 		}
-	case DeleteBucketRangeWALEntryType:
-		r.entry = &DeleteBucketRangeWALEntry{}
+	case DeleteBucketRangeWALEntryType, DeleteBucketRangeKeepSeriesWALEntryType:
+		r.entry = &DeleteBucketRangeWALEntry{
+			KeepSeries: typ == DeleteBucketRangeKeepSeriesWALEntryType,
+		}
 	default:
 		r.err = fmt.Errorf("unknown wal entry type: %v", entryType)
 		return true

@@ -29,6 +29,7 @@ type PagingLinks struct {
 type FindOptions struct {
 	Limit      int
 	Offset     int
+	After      *ID
 	SortBy     string
 	Descending bool
 }
@@ -48,6 +49,18 @@ func DecodeFindOptions(r *http.Request) (*FindOptions, error) {
 		}
 
 		opts.Offset = o
+	}
+
+	if after := qp.Get("after"); after != "" {
+		id, err := IDFromString(after)
+		if err != nil {
+			return nil, &Error{
+				Code: EInvalid,
+				Err:  fmt.Errorf("decoding after: %w", err),
+			}
+		}
+
+		opts.After = id
 	}
 
 	if limit := qp.Get("limit"); limit != "" {
@@ -107,6 +120,10 @@ func (f FindOptions) QueryParams() map[string][]string {
 	qp := map[string][]string{
 		"descending": {strconv.FormatBool(f.Descending)},
 		"offset":     {strconv.Itoa(f.Offset)},
+	}
+
+	if f.After != nil {
+		qp["after"] = []string{f.After.String()}
 	}
 
 	if f.Limit > 0 {

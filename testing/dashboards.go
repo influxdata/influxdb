@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/mock"
 )
 
@@ -710,6 +711,44 @@ func FindDashboards(
 			},
 		},
 		{
+			name: "find all dashboards by offset and limit and org 1",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
+					},
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+					},
+					{
+						ID:             MustIDBase16(dashThreeID),
+						OrganizationID: 1,
+						Name:           "321",
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Limit:  1,
+					Offset: 1,
+				},
+				organizationID: idPtr(1),
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+					},
+				},
+			},
+		},
+		{
 			name: "find all dashboards sorted by created at",
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
@@ -907,7 +946,12 @@ func FindDashboards(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.Background()
+			ctx, err := feature.Annotate(context.Background(), mock.NewFlagger(map[feature.Flag]interface{}{
+				feature.EnforceOrganizationDashboardLimits(): true,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			filter := platform.DashboardFilter{}
 			if tt.args.IDs != nil {

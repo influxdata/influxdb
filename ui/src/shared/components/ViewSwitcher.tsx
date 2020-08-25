@@ -14,6 +14,7 @@ import XYPlot from 'src/shared/components/XYPlot'
 import ScatterPlot from 'src/shared/components/ScatterPlot'
 import LatestValueTransform from 'src/shared/components/LatestValueTransform'
 import CheckPlot from 'src/shared/components/CheckPlot'
+import BandPlot from 'src/shared/components/BandPlot'
 
 // Types
 import {
@@ -104,6 +105,19 @@ const ViewSwitcher: FunctionComponent<Props> = ({
         >
           {config => <Plot config={config} />}
         </XYPlot>
+      )
+    case 'band':
+      return (
+        <BandPlot
+          timeRange={timeRange}
+          fluxGroupKeyUnion={fluxGroupKeyUnion}
+          table={table}
+          timeZone={timeZone}
+          viewProperties={properties}
+          theme={theme}
+        >
+          {config => <Plot config={config} />}
+        </BandPlot>
       )
 
     case 'line-plus-single-stat':

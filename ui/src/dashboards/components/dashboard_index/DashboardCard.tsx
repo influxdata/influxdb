@@ -98,13 +98,6 @@ class DashboardCard extends PureComponent<Props> {
   private get contextMenu(): JSX.Element {
     return (
       <Context>
-        <Context.Menu icon={IconFont.CogThick}>
-          <Context.Item
-            label="Export"
-            action={this.handleExport}
-            testID="context-menu-item-export"
-          />
-        </Context.Menu>
         <Context.Menu
           icon={IconFont.Duplicate}
           color={ComponentColor.Secondary}
@@ -170,18 +163,6 @@ class DashboardCard extends PureComponent<Props> {
     const {onRemoveDashboardLabel, id} = this.props
 
     onRemoveDashboardLabel(id, label)
-  }
-
-  private handleExport = () => {
-    const {
-      history,
-      match: {
-        params: {orgID},
-      },
-      id,
-    } = this.props
-
-    history.push(`/orgs/${orgID}/dashboards-list/${id}/export`)
   }
 }
 

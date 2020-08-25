@@ -1,17 +1,22 @@
 // Libraries
-import React, {FC, useEffect, useContext, useCallback} from 'react'
+import React, {FC, useContext, useCallback} from 'react'
 
 // Components
 import {
   TechnoSpinner,
   ComponentSize,
   RemoteDataState,
-  InfluxColors,
-  List,
-  Gradients,
+  Dropdown,
+  IconFont,
 } from '@influxdata/clockface'
+
+// Contexts
 import {BucketContext} from 'src/notebooks/context/buckets'
 import {PipeContext} from 'src/notebooks/context/pipe'
+import {SchemaContext} from 'src/notebooks/context/schemaProvider'
+
+// Utils
+import {event} from 'src/cloud/utils/reporting'
 
 // Types
 import {Bucket} from 'src/types'
@@ -19,72 +24,63 @@ import {Bucket} from 'src/types'
 const BucketSelector: FC = () => {
   const {data, update} = useContext(PipeContext)
   const {buckets, loading} = useContext(BucketContext)
-
-  const selectedBucketName = data.bucketName
+  const {localFetchSchema} = useContext(SchemaContext)
+  const selectedBucketName = data?.bucketName
+  let buttonText = 'Loading buckets...'
 
   const updateBucket = useCallback(
     (updatedBucket: Bucket): void => {
+      event('Updating Bucket Selection in Flow Query Builder', {
+        bucket: updatedBucket.name,
+      })
+      localFetchSchema(updatedBucket.name)
       update({bucketName: updatedBucket.name})
     },
-    [update]
+    [update, localFetchSchema]
   )
 
-  useEffect(() => {
-    // selectedBucketName will only evaluate false on the initial render
-    // because there is no default value
-    if (!!buckets.length && !selectedBucketName) {
-      updateBucket(buckets[0])
-    }
-  }, [buckets, selectedBucketName, updateBucket])
+  let menuItems = (
+    <Dropdown.ItemEmpty>
+      <TechnoSpinner strokeWidth={ComponentSize.Small} diameterPixels={32} />
+    </Dropdown.ItemEmpty>
+  )
 
-  let body
-
-  if (loading === RemoteDataState.Loading) {
-    body = (
-      <div className="data-source--list__empty">
-        <TechnoSpinner strokeWidth={ComponentSize.Small} diameterPixels={32} />
-      </div>
-    )
-  }
-
-  if (loading === RemoteDataState.Error) {
-    body = (
-      <div className="data-source--list__empty">
-        <p>Could not fetch Buckets</p>
-      </div>
-    )
-  }
-
-  if (loading === RemoteDataState.Done && selectedBucketName) {
-    body = (
-      <List
-        className="data-source--list"
-        backgroundColor={InfluxColors.Obsidian}
-      >
+  if (loading === RemoteDataState.Done && buckets.length) {
+    menuItems = (
+      <>
         {buckets.map(bucket => (
-          <List.Item
+          <Dropdown.Item
             key={bucket.name}
             value={bucket}
             onClick={updateBucket}
             selected={bucket.name === selectedBucketName}
             title={bucket.name}
-            gradient={Gradients.GundamPilot}
             wrapText={true}
           >
-            <List.Indicator type="dot" />
             {bucket.name}
-          </List.Item>
+          </Dropdown.Item>
         ))}
-      </List>
+      </>
     )
   }
 
-  return (
-    <div className="data-source--block">
-      <div className="data-source--block-title">Bucket</div>
-      {body}
-    </div>
+  if (loading === RemoteDataState.Done && !selectedBucketName) {
+    buttonText = 'Choose a bucket'
+  } else if (loading === RemoteDataState.Done && selectedBucketName) {
+    buttonText = selectedBucketName
+  }
+
+  const button = (active, onClick) => (
+    <Dropdown.Button onClick={onClick} active={active} icon={IconFont.Disks}>
+      {buttonText}
+    </Dropdown.Button>
   )
+
+  const menu = onCollapse => (
+    <Dropdown.Menu onCollapse={onCollapse}>{menuItems}</Dropdown.Menu>
+  )
+
+  return <Dropdown button={button} menu={menu} style={{width: '250px'}} />
 }
 
 export default BucketSelector

@@ -331,6 +331,85 @@ func TestTaskRunCancellation(t *testing.T) {
 	}
 }
 
+func TestService_UpdateTask_RecordLatestSuccessAndFailure(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	c := clock.NewMock()
+	c.Set(time.Unix(1000, 0))
+
+	ts := newService(t, ctx, c)
+	defer ts.Close()
+
+	ctx = icontext.SetAuthorizer(ctx, &ts.Auth)
+
+	originalTask, err := ts.Service.CreateTask(ctx, influxdb.TaskCreate{
+		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
+		OrganizationID: ts.Org.ID,
+		OwnerID:        ts.User.ID,
+		Status:         string(influxdb.TaskActive),
+	})
+	if err != nil {
+		t.Fatal("CreateTask", err)
+	}
+
+	c.Add(1 * time.Second)
+	exp := c.Now()
+	updatedTask, err := ts.Service.UpdateTask(ctx, originalTask.ID, influxdb.TaskUpdate{
+		LatestCompleted: &exp,
+		LatestScheduled: &exp,
+
+		// These would be updated in a mutually exclusive manner, but we'll set
+		// them both to demonstrate that they do change.
+		LatestSuccess: &exp,
+		LatestFailure: &exp,
+	})
+	if err != nil {
+		t.Fatal("UpdateTask", err)
+	}
+
+	if got := updatedTask.LatestScheduled; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestCompleted; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestSuccess; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestFailure; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+
+	c.Add(5 * time.Second)
+	exp = c.Now()
+	updatedTask, err = ts.Service.UpdateTask(ctx, originalTask.ID, influxdb.TaskUpdate{
+		LatestCompleted: &exp,
+		LatestScheduled: &exp,
+
+		// These would be updated in a mutually exclusive manner, but we'll set
+		// them both to demonstrate that they do change.
+		LatestSuccess: &exp,
+		LatestFailure: &exp,
+	})
+	if err != nil {
+		t.Fatal("UpdateTask", err)
+	}
+
+	if got := updatedTask.LatestScheduled; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestCompleted; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestSuccess; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestFailure; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+}
+
 type taskOptions struct {
 	name        string
 	every       string

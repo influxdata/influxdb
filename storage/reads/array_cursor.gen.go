@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
@@ -119,20 +120,23 @@ func newWindowCountArrayCursor(cur cursors.Cursor, every, offset int64) cursors.
 	}
 }
 
-func newWindowSumArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
+func newWindowSumArrayCursor(cur cursors.Cursor, every, offset int64) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatWindowSumArrayCursor(cur, every, offset)
+		return newFloatWindowSumArrayCursor(cur, every, offset), nil
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerWindowSumArrayCursor(cur, every, offset)
+		return newIntegerWindowSumArrayCursor(cur, every, offset), nil
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowSumArrayCursor(cur, every, offset)
+		return newUnsignedWindowSumArrayCursor(cur, every, offset), nil
 
 	default:
-		panic(fmt.Sprintf("unsupported for aggregate sum: %T", cur))
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("unsupported input type for sum aggregate: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
@@ -170,20 +174,23 @@ func newWindowMaxArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cu
 	}
 }
 
-func newWindowMeanArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
+func newWindowMeanArrayCursor(cur cursors.Cursor, every, offset int64) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatWindowMeanArrayCursor(cur, every, offset)
+		return newFloatWindowMeanArrayCursor(cur, every, offset), nil
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerWindowMeanArrayCursor(cur, every, offset)
+		return newIntegerWindowMeanArrayCursor(cur, every, offset), nil
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowMeanArrayCursor(cur, every, offset)
+		return newUnsignedWindowMeanArrayCursor(cur, every, offset), nil
 
 	default:
-		panic(fmt.Sprintf("unsupported for aggregate mean: %T", cur))
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("unsupported input type for mean aggregate: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
@@ -3690,3 +3697,26 @@ func (c *booleanEmptyArrayCursor) Err() error                  { return nil }
 func (c *booleanEmptyArrayCursor) Close()                      {}
 func (c *booleanEmptyArrayCursor) Stats() cursors.CursorStats  { return cursors.CursorStats{} }
 func (c *booleanEmptyArrayCursor) Next() *cursors.BooleanArray { return &c.res }
+
+func arrayCursorType(cur cursors.Cursor) string {
+	switch cur.(type) {
+
+	case cursors.FloatArrayCursor:
+		return "float"
+
+	case cursors.IntegerArrayCursor:
+		return "integer"
+
+	case cursors.UnsignedArrayCursor:
+		return "unsigned"
+
+	case cursors.StringArrayCursor:
+		return "string"
+
+	case cursors.BooleanArrayCursor:
+		return "boolean"
+
+	default:
+		return "unknown"
+	}
+}

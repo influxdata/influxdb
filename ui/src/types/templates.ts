@@ -36,6 +36,7 @@ export type CommunityTemplate = any
 export interface TemplatesState extends NormalizedState<TemplateSummary> {
   exportTemplate: {status: RemoteDataState; item: DocumentCreate}
   stagedCommunityTemplate: CommunityTemplate
+  stagedTemplateUrl: string
   stacks: InstalledStack[]
 }
 

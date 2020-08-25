@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useRef, useEffect, useContext} from 'react'
+import React, {FC, useRef, useContext} from 'react'
 
 // Components
 import {
@@ -29,44 +29,7 @@ const InsertCellButton: FC<Props> = ({id}) => {
   const dividerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const popoverVisible = useRef<boolean>(false)
-  const buttonPositioningEnabled = useRef<boolean>(false)
   const index = notebook.data.indexOf(id)
-
-  useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove)
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-    }
-  }, [])
-
-  const handleMouseMove = (e: MouseEvent): void => {
-    if (!dividerRef.current || !buttonRef.current) {
-      return
-    }
-
-    if (
-      popoverVisible.current === false &&
-      buttonPositioningEnabled.current === true
-    ) {
-      const {pageX} = e
-      const {left, width} = dividerRef.current.getBoundingClientRect()
-
-      const minLeft = 0
-      const maxLeft = width
-
-      const buttonLeft = Math.min(Math.max(pageX - left, minLeft), maxLeft)
-      buttonRef.current.setAttribute('style', `left: ${buttonLeft}px`)
-    }
-  }
-
-  const handleMouseEnter = () => {
-    buttonPositioningEnabled.current = true
-  }
-
-  const handleMouseLeave = () => {
-    buttonPositioningEnabled.current = false
-  }
 
   const handlePopoverShow = () => {
     popoverVisible.current = true
@@ -81,12 +44,7 @@ const InsertCellButton: FC<Props> = ({id}) => {
   }
 
   return (
-    <div
-      className="notebook-divider"
-      ref={dividerRef}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
+    <div className="notebook-divider" ref={dividerRef}>
       <SquareButton
         icon={IconFont.Plus}
         ref={buttonRef}

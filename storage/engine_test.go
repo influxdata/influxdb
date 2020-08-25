@@ -311,7 +311,7 @@ func TestEngine_DeleteBucket_Predicate(t *testing.T) {
 
 	// Remove the matching series.
 	if err := engine.DeleteBucketRangePredicate(context.Background(), engine.org, engine.bucket,
-		math.MinInt64, math.MaxInt64, pred); err != nil {
+		math.MinInt64, math.MaxInt64, pred, influxdb.DeletePrefixRangeOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -341,7 +341,7 @@ func TestEngine_DeleteBucket_Predicate(t *testing.T) {
 
 	// Remove the matching series.
 	if err := engine.DeleteBucketRangePredicate(context.Background(), engine.org, engine.bucket,
-		math.MinInt64, math.MaxInt64, pred); err != nil {
+		math.MinInt64, math.MaxInt64, pred, influxdb.DeletePrefixRangeOptions{}); err != nil {
 		t.Fatal(err)
 	}
 

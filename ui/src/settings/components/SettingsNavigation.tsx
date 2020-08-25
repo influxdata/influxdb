@@ -6,6 +6,9 @@ import {withRouter, RouteComponentProps} from 'react-router-dom'
 // Components
 import TabbedPageTabs from 'src/shared/tabbedPage/TabbedPageTabs'
 
+// Utils
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+
 // Types
 import {TabbedPageTab} from 'src/shared/tabbedPage/TabbedPageTabs'
 
@@ -43,9 +46,13 @@ class SettingsNavigation extends PureComponent<Props> {
       },
     ]
 
+    const displayedTabs = isFlagEnabled('communityTemplates')
+      ? tabs
+      : tabs.filter(t => t.id !== 'templates')
+
     return (
       <TabbedPageTabs
-        tabs={tabs}
+        tabs={displayedTabs}
         activeTab={activeTab}
         onTabClick={handleTabClick}
       />

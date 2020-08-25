@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
@@ -31,14 +32,24 @@ type fakeQueryService struct {
 
 var _ query.AsyncQueryService = (*fakeQueryService)(nil)
 
-func makeAST(q string) lang.ASTCompiler {
+func makeAST(q string, extern *ast.File) lang.ASTCompiler {
 	pkg, err := runtime.ParseToJSON(q)
 	if err != nil {
 		panic(err)
 	}
+
+	var externBytes []byte
+	if extern != nil && len(extern.Body) > 0 {
+		var err error
+		externBytes, err = json.Marshal(extern)
+		if err != nil {
+			panic(err)
+		}
+	}
 	return lang.ASTCompiler{
-		AST: pkg,
-		Now: time.Unix(123, 0),
+		AST:    pkg,
+		Now:    time.Unix(123, 0),
+		Extern: externBytes,
 	}
 }
 
@@ -85,12 +96,12 @@ func (s *fakeQueryService) Query(ctx context.Context, req *query.Request) (flux.
 }
 
 // SucceedQuery allows the running query matching the given script to return on its Ready channel.
-func (s *fakeQueryService) SucceedQuery(script string) {
+func (s *fakeQueryService) SucceedQuery(script string, extern *ast.File) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// Unblock the flux.
-	ast := makeAST(script)
+	ast := makeAST(script, extern)
 	spec := makeASTString(ast)
 	fq, ok := s.queries[spec]
 	if !ok {
@@ -103,12 +114,12 @@ func (s *fakeQueryService) SucceedQuery(script string) {
 }
 
 // FailQuery closes the running query's Ready channel and sets its error to the given value.
-func (s *fakeQueryService) FailQuery(script string, forced error) {
+func (s *fakeQueryService) FailQuery(script string, extern *ast.File, forced error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// Unblock the flux.
-	ast := makeAST(script)
+	ast := makeAST(script, nil)
 	spec := makeASTString(ast)
 	fq, ok := s.queries[spec]
 	if !ok {
@@ -129,12 +140,12 @@ func (s *fakeQueryService) FailNextQuery(forced error) {
 // WaitForQueryLive ensures that the query has made it into the service.
 // This is particularly useful for the synchronous executor,
 // because the execution starts on a separate goroutine.
-func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
+func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string, extern *ast.File) {
 	t.Helper()
 
 	const attempts = 10
-	ast := makeAST(script)
-	astUTC := makeAST(script)
+	ast := makeAST(script, extern)
+	astUTC := makeAST(script, extern)
 	astUTC.Now = ast.Now.UTC()
 	spec := makeASTString(ast)
 	specUTC := makeASTString(astUTC)
@@ -171,13 +182,11 @@ type fakeQuery struct {
 
 var _ flux.Query = (*fakeQuery)(nil)
 
-func (q *fakeQuery) Done()                       {}
-func (q *fakeQuery) Cancel()                     { close(q.results) }
-func (q *fakeQuery) Statistics() flux.Statistics { return flux.Statistics{} }
-func (q *fakeQuery) Results() <-chan flux.Result { return q.results }
-func (q *fakeQuery) ProfilerResults() (flux.ResultIterator, error) {
-	return nil, nil
-}
+func (q *fakeQuery) Done()                                         {}
+func (q *fakeQuery) Cancel()                                       { close(q.results) }
+func (q *fakeQuery) Statistics() flux.Statistics                   { return flux.Statistics{} }
+func (q *fakeQuery) Results() <-chan flux.Result                   { return q.results }
+func (q *fakeQuery) ProfilerResults() (flux.ResultIterator, error) { return nil, nil }
 
 func (q *fakeQuery) Err() error {
 	if q.ctxErr != nil {

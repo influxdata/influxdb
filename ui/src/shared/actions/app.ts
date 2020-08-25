@@ -18,7 +18,6 @@ export enum ActionTypes {
   SetNotebookMiniMapState = 'SET_NOTEBOOK_MINI_MAP_STATE',
   SetAutoRefresh = 'SET_AUTOREFRESH',
   SetTimeZone = 'SET_APP_TIME_ZONE',
-  TemplateControlBarVisibilityToggled = 'TemplateControlBarVisibilityToggledAction',
   Noop = 'NOOP',
 }
 

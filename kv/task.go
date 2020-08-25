@@ -3,7 +3,6 @@ package kv
 import (
 	"context"
 	"encoding/json"
-	"regexp"
 	"strings"
 	"time"
 
@@ -52,6 +51,8 @@ type kvTask struct {
 	Offset          influxdb.Duration      `json:"offset,omitempty"`
 	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
 	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
+	LatestSuccess   time.Time              `json:"latestSuccess,omitempty"`
+	LatestFailure   time.Time              `json:"latestFailure,omitempty"`
 	CreatedAt       time.Time              `json:"createdAt,omitempty"`
 	UpdatedAt       time.Time              `json:"updatedAt,omitempty"`
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`
@@ -75,6 +76,8 @@ func kvToInfluxTask(k *kvTask) *influxdb.Task {
 		Offset:          k.Offset.Duration,
 		LatestCompleted: k.LatestCompleted,
 		LatestScheduled: k.LatestScheduled,
+		LatestSuccess:   k.LatestSuccess,
+		LatestFailure:   k.LatestFailure,
 		CreatedAt:       k.CreatedAt,
 		UpdatedAt:       k.UpdatedAt,
 		Metadata:        k.Metadata,
@@ -708,7 +711,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 	// update the flux script
 	if !upd.Options.IsZero() || upd.Flux != nil {
-		if err = upd.UpdateFlux(s.FluxLanguageService, task.Flux); err != nil {
+		if err = upd.UpdateFlux(ctx, s.FluxLanguageService, task.Flux); err != nil {
 			return nil, err
 		}
 		task.Flux = *upd.Flux
@@ -768,6 +771,26 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		// make sure we only update latest scheduled one way
 		if upd.LatestScheduled.After(task.LatestScheduled) {
 			task.LatestScheduled = *upd.LatestScheduled
+		}
+	}
+
+	if upd.LatestSuccess != nil {
+		// make sure we only update latest success one way
+		tlc := task.LatestSuccess
+		ulc := *upd.LatestSuccess
+
+		if !ulc.IsZero() && ulc.After(tlc) {
+			task.LatestSuccess = *upd.LatestSuccess
+		}
+	}
+
+	if upd.LatestFailure != nil {
+		// make sure we only update latest failure one way
+		tlc := task.LatestFailure
+		ulc := *upd.LatestFailure
+
+		if !ulc.IsZero() && ulc.After(tlc) {
+			task.LatestFailure = *upd.LatestFailure
 		}
 	}
 
@@ -1481,8 +1504,19 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 
 	// tell task to update latest completed
 	scheduled := r.ScheduledFor
+
+	var latestSuccess, latestFailure *time.Time
+
+	if r.Status == "failed" {
+		latestFailure = &scheduled
+	} else {
+		latestSuccess = &scheduled
+	}
+
 	_, err = s.updateTask(ctx, tx, taskID, influxdb.TaskUpdate{
 		LatestCompleted: &scheduled,
+		LatestSuccess:   latestSuccess,
+		LatestFailure:   latestFailure,
 		LastRunStatus:   &r.Status,
 		LastRunError: func() *string {
 			if r.Status == "failed" {
@@ -1661,8 +1695,6 @@ func taskRunKey(taskID, runID influxdb.ID) ([]byte, error) {
 	return []byte(string(encodedID) + "/" + string(encodedRunID)), nil
 }
 
-var taskOptionsPattern = regexp.MustCompile(`option\s+task\s*=\s*{.*}`)
-
 // ExtractTaskOptions is a feature-flag driven switch between normal options
 // parsing and a more simplified variant.
 //
@@ -1674,24 +1706,10 @@ var taskOptionsPattern = regexp.MustCompile(`option\s+task\s*=\s*{.*}`)
 //
 // [1]: https://github.com/influxdata/influxdb/issues/17666
 func ExtractTaskOptions(ctx context.Context, lang influxdb.FluxLanguageService, flux string) (options.Options, error) {
-	if !feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
-		return options.FromScript(lang, flux)
+	if feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
+		return options.FromScriptAST(lang, flux)
 	}
-
-	matches := taskOptionsPattern.FindAllString(flux, -1)
-	if len(matches) == 0 {
-		return options.Options{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "no task options defined",
-		}
-	}
-	if len(matches) > 1 {
-		return options.Options{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "multiple task options defined",
-		}
-	}
-	return options.FromScript(lang, matches[0])
+	return options.FromScript(lang, flux)
 }
 
 func (s *Service) maxPermissions(ctx context.Context, tx Tx, userID influxdb.ID) ([]influxdb.Permission, error) {

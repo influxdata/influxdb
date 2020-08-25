@@ -241,8 +241,15 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 
 // handleGetOrgs is the HTTP handler for the GET /api/v2/orgs route.
 func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
-	var filter influxdb.OrganizationFilter
 	qp := r.URL.Query()
+
+	opts, err := influxdb.DecodeFindOptions(r)
+	if err != nil {
+		h.API.Err(w, r, err)
+		return
+	}
+
+	var filter influxdb.OrganizationFilter
 	if name := qp.Get(Org); name != "" {
 		filter.Name = &name
 	}
@@ -264,7 +271,7 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 		filter.UserID = id
 	}
 
-	orgs, _, err := h.OrgSVC.FindOrganizations(r.Context(), filter)
+	orgs, _, err := h.OrgSVC.FindOrganizations(r.Context(), filter, *opts)
 	if err != nil {
 		h.API.Err(w, r, err)
 		return

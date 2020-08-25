@@ -704,3 +704,47 @@ func TestNewGroupResultSet_GroupBy_Last(t *testing.T) {
 		t.Errorf("unexpected last values: %v", integerArray.Values)
 	}
 }
+
+func TestNewGroupResultSet_GroupBy_UnsupportedType(t *testing.T) {
+	request := datatypes.ReadGroupRequest{
+		Group:     datatypes.GroupBy,
+		GroupKeys: []string{"host", "location"},
+		Aggregate: &datatypes.Aggregate{
+			Type: datatypes.AggregateTypeSum,
+		},
+		Range: datatypes.TimestampRange{
+			Start: 0,
+			End:   15,
+		},
+	}
+	resultSet := reads.NewGroupResultSet(context.Background(), &request, func() (reads.SeriesCursor, error) {
+		seriesCursor := newMockReadGroupCursor(
+			"clicks,host=foo,location=dallas click=3 5",
+		)
+		seriesCursor.rows[0].Query = &mockCursorIterator{
+			newCursorFn: func() cursors.Cursor {
+				return &mockStringArrayCursor{}
+			},
+		}
+		return seriesCursor, nil
+	})
+
+	if resultSet == nil {
+		t.Fatalf("resultSet was nil")
+	}
+
+	groupByCursor := resultSet.Next()
+	if groupByCursor == nil {
+		t.Fatal("unexpected: groupByCursor was nil")
+	}
+	if groupByCursor.Next() {
+		t.Fatal("unexpected: groupByCursor.Next should not have advanced")
+	}
+	err := groupByCursor.Err()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if want, got := "unsupported input type for sum aggregate: string", err.Error(); want != got {
+		t.Fatalf("unexpected error:\n\t- %q\n\t+ %q", want, got)
+	}
+}

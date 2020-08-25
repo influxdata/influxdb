@@ -9,5 +9,6 @@ Describe your proposed changes here.
 - [ ] Rebased/mergeable
 - [ ] Tests pass
 - [ ] http/swagger.yml updated (if modified Go structs or API)
+- [ ] Feature flagged (if modified API)
 - [ ] Documentation updated or issue created (provide link to issue/pr)
 - [ ] Signed [CLA](https://influxdata.com/community/cla/) (if not already signed)

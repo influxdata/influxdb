@@ -136,7 +136,7 @@ const DashboardList: FC<Props> = ({
     : ComponentStatus.Disabled
 
   const save = () => {
-    event('Save Visulization to Dashboard')
+    event('Save Visualization to Dashboard')
 
     const view = {
       name: 'From Flow', // TODO: move meta.name to pipe.name so that we can route the name through
@@ -162,7 +162,7 @@ const DashboardList: FC<Props> = ({
     onClose()
   }
   const cancel = () => {
-    event('Save Visulization to Dashboard Canceled')
+    event('Save Visualization to Dashboard Canceled')
 
     onClose()
   }

@@ -284,13 +284,13 @@ describe('tokens', () => {
 
       // Create a token  //todo filters in this or seperate test
       cy.getByTestID('input-field--descr').type('Jeton 01')
-      cy.getByTestID('builder-card--body')
+      cy.getByTestID('list--contents')
         .eq(0)
         .within(() => {
           cy.getByTitle('Click to filter by Sicilsky Bull').click()
           cy.getByTitle('Click to filter by A la Carta').click()
         })
-      cy.getByTestID('builder-card--body')
+      cy.getByTestID('list--contents')
         .eq(1)
         .within(() => {
           cy.getByTitle('Click to filter by Sicilsky Bull').click()

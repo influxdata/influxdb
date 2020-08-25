@@ -69,22 +69,6 @@
   contact: Alirie Gray
   lifetime: temporary
 
-- name: New Hydrate Vars Functionality
-  description: Enables a minimalistic variable hydration
-  key: hydratevars
-  default: false
-  contact: Ariel Salem / Monitoring Team
-  lifetime: temporary
-  expose: true
-
-- name: Query Cache for Dashboards UI
-  description: Enables a Dashboard Cache on the uI
-  key: queryCacheForDashboards
-  default: false
-  contact: Ariel Salem / Monitoring Team
-  lifetime: temporary
-  expose: true
-
 - name: Memory Optimized Fill
   description: Enable the memory optimized fill()
   key: memoryOptimizedFill
@@ -106,18 +90,19 @@
   contact: Brett Buddin
   lifetime: temporary
 
-- name: Use User Permission
-  description: When enabled we will use the new user service permission function
-  key: useUserPermission
-  default: false
-  contact: Lyon Hill
-  lifetime: temporary
-
 - name: Merged Filters Rule
   description: Create one filter combining multiple single return statements
   key: mergeFiltersRule
   default: false
   contact: Query Team
+  lifetime: temporary
+
+- name: Band Plot Type
+  description: Enables the creation of a band plot in Dashboards
+  key: bandPlotType
+  default: false
+  contact: Monitoring Team
+  expose: true
   lifetime: temporary
 
 - name: Mosaic Graph Type
@@ -145,5 +130,17 @@
 - name: Org Only Member list
   description: Enforce only org members have access to view members of org related resorces
   key: orgOnlyMemberList
+  default: false
+  contact: Compute Team
+
+- name: Enforce Organization Dashboard Limits
+  description: Enforces the default limit params for the dashboards api when orgs are set
+  key: enforceOrgDashboardLimits
+  default: false
+  contact: Compute Team
+
+- name: Inject Latest Success Time
+  description: Inject the latest successful task run timestamp into a Task query extern when executing.
+  key: injectLatestSuccessTime
   default: false
   contact: Compute Team
