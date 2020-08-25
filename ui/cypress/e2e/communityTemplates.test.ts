@@ -70,6 +70,10 @@ describe('Community Templates', () => {
 
     //and check that 0 resources pluralization is correct
     cy.getByTestID('template-install-title').should('contain', 'resources')
+
+    //check that valid read me appears
+    cy.getByTestID('readme-tab').click()
+    cy.get('.markdown-format').should('contain', 'Downsampling Template')
   })
 
   describe('Opening the install overlay', () => {

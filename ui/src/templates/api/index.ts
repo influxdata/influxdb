@@ -440,3 +440,15 @@ export const updateStackName = async (stackID, name) => {
 
   return resp
 }
+
+export const fetchReadMe = async (directory: string) => {
+  const resp = await fetch(
+    `https://raw.githubusercontent.com/influxdata/community-templates/master/${directory}/README.md`
+  )
+
+  if (!resp.ok) {
+    throw new Error('Network response was not ok')
+  }
+
+  return resp.text()
+}
