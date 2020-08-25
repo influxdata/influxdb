@@ -3362,7 +3362,6 @@ spec:
 
 				for _, ta := range tasks {
 					assert.Equal(t, KindTask, ta.Kind)
-					fmt.Println("REFERENCES", ta.EnvReferences)
 				}
 
 				sort.Slice(tasks, func(i, j int) bool {
@@ -4778,9 +4777,9 @@ func newParsedTemplate(t *testing.T, fn ReaderFn, encoding Encoding, opts ...Val
 	template, err := Parse(encoding, fn, opts...)
 	require.NoError(t, err)
 
-	// for _, k := range template.Objects {
-	// 	require.Equal(t, APIVersion2, k.APIVersion)
-	// }
+	for _, k := range template.Objects {
+		require.Contains(t, APIVersion, k.APIVersion)
+	}
 
 	require.True(t, template.isParsed)
 	return template

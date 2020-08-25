@@ -3,13 +3,6 @@ kind: Task
 metadata:
   name: task-1
 spec:
-  # task:
-  #   - key: name
-  #     default: "foo"
-  #     type: string
-  #   - key: every
-  #     default: 1m
-  #     type: duration
   description: desc_1
   query:  >
     option task = { name: "bar", every: 1m, offset: 3m }

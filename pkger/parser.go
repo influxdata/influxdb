@@ -1115,31 +1115,54 @@ func (p *Template) graphTasks() *parseErr {
 		prefix := fmt.Sprintf("tasks[%s].spec", t.MetaName())
 		params := o.Spec.slcResource(fieldParams)
 		task := o.Spec.slcResource("task")
-		t.query, _ = p.parseQuery(prefix, o.Spec.stringShort(fieldQuery), params, task)
+
+		var (
+			err      error
+			failures []validationErr
+		)
+
+		t.query, err = p.parseQuery(prefix, o.Spec.stringShort(fieldQuery), params, task)
+		if err != nil {
+			failures = append(failures, validationErr{
+				Field: fieldQuery,
+				Msg:   err.Error(),
+			})
+		}
 
 		if o.APIVersion == APIVersion2 {
 			for _, ref := range t.query.task {
 				switch ref.EnvRef {
 				case prefix + ".task.name", prefix + ".params.name":
 					t.displayName = ref
-				case prefix + ".task.every": //, prefix + ".params.every":
-					t.every = ref.defaultVal.(time.Duration)
-				case prefix + ".task.offset": //, prefix + ".params.offset":
-					t.offset = ref.defaultVal.(time.Duration)
-				// case prefix + "concurrency":
-				// 	t.concurrency = ref.defaultVal.(*int64)
-				// case prefix + "retry":
-				// 	t.retry = ref.defaultVal.(*int64)
-				default:
+				case prefix + ".task.every":
+					every, ok := ref.defaultVal.(time.Duration)
+					if ok {
+						t.every = every
+					} else {
+						failures = append(failures, validationErr{
+							Field: fieldTask,
+							Msg:   "field every is not duration",
+						})
+					}
+				case prefix + ".task.offset":
+					offset, ok := ref.defaultVal.(time.Duration)
+					if ok {
+						t.offset = offset
+					} else {
+						failures = append(failures, validationErr{
+							Field: fieldTask,
+							Msg:   "field every is not duration",
+						})
+					}
 				}
 			}
 		}
 
-		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
+		failures = append(failures, p.parseNestedLabels(o.Spec, func(l *label) error {
 			t.labels = append(t.labels, l)
 			p.mLabels[l.MetaName()].setMapping(t, false)
 			return nil
-		})
+		})...)
 		sort.Sort(t.labels)
 
 		p.mTasks[t.MetaName()] = t
@@ -1585,6 +1608,7 @@ func (p *Template) parseQuery(prefix, source string, params, task []Resource) (q
 		return q, nil
 	}
 
+	// if params were found
 	if err == nil {
 		obj, ok := opt.(*ast.ObjectExpression)
 		if ok {
@@ -1603,6 +1627,7 @@ func (p *Template) parseQuery(prefix, source string, params, task []Resource) (q
 		}
 	}
 
+	// if tasks were found
 	if err2 == nil {
 		tobj, ok := topt.(*ast.ObjectExpression)
 		if ok {
@@ -1644,16 +1669,27 @@ func (p *Template) parseQuery(prefix, source string, params, task []Resource) (q
 		if field == "" {
 			continue
 		}
+
 		if _, ok := tParams[field]; !ok {
 			tParams[field] = &references{EnvRef: field}
 		}
+
 		if valtype, ok := pr.string(fieldType); ok {
 			tParams[field].valType = valtype
 		}
+
 		if def, ok := pr[fieldDefault]; ok {
 			switch tParams[field].valType {
 			case "duration":
-				tParams[field].defaultVal, _ = time.ParseDuration(def.(string))
+				switch defDur := def.(type) {
+				case string:
+					tParams[field].defaultVal, err = time.ParseDuration(defDur)
+					if err != nil {
+						return query{}, influxErr(influxdb.EInvalid, err.Error())
+					}
+				case time.Duration:
+					tParams[field].defaultVal = defDur
+				}
 			default:
 				tParams[field].defaultVal = def
 			}
