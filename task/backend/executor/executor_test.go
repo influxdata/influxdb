@@ -85,19 +85,7 @@ func taskExecutorSystem(t *testing.T) tes {
 	}
 }
 
-func TestTaskExecutor(t *testing.T) {
-	t.Run("QuerySuccess", testQuerySuccess)
-	t.Run("QueryFailure", testQueryFailure)
-	t.Run("ManualRun", testManualRun)
-	t.Run("ResumeRun", testResumingRun)
-	t.Run("WorkerLimit", testWorkerLimit)
-	t.Run("LimitFunc", testLimitFunc)
-	t.Run("Metrics", testMetrics)
-	t.Run("IteratorFailure", testIteratorFailure)
-	t.Run("ErrorHandling", testErrorHandling)
-}
-
-func testQuerySuccess(t *testing.T) {
+func TestTaskExecutor_QuerySuccess(t *testing.T) {
 	t.Parallel()
 
 	tes := taskExecutorSystem(t)
@@ -165,7 +153,7 @@ func testQuerySuccess(t *testing.T) {
 	}
 }
 
-func testQueryFailure(t *testing.T) {
+func TestTaskExecutor_QueryFailure(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 
@@ -201,7 +189,7 @@ func testQueryFailure(t *testing.T) {
 	}
 }
 
-func testManualRun(t *testing.T) {
+func TestManualRun(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 
@@ -248,7 +236,7 @@ func testManualRun(t *testing.T) {
 	}
 }
 
-func testResumingRun(t *testing.T) {
+func TestTaskExecutor_ResumingRun(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 
@@ -291,7 +279,7 @@ func testResumingRun(t *testing.T) {
 	}
 }
 
-func testWorkerLimit(t *testing.T) {
+func TestTaskExecutor_WorkerLimit(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 
@@ -321,7 +309,7 @@ func testWorkerLimit(t *testing.T) {
 	}
 }
 
-func testLimitFunc(t *testing.T) {
+func TestTaskExecutor_LimitFunc(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 
@@ -360,7 +348,7 @@ func testLimitFunc(t *testing.T) {
 	}
 }
 
-func testMetrics(t *testing.T) {
+func TestTaskExecutor_Metrics(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 	metrics := tes.metrics
@@ -457,7 +445,7 @@ func testMetrics(t *testing.T) {
 
 }
 
-func testIteratorFailure(t *testing.T) {
+func TestTaskExecutor_IteratorFailure(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 
@@ -505,7 +493,7 @@ func testIteratorFailure(t *testing.T) {
 	}
 }
 
-func testErrorHandling(t *testing.T) {
+func TestTaskExecutor_ErrorHandling(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 
@@ -551,7 +539,7 @@ func testErrorHandling(t *testing.T) {
 	*/
 }
 
-func TestPromiseFailure(t *testing.T) {
+func TestTaskExecutor_PromiseFailure(t *testing.T) {
 	t.Parallel()
 
 	tes := taskExecutorSystem(t)
