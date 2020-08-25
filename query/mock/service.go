@@ -89,6 +89,9 @@ func (q *Query) SetErr(err error) *Query {
 func (q *Query) Results() <-chan flux.Result {
 	return q.results
 }
+func (q *Query) ProfilerResults() (flux.ResultIterator, error) {
+	return nil, nil
+}
 
 func (q *Query) Done() {
 	q.Cancel()

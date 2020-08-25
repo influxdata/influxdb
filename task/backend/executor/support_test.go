@@ -171,10 +171,11 @@ type fakeQuery struct {
 
 var _ flux.Query = (*fakeQuery)(nil)
 
-func (q *fakeQuery) Done()                       {}
-func (q *fakeQuery) Cancel()                     { close(q.results) }
-func (q *fakeQuery) Statistics() flux.Statistics { return flux.Statistics{} }
-func (q *fakeQuery) Results() <-chan flux.Result { return q.results }
+func (q *fakeQuery) Done()                                         {}
+func (q *fakeQuery) Cancel()                                       { close(q.results) }
+func (q *fakeQuery) Statistics() flux.Statistics                   { return flux.Statistics{} }
+func (q *fakeQuery) Results() <-chan flux.Result                   { return q.results }
+func (q *fakeQuery) ProfilerResults() (flux.ResultIterator, error) { return nil, nil }
 
 func (q *fakeQuery) Err() error {
 	if q.ctxErr != nil {
