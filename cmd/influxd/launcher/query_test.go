@@ -880,7 +880,7 @@ func TestFluxProfiler(t *testing.T) {
 				"m,tag=a f=1i 1",
 			},
 			query: `
-option profiler.enabledProfilers = ["FluxStatisticsTest0", "FluxStatisticsTest100", "FluxStatisticsTest100", "NonExistentProfiler"]
+option profiler.enabledProfilers = ["query0", "query100", "query100", "NonExistentProfiler"]
 from(bucket: v.bucket)
 	|> range(start: 1970-01-01T00:00:00.000000001Z, stop: 1970-01-01T01:00:00Z)
 	|> last()
