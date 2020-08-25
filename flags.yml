@@ -83,6 +83,13 @@
   contact: Query Team
   lifetime: temporary
 
+- name: Experimental Query Tracing
+  description: Turn on experimental query tracing for queries that are sampled
+  key: experimentalQueryTracing
+  default: false
+  contact: Query Team
+  lifetime: permanent
+
 - name: Simple Task Options Extraction
   description: Simplified task options extraction to avoid undefined functions when saving tasks
   key: simpleTaskOptionsExtraction
