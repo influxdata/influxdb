@@ -26,6 +26,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
+	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/runtime"
@@ -548,6 +549,23 @@ type Query struct {
 	alloc         *memory.Allocator
 }
 
+func (q *Query) ProfilerResults() (flux.ResultIterator, error) {
+	p := q.program.(*lang.AstProgram)
+	if len(p.Profilers) == 0 {
+		return nil, nil
+	}
+	tables := make([]flux.Table, 0)
+	for _, profiler := range p.Profilers {
+		if result, err := profiler.GetResult(q, q.alloc); err != nil {
+			return nil, err
+		} else {
+			tables = append(tables, result)
+		}
+	}
+	res := table.NewProfilerResult(tables...)
+	return flux.NewSliceResultIterator([]flux.Result{&res}), nil
+}
+
 // ID reports an ephemeral unique ID for the query.
 func (q *Query) ID() QueryID {
 	return q.id
@@ -570,10 +588,6 @@ func (q *Query) Cancel() {
 // function should be used to check if an error happened.
 func (q *Query) Results() <-chan flux.Result {
 	return q.results
-}
-
-func (q *Query) ProfilerResults() (flux.ResultIterator, error) {
-	return nil, nil
 }
 
 func (q *Query) recordUnusedMemory() {
