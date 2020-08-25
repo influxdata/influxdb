@@ -31,11 +31,16 @@ export const QueryProvider: FC<Props> = ({children, variables, org}) => {
   const {timeContext} = useContext(TimeContext)
   const time = timeContext[id]
 
-  const vars = useMemo(
-    () =>
-      variables.map(v => asAssignment(v)).concat(getTimeRangeVars(time.range)),
-    [variables, time]
-  )
+  const vars = useMemo(() => {
+    if (time && time.range) {
+      return variables
+        .map(v => asAssignment(v))
+        .concat(getTimeRangeVars(time.range))
+    }
+
+    variables.map(v => asAssignment(v))
+  }, [variables, time])
+
   const query = (text: string) => {
     const windowVars = getWindowVars(text, vars)
     const extern = buildVarsOption([...vars, ...windowVars])
