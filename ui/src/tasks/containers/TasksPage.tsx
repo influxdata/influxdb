@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
-import {Switch, Route} from 'react-router-dom'
 
 // Components
 import TasksHeader from 'src/tasks/components/TasksHeader'
@@ -12,9 +11,6 @@ import FilterList from 'src/shared/components/FilterList'
 import GetResources from 'src/resources/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
-import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
-import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
-import TaskImportFromTemplateOverlay from 'src/tasks/components/TaskImportFromTemplateOverlay'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -100,8 +96,6 @@ class TasksPage extends PureComponent<Props, State> {
             onCreateTask={this.handleCreateTask}
             setShowInactive={setShowInactive}
             showInactive={showInactive}
-            onImportTask={this.summonImportOverlay}
-            onImportFromTemplate={this.summonImportFromTemplateOverlay}
             limitStatus={limitStatus}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
@@ -131,10 +125,6 @@ class TasksPage extends PureComponent<Props, State> {
                       onRunTask={onRunTask}
                       onFilterChange={setSearchTerm}
                       onUpdate={updateTaskName}
-                      onImportTask={this.summonImportOverlay}
-                      onImportFromTemplate={
-                        this.summonImportFromTemplateOverlay
-                      }
                       sortKey={sortKey}
                       sortDirection={sortDirection}
                       sortType={sortType}
@@ -151,20 +141,6 @@ class TasksPage extends PureComponent<Props, State> {
             </GetResources>
           </Page.Contents>
         </Page>
-        <Switch>
-          <Route
-            path="/orgs/:orgID/tasks/:id/export"
-            component={TaskExportOverlay}
-          />
-          <Route
-            path="/orgs/:orgID/tasks/import-template"
-            component={TaskImportFromTemplateOverlay}
-          />
-          <Route
-            path="/orgs/:orgID/tasks/import"
-            component={TaskImportOverlay}
-          />
-        </Switch>
       </>
     )
   }
@@ -198,28 +174,6 @@ class TasksPage extends PureComponent<Props, State> {
     } = this.props
 
     history.push(`/orgs/${orgID}/tasks/new`)
-  }
-
-  private summonImportFromTemplateOverlay = () => {
-    const {
-      history,
-      match: {
-        params: {orgID},
-      },
-    } = this.props
-
-    history.push(`/orgs/${orgID}/tasks/import-template`)
-  }
-
-  private summonImportOverlay = (): void => {
-    const {
-      history,
-      match: {
-        params: {orgID},
-      },
-    } = this.props
-
-    history.push(`/orgs/${orgID}/tasks/import`)
   }
 
   private get filteredTasks(): Task[] {

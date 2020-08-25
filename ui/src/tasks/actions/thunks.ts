@@ -5,13 +5,11 @@ import {normalize} from 'normalizr'
 
 // APIs
 import * as api from 'src/client'
-import {createTaskFromTemplate as createTaskFromTemplateAJAX} from 'src/templates/api'
 
 // Schemas
 import {taskSchema, arrayOfTasks} from 'src/schemas/tasks'
 
 // Actions
-import {setExportTemplate} from 'src/templates/actions/creators'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {
   addTask,
@@ -34,7 +32,6 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {
   Label,
-  TaskTemplate,
   Task,
   GetState,
   TaskSchedule,
@@ -46,7 +43,6 @@ import {
 // Utils
 import {getErrorMessage} from 'src/utils/api'
 import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'
-import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {checkTaskLimits} from 'src/cloud/actions/limits'
 import {getOrg} from 'src/organizations/selectors'
@@ -429,52 +425,6 @@ export const getLogs = (taskID: string, runID: string) => async (
   } catch (error) {
     console.error(error)
     dispatch(setLogs([]))
-  }
-}
-
-export const convertToTemplate = (taskID: string) => async (
-  dispatch,
-  getState: GetState
-): Promise<void> => {
-  try {
-    dispatch(setExportTemplate(RemoteDataState.Loading))
-    const resp = await api.getTask({taskID})
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    const {entities, result} = normalize<Task, TaskEntities, string>(
-      resp.data,
-      taskSchema
-    )
-
-    const taskTemplate = taskToTemplate(getState(), entities.tasks[result])
-
-    dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate))
-  } catch (error) {
-    dispatch(setExportTemplate(RemoteDataState.Error))
-    dispatch(notify(copy.createTemplateFailed(error)))
-  }
-}
-
-export const createTaskFromTemplate = (template: TaskTemplate) => async (
-  dispatch: Dispatch<Action>,
-  getState: GetState
-): Promise<void> => {
-  try {
-    const org = getOrg(getState())
-
-    await createTaskFromTemplateAJAX(template, org.id)
-
-    dispatch(getTasks())
-    dispatch(notify(copy.importTaskSucceeded()))
-    dispatch(checkTaskLimits())
-  } catch (error) {
-    if (isLimitError(error)) {
-      dispatch(notify(copy.resourceLimitReached('tasks')))
-    } else {
-      dispatch(notify(copy.importTaskFailed(error)))
-    }
   }
 }
 

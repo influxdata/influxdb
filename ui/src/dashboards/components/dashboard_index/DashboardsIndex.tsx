@@ -2,7 +2,6 @@
 import React, {PureComponent} from 'react'
 import {RouteComponentProps} from 'react-router-dom'
 import {connect, ConnectedProps} from 'react-redux'
-import {Switch, Route} from 'react-router-dom'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -11,13 +10,10 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Page} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import AddResourceButton from 'src/shared/components/AddResourceButton'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
-import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
-import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
-import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -80,12 +76,9 @@ class DashboardIndex extends PureComponent<Props, State> {
               />
             </Page.ControlBarLeft>
             <Page.ControlBarRight>
-              <AddResourceDropdown
+              <AddResourceButton
                 onSelectNew={createDashboard}
-                onSelectImport={this.summonImportOverlay}
-                onSelectTemplate={this.summonImportFromTemplateOverlay}
                 resourceName="Dashboard"
-                canImportFromTemplate={true}
                 limitStatus={limitStatus}
               />
             </Page.ControlBarRight>
@@ -106,20 +99,6 @@ class DashboardIndex extends PureComponent<Props, State> {
             </GetAssetLimits>
           </Page.Contents>
         </Page>
-        <Switch>
-          <Route
-            path="/orgs/:orgID/dashboards-list/:dashboardID/export"
-            component={DashboardExportOverlay}
-          />
-          <Route
-            path="/orgs/:orgID/dashboards-list/import/template"
-            component={CreateFromTemplateOverlay}
-          />
-          <Route
-            path="/orgs/:orgID/dashboards-list/import"
-            component={DashboardImportOverlay}
-          />
-        </Switch>
       </>
     )
   }
@@ -134,26 +113,6 @@ class DashboardIndex extends PureComponent<Props, State> {
 
   private handleFilterDashboards = (searchTerm: string): void => {
     this.setState({searchTerm})
-  }
-
-  private summonImportOverlay = (): void => {
-    const {
-      history,
-      match: {
-        params: {orgID},
-      },
-    } = this.props
-    history.push(`/orgs/${orgID}/dashboards-list/import`)
-  }
-
-  private summonImportFromTemplateOverlay = (): void => {
-    const {
-      history,
-      match: {
-        params: {orgID},
-      },
-    } = this.props
-    history.push(`/orgs/${orgID}/dashboards-list/import/template`)
   }
 }
 
