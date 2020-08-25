@@ -63,16 +63,18 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 
   public render() {
+    const templateDetails = getTemplateNameFromUrl(this.props.stagedTemplateUrl)
+    const templateName = templateDetails.name
+    const templateDirectory = templateDetails.directory
+
     return (
       <CommunityTemplateOverlay
         onDismissOverlay={this.onDismiss}
         onInstall={this.handleInstallTemplate}
         resourceCount={this.props.resourceCount}
         status={this.state.status}
-        templateName={getTemplateNameFromUrl(this.props.stagedTemplateUrl).name}
-        templateDirectory={
-          getTemplateNameFromUrl(this.props.stagedTemplateUrl).directory
-        }
+        templateName={templateName}
+        templateDirectory={templateDirectory}
         updateStatus={this.updateOverlayStatus}
       />
     )

@@ -72,7 +72,7 @@ describe('Community Templates', () => {
     cy.getByTestID('template-install-title').should('contain', 'resources')
 
     //check that valid read me appears
-    cy.getByTestID('readme-tab').click()
+    cy.getByTestID('community-templates-readme-tab').click()
     cy.get('.markdown-format').should('contain', 'Downsampling Template')
   })
 

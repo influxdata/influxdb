@@ -446,8 +446,8 @@ export const fetchReadMe = async (directory: string) => {
     `https://raw.githubusercontent.com/influxdata/community-templates/master/${directory}/README.md`
   )
 
-  if (!resp.ok) {
-    throw new Error('Network response was not ok')
+  if (resp.status >= 300) {
+    throw new Error('Network response was not ok' + resp.statusText)
   }
 
   return resp.text()

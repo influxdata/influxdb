@@ -21,7 +21,9 @@ export class CommunityTemplateReadme extends PureComponent<Props> {
         'There has been a problem with your fetch operation:',
         error
       )
-      this.setState({readMeData: '## No read me to display!'})
+      this.setState({
+        readMeData: '## We cant find the readme associated with this template',
+      })
     }
   }
 

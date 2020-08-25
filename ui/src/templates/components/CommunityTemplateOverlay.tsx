@@ -78,7 +78,7 @@ class CommunityTemplateOverlayUnconnected extends PureComponent<Props, State> {
                   active={this.state.activeTab === Tab.Readme}
                   id="readme"
                   text="Readme"
-                  testID="readme-tab"
+                  testID="community-templates-readme-tab"
                   onClick={this.setTabToReadme}
                 />
               </Tabs.Tabs>
