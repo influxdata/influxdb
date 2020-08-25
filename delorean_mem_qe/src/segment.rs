@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use super::column;
 use super::column::Column;
@@ -6,6 +6,45 @@ use arrow::datatypes::SchemaRef;
 
 // Only used in a couple of specific places for experimentation.
 const THREADS: usize = 16;
+
+#[derive(Debug)]
+pub struct Schema {
+    _ref: SchemaRef,
+    col_sort_order: Vec<usize>,
+}
+
+impl Schema {
+    pub fn new(schema: SchemaRef) -> Self {
+        Self {
+            _ref: schema,
+            col_sort_order: vec![],
+        }
+    }
+
+    pub fn with_sort_order(schema: SchemaRef, sort_order: Vec<usize>) -> Self {
+        let set = sort_order.iter().collect::<BTreeSet<_>>();
+        assert_eq!(set.len(), sort_order.len());
+        assert!(sort_order.len() <= schema.fields().len());
+
+        Self {
+            _ref: schema,
+            col_sort_order: sort_order,
+        }
+    }
+
+    pub fn sort_order(&self) -> &[usize] {
+        self.col_sort_order.as_slice()
+    }
+
+    pub fn schema_ref(&self) -> SchemaRef {
+        self._ref.clone()
+    }
+
+    pub fn cols(&self) -> usize {
+        let len = &self._ref.fields().len();
+        *len
+    }
+}
 
 #[derive(Debug)]
 pub struct Segment {
@@ -17,10 +56,11 @@ pub struct Segment {
 }
 
 impl Segment {
-    pub fn new(rows: usize, schema: SchemaRef) -> Self {
+    pub fn new(rows: usize, schema: Schema) -> Self {
+        let cols = schema.cols();
         Self {
             meta: SegmentMetaData::new(rows, schema),
-            columns: vec![],
+            columns: Vec::with_capacity(cols),
             time_column_idx: 0,
         }
     }
@@ -709,12 +749,12 @@ impl Segment {
 }
 
 /// Meta data for a segment. This data is mainly used to determine if a segment
-/// may contain value for answering a query.
+/// may contain a value that can answer a query.
 #[derive(Debug)]
 pub struct SegmentMetaData {
     size: usize, // TODO
     rows: usize,
-    schema: SchemaRef,
+    schema: Schema,
 
     column_names: Vec<String>,
     time_range: (i64, i64),
@@ -725,7 +765,7 @@ pub struct SegmentMetaData {
 }
 
 impl SegmentMetaData {
-    pub fn new(rows: usize, schema: SchemaRef) -> Self {
+    pub fn new(rows: usize, schema: Schema) -> Self {
         let mut meta = Self {
             size: 0,
             rows,
@@ -739,7 +779,7 @@ impl SegmentMetaData {
     }
 
     pub fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        self.schema.schema_ref()
     }
 
     pub fn overlaps_time_range(&self, from: i64, to: i64) -> bool {
