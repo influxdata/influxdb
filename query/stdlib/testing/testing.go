@@ -153,6 +153,9 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"emptyTable": "tests a source",
 		"year":       "flakey test: https://github.com/influxdata/influxdb/issues/15667",
 	},
+	"testing/influxql": {
+		"cumulative_sum": "invalid test data requires loadStorage to be overridden. See https://github.com/influxdata/flux/issues/3145",
+	},
 }
 
 type PerTestFeatureFlagMap = map[string]map[string]map[string]string
