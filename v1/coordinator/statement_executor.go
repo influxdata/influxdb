@@ -439,7 +439,7 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(ctx context.Co
 			}
 			return nil, err
 		}
-		row.Values = append(row.Values, []interface{}{dbrp.RetentionPolicy, "", "", "", dbrp.Default})
+		row.Values = append(row.Values, []interface{}{dbrp.RetentionPolicy, "0s", "168h0m0s", 1, dbrp.Default})
 	}
 
 	return []*models.Row{row}, nil
