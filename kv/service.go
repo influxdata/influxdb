@@ -1,7 +1,6 @@
 package kv
 
 import (
-	"context"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -50,8 +49,6 @@ type Service struct {
 	variableStore *IndexStore
 
 	urmByUserIndex *Index
-
-	disableAuthorizationsForMaxPermissions func(context.Context) bool
 }
 
 // NewService returns an instance of a Service.
@@ -71,9 +68,6 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		endpointStore:  newEndpointStore(),
 		variableStore:  newVariableStore(),
 		urmByUserIndex: NewIndex(URMByUserIndexMapping, WithIndexReadPathEnabled),
-		disableAuthorizationsForMaxPermissions: func(context.Context) bool {
-			return false
-		},
 	}
 
 	if len(configs) > 0 {
@@ -109,11 +103,4 @@ func (s *Service) WithResourceLogger(audit resource.Logger) {
 // Should only be used in tests for mocking.
 func (s *Service) WithStore(store Store) {
 	s.kv = store
-}
-
-// WithMaxPermissionFunc sets the useAuthorizationsForMaxPermissions function
-// which can trigger whether or not max permissions uses the users authorizations
-// to derive maximum permissions.
-func (s *Service) WithMaxPermissionFunc(fn func(context.Context) bool) {
-	s.disableAuthorizationsForMaxPermissions = fn
 }

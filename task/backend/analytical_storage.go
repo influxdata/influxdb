@@ -70,7 +70,7 @@ type AnalyticalStorage struct {
 func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
 	run, err := as.TaskControlService.FinishRun(ctx, taskID, runID)
 	if run != nil && run.ID.String() != "" {
-		task, err := as.TaskService.FindTaskByID(influxdb.FindTaskWithoutAuth(ctx), run.TaskID)
+		task, err := as.TaskService.FindTaskByID(ctx, run.TaskID)
 		if err != nil {
 			return run, err
 		}
