@@ -12,14 +12,17 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	tracetest "github.com/influxdata/influxdb/v2/kit/tracing/testing"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	influxdbmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/backend"
@@ -121,8 +124,108 @@ func TestTaskExecutor_QuerySuccess(t *testing.T) {
 		t.Fatalf("did not correctly set RunAt value, got: %v", run.RunAt)
 	}
 
-	tes.svc.WaitForQueryLive(t, script)
-	tes.svc.SucceedQuery(script)
+	tes.svc.WaitForQueryLive(t, script, nil)
+	tes.svc.SucceedQuery(script, nil)
+
+	<-promise.Done()
+
+	if got := promise.Error(); got != nil {
+		t.Fatal(got)
+	}
+
+	// confirm run is removed from in-mem store
+	run, err = tes.i.FindRunByID(context.Background(), task.ID, run.ID)
+	if run != nil || err == nil || !strings.Contains(err.Error(), "run not found") {
+		t.Fatal("run was returned when it should have been removed from kv")
+	}
+
+	// ensure the run returned by TaskControlService.FinishRun(...)
+	// has run logs formatted as expected
+	if run = tes.tcs.run; run == nil {
+		t.Fatal("expected run returned by FinishRun to not be nil")
+	}
+
+	if len(run.Log) < 3 {
+		t.Fatalf("expected 3 run logs, found %d", len(run.Log))
+	}
+
+	sctx := span.Context().(jaeger.SpanContext)
+	expectedMessage := fmt.Sprintf("trace_id=%s is_sampled=true", sctx.TraceID())
+	if expectedMessage != run.Log[1].Message {
+		t.Errorf("expected %q, found %q", expectedMessage, run.Log[1].Message)
+	}
+}
+
+func TestTaskExecutor_QuerySuccessWithExternInjection(t *testing.T) {
+	t.Parallel()
+
+	tes := taskExecutorSystem(t)
+
+	var (
+		script = fmt.Sprintf(fmtTestScript, t.Name())
+		ctx    = icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+		span   = opentracing.GlobalTracer().StartSpan("test-span")
+	)
+	ctx = opentracing.ContextWithSpan(ctx, span)
+
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{
+		OrganizationID: tes.tc.OrgID,
+		OwnerID:        tes.tc.Auth.GetUserID(),
+		Flux:           script,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate previous run to establish a timestamp
+	latestSuccess := time.Now().UTC()
+	task, err = tes.i.UpdateTask(ctx, task.ID, influxdb.TaskUpdate{
+		LatestSuccess: &latestSuccess,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	extern := &ast.File{
+		Body: []ast.Statement{&ast.OptionStatement{
+			Assignment: &ast.VariableAssignment{
+				ID: &ast.Identifier{Name: latestSuccessOption},
+				Init: &ast.DateTimeLiteral{
+					Value: latestSuccess,
+				},
+			},
+		},
+		},
+	}
+
+	ctx, err = feature.Annotate(ctx, influxdbmock.NewFlagger(map[feature.Flag]interface{}{
+		feature.InjectLatestSuccessTime(): true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	promiseID := influxdb.ID(promise.ID())
+
+	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if run.ID != promiseID {
+		t.Fatal("promise and run dont match")
+	}
+
+	if run.RunAt != time.Unix(126, 0).UTC() {
+		t.Fatalf("did not correctly set RunAt value, got: %v", run.RunAt)
+	}
+
+	tes.svc.WaitForQueryLive(t, script, extern)
+	tes.svc.SucceedQuery(script, extern)
 
 	<-promise.Done()
 
@@ -179,8 +282,8 @@ func TestTaskExecutor_QueryFailure(t *testing.T) {
 		t.Fatal("promise and run dont match")
 	}
 
-	tes.svc.WaitForQueryLive(t, script)
-	tes.svc.FailQuery(script, errors.New("blargyblargblarg"))
+	tes.svc.WaitForQueryLive(t, script, nil)
+	tes.svc.FailQuery(script, nil, errors.New("blargyblargblarg"))
 
 	<-promise.Done()
 
@@ -228,8 +331,8 @@ func TestManualRun(t *testing.T) {
 		t.Fatal("promise and run and manual run dont match")
 	}
 
-	tes.svc.WaitForQueryLive(t, script)
-	tes.svc.SucceedQuery(script)
+	tes.svc.WaitForQueryLive(t, script, nil)
+	tes.svc.SucceedQuery(script, nil)
 
 	if got := promise.Error(); got != nil {
 		t.Fatal(got)
@@ -271,8 +374,8 @@ func TestTaskExecutor_ResumingRun(t *testing.T) {
 		t.Fatal("promise and run and manual run dont match")
 	}
 
-	tes.svc.WaitForQueryLive(t, script)
-	tes.svc.SucceedQuery(script)
+	tes.svc.WaitForQueryLive(t, script, nil)
+	tes.svc.SucceedQuery(script, nil)
 
 	if got := promise.Error(); got != nil {
 		t.Fatal(got)
@@ -299,8 +402,8 @@ func TestTaskExecutor_WorkerLimit(t *testing.T) {
 		t.Fatal("expected a worker to be started")
 	}
 
-	tes.svc.WaitForQueryLive(t, script)
-	tes.svc.FailQuery(script, errors.New("blargyblargblarg"))
+	tes.svc.WaitForQueryLive(t, script, nil)
+	tes.svc.FailQuery(script, nil, errors.New("blargyblargblarg"))
 
 	<-promise.Done()
 
@@ -383,7 +486,7 @@ func TestTaskExecutor_Metrics(t *testing.T) {
 		t.Fatal("promise and run dont match")
 	}
 
-	tes.svc.WaitForQueryLive(t, script)
+	tes.svc.WaitForQueryLive(t, script, nil)
 
 	mg = promtest.MustGather(t, reg)
 	m = promtest.MustFindMetric(t, mg, "task_executor_total_runs_active", nil)
@@ -391,7 +494,7 @@ func TestTaskExecutor_Metrics(t *testing.T) {
 		t.Fatalf("expected 1 total runs active, got %v", got)
 	}
 
-	tes.svc.SucceedQuery(script)
+	tes.svc.SucceedQuery(script, nil)
 	<-promise.Done()
 
 	mg = promtest.MustGather(t, reg)
@@ -483,8 +586,8 @@ func TestTaskExecutor_IteratorFailure(t *testing.T) {
 		t.Fatal("promise and run dont match")
 	}
 
-	tes.svc.WaitForQueryLive(t, script)
-	tes.svc.SucceedQuery(script)
+	tes.svc.WaitForQueryLive(t, script, nil)
+	tes.svc.SucceedQuery(script, nil)
 
 	<-promise.Done()
 
