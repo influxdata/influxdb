@@ -20,9 +20,12 @@ export const SET_TEMPLATE_SUMMARY = 'SET_TEMPLATE_SUMMARY'
 export const SET_TEMPLATES_STATUS = 'SET_TEMPLATES_STATUS'
 export const TOGGLE_TEMPLATE_RESOURCE_INSTALL =
   'TOGGLE_TEMPLATE_RESOURCE_INSTALL'
+export const UPDATE_TEMPLATE_ENV_REF = 'UPDATE_TEMPLATE_ENV_REF'
 
 export const SET_STACKS = 'SET_STACKS'
 export const DELETE_STACKS = 'DELETE_STACKS'
+
+export type EnvRefValue = string | number | boolean
 
 export type Action =
   | ReturnType<typeof addTemplateSummary>
@@ -34,6 +37,7 @@ export type Action =
   | ReturnType<typeof setStagedCommunityTemplate>
   | ReturnType<typeof setStagedTemplateUrl>
   | ReturnType<typeof toggleTemplateResourceInstall>
+  | ReturnType<typeof updateTemplateEnvReferences>
   | ReturnType<typeof setStacks>
   | ReturnType<typeof removeStack>
 
@@ -102,6 +106,20 @@ export const setStagedTemplateUrl = (templateUrl: string) =>
   ({
     type: SET_STAGED_TEMPLATE_URL,
     templateUrl,
+  } as const)
+
+export const updateTemplateEnvReferences = (
+  envRefKey: string,
+  resourceField: string,
+  newValue: EnvRefValue,
+  valueType: string
+) =>
+  ({
+    type: UPDATE_TEMPLATE_ENV_REF,
+    envRefKey,
+    resourceField,
+    newValue,
+    valueType,
   } as const)
 
 export const toggleTemplateResourceInstall = (
