@@ -29,32 +29,12 @@ var (
 	TaskSystemType = "system"
 )
 
-type contextKey string
-
-const (
-	taskAuthKey contextKey = "taskAuth"
-)
-
-// TODO: these are temporary functions until we can work through optimizing auth
-// FindTaskWithAuth adds a auth hint for lookup of tasks
-func FindTaskWithoutAuth(ctx context.Context) context.Context {
-	return context.WithValue(ctx, taskAuthKey, "omit")
-}
-
-// FindTaskAuthRequired retrieves the taskAuth hint
-func FindTaskAuthRequired(ctx context.Context) bool {
-	val, ok := ctx.Value(taskAuthKey).(string)
-	return !(ok && val == "omit")
-}
-
 // Task is a task. 🎊
 type Task struct {
 	ID              ID                     `json:"id"`
 	Type            string                 `json:"type,omitempty"`
 	OrganizationID  ID                     `json:"orgID"`
 	Organization    string                 `json:"org"`
-	AuthorizationID ID                     `json:"-"`
-	Authorization   *Authorization         `json:"-"`
 	OwnerID         ID                     `json:"ownerID"`
 	Name            string                 `json:"name"`
 	Description     string                 `json:"description,omitempty"`
