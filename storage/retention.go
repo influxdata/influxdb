@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/logger"
-	"github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1"
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

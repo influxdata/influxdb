@@ -14,9 +14,9 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
-	"github.com/influxdata/influxdb/v2/v1/tsdb"
-	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 )

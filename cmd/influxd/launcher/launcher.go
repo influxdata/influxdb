@@ -66,11 +66,11 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"  // needed for tsi1
 	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"
-	_ "github.com/influxdata/influxdb/v2/v1/tsdb/engine/tsm1" // needed for tsm1
-	_ "github.com/influxdata/influxdb/v2/v1/tsdb/index/tsi1"  // needed for tsi1
 	"github.com/influxdata/influxdb/v2/vault"
 	pzap "github.com/influxdata/influxdb/v2/zap"
 	"github.com/opentracing/opentracing-go"

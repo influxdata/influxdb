@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 // ResultSetToLineProtocol transforms rs to line protocol and writes the

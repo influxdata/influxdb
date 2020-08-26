@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	influxdb "github.com/influxdata/influxdb/v2/v1"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
-	"github.com/influxdata/influxdb/v2/v1/tsdb"
 )
 
 // TODO(benbjohnson): Rewrite tests to use cluster_test.MetaClient.

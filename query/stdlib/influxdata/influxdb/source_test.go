@@ -13,7 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
-	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/influxdata/influxdb/v2/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 )

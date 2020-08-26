@@ -22,10 +22,10 @@ import (
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	itesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/internal"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
-	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap/zaptest"
 )

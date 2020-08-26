@@ -6,10 +6,11 @@ package mocks
 
 import (
 	context "context"
-	gomock "github.com/golang/mock/gomock"
-	influxdb "github.com/influxdata/influxdb/v2"
 	reflect "reflect"
 	time "time"
+
+	gomock "github.com/golang/mock/gomock"
+	influxdb "github.com/influxdata/influxdb/v2"
 )
 
 // MockEngineSchema is a mock of EngineSchema interface

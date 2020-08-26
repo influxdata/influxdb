@@ -14,8 +14,8 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/tracing/fields"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
-	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"github.com/influxdata/influxql"
 )
 

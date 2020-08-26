@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"os"
 
-	"github.com/influxdata/influxdb/v2/v1/tsdb"
-	"github.com/influxdata/influxdb/v2/v1/tsdb/index/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
 )
 

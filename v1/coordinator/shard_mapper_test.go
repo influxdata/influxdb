@@ -10,10 +10,10 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/dbrp/mocks"
 	"github.com/influxdata/influxdb/v2/influxql/query"
+	"github.com/influxdata/influxdb/v2/internal"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
-	"github.com/influxdata/influxdb/v2/v1/internal"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
-	"github.com/influxdata/influxdb/v2/v1/tsdb"
 	"github.com/influxdata/influxql"
 )
 

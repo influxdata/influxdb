@@ -10,7 +10,7 @@ import (
 	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/prom"
-	"github.com/influxdata/influxdb/v2/v1/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
