@@ -562,7 +562,7 @@ export const updateStackName = async (stackID, name) => {
 
 export const fetchReadMe = async (directory: string) => {
   const resp = await fetch(
-    `https://raw.githubusercontent.com/influxdata/community-templates/master/${directory}/README.md`
+    `https://raw.githubusercontent.com/influxdata/community-templates/master/${directory}/readme.md`
   )
 
   if (resp.status >= 300) {
