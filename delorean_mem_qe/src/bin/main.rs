@@ -509,10 +509,10 @@ fn time_group_by_multi_agg_count(store: &Store) {
 //
 fn time_group_by_multi_agg_sorted_count(store: &Store) {
     let strats = vec![
-        // GroupingStrategy::HashGroup,
-        // GroupingStrategy::HashGroupConcurrent,
+        GroupingStrategy::HashGroup,
+        GroupingStrategy::HashGroupConcurrent,
         GroupingStrategy::SortGroup,
-        // GroupingStrategy::SortGroupConcurrent,
+        GroupingStrategy::SortGroupConcurrent,
     ];
 
     for strat in &strats {
