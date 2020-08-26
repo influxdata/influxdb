@@ -4778,7 +4778,7 @@ func newParsedTemplate(t *testing.T, fn ReaderFn, encoding Encoding, opts ...Val
 	require.NoError(t, err)
 
 	for _, k := range template.Objects {
-		require.Contains(t, "influxdata.com/v2alpha", k.APIVersion)
+		require.Contains(t, k.APIVersion, "influxdata.com/v2alpha")
 	}
 
 	require.True(t, template.isParsed)
