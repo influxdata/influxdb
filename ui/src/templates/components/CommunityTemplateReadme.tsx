@@ -23,7 +23,7 @@ export class CommunityTemplateReadme extends PureComponent<Props> {
       })
 
       this.setState({
-        readMeData: '## We cant find the readme associated with this template',
+        readMeData: '## We can't find the readme associated with this template',
       })
     }
   }
