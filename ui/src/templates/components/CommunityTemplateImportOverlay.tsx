@@ -110,7 +110,8 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
       summary = await installTemplate(
         this.props.org.id,
         this.props.stagedTemplateUrl,
-        this.props.resourcesToSkip
+        this.props.resourcesToSkip,
+        this.props.stagedTemplateEnvReferences
       )
     } catch (err) {
       this.props.notify(communityTemplateInstallFailed(err.message))
@@ -143,8 +144,36 @@ const mstp = (state: AppState, props: RouterProps) => {
     props.match.params.orgID
   )
 
+  // convert the env references into a format pkger is happy with
+  const stagedTemplateEnvReferences = {}
+  for (const [refKey, refObject] of Object.entries(
+    state.resources.templates.stagedTemplateEnvReferences
+  )) {
+    switch (refObject.valueType) {
+      case 'string':
+      case 'time':
+      case 'duration': {
+        stagedTemplateEnvReferences[refKey] = refObject.value
+        continue
+      }
+      case 'number':
+      case 'float': {
+        stagedTemplateEnvReferences[refKey] = parseFloat(refObject.value as any)
+        continue
+      }
+      case 'integer': {
+        stagedTemplateEnvReferences[refKey] = parseInt(
+          refObject.value as any,
+          10
+        )
+        continue
+      }
+    }
+  }
+
   return {
     org,
+    stagedTemplateEnvReferences,
     flags: state.flags.original,
     resourceCount: getTotalResourceCount(
       state.resources.templates.stagedCommunityTemplate.summary
