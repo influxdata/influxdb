@@ -83,9 +83,9 @@
   contact: Query Team
   lifetime: temporary
 
-- name: Experimental Query Tracing
-  description: Turn on experimental query tracing for queries that are sampled
-  key: experimentalQueryTracing
+- name: Query Tracing
+  description: Turn on query tracing for queries that are sampled
+  key: queryTracing
   default: false
   contact: Query Team
   lifetime: permanent

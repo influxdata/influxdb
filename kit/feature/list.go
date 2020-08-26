@@ -142,18 +142,18 @@ func MemoryOptimizedSchemaMutation() BoolFlag {
 	return memoryOptimizedSchemaMutation
 }
 
-var experimentalQueryTracing = MakeBoolFlag(
-	"Experimental Query Tracing",
-	"experimentalQueryTracing",
+var queryTracing = MakeBoolFlag(
+	"Query Tracing",
+	"queryTracing",
 	"Query Team",
 	false,
 	Permanent,
 	false,
 )
 
-// ExperimentalQueryTracing - Turn on experimental query tracing for queries that are sampled
-func ExperimentalQueryTracing() BoolFlag {
-	return experimentalQueryTracing
+// QueryTracing - Turn on query tracing for queries that are sampled
+func QueryTracing() BoolFlag {
+	return queryTracing
 }
 
 var simpleTaskOptionsExtraction = MakeBoolFlag(
@@ -293,7 +293,7 @@ var all = []Flag{
 	newLabels,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
-	experimentalQueryTracing,
+	queryTracing,
 	simpleTaskOptionsExtraction,
 	mergeFiltersRule,
 	bandPlotType,
@@ -316,7 +316,7 @@ var byKey = map[string]Flag{
 	"newLabels":                     newLabels,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
-	"experimentalQueryTracing":      experimentalQueryTracing,
+	"queryTracing":                  queryTracing,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"mergeFiltersRule":              mergeFiltersRule,
 	"bandPlotType":                  bandPlotType,

@@ -1293,7 +1293,7 @@ func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
 	validateUnusedMemory(t, reg, config)
 }
 
-func TestController_ExperimentalQueryTracing(t *testing.T) {
+func TestController_QueryTracing(t *testing.T) {
 	// temporarily install a mock tracer to see which spans are created.
 	oldTracer := opentracing.GlobalTracer()
 	defer opentracing.SetGlobalTracer(oldTracer)
@@ -1310,7 +1310,7 @@ func TestController_ExperimentalQueryTracing(t *testing.T) {
 	defer shutdown(t, ctrl)
 
 	flagger := pmock.NewFlagger(map[feature.Flag]interface{}{
-		feature.ExperimentalQueryTracing(): true,
+		feature.QueryTracing(): true,
 	})
 	plainCtx := context.Background()
 	withFlagger, err := feature.Annotate(plainCtx, flagger)

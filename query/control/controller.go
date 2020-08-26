@@ -210,7 +210,7 @@ func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query,
 		ctx = dep.Inject(ctx)
 	}
 	// Add per-transformation spans if the feature flag is set.
-	if feature.ExperimentalQueryTracing().Enabled(ctx) {
+	if feature.QueryTracing().Enabled(ctx) {
 		ctx = flux.WithExperimentalTracingEnabled(ctx)
 	}
 	q, err := c.query(ctx, req.Compiler)
