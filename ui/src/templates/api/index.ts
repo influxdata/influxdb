@@ -447,7 +447,7 @@ export const fetchReadMe = async (directory: string) => {
   )
 
   if (resp.status >= 300) {
-    throw new Error('Network response was not ok' + resp.statusText)
+    throw new Error(`Network response was not ok:' ${resp.statusText}`)
   }
 
   return resp.text()

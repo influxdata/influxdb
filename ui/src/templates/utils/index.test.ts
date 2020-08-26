@@ -61,11 +61,11 @@ describe('the Community Template url utilities', () => {
 
   it('returns the template name and extension from the official community templates github repo', () => {
     const {name, extension, directory} = getTemplateNameFromUrl(
-      'https://github.com/influxdata/community-templates/blob/master/csgo/csgo.yml'
+      'https://github.com/influxdata/community-templates/blob/master/hooray/csgo.yml'
     )
     expect(name).toBe('csgo')
     expect(extension).toBe('yml')
-    expect(directory).toBe('csgo')
+    expect(directory).toBe('hooray')
   })
 
   it('returns the template name and extension from the official community templates github repo when the extension is not yml', () => {
@@ -88,10 +88,10 @@ describe('the Community Template url utilities', () => {
 
   it('handles non secure arbitrary urls', () => {
     const {name, extension, directory} = getTemplateNameFromUrl(
-      'http://www.example.com/blog/cats/catstuff/memes/csgo/downsampling.yml'
+      'http://www.example.com/blog/cats/catstuff/memes/-------/downsampling.yml'
     )
     expect(name).toBe('downsampling')
     expect(extension).toBe('yml')
-    expect(directory).toBe('csgo')
+    expect(directory).toBe('-------')
   })
 })

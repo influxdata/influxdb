@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
 import {fetchReadMe} from 'src/templates/api'
+import {reportError} from 'src/shared/utils/errors'
 
 interface Props {
   directory: string
@@ -17,10 +18,10 @@ export class CommunityTemplateReadme extends PureComponent<Props> {
       const response = await fetchReadMe(this.props.directory)
       this.setState({readMeData: response})
     } catch (error) {
-      console.error(
-        'There has been a problem with your fetch operation:',
-        error
-      )
+      reportError(error, {
+        name: 'The community template fetch github readme failed',
+      })
+
       this.setState({
         readMeData: '## We cant find the readme associated with this template',
       })
