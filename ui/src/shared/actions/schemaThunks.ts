@@ -11,6 +11,7 @@ import {AppState, GetState, RemoteDataState, Schema} from 'src/types'
 // Utils
 import {getOrg} from 'src/organizations/selectors'
 import {getSchemaByBucketName} from 'src/shared/selectors/schemaSelectors'
+import {parseResponse} from 'src/shared/parsing/flux/schemaParser'
 
 // Actions
 import {
