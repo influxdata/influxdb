@@ -126,7 +126,7 @@ export const Submit: FC = () => {
                 })
             }
 
-            if (aggregateFunction.flux && aggregateFunction.name) {
+            if (aggregateFunction?.name) {
               text += `  |> aggregateWindow(every: v.windowPeriod, fn: ${aggregateFunction.name}, createEmpty: false)
               |> yield(name: "${aggregateFunction.name}")`
             }
