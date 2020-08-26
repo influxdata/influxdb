@@ -14,8 +14,8 @@ describe('Flows', () => {
     })
   })
 
-  // TODO: write e2e tests when this is real
-  it('CRUD a flow from the index page', () => {
+  // TODO: unskip when no longer blocked by feature flag
+  it.skip('CRUD a flow from the index page', () => {
     cy.getByTestID('create-flow--button')
       .first()
       .click()
