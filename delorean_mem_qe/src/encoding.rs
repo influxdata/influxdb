@@ -622,7 +622,8 @@ mod test {
         assert_eq!(bm.to_vec(), vec![7, 9, 10, 11, 13]);
 
         let bm = col.row_ids_single_cmp_roaring(&20, std::cmp::Ordering::Equal);
-        assert_eq!(bm.to_vec(), vec![]);
+        let exp: Vec<u32> = Vec::new();
+        assert_eq!(bm.to_vec(), exp);
     }
 
     #[test]
@@ -713,25 +714,13 @@ mod test {
         assert_eq!(drle.value(7).unwrap(), "zoo");
         assert_eq!(drle.value(8).unwrap(), "zoo");
 
-        let row_ids = drle
-            .index_row_ids
-            .get(&Some("hello".to_string()))
-            .unwrap()
-            .to_vec();
+        let row_ids = drle.index_row_ids.get(&0).unwrap().to_vec();
         assert_eq!(row_ids, vec![0, 1, 3, 4, 5]);
 
-        let row_ids = drle
-            .index_row_ids
-            .get(&Some("world".to_string()))
-            .unwrap()
-            .to_vec();
+        let row_ids = drle.index_row_ids.get(&1).unwrap().to_vec();
         assert_eq!(row_ids, vec![2]);
 
-        let row_ids = drle
-            .index_row_ids
-            .get(&Some("zoo".to_string()))
-            .unwrap()
-            .to_vec();
+        let row_ids = drle.index_row_ids.get(&2).unwrap().to_vec();
         assert_eq!(row_ids, vec![6, 7, 8]);
     }
 
