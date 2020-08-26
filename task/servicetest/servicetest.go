@@ -280,8 +280,6 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		LatestScheduled: tsk.LatestScheduled,
 		OrganizationID:  cr.OrgID,
 		Organization:    cr.Org,
-		AuthorizationID: tsk.AuthorizationID,
-		Authorization:   tsk.Authorization,
 		OwnerID:         tsk.OwnerID,
 		Name:            "task #0",
 		Cron:            "* * * * *",
@@ -290,10 +288,6 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		Flux:            fmt.Sprintf(scriptFmt, 0),
 		Type:            influxdb.TaskSystemType,
 	}
-
-	// tasks sets user id on authorization to that
-	// of the tasks owner
-	want.Authorization.UserID = tsk.OwnerID
 
 	for fn, f := range found {
 		if diff := cmp.Diff(f, want); diff != "" {

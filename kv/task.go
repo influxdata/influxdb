@@ -88,52 +88,15 @@ func kvToInfluxTask(k *kvTask) *influxdb.Task {
 func (s *Service) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 	var t *influxdb.Task
 	err := s.kv.View(ctx, func(tx Tx) error {
-		if influxdb.FindTaskAuthRequired(ctx) {
-			task, err := s.findTaskByIDWithAuth(ctx, tx, id)
-			if err != nil {
-				return err
-			}
-			t = task
-		} else {
-			task, err := s.findTaskByID(ctx, tx, id)
-			if err != nil {
-				return err
-			}
-			t = task
+		task, err := s.findTaskByID(ctx, tx, id)
+		if err != nil {
+			return err
 		}
+		t = task
 		return nil
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	return t, nil
-}
-
-// findTaskByIDWithAuth is a task lookup that populates the auth
-// This is to be used when we want to satisfy the FindTaskByID method
-// But is more taxing on the system then if we want to find the task alone.
-func (s *Service) findTaskByIDWithAuth(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Task, error) {
-	t, err := s.findTaskByID(ctx, tx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	t.Authorization = &influxdb.Authorization{
-		Status: influxdb.Active,
-		ID:     influxdb.ID(1),
-		OrgID:  t.OrganizationID,
-		UserID: t.OwnerID,
-	}
-
-	if t.OwnerID.Valid() {
-		ctx = icontext.SetAuthorizer(ctx, t.Authorization)
-		// populate task Auth
-		ps, err := s.maxPermissions(ctx, tx, t.OwnerID)
-		if err != nil {
-			return nil, err
-		}
-		t.Authorization.Permissions = ps
 	}
 
 	return t, nil
@@ -297,11 +260,6 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	ps, err := s.maxPermissions(ctx, tx, *filter.User)
-	if err != nil {
-		return nil, 0, err
-	}
-
 	matchFn := newTaskMatchFn(filter, nil)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
@@ -312,14 +270,6 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 
 		t := kvToInfluxTask(kvTask)
 		if matchFn == nil || matchFn(t) {
-			t.Authorization = &influxdb.Authorization{
-				Status:      influxdb.Active,
-				UserID:      t.OwnerID,
-				ID:          influxdb.ID(1),
-				OrgID:       t.OrganizationID,
-				Permissions: ps,
-			}
-
 			ts = append(ts, t)
 
 			if len(ts) >= filter.Limit {
@@ -399,7 +349,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 			return nil, 0, influxdb.ErrInvalidTaskID
 		}
 
-		t, err := s.findTaskByIDWithAuth(ctx, tx, *id)
+		t, err := s.findTaskByID(ctx, tx, *id)
 		if err != nil {
 			if err == influxdb.ErrTaskNotFound {
 				// we might have some crufty index's
@@ -654,16 +604,6 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	err = indexBucket.Put(orgKey, taskKey)
 	if err != nil {
 		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
-	}
-
-	// populate permissions so the task can be used immediately
-	// if we cant populate here we shouldn't error.
-	ps, _ := s.maxPermissions(ctx, tx, task.OwnerID)
-	task.Authorization = &influxdb.Authorization{
-		Status:      influxdb.Active,
-		ID:          influxdb.ID(1),
-		OrgID:       task.OrganizationID,
-		Permissions: ps,
 	}
 
 	uid, _ := icontext.GetUserID(ctx)
@@ -1710,43 +1650,4 @@ func ExtractTaskOptions(ctx context.Context, lang influxdb.FluxLanguageService, 
 		return options.FromScriptAST(lang, flux)
 	}
 	return options.FromScript(lang, flux)
-}
-
-func (s *Service) maxPermissions(ctx context.Context, tx Tx, userID influxdb.ID) ([]influxdb.Permission, error) {
-	// TODO(desa): these values should be cached so it's not so expensive to lookup each time.
-	f := influxdb.UserResourceMappingFilter{UserID: userID}
-	mappings, err := s.findUserResourceMappings(ctx, tx, f)
-	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	ps := make([]influxdb.Permission, 0, len(mappings))
-	for _, m := range mappings {
-		p, err := m.ToPermissions()
-		if err != nil {
-			return nil, &influxdb.Error{
-				Err: err,
-			}
-		}
-
-		ps = append(ps, p...)
-	}
-	ps = append(ps, influxdb.MePermissions(userID)...)
-
-	if !s.disableAuthorizationsForMaxPermissions(ctx) {
-		// TODO(desa): this is super expensive, we should keep a list of a users maximal privileges somewhere
-		// we did this so that the oper token would be used in a users permissions.
-		af := influxdb.AuthorizationFilter{UserID: &userID}
-		as, err := s.findAuthorizations(ctx, tx, af)
-		if err != nil {
-			return nil, err
-		}
-		for _, a := range as {
-			ps = append(ps, a.Permissions...)
-		}
-	}
-
-	return ps, nil
 }

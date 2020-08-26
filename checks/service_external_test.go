@@ -158,7 +158,6 @@ var taskCmpOptions = cmp.Options{
 	// skip comparing permissions
 	cmpopts.IgnoreFields(
 		influxdb.Task{},
-		"Authorization",
 		"LatestCompleted",
 		"LatestScheduled",
 		"CreatedAt",

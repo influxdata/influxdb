@@ -165,7 +165,6 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 			return err
 		}
 		task.OwnerID = influxdb.ID(1)
-		task.AuthorizationID = influxdb.ID(132) // bad id or an id that doesnt match any auth
 		tbyte, err := json.Marshal(task)
 		if err != nil {
 			return err

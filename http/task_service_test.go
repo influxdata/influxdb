@@ -86,21 +86,19 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					FindTasksFn: func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 						tasks := []*influxdb.Task{
 							{
-								ID:              1,
-								Name:            "task1",
-								Description:     "A little Task",
-								OrganizationID:  1,
-								OwnerID:         1,
-								Organization:    "test",
-								AuthorizationID: 0x100,
+								ID:             1,
+								Name:           "task1",
+								Description:    "A little Task",
+								OrganizationID: 1,
+								OwnerID:        1,
+								Organization:   "test",
 							},
 							{
-								ID:              2,
-								Name:            "task2",
-								OrganizationID:  2,
-								OwnerID:         2,
-								Organization:    "test",
-								AuthorizationID: 0x200,
+								ID:             2,
+								Name:           "task2",
+								OrganizationID: 2,
+								OwnerID:        2,
+								Organization:   "test",
 							},
 						}
 						return tasks, len(tasks), nil
@@ -195,12 +193,11 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					FindTasksFn: func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 						tasks := []*influxdb.Task{
 							{
-								ID:              2,
-								Name:            "task2",
-								OrganizationID:  2,
-								OwnerID:         2,
-								Organization:    "test",
-								AuthorizationID: 0x200,
+								ID:             2,
+								Name:           "task2",
+								OrganizationID: 2,
+								OwnerID:        2,
+								Organization:   "test",
 							},
 						}
 						return tasks, len(tasks), nil
@@ -269,12 +266,11 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					FindTasksFn: func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 						tasks := []*influxdb.Task{
 							{
-								ID:              2,
-								Name:            "task2",
-								OrganizationID:  2,
-								OwnerID:         2,
-								Organization:    "test2",
-								AuthorizationID: 0x200,
+								ID:             2,
+								Name:           "task2",
+								OrganizationID: 2,
+								OwnerID:        2,
+								Organization:   "test2",
 							},
 						}
 						return tasks, len(tasks), nil
@@ -342,20 +338,18 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					FindTasksFn: func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 						tasks := []*influxdb.Task{
 							{
-								ID:              1,
-								Name:            "task1",
-								OrganizationID:  1,
-								OwnerID:         1,
-								Organization:    "test2",
-								AuthorizationID: 0x100,
+								ID:             1,
+								Name:           "task1",
+								OrganizationID: 1,
+								OwnerID:        1,
+								Organization:   "test2",
 							},
 							{
-								ID:              2,
-								Name:            "task2",
-								OrganizationID:  2,
-								OwnerID:         2,
-								Organization:    "test2",
-								AuthorizationID: 0x200,
+								ID:             2,
+								Name:           "task2",
+								OrganizationID: 2,
+								OwnerID:        2,
+								Organization:   "test2",
 							},
 						}
 						return tasks, len(tasks), nil
@@ -1245,7 +1239,7 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 				t.Fatalf("expected task to be created with org ID %s, got %s", o.ID, tc.OrganizationID)
 			}
 
-			return &influxdb.Task{ID: 9, OrganizationID: o.ID, OwnerID: o.ID, AuthorizationID: authz.ID, Name: "x", Flux: tc.Flux}, nil
+			return &influxdb.Task{ID: 9, OrganizationID: o.ID, OwnerID: o.ID, Name: "x", Flux: tc.Flux}, nil
 		},
 	}
 
@@ -1388,9 +1382,8 @@ func TestTaskHandler_Sessions(t *testing.T) {
 				}
 
 				return &influxdb.Task{
-					ID:              taskID,
-					OrganizationID:  o.ID,
-					AuthorizationID: taskAuth.ID,
+					ID:             taskID,
+					OrganizationID: o.ID,
 				}, nil
 			},
 		}
@@ -1482,9 +1475,8 @@ func TestTaskHandler_Sessions(t *testing.T) {
 				}
 
 				return &influxdb.Task{
-					ID:              taskID,
-					OrganizationID:  o.ID,
-					AuthorizationID: taskAuth.ID,
+					ID:             taskID,
+					OrganizationID: o.ID,
 				}, nil
 			},
 		}
@@ -1578,9 +1570,8 @@ func TestTaskHandler_Sessions(t *testing.T) {
 				}
 
 				return &influxdb.Task{
-					ID:              taskID,
-					OrganizationID:  o.ID,
-					AuthorizationID: taskAuth.ID,
+					ID:             taskID,
+					OrganizationID: o.ID,
 				}, nil
 			},
 		}
@@ -1673,9 +1664,8 @@ func TestTaskHandler_Sessions(t *testing.T) {
 				}
 
 				return &influxdb.Task{
-					ID:              taskID,
-					OrganizationID:  o.ID,
-					AuthorizationID: taskAuth.ID,
+					ID:             taskID,
+					OrganizationID: o.ID,
 				}, nil
 			},
 		}
