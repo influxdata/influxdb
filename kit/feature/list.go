@@ -254,20 +254,6 @@ func EnforceOrganizationDashboardLimits() BoolFlag {
 	return enforceOrgDashboardLimits
 }
 
-var injectLatestSuccessTime = MakeBoolFlag(
-	"Inject Latest Success Time",
-	"injectLatestSuccessTime",
-	"Compute Team",
-	false,
-	Temporary,
-	false,
-)
-
-// InjectLatestSuccessTime - Inject the latest successful task run timestamp into a Task query extern when executing.
-func InjectLatestSuccessTime() BoolFlag {
-	return injectLatestSuccessTime
-}
-
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -287,7 +273,6 @@ var all = []Flag{
 	pushDownGroupAggregateMinMax,
 	orgOnlyMemberList,
 	enforceOrgDashboardLimits,
-	injectLatestSuccessTime,
 }
 
 var byKey = map[string]Flag{
@@ -309,5 +294,4 @@ var byKey = map[string]Flag{
 	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
 	"orgOnlyMemberList":             orgOnlyMemberList,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
-	"injectLatestSuccessTime":       injectLatestSuccessTime,
 }

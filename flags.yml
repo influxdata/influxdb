@@ -138,9 +138,3 @@
   key: enforceOrgDashboardLimits
   default: false
   contact: Compute Team
-
-- name: Inject Latest Success Time
-  description: Inject the latest successful task run timestamp into a Task query extern when executing.
-  key: injectLatestSuccessTime
-  default: false
-  contact: Compute Team
