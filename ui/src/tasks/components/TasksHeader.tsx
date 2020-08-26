@@ -11,7 +11,7 @@ import {
   FlexBox,
   FlexDirection,
 } from '@influxdata/clockface'
-import AddResourceButton from 'src/shared/components/AddResourceButton'
+import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
@@ -27,7 +27,9 @@ interface Props {
   onCreateTask: () => void
   setShowInactive: () => void
   showInactive: boolean
+  onImportTask: () => void
   limitStatus: LimitStatus
+  onImportFromTemplate: () => void
   searchTerm: string
   setSearchTerm: typeof setSearchTermAction
   sortKey: TaskSortKey
@@ -46,6 +48,8 @@ export default class TasksHeader extends PureComponent<Props> {
       onCreateTask,
       setShowInactive,
       showInactive,
+      onImportTask,
+      onImportFromTemplate,
       setSearchTerm,
       searchTerm,
       sortKey,
@@ -88,8 +92,11 @@ export default class TasksHeader extends PureComponent<Props> {
                 onChange={setShowInactive}
               />
             </FlexBox>
-            <AddResourceButton
+            <AddResourceDropdown
+              canImportFromTemplate
               onSelectNew={onCreateTask}
+              onSelectImport={onImportTask}
+              onSelectTemplate={onImportFromTemplate}
               resourceName="Task"
               limitStatus={limitStatus}
             />

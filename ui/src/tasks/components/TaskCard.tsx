@@ -106,6 +106,7 @@ export class TaskCard extends PureComponent<
     return (
       <Context>
         <Context.Menu icon={IconFont.CogThick}>
+          <Context.Item label="Export" action={this.handleExport} />
           <Context.Item label="View Task Runs" action={this.handleViewRuns} />
           <Context.Item label="Run Task" action={onRunTask} value={task.id} />
         </Context.Menu>
@@ -165,6 +166,15 @@ export class TaskCard extends PureComponent<
       task: {id},
     } = this.props
     onUpdate(name, id)
+  }
+
+  private handleExport = () => {
+    const {
+      history,
+      task,
+      location: {pathname},
+    } = this.props
+    history.push(`${pathname}/${task.id}/export`)
   }
 
   private get labels(): JSX.Element {

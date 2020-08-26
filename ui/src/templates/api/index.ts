@@ -4,6 +4,7 @@ import {normalize} from 'normalizr'
 
 // Schemas
 import {arrayOfVariables, variableSchema} from 'src/schemas/variables'
+import {taskSchema} from 'src/schemas/tasks'
 
 // Utils
 import {
@@ -20,8 +21,12 @@ import {addLabelDefaults} from 'src/labels/utils'
 // API
 import {
   getDashboard as apiGetDashboard,
+  getTask as apiGetTask,
+  postTask as apiPostTask,
+  postTasksLabel as apiPostTasksLabel,
   getLabels as apiGetLabels,
   postLabel as apiPostLabel,
+  getVariable as apiGetVariable,
   getVariables as apiGetVariables,
   postVariable as apiPostVariable,
   postVariablesLabel as apiPostVariablesLabel,
@@ -41,6 +46,7 @@ import {addDashboardDefaults} from 'src/schemas/dashboards'
 
 // Types
 import {
+  TaskEntities,
   DashboardTemplate,
   Dashboard,
   TemplateType,
@@ -49,7 +55,9 @@ import {
   CellIncluded,
   LabelIncluded,
   ViewIncluded,
+  TaskTemplate,
   TemplateBase,
+  Task,
   VariableTemplate,
   Variable,
   VariableEntities,
@@ -348,6 +356,112 @@ const createVariablesFromTemplate = async (
   })
 
   await Promise.all(addLabelsToVars)
+}
+
+export const createTaskFromTemplate = async (
+  template: TaskTemplate,
+  orgID: string
+): Promise<Task> => {
+  const {content} = template
+  try {
+    if (
+      content.data.type !== TemplateType.Task ||
+      template.meta.version !== '1'
+    ) {
+      throw new Error('Cannot create task from this template')
+    }
+
+    const flux = content.data.attributes.flux
+
+    const postResp = await apiPostTask({data: {orgID, flux}})
+
+    if (postResp.status !== 201) {
+      throw new Error(postResp.data.message)
+    }
+
+    const {entities, result} = normalize<Task, TaskEntities, string>(
+      postResp.data,
+      taskSchema
+    )
+
+    const postedTask = entities.tasks[result]
+
+    // associate imported label.id with created label
+    const labelMap = await createLabelsFromTemplate(template, orgID)
+
+    await addTaskLabelsFromTemplate(template, labelMap, postedTask)
+
+    const resp = await apiGetTask({taskID: postedTask.id})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    return postedTask
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const addTaskLabelsFromTemplate = async (
+  template: TaskTemplate,
+  labelMap: LabelMap,
+  task: Task
+) => {
+  try {
+    const relationships = getLabelRelationships(template.content.data)
+    const labelIDs = relationships.map(l => labelMap[l.id] || '')
+    const pending = labelIDs.map(labelID =>
+      apiPostTasksLabel({taskID: task.id, data: {labelID}})
+    )
+    const resolved = await Promise.all(pending)
+    if (resolved.length > 0 && resolved.some(r => r.status !== 201)) {
+      throw new Error('An error occurred adding task labels from the templates')
+    }
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+export const createVariableFromTemplate = async (
+  template: VariableTemplate,
+  orgID: string
+) => {
+  const {content} = template
+  try {
+    if (
+      content.data.type !== TemplateType.Variable ||
+      template.meta.version !== '1'
+    ) {
+      throw new Error('Cannot create variable from this template')
+    }
+
+    const resp = await apiPostVariable({
+      data: {
+        ...content.data.attributes,
+        orgID,
+      },
+    })
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    // associate imported label.id with created label
+    const labelsMap = await createLabelsFromTemplate(template, orgID)
+
+    await createVariablesFromTemplate(template, labelsMap, orgID)
+
+    const variable = await apiGetVariable({variableID: resp.data.id})
+
+    if (variable.status !== 200) {
+      throw new Error(variable.data.message)
+    }
+
+    return variable.data
+  } catch (error) {
+    console.error(error)
+  }
 }
 
 const applyTemplates = async params => {
