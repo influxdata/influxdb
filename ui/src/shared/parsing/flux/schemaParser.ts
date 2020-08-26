@@ -48,7 +48,7 @@ const formatSchemaByGroupKey = (groupKey, schema: Schema) => {
   if (!measurement) {
     return {}
   }
-  let field = groupKey['_field']
+  const field = groupKey['_field']
   const tags = Object.entries(groupKey)
     .filter(([k]) => {
       return !(
@@ -75,12 +75,11 @@ const formatSchemaByGroupKey = (groupKey, schema: Schema) => {
     if (field && !fields.includes(field)) {
       fields = fields.concat(field)
     }
-    let existingTags = schema[measurement].tags || {}
+    const existingTags = schema[measurement].tags || {}
     Object.entries(existingTags).forEach(([k, values]) => {
-      const existingTagValues = values as string[]
       if (tags[k]) {
         let tagValues = tags[k]
-        existingTagValues.forEach(value => {
+        values.forEach(value => {
           if (!tagValues.includes(value)) {
             tagValues = tagValues.concat(value)
           }
