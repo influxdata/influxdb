@@ -205,10 +205,9 @@ jobs:
       - attach_workspace:
           at: ~/project
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
-      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/grace/grace-results quay.io/influxdb/grace:latest
+      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -e TEST_RESULTS=~/project quay.io/influxdb/grace:latest
       - store_artifacts:
           path: ~/project
-          destination: grace-nightly-output
       - store_test_results:
           path: ~/project
   jstest:
