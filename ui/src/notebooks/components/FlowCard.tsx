@@ -6,9 +6,10 @@ import {ResourceCard} from '@influxdata/clockface'
 
 interface Props {
   id: string
+  name: string
 }
 
-const FlowCard: FC<Props> = ({id}) => {
+const FlowCard: FC<Props> = ({id, name}) => {
   const {orgID} = useParams()
   const history = useHistory()
 
@@ -18,7 +19,7 @@ const FlowCard: FC<Props> = ({id}) => {
 
   return (
     <ResourceCard key={`flow-card--${id}`}>
-      <ResourceCard.Name name={id} onClick={handleClick} />
+      <ResourceCard.Name name={name} onClick={handleClick} />
     </ResourceCard>
   )
 }

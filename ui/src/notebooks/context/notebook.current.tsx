@@ -12,6 +12,7 @@ const useNotebookCurrentState = createPersistedState('current-notebook')
 
 export interface NotebookContextType {
   id: string | null
+  name: string
   notebook: Notebook | null
   change: (id: string) => void
   add: (data: Partial<PipeData>, index?: number) => string
@@ -21,6 +22,7 @@ export interface NotebookContextType {
 
 export const DEFAULT_CONTEXT: NotebookContextType = {
   id: null,
+  name: 'Name this Flow',
   notebook: null,
   add: () => '',
   change: () => {},
@@ -114,6 +116,7 @@ export const NotebookProvider: FC = ({children}) => {
       <NotebookContext.Provider
         value={{
           id: currentID,
+          name,
           notebook: notebooks[currentID],
           add: addPipe,
           update: updateCurrent,

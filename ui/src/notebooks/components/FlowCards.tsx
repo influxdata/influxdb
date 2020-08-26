@@ -18,9 +18,9 @@ const FlowCards = () => {
         >
           <ResourceList>
             <ResourceList.Body emptyState={<FlowsIndexEmpty />}>
-              {Object.entries(notebooks).map(([id]) => (
-                <FlowCard key={id} id={id} />
-              ))}
+              {Object.entries(notebooks).map(([id, {name}]) => {
+                return <FlowCard key={id} id={id} name={name} />
+              })}
             </ResourceList.Body>
           </ResourceList>
         </Grid.Column>

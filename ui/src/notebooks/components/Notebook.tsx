@@ -3,18 +3,13 @@ import React, {FC, useContext, useEffect} from 'react'
 import {useParams} from 'react-router-dom'
 
 // Components
-import {Page} from '@influxdata/clockface'
-import NotebookHeader from 'src/notebooks/components/header'
-import PipeList from 'src/notebooks/components/PipeList'
-import MiniMap from 'src/notebooks/components/minimap/MiniMap'
-
-// Contexts
 import {ResultsProvider} from 'src/notebooks/context/results'
 import {RefProvider} from 'src/notebooks/context/refs'
 import CurrentNotebookProvider, {
   NotebookContext,
 } from 'src/notebooks/context/notebook.current'
 import {ScrollProvider} from 'src/notebooks/context/scroll'
+import FlowPage from 'src/notebooks/components/FlowPage'
 
 const NotebookFromRoute = () => {
   const {id} = useParams()
@@ -38,19 +33,7 @@ const NotebookPage: FC = () => {
       <ResultsProvider>
         <RefProvider>
           <ScrollProvider>
-            <Page titleTag="Flows">
-              <NotebookHeader />
-              <Page.Contents
-                fullWidth={true}
-                scrollable={false}
-                className="notebook-page"
-              >
-                <div className="notebook">
-                  <MiniMap />
-                  <PipeList />
-                </div>
-              </Page.Contents>
-            </Page>
+            <FlowPage />
           </ScrollProvider>
         </RefProvider>
       </ResultsProvider>
