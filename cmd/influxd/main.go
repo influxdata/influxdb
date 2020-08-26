@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/generate"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
@@ -42,11 +41,6 @@ func main() {
 			},
 		},
 	)
-
-	// TODO: this should be removed in the future: https://github.com/influxdata/influxdb/issues/16220
-	if os.Getenv("QUERY_TRACING") == "1" {
-		flux.EnableExperimentalTracing()
-	}
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
