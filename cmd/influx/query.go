@@ -23,6 +23,7 @@ import (
 var queryFlags struct {
 	org  organization
 	file string
+	raw  bool
 }
 
 func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
@@ -34,6 +35,7 @@ func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	f.registerFlags(cmd)
 	queryFlags.org.register(cmd, true)
 	cmd.Flags().StringVarP(&queryFlags.file, "file", "f", "", "Path to Flux query file")
+	cmd.Flags().BoolVarP(&queryFlags.raw, "raw", "r", false, "Display raw query results")
 
 	return cmd
 }
@@ -123,6 +125,11 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if queryFlags.raw {
+		io.Copy(os.Stdout, resp.Body)
+		return nil
+	}
+
 	dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
 	results, err := dec.Decode(resp.Body)
 	if err != nil {
@@ -141,6 +148,8 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
+	// It is safe and appropriate to call Release multiple times and must be
+	// called before checking the error on the next line.
 	results.Release()
 	return results.Err()
 }
