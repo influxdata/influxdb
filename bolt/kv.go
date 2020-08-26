@@ -304,6 +304,7 @@ type Cursor struct {
 
 	config kv.CursorConfig
 	closed bool
+	seen   int
 }
 
 // Close sets the closed to closed
@@ -351,12 +352,16 @@ func (c *Cursor) Last() ([]byte, []byte) {
 
 // Next retrieves the next key in the bucket.
 func (c *Cursor) Next() (k []byte, v []byte) {
-	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
+	if c.closed ||
+		c.atLimit() ||
+		(c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
+
 	// get and unset previously seeked values if they exist
 	k, v, c.key, c.value = c.key, c.value, nil, nil
 	if len(k) > 0 || len(v) > 0 {
+		c.seen++
 		return
 	}
 
@@ -369,18 +374,24 @@ func (c *Cursor) Next() (k []byte, v []byte) {
 	if (len(k) == 0 && len(v) == 0) || c.missingPrefix(k) {
 		return nil, nil
 	}
+
+	c.seen++
+
 	return k, v
 }
 
 // Prev retrieves the previous key in the bucket.
 func (c *Cursor) Prev() (k []byte, v []byte) {
-	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
+	if c.closed ||
+		c.atLimit() ||
+		(c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
 
 	// get and unset previously seeked values if they exist
 	k, v, c.key, c.value = c.key, c.value, nil, nil
 	if len(k) > 0 && len(v) > 0 {
+		c.seen++
 		return
 	}
 
@@ -393,11 +404,18 @@ func (c *Cursor) Prev() (k []byte, v []byte) {
 	if (len(k) == 0 && len(v) == 0) || c.missingPrefix(k) {
 		return nil, nil
 	}
+
+	c.seen++
+
 	return k, v
 }
 
 func (c *Cursor) missingPrefix(key []byte) bool {
 	return c.config.Prefix != nil && !bytes.HasPrefix(key, c.config.Prefix)
+}
+
+func (c *Cursor) atLimit() bool {
+	return c.config.Limit != nil && c.seen >= *c.config.Limit
 }
 
 // Err always returns nil as nothing can go wrong™ during iteration
