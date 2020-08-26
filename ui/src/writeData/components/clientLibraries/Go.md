@@ -8,7 +8,7 @@ package main
 import (
   "context"
   "fmt"
-  "github.com/influxdata/influxdb-client-go"
+  "github.com/influxdata/influxdb-client-go/v2"
   "time"
 )
 
@@ -30,25 +30,24 @@ Option 1: Use InfluxDB Line Protocol to write data
 
 ```
 // get non-blocking write client
-writeApi := client.WriteApi(org, bucket)
+writeAPI := client.WriteAPI(org, bucket)
 
 // write line protocol
-writeApi.WriteRecord(fmt.Sprintf("stat,unit=temperature avg=%f,max=%f", 23.5, 45.0))
-writeApi.WriteRecord(fmt.Sprintf("stat,unit=temperature avg=%f,max=%f", 22.5, 45.0))
+writeAPI.WriteRecord(fmt.Sprintf("stat,unit=temperature avg=%f,max=%f", 23.5, 45.0))
+writeAPI.WriteRecord(fmt.Sprintf("stat,unit=temperature avg=%f,max=%f", 22.5, 45.0))
 // Flush writes
-writeApi.Flush()
+writeAPI.Flush()
 ```
 
 Option 2: Use a Data Point to write data
 
 ```
-// create point using full params constructor
 p := influxdb2.NewPoint("stat",
   map[string]string{"unit": "temperature"},
   map[string]interface{}{"avg": 24.5, "max": 45},
   time.Now())
 // write point asynchronously
-writeApi.WritePoint(p)
+writeAPI.WritePoint(p)
 // create point using fluent style
 p = influxdb2.NewPointWithMeasurement("stat").
   AddTag("unit", "temperature").
@@ -56,32 +55,32 @@ p = influxdb2.NewPointWithMeasurement("stat").
   AddField("max", 45).
   SetTime(time.Now())
 // write point asynchronously
-writeApi.WritePoint(p)
+writeAPI.WritePoint(p)
 // Flush writes
-writeApi.Flush()
+writeAPI.Flush()
 ```
 
 ##### Execute a Flux query
 
 ```
-query := fmt.Sprintf("from(bucket:\\"%v\\")|> range(start: -1h) |> filter(fn: (r) => r._measurement == \\"stat\\")", bucket)
+query := fmt.Sprintf("from(bucket:\"%v\")|> range(start: -1h) |> filter(fn: (r) => r._measurement == \"stat\")", bucket)
 // Get query client
-queryApi := client.QueryApi(org)
+queryAPI := client.QueryAPI(org)
 // get QueryTableResult
-result, err := queryApi.Query(context.Background(), query)
+result, err := queryAPI.Query(context.Background(), query)
 if err == nil {
   // Iterate over query response
   for result.Next() {
     // Notice when group key has changed
     if result.TableChanged() {
-      fmt.Printf("table: %s\\n", result.TableMetadata().String())
+      fmt.Printf("table: %s\n", result.TableMetadata().String())
     }
     // Access data
-    fmt.Printf("value: %v\\n", result.Record().Value())
+    fmt.Printf("value: %v\n", result.Record().Value())
   }
   // check for an error
   if result.Err() != nil {
-    fmt.Printf("query parsing error: %\\n", result.Err().Error())
+    fmt.Printf("query parsing error: %\n", result.Err().Error())
   }
 } else {
   panic(err)
