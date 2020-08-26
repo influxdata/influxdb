@@ -10,7 +10,7 @@ const THREADS: usize = 16;
 #[derive(Debug)]
 pub struct Schema {
     _ref: SchemaRef,
-    col_sort_order: Vec<usize>,
+    col_sort_order: Vec<String>,
 }
 
 impl Schema {
@@ -21,7 +21,7 @@ impl Schema {
         }
     }
 
-    pub fn with_sort_order(schema: SchemaRef, sort_order: Vec<usize>) -> Self {
+    pub fn with_sort_order(schema: SchemaRef, sort_order: Vec<String>) -> Self {
         let set = sort_order.iter().collect::<BTreeSet<_>>();
         assert_eq!(set.len(), sort_order.len());
         assert!(sort_order.len() <= schema.fields().len());
@@ -32,7 +32,7 @@ impl Schema {
         }
     }
 
-    pub fn sort_order(&self) -> &[usize] {
+    pub fn sort_order(&self) -> &[String] {
         self.col_sort_order.as_slice()
     }
 
@@ -65,30 +65,6 @@ impl Segment {
         }
     }
 
-    pub fn num_rows(&self) -> usize {
-        self.meta.rows
-    }
-
-    pub fn column_names(&self) -> &[String] {
-        &self.meta.column_names
-    }
-
-    /// column returns the column with name
-    pub fn column(&self, name: &str) -> Option<&column::Column> {
-        if let Some(id) = &self.meta.column_names.iter().position(|c| c == name) {
-            return self.columns.get(*id);
-        }
-        None
-    }
-
-    pub fn time_range(&self) -> (i64, i64) {
-        self.meta.time_range
-    }
-
-    pub fn schema(&self) -> SchemaRef {
-        self.meta.schema()
-    }
-
     pub fn add_column(&mut self, name: &str, c: column::Column) {
         assert_eq!(
             self.meta.rows,
@@ -113,6 +89,30 @@ impl Segment {
         assert!(!self.meta.column_names.contains(&name.to_owned()));
         self.meta.column_names.push(name.to_owned());
         self.columns.push(c);
+    }
+
+    pub fn num_rows(&self) -> usize {
+        self.meta.rows
+    }
+
+    pub fn column_names(&self) -> &[String] {
+        &self.meta.column_names
+    }
+
+    /// column returns the column with name
+    pub fn column(&self, name: &str) -> Option<&column::Column> {
+        if let Some(id) = &self.meta.column_names.iter().position(|c| c == name) {
+            return self.columns.get(*id);
+        }
+        None
+    }
+
+    pub fn time_range(&self) -> (i64, i64) {
+        self.meta.time_range
+    }
+
+    pub fn schema(&self) -> SchemaRef {
+        self.meta.schema()
     }
 
     // TODO - iterator....
@@ -191,6 +191,34 @@ impl Segment {
             return Some(c.group_by_ids());
         }
         None
+    }
+
+    // Determines if a segment is already sorted by a group key. Only supports
+    // ascending ordering at the moment. If this function returns true then
+    // the columns being grouped on are naturally sorted and for basic
+    // aggregations should not need to be sorted or hashed.
+    fn group_key_sorted(&self, group_cols: &[String]) -> bool {
+        let sorted_by_cols = self.meta.schema.sort_order();
+        if group_cols.len() > sorted_by_cols.len() {
+            // grouping by more columns than there are defined sorts.
+            return false;
+        }
+
+        let mut covered = 0;
+        'outer: for sc in sorted_by_cols {
+            // find col in group key - doesn't matter what location in group key
+            for gc in group_cols {
+                if sc == gc {
+                    covered += 1;
+                    continue 'outer;
+                }
+            }
+
+            // didn't find this sorted column in group key. That's okay if there
+            // are no more columns being grouped
+            return covered == group_cols.len();
+        }
+        true
     }
 
     pub fn aggregate_by_group_with_hash(
@@ -419,8 +447,6 @@ impl Segment {
                 group_column_encoded_values.push(None);
             }
         }
-        let group_col_sort_order = &(0..group_columns.len()).collect::<Vec<_>>();
-        // println!("grouped columns {:?}", group_column_encoded_values);
 
         // TODO(edd): we could do this with an iterator I expect.
         //
@@ -460,9 +486,14 @@ impl Segment {
             }
         }
 
-        // now sort on the first grouping columns. Right now the order doesn't matter...
         let now = std::time::Instant::now();
-        super::sorter::sort(&mut all_columns, group_col_sort_order).unwrap();
+        if self.group_key_sorted(group_columns) {
+            log::debug!("segment already sorted by group key {:?}", group_columns);
+        } else {
+            // now sort on the first grouping columns. Right now the order doesn't matter...
+            let group_col_sort_order = &(0..group_columns.len()).collect::<Vec<_>>();
+            super::sorter::sort(&mut all_columns, group_col_sort_order).unwrap();
+        }
         log::debug!("time checking sort {:?}", now.elapsed());
 
         let mut group_itrs = all_columns
@@ -1191,4 +1222,45 @@ pub enum GroupingStrategy {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+
+    use arrow::datatypes::*;
+
+    #[test]
+    fn segment_group_key_sorted() {
+        let schema = super::Schema::with_sort_order(
+            arrow::datatypes::SchemaRef::new(Schema::new(vec![
+                Field::new("env", DataType::Utf8, false),
+                Field::new("role", DataType::Utf8, false),
+                Field::new("path", DataType::Utf8, false),
+                Field::new("time", DataType::Int64, false),
+            ])),
+            vec![
+                "env".to_string(),
+                "role".to_string(),
+                "path".to_string(),
+                "time".to_string(),
+            ],
+        );
+        let s = super::Segment::new(0, schema);
+
+        let cases = vec![
+            (vec!["env"], true),
+            (vec!["role"], false),
+            (vec!["foo"], false),
+            (vec![], true),
+            (vec!["env", "role"], true),
+            (vec!["env", "role", "foo"], false), // group key contains non-sorted col
+            (vec!["env", "role", "path", "time"], true),
+            (vec!["env", "role", "path", "time", "foo"], false), // group key contains non-sorted col
+            (vec!["env", "path", "role"], true), // order of columns in group key does not matter
+        ];
+
+        for (group_key, expected) in cases {
+            assert_eq!(
+                s.group_key_sorted(&group_key.iter().map(|x| x.to_string()).collect::<Vec<_>>()),
+                expected
+            );
+        }
+    }
+}

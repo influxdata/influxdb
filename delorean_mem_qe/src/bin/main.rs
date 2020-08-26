@@ -1,11 +1,19 @@
-use std::{fs, fs::File, path::PathBuf, rc::Rc, sync::Arc};
+use std::{
+    env,
+    ffi::OsStr,
+    fs,
+    fs::File,
+    path::{Path, PathBuf},
+    rc::Rc,
+    sync::Arc,
+};
 
 use arrow::record_batch::{RecordBatch, RecordBatchReader};
-use arrow::{array, array::Array, datatypes};
+use arrow::{array, array::Array, datatypes, ipc};
 
 use delorean_mem_qe::column;
 use delorean_mem_qe::column::Column;
-use delorean_mem_qe::segment::{Aggregate, GroupingStrategy, Segment};
+use delorean_mem_qe::segment::{Aggregate, GroupingStrategy, Schema, Segment};
 use delorean_mem_qe::{adapter::DeloreanQueryEngine, Store};
 use parquet::arrow::arrow_reader::ArrowReader;
 
@@ -31,34 +39,21 @@ fn format_size(sz: usize) -> String {
 
 fn main() {
     env_logger::init();
+    let args: Vec<String> = env::args().collect();
 
-    //let r = File::open(Path::new("/Users/edd/work/InfluxData/delorean_misc/in-memory-sort/env_role_path_time/http_api_requests_total.arrow")).unwrap();
-
-    //let path = PathBuf::from("/Users/alamb/Software/query_testing/cloud2_sli_dashboard_query.ingested/data/000000000089174-000000004/http_api_requests_total.parquet");
-
-    // smaller file to test with
-    let path = PathBuf::from("/Users/alamb/Software/query_testing/cloud2_sli_dashboard_query.ingested/data/000000000068644-000000002/http_api_requests_total.parquet");
-
-    let r = File::open(&path).unwrap();
-    let file_size = fs::metadata(&path).expect("read metadata").len();
-    println!(
-        "Reading {} ({}) bytes of parquet from {:?}....",
-        format_size(file_size as usize),
-        file_size,
-        path
-    );
-
-    //let r = File::open("/Users/alamb/Software/query_testing/cloud2_sli_dashboard_query.ingested/data/000000000095062-000000006/http_api_requests_total.parquet").unwrap();
-    let parquet_reader = parquet::file::reader::SerializedFileReader::new(r).unwrap();
-    let mut reader =
-        parquet::arrow::arrow_reader::ParquetFileArrowReader::new(Rc::new(parquet_reader));
-    let batch_size = 60000;
-    let record_batch_reader = reader.get_record_reader(batch_size).unwrap();
-
-    //let reader = ipc::reader::StreamReader::try_new(r).unwrap();
+    let path = &args[1];
+    let mut sort_order = vec![];
+    if let Some(arg) = args.get(2) {
+        sort_order = arg.split(',').collect::<Vec<_>>();
+        println!("sort is {:?}", sort_order);
+    };
 
     let mut store = Store::default();
-    build_store(record_batch_reader, &mut store).unwrap();
+    match Path::new(path).extension().and_then(OsStr::to_str) {
+        Some("arrow") => build_arrow_store(path, &mut store, sort_order).unwrap(),
+        Some("parquet") => build_parquet_store(path, &mut store, sort_order).unwrap(),
+        _ => panic!("unsupported file type"),
+    }
 
     println!(
         "total segments {:?} with total size {} ({})",
@@ -76,127 +71,49 @@ fn main() {
     time_group_single_with_pred(&store);
     time_group_by_multi_agg_count(&store);
     time_group_by_multi_agg_sorted_count(&store);
-
-    // time_column_min_time(&store);
-    // time_column_max_time(&store);
-    // time_column_first(&store);
-    // let segments = store.segments();
-    // let res = segments.last("host").unwrap();
-    // println!("{:?}", res);
-
-    // let segments = segments
-    //     .filter_by_time(1590036110000000, 1590044410000000)
-    //     .filter_by_predicate_eq("env", &column::Scalar::String("prod01-eu-central-1"));
-    // let res = segments.first(
-    //     "env",
-    //     &column::Scalar::String("prod01-eu-central-1"),
-    //     1590036110000000,
-    // );
-    // println!("{:?}", res);
-    // let segments = segments.filter_by_time(1590036110000000, 1590044410000000);
-    // println!("{:?}", segments.last("host"));
-    // println!("{:?}", segments.segments().last().unwrap().row(14899));
-
-    // time_row_by_last_ts(&store);
-
-    // let rows = segments
-    //     .segments()
-    //     .last()
-    //     .unwrap()
-    //     .filter_by_predicate_eq(
-    //         Some((1590040770000000, 1590040790000000)),
-    //         vec![
-    //             ("env", Some(&column::Scalar::String("prod01-us-west-2"))),
-    //             ("method", Some(&column::Scalar::String("GET"))),
-    //             (
-    //                 "host",
-    //                 Some(&column::Scalar::String("queryd-v1-75bc6f7886-57pxd")),
-    //             ),
-    //         ],
-    //     )
-    //     .unwrap();
-
-    // for row_id in rows.iter() {
-    //     println!(
-    //         "{:?} - {:?}",
-    //         row_id,
-    //         segments.segments().last().unwrap().row(row_id as usize)
-    //     );
-    // }
-    // println!("{:?}", rows.cardinality());
-
-    // time_row_by_preds(&store);
-
-    // let segments = store.segments();
-    // let columns = segments.read_filter_eq(
-    //     (1590036110000000, 1590040770000000),
-    //     &[("env", Some(&column::Scalar::String("prod01-eu-central-1")))],
-    //     vec![
-    //         "env".to_string(),
-    //         "method".to_string(),
-    //         "host".to_string(),
-    //         "counter".to_string(),
-    //         "time".to_string(),
-    //     ],
-    // );
-
-    // for (k, v) in columns {
-    //     println!("COLUMN {:?}", k);
-    //     // println!("ROWS ({:?}) {:?}", v.len(), 0);
-    //     println!("ROWS ({}) {:?}", v, v.len());
-    // }
-
-    // loop {
-    //     let now = std::time::Instant::now();
-    //     let segments = store.segments();
-    //     let groups = segments.read_group_eq(
-    //         (0, 1590044410000000),
-    //         &[],
-    //         vec!["env".to_string(), "role".to_string()],
-    //         vec![
-    //             ("counter".to_string(), Aggregate::Sum),
-    //             // ("counter".to_string(), Aggregate::Count),
-    //         ],
-    //     );
-    //     println!("{:?} {:?}", groups, now.elapsed());
-    // }
-
-    // loop {
-    //     let mut total_count = 0.0;
-    //     let now = std::time::Instant::now();
-    //     for segment in segments.segments() {
-    //         let (min, max) = segment.time_range();
-    //         let time_ids = segment
-    //             .filter_by_predicates_eq((min, max), &vec![])
-    //             .unwrap();
-
-    //         let group_ids = segment.group_by_column_ids("env").unwrap();
-    //         for (col_values, row_ids) in group_ids {
-    //             // filter ids by time
-    //             let mut result = row_ids.and(&time_ids);
-    //             // let
-    //             // println!(
-    //             //     "({:?}, {:?}) SUM OF COLUMN env={:?} is {:?} (count is {:?})",
-    //             //     min,
-    //             //     max,
-    //             //     col_values,
-    //             //     segment.sum_column(&"counter", &result),
-    //             //     result.cardinality(),
-    //             // );
-    //             if let column::Scalar::Float(x) =
-    //                 segment.sum_column(&"counter", &mut result).unwrap()
-    //             {
-    //                 total_count += x;
-    //             }
-    //         }
-    //     }
-    //     println!("Done ({:?}) in {:?}", total_count, now.elapsed());
-    // }
 }
 
-fn build_store(mut reader: impl RecordBatchReader, store: &mut Store) -> Result<(), Error> {
+fn build_parquet_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> Result<(), Error> {
+    let path = PathBuf::from(path);
+    let r = File::open(&path).unwrap();
+    let file_size = fs::metadata(&path).expect("read metadata").len();
+    println!(
+        "Reading {} ({}) bytes of Parquet from {:?}....",
+        format_size(file_size as usize),
+        file_size,
+        path
+    );
+
+    let parquet_reader = parquet::file::reader::SerializedFileReader::new(r).unwrap();
+    let mut reader =
+        parquet::arrow::arrow_reader::ParquetFileArrowReader::new(Rc::new(parquet_reader));
+    let batch_size = 60000;
+    let record_batch_reader = reader.get_record_reader(batch_size).unwrap();
+    build_store(record_batch_reader, store, sort_order)
+}
+
+fn build_arrow_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> Result<(), Error> {
+    let r = File::open(Path::new("/Users/edd/work/InfluxData/delorean_misc/in-memory-sort/env_role_path_time/http_api_requests_total.arrow")).unwrap();
+    let file_size = fs::metadata(&path).expect("read metadata").len();
+    println!(
+        "Reading {} ({}) bytes of Arrow from {:?}....",
+        format_size(file_size as usize),
+        file_size,
+        path
+    );
+
+    let reader = ipc::reader::StreamReader::try_new(r).unwrap();
+    build_store(reader, store, sort_order)
+}
+
+fn build_store(
+    mut reader: impl RecordBatchReader,
+    store: &mut Store,
+    sort_order: Vec<&str>,
+) -> Result<(), Error> {
     let mut total_rows_read = 0;
     let start = std::time::Instant::now();
+    // let mut i = 0;
     loop {
         let rb = reader.next_batch();
         match rb {
@@ -206,8 +123,15 @@ fn build_store(mut reader: impl RecordBatchReader, store: &mut Store) -> Result<
                 //     i += 1;
                 //     continue;
                 // }
+                let schema = Schema::with_sort_order(
+                    rb.schema(),
+                    sort_order.iter().map(|s| s.to_string()).collect(),
+                );
+
                 total_rows_read += rb.num_rows();
-                let segment = convert_record_batch(rb)?;
+                let mut segment = Segment::new(rb.num_rows(), schema);
+                convert_record_batch(rb, &mut segment)?;
+
                 store.add_segment(segment);
             }
             Ok(None) => {
@@ -223,9 +147,7 @@ fn build_store(mut reader: impl RecordBatchReader, store: &mut Store) -> Result<
     }
 }
 
-fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
-    let mut segment = Segment::new(rb.num_rows(), rb.schema().clone());
-
+fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Error> {
     println!(
         "Loading record batch: cols {:?} rows {:?}",
         rb.num_columns(),
@@ -333,7 +255,7 @@ fn convert_record_batch(rb: RecordBatch) -> Result<Segment, Error> {
             ref d @ _ => panic!("unsupported datatype: {:?}", d),
         }
     }
-    Ok(segment)
+    Ok(())
 }
 
 //
@@ -582,7 +504,7 @@ fn time_group_by_multi_agg_sorted_count(store: &Store) {
     ];
 
     for strat in &strats {
-        let repeat = 10;
+        let repeat = 10000;
         let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
         let mut total_max = 0;
         let segments = store.segments();
