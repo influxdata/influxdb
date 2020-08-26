@@ -19,7 +19,10 @@ const FlowCard: FC<Props> = ({id, name}) => {
 
   return (
     <ResourceCard key={`flow-card--${id}`}>
-      <ResourceCard.Name name={name} onClick={handleClick} />
+      <ResourceCard.Name
+        name={name || 'Name this flow'}
+        onClick={handleClick}
+      />
     </ResourceCard>
   )
 }

@@ -15,9 +15,12 @@ describe('Flows', () => {
   })
 
   // TODO: write e2e tests when this is real
-  it.skip('CRUD a flow from the index page', () => {
+  it('CRUD a flow from the index page', () => {
     cy.getByTestID('create-flow--button')
       .first()
       .click()
+
+    cy.getByTestID('page-title').click()
+    cy.getByTestID('renamable-page-title--input').type('My Flow {enter}')
   })
 })

@@ -49,7 +49,7 @@ const NotebookHeader: FC = () => {
       <Page.Header fullWidth={FULL_WIDTH}>
         <RenamablePageTitle
           onRename={handleRename}
-          name={name}
+          name={notebook.name}
           placeholder="Name this Flow"
           maxLength={50}
         />
