@@ -149,15 +149,6 @@ func (b ProxyQueryServiceAsyncBridge) Query(ctx context.Context, w io.Writer, re
 	if err != nil {
 		return stats, tracing.LogError(span, err)
 	}
-
-	if results, err := q.ProfilerResults(); err != nil {
-		return stats, tracing.LogError(span, err)
-	} else if results != nil {
-		_, err = encoder.Encode(w, results)
-		if err != nil {
-			return stats, tracing.LogError(span, err)
-		}
-	}
 	return stats, nil
 }
 
