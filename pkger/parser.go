@@ -1602,15 +1602,14 @@ func (p *Template) parseQuery(prefix, source string, params, task []Resource) (q
 	mParams := make(map[string]*references)
 	tParams := make(map[string]*references)
 
-	opt, err := edit.GetOption(files[0], "params")
-	topt, err2 := edit.GetOption(files[0], "task") // parse the task out of the query. need to use these params to set the task bits
-	if err != nil && err2 != nil {
+	paramsOpt, paramsErr := edit.GetOption(files[0], "params")
+	taskOpt, taskErr := edit.GetOption(files[0], "task")
+	if paramsErr != nil && taskErr != nil {
 		return q, nil
 	}
 
-	// if params were found
-	if err == nil {
-		obj, ok := opt.(*ast.ObjectExpression)
+	if paramsErr == nil {
+		obj, ok := paramsOpt.(*ast.ObjectExpression)
 		if ok {
 			for _, p := range obj.Properties {
 				sl, ok := p.Key.(*ast.Identifier)
@@ -1627,9 +1626,8 @@ func (p *Template) parseQuery(prefix, source string, params, task []Resource) (q
 		}
 	}
 
-	// if tasks were found
-	if err2 == nil {
-		tobj, ok := topt.(*ast.ObjectExpression)
+	if taskErr == nil {
+		tobj, ok := taskOpt.(*ast.ObjectExpression)
 		if ok {
 			for _, p := range tobj.Properties {
 				sl, ok := p.Key.(*ast.Identifier)
@@ -1664,6 +1662,7 @@ func (p *Template) parseQuery(prefix, source string, params, task []Resource) (q
 		}
 	}
 
+	var err error
 	for _, pr := range task {
 		field := pr.stringShort(fieldKey)
 		if field == "" {

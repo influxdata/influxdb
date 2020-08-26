@@ -1057,15 +1057,14 @@ func (q query) DashboardQuery() string {
 		return q.Query
 	}
 
-	opt, err := edit.GetOption(files[0], "params")
-	topt, err2 := edit.GetOption(files[0], "task")
-	if err2 != nil && err != nil {
+	paramsOpt, paramsErr := edit.GetOption(files[0], "params")
+	taskOpt, taskErr := edit.GetOption(files[0], "task")
+	if taskErr != nil && paramsErr != nil {
 		return q.Query
 	}
 
-	// if params were found
-	if err == nil {
-		obj, ok := opt.(*ast.ObjectExpression)
+	if paramsErr == nil {
+		obj, ok := paramsOpt.(*ast.ObjectExpression)
 		if ok {
 			for _, ref := range q.params {
 				parts := strings.Split(ref.EnvRef, ".")
@@ -1077,9 +1076,8 @@ func (q query) DashboardQuery() string {
 		}
 	}
 
-	// if tasks were found
-	if err2 == nil {
-		tobj, ok := topt.(*ast.ObjectExpression)
+	if taskErr == nil {
+		tobj, ok := taskOpt.(*ast.ObjectExpression)
 		if ok {
 			for _, ref := range q.task {
 				parts := strings.Split(ref.EnvRef, ".")
