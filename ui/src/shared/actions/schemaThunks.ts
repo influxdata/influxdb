@@ -3,14 +3,15 @@ import {Dispatch} from 'react'
 // import {fromFlux as parse} from '@influxdata/giraffe'
 
 // API
-// import {runQuery} from 'src/shared/apis/query'
+import {runQuery} from 'src/shared/apis/query'
 
 // Types
 import {AppState, GetState, RemoteDataState, Schema} from 'src/types'
 
 // Utils
-// import {getOrg} from 'src/organizations/selectors'
+import {getOrg} from 'src/organizations/selectors'
 import {getSchemaByBucketName} from 'src/shared/selectors/schemaSelectors'
+import {parseResponse} from 'src/shared/parsing/flux/schemaParser'
 
 // Actions
 import {
@@ -24,42 +25,36 @@ import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {getBucketsFailed} from 'src/shared/copy/notifications'
 import {TEN_MINUTES} from 'src/shared/reducers/schema'
 
-// DUMMY DATA TO DELETE
-import {results} from 'src/notebooks/pipes/Data/dummyData'
-
 type Action = SchemaAction | NotifyAction
 
-// TODO(ariel): make this work with the query & the time range
-export const fetchSchemaForBucket = async (): Promise<Schema> => {
-  // export const fetchSchemaForBucket = async (
-  //   bucketName: string,
-  //   orgID: string
-  // ): Promise<Schema> => {
-  // const text = `import "influxdata/influxdb/v1"
-  // from(bucket: "${bucketName}")
-  // |> range(start: -1h)
-  // |> first()
-  // |> v1.fieldsAsCols()`
+export const fetchSchemaForBucket = async (
+  bucketName: string,
+  orgID: string
+): Promise<Schema> => {
+  /*
+  -4d here is an arbitrary time range that fulfills the need to overfetch a bucket's meta data
+  rather than underfetching the data. At the time of writing this comment, a timerange is
+  prerequisite for querying a bucket's metadata and is therefore required here.
 
-  // const res = await runQuery(orgID, text)
-  //   .promise.then(raw => {
-  //     if (raw.type !== 'SUCCESS') {
-  //       throw new Error(raw.message)
-  //     }
+  If overfetching provides too much overhead / comes at a performance cost down the line,
+  we should reduce the range / come up with an alternative to allow for querying a bucket's metadata
+  without having to provide a range
+  */
+  const text = `from(bucket: "${bucketName}")
+  |> range(start: -4d)
+  |> first()`
 
-  //     return raw
-  //   })
-  //   .then(raw => {
-  //     return {
-  //       source: text,
-  //       raw: raw.csv,
-  //       parsed: parse(raw.csv),
-  //       error: null,
-  //     }
-  //   })
+  const res = await runQuery(orgID, text)
+    .promise.then(raw => {
+      if (raw.type !== 'SUCCESS') {
+        throw new Error(raw.message)
+      }
 
-  const result: Schema = await new Promise(resolve => resolve(results))
-  return result
+      return raw
+    })
+    .then(raw => parseResponse(raw.csv))
+
+  return res
 }
 
 const getUnexpiredSchema = (
@@ -99,9 +94,8 @@ export const getAndSetBucketSchema = (bucketName: string) => async (
     } else {
       dispatch(setSchema(RemoteDataState.Loading, bucketName, {}))
     }
-    // const orgID = getOrg(state).id
-    const schema = await fetchSchemaForBucket()
-    // const schema = await fetchSchemaForBucket(bucketName, orgID)
+    const orgID = getOrg(state).id
+    const schema = await fetchSchemaForBucket(bucketName, orgID)
     dispatch(setSchema(RemoteDataState.Done, bucketName, schema))
   } catch (error) {
     console.error(error)

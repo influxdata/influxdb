@@ -79,6 +79,16 @@ export const Submit: FC = () => {
               requirements,
             })
           } else if (pipe.type === 'data') {
+            const {bucketName} = pipe
+
+            const text = `from(bucket: "${bucketName}")|>range(start: v.timeRangeStart, stop: v.timeRangeStop)`
+
+            stages.push({
+              text,
+              instances: [pipeID],
+              requirements: {},
+            })
+          } else if (pipe.type === 'queryBuilder') {
             const {
               aggregateFunction,
               bucketName,
@@ -178,7 +188,7 @@ export const Submit: FC = () => {
 
   const hasQueries = notebook.data.all
     .map(p => p.type)
-    .filter(p => p === 'query' || p === 'data').length
+    .filter(p => p === 'query' || p === 'data' || p === 'queryBuilder').length
 
   return (
     <SubmitQueryButton
