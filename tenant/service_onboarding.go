@@ -44,7 +44,7 @@ func (s *OnboardService) IsOnboarding(ctx context.Context) (bool, error) {
 	if s.alwaysAllow {
 		return true, nil
 	}
-	
+
 	allowed := false
 	err := s.service.store.View(ctx, func(tx kv.Tx) error {
 		// we are allowed to onboard a user if we have no users or orgs

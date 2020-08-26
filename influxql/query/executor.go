@@ -274,10 +274,10 @@ LOOP:
 
 		if err := e.StatementNormalizer.NormalizeStatement(ctx, stmt, defaultDB, opt.RetentionPolicy, ectx); err != nil {
 			if err := ectx.Send(ctx, &Result{Err: err}); err != nil {
-					return
-				}
-				break
+				return
 			}
+			break
+		}
 
 		statistics.StatementCount += 1
 
