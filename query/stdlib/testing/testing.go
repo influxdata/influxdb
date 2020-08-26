@@ -139,9 +139,6 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	"testing/chronograf": {
 		"buckets": "unbounded test",
 	},
-	"testing/influxql": {
-		"aggregate_group_by_time": "https://github.com/influxdata/influxdb/issues/16940",
-	},
 	"testing/kapacitor": {
 		"fill_default": "unknown field type for f1",
 	},
