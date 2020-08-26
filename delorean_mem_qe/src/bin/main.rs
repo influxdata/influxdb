@@ -12,8 +12,8 @@ use arrow::record_batch::{RecordBatch, RecordBatchReader};
 use arrow::{array, array::Array, datatypes, ipc};
 
 use delorean_mem_qe::column;
-use delorean_mem_qe::column::Column;
-use delorean_mem_qe::segment::{Aggregate, GroupingStrategy, Schema, Segment};
+use delorean_mem_qe::column::{AggregateType, Column};
+use delorean_mem_qe::segment::{GroupingStrategy, Schema, Segment};
 use delorean_mem_qe::{adapter::DeloreanQueryEngine, Store};
 use parquet::arrow::arrow_reader::ArrowReader;
 
@@ -63,13 +63,13 @@ fn main() {
     );
     let store = Arc::new(store);
 
-    time_select_with_pred(&store);
-    time_datafusion_select_with_pred(store.clone());
-    time_first_host(&store);
-    time_sum_range(&store);
-    time_count_range(&store);
-    time_group_single_with_pred(&store);
-    time_group_by_multi_agg_count(&store);
+    // time_select_with_pred(&store);
+    // time_datafusion_select_with_pred(store.clone());
+    // time_first_host(&store);
+    // time_sum_range(&store);
+    // time_count_range(&store);
+    // time_group_single_with_pred(&store);
+    // time_group_by_multi_agg_count(&store);
     time_group_by_multi_agg_sorted_count(&store);
 }
 
@@ -113,7 +113,7 @@ fn build_store(
 ) -> Result<(), Error> {
     let mut total_rows_read = 0;
     let start = std::time::Instant::now();
-    // let mut i = 0;
+    let mut i = 0;
     loop {
         let rb = reader.next_batch();
         match rb {
@@ -441,7 +441,7 @@ fn time_group_single_with_pred(store: &Store) {
                 (1588834080000000, 1590044410000000),
                 &[],
                 &"env".to_string(),
-                &vec![("counter".to_string(), Aggregate::Count)],
+                &vec![("counter".to_string(), AggregateType::Count)],
             );
             track += results.len();
         }
@@ -457,6 +457,12 @@ fn time_group_single_with_pred(store: &Store) {
     );
 }
 
+//
+// SELECT COUNT(counter)
+// FROM measurement
+// WHERE time >= "2020-05-21 04:41:50" AND time < "2020-05-21 05:59:30"
+// GROUP BY "status", "method"
+//
 fn time_group_by_multi_agg_count(store: &Store) {
     let strats = vec![
         GroupingStrategy::HashGroup,
@@ -477,7 +483,7 @@ fn time_group_by_multi_agg_count(store: &Store) {
                 (1589000000000001, 1590044410000000),
                 &[],
                 vec!["status".to_string(), "method".to_string()],
-                vec![("counter".to_string(), Aggregate::Count)],
+                vec![("counter".to_string(), AggregateType::Count)],
                 strat,
             );
 
@@ -495,16 +501,22 @@ fn time_group_by_multi_agg_count(store: &Store) {
     }
 }
 
+//
+// SELECT COUNT(counter)
+// FROM measurement
+// WHERE time >= "2020-05-21 04:41:50" AND time < "2020-05-21 05:59:30"
+// GROUP BY "env", "role"
+//
 fn time_group_by_multi_agg_sorted_count(store: &Store) {
     let strats = vec![
-        GroupingStrategy::HashGroup,
-        GroupingStrategy::HashGroupConcurrent,
+        // GroupingStrategy::HashGroup,
+        // GroupingStrategy::HashGroupConcurrent,
         GroupingStrategy::SortGroup,
-        GroupingStrategy::SortGroupConcurrent,
+        // GroupingStrategy::SortGroupConcurrent,
     ];
 
     for strat in &strats {
-        let repeat = 10000;
+        let repeat = 10;
         let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
         let mut total_max = 0;
         let segments = store.segments();
@@ -515,7 +527,7 @@ fn time_group_by_multi_agg_sorted_count(store: &Store) {
                 (1589000000000001, 1590044410000000),
                 &[],
                 vec!["env".to_string(), "role".to_string()],
-                vec![("counter".to_string(), Aggregate::Count)],
+                vec![("counter".to_string(), AggregateType::Count)],
                 strat,
             );
 

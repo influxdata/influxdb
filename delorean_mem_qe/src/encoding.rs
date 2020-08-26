@@ -156,6 +156,18 @@ where
         bm
     }
 
+    pub fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> T {
+        let mut res = T::default();
+        for v in self.values[from_row_id..to_row_id].iter() {
+            res += *v;
+        }
+        res
+    }
+
+    pub fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
+        to_row_id - from_row_id
+    }
+
     // TODO(edd): make faster
     pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> T {
         let mut res = T::default();

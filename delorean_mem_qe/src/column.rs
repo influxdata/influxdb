@@ -103,6 +103,12 @@ pub enum Aggregate<'a> {
     Sum(Scalar<'a>),
 }
 
+#[derive(Debug, Clone)]
+pub enum AggregateType {
+    Count,
+    Sum,
+}
+
 impl<'a> Aggregate<'a> {
     pub fn update_with(&mut self, other: Scalar<'a>) {
         match self {
@@ -319,8 +325,8 @@ impl Column {
         }
     }
 
-    /// Materialise all of the decoded values matching the provided logical
-    /// row ids.
+    /// Materialise the decoded value matching the provided logical
+    /// row id.
     pub fn value(&self, row_id: usize) -> Option<Scalar> {
         match self {
             Column::String(c) => {
@@ -726,6 +732,27 @@ impl Column {
         }
     }
 
+    pub fn aggregate_by_id_range(
+        &self,
+        agg_type: &AggregateType,
+        from_row_id: usize,
+        to_row_id: usize,
+    ) -> Aggregate {
+        match self {
+            Column::String(_) => unimplemented!("not implemented"),
+            Column::Float(c) => match agg_type {
+                AggregateType::Count => {
+                    Aggregate::Count(c.count_by_id_range(from_row_id, to_row_id) as u64)
+                }
+                AggregateType::Sum => {
+                    Aggregate::Sum(Scalar::Float(c.sum_by_id_range(from_row_id, to_row_id)))
+                }
+            },
+
+            Column::Integer(_) => unimplemented!("not implemented"),
+        }
+    }
+
     pub fn group_by_ids(&self) -> &std::collections::BTreeMap<u32, croaring::Bitmap> {
         match self {
             Column::String(c) => c.data.group_row_ids(),
@@ -976,6 +1003,14 @@ impl Float {
 
     pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> f64 {
         self.data.sum_by_ids(row_ids)
+    }
+
+    pub fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> f64 {
+        self.data.sum_by_id_range(from_row_id, to_row_id)
+    }
+
+    pub fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
+        self.data.count_by_id_range(from_row_id, to_row_id)
     }
 }
 

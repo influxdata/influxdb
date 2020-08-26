@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use super::column;
-use super::column::Column;
+use super::column::{AggregateType, Column};
 use arrow::datatypes::SchemaRef;
 
 // Only used in a couple of specific places for experimentation.
@@ -226,7 +226,7 @@ impl Segment {
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
         group_columns: &[String],
-        aggregates: &[(String, Aggregate)],
+        aggregates: &[(String, AggregateType)],
     ) -> BTreeMap<Vec<String>, Vec<(String, Option<column::Aggregate>)>> {
         // println!("working segment {:?}", time_range);
         // Build a hash table - essentially, scan columns for matching row ids,
@@ -323,7 +323,7 @@ impl Segment {
 
         let mut hash_table: HashMap<
             Vec<Option<&i64>>,
-            Vec<(&String, &Aggregate, Option<column::Aggregate>)>,
+            Vec<(&String, &AggregateType, Option<column::Aggregate>)>,
         > = HashMap::with_capacity(30000);
 
         let mut aggregate_row: Vec<(&str, Option<column::Scalar>)> =
@@ -361,7 +361,7 @@ impl Segment {
             // a place-holder for each aggregate being executed.
             let group_key_entry = hash_table.entry(group_row).or_insert_with(|| {
                 // TODO COULD BE MAP/COLLECT
-                let mut agg_results: Vec<(&String, &Aggregate, Option<column::Aggregate>)> =
+                let mut agg_results: Vec<(&String, &AggregateType, Option<column::Aggregate>)> =
                     Vec::with_capacity(aggregates.len());
                 for (col_name, agg_type) in aggregates {
                     agg_results.push((col_name, agg_type, None)); // switch out Aggregate for Option<column::Aggregate>
@@ -396,8 +396,10 @@ impl Segment {
                         },
                         None => {
                             *cum_agg_value = match agg_type {
-                                Aggregate::Count => Some(column::Aggregate::Count(0)),
-                                Aggregate::Sum => Some(column::Aggregate::Sum(row_value.clone())),
+                                AggregateType::Count => Some(column::Aggregate::Count(0)),
+                                AggregateType::Sum => {
+                                    Some(column::Aggregate::Sum(row_value.clone()))
+                                }
                             }
                         }
                     }
@@ -414,7 +416,7 @@ impl Segment {
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
         group_columns: &[String],
-        aggregates: &[(String, Aggregate)],
+        aggregates: &[(String, AggregateType)],
     ) -> BTreeMap<Vec<&i64>, Vec<(String, column::Aggregate)>> {
         // filter on predicates and time
         let filtered_row_ids: croaring::Bitmap;
@@ -536,8 +538,8 @@ impl Segment {
             .zip(last_agg_row.iter())
             .map(|((col_name, agg_type), curr_agg)| {
                 let agg = match agg_type {
-                    Aggregate::Count => column::Aggregate::Count(1),
-                    Aggregate::Sum => column::Aggregate::Sum(curr_agg.clone()),
+                    AggregateType::Count => column::Aggregate::Count(1),
+                    AggregateType::Sum => column::Aggregate::Sum(curr_agg.clone()),
                 };
                 (col_name.clone(), agg)
             })
@@ -717,8 +719,8 @@ impl Segment {
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
         group_column: &String,
-        aggregates: &Vec<(String, Aggregate)>,
-    ) -> BTreeMap<u32, Vec<((String, Aggregate), column::Aggregate)>> {
+        aggregates: &Vec<(String, column::AggregateType)>,
+    ) -> BTreeMap<u32, Vec<((String, AggregateType), column::Aggregate)>> {
         let mut grouped_results = BTreeMap::new();
 
         let filter_row_ids: croaring::Bitmap;
@@ -734,12 +736,12 @@ impl Segment {
                 let mut filtered_row_ids = row_ids.and(&filter_row_ids);
                 if !filtered_row_ids.is_empty() {
                     // First calculate all of the aggregates for this grouped value
-                    let mut aggs: Vec<((String, Aggregate), column::Aggregate)> =
+                    let mut aggs: Vec<((String, AggregateType), column::Aggregate)> =
                         Vec::with_capacity(aggregates.len());
 
                     for (col_name, agg) in aggregates {
                         match &agg {
-                            Aggregate::Sum => {
+                            AggregateType::Sum => {
                                 aggs.push((
                                     (col_name.to_string(), agg.clone()),
                                     column::Aggregate::Sum(
@@ -747,7 +749,7 @@ impl Segment {
                                     ), // assuming no non-null group keys
                                 ));
                             }
-                            Aggregate::Count => {
+                            AggregateType::Count => {
                                 aggs.push((
                                     (col_name.to_string(), agg.clone()),
                                     column::Aggregate::Count(
@@ -898,7 +900,7 @@ impl<'a> Segments<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
         group_columns: Vec<String>,
-        aggregates: Vec<(String, Aggregate)>,
+        aggregates: Vec<(String, AggregateType)>,
         strategy: &GroupingStrategy,
     ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
         let (min, max) = time_range;
@@ -957,7 +959,7 @@ impl<'a> Segments<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
         group_columns: Vec<String>,
-        aggregates: Vec<(String, Aggregate)>,
+        aggregates: Vec<(String, AggregateType)>,
         concurrent: bool,
     ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
         if concurrent {
@@ -1034,7 +1036,7 @@ impl<'a> Segments<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
         group_columns: Vec<String>,
-        aggregates: Vec<(String, Aggregate)>,
+        aggregates: Vec<(String, AggregateType)>,
         concurrent: bool,
     ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
         if concurrent {
