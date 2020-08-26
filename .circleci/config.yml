@@ -199,6 +199,18 @@ jobs:
           path: ~/e2e/test-results
       - store_artifacts:
           path: ~/e2e/artifacts
+  grace_nightly:
+    machine: true
+    steps:
+      - attach_workspace:
+          at: ~/project
+      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/grace/grace-results quay.io/influxdb/grace:latest
+      - store_artifacts:
+          path: ~/project
+          destination: grace-nightly-output
+      - store_test_results:
+          path: ~/project
   jstest:
     docker:
       - image: circleci/golang:1.13-node-browsers
@@ -532,6 +544,9 @@ workflows:
           requires:
             - deploy-nightly
       - selenium_accept:
+          requires:
+            - deploy-nightly
+      - grace_nightly:
           requires:
             - deploy-nightly
   release:

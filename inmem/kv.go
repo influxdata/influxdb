@@ -324,6 +324,7 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 			fn        = config.Hints.PredicateFn
 			iterate   = b.ascend
 			skipFirst = config.SkipFirst
+			seen      int
 		)
 
 		if config.Direction == kv.CursorDescending {
@@ -350,6 +351,11 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 				return true
 			}
 
+			// enforce limit
+			if config.Limit != nil && seen >= *config.Limit {
+				return false
+			}
+
 			j, ok := i.(*item)
 			if !ok {
 				batch = append(batch, pair{err: fmt.Errorf("error item is type %T not *item", i)})
@@ -363,6 +369,7 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 
 			if fn == nil || fn(j.key, j.value) {
 				batch = append(batch, pair{Pair: kv.Pair{Key: j.key, Value: j.value}})
+				seen++
 			}
 
 			if len(batch) < cursorBatchSize {

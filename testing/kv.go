@@ -839,6 +839,23 @@ func KVForwardCursor(
 			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03", "bbb/00"},
 		},
 		{
+			name: "limit",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek: "aaa",
+				opts: []kv.CursorOption{
+					kv.WithCursorLimit(4),
+				},
+			},
+			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03"},
+		},
+		{
 			name: "prefix - no hints",
 			fields: KVStoreFields{
 				Bucket: []byte("bucket"),
@@ -855,6 +872,26 @@ func KVForwardCursor(
 				},
 			},
 			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03"},
+		},
+
+		{
+			name: "prefix with limit",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa/00",
+				until: "bbb/02",
+				opts: []kv.CursorOption{
+					kv.WithCursorPrefix([]byte("aaa")),
+					kv.WithCursorLimit(2),
+				},
+			},
+			exp: []string{"aaa/00", "aaa/01"},
 		},
 		{
 			name: "prefix - skip first",
@@ -874,6 +911,26 @@ func KVForwardCursor(
 				},
 			},
 			exp: []string{"aaa/01", "aaa/02", "aaa/03"},
+		},
+		{
+			name: "prefix - skip first with limit",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa/00",
+				until: "bbb/02",
+				opts: []kv.CursorOption{
+					kv.WithCursorPrefix([]byte("aaa")),
+					kv.WithCursorSkipFirstItem(),
+					kv.WithCursorLimit(2),
+				},
+			},
+			exp: []string{"aaa/01", "aaa/02"},
 		},
 		{
 			name: "prefix - skip first (one item)",
@@ -1003,6 +1060,25 @@ func KVForwardCursor(
 			exp: []string{"bbb/00", "aaa/03", "aaa/02", "aaa/01", "aaa/00"},
 		},
 		{
+			name: "no hints - descending - with limit",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "bbb/00",
+				until: "aaa/00",
+				opts: []kv.CursorOption{
+					kv.WithCursorDirection(kv.CursorDescending),
+					kv.WithCursorLimit(3),
+				},
+			},
+			exp: []string{"bbb/00", "aaa/03", "aaa/02"},
+		},
+		{
 			name: "prefixed - no hints - descending",
 			fields: KVStoreFields{
 				Bucket: []byte("bucket"),
@@ -1020,6 +1096,26 @@ func KVForwardCursor(
 				},
 			},
 			exp: []string{"aaa/02", "aaa/01", "aaa/00"},
+		},
+		{
+			name: "prefixed - no hints - descending - with limit",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa/02",
+				until: "aa/",
+				opts: []kv.CursorOption{
+					kv.WithCursorPrefix([]byte("aaa/")),
+					kv.WithCursorDirection(kv.CursorDescending),
+					kv.WithCursorLimit(2),
+				},
+			},
+			exp: []string{"aaa/02", "aaa/01"},
 		},
 		{
 			name: "start hint - descending",
