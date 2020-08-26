@@ -148,6 +148,9 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
+	// It is safe and appropriate to call Release multiple times and must be
+	// called before checking the error on the next line.
+	results.Release()
 	return results.Err()
 }
 
