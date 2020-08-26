@@ -7,10 +7,7 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm
-    goarm:
-      - 6
-      - 7
+ 
     main: ./cmd/influx/
     flags:
       - -tags={{if and (eq .Os "linux") (eq .Arch "amd64")}}osusergo,netgo,static_build{{end}}
@@ -29,7 +26,6 @@ builds:
       - linux
       - darwin
     goarch:
-      - 386
       - amd64
       - arm64
       - arm
