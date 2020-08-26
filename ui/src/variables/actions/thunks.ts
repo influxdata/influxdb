@@ -4,6 +4,7 @@ import {get} from 'lodash'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
+import {setExportTemplate} from 'src/templates/actions/creators'
 import {
   setVariables,
   setVariable,
@@ -19,6 +20,7 @@ import {variableSchema, arrayOfVariables} from 'src/schemas/variables'
 // APIs
 import * as api from 'src/client'
 import {hydrateVars} from 'src/variables/utils/hydrateVars'
+import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/templates/api'
 
 // Utils
 import {
@@ -27,6 +29,8 @@ import {
   getAllVariables as getAllVariablesFromState,
   normalizeValues,
 } from 'src/variables/selectors'
+import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
+import {findDependentVariables} from 'src/variables/utils/exportVariables'
 import {getOrg} from 'src/organizations/selectors'
 import {getLabels, getStatus} from 'src/resources/selectors'
 import {currentContext} from 'src/shared/selectors/currentContext'
@@ -41,6 +45,7 @@ import {
   AppState,
   GetState,
   RemoteDataState,
+  VariableTemplate,
   Label,
   GenVariable,
   Variable,
@@ -254,6 +259,27 @@ export const createVariable = (
   }
 }
 
+export const createVariableFromTemplate = (
+  template: VariableTemplate
+) => async (dispatch: Dispatch<Action>, getState: GetState) => {
+  try {
+    const state = getState()
+    const org = getOrg(state)
+    const resp = await createVariableFromTemplateAJAX(template, org.id)
+
+    const createdVar = normalize<Variable, VariableEntities, string>(
+      resp,
+      variableSchema
+    )
+
+    dispatch(setVariable(resp.id, RemoteDataState.Done, createdVar))
+    dispatch(notify(copy.createVariableSuccess(resp.name)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.createVariableFailed(error.message)))
+  }
+}
+
 export const updateVariable = (id: string, props: Variable) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -314,6 +340,49 @@ export const moveVariable = (originalIndex: number, newIndex: number) => async (
 ) => {
   const contextID = currentContext(getState())
   await dispatch(moveVariableInState(originalIndex, newIndex, contextID))
+}
+
+export const convertToTemplate = (variableID: string) => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  try {
+    dispatch(setExportTemplate(RemoteDataState.Loading))
+    const state = getState()
+    const org = getOrg(state)
+    const resp = await api.getVariable({variableID})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const allVariables = await api.getVariables({query: {orgID: org.id}})
+
+    if (allVariables.status !== 200) {
+      throw new Error(allVariables.data.message)
+    }
+
+    const normVariable = normalize<Variable, VariableEntities, string>(
+      resp.data,
+      variableSchema
+    )
+
+    const normVariables = normalize<Variable, VariableEntities, string>(
+      allVariables.data.variables,
+      arrayOfVariables
+    )
+
+    const variable = normVariable.entities.variables[normVariable.result]
+    const variables = Object.values(normVariables.entities.variables)
+
+    const dependencies = findDependentVariables(variable, variables)
+    const variableTemplate = variableToTemplate(state, variable, dependencies)
+
+    dispatch(setExportTemplate(RemoteDataState.Done, variableTemplate))
+  } catch (error) {
+    dispatch(setExportTemplate(RemoteDataState.Error))
+    dispatch(notify(copy.createTemplateFailed(error)))
+  }
 }
 
 export const addVariableLabelAsync = (

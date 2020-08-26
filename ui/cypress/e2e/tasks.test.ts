@@ -60,7 +60,19 @@ from(bucket: "${name}"{rightarrow}
       .should('have.length', 1)
       .and('contain', taskName)
 
-    cy.getByTestID('add-resource-button').click()
+    // TODO: extend to create from template overlay
+    cy.getByTestID('add-resource-dropdown--button').click()
+    cy.getByTestID('add-resource-dropdown--template').click()
+    cy.getByTestID('task-import-template--overlay').within(() => {
+      cy.get('.cf-overlay--dismiss').click()
+    })
+
+    // TODO: extend to create a template from JSON
+    cy.getByTestID('add-resource-dropdown--button').click()
+    cy.getByTestID('add-resource-dropdown--import').click()
+    cy.getByTestID('task-import--overlay').within(() => {
+      cy.get('.cf-overlay--dismiss').click()
+    })
   })
   // this test is broken due to a failure on the post route
   it.skip('can create a task using http.post', () => {
@@ -78,6 +90,31 @@ http.post(
     cy.getByTestID('task-card')
       .should('have.length', 1)
       .and('contain', taskName)
+  })
+
+  it('keeps user input in text area when attempting to import invalid JSON', () => {
+    cy.getByTestID('page-control-bar').within(() => {
+      cy.getByTestID('add-resource-dropdown--button').click()
+    })
+
+    cy.getByTestID('add-resource-dropdown--import').click()
+    cy.contains('Paste').click()
+    cy.getByTestID('import-overlay--textarea')
+      .click()
+      .type('this is invalid JSON')
+    cy.get('button[title*="Import JSON"]').click()
+    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
+    cy.getByTestID('import-overlay--textarea').should($s =>
+      expect($s).to.contain('this is invalid JSON')
+    )
+    cy.getByTestID('import-overlay--textarea').type(
+      '{backspace}{backspace}{backspace}{backspace}{backspace}'
+    )
+    cy.get('button[title*="Import JSON"]').click()
+    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
+    cy.getByTestID('import-overlay--textarea').should($s =>
+      expect($s).to.contain('this is invalid')
+    )
   })
 
   describe('When tasks already exist', () => {
@@ -358,8 +395,10 @@ function createFirstTask(
   offset: string = '20m'
 ) {
   cy.getByTestID('empty-tasks-list').within(() => {
-    cy.getByTestID('add-resource-button').click()
+    cy.getByTestID('add-resource-dropdown--button').click()
   })
+
+  cy.getByTestID('add-resource-dropdown--new').click()
 
   cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {

@@ -6,6 +6,7 @@ import {
   Task,
   Variable,
   Label,
+  Template,
   Bucket,
   Telegraf,
   Scraper,
@@ -16,6 +17,7 @@ export type DashboardSortKey = keyof Dashboard | 'meta.updatedAt'
 export type TaskSortKey = keyof Task
 export type VariableSortKey = keyof Variable | 'arguments.type'
 export type LabelSortKey = keyof Label | 'properties.description'
+export type TemplateSortKey = keyof Template | 'meta.name' | 'meta.description'
 export type BucketSortKey = keyof Bucket | 'retentionRules[0].everySeconds'
 export type TelegrafSortKey = keyof Telegraf
 export type ScraperSortKey = keyof Scraper
@@ -26,6 +28,7 @@ export type SortKey =
   | TaskSortKey
   | VariableSortKey
   | LabelSortKey
+  | TemplateSortKey
   | BucketSortKey
   | TelegrafSortKey
   | ScraperSortKey
@@ -170,6 +173,33 @@ export const generateSortItems = (
         {
           label: 'Description (Z → A)',
           sortKey: 'properties.description',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+      ]
+    case ResourceType.Templates:
+      return [
+        {
+          label: 'Name (A → Z)',
+          sortKey: 'meta.name',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Name (Z → A)',
+          sortKey: 'meta.name',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Descending,
+        },
+        {
+          label: 'Description (A → Z)',
+          sortKey: 'meta.description',
+          sortType: SortTypes.String,
+          sortDirection: Sort.Ascending,
+        },
+        {
+          label: 'Description (Z → A)',
+          sortKey: 'meta.description',
           sortType: SortTypes.String,
           sortDirection: Sort.Descending,
         },

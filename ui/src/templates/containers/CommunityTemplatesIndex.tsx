@@ -13,6 +13,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
 import {CommunityTemplatesInstalledList} from 'src/templates/components/CommunityTemplatesInstalledList'
+
 import {
   Bullet,
   Button,
@@ -28,13 +29,16 @@ import {
 } from '@influxdata/clockface'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
+
+import {communityTemplatesImportPath} from 'src/templates/containers/TemplatesIndex'
+
 import GetResources from 'src/resources/components/GetResources'
+import {getOrg} from 'src/organizations/selectors'
 
 import {setStagedTemplateUrl} from 'src/templates/actions/creators'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-import {getOrg} from 'src/organizations/selectors'
 import {
   getGithubUrlFromTemplateDetails,
   getTemplateNameFromUrl,
@@ -43,15 +47,14 @@ import {reportError} from 'src/shared/utils/errors'
 
 import {communityTemplateUnsupportedFormatError} from 'src/shared/copy/notifications'
 
-import {event} from 'src/cloud/utils/reporting'
-
 // Types
 import {AppState, ResourceType} from 'src/types'
+
+import {event} from 'src/cloud/utils/reporting'
 
 const communityTemplatesUrl =
   'https://github.com/influxdata/community-templates#templates'
 const templatesPath = '/orgs/:orgID/settings/templates'
-const communityTemplatesImportPath = `${templatesPath}/import/:directory/:templateName/:templateExtension`
 
 type Params = {
   params: {directory: string; templateName: string; templateExtension: string}
