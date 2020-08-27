@@ -402,11 +402,30 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			}
 		}
 	case r.Kind.is(KindTelegraf):
-		t, err := ex.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
-		if err != nil {
-			return err
+		switch {
+		case r.ID != influxdb.ID(0):
+			t, err := ex.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
+			if err != nil {
+				return err
+			}
+			mapResource(t.OrgID, t.ID, KindTelegraf, TelegrafToObject(r.Name, *t))
+		case len(r.Name) > 0:
+			telegrafs, n, err := ex.teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{})
+			if err != nil {
+				return err
+			}
+			if n < 1 {
+				return errors.New("no telegraf configs found")
+			}
+
+			for _, t := range telegrafs {
+				if t.Name != r.Name {
+					continue
+				}
+
+				mapResource(t.OrgID, t.ID, KindTelegraf, TelegrafToObject(r.Name, *t))
+			}
 		}
-		mapResource(t.OrgID, t.ID, KindTelegraf, TelegrafToObject(r.Name, *t))
 	case r.Kind.is(KindVariable):
 		v, err := ex.varSVC.FindVariableByID(ctx, r.ID)
 		if err != nil {
