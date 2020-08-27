@@ -313,11 +313,29 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		r.Kind.is(KindNotificationEndpointHTTP),
 		r.Kind.is(KindNotificationEndpointPagerDuty),
 		r.Kind.is(KindNotificationEndpointSlack):
-		e, err := ex.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
+		var (
+			hasID  bool
+			filter = influxdb.NotificationEndpointFilter{}
+		)
+		if r.ID != influxdb.ID(0) {
+			filter.ID = &r.ID
+		}
+
+		endpoints, n, err := ex.endpointSVC.FindNotificationEndpoints(ctx, filter)
 		if err != nil {
 			return err
 		}
-		mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
+		if n < 1 {
+			return errors.New("no notification endpoints found")
+		}
+
+		for _, e := range endpoints {
+			if (len(r.Name) > 0 && e.GetName() != r.Name) || (hasID && e.GetID() != r.ID) {
+				continue
+			}
+
+			mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
+		}
 	case r.Kind.is(KindNotificationRule):
 		rule, ruleEndpoint, err := ex.getEndpointRule(ctx, r.ID)
 		if err != nil {
