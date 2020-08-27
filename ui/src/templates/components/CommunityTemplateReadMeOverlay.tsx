@@ -8,7 +8,7 @@ interface Props {
 }
 
 interface State {
-  isVisible: Boolean
+  isVisible: boolean
 }
 
 export class CommunityTemplateReadMeOverlay extends PureComponent<

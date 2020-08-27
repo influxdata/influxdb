@@ -1,7 +1,6 @@
 import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
 import {getTemplateNameFromUrl} from 'src/templates/utils'
-import {CommunityTemplateReadme} from 'src/templates/components/CommunityTemplateReadme'
 
 // Components
 import {
@@ -12,11 +11,9 @@ import {
   ConfirmationButton,
   IconFont,
   Table,
-  Button,
   VerticalAlignment,
   ButtonShape,
   Alignment,
-  Overlay,
 } from '@influxdata/clockface'
 import {CommunityTemplatesResourceSummary} from 'src/templates/components/CommunityTemplatesResourceSummary'
 import {CommunityTemplateReadMeOverlay} from 'src/templates/components/CommunityTemplateReadMeOverlay'
@@ -83,8 +80,6 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
       return source
     })
   }
-
-  private onDismiss = () => {}
 
   private generateDeleteHandlerForStack = (
     stackID: string,
