@@ -337,20 +337,49 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
 		}
 	case r.Kind.is(KindNotificationRule):
-		rule, ruleEndpoint, err := ex.getEndpointRule(ctx, r.ID)
-		if err != nil {
-			return err
+		var rules []influxdb.NotificationRule
+
+		if r.ID != influxdb.ID(0) {
+			r, err := ex.ruleSVC.FindNotificationRuleByID(ctx, r.ID)
+			if err != nil {
+				return err
+			}
+			rules = append(rules, r)
 		}
 
-		endpointKey := newExportKey(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, ruleEndpoint.GetName())
-		object, ok := ex.mObjects[endpointKey]
-		if !ok {
-			mapResource(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject("", ruleEndpoint))
-			object = ex.mObjects[endpointKey]
-		}
-		endpointObjectName := object.Name()
+		if len(r.Name) != 0 {
+			allRules, n, err := ex.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{})
+			if err != nil {
+				return err
+			}
+			if n < 1 {
+				return errors.New("no notification rules found")
+			}
 
-		mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, NotificationRuleToObject(r.Name, endpointObjectName, rule))
+			for _, rule := range allRules {
+				if rule.GetName() != r.Name {
+					continue
+				}
+				rules = append(rules, rule)
+			}
+		}
+
+		for _, rule := range rules {
+			ruleEndpoint, err := ex.endpointSVC.FindNotificationEndpointByID(ctx, rule.GetEndpointID())
+			if err != nil {
+				return err
+			}
+
+			endpointKey := newExportKey(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, ruleEndpoint.GetName())
+			object, ok := ex.mObjects[endpointKey]
+			if !ok {
+				mapResource(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject("", ruleEndpoint))
+				object = ex.mObjects[endpointKey]
+			}
+			endpointObjectName := object.Name()
+
+			mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, NotificationRuleToObject(r.Name, endpointObjectName, rule))
+		}
 	case r.Kind.is(KindTask):
 		t, err := ex.taskSVC.FindTaskByID(ctx, r.ID)
 		if err != nil {
@@ -461,20 +490,6 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 	return cloneFn, nil
 }
 
-func (ex *resourceExporter) getEndpointRule(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, influxdb.NotificationEndpoint, error) {
-	rule, err := ex.ruleSVC.FindNotificationRuleByID(ctx, id)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ruleEndpoint, err := ex.endpointSVC.FindNotificationEndpointByID(ctx, rule.GetEndpointID())
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return rule, ruleEndpoint, nil
-}
-
 func (ex *resourceExporter) uniqName() string {
 	return uniqMetaName(ex.nameGen, idGenerator, ex.mPkgNames)
 }
@@ -489,21 +504,6 @@ func uniqMetaName(nameGen NameGenerator, idGen influxdb.IDGenerator, existingNam
 		}
 	}
 	return name
-}
-
-func findDashboardByIDFull(ctx context.Context, dashSVC influxdb.DashboardService, id influxdb.ID) (*influxdb.Dashboard, error) {
-	dash, err := dashSVC.FindDashboardByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	for _, cell := range dash.Cells {
-		v, err := dashSVC.GetDashboardCellView(ctx, id, cell.ID)
-		if err != nil {
-			return nil, err
-		}
-		cell.View = v
-	}
-	return dash, nil
 }
 
 func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
