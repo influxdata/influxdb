@@ -381,11 +381,26 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, NotificationRuleToObject(r.Name, endpointObjectName, rule))
 		}
 	case r.Kind.is(KindTask):
-		t, err := ex.taskSVC.FindTaskByID(ctx, r.ID)
-		if err != nil {
-			return err
+		switch {
+		case r.ID != influxdb.ID(0):
+			t, err := ex.taskSVC.FindTaskByID(ctx, r.ID)
+			if err != nil {
+				return err
+			}
+			mapResource(t.OrganizationID, t.ID, KindTask, TaskToObject(r.Name, *t))
+		case len(r.Name) > 0:
+			tasks, n, err := ex.taskSVC.FindTasks(ctx, influxdb.TaskFilter{Name: &r.Name})
+			if err != nil {
+				return err
+			}
+			if n < 1 {
+				return errors.New("no tasks found")
+			}
+
+			for _, t := range tasks {
+				mapResource(t.OrganizationID, uniqByNameResID, KindTask, TaskToObject(r.Name, *t))
+			}
 		}
-		mapResource(t.OrganizationID, t.ID, KindTask, TaskToObject(r.Name, *t))
 	case r.Kind.is(KindTelegraf):
 		t, err := ex.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
 		if err != nil {
