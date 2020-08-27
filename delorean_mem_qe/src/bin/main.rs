@@ -567,7 +567,7 @@ fn time_window_agg_sorted_count(store: &Store) {
             let groups = segments.read_group_eq(
                 (1589000000000001, 1590044410000000),
                 &[],
-                vec!["env".to_string(), "role".to_string()],
+                vec!["env".to_string(), "role".to_string(), "path".to_string()],
                 vec![("counter".to_string(), AggregateType::Count)],
                 60000000 * 10, // 10 minutes,
                 strat,

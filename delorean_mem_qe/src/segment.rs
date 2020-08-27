@@ -411,36 +411,7 @@ impl Segment {
         BTreeMap::new()
     }
 
-    pub fn aggregate_by_group_with_sort(
-        &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar>)],
-        group_columns: &[String],
-        aggregates: &[(String, AggregateType)],
-        window: i64,
-    ) -> BTreeMap<Vec<&i64>, Vec<(String, column::Aggregate)>> {
-        if self.group_key_sorted(group_columns) {
-            log::info!("group key is already sorted {:?}", group_columns);
-            self.aggregate_by_group_with_sort_sorted(
-                time_range,
-                predicates,
-                group_columns,
-                aggregates,
-                window,
-            )
-        } else {
-            log::info!("group key needs sorting {:?}", group_columns);
-            self.aggregate_by_group_with_sort_unsorted(
-                time_range,
-                predicates,
-                group_columns,
-                aggregates,
-                window,
-            )
-        }
-    }
-
-    fn aggregate_by_group_with_sort_unsorted(
+    pub fn aggregate_by_group_using_sort(
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
@@ -651,9 +622,13 @@ impl Segment {
         BTreeMap::new()
     }
 
-    // this method assumes that the segment's columns are sorted such that a
-    // sort of columns is not required.
-    fn aggregate_by_group_with_sort_sorted(
+    // Executes aggregates grouping by group_columns. If window is positive then
+    // a windowed aggregate result set is produced.
+    //
+    // `aggregate_by_group_using_stream` assumes that all columns being grouped
+    // on are part of the overall segment sort, therefore it does no sorting or
+    // hashing, and just streams aggregates out in order.
+    pub fn aggregate_by_group_using_stream(
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
@@ -1641,19 +1616,36 @@ impl<'a> Segments<'a> {
                         let aggregates = aggregates_arc.clone();
 
                         scope.spawn(move |_| {
+                            let sorted = segment.group_key_sorted(&group_columns);
+
                             let now = std::time::Instant::now();
-                            segment.aggregate_by_group_with_sort(
-                                time_range,
-                                predicates,
-                                &group_columns,
-                                &aggregates,
-                                window,
-                            );
-                            log::info!(
-                                "processed segment {:?} using multi-threaded sort in {:?}",
-                                segment.time_range(),
-                                now.elapsed()
-                            )
+                            if sorted {
+                                segment.aggregate_by_group_using_stream(
+                                    time_range,
+                                    predicates,
+                                    &group_columns,
+                                    &aggregates,
+                                    window,
+                                );
+                                log::info!(
+                                    "processed segment {:?} using multi-threaded STREAM in {:?}",
+                                    segment.time_range(),
+                                    now.elapsed()
+                                )
+                            } else {
+                                segment.aggregate_by_group_using_sort(
+                                    time_range,
+                                    predicates,
+                                    &group_columns,
+                                    &aggregates,
+                                    window,
+                                );
+                                log::info!(
+                                    "processed segment {:?} using multi-threaded SORT in {:?}",
+                                    segment.time_range(),
+                                    now.elapsed()
+                                )
+                            }
                         });
                     }
                 })
@@ -1662,19 +1654,38 @@ impl<'a> Segments<'a> {
 
             let rem = self.segments.len() % THREADS;
             for segment in &self.segments[self.segments.len() - rem..] {
+                let group_columns = group_columns_arc.clone();
+                let aggregates = aggregates_arc.clone();
+                let sorted = segment.group_key_sorted(&group_columns);
+
                 let now = std::time::Instant::now();
-                segment.aggregate_by_group_with_sort(
-                    time_range,
-                    predicates,
-                    &group_columns_arc.clone(),
-                    &aggregates_arc.clone(),
-                    window,
-                );
-                log::info!(
-                    "processed segment {:?} using multi-threaded sort in {:?}",
-                    segment.time_range(),
-                    now.elapsed()
-                )
+                if sorted {
+                    segment.aggregate_by_group_using_stream(
+                        time_range,
+                        predicates,
+                        &group_columns,
+                        &aggregates,
+                        window,
+                    );
+                    log::info!(
+                        "processed segment {:?} using multi-threaded STREAM in {:?}",
+                        segment.time_range(),
+                        now.elapsed()
+                    )
+                } else {
+                    segment.aggregate_by_group_using_sort(
+                        time_range,
+                        predicates,
+                        &group_columns,
+                        &aggregates,
+                        window,
+                    );
+                    log::info!(
+                        "processed segment {:?} using multi-threaded SORT in {:?}",
+                        segment.time_range(),
+                        now.elapsed()
+                    )
+                }
             }
 
             // TODO(edd): aggregate the aggregates. not expensive
@@ -1684,19 +1695,36 @@ impl<'a> Segments<'a> {
         // Single threaded
 
         for segment in &self.segments {
+            let sorted = segment.group_key_sorted(&group_columns);
+
             let now = std::time::Instant::now();
-            segment.aggregate_by_group_with_sort(
-                time_range,
-                predicates,
-                &group_columns,
-                &aggregates,
-                window,
-            );
-            log::info!(
-                "processed segment {:?} using single-threaded sort in {:?}",
-                segment.time_range(),
-                now.elapsed()
-            )
+            if sorted {
+                segment.aggregate_by_group_using_stream(
+                    time_range,
+                    predicates,
+                    &group_columns,
+                    &aggregates,
+                    window,
+                );
+                log::info!(
+                    "processed segment {:?} using single-threaded STREAM in {:?}",
+                    segment.time_range(),
+                    now.elapsed()
+                )
+            } else {
+                segment.aggregate_by_group_using_sort(
+                    time_range,
+                    predicates,
+                    &group_columns,
+                    &aggregates,
+                    window,
+                );
+                log::info!(
+                    "processed segment {:?} using single-threaded SORT in {:?}",
+                    segment.time_range(),
+                    now.elapsed()
+                )
+            }
         }
 
         BTreeMap::new()
@@ -1721,41 +1749,6 @@ impl<'a> Segments<'a> {
         }
 
         min_min
-    }
-
-    pub fn window_agg_eq(
-        &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar>)],
-        group_columns: Vec<String>,
-        aggregates: Vec<(String, AggregateType)>,
-        window: i64,
-    ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
-        let (min, max) = time_range;
-        if max <= min {
-            panic!("max <= min");
-        }
-
-        // add time column to the group key
-        let mut group_columns = group_columns.clone();
-        group_columns.push("time".to_string());
-
-        for segment in &self.segments {
-            let now = std::time::Instant::now();
-            segment.window_aggregate_with_sort(
-                time_range,
-                predicates,
-                &group_columns,
-                &aggregates,
-                window,
-            );
-            log::info!(
-                "processed segment {:?} using windowed single-threaded sort in {:?}",
-                segment.time_range(),
-                now.elapsed()
-            )
-        }
-        BTreeMap::new()
     }
 
     /// Returns the maximum value for a column in a set of segments.
