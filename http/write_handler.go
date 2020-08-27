@@ -85,8 +85,6 @@ const (
 	msgInvalidGzipHeader = "gzipped HTTP body contains an invalid header"
 	msgInvalidPrecision  = "invalid precision; valid precision units are ns, us, ms, and s"
 
-	msgUnexpectedWriteError = "unexpected error writing points to database"
-
 	opWriteHandler = "http/writeHandler"
 )
 

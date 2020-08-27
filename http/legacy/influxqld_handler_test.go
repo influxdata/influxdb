@@ -1,3 +1,4 @@
+//lint:file-ignore U1000 this error seems to be misreporting
 package legacy
 
 import (

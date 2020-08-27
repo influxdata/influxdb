@@ -54,19 +54,6 @@ type retentionEnforcer struct {
 	tracker *retentionTracker
 }
 
-// newRetentionEnforcer returns a new enforcer that ensures expired data is
-// deleted every interval period. Setting interval to 0 is equivalent to
-// disabling the service.
-func newRetentionEnforcer(engine Deleter, snapshotter Snapshotter, bucketService BucketFinder) *retentionEnforcer {
-	return &retentionEnforcer{
-		Engine:        engine,
-		Snapshotter:   snapshotter,
-		BucketService: bucketService,
-		logger:        zap.NewNop(),
-		tracker:       newRetentionTracker(newRetentionMetrics(nil), nil),
-	}
-}
-
 // SetDefaultMetricLabels sets the default labels for the retention metrics.
 func (s *retentionEnforcer) SetDefaultMetricLabels(defaultLabels prometheus.Labels) {
 	if s == nil {

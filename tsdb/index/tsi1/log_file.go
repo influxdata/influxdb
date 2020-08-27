@@ -1,3 +1,4 @@
+//lint:file-ignore SA5011 we use assertions, which don't guard
 package tsi1
 
 import (

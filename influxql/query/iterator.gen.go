@@ -4,6 +4,7 @@
 // DO NOT EDIT!
 // Source: iterator.gen.go.tmpl
 
+//lint:file-ignore U1000 this is generated code
 package query
 
 import (

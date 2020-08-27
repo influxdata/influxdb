@@ -2,11 +2,8 @@ package meta_test
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
-	"path"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -1155,21 +1152,6 @@ func newStore() *inmem.KVStore {
 
 func newConfig() *meta.Config {
 	return meta.NewConfig()
-}
-
-func testTempDir(skip int) string {
-	// Get name of the calling function.
-	pc, _, _, ok := runtime.Caller(skip)
-	if !ok {
-		panic("failed to get name of test function")
-	}
-	_, prefix := path.Split(runtime.FuncForPC(pc).Name())
-	// Make a temp dir prefixed with calling function's name.
-	dir, err := ioutil.TempDir(os.TempDir(), prefix)
-	if err != nil {
-		panic(err)
-	}
-	return dir
 }
 
 func isAdmin(u meta.User) bool {

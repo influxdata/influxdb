@@ -1915,7 +1915,9 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	defer sfile.Close()
 
 	shard, tmpDir, err := openShard(sfile)
-	defer shard.Close()
+	defer func() {
+		_ = shard.Close()
+	}()
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -1956,10 +1958,14 @@ func benchmarkWritePointsExistingSeriesFields(b *testing.B, mCnt, tkCnt, tvCnt, 
 	}
 
 	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
+	defer func() {
+		_ = sfile.Close()
+	}()
 
 	shard, tmpDir, err := openShard(sfile)
-	defer shard.Close()
+	defer func() {
+		_ = shard.Close()
+	}()
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -2000,7 +2006,9 @@ func benchmarkWritePointsExistingSeriesEqualBatches(b *testing.B, mCnt, tkCnt, t
 	defer sfile.Close()
 
 	shard, tmpDir, err := openShard(sfile)
-	defer shard.Close()
+	defer func() {
+		_ = shard.Close()
+	}()
 	if err != nil {
 		b.Fatal(err)
 	}

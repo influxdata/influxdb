@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"reflect"
 	"regexp"
 	"testing"
@@ -327,26 +325,6 @@ func TestStatementExecutor_NormalizeDeleteSeries(t *testing.T) {
 	}
 }
 
-type mockAuthorizer struct {
-	AuthorizeDatabaseFn func(influxql.Privilege, string) bool
-}
-
-func (a *mockAuthorizer) AuthorizeDatabase(p influxql.Privilege, name string) bool {
-	return a.AuthorizeDatabaseFn(p, name)
-}
-
-func (m *mockAuthorizer) AuthorizeQuery(database string, query *influxql.Query) error {
-	panic("fail")
-}
-
-func (m *mockAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
-	panic("fail")
-}
-
-func (m *mockAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
-	panic("fail")
-}
-
 func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -453,11 +431,6 @@ func NewQueryExecutor(t *testing.T, opts ...optFn) *QueryExecutor {
 		},
 	}
 	e.Executor.StatementExecutor = e.StatementExecutor
-
-	var out io.Writer = &e.LogOutput
-	if testing.Verbose() {
-		out = io.MultiWriter(out, os.Stderr)
-	}
 
 	return e
 }

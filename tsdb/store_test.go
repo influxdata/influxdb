@@ -1,3 +1,4 @@
+//lint:file-ignore SA2002 this is older code, and `go test` will panic if its really a problem.
 package tsdb_test
 
 import (
@@ -192,7 +193,7 @@ func TestStore_CreateMixedShards(t *testing.T) {
 	}
 
 	indexes := tsdb.RegisteredIndexes()
-	for i, _ := range indexes {
+	for i := range indexes {
 		j := (i + 1) % len(indexes)
 		index1 := indexes[i]
 		index2 := indexes[j]
@@ -237,7 +238,7 @@ func TestStore_DropMeasurementMixedShards(t *testing.T) {
 	}
 
 	indexes := tsdb.RegisteredIndexes()
-	for i, _ := range indexes {
+	for i := range indexes {
 		j := (i + 1) % len(indexes)
 		index1 := indexes[i]
 		index2 := indexes[j]
@@ -372,7 +373,7 @@ func TestStore_WriteMixedShards(t *testing.T) {
 	}
 
 	indexes := tsdb.RegisteredIndexes()
-	for i, _ := range indexes {
+	for i := range indexes {
 		j := (i + 1) % len(indexes)
 		index1 := indexes[i]
 		index2 := indexes[j]

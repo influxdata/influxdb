@@ -1,3 +1,4 @@
+//lint:file-ignore U1000 ignore these flagger-related dead code issues until we can circle back
 package testing_test
 
 import (

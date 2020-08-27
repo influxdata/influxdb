@@ -4,6 +4,7 @@
 // DO NOT EDIT!
 // Source: encoding.gen.go.tmpl
 
+//lint:file-ignore U1000 generated code
 package tsm1
 
 import (

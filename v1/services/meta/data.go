@@ -428,6 +428,7 @@ func (data *Data) CreateContinuousQuery(database, name, query string) error {
 			// If the query string is the same, we'll silently return,
 			// otherwise we'll assume the user might be trying to
 			// overwrite an existing CQ with a different query.
+			//lint:ignore SA6005 this is old code so we should revisit the use of strings.EqualFold
 			if strings.ToLower(cq.Query) == strings.ToLower(query) {
 				return nil
 			}

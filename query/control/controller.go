@@ -150,7 +150,7 @@ func New(config Config) (*Controller, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid controller config")
 	}
-	c.MetricLabelKeys = append(c.MetricLabelKeys, orgLabel) //lint:ignore SA1029 this is a temporary ignore until we have time to create an appropriate type
+	c.MetricLabelKeys = append(c.MetricLabelKeys, orgLabel)
 	logger := c.Logger
 	if logger == nil {
 		logger = zap.NewNop()

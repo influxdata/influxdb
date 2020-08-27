@@ -686,7 +686,7 @@ func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, se
 			binary.BigEndian.PutUint64(elem[8:], id)
 
 			// Swap with values in that position.
-			hash, key, offset, id = elemHash, elemKey, elemOffset, elemID
+			_, _, offset, id = elemHash, elemKey, elemOffset, elemID
 
 			// Update current distance.
 			dist = d
@@ -723,7 +723,7 @@ func (c *SeriesPartitionCompactor) insertIDOffsetMap(dst []byte, capacity int64,
 			binary.BigEndian.PutUint64(elem[8:], uint64(offset))
 
 			// Swap with values in that position.
-			hash, id, offset = elemHash, elemID, elemOffset
+			_, id, offset = elemHash, elemID, elemOffset
 
 			// Update current distance.
 			dist = d

@@ -34,13 +34,6 @@ func dumpBufs(a, b []byte) {
 	fmt.Println()
 }
 
-func dumpBuf(b []byte) {
-	for i, v := range b {
-		fmt.Printf("%[1]d %08[2]b (%[2]d)\n", i, v)
-	}
-	fmt.Println()
-}
-
 func TestIntegerArrayEncodeAll_NoValues(t *testing.T) {
 	b, err := IntegerArrayEncodeAll(nil, nil)
 	if err != nil {
@@ -650,9 +643,7 @@ func TestIntegerArrayEncodeAll_Quick(t *testing.T) {
 
 		// Copy over values to compare result—src is modified...
 		exp := make([]int64, 0, len(src))
-		for _, v := range src {
-			exp = append(exp, v)
-		}
+		exp = append(exp, src...)
 
 		// Retrieve encoded bytes from encoder.
 		b, err := IntegerArrayEncodeAll(src, nil)

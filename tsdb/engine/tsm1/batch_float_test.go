@@ -118,13 +118,6 @@ func dumpBufs(a, b []byte) {
 	fmt.Println()
 }
 
-func dumpBuf(b []byte) {
-	for i, v := range b {
-		fmt.Printf("%d %08b\n", i, v)
-	}
-	fmt.Println()
-}
-
 func TestFloatArrayEncodeAll_NaN(t *testing.T) {
 	examples := [][]float64{
 		{1.0, math.NaN(), 2.0},
@@ -179,7 +172,7 @@ func Test_FloatArrayEncodeAll_Quick(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if got, exp := result, src[:len(src)]; !reflect.DeepEqual(got, exp) {
+		if got, exp := result, src; !reflect.DeepEqual(got, exp) {
 			t.Fatalf("got result %v, expected %v", got, exp)
 		}
 		return true
