@@ -77,16 +77,25 @@ type cmdTemplateBuilder struct {
 	}
 
 	exportOpts struct {
-		resourceType string
-		buckets      string
-		checks       string
-		dashboards   string
-		endpoints    string
-		labels       string
-		rules        string
-		tasks        string
-		telegrafs    string
-		variables    string
+		resourceType   string
+		buckets        string
+		checks         string
+		dashboards     string
+		endpoints      string
+		labels         string
+		rules          string
+		tasks          string
+		telegrafs      string
+		variables      string
+		bucketNames    string
+		checkNames     string
+		dashboardNames string
+		endpointNames  string
+		labelNames     string
+		ruleNames      string
+		taskNames      string
+		telegrafNames  string
+		variableNames  string
 	}
 
 	updateStackOpts struct {
@@ -351,6 +360,15 @@ func (b *cmdTemplateBuilder) cmdExport() *cobra.Command {
 	cmd.Flags().StringVar(&b.exportOpts.tasks, "tasks", "", "List of task ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.telegrafs, "telegraf-configs", "", "List of telegraf config ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.variables, "variables", "", "List of variable ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.bucketNames, "bucket-names", "", "List of bucket names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.checkNames, "check-names", "", "List of check names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.dashboardNames, "dashboard-names", "", "List of dashboard names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.endpointNames, "endpoint-names", "", "List of notification endpoint names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.labelNames, "label-names", "", "List of label names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.ruleNames, "rule-names", "", "List of notification rule names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.taskNames, "task-names", "", "List of task names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.telegrafNames, "telegra-namef-configs", "", "List of telegraf config names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.variableNames, "variable-names", "", "List of variable names comma separated")
 
 	return cmd
 }
@@ -364,21 +382,22 @@ func (b *cmdTemplateBuilder) exportRunEFn(cmd *cobra.Command, args []string) err
 	resTypes := []struct {
 		kind   pkger.Kind
 		idStrs []string
+		names  []string
 	}{
-		{kind: pkger.KindBucket, idStrs: strings.Split(b.exportOpts.buckets, ",")},
-		{kind: pkger.KindCheck, idStrs: strings.Split(b.exportOpts.checks, ",")},
-		{kind: pkger.KindDashboard, idStrs: strings.Split(b.exportOpts.dashboards, ",")},
-		{kind: pkger.KindLabel, idStrs: strings.Split(b.exportOpts.labels, ",")},
-		{kind: pkger.KindNotificationEndpoint, idStrs: strings.Split(b.exportOpts.endpoints, ",")},
-		{kind: pkger.KindNotificationRule, idStrs: strings.Split(b.exportOpts.rules, ",")},
-		{kind: pkger.KindTask, idStrs: strings.Split(b.exportOpts.tasks, ",")},
-		{kind: pkger.KindTelegraf, idStrs: strings.Split(b.exportOpts.telegrafs, ",")},
-		{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ",")},
+		{kind: pkger.KindBucket, idStrs: strings.Split(b.exportOpts.buckets, ","), names: strings.Split(b.exportOpts.bucketNames, ",")},
+		{kind: pkger.KindCheck, idStrs: strings.Split(b.exportOpts.checks, ","), names: strings.Split(b.exportOpts.checkNames, ",")},
+		{kind: pkger.KindDashboard, idStrs: strings.Split(b.exportOpts.dashboards, ","), names: strings.Split(b.exportOpts.dashboardNames, ",")},
+		{kind: pkger.KindLabel, idStrs: strings.Split(b.exportOpts.labels, ","), names: strings.Split(b.exportOpts.labelNames, ",")},
+		{kind: pkger.KindNotificationEndpoint, idStrs: strings.Split(b.exportOpts.endpoints, ","), names: strings.Split(b.exportOpts.endpointNames, ",")},
+		{kind: pkger.KindNotificationRule, idStrs: strings.Split(b.exportOpts.rules, ","), names: strings.Split(b.exportOpts.ruleNames, ",")},
+		{kind: pkger.KindTask, idStrs: strings.Split(b.exportOpts.tasks, ","), names: strings.Split(b.exportOpts.taskNames, ",")},
+		{kind: pkger.KindTelegraf, idStrs: strings.Split(b.exportOpts.telegrafs, ","), names: strings.Split(b.exportOpts.telegrafNames, ",")},
+		{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ","), names: strings.Split(b.exportOpts.variableNames, ",")},
 	}
 
 	var opts []pkger.ExportOptFn
 	for _, rt := range resTypes {
-		newOpt, err := newResourcesToClone(rt.kind, rt.idStrs)
+		newOpt, err := newResourcesToClone(rt.kind, rt.idStrs, rt.names)
 		if err != nil {
 			return ierror.Wrap(err, rt.kind.String())
 		}
@@ -410,7 +429,7 @@ func (b *cmdTemplateBuilder) exportRunEFn(cmd *cobra.Command, args []string) err
 		}
 	}
 
-	resTypeOpt, err := newResourcesToClone(resKind, args)
+	resTypeOpt, err := newResourcesToClone(resKind, args, []string{})
 	if err != nil {
 		return err
 	}
@@ -1133,7 +1152,7 @@ func (b *cmdTemplateBuilder) convertEncoding() pkger.Encoding {
 	}
 }
 
-func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.ExportOptFn, error) {
+func newResourcesToClone(kind pkger.Kind, idStrs, names []string) (pkger.ExportOptFn, error) {
 	ids, err := toInfluxIDs(idStrs)
 	if err != nil {
 		return nil, err
@@ -1146,6 +1165,15 @@ func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.ExportOptFn, e
 			ID:   id,
 		})
 	}
+	for _, name := range names {
+		if len(name) == 0 {
+			continue
+		}
+		resources = append(resources, pkger.ResourceToClone{
+			Kind: kind,
+			Name: name,
+		})
+	}
 	return pkger.ExportWithExistingResources(resources...), nil
 }
 
@@ -1156,7 +1184,7 @@ func toInfluxIDs(args []string) ([]influxdb.ID, error) {
 	)
 	for _, arg := range args {
 		normedArg := strings.TrimSpace(strings.ToLower(arg))
-		if normedArg == "" {
+		if len(normedArg) == 0 {
 			continue
 		}
 

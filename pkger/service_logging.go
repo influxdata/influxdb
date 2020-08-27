@@ -148,7 +148,8 @@ func (s *loggingMW) Export(ctx context.Context, opts ...ExportOptFn) (template *
 			s.logger.Error("failed to export template", zap.Error(err), dur)
 			return
 		}
-		s.logger.Info("failed to export template", append(s.summaryLogFields(template.Summary()), dur)...)
+		// todo: should these be Debug logs?
+		s.logger.Info("exported template", append(s.summaryLogFields(template.Summary()), dur)...)
 	}(time.Now())
 	return s.next.Export(ctx, opts...)
 }
@@ -176,6 +177,7 @@ func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts 
 			fields = append(fields, zap.Stringer("stackID", opt.StackID))
 		}
 		fields = append(fields, dur)
+		// todo: should these be Debug logs?
 		s.logger.Info("template dry run successful", fields...)
 	}(time.Now())
 	return s.next.DryRun(ctx, orgID, userID, opts...)
@@ -201,6 +203,7 @@ func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts .
 			fields = append(fields, zap.Stringer("stackID", opt.StackID))
 		}
 		fields = append(fields, dur)
+		// todo: should these be Debug logs?
 		s.logger.Info("template apply successful", fields...)
 	}(time.Now())
 	return s.next.Apply(ctx, orgID, userID, opts...)

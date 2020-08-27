@@ -27,7 +27,7 @@ type NameGenerator func() string
 // ResourceToClone is a resource that will be cloned.
 type ResourceToClone struct {
 	Kind Kind        `json:"kind"`
-	ID   influxdb.ID `json:"id"`
+	ID   influxdb.ID `json:"id,omitempty"`
 	Name string      `json:"name"`
 	// note(jsteenb2): For time being we'll allow this internally, but not externally. A lot of
 	// issues to account for when exposing this to the outside world. Not something I'm keen
@@ -40,8 +40,8 @@ func (r ResourceToClone) OK() error {
 	if err := r.Kind.OK(); err != nil {
 		return err
 	}
-	if r.ID == influxdb.ID(0) {
-		return errors.New("must provide an ID")
+	if r.ID == influxdb.ID(0) && len(r.Name) == 0 {
+		return errors.New("must provide an ID or name")
 	}
 	return nil
 }
@@ -135,6 +135,7 @@ func (ex *resourceExporter) Export(ctx context.Context, resourcesToClone []Resou
 	// 	i.e. if a bucket depends on a label, then labels need to be run first
 	//		to guarantee they are available before a bucket is exported.
 	sort.Slice(resourcesToClone, func(i, j int) bool {
+		// todo: how did this compile, i just added Name to the type.
 		iName, jName := resourcesToClone[i].Name, resourcesToClone[j].Name
 		iKind, jKind := resourcesToClone[i].Kind, resourcesToClone[j].Kind
 
@@ -171,13 +172,10 @@ func (ex *resourceExporter) StackResources() []StackResource {
 	return resources
 }
 
-func (ex *resourceExporter) uniqByNameResID() influxdb.ID {
-	// we only need an id when we have resources that are not unique by name via the
-	// metastore. resoureces that are unique by name will be provided a default stamp
-	// making looksup unique since each resource will be unique by name.
-	const uniqByNameResID = 0
-	return uniqByNameResID
-}
+// we only need an id when we have resources that are not unique by name via the
+// metastore. resoureces that are unique by name will be provided a default stamp
+// making looksup unique since each resource will be unique by name.
+const uniqByNameResID = influxdb.ID(0)
 
 type cloneAssociationsFn func(context.Context, ResourceToClone) (associations []ObjectAssociation, skipResource bool, err error)
 
@@ -203,6 +201,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			metaName = ex.uniqName()
 		}
 
+		fmt.Println("STACK Resourcing", r.Kind, r.Name, r.ID, object.Name())
 		stackResource := StackResource{
 			APIVersion: APIVersion,
 			ID:         r.ID,
@@ -220,8 +219,6 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		ex.mStackResources[key] = stackResource
 	}
 
-	uniqByNameResID := ex.uniqByNameResID()
-
 	switch {
 	case r.Kind.is(KindBucket):
 		bkt, err := ex.bucketSVC.FindBucketByID(ctx, r.ID)
@@ -238,11 +235,29 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, CheckToObject(r.Name, ch))
 	case r.Kind.is(KindDashboard):
-		dash, err := findDashboardByIDFull(ctx, ex.dashSVC, r.ID)
+		filter := influxdb.DashboardFilter{}
+		if r.ID != influxdb.ID(0) {
+			filter.IDs = []*influxdb.ID{&r.ID}
+		}
+		dashs, i, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
 		if err != nil {
 			return err
 		}
-		mapResource(dash.OrganizationID, dash.ID, KindDashboard, DashboardToObject(r.Name, *dash))
+		if i < 1 {
+			return errors.New("no dashboards found")
+		}
+
+		for _, dash := range dashs {
+			for _, cell := range dash.Cells {
+				v, err := ex.dashSVC.GetDashboardCellView(ctx, dash.ID, cell.ID)
+				if err != nil {
+					continue
+				}
+				cell.View = v
+			}
+
+			mapResource(dash.OrganizationID, dash.ID, KindDashboard, DashboardToObject(r.Name, *dash))
+		}
 	case r.Kind.is(KindLabel):
 		l, err := ex.labelSVC.FindLabelByID(ctx, r.ID)
 		if err != nil {
@@ -319,6 +334,10 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 			return nil, shouldSkip, nil
 		}
 
+		if len(r.Name) > 0 {
+			return nil, false, nil
+		}
+
 		labels, err := ex.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
 			ResourceID:   r.ID,
 			ResourceType: r.Kind.ResourceType(),
@@ -355,7 +374,7 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 			}
 			labelObject.Metadata[fieldName] = metaName
 
-			k := newExportKey(l.OrgID, ex.uniqByNameResID(), KindLabel, l.Name)
+			k := newExportKey(l.OrgID, uniqByNameResID, KindLabel, l.Name)
 			existing, ok := ex.mObjects[k]
 			if ok {
 				associations = append(associations, ObjectAssociation{

@@ -72,6 +72,7 @@ type (
 	StackResource struct {
 		APIVersion   string
 		ID           influxdb.ID
+		Name         string
 		Kind         Kind
 		MetaName     string
 		Associations []StackResourceAssociation
@@ -631,6 +632,7 @@ func (s *Service) Export(ctx context.Context, setters ...ExportOptFn) (*Template
 				Kind:     r.Kind,
 				ID:       r.ID,
 				MetaName: r.MetaName,
+				Name:     r.Name,
 			}))
 		}
 
@@ -668,7 +670,7 @@ func (s *Service) Export(ctx context.Context, setters ...ExportOptFn) (*Template
 func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID, resourceKinds []Kind) ([]ResourceToClone, error) {
 	var resources []ResourceToClone
 	for _, resGen := range s.filterOrgResourceKinds(resourceKinds) {
-		existingResources, err := resGen.cloneFn(ctx, orgID)
+		existingResources, err := resGen.cloneFn(ctx, orgID, "")
 		if err != nil {
 			return nil, ierrors.Wrap(err, "finding "+string(resGen.resType))
 		}
@@ -678,9 +680,15 @@ func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID, reso
 	return resources, nil
 }
 
-func (s *Service) cloneOrgBuckets(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgBuckets(ctx context.Context, orgID influxdb.ID, name string) ([]ResourceToClone, error) {
+	var n *string
+	if len(name) > 0 {
+		n = &name
+	}
+
 	buckets, _, err := s.bucketSVC.FindBuckets(ctx, influxdb.BucketFilter{
 		OrganizationID: &orgID,
+		Name:           n,
 	})
 	if err != nil {
 		return nil, err
@@ -694,14 +702,21 @@ func (s *Service) cloneOrgBuckets(ctx context.Context, orgID influxdb.ID) ([]Res
 		resources = append(resources, ResourceToClone{
 			Kind: KindBucket,
 			ID:   b.ID,
+			Name: b.Name,
 		})
 	}
 	return resources, nil
 }
 
-func (s *Service) cloneOrgChecks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgChecks(ctx context.Context, orgID influxdb.ID, name string) ([]ResourceToClone, error) {
+	var n *string
+	if len(name) > 0 {
+		n = &name
+	}
+
 	checks, _, err := s.checkSVC.FindChecks(ctx, influxdb.CheckFilter{
 		OrgID: &orgID,
+		Name:  n,
 	})
 	if err != nil {
 		return nil, err
@@ -712,12 +727,13 @@ func (s *Service) cloneOrgChecks(ctx context.Context, orgID influxdb.ID) ([]Reso
 		resources = append(resources, ResourceToClone{
 			Kind: KindCheck,
 			ID:   c.GetID(),
+			Name: c.GetName(),
 		})
 	}
 	return resources, nil
 }
 
-func (s *Service) cloneOrgDashboards(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgDashboards(ctx context.Context, orgID influxdb.ID, _ string) ([]ResourceToClone, error) {
 	dashs, _, err := s.dashSVC.FindDashboards(ctx, influxdb.DashboardFilter{
 		OrganizationID: &orgID,
 	}, influxdb.FindOptions{Limit: 100})
@@ -735,10 +751,16 @@ func (s *Service) cloneOrgDashboards(ctx context.Context, orgID influxdb.ID) ([]
 	return resources, nil
 }
 
-func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
-	labels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
+func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID, name string) ([]ResourceToClone, error) {
+	filter := influxdb.LabelFilter{
 		OrgID: &orgID,
-	}, influxdb.FindOptions{Limit: 10000})
+	}
+	if len(name) > 0 {
+		filter.Name = name
+	}
+
+	// todo: if this was ever called, it would error, 100 is the limit.
+	labels, err := s.labelSVC.FindLabels(ctx, filter, influxdb.FindOptions{Limit: 10000})
 	if err != nil {
 		return nil, ierrors.Wrap(err, "finding labels")
 	}
@@ -748,12 +770,13 @@ func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID) ([]Reso
 		resources = append(resources, ResourceToClone{
 			Kind: KindLabel,
 			ID:   l.ID,
+			Name: l.Name,
 		})
 	}
 	return resources, nil
 }
 
-func (s *Service) cloneOrgNotificationEndpoints(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgNotificationEndpoints(ctx context.Context, orgID influxdb.ID, _ string) ([]ResourceToClone, error) {
 	endpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
 		OrgID: &orgID,
 	})
@@ -766,12 +789,13 @@ func (s *Service) cloneOrgNotificationEndpoints(ctx context.Context, orgID influ
 		resources = append(resources, ResourceToClone{
 			Kind: KindNotificationEndpoint,
 			ID:   e.GetID(),
+			Name: e.GetName(),
 		})
 	}
 	return resources, nil
 }
 
-func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.ID, _ string) ([]ResourceToClone, error) {
 	rules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
 		OrgID: &orgID,
 	})
@@ -784,12 +808,13 @@ func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.
 		resources = append(resources, ResourceToClone{
 			Kind: KindNotificationRule,
 			ID:   r.GetID(),
+			Name: r.GetName(),
 		})
 	}
 	return resources, nil
 }
 
-func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID, _ string) ([]ResourceToClone, error) {
 	tasks, err := s.getAllTasks(ctx, orgID)
 	if err != nil {
 		return nil, err
@@ -834,7 +859,7 @@ func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]Resou
 	return resources, nil
 }
 
-func (s *Service) cloneOrgTelegrafs(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgTelegrafs(ctx context.Context, orgID influxdb.ID, _ string) ([]ResourceToClone, error) {
 	teles, _, err := s.teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{OrgID: &orgID})
 	if err != nil {
 		return nil, err
@@ -850,7 +875,7 @@ func (s *Service) cloneOrgTelegrafs(ctx context.Context, orgID influxdb.ID) ([]R
 	return resources, nil
 }
 
-func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID, _ string) ([]ResourceToClone, error) {
 	vars, err := s.varSVC.FindVariables(ctx, influxdb.VariableFilter{
 		OrganizationID: &orgID,
 	}, influxdb.FindOptions{Limit: 10000})
@@ -869,7 +894,7 @@ func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]R
 	return resources, nil
 }
 
-type cloneResFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
+type cloneResFn func(context.Context, influxdb.ID, string) ([]ResourceToClone, error)
 
 func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
 	resType influxdb.ResourceType
