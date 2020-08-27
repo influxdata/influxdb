@@ -339,15 +339,14 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 	case r.Kind.is(KindNotificationRule):
 		var rules []influxdb.NotificationRule
 
-		if r.ID != influxdb.ID(0) {
+		switch {
+		case r.ID != influxdb.ID(0):
 			r, err := ex.ruleSVC.FindNotificationRuleByID(ctx, r.ID)
 			if err != nil {
 				return err
 			}
 			rules = append(rules, r)
-		}
-
-		if len(r.Name) != 0 {
+		case len(r.Name) != 0:
 			allRules, n, err := ex.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{})
 			if err != nil {
 				return err
@@ -427,11 +426,27 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			}
 		}
 	case r.Kind.is(KindVariable):
-		v, err := ex.varSVC.FindVariableByID(ctx, r.ID)
-		if err != nil {
-			return err
+		switch {
+		case r.ID != influxdb.ID(0):
+			v, err := ex.varSVC.FindVariableByID(ctx, r.ID)
+			if err != nil {
+				return err
+			}
+			mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(r.Name, *v))
+		case len(r.Name) > 0:
+			variables, err := ex.varSVC.FindVariables(ctx, influxdb.VariableFilter{})
+			if err != nil {
+				return err
+			}
+
+			for _, v := range variables {
+				if v.Name != r.Name {
+					continue
+				}
+
+				mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(r.Name, *v))
+			}
 		}
-		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(r.Name, *v))
 	default:
 		return errors.New("unsupported kind provided: " + string(r.Kind))
 	}
