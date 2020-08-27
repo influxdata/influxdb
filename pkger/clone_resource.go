@@ -235,17 +235,30 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if n < 1 {
 			return errors.New("no buckets found")
 		}
+
 		for _, bkt := range bkts {
 			mapResource(bkt.OrgID, uniqByNameResID, KindBucket, BucketToObject(r.Name, *bkt))
 		}
-	case r.Kind.is(KindCheck),
-		r.Kind.is(KindCheckDeadman),
-		r.Kind.is(KindCheckThreshold):
-		ch, err := ex.checkSVC.FindCheckByID(ctx, r.ID)
+	case r.Kind.is(KindCheck), r.Kind.is(KindCheckDeadman), r.Kind.is(KindCheckThreshold):
+		filter := influxdb.CheckFilter{}
+		if r.ID != influxdb.ID(0) {
+			filter.ID = &r.ID
+		}
+		if len(r.Name) > 0 {
+			filter.Name = &r.Name
+		}
+
+		chs, n, err := ex.checkSVC.FindChecks(ctx, filter)
 		if err != nil {
 			return err
 		}
-		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, CheckToObject(r.Name, ch))
+		if n < 1 {
+			return errors.New("no checks found")
+		}
+
+		for _, ch := range chs {
+			mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, CheckToObject(r.Name, ch))
+		}
 	case r.Kind.is(KindDashboard):
 		var (
 			hasID  bool
@@ -255,6 +268,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			hasID = true
 			filter.IDs = []*influxdb.ID{&r.ID}
 		}
+
 		dashs, n, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
 		if err != nil {
 			return err
