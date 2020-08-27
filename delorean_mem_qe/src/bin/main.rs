@@ -120,10 +120,10 @@ fn build_store(
         match rb {
             Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
             Ok(Some(rb)) => {
-                // if i < 363 {
-                //     i += 1;
-                //     continue;
-                // }
+                if i < 363 {
+                    i += 1;
+                    continue;
+                }
                 let schema = Schema::with_sort_order(
                     rb.schema(),
                     sort_order.iter().map(|s| s.to_string()).collect(),
@@ -485,6 +485,7 @@ fn time_group_by_multi_agg_count(store: &Store) {
                 &[],
                 vec!["status".to_string(), "method".to_string()],
                 vec![("counter".to_string(), AggregateType::Count)],
+                0,
                 strat,
             );
 
@@ -529,6 +530,7 @@ fn time_group_by_multi_agg_sorted_count(store: &Store) {
                 &[],
                 vec!["env".to_string(), "role".to_string()],
                 vec![("counter".to_string(), AggregateType::Count)],
+                0,
                 strat,
             );
 
@@ -547,29 +549,40 @@ fn time_group_by_multi_agg_sorted_count(store: &Store) {
 }
 
 fn time_window_agg_sorted_count(store: &Store) {
-    let repeat = 10;
-    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-    let mut total_max = 0;
-    let segments = store.segments();
-    for _ in 0..repeat {
-        let now = std::time::Instant::now();
+    let strats = vec![
+        // GroupingStrategy::HashGroup,
+        // GroupingStrategy::HashGroupConcurrent,
+        GroupingStrategy::SortGroup,
+        // GroupingStrategy::SortGroupConcurrent,
+    ];
 
-        let groups = segments.window_agg_eq(
-            (1589000000000001, 1590044410000000),
-            &[],
-            vec!["env".to_string(), "role".to_string()],
-            vec![("counter".to_string(), AggregateType::Count)],
-            60000000 * 10, // 10 minutes
+    for strat in &strats {
+        let repeat = 10;
+        let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+        let mut total_max = 0;
+        let segments = store.segments();
+        for _ in 0..repeat {
+            let now = std::time::Instant::now();
+
+            let groups = segments.read_group_eq(
+                (1589000000000001, 1590044410000000),
+                &[],
+                vec!["env".to_string(), "role".to_string()],
+                vec![("counter".to_string(), AggregateType::Count)],
+                60000000 * 10, // 10 minutes,
+                strat,
+            );
+
+            total_time += now.elapsed();
+            total_max += groups.len();
+        }
+        println!(
+            "time_window_agg_sorted_count {:?} ran {:?} in {:?} {:?} / call {:?}",
+            strat,
+            repeat,
+            total_time,
+            total_time / repeat,
+            total_max
         );
-
-        total_time += now.elapsed();
-        total_max += groups.len();
     }
-    println!(
-        "time_window_agg_sorted_count ran {:?} in {:?} {:?} / call {:?}",
-        repeat,
-        total_time,
-        total_time / repeat,
-        total_max
-    );
 }
