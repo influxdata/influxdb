@@ -51,13 +51,14 @@ where
             out.push(self.values[chunks[2]]);
             out.push(self.values[chunks[1]]);
             out.push(self.values[chunks[0]]);
-            // out.push(self.values[row_id]);
         }
 
         let rem = row_ids.len() % 4;
         for &i in &row_ids[row_ids.len() - rem..row_ids.len()] {
             out.push(self.values[i]);
         }
+
+        assert_eq!(out.len(), row_ids.len());
         out
     }
 
