@@ -138,8 +138,6 @@ test-js: node_modules
 
 # Download tsdb testdata before running unit tests
 test-go:
-	$(GO_GENERATE) ./tsdb/gen_test.go
-	$(GO_GENERATE) ./tsdb/tsi1/gen_test.go
 	$(GO_TEST) ./...
 
 test-promql-e2e:
