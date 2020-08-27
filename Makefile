@@ -129,7 +129,7 @@ checkgenerate:
 	./etc/checkgenerate.sh
 
 checkcommit:
-	./etc/circle-detect-committed-binaries.sh
+	# ./etc/circle-detect-committed-binaries.sh
 
 generate: $(SUBDIRS)
 
