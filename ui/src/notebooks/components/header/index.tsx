@@ -2,7 +2,7 @@
 import React, {FC, useContext, useCallback} from 'react'
 
 // Contexts
-import {NotebookContext} from 'src/notebooks/context/notebook'
+import {NotebookContext} from 'src/notebooks/context/notebook.current'
 import {TimeProvider, TimeContext, TimeBlock} from 'src/notebooks/context/time'
 import AppSettingProvider from 'src/notebooks/context/app'
 
@@ -13,6 +13,7 @@ import TimeRangeDropdown from 'src/notebooks/components/header/TimeRangeDropdown
 import AutoRefreshDropdown from 'src/notebooks/components/header/AutoRefreshDropdown'
 import Submit from 'src/notebooks/components/header/Submit'
 import PresentationMode from 'src/notebooks/components/header/PresentationMode'
+import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 
 const FULL_WIDTH = true
 
@@ -22,12 +23,12 @@ export interface TimeContextProps {
 }
 
 const NotebookHeader: FC = () => {
-  const {id} = useContext(NotebookContext)
+  const {id, update, notebook} = useContext(NotebookContext)
   const {timeContext, addTimeContext, updateTimeContext} = useContext(
     TimeContext
   )
 
-  const update = useCallback(
+  const updateTime = useCallback(
     (data: TimeBlock) => {
       updateTimeContext(id, data)
     },
@@ -39,10 +40,19 @@ const NotebookHeader: FC = () => {
     return null
   }
 
+  const handleRename = (name: string) => {
+    update({...notebook, name})
+  }
+
   return (
     <>
       <Page.Header fullWidth={FULL_WIDTH}>
-        <Page.Title title="Flows" />
+        <RenamablePageTitle
+          onRename={handleRename}
+          name={notebook.name}
+          placeholder="Name this Flow"
+          maxLength={50}
+        />
       </Page.Header>
       <Page.ControlBar fullWidth={FULL_WIDTH}>
         <Page.ControlBarLeft>
@@ -51,8 +61,8 @@ const NotebookHeader: FC = () => {
         <Page.ControlBarRight>
           <PresentationMode />
           <TimeZoneDropdown />
-          <TimeRangeDropdown context={timeContext[id]} update={update} />
-          <AutoRefreshDropdown context={timeContext[id]} update={update} />
+          <TimeRangeDropdown context={timeContext[id]} update={updateTime} />
+          <AutoRefreshDropdown context={timeContext[id]} update={updateTime} />
         </Page.ControlBarRight>
       </Page.ControlBar>
     </>

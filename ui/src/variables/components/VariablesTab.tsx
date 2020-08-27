@@ -13,13 +13,13 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import VariableList from 'src/variables/components/VariableList'
 import Filter from 'src/shared/components/FilterList'
-import AddResourceButton from 'src/shared/components/AddResourceButton'
+import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
 import GetResources from 'src/resources/components/GetResources'
 import {Sort} from '@influxdata/clockface'
 
 // Types
-import {AppState, ResourceType, Variable} from 'src/types'
+import {AppState, OverlayState, ResourceType, Variable} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {VariableSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
@@ -29,6 +29,7 @@ type Props = RouteComponentProps<{orgID: string}> & ReduxProps
 
 interface State {
   searchTerm: string
+  importOverlayState: OverlayState
   sortKey: VariableSortKey
   sortDirection: Sort
   sortType: SortTypes
@@ -39,6 +40,7 @@ const FilterList = Filter<Variable>()
 class VariablesTab extends PureComponent<Props, State> {
   public state: State = {
     searchTerm: '',
+    importOverlayState: OverlayState.Closed,
     sortKey: 'name',
     sortDirection: Sort.Ascending,
     sortType: SortTypes.String,
@@ -66,8 +68,9 @@ class VariablesTab extends PureComponent<Props, State> {
     )
 
     const rightHeaderItems = (
-      <AddResourceButton
+      <AddResourceDropdown
         resourceName="Variable"
+        onSelectImport={this.handleOpenImportOverlay}
         onSelectNew={this.handleOpenCreateOverlay}
       />
     )
@@ -118,8 +121,9 @@ class VariablesTab extends PureComponent<Props, State> {
           <EmptyState.Text>
             Looks like there aren't any <b>Variables</b>, why not create one?
           </EmptyState.Text>
-          <AddResourceButton
+          <AddResourceDropdown
             resourceName="Variable"
+            onSelectImport={this.handleOpenImportOverlay}
             onSelectNew={this.handleOpenCreateOverlay}
           />
         </EmptyState>
@@ -139,6 +143,12 @@ class VariablesTab extends PureComponent<Props, State> {
 
   private handleFilterUpdate = (searchTerm: string) => {
     this.setState({searchTerm})
+  }
+
+  private handleOpenImportOverlay = (): void => {
+    const {history, match} = this.props
+
+    history.push(`/orgs/${match.params.orgID}/settings/variables/import`)
   }
 
   private handleOpenCreateOverlay = (): void => {

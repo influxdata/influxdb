@@ -6,6 +6,8 @@
 1. [19334](https://github.com/influxdata/influxdb/pull/19334): Add --active-config flag to influx to set config for single command
 1. [19219](https://github.com/influxdata/influxdb/pull/19219): List buckets via the API now supports after (ID) parameter as an alternative to offset.
 1. [19390](https://github.com/influxdata/influxdb/pull/19390): Record last success and failure run times in the Task
+1. [19402](https://github.com/influxdata/influxdb/pull/19402): Inject Task's LatestSuccess Timestamp In Flux Extern
+1. [19433](https://github.com/influxdata/influxdb/pull/19433): Add option to dump raw query results in CLI
 
 ### Bug Fixes
 

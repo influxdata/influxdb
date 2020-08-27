@@ -20,6 +20,7 @@ export interface NotebookListContextType extends NotebookList {
 }
 
 export const EMPTY_NOTEBOOK: NotebookState = {
+  name: 'Name this Flow',
   data: {
     byID: {},
     allIDs: [],
@@ -57,6 +58,7 @@ export const NotebookListProvider: FC = ({children}) => {
       }
     } else {
       _notebook = {
+        name: notebook.name,
         data: notebook.data.serialize(),
         meta: notebook.meta.serialize(),
         readOnly: notebook.readOnly,
@@ -79,6 +81,7 @@ export const NotebookListProvider: FC = ({children}) => {
     setNotebooks({
       ...notebooks,
       [id]: {
+        name: notebook.name,
         data: notebook.data.serialize(),
         meta: notebook.meta.serialize(),
         readOnly: notebook.readOnly,
@@ -111,6 +114,7 @@ export const NotebookListProvider: FC = ({children}) => {
     }
 
     acc[curr] = {
+      name: notebooks[curr].name,
       data: _asResource(notebooks[curr].data, data => {
         stateUpdater('data', data)
       }),

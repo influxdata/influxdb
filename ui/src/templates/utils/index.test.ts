@@ -49,43 +49,49 @@ describe('Templates utils', () => {
 })
 
 describe('the Community Template url utilities', () => {
-  it('returns the template name and extension from an arbitrary url', () => {
-    const {name, extension} = getTemplateNameFromUrl(
+  it('returns the template name, directory, and extension from an arbitrary url', () => {
+    const {name, extension, directory} = getTemplateNameFromUrl(
       'https://github.com/influxdata/influxdb/blob/master/pkger/testdata/dashboard_params.yml'
     )
+
     expect(name).toBe('dashboard_params')
     expect(extension).toBe('yml')
+    expect(directory).toBe('testdata')
   })
 
   it('returns the template name and extension from the official community templates github repo', () => {
-    const {name, extension} = getTemplateNameFromUrl(
-      'https://github.com/influxdata/community-templates/blob/master/csgo/csgo.yml'
+    const {name, extension, directory} = getTemplateNameFromUrl(
+      'https://github.com/influxdata/community-templates/blob/master/hooray/csgo.yml'
     )
     expect(name).toBe('csgo')
     expect(extension).toBe('yml')
+    expect(directory).toBe('hooray')
   })
 
   it('returns the template name and extension from the official community templates github repo when the extension is not yml', () => {
-    const {name, extension} = getTemplateNameFromUrl(
+    const {name, extension, directory} = getTemplateNameFromUrl(
       'https://github.com/influxdata/community-templates/blob/master/csgo/csgo.json'
     )
     expect(name).toBe('csgo')
     expect(extension).toBe('json')
+    expect(directory).toBe('csgo')
   })
 
   it('returns the template name and extension from arbitrary urls', () => {
-    const {name, extension} = getTemplateNameFromUrl(
+    const {name, extension, directory} = getTemplateNameFromUrl(
       'https://www.example.com/csgo/csgo.json'
     )
     expect(name).toBe('csgo')
     expect(extension).toBe('json')
+    expect(directory).toBe('csgo')
   })
 
   it('handles non secure arbitrary urls', () => {
-    const {name, extension} = getTemplateNameFromUrl(
-      'http://www.example.com/blog/cats/catstuff/memes/csgo/downsampling.yml'
+    const {name, extension, directory} = getTemplateNameFromUrl(
+      'http://www.example.com/blog/cats/catstuff/memes/-------/downsampling.yml'
     )
     expect(name).toBe('downsampling')
     expect(extension).toBe('yml')
+    expect(directory).toBe('-------')
   })
 })

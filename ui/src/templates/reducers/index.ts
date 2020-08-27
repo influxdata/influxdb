@@ -1,12 +1,30 @@
 import {produce} from 'immer'
 import {
   Action,
+  ADD_TEMPLATE_SUMMARY,
+  POPULATE_TEMPLATE_SUMMARIES,
+  REMOVE_TEMPLATE_SUMMARY,
+  SET_EXPORT_TEMPLATE,
   SET_STACKS,
   SET_STAGED_TEMPLATE,
   SET_STAGED_TEMPLATE_URL,
+  SET_TEMPLATES_STATUS,
+  SET_TEMPLATE_SUMMARY,
   TOGGLE_TEMPLATE_RESOURCE_INSTALL,
 } from 'src/templates/actions/creators'
-import {CommunityTemplate, RemoteDataState, TemplatesState} from 'src/types'
+import {
+  CommunityTemplate,
+  ResourceType,
+  RemoteDataState,
+  TemplateSummary,
+  TemplatesState,
+} from 'src/types'
+import {
+  addResource,
+  removeResource,
+  setResource,
+  setResourceAtID,
+} from 'src/resources/reducers/helpers'
 
 const defaultCommunityTemplate = (): CommunityTemplate => {
   return {
@@ -37,6 +55,28 @@ export const templatesReducer = (
 ): TemplatesState =>
   produce(state, draftState => {
     switch (action.type) {
+      case POPULATE_TEMPLATE_SUMMARIES: {
+        setResource<TemplateSummary>(draftState, action, ResourceType.Templates)
+
+        return
+      }
+
+      case SET_TEMPLATES_STATUS: {
+        const {status} = action
+        draftState.status = status
+        return
+      }
+
+      case SET_TEMPLATE_SUMMARY: {
+        setResourceAtID<TemplateSummary>(
+          draftState,
+          action,
+          ResourceType.Templates
+        )
+
+        return
+      }
+
       case SET_STAGED_TEMPLATE_URL: {
         const {templateUrl} = action
 
@@ -134,6 +174,30 @@ export const templatesReducer = (
         })
 
         draftState.stagedCommunityTemplate = stagedCommunityTemplate
+        return
+      }
+
+      case SET_EXPORT_TEMPLATE: {
+        const {status, item} = action
+        draftState.exportTemplate.status = status
+
+        if (item) {
+          draftState.exportTemplate.item = item
+        } else {
+          draftState.exportTemplate.item = null
+        }
+        return
+      }
+
+      case REMOVE_TEMPLATE_SUMMARY: {
+        removeResource<TemplateSummary>(draftState, action)
+
+        return
+      }
+
+      case ADD_TEMPLATE_SUMMARY: {
+        addResource<TemplateSummary>(draftState, action, ResourceType.Templates)
+
         return
       }
 

@@ -24,6 +24,7 @@ import (
 
 // APIVersion marks the current APIVersion for influx packages.
 const APIVersion = "influxdata.com/v2alpha1"
+const APIVersion2 = "influxdata.com/v2alpha2"
 
 // Stack is an identifier for stateful application of a package(s). This stack
 // will map created resources from the template(s) to existing resources on the

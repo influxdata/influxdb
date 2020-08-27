@@ -7,7 +7,7 @@ import {CommunityTemplateOverlay} from 'src/templates/components/CommunityTempla
 
 // Actions
 import {setStagedCommunityTemplate} from 'src/templates/actions/creators'
-import {fetchAndSetStacks} from 'src/templates/actions/thunks'
+import {createTemplate, fetchAndSetStacks} from 'src/templates/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 import {getTotalResourceCount} from 'src/templates/selectors'
@@ -63,13 +63,18 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 
   public render() {
+    const templateDetails = getTemplateNameFromUrl(this.props.stagedTemplateUrl)
+    const templateName = templateDetails.name
+    const templateDirectory = templateDetails.directory
+
     return (
       <CommunityTemplateOverlay
         onDismissOverlay={this.onDismiss}
         onInstall={this.handleInstallTemplate}
         resourceCount={this.props.resourceCount}
         status={this.state.status}
-        templateName={getTemplateNameFromUrl(this.props.stagedTemplateUrl).name}
+        templateName={templateName}
+        templateDirectory={templateDirectory}
         updateStatus={this.updateOverlayStatus}
       />
     )
@@ -151,6 +156,7 @@ const mstp = (state: AppState, props: RouterProps) => {
 }
 
 const mdtp = {
+  createTemplate,
   notify,
   setStagedCommunityTemplate,
   fetchAndSetStacks,

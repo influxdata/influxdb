@@ -19,7 +19,7 @@ import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
 import WriteDataPage from 'src/writeData/containers/WriteDataPage'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
-import {CommunityTemplatesIndex} from 'src/templates/containers/CommunityTemplatesIndex'
+import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
@@ -29,6 +29,7 @@ import MembersIndex from 'src/members/containers/MembersIndex'
 import RouteToDashboardList from 'src/dashboards/components/RouteToDashboardList'
 import ClientLibrariesPage from 'src/writeData/containers/ClientLibrariesPage'
 import TelegrafPluginsPage from 'src/writeData/containers/TelegrafPluginsPage'
+import FlowsIndex from 'src/notebooks/components/FlowsIndex'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -134,9 +135,13 @@ const SetOrg: FC<Props> = ({
           component={RouteToDashboardList}
         />
 
-        {/* Flows */}
+        {/* Flows  */}
         {isFlagEnabled('notebooks') && (
-          <Route path={`${orgPath}/notebooks`} component={NotebookPage} />
+          <Route path={`${orgPath}/notebooks/:id`} component={NotebookPage} />
+        )}
+
+        {isFlagEnabled('notebooks') && (
+          <Route path={`${orgPath}/flows`} component={FlowsIndex} />
         )}
 
         {/* Write Data */}
@@ -181,14 +186,10 @@ const SetOrg: FC<Props> = ({
           path={`${orgPath}/settings/variables`}
           component={VariablesIndex}
         />
-
-        {isFlagEnabled('communityTemplates') && (
-          <Route
-            path={`${orgPath}/settings/templates`}
-            component={CommunityTemplatesIndex}
-          />
-        )}
-
+        <Route
+          path={`${orgPath}/settings/templates`}
+          component={TemplatesIndex}
+        />
         <Route
           exact
           path={`${orgPath}/settings/labels`}
