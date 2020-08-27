@@ -201,7 +201,6 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			metaName = ex.uniqName()
 		}
 
-		fmt.Println("STACK Resourcing", r.Kind, r.Name, r.ID, object.Name())
 		stackResource := StackResource{
 			APIVersion: APIVersion,
 			ID:         r.ID,
@@ -235,8 +234,12 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, CheckToObject(r.Name, ch))
 	case r.Kind.is(KindDashboard):
-		filter := influxdb.DashboardFilter{}
+		var (
+			hasID  bool
+			filter = influxdb.DashboardFilter{}
+		)
 		if r.ID != influxdb.ID(0) {
+			hasID = true
 			filter.IDs = []*influxdb.ID{&r.ID}
 		}
 		dashs, i, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
@@ -248,6 +251,9 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 
 		for _, dash := range dashs {
+			if (len(r.Name) > 0 && dash.Name != r.Name) || (hasID && dash.ID != r.ID) {
+				continue
+			}
 			for _, cell := range dash.Cells {
 				v, err := ex.dashSVC.GetDashboardCellView(ctx, dash.ID, cell.ID)
 				if err != nil {
