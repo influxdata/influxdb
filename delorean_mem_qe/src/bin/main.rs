@@ -71,7 +71,7 @@ fn main() {
     // time_group_single_with_pred(&store);
     // time_group_by_multi_agg_count(&store);
     // time_group_by_multi_agg_sorted_count(&store);
-    time_window_agg_sorted_count(&store);
+    time_window_agg_count(&store);
 }
 
 fn build_parquet_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> Result<(), Error> {
@@ -548,7 +548,7 @@ fn time_group_by_multi_agg_sorted_count(store: &Store) {
     }
 }
 
-fn time_window_agg_sorted_count(store: &Store) {
+fn time_window_agg_count(store: &Store) {
     let strats = vec![
         // GroupingStrategy::HashGroup,
         // GroupingStrategy::HashGroupConcurrent,
@@ -557,7 +557,7 @@ fn time_window_agg_sorted_count(store: &Store) {
     ];
 
     for strat in &strats {
-        let repeat = 10;
+        let repeat = 10000;
         let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
         let mut total_max = 0;
         let segments = store.segments();
@@ -567,7 +567,7 @@ fn time_window_agg_sorted_count(store: &Store) {
             let groups = segments.read_group_eq(
                 (1589000000000001, 1590044410000000),
                 &[],
-                vec!["env".to_string(), "role".to_string(), "path".to_string()],
+                vec!["env".to_string(), "role".to_string()],
                 vec![("counter".to_string(), AggregateType::Count)],
                 60000000 * 10, // 10 minutes,
                 strat,
@@ -577,7 +577,7 @@ fn time_window_agg_sorted_count(store: &Store) {
             total_max += groups.len();
         }
         println!(
-            "time_window_agg_sorted_count {:?} ran {:?} in {:?} {:?} / call {:?}",
+            "time_window_agg_count {:?} ran {:?} in {:?} {:?} / call {:?}",
             strat,
             repeat,
             total_time,

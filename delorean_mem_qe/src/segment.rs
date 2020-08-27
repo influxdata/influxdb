@@ -418,7 +418,7 @@ impl Segment {
         group_columns: &[String],
         aggregates: &[(String, AggregateType)],
         window: i64,
-    ) -> BTreeMap<Vec<&i64>, Vec<(String, column::Aggregate)>> {
+    ) -> Vec<GroupedAggregates> {
         log::debug!("aggregate_by_group_with_sort_unsorted called");
 
         if window > 0 {
@@ -433,10 +433,9 @@ impl Segment {
         if let Some(row_ids) = self.filter_by_predicates_eq(time_range, predicates) {
             filtered_row_ids = row_ids;
         } else {
-            return BTreeMap::new();
+            return vec![];
         }
         let total_rows = &filtered_row_ids.cardinality();
-        // println!("TOTAL FILTERED ROWS {:?}", total_rows);
 
         let filtered_row_ids_vec = filtered_row_ids
             .to_vec()
@@ -508,7 +507,7 @@ impl Segment {
         }
         log::debug!("time checking sort {:?}", now.elapsed());
 
-        let mut group_itrs = all_columns
+        let group_itrs = all_columns
             .iter()
             .take(group_columns.len()) // only use grouping columns
             .map(|vector| {
@@ -520,106 +519,16 @@ impl Segment {
             })
             .collect::<Vec<_>>();
 
-        let mut aggregate_itrs = all_columns
+        let mut aggregate_cols = Vec::with_capacity(aggregates.len());
+        for (sorted_vector, (col_name, agg_type)) in all_columns
             .iter()
-            .skip(group_columns.len()) // only use grouping columns
-            .map(|v| column::VectorIterator::new(v))
-            .collect::<Vec<_>>();
-
-        // this tracks the last seen group key row. When it changes we can emit
-        // the grouped aggregates.
-        let group_itrs_len = &group_itrs.len();
-        let mut last_group_row = group_itrs
-            .iter_mut()
-            .enumerate()
-            .map(|(i, itr)| {
-                if i == group_itrs_len - 1 && window > 0 {
-                    // time column - apply window function
-                    return itr.next().unwrap() / window * window;
-                }
-                *itr.next().unwrap()
-            })
-            .collect::<Vec<_>>();
-
-        let mut curr_group_row = last_group_row.clone();
-
-        // this tracks the last row for each column we are aggregating.
-        let last_agg_row: Vec<column::Scalar> = aggregate_itrs
-            .iter_mut()
-            .map(|itr| itr.next().unwrap())
-            .collect();
-
-        // this keeps the current cumulative aggregates for the columns we
-        // are aggregating.
-        let mut cum_aggregates: Vec<(String, column::Aggregate)> = aggregates
-            .iter()
-            .zip(last_agg_row.iter())
-            .map(|((col_name, agg_type), curr_agg)| {
-                let agg = match agg_type {
-                    AggregateType::Count => column::Aggregate::Count(1),
-                    AggregateType::Sum => column::Aggregate::Sum(curr_agg.clone()),
-                };
-                (col_name.clone(), agg)
-            })
-            .collect();
-
-        let mut results = BTreeMap::new();
-        let mut processed_rows = 1;
-        while processed_rows < *total_rows {
-            // update next group key.
-            let mut group_key_changed = false;
-            for (i, (curr_v, itr)) in curr_group_row
-                .iter_mut()
-                .zip(group_itrs.iter_mut())
-                .enumerate()
-            {
-                let next_v = if i == group_itrs_len - 1 && window > 0 {
-                    // time column - apply window function
-                    itr.next().unwrap() / window * window
-                } else {
-                    *itr.next().unwrap()
-                };
-                if curr_v != &next_v {
-                    group_key_changed = true;
-                }
-                *curr_v = next_v;
-            }
-
-            // group key changed - emit group row and aggregates.
-            if group_key_changed {
-                let key = last_group_row.clone();
-                results.insert(key, cum_aggregates.clone());
-
-                // update group key
-                last_group_row = curr_group_row.clone();
-
-                // reset cumulative aggregates
-                for (_, agg) in cum_aggregates.iter_mut() {
-                    match agg {
-                        column::Aggregate::Count(c) => {
-                            *c = 0;
-                        }
-                        column::Aggregate::Sum(s) => s.reset(),
-                    }
-                }
-            }
-
-            // update aggregates
-            for bind in cum_aggregates.iter_mut().zip(&mut aggregate_itrs) {
-                let (_, curr_agg) = bind.0;
-                let next_value = bind.1.next().unwrap();
-                curr_agg.update_with(next_value);
-            }
-
-            processed_rows += 1;
+            .skip(group_columns.len())
+            .zip(aggregates.iter())
+        {
+            aggregate_cols.push((col_name, agg_type, sorted_vector));
         }
 
-        // Emit final row
-        results.insert(last_group_row, cum_aggregates);
-
-        log::info!("({:?} rows processed) {:?}", processed_rows, results);
-        // results
-        BTreeMap::new()
+        Self::stream_grouped_aggregates(group_itrs, aggregate_cols, *total_rows as usize, window)
     }
 
     // Executes aggregates grouping by group_columns. If window is positive then
@@ -628,14 +537,14 @@ impl Segment {
     // `aggregate_by_group_using_stream` assumes that all columns being grouped
     // on are part of the overall segment sort, therefore it does no sorting or
     // hashing, and just streams aggregates out in order.
-    pub fn aggregate_by_group_using_stream(
+    pub fn aggregate_by_group_using_stream<'a>(
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
         group_columns: &[String],
         aggregates: &[(String, AggregateType)],
         window: i64,
-    ) -> BTreeMap<Vec<&i64>, Vec<(String, column::Aggregate)>> {
+    ) -> Vec<GroupedAggregates<'a>> {
         log::debug!("aggregate_by_group_with_sort_sorted called");
 
         if window > 0 {
@@ -650,7 +559,7 @@ impl Segment {
         if let Some(row_ids) = self.filter_by_predicates_eq(time_range, predicates) {
             filtered_row_ids = row_ids;
         } else {
-            return BTreeMap::new();
+            return vec![];
         }
         let total_rows = &filtered_row_ids.cardinality();
 
@@ -677,12 +586,7 @@ impl Segment {
             }
         }
 
-        let mut new_agg_cols = Vec::with_capacity(aggregates.len());
-        for (column_name, agg_type) in aggregates {
-            new_agg_cols.push((column_name, agg_type, self.column(&column_name)));
-        }
-
-        let mut group_itrs = group_column_encoded_values
+        let group_itrs = group_column_encoded_values
             .iter()
             .map(|vector| {
                 if let column::Vector::Integer(v) = vector {
@@ -693,6 +597,22 @@ impl Segment {
             })
             .collect::<Vec<_>>();
 
+        let mut aggregate_cols = Vec::with_capacity(aggregates.len());
+        for (column_name, agg_type) in aggregates {
+            aggregate_cols.push((column_name, agg_type, self.column(&column_name).unwrap()));
+        }
+
+        Self::stream_grouped_aggregates(group_itrs, aggregate_cols, *total_rows as usize, window)
+    }
+
+    // Once the rows necessary for doing a (windowed) grouped aggregate are ready
+    // this method will build a result set of aggregates in a streaming way.
+    pub fn stream_grouped_aggregates<'a>(
+        mut group_itrs: Vec<core::slice::Iter<i64>>,
+        aggregate_cols: Vec<(&String, &AggregateType, impl column::AggregatableByRange)>,
+        total_rows: usize,
+        window: i64,
+    ) -> Vec<GroupedAggregates<'a>> {
         // this tracks the last seen group key row. When it changes we can emit
         // the grouped aggregates.
         let group_itrs_len = &group_itrs.len();
@@ -710,13 +630,14 @@ impl Segment {
 
         let mut curr_group_row = last_group_row.clone();
 
-        let mut results = BTreeMap::new();
+        let mut results = vec![];
+
         let mut processed_rows = 1;
 
         let mut group_key_start_row_id = 0;
         let mut group_size = 0;
 
-        while processed_rows < *total_rows {
+        while processed_rows < total_rows {
             // update next group key.
             let mut group_key_changed = false;
             for (i, (curr_v, itr)) in curr_group_row
@@ -738,22 +659,23 @@ impl Segment {
 
             // group key changed - emit group row and aggregates.
             if group_key_changed {
-                let mut group_key_aggregates = Vec::with_capacity(aggregates.len());
-                for (name, agg_type, col) in &new_agg_cols {
-                    if let Some(c) = col {
-                        let agg_result = c.aggregate_by_id_range(
-                            agg_type,
-                            group_key_start_row_id,
-                            group_key_start_row_id + group_size,
-                        );
-                        group_key_aggregates.push((name, agg_result));
-                    } else {
-                        panic!("figure this out");
-                    }
+                let mut group_key_aggregates = Vec::with_capacity(aggregate_cols.len());
+                for (name, agg_type, vector) in &aggregate_cols {
+                    let agg_result = vector.aggregate_by_id_range(
+                        agg_type,
+                        group_key_start_row_id,
+                        group_key_start_row_id + group_size,
+                    );
+
+                    let col_name = name.to_owned().clone();
+                    group_key_aggregates.push((col_name, agg_result));
                 }
 
                 let key = last_group_row.clone();
-                results.insert(key, group_key_aggregates);
+                results.push(GroupedAggregates {
+                    group_key: key,
+                    aggregates: group_key_aggregates,
+                });
 
                 // update group key
                 last_group_row = curr_group_row.clone();
@@ -768,410 +690,27 @@ impl Segment {
         }
 
         // Emit final row
-        let mut group_key_aggregates = Vec::with_capacity(aggregates.len());
-        for (name, agg_type, col) in &new_agg_cols {
-            if let Some(c) = col {
-                let agg_result = c.aggregate_by_id_range(
-                    agg_type,
-                    group_key_start_row_id,
-                    group_key_start_row_id + group_size,
-                );
-                group_key_aggregates.push((name, agg_result));
-            } else {
-                panic!("figure this out");
-            }
+        let mut group_key_aggregates = Vec::with_capacity(aggregate_cols.len());
+        for (name, agg_type, vector) in &aggregate_cols {
+            let agg_result = vector.aggregate_by_id_range(
+                agg_type,
+                group_key_start_row_id,
+                group_key_start_row_id + group_size,
+            );
+
+            // TODO(edd): fix weirdness
+            let col_name = name.to_owned().clone();
+            group_key_aggregates.push((col_name, agg_result));
         }
 
-        let key = last_group_row;
-        results.insert(key, group_key_aggregates);
+        results.push(GroupedAggregates {
+            group_key: last_group_row,
+            aggregates: group_key_aggregates,
+        });
 
         log::info!("({:?} rows processed) {:?}", processed_rows, results);
         // results
-        BTreeMap::new()
-    }
-
-    pub fn window_aggregate_with_sort(
-        &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar>)],
-        group_columns: &[String],
-        aggregates: &[(String, AggregateType)],
-        window: i64,
-    ) -> BTreeMap<Vec<&i64>, Vec<(String, column::Aggregate)>> {
-        if self.group_key_sorted(group_columns) {
-            log::info!("group key is already sorted {:?}", group_columns);
-            self.window_aggregate_with_sort_sorted(
-                time_range,
-                predicates,
-                group_columns,
-                aggregates,
-                window,
-            )
-        } else {
-            log::info!("group key needs sorting {:?}", group_columns);
-            self.window_aggregate_with_sort_unsorted(
-                time_range,
-                predicates,
-                group_columns,
-                aggregates,
-                window,
-            )
-        }
-    }
-
-    // this method assumes that the segment's columns are sorted such that a
-    // sort of columns is not required.
-    fn window_aggregate_with_sort_sorted(
-        &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar>)],
-        group_columns: &[String],
-        aggregates: &[(String, AggregateType)],
-        window: i64,
-    ) -> BTreeMap<Vec<&i64>, Vec<(String, column::Aggregate)>> {
-        // filter on predicates and time
-        let filtered_row_ids: croaring::Bitmap;
-        if let Some(row_ids) = self.filter_by_predicates_eq(time_range, predicates) {
-            filtered_row_ids = row_ids;
-        } else {
-            return BTreeMap::new();
-        }
-        let total_rows = &filtered_row_ids.cardinality();
-
-        let filtered_row_ids_vec = filtered_row_ids
-            .to_vec()
-            .iter()
-            .map(|v| *v as usize)
-            .collect::<Vec<_>>();
-
-        // materialise all encoded values for the matching rows in the columns
-        // we are grouping on and store each group as an iterator.
-        let mut group_column_encoded_values = Vec::with_capacity(group_columns.len());
-        for group_column in group_columns {
-            if let Some(column) = self.column(&group_column) {
-                let encoded_values = column.encoded_values(&filtered_row_ids_vec);
-                assert_eq!(
-                    filtered_row_ids.cardinality() as usize,
-                    encoded_values.len()
-                );
-
-                group_column_encoded_values.push(encoded_values);
-            } else {
-                panic!("need to handle no results for filtering/grouping...");
-            }
-        }
-
-        let mut new_agg_cols = Vec::with_capacity(aggregates.len());
-        for (column_name, agg_type) in aggregates {
-            new_agg_cols.push((column_name, agg_type, self.column(&column_name)));
-        }
-
-        let mut group_itrs = group_column_encoded_values
-            .iter()
-            .map(|vector| {
-                if let column::Vector::Integer(v) = vector {
-                    v.iter()
-                } else {
-                    panic!("don't support grouping on non-encoded values or time");
-                }
-            })
-            .collect::<Vec<_>>();
-
-        // this tracks the last seen group key row. When it changes we can emit
-        // the grouped aggregates.
-        let group_itrs_len = &group_itrs.len();
-        let mut last_group_row = group_itrs
-            .iter_mut()
-            .enumerate()
-            .map(|(i, itr)| {
-                if i == group_itrs_len - 1 {
-                    // time column - apply window function
-                    return itr.next().unwrap() / window * window;
-                }
-                *itr.next().unwrap()
-            })
-            .collect::<Vec<_>>();
-
-        let mut curr_group_row = last_group_row.clone();
-
-        let mut results = BTreeMap::new();
-        let mut processed_rows = 1;
-
-        let mut group_key_start_row_id = 0;
-        let mut group_size = 0;
-
-        while processed_rows < *total_rows {
-            // update next group key.
-            let mut group_key_changed = false;
-            for (i, (curr_v, itr)) in curr_group_row
-                .iter_mut()
-                .zip(group_itrs.iter_mut())
-                .enumerate()
-            {
-                let next_v = if i == group_itrs_len - 1 {
-                    // time column - apply window function
-                    itr.next().unwrap() / window * window
-                } else {
-                    *itr.next().unwrap()
-                };
-                if *curr_v != next_v {
-                    group_key_changed = true;
-                }
-                *curr_v = next_v;
-            }
-
-            // group key changed - emit group row and aggregates.
-            if group_key_changed {
-                let mut group_key_aggregates = Vec::with_capacity(aggregates.len());
-                for (name, agg_type, col) in &new_agg_cols {
-                    if let Some(c) = col {
-                        let agg_result = c.aggregate_by_id_range(
-                            agg_type,
-                            group_key_start_row_id,
-                            group_key_start_row_id + group_size,
-                        );
-                        group_key_aggregates.push((name, agg_result));
-                    } else {
-                        panic!("figure this out");
-                    }
-                }
-
-                let key = last_group_row.clone();
-                results.insert(key, group_key_aggregates);
-
-                // update group key
-                last_group_row = curr_group_row.clone();
-
-                // reset counters tracking group key row range
-                group_key_start_row_id = processed_rows as usize; // TODO(edd) - could be an off-by-one?
-                group_size = 0;
-            }
-
-            group_size += 1;
-            processed_rows += 1;
-        }
-
-        // Emit final row
-        let mut group_key_aggregates = Vec::with_capacity(aggregates.len());
-        for (name, agg_type, col) in &new_agg_cols {
-            if let Some(c) = col {
-                let agg_result = c.aggregate_by_id_range(
-                    agg_type,
-                    group_key_start_row_id,
-                    group_key_start_row_id + group_size,
-                );
-                group_key_aggregates.push((name, agg_result));
-            } else {
-                panic!("figure this out");
-            }
-        }
-
-        let key = last_group_row;
-        results.insert(key, group_key_aggregates);
-
-        log::info!("({:?} rows processed) {:?}", processed_rows, results);
-        // results
-        BTreeMap::new()
-    }
-
-    fn window_aggregate_with_sort_unsorted(
-        &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar>)],
-        group_columns: &[String],
-        aggregates: &[(String, AggregateType)],
-        window: i64,
-    ) -> BTreeMap<Vec<&i64>, Vec<(String, column::Aggregate)>> {
-        // filter on predicates and time
-        let filtered_row_ids: croaring::Bitmap;
-        if let Some(row_ids) = self.filter_by_predicates_eq(time_range, predicates) {
-            filtered_row_ids = row_ids;
-        } else {
-            return BTreeMap::new();
-        }
-        let total_rows = &filtered_row_ids.cardinality();
-
-        let filtered_row_ids_vec = filtered_row_ids
-            .to_vec()
-            .iter()
-            .map(|v| *v as usize)
-            .collect::<Vec<_>>();
-
-        // materialise all encoded values for the matching rows in the columns
-        // we are grouping on and store each group as an iterator.
-        let mut group_column_encoded_values = Vec::with_capacity(group_columns.len());
-        for group_column in group_columns {
-            if let Some(column) = self.column(&group_column) {
-                let encoded_values = column.encoded_values(&filtered_row_ids_vec);
-                assert_eq!(
-                    filtered_row_ids.cardinality() as usize,
-                    encoded_values.len()
-                );
-                group_column_encoded_values.push(Some(encoded_values));
-            } else {
-                group_column_encoded_values.push(None);
-            }
-        }
-
-        // TODO(edd): we could do this with an iterator I expect.
-        //
-        // materialise all decoded values for the rows in the columns we are
-        // aggregating on.
-        let mut aggregate_column_decoded_values = Vec::with_capacity(aggregates.len());
-        for (column_name, _) in aggregates {
-            if let Some(column) = self.column(&column_name) {
-                let decoded_values = column.values(&filtered_row_ids_vec);
-                assert_eq!(
-                    filtered_row_ids.cardinality() as usize,
-                    decoded_values.len()
-                );
-                aggregate_column_decoded_values.push((column_name, Some(decoded_values)));
-            } else {
-                aggregate_column_decoded_values.push((column_name, None));
-            }
-        }
-
-        let mut all_columns = Vec::with_capacity(
-            group_column_encoded_values.len() + aggregate_column_decoded_values.len(),
-        );
-
-        for gc in group_column_encoded_values {
-            if let Some(p) = gc {
-                all_columns.push(p);
-            } else {
-                panic!("need to handle no results for filtering/grouping...");
-            }
-        }
-
-        for ac in aggregate_column_decoded_values {
-            if let (_, Some(p)) = ac {
-                all_columns.push(p);
-            } else {
-                panic!("need to handle no results for filtering/grouping...");
-            }
-        }
-
-        let now = std::time::Instant::now();
-        if self.group_key_sorted(&group_columns) {
-            panic!("This shouldn't be called!!!");
-        } else {
-            // now sort on the first grouping columns. Right now the order doesn't matter...
-            let group_col_sort_order = &(0..group_columns.len()).collect::<Vec<_>>();
-            super::sorter::sort(&mut all_columns, group_col_sort_order).unwrap();
-        }
-        log::debug!("time checking sort {:?}", now.elapsed());
-
-        let mut group_itrs = all_columns
-            .iter()
-            .take(group_columns.len()) // only use grouping columns
-            .map(|vector| {
-                if let column::Vector::Integer(v) = vector {
-                    v.iter()
-                } else {
-                    panic!("don't support grouping on non-encoded values");
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let mut aggregate_itrs = all_columns
-            .iter()
-            .skip(group_columns.len()) // only use grouping columns
-            .map(|v| column::VectorIterator::new(v))
-            .collect::<Vec<_>>();
-
-        // this tracks the last seen group key row. When it changes we can emit
-        // the grouped aggregates.
-        let mut last_group_row = group_itrs
-            .iter_mut()
-            .enumerate()
-            .map(|(i, itr)| {
-                if i == group_columns.len() - 1 {
-                    // time column - apply window function
-                    return itr.next().unwrap() / window * window;
-                }
-                *itr.next().unwrap()
-            })
-            .collect::<Vec<_>>();
-
-        let mut curr_group_row = last_group_row.clone();
-
-        // this tracks the last row for each column we are aggregating.
-        let last_agg_row: Vec<column::Scalar> = aggregate_itrs
-            .iter_mut()
-            .map(|itr| itr.next().unwrap())
-            .collect();
-
-        // this keeps the current cumulative aggregates for the columns we
-        // are aggregating.
-        let mut cum_aggregates: Vec<(String, column::Aggregate)> = aggregates
-            .iter()
-            .zip(last_agg_row.iter())
-            .map(|((col_name, agg_type), curr_agg)| {
-                let agg = match agg_type {
-                    AggregateType::Count => column::Aggregate::Count(1),
-                    AggregateType::Sum => column::Aggregate::Sum(curr_agg.clone()),
-                };
-                (col_name.clone(), agg)
-            })
-            .collect();
-
-        let mut results = BTreeMap::new();
-        let mut processed_rows = 1;
-        while processed_rows < *total_rows {
-            // update next group key.
-            let mut group_key_changed = false;
-            for (i, (curr_v, itr)) in curr_group_row
-                .iter_mut()
-                .zip(group_itrs.iter_mut())
-                .enumerate()
-            {
-                let next_v = if i == group_columns.len() - 1 {
-                    // time column - apply window function
-                    itr.next().unwrap() / window * window
-                } else {
-                    *itr.next().unwrap()
-                };
-                if curr_v != &next_v {
-                    group_key_changed = true;
-                }
-                *curr_v = next_v;
-            }
-
-            // group key changed - emit group row and aggregates.
-            if group_key_changed {
-                let key = last_group_row.clone();
-                results.insert(key, cum_aggregates.clone());
-
-                // update group key
-                last_group_row = curr_group_row.clone();
-
-                // reset cumulative aggregates
-                for (_, agg) in cum_aggregates.iter_mut() {
-                    match agg {
-                        column::Aggregate::Count(c) => {
-                            *c = 0;
-                        }
-                        column::Aggregate::Sum(s) => s.reset(),
-                    }
-                }
-            }
-
-            // update aggregates
-            for bind in cum_aggregates.iter_mut().zip(&mut aggregate_itrs) {
-                let (_, curr_agg) = bind.0;
-                let next_value = bind.1.next().unwrap();
-                curr_agg.update_with(next_value);
-            }
-
-            processed_rows += 1;
-        }
-
-        // Emit final row
-        results.insert(last_group_row, cum_aggregates);
-
-        log::info!("({:?} rows processed) {:?}", processed_rows, results);
-        // results
-        BTreeMap::new()
+        vec![]
     }
 
     pub fn sum_column(&self, name: &str, row_ids: &mut croaring::Bitmap) -> Option<column::Scalar> {
@@ -1399,12 +938,6 @@ impl SegmentMetaData {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum Aggregate {
-    Count,
-    Sum,
-}
-
 pub struct Segments<'a> {
     segments: Vec<&'a Segment>,
 }
@@ -1482,7 +1015,7 @@ impl<'a> Segments<'a> {
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
         strategy: &GroupingStrategy,
-    ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
+    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate)>> {
         let (min, max) = time_range;
         if max <= min {
             panic!("max <= min");
@@ -1521,7 +1054,7 @@ impl<'a> Segments<'a> {
         group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
         concurrent: bool,
-    ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
+    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate)>> {
         if concurrent {
             let group_columns_arc = std::sync::Arc::new(group_columns);
             let aggregates_arc = std::sync::Arc::new(aggregates);
@@ -1599,7 +1132,7 @@ impl<'a> Segments<'a> {
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
         concurrent: bool,
-    ) -> BTreeMap<Vec<String>, Vec<((String, Aggregate), column::Aggregate)>> {
+    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate)>> {
         if window > 0 {
             // add time column to the group key
             group_columns.push("time".to_string());
@@ -1843,6 +1376,12 @@ pub enum GroupingStrategy {
     HashGroupConcurrent,
     SortGroup,
     SortGroupConcurrent,
+}
+
+#[derive(Debug)]
+pub struct GroupedAggregates<'a> {
+    pub group_key: Vec<i64>,
+    pub aggregates: Vec<(String, column::Aggregate<'a>)>,
 }
 
 #[cfg(test)]

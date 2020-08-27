@@ -156,35 +156,15 @@ impl<'a> std::ops::Add<&Aggregate<'a>> for Aggregate<'a> {
     }
 }
 
-// impl<'a> std::ops::Add<&Scalar<'a>> for Aggregate<'a> {
-//     type Output = Aggregate<'a>;
-
-//     fn add(self, _rhs: &Scalar<'a>) -> Self::Output {
-//         match _rhs {
-//             Scalar::String(v) => {}
-//             Scalar::Float(v) => {}
-//             Scalar::Integer(v) => {}
-//         }
-//         // match self {
-//         //     Self::Count(c) => {
-//         //         match
-//         //         if let Scalar::Count(other) = _rhs {
-//         //             return Self::Count(c + other);
-//         //         } else {
-//         //             panic!("invalid");
-//         //         };
-//         //     }
-//         //     Self::Sum(s) => {
-//         //         if let Self::Sum(other) = _rhs {
-//         //             return Self::Sum(s + other);
-//         //         } else {
-//         //             panic!("invalid");
-//         //         };
-//         //     }
-//         // }
-//     }
-// }
-
+pub trait AggregatableByRange {
+    fn aggregate_by_id_range(
+        &self,
+        agg_type: &AggregateType,
+        from_row_id: usize,
+        to_row_id: usize,
+    ) -> Aggregate;
+}
+/// A Vector is a materialised vector of values from a column.
 pub enum Vector<'a> {
     String(Vec<&'a Option<std::string::String>>),
     Float(Vec<f64>),
@@ -192,25 +172,46 @@ pub enum Vector<'a> {
 }
 
 impl<'a> Vector<'a> {
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn len(&self) -> usize {
-        match self {
-            Self::String(v) => v.len(),
-            Self::Float(v) => v.len(),
-            Self::Integer(v) => v.len(),
+    pub fn aggregate_by_id_range(
+        &self,
+        agg_type: &AggregateType,
+        from_row_id: usize,
+        to_row_id: usize,
+    ) -> Aggregate {
+        match agg_type {
+            AggregateType::Count => {
+                Aggregate::Count(self.count_by_id_range(from_row_id, to_row_id) as u64)
+            }
+            AggregateType::Sum => Aggregate::Sum(self.sum_by_id_range(from_row_id, to_row_id)),
         }
     }
 
-    pub fn get(&self, i: usize) -> Scalar<'a> {
+    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Scalar {
         match self {
-            // FIXME(edd): SORT THIS OPTION OUT
-            Self::String(v) => Scalar::String(v[i].as_ref().unwrap()),
-            Self::Float(v) => Scalar::Float(v[i]),
-            Self::Integer(v) => Scalar::Integer(v[i]),
+            Vector::String(_) => {
+                panic!("can't sum strings....");
+            }
+            Vector::Float(values) => {
+                let mut res = 0.0;
+                // TODO(edd): check asm to see if it's vectorising
+                for v in values[from_row_id..to_row_id].iter() {
+                    res += *v;
+                }
+                Scalar::Float(res)
+            }
+            Vector::Integer(values) => {
+                let mut res = 0;
+                // TODO(edd): check asm to see if it's vectorising
+                for v in values[from_row_id..to_row_id].iter() {
+                    res += *v;
+                }
+                Scalar::Integer(res)
+            }
         }
+    }
+
+    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
+        to_row_id - from_row_id
     }
 
     pub fn extend(&mut self, other: Self) {
@@ -239,6 +240,27 @@ impl<'a> Vector<'a> {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::String(v) => v.len(),
+            Self::Float(v) => v.len(),
+            Self::Integer(v) => v.len(),
+        }
+    }
+
+    pub fn get(&self, i: usize) -> Scalar<'a> {
+        match self {
+            // FIXME(edd): SORT THIS OPTION OUT
+            Self::String(v) => Scalar::String(v[i].as_ref().unwrap()),
+            Self::Float(v) => Scalar::Float(v[i]),
+            Self::Integer(v) => Scalar::Integer(v[i]),
+        }
+    }
+
     pub fn swap(&mut self, a: usize, b: usize) {
         match self {
             Self::String(v) => {
@@ -251,6 +273,17 @@ impl<'a> Vector<'a> {
                 v.swap(a, b);
             }
         }
+    }
+}
+
+impl AggregatableByRange for &Vector<'_> {
+    fn aggregate_by_id_range(
+        &self,
+        agg_type: &AggregateType,
+        from_row_id: usize,
+        to_row_id: usize,
+    ) -> Aggregate {
+        Vector::aggregate_by_id_range(&self, agg_type, from_row_id, to_row_id)
     }
 }
 
@@ -880,6 +913,17 @@ impl Column {
                 }
             }
         }
+    }
+}
+
+impl AggregatableByRange for &Column {
+    fn aggregate_by_id_range(
+        &self,
+        agg_type: &AggregateType,
+        from_row_id: usize,
+        to_row_id: usize,
+    ) -> Aggregate {
+        Column::aggregate_by_id_range(&self, agg_type, from_row_id, to_row_id)
     }
 }
 
