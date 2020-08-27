@@ -292,11 +292,23 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			mapResource(dash.OrganizationID, dash.ID, KindDashboard, DashboardToObject(r.Name, *dash))
 		}
 	case r.Kind.is(KindLabel):
-		l, err := ex.labelSVC.FindLabelByID(ctx, r.ID)
-		if err != nil {
-			return err
+		switch {
+		case r.ID != influxdb.ID(0):
+			l, err := ex.labelSVC.FindLabelByID(ctx, r.ID)
+			if err != nil {
+				return err
+			}
+			mapResource(l.OrgID, uniqByNameResID, KindLabel, LabelToObject(r.Name, *l))
+		case len(r.Name) > 0:
+			labels, err := ex.labelSVC.FindLabels(ctx, influxdb.LabelFilter{Name: r.Name})
+			if err != nil {
+				return err
+			}
+
+			for _, l := range labels {
+				mapResource(l.OrgID, uniqByNameResID, KindLabel, LabelToObject(r.Name, *l))
+			}
 		}
-		mapResource(l.OrgID, uniqByNameResID, KindLabel, LabelToObject(r.Name, *l))
 	case r.Kind.is(KindNotificationEndpoint),
 		r.Kind.is(KindNotificationEndpointHTTP),
 		r.Kind.is(KindNotificationEndpointPagerDuty),
