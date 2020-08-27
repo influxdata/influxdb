@@ -220,11 +220,24 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 
 	switch {
 	case r.Kind.is(KindBucket):
-		bkt, err := ex.bucketSVC.FindBucketByID(ctx, r.ID)
+		filter := influxdb.BucketFilter{}
+		if r.ID != influxdb.ID(0) {
+			filter.ID = &r.ID
+		}
+		if len(r.Name) > 0 {
+			filter.Name = &r.Name
+		}
+
+		bkts, n, err := ex.bucketSVC.FindBuckets(ctx, filter)
 		if err != nil {
 			return err
 		}
-		mapResource(bkt.OrgID, uniqByNameResID, KindBucket, BucketToObject(r.Name, *bkt))
+		if n < 1 {
+			return errors.New("no buckets found")
+		}
+		for _, bkt := range bkts {
+			mapResource(bkt.OrgID, uniqByNameResID, KindBucket, BucketToObject(r.Name, *bkt))
+		}
 	case r.Kind.is(KindCheck),
 		r.Kind.is(KindCheckDeadman),
 		r.Kind.is(KindCheckThreshold):
@@ -242,11 +255,11 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			hasID = true
 			filter.IDs = []*influxdb.ID{&r.ID}
 		}
-		dashs, i, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
+		dashs, n, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
 		if err != nil {
 			return err
 		}
-		if i < 1 {
+		if n < 1 {
 			return errors.New("no dashboards found")
 		}
 
