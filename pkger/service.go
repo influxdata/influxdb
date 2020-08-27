@@ -894,12 +894,15 @@ func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID, _ st
 	return resources, nil
 }
 
-type cloneResFn func(context.Context, influxdb.ID, string) ([]ResourceToClone, error)
+type (
+	cloneResFn func(context.Context, influxdb.ID, string) ([]ResourceToClone, error)
+	resClone   struct {
+		resType influxdb.ResourceType
+		cloneFn cloneResFn
+	}
+)
 
-func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
-	resType influxdb.ResourceType
-	cloneFn cloneResFn
-} {
+func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []resClone {
 	mKinds := map[Kind]cloneResFn{
 		KindBucket:               s.cloneOrgBuckets,
 		KindCheck:                s.cloneOrgChecks,
@@ -912,23 +915,14 @@ func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
 		KindVariable:             s.cloneOrgVariables,
 	}
 
-	newResGen := func(resType influxdb.ResourceType, cloneFn cloneResFn) struct {
-		resType influxdb.ResourceType
-		cloneFn cloneResFn
-	} {
-		return struct {
-			resType influxdb.ResourceType
-			cloneFn cloneResFn
-		}{
+	newResGen := func(resType influxdb.ResourceType, cloneFn cloneResFn) resClone {
+		return resClone{
 			resType: resType,
 			cloneFn: cloneFn,
 		}
 	}
 
-	var resourceTypeGens []struct {
-		resType influxdb.ResourceType
-		cloneFn cloneResFn
-	}
+	var resourceTypeGens []resClone
 	if len(resourceKindFilters) == 0 {
 		for k, cloneFn := range mKinds {
 			resourceTypeGens = append(resourceTypeGens, newResGen(k.ResourceType(), cloneFn))
