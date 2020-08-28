@@ -83,7 +83,7 @@ const RateLimitAlertContent: FC<Props> = ({showUpgrade, className}) => {
           size={ComponentSize.Small}
           shape={ButtonShape.Default}
           href="https://support.influxdata.com/s/"
-          target="_self"
+          target="_blank"
           text="Contact Support"
         />
       </FlexBox>
