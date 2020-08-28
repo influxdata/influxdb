@@ -86,7 +86,7 @@ describe('templates reducer', () => {
     const actualState = store.getState()
 
     //empty template not valid leads to errors
-    expect(actualState.communityTemplateToInstall.summary.dashboards).toEqual(
+    expect(actualState.stagedCommunityTemplate.summary.dashboards).toEqual(
       []
     )
 
@@ -100,7 +100,7 @@ describe('templates reducer', () => {
     })
     const emptyDashboardState = store.getState()
     expect(
-      emptyDashboardState.communityTemplateToInstall.summary.dashboards[0]
+      emptyDashboardState.stagedCommunityTemplate.summary.dashboards[0]
         .shouldInstall
     ).toEqual(true)
 
@@ -118,7 +118,7 @@ describe('templates reducer', () => {
     })
     const dashboardInstsallTrueState = store.getState()
     expect(
-      dashboardInstsallTrueState.communityTemplateToInstall.summary
+      dashboardInstsallTrueState.stagedCommunityTemplate.summary
         .dashboards[0].shouldInstall
     ).toEqual(true)
     //dashboard with should install false
@@ -135,7 +135,7 @@ describe('templates reducer', () => {
     })
     const dashboardInstsallFalseState = store.getState()
     expect(
-      dashboardInstsallFalseState.communityTemplateToInstall.summary
+      dashboardInstsallFalseState.stagedCommunityTemplate.summary
         .dashboards[0].shouldInstall
     ).toEqual(true)
   })
