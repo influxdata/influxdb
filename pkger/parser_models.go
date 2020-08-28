@@ -2322,7 +2322,11 @@ func astDurationFromIface(v interface{}) *ast.DurationLiteral {
 		}
 		s = d.String()
 	}
-	dur, _ := parser.ParseSignedDuration(s)
+
+	dur, err := parser.ParseSignedDuration(s)
+	if err != nil {
+		dur, _ = parser.ParseSignedDuration("-0m")
+	}
 	return dur
 }
 
@@ -2363,7 +2367,10 @@ func astTimeFromIface(v interface{}) *ast.DateTimeLiteral {
 		return nil
 	}
 
-	t, _ := parser.ParseTime(s)
+	t, err := parser.ParseTime(s)
+	if err != nil {
+		return ast.DateTimeLiteralFromValue(time.Now())
+	}
 	return t
 }
 
