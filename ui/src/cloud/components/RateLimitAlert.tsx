@@ -10,7 +10,6 @@ import {
   AlignItems,
   ComponentSize,
   IconFont,
-  JustifyContent,
   Gradients,
   InfluxColors,
   BannerPanel,
@@ -29,6 +28,7 @@ import {CLOUD} from 'src/shared/constants'
 // Types
 import {AppState} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
+import RateLimitAlertContent from './RateLimitAlertContent'
 
 interface StateProps {
   resources: string[]
@@ -69,24 +69,7 @@ const RateLimitAlert: FC<Props> = ({
           hideMobileIcon={true}
           textColor={InfluxColors.Yeti}
         >
-          <div className="rate-alert--content">
-            <span>
-              You've reached the maximum{' '}
-              <a
-                href="https://v2.docs.influxdata.com/v2.0/reference/glossary/#series-cardinality"
-                target="_blank"
-              >
-                series cardinality
-              </a>{' '}
-              available in your plan. Need to write more data?
-            </span>
-            <FlexBox
-              justifyContent={JustifyContent.Center}
-              className="rate-alert--button"
-            >
-              <CloudUpgradeButton />
-            </FlexBox>
-          </div>
+          <RateLimitAlertContent />
         </BannerPanel>
       </FlexBox>
     )
