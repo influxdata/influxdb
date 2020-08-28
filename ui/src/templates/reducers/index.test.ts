@@ -1,5 +1,6 @@
 // Libraries
 import {normalize} from 'normalizr'
+import {createStore} from 'redux'
 
 // Schema
 import {templateSchema, arrayOfTemplates} from 'src/schemas/templates'
@@ -73,6 +74,44 @@ describe('templates reducer', () => {
     expect(actual.byID).toEqual(byID)
     expect(actual.allIDs).toEqual(allIDs)
   })
+  
+  it('can install a template', () => {
+    const store = createStore(reducer, initialState())
+
+    store.dispatch({
+      type: 'SET_COMMUNITY_TEMPLATE_TO_INSTALL',
+      template: {template: {}, summary: {}}
+    })
+
+    const actualState = store.getState()
+
+    //empty template not valid leads to errors
+    expect(actualState.communityTemplateToInstall.summary.dashboards).toEqual([])
+    
+    //empty dashboard
+    store.dispatch({
+      type: 'SET_COMMUNITY_TEMPLATE_TO_INSTALL',
+      template: {template: {}, summary: {'dashboards':[{dashboards: {'hasOwnProperty':true}}]}}
+    })
+    const emptyDashboardState = store.getState()
+    expect(emptyDashboardState.communityTemplateToInstall.summary.dashboards[0].shouldInstall).toEqual(true)
+    
+    //dashboard with should install true
+    store.dispatch({
+      type: 'SET_COMMUNITY_TEMPLATE_TO_INSTALL',
+      template: {template: {}, summary: {'dashboards':[{dashboards: {'hasOwnProperty':true, 'shouldInstall':true}}]}}
+    })
+    const dashboardInstsallTrueState = store.getState()
+    expect(dashboardInstsallTrueState.communityTemplateToInstall.summary.dashboards[0].shouldInstall).toEqual(true)
+    //dashboard with should install false
+    store.dispatch({
+      type: 'SET_COMMUNITY_TEMPLATE_TO_INSTALL',
+      template: {template: {}, summary: {'dashboards':[{dashboards: {'hasOwnProperty':true, 'shouldInstall':false}}]}}
+    })
+    const dashboardInstsallFalseState = store.getState()
+    expect(dashboardInstsallFalseState.communityTemplateToInstall.summary.dashboards[0].shouldInstall).toEqual(true)
+  })
+
 
   it('can add a template', () => {
     const id = '3'
