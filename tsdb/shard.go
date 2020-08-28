@@ -40,6 +40,7 @@ const (
 	statWritePointsErr     = "writePointsErr"
 	statWritePointsDropped = "writePointsDropped"
 	statWritePointsOK      = "writePointsOk"
+	statWriteValuesOK      = "writeValuesOk"
 	statWriteBytes         = "writeBytes"
 	statDiskBytes          = "diskBytes"
 )
@@ -246,6 +247,7 @@ type ShardStatistics struct {
 	WritePointsErr     int64
 	WritePointsDropped int64
 	WritePointsOK      int64
+	WriteValuesOK      int64
 	BytesWritten       int64
 	DiskBytes          int64
 }
@@ -283,6 +285,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 			statWritePointsErr:     atomic.LoadInt64(&s.stats.WritePointsErr),
 			statWritePointsDropped: atomic.LoadInt64(&s.stats.WritePointsDropped),
 			statWritePointsOK:      atomic.LoadInt64(&s.stats.WritePointsOK),
+			statWriteValuesOK:      atomic.LoadInt64(&s.stats.WriteValuesOK),
 			statWriteBytes:         atomic.LoadInt64(&s.stats.BytesWritten),
 			statDiskBytes:          atomic.LoadInt64(&s.stats.DiskBytes),
 		},
@@ -492,8 +495,27 @@ type FieldCreate struct {
 	Field       *Field
 }
 
-// WritePoints will write the raw data points and any new metadata to the index in the shard.
+// WritePoints() is a thin wrapper for WritePointsWithContext().
 func (s *Shard) WritePoints(points []models.Point) error {
+	return s.WritePointsWithContext(context.Background(), points)
+}
+
+type ConetextKey int
+
+const (
+	StatPointsWritten = ConetextKey(iota)
+	StatValuesWritten
+)
+
+// WritePointsWithContext() will write the raw data points and any new metadata
+// to the index in the shard.
+//
+// If a context key of type ConetextKey is passed in, WritePointsWithContext()
+// will store points written stats into the int64 pointer associated with
+// StatPointsWritten and the number of values written in the int64 pointer
+// stored in the StatValuesWritten context values.
+//
+func (s *Shard) WritePointsWithContext(ctx context.Context, points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -521,14 +543,44 @@ func (s *Shard) WritePoints(points []models.Point) error {
 		return err
 	}
 
-	// Write to the engine.
-	if err := engine.WritePoints(points); err != nil {
-		atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
-		atomic.AddInt64(&s.stats.WriteReqErr, 1)
-		return fmt.Errorf("engine: %s", err)
+	// see if our engine is capable of WritePointsWithContext
+	type contextWriter interface {
+		WritePointsWithContext(context.Context, []models.Point) error
 	}
-	atomic.AddInt64(&s.stats.WritePointsOK, int64(len(points)))
+	switch eng := engine.(type) {
+	case contextWriter:
+		if err := eng.WritePointsWithContext(ctx, points); err != nil {
+			atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
+			atomic.AddInt64(&s.stats.WriteReqErr, 1)
+			return fmt.Errorf("engine: %s", err)
+		}
+	default:
+		// Write to the engine.
+		if err := engine.WritePoints(points); err != nil {
+			atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
+			atomic.AddInt64(&s.stats.WriteReqErr, 1)
+			return fmt.Errorf("engine: %s", err)
+		}
+	}
+
+	// increment the number OK write requests
 	atomic.AddInt64(&s.stats.WriteReqOK, 1)
+
+	// Increment the number of points written.  If was a StatPointsWritten
+	// request is sent to this function via a context, use the value that the
+	// engine reported.  otherwise, use the length of our points slice.
+	if npoints, ok := ctx.Value(StatPointsWritten).(*int64); ok {
+		// use engine counted points
+		atomic.AddInt64(&s.stats.WritePointsOK, *npoints)
+	} else {
+		// fallback to assuming that len(points) is accurate
+		atomic.AddInt64(&s.stats.WritePointsOK, int64(len(points)))
+	}
+
+	// Increment the number of values stored if available
+	if nvalues, ok := ctx.Value(StatValuesWritten).(*int64); ok {
+		atomic.AddInt64(&s.stats.WriteValuesOK, *nvalues)
+	}
 
 	return writeError
 }
