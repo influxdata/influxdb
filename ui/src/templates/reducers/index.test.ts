@@ -1,6 +1,6 @@
 // Libraries
 import {normalize} from 'normalizr'
-import {createStore} from 'redux'
+// import {createStore} from 'redux'
 
 // Schema
 import {templateSchema, arrayOfTemplates} from 'src/schemas/templates'
