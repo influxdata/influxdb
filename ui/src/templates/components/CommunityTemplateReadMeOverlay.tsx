@@ -21,7 +21,7 @@ export class CommunityTemplateReadMeOverlay extends PureComponent<
     return (
       <React.Fragment>
         <Button
-          text="Community Templates"
+          text="View Readme"
           icon={IconFont.GitHub}
           size={ComponentSize.Small}
           onClick={this.showOverlay}
