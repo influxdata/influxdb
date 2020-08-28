@@ -69,8 +69,8 @@ fn main() {
     // time_sum_range(&store);
     // time_count_range(&store);
     // time_group_single_with_pred(&store);
-    // time_group_by_multi_agg_count(&store);
-    // time_group_by_multi_agg_sorted_count(&store);
+    time_group_by_multi_agg_count(&store);
+    time_group_by_multi_agg_sorted_count(&store);
     time_window_agg_count(&store);
 }
 
@@ -120,10 +120,10 @@ fn build_store(
         match rb {
             Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
             Ok(Some(rb)) => {
-                if i < 363 {
-                    i += 1;
-                    continue;
-                }
+                // if i < 363 {
+                //     i += 1;
+                //     continue;
+                // }
                 let schema = Schema::with_sort_order(
                     rb.schema(),
                     sort_order.iter().map(|s| s.to_string()).collect(),
@@ -550,14 +550,14 @@ fn time_group_by_multi_agg_sorted_count(store: &Store) {
 
 fn time_window_agg_count(store: &Store) {
     let strats = vec![
-        // GroupingStrategy::HashGroup,
-        // GroupingStrategy::HashGroupConcurrent,
+        GroupingStrategy::HashGroup,
+        GroupingStrategy::HashGroupConcurrent,
         GroupingStrategy::SortGroup,
-        // GroupingStrategy::SortGroupConcurrent,
+        GroupingStrategy::SortGroupConcurrent,
     ];
 
     for strat in &strats {
-        let repeat = 10000;
+        let repeat = 1;
         let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
         let mut total_max = 0;
         let segments = store.segments();

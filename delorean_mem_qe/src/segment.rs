@@ -227,11 +227,20 @@ impl Segment {
         predicates: &[(&str, Option<&column::Scalar>)],
         group_columns: &[String],
         aggregates: &[(String, AggregateType)],
+        window: i64,
     ) -> BTreeMap<Vec<String>, Vec<(String, Option<column::Aggregate>)>> {
-        // println!("working segment {:?}", time_range);
         // Build a hash table - essentially, scan columns for matching row ids,
         // emitting the encoded value for each column and track those value
         // combinations in a hashmap with running aggregates.
+
+        log::debug!("aggregate_by_group_with_hash called");
+
+        if window > 0 {
+            // last column on group key should be time.
+            assert_eq!(group_columns[group_columns.len() - 1], "time");
+        } else {
+            assert_ne!(group_columns[group_columns.len() - 1], "time");
+        }
 
         // filter on predicates and time
         let filtered_row_ids: croaring::Bitmap;
@@ -248,29 +257,20 @@ impl Segment {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
-        // println!("TOTAL FILTERED ROWS {:?}", total_rows);
 
         // materialise all encoded values for the matching rows in the columns
         // we are grouping on and store each group as an iterator.
         let mut group_column_encoded_values = Vec::with_capacity(group_columns.len());
         for group_column in group_columns {
             if let Some(column) = self.column(&group_column) {
-                let encoded_values: Vec<i64>;
-                if let column::Vector::Integer(vector) =
-                    column.encoded_values(&filtered_row_ids_vec)
-                {
-                    encoded_values = vector;
-                } else {
-                    unimplemented!("currently you can only group on encoded string columns");
-                }
-
+                let encoded_values = column.encoded_values(&filtered_row_ids_vec);
                 assert_eq!(
                     filtered_row_ids.cardinality() as usize,
                     encoded_values.len()
                 );
-                group_column_encoded_values.push(Some(encoded_values));
+                group_column_encoded_values.push(encoded_values);
             } else {
-                group_column_encoded_values.push(None);
+                panic!("need to handle no results for filtering/grouping...");
             }
         }
         // println!("grouped columns {:?}", group_column_encoded_values);
@@ -304,9 +304,12 @@ impl Segment {
         // filtering stage we will just emit None.
         let mut group_itrs = group_column_encoded_values
             .iter()
-            .map(|x| match x {
-                Some(values) => Some(values.iter()),
-                None => None,
+            .map(|vector| {
+                if let column::Vector::Integer(v) = vector {
+                    v.iter()
+                } else {
+                    panic!("don't support grouping on non-encoded values");
+                }
             })
             .collect::<Vec<_>>();
 
@@ -321,10 +324,11 @@ impl Segment {
             })
             .collect::<Vec<_>>();
 
+        // hashMap is about 20% faster than BTreeMap in this case
         let mut hash_table: HashMap<
-            Vec<Option<&i64>>,
+            Vec<i64>,
             Vec<(&String, &AggregateType, Option<column::Aggregate>)>,
-        > = HashMap::with_capacity(30000);
+        > = HashMap::new();
 
         let mut aggregate_row: Vec<(&str, Option<column::Scalar>)> =
             std::iter::repeat_with(|| ("", None))
@@ -332,22 +336,20 @@ impl Segment {
                 .collect();
 
         let mut processed_rows = 0;
-        while processed_rows < *total_rows {
-            let group_row: Vec<Option<&i64>> = group_itrs
-                .iter_mut()
-                .map(|x| match x {
-                    Some(itr) => itr.next(),
-                    None => None,
-                })
-                .collect();
+        let group_itrs_len = &group_itrs.len();
 
-            // let aggregate_row: Vec<(&str, Option<column::Scalar>)> = aggregate_itrs
-            //     .iter_mut()
-            //     .map(|&mut (col_name, ref mut itr)| match itr {
-            //         Some(itr) => (col_name, itr.next()),
-            //         None => (col_name, None),
-            //     })
-            //     .collect();
+        while processed_rows < *total_rows {
+            let group_row = group_itrs
+                .iter_mut()
+                .enumerate()
+                .map(|(i, itr)| {
+                    if i == group_itrs_len - 1 && window > 0 {
+                        // time column - apply window function
+                        return itr.next().unwrap() / window * window;
+                    }
+                    *itr.next().unwrap()
+                })
+                .collect::<Vec<_>>();
 
             // re-use aggregate_row vector.
             for (i, &mut (col_name, ref mut itr)) in aggregate_itrs.iter_mut().enumerate() {
@@ -407,7 +409,7 @@ impl Segment {
             }
             processed_rows += 1;
         }
-        log::debug!("{:?}", hash_table);
+        log::info!("({:?} rows processed) {:?}", processed_rows, hash_table);
         BTreeMap::new()
     }
 
@@ -427,6 +429,10 @@ impl Segment {
         } else {
             assert_ne!(group_columns[group_columns.len() - 1], "time");
         }
+
+        // TODO(edd): Perf - if there is no predicate and we want entire segment
+        // then it will be a lot faster to not build filtered_row_ids and just
+        // get all encoded values for each grouping column...
 
         // filter on predicates and time
         let filtered_row_ids: croaring::Bitmap;
@@ -605,8 +611,9 @@ impl Segment {
         Self::stream_grouped_aggregates(group_itrs, aggregate_cols, *total_rows as usize, window)
     }
 
-    // Once the rows necessary for doing a (windowed) grouped aggregate are ready
-    // this method will build a result set of aggregates in a streaming way.
+    // Once the rows necessary for doing a (windowed) grouped aggregate are
+    // available and appropriately sorted this method will build a result set of
+    // aggregates in a streaming way.
     pub fn stream_grouped_aggregates<'a>(
         mut group_itrs: Vec<core::slice::Iter<i64>>,
         aggregate_cols: Vec<(&String, &AggregateType, impl column::AggregatableByRange)>,
@@ -1022,12 +1029,22 @@ impl<'a> Segments<'a> {
         }
 
         match strategy {
-            GroupingStrategy::HashGroup => {
-                self.read_group_eq_hash(time_range, predicates, group_columns, aggregates, false)
-            }
-            GroupingStrategy::HashGroupConcurrent => {
-                self.read_group_eq_hash(time_range, predicates, group_columns, aggregates, true)
-            }
+            GroupingStrategy::HashGroup => self.read_group_eq_hash(
+                time_range,
+                predicates,
+                group_columns,
+                aggregates,
+                window,
+                false,
+            ),
+            GroupingStrategy::HashGroupConcurrent => self.read_group_eq_hash(
+                time_range,
+                predicates,
+                group_columns,
+                aggregates,
+                window,
+                true,
+            ),
             GroupingStrategy::SortGroup => self.read_group_eq_sort(
                 time_range,
                 predicates,
@@ -1051,10 +1068,16 @@ impl<'a> Segments<'a> {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
-        group_columns: Vec<String>,
+        mut group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
+        window: i64,
         concurrent: bool,
     ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate)>> {
+        if window > 0 {
+            // add time column to the group key
+            group_columns.push("time".to_string());
+        }
+
         if concurrent {
             let group_columns_arc = std::sync::Arc::new(group_columns);
             let aggregates_arc = std::sync::Arc::new(aggregates);
@@ -1072,6 +1095,7 @@ impl<'a> Segments<'a> {
                                 predicates,
                                 &group_columns,
                                 &aggregates,
+                                window,
                             );
                             log::info!(
                                 "processed segment {:?} using multi-threaded hash-grouping in {:?}",
@@ -1092,6 +1116,7 @@ impl<'a> Segments<'a> {
                     predicates,
                     &group_columns_arc.clone(),
                     &aggregates_arc.clone(),
+                    window,
                 );
                 log::info!(
                     "processed segment {:?} using multi-threaded hash-grouping in {:?}",
@@ -1113,6 +1138,7 @@ impl<'a> Segments<'a> {
                 predicates,
                 &group_columns,
                 &aggregates,
+                window,
             );
             log::info!(
                 "processed segment {:?} using single-threaded hash-grouping in {:?}",
