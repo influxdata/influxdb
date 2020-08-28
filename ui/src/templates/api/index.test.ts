@@ -33,7 +33,7 @@ describe('templates api calls', () => {
       })
     })
 
-    const summary = await reviewTemplate(orgID, templateUrl)
+    await reviewTemplate(orgID, templateUrl)
     const [mockArguments] = mocked(postTemplatesApplyMock).mock.calls[0]
 
     expect(mockArguments.data.dryRun).toBeTruthy()
@@ -70,7 +70,8 @@ describe('templates api calls', () => {
         data: {},
       })
     })
-    const summary = await installTemplate(orgID, templateUrl, [])
+
+    await installTemplate(orgID, templateUrl, [])
     const [mockArguments] = mocked(postTemplatesApplyMock).mock.calls[0]
 
     expect(mockArguments.data.dryRun).toBeFalsy()
@@ -107,7 +108,7 @@ describe('templates api calls', () => {
       })
     })
 
-    const summary = await fetchStacks(orgID)
+    await fetchStacks(orgID)
     const [mockArguments] = mocked(getStacksMock).mock.calls[0]
 
     expect(mockArguments.query.orgID).toBe(orgID)
@@ -141,7 +142,7 @@ describe('templates api calls', () => {
       })
     })
 
-    const summary = await deleteStack(stackID, orgID)
+    await deleteStack(stackID, orgID)
     const [mockArguments] = mocked(deleteStackMock).mock.calls[0]
 
     expect(mockArguments.query.orgID).toBe(orgID)
@@ -177,7 +178,7 @@ describe('templates api calls', () => {
       })
     })
 
-    const summary = await updateStackName(stackID, name)
+    await updateStackName(stackID, name)
     const [mockArguments] = mocked(patchStackMock).mock.calls[0]
 
     expect(mockArguments.data.name).toBe(name)
