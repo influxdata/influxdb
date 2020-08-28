@@ -14,6 +14,7 @@ import {
   fetchStacks,
   deleteStack,
   updateStackName,
+  fetchReadMe,
 } from 'src/templates/api/'
 
 describe('templates api calls', () => {
@@ -128,7 +129,6 @@ describe('templates api calls', () => {
     } catch (error) {
       expect(error.message).toBe('whoops')
     }
-
   })
 
   it('deleteStack pass', async () => {
@@ -161,11 +161,10 @@ describe('templates api calls', () => {
     })
 
     try {
-      await deleteStack(orgID,stackID)
+      await deleteStack(orgID, stackID)
     } catch (error) {
       expect(error.message).toBe('whoops')
     }
-
   })
 
   it('updateStackName', async () => {
@@ -202,6 +201,28 @@ describe('templates api calls', () => {
     } catch (error) {
       expect(error.message).toBe('whoops')
     }
+  })
 
+  it('fetchReadMe pass', async () => {
+    const name = 'docker'
+    fetchMock.enableMocks()
+
+    await fetchReadMe(name)
+
+    expect(fetchMock).toHaveReturned()
+    expect(mocked(fetchMock).mock.calls[0][0]).toBe(
+      'https://raw.githubusercontent.com/influxdata/community-templates/master/docker/README.md'
+    )
+  })
+
+  it('fetchReadMe fail', async () => {
+    const name = 'imABadName'
+    fetchMock.mockReject(new Error('foo'))
+
+    try {
+      await fetchReadMe(name)
+    } catch (error) {
+      expect(error.message).toBe('foo')
+    }
   })
 })
