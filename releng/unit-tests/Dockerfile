@@ -1,5 +1,5 @@
 ARG GO_VERSION
-FROM golang:${GO_VERSION}-alpine
+FROM golang:${GO_VERSION}
 
 RUN apk add --no-cache \
       bash \
