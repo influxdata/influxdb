@@ -1,6 +1,6 @@
 // Libraries
 import {Dispatch} from 'react'
-// import {fromFlux as parse} from '@influxdata/giraffe'
+import {fromFlux as parse} from '@influxdata/giraffe'
 
 // API
 import {runQuery} from 'src/shared/apis/query'
@@ -11,7 +11,6 @@ import {AppState, GetState, RemoteDataState, Schema} from 'src/types'
 // Utils
 import {getOrg} from 'src/organizations/selectors'
 import {getSchemaByBucketName} from 'src/shared/selectors/schemaSelectors'
-import {parseResponse} from 'src/shared/parsing/flux/schemaParser'
 
 // Actions
 import {
@@ -52,7 +51,7 @@ export const fetchSchemaForBucket = async (
 
       return raw
     })
-    .then(raw => parseResponse(raw.csv))
+    .then(raw => parse(raw.csv).schema)
 
   return res
 }
