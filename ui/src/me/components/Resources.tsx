@@ -37,7 +37,7 @@ class ResourceLists extends PureComponent<Props> {
             <LogoutButton />
           </Panel.Header>
         </Panel>
-        <Panel>
+        <Panel testID="recent-dashboards--panel">
           <Panel.Header>
             <h4>Recent Dashboards</h4>
           </Panel.Header>

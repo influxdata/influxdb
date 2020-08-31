@@ -2,6 +2,7 @@ import {Organization} from '../../src/types'
 
 const newLabelName = 'click-me'
 const dashboardName = 'Bee Happy'
+const dashboardName2 = 'test dashboard'
 const dashSearchName = 'bEE'
 
 describe('Dashboards', () => {
@@ -160,7 +161,7 @@ describe('Dashboards', () => {
           cy.createAndAddLabel('dashboards', id, body.id, newLabelName)
         })
 
-        cy.createDashboard(id).then(({body}) => {
+        cy.createDashboard(id, dashboardName2).then(({ body }) => {
           cy.createAndAddLabel('dashboards', id, body.id, 'bar')
         })
       })
@@ -403,6 +404,25 @@ describe('Dashboards', () => {
 
         cy.getByTestID('dashboard-card').should('have.length', 1)
         cy.contains(dashboardName)
+      })
+    })
+
+    it('can list and filter dashboards on home page', () => {
+      cy.getByTestID('tree-nav--header').click()
+
+      cy.getByTestID('recent-dashboards--panel').within(() => {
+        const dashboardIsVisible = (name: string, isVisible = true) => {
+          cy.contains(name).should((isVisible ? '' : 'not.') + 'visible')
+        }
+
+        dashboardIsVisible(dashboardName)
+        dashboardIsVisible(dashboardName2)
+
+        cy.get('input')
+          .type(dashSearchName)
+
+        dashboardIsVisible(dashboardName)
+        dashboardIsVisible(dashboardName2, false)
       })
     })
   })
