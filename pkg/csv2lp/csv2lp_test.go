@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test_CsvToLineProtocol tests conversion of annotated CSV data to line protocol data
-func Test_CsvToLineProtocol(t *testing.T) {
+// Test_CsvToLineProtocol_variousBufferSize tests conversion of annotated CSV data to line protocol data on various buffer sizes
+func Test_CsvToLineProtocol_variousBufferSize(t *testing.T) {
 	var tests = []struct {
 		name  string
 		csv   string
@@ -114,6 +114,68 @@ func Test_CsvToLineProtocol(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// Test_CsvToLineProtocol_samples tests conversion of annotated CSV data to line protocol data
+func Test_CsvToLineProtocol_samples(t *testing.T) {
+	var tests = []struct {
+		name  string
+		csv   string
+		lines string
+		err   string
+	}{
+		{
+			"queryResult_19452", // https://github.com/influxdata/influxdb/issues/19452
+			"#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string\n" +
+				"#group,false,false,true,true,false,false,true,true,true\n" +
+				"#default,_result,,,,,,,,\n" +
+				",result,table,_start,_stop,_time,_value,_field,_measurement,host\n" +
+				",,0,2020-08-26T22:59:23.598653Z,2020-08-26T23:00:23.598653Z,2020-08-26T22:59:30Z,15075651584,active,mem,ip-192-168-86-25.ec2.internal\n",
+			"mem,host=ip-192-168-86-25.ec2.internal active=15075651584i 1598482770000000000\n",
+			"", // no error
+		},
+		{
+			"queryResult_19452_group_first", // issue 19452, but with group annotation first
+			"#group,false,false,true,true,false,false,true,true,true\n" +
+				"#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string\n" +
+				"#default,_result,,,,,,,,\n" +
+				",result,table,_start,_stop,_time,_value,_field,_measurement,host\n" +
+				",,0,2020-08-26T22:59:23.598653Z,2020-08-26T23:00:23.598653Z,2020-08-26T22:59:30Z,15075651584,active,mem,ip-192-168-86-25.ec2.internal\n",
+			"mem,host=ip-192-168-86-25.ec2.internal active=15075651584i 1598482770000000000\n",
+			"", // no error
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := CsvToLineProtocol(strings.NewReader(test.csv))
+			buffer := make([]byte, 100)
+			lines := make([]byte, 0, 100)
+			for {
+				n, err := reader.Read(buffer)
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					if test.err != "" {
+						// fmt.Println(err)
+						if err := err.Error(); !strings.Contains(err, test.err) {
+							require.Equal(t, err, test.err)
+						}
+						return
+					}
+					require.Nil(t, err.Error())
+					break
+				}
+				lines = append(lines, buffer[:n]...)
+			}
+			if test.err == "" {
+				require.Equal(t, test.lines, string(lines))
+			} else {
+				require.Fail(t, "error message with '"+test.err+"' expected")
+			}
+		})
 	}
 }
 

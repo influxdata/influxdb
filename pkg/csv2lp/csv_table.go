@@ -232,7 +232,7 @@ func (t *CsvTable) AddRow(row []string) bool {
 	// detect data row or table header row
 	if len(row[0]) == 0 || row[0][0] != '#' {
 		if !t.readTableData {
-			// row must a header row now
+			// expect a header row
 			t.lpColumnsValid = false // line protocol columns change
 			if t.partBits == 0 {
 				// create columns since no column anotations were processed

@@ -91,7 +91,10 @@ var supportedAnnotations = []annotationComment{
 		setupColumn: func(column *CsvTableColumn, value string) {
 			// standard flux query result annotation
 			if strings.HasSuffix(value, "true") {
-				column.LinePart = linePartTag
+				// setup column's line part unless it is already set (#19452)
+				if column.LinePart == 0 {
+					column.LinePart = linePartTag
+				}
 			}
 		},
 	},
