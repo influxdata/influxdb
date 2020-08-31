@@ -73,6 +73,7 @@ const GettingStarted: FunctionComponent<Props> = ({orgID, history}) => {
         </Panel.Body>
         <Panel.Footer>
           <Button
+            testID="getting-started--load-data--button"
             text="Load your data"
             color={ComponentColor.Primary}
             size={ComponentSize.Large}
@@ -92,6 +93,7 @@ const GettingStarted: FunctionComponent<Props> = ({orgID, history}) => {
         </Panel.Body>
         <Panel.Footer>
           <Button
+            testID="getting-started--dashboards--button"
             text="Build a dashboard"
             color={ComponentColor.Primary}
             size={ComponentSize.Large}
@@ -111,6 +113,7 @@ const GettingStarted: FunctionComponent<Props> = ({orgID, history}) => {
         </Panel.Body>
         <Panel.Footer>
           <Button
+            testID="getting-started--alerting--button"
             text="Set up alerting"
             color={ComponentColor.Primary}
             size={ComponentSize.Large}
