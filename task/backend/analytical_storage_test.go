@@ -204,7 +204,7 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 	)
 
 	// TODO(adam): do we need a proper secret service here?
-	storageStore := storage2.NewStore(engine.TSDBStore, engine.MetaClient)
+	storageStore := storage2.NewStore(engine.TSDBStore(), engine.MetaClient())
 	readsReader := storageflux.NewReader(storageStore)
 
 	deps, err := stdlib.NewDependencies(readsReader, engine, bucketSvc, orgSvc, nil, nil)

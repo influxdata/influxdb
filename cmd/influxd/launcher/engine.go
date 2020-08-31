@@ -13,11 +13,12 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
-// var _ Engine = (*storage.Engine)(nil)
+var _ Engine = (*storage.Engine)(nil)
 
 // Engine defines the time-series storage engine.  Wraps *storage.Engine
 // to facilitate testing.
@@ -30,12 +31,15 @@ type Engine interface {
 
 	SeriesCardinality(orgID, bucketID influxdb.ID) int64
 
+	TSDBStore() *tsdb.Store
+	MetaClient() storage.MetaClient
+
 	WithLogger(log *zap.Logger)
 	Open(context.Context) error
 	Close() error
 }
 
-// var _ Engine = (*TemporaryEngine)(nil)
+var _ Engine = (*TemporaryEngine)(nil)
 var _ http.Flusher = (*TemporaryEngine)(nil)
 
 // TemporaryEngine creates a time-series storage engine backed
@@ -102,10 +106,8 @@ func (t *TemporaryEngine) Close() error {
 }
 
 // WritePoints stores points into the storage engine.
-func (t *TemporaryEngine) WritePoints(ctx context.Context, points []models.Point) error {
-	//TODO figure out
-	return nil
-	// return t.engine.WritePoints(ctx, points)
+func (t *TemporaryEngine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error {
+	return t.engine.WritePoints(ctx, orgID, bucketID, points)
 }
 
 // SeriesCardinality returns the number of series in the engine.
@@ -164,4 +166,12 @@ func (t *TemporaryEngine) FetchBackupFile(ctx context.Context, backupID int, bac
 
 func (t *TemporaryEngine) InternalBackupPath(backupID int) string {
 	return t.engine.InternalBackupPath(backupID)
+}
+
+func (t *TemporaryEngine) TSDBStore() *tsdb.Store {
+	return t.engine.TSDBStore()
+}
+
+func (t *TemporaryEngine) MetaClient() storage.MetaClient {
+	return t.engine.MetaClient()
 }

@@ -411,7 +411,7 @@ type Launcher struct {
 	kvStore    kv.SchemaStore
 	kvService  *kv.Service
 	//TODO fix
-	engine        *storage.Engine
+	engine        Engine
 	StorageConfig storage.Config
 
 	queryController *control.Controller
@@ -717,31 +717,34 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 	_ = pageFaultLimiter
 
-	// TODO - clean up
-	// if m.testing {
-	// 	// the testing engine will write/read into a temporary directory
-	// 	engine := NewTemporaryEngine(m.StorageConfig, storage.WithRetentionEnforcer(bucketSvc))
-	// 	flushers = append(flushers, engine)
-	// 	m.engine = engine
-	// } else {
 	metaClient := meta.NewClient(meta.NewConfig(), m.kvStore)
 	if err := metaClient.Open(); err != nil {
 		m.log.Error("Failed to open meta client", zap.Error(err))
 		return err
 	}
 
-	// check for 2.x data / state from a prior 2.x
-	if err := checkForPriorVersion(ctx, m.log, m.boltPath, m.enginePath, ts.BucketService, metaClient); err != nil {
-		os.Exit(1)
-	}
+	if m.testing {
+		// the testing engine will write/read into a temporary directory
+		engine := NewTemporaryEngine(
+			m.StorageConfig,
+			storage.WithRetentionEnforcer(ts.BucketService),
+			storage.WithMetaClient(metaClient),
+		)
+		flushers = append(flushers, engine)
+		m.engine = engine
+	} else {
+		// check for 2.x data / state from a prior 2.x
+		if err := checkForPriorVersion(ctx, m.log, m.boltPath, m.enginePath, ts.BucketService, metaClient); err != nil {
+			os.Exit(1)
+		}
 
-	m.engine = storage.NewEngine(
-		m.enginePath,
-		m.StorageConfig,
-		storage.WithRetentionEnforcer(ts.BucketService),
-		storage.WithMetaClient(metaClient),
-	)
-	// }
+		m.engine = storage.NewEngine(
+			m.enginePath,
+			m.StorageConfig,
+			storage.WithRetentionEnforcer(ts.BucketService),
+			storage.WithMetaClient(metaClient),
+		)
+	}
 	m.engine.WithLogger(m.log)
 	if err := m.engine.Open(ctx); err != nil {
 		m.log.Error("Failed to open engine", zap.Error(err))
@@ -757,7 +760,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	)
 
 	deps, err := influxdb.NewDependencies(
-		storageflux.NewReader(storage2.NewStore(m.engine.TSDBStore, m.engine.MetaClient)),
+		storageflux.NewReader(storage2.NewStore(m.engine.TSDBStore(), m.engine.MetaClient())),
 		m.engine,
 		authorizer.NewBucketService(ts.BucketService),
 		authorizer.NewOrgService(ts.OrganizationService),
@@ -858,14 +861,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	mapper := &iqlcoordinator.LocalShardMapper{
 		MetaClient: metaClient,
-		TSDBStore:  m.engine.TSDBStore,
+		TSDBStore:  m.engine.TSDBStore(),
 		DBRP:       dbrpSvc,
 	}
 
 	qe := iqlquery.NewExecutor(m.log, cm)
 	se := &iqlcoordinator.StatementExecutor{
 		MetaClient:  metaClient,
-		TSDBStore:   m.engine.TSDBStore,
+		TSDBStore:   m.engine.TSDBStore(),
 		ShardMapper: mapper,
 		DBRP:        dbrpSvc,
 	}

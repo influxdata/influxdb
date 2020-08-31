@@ -7,15 +7,14 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
-	_ "github.com/influxdata/influxdb/v2/tsdb/index/inmem"
-	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/inmem"
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/pkg/errors"
@@ -45,8 +44,8 @@ type Engine struct {
 
 	mu           sync.RWMutex
 	closing      chan struct{} // closing returns the zero value when the engine is shutting down.
-	TSDBStore    *tsdb.Store
-	MetaClient   MetaClient
+	tsdbStore    *tsdb.Store
+	metaClient   MetaClient
 	pointsWriter interface {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 	}
@@ -102,7 +101,7 @@ func WithPageFaultLimiter(limiter *rate.Limiter) Option {
 
 func WithMetaClient(c MetaClient) Option {
 	return func(e *Engine) {
-		e.MetaClient = c
+		e.metaClient = c
 	}
 }
 
@@ -125,7 +124,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		config:              c,
 		path:                path,
 		defaultMetricLabels: prometheus.Labels{},
-		TSDBStore:           tsdb.NewStore(c.Data.Dir),
+		tsdbStore:           tsdb.NewStore(c.Data.Dir),
 		logger:              zap.NewNop(),
 
 		writePointsValidationEnabled: true,
@@ -135,15 +134,15 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		opt(e)
 	}
 
-	e.TSDBStore.EngineOptions.Config = c.Data
+	e.tsdbStore.EngineOptions.Config = c.Data
 
 	// Copy TSDB configuration.
-	e.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
-	e.TSDBStore.EngineOptions.IndexVersion = c.Data.Index
+	e.tsdbStore.EngineOptions.EngineVersion = c.Data.Engine
+	e.tsdbStore.EngineOptions.IndexVersion = c.Data.Index
 
 	pw := coordinator.NewPointsWriter()
-	pw.TSDBStore = e.TSDBStore
-	pw.MetaClient = e.MetaClient
+	pw.TSDBStore = e.tsdbStore
+	pw.MetaClient = e.metaClient
 	e.pointsWriter = pw
 
 	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
@@ -159,7 +158,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	fields = append(fields, zap.String("service", "storage-engine"))
 	e.logger = log.With(fields...)
 
-	e.TSDBStore.Logger = e.logger
+	e.tsdbStore.Logger = e.logger
 	if pw, ok := e.pointsWriter.(*coordinator.PointsWriter); ok {
 		pw.Logger = e.logger
 	}
@@ -190,7 +189,7 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if err := e.TSDBStore.Open(); err != nil {
+	if err := e.tsdbStore.Open(); err != nil {
 		return err
 	}
 	e.closing = make(chan struct{})
@@ -337,7 +336,7 @@ func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err erro
 		Duration: &b.RetentionPeriod,
 	}
 
-	if _, err = e.MetaClient.CreateDatabaseWithRetentionPolicy(b.ID.String(), &spec); err != nil {
+	if _, err = e.metaClient.CreateDatabaseWithRetentionPolicy(b.ID.String(), &spec); err != nil {
 		return err
 	}
 
@@ -351,14 +350,14 @@ func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influ
 	rpu := meta.RetentionPolicyUpdate{
 		Duration: &d,
 	}
-	return e.MetaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
+	return e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.
 func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-	return e.TSDBStore.DeleteRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName)
+	return e.tsdbStore.DeleteRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName)
 }
 
 // DeleteBucketRange deletes an entire range of data from the storage engine.
@@ -373,7 +372,7 @@ func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb
 	}
 
 	// TODO(edd): create an influxql.Expr that represents the min and max time...
-	return e.TSDBStore.DeleteSeries(bucketID.String(), nil, nil)
+	return e.tsdbStore.DeleteSeries(bucketID.String(), nil, nil)
 }
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
@@ -400,7 +399,7 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 	_ = predData
 
 	// TODO - edd convert the predicate into an influxql.Expr
-	return e.TSDBStore.DeleteSeries(bucketID.String(), nil, nil)
+	return e.tsdbStore.DeleteSeries(bucketID.String(), nil, nil)
 }
 
 // CreateBackup creates a "snapshot" of all TSM data in the Engine.
@@ -448,7 +447,7 @@ func (e *Engine) SeriesCardinality(orgID, bucketID influxdb.ID) int64 {
 		return 0
 	}
 
-	n, err := e.TSDBStore.SeriesCardinality(bucketID.String())
+	n, err := e.tsdbStore.SeriesCardinality(bucketID.String())
 	if err != nil {
 		return 0
 	}
@@ -458,4 +457,12 @@ func (e *Engine) SeriesCardinality(orgID, bucketID influxdb.ID) int64 {
 // Path returns the path of the engine's base directory.
 func (e *Engine) Path() string {
 	return e.path
+}
+
+func (t *Engine) TSDBStore() *tsdb.Store {
+	return t.tsdbStore
+}
+
+func (t *Engine) MetaClient() MetaClient {
+	return t.metaClient
 }
