@@ -31,7 +31,7 @@ import {
 } from 'src/types'
 
 interface Props {
-  giraffeResult: FromFluxResult
+  giraffeResult: Omit<FromFluxResult, 'schema'>
   files?: string[]
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone

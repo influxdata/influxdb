@@ -1,5 +1,5 @@
 import fromFlux from 'src/shared/utils/fromFlux'
-import {newTable, Table} from '@influxdata/giraffe'
+import {newTable, Schema, Table} from '@influxdata/giraffe'
 
 /*\
 
@@ -11,6 +11,8 @@ import {newTable, Table} from '@influxdata/giraffe'
 export interface FromFluxResult {
   // The single parsed `Table`
   table: Table
+
+  schema: Schema
 
   // The union of unique group keys from all input Flux tables
   fluxGroupKeyUnion: string[]
@@ -32,5 +34,6 @@ export default function fromFluxLegacy(csv: string): FromFluxResult {
       newTable(parsedFlux.table.length)
     ),
     fluxGroupKeyUnion: parsedFlux.fluxGroupKeyUnion,
+    schema: {},
   }
 }
