@@ -928,8 +928,8 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 
 func TestStore_Cardinality_Tombstoning(t *testing.T) {
 
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race and appveyor mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" || os.Getenv("CIRCLECI") != "" {
+		t.Skip("Skipping test in short, race, circleci and appveyor mode.")
 	}
 
 	test := func(index string) {
@@ -992,8 +992,8 @@ func testStoreCardinalityUnique(t *testing.T, store *Store) {
 
 func TestStore_Cardinality_Unique(t *testing.T) {
 
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race and appveyor mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" || os.Getenv("CIRCLECI") != "" {
+		t.Skip("Skipping test in short, race, circleci and appveyor mode.")
 	}
 
 	test := func(index string) {
@@ -1073,8 +1073,8 @@ func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
 
 func TestStore_Cardinality_Duplicates(t *testing.T) {
 
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race and appveyor mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" || os.Getenv("CIRCLECI") != "" {
+		t.Skip("Skipping test in short, race, circleci and appveyor mode.")
 	}
 
 	test := func(index string) {
@@ -1141,8 +1141,8 @@ func testStoreCardinalityCompactions(store *Store) error {
 }
 
 func TestStore_Cardinality_Compactions(t *testing.T) {
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race and appveyor mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" || os.Getenv("CIRCLECI") != "" {
+		t.Skip("Skipping test in short, race, circleci and appveyor mode.")
 	}
 
 	test := func(index string) error {
@@ -1166,8 +1166,8 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 
 func TestStore_Cardinality_Limit_On_InMem_Index(t *testing.T) {
 
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race and appveyor mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" || os.Getenv("CIRCLECI") != "" {
+		t.Skip("Skipping test in short, race, circleci and appveyor mode.")
 	}
 
 	store := NewStore("inmem")
