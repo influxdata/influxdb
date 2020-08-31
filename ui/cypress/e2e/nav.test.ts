@@ -103,4 +103,20 @@ describe('navigation', () => {
       cy.getByTestID(`alerting-tab--${tab}--input`).should('to.be', 'checked')
     })
   })
+
+  it('can navigate in tabs from maximized left tree nav', () => {
+    // TODO: check if nav is already maximized
+    cy.get('.cf-tree-nav--toggle').click()
+
+    ;[
+      'sources', 'buckets', 'telegrafs', 'scrapers', 'tokens',
+      'history',
+      'variables', 'templates', 'labels',
+    ].forEach(x => {
+      cy.getByTestID(`nav-subitem-${x}`).last().click()
+      cy.url().should('contain', x)
+    })
+
+    cy.get('.cf-tree-nav--toggle').click()
+  })
 })
