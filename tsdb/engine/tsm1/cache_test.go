@@ -564,8 +564,8 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 }
 
 func TestCache_Deduplicate_Concurrent(t *testing.T) {
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race, appveyor mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" || os.Getenv("CIRCLECI") != "" {
+		t.Skip("Skipping test in short, race, circleci and appveyor mode.")
 	}
 
 	values := make(map[string][]Value)
