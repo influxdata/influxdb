@@ -223,6 +223,12 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Desc:    "add /debug/flush endpoint to clear stores; used for end-to-end tests",
 		},
 		{
+			DestP:   &l.testingAlwaysAllowSetup,
+			Flag:    "testing-always-allow-setup",
+			Default: false,
+			Desc:    "ensures the /api/v2/setup endpoint always returns true to allow onboarding",
+		},
+		{
 			DestP:   &l.enginePath,
 			Flag:    "engine-path",
 			Default: filepath.Join(dir, "engine"),
@@ -382,11 +388,12 @@ type Launcher struct {
 	cancel  func()
 	running bool
 
-	storeType            string
-	assetsPath           string
-	testing              bool
-	sessionLength        int // in minutes
-	sessionRenewDisabled bool
+	storeType               string
+	assetsPath              string
+	testing                 bool
+	testingAlwaysAllowSetup bool
+	sessionLength           int // in minutes
+	sessionRenewDisabled    bool
 
 	logLevel          string
 	tracingType       string
@@ -1008,7 +1015,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
 
 	var onboardOpts []tenant.OnboardServiceOptionFn
-	if m.testing {
+	if m.testingAlwaysAllowSetup {
 		onboardOpts = append(onboardOpts, tenant.WithAlwaysAllowInitialUser())
 	}
 

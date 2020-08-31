@@ -87,6 +87,7 @@ func (tl *TestLauncher) Run(ctx context.Context, args ...string) error {
 	largs := make([]string, 0, len(args)+8)
 	largs = append(largs, "--store", "memory")
 	largs = append(largs, "--e2e-testing")
+	largs = append(largs, "--testing-always-allow-setup")
 	largs = append(largs, "--bolt-path", filepath.Join(tl.Path, bolt.DefaultFilename))
 	largs = append(largs, "--engine-path", filepath.Join(tl.Path, "engine"))
 	largs = append(largs, "--http-bind-address", "127.0.0.1:0")
