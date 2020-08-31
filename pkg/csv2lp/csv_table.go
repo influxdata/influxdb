@@ -328,6 +328,8 @@ func (t *CsvTable) recomputeLineProtocolColumns() {
 	t.cachedFieldValue = nil
 	t.cachedTags = nil
 	t.cachedFields = nil
+	// collect unique tag names (#19453)
+	var tags = make(map[string]*CsvTableColumn)
 
 	// having a _field column indicates fields without a line type are ignored
 	defaultIsField := t.Column(labelFieldName) == nil
@@ -353,8 +355,11 @@ func (t *CsvTable) recomputeLineProtocolColumns() {
 		case col.Label == labelFieldValue:
 			t.cachedFieldValue = col
 		case col.LinePart == linePartTag:
+			if val, found := tags[col.Label]; found {
+				log.Printf("WARNING: ignoring duplicate tag '%s' at column index %d, using column at index %d\n", col.Label, val.Index, col.Index)
+			}
 			col.escapedLabel = escapeTag(col.Label)
-			t.cachedTags = append(t.cachedTags, col)
+			tags[col.Label] = col
 		case col.LinePart == linePartField:
 			col.escapedLabel = escapeTag(col.Label)
 			t.cachedFields = append(t.cachedFields, col)
@@ -365,8 +370,12 @@ func (t *CsvTable) recomputeLineProtocolColumns() {
 			}
 		}
 	}
-	// line protocol requires sorted tags
-	if t.cachedTags != nil && len(t.cachedTags) > 0 {
+	// line protocol requires sorted unique tags
+	if len(tags) > 0 {
+		t.cachedTags = make([]*CsvTableColumn, 0, len(tags))
+		for _, v := range tags {
+			t.cachedTags = append(t.cachedTags, v)
+		}
 		sort.Slice(t.cachedTags, func(i, j int) bool {
 			return t.cachedTags[i].Label < t.cachedTags[j].Label
 		})
