@@ -2,14 +2,14 @@ describe('navigation', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.signin().then(({body}) => {
+    cy.signin().then(({ body }) => {
       cy.wrap(body.org.id).as('orgID')
     })
 
     cy.visit('/')
   })
 
-  it('can navigate to each page', () => {
+  it('can navigate to each page from left nav', () => {
     // Load Data Page
     cy.getByTestID('nav-item-load-data').click()
     cy.getByTestID('load-data--header').should('exist')
@@ -37,7 +37,9 @@ describe('navigation', () => {
     // Home Page
     cy.getByTestID('tree-nav--header').click()
     cy.getByTestID('home-page--header').should('exist')
+  })
 
+  it('can navigate in user navigation', () => {
     // User Nav -- Members
     cy.getByTestID('user-nav').click()
     cy.getByTestID('user-nav-item-members').click()
@@ -66,5 +68,39 @@ describe('navigation', () => {
     cy.getByTestID('user-nav').click()
     cy.getByTestID('user-nav-item-logout').click()
     cy.getByTestID('signin-page').should('exist')
+  })
+
+  it('can navigate to pages from homepage', () => {
+    ;['load-data', 'dashboards', 'alerting'].forEach(card => {
+      cy.getByTestID('tree-nav--header').click()
+      cy.getByTestID(`getting-started--${card}--button`).click()
+      cy.url().should('contain', card)
+    })
+  })
+
+  const exploreTabs = (tabs: string[]) => {
+    tabs.forEach(tab => {
+      cy.getByTestID(`${tab}--tab`).click()
+      cy.url().should('contain', tab)
+    })
+  }
+
+  it('can navigate in tabs of data page', () => {
+    cy.getByTestID('nav-item-load-data').click()
+    exploreTabs(['buckets', 'telegrafs', 'scrapers', 'tokens', 'sources'])
+  })
+
+  it('can navigate in tabs of settings page', () => {
+    cy.getByTestID('nav-item-settings').click()
+    exploreTabs(['templates', 'labels', 'variables'])
+  })
+
+  it('can navigate in tabs of collapsed alerts page', () => {
+    cy.getByTestID('nav-item-alerting').click()
+
+    ;['checks', 'endpoints', 'rules'].forEach(tab => {
+      cy.getByTestID(`alerting-tab--${tab}`).click()
+      cy.getByTestID(`alerting-tab--${tab}--input`).should('to.be', 'checked')
+    })
   })
 })
