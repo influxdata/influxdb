@@ -34,7 +34,6 @@ import (
 // Ensure the store can delete a retention policy and all shards under
 // it.
 func TestStore_DeleteRetentionPolicy(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := MustOpenStore(index)
@@ -110,7 +109,6 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 
 // Ensure the store can create a new shard.
 func TestStore_CreateShard(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := MustOpenStore(index)
@@ -146,7 +144,6 @@ func TestStore_CreateShard(t *testing.T) {
 }
 
 func TestStore_CreateMixedShards(t *testing.T) {
-	t.Parallel()
 
 	test := func(index1 string, index2 string) {
 		s := MustOpenStore(index1)
@@ -202,7 +199,6 @@ func TestStore_CreateMixedShards(t *testing.T) {
 }
 
 func TestStore_DropMeasurementMixedShards(t *testing.T) {
-	t.Parallel()
 
 	test := func(index1 string, index2 string) {
 		s := MustOpenStore(index1)
@@ -247,7 +243,6 @@ func TestStore_DropMeasurementMixedShards(t *testing.T) {
 }
 
 func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := MustOpenStore(index)
@@ -310,7 +305,6 @@ func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 }
 
 func TestStore_WriteMixedShards(t *testing.T) {
-	t.Parallel()
 
 	test := func(index1 string, index2 string) {
 		s := MustOpenStore(index1)
@@ -383,7 +377,6 @@ func TestStore_WriteMixedShards(t *testing.T) {
 
 // Ensure the store does not return an error when delete from a non-existent db.
 func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := MustOpenStore(index)
@@ -401,7 +394,6 @@ func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
 
 // Ensure the store can delete an existing shard.
 func TestStore_DeleteShard(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) error {
 		s := MustOpenStore(index)
@@ -490,7 +482,6 @@ func TestStore_DeleteShard(t *testing.T) {
 
 // Ensure the store can create a snapshot to a shard.
 func TestStore_CreateShardSnapShot(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := MustOpenStore(index)
@@ -518,7 +509,6 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 }
 
 func TestStore_Open(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := NewStore(index)
@@ -561,7 +551,6 @@ func TestStore_Open(t *testing.T) {
 
 // Ensure the store reports an error when it can't open a database directory.
 func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := NewStore(index)
@@ -587,7 +576,6 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 
 // Ensure the store reports an error when it can't open a retention policy.
 func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := NewStore(index)
@@ -617,7 +605,6 @@ func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 
 // Ensure the store reports an error when it can't open a retention policy.
 func TestStore_Open_InvalidShard(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := NewStore(index)
@@ -647,7 +634,6 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 
 // Ensure shards can create iterators.
 func TestShards_CreateIterator(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := MustOpenStore(index)
@@ -810,7 +796,6 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 }
 func TestStore_Shard_SeriesN(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) error {
 		s := MustOpenStore(index)
@@ -846,7 +831,6 @@ func TestStore_Shard_SeriesN(t *testing.T) {
 }
 
 func TestStore_MeasurementNames_Deduplicate(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) {
 		s := MustOpenStore(index)
@@ -943,7 +927,6 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 }
 
 func TestStore_Cardinality_Tombstoning(t *testing.T) {
-	t.Parallel()
 
 	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
 		t.Skip("Skipping test in short, race and appveyor mode.")
@@ -1008,7 +991,6 @@ func testStoreCardinalityUnique(t *testing.T, store *Store) {
 }
 
 func TestStore_Cardinality_Unique(t *testing.T) {
-	t.Parallel()
 
 	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
 		t.Skip("Skipping test in short, race and appveyor mode.")
@@ -1090,7 +1072,6 @@ func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
 }
 
 func TestStore_Cardinality_Duplicates(t *testing.T) {
-	t.Parallel()
 
 	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
 		t.Skip("Skipping test in short, race and appveyor mode.")
@@ -1184,7 +1165,6 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 }
 
 func TestStore_Cardinality_Limit_On_InMem_Index(t *testing.T) {
-	t.Parallel()
 
 	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
 		t.Skip("Skipping test in short, race and appveyor mode.")
@@ -1244,7 +1224,6 @@ func TestStore_Cardinality_Limit_On_InMem_Index(t *testing.T) {
 }
 
 func TestStore_Sketches(t *testing.T) {
-	t.Parallel()
 
 	checkCardinalities := func(store *tsdb.Store, series, tseries, measurements, tmeasurements int) error {
 		// Get sketches and check cardinality...
@@ -1377,7 +1356,6 @@ func TestStore_Sketches(t *testing.T) {
 }
 
 func TestStore_TagValues(t *testing.T) {
-	t.Parallel()
 
 	// No WHERE - just get for keys host and shard
 	RHSAll := &influxql.ParenExpr{
@@ -1511,7 +1489,6 @@ func TestStore_TagValues(t *testing.T) {
 }
 
 func TestStore_Measurements_Auth(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) error {
 		s := MustOpenStore(index)
@@ -1600,7 +1577,6 @@ func TestStore_Measurements_Auth(t *testing.T) {
 }
 
 func TestStore_TagKeys_Auth(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) error {
 		s := MustOpenStore(index)
@@ -1698,7 +1674,6 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 }
 
 func TestStore_TagValues_Auth(t *testing.T) {
-	t.Parallel()
 
 	test := func(index string) error {
 		s := MustOpenStore(index)
