@@ -55,10 +55,10 @@ nfpms:
       rpm:
         replacements:
           amd64: x86_64
-          name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+          file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
       deb:
         replacements:
-          name_template: "influxdb_{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+          file_name_template: "influxdb_{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
