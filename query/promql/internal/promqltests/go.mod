@@ -10,7 +10,7 @@ require (
 	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/google/go-cmp v0.5.0
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
-	github.com/influxdata/flux v0.82.3-0.20200826163009-c9ec07c5aa38
+	github.com/influxdata/flux v0.83.0
 	github.com/influxdata/influxdb/v2 v2.0.0-00010101000000-000000000000
 	github.com/influxdata/influxql v1.0.1 // indirect
 	github.com/influxdata/promql/v2 v2.12.0
@@ -21,9 +21,6 @@ require (
 	github.com/prometheus/tsdb v0.10.0
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/willf/bitset v1.1.10 // indirect
-	golang.org/x/net v0.0.0-20200301022130-244492dfa37a // indirect
-	golang.org/x/sys v0.0.0-20200302150141-5c8b2ff67527 // indirect
-	golang.org/x/tools v0.0.0-20200305205014-bc073721adb6 // indirect
 	google.golang.org/api v0.20.0 // indirect
 	google.golang.org/genproto v0.0.0-20200305110556-506484158171 // indirect
 )
