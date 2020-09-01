@@ -82,13 +82,14 @@ nfpms:
         file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
       deb:
        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
-    replacements:
-      amd64: x86_64
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
     description: Distributed time-series database.
     license: Proprietary
+    files:
+      "README.md":"README.md"
+      "":""    
 
 blobs:
   - provider: "s3"
