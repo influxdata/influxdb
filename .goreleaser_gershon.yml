@@ -116,7 +116,7 @@ archives:
     files:
       - LICENSE
       - README.md
-      
+
 checksum:
   name_template: "influxdb_{{ .Version }}.sha256"
   algorithm: sha256
