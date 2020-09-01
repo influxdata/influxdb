@@ -25,6 +25,19 @@ var (
 	ErrMissingReadSource = errors.New("missing ReadSource")
 )
 
+type TSDBStore interface {
+	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	ShardGroup(ids []uint64) tsdb.ShardGroup
+	Shards(ids []uint64) []*tsdb.Shard
+	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+}
+
+type MetaClient interface {
+	Database(name string) *meta.DatabaseInfo
+	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+}
+
 // getReadSource will attempt to unmarshal a ReadSource from the ReadRequest or
 // return an error if no valid resource is present.
 func GetReadSource(any types.Any) (*ReadSource, error) {
@@ -35,18 +48,13 @@ func GetReadSource(any types.Any) (*ReadSource, error) {
 	return &source, nil
 }
 
-type MetaClient interface {
-	Database(name string) *meta.DatabaseInfo
-	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
-}
-
 type Store struct {
-	TSDBStore  *tsdb.Store
+	TSDBStore  TSDBStore
 	MetaClient MetaClient
 	Logger     *zap.Logger
 }
 
-func NewStore(store *tsdb.Store, metaClient MetaClient) *Store {
+func NewStore(store TSDBStore, metaClient MetaClient) *Store {
 	return &Store{
 		TSDBStore:  store,
 		MetaClient: metaClient,

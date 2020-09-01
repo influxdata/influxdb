@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
@@ -17,6 +18,7 @@ import (
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -112,6 +114,14 @@ type MetaClient interface {
 	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+}
+
+type TSDBStore interface {
+	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	ShardGroup(ids []uint64) tsdb.ShardGroup
+	Shards(ids []uint64) []*tsdb.Shard
+	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 
 // NewEngine initialises a new storage engine, including a series file, index and
@@ -459,10 +469,10 @@ func (e *Engine) Path() string {
 	return e.path
 }
 
-func (t *Engine) TSDBStore() *tsdb.Store {
-	return t.tsdbStore
+func (e *Engine) TSDBStore() TSDBStore {
+	return e.tsdbStore
 }
 
-func (t *Engine) MetaClient() MetaClient {
-	return t.metaClient
+func (e *Engine) MetaClient() MetaClient {
+	return e.metaClient
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -31,7 +30,7 @@ type Engine interface {
 
 	SeriesCardinality(orgID, bucketID influxdb.ID) int64
 
-	TSDBStore() *tsdb.Store
+	TSDBStore() storage.TSDBStore
 	MetaClient() storage.MetaClient
 
 	WithLogger(log *zap.Logger)
@@ -52,7 +51,8 @@ type TemporaryEngine struct {
 	mu     sync.Mutex
 	opened bool
 
-	engine *storage.Engine
+	engine    *storage.Engine
+	tsdbStore temporaryTSDBStore
 
 	log *zap.Logger
 }
@@ -89,6 +89,8 @@ func (t *TemporaryEngine) Open(ctx context.Context) error {
 		_ = os.RemoveAll(path)
 		return err
 	}
+
+	t.tsdbStore.TSDBStore = t.engine.TSDBStore()
 
 	t.opened = true
 	return nil
@@ -168,10 +170,14 @@ func (t *TemporaryEngine) InternalBackupPath(backupID int) string {
 	return t.engine.InternalBackupPath(backupID)
 }
 
-func (t *TemporaryEngine) TSDBStore() *tsdb.Store {
-	return t.engine.TSDBStore()
+func (t *TemporaryEngine) TSDBStore() storage.TSDBStore {
+	return &t.tsdbStore
 }
 
 func (t *TemporaryEngine) MetaClient() storage.MetaClient {
 	return t.engine.MetaClient()
+}
+
+type temporaryTSDBStore struct {
+	storage.TSDBStore
 }
