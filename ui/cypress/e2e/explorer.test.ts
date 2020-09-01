@@ -86,8 +86,7 @@ describe('DataExplorer', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input').within(() => {
           cy.getByTestID('input-field')
-            .click()
-            .type('{backspace}{backspace}')
+            .clear()
           cy.getByTestID('auto-input--custom').should(
             'have.class',
             'cf-select-group--option__active'
@@ -103,8 +102,8 @@ describe('DataExplorer', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input').within(() => {
           cy.getByTestID('input-field')
-            .click()
-            .type('{backspace}{backspace}3')
+            .clear()
+            .type('3')
           cy.getByTestID('input-field--error').should('have.length', 0)
         })
       })
@@ -146,7 +145,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('grid--column').within(() => {
           cy.getByTestID('bin-size-input')
             .clear()
-            .type('{backspace}{backspace}5')
+            .type('5')
             .getByTestID('bin-size-input--error')
             .should('have.length', 0)
         })
