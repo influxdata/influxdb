@@ -87,9 +87,6 @@ nfpms:
     maintainer: support@influxdb.com
     description: Distributed time-series database.
     license: Proprietary
-    files:
-      "README.md":"README.md"
-      "":""    
 
 blobs:
   - provider: "s3"
