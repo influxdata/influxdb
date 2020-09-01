@@ -82,6 +82,8 @@ nfpms:
         file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
       deb:
        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+    replacements:
+      amd64: x86_64
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -116,7 +118,7 @@ archives:
     files:
       - LICENSE
       - README.md
-
+      
 checksum:
   name_template: "influxdb_{{ .Version }}.sha256"
   algorithm: sha256
