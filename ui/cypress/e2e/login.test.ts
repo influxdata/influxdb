@@ -39,6 +39,24 @@ describe('The Login Page', () => {
     cy.getByTestID('signin-page--content').should('exist')
   })
 
+  it.only('can logout from homepage', () => {
+    cy.flush()
+    cy.signin()
+    cy.visit('/')
+
+    cy.getByTestID('logout--button').click()
+
+    cy.getByTestID('signin-page--content').should('exist')
+
+    // try to access a protected route
+    cy.get<string>('@orgID').then(orgID => {
+      cy.visit(`/orgs/${orgID}`)
+    })
+
+    // assert that user is routed to signin
+    cy.getByTestID('signin-page--content').should('exist')
+  })
+
   describe('login failure', () => {
     it('if username is not present', () => {
       cy.getByInputName('password').type(user.password)
