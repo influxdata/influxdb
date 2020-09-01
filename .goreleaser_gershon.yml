@@ -51,6 +51,13 @@ nfpms:
     formats:
       - deb
       - rpm
+    replacements:
+      amd64: x86_64
+    vendor: InfluxData
+    homepage: https://influxdata.com
+    maintainer: support@influxdb.com
+    description: Distributed time-series database.
+    
 
 blobs:
   - provider: "s3"
@@ -80,7 +87,7 @@ archives:
     files:
       - LICENSE
       - README.md
-
+      
 checksum:
   name_template: "influxdb_{{ .Version }}.sha256"
   algorithm: sha256
