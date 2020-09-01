@@ -63,7 +63,8 @@ signs:
 =======
 >>>>>>> chore: Updated configuration to be able to test release process
 nfpms:
-  - id: "influxdata"
+  -
+    id: "influxdata"
     builds: ["influx", "influxd"]
     formats:
       - deb
