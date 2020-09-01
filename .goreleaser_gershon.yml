@@ -44,20 +44,27 @@ builds:
     hooks:
       pre: make generate
 
-
 nfpms:
   - id: "influxdata"
     builds: ["influx", "influxd"]
     formats:
       - deb
       - rpm
-    replacements:
-      amd64: x86_64
+    overrides:
+      rpm:
+        replacements:
+          amd64: x86_64
+        name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}" 
+      deb:
+        name_template: "influxdb_{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
     description: Distributed time-series database.
-    
+    license: Proprietary
+    files:
+      "README.md":"README.md"
+      "":""    
 
 blobs:
   - provider: "s3"
