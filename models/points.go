@@ -1688,12 +1688,17 @@ func (p *point) Fields() (Fields, error) {
 // SetPrecision will round a time to the specified precision.
 func (p *point) SetPrecision(precision string) {
 	switch precision {
-	case "us":
+	case "n", "ns":
+	case "u", "us":
 		p.SetTime(p.Time().Truncate(time.Microsecond))
 	case "ms":
 		p.SetTime(p.Time().Truncate(time.Millisecond))
 	case "s":
 		p.SetTime(p.Time().Truncate(time.Second))
+	case "m":
+		p.SetTime(p.Time().Truncate(time.Minute))
+	case "h":
+		p.SetTime(p.Time().Truncate(time.Hour))
 	}
 }
 

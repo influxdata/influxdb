@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	io2 "github.com/influxdata/influxdb/v2/kit/io"
@@ -38,6 +39,7 @@ type ParsedPoints struct {
 
 // Parser parses batches of Points.
 type Parser struct {
+	Precision string
 	//ParserOptions []models.ParserOption
 }
 
@@ -76,7 +78,7 @@ func (pw *Parser) parsePoints(ctx context.Context, orgID, bucketID influxdb.ID, 
 
 	span, _ := tracing.StartSpanFromContextWithOperationName(ctx, "encoding and parsing")
 
-	points, err := models.ParsePoints(data)
+	points, err := models.ParsePointsWithPrecision(data, time.Now().UTC(), pw.Precision)
 	span.LogKV("values_total", len(points))
 	span.Finish()
 	if err != nil {
@@ -130,8 +132,9 @@ func readAll(ctx context.Context, rc io.ReadCloser) (data []byte, err error) {
 }
 
 // NewParser returns a new Parser
-func NewParser( /*parserOptions ...models.ParserOption*/ ) *Parser {
+func NewParser(precision string /*parserOptions ...models.ParserOption*/) *Parser {
 	return &Parser{
+		Precision: precision,
 		//ParserOptions: parserOptions,
 	}
 }

@@ -179,7 +179,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	// TODO: Backport?
 	//opts := append([]models.ParserOption{}, h.parserOptions...)
 	//opts = append(opts, models.WithParserPrecision(req.Precision))
-	parsed, err := points.NewParser().Parse(ctx, org.ID, bucket.ID, req.Body)
+	parsed, err := points.NewParser(req.Precision).Parse(ctx, org.ID, bucket.ID, req.Body)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, sw)
 		return

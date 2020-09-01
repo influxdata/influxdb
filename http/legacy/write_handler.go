@@ -143,7 +143,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 	span.LogKV("bucket_id", bucket.ID)
 
-	parsed, err := points.NewParser().Parse(ctx, auth.OrgID, bucket.ID, req.Body)
+	parsed, err := points.NewParser(req.Precision).Parse(ctx, auth.OrgID, bucket.ID, req.Body)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, sw)
 		return
