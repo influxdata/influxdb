@@ -62,9 +62,6 @@ nfpms:
     maintainer: support@influxdb.com
     description: Distributed time-series database.
     license: Proprietary
-    files:
-      "README.md":"README.md"
-      "":""    
 
 blobs:
   - provider: "s3"
@@ -90,7 +87,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    name_template: "influxdb-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     files:
       - LICENSE
       - README.md
