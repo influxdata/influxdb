@@ -2,12 +2,12 @@ package label
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
-	ihttp "github.com/influxdata/influxdb/v2/http"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap"
 )
@@ -29,8 +29,24 @@ func NewHTTPEmbeddedHandler(log *zap.Logger, rt influxdb.ResourceType, ls influx
 		rt:       rt,
 	}
 
-	r := ihttp.NewBaseChiRouter(h.api)
+	r := chi.NewRouter()
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		h.api.Err(w, r, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  "path not found",
+		})
+	})
+	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+		h.api.Err(w, r, &influxdb.Error{
+			Code: influxdb.EMethodNotAllowed,
+			Msg:  fmt.Sprintf("allow: %s", w.Header().Get("Allow")),
+		})
+
+	})
 	r.Use(
+		kithttp.SkipOptions,
+		middleware.StripSlashes,
+		kithttp.SetCORS,
 		middleware.Recoverer,
 		middleware.RequestID,
 		middleware.RealIP,
