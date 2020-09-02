@@ -8,9 +8,13 @@ release includes significant breaking changes.
 **Upgrading from previous beta builds of `influxd` is not supported**
 
 In order to continue using `influxd` betas, users will be required to move all existing 
-data out of their `~/.influxdbv2` (or equivalent) path, including `influxd.bolt`. There 
-is no tooling to convert existing data from previous beta releases at this time. 
-If data from a prior beta release is found, `influxd` will refuse to start.
+data out of their `~/.influxdbv2` (or equivalent) path, including `influxd.bolt`. This 
+means all existing dashboards, tasks, integrations, alerts, users and tokens will need to
+be recreated. The `influx export all` command may be used to export and re-import most
+of this data.
+
+At this time, there is no tooling to convert existing time series data from previous 
+beta releases. If data from a prior beta release is found, `influxd` will refuse to start.
 
 1. [19446](https://github.com/influxdata/influxdb/pull/19446): Port TSM1 storage engine
 
