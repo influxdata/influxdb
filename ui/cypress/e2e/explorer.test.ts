@@ -799,6 +799,25 @@ describe('DataExplorer', () => {
         cy.getByTestID('dropdown-y').contains('_time')
       })
 
+      it('can hover over graph to show tooltip', () => {
+        // build the query to return data from beforeEach
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+
+        cy.getByTestID('giraffe-tooltip').should('not.visible')
+        cy.getByTestID('giraffe-layer-line').click().trigger('mouseover')
+
+        cy.wait(100)
+        cy.getByTestID('giraffe-layer-line').trigger('mousemove', {force: true })
+
+        cy.getByTestID('giraffe-tooltip').should('visible')
+        cy.getByTestID('giraffe-layer-line').trigger('mouseout', {force: true })
+        cy.getByTestID('giraffe-tooltip').should('not.visible')
+      })
+
       it('can view table data & sort values numerically', () => {
         // build the query to return data from beforeEach
         cy.getByTestID(`selector-list m`).click()
