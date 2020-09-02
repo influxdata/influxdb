@@ -123,3 +123,11 @@ func MustMakeUsersOrgMember(ctx context.Context, svc *kv.Service, oid platform.I
 	}
 	MustCreateMappings(ctx, svc, ms...)
 }
+
+func MustNewPermissionAtID(id platform.ID, a platform.Action, rt platform.ResourceType, orgID platform.ID) *platform.Permission {
+	perm, err := platform.NewPermissionAtID(id, a, rt, orgID)
+	if err != nil {
+		panic(err)
+	}
+	return perm
+}

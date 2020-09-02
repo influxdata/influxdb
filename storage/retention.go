@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/logger"
-	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -26,7 +26,7 @@ type Deleter interface {
 
 // A Snapshotter implementation can take snapshots of the entire engine.
 type Snapshotter interface {
-	WriteSnapshot(ctx context.Context, status tsm1.CacheStatus) error
+	WriteSnapshot(ctx context.Context) error
 }
 
 // A BucketFinder is responsible for providing access to buckets via a filter.
@@ -52,19 +52,6 @@ type retentionEnforcer struct {
 	logger *zap.Logger
 
 	tracker *retentionTracker
-}
-
-// newRetentionEnforcer returns a new enforcer that ensures expired data is
-// deleted every interval period. Setting interval to 0 is equivalent to
-// disabling the service.
-func newRetentionEnforcer(engine Deleter, snapshotter Snapshotter, bucketService BucketFinder) *retentionEnforcer {
-	return &retentionEnforcer{
-		Engine:        engine,
-		Snapshotter:   snapshotter,
-		BucketService: bucketService,
-		logger:        zap.NewNop(),
-		tracker:       newRetentionTracker(newRetentionMetrics(nil), nil),
-	}
 }
 
 // SetDefaultMetricLabels sets the default labels for the retention metrics.
@@ -123,7 +110,7 @@ func (s *retentionEnforcer) expireData(ctx context.Context, buckets []*influxdb.
 	defer logEnd()
 
 	// Snapshot to clear the cache to reduce write contention.
-	if err := s.Snapshotter.WriteSnapshot(ctx, tsm1.CacheStatusRetention); err != nil && err != tsm1.ErrSnapshotInProgress {
+	if err := s.Snapshotter.WriteSnapshot(ctx); err != nil && err != tsm1.ErrSnapshotInProgress {
 		logger.Warn("Unable to snapshot cache before retention", zap.Error(err))
 	}
 

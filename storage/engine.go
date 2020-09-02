@@ -1,39 +1,32 @@
 package storage
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"io"
-	"io/ioutil"
-	"math"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/pkg/limiter"
-	"github.com/influxdata/influxdb/v2/storage/wal"
 	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxdb/v2/tsdb/cursors"
-	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
-	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
-	"github.com/influxdata/influxdb/v2/tsdb/value"
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/inmem"
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
+	"github.com/influxdata/influxdb/v2/v1/coordinator"
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
 // Static objects to prevent small allocs.
-var timeBytes = []byte("time")
+// var timeBytes = []byte("time")
 
 // ErrEngineClosed is returned when a caller attempts to use the engine while
 // it's closed.
@@ -48,17 +41,17 @@ type runner interface{ run() }
 type runnable func() (done func())
 
 type Engine struct {
-	config   Config
-	path     string
-	engineID *int // Not used by default.
-	nodeID   *int // Not used by default.
+	config Config
+	path   string
 
-	mu      sync.RWMutex
-	closing chan struct{} // closing returns the zero value when the engine is shutting down.
-	index   *tsi1.Index
-	sfile   *seriesfile.SeriesFile
-	engine  *tsm1.Engine
-	wal     *wal.WAL
+	mu           sync.RWMutex
+	closing      chan struct{} // closing returns the zero value when the engine is shutting down.
+	tsdbStore    *tsdb.Store
+	metaClient   MetaClient
+	pointsWriter interface {
+		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+	}
+	finder BucketFinder
 
 	retentionEnforcer        runner
 	retentionEnforcerLimiter runnable
@@ -76,45 +69,14 @@ type Engine struct {
 // Option provides a set
 type Option func(*Engine)
 
-// WithTSMFilenameFormatter sets a function on the underlying tsm1.Engine to specify
-// how TSM files are named.
-func WithTSMFilenameFormatter(fn tsm1.FormatFileNameFunc) Option {
-	return func(e *Engine) {
-		e.engine.WithFormatFileNameFunc(fn)
-	}
-}
-
-// WithCurrentGenerationFunc sets a function for obtaining the current generation.
-func WithCurrentGenerationFunc(fn func() int) Option {
-	return func(e *Engine) {
-		e.engine.WithCurrentGenerationFunc(fn)
-	}
-}
-
-// WithEngineID sets an engine id, which can be useful for logging when multiple
-// engines are in use.
-func WithEngineID(id int) Option {
-	return func(e *Engine) {
-		e.engineID = &id
-		e.defaultMetricLabels["engine_id"] = fmt.Sprint(*e.engineID)
-	}
-}
-
-// WithNodeID sets a node id on the engine, which can be useful for logging
-// when a system has engines running on multiple nodes.
-func WithNodeID(id int) Option {
-	return func(e *Engine) {
-		e.nodeID = &id
-		e.defaultMetricLabels["node_id"] = fmt.Sprint(*e.nodeID)
-	}
-}
-
 // WithRetentionEnforcer initialises a retention enforcer on the engine.
 // WithRetentionEnforcer must be called after other options to ensure that all
 // metrics are labelled correctly.
 func WithRetentionEnforcer(finder BucketFinder) Option {
 	return func(e *Engine) {
-		e.retentionEnforcer = newRetentionEnforcer(e, e.engine, finder)
+		e.finder = finder
+		// TODO - change retention enforce to take store
+		// e.retentionEnforcer = newRetentionEnforcer(e, e.engine, finder)
 	}
 }
 
@@ -128,92 +90,71 @@ func WithRetentionEnforcerLimiter(f runnable) Option {
 	}
 }
 
-// WithFileStoreObserver makes the engine have the provided file store observer.
-func WithFileStoreObserver(obs tsm1.FileStoreObserver) Option {
-	return func(e *Engine) {
-		e.engine.WithFileStoreObserver(obs)
-	}
-}
-
-// WithCompactionPlanner makes the engine have the provided compaction planner.
-func WithCompactionPlanner(planner tsm1.CompactionPlanner) Option {
-	return func(e *Engine) {
-		e.engine.WithCompactionPlanner(planner)
-	}
-}
-
-// WithCompactionLimiter allows the caller to set the limiter that a storage
-// engine uses. A typical use-case for this would be if multiple engines should
-// share the same limiter.
-func WithCompactionLimiter(limiter limiter.Fixed) Option {
-	return func(e *Engine) {
-		e.engine.WithCompactionLimiter(limiter)
-	}
-}
-
-// WithCompactionSemaphore sets the semaphore used to coordinate full compactions
-// across multiple storage engines.
-func WithCompactionSemaphore(s influxdb.Semaphore) Option {
-	return func(e *Engine) {
-		e.engine.SetSemaphore(s)
-	}
-}
-
-// WithWritePointsValidationEnabled sets whether written points should be validated.
-func WithWritePointsValidationEnabled(v bool) Option {
-	return func(e *Engine) {
-		e.writePointsValidationEnabled = v
-	}
-}
-
 // WithPageFaultLimiter allows the caller to set the limiter for restricting
 // the frequency of page faults.
 func WithPageFaultLimiter(limiter *rate.Limiter) Option {
 	return func(e *Engine) {
-		e.engine.WithPageFaultLimiter(limiter)
-		e.index.WithPageFaultLimiter(limiter)
-		e.sfile.WithPageFaultLimiter(limiter)
+		// TODO no longer needed
+		// e.engine.WithPageFaultLimiter(limiter)
+		// e.index.WithPageFaultLimiter(limiter)
+		// e.sfile.WithPageFaultLimiter(limiter)
 	}
+}
+
+func WithMetaClient(c MetaClient) Option {
+	return func(e *Engine) {
+		e.metaClient = c
+	}
+}
+
+type MetaClient interface {
+	Database(name string) (di *meta.DatabaseInfo)
+	CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
+	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
+	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
+	CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+}
+
+type TSDBStore interface {
+	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	ShardGroup(ids []uint64) tsdb.ShardGroup
+	Shards(ids []uint64) []*tsdb.Shard
+	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 
 // NewEngine initialises a new storage engine, including a series file, index and
 // TSM engine.
 func NewEngine(path string, c Config, options ...Option) *Engine {
+	c.Data.Dir = filepath.Join(path, "data")
+	c.Data.WALDir = filepath.Join(path, "wal")
+
 	e := &Engine{
 		config:              c,
 		path:                path,
 		defaultMetricLabels: prometheus.Labels{},
+		tsdbStore:           tsdb.NewStore(c.Data.Dir),
 		logger:              zap.NewNop(),
 
 		writePointsValidationEnabled: true,
 	}
 
-	// Initialize series file.
-	e.sfile = seriesfile.NewSeriesFile(c.GetSeriesFilePath(path))
-	e.sfile.LargeWriteThreshold = c.SeriesFile.LargeSeriesWriteThreshold
-
-	// Initialise index.
-	e.index = tsi1.NewIndex(e.sfile, c.Index,
-		tsi1.WithPath(c.GetIndexPath(path)))
-
-	// Initialize WAL
-	e.wal = wal.NewWAL(c.GetWALPath(path))
-	e.wal.WithFsyncDelay(time.Duration(c.WAL.FsyncDelay))
-	e.wal.SetEnabled(c.WAL.Enabled)
-
-	// Initialise Engine
-	e.engine = tsm1.NewEngine(c.GetEnginePath(path), e.index, c.Engine, tsm1.WithSnapshotter(e))
-
-	// Apply options.
-	for _, option := range options {
-		option(e)
+	for _, opt := range options {
+		opt(e)
 	}
 
-	// Set default metrics labels.
-	e.engine.SetDefaultMetricLabels(e.defaultMetricLabels)
-	e.sfile.SetDefaultMetricLabels(e.defaultMetricLabels)
-	e.index.SetDefaultMetricLabels(e.defaultMetricLabels)
-	e.wal.SetDefaultMetricLabels(e.defaultMetricLabels)
+	e.tsdbStore.EngineOptions.Config = c.Data
+
+	// Copy TSDB configuration.
+	e.tsdbStore.EngineOptions.EngineVersion = c.Data.Engine
+	e.tsdbStore.EngineOptions.IndexVersion = c.Data.Index
+
+	pw := coordinator.NewPointsWriter()
+	pw.TSDBStore = e.tsdbStore
+	pw.MetaClient = e.metaClient
+	e.pointsWriter = pw
+
 	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
 		r.SetDefaultMetricLabels(e.defaultMetricLabels)
 	}
@@ -224,20 +165,14 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 // WithLogger sets the logger on the Store. It must be called before Open.
 func (e *Engine) WithLogger(log *zap.Logger) {
 	fields := []zap.Field{}
-	if e.nodeID != nil {
-		fields = append(fields, zap.Int("node_id", *e.nodeID))
-	}
-
-	if e.engineID != nil {
-		fields = append(fields, zap.Int("engine_id", *e.engineID))
-	}
 	fields = append(fields, zap.String("service", "storage-engine"))
-
 	e.logger = log.With(fields...)
-	e.sfile.WithLogger(e.logger)
-	e.index.WithLogger(e.logger)
-	e.engine.WithLogger(e.logger)
-	e.wal.WithLogger(e.logger)
+
+	e.tsdbStore.Logger = e.logger
+	if pw, ok := e.pointsWriter.(*coordinator.PointsWriter); ok {
+		pw.Logger = e.logger
+	}
+
 	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
 		r.WithLogger(e.logger)
 	}
@@ -247,10 +182,6 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 // the engine and its components.
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
-	metrics = append(metrics, seriesfile.PrometheusCollectors()...)
-	metrics = append(metrics, tsi1.PrometheusCollectors()...)
-	metrics = append(metrics, tsm1.PrometheusCollectors()...)
-	metrics = append(metrics, wal.PrometheusCollectors()...)
 	metrics = append(metrics, RetentionPrometheusCollectors()...)
 	return metrics
 }
@@ -265,23 +196,12 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 		return nil // Already open
 	}
 
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// Open the services in order and clean up if any fail.
-	var oh openHelper
-	oh.Open(ctx, e.sfile)
-	oh.Open(ctx, e.index)
-	oh.Open(ctx, e.wal)
-	oh.Open(ctx, e.engine)
-	if err := oh.Done(); err != nil {
+	if err := e.tsdbStore.Open(); err != nil {
 		return err
 	}
-
-	if err := e.replayWAL(); err != nil {
-		return err
-	}
-
 	e.closing = make(chan struct{})
 
 	// TODO(edd) background tasks will be run in priority order via a scheduler.
@@ -290,78 +210,15 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 	if e.retentionEnforcer != nil {
 		e.runRetentionEnforcer()
 	}
-
 	return nil
-}
-
-// replayWAL reads the WAL segment files and replays them.
-func (e *Engine) replayWAL() error {
-	if !e.config.WAL.Enabled {
-		return nil
-	}
-	now := time.Now()
-
-	walPaths, err := wal.SegmentFileNames(e.wal.Path())
-	if err != nil {
-		return err
-	}
-
-	// TODO(jeff): we should just do snapshots and wait for them so that we don't hit
-	// OOM situations when reloading huge WALs.
-
-	// Disable the max size during loading
-	limit := e.engine.Cache.MaxSize()
-	defer func() { e.engine.Cache.SetMaxSize(limit) }()
-	e.engine.Cache.SetMaxSize(0)
-
-	// Execute all the entries in the WAL again
-	reader := wal.NewWALReader(walPaths)
-	reader.WithLogger(e.logger)
-	err = reader.Read(func(entry wal.WALEntry) error {
-		switch en := entry.(type) {
-		case *wal.WriteWALEntry:
-			points := tsm1.ValuesToPoints(en.Values)
-			err := e.writePointsLocked(context.Background(), tsdb.NewSeriesCollection(points), en.Values)
-			if _, ok := err.(tsdb.PartialWriteError); ok {
-				err = nil
-			}
-			return err
-
-		case *wal.DeleteBucketRangeWALEntry:
-			var pred tsm1.Predicate
-			if len(en.Predicate) > 0 {
-				pred, err = tsm1.UnmarshalPredicate(en.Predicate)
-				if err != nil {
-					return err
-				}
-			}
-
-			return e.deleteBucketRangeLocked(context.Background(), en.OrgID, en.BucketID, en.Min, en.Max, pred, influxdb.DeletePrefixRangeOptions{KeepSeries: en.KeepSeries})
-		}
-
-		return nil
-	})
-
-	e.logger.Info("Reloaded WAL",
-		zap.String("path", e.wal.Path()),
-		zap.Duration("duration", time.Since(now)),
-		zap.Error(err))
-
-	return err
 }
 
 // EnableCompactions allows the series file, index, & underlying engine to compact.
 func (e *Engine) EnableCompactions() {
-	e.sfile.EnableCompactions()
-	e.index.EnableCompactions()
-	e.engine.SetCompactionsEnabled(true)
 }
 
 // DisableCompactions disables compactions in the series file, index, & engine.
 func (e *Engine) DisableCompactions() {
-	e.sfile.DisableCompactions()
-	e.index.DisableCompactions()
-	e.engine.SetCompactionsEnabled(false)
 }
 
 // runRetentionEnforcer runs the retention enforcer in a separate goroutine.
@@ -451,33 +308,8 @@ func (e *Engine) Close() error {
 	defer e.mu.Unlock()
 	e.closing = nil
 
-	var ch closeHelper
-	ch.Close(e.engine)
-	ch.Close(e.wal)
-	ch.Close(e.index)
-	ch.Close(e.sfile)
-	return ch.Done()
-}
-
-// CreateSeriesCursor creates a SeriesCursor for usage with the read service.
-func (e *Engine) CreateSeriesCursor(ctx context.Context, orgID, bucketID influxdb.ID, cond influxql.Expr) (SeriesCursor, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return nil, ErrEngineClosed
-	}
-
-	return newSeriesCursor(orgID, bucketID, e.index, e.sfile, cond)
-}
-
-// CreateCursorIterator creates a CursorIterator for usage with the read service.
-func (e *Engine) CreateCursorIterator(ctx context.Context) (cursors.CursorIterator, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return nil, ErrEngineClosed
-	}
-	return e.engine.CreateCursorIterator(ctx)
+	// TODO - Close tsdb store
+	return nil
 }
 
 // WritePoints writes the provided points to the engine.
@@ -485,73 +317,15 @@ func (e *Engine) CreateCursorIterator(ctx context.Context) (cursors.CursorIterat
 // The Engine expects all points to have been correctly validated by the caller.
 // However, WritePoints will determine if any tag key-pairs are missing, or if
 // there are any field type conflicts.
+// Rosalie was here lockdown 2020
 //
 // Appropriate errors are returned in those cases.
-func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+func (e *Engine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	collection, j := tsdb.NewSeriesCollection(points), 0
-
-	// dropPoint should be called whenever there is reason to drop a point from
-	// the batch.
-	dropPoint := func(key []byte, reason string) {
-		if collection.Reason == "" {
-			collection.Reason = reason
-		}
-		collection.Dropped++
-		collection.DroppedKeys = append(collection.DroppedKeys, key)
-	}
-
-	for iter := collection.Iterator(); iter.Next(); {
-		// Skip validation if it has already been performed previously in the call stack.
-		if e.writePointsValidationEnabled {
-			tags := iter.Tags()
-
-			// Not enough tags present.
-			if tags.Len() < 2 {
-				dropPoint(iter.Key(), fmt.Sprintf("missing required tags: parsed tags: %q", tags))
-				continue
-			}
-
-			// First tag key is not measurement tag.
-			if !bytes.Equal(tags[0].Key, models.MeasurementTagKeyBytes) {
-				dropPoint(iter.Key(), fmt.Sprintf("missing required measurement tag as first tag, got: %q", tags[0].Key))
-				continue
-			}
-
-			fkey, fval := tags[len(tags)-1].Key, tags[len(tags)-1].Value
-
-			// Last tag key is not field tag.
-			if !bytes.Equal(fkey, models.FieldKeyTagKeyBytes) {
-				dropPoint(iter.Key(), fmt.Sprintf("missing required field key tag as last tag, got: %q", tags[0].Key))
-				continue
-			}
-
-			// The value representing the underlying field key is invalid if it's "time".
-			if bytes.Equal(fval, timeBytes) {
-				dropPoint(iter.Key(), fmt.Sprintf("invalid field key: input field %q is invalid", timeBytes))
-				continue
-			}
-
-			// Filter out any tags with key equal to "time": they are invalid.
-			if tags.Get(timeBytes) != nil {
-				dropPoint(iter.Key(), fmt.Sprintf("invalid tag key: input tag %q on measurement %q is invalid", timeBytes, iter.Name()))
-				continue
-			}
-
-			// Drop any point with invalid unicode characters in any of the tag keys or values.
-			// This will also cover validating the value used to represent the field key.
-			if !models.ValidTagTokens(tags) {
-				dropPoint(iter.Key(), fmt.Sprintf("key contains invalid unicode: %q", iter.Key()))
-				continue
-			}
-		}
-
-		collection.Copy(j, iter.Index())
-		j++
-	}
-	collection.Truncate(j)
+	//TODO - remember to add back unicode validation...
+	//TODO - remember to check that there is a _field key / \xff key added.
 
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -560,96 +334,45 @@ func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 		return ErrEngineClosed
 	}
 
-	// Convert the collection to values for adding to the WAL/Cache.
-	values, err := tsm1.CollectionToValues(collection)
-	if err != nil {
-		return err
-	}
-
-	// Add the write to the WAL to be replayed if there is a crash or shutdown.
-	if _, err := e.wal.WriteMulti(ctx, values); err != nil {
-		return err
-	}
-
-	return e.writePointsLocked(ctx, collection, values)
+	return e.pointsWriter.WritePoints(bucketID.String(), meta.DefaultRetentionPolicyName, models.ConsistencyLevelAll, &meta.UserInfo{}, points)
 }
 
-// writePointsLocked does the work of writing points and must be called under some sort of lock.
-func (e *Engine) writePointsLocked(ctx context.Context, collection *tsdb.SeriesCollection, values map[string][]value.Value) error {
+func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// TODO(jeff): keep track of the values in the collection so that partial write
-	// errors get tracked all the way. Right now, the engine doesn't drop any values
-	// but if it ever did, the errors could end up missing some data.
+	spec := meta.RetentionPolicySpec{
+		Name:     meta.DefaultRetentionPolicyName,
+		Duration: &b.RetentionPeriod,
+	}
 
-	// Add new series to the index and series file.
-	if err := e.index.CreateSeriesListIfNotExists(collection); err != nil {
+	if _, err = e.metaClient.CreateDatabaseWithRetentionPolicy(b.ID.String(), &spec); err != nil {
 		return err
 	}
 
-	// If there was a PartialWriteError, that means the passed in values may contain
-	// more than the points so we need to recreate them.
-	if collection.PartialWriteError() != nil {
-		var err error
-		values, err = tsm1.CollectionToValues(collection)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Write the values to the engine.
-	if err := e.engine.WriteValues(values); err != nil {
-		return err
-	}
-
-	return collection.PartialWriteError()
+	return nil
 }
 
-// AcquireSegments closes the current WAL segment, gets the set of all the currently closed
-// segments, and calls the callback. It does all of this under the lock on the engine.
-func (e *Engine) AcquireSegments(ctx context.Context, fn func(segs []string) error) error {
+func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) (err error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if err := e.wal.CloseSegment(); err != nil {
-		return err
+	rpu := meta.RetentionPolicyUpdate{
+		Duration: &d,
 	}
-
-	segments, err := e.wal.ClosedSegments()
-	if err != nil {
-		return err
-	}
-
-	return fn(segments)
-}
-
-// CommitSegments calls the callback and if that does not return an error, removes the segment
-// files from the WAL. It does all of this under the lock on the engine.
-func (e *Engine) CommitSegments(ctx context.Context, segs []string, fn func() error) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if err := fn(); err != nil {
-		return err
-	}
-
-	return e.wal.Remove(ctx, segs)
+	return e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.
 func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-	return e.DeleteBucketRange(ctx, orgID, bucketID, math.MinInt64, math.MaxInt64)
+	return e.tsdbStore.DeleteRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName)
 }
 
-// DeleteBucketRange deletes an entire bucket from the storage engine.
+// DeleteBucketRange deletes an entire range of data from the storage engine.
 func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	e.mu.RLock()
@@ -658,18 +381,14 @@ func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb
 		return ErrEngineClosed
 	}
 
-	// Add the delete to the WAL to be replayed if there is a crash or shutdown.
-	if _, err := e.wal.DeleteBucketRange(orgID, bucketID, min, max, nil); err != nil {
-		return err
-	}
-
-	return e.deleteBucketRangeLocked(ctx, orgID, bucketID, min, max, nil, influxdb.DeletePrefixRangeOptions{})
+	// TODO(edd): create an influxql.Expr that represents the min and max time...
+	return e.tsdbStore.DeleteSeries(bucketID.String(), nil, nil)
 }
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
-func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate, opts influxdb.DeletePrefixRangeOptions) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	e.mu.RLock()
@@ -687,115 +406,34 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 			return err
 		}
 	}
+	_ = predData
 
-	// Add the delete to the WAL to be replayed if there is a crash or shutdown.
-	if _, err := e.wal.DeleteBucketRange(orgID, bucketID, min, max, predData); err != nil {
-		return err
-	}
-
-	return e.deleteBucketRangeLocked(ctx, orgID, bucketID, min, max, pred, opts)
-}
-
-// deleteBucketRangeLocked does the work of deleting a bucket range and must be called under
-// some sort of lock.
-func (e *Engine) deleteBucketRangeLocked(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred tsm1.Predicate, opts influxdb.DeletePrefixRangeOptions) error {
-	// TODO(edd): we need to clean up how we're encoding the prefix so that we
-	// don't have to remember to get it right everywhere we need to touch TSM data.
-	encoded := tsdb.EncodeName(orgID, bucketID)
-	name := models.EscapeMeasurement(encoded[:])
-
-	return e.engine.DeletePrefixRange(ctx, name, min, max, pred, opts)
+	// TODO - edd convert the predicate into an influxql.Expr
+	return e.tsdbStore.DeleteSeries(bucketID.String(), nil, nil)
 }
 
 // CreateBackup creates a "snapshot" of all TSM data in the Engine.
 //   1) Snapshot the cache to ensure the backup includes all data written before now.
 //   2) Create hard links to all TSM files, in a new directory within the engine root directory.
 //   3) Return a unique backup ID (invalid after the process terminates) and list of files.
+//
+// TODO - do we need this?
+//
 func (e *Engine) CreateBackup(ctx context.Context) (int, []string, error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if e.closing == nil {
 		return 0, nil, ErrEngineClosed
 	}
 
-	if err := e.engine.WriteSnapshot(ctx, tsm1.CacheStatusBackup); err != nil {
-		return 0, nil, err
-	}
-
-	id, snapshotPath, err := e.engine.FileStore.CreateSnapshot(ctx)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	fileInfos, err := ioutil.ReadDir(snapshotPath)
-	if err != nil {
-		return 0, nil, err
-	}
-	filenames := make([]string, len(fileInfos))
-	for i, fi := range fileInfos {
-		filenames[i] = fi.Name()
-	}
-
-	return id, filenames, nil
+	return 0, nil, nil
 }
 
 // FetchBackupFile writes a given backup file to the provided writer.
 // After a successful write, the internal copy is removed.
 func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return ErrEngineClosed
-	}
-
-	if err := e.fetchBackup(ctx, backupID, backupFile, w); err != nil {
-		e.logger.Error("Failed to fetch file for backup", zap.Error(err), zap.Int("backup_id", backupID), zap.String("backup_file", backupFile))
-		return err
-	}
-
-	backupPath := e.engine.FileStore.InternalBackupPath(backupID)
-	backupFileFullPath := filepath.Join(backupPath, backupFile)
-	if err := os.Remove(backupFileFullPath); err != nil {
-		e.logger.Info("Failed to remove backup file after fetch", zap.Error(err), zap.Int("backup_id", backupID), zap.String("backup_file", backupFile))
-	}
-
-	return nil
-}
-
-func (e *Engine) fetchBackup(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
-	backupPath := e.engine.FileStore.InternalBackupPath(backupID)
-	if fi, err := os.Stat(backupPath); err != nil {
-		if os.IsNotExist(err) {
-			return errors.Errorf("backup %d not found", backupID)
-		}
-		return errors.WithMessagef(err, "failed to locate backup %d", backupID)
-	} else if !fi.IsDir() {
-		return errors.Errorf("error in filesystem path of backup %d", backupID)
-	}
-
-	backupFileFullPath := filepath.Join(backupPath, backupFile)
-	file, err := os.Open(backupFileFullPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return errors.Errorf("backup file %d/%s not found", backupID, backupFile)
-		}
-		return errors.WithMessagef(err, "failed to open backup file %d/%s", backupID, backupFile)
-	}
-	defer file.Close()
-
-	if _, err = io.Copy(w, file); err != nil {
-		err = multierr.Append(err, file.Close())
-		return errors.WithMessagef(err, "failed to copy backup file %d/%s to writer", backupID, backupFile)
-	}
-
-	if err = file.Close(); err != nil {
-		return errors.WithMessagef(err, "failed to close backup file %d/%s", backupID, backupFile)
-	}
-
+	// TODO - need?
 	return nil
 }
 
@@ -807,17 +445,23 @@ func (e *Engine) InternalBackupPath(backupID int) string {
 	if e.closing == nil {
 		return ""
 	}
-	return e.engine.FileStore.InternalBackupPath(backupID)
+	// TODO - need?
+	return ""
 }
 
 // SeriesCardinality returns the number of series in the engine.
-func (e *Engine) SeriesCardinality() int64 {
+func (e *Engine) SeriesCardinality(orgID, bucketID influxdb.ID) int64 {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {
 		return 0
 	}
-	return e.index.SeriesN()
+
+	n, err := e.tsdbStore.SeriesCardinality(bucketID.String())
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // Path returns the path of the engine's base directory.
@@ -825,22 +469,10 @@ func (e *Engine) Path() string {
 	return e.path
 }
 
-// MeasurementCardinalityStats returns cardinality stats for all measurements.
-func (e *Engine) MeasurementCardinalityStats() (tsi1.MeasurementCardinalityStats, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return nil, ErrEngineClosed
-	}
-	return e.index.MeasurementCardinalityStats()
+func (e *Engine) TSDBStore() TSDBStore {
+	return e.tsdbStore
 }
 
-// MeasurementStats returns the current measurement stats for the engine.
-func (e *Engine) MeasurementStats() (tsm1.MeasurementStats, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return nil, ErrEngineClosed
-	}
-	return e.engine.MeasurementStats()
+func (e *Engine) MetaClient() MetaClient {
+	return e.metaClient
 }

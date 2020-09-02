@@ -3,7 +3,7 @@ TARGETS =
 # List any source files used to generate the targets here
 SOURCES =
 # List any directories that have their own Makefile here
-SUBDIRS = reads flux
+SUBDIRS = flux
 
 # Default target
 all: $(SUBDIRS) $(TARGETS)

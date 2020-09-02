@@ -9,12 +9,9 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/generate"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/restore"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsi1"
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
 )
 
@@ -32,8 +29,9 @@ func main() {
 	influxdb.SetBuildInfo(version, commit, date)
 
 	rootCmd := launcher.NewInfluxdCommand(context.Background(),
-		generate.Command,
-		restore.Command,
+		// FIXME
+		//generate.Command,
+		//restore.Command,
 		&cobra.Command{
 			Use:   "version",
 			Short: "Print the influxd server version",

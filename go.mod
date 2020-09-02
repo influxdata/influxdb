@@ -5,6 +5,7 @@ go 1.13
 require (
 	cloud.google.com/go/bigtable v1.3.0 // indirect
 	github.com/BurntSushi/toml v0.3.1
+	github.com/DATA-DOG/go-sqlmock v1.4.1 // indirect
 	github.com/NYTimes/gziphandler v1.0.1
 	github.com/RoaringBitmap/roaring v0.4.16
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
@@ -29,6 +30,7 @@ require (
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect
 	github.com/go-chi/chi v4.1.0+incompatible
+	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/go-stack/stack v1.8.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
@@ -47,7 +49,7 @@ require (
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/influxdata/cron v0.0.0-20191203200038-ded12750aac6
-	github.com/influxdata/flux v0.82.2
+	github.com/influxdata/flux v0.66.1
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/pkg-config v0.2.3
@@ -86,18 +88,20 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/tcnksm/go-input v0.0.0-20180404061846-548a7d7a8ee8
 	github.com/testcontainers/testcontainers-go v0.0.0-20190108154635-47c0da630f72
-	github.com/tinylib/msgp v1.1.0 // indirect
+	github.com/tinylib/msgp v1.1.0
 	github.com/tylerb/graceful v1.2.15
 	github.com/uber-go/atomic v1.3.2 // indirect
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible // indirect
 	github.com/willf/bitset v1.1.9 // indirect
+	github.com/xlab/treeprint v1.0.0
 	github.com/yudai/gojsondiff v1.0.0
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yudai/pp v2.0.1+incompatible // indirect
 	go.uber.org/multierr v1.5.0
 	go.uber.org/zap v1.14.1
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
+	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e

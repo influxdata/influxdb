@@ -15,8 +15,9 @@ type SeriesGenerator interface {
 	// The returned value may be cached.
 	Key() []byte
 
-	// ID returns the org and bucket identifier for the series.
-	ID() []byte
+	// Name returns the name of the measurement.
+	// The returned value may be modified by a subsequent call to Next.
+	Name() []byte
 
 	// Tags returns the tag set.
 	// The returned value may be modified by a subsequent call to Next.
@@ -40,7 +41,7 @@ type TimeSequenceSpec struct {
 	// Start specifies the starting time for the values.
 	Start time.Time
 
-	// Delta specifies the interval between timestamps.
+	// Delta specifies the interval between time stamps.
 	Delta time.Duration
 
 	// Precision specifies the precision of timestamp intervals
@@ -112,7 +113,7 @@ type cache struct {
 }
 
 type seriesGenerator struct {
-	id    idType
+	name  []byte
 	tags  TagsSequence
 	field []byte
 	vg    TimeValuesSequence
@@ -121,13 +122,13 @@ type seriesGenerator struct {
 	c cache
 }
 
-func NewSeriesGenerator(id idType, field []byte, vg TimeValuesSequence, tags TagsSequence) SeriesGenerator {
-	return NewSeriesGeneratorLimit(id, field, vg, tags, math.MaxInt64)
+func NewSeriesGenerator(name []byte, field []byte, vg TimeValuesSequence, tags TagsSequence) SeriesGenerator {
+	return NewSeriesGeneratorLimit(name, field, vg, tags, math.MaxInt64)
 }
 
-func NewSeriesGeneratorLimit(id idType, field []byte, vg TimeValuesSequence, tags TagsSequence, n int64) SeriesGenerator {
+func NewSeriesGeneratorLimit(name []byte, field []byte, vg TimeValuesSequence, tags TagsSequence, n int64) SeriesGenerator {
 	return &seriesGenerator{
-		id:    id,
+		name:  name,
 		field: field,
 		tags:  tags,
 		vg:    vg,
@@ -151,13 +152,13 @@ func (g *seriesGenerator) Next() bool {
 
 func (g *seriesGenerator) Key() []byte {
 	if len(g.c.key) == 0 {
-		g.c.key = models.MakeKey(g.id[:], g.tags.Value())
+		g.c.key = models.MakeKey(g.name, g.tags.Value())
 	}
 	return g.c.key
 }
 
-func (g *seriesGenerator) ID() []byte {
-	return g.id[:]
+func (g *seriesGenerator) Name() []byte {
+	return g.name
 }
 
 func (g *seriesGenerator) Tags() models.Tags {

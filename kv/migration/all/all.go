@@ -19,5 +19,7 @@ var Migrations = [...]migration.Spec{
 	Migration0005_AddPkgerBuckets,
 	// delete bucket sessionsv1
 	Migration0006_DeleteBucketSessionsv1,
+	// CreateMetaDataBucket
+	Migration0007_CreateMetaDataBucket,
 	// {{ do_not_edit . }}
 }

@@ -27,6 +27,8 @@ import (
 	"github.com/influxdata/influxdb/v2/endpoints"
 	"github.com/influxdata/influxdb/v2/gather"
 	"github.com/influxdata/influxdb/v2/http"
+	iqlcontrol "github.com/influxdata/influxdb/v2/influxql/control"
+	iqlquery "github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
@@ -46,6 +48,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkger"
 	infprom "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/builtinlazy"
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
@@ -63,8 +66,11 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsi1" // needed for tsi1
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsm1" // needed for tsm1
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"  // needed for tsi1
+	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"
 	"github.com/influxdata/influxdb/v2/vault"
 	pzap "github.com/influxdata/influxdb/v2/zap"
 	"github.com/opentracing/opentracing-go"
@@ -129,6 +135,8 @@ func cmdRunE(ctx context.Context, l *Launcher) func() error {
 	return func() error {
 		// exit with SIGINT and SIGTERM
 		ctx = signals.WithStandardSignals(ctx)
+
+		builtinlazy.Initialize()
 
 		if err := l.run(ctx); err != nil {
 			return err
@@ -213,6 +221,12 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Flag:    "e2e-testing",
 			Default: false,
 			Desc:    "add /debug/flush endpoint to clear stores; used for end-to-end tests",
+		},
+		{
+			DestP:   &l.testingAlwaysAllowSetup,
+			Flag:    "testing-always-allow-setup",
+			Default: false,
+			Desc:    "ensures the /api/v2/setup endpoint always returns true to allow onboarding",
 		},
 		{
 			DestP:   &l.enginePath,
@@ -374,11 +388,12 @@ type Launcher struct {
 	cancel  func()
 	running bool
 
-	storeType            string
-	assetsPath           string
-	testing              bool
-	sessionLength        int // in minutes
-	sessionRenewDisabled bool
+	storeType               string
+	assetsPath              string
+	testing                 bool
+	testingAlwaysAllowSetup bool
+	sessionLength           int // in minutes
+	sessionRenewDisabled    bool
 
 	logLevel          string
 	tracingType       string
@@ -399,9 +414,10 @@ type Launcher struct {
 	maxMemoryBytes                  int
 	queueSize                       int
 
-	boltClient    *bolt.Client
-	kvStore       kv.SchemaStore
-	kvService     *kv.Service
+	boltClient *bolt.Client
+	kvStore    kv.SchemaStore
+	kvService  *kv.Service
+	//TODO fix
 	engine        Engine
 	StorageConfig storage.Config
 
@@ -706,18 +722,34 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	if m.pageFaultRate > 0 {
 		pageFaultLimiter = rate.NewLimiter(rate.Limit(m.pageFaultRate), 1)
 	}
+	_ = pageFaultLimiter
+
+	metaClient := meta.NewClient(meta.NewConfig(), m.kvStore)
+	if err := metaClient.Open(); err != nil {
+		m.log.Error("Failed to open meta client", zap.Error(err))
+		return err
+	}
 
 	if m.testing {
 		// the testing engine will write/read into a temporary directory
-		engine := NewTemporaryEngine(m.StorageConfig, storage.WithRetentionEnforcer(ts.BucketService))
+		engine := NewTemporaryEngine(
+			m.StorageConfig,
+			storage.WithRetentionEnforcer(ts.BucketService),
+			storage.WithMetaClient(metaClient),
+		)
 		flushers = append(flushers, engine)
 		m.engine = engine
 	} else {
+		// check for 2.x data / state from a prior 2.x
+		if err := checkForPriorVersion(ctx, m.log, m.boltPath, m.enginePath, ts.BucketService, metaClient); err != nil {
+			os.Exit(1)
+		}
+
 		m.engine = storage.NewEngine(
 			m.enginePath,
 			m.StorageConfig,
 			storage.WithRetentionEnforcer(ts.BucketService),
-			storage.WithPageFaultLimiter(pageFaultLimiter),
+			storage.WithMetaClient(metaClient),
 		)
 	}
 	m.engine.WithLogger(m.log)
@@ -735,7 +767,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	)
 
 	deps, err := influxdb.NewDependencies(
-		storageflux.NewReader(readservice.NewStore(m.engine)),
+		storageflux.NewReader(storage2.NewStore(m.engine.TSDBStore(), m.engine.MetaClient())),
 		m.engine,
 		authorizer.NewBucketService(ts.BucketService),
 		authorizer.NewOrgService(ts.OrganizationService),
@@ -830,6 +862,25 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	dbrpSvc := dbrp.NewService(ctx, authorizer.NewBucketService(ts.BucketService), m.kvStore)
 	dbrpSvc = dbrp.NewAuthorizedService(dbrpSvc)
+
+	cm := iqlcontrol.NewControllerMetrics([]string{})
+	m.reg.MustRegister(cm.PrometheusCollectors()...)
+
+	mapper := &iqlcoordinator.LocalShardMapper{
+		MetaClient: metaClient,
+		TSDBStore:  m.engine.TSDBStore(),
+		DBRP:       dbrpSvc,
+	}
+
+	qe := iqlquery.NewExecutor(m.log, cm)
+	se := &iqlcoordinator.StatementExecutor{
+		MetaClient:  metaClient,
+		TSDBStore:   m.engine.TSDBStore(),
+		ShardMapper: mapper,
+		DBRP:        dbrpSvc,
+	}
+	qe.StatementExecutor = se
+	qe.StatementNormalizer = se
 
 	var checkSvc platform.CheckService
 	{
@@ -963,6 +1014,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	ts.BucketService = storage.NewBucketService(ts.BucketService, m.engine)
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
 
+	var onboardOpts []tenant.OnboardServiceOptionFn
+	if m.testingAlwaysAllowSetup {
+		onboardOpts = append(onboardOpts, tenant.WithAlwaysAllowInitialUser())
+	}
+
+	onboardSvc := tenant.NewOnboardService(ts, authSvc, onboardOpts...)                               // basic service
+	onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
+	onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
+	onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
@@ -984,6 +1045,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		BucketService:                   ts.BucketService,
 		SessionService:                  sessionSvc,
 		UserService:                     ts.UserService,
+		OnboardingService:               onboardSvc,
 		DBRPService:                     dbrpSvc,
 		OrganizationService:             ts.OrganizationService,
 		UserResourceMappingService:      ts.UserResourceMappingService,
@@ -997,6 +1059,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		VariableService:                 variableSvc,
 		PasswordsService:                ts.PasswordsService,
 		InfluxQLService:                 storageQueryService,
+		InfluxqldService:                iqlquery.NewProxyExecutor(m.log, qe),
 		FluxService:                     storageQueryService,
 		FluxLanguageService:             fluxlang.DefaultService,
 		TaskService:                     taskSvc,
@@ -1060,16 +1123,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	userHTTPServer := ts.NewUserHTTPHandler(m.log)
-
-	var onboardHTTPServer *tenant.OnboardHandler
-	{
-		onboardSvc := tenant.NewOnboardService(ts, authSvc)                                               // basic service
-		onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
-		onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
-		onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
-
-		onboardHTTPServer = tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
-	}
+	onboardHTTPServer := tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
 
 	// feature flagging for new labels service
 	var oldLabelHandler nethttp.Handler
@@ -1229,6 +1283,53 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 		log.Info("Stopping")
 	}(m.log)
+
+	return nil
+}
+
+func checkForPriorVersion(ctx context.Context, log *zap.Logger, boltPath string, enginePath string, bs platform.BucketService, metaClient *meta.Client) error {
+	buckets, _, err := bs.FindBuckets(ctx, platform.BucketFilter{})
+	if err != nil {
+		log.Error("Failed to retrieve buckets", zap.Error(err))
+		return err
+	}
+
+	hasErrors := false
+
+	// if there are no buckets, we will be fine
+	if len(buckets) > 0 {
+		log.Info("Checking InfluxDB metadata for prior version.", zap.String("bolt_path", boltPath))
+
+		for i := range buckets {
+			bucket := buckets[i]
+			if dbi := metaClient.Database(bucket.ID.String()); dbi == nil {
+				log.Error("Missing metadata for bucket.", zap.String("bucket", bucket.Name), zap.Stringer("bucket_id", bucket.ID))
+				hasErrors = true
+			}
+		}
+
+		if hasErrors {
+			log.Error("Incompatible InfluxDB 2.0 metadata found. File must be moved before influxd will start.", zap.String("path", boltPath))
+		}
+	}
+
+	// see if there are existing files which match the old directory structure
+	{
+		for _, name := range []string{"_series", "index"} {
+			dir := filepath.Join(enginePath, name)
+			if fi, err := os.Stat(dir); err == nil {
+				if fi.IsDir() {
+					log.Error("Found directory that is incompatible with this version of InfluxDB.", zap.String("path", dir))
+					hasErrors = true
+				}
+			}
+		}
+	}
+
+	if hasErrors {
+		log.Error("Incompatible InfluxDB 2.0 version found. Move all files outside of engine_path before influxd will start.", zap.String("engine_path", enginePath))
+		return errors.New("incompatible InfluxDB version")
+	}
 
 	return nil
 }

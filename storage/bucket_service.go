@@ -2,14 +2,16 @@ package storage
 
 import (
 	"context"
-	"errors"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"go.uber.org/zap"
 )
 
-// BucketDeleter defines the behaviour of deleting a bucket.
-type BucketDeleter interface {
+type EngineSchema interface {
+	CreateBucket(context.Context, *influxdb.Bucket) error
+	UpdateBucketRetentionPeriod(context.Context, influxdb.ID, time.Duration) error
 	DeleteBucket(context.Context, influxdb.ID, influxdb.ID) error
 }
 
@@ -19,85 +21,58 @@ type BucketDeleter interface {
 // associated with the bucket is either removed, or marked to be removed via a
 // future compaction.
 type BucketService struct {
-	inner  influxdb.BucketService
-	engine BucketDeleter
+	influxdb.BucketService
+	log    *zap.Logger
+	engine EngineSchema
 }
 
-// NewBucketService returns a new BucketService for the provided BucketDeleter,
+// NewBucketService returns a new BucketService for the provided EngineSchema,
 // which typically will be an Engine.
-func NewBucketService(s influxdb.BucketService, engine BucketDeleter) *BucketService {
+func NewBucketService(s influxdb.BucketService, engine EngineSchema) *BucketService {
 	return &BucketService{
-		inner:  s,
-		engine: engine,
+		BucketService: s,
+		engine:        engine,
 	}
 }
 
-// FindBucketByID returns a single bucket by ID.
-func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if s.inner == nil || s.engine == nil {
-		return nil, errors.New("nil inner BucketService or Engine")
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		if b.ID.Valid() {
+			if err := s.BucketService.DeleteBucket(ctx, b.ID); err != nil {
+				s.log.Error("Unable to cleanup bucket after create failed", zap.Error(err))
+			}
+		}
+	}()
+
+	if err = s.BucketService.CreateBucket(ctx, b); err != nil {
+		return err
 	}
-	return s.inner.FindBucketByID(ctx, id)
+
+	if err = s.engine.CreateBucket(ctx, b); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// FindBucketByName returns a single bucket by name.
-func (s *BucketService) FindBucketByName(ctx context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (b *influxdb.Bucket, err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if s.inner == nil || s.engine == nil {
-		return nil, errors.New("nil inner BucketService or Engine")
+	if upd.RetentionPeriod != nil {
+		if err = s.engine.UpdateBucketRetentionPeriod(ctx, id, *upd.RetentionPeriod); err != nil {
+			return nil, err
+		}
 	}
-	return s.inner.FindBucketByName(ctx, orgID, name)
-}
 
-// FindBucket returns the first bucket that matches filter.
-func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	if s.inner == nil || s.engine == nil {
-		return nil, errors.New("nil inner BucketService or Engine")
-	}
-	return s.inner.FindBucket(ctx, filter)
-}
-
-// FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
-// Additional options provide pagination & sorting.
-func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	if s.inner == nil || s.engine == nil {
-		return nil, 0, errors.New("nil inner BucketService or Engine")
-	}
-	return s.inner.FindBuckets(ctx, filter, opt...)
-}
-
-// CreateBucket creates a new bucket and sets b.ID with the new identifier.
-func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	if s.inner == nil || s.engine == nil {
-		return errors.New("nil inner BucketService or Engine")
-	}
-	return s.inner.CreateBucket(ctx, b)
-}
-
-// UpdateBucket updates a single bucket with changeset.
-// Returns the new bucket state after update.
-func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	if s.inner == nil || s.engine == nil {
-		return nil, errors.New("nil inner BucketService or Engine")
-	}
-	return s.inner.UpdateBucket(ctx, id, upd)
+	return s.BucketService.UpdateBucket(ctx, id, upd)
 }
 
 // DeleteBucket removes a bucket by ID.
@@ -116,5 +91,5 @@ func (s *BucketService) DeleteBucket(ctx context.Context, bucketID influxdb.ID) 
 	if err := s.engine.DeleteBucket(ctx, bucket.OrgID, bucketID); err != nil {
 		return err
 	}
-	return s.inner.DeleteBucket(ctx, bucketID)
+	return s.BucketService.DeleteBucket(ctx, bucketID)
 }
