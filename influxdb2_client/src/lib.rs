@@ -59,7 +59,7 @@
 
 use bytes::buf::ext::BufMutExt;
 use futures::{Stream, StreamExt};
-use reqwest::Body;
+use reqwest::{Body, Method};
 use serde::Serialize;
 use snafu::{ResultExt, Snafu};
 use std::io::{self, Write};
@@ -118,6 +118,11 @@ impl Client {
         }
     }
 
+    /// Consolidate common request building code
+    fn request(&self, method: Method, url: &str) -> reqwest::RequestBuilder {
+        self.reqwest.request(method, url)
+    }
+
     /// Write line protocol data to the specified organization and bucket.
     pub async fn write_line_protocol(
         &self,
@@ -129,8 +134,7 @@ impl Client {
         let write_url = format!("{}/api/v2/write", self.url);
 
         let response = self
-            .reqwest
-            .post(&write_url)
+            .request(Method::POST, &write_url)
             .query(&[("bucket", bucket_id), ("org", org_id)])
             .body(body)
             .send()
@@ -191,8 +195,7 @@ impl Client {
         };
 
         let response = self
-            .reqwest
-            .post(&create_bucket_url)
+            .request(Method::POST, &create_bucket_url)
             .body(serde_json::to_string(&body).context(Serializing)?)
             .send()
             .await
