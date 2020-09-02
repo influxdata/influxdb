@@ -231,7 +231,9 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 		if found := reads.HasFieldValueKey(expr); found {
 			return nil, errors.New("field values unsupported")
 		}
-		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
+		// this will remove any _field references, which are not indexed
+		//   see https://github.com/influxdata/influxdb/issues/19488
+		expr = influxql.Reduce(RewriteExprRemoveFieldKeyAndValue(influxql.CloneExpr(expr)), nil)
 		if reads.IsTrueBooleanLiteral(expr) {
 			expr = nil
 		}
@@ -309,7 +311,9 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 		if found := reads.HasFieldValueKey(expr); found {
 			return nil, errors.New("field values unsupported")
 		}
-		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
+		// this will remove any _field references, which are not indexed
+		//   see https://github.com/influxdata/influxdb/issues/19488
+		expr = influxql.Reduce(RewriteExprRemoveFieldKeyAndValue(influxql.CloneExpr(expr)), nil)
 		if reads.IsTrueBooleanLiteral(expr) {
 			expr = nil
 		}
@@ -389,7 +393,9 @@ func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesReque
 		if found := reads.HasFieldValueKey(expr); found {
 			return nil, errors.New("field values unsupported")
 		}
-		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
+		// this will remove any _field references, which are not indexed
+		//   see https://github.com/influxdata/influxdb/issues/19488
+		expr = influxql.Reduce(RewriteExprRemoveFieldKeyAndValue(influxql.CloneExpr(expr)), nil)
 		if reads.IsTrueBooleanLiteral(expr) {
 			expr = nil
 		}
