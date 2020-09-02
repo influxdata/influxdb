@@ -1,5 +1,19 @@
 ## v2.0.0-beta.17 [unreleased]
 
+### Breaking Changes
+
+In the interests of simplifying the migration for existing users of InfluxDB 1.x, this
+release includes significant breaking changes.
+
+**Upgrading from previous beta builds of `influxd` is not supported**
+
+In order to continue using `influxd` betas, users will be required to move all existing 
+data out of their `~/.influxdbv2` (or equivalent) path, including `influxd.bolt`. There 
+is no tooling to convert this data. `influxd` will refuse to start, if any exist
+data is found.
+
+1. [19446](https://github.com/influxdata/influxdb/pull/19446): Port TSM1 storage engine
+
 ### Features
 
 1. [19246](https://github.com/influxdata/influxdb/pull/19246): Redesign load data page to increase discovery and ease of use
