@@ -16,7 +16,6 @@
 //! ## Work Remaining
 //!
 //! - Query
-//! - Authentication
 //! - optional sync client
 //! - Influx 1.x API?
 //! - Other parts of the API
@@ -36,7 +35,7 @@
 //!     let org_id = "0000111100001111";
 //!     let bucket_id = "1111000011110000";
 //!
-//!     let client = Client::new("http://localhost:8888");
+//!     let client = Client::new("http://localhost:8888", "some-token");
 //!
 //!     client.create_bucket(org_id, bucket_id).await?;
 //!
@@ -59,10 +58,13 @@
 
 use bytes::buf::ext::BufMutExt;
 use futures::{Stream, StreamExt};
-use reqwest::Body;
+use reqwest::{Body, Method};
 use serde::Serialize;
 use snafu::{ResultExt, Snafu};
-use std::io::{self, Write};
+use std::{
+    fmt,
+    io::{self, Write},
+};
 
 pub mod data_point;
 pub use data_point::{DataPoint, FieldValue, WriteDataPoint};
@@ -100,22 +102,32 @@ pub enum RequestError {
 #[derive(Debug, Clone)]
 pub struct Client {
     url: String,
+    auth_header: String,
     reqwest: reqwest::Client,
 }
 
 impl Client {
-    /// Create a new client pointing to the URL specified in `protocol://server:port` format.
+    /// Create a new client pointing to the URL specified in `protocol://server:port` format and
+    /// using the specified token for authorization.
     ///
     /// # Example
     ///
     /// ```
-    /// let client = influxdb2_client::Client::new("http://localhost:8888");
+    /// let client = influxdb2_client::Client::new("http://localhost:8888", "my-token");
     /// ```
-    pub fn new(url: impl Into<String>) -> Self {
+    pub fn new(url: impl Into<String>, auth_token: impl fmt::Display) -> Self {
         Self {
             url: url.into(),
+            auth_header: format!("Token {}", auth_token),
             reqwest: reqwest::Client::new(),
         }
+    }
+
+    /// Consolidate common request building code
+    fn request(&self, method: Method, url: &str) -> reqwest::RequestBuilder {
+        self.reqwest
+            .request(method, url)
+            .header("Authorization", &self.auth_header)
     }
 
     /// Write line protocol data to the specified organization and bucket.
@@ -129,8 +141,7 @@ impl Client {
         let write_url = format!("{}/api/v2/write", self.url);
 
         let response = self
-            .reqwest
-            .post(&write_url)
+            .request(Method::POST, &write_url)
             .query(&[("bucket", bucket_id), ("org", org_id)])
             .body(body)
             .send()
@@ -191,8 +202,7 @@ impl Client {
         };
 
         let response = self
-            .reqwest
-            .post(&create_bucket_url)
+            .request(Method::POST, &create_bucket_url)
             .body(serde_json::to_string(&body).context(Serializing)?)
             .send()
             .await
@@ -221,11 +231,13 @@ mod tests {
     async fn writing_points() -> Result {
         let org_id = "0000111100001111";
         let bucket_id = "1111000011110000";
+        let token = "some-token";
 
         let mock_server = mock(
             "POST",
             format!("/api/v2/write?bucket={}&org={}", bucket_id, org_id).as_str(),
         )
+        .match_header("Authorization", format!("Token {}", token).as_str())
         .match_body(
             "\
 cpu,host=server01 usage=0.5
@@ -234,7 +246,7 @@ cpu,host=server01,region=us-west usage=0.87
         )
         .create();
 
-        let client = Client::new(&mockito::server_url());
+        let client = Client::new(&mockito::server_url(), token);
 
         let points = vec![
             DataPoint::builder("cpu")
@@ -262,8 +274,10 @@ cpu,host=server01,region=us-west usage=0.87
     async fn create_bucket() -> Result {
         let org_id = "0000111100001111";
         let bucket_id = "1111000011110000";
+        let token = "some-token";
 
         let mock_server = mock("POST", "/api/v2/buckets")
+            .match_header("Authorization", format!("Token {}", token).as_str())
             .match_body(
                 format!(
                     r#"{{"orgID":"{}","name":"{}","retentionRules":[]}}"#,
@@ -273,7 +287,7 @@ cpu,host=server01,region=us-west usage=0.87
             )
             .create();
 
-        let client = Client::new(&mockito::server_url());
+        let client = Client::new(&mockito::server_url(), token);
 
         let _result = client.create_bucket(org_id, bucket_id).await;
 

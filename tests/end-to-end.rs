@@ -40,6 +40,7 @@ use tempfile::TempDir;
 const HTTP_BASE: &str = "http://localhost:8080";
 const API_BASE: &str = "http://localhost:8080/api/v2";
 const GRPC_URL_BASE: &str = "http://localhost:8082/";
+const TOKEN: &str = "delorean doesn't have authentication yet";
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -109,7 +110,7 @@ async fn read_and_write_data() -> Result<()> {
     let bucket_id = u64::from_str_radix(bucket_id_str, 16).unwrap();
 
     let client = reqwest::Client::new();
-    let client2 = influxdb2_client::Client::new(HTTP_BASE);
+    let client2 = influxdb2_client::Client::new(HTTP_BASE, TOKEN);
     let mut grpc_client = DeloreanClient::connect(GRPC_URL_BASE).await?;
 
     let get_buckets_request = tonic::Request::new(Organization {
