@@ -45,6 +45,9 @@ builds:
     hooks:
       pre: make generate
 
+snapshot:
+  name_template: 9.9.9
+  
 nfpms:
   -
     id: "influxdata"
