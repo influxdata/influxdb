@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/upgrade"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
@@ -32,6 +33,7 @@ func main() {
 		// FIXME
 		//generate.Command,
 		//restore.Command,
+		upgrade.Command,
 		&cobra.Command{
 			Use:   "version",
 			Short: "Print the influxd server version",
