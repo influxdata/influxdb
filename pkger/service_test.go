@@ -1834,6 +1834,16 @@ func TestService(t *testing.T) {
 							}
 							return expected, nil
 						}
+						bktSVC.FindBucketsFn = func(_ context.Context, filter influxdb.BucketFilter, _ ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+							if filter.ID != nil {
+								if *filter.ID != expected.ID {
+									return nil, 0, errors.New("uh ohhh, wrong id here: " + filter.ID.String())
+								}
+							} else if filter.Name != nil && *filter.Name != expected.Name {
+								return nil, 0, errors.New("uh ohhh, wrong name here: " + *filter.Name)
+							}
+							return []*influxdb.Bucket{expected}, 1, nil
+						}
 
 						svc := newTestService(WithBucketSVC(bktSVC), WithLabelSVC(mock.NewLabelService()))
 
@@ -1858,6 +1868,129 @@ func TestService(t *testing.T) {
 						assert.Equal(t, expectedName, actual.Name)
 						assert.Equal(t, expected.Description, actual.Description)
 						assert.Equal(t, expected.RetentionPeriod, actual.RetentionPeriod)
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
+			// todo: bucket names are unique.
+			t.Run("bucket by name", func(t *testing.T) {
+				knownBuckets := []*influxdb.Bucket{
+					{
+						ID:              influxdb.ID(1),
+						Name:            "bucket",
+						Description:     "desc",
+						RetentionPeriod: time.Hour,
+					},
+					{
+						ID:              influxdb.ID(2),
+						Name:            "bucketCopy",
+						Description:     "desc",
+						RetentionPeriod: time.Hour,
+					},
+					{
+						ID:              influxdb.ID(3),
+						Name:            "bucket3",
+						Description:     "desc",
+						RetentionPeriod: time.Hour,
+					},
+				}
+
+				tests := []struct {
+					name     string
+					findName string
+					findID   influxdb.ID
+					expected []*influxdb.Bucket
+				}{
+					{
+						name:     "find bucket with unique name",
+						findName: "bucket",
+						expected: []*influxdb.Bucket{knownBuckets[0]},
+					},
+					{
+						name:     "find no buckets",
+						findName: "fakeBucket",
+						expected: nil,
+					},
+					{
+						name:     "find bucket by id",
+						findID:   influxdb.ID(2),
+						expected: []*influxdb.Bucket{knownBuckets[1]},
+					},
+					{
+						// todo: verify this is intended behavior (it is in swagger)
+						name:     "find by id, set new name",
+						findID:   influxdb.ID(2),
+						findName: "renamedBucket",
+						expected: []*influxdb.Bucket{knownBuckets[1]},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						bktSVC := mock.NewBucketService()
+						bktSVC.FindBucketsFn = func(_ context.Context, filter influxdb.BucketFilter, _ ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+							if filter.ID != nil {
+								for i := range knownBuckets {
+									if knownBuckets[i].ID == *filter.ID {
+										return []*influxdb.Bucket{knownBuckets[i]}, 1, nil
+									}
+								}
+								return nil, 0, errors.New("uh ohhh, wrong id here: " + filter.ID.String())
+							} else if filter.Name != nil {
+								bkts := []*influxdb.Bucket{}
+
+								for i := range knownBuckets {
+									if knownBuckets[i].Name == *filter.Name {
+										bkts = append(bkts, knownBuckets[i])
+									}
+								}
+
+								if lBkts := len(bkts); lBkts > 0 {
+									return bkts, lBkts, nil
+								}
+								return nil, 0, errors.New("uh ohhh, wrong name here: " + *filter.Name)
+							}
+
+							return knownBuckets, len(knownBuckets), nil
+						}
+
+						resToClone := ResourceToClone{
+							Kind: KindBucket,
+						}
+						if tt.findName != "" {
+							resToClone.Name = tt.findName
+						}
+						if tt.findID != influxdb.ID(0) {
+							resToClone.ID = tt.findID
+						}
+
+						svc := newTestService(
+							WithBucketSVC(bktSVC),
+							WithLabelSVC(mock.NewLabelService()),
+						)
+						template, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
+						if tt.expected == nil {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+
+							if tt.findName != "" && tt.findID != influxdb.ID(0) {
+								tt.expected[0].Name = tt.findName
+							}
+
+							actual := template.Summary().Buckets
+							require.Len(t, actual, len(tt.expected))
+
+							for i := range actual {
+								// can't verify id's match due to the use of SafeID's
+								assert.Equal(t, tt.expected[i].Name, actual[i].Name)
+								assert.Equal(t, tt.expected[i].Description, actual[i].Description)
+								assert.Equal(t, tt.expected[i].RetentionPeriod, actual[i].RetentionPeriod)
+							}
+
+							assert.True(t, encodeAndDecode(t, template) != nil)
+						}
 					}
 					t.Run(tt.name, fn)
 				}
@@ -1934,6 +2067,17 @@ func TestService(t *testing.T) {
 							}
 							return tt.expected, nil
 						}
+						checkSVC.FindChecksFn = func(_ context.Context, filter influxdb.CheckFilter, _ ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
+							if filter.ID != nil {
+								if *filter.ID != tt.expected.GetID() {
+									return nil, 0, errors.New("uh ohhh, wrong id here: " + filter.ID.String())
+								}
+							} else if filter.Name != nil && *filter.Name != tt.expected.GetName() {
+								return nil, 0, errors.New("uh ohhh, wrong name here: " + *filter.Name)
+							}
+
+							return []influxdb.Check{tt.expected}, 1, nil
+						}
 
 						svc := newTestService(WithCheckSVC(checkSVC))
 
@@ -1956,6 +2100,179 @@ func TestService(t *testing.T) {
 							expectedName = tt.newName
 						}
 						assert.Equal(t, expectedName, actual.GetName())
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
+			t.Run("checks by name", func(t *testing.T) {
+				knownChecks := []influxdb.Check{
+					&icheck.Threshold{
+						Base: newThresholdBase(0),
+						Thresholds: []icheck.ThresholdConfig{
+							icheck.Lesser{
+								ThresholdConfigBase: icheck.ThresholdConfigBase{
+									AllValues: true,
+									Level:     notification.Critical,
+								},
+								Value: 20,
+							},
+							icheck.Greater{
+								ThresholdConfigBase: icheck.ThresholdConfigBase{
+									AllValues: true,
+									Level:     notification.Warn,
+								},
+								Value: 30,
+							},
+							icheck.Range{
+								ThresholdConfigBase: icheck.ThresholdConfigBase{
+									AllValues: true,
+									Level:     notification.Info,
+								},
+								Within: false, // outside_range
+								Min:    10,
+								Max:    25,
+							},
+							icheck.Range{
+								ThresholdConfigBase: icheck.ThresholdConfigBase{
+									AllValues: true,
+									Level:     notification.Ok,
+								},
+								Within: true, // inside_range
+								Min:    21,
+								Max:    24,
+							},
+						},
+					},
+					&icheck.Deadman{
+						Base:       newThresholdBase(1),
+						TimeSince:  mustDuration(t, time.Hour),
+						StaleTime:  mustDuration(t, 5*time.Hour),
+						ReportZero: true,
+						Level:      notification.Critical,
+					},
+					&icheck.Deadman{
+						Base: icheck.Base{
+							ID:          influxdb.ID(2),
+							TaskID:      300,
+							Name:        "check_1",
+							Description: "desc_2",
+							Every:       mustDuration(t, 2*time.Minute),
+							Offset:      mustDuration(t, 30*time.Second),
+							Query: influxdb.DashboardQuery{
+								Text: `from(bucket: "telegraf") |> range(start: -1m) |> filter(fn: (r) => r._field == "usage_user")`,
+							},
+							StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+							Tags: []influxdb.Tag{
+								{Key: "key_1", Value: "val_1"},
+								{Key: "key_2", Value: "val_2"},
+							},
+						},
+						TimeSince:  mustDuration(t, time.Hour),
+						StaleTime:  mustDuration(t, 5*time.Hour),
+						ReportZero: true,
+						Level:      notification.Critical,
+					},
+				}
+
+				tests := []struct {
+					name     string
+					findName string
+					findID   influxdb.ID
+					expected []influxdb.Check
+				}{
+					{
+						name:     "find check with unique name",
+						findName: "check_0",
+						expected: []influxdb.Check{knownChecks[0]},
+					},
+					{
+						name:     "find multiple checks with same name",
+						findName: "check_1",
+						expected: []influxdb.Check{knownChecks[1], knownChecks[2]},
+					},
+					{
+						name:     "find no checks",
+						findName: "fakeCheck",
+						expected: nil,
+					},
+					{
+						name:     "find check by id",
+						findID:   influxdb.ID(1),
+						expected: []influxdb.Check{knownChecks[1]},
+					},
+					{
+						name:     "find check by id, set new name",
+						findID:   influxdb.ID(1),
+						findName: "chex original",
+						expected: []influxdb.Check{knownChecks[1]},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						checkSVC := mock.NewCheckService()
+						checkSVC.FindChecksFn = func(_ context.Context, filter influxdb.CheckFilter, _ ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
+							if filter.ID != nil {
+								for i := range knownChecks {
+									if knownChecks[i].GetID() == *filter.ID {
+										return []influxdb.Check{knownChecks[i]}, 1, nil
+									}
+								}
+								return nil, 0, errors.New("uh ohhh, wrong id here: " + filter.ID.String())
+							} else if filter.Name != nil {
+								checks := []influxdb.Check{}
+
+								for i := range knownChecks {
+									if knownChecks[i].GetName() == *filter.Name {
+										checks = append(checks, knownChecks[i])
+									}
+								}
+
+								if lChecks := len(checks); lChecks > 0 {
+									return checks, lChecks, nil
+								}
+
+								return nil, 0, errors.New("uh ohhh, wrong name here: " + *filter.Name)
+							}
+
+							return knownChecks, len(knownChecks), nil
+						}
+
+						resToClone := ResourceToClone{
+							Kind: KindCheck,
+						}
+						if tt.findName != "" {
+							resToClone.Name = tt.findName
+						}
+						if tt.findID != influxdb.ID(0) {
+							resToClone.ID = tt.findID
+						}
+
+						svc := newTestService(WithCheckSVC(checkSVC))
+						template, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
+						if tt.expected == nil {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+
+							if tt.findName != "" && tt.findID != influxdb.ID(0) {
+								tt.expected[0].SetName(tt.findName)
+							}
+
+							actual := template.Summary().Checks
+							require.Len(t, actual, len(tt.expected))
+							sort.Slice(actual, func(i, j int) bool {
+								return actual[i].Check.GetDescription() < actual[j].Check.GetDescription()
+							})
+
+							for i := range actual {
+								assert.Equal(t, tt.expected[i].GetName(), actual[i].Check.GetName())
+								assert.Equal(t, tt.expected[i].GetDescription(), actual[i].Check.GetDescription())
+							}
+
+							assert.True(t, encodeAndDecode(t, template) != nil)
+						}
 					}
 					t.Run(tt.name, fn)
 				}
@@ -2362,6 +2679,15 @@ func TestService(t *testing.T) {
 								}
 								return expected, nil
 							}
+							dashSVC.FindDashboardsF = func(_ context.Context, filter influxdb.DashboardFilter, _ influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
+								if len(filter.IDs) < 1 {
+									return nil, 0, errors.New("uh ohhh, no id here")
+								}
+								if filter.IDs[0] != nil && *filter.IDs[0] != expected.ID {
+									return nil, 0, errors.New("uh ohhh, wrong id here: " + filter.IDs[0].String())
+								}
+								return []*influxdb.Dashboard{expected}, 1, nil
+							}
 							dashSVC.GetDashboardCellViewF = func(_ context.Context, id influxdb.ID, cID influxdb.ID) (*influxdb.View, error) {
 								if id == expected.ID && cID == expectedCell.ID {
 									return &tt.expectedView, nil
@@ -2413,6 +2739,16 @@ func TestService(t *testing.T) {
 							Description: "desc",
 						}, nil
 					}
+					dashSVC.FindDashboardsF = func(_ context.Context, filter influxdb.DashboardFilter, _ influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
+						if len(filter.IDs) < 1 {
+							return nil, 0, errors.New("uh ohhh, no id here")
+						}
+						return []*influxdb.Dashboard{{
+							ID:          *filter.IDs[0],
+							Name:        "dash name",
+							Description: "desc",
+						}}, 1, nil
+					}
 
 					svc := newTestService(WithDashboardSVC(dashSVC), WithLabelSVC(mock.NewLabelService()))
 
@@ -2440,6 +2776,196 @@ func TestService(t *testing.T) {
 						assert.Equal(t, "desc", actual.Description)
 					}
 				})
+			})
+
+			t.Run("dashboard by name", func(t *testing.T) {
+				id := 0
+				newDash := func(name string, view influxdb.View) *influxdb.Dashboard {
+					id++
+					return &influxdb.Dashboard{
+						ID:          influxdb.ID(id),
+						Name:        name,
+						Description: fmt.Sprintf("desc_%d", id),
+						Cells: []*influxdb.Cell{
+							{
+								ID:           0,
+								CellProperty: influxdb.CellProperty{X: 1, Y: 2, W: 3, H: 4},
+								View:         &view,
+							},
+						},
+					}
+				}
+				knownDashboards := []*influxdb.Dashboard{
+					newDash("dasher", influxdb.View{
+						ViewContents: influxdb.ViewContents{
+							Name: "view name",
+						},
+						Properties: influxdb.GaugeViewProperties{
+							Type:              influxdb.ViewPropertyTypeGauge,
+							DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+							Note:              "a note",
+							Prefix:            "pre",
+							TickPrefix:        "true",
+							Suffix:            "suf",
+							TickSuffix:        "false",
+							Queries:           []influxdb.DashboardQuery{newQuery()},
+							ShowNoteWhenEmpty: true,
+							ViewColors:        newColors("min", "max", "threshold"),
+						},
+					}),
+					newDash("prancer", influxdb.View{
+						ViewContents: influxdb.ViewContents{
+							Name: "view name",
+						},
+						Properties: influxdb.HeatmapViewProperties{
+							Type:              influxdb.ViewPropertyTypeHeatMap,
+							Note:              "a note",
+							Queries:           []influxdb.DashboardQuery{newQuery()},
+							ShowNoteWhenEmpty: true,
+							ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+							XColumn:           "x",
+							YColumn:           "y",
+							XDomain:           []float64{0, 10},
+							YDomain:           []float64{0, 100},
+							XAxisLabel:        "x_label",
+							XPrefix:           "x_prefix",
+							XSuffix:           "x_suffix",
+							YAxisLabel:        "y_label",
+							YPrefix:           "y_prefix",
+							YSuffix:           "y_suffix",
+							BinSize:           10,
+							TimeFormat:        "",
+						},
+					}),
+					newDash("prancer", influxdb.View{
+						ViewContents: influxdb.ViewContents{
+							Name: "view name",
+						},
+						Properties: influxdb.HistogramViewProperties{
+							Type:              influxdb.ViewPropertyTypeHistogram,
+							Note:              "a note",
+							Queries:           []influxdb.DashboardQuery{newQuery()},
+							ShowNoteWhenEmpty: true,
+							ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+							FillColumns:       []string{"a", "b"},
+							XColumn:           "_value",
+							XDomain:           []float64{0, 10},
+							XAxisLabel:        "x_label",
+							BinCount:          30,
+							Position:          "stacked",
+						},
+					}),
+				}
+
+				tests := []struct {
+					name     string
+					findName string
+					findID   influxdb.ID
+					expected []*influxdb.Dashboard
+				}{
+					{
+						name:     "find dash with unique name",
+						findName: "dasher",
+						expected: []*influxdb.Dashboard{knownDashboards[0]},
+					},
+					{
+						name:     "find multiple dash with shared name",
+						findName: "prancer",
+						expected: []*influxdb.Dashboard{knownDashboards[1], knownDashboards[2]},
+					},
+					{
+						name:     "find no dash",
+						findName: "fakeDash",
+						expected: nil,
+					},
+					{
+						name:     "find dash by id",
+						findID:   1,
+						expected: []*influxdb.Dashboard{knownDashboards[0]},
+					},
+					{
+						name:     "find dash by id, set new name",
+						findID:   1,
+						findName: "dancer",
+						expected: []*influxdb.Dashboard{knownDashboards[0]},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						dashSVC := mock.NewDashboardService()
+						dashSVC.FindDashboardsF = func(_ context.Context, filter influxdb.DashboardFilter, _ influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
+							if filter.IDs != nil && filter.IDs[0] != nil {
+								for i := range knownDashboards {
+									if knownDashboards[i].ID == *filter.IDs[0] {
+										return []*influxdb.Dashboard{knownDashboards[i]}, 1, nil
+									}
+								}
+
+								return nil, 0, errors.New("uh ohhh, wrong id here: " + filter.IDs[0].String())
+							}
+
+							return knownDashboards, len(knownDashboards), nil
+						}
+
+						dashSVC.GetDashboardCellViewF = func(_ context.Context, id influxdb.ID, cID influxdb.ID) (*influxdb.View, error) {
+							for i := range knownDashboards {
+								if knownDashboards[i].ID == id {
+									return knownDashboards[i].Cells[0].View, nil
+								}
+							}
+
+							return nil, errors.New("wrongo ids")
+						}
+
+						resToClone := ResourceToClone{
+							Kind: KindDashboard,
+						}
+						if tt.findName != "" {
+							resToClone.Name = tt.findName
+						}
+						if tt.findID != influxdb.ID(0) {
+							resToClone.ID = tt.findID
+						}
+
+						svc := newTestService(
+							WithDashboardSVC(dashSVC),
+							WithLabelSVC(mock.NewLabelService()),
+						)
+						template, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
+						if tt.expected == nil {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+
+							if tt.findName != "" && tt.findID != influxdb.ID(0) {
+								tt.expected[0].Name = tt.findName
+							}
+
+							actual := template.Summary().Dashboards
+							require.Len(t, actual, len(tt.expected))
+							sort.Slice(actual, func(i, j int) bool {
+								return actual[i].Description < actual[j].Description
+							})
+
+							for i := range actual {
+								assert.Equal(t, tt.expected[i].Name, actual[i].Name)
+								assert.Equal(t, tt.expected[i].Description, actual[i].Description)
+
+								require.Len(t, actual[i].Charts, 1)
+								ch := actual[i].Charts[0]
+								assert.Equal(t, int(tt.expected[i].Cells[0].CellProperty.X), ch.XPosition)
+								assert.Equal(t, int(tt.expected[i].Cells[0].CellProperty.Y), ch.YPosition)
+								assert.Equal(t, int(tt.expected[i].Cells[0].CellProperty.H), ch.Height)
+								assert.Equal(t, int(tt.expected[i].Cells[0].CellProperty.W), ch.Width)
+								assert.Equal(t, tt.expected[i].Cells[0].View.Properties, ch.Properties)
+							}
+
+							assert.True(t, encodeAndDecode(t, template) != nil)
+						}
+					}
+					t.Run(tt.name, fn)
+				}
 			})
 
 			t.Run("label", func(t *testing.T) {
@@ -2474,6 +3000,12 @@ func TestService(t *testing.T) {
 							}
 							return expectedLabel, nil
 						}
+						labelSVC.FindLabelsFn = func(_ context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
+							if filter.Name != expectedLabel.Name {
+								return nil, errors.New("uh ohhh, wrong name here: " + filter.Name)
+							}
+							return []*influxdb.Label{expectedLabel}, nil
+						}
 
 						svc := newTestService(WithLabelSVC(labelSVC))
 
@@ -2498,6 +3030,117 @@ func TestService(t *testing.T) {
 						assert.Equal(t, expectedName, actual.Name)
 						assert.Equal(t, expectedLabel.Properties["color"], actual.Properties.Color)
 						assert.Equal(t, expectedLabel.Properties["description"], actual.Properties.Description)
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
+			t.Run("label by name", func(t *testing.T) {
+				knownLabels := []*influxdb.Label{
+					{
+						ID:   1,
+						Name: "label one",
+						Properties: map[string]string{
+							"description": "desc",
+							"color":       "red",
+						},
+					},
+					{
+						ID:   2,
+						Name: "label two",
+						Properties: map[string]string{
+							"description": "desc2",
+							"color":       "green",
+						},
+					},
+				}
+				tests := []struct {
+					name     string
+					findName string
+					findID   influxdb.ID
+					expected []*influxdb.Label
+				}{
+					{
+						name:     "find label by name",
+						findName: "label one",
+						expected: []*influxdb.Label{knownLabels[0]},
+					},
+					{
+						name:     "find no label",
+						findName: "label none",
+						expected: nil,
+					},
+					{
+						name:     "find label by id",
+						findID:   influxdb.ID(2),
+						expected: []*influxdb.Label{knownLabels[1]},
+					},
+					{
+						name:     "find label by id, set new name",
+						findName: "label three",
+						findID:   influxdb.ID(2),
+						expected: []*influxdb.Label{knownLabels[1]},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						labelSVC := mock.NewLabelService()
+						labelSVC.FindLabelByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Label, error) {
+							for i := range knownLabels {
+								if knownLabels[i].ID == id {
+									return knownLabels[i], nil
+								}
+							}
+
+							return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+						}
+						labelSVC.FindLabelsFn = func(_ context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
+							if filter.Name != "" {
+								for i := range knownLabels {
+									if knownLabels[i].Name == filter.Name {
+										return []*influxdb.Label{knownLabels[i]}, nil
+									}
+								}
+
+								return nil, errors.New("uh ohhh, wrong name here: " + filter.Name)
+							}
+
+							return knownLabels, nil
+						}
+
+						resToClone := ResourceToClone{
+							Kind: KindLabel,
+						}
+						if tt.findName != "" {
+							resToClone.Name = tt.findName
+						}
+						if tt.findID != influxdb.ID(0) {
+							resToClone.ID = tt.findID
+						}
+
+						svc := newTestService(WithLabelSVC(labelSVC))
+						template, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
+						if tt.expected == nil {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+
+							if tt.findName != "" && tt.findID != influxdb.ID(0) {
+								tt.expected[0].Name = tt.findName
+							}
+
+							actual := template.Summary().Labels
+							require.Len(t, actual, len(tt.expected))
+
+							for i := range actual {
+								assert.Equal(t, tt.expected[i].Name, actual[i].Name)
+								assert.Equal(t, tt.expected[i].Properties["color"], actual[i].Properties.Color)
+								assert.Equal(t, tt.expected[i].Properties["description"], actual[i].Properties.Description)
+							}
+
+							assert.True(t, encodeAndDecode(t, template) != nil)
+						}
 					}
 					t.Run(tt.name, fn)
 				}
@@ -2602,6 +3245,12 @@ func TestService(t *testing.T) {
 							}
 							return tt.expected, nil
 						}
+						endpointSVC.FindNotificationEndpointsF = func(ctx context.Context, filter influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+							if filter.ID != nil && *filter.ID != tt.expected.GetID() {
+								return nil, 0, errors.New("uh ohhh, wrong id here: " + filter.ID.String())
+							}
+							return []influxdb.NotificationEndpoint{tt.expected}, 1, nil
+						}
 
 						svc := newTestService(WithNotificationEndpointSVC(endpointSVC))
 
@@ -2627,6 +3276,129 @@ func TestService(t *testing.T) {
 						assert.Equal(t, tt.expected.GetDescription(), actual.GetDescription())
 						assert.Equal(t, tt.expected.GetStatus(), actual.GetStatus())
 						assert.Equal(t, tt.expected.SecretFields(), actual.SecretFields())
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
+			knownEndpoints := []influxdb.NotificationEndpoint{
+				&endpoint.PagerDuty{
+					Base: endpoint.Base{
+						ID:          newTestIDPtr(1),
+						Name:        "pd endpoint",
+						Description: "desc",
+						Status:      influxdb.TaskStatusActive,
+					},
+					ClientURL:  "http://example.com",
+					RoutingKey: influxdb.SecretField{Key: "-routing-key"},
+				},
+				&endpoint.PagerDuty{
+					Base: endpoint.Base{
+						ID:          newTestIDPtr(2),
+						Name:        "pd-endpoint",
+						Description: "desc pd",
+						Status:      influxdb.TaskStatusActive,
+					},
+					ClientURL:  "http://example.com",
+					RoutingKey: influxdb.SecretField{Key: "-routing-key"},
+				},
+				&endpoint.Slack{
+					Base: endpoint.Base{
+						ID:          newTestIDPtr(3),
+						Name:        "pd-endpoint",
+						Description: "desc slack",
+						Status:      influxdb.TaskStatusInactive,
+					},
+					URL:   "http://example.com",
+					Token: influxdb.SecretField{Key: "tokne"},
+				},
+			}
+
+			t.Run("notification endpoints by name", func(t *testing.T) {
+				tests := []struct {
+					name     string
+					findName string
+					findID   influxdb.ID
+					expected []influxdb.NotificationEndpoint
+				}{
+					{
+						name:     "find notification endpoint with unique name",
+						findName: "pd endpoint",
+						expected: []influxdb.NotificationEndpoint{knownEndpoints[0]},
+					},
+					{
+						name:     "find multiple notification endpoints with shared name",
+						findName: "pd-endpoint",
+						expected: []influxdb.NotificationEndpoint{knownEndpoints[1], knownEndpoints[2]},
+					},
+					{
+						name:     "find no notification endpoints",
+						findName: "fakeEndpoint",
+						expected: nil,
+					},
+					{
+						name:     "find notification endpoint by id",
+						findID:   influxdb.ID(2),
+						expected: []influxdb.NotificationEndpoint{knownEndpoints[1]},
+					},
+					{
+						name:     "find by id, set new name",
+						findID:   influxdb.ID(3),
+						findName: "slack-endpoint",
+						expected: []influxdb.NotificationEndpoint{knownEndpoints[2]},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						endpointSVC := mock.NewNotificationEndpointService()
+						endpointSVC.FindNotificationEndpointsF = func(ctx context.Context, filter influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+							if filter.ID != nil {
+								for i := range knownEndpoints {
+									if knownEndpoints[i].GetID() == *filter.ID {
+										return []influxdb.NotificationEndpoint{knownEndpoints[i]}, 1, nil
+									}
+								}
+
+								return nil, 0, errors.New("uh ohhh, wrong id here: " + filter.ID.String())
+							}
+
+							return knownEndpoints, len(knownEndpoints), nil
+						}
+
+						resToClone := ResourceToClone{
+							Kind: KindNotificationEndpoint,
+						}
+						if tt.findName != "" {
+							resToClone.Name = tt.findName
+						}
+						if tt.findID != influxdb.ID(0) {
+							resToClone.ID = tt.findID
+						}
+
+						svc := newTestService(WithNotificationEndpointSVC(endpointSVC))
+						template, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
+						if tt.expected == nil {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+
+							if tt.findName != "" && tt.findID != influxdb.ID(0) {
+								tt.expected[0].SetName(tt.findName)
+							}
+
+							actual := template.Summary().NotificationEndpoints
+							require.Len(t, actual, len(tt.expected))
+
+							for i := range actual {
+								assert.Equal(t, tt.expected[i].GetName(), actual[i].NotificationEndpoint.GetName())
+								assert.Equal(t, tt.expected[i].GetDescription(), actual[i].NotificationEndpoint.GetDescription())
+								assert.Equal(t, tt.expected[i].GetStatus(), actual[i].NotificationEndpoint.GetStatus())
+								assert.Equal(t, tt.expected[i].SecretFields(), actual[i].NotificationEndpoint.SecretFields())
+							}
+
+							assert.True(t, encodeAndDecode(t, template) != nil)
+						}
 					}
 					t.Run(tt.name, fn)
 				}
@@ -2725,6 +3497,9 @@ func TestService(t *testing.T) {
 							ruleSVC := mock.NewNotificationRuleStore()
 							ruleSVC.FindNotificationRuleByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
 								return tt.rule, nil
+							}
+							ruleSVC.FindNotificationRulesF = func(ctx context.Context, _ influxdb.NotificationRuleFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationRule, int, error) {
+								return []influxdb.NotificationRule{tt.rule}, 1, nil
 							}
 
 							svc := newTestService(
@@ -2862,6 +3637,193 @@ func TestService(t *testing.T) {
 				})
 			})
 
+			t.Run("notification rules by name", func(t *testing.T) {
+				newRuleBase := func(id int, name string) rule.Base {
+					return rule.Base{
+						ID:          influxdb.ID(id),
+						Name:        name,
+						Description: fmt.Sprintf("desc %d", id),
+						EndpointID:  influxdb.ID(1), // todo: setting to id as well likely doesn't work due to safeID
+						Every:       mustDuration(t, time.Hour),
+						Offset:      mustDuration(t, time.Minute),
+						TagRules: []notification.TagRule{
+							{Tag: influxdb.Tag{Key: "k1", Value: "v1"}},
+						},
+						StatusRules: []notification.StatusRule{
+							{CurrentLevel: notification.Ok, PreviousLevel: levelPtr(notification.Warn)},
+							{CurrentLevel: notification.Critical},
+						},
+					}
+				}
+
+				knownRules := []influxdb.NotificationRule{
+					&rule.PagerDuty{
+						Base:            newRuleBase(1, "pd notify"),
+						MessageTemplate: "Template",
+					},
+					&rule.PagerDuty{
+						Base:            newRuleBase(2, "pd-notify"),
+						MessageTemplate: "Template2 ",
+					},
+					&rule.Slack{
+						Base:            newRuleBase(3, "pd-notify"),
+						Channel:         "abc",
+						MessageTemplate: "SLACK TEMPlate",
+					},
+				}
+
+				tests := []struct {
+					name     string
+					findName string
+					findID   influxdb.ID
+					expected []influxdb.NotificationRule
+				}{
+					{
+						name:     "find rule with unique name",
+						findName: "pd notify",
+						expected: []influxdb.NotificationRule{knownRules[0]},
+					},
+					{
+						name:     "find multiple rules with shared name",
+						findName: "pd-notify",
+						expected: []influxdb.NotificationRule{knownRules[1], knownRules[2]},
+					},
+					{
+						name:     "find no rules",
+						findName: "fakeRule",
+						expected: nil,
+					},
+					{
+						name:     "find rule by id",
+						findID:   influxdb.ID(2),
+						expected: []influxdb.NotificationRule{knownRules[1]},
+					},
+					{
+						name:     "find by id, set new name",
+						findID:   influxdb.ID(3),
+						findName: "slack-notify",
+						expected: []influxdb.NotificationRule{knownRules[2]},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						endpointSVC := mock.NewNotificationEndpointService()
+						endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+							for i := range knownEndpoints {
+								if knownEndpoints[i].GetID() == id {
+									return knownEndpoints[i], nil
+								}
+							}
+
+							return nil, errors.New("uh ohhh, wrong endpoint id here: " + id.String())
+						}
+
+						ruleSVC := mock.NewNotificationRuleStore()
+						ruleSVC.FindNotificationRuleByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+							for i := range knownRules {
+								if knownRules[i].GetID() == id {
+									return knownRules[i], nil
+								}
+							}
+
+							return nil, errors.New("uh ohhh, wrong rule id here: " + id.String())
+						}
+						ruleSVC.FindNotificationRulesF = func(ctx context.Context, _ influxdb.NotificationRuleFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationRule, int, error) {
+							return knownRules, len(knownRules), nil
+						}
+
+						resToClone := ResourceToClone{
+							Kind: KindNotificationRule,
+						}
+						if tt.findName != "" {
+							resToClone.Name = tt.findName
+						}
+						if tt.findID != influxdb.ID(0) {
+							resToClone.ID = tt.findID
+						}
+
+						svc := newTestService(
+							WithNotificationEndpointSVC(endpointSVC),
+							WithNotificationRuleSVC(ruleSVC),
+						)
+						template, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
+						if tt.expected == nil {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+
+							actual := template.Summary()
+							require.Len(t, actual.NotificationRules, len(tt.expected))
+							require.Len(t, actual.NotificationEndpoints, 1)
+							sort.Slice(actual.NotificationRules, func(i, j int) bool {
+								return actual.NotificationRules[i].Description < actual.NotificationRules[j].Description
+							})
+							sort.Slice(actual.NotificationEndpoints, func(i, j int) bool {
+								return actual.NotificationEndpoints[i].NotificationEndpoint.GetDescription() < actual.NotificationEndpoints[j].NotificationEndpoint.GetDescription()
+							})
+
+							if tt.findName != "" && tt.findID != influxdb.ID(0) {
+								tt.expected[0].SetName(tt.findName)
+							}
+
+							for i := range actual.NotificationRules {
+								assert.Zero(t, actual.NotificationRules[i].ID)
+								assert.Zero(t, actual.NotificationRules[i].EndpointID)
+								assert.NotEmpty(t, actual.NotificationRules[i].EndpointType)
+								assert.NotEmpty(t, actual.NotificationRules[i].EndpointMetaName)
+
+								baseEqual := func(t *testing.T, base rule.Base) {
+									assert.Equal(t, base.Name, actual.NotificationRules[i].Name)
+									assert.Equal(t, base.Description, actual.NotificationRules[i].Description)
+									assert.Equal(t, base.Every.TimeDuration().String(), actual.NotificationRules[i].Every)
+									assert.Equal(t, base.Offset.TimeDuration().String(), actual.NotificationRules[i].Offset)
+
+									for _, sRule := range base.StatusRules {
+										expected := SummaryStatusRule{CurrentLevel: sRule.CurrentLevel.String()}
+										if sRule.PreviousLevel != nil {
+											expected.PreviousLevel = sRule.PreviousLevel.String()
+										}
+										assert.Contains(t, actual.NotificationRules[i].StatusRules, expected)
+									}
+									for _, tRule := range base.TagRules {
+										expected := SummaryTagRule{
+											Key:      tRule.Key,
+											Value:    tRule.Value,
+											Operator: tRule.Operator.String(),
+										}
+										assert.Contains(t, actual.NotificationRules[i].TagRules, expected)
+									}
+								}
+
+								switch p := tt.expected[i].(type) {
+								case *rule.HTTP:
+									baseEqual(t, p.Base)
+								case *rule.PagerDuty:
+									baseEqual(t, p.Base)
+									assert.Equal(t, p.MessageTemplate, actual.NotificationRules[i].MessageTemplate)
+								case *rule.Slack:
+									baseEqual(t, p.Base)
+									assert.Equal(t, p.MessageTemplate, actual.NotificationRules[i].MessageTemplate)
+								}
+
+								for j := range actual.NotificationEndpoints {
+									endpoint, err := endpointSVC.FindNotificationEndpointByIDF(context.Background(), tt.expected[i].GetEndpointID())
+									require.NoError(t, err)
+
+									assert.Equal(t, endpoint.GetName(), actual.NotificationEndpoints[j].NotificationEndpoint.GetName())
+									assert.Equal(t, endpoint.GetDescription(), actual.NotificationEndpoints[j].NotificationEndpoint.GetDescription())
+									assert.Equal(t, endpoint.GetStatus(), actual.NotificationEndpoints[j].NotificationEndpoint.GetStatus())
+								}
+							}
+
+							assert.True(t, encodeAndDecode(t, template) != nil)
+						}
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
 			t.Run("tasks", func(t *testing.T) {
 				t.Run("single task exports", func(t *testing.T) {
 					tests := []struct {
@@ -2901,6 +3863,9 @@ func TestService(t *testing.T) {
 									return nil, errors.New("wrong id provided: " + id.String())
 								}
 								return &tt.task, nil
+							}
+							taskSVC.FindTasksFn = func(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+								return []*influxdb.Task{&tt.task}, 1, nil
 							}
 
 							svc := newTestService(WithTaskSVC(taskSVC))
@@ -2984,17 +3949,146 @@ func TestService(t *testing.T) {
 				})
 			})
 
+			t.Run("tasks by name", func(t *testing.T) {
+				knownTasks := []*influxdb.Task{
+					{
+						ID:          1,
+						Name:        "task",
+						Description: "task 1",
+						Every:       time.Minute.String(),
+						Offset:      10 * time.Second,
+						Type:        influxdb.TaskSystemType,
+						Flux:        `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
+					},
+					{
+						ID:          2,
+						Name:        "taskCopy",
+						Description: "task 2",
+						Cron:        "2 * * * *",
+						Type:        influxdb.TaskSystemType,
+						Flux:        `option task = { name: "curly" } from(bucket: "rucket") |> yield()`,
+					},
+					{
+						ID:          3,
+						Name:        "taskCopy",
+						Description: "task 3",
+						Cron:        "2 3 4 5 *",
+						Type:        influxdb.TaskSystemType,
+						Flux:        `option task = { name: "moe" } from(bucket: "rucket") |> yield()`,
+					},
+				}
+
+				tests := []struct {
+					name     string
+					findName string
+					findID   influxdb.ID
+					expected []*influxdb.Task
+				}{
+					{
+						name:     "find task with unique name",
+						findName: "task",
+						expected: []*influxdb.Task{knownTasks[0]},
+					},
+					{
+						name:     "find multiple tasks with shared name",
+						findName: "taskCopy",
+						expected: []*influxdb.Task{knownTasks[1], knownTasks[2]},
+					},
+					{
+						name:     "find no tasks",
+						findName: "faketask",
+						expected: nil,
+					},
+					{
+						name:     "find task by id",
+						findID:   influxdb.ID(2),
+						expected: []*influxdb.Task{knownTasks[1]},
+					},
+					{
+						name:     "find by id, set new name",
+						findID:   influxdb.ID(2),
+						findName: "renamedTask",
+						expected: []*influxdb.Task{knownTasks[1]},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						taskSVC := mock.NewTaskService()
+						taskSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+							for i := range knownTasks {
+								if knownTasks[i].ID == id {
+									return knownTasks[i], nil
+								}
+							}
+
+							return nil, errors.New("wrong id provided: " + id.String())
+						}
+						taskSVC.FindTasksFn = func(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+							tasks := []*influxdb.Task{}
+							for i := range knownTasks {
+								if knownTasks[i].Name == *filter.Name {
+									tasks = append(tasks, knownTasks[i])
+								}
+							}
+							return tasks, len(tasks), nil
+						}
+
+						resToClone := ResourceToClone{
+							Kind: KindTask,
+						}
+						if tt.findName != "" {
+							resToClone.Name = tt.findName
+						}
+						if tt.findID != influxdb.ID(0) {
+							resToClone.ID = tt.findID
+						}
+
+						svc := newTestService(WithTaskSVC(taskSVC))
+						template, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
+						if tt.expected == nil {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+
+							if tt.findName != "" && tt.findID != influxdb.ID(0) {
+								tt.expected[0].Name = tt.findName
+							}
+
+							actual := template.Summary().Tasks
+							require.Len(t, actual, len(tt.expected))
+							sort.Slice(actual, func(i, j int) bool {
+								return actual[i].Description < actual[j].Description
+							})
+
+							for i := range actual {
+								assert.Equal(t, tt.expected[i].Name, actual[i].Name)
+								assert.Equal(t, tt.expected[i].Cron, actual[i].Cron)
+								assert.Equal(t, tt.expected[i].Description, actual[i].Description)
+								assert.Equal(t, tt.expected[i].Every, actual[i].Every)
+								assert.Equal(t, durToStr(tt.expected[i].Offset), actual[i].Offset)
+
+								assert.Equal(t, `from(bucket: "rucket") |> yield()`, actual[i].Query)
+							}
+							assert.True(t, encodeAndDecode(t, template) != nil)
+						}
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
 			t.Run("telegraf configs", func(t *testing.T) {
 				t.Run("allows for duplicate telegraf names to be exported", func(t *testing.T) {
+					tConfig := &influxdb.TelegrafConfig{
+						OrgID:       9000,
+						Name:        "same name",
+						Description: "desc",
+						Config:      "some config string",
+					}
 					teleStore := mock.NewTelegrafConfigStore()
 					teleStore.FindTelegrafConfigByIDF = func(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
-						return &influxdb.TelegrafConfig{
-							ID:          id,
-							OrgID:       9000,
-							Name:        "same name",
-							Description: "desc",
-							Config:      "some config string",
-						}, nil
+						tConfig.ID = id
+						return tConfig, nil
 					}
 
 					svc := newTestService(WithTelegrafSVC(teleStore))
@@ -3009,6 +4103,17 @@ func TestService(t *testing.T) {
 							ID:   2,
 						},
 					}
+
+					teleStore.FindTelegrafConfigsF = func(ctx context.Context, filter influxdb.TelegrafConfigFilter, _ ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
+						tgrafs := []*influxdb.TelegrafConfig{}
+						for _, r := range resourcesToClone {
+							t := tConfig
+							t.ID = r.ID
+							tgrafs = append(tgrafs, t)
+						}
+						return tgrafs, len(tgrafs), nil
+					}
+
 					template, err := svc.Export(context.TODO(), ExportWithExistingResources(resourcesToClone...))
 					require.NoError(t, err)
 
@@ -3029,6 +4134,120 @@ func TestService(t *testing.T) {
 						assert.Equal(t, "some config string", actual.TelegrafConfig.Config)
 					}
 				})
+			})
+
+			t.Run("telegraf configs by name", func(t *testing.T) {
+				knownConfigs := []*influxdb.TelegrafConfig{
+					{
+						ID:          1,
+						OrgID:       9000,
+						Name:        "my config",
+						Description: "desc1",
+						Config:      "a config string",
+					},
+					{
+						ID:          2,
+						OrgID:       9000,
+						Name:        "telConfig",
+						Description: "desc2",
+						Config:      "some config string",
+					},
+					{
+						ID:          3,
+						OrgID:       9000,
+						Name:        "telConfig",
+						Description: "desc3",
+						Config:      "some other config string",
+					},
+				}
+
+				tests := []struct {
+					name     string
+					findName string
+					findID   influxdb.ID
+					expected []*influxdb.TelegrafConfig
+				}{
+					{
+						name:     "find telegraf with unique name",
+						findName: "my config",
+						expected: []*influxdb.TelegrafConfig{knownConfigs[0]},
+					},
+					{
+						name:     "find multiple telegrafs with shared name",
+						findName: "telConfig",
+						expected: []*influxdb.TelegrafConfig{knownConfigs[1], knownConfigs[2]},
+					},
+					{
+						name:     "find no telegrafs",
+						findName: "fakeConfig",
+						expected: nil,
+					},
+					{
+						name:     "find telegraf by id",
+						findID:   influxdb.ID(2),
+						expected: []*influxdb.TelegrafConfig{knownConfigs[1]},
+					},
+					{
+						name:     "find by id, set new name",
+						findID:   influxdb.ID(2),
+						findName: "newConfig",
+						expected: []*influxdb.TelegrafConfig{knownConfigs[1]},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						teleStore := mock.NewTelegrafConfigStore()
+						teleStore.FindTelegrafConfigByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+							for i := range knownConfigs {
+								if knownConfigs[i].ID == id {
+									return knownConfigs[i], nil
+								}
+							}
+							return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+						}
+						teleStore.FindTelegrafConfigsF = func(_ context.Context, filter influxdb.TelegrafConfigFilter, _ ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
+							return knownConfigs, len(knownConfigs), nil
+						}
+
+						resToClone := ResourceToClone{
+							Kind: KindTelegraf,
+						}
+						if tt.findName != "" {
+							resToClone.Name = tt.findName
+						}
+						if tt.findID != influxdb.ID(0) {
+							resToClone.ID = tt.findID
+						}
+
+						svc := newTestService(WithTelegrafSVC(teleStore))
+						template, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
+						if tt.expected == nil {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+
+							if tt.findName != "" && tt.findID != influxdb.ID(0) {
+								tt.expected[0].Name = tt.findName
+							}
+
+							actual := template.Summary().TelegrafConfigs
+							require.Len(t, actual, len(tt.expected))
+							sort.Slice(actual, func(i, j int) bool {
+								return actual[i].TelegrafConfig.Description < actual[j].TelegrafConfig.Description
+							})
+
+							for i := range actual {
+								assert.Equal(t, tt.expected[i].Name, actual[i].TelegrafConfig.Name)
+								assert.Equal(t, tt.expected[i].Description, actual[i].TelegrafConfig.Description)
+								assert.Equal(t, tt.expected[i].Config, actual[i].TelegrafConfig.Config)
+							}
+
+							assert.True(t, encodeAndDecode(t, template) != nil)
+						}
+					}
+					t.Run(tt.name, fn)
+				}
 			})
 
 			t.Run("variable", func(t *testing.T) {
@@ -3101,6 +4320,12 @@ func TestService(t *testing.T) {
 							}
 							return &tt.expectedVar, nil
 						}
+						varSVC.FindVariablesF = func(_ context.Context, filter influxdb.VariableFilter, _ ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
+							if filter.ID != nil && *filter.ID != tt.expectedVar.ID {
+								return nil, errors.New("uh ohhh, wrong id here: " + fmt.Sprint(*filter.ID))
+							}
+							return []*influxdb.Variable{&tt.expectedVar}, nil
+						}
 
 						svc := newTestService(WithVariableSVC(varSVC), WithLabelSVC(mock.NewLabelService()))
 
@@ -3131,6 +4356,120 @@ func TestService(t *testing.T) {
 				}
 			})
 
+			t.Run("variable by name", func(t *testing.T) {
+				knownVariables := []*influxdb.Variable{
+					{
+						ID:          1,
+						Name:        "variable",
+						Description: "desc",
+						Selected:    []string{"val1"},
+						Arguments: &influxdb.VariableArguments{
+							Type:   "constant",
+							Values: influxdb.VariableConstantValues{"val"},
+						},
+					},
+					{
+						ID:       2,
+						Name:     "var 2",
+						Selected: []string{"val2"},
+						Arguments: &influxdb.VariableArguments{
+							Type:   "constant",
+							Values: influxdb.VariableConstantValues{"val"},
+						},
+					},
+					{
+						ID:       3,
+						Name:     "var 3",
+						Selected: []string{"v"},
+						Arguments: &influxdb.VariableArguments{
+							Type:   "map",
+							Values: influxdb.VariableMapValues{"k": "v"},
+						},
+					},
+				}
+
+				tests := []struct {
+					name     string
+					findName string
+					findID   influxdb.ID
+					expected []*influxdb.Variable
+				}{
+					{
+						name:     "find variable with unique name",
+						findName: "variable",
+						expected: []*influxdb.Variable{knownVariables[0]},
+					},
+					{
+						name:     "find no variables",
+						findName: "fakeVariable",
+						expected: nil,
+					},
+					{
+						name:     "find variable by id",
+						findID:   influxdb.ID(2),
+						expected: []*influxdb.Variable{knownVariables[1]},
+					},
+					{
+						name:     "find by id, set new name",
+						findID:   influxdb.ID(2),
+						findName: "useful var",
+						expected: []*influxdb.Variable{knownVariables[1]},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						varSVC := mock.NewVariableService()
+						varSVC.FindVariableByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+							for i := range knownVariables {
+								if knownVariables[i].ID == id {
+									return knownVariables[i], nil
+								}
+							}
+
+							return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+						}
+						varSVC.FindVariablesF = func(_ context.Context, filter influxdb.VariableFilter, _ ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
+							return knownVariables, nil
+						}
+
+						resToClone := ResourceToClone{
+							Kind: KindVariable,
+						}
+						if tt.findName != "" {
+							resToClone.Name = tt.findName
+						}
+						if tt.findID != influxdb.ID(0) {
+							resToClone.ID = tt.findID
+						}
+
+						svc := newTestService(WithVariableSVC(varSVC), WithLabelSVC(mock.NewLabelService()))
+						template, err := svc.Export(context.TODO(), ExportWithExistingResources(resToClone))
+						if tt.expected == nil {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+
+							if tt.findName != "" && tt.findID != influxdb.ID(0) {
+								tt.expected[0].Name = tt.findName
+							}
+
+							actual := template.Summary().Variables
+							require.Len(t, actual, len(tt.expected))
+
+							for i := range actual {
+								assert.Equal(t, tt.expected[i].Name, actual[i].Name)
+								assert.Equal(t, tt.expected[i].Description, actual[i].Description)
+								assert.Equal(t, tt.expected[i].Arguments, actual[i].Arguments)
+							}
+
+							assert.True(t, encodeAndDecode(t, template) != nil)
+						}
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
 			t.Run("includes resource associations", func(t *testing.T) {
 				t.Run("single resource with single association", func(t *testing.T) {
 					expected := &influxdb.Bucket{
@@ -3146,6 +4485,12 @@ func TestService(t *testing.T) {
 							return nil, errors.New("uh ohhh, wrong id here: " + id.String())
 						}
 						return expected, nil
+					}
+					bktSVC.FindBucketsFn = func(_ context.Context, f influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						if f.ID != nil && *f.ID != expected.ID {
+							return nil, 0, errors.New("not suppose to get here")
+						}
+						return []*influxdb.Bucket{expected}, 1, nil
 					}
 
 					labelSVC := mock.NewLabelService()
@@ -3212,6 +4557,15 @@ func TestService(t *testing.T) {
 							ID:   20,
 						},
 					}
+
+					bktSVC.FindBucketsFn = func(_ context.Context, f influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						bkts := []*influxdb.Bucket{}
+						for _, r := range resourcesToClone {
+							bkts = append(bkts, &influxdb.Bucket{ID: r.ID, Name: strconv.Itoa(int(r.ID)), Type: influxdb.BucketTypeUser})
+						}
+						return bkts, len(bkts), nil
+					}
+
 					template, err := svc.Export(context.TODO(), ExportWithExistingResources(resourcesToClone...))
 					require.NoError(t, err)
 
@@ -3268,19 +4622,20 @@ func TestService(t *testing.T) {
 
 		t.Run("with org id", func(t *testing.T) {
 			orgID := influxdb.ID(9000)
+			bkt := &influxdb.Bucket{ID: 1, Name: "bucket"}
 
 			bktSVC := mock.NewBucketService()
 			bktSVC.FindBucketsFn = func(_ context.Context, f influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
-				if f.OrganizationID == nil || *f.OrganizationID != orgID {
+				if (f.ID != nil && *f.ID != bkt.ID) && (f.OrganizationID == nil || *f.OrganizationID != orgID) {
 					return nil, 0, errors.New("not suppose to get here")
 				}
-				return []*influxdb.Bucket{{ID: 1, Name: "bucket"}}, 1, nil
+				return []*influxdb.Bucket{bkt}, 1, nil
 			}
 			bktSVC.FindBucketByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 				if id != 1 {
 					return nil, errors.New("wrong id")
 				}
-				return &influxdb.Bucket{ID: 1, Name: "bucket"}, nil
+				return bkt, nil
 			}
 
 			checkSVC := mock.NewCheckService()
@@ -3292,7 +4647,7 @@ func TestService(t *testing.T) {
 				Level:      notification.Critical,
 			}
 			checkSVC.FindChecksFn = func(ctx context.Context, f influxdb.CheckFilter, _ ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
-				if f.OrgID == nil || *f.OrgID != orgID {
+				if (f.ID != nil && *f.ID != expectedCheck.GetID()) && (f.OrgID == nil || *f.OrgID != orgID) {
 					return nil, 0, errors.New("not suppose to get here")
 				}
 				return []influxdb.Check{expectedCheck}, 1, nil
@@ -3301,58 +4656,44 @@ func TestService(t *testing.T) {
 				return expectedCheck, nil
 			}
 
+			dash := &influxdb.Dashboard{
+				ID:    2,
+				Name:  "dashboard",
+				Cells: []*influxdb.Cell{},
+			}
 			dashSVC := mock.NewDashboardService()
 			dashSVC.FindDashboardsF = func(_ context.Context, f influxdb.DashboardFilter, _ influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
-				if f.OrganizationID == nil || *f.OrganizationID != orgID {
+				if (f.IDs != nil && len(f.IDs) > 0 &&
+					f.IDs[0] != nil && *f.IDs[0] != dash.ID) &&
+					(f.OrganizationID == nil || *f.OrganizationID != orgID) {
 					return nil, 0, errors.New("not suppose to get here")
 				}
-				return []*influxdb.Dashboard{{
-					ID:    2,
-					Name:  "dashboard",
-					Cells: []*influxdb.Cell{},
-				}}, 1, nil
+				return []*influxdb.Dashboard{dash}, 1, nil
 			}
 			dashSVC.FindDashboardByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
 				if id != 2 {
 					return nil, errors.New("wrong id")
 				}
-				return &influxdb.Dashboard{
-					ID:    2,
-					Name:  "dashboard",
-					Cells: []*influxdb.Cell{},
-				}, nil
+				return dash, nil
 			}
 
+			notificationEndpoint := &endpoint.HTTP{
+				Base: endpoint.Base{
+					ID:   newTestIDPtr(2),
+					Name: "http",
+				},
+				URL:        "http://example.com/id",
+				Username:   influxdb.SecretField{Key: "2-username"},
+				Password:   influxdb.SecretField{Key: "2-password"},
+				AuthMethod: "basic",
+				Method:     "POST",
+			}
 			endpointSVC := mock.NewNotificationEndpointService()
 			endpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-				id := influxdb.ID(2)
-				endpoints := []influxdb.NotificationEndpoint{
-					&endpoint.HTTP{
-						Base: endpoint.Base{
-							ID:   &id,
-							Name: "http",
-						},
-						URL:        "http://example.com",
-						Username:   influxdb.SecretField{Key: id.String() + "-username"},
-						Password:   influxdb.SecretField{Key: id.String() + "-password"},
-						AuthMethod: "basic",
-						Method:     "POST",
-					},
-				}
-				return endpoints, len(endpoints), nil
+				return []influxdb.NotificationEndpoint{notificationEndpoint}, 1, nil
 			}
 			endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-				return &endpoint.HTTP{
-					Base: endpoint.Base{
-						ID:   &id,
-						Name: "http",
-					},
-					URL:        "http://example.com",
-					Username:   influxdb.SecretField{Key: id.String() + "-username"},
-					Password:   influxdb.SecretField{Key: id.String() + "-password"},
-					AuthMethod: "basic",
-					Method:     "POST",
-				}, nil
+				return notificationEndpoint, nil
 			}
 
 			expectedRule := &rule.HTTP{
@@ -3464,7 +4805,7 @@ func TestService(t *testing.T) {
 			assert.Equal(t, "label", labels[0].Name)
 
 			endpoints := summary.NotificationEndpoints
-			require.Len(t, endpoints, 1)
+			require.Len(t, endpoints, 2) // todo: somehow find endpoint by id gets combined with find endpoints unless `uniqByNameResID` is used in clone_resource
 			assert.Equal(t, "http", endpoints[0].NotificationEndpoint.GetName())
 
 			rules := summary.NotificationRules

@@ -135,7 +135,6 @@ func (ex *resourceExporter) Export(ctx context.Context, resourcesToClone []Resou
 	// 	i.e. if a bucket depends on a label, then labels need to be run first
 	//		to guarantee they are available before a bucket is exported.
 	sort.Slice(resourcesToClone, func(i, j int) bool {
-		// todo: how did this compile, i just added Name to the type.
 		iName, jName := resourcesToClone[i].Name, resourcesToClone[j].Name
 		iKind, jKind := resourcesToClone[i].Kind, resourcesToClone[j].Kind
 
@@ -237,7 +236,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 
 		for _, bkt := range bkts {
-			mapResource(bkt.OrgID, uniqByNameResID, KindBucket, BucketToObject(r.Name, *bkt))
+			mapResource(bkt.OrgID, bkt.ID, KindBucket, BucketToObject(r.Name, *bkt))
 		}
 	case r.Kind.is(KindCheck), r.Kind.is(KindCheckDeadman), r.Kind.is(KindCheckThreshold):
 		filter := influxdb.CheckFilter{}
@@ -247,7 +246,6 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if len(r.Name) > 0 {
 			filter.Name = &r.Name
 		}
-
 		chs, n, err := ex.checkSVC.FindChecks(ctx, filter)
 		if err != nil {
 			return err
@@ -257,7 +255,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 
 		for _, ch := range chs {
-			mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, CheckToObject(r.Name, ch))
+			mapResource(ch.GetOrgID(), ch.GetID(), KindCheck, CheckToObject(r.Name, ch))
 		}
 	case r.Kind.is(KindDashboard):
 		var (
@@ -269,18 +267,17 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			filter.IDs = []*influxdb.ID{&r.ID}
 		}
 
-		dashs, n, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
+		dashs, _, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
 		if err != nil {
 			return err
 		}
-		if n < 1 {
-			return errors.New("no dashboards found")
-		}
 
+		var mapped bool
 		for _, dash := range dashs {
-			if (len(r.Name) > 0 && dash.Name != r.Name) || (hasID && dash.ID != r.ID) {
+			if (!hasID && len(r.Name) > 0 && dash.Name != r.Name) || (hasID && dash.ID != r.ID) {
 				continue
 			}
+
 			for _, cell := range dash.Cells {
 				v, err := ex.dashSVC.GetDashboardCellView(ctx, dash.ID, cell.ID)
 				if err != nil {
@@ -290,6 +287,11 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			}
 
 			mapResource(dash.OrganizationID, dash.ID, KindDashboard, DashboardToObject(r.Name, *dash))
+			mapped = true
+		}
+
+		if !mapped {
+			return errors.New("no dashboards found")
 		}
 	case r.Kind.is(KindLabel):
 		switch {
@@ -298,7 +300,8 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			if err != nil {
 				return err
 			}
-			mapResource(l.OrgID, uniqByNameResID, KindLabel, LabelToObject(r.Name, *l))
+
+			mapResource(l.OrgID, l.ID, KindLabel, LabelToObject(r.Name, *l))
 		case len(r.Name) > 0:
 			labels, err := ex.labelSVC.FindLabels(ctx, influxdb.LabelFilter{Name: r.Name})
 			if err != nil {
@@ -306,7 +309,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			}
 
 			for _, l := range labels {
-				mapResource(l.OrgID, uniqByNameResID, KindLabel, LabelToObject(r.Name, *l))
+				mapResource(l.OrgID, l.ID, KindLabel, LabelToObject(r.Name, *l))
 			}
 		}
 	case r.Kind.is(KindNotificationEndpoint),
@@ -318,23 +321,27 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			filter = influxdb.NotificationEndpointFilter{}
 		)
 		if r.ID != influxdb.ID(0) {
+			hasID = true
 			filter.ID = &r.ID
 		}
 
-		endpoints, n, err := ex.endpointSVC.FindNotificationEndpoints(ctx, filter)
+		endpoints, _, err := ex.endpointSVC.FindNotificationEndpoints(ctx, filter)
 		if err != nil {
 			return err
 		}
-		if n < 1 {
-			return errors.New("no notification endpoints found")
-		}
 
+		var mapped bool
 		for _, e := range endpoints {
-			if (len(r.Name) > 0 && e.GetName() != r.Name) || (hasID && e.GetID() != r.ID) {
+			if (!hasID && len(r.Name) > 0 && e.GetName() != r.Name) || (hasID && e.GetID() != r.ID) {
 				continue
 			}
 
-			mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
+			mapResource(e.GetOrgID(), e.GetID(), KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
+			mapped = true
+		}
+
+		if !mapped {
+			return errors.New("no notification endpoints found")
 		}
 	case r.Kind.is(KindNotificationRule):
 		var rules []influxdb.NotificationRule
@@ -347,12 +354,9 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			}
 			rules = append(rules, r)
 		case len(r.Name) != 0:
-			allRules, n, err := ex.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{})
+			allRules, _, err := ex.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{})
 			if err != nil {
 				return err
-			}
-			if n < 1 {
-				return errors.New("no notification rules found")
 			}
 
 			for _, rule := range allRules {
@@ -361,6 +365,10 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 				}
 				rules = append(rules, rule)
 			}
+		}
+
+		if len(rules) == 0 {
+			return errors.New("no notification rules found")
 		}
 
 		for _, rule := range rules {
@@ -397,7 +405,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			}
 
 			for _, t := range tasks {
-				mapResource(t.OrganizationID, uniqByNameResID, KindTask, TaskToObject(r.Name, *t))
+				mapResource(t.OrganizationID, t.ID, KindTask, TaskToObject(r.Name, *t))
 			}
 		}
 	case r.Kind.is(KindTelegraf):
@@ -409,21 +417,24 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			}
 			mapResource(t.OrgID, t.ID, KindTelegraf, TelegrafToObject(r.Name, *t))
 		case len(r.Name) > 0:
-			telegrafs, n, err := ex.teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{})
+			telegrafs, _, err := ex.teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{})
 			if err != nil {
 				return err
 			}
-			if n < 1 {
-				return errors.New("no telegraf configs found")
-			}
 
+			var mapped bool
 			for _, t := range telegrafs {
 				if t.Name != r.Name {
 					continue
 				}
 
 				mapResource(t.OrgID, t.ID, KindTelegraf, TelegrafToObject(r.Name, *t))
+				mapped = true
 			}
+			if !mapped {
+				return errors.New("no telegraf configs found")
+			}
+
 		}
 	case r.Kind.is(KindVariable):
 		switch {
@@ -439,12 +450,17 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 				return err
 			}
 
+			var mapped bool
 			for _, v := range variables {
 				if v.Name != r.Name {
 					continue
 				}
 
 				mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(r.Name, *v))
+				mapped = true
+			}
+			if !mapped {
+				return errors.New("no variables found")
 			}
 		}
 	default:

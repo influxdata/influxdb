@@ -2100,7 +2100,6 @@ func (v *variable) summarize() SummaryVariable {
 			envRefs = append(envRefs, convertRefToRefSummary(field, sel))
 		}
 	}
-
 	return SummaryVariable{
 		SummaryIdentifier: SummaryIdentifier{
 			Kind:          KindVariable,

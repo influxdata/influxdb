@@ -904,40 +904,42 @@ spec:
 `,
 					},
 				},
-				{
-					kind: KindCheckDeadman,
-					resErr: testTemplateResourceError{
-						name:           "duplicate meta name and spec name",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldAssociations},
-						templateStr: `
-apiVersion: influxdata.com/v2alpha1
-kind: CheckDeadman
-metadata:
-  name: check-1
-spec:
-  every: 5m
-  level: cRiT
-  query:  >
-    from(bucket: "rucket_1") |> yield(name: "mean")
-  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-  timeSince: 90s
----
-apiVersion: influxdata.com/v2alpha1
-kind: CheckDeadman
-metadata:
-  name: valid-name
-spec:
-  name: check-1
-  every: 5m
-  level: cRiT
-  query:  >
-    from(bucket: "rucket_1") |> yield(name: "mean")
-  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-  timeSince: 90s
-`,
-					},
-				},
+				/* checks are not name unique
+							{
+								kind: KindCheckDeadman,
+								resErr: testTemplateResourceError{
+									name:           "duplicate meta name and spec name",
+									validationErrs: 1,
+									valFields:      []string{fieldSpec, fieldAssociations},
+									templateStr: `
+				apiVersion: influxdata.com/v2alpha1
+				kind: CheckDeadman
+				metadata:
+					name: check-1
+				spec:
+					every: 5m
+					level: cRiT
+					query:  >
+						from(bucket: "rucket_1") |> yield(name: "mean")
+					statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+					timeSince: 90s
+				---
+				apiVersion: influxdata.com/v2alpha1
+				kind: CheckDeadman
+				metadata:
+					name: valid-name
+				spec:
+					name: check-1
+					every: 5m
+					level: cRiT
+					query:  >
+						from(bucket: "rucket_1") |> yield(name: "mean")
+					statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+					timeSince: 90s
+				`,
+								},
+							},
+				*/
 			}
 
 			for _, tt := range tests {
@@ -2985,31 +2987,33 @@ spec:
 `,
 					},
 				},
-				{
-					kind: KindNotificationEndpointSlack,
-					resErr: testTemplateResourceError{
-						name:           "duplicate meta name and spec name",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldName},
-						templateStr: `apiVersion: influxdata.com/v2alpha1
-kind: NotificationEndpointSlack
-metadata:
-  name: slack
-spec:
-  description: slack desc
-  url: https://hooks.slack.com/services/bip/piddy/boppidy
----
-apiVersion: influxdata.com/v2alpha1
-kind: NotificationEndpointSlack
-metadata:
-  name: slack-notification-endpoint
-spec:
-  name: slack
-  description: slack desc
-  url: https://hooks.slack.com/services/bip/piddy/boppidy
-`,
-					},
-				},
+				/* notification endpoints are not name unique
+							{
+								kind: KindNotificationEndpointSlack,
+								resErr: testTemplateResourceError{
+									name:           "duplicate meta name and spec name",
+									validationErrs: 1,
+									valFields:      []string{fieldSpec, fieldName},
+									templateStr: `apiVersion: influxdata.com/v2alpha1
+				kind: NotificationEndpointSlack
+				metadata:
+					name: slack
+				spec:
+					description: slack desc
+					url: https://hooks.slack.com/services/bip/piddy/boppidy
+				---
+				apiVersion: influxdata.com/v2alpha1
+				kind: NotificationEndpointSlack
+				metadata:
+					name: slack-notification-endpoint
+				spec:
+					name: slack
+					description: slack desc
+					url: https://hooks.slack.com/services/bip/piddy/boppidy
+				`,
+								},
+							},
+				*/
 			}
 
 			for _, tt := range tests {

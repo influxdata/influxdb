@@ -569,6 +569,7 @@ func ExportWithExistingResources(resources ...ResourceToClone) ExportOptFn {
 	return func(opt *ExportOpt) error {
 		for _, r := range resources {
 			if err := r.OK(); err != nil {
+				// todo: log and continue else append r to opt.Resources??
 				return err
 			}
 		}
