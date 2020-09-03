@@ -119,7 +119,3 @@ require (
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
-
-replace github.com/Sirupsen/logrus => github.com/sirupsen/logrus v1.2.0
-
-replace github.com/influxdata/platform => /dev/null
