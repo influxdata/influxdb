@@ -1,7 +1,7 @@
 FROM debian:stable-slim
 COPY influx influxd /usr/bin/
 
-EXPOSE 9999
+EXPOSE 8086
 
 ENV DEBIAN_FRONTEND noninteractive
 

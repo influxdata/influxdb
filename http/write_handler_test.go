@@ -317,7 +317,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 
 			r := httptest.NewRequest(
 				"POST",
-				"http://localhost:9999/api/v2/write",
+				"http://localhost:8086/api/v2/write",
 				strings.NewReader(tt.request.body),
 			)
 

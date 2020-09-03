@@ -55,7 +55,7 @@ For example, to declare the `influx_url` property in the `development` configura
 
 e.g. 
 
-`export E2E_DEVELOPMENT_INFLUX_URL="http://172.17.0.2:9999"`
+`export E2E_DEVELOPMENT_INFLUX_URL="http://172.17.0.2:8086"`
 
 This feature was added specifically to define passwords and usernames only via the test environment. However, it can be used with any configuration key value such as the INFLUX_URL endpoint. 
 
@@ -121,7 +121,7 @@ e.g.
 sudo docker run -it -v `pwd`/report:/home/e2e/report -v `pwd`/screenshots:/home/e2e/screenshots \
      -v /tmp/e2e/etc:/home/e2e/etc -v /tmp/e2e/downloads:/home/e2e/downloads \
      -e SELENIUM_REMOTE_URL="http://${SELENOID_HOST}:4444/wd/hub" \
-     -e E2E_${ACTIVE_CONF^^}_INFLUX_URL="http://${INFLUX2_HOST}:9999" --detach \
+     -e E2E_${ACTIVE_CONF^^}_INFLUX_URL="http://${INFLUX2_HOST}:8086" --detach \
      --name ${TEST_CONTAINER} e2e-${TEST_CONTAINER}:latest
 ``` 
 

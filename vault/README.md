@@ -37,7 +37,7 @@ Once the vault and influxdb servers have been started and initialized, you may t
 
 ```sh
 curl --request GET \
-  --url http://localhost:9999/api/v2/orgs/<org id>/secrets \
+  --url http://localhost:8086/api/v2/orgs/<org id>/secrets \
   --header 'authorization: Token <authorization token>
 
 # should return
@@ -53,7 +53,7 @@ curl --request GET \
 
 ```sh
 curl --request PATCH \
-  --url http://localhost:9999/api/v2/orgs/<org id>/secrets \
+  --url http://localhost:8086/api/v2/orgs/<org id>/secrets \
   --header 'authorization: Token <authorization token> \
   --header 'content-type: application/json' \
   --data '{
@@ -66,7 +66,7 @@ curl --request PATCH \
 
 ```sh
 curl --request GET \
-  --url http://localhost:9999/api/v2/orgs/<org id>/secrets \
+  --url http://localhost:8086/api/v2/orgs/<org id>/secrets \
   --header 'authorization: Token <authorization token>
 
 # should return

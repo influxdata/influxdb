@@ -863,7 +863,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 				t.Fatalf("failed to unmarshal label mapping: %v", err)
 			}
 
-			url := fmt.Sprintf("http://localhost:9999/api/v2/variables/%s/labels", tt.args.variableID)
+			url := fmt.Sprintf("http://localhost:8086/api/v2/variables/%s/labels", tt.args.variableID)
 			r := httptest.NewRequest("POST", url, bytes.NewReader(b))
 			w := httptest.NewRecorder()
 

@@ -222,5 +222,5 @@ Scenario Outline: Delete Telegraf Card
   |Norimberk |
   |Rakovnik  |
 
-# N.B. can verify telegrafs at endpoint http://localhost:9999/api/v2/telegrafs
+# N.B. can verify telegrafs at endpoint http://localhost:8086/api/v2/telegrafs
 # TODO - Test installation of telegraf and instructions - check back end

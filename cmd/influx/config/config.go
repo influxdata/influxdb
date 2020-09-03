@@ -26,7 +26,7 @@ type Config struct {
 // DefaultConfig is default config without token
 var DefaultConfig = Config{
 	Name:   "default",
-	Host:   "http://localhost:9999",
+	Host:   "http://localhost:8086",
 	Active: true,
 }
 

@@ -37,7 +37,7 @@ const TELEGRAF_OUTPUT = ` [[outputs.influxdb_v2]]
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:9999
+  ## urls exp: http://127.0.0.1:8086
   urls = ["<%= server %>"]
 
   ## Token for authentication.
@@ -51,7 +51,7 @@ const TELEGRAF_OUTPUT = ` [[outputs.influxdb_v2]]
 `
 
 const OUTPUT_DEFAULTS = {
-  server: 'http://127.0.0.1:9999',
+  server: 'http://127.0.0.1:8086',
   token: '$INFLUX_TOKEN',
   org: 'orgID',
   bucket: 'bucketID',

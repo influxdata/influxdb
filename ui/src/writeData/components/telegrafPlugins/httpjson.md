@@ -19,7 +19,7 @@ Deprecated (1.6): use the [http](../http) input.
 
   ## URL of each server in the service's cluster
   servers = [
-    "http://localhost:9999/stats/",
+    "http://localhost:8086/stats/",
     "http://localhost:9998/stats/",
   ]
   ## Set response_timeout (default 5 seconds)
@@ -89,7 +89,7 @@ Given the following response body:
 ```
 The following metric is produced:
 
-`httpjson,server=http://localhost:9999/stats/ b_d=0.1,a=0.5,b_e=5,response_time=0.001`
+`httpjson,server=http://localhost:8086/stats/ b_d=0.1,a=0.5,b_e=5,response_time=0.001`
 
 Note that only numerical values are extracted and the type is float.
 
@@ -102,7 +102,7 @@ If `tag_keys` is included in the configuration:
 
 Then the `service` tag will also be added:
 
-`httpjson,server=http://localhost:9999/stats/,service=service01 b_d=0.1,a=0.5,b_e=5,response_time=0.001`
+`httpjson,server=http://localhost:8086/stats/,service=service01 b_d=0.1,a=0.5,b_e=5,response_time=0.001`
 
 **Array Output:**
 
@@ -131,5 +131,5 @@ If the service returns an array of objects, one metric is be created for each ob
 ]
 ```
 
-`httpjson,server=http://localhost:9999/stats/,service=service01 a=0.5,b_d=0.1,b_e=5,response_time=0.003`
-`httpjson,server=http://localhost:9999/stats/,service=service02 a=0.6,b_d=0.2,b_e=6,response_time=0.003`
+`httpjson,server=http://localhost:8086/stats/,service=service01 a=0.5,b_d=0.1,b_e=5,response_time=0.003`
+`httpjson,server=http://localhost:8086/stats/,service=service02 a=0.6,b_d=0.2,b_e=6,response_time=0.003`

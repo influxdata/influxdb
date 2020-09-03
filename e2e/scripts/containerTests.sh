@@ -5,7 +5,7 @@ TEST_CONTAINER=bonitoo_e2e
 INFLUX2_CONTAINER=influx2_solo
 E2E_MAP_DIR=/tmp/e2e
 INFLUX2_HOST=$(sudo docker inspect -f "{{ .NetworkSettings.IPAddress }}" ${INFLUX2_CONTAINER})
-INFLUX2_URL="http://${INFLUX2_HOST}:9999"
+INFLUX2_URL="http://${INFLUX2_HOST}:8086"
 #TAGS="@influx-influx"
 ACTIVE_CONF=development
 

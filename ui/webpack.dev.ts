@@ -27,9 +27,9 @@ module.exports = merge(common, {
     },
     compress: true,
     proxy: {
-      '/api/v2': 'http://localhost:9999',
-      '/debug/flush': 'http://localhost:9999',
-      '/oauth': 'http://localhost:9999',
+      '/api/v2': 'http://localhost:8086',
+      '/debug/flush': 'http://localhost:8086',
+      '/oauth': 'http://localhost:8086',
     },
     disableHostCheck: true,
     host: '0.0.0.0',

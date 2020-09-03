@@ -507,7 +507,7 @@ const getAuthorizations = async(userName) => {
     return await authsAPI.getAuthorizations();
 };
 
-// http://localhost:9999/api/v2/labels
+// http://localhost:8086/api/v2/labels
 // {"orgID":"8576cb897e0b4ce9","name":"MyLabel","properties":{"description":"","color":"#7CE490"}}
 const createLabel = async(userName,
     labelName,

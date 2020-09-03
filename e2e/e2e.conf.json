@@ -2,7 +2,7 @@
   "active": "development",
   "development" : {
     "config_id" : "development",
-    "influx_url": "http://localhost:9999",
+    "influx_url": "http://localhost:8086",
     "def_ctx": "/",
     "headless": false,
     "sel_docker": false,
@@ -28,7 +28,7 @@
   },
   "nightly" : {
     "config_id": "nightly",
-    "influx_url": "http://localhost:9999",
+    "influx_url": "http://localhost:8086",
     "def_ctx": "/",
     "headless": true,
     "sel_docker": false,

@@ -196,7 +196,7 @@ func launcherOpts(l *Launcher) []cli.Opt {
 		{
 			DestP:   &l.httpBindAddress,
 			Flag:    "http-bind-address",
-			Default: ":9999",
+			Default: ":8086",
 			Desc:    "bind address for the REST HTTP API",
 		},
 		{

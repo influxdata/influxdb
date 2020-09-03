@@ -4,7 +4,7 @@ Feature: Load Data - Scrapers
   As a user I want to Read Create Update and Delete Scrapers
   So that I can manage the stores used with Influxdbv2
 # Move exercise create scraper popup here
-# N.B. can verify scrapers at endpoint http://localhost:9999/api/v2/scrapers
+# N.B. can verify scrapers at endpoint http://localhost:8086/api/v2/scrapers
 
 
 @tested
@@ -48,7 +48,7 @@ Scenario: Exercise create Scraper popup
   Then the form element error message is "Target URL cannot be empty"
   Then a form input error icon is shown
   Then the Create Scrapper popup create button is disabled
-  When enter the value "http://localhost:9999/metrics" into the Create Scraper popup url input
+  When enter the value "http://localhost:8086/metrics" into the Create Scraper popup url input
   Then the form element error message is not shown
   Then no form input error icon is shown
   Then the Create Scrapper popup create button is enabled
@@ -74,8 +74,8 @@ Scenario Outline: Create Scrapers
 
   Examples:
   | NAME | ENDPOINT | BUCKET |
-  | Melnik | http://localhost:9999/metrics | DEFAULT |
-  | Morlaix | http://localhost:9999/metrics | Duchamp |
+  | Melnik | http://localhost:8086/metrics | DEFAULT |
+  | Morlaix | http://localhost:8086/metrics | Duchamp |
   | Brno | http://localhost:10018/bogus | DEFAULT |
   | Brest | http://localhost:10018/bogus | Duchamp |
 
