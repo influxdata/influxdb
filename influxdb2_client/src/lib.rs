@@ -24,20 +24,21 @@
 //! ## Quick start
 //!
 //! This example creates a client to an InfluxDB server running at `http://localhost:8888`, creates
-//! a bucket with the id `1111000011110000` in the organization with ID `0000111100001111`, builds
-//! two points, and writes the points to the bucket.
+//! a bucket with the name "mybucket" in the organization with name "myorg" and ID
+//! "0000111100001111", builds two points, and writes the points to the bucket.
 //!
 //! ```
 //! async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //!     use influxdb2_client::{Client, DataPoint};
 //!     use futures::stream;
 //!
+//!     let org = "myorg";
 //!     let org_id = "0000111100001111";
-//!     let bucket_id = "1111000011110000";
+//!     let bucket = "mybucket";
 //!
 //!     let client = Client::new("http://localhost:8888", "some-token");
 //!
-//!     client.create_bucket(org_id, bucket_id).await?;
+//!     client.create_bucket(org_id, bucket).await?;
 //!
 //!     let points = vec![
 //!         DataPoint::builder("cpu")
@@ -51,7 +52,7 @@
 //!             .build()?,
 //!     ];
 //!
-//!     client.write(org_id, bucket_id, stream::iter(points)).await?;
+//!     client.write(org, bucket, stream::iter(points)).await?;
 //!     Ok(())
 //! }
 //! ```
@@ -133,8 +134,8 @@ impl Client {
     /// Write line protocol data to the specified organization and bucket.
     pub async fn write_line_protocol(
         &self,
-        org_id: &str,
-        bucket_id: &str,
+        org: &str,
+        bucket: &str,
         body: impl Into<Body>,
     ) -> Result<(), RequestError> {
         let body = body.into();
@@ -142,7 +143,7 @@ impl Client {
 
         let response = self
             .request(Method::POST, &write_url)
-            .query(&[("bucket", bucket_id), ("org", org_id)])
+            .query(&[("bucket", bucket), ("org", org)])
             .body(body)
             .send()
             .await
@@ -160,8 +161,8 @@ impl Client {
     /// Write a `Stream` of `DataPoint`s to the specified organization and bucket.
     pub async fn write(
         &self,
-        org_id: &str,
-        bucket_id: &str,
+        org: &str,
+        bucket: &str,
         body: impl Stream<Item = impl WriteDataPoint> + Send + Sync + 'static,
     ) -> Result<(), RequestError> {
         let mut buffer = bytes::BytesMut::new();
@@ -175,12 +176,12 @@ impl Client {
 
         let body = Body::wrap_stream(body);
 
-        Ok(self.write_line_protocol(org_id, bucket_id, body).await?)
+        Ok(self.write_line_protocol(org, bucket, body).await?)
     }
 
-    /// Create a new bucket in the organization specified by `org_id` and with the bucket ID
-    /// `bucket_id`.
-    pub async fn create_bucket(&self, org_id: &str, bucket_id: &str) -> Result<(), RequestError> {
+    /// Create a new bucket in the organization specified by the 16-digit hexadecimal `org_id` and
+    /// with the bucket name `bucket`.
+    pub async fn create_bucket(&self, org_id: &str, bucket: &str) -> Result<(), RequestError> {
         let create_bucket_url = format!("{}/api/v2/buckets", self.url);
 
         #[derive(Serialize, Debug, Default)]
@@ -197,7 +198,7 @@ impl Client {
 
         let body = CreateBucketInfo {
             org_id: org_id.into(),
-            name: bucket_id.into(),
+            name: bucket.into(),
             ..Default::default()
         };
 
@@ -229,13 +230,13 @@ mod tests {
 
     #[tokio::test]
     async fn writing_points() -> Result {
-        let org_id = "0000111100001111";
-        let bucket_id = "1111000011110000";
+        let org = "some-org";
+        let bucket = "some-bucket";
         let token = "some-token";
 
         let mock_server = mock(
             "POST",
-            format!("/api/v2/write?bucket={}&org={}", bucket_id, org_id).as_str(),
+            format!("/api/v2/write?bucket={}&org={}", bucket, org).as_str(),
         )
         .match_header("Authorization", format!("Token {}", token).as_str())
         .match_body(
@@ -264,7 +265,7 @@ cpu,host=server01,region=us-west usage=0.87
         // an error, which causes the test to fail here instead of when we assert on mock_server.
         // The error messages that Mockito provides are much clearer for explaining why a test
         // failed than just that the server returned 501, so don't use `?` here.
-        let _result = client.write(org_id, bucket_id, stream::iter(points)).await;
+        let _result = client.write(org, bucket, stream::iter(points)).await;
 
         mock_server.assert();
         Ok(())
@@ -273,7 +274,7 @@ cpu,host=server01,region=us-west usage=0.87
     #[tokio::test]
     async fn create_bucket() -> Result {
         let org_id = "0000111100001111";
-        let bucket_id = "1111000011110000";
+        let bucket = "some-bucket";
         let token = "some-token";
 
         let mock_server = mock("POST", "/api/v2/buckets")
@@ -281,7 +282,7 @@ cpu,host=server01,region=us-west usage=0.87
             .match_body(
                 format!(
                     r#"{{"orgID":"{}","name":"{}","retentionRules":[]}}"#,
-                    org_id, bucket_id
+                    org_id, bucket
                 )
                 .as_str(),
             )
@@ -289,7 +290,7 @@ cpu,host=server01,region=us-west usage=0.87
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.create_bucket(org_id, bucket_id).await;
+        let _result = client.create_bucket(org_id, bucket).await;
 
         mock_server.assert();
         Ok(())

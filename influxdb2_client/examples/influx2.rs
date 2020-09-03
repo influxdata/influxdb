@@ -2,8 +2,8 @@ use futures::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let org = "0000000000000000";
-    let bucket = "1111111111111111";
+    let org = "myorg";
+    let bucket = "mybucket";
     let influx_url = "http://localhost:9999";
     let token = "my-token";
 
