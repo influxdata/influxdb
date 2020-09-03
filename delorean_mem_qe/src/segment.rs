@@ -335,21 +335,19 @@ impl Segment {
                 .take(aggregate_itrs.len())
                 .collect();
 
-        let mut processed_rows = 0;
         let group_itrs_len = &group_itrs.len();
+        let mut group_key: Vec<i64> = vec![0; *group_itrs_len];
 
+        let mut processed_rows = 0;
         while processed_rows < *total_rows {
-            let group_row = group_itrs
-                .iter_mut()
-                .enumerate()
-                .map(|(i, itr)| {
-                    if i == group_itrs_len - 1 && window > 0 {
-                        // time column - apply window function
-                        return itr.next().unwrap() / window * window;
-                    }
-                    *itr.next().unwrap()
-                })
-                .collect::<Vec<_>>();
+            group_itrs.iter_mut().enumerate().for_each(|(i, itr)| {
+                if i == group_itrs_len - 1 && window > 0 {
+                    // time column - apply window function
+                    group_key[i] = itr.next().unwrap() / window * window;
+                } else {
+                    group_key[i] = *itr.next().unwrap();
+                }
+            });
 
             // re-use aggregate_row vector.
             for (i, &mut (col_name, ref mut itr)) in aggregate_itrs.iter_mut().enumerate() {
@@ -359,17 +357,16 @@ impl Segment {
                 }
             }
 
-            // Lookup the group key in the hash map - if it's empty then insert
-            // a place-holder for each aggregate being executed.
-            let group_key_entry = hash_table.entry(group_row).or_insert_with(|| {
-                // TODO COULD BE MAP/COLLECT
+            // This is cheaper than allocating a key and using the entry API
+            if !hash_table.contains_key(&group_key) {
                 let mut agg_results: Vec<(&String, &AggregateType, Option<column::Aggregate>)> =
                     Vec::with_capacity(aggregates.len());
                 for (col_name, agg_type) in aggregates {
                     agg_results.push((col_name, agg_type, None)); // switch out Aggregate for Option<column::Aggregate>
                 }
-                agg_results
-            });
+                hash_table.insert(group_key.clone(), agg_results);
+            }
+            let group_key_entry = hash_table.get_mut(&group_key).unwrap();
 
             // Update aggregates - we process each row value and for each one
             // check which aggregates apply to it.
@@ -409,7 +406,7 @@ impl Segment {
             }
             processed_rows += 1;
         }
-        log::info!("({:?} rows processed) {:?}", processed_rows, hash_table);
+        log::debug!("({:?} rows processed) {:?}", processed_rows, hash_table);
         BTreeMap::new()
     }
 
@@ -551,7 +548,7 @@ impl Segment {
         aggregates: &[(String, AggregateType)],
         window: i64,
     ) -> Vec<GroupedAggregates<'a>> {
-        log::debug!("aggregate_by_group_with_sort_sorted called");
+        log::debug!("aggregate_by_group_using_stream called");
 
         if window > 0 {
             // last column on group key should be time.
@@ -674,13 +671,11 @@ impl Segment {
                         group_key_start_row_id + group_size,
                     );
 
-                    let col_name = name.to_owned().clone();
-                    group_key_aggregates.push((col_name, agg_result));
+                    group_key_aggregates.push((*name, agg_result));
                 }
 
-                let key = last_group_row.clone();
                 results.push(GroupedAggregates {
-                    group_key: key,
+                    group_key: last_group_row,
                     aggregates: group_key_aggregates,
                 });
 
@@ -706,8 +701,7 @@ impl Segment {
             );
 
             // TODO(edd): fix weirdness
-            let col_name = name.to_owned().clone();
-            group_key_aggregates.push((col_name, agg_result));
+            group_key_aggregates.push((*name, agg_result));
         }
 
         results.push(GroupedAggregates {
@@ -715,7 +709,7 @@ impl Segment {
             aggregates: group_key_aggregates,
         });
 
-        log::info!("({:?} rows processed) {:?}", processed_rows, results);
+        log::debug!("({:?} rows processed) {:?}", processed_rows, results);
         // results
         vec![]
     }
@@ -1407,7 +1401,7 @@ pub enum GroupingStrategy {
 #[derive(Debug)]
 pub struct GroupedAggregates<'a> {
     pub group_key: Vec<i64>,
-    pub aggregates: Vec<(String, column::Aggregate<'a>)>,
+    pub aggregates: Vec<(&'a String, column::Aggregate<'a>)>,
 }
 
 #[cfg(test)]
