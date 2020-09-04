@@ -372,6 +372,69 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Flag:  "feature-flags",
 			Desc:  "feature flag overrides",
 		},
+
+		// storage configuration
+		{
+			DestP: &l.StorageConfig.Data.WALFsyncDelay,
+			Flag:  "storage-wal-fsync-delay",
+			Desc:  "The amount of time that a write will wait before fsyncing. A duration greater than 0 can be used to batch up multiple fsync calls. This is useful for slower disks or when WAL write contention is seen.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.ValidateKeys,
+			Flag:  "storage-validate-keys",
+			Desc:  "Validates incoming writes to ensure keys only have valid unicode characters.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.CacheMaxMemorySize,
+			Flag:  "storage-cache-max-memory-size",
+			Desc:  "The maximum size a shard's cache can reach before it starts rejecting writes.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.CacheSnapshotMemorySize,
+			Flag:  "storage-cache-snapshot-memory-size",
+			Desc:  "The size at which the engine will snapshot the cache and write it to a TSM file, freeing up memory.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.CacheSnapshotWriteColdDuration,
+			Flag:  "storage-cache-snapshot-write-cold-duration",
+			Desc:  "The length of time at which the engine will snapshot the cache and write it to a new TSM file if the shard hasn't received writes or deletes.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.CompactFullWriteColdDuration,
+			Flag:  "storage-compact-full-write-cold-duration",
+			Desc:  "The duration at which the engine will compact all TSM files in a shard if it hasn't received a write or delete.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.CompactThroughputBurst,
+			Flag:  "storage-compact-throughput-burst",
+			Desc:  "The rate limit in bytes per second that we will allow TSM compactions to write to disk.",
+		},
+		// limits
+		{
+			DestP: &l.StorageConfig.Data.MaxConcurrentCompactions,
+			Flag:  "storage-max-concurrent-compactions",
+			Desc:  "The maximum number of concurrent full and level compactions that can run at one time.  A value of 0 results in 50% of runtime.GOMAXPROCS(0) used at runtime.  Any number greater than 0 limits compactions to that value.  This setting does not apply to cache snapshotting.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.MaxIndexLogFileSize,
+			Flag:  "storage-max-index-log-file-size",
+			Desc:  "The threshold, in bytes, when an index write-ahead log file will compact into an index file. Lower sizes will cause log files to be compacted more quickly and result in lower heap usage at the expense of write throughput.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.SeriesIDSetCacheSize,
+			Flag:  "storage-series-id-set-cache-size",
+			Desc:  "The size of the internal cache used in the TSI index to store previously calculated series results.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.SeriesFileMaxConcurrentSnapshotCompactions,
+			Flag:  "storage-series-file-max-concurrent-snapshot-compactions",
+			Desc:  "The maximum number of concurrent snapshot compactions that can be running at one time across all series partitions in a database.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.TSMWillNeed,
+			Flag:  "storage-tsm-use-madv-willneed",
+			Desc:  "Controls whether we hint to the kernel that we intend to page in mmap'd sections of TSM files.",
+		},
 	}
 }
 
@@ -410,7 +473,8 @@ type Launcher struct {
 	boltClient *bolt.Client
 	kvStore    kv.SchemaStore
 	kvService  *kv.Service
-	//TODO fix
+
+	// storage engine
 	engine        Engine
 	StorageConfig storage.Config
 
