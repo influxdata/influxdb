@@ -537,6 +537,22 @@ impl Column {
         }
     }
 
+    /// Materialise all of the encoded values.
+    pub fn all_encoded_values(&self) -> Vector {
+        match self {
+            Column::String(c) => {
+                let now = std::time::Instant::now();
+                let v = c.all_encoded_values();
+                log::debug!("time getting all encoded values {:?}", now.elapsed());
+
+                log::debug!("dictionary {:?}", c.data.dictionary());
+                Vector::Integer(v)
+            }
+            Column::Float(c) => Vector::Float(c.all_encoded_values()),
+            Column::Integer(c) => Vector::Integer(c.all_encoded_values()),
+        }
+    }
+
     /// Given an encoded value for a row, materialise and return the decoded
     /// version.
     ///
@@ -986,6 +1002,10 @@ impl String {
         self.data.encoded_values(row_ids)
     }
 
+    pub fn all_encoded_values(&self) -> Vec<i64> {
+        self.data.all_encoded_values()
+    }
+
     /// Return the decoded value for an encoded ID.
     ///
     /// Panics if there is no decoded value for the provided id
@@ -1035,6 +1055,10 @@ impl Float {
 
     pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<f64> {
         self.data.encoded_values(row_ids)
+    }
+
+    pub fn all_encoded_values(&self) -> Vec<f64> {
+        self.data.all_encoded_values()
     }
 
     pub fn scan_from(&self, row_id: usize) -> &[f64] {
@@ -1104,6 +1128,10 @@ impl Integer {
 
     pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<i64> {
         self.data.encoded_values(row_ids)
+    }
+
+    pub fn all_encoded_values(&self) -> Vec<i64> {
+        self.data.all_encoded_values()
     }
 
     pub fn scan_from(&self, row_id: usize) -> &[i64] {

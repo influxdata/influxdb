@@ -68,6 +68,12 @@ where
         self.values(row_ids)
     }
 
+    /// Return all encoded values. For this encoding this is just the decoded
+    /// values
+    pub fn all_encoded_values(&self) -> Vec<T> {
+        self.values.clone()
+    }
+
     // TODO(edd): fix this when added NULL support
     pub fn scan_from_until_some(&self, _row_id: usize) -> Option<T> {
         unreachable!("to remove");
@@ -485,6 +491,26 @@ impl DictionaryRLE {
         out
     }
 
+    // values materialises a vector of references to all logical values in the
+    // encoding.
+    pub fn all_values(&mut self) -> Vec<Option<&String>> {
+        let mut out: Vec<Option<&String>> = Vec::with_capacity(self.total as usize);
+
+        // build reverse mapping.
+        let mut idx_value = BTreeMap::new();
+        for (k, v) in &self.entry_index {
+            idx_value.insert(v, k);
+        }
+        assert_eq!(idx_value.len(), self.entry_index.len());
+
+        for (idx, rl) in &self.run_lengths {
+            // TODO(edd): fix unwrap - we know that the value exists in map...
+            let v = idx_value.get(&idx).unwrap().as_ref();
+            out.extend(iter::repeat(v).take(*rl as usize));
+        }
+        out
+    }
+
     /// Return the decoded value for an encoded ID.
     ///
     /// Panics if there is no decoded value for the provided id
@@ -528,22 +554,13 @@ impl DictionaryRLE {
         out
     }
 
-    // values materialises a vector of references to all logical values in the
-    // encoding.
-    pub fn all_values(&mut self) -> Vec<Option<&String>> {
-        let mut out: Vec<Option<&String>> = Vec::with_capacity(self.total as usize);
-
-        // build reverse mapping.
-        let mut idx_value = BTreeMap::new();
-        for (k, v) in &self.entry_index {
-            idx_value.insert(v, k);
-        }
-        assert_eq!(idx_value.len(), self.entry_index.len());
+    // all_encoded_values materialises a vector of all encoded values for the
+    // column.
+    pub fn all_encoded_values(&self) -> Vec<i64> {
+        let mut out: Vec<i64> = Vec::with_capacity(self.total as usize);
 
         for (idx, rl) in &self.run_lengths {
-            // TODO(edd): fix unwrap - we know that the value exists in map...
-            let v = idx_value.get(&idx).unwrap().as_ref();
-            out.extend(iter::repeat(v).take(*rl as usize));
+            out.extend(iter::repeat(*idx as i64).take(*rl as usize));
         }
         out
     }

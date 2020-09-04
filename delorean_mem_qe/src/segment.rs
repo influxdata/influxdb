@@ -228,7 +228,7 @@ impl Segment {
         group_columns: &[String],
         aggregates: &[(String, AggregateType)],
         window: i64,
-    ) -> BTreeMap<Vec<String>, Vec<(String, Option<column::Aggregate>)>> {
+    ) -> BTreeMap<Vec<i64>, Vec<(&String, &AggregateType, Option<column::Aggregate>)>> {
         // Build a hash table - essentially, scan columns for matching row ids,
         // emitting the encoded value for each column and track those value
         // combinations in a hashmap with running aggregates.
@@ -241,6 +241,10 @@ impl Segment {
         } else {
             assert_ne!(group_columns[group_columns.len() - 1], "time");
         }
+
+        // TODO(edd): Perf - if there is no predicate and we want entire segment
+        // then it will be a lot faster to not build filtered_row_ids and just
+        // get all encoded values for each grouping column...
 
         // filter on predicates and time
         let filtered_row_ids: croaring::Bitmap;
@@ -263,7 +267,12 @@ impl Segment {
         let mut group_column_encoded_values = Vec::with_capacity(group_columns.len());
         for group_column in group_columns {
             if let Some(column) = self.column(&group_column) {
-                let encoded_values = column.encoded_values(&filtered_row_ids_vec);
+                let encoded_values = if filtered_row_ids_vec.len() == self.meta.rows {
+                    column.all_encoded_values()
+                } else {
+                    column.encoded_values(&filtered_row_ids_vec)
+                };
+
                 assert_eq!(
                     filtered_row_ids.cardinality() as usize,
                     encoded_values.len()
@@ -325,10 +334,10 @@ impl Segment {
             .collect::<Vec<_>>();
 
         // hashMap is about 20% faster than BTreeMap in this case
-        let mut hash_table: HashMap<
+        let mut hash_table: BTreeMap<
             Vec<i64>,
             Vec<(&String, &AggregateType, Option<column::Aggregate>)>,
-        > = HashMap::new();
+        > = BTreeMap::new();
 
         let mut aggregate_row: Vec<(&str, Option<column::Scalar>)> =
             std::iter::repeat_with(|| ("", None))
@@ -406,8 +415,10 @@ impl Segment {
             }
             processed_rows += 1;
         }
+        // println!("groups: {:?}", hash_table.len());
         log::debug!("({:?} rows processed) {:?}", processed_rows, hash_table);
         BTreeMap::new()
+        // hash_table
     }
 
     pub fn aggregate_by_group_using_sort(
@@ -451,7 +462,11 @@ impl Segment {
         let mut group_column_encoded_values = Vec::with_capacity(group_columns.len());
         for group_column in group_columns {
             if let Some(column) = self.column(&group_column) {
-                let encoded_values = column.encoded_values(&filtered_row_ids_vec);
+                let encoded_values = if filtered_row_ids_vec.len() == self.meta.rows {
+                    column.all_encoded_values()
+                } else {
+                    column.encoded_values(&filtered_row_ids_vec)
+                };
                 assert_eq!(
                     filtered_row_ids.cardinality() as usize,
                     encoded_values.len()
@@ -557,6 +572,10 @@ impl Segment {
             assert_ne!(group_columns[group_columns.len() - 1], "time");
         }
 
+        // TODO(edd): Perf - if there is no predicate and we want entire segment
+        // then it will be a lot faster to not build filtered_row_ids and just
+        // get all encoded values for each grouping column...
+
         // filter on predicates and time
         let filtered_row_ids: croaring::Bitmap;
         if let Some(row_ids) = self.filter_by_predicates_eq(time_range, predicates) {
@@ -577,7 +596,11 @@ impl Segment {
         let mut group_column_encoded_values = Vec::with_capacity(group_columns.len());
         for group_column in group_columns {
             if let Some(column) = self.column(&group_column) {
-                let encoded_values = column.encoded_values(&filtered_row_ids_vec);
+                let encoded_values = if filtered_row_ids_vec.len() == self.meta.rows {
+                    column.all_encoded_values()
+                } else {
+                    column.encoded_values(&filtered_row_ids_vec)
+                };
                 assert_eq!(
                     filtered_row_ids.cardinality() as usize,
                     encoded_values.len()
@@ -709,6 +732,7 @@ impl Segment {
             aggregates: group_key_aggregates,
         });
 
+        // println!("groups: {:?}", results.len());
         log::debug!("({:?} rows processed) {:?}", processed_rows, results);
         // results
         vec![]
