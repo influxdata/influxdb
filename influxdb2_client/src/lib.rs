@@ -102,7 +102,8 @@ pub enum RequestError {
 /// Client to a server supporting the InfluxData 2.0 API.
 #[derive(Debug, Clone)]
 pub struct Client {
-    url: String,
+    /// The base URL this client sends requests to
+    pub url: String,
     auth_header: String,
     reqwest: reqwest::Client,
 }
