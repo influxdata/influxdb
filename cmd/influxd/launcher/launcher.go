@@ -435,6 +435,23 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Flag:  "storage-tsm-use-madv-willneed",
 			Desc:  "Controls whether we hint to the kernel that we intend to page in mmap'd sections of TSM files.",
 		},
+
+		// InfluxQL Coordinator Config
+		{
+			DestP: &l.CoordinatorConfig.MaxSelectPointN,
+			Flag:  "influxql-max-select-point",
+			Desc:  "The maximum number of points a SELECT can process. A value of 0 will make the maximum point count unlimited. This will only be checked every second so queries will not be aborted immediately when hitting the limit.",
+		},
+		{
+			DestP: &l.CoordinatorConfig.MaxSelectSeriesN,
+			Flag:  "influxql-max-select-series",
+			Desc:  "The maximum number of series a SELECT can run. A value of 0 will make the maximum series count unlimited.",
+		},
+		{
+			DestP: &l.CoordinatorConfig.MaxSelectBucketsN,
+			Flag:  "influxql-max-select-buckets",
+			Desc:  "The maximum number of group by time bucket a SELECT can create. A value of zero will max the maximum number of buckets unlimited.",
+		},
 	}
 }
 
@@ -477,6 +494,9 @@ type Launcher struct {
 	// storage engine
 	engine        Engine
 	StorageConfig storage.Config
+
+	// InfluxQL query engine
+	CoordinatorConfig iqlcoordinator.Config
 
 	queryController *control.Controller
 
@@ -920,12 +940,20 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		DBRP:       dbrpSvc,
 	}
 
+	m.log.Info("Configuring InfluxQL statement executor (zeros indicate unlimited).",
+		zap.Int("max_select_point", m.CoordinatorConfig.MaxSelectPointN),
+		zap.Int("max_select_series", m.CoordinatorConfig.MaxSelectSeriesN),
+		zap.Int("max_select_buckets", m.CoordinatorConfig.MaxSelectBucketsN))
+
 	qe := iqlquery.NewExecutor(m.log, cm)
 	se := &iqlcoordinator.StatementExecutor{
-		MetaClient:  metaClient,
-		TSDBStore:   m.engine.TSDBStore(),
-		ShardMapper: mapper,
-		DBRP:        dbrpSvc,
+		MetaClient:        metaClient,
+		TSDBStore:         m.engine.TSDBStore(),
+		ShardMapper:       mapper,
+		DBRP:              dbrpSvc,
+		MaxSelectPointN:   m.CoordinatorConfig.MaxSelectPointN,
+		MaxSelectSeriesN:  m.CoordinatorConfig.MaxSelectSeriesN,
+		MaxSelectBucketsN: m.CoordinatorConfig.MaxSelectBucketsN,
 	}
 	qe.StatementExecutor = se
 	qe.StatementNormalizer = se
