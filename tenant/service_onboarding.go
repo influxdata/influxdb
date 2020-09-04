@@ -70,16 +70,18 @@ func (s *OnboardService) OnboardInitialUser(ctx context.Context, req *influxdb.O
 		return nil, ErrOnboardingNotAllowed
 	}
 
-	return s.onboardUser(ctx, req, func(influxdb.ID) []influxdb.Permission { return influxdb.OperPermissions() })
+	return s.onboardUser(ctx, req, func(influxdb.ID, influxdb.ID) []influxdb.Permission { return influxdb.OperPermissions() })
 }
 
 // OnboardUser allows us to onboard a new user if is onboarding is allowed
 func (s *OnboardService) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
-	return s.onboardUser(ctx, req, influxdb.OwnerPermissions)
+	return s.onboardUser(ctx, req, func(orgID, userID influxdb.ID) []influxdb.Permission {
+		return append(influxdb.OwnerPermissions(orgID), influxdb.MePermissions(userID)...)
+	})
 }
 
 // onboardUser allows us to onboard new users.
-func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID influxdb.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
+func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID, userID influxdb.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
 	if req == nil || req.User == "" || req.Org == "" || req.Bucket == "" {
 		return nil, ErrOnboardInvalid
 	}
@@ -135,7 +137,7 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 	// before we can reach out to the auth service.
 	result.Auth = &influxdb.Authorization{
 		Description: fmt.Sprintf("%s's Token", req.User),
-		Permissions: permFn(result.Org.ID),
+		Permissions: permFn(result.Org.ID, result.User.ID),
 		Token:       req.Token,
 		UserID:      result.User.ID,
 		OrgID:       result.Org.ID,
