@@ -118,8 +118,8 @@ func TestConfig_HumanReadableSizes(t *testing.T) {
 dir = "/var/lib/influxdb/data"
 wal-dir = "/var/lib/influxdb/wal"
 wal-fsync-delay = "10s"
-cache-max-memory-size = "5g"
-cache-snapshot-memory-size = "100m"
+cache-max-memory-size = "5gib"
+cache-snapshot-memory-size = "100mib"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
