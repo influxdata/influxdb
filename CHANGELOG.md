@@ -16,7 +16,12 @@ of this data.
 At this time, there is no tooling to convert existing time series data from previous 
 beta releases. If data from a prior beta release is found, `influxd` will refuse to start.
 
+We have also changed the default port of InfluxDB from 9999 back to 8086. If you still would like 
+to run on port 9999, you can start influxd with the `--http-bind-address` option. You will also
+need to update any InfluxDB CLI config profiles with the new port number.
+
 1. [19446](https://github.com/influxdata/influxdb/pull/19446): Port TSM1 storage engine
+1. [19494](https://github.com/influxdata/influxdb/pull/19494): Changing the default port from 9999 to 8086
 
 ### Features
 
