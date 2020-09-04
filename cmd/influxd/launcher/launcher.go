@@ -79,7 +79,6 @@ import (
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -369,12 +368,6 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Desc:    "the number of queries that are allowed to be awaiting execution before new queries are rejected",
 		},
 		{
-			DestP:   &l.pageFaultRate,
-			Flag:    "page-fault-rate",
-			Default: 0,
-			Desc:    "the number of page faults allowed per second in the storage engine",
-		},
-		{
 			DestP: &l.featureFlags,
 			Flag:  "feature-flags",
 			Desc:  "feature flag overrides",
@@ -446,8 +439,6 @@ type Launcher struct {
 	Stdout     io.Writer
 	Stderr     io.Writer
 	apibackend *http.APIBackend
-
-	pageFaultRate int
 }
 
 type stoppingScheduler interface {
@@ -716,13 +707,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.log.Error("Failed creating chronograf service", zap.Error(err))
 		return err
 	}
-
-	// Enable storage layer page fault limiting if rate set above zero.
-	var pageFaultLimiter *rate.Limiter
-	if m.pageFaultRate > 0 {
-		pageFaultLimiter = rate.NewLimiter(rate.Limit(m.pageFaultRate), 1)
-	}
-	_ = pageFaultLimiter
 
 	metaClient := meta.NewClient(meta.NewConfig(), m.kvStore)
 	if err := metaClient.Open(); err != nil {
