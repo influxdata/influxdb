@@ -221,14 +221,14 @@ impl Segment {
         true
     }
 
-    pub fn aggregate_by_group_with_hash(
+    pub fn aggregate_by_group_with_hash<'a>(
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, Option<&column::Scalar>)],
         group_columns: &[String],
-        aggregates: &[(String, AggregateType)],
+        aggregates: &'a [(String, AggregateType)],
         window: i64,
-    ) -> BTreeMap<Vec<i64>, Vec<(&String, &AggregateType, Option<column::Aggregate>)>> {
+    ) -> BTreeMap<Vec<i64>, Vec<(&'a String, &'a AggregateType, Option<column::Aggregate>)>> {
         // Build a hash table - essentially, scan columns for matching row ids,
         // emitting the encoded value for each column and track those value
         // combinations in a hashmap with running aggregates.
@@ -290,6 +290,8 @@ impl Segment {
         // aggregating on.
         let mut aggregate_column_decoded_values = Vec::with_capacity(aggregates.len());
         for (column_name, _) in aggregates {
+            let column_name: &'a String = column_name;
+
             if let Some(column) = self.column(&column_name) {
                 let decoded_values = column.values(&filtered_row_ids_vec);
                 assert_eq!(
@@ -336,7 +338,7 @@ impl Segment {
         // hashMap is about 20% faster than BTreeMap in this case
         let mut hash_table: BTreeMap<
             Vec<i64>,
-            Vec<(&String, &AggregateType, Option<column::Aggregate>)>,
+            Vec<(&'a String, &'a AggregateType, Option<column::Aggregate>)>,
         > = BTreeMap::new();
 
         let mut aggregate_row: Vec<(&str, Option<column::Scalar>)> =
@@ -368,8 +370,11 @@ impl Segment {
 
             // This is cheaper than allocating a key and using the entry API
             if !hash_table.contains_key(&group_key) {
-                let mut agg_results: Vec<(&String, &AggregateType, Option<column::Aggregate>)> =
-                    Vec::with_capacity(aggregates.len());
+                let mut agg_results: Vec<(
+                    &'a String,
+                    &'a AggregateType,
+                    Option<column::Aggregate>,
+                )> = Vec::with_capacity(aggregates.len());
                 for (col_name, agg_type) in aggregates {
                     agg_results.push((col_name, agg_type, None)); // switch out Aggregate for Option<column::Aggregate>
                 }
@@ -417,8 +422,8 @@ impl Segment {
         }
         // println!("groups: {:?}", hash_table.len());
         log::debug!("({:?} rows processed) {:?}", processed_rows, hash_table);
-        BTreeMap::new()
-        // hash_table
+        // BTreeMap::new()
+        hash_table
     }
 
     pub fn aggregate_by_group_using_sort(
@@ -1097,14 +1102,14 @@ impl<'a> Segments<'a> {
         }
 
         if concurrent {
-            let group_columns_arc = std::sync::Arc::new(group_columns);
-            let aggregates_arc = std::sync::Arc::new(aggregates);
+            // let group_columns_arc = std::sync::Arc::new(group_columns);
+            // let aggregates_arc = std::sync::Arc::new(aggregates);
 
             for chunked_segments in self.segments.chunks(THREADS) {
                 crossbeam::scope(|scope| {
                     for segment in chunked_segments {
-                        let group_columns = group_columns_arc.clone();
-                        let aggregates = aggregates_arc.clone();
+                        // let group_columns = group_columns_arc.clone();
+                        // let aggregates = aggregates_arc.clone();
 
                         scope.spawn(move |_| {
                             let now = std::time::Instant::now();
@@ -1132,8 +1137,8 @@ impl<'a> Segments<'a> {
                 segment.aggregate_by_group_with_hash(
                     time_range,
                     predicates,
-                    &group_columns_arc.clone(),
-                    &aggregates_arc.clone(),
+                    &group_columns,
+                    &aggregates,
                     window,
                 );
                 log::info!(

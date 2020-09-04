@@ -63,15 +63,16 @@ fn main() {
     );
     let store = Arc::new(store);
 
-    // time_select_with_pred(&store);
-    // time_datafusion_select_with_pred(store.clone());
-    // time_first_host(&store);
-    // time_sum_range(&store);
-    // time_count_range(&store);
-    // time_group_single_with_pred(&store);
+    time_select_with_pred(&store);
+    time_datafusion_select_with_pred(store.clone());
+    time_first_host(&store);
+    time_sum_range(&store);
+    time_count_range(&store);
+    time_group_single_with_pred(&store);
     time_group_by_multi_agg_count(&store);
     time_group_by_multi_agg_sorted_count(&store);
     time_window_agg_count(&store);
+    // time_group_by_different_columns(&store);
 }
 
 fn build_parquet_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> Result<(), Error> {
@@ -94,7 +95,7 @@ fn build_parquet_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> 
 }
 
 fn build_arrow_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> Result<(), Error> {
-    let r = File::open(Path::new("/Users/edd/work/InfluxData/delorean_misc/in-memory-sort/env_role_path_time/http_api_requests_total.arrow")).unwrap();
+    let r = File::open(Path::new(path)).unwrap();
     let file_size = fs::metadata(&path).expect("read metadata").len();
     println!(
         "Reading {} ({}) bytes of Arrow from {:?}....",
@@ -120,7 +121,7 @@ fn build_store(
         match rb {
             Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
             Ok(Some(rb)) => {
-                // if i < 363 {
+                // if i < 364 {
                 //     i += 1;
                 //     continue;
                 // }
@@ -467,9 +468,9 @@ fn time_group_single_with_pred(store: &Store) {
 fn time_group_by_multi_agg_count(store: &Store) {
     let strats = vec![
         GroupingStrategy::HashGroup,
-        GroupingStrategy::HashGroupConcurrent,
+        // GroupingStrategy::HashGroupConcurrent,
         GroupingStrategy::SortGroup,
-        GroupingStrategy::SortGroupConcurrent,
+        // GroupingStrategy::SortGroupConcurrent,
     ];
 
     for strat in &strats {
@@ -518,7 +519,7 @@ fn time_group_by_multi_agg_sorted_count(store: &Store) {
     ];
 
     for strat in &strats {
-        let repeat = 10;
+        let repeat = 1;
         let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
         let mut total_max = 0;
         let segments = store.segments();
@@ -584,5 +585,66 @@ fn time_window_agg_count(store: &Store) {
             total_time / repeat,
             total_max
         );
+    }
+}
+
+// This is for a performance experiment where I wanted to show the performance
+// change as more columns are grouped on.
+//
+// This only shows good peformance when the input file is ordered on all of the
+// columns below.
+fn time_group_by_different_columns(store: &Store) {
+    let strats = vec![
+        GroupingStrategy::HashGroup,
+        GroupingStrategy::HashGroupConcurrent,
+        GroupingStrategy::SortGroup,
+        GroupingStrategy::SortGroupConcurrent,
+    ];
+
+    let cols = vec![
+        "status".to_string(),
+        "method".to_string(),
+        "url".to_string(),
+        "env".to_string(),
+        "handler".to_string(),
+        "role".to_string(),
+        "user_agent".to_string(),
+        "path".to_string(),
+        "nodename".to_string(),
+        "host".to_string(),
+        "hostname".to_string(),
+    ];
+
+    for strat in &strats {
+        let repeat = 10;
+        let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+        let mut total_max = 0;
+        let segments = store.segments();
+
+        for i in 1..=cols.len() {
+            for _ in 0..repeat {
+                let now = std::time::Instant::now();
+
+                let groups = segments.read_group_eq(
+                    (1589000000000001, 1590044410000000),
+                    &[],
+                    cols[0..i].to_vec(),
+                    vec![("counter".to_string(), AggregateType::Count)],
+                    0,
+                    strat,
+                );
+
+                total_time += now.elapsed();
+                total_max += groups.len();
+            }
+            println!(
+                "time_group_by_different_columns{:?} cols: {:?} ran {:?} in {:?} {:?}",
+                strat,
+                i,
+                repeat,
+                total_time,
+                total_time / repeat,
+            );
+        }
     }
 }
