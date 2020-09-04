@@ -31,6 +31,7 @@ need to update any InfluxDB CLI config profiles with the new port number.
 1. [19390](https://github.com/influxdata/influxdb/pull/19390): Record last success and failure run times in the Task
 1. [19402](https://github.com/influxdata/influxdb/pull/19402): Inject Task's LatestSuccess Timestamp In Flux Extern
 1. [19433](https://github.com/influxdata/influxdb/pull/19433): Add option to dump raw query results in CLI
+1. [19506](https://github.com/influxdata/influxdb/pull/19506): Add TSM 1.x storage options as flags
 
 ### Bug Fixes
 
