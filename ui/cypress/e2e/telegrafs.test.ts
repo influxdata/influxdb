@@ -282,10 +282,10 @@ describe('Collectors', () => {
       })
 
       it('can add and delete urls', () => {
-        cy.getByTestID('input-field').type('http://localhost:9999')
+        cy.getByTestID('input-field').type('http://localhost:8086')
         cy.contains('Add').click()
 
-        cy.contains('http://localhost:9999').should('exist', () => {
+        cy.contains('http://localhost:8086').should('exist', () => {
           cy.getByTestID('input-field').type('http://example.com')
           cy.contains('Add').click()
 

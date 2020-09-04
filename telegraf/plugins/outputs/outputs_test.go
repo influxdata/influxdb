@@ -40,7 +40,7 @@ func TestTOML(t *testing.T) {
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:9999
+  ## urls exp: http://127.0.0.1:8086
   urls = []
 
   ## Token for authentication.
@@ -68,8 +68,8 @@ func TestTOML(t *testing.T) {
 `,
 				&InfluxDBV2{
 					URLs: []string{
-						"http://192.168.1.10:9999",
-						"http://192.168.1.11:9999",
+						"http://192.168.1.10:8086",
+						"http://192.168.1.11:8086",
 					},
 					Token:        "tok1",
 					Organization: "org1",
@@ -79,8 +79,8 @@ func TestTOML(t *testing.T) {
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:9999
-  urls = ["http://192.168.1.10:9999", "http://192.168.1.11:9999"]
+  ## urls exp: http://127.0.0.1:8086
+  urls = ["http://192.168.1.10:8086", "http://192.168.1.11:8086"]
 
   ## Token for authentication.
   token = "tok1"
@@ -161,16 +161,16 @@ func TestDecodeTOML(t *testing.T) {
 			name: "influxdb_v2 missing token",
 			want: &InfluxDBV2{
 				URLs: []string{
-					"http://localhost:9999",
-					"http://192.168.0.1:9999",
+					"http://localhost:8086",
+					"http://192.168.0.1:8086",
 				},
 			},
 			wantErr: errors.New("token is missing for influxdb_v2 output plugin"),
 			output:  &InfluxDBV2{},
 			data: map[string]interface{}{
 				"urls": []interface{}{
-					"http://localhost:9999",
-					"http://192.168.0.1:9999",
+					"http://localhost:8086",
+					"http://192.168.0.1:8086",
 				},
 			},
 		},
@@ -178,8 +178,8 @@ func TestDecodeTOML(t *testing.T) {
 			name: "influxdb_v2 missing org",
 			want: &InfluxDBV2{
 				URLs: []string{
-					"http://localhost:9999",
-					"http://192.168.0.1:9999",
+					"http://localhost:8086",
+					"http://192.168.0.1:8086",
 				},
 				Token: "token1",
 			},
@@ -187,8 +187,8 @@ func TestDecodeTOML(t *testing.T) {
 			output:  &InfluxDBV2{},
 			data: map[string]interface{}{
 				"urls": []interface{}{
-					"http://localhost:9999",
-					"http://192.168.0.1:9999",
+					"http://localhost:8086",
+					"http://192.168.0.1:8086",
 				},
 				"token": "token1",
 			},
@@ -197,8 +197,8 @@ func TestDecodeTOML(t *testing.T) {
 			name: "influxdb_v2 missing bucket",
 			want: &InfluxDBV2{
 				URLs: []string{
-					"http://localhost:9999",
-					"http://192.168.0.1:9999",
+					"http://localhost:8086",
+					"http://192.168.0.1:8086",
 				},
 				Token:        "token1",
 				Organization: "org1",
@@ -207,8 +207,8 @@ func TestDecodeTOML(t *testing.T) {
 			output:  &InfluxDBV2{},
 			data: map[string]interface{}{
 				"urls": []interface{}{
-					"http://localhost:9999",
-					"http://192.168.0.1:9999",
+					"http://localhost:8086",
+					"http://192.168.0.1:8086",
 				},
 				"token":        "token1",
 				"organization": "org1",
@@ -218,8 +218,8 @@ func TestDecodeTOML(t *testing.T) {
 			name: "influxdb_v2",
 			want: &InfluxDBV2{
 				URLs: []string{
-					"http://localhost:9999",
-					"http://192.168.0.1:9999",
+					"http://localhost:8086",
+					"http://192.168.0.1:8086",
 				},
 				Token:        "token1",
 				Organization: "org1",
@@ -228,8 +228,8 @@ func TestDecodeTOML(t *testing.T) {
 			output: &InfluxDBV2{},
 			data: map[string]interface{}{
 				"urls": []interface{}{
-					"http://localhost:9999",
-					"http://192.168.0.1:9999",
+					"http://localhost:8086",
+					"http://192.168.0.1:8086",
 				},
 				"token":        "token1",
 				"organization": "org1",

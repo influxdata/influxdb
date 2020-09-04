@@ -1179,7 +1179,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 				t.Fatalf("failed to unmarshal label mapping: %v", err)
 			}
 
-			url := fmt.Sprintf("http://localhost:9999/api/v2/tasks/%s/labels", tt.args.taskID)
+			url := fmt.Sprintf("http://localhost:8086/api/v2/tasks/%s/labels", tt.args.taskID)
 			r := httptest.NewRequest("POST", url, bytes.NewReader(b))
 			w := httptest.NewRecorder()
 
@@ -1266,7 +1266,7 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 
 	const script = `option task = {name:"x", every:1m} from(bucket:"b-src") |> range(start:-1m) |> to(bucket:"b-dst", org:"o")`
 
-	url := "http://localhost:9999/api/v2/tasks"
+	url := "http://localhost:8086/api/v2/tasks"
 
 	b, err := json.Marshal(influxdb.TaskCreate{
 		Flux:         script,
@@ -1402,7 +1402,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		}
 
 		h := newHandler(t, ts)
-		url := fmt.Sprintf("http://localhost:9999/api/v2/tasks/%s/runs", taskID)
+		url := fmt.Sprintf("http://localhost:8086/api/v2/tasks/%s/runs", taskID)
 		valCtx := context.WithValue(sessionAllPermsCtx, httprouter.ParamsKey, httprouter.Params{{Key: "id", Value: taskID.String()}})
 		r := httptest.NewRequest("GET", url, nil).WithContext(valCtx)
 		w := httptest.NewRecorder()
@@ -1495,7 +1495,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		}
 
 		h := newHandler(t, ts)
-		url := fmt.Sprintf("http://localhost:9999/api/v2/tasks/%s/runs/%s", taskID, runID)
+		url := fmt.Sprintf("http://localhost:8086/api/v2/tasks/%s/runs/%s", taskID, runID)
 		valCtx := context.WithValue(sessionAllPermsCtx, httprouter.ParamsKey, httprouter.Params{
 			{Key: "id", Value: taskID.String()},
 			{Key: "rid", Value: runID.String()},
@@ -1590,7 +1590,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		}
 
 		h := newHandler(t, ts)
-		url := fmt.Sprintf("http://localhost:9999/api/v2/tasks/%s/runs/%s/logs", taskID, runID)
+		url := fmt.Sprintf("http://localhost:8086/api/v2/tasks/%s/runs/%s/logs", taskID, runID)
 		valCtx := context.WithValue(sessionAllPermsCtx, httprouter.ParamsKey, httprouter.Params{
 			{Key: "id", Value: taskID.String()},
 			{Key: "rid", Value: runID.String()},
@@ -1684,7 +1684,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		}
 
 		h := newHandler(t, ts)
-		url := fmt.Sprintf("http://localhost:9999/api/v2/tasks/%s/runs/%s/retry", taskID, runID)
+		url := fmt.Sprintf("http://localhost:8086/api/v2/tasks/%s/runs/%s/retry", taskID, runID)
 		valCtx := context.WithValue(sessionAllPermsCtx, httprouter.ParamsKey, httprouter.Params{
 			{Key: "id", Value: taskID.String()},
 			{Key: "rid", Value: runID.String()},
