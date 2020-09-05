@@ -52,7 +52,6 @@ builds:
 snapshot:
   name_template: 9.9.9
 
-<<<<<<< HEAD
 signs:
   -
     signature: "${artifact}.asc"
@@ -60,8 +59,6 @@ signs:
     args: [ "--passphrase", "{{.Env.PASSPHRASE}}",  "--pinentry-mode=loopback", "--batch", "--armor",  "--detach-sign", "${artifact}"]
     artifacts: all
 
-=======
->>>>>>> chore: Updated configuration to be able to test release process
 nfpms:
   -
     id: "influxdata"
@@ -84,11 +81,7 @@ nfpms:
           amd64: x86_64
         file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
       deb:
-<<<<<<< HEAD
        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
-=======
-        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{ if  (eq .Arm 7)}} hf {{else}} el {{ end }}"
->>>>>>> chore: add el and hf for arm
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
