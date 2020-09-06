@@ -3,10 +3,10 @@ builds:
   - id: influx
     goos:
       - linux
-    #  - darwin
+      - darwin
     goarch:
-     # - amd64
-     # - arm64
+      - amd64
+      - arm64
       - arm
     goarm:
       - 6
@@ -26,9 +26,9 @@ builds:
   - id: influxd
     goos:
       - linux
-    #  - darwin
+      - darwin
     goarch:
-    #  - amd64
+      - amd64
       - arm64
       - arm
     goarm:
@@ -82,6 +82,7 @@ nfpms:
         file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
       deb:
        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+    vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
     description: Distributed time-series database.
@@ -101,7 +102,11 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+<<<<<<< HEAD
     name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+=======
+    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}hf{{end}}{{ end }}"
+>>>>>>> chore: yet another template try
     files:
       - LICENSE
       - README.md
@@ -111,7 +116,11 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+<<<<<<< HEAD
     name_template: "influxdb-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+=======
+    name_template: "influxdb-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}hf{{end}}{{ end }}"
+>>>>>>> chore: yet another template try
     files:
       - LICENSE
       - README.md
