@@ -3,14 +3,14 @@ builds:
   - id: influx
     goos:
       - linux
-    #  - darwin
+      - darwin
     goarch:
-     # - amd64
-     # - arm64
+      - amd64
+      - arm64
       - arm
     goarm:
       - 6
-     # - 7
+      - 7
 
     main: ./cmd/influx/
     flags:
@@ -28,9 +28,9 @@ builds:
   - id: influxd
     goos:
       - linux
-    #  - darwin
+      - darwin
     goarch:
-    #  - amd64
+      - amd64
       - arm64
 
     main: ./cmd/influxd/
@@ -57,14 +57,14 @@ nfpms:
     builds: ["influx", "influxd"]
     formats:
       - deb
-    #  - rpm
+      - rpm
     overrides:
-   #   rpm:
-   #     replacements:
-   #       amd64: x86_64
-   #     file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+      rpm:
+        replacements:
+          amd64: x86_64
+        file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}hf{{end}}{{ end }}"
       deb:
-        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}{{end}}hf{{ end }}"
+        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}hf{{end}}{{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -85,7 +85,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}hf{{end}}{{ end }}"
     files:
       - LICENSE
       - README.md
@@ -95,7 +95,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    name_template: "influxdb-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}hf{{end}}{{ end }}"
     files:
       - LICENSE
       - README.md
