@@ -64,7 +64,7 @@ nfpms:
    #       amd64: x86_64
    #     file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
       deb:
-        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }} el {{end}}{{ end }}"
+        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}{{end}}hf{{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
