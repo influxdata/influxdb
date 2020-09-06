@@ -3,10 +3,10 @@ builds:
   - id: influx
     goos:
       - linux
-      - darwin
+    #  - darwin
     goarch:
-      - amd64
-      - arm64
+     # - amd64
+     # - arm64
       - arm
     goarm:
       - 6
@@ -28,9 +28,9 @@ builds:
   - id: influxd
     goos:
       - linux
-      - darwin
+    #  - darwin
     goarch:
-      - amd64
+    #  - amd64
       - arm64
 
     main: ./cmd/influxd/
@@ -59,12 +59,12 @@ nfpms:
       - deb
       - rpm
     overrides:
-      rpm:
-        replacements:
-          amd64: x86_64
-        file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+   #   rpm:
+   #     replacements:
+   #       amd64: x86_64
+   #     file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
       deb:
-        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{ if .Arm and (eq .Arm 7)}} hf {{else if .Arm and eq .Arm 6}} el {{ end }}"
+        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{ if and (.Arm) (eq .Arm 7)}} hf {{else if and  .Arm) (eq .Arm 6)}} el {{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
