@@ -10,7 +10,7 @@ builds:
       - arm
     goarm:
       - 6
-      - 7
+     # - 7
 
     main: ./cmd/influx/
     flags:
@@ -57,14 +57,14 @@ nfpms:
     builds: ["influx", "influxd"]
     formats:
       - deb
-      - rpm
+    #  - rpm
     overrides:
    #   rpm:
    #     replacements:
    #       amd64: x86_64
    #     file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
       deb:
-        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{ if .Arm }}{{ if eq .Arm 7}} hf  {{ end }}{{ if eq .Arm 6 }} el {{ end }}"
+        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{ if .Arm }}{{ if eq .Arm 7}} hf  {{ end }}{{end}}{{if .Arm}}{{ if eq .Arm 6 }} el {{end}}{{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
