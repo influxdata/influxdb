@@ -3,14 +3,15 @@ builds:
   - id: influx
     goos:
       - linux
-      - darwin
+     # - darwin
     goarch:
-      - amd64
-      - arm64
+    #  - amd64
+    #  - arm64
       - arm
     goarm:
-      - 6
-      - 7
+      - 5
+     # - 6
+     # - 7
 
     main: ./cmd/influx/
     flags:
@@ -62,9 +63,9 @@ nfpms:
       rpm:
         replacements:
           amd64: x86_64
-        file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}hf{{end}}{{ end }}"
+        file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
       deb:
-        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}hf{{end}}{{ end }}"
+        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -85,7 +86,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}hf{{end}}{{ end }}"
+    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
     files:
       - LICENSE
       - README.md
@@ -95,7 +96,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"6\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"7\" }}hf{{end}}{{ end }}"
+    name_template: "influxdb-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
     files:
       - LICENSE
       - README.md
