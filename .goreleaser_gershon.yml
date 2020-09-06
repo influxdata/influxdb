@@ -29,10 +29,12 @@ builds:
   - id: influxd
     goos:
       - linux
-      - darwin
+    #  - darwin
     goarch:
-      - amd64
-      - arm64
+    #  - amd64
+    # - arm64
+    goarm:
+      - 5
 
     main: ./cmd/influxd/
     flags:
