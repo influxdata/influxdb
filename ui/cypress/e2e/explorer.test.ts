@@ -682,8 +682,8 @@ describe('DataExplorer', () => {
       })
     })
 
-    describe('visualize with 360 lines', () => {
-      const numLines = 360
+    const numLines = 360
+    describe(`visualize with ${numLines} lines`, () => {
       beforeEach(() => {
         // POST 360 lines to the server
         cy.writeData(lines(numLines))
@@ -925,15 +925,100 @@ describe('DataExplorer', () => {
 
   describe('saving', () => {
     beforeEach(() => {
-      cy.fixture('routes').then(({orgs, explorer}) => {
-        cy.get<Organization>('@org').then(({id}) => {
-          cy.visit(`${orgs}/${id}${explorer}/save`)
+      cy.writeData(lines(10))
+    })
+
+    it('can open and close save as dialog', ()=>{
+      cy.getByTestID('overlay--container').should('not.be.visible')
+      cy.getByTestID('save-query-as').click()
+      cy.getByTestID('overlay--container').should('be.visible')
+      cy.getByTestID('save-as-overlay--header').within(()=>{
+        cy.get('button').click()
+      })
+      cy.getByTestID('overlay--container').should('not.be.visible')
+    })
+
+    describe('as dashboard cell', () => {
+      const dashboardNames = ['dashboard 1', 'board 2', 'board 3']
+      const cellName = '📊 graph 1'
+      const dashboardCreateName = '📋 board'
+
+      beforeEach(()=>{
+        cy.get('@org').then(({id: orgID}: Organization) => {
+          dashboardNames.forEach((d, i) => {
+            cy.createDashboard(orgID, d).then(({body})=>{
+              cy.wrap(body.id).as(`dasboard${i}-id`)
+            })
+          })
+        })
+      })
+
+      it('can save as cell into multiple dashboards', ()=>{
+        // setup query for saving and open dialog
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('save-query-as').click()
+        cy.getByTestID('cell-radio-button').click()
+
+        // input dashboards and cell name
+        cy.getByTestID('save-as-dashboard-cell--dropdown').click()
+        cy.getByTestID('save-as-dashboard-cell--dropdown-menu').within(()=>{
+          dashboardNames.forEach(d => { cy.contains(d).click() })
+        })
+        cy.getByTestID('save-as-dashboard-cell--dropdown').click()
+        cy.getByTestID('save-as-dashboard-cell--cell-name').type(cellName)
+
+        cy.getByTestID('save-as-dashboard-cell--submit').click()
+
+        // ensure cell exists at dashboards
+        cy.get('@org').then(({id: orgID}: Organization) => {
+          cy.fixture('routes').then(({orgs}) => {
+            dashboardNames.forEach((_, i)=>{
+              cy.get(`@dasboard${i}-id`).then(id=>{
+                cy.visit(`${orgs}/${orgID}/dashboards/${id}`)
+                cy.getByTestID(`cell ${cellName}`).should('exist')
+              })
+            })
+          })
+        })
+      })
+
+      it('can create new dasboard as saving target', ()=>{
+        // setup query for saving and open dialog
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('save-query-as').click()
+        cy.getByTestID('cell-radio-button').click()
+
+        // select and input new dashboard name and cell name
+        cy.getByTestID('save-as-dashboard-cell--dropdown').click()
+        cy.getByTestID('save-as-dashboard-cell--create-new-dash').click()
+        cy.getByTestID('save-as-dashboard-cell--dropdown').click()
+        cy.getByTestID('save-as-dashboard-cell--dashboard-name')
+          .should('be.visible')
+          .clear()
+          .type(dashboardCreateName)
+        cy.getByTestID('save-as-dashboard-cell--cell-name').type(cellName)
+
+        cy.getByTestID('save-as-dashboard-cell--submit').click()
+
+        // ensure dasboard created with cell
+        cy.get('@org').then(({id: orgID}: Organization) => {
+          cy.fixture('routes').then(({orgs}) => {
+            cy.visit(`${orgs}/${orgID}/dashboards/`)
+            cy.getByTestID('dashboard-card--name')
+              .contains(dashboardCreateName)
+              .should('exist')
+              .click()
+            cy.getByTestID(`cell ${cellName}`).should('exist')
+          })
         })
       })
     })
 
     describe('as a task', () => {
       beforeEach(() => {
+        // setup query for saving and open dialog
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('save-query-as').click()
         cy.getByTestID('task--radio-button').click()
       })
 
