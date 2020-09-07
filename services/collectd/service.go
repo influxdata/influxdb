@@ -4,7 +4,6 @@ package collectd // import "github.com/influxdata/influxdb/services/collectd"
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -112,50 +111,37 @@ func (s *Service) Open() error {
 	}
 
 	if s.popts.TypesDB == nil {
-		// Open collectd types.
-		if stat, err := os.Stat(s.Config.TypesDB); err != nil {
-			return fmt.Errorf("Stat(): %s", err)
-		} else if stat.IsDir() {
-			alltypesdb, err := api.NewTypesDB(&bytes.Buffer{})
-			if err != nil {
-				return err
-			}
-			var readdir func(path string)
-			readdir = func(path string) {
-				files, err := ioutil.ReadDir(path)
-				if err != nil {
-					s.Logger.Info("Unable to read directory",
-						zap.String("path", path), zap.Error(err))
-					return
-				}
-
-				for _, f := range files {
-					fullpath := filepath.Join(path, f.Name())
-					if f.IsDir() {
-						readdir(fullpath)
-						continue
-					}
-
-					s.Logger.Info("Loading types from file", zap.String("path", fullpath))
-					types, err := TypesDBFile(fullpath)
-					if err != nil {
-						s.Logger.Info("Unable to parse collectd types file", zap.String("path", f.Name()))
-						continue
-					}
-
-					alltypesdb.Merge(types)
-				}
-			}
-			readdir(s.Config.TypesDB)
-			s.popts.TypesDB = alltypesdb
-		} else {
-			s.Logger.Info("Loading types from file", zap.String("path", s.Config.TypesDB))
-			types, err := TypesDBFile(s.Config.TypesDB)
-			if err != nil {
-				return fmt.Errorf("Open(): %s", err)
-			}
-			s.popts.TypesDB = types
+		alltypesdb, err := api.NewTypesDB(&bytes.Buffer{})
+		if err != nil {
+			return err
 		}
+
+		walkFn := func(p string, info os.FileInfo, walkErr error) error {
+			// ignore internal errors; try to press on
+			if walkErr != nil {
+				return nil
+			}
+
+			// skip attempt to read directories
+			if info.IsDir() {
+				return nil
+			}
+
+			// at this point, p should not be a directory.
+			s.Logger.Info("Loading types from file", zap.String("path", p))
+			types, err := TypesDBFile(p)
+			if err != nil {
+				s.Logger.Info("Unable to parse collectd types file", zap.String("path", info.Name()))
+			}
+
+			alltypesdb.Merge(types)
+			return nil
+		}
+
+		if err := filepath.Walk(s.Config.TypesDB, walkFn); err != nil {
+			return err
+		}
+		s.popts.TypesDB = alltypesdb
 	}
 
 	// Sets the security level according to the config.
