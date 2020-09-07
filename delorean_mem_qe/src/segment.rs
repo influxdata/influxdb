@@ -145,12 +145,12 @@ impl Segment {
         column_sizes
     }
 
-    pub fn scan_column_from(&self, column_name: &str, row_id: usize) -> Option<column::Vector> {
-        if let Some(i) = self.column_names().iter().position(|c| c == column_name) {
-            return self.columns[i].scan_from(row_id);
-        }
-        None
-    }
+    // pub fn scan_column_from(&self, column_name: &str, row_id: usize) -> Option<column::Vector> {
+    //     if let Some(i) = self.column_names().iter().position(|c| c == column_name) {
+    //         return self.columns[i].scan_from(row_id);
+    //     }
+    //     None
+    // }
 
     // Materialise all rows for each desired column.
     //
@@ -1108,8 +1108,8 @@ impl<'a> Segments<'a> {
             for chunked_segments in self.segments.chunks(THREADS) {
                 crossbeam::scope(|scope| {
                     for segment in chunked_segments {
-                        // let group_columns = group_columns_arc.clone();
-                        // let aggregates = aggregates_arc.clone();
+                        let group_columns = &group_columns;
+                        let aggregates = &aggregates;
 
                         scope.spawn(move |_| {
                             let now = std::time::Instant::now();

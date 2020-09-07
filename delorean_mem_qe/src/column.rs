@@ -162,7 +162,7 @@ pub trait AggregatableByRange {
         agg_type: &AggregateType,
         from_row_id: usize,
         to_row_id: usize,
-    ) -> Aggregate;
+    ) -> Aggregate<'_>;
 }
 /// A Vector is a materialised vector of values from a column.
 pub enum Vector<'a> {
@@ -177,7 +177,7 @@ impl<'a> Vector<'a> {
         agg_type: &AggregateType,
         from_row_id: usize,
         to_row_id: usize,
-    ) -> Aggregate {
+    ) -> Aggregate<'a> {
         match agg_type {
             AggregateType::Count => {
                 Aggregate::Count(self.count_by_id_range(from_row_id, to_row_id) as u64)
@@ -186,7 +186,7 @@ impl<'a> Vector<'a> {
         }
     }
 
-    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Scalar {
+    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Scalar<'a> {
         match self {
             Vector::String(_) => {
                 panic!("can't sum strings....");
@@ -282,7 +282,7 @@ impl AggregatableByRange for &Vector<'_> {
         agg_type: &AggregateType,
         from_row_id: usize,
         to_row_id: usize,
-    ) -> Aggregate {
+    ) -> Aggregate<'_> {
         Vector::aggregate_by_id_range(&self, agg_type, from_row_id, to_row_id)
     }
 }
@@ -389,7 +389,7 @@ impl Column {
 
     /// Materialise all of the decoded values matching the provided logical
     /// row ids.
-    pub fn values(&self, row_ids: &[usize]) -> Vector {
+    pub fn values(&self, row_ids: &[usize]) -> Vector<'_> {
         match self {
             Column::String(c) => {
                 if row_ids.is_empty() {
@@ -424,7 +424,7 @@ impl Column {
 
     /// Materialise all of the decoded values matching the provided logical
     /// row ids within the bitmap
-    pub fn values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector {
+    pub fn values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector<'_> {
         match self {
             Column::String(c) => {
                 if row_ids.is_empty() {
@@ -467,7 +467,7 @@ impl Column {
 
     /// Materialise all of the encoded values matching the provided logical
     /// row ids.
-    pub fn encoded_values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector {
+    pub fn encoded_values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector<'_> {
         let now = std::time::Instant::now();
         let row_ids_vec = row_ids
             .to_vec()
@@ -506,7 +506,7 @@ impl Column {
 
     /// Materialise all of the encoded values matching the provided logical
     /// row ids.
-    pub fn encoded_values(&self, row_ids: &[usize]) -> Vector {
+    pub fn encoded_values(&self, row_ids: &[usize]) -> Vector<'_> {
         match self {
             Column::String(c) => {
                 if row_ids.is_empty() {
@@ -538,7 +538,7 @@ impl Column {
     }
 
     /// Materialise all of the encoded values.
-    pub fn all_encoded_values(&self) -> Vector {
+    pub fn all_encoded_values(&self) -> Vector<'_> {
         match self {
             Column::String(c) => {
                 let now = std::time::Instant::now();
@@ -574,7 +574,7 @@ impl Column {
     }
 
     /// materialise rows for each row_id
-    pub fn rows(&self, row_ids: &croaring::Bitmap) -> Vector {
+    pub fn rows(&self, row_ids: &croaring::Bitmap) -> Vector<'_> {
         let now = std::time::Instant::now();
         let row_ids_vec = row_ids
             .to_vec()
@@ -596,33 +596,33 @@ impl Column {
         }
     }
 
-    /// materialise all rows including and after row_id
-    pub fn scan_from(&self, _row_id: usize) -> Option<Vector> {
-        unimplemented!("todo");
-        // if row_id >= self.num_rows() {
-        //     println!(
-        //         "asking for {:?} but only got {:?} rows",
-        //         row_id,
-        //         self.num_rows()
-        //     );
-        //     return None;
-        // }
+    // /// materialise all rows including and after row_id
+    // pub fn scan_from(&self, _row_id: usize) -> Option<Vector> {
+    //     unimplemented!("todo");
+    //     // if row_id >= self.num_rows() {
+    //     //     println!(
+    //     //         "asking for {:?} but only got {:?} rows",
+    //     //         row_id,
+    //     //         self.num_rows()
+    //     //     );
+    //     //     return None;
+    //     // }
 
-        // println!(
-        //     "asking for {:?} with a column having {:?} rows",
-        //     row_id,
-        //     self.num_rows()
-        // );
-        // match self {
-        //     Column::String(c) => Some(Vector::String(c.scan_from(row_id))),
-        //     Column::Float(c) => Some(Vector::Float(c.scan_from(row_id))),
-        //     Column::Integer(c) => Some(Vector::Integer(c.scan_from(row_id))),
-        // }
-    }
+    //     // println!(
+    //     //     "asking for {:?} with a column having {:?} rows",
+    //     //     row_id,
+    //     //     self.num_rows()
+    //     // );
+    //     // match self {
+    //     //     Column::String(c) => Some(Vector::String(c.scan_from(row_id))),
+    //     //     Column::Float(c) => Some(Vector::Float(c.scan_from(row_id))),
+    //     //     Column::Integer(c) => Some(Vector::Integer(c.scan_from(row_id))),
+    //     // }
+    // }
 
     /// Given the provided row_id scans the column until a non-null value found
     /// or the column is exhausted.
-    pub fn scan_from_until_some(&self, row_id: usize) -> Option<Scalar> {
+    pub fn scan_from_until_some(&self, row_id: usize) -> Option<Scalar<'_>> {
         match self {
             Column::String(c) => {
                 if row_id >= self.num_rows() {
@@ -655,7 +655,7 @@ impl Column {
         }
     }
 
-    pub fn maybe_contains(&self, value: Option<&Scalar>) -> bool {
+    pub fn maybe_contains(&self, value: Option<&Scalar<'_>>) -> bool {
         match self {
             Column::String(c) => match value {
                 Some(scalar) => {
@@ -685,7 +685,7 @@ impl Column {
     }
 
     /// returns true if the column cannot contain
-    pub fn max_less_than(&self, value: Option<&Scalar>) -> bool {
+    pub fn max_less_than(&self, value: Option<&Scalar<'_>>) -> bool {
         match self {
             Column::String(c) => match value {
                 Some(scalar) => {
@@ -714,7 +714,7 @@ impl Column {
         }
     }
 
-    pub fn min_greater_than(&self, value: Option<&Scalar>) -> bool {
+    pub fn min_greater_than(&self, value: Option<&Scalar<'_>>) -> bool {
         match self {
             Column::String(c) => match value {
                 Some(scalar) => {
@@ -745,7 +745,7 @@ impl Column {
 
     /// Returns the minimum value contained within this column.
     // FIXME(edd): Support NULL integers and floats
-    pub fn min(&self) -> Option<Scalar> {
+    pub fn min(&self) -> Option<Scalar<'_>> {
         match self {
             Column::String(c) => {
                 if let Some(min) = c.meta.range().0 {
@@ -760,7 +760,7 @@ impl Column {
 
     /// Returns the maximum value contained within this column.
     // FIXME(edd): Support NULL integers and floats
-    pub fn max(&self) -> Option<Scalar> {
+    pub fn max(&self) -> Option<Scalar<'_>> {
         match self {
             Column::String(c) => {
                 if let Some(max) = c.meta.range().1 {
@@ -773,7 +773,7 @@ impl Column {
         }
     }
 
-    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Scalar> {
+    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Scalar<'_>> {
         match self {
             Column::String(_) => unimplemented!("not implemented"),
             Column::Float(c) => Some(Scalar::Float(c.sum_by_ids(row_ids))),
@@ -786,7 +786,7 @@ impl Column {
         agg_type: &AggregateType,
         from_row_id: usize,
         to_row_id: usize,
-    ) -> Aggregate {
+    ) -> Aggregate<'_> {
         match self {
             Column::String(_) => unimplemented!("not implemented"),
             Column::Float(c) => match agg_type {
@@ -811,21 +811,21 @@ impl Column {
     }
 
     // TODO(edd) shouldn't let roaring stuff leak out...
-    pub fn row_ids_eq(&self, value: Option<&Scalar>) -> Option<croaring::Bitmap> {
+    pub fn row_ids_eq(&self, value: Option<&Scalar<'_>>) -> Option<croaring::Bitmap> {
         if !self.maybe_contains(value) {
             return None;
         }
         self.row_ids(value, std::cmp::Ordering::Equal)
     }
 
-    pub fn row_ids_gt(&self, value: Option<&Scalar>) -> Option<croaring::Bitmap> {
+    pub fn row_ids_gt(&self, value: Option<&Scalar<'_>>) -> Option<croaring::Bitmap> {
         if self.max_less_than(value) {
             return None;
         }
         self.row_ids(value, std::cmp::Ordering::Greater)
     }
 
-    pub fn row_ids_lt(&self, value: Option<&Scalar>) -> Option<croaring::Bitmap> {
+    pub fn row_ids_lt(&self, value: Option<&Scalar<'_>>) -> Option<croaring::Bitmap> {
         if self.min_greater_than(value) {
             return None;
         }
@@ -838,7 +838,7 @@ impl Column {
     // or
     //
     //      WHERE counter >= 102.2 AND counter < 2929.32
-    pub fn row_ids_gte_lt(&self, low: &Scalar, high: &Scalar) -> Option<croaring::Bitmap> {
+    pub fn row_ids_gte_lt(&self, low: &Scalar<'_>, high: &Scalar<'_>) -> Option<croaring::Bitmap> {
         match self {
             Column::String(_c) => {
                 unimplemented!("not implemented yet");
@@ -895,7 +895,7 @@ impl Column {
     // TODO(edd) shouldn't let roaring stuff leak out...
     fn row_ids(
         &self,
-        value: Option<&Scalar>,
+        value: Option<&Scalar<'_>>,
         order: std::cmp::Ordering,
     ) -> Option<croaring::Bitmap> {
         match self {
@@ -938,7 +938,7 @@ impl AggregatableByRange for &Column {
         agg_type: &AggregateType,
         from_row_id: usize,
         to_row_id: usize,
-    ) -> Aggregate {
+    ) -> Aggregate<'_> {
         Column::aggregate_by_id_range(&self, agg_type, from_row_id, to_row_id)
     }
 }

@@ -1,3 +1,4 @@
+#![deny(rust_2018_idioms)]
 pub mod adapter;
 pub mod column;
 pub mod encoding;
@@ -30,7 +31,7 @@ impl Store {
         self.segments.len()
     }
 
-    pub fn segments(&self) -> Segments {
+    pub fn segments(&self) -> Segments<'_> {
         Segments::new(self.segments.iter().collect::<Vec<&Segment>>())
     }
 

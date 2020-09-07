@@ -181,7 +181,7 @@ impl LogicalPlanNode for SegmentScan {
     }
 
     /// Write a single line human readable string to `f` for use in explain plan
-    fn format_for_explain(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn format_for_explain(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "SegmentScan: {:?} predicate {:?}",
