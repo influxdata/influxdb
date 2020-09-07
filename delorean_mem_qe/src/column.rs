@@ -54,17 +54,17 @@ impl<'a> std::ops::Add<&Scalar<'a>> for Scalar<'a> {
         match self {
             Self::Float(v) => {
                 if let Self::Float(other) = _rhs {
-                    return Self::Float(v + other);
+                    Self::Float(v + other)
                 } else {
                     panic!("invalid");
-                };
+                }
             }
             Self::Integer(v) => {
                 if let Self::Integer(other) = _rhs {
-                    return Self::Integer(v + other);
+                    Self::Integer(v + other)
                 } else {
                     panic!("invalid");
-                };
+                }
             }
             Self::String(_) => {
                 unreachable!("not possible to add strings");
@@ -140,17 +140,17 @@ impl<'a> std::ops::Add<&Aggregate<'a>> for Aggregate<'a> {
         match self {
             Self::Count(c) => {
                 if let Self::Count(other) = _rhs {
-                    return Self::Count(c + other);
+                    Self::Count(c + other)
                 } else {
                     panic!("invalid");
-                };
+                }
             }
             Self::Sum(s) => {
                 if let Self::Sum(other) = _rhs {
-                    return Self::Sum(s + other);
+                    Self::Sum(s + other)
                 } else {
                     panic!("invalid");
-                };
+                }
             }
         }
     }
@@ -360,7 +360,7 @@ impl Column {
 
     /// Materialise the decoded value matching the provided logical
     /// row id.
-    pub fn value(&self, row_id: usize) -> Option<Scalar> {
+    pub fn value(&self, row_id: usize) -> Option<Scalar<'_>> {
         match self {
             Column::String(c) => {
                 if row_id >= self.num_rows() {
