@@ -951,14 +951,14 @@ describe('DataExplorer', () => {
             })
           })
         })
-      })
 
-      it('can save as cell into multiple dashboards', ()=>{
-        // setup query for saving and open dialog
+        // setup query for saving and open dasboard dialog
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('save-query-as').click()
-        cy.getByTestID('cell-radio-button').click()
+        cy.getByTestID('cell--radio-button').click()
+      })
 
+      it('can save as cell into multiple dashboards', () => {
         // input dashboards and cell name
         cy.getByTestID('save-as-dashboard-cell--dropdown').click()
         cy.getByTestID('save-as-dashboard-cell--dropdown-menu').within(()=>{

@@ -45,7 +45,7 @@ class SaveAsOverlay extends PureComponent<RouteComponentProps, State> {
                 <Tabs.Tab
                   id={SaveAsOption.Dashboard}
                   text="Dashboard Cell"
-                  testID="cell-radio-button"
+                  testID="cell--radio-button"
                   onClick={this.handleSetSaveAsOption}
                   active={saveAsOption === SaveAsOption.Dashboard}
                 />
@@ -59,7 +59,7 @@ class SaveAsOverlay extends PureComponent<RouteComponentProps, State> {
                 <Tabs.Tab
                   id={SaveAsOption.Variable}
                   text="Variable"
-                  testID="variable-radio-button"
+                  testID="variable--radio-button"
                   onClick={this.handleSetSaveAsOption}
                   active={saveAsOption === SaveAsOption.Variable}
                 />
