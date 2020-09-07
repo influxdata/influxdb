@@ -32,6 +32,8 @@ impl Store {
     }
 
     pub fn segments(&self) -> Segments<'_> {
+        // let iter: std::slice::Iter<'a, Segment> = self.segments.iter();
+        // let segments = iter.collect::<Vec<&'a Segment>>();
         Segments::new(self.segments.iter().collect::<Vec<&Segment>>())
     }
 

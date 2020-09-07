@@ -149,7 +149,7 @@ struct SegmentScan {
     predicate: Expr,
 }
 
-impl SegmentScan {
+impl<'a> SegmentScan {
     fn new(store: Arc<Store>, predicate: Expr) -> Self {
         let schema = store.schema().clone();
 

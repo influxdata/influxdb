@@ -1045,12 +1045,12 @@ impl<'a> Segments<'a> {
     pub fn read_group_eq(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'_>>)],
+        predicates: &[(&str, Option<&column::Scalar<'a>>)],
         group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
         strategy: &GroupingStrategy,
-    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate<'_>)>> {
+    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate<'a>)>> {
         let (min, max) = time_range;
         if max <= min {
             panic!("max <= min");
@@ -1095,12 +1095,12 @@ impl<'a> Segments<'a> {
     fn read_group_eq_hash(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'_>>)],
+        predicates: &[(&str, Option<&column::Scalar<'a>>)],
         mut group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
         concurrent: bool,
-    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate<'_>)>> {
+    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate<'a>)>> {
         if window > 0 {
             // add time column to the group key
             group_columns.push("time".to_string());
@@ -1181,12 +1181,12 @@ impl<'a> Segments<'a> {
     fn read_group_eq_sort(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'_>>)],
+        predicates: &[(&str, Option<&column::Scalar<'a>>)],
         mut group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
         concurrent: bool,
-    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate<'_>)>> {
+    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate<'a>)>> {
         if window > 0 {
             // add time column to the group key
             group_columns.push("time".to_string());
