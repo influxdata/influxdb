@@ -18,8 +18,9 @@ impl<T> PlainFixedOption<T> {
 // No compression
 pub struct PlainFixed<T> {
     values: Vec<T>,
-    buf: Vec<u32>,
-    total_order: bool, // if true the column is totally ordered ascending.
+    // total_order can be used as a hint to stop scanning the column early when
+    // applying a comparison predicate to the column.
+    total_order: bool,
 }
 
 impl<T> PlainFixed<T>
@@ -245,7 +246,7 @@ impl From<&[i64]> for PlainFixed<i64> {
     fn from(v: &[i64]) -> Self {
         Self {
             values: v.to_vec(),
-            buf: Vec::with_capacity(v.len()),
+            // buf: Vec::with_capacity(v.len()),
             total_order: false,
         }
     }
@@ -255,7 +256,7 @@ impl From<&[f64]> for PlainFixed<f64> {
     fn from(v: &[f64]) -> Self {
         Self {
             values: v.to_vec(),
-            buf: Vec::with_capacity(v.len()),
+            // buf: Vec::with_capacity(v.len()),
             total_order: false,
         }
     }
