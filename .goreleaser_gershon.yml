@@ -3,9 +3,9 @@ builds:
   - id: influx
     goos:
       - linux
-     # - darwin
+      - darwin
     goarch:
-    #  - amd64
+      - amd64
       - arm64
       - arm
     goarm:
@@ -26,7 +26,7 @@ builds:
   - id: influxd
     goos:
       - linux
-    #  - darwin
+      - darwin
     goarch:
       - amd64
       - arm64
