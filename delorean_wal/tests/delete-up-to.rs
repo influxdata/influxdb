@@ -1,5 +1,4 @@
-use delorean_wal::WalBuilder;
-use std::io::Write;
+use delorean_wal::{WalBuilder, WritePayload};
 
 #[macro_use]
 mod helpers;
@@ -12,13 +11,13 @@ fn delete_up_to() -> Result {
 
     // Set the file rollover size limit low to test interaction with file rollover
     let builder = WalBuilder::new(dir.as_ref()).file_rollover_size(100);
-    let wal = builder.clone().wal()?;
+    let mut wal = builder.clone().wal()?;
 
     create_and_sync_batch!(
         wal,
         [
-            b"some data within the file limit",
-            b"some more data that puts the file over the limit"
+            "some data within the file limit",
+            "some more data that puts the file over the limit"
         ]
     );
 
@@ -26,7 +25,7 @@ fn delete_up_to() -> Result {
     // should end up in a new WAL file
     create_and_sync_batch!(
         wal,
-        [b"some more data, this should now be rolled over into the next WAL file"]
+        ["some more data, this should now be rolled over into the next WAL file"]
     );
 
     // Write two WAL entries, one that could fit in the existing file but puts the file over the
@@ -35,8 +34,8 @@ fn delete_up_to() -> Result {
     create_and_sync_batch!(
         wal,
         [
-            b"one entry that puts the existing file over the limit",
-            b"another entry"
+            "one entry that puts the existing file over the limit",
+            "another entry"
         ]
     );
 
@@ -71,7 +70,7 @@ fn delete_up_to() -> Result {
     assert_filenames_for_sequence_numbers!(dir, [2]);
 
     // Add another entry; the sequence numbers continue
-    create_and_sync_batch!(wal, [b"entry after deletion"]);
+    create_and_sync_batch!(wal, ["entry after deletion"]);
 
     // Should be able to read the entries back out
     let wal_entries = all_entries(&builder)?;

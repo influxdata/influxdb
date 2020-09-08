@@ -1,5 +1,5 @@
-use delorean_wal::WalBuilder;
-use std::{fs, io::Write};
+use delorean_wal::{WalBuilder, WritePayload};
+use std::fs;
 
 #[macro_use]
 mod helpers;
@@ -12,7 +12,7 @@ fn file_rollover() -> Result {
 
     // Set the file rollover size limit low to test rollover
     let builder = WalBuilder::new(dir.as_ref()).file_rollover_size(100);
-    let wal = builder.clone().wal()?;
+    let mut wal = builder.clone().wal()?;
 
     // Should start without existing WAL files
     let wal_files = wal_file_names(&dir.as_ref());
@@ -23,7 +23,7 @@ fn file_rollover() -> Result {
     assert!(wal_entries.is_empty());
 
     // Write one WAL entry when there are no existing WAL files
-    create_and_sync_batch!(wal, [b"some data within the file limit"]);
+    create_and_sync_batch!(wal, ["some data within the file limit"]);
 
     // There should now be one existing WAL file
     assert_filenames_for_sequence_numbers!(dir, [0]);
@@ -35,7 +35,7 @@ fn file_rollover() -> Result {
 
     // Write one WAL entry when there is an existing WAL file that is currently under the size
     // limit, should end up in the same WAL file
-    create_and_sync_batch!(wal, [b"some more data that puts the file over the limit"]);
+    create_and_sync_batch!(wal, ["some more data that puts the file over the limit"]);
 
     // There should still be one existing WAL file
     assert_filenames_for_sequence_numbers!(dir, [0]);
@@ -54,7 +54,7 @@ fn file_rollover() -> Result {
     // should end up in a new WAL file
     create_and_sync_batch!(
         wal,
-        [b"some more data, this should now be rolled over into the next WAL file"]
+        ["some more data, this should now be rolled over into the next WAL file"]
     );
 
     // There should now be two existing WAL files
@@ -81,8 +81,8 @@ fn file_rollover() -> Result {
     create_and_sync_batch!(
         wal,
         [
-            b"one entry that puts the existing file over the limit",
-            b"another entry"
+            "one entry that puts the existing file over the limit",
+            "another entry"
         ]
     );
 

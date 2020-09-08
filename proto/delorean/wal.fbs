@@ -52,3 +52,74 @@ table Delete {
   start_time: int64;
   stop_time: int64;
 }
+
+table WriteBufferBatch {
+  entries: [WriteBufferEntry];
+}
+
+table WriteBufferEntry {
+  partition_open: PartitionOpen;
+  partition_snapshot_started: PartitionSnapshotStarted;
+  partition_snapshot_finished: PartitionSnapshotFinished;
+  dictionary_add: DictionaryAdd;
+  schema_append: SchemaAppend;
+  write: Row;
+  delete: WriteBufferDelete;
+}
+
+table PartitionOpen {
+  id: uint32;
+  name: string;
+}
+
+table PartitionSnapshotStarted {
+  id: uint32;
+}
+
+table PartitionSnapshotFinished {
+  id: uint32;
+}
+
+table DictionaryAdd {
+  partition_id: uint32;
+  id: uint32;
+  value: string;
+}
+
+enum ColumnType : byte { I64, U64, F64, Tag, String, Bool }
+
+table SchemaAppend {
+  partition_id: uint32;
+  table_id: uint32;
+  column_id: uint32;
+  column_type: ColumnType;
+}
+
+table Row {
+  partition_id: uint32;
+  table_id: uint32;
+  values: [Value];
+}
+
+table TagValue {
+  value: uint32;
+}
+
+union ColumnValue {
+  TagValue,
+  I64Value,
+  U64Value,
+  F64Value,
+  BoolValue,
+  StringValue
+}
+
+table Value {
+  column_index: uint16;
+  value: ColumnValue;
+}
+
+table WriteBufferDelete {
+  table_name: string;
+  predicate: string;
+}

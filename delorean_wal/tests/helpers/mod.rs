@@ -64,17 +64,12 @@ macro_rules! assert_entry {
 
 macro_rules! create_and_sync_batch {
     ($wal:expr, [$($entry:expr),* $(,)?] $(,)?) => {{
-        let mut count = 0;
-
         $({
-            let mut w = $wal.append();
-            w.write_all($entry)?;
-            w.finalize(())?;
-            count += 1;
+            let data = Vec::from($entry);
+            let data = WritePayload::new(data)?;
+            $wal.append(data)?;
         })*
 
-        let (to_notify, outcome) = $wal.sync();
-        assert!(matches!(outcome, Ok(())));
-        assert_eq!(count, to_notify.len());
+        $wal.sync_all()?;
     }};
 }
