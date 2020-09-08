@@ -75,15 +75,6 @@ where
         self.values.clone()
     }
 
-    // TODO(edd): fix this when added NULL support
-    pub fn scan_from_until_some(&self, _row_id: usize) -> Option<T> {
-        unreachable!("to remove");
-        // for v in self.values.iter().skip(row_id) {
-        //     return Some(*v);
-        // }
-        // None
-    }
-
     pub fn scan_from(&self, row_id: usize) -> &[T] {
         &self.values[row_id..]
     }

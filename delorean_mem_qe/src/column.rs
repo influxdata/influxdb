@@ -595,65 +595,7 @@ impl Column {
             Column::Integer(c) => Vector::Integer(c.values(&row_ids_vec)),
         }
     }
-
-    // /// materialise all rows including and after row_id
-    // pub fn scan_from(&self, _row_id: usize) -> Option<Vector> {
-    //     unimplemented!("todo");
-    //     // if row_id >= self.num_rows() {
-    //     //     println!(
-    //     //         "asking for {:?} but only got {:?} rows",
-    //     //         row_id,
-    //     //         self.num_rows()
-    //     //     );
-    //     //     return None;
-    //     // }
-
-    //     // println!(
-    //     //     "asking for {:?} with a column having {:?} rows",
-    //     //     row_id,
-    //     //     self.num_rows()
-    //     // );
-    //     // match self {
-    //     //     Column::String(c) => Some(Vector::String(c.scan_from(row_id))),
-    //     //     Column::Float(c) => Some(Vector::Float(c.scan_from(row_id))),
-    //     //     Column::Integer(c) => Some(Vector::Integer(c.scan_from(row_id))),
-    //     // }
-    // }
-
-    /// Given the provided row_id scans the column until a non-null value found
-    /// or the column is exhausted.
-    pub fn scan_from_until_some(&self, row_id: usize) -> Option<Scalar<'_>> {
-        match self {
-            Column::String(c) => {
-                if row_id >= self.num_rows() {
-                    return None;
-                }
-
-                match c.scan_from_until_some(row_id) {
-                    Some(v) => Some(Scalar::String(v)),
-                    None => None,
-                }
-            }
-            Column::Float(c) => {
-                if row_id >= self.num_rows() {
-                    return None;
-                }
-                match c.scan_from_until_some(row_id) {
-                    Some(v) => Some(Scalar::Float(v)),
-                    None => None,
-                }
-            }
-            Column::Integer(c) => {
-                if row_id >= self.num_rows() {
-                    return None;
-                }
-                match c.scan_from_until_some(row_id) {
-                    Some(v) => Some(Scalar::Integer(v)),
-                    None => None,
-                }
-            }
-        }
-    }
+}
 
     pub fn maybe_contains(&self, value: Option<&Scalar<'_>>) -> bool {
         match self {
@@ -1017,11 +959,6 @@ impl String {
         self.data.scan_from(row_id)
     }
 
-    pub fn scan_from_until_some(&self, _row_id: usize) -> Option<&std::string::String> {
-        unreachable!("don't need this");
-        // self.data.scan_from_until_some(row_id)
-    }
-
     // TODO(edd) shouldn't let roaring stuff leak out...
     pub fn group_row_ids(&self) -> &std::collections::BTreeMap<u32, croaring::Bitmap> {
         self.data.group_row_ids()
@@ -1063,10 +1000,6 @@ impl Float {
 
     pub fn scan_from(&self, row_id: usize) -> &[f64] {
         self.data.scan_from(row_id)
-    }
-
-    pub fn scan_from_until_some(&self, row_id: usize) -> Option<f64> {
-        self.data.scan_from_until_some(row_id)
     }
 
     pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> f64 {
@@ -1136,10 +1069,6 @@ impl Integer {
 
     pub fn scan_from(&self, row_id: usize) -> &[i64] {
         self.data.scan_from(row_id)
-    }
-
-    pub fn scan_from_until_some(&self, row_id: usize) -> Option<i64> {
-        self.data.scan_from_until_some(row_id)
     }
 
     /// Find the first logical row that contains this value.

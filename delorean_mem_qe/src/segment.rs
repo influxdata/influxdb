@@ -944,24 +944,22 @@ pub struct SegmentMetaData {
 
     column_names: Vec<String>,
     time_range: (i64, i64),
-
     // row_ids is a bitmap containing all row ids.
-    row_ids: croaring::Bitmap,
+    // row_ids: croaring::Bitmap,
     // TODO column sort order
 }
 
 impl SegmentMetaData {
     pub fn new(rows: usize, schema: Schema) -> Self {
-        let mut meta = Self {
+        Self {
             size: 0,
             rows,
             schema,
             column_names: vec![],
             time_range: (0, 0),
-            row_ids: croaring::Bitmap::create_with_capacity(rows as u32),
-        };
-        meta.row_ids.add_range(0..rows as u64);
-        meta
+            // row_ids: croaring::Bitmap::create_with_capacity(rows as u32),
+        }
+        // meta.row_ids.add_range(0..rows as u64);
     }
 
     pub fn schema(&self) -> SchemaRef {
