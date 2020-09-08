@@ -32,6 +32,9 @@ builds:
     goarch:
       - amd64
       - arm64
+    goarm:
+      - 5
+      - 6
 
     main: ./cmd/influxd/
     flags:
