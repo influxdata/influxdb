@@ -435,6 +435,11 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Flag:  "storage-tsm-use-madv-willneed",
 			Desc:  "Controls whether we hint to the kernel that we intend to page in mmap'd sections of TSM files.",
 		},
+		{
+			DestP: &l.StorageConfig.RetentionInterval,
+			Flag:  "storage-retention-check-interval",
+			Desc:  "The interval of time when retention policy enforcement checks run.",
+		},
 
 		// InfluxQL Coordinator Config
 		{
@@ -802,7 +807,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		// the testing engine will write/read into a temporary directory
 		engine := NewTemporaryEngine(
 			m.StorageConfig,
-			storage.WithRetentionEnforcer(ts.BucketService),
 			storage.WithMetaClient(metaClient),
 		)
 		flushers = append(flushers, engine)
@@ -816,7 +820,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.engine = storage.NewEngine(
 			m.enginePath,
 			m.StorageConfig,
-			storage.WithRetentionEnforcer(ts.BucketService),
 			storage.WithMetaClient(metaClient),
 		)
 	}

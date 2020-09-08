@@ -2,15 +2,16 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
@@ -18,27 +19,16 @@ import (
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	"github.com/influxdata/influxdb/v2/v1/services/retention"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
-	"golang.org/x/time/rate"
 )
-
-// Static objects to prevent small allocs.
-// var timeBytes = []byte("time")
 
 // ErrEngineClosed is returned when a caller attempts to use the engine while
 // it's closed.
 var ErrEngineClosed = errors.New("engine is closed")
-
-// runner lets us mock out the retention enforcer in tests
-type runner interface{ run() }
-
-// runnable is a function that lets the caller know if they can proceed with their
-// task. A runnable returns a function that should be called by the caller to
-// signal they finished their task.
-type runnable func() (done func())
 
 type Engine struct {
 	config Config
@@ -51,55 +41,18 @@ type Engine struct {
 	pointsWriter interface {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 	}
-	finder BucketFinder
 
-	retentionEnforcer        runner
-	retentionEnforcerLimiter runnable
+	retentionService *retention.Service
 
 	defaultMetricLabels prometheus.Labels
 
 	writePointsValidationEnabled bool
-
-	// Tracks all goroutines started by the Engine.
-	wg sync.WaitGroup
 
 	logger *zap.Logger
 }
 
 // Option provides a set
 type Option func(*Engine)
-
-// WithRetentionEnforcer initialises a retention enforcer on the engine.
-// WithRetentionEnforcer must be called after other options to ensure that all
-// metrics are labelled correctly.
-func WithRetentionEnforcer(finder BucketFinder) Option {
-	return func(e *Engine) {
-		e.finder = finder
-		// TODO - change retention enforce to take store
-		// e.retentionEnforcer = newRetentionEnforcer(e, e.engine, finder)
-	}
-}
-
-// WithRetentionEnforcerLimiter sets a limiter used to control when the
-// retention enforcer can proceed. If this option is not used then the default
-// limiter (or the absence of one) is a no-op, and no limitations will be put
-// on running the retention enforcer.
-func WithRetentionEnforcerLimiter(f runnable) Option {
-	return func(e *Engine) {
-		e.retentionEnforcerLimiter = f
-	}
-}
-
-// WithPageFaultLimiter allows the caller to set the limiter for restricting
-// the frequency of page faults.
-func WithPageFaultLimiter(limiter *rate.Limiter) Option {
-	return func(e *Engine) {
-		// TODO no longer needed
-		// e.engine.WithPageFaultLimiter(limiter)
-		// e.index.WithPageFaultLimiter(limiter)
-		// e.sfile.WithPageFaultLimiter(limiter)
-	}
-}
 
 func WithMetaClient(c MetaClient) Option {
 	return func(e *Engine) {
@@ -108,12 +61,15 @@ func WithMetaClient(c MetaClient) Option {
 }
 
 type MetaClient interface {
-	Database(name string) (di *meta.DatabaseInfo)
 	CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
-	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
-	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+	Database(name string) (di *meta.DatabaseInfo)
+	Databases() []meta.DatabaseInfo
+	DeleteShardGroup(database, policy string, id uint64) error
+	PruneShardGroups() error
+	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 }
 
 type TSDBStore interface {
@@ -155,9 +111,9 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	pw.MetaClient = e.metaClient
 	e.pointsWriter = pw
 
-	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
-		r.SetDefaultMetricLabels(e.defaultMetricLabels)
-	}
+	e.retentionService = retention.NewService(retention.Config{Enabled: true, CheckInterval: c.RetentionInterval})
+	e.retentionService.TSDBStore = e.tsdbStore
+	e.retentionService.MetaClient = e.metaClient
 
 	return e
 }
@@ -173,17 +129,15 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 		pw.Logger = e.logger
 	}
 
-	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
-		r.WithLogger(e.logger)
+	if e.retentionService != nil {
+		e.retentionService.WithLogger(log)
 	}
 }
 
 // PrometheusCollectors returns all the prometheus collectors associated with
 // the engine and its components.
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
-	var metrics []prometheus.Collector
-	metrics = append(metrics, RetentionPrometheusCollectors()...)
-	return metrics
+	return nil
 }
 
 // Open opens the store and all underlying resources. It returns an error if
@@ -202,14 +156,13 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 	if err := e.tsdbStore.Open(); err != nil {
 		return err
 	}
+
+	if err := e.retentionService.Open(); err != nil {
+		return err
+	}
+
 	e.closing = make(chan struct{})
 
-	// TODO(edd) background tasks will be run in priority order via a scheduler.
-	// For now we will just run on an interval as we only have the retention
-	// policy enforcer.
-	if e.retentionEnforcer != nil {
-		e.runRetentionEnforcer()
-	}
 	return nil
 }
 
@@ -219,72 +172,6 @@ func (e *Engine) EnableCompactions() {
 
 // DisableCompactions disables compactions in the series file, index, & engine.
 func (e *Engine) DisableCompactions() {
-}
-
-// runRetentionEnforcer runs the retention enforcer in a separate goroutine.
-//
-// Currently this just runs on an interval, but in the future we will add the
-// ability to reschedule the retention enforcement if there are not enough
-// resources available.
-func (e *Engine) runRetentionEnforcer() {
-	interval := time.Duration(e.config.RetentionInterval)
-
-	if interval == 0 {
-		e.logger.Info("Retention enforcer disabled")
-		return // Enforcer disabled.
-	} else if interval < 0 {
-		e.logger.Error("Negative retention interval", logger.DurationLiteral("check_interval", interval))
-		return
-	}
-
-	l := e.logger.With(zap.String("component", "retention_enforcer"), logger.DurationLiteral("check_interval", interval))
-	l.Info("Starting")
-
-	ticker := time.NewTicker(interval)
-	e.wg.Add(1)
-	go func() {
-		defer e.wg.Done()
-		for {
-			// It's safe to read closing without a lock because it's never
-			// modified if this goroutine is active.
-			select {
-			case <-e.closing:
-				l.Info("Stopping")
-				return
-			case <-ticker.C:
-				// canRun will signal to this goroutine that the enforcer can
-				// run. It will also carry from the blocking goroutine a function
-				// that needs to be called when the enforcer has finished its work.
-				canRun := make(chan func())
-
-				// This goroutine blocks until the retention enforcer has permission
-				// to proceed.
-				go func() {
-					if e.retentionEnforcerLimiter != nil {
-						// The limiter will block until the enforcer can proceed.
-						// The limiter returns a function that needs to be called
-						// when the enforcer has finished its work.
-						canRun <- e.retentionEnforcerLimiter()
-						return
-					}
-					canRun <- func() {}
-				}()
-
-				// Is it possible to get a slot? We need to be able to close
-				// whilst waiting...
-				select {
-				case <-e.closing:
-					l.Info("Stopping")
-					return
-				case done := <-canRun:
-					e.retentionEnforcer.run()
-					if done != nil {
-						done()
-					}
-				}
-			}
-		}
-	}()
 }
 
 // Close closes the store and all underlying resources. It returns an error if
@@ -301,15 +188,21 @@ func (e *Engine) Close() error {
 	close(e.closing)
 	e.mu.RUnlock()
 
-	// Wait for any other goroutines to finish.
-	e.wg.Wait()
-
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.closing = nil
 
-	// TODO - Close tsdb store
-	return nil
+	var retErr *multierror.Error
+
+	if err := e.retentionService.Close(); err != nil {
+		retErr = multierror.Append(retErr, fmt.Errorf("error closing retention service: %w", err))
+	}
+
+	if err := e.tsdbStore.Close(); err != nil {
+		retErr = multierror.Append(retErr, fmt.Errorf("error closing TSDB store: %w", err))
+	}
+
+	return retErr.ErrorOrNil()
 }
 
 // WritePoints writes the provided points to the engine.
