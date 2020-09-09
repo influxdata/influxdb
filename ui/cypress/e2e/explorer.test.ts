@@ -1106,7 +1106,7 @@ describe('DataExplorer', () => {
         })
       })
 
-      it.only('can select buckets', () => {
+      it('can select buckets', () => {
         fillForm('every', { time: timeEvery, taskName })
 
         cy.getByTestID('task-options-bucket-dropdown--button').click()
@@ -1122,7 +1122,38 @@ describe('DataExplorer', () => {
     })
 
     describe('as variable', () => {
+      const variableName = 'var 1'
 
+      const visitVariables = () => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.get('@org').then(({id}: Organization) => {
+            cy.visit(`${orgs}/${id}/settings/variables`)
+          })
+        })
+      }
+
+
+      beforeEach(() => {
+        cy.getByTestID('nav-item-data-explorer').click({ force: true })
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('save-query-as').click({ force: true })
+        cy.getByTestID('variable--radio-button').click()
+      })
+
+      it('can save and enable/disable submit button', () => {
+        cy.getByTestID('variable-form-save').should('be.disabled')
+        cy.getByTestID('variable-name-input').type(variableName)
+        cy.getByTestID('variable-form-save').should('be.enabled')
+        cy.getByTestID('variable-name-input').clear()
+        cy.getByTestID('variable-form-save').should('be.disabled')
+        cy.getByTestID('variable-name-input').type(variableName)
+        cy.getByTestID('variable-form-save').should('be.enabled')
+
+        cy.getByTestID('variable-form-save').click()
+
+        visitVariables()
+        cy.getByTestID(`variable-card--name ${variableName}`).should('exist')
+      })
     })
   })
 
