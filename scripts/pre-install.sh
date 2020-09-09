@@ -1,14 +1,18 @@
 #!/bin/bash
 
 DATA_DIR=/var/lib/influxdb
+<<<<<<< HEAD
 USER=influxdb
 GROUP=influxdb
 LOG_DIR=/var/log/influxdb
+=======
+>>>>>>> chore: add rpm script files
 
 if ! id influxdb &>/dev/null; then
     useradd --system -U -M influxdb -s /bin/false -d $DATA_DIR
 fi
 
+<<<<<<< HEAD
 # check if DATA_DIR exists
 if [ ! -d "$DATA_DIR" ]; then
     mkdir -p $DATA_DIR
@@ -21,6 +25,8 @@ if [ ! -d "$LOG_DIR" ]; then
     chown $USER:$GROUP $DATA_DIR
 fi
 
+=======
+>>>>>>> chore: add rpm script files
 if [[ -d /etc/opt/influxdb ]]; then
     # Legacy configuration found
     if [[ ! -d /etc/influxdb ]]; then
