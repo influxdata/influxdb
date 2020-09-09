@@ -25,7 +25,7 @@ type Service struct {
 
 	config Config
 	wg     sync.WaitGroup
-	done   chan struct{}
+	cancel context.CancelFunc
 
 	logger *zap.Logger
 }
@@ -39,31 +39,37 @@ func NewService(c Config) *Service {
 }
 
 // Open starts retention policy enforcement.
-func (s *Service) Open() error {
-	if !s.config.Enabled || s.done != nil {
+func (s *Service) Open(ctx context.Context) error {
+	if !s.config.Enabled || s.cancel != nil {
 		return nil
 	}
 
 	s.logger.Info("Starting retention policy enforcement service",
 		logger.DurationLiteral("check_interval", time.Duration(s.config.CheckInterval)))
-	s.done = make(chan struct{})
+
+	ctx, s.cancel = context.WithCancel(ctx)
 
 	s.wg.Add(1)
-	go func() { defer s.wg.Done(); s.run() }()
+	go func() {
+		defer s.wg.Done()
+		s.run(ctx)
+	}()
 	return nil
 }
 
 // Close stops retention policy enforcement.
 func (s *Service) Close() error {
-	if !s.config.Enabled || s.done == nil {
+	if !s.config.Enabled || s.cancel == nil {
 		return nil
 	}
 
 	s.logger.Info("Closing retention policy enforcement service")
-	close(s.done)
+	s.cancel()
 
 	s.wg.Wait()
-	s.done = nil
+
+	s.cancel = nil
+
 	return nil
 }
 
@@ -72,12 +78,12 @@ func (s *Service) WithLogger(log *zap.Logger) {
 	s.logger = log.With(zap.String("service", "retention"))
 }
 
-func (s *Service) run() {
+func (s *Service) run(ctx context.Context) {
 	ticker := time.NewTicker(time.Duration(s.config.CheckInterval))
 	defer ticker.Stop()
 	for {
 		select {
-		case <-s.done:
+		case <-ctx.Done():
 			return
 
 		case <-ticker.C:

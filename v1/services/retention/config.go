@@ -25,8 +25,6 @@ func (c Config) Validate() error {
 		return nil
 	}
 
-	// TODO: Should we enforce a minimum interval?
-	// Polling every nanosecond, for instance, will greatly impact performance.
 	if c.CheckInterval <= 0 {
 		return errors.New("check-interval must be positive")
 	}

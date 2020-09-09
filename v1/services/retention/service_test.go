@@ -2,6 +2,7 @@ package retention_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -21,7 +22,7 @@ func TestService_OpenDisabled(t *testing.T) {
 	c.Enabled = false
 	s := NewService(c)
 
-	if err := s.Open(); err != nil {
+	if err := s.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -34,7 +35,8 @@ func TestService_OpenClose(t *testing.T) {
 	// Opening a disabled service should be a no-op.
 	s := NewService(retention.NewConfig())
 
-	if err := s.Open(); err != nil {
+	ctx := context.Background()
+	if err := s.Open(ctx); err != nil {
 		t.Fatal(err)
 	}
 
@@ -43,7 +45,7 @@ func TestService_OpenClose(t *testing.T) {
 	}
 
 	// Reopening is a no-op
-	if err := s.Open(); err != nil {
+	if err := s.Open(ctx); err != nil {
 		t.Fatal(err)
 	}
 
@@ -171,7 +173,7 @@ func TestService_CheckShards(t *testing.T) {
 		return nil
 	}
 
-	if err := s.Open(); err != nil {
+	if err := s.Open(context.Background()); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
 	}
 	defer func() {
@@ -211,7 +213,7 @@ func TestService_8819_repro(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		s, errC, done := testService_8819_repro(t)
 
-		if err := s.Open(); err != nil {
+		if err := s.Open(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 

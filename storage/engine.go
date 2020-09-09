@@ -111,7 +111,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	pw.MetaClient = e.metaClient
 	e.pointsWriter = pw
 
-	e.retentionService = retention.NewService(retention.Config{Enabled: true, CheckInterval: c.RetentionInterval})
+	e.retentionService = retention.NewService(c.RetentionService)
 	e.retentionService.TSDBStore = e.tsdbStore
 	e.retentionService.MetaClient = e.metaClient
 
@@ -157,7 +157,7 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := e.retentionService.Open(); err != nil {
+	if err := e.retentionService.Open(ctx); err != nil {
 		return err
 	}
 
