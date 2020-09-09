@@ -66,24 +66,22 @@ func TestAnalyticalStore(t *testing.T) {
 
 			ts.BucketService = storage.NewBucketService(ts.BucketService, ab.storageEngine)
 
-			go func() {
-				<-ctx.Done()
-				ab.Close(t)
-			}()
-
 			authCtx := icontext.SetAuthorizer(ctx, &influxdb.Authorization{
 				Permissions: influxdb.OperPermissions(),
 			})
 
 			return &servicetest.System{
-				TaskControlService:         svcStack,
-				TaskService:                svcStack,
-				OrganizationService:        ts.OrganizationService,
-				UserService:                ts.UserService,
-				UserResourceMappingService: ts.UserResourceMappingService,
-				AuthorizationService:       authSvc,
-				Ctx:                        authCtx,
-			}, cancelFunc
+					TaskControlService:         svcStack,
+					TaskService:                svcStack,
+					OrganizationService:        ts.OrganizationService,
+					UserService:                ts.UserService,
+					UserResourceMappingService: ts.UserResourceMappingService,
+					AuthorizationService:       authSvc,
+					Ctx:                        authCtx,
+				}, func() {
+					cancelFunc()
+					ab.Close(t)
+				}
 		},
 	)
 }
