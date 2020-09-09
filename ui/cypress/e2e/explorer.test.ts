@@ -928,10 +928,21 @@ describe('DataExplorer', () => {
       cy.writeData(lines(10))
     })
 
-    it('can open and close save as dialog', ()=>{
+    it('can open/close save as dialog and navigate inside', () => {
+      // open save as
       cy.getByTestID('overlay--container').should('not.be.visible')
       cy.getByTestID('save-query-as').click()
       cy.getByTestID('overlay--container').should('be.visible')
+
+      // test all tabs
+      cy.getByTestID('task--radio-button').click()
+      cy.getByTestID('task-form-name').should('be.visible')
+      cy.getByTestID('variable--radio-button').click()
+      cy.getByTestID('flux-editor').should('be.visible')
+      cy.getByTestID('cell--radio-button').click()
+      cy.getByTestID('save-as-dashboard-cell--dropdown').should('be.visible')
+
+      // close save as
       cy.getByTestID('save-as-overlay--header').within(()=>{
         cy.get('button').click()
       })
@@ -983,11 +994,6 @@ describe('DataExplorer', () => {
       })
 
       it('can create new dasboard as saving target', ()=>{
-        // setup query for saving and open dialog
-        cy.getByTestID(`selector-list m`).click()
-        cy.getByTestID('save-query-as').click()
-        cy.getByTestID('cell-radio-button').click()
-
         // select and input new dashboard name and cell name
         cy.getByTestID('save-as-dashboard-cell--dropdown').click()
         cy.getByTestID('save-as-dashboard-cell--create-new-dash').click()
@@ -1015,20 +1021,108 @@ describe('DataExplorer', () => {
     })
 
     describe('as a task', () => {
+      const bucketName = 'bucket 2'
+      const taskName = '☑ task'
+      const offset = '30m'
+      const timeEvery = '50h10m5s'
+      const timeCron = '0 0 12 * * TUE,FRI,SUN *'
+      // for strong typings
+      const cron = 'cron'
+      const every = 'every'
+      const both: ('cron' | 'every')[] = [cron, every]
+
+
+      const fillForm = (
+        type: 'cron' | 'every',
+        texts: { time?: string, offset?: string, taskName?: string }
+        ) => {
+        const checkAndType = (target: string, text: string | undefined) =>{
+          cy.getByTestID(target).clear()
+          if (text)
+            cy.getByTestID(target).type(text)
+        }
+        const { offset, taskName, time } = texts
+
+        cy.getByTestID(`task-card-${type}-btn`).click()
+        checkAndType('task-form-name', taskName)
+        checkAndType('task-form-schedule-input', time)
+        checkAndType('task-form-offset-input', offset)
+      }
+
+      const visitTasks = () => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.get('@org').then(({id}: Organization) => {
+            cy.visit(`${orgs}/${id}/tasks`)
+          })
+        })
+      }
+
+
       beforeEach(() => {
-        // setup query for saving and open dialog
+        cy.get<Organization>('@org').then(({ id, name }: Organization) => {
+          cy.createBucket(id, name, bucketName)
+        })
+
+        cy.getByTestID('selector-list defbuck').click()
+        cy.getByTestID('nav-item-data-explorer').click({ force: true })
         cy.getByTestID(`selector-list m`).click()
-        cy.getByTestID('save-query-as').click()
+        cy.getByTestID('save-query-as').click({ force: true })
         cy.getByTestID('task--radio-button').click()
       })
 
-      it('should autoselect the first bucket', () => {
-        cy.getByTestID('task-options-bucket-dropdown--button').within(() => {
-          cy.get('span.cf-dropdown--selected').then(elem => {
-            expect(elem.text()).to.include('defbuck')
+      // TODO: enable when problem with switching cron/every is fixed
+      it.skip('should enable/disable submit based on inputs', () => {
+        both.forEach(type => {
+          const time = (type === 'every') ? timeEvery : timeCron
+          cy.getByTestID('task-form-save').should('be.disabled')
+          fillForm(type, {})
+          cy.getByTestID('task-form-save').should('be.disabled')
+          fillForm(type, { time, taskName })
+          cy.getByTestID('task-form-save').should('be.enabled')
+          fillForm(type, { taskName, offset })
+          cy.getByTestID('task-form-save').should('be.disabled')
+          fillForm(type, { time, offset })
+          cy.getByTestID('task-form-save').should('be.disabled')
+        })
+      })
+
+      both.forEach(type => {
+        [true, false].forEach(withOffset => {
+          it(`can create ${type} task with${ withOffset ? '' : 'out' } offset`, () => {
+            const time = (type === 'every') ? timeEvery : timeCron
+            fillForm(type, { time, taskName,
+              ...(withOffset ? {offset} : {}) })
+            cy.getByTestID('task-form-save').click()
+
+            visitTasks()
+
+            cy.getByTestID('task-card--name')
+              .should('exist')
+              .click()
+            cy.getByTestID('task-form-schedule-input').should('have.value', time)
+            cy.getByTestID('task-form-offset-input')
+              .should('have.value', withOffset ? offset : '')
           })
         })
       })
+
+      it.only('can select buckets', () => {
+        fillForm('every', { time: timeEvery, taskName })
+
+        cy.getByTestID('task-options-bucket-dropdown--button').click()
+        cy.getByTestID('dropdown-item').contains(bucketName).click()
+        cy.getByTestID('task-options-bucket-dropdown--button').contains(bucketName).should('exist')
+
+        cy.getByTestID('task-options-bucket-dropdown--button').click()
+        cy.getByTestID('dropdown-item').contains('defbuck').click()
+        cy.getByTestID('task-options-bucket-dropdown--button').contains('defbuck').should('exist')
+
+        cy.getByTestID('task-form-save').click()
+      })
+    })
+
+    describe('as variable', () => {
+
     })
   })
 
