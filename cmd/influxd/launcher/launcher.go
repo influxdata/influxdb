@@ -436,7 +436,7 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Desc:  "Controls whether we hint to the kernel that we intend to page in mmap'd sections of TSM files.",
 		},
 		{
-			DestP: &l.StorageConfig.RetentionInterval,
+			DestP: &l.StorageConfig.RetentionService.CheckInterval,
 			Flag:  "storage-retention-check-interval",
 			Desc:  "The interval of time when retention policy enforcement checks run.",
 		},
