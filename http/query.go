@@ -18,7 +18,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/jsonweb"
 	"github.com/influxdata/influxdb/v2/query"
@@ -32,11 +31,10 @@ type QueryRequest struct {
 	Query string `json:"query"`
 
 	// Flux fields
-	Extern  *ast.File    `json:"extern,omitempty"`
-	Spec    *flux.Spec   `json:"spec,omitempty"`
-	AST     *ast.Package `json:"ast,omitempty"`
-	Dialect QueryDialect `json:"dialect"`
-	Now     time.Time    `json:"now"`
+	Extern  json.RawMessage `json:"extern,omitempty"`
+	AST     json.RawMessage `json:"ast,omitempty"`
+	Dialect QueryDialect    `json:"dialect"`
+	Now     time.Time       `json:"now"`
 
 	// InfluxQL fields
 	Bucket string `json:"bucket,omitempty"`
@@ -271,19 +269,13 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 				Query:  r.Query,
 			}
 		}
-	} else if r.AST != nil {
+	} else if len(r.AST) > 0 {
 		c := lang.ASTCompiler{
-			AST: r.AST,
-			Now: n,
-		}
-		if r.Extern != nil {
-			c.PrependFile(r.Extern)
+			Extern: r.Extern,
+			AST:    r.AST,
+			Now:    n,
 		}
 		compiler = c
-	} else if r.Spec != nil {
-		compiler = repl.Compiler{
-			Spec: r.Spec,
-		}
 	}
 
 	delimiter, _ := utf8.DecodeRuneInString(r.Dialect.Delimiter)

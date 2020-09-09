@@ -140,6 +140,12 @@
   default: false
   contact: Compute Team
 
+- name: Inject Latest Success Time
+  description: Inject the latest successful task run timestamp into a Task query extern when executing.
+  key: injectLatestSuccessTime
+  default: false
+  contact: Compute Team
+
 - name: Enforce Organization Dashboard Limits
   description: Enforces the default limit params for the dashboards api when orgs are set
   key: enforceOrgDashboardLimits
