@@ -440,6 +440,16 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Flag:  "storage-retention-check-interval",
 			Desc:  "The interval of time when retention policy enforcement checks run.",
 		},
+		{
+			DestP: &l.StorageConfig.PrecreatorConfig.CheckInterval,
+			Flag:  "storage-shard-precreator-check-interval",
+			Desc:  "The interval of time when the check to pre-create new shards runs.",
+		},
+		{
+			DestP: &l.StorageConfig.PrecreatorConfig.AdvancePeriod,
+			Flag:  "storage-shard-precreator-advance-period",
+			Desc:  "The default period ahead of the endtime of a shard group that its successor group is created.",
+		},
 
 		// InfluxQL Coordinator Config
 		{
