@@ -19,6 +19,7 @@ import (
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	"github.com/influxdata/influxdb/v2/v1/services/precreator"
 	"github.com/influxdata/influxdb/v2/v1/services/retention"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
@@ -42,7 +43,8 @@ type Engine struct {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 	}
 
-	retentionService *retention.Service
+	retentionService  *retention.Service
+	precreatorService *precreator.Service
 
 	defaultMetricLabels prometheus.Labels
 
@@ -66,6 +68,7 @@ type MetaClient interface {
 	Database(name string) (di *meta.DatabaseInfo)
 	Databases() []meta.DatabaseInfo
 	DeleteShardGroup(database, policy string, id uint64) error
+	PrecreateShardGroups(now, cutoff time.Time) error
 	PruneShardGroups() error
 	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
@@ -115,6 +118,9 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e.retentionService.TSDBStore = e.tsdbStore
 	e.retentionService.MetaClient = e.metaClient
 
+	e.precreatorService = precreator.NewService(c.PrecreatorConfig)
+	e.precreatorService.MetaClient = e.metaClient
+
 	return e
 }
 
@@ -131,6 +137,10 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 
 	if e.retentionService != nil {
 		e.retentionService.WithLogger(log)
+	}
+
+	if e.precreatorService != nil {
+		e.precreatorService.WithLogger(log)
 	}
 }
 
@@ -158,6 +168,10 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 	}
 
 	if err := e.retentionService.Open(ctx); err != nil {
+		return err
+	}
+
+	if err := e.precreatorService.Open(ctx); err != nil {
 		return err
 	}
 
@@ -193,6 +207,10 @@ func (e *Engine) Close() error {
 	e.closing = nil
 
 	var retErr *multierror.Error
+
+	if err := e.precreatorService.Close(); err != nil {
+		retErr = multierror.Append(retErr, fmt.Errorf("error closing shard precreator service: %w", err))
+	}
 
 	if err := e.retentionService.Close(); err != nil {
 		retErr = multierror.Append(retErr, fmt.Errorf("error closing retention service: %w", err))
