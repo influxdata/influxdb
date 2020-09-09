@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/experimental"
 	platform "github.com/influxdata/influxdb/v2"
@@ -16,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 // ToKind is the kind for the `to` flux function
@@ -32,19 +34,8 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := flux.FunctionSignature(
-		map[string]semantic.PolyType{
-			"bucket":   semantic.String,
-			"bucketID": semantic.String,
-			"org":      semantic.String,
-			"orgID":    semantic.String,
-			"host":     semantic.String,
-			"token":    semantic.String,
-		},
-		[]string{},
-	)
-
-	flux.ReplacePackageValue("experimental", "to", flux.FunctionValueWithSideEffect("to", createToOpSpec, toSignature))
+	toSignature := runtime.MustLookupBuiltinType("experimental", "to")
+	runtime.ReplacePackageValue("experimental", "to", flux.MustValue(flux.FunctionValueWithSideEffect("to", createToOpSpec, toSignature)))
 	flux.RegisterOpSpec(ExperimentalToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ExperimentalToKind, newToProcedure, ExperimentalToKind)
 	execute.RegisterTransformation(ExperimentalToKind, createToTransformation)
@@ -185,9 +176,7 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 // ToTransformation is the transformation for the `to` flux function.
 type ToTransformation struct {
 	ctx      context.Context
-	bucket   string
 	bucketID platform.ID
-	org      string
 	orgID    platform.ID
 	d        execute.Dataset
 	cache    execute.TableBuilderCache
@@ -206,7 +195,6 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 	var err error
 
 	var orgID platform.ID
-	var org string
 	// Get organization name and ID
 	if spec.Spec.Org != "" {
 		oID, ok := deps.OrganizationLookup.Lookup(ctx, spec.Spec.Org)
@@ -214,7 +202,6 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 			return nil, fmt.Errorf("failed to look up organization %q", spec.Spec.Org)
 		}
 		orgID = oID
-		org = spec.Spec.Org
 	} else if spec.Spec.OrgID != "" {
 		if oid, err := platform.IDFromString(spec.Spec.OrgID); err != nil {
 			return nil, err
@@ -229,15 +216,8 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		}
 		orgID = req.OrganizationID
 	}
-	if org == "" {
-		org = deps.OrganizationLookup.LookupName(ctx, orgID)
-		if org == "" {
-			return nil, fmt.Errorf("failed to look up organization name for ID %q", orgID.String())
-		}
-	}
 
 	var bucketID *platform.ID
-	var bucket string
 	// Get bucket name and ID
 	// User will have specified exactly one in the ToOpSpec.
 	if spec.Spec.Bucket != "" {
@@ -246,27 +226,20 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 			return nil, fmt.Errorf("failed to look up bucket %q in org %q", spec.Spec.Bucket, spec.Spec.Org)
 		}
 		bucketID = &bID
-		bucket = spec.Spec.Bucket
 	} else {
 		if bucketID, err = platform.IDFromString(spec.Spec.BucketID); err != nil {
 			return nil, err
 		}
-		bucket = deps.BucketLookup.LookupName(ctx, orgID, *bucketID)
-		if bucket == "" {
-			return nil, fmt.Errorf("failed to look up bucket with ID %q in org %q", bucketID, org)
-		}
 	}
 	return &ToTransformation{
 		ctx:      ctx,
-		bucket:   bucket,
 		bucketID: *bucketID,
-		org:      org,
 		orgID:    orgID,
 		d:        d,
 		cache:    cache,
 		spec:     spec.Spec,
 		deps:     deps,
-		buf:      storage.NewBufferedPointsWriter(orgID, *bucketID, influxdb.DefaultBufferSize, deps.PointsWriter),
+		buf:      storage.NewBufferedPointsWriter(influxdb.DefaultBufferSize, deps.PointsWriter),
 	}, nil
 }
 
@@ -310,9 +283,10 @@ type LabelAndOffset struct {
 
 // TablePointsMetadata stores state needed to write the points from one table.
 type TablePointsMetadata struct {
-	MeasurementName string
 	// The tags in the table (final element is left as nil, to be replaced by field name)
 	Tags [][]byte
+	// The offset in tags where to store the field name
+	FieldKeyTagValueOffset int
 	// The column offset in the input table where the _time column is stored
 	TimestampOffset int
 	// The labels and offsets of all the fields in the table
@@ -321,7 +295,7 @@ type TablePointsMetadata struct {
 
 func GetTablePointsMetadata(tbl flux.Table) (*TablePointsMetadata, error) {
 	// Find measurement, tags
-	var measurement string
+	foundMeasurement := false
 	tagmap := make(map[string]string, len(tbl.Key().Cols())+2)
 	isTag := make(map[string]bool)
 	for j, col := range tbl.Key().Cols() {
@@ -333,10 +307,12 @@ func GetTablePointsMetadata(tbl flux.Table) (*TablePointsMetadata, error) {
 		case defaultFieldColLabel:
 			return nil, fmt.Errorf("found column %q in the group key; experimental.to() expects pivoted data", col.Label)
 		case defaultMeasurementColLabel:
+			foundMeasurement = true
 			if col.Type != flux.TString {
 				return nil, fmt.Errorf("group key column %q has type %v; type %v is required", col.Label, col.Type, flux.TString)
 			}
-			measurement = tbl.Key().ValueString(j)
+			// Always place the measurement tag first
+			tagmap[models.MeasurementTagKey] = tbl.Key().ValueString(j)
 		default:
 			if col.Type != flux.TString {
 				return nil, fmt.Errorf("group key column %q has type %v; type %v is required", col.Label, col.Type, flux.TString)
@@ -345,15 +321,24 @@ func GetTablePointsMetadata(tbl flux.Table) (*TablePointsMetadata, error) {
 			tagmap[col.Label] = tbl.Key().ValueString(j)
 		}
 	}
-	if len(measurement) == 0 {
+	if !foundMeasurement {
 		return nil, fmt.Errorf("required column %q not in group key", defaultMeasurementColLabel)
 	}
+	// Add the field tag key
+	tagmap[models.FieldKeyTagKey] = ""
 	t := models.NewTags(tagmap)
 
 	tags := make([][]byte, 0, len(t)*2)
 	for i := range t {
 		tags = append(tags, t[i].Key, t[i].Value)
 	}
+
+	// invariant: FieldKeyTagKey should be last key, value pair
+	if string(tags[len(tags)-2]) != models.FieldKeyTagKey {
+		return nil, errors.New("missing field key")
+	}
+
+	fieldKeyTagValueOffset := len(tags) - 1
 
 	// Loop over all columns to find fields and _time
 	fields := make([]LabelAndOffset, 0, len(tbl.Cols())-len(tbl.Key().Cols()))
@@ -383,10 +368,10 @@ func GetTablePointsMetadata(tbl flux.Table) (*TablePointsMetadata, error) {
 	}
 
 	tmd := &TablePointsMetadata{
-		MeasurementName: measurement,
-		Tags:            tags,
-		TimestampOffset: timestampOffset,
-		Fields:          fields,
+		Tags:                   tags,
+		FieldKeyTagValueOffset: fieldKeyTagValueOffset,
+		TimestampOffset:        timestampOffset,
+		Fields:                 fields,
 	}
 
 	return tmd, nil
@@ -405,20 +390,16 @@ func (t *ToTransformation) writeTable(ctx context.Context, tbl flux.Table) error
 		return err
 	}
 
-	pointName := tmd.MeasurementName
+	pointName := tsdb.EncodeNameString(t.orgID, t.bucketID)
 	return tbl.Do(func(cr flux.ColReader) error {
 		if cr.Len() == 0 {
 			// Nothing to do
 			return nil
 		}
 
-		var (
-			points models.Points
-			tags   models.Tags
-		)
-
+		var points models.Points
 		for i := 0; i < cr.Len(); i++ {
-			fields := make(models.Fields, len(tmd.Fields))
+			timestamp := execute.ValueForRow(cr, i, tmd.TimestampOffset).Time().Time()
 			for _, lao := range tmd.Fields {
 				fieldVal := execute.ValueForRow(cr, i, lao.Offset)
 
@@ -427,32 +408,33 @@ func (t *ToTransformation) writeTable(ctx context.Context, tbl flux.Table) error
 					continue
 				}
 
-				switch fieldVal.Type() {
+				var fields models.Fields
+				switch fieldVal.Type().Nature() {
 				case semantic.Float:
-					fields[lao.Label] = fieldVal.Float()
+					fields = models.Fields{lao.Label: fieldVal.Float()}
 				case semantic.Int:
-					fields[lao.Label] = fieldVal.Int()
+					fields = models.Fields{lao.Label: fieldVal.Int()}
 				case semantic.UInt:
-					fields[lao.Label] = fieldVal.UInt()
+					fields = models.Fields{lao.Label: fieldVal.UInt()}
 				case semantic.String:
-					fields[lao.Label] = fieldVal.Str()
+					fields = models.Fields{lao.Label: fieldVal.Str()}
 				case semantic.Bool:
-					fields[lao.Label] = fieldVal.Bool()
+					fields = models.Fields{lao.Label: fieldVal.Bool()}
 				default:
 					return fmt.Errorf("unsupported field type %v", fieldVal.Type())
 				}
+				var tags models.Tags
+				tmd.Tags[tmd.FieldKeyTagValueOffset] = []byte(lao.Label)
+				tags, err := models.NewTagsKeyValues(tags, tmd.Tags...)
+				if err != nil {
+					return err
+				}
+				pt, err := models.NewPoint(pointName, tags, fields, timestamp)
+				if err != nil {
+					return err
+				}
+				points = append(points, pt)
 			}
-
-			timestamp := execute.ValueForRow(cr, i, tmd.TimestampOffset).Time().Time()
-			tags, err := models.NewTagsKeyValues(tags, tmd.Tags...)
-			if err != nil {
-				return err
-			}
-			pt, err := models.NewPoint(pointName, tags, fields, timestamp)
-			if err != nil {
-				return err
-			}
-			points = append(points, pt)
 
 			if err := execute.AppendRecord(i, cr, builder); err != nil {
 				return err
