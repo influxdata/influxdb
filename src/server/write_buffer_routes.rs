@@ -1,3 +1,9 @@
+//! This module contains a parallel implementation of the /v2 HTTP api
+//! routes for Delorean.
+//!
+//! The goal is that eventually the implementation in these routes
+//! will replace the implementation in http_routes.rs
+
 #![deny(rust_2018_idioms)]
 
 use tracing::{debug, error, info};
@@ -81,6 +87,9 @@ pub enum ApplicationError {
     #[snafu(display("Error reading request body as utf8: {}", source))]
     ReadingBodyAsUtf8 { source: std::str::Utf8Error },
 
+    #[snafu(display("Error parsing line protocol: {}", source))]
+    ParsingLineProtocol { source: delorean_line_parser::Error },
+
     #[snafu(display("No handler for {:?} {}", method, path))]
     RouteNotFound { method: Method, path: String },
 }
@@ -99,6 +108,7 @@ impl ApplicationError {
             Self::InvalidRequestBody { .. } => StatusCode::BAD_REQUEST,
             Self::ReadingBody { .. } => StatusCode::BAD_REQUEST,
             Self::ReadingBodyAsUtf8 { .. } => StatusCode::BAD_REQUEST,
+            Self::ParsingLineProtocol { .. } => StatusCode::BAD_REQUEST,
             Self::RouteNotFound { .. } => StatusCode::NOT_FOUND,
         }
     }
@@ -107,6 +117,7 @@ impl ApplicationError {
 const MAX_SIZE: usize = 10_485_760; // max write request size of 10MB
 
 #[derive(Debug, Deserialize)]
+/// Body of the request to the /write endpoint
 struct WriteInfo {
     org: String,
     bucket: String,
@@ -148,8 +159,9 @@ async fn write(
     let body = str::from_utf8(&body).unwrap();
 
     let lines: Vec<_> = parse_lines(body)
-        .map(|l| l.expect("TODO: handle line parse errors"))
-        .collect();
+        .collect::<Result<Vec<_>, delorean_line_parser::Error>>()
+        .context(ParsingLineProtocol)?;
+
     debug!("Parsed {} lines", lines.len());
 
     db.write_lines(&lines).await.context(WritingPoints {
@@ -161,9 +173,12 @@ async fn write(
 }
 
 #[derive(Deserialize, Debug)]
+/// Body of the request to the /read endpoint
 struct ReadInfo {
     org: String,
     bucket: String,
+    // TODL This is currently a "SQL" request -- should be updated to conform
+    // to the V2 API for reading (using timestamps, etc).
     query: String,
 }
 
