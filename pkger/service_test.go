@@ -3305,7 +3305,7 @@ func TestService(t *testing.T) {
 				&endpoint.Slack{
 					Base: endpoint.Base{
 						ID:          newTestIDPtr(3),
-						Name:        "pd-endpoint",
+						Name:        "slack endpoint",
 						Description: "desc slack",
 						Status:      influxdb.TaskStatusInactive,
 					},
@@ -3325,11 +3325,6 @@ func TestService(t *testing.T) {
 						name:     "find notification endpoint with unique name",
 						findName: "pd endpoint",
 						expected: []influxdb.NotificationEndpoint{knownEndpoints[0]},
-					},
-					{
-						name:     "find multiple notification endpoints with shared name",
-						findName: "pd-endpoint",
-						expected: []influxdb.NotificationEndpoint{knownEndpoints[1], knownEndpoints[2]},
 					},
 					{
 						name:     "find no notification endpoints",
@@ -3352,6 +3347,15 @@ func TestService(t *testing.T) {
 				for _, tt := range tests {
 					fn := func(t *testing.T) {
 						endpointSVC := mock.NewNotificationEndpointService()
+						endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+							for i := range knownEndpoints {
+								if knownEndpoints[i].GetID() == id {
+									return knownEndpoints[i], nil
+								}
+							}
+
+							return nil, errors.New("uh ohhh, wrong endpoint id here: " + id.String())
+						}
 						endpointSVC.FindNotificationEndpointsF = func(ctx context.Context, filter influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
 							if filter.ID != nil {
 								for i := range knownEndpoints {
@@ -4805,7 +4809,7 @@ func TestService(t *testing.T) {
 			assert.Equal(t, "label", labels[0].Name)
 
 			endpoints := summary.NotificationEndpoints
-			require.Len(t, endpoints, 2) // todo: somehow find endpoint by id gets combined with find endpoints unless `uniqByNameResID` is used in clone_resource
+			require.Len(t, endpoints, 1)
 			assert.Equal(t, "http", endpoints[0].NotificationEndpoint.GetName())
 
 			rules := summary.NotificationRules

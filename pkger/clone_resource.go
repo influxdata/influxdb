@@ -301,7 +301,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 				return err
 			}
 
-			mapResource(l.OrgID, l.ID, KindLabel, LabelToObject(r.Name, *l))
+			mapResource(l.OrgID, uniqByNameResID, KindLabel, LabelToObject(r.Name, *l))
 		case len(r.Name) > 0:
 			labels, err := ex.labelSVC.FindLabels(ctx, influxdb.LabelFilter{Name: r.Name})
 			if err != nil {
@@ -309,39 +309,42 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			}
 
 			for _, l := range labels {
-				mapResource(l.OrgID, l.ID, KindLabel, LabelToObject(r.Name, *l))
+				mapResource(l.OrgID, uniqByNameResID, KindLabel, LabelToObject(r.Name, *l))
 			}
 		}
 	case r.Kind.is(KindNotificationEndpoint),
 		r.Kind.is(KindNotificationEndpointHTTP),
 		r.Kind.is(KindNotificationEndpointPagerDuty),
 		r.Kind.is(KindNotificationEndpointSlack):
-		var (
-			hasID  bool
-			filter = influxdb.NotificationEndpointFilter{}
-		)
-		if r.ID != influxdb.ID(0) {
-			hasID = true
-			filter.ID = &r.ID
-		}
+		var endpoints []influxdb.NotificationEndpoint
 
-		endpoints, _, err := ex.endpointSVC.FindNotificationEndpoints(ctx, filter)
-		if err != nil {
-			return err
-		}
-
-		var mapped bool
-		for _, e := range endpoints {
-			if (!hasID && len(r.Name) > 0 && e.GetName() != r.Name) || (hasID && e.GetID() != r.ID) {
-				continue
+		switch {
+		case r.ID != influxdb.ID(0):
+			ndpoint, err := ex.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
+			if err != nil {
+				return err
+			}
+			endpoints = append(endpoints, ndpoint)
+		case len(r.Name) != 0:
+			allEndpoints, _, err := ex.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{})
+			if err != nil {
+				return err
 			}
 
-			mapResource(e.GetOrgID(), e.GetID(), KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
-			mapped = true
+			for _, ndpoint := range allEndpoints {
+				if ndpoint.GetName() != r.Name || ndpoint == nil {
+					continue
+				}
+				endpoints = append(endpoints, ndpoint)
+			}
 		}
 
-		if !mapped {
+		if len(endpoints) == 0 {
 			return errors.New("no notification endpoints found")
+		}
+
+		for _, e := range endpoints {
+			mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
 		}
 	case r.Kind.is(KindNotificationRule):
 		var rules []influxdb.NotificationRule
@@ -491,7 +494,7 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 			return nil, shouldSkip, nil
 		}
 
-		if len(r.Name) > 0 {
+		if len(r.Name) > 0 && r.ID == influxdb.ID(0) {
 			return nil, false, nil
 		}
 

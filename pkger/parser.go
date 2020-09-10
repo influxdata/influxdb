@@ -975,7 +975,7 @@ func (p *Template) graphDashboards() *parseErr {
 
 func (p *Template) graphNotificationEndpoints() *parseErr {
 	p.mNotificationEndpoints = make(map[string]*notificationEndpoint)
-	tracker := p.trackNames(false)
+	tracker := p.trackNames(true)
 
 	notificationKinds := []struct {
 		kind             Kind

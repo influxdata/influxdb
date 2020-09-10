@@ -2987,33 +2987,31 @@ spec:
 `,
 					},
 				},
-				/* notification endpoints are not name unique
-							{
-								kind: KindNotificationEndpointSlack,
-								resErr: testTemplateResourceError{
-									name:           "duplicate meta name and spec name",
-									validationErrs: 1,
-									valFields:      []string{fieldSpec, fieldName},
-									templateStr: `apiVersion: influxdata.com/v2alpha1
-				kind: NotificationEndpointSlack
-				metadata:
-					name: slack
-				spec:
-					description: slack desc
-					url: https://hooks.slack.com/services/bip/piddy/boppidy
-				---
-				apiVersion: influxdata.com/v2alpha1
-				kind: NotificationEndpointSlack
-				metadata:
-					name: slack-notification-endpoint
-				spec:
-					name: slack
-					description: slack desc
-					url: https://hooks.slack.com/services/bip/piddy/boppidy
-				`,
-								},
-							},
-				*/
+				{
+					kind: KindNotificationEndpointSlack,
+					resErr: testTemplateResourceError{
+						name:           "duplicate meta name and spec name",
+						validationErrs: 1,
+						valFields:      []string{fieldSpec, fieldName},
+						templateStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name: slack
+spec:
+  description: slack desc
+  url: https://hooks.slack.com/services/bip/piddy/boppidy
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name: slack-notification-endpoint
+spec:
+  name: slack
+  description: slack desc
+  url: https://hooks.slack.com/services/bip/piddy/boppidy
+`,
+					},
+				},
 			}
 
 			for _, tt := range tests {
