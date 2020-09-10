@@ -22,7 +22,6 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 const (
@@ -343,7 +342,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		spec:               toSpec,
 		implicitTagColumns: spec.TagColumns == nil,
 		deps:               deps,
-		buf:                storage.NewBufferedPointsWriter(DefaultBufferSize, deps.PointsWriter),
+		buf:                storage.NewBufferedPointsWriter(*orgID, *bucketID, DefaultBufferSize, deps.PointsWriter),
 	}, nil
 }
 
@@ -662,8 +661,6 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				measurementStats[measurementName].Update(mstats)
 			}
 
-			name := tsdb.EncodeNameString(t.OrgID, t.BucketID)
-
 			fieldNames := make([]string, 0, len(fields))
 			for k := range fields {
 				fieldNames = append(fieldNames, k)
@@ -676,7 +673,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				kvf := append(kv, models.FieldKeyTagKeyBytes, []byte(k))
 				tags, _ = models.NewTagsKeyValues(tags, kvf...)
 
-				pt, err := models.NewPoint(name, tags, models.Fields{k: v}, pointTime)
+				pt, err := models.NewPoint(measurementName, tags, models.Fields{k: v}, pointTime)
 				if err != nil {
 					return err
 				}

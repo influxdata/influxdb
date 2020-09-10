@@ -18,7 +18,6 @@ import (
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/influxdata/influxdb/v2/query/stdlib/experimental"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
-	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 func TestTo_Query(t *testing.T) {
@@ -528,8 +527,7 @@ func mockDependencies() influxdb.ToDependencies {
 }
 
 func mockPoints(org, bucket platform.ID, pointdata string) []models.Point {
-	name := tsdb.EncodeName(org, bucket)
-	points, err := models.ParsePoints([]byte(pointdata), name[:])
+	points, err := models.ParsePoints([]byte(pointdata))
 	if err != nil {
 		return nil
 	}

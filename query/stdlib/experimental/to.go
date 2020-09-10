@@ -17,7 +17,6 @@ import (
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 // ToKind is the kind for the `to` flux function
@@ -239,7 +238,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		cache:    cache,
 		spec:     spec.Spec,
 		deps:     deps,
-		buf:      storage.NewBufferedPointsWriter(influxdb.DefaultBufferSize, deps.PointsWriter),
+		buf:      storage.NewBufferedPointsWriter(orgID, *bucketID, influxdb.DefaultBufferSize, deps.PointsWriter),
 	}, nil
 }
 
@@ -283,6 +282,7 @@ type LabelAndOffset struct {
 
 // TablePointsMetadata stores state needed to write the points from one table.
 type TablePointsMetadata struct {
+	MeasurementName string
 	// The tags in the table (final element is left as nil, to be replaced by field name)
 	Tags [][]byte
 	// The offset in tags where to store the field name
@@ -295,7 +295,7 @@ type TablePointsMetadata struct {
 
 func GetTablePointsMetadata(tbl flux.Table) (*TablePointsMetadata, error) {
 	// Find measurement, tags
-	foundMeasurement := false
+	var measurement string
 	tagmap := make(map[string]string, len(tbl.Key().Cols())+2)
 	isTag := make(map[string]bool)
 	for j, col := range tbl.Key().Cols() {
@@ -307,12 +307,10 @@ func GetTablePointsMetadata(tbl flux.Table) (*TablePointsMetadata, error) {
 		case defaultFieldColLabel:
 			return nil, fmt.Errorf("found column %q in the group key; experimental.to() expects pivoted data", col.Label)
 		case defaultMeasurementColLabel:
-			foundMeasurement = true
 			if col.Type != flux.TString {
 				return nil, fmt.Errorf("group key column %q has type %v; type %v is required", col.Label, col.Type, flux.TString)
 			}
-			// Always place the measurement tag first
-			tagmap[models.MeasurementTagKey] = tbl.Key().ValueString(j)
+			measurement = tbl.Key().ValueString(j)
 		default:
 			if col.Type != flux.TString {
 				return nil, fmt.Errorf("group key column %q has type %v; type %v is required", col.Label, col.Type, flux.TString)
@@ -321,24 +319,15 @@ func GetTablePointsMetadata(tbl flux.Table) (*TablePointsMetadata, error) {
 			tagmap[col.Label] = tbl.Key().ValueString(j)
 		}
 	}
-	if !foundMeasurement {
+	if len(measurement) == 0 {
 		return nil, fmt.Errorf("required column %q not in group key", defaultMeasurementColLabel)
 	}
-	// Add the field tag key
-	tagmap[models.FieldKeyTagKey] = ""
 	t := models.NewTags(tagmap)
 
 	tags := make([][]byte, 0, len(t)*2)
 	for i := range t {
 		tags = append(tags, t[i].Key, t[i].Value)
 	}
-
-	// invariant: FieldKeyTagKey should be last key, value pair
-	if string(tags[len(tags)-2]) != models.FieldKeyTagKey {
-		return nil, errors.New("missing field key")
-	}
-
-	fieldKeyTagValueOffset := len(tags) - 1
 
 	// Loop over all columns to find fields and _time
 	fields := make([]LabelAndOffset, 0, len(tbl.Cols())-len(tbl.Key().Cols()))
@@ -368,10 +357,10 @@ func GetTablePointsMetadata(tbl flux.Table) (*TablePointsMetadata, error) {
 	}
 
 	tmd := &TablePointsMetadata{
-		Tags:                   tags,
-		FieldKeyTagValueOffset: fieldKeyTagValueOffset,
-		TimestampOffset:        timestampOffset,
-		Fields:                 fields,
+		MeasurementName: measurement,
+		Tags:            tags,
+		TimestampOffset: timestampOffset,
+		Fields:          fields,
 	}
 
 	return tmd, nil
@@ -390,16 +379,20 @@ func (t *ToTransformation) writeTable(ctx context.Context, tbl flux.Table) error
 		return err
 	}
 
-	pointName := tsdb.EncodeNameString(t.orgID, t.bucketID)
+	pointName := tmd.MeasurementName
 	return tbl.Do(func(cr flux.ColReader) error {
 		if cr.Len() == 0 {
 			// Nothing to do
 			return nil
 		}
 
-		var points models.Points
+		var (
+			points models.Points
+			tags   models.Tags
+		)
+
 		for i := 0; i < cr.Len(); i++ {
-			timestamp := execute.ValueForRow(cr, i, tmd.TimestampOffset).Time().Time()
+			fields := make(models.Fields, len(tmd.Fields))
 			for _, lao := range tmd.Fields {
 				fieldVal := execute.ValueForRow(cr, i, lao.Offset)
 
@@ -408,33 +401,32 @@ func (t *ToTransformation) writeTable(ctx context.Context, tbl flux.Table) error
 					continue
 				}
 
-				var fields models.Fields
-				switch fieldVal.Type().Nature() {
-				case semantic.Float:
-					fields = models.Fields{lao.Label: fieldVal.Float()}
-				case semantic.Int:
-					fields = models.Fields{lao.Label: fieldVal.Int()}
-				case semantic.UInt:
-					fields = models.Fields{lao.Label: fieldVal.UInt()}
-				case semantic.String:
-					fields = models.Fields{lao.Label: fieldVal.Str()}
-				case semantic.Bool:
-					fields = models.Fields{lao.Label: fieldVal.Bool()}
+				switch fieldVal.Type() {
+				case semantic.BasicFloat:
+					fields[lao.Label] = fieldVal.Float()
+				case semantic.BasicInt:
+					fields[lao.Label] = fieldVal.Int()
+				case semantic.BasicUint:
+					fields[lao.Label] = fieldVal.UInt()
+				case semantic.BasicString:
+					fields[lao.Label] = fieldVal.Str()
+				case semantic.BasicBool:
+					fields[lao.Label] = fieldVal.Bool()
 				default:
 					return fmt.Errorf("unsupported field type %v", fieldVal.Type())
 				}
-				var tags models.Tags
-				tmd.Tags[tmd.FieldKeyTagValueOffset] = []byte(lao.Label)
-				tags, err := models.NewTagsKeyValues(tags, tmd.Tags...)
-				if err != nil {
-					return err
-				}
-				pt, err := models.NewPoint(pointName, tags, fields, timestamp)
-				if err != nil {
-					return err
-				}
-				points = append(points, pt)
 			}
+
+			timestamp := execute.ValueForRow(cr, i, tmd.TimestampOffset).Time().Time()
+			tags, err := models.NewTagsKeyValues(tags, tmd.Tags...)
+			if err != nil {
+				return err
+			}
+			pt, err := models.NewPoint(pointName, tags, fields, timestamp)
+			if err != nil {
+				return err
+			}
+			points = append(points, pt)
 
 			if err := execute.AppendRecord(i, cr, builder); err != nil {
 				return err
