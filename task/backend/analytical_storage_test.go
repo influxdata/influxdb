@@ -102,7 +102,7 @@ func TestDeduplicateRuns(t *testing.T) {
 	metaClient := meta.NewClient(meta.NewConfig(), store)
 	require.NoError(t, metaClient.Open())
 
-	_, err := metaClient.CreateDatabase(influxdb.TasksSystemBucketID.String())
+	_, err := metaClient.CreateDatabase(influxdb.ID(10).String())
 	require.NoError(t, err)
 
 	ab := newAnalyticalBackend(t, ts.OrganizationService, ts.BucketService, metaClient)

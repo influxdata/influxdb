@@ -182,7 +182,6 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 		switch n {
 		case influxdb.TasksSystemBucketName:
 			return &influxdb.Bucket{
-				ID:              influxdb.TasksSystemBucketID,
 				Type:            influxdb.BucketTypeSystem,
 				Name:            influxdb.TasksSystemBucketName,
 				RetentionPeriod: influxdb.TasksSystemBucketRetention,
@@ -191,7 +190,6 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 			}, nil
 		case influxdb.MonitoringSystemBucketName:
 			return &influxdb.Bucket{
-				ID:              influxdb.MonitoringSystemBucketID,
 				Type:            influxdb.BucketTypeSystem,
 				Name:            influxdb.MonitoringSystemBucketName,
 				RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
@@ -361,7 +359,6 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 
 	if needsSystemBuckets {
 		tb := &influxdb.Bucket{
-			ID:              influxdb.TasksSystemBucketID,
 			Type:            influxdb.BucketTypeSystem,
 			Name:            influxdb.TasksSystemBucketName,
 			RetentionPeriod: influxdb.TasksSystemBucketRetention,
@@ -371,7 +368,6 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		bs = append(bs, tb)
 
 		mb := &influxdb.Bucket{
-			ID:              influxdb.MonitoringSystemBucketID,
 			Type:            influxdb.BucketTypeSystem,
 			Name:            influxdb.MonitoringSystemBucketName,
 			RetentionPeriod: influxdb.MonitoringSystemBucketRetention,

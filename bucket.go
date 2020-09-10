@@ -8,11 +8,6 @@ import (
 )
 
 const (
-	// TasksSystemBucketID is the fixed ID for our tasks system bucket
-	TasksSystemBucketID = ID(10)
-	// MonitoringSystemBucketID is the fixed ID for our monitoring system bucket
-	MonitoringSystemBucketID = ID(11)
-
 	// BucketTypeUser is a user created bucket
 	BucketTypeUser = BucketType(0)
 	// BucketTypeSystem is an internally created bucket that cannot be deleted/renamed.

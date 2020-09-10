@@ -90,11 +90,6 @@ func authorize(ctx context.Context, a influxdb.Action, rt influxdb.ResourceType,
 }
 
 func authorizeReadSystemBucket(ctx context.Context, bid, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
-	// HACK: remove once system buckets are migrated away from hard coded values
-	if !oid.Valid() && (bid == influxdb.TasksSystemBucketID || bid == influxdb.MonitoringSystemBucketID) {
-		a, _ := icontext.GetAuthorizer(ctx)
-		return a, influxdb.Permission{}, nil
-	}
 	return AuthorizeReadOrg(ctx, oid)
 }
 

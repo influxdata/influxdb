@@ -120,7 +120,6 @@ func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID influxdb.ID
 		switch n {
 		case influxdb.TasksSystemBucketName:
 			return &influxdb.Bucket{
-				ID:              influxdb.TasksSystemBucketID,
 				Type:            influxdb.BucketTypeSystem,
 				Name:            influxdb.TasksSystemBucketName,
 				RetentionPeriod: influxdb.TasksSystemBucketRetention,
@@ -129,7 +128,6 @@ func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID influxdb.ID
 			}, nil
 		case influxdb.MonitoringSystemBucketName:
 			return &influxdb.Bucket{
-				ID:              influxdb.MonitoringSystemBucketID,
 				Type:            influxdb.BucketTypeSystem,
 				Name:            influxdb.MonitoringSystemBucketName,
 				RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
