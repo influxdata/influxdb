@@ -7022,15 +7022,15 @@ components:
           maxLength: 1
           minLength: 1
         annotations:
-          description: Https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
+          description: https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
           type: array
+          uniqueItems: true
           items:
             type: string
             enum:
               - "group"
               - "datatype"
               - "default"
-            uniqueItems: true
         commentPrefix:
           description: Character prefixed to comment strings
           type: string
@@ -7126,7 +7126,7 @@ components:
               description: ID of org that authorization is scoped to.
             permissions:
               type: array
-              minLength: 1
+              minItems: 1
               description: List of permissions for an auth.  An auth must have at least one Permission.
               items:
                 $ref: "#/components/schemas/Permission"
@@ -10852,7 +10852,7 @@ components:
           example: { "color": "ffb3b3", "description": "this is a description" }
     LabelCreateRequest:
       type: object
-      required: [orgID]
+      required: [orgID, name]
       properties:
         orgID:
           type: string
