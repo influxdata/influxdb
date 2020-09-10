@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/internal"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/toml"
-	"github.com/influxdata/influxdb/v2/v1/internal"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/services/retention"
 )
