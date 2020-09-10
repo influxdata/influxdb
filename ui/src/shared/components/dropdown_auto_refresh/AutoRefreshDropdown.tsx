@@ -60,6 +60,7 @@ export default class AutoRefreshDropdown extends Component<Props> {
               onClick={onClick}
               status={this.dropdownStatus}
               icon={this.dropdownIcon}
+              testID="autorefresh-dropdown--button"
             >
               {this.selectedOptionLabel}
             </Dropdown.Button>
@@ -84,6 +85,7 @@ export default class AutoRefreshDropdown extends Component<Props> {
                   <Dropdown.Item
                     key={option.id}
                     id={option.id}
+                    testID={option.id}
                     value={option}
                     selected={option.id === this.selectedOptionID}
                     onClick={this.handleDropdownChange}
@@ -179,6 +181,7 @@ export default class AutoRefreshDropdown extends Component<Props> {
           icon={IconFont.Refresh}
           onClick={onManualRefresh}
           className="autorefresh-dropdown--pause"
+          testID="autorefresh-dropdown-refresh"
         />
       )
     }

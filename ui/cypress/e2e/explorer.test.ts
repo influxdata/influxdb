@@ -27,6 +27,60 @@ function getTimeMachineText() {
     .invoke('text')
 }
 
+type GraphSnapshot = {
+  shouldBeSameAs: (other: GraphSnapshot, same?: boolean, part?: 'axes' | 'layer' | 'both') => void,
+  name: string
+}
+
+const makeGraphSnapshot = (() => {
+  // local properties for makeGraphSnapshot function
+  let lastGraphSnapsotIndex = 0
+  const getNameAxes = (name: string) => `${name}-axes`
+  const getNameLayer = (name: string) => `${name}-layer`
+
+  return (): GraphSnapshot => {
+    // generate unique name for snapshot for saving as cy var
+    const name = `graph-snapshot-${lastGraphSnapsotIndex++}`
+
+    // wait for drawing done
+    cy.wait(100)
+    cy.get('[data-testid|=giraffe-layer]')
+      .then($layer => ($layer[0] as HTMLCanvasElement).toDataURL('image/jpeg'))
+      .as(getNameLayer(name))
+
+    cy.getByTestID('giraffe-axes')
+      .then($axes => ($axes[0] as HTMLCanvasElement).toDataURL('image/jpeg'))
+      .as(getNameAxes(name))
+
+    return {
+      name,
+      shouldBeSameAs: ({ name: nameOther }, same = true, part = 'both') => {
+        const assert = (str: any, str2: any, same: boolean) => {
+          if (same)
+            expect(str).to.eq(str2)
+          else
+            expect(str).to.not.eq(str2)
+        }
+
+        if (part === 'both' || part === 'axes')
+          cy.get(`@${getNameAxes(name)}`).then(axes => {
+            cy.get(`@${getNameAxes(nameOther)}`).then(axesOther => {
+              assert(axes, axesOther, same)
+            })
+          })
+
+        if (part === 'both' || part === 'layer')
+          cy.get(`@${getNameLayer(name)}`).then(layer => {
+            cy.get(`@${getNameLayer(nameOther)}`).then(layerOther => {
+              assert(layer, layerOther, same)
+            })
+          })
+      },
+    }
+  }
+})()
+
+
 describe('DataExplorer', () => {
   beforeEach(() => {
     cy.flush()
@@ -920,6 +974,51 @@ describe('DataExplorer', () => {
         })
         cy.get(`[title="${numLines}"]`).should('be.visible')
       })
+    })
+  })
+
+  describe('refresh', () => {
+    beforeEach(() => {
+      cy.writeData(lines(10))
+      cy.getByTestID(`selector-list m`).click()
+      cy.getByTestID('time-machine-submit-button').click()
+
+      // select short time period to ensure graph changes after short time
+      cy.getByTestID('timerange-dropdown').click()
+      cy.getByTestID('dropdown-item-past5m').click()
+    })
+
+    it('manual refresh', () => {
+      const snapshot = makeGraphSnapshot()
+
+      // graph will slightly move
+      cy.wait(200)
+      cy.getByTestID('autorefresh-dropdown-refresh').click()
+      makeGraphSnapshot().shouldBeSameAs(snapshot, false)
+    })
+
+    it('auto refresh', () => {
+      const snapshot = makeGraphSnapshot()
+      cy.getByTestID('autorefresh-dropdown--button').click()
+      cy.getByTestID('auto-refresh-5s').click()
+      
+      cy.wait(3_000)
+      makeGraphSnapshot().shouldBeSameAs(snapshot)
+
+      cy.wait(3_000)
+      const snapshot2 = makeGraphSnapshot()
+      snapshot2.shouldBeSameAs(snapshot, false)
+
+      cy.getByTestID('autorefresh-dropdown-refresh').should('not.be.visible')
+      cy.getByTestID('autorefresh-dropdown--button')
+        .should('contain.text', '5s')
+        .click()
+      cy.getByTestID('auto-refresh-paused').click()
+      cy.getByTestID('autorefresh-dropdown-refresh').should('be.visible')
+
+      // wait if graph changes after another 6s when autorefresh is paused
+      cy.wait(6_000)
+      makeGraphSnapshot().shouldBeSameAs(snapshot2)
     })
   })
 
