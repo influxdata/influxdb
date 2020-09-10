@@ -76,6 +76,8 @@ type MetaClient interface {
 }
 
 type TSDBStore interface {
+	DeleteMeasurement(database, name string) error
+	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
 	ShardGroup(ids []uint64) tsdb.ShardGroup
 	Shards(ids []uint64) []*tsdb.Shard
