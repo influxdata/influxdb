@@ -9,6 +9,7 @@ import (
 
 type GeneratorResultSet struct {
 	sg    gen.SeriesGenerator
+	tags  models.Tags
 	max   int
 	count int
 	f     floatTimeValuesGeneratorCursor
@@ -55,6 +56,7 @@ func NewResultSetFromSeriesGenerator(sg gen.SeriesGenerator, opts ...GeneratorOp
 }
 
 func (g *GeneratorResultSet) Next() bool {
+	g.tags = g.tags[:0]
 	remain := g.max - g.count
 	return g.sg.Next() && (g.max == 0 || remain > 0)
 }
@@ -83,9 +85,26 @@ func (g *GeneratorResultSet) Cursor() cursors.Cursor {
 	return g.cur
 }
 
-func (g *GeneratorResultSet) Tags() models.Tags { return g.sg.Tags() }
-func (g *GeneratorResultSet) Close()            {}
-func (g *GeneratorResultSet) Err() error        { return nil }
+func copyTags(dst, src models.Tags) models.Tags {
+	if cap(dst) < src.Len() {
+		dst = make(models.Tags, src.Len())
+	} else {
+		dst = dst[:src.Len()]
+	}
+	copy(dst, src)
+	return dst
+}
+
+func (g *GeneratorResultSet) Tags() models.Tags {
+	if len(g.tags) == 0 {
+		g.tags = copyTags(g.tags, g.sg.Tags())
+		g.tags.Set(models.MeasurementTagKeyBytes, g.sg.Name())
+		g.tags.Set(models.FieldKeyTagKeyBytes, g.sg.Field())
+	}
+	return g.tags
+}
+func (g *GeneratorResultSet) Close()     {}
+func (g *GeneratorResultSet) Err() error { return nil }
 
 func (g *GeneratorResultSet) Stats() cursors.CursorStats {
 	var stats cursors.CursorStats

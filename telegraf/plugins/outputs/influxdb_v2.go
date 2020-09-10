@@ -32,7 +32,7 @@ func (i *InfluxDBV2) TOML() string {
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:9999
+  ## urls exp: http://127.0.0.1:8086
   urls = [%s]
 
   ## Token for authentication.

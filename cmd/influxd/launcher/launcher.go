@@ -27,6 +27,8 @@ import (
 	"github.com/influxdata/influxdb/v2/endpoints"
 	"github.com/influxdata/influxdb/v2/gather"
 	"github.com/influxdata/influxdb/v2/http"
+	iqlcontrol "github.com/influxdata/influxdb/v2/influxql/control"
+	iqlquery "github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
@@ -46,6 +48,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkger"
 	infprom "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/builtinlazy"
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
@@ -63,8 +66,11 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsi1" // needed for tsi1
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsm1" // needed for tsm1
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"  // needed for tsi1
+	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"
 	"github.com/influxdata/influxdb/v2/vault"
 	pzap "github.com/influxdata/influxdb/v2/zap"
 	"github.com/opentracing/opentracing-go"
@@ -73,7 +79,6 @@ import (
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -129,6 +134,8 @@ func cmdRunE(ctx context.Context, l *Launcher) func() error {
 	return func() error {
 		// exit with SIGINT and SIGTERM
 		ctx = signals.WithStandardSignals(ctx)
+
+		builtinlazy.Initialize()
 
 		if err := l.run(ctx); err != nil {
 			return err
@@ -188,7 +195,7 @@ func launcherOpts(l *Launcher) []cli.Opt {
 		{
 			DestP:   &l.httpBindAddress,
 			Flag:    "http-bind-address",
-			Default: ":9999",
+			Default: ":8086",
 			Desc:    "bind address for the REST HTTP API",
 		},
 		{
@@ -213,6 +220,12 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Flag:    "e2e-testing",
 			Default: false,
 			Desc:    "add /debug/flush endpoint to clear stores; used for end-to-end tests",
+		},
+		{
+			DestP:   &l.testingAlwaysAllowSetup,
+			Flag:    "testing-always-allow-setup",
+			Default: false,
+			Desc:    "ensures the /api/v2/setup endpoint always returns true to allow onboarding",
 		},
 		{
 			DestP:   &l.enginePath,
@@ -355,15 +368,104 @@ func launcherOpts(l *Launcher) []cli.Opt {
 			Desc:    "the number of queries that are allowed to be awaiting execution before new queries are rejected",
 		},
 		{
-			DestP:   &l.pageFaultRate,
-			Flag:    "page-fault-rate",
-			Default: 0,
-			Desc:    "the number of page faults allowed per second in the storage engine",
-		},
-		{
 			DestP: &l.featureFlags,
 			Flag:  "feature-flags",
 			Desc:  "feature flag overrides",
+		},
+
+		// storage configuration
+		{
+			DestP: &l.StorageConfig.Data.WALFsyncDelay,
+			Flag:  "storage-wal-fsync-delay",
+			Desc:  "The amount of time that a write will wait before fsyncing. A duration greater than 0 can be used to batch up multiple fsync calls. This is useful for slower disks or when WAL write contention is seen.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.ValidateKeys,
+			Flag:  "storage-validate-keys",
+			Desc:  "Validates incoming writes to ensure keys only have valid unicode characters.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.CacheMaxMemorySize,
+			Flag:  "storage-cache-max-memory-size",
+			Desc:  "The maximum size a shard's cache can reach before it starts rejecting writes.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.CacheSnapshotMemorySize,
+			Flag:  "storage-cache-snapshot-memory-size",
+			Desc:  "The size at which the engine will snapshot the cache and write it to a TSM file, freeing up memory.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.CacheSnapshotWriteColdDuration,
+			Flag:  "storage-cache-snapshot-write-cold-duration",
+			Desc:  "The length of time at which the engine will snapshot the cache and write it to a new TSM file if the shard hasn't received writes or deletes.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.CompactFullWriteColdDuration,
+			Flag:  "storage-compact-full-write-cold-duration",
+			Desc:  "The duration at which the engine will compact all TSM files in a shard if it hasn't received a write or delete.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.CompactThroughputBurst,
+			Flag:  "storage-compact-throughput-burst",
+			Desc:  "The rate limit in bytes per second that we will allow TSM compactions to write to disk.",
+		},
+		// limits
+		{
+			DestP: &l.StorageConfig.Data.MaxConcurrentCompactions,
+			Flag:  "storage-max-concurrent-compactions",
+			Desc:  "The maximum number of concurrent full and level compactions that can run at one time.  A value of 0 results in 50% of runtime.GOMAXPROCS(0) used at runtime.  Any number greater than 0 limits compactions to that value.  This setting does not apply to cache snapshotting.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.MaxIndexLogFileSize,
+			Flag:  "storage-max-index-log-file-size",
+			Desc:  "The threshold, in bytes, when an index write-ahead log file will compact into an index file. Lower sizes will cause log files to be compacted more quickly and result in lower heap usage at the expense of write throughput.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.SeriesIDSetCacheSize,
+			Flag:  "storage-series-id-set-cache-size",
+			Desc:  "The size of the internal cache used in the TSI index to store previously calculated series results.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.SeriesFileMaxConcurrentSnapshotCompactions,
+			Flag:  "storage-series-file-max-concurrent-snapshot-compactions",
+			Desc:  "The maximum number of concurrent snapshot compactions that can be running at one time across all series partitions in a database.",
+		},
+		{
+			DestP: &l.StorageConfig.Data.TSMWillNeed,
+			Flag:  "storage-tsm-use-madv-willneed",
+			Desc:  "Controls whether we hint to the kernel that we intend to page in mmap'd sections of TSM files.",
+		},
+		{
+			DestP: &l.StorageConfig.RetentionService.CheckInterval,
+			Flag:  "storage-retention-check-interval",
+			Desc:  "The interval of time when retention policy enforcement checks run.",
+		},
+		{
+			DestP: &l.StorageConfig.PrecreatorConfig.CheckInterval,
+			Flag:  "storage-shard-precreator-check-interval",
+			Desc:  "The interval of time when the check to pre-create new shards runs.",
+		},
+		{
+			DestP: &l.StorageConfig.PrecreatorConfig.AdvancePeriod,
+			Flag:  "storage-shard-precreator-advance-period",
+			Desc:  "The default period ahead of the endtime of a shard group that its successor group is created.",
+		},
+
+		// InfluxQL Coordinator Config
+		{
+			DestP: &l.CoordinatorConfig.MaxSelectPointN,
+			Flag:  "influxql-max-select-point",
+			Desc:  "The maximum number of points a SELECT can process. A value of 0 will make the maximum point count unlimited. This will only be checked every second so queries will not be aborted immediately when hitting the limit.",
+		},
+		{
+			DestP: &l.CoordinatorConfig.MaxSelectSeriesN,
+			Flag:  "influxql-max-select-series",
+			Desc:  "The maximum number of series a SELECT can run. A value of 0 will make the maximum series count unlimited.",
+		},
+		{
+			DestP: &l.CoordinatorConfig.MaxSelectBucketsN,
+			Flag:  "influxql-max-select-buckets",
+			Desc:  "The maximum number of group by time bucket a SELECT can create. A value of zero will max the maximum number of buckets unlimited.",
 		},
 	}
 }
@@ -374,11 +476,12 @@ type Launcher struct {
 	cancel  func()
 	running bool
 
-	storeType            string
-	assetsPath           string
-	testing              bool
-	sessionLength        int // in minutes
-	sessionRenewDisabled bool
+	storeType               string
+	assetsPath              string
+	testing                 bool
+	testingAlwaysAllowSetup bool
+	sessionLength           int // in minutes
+	sessionRenewDisabled    bool
 
 	logLevel          string
 	tracingType       string
@@ -399,11 +502,16 @@ type Launcher struct {
 	maxMemoryBytes                  int
 	queueSize                       int
 
-	boltClient    *bolt.Client
-	kvStore       kv.SchemaStore
-	kvService     *kv.Service
+	boltClient *bolt.Client
+	kvStore    kv.SchemaStore
+	kvService  *kv.Service
+
+	// storage engine
 	engine        Engine
 	StorageConfig storage.Config
+
+	// InfluxQL query engine
+	CoordinatorConfig iqlcoordinator.Config
 
 	queryController *control.Controller
 
@@ -430,8 +538,6 @@ type Launcher struct {
 	Stdout     io.Writer
 	Stderr     io.Writer
 	apibackend *http.APIBackend
-
-	pageFaultRate int
 }
 
 type stoppingScheduler interface {
@@ -701,23 +807,30 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Enable storage layer page fault limiting if rate set above zero.
-	var pageFaultLimiter *rate.Limiter
-	if m.pageFaultRate > 0 {
-		pageFaultLimiter = rate.NewLimiter(rate.Limit(m.pageFaultRate), 1)
+	metaClient := meta.NewClient(meta.NewConfig(), m.kvStore)
+	if err := metaClient.Open(); err != nil {
+		m.log.Error("Failed to open meta client", zap.Error(err))
+		return err
 	}
 
 	if m.testing {
 		// the testing engine will write/read into a temporary directory
-		engine := NewTemporaryEngine(m.StorageConfig, storage.WithRetentionEnforcer(ts.BucketService))
+		engine := NewTemporaryEngine(
+			m.StorageConfig,
+			storage.WithMetaClient(metaClient),
+		)
 		flushers = append(flushers, engine)
 		m.engine = engine
 	} else {
+		// check for 2.x data / state from a prior 2.x
+		if err := checkForPriorVersion(ctx, m.log, m.boltPath, m.enginePath, ts.BucketService, metaClient); err != nil {
+			os.Exit(1)
+		}
+
 		m.engine = storage.NewEngine(
 			m.enginePath,
 			m.StorageConfig,
-			storage.WithRetentionEnforcer(ts.BucketService),
-			storage.WithPageFaultLimiter(pageFaultLimiter),
+			storage.WithMetaClient(metaClient),
 		)
 	}
 	m.engine.WithLogger(m.log)
@@ -735,7 +848,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	)
 
 	deps, err := influxdb.NewDependencies(
-		storageflux.NewReader(readservice.NewStore(m.engine)),
+		storageflux.NewReader(storage2.NewStore(m.engine.TSDBStore(), m.engine.MetaClient())),
 		m.engine,
 		authorizer.NewBucketService(ts.BucketService),
 		authorizer.NewOrgService(ts.OrganizationService),
@@ -830,6 +943,33 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	dbrpSvc := dbrp.NewService(ctx, authorizer.NewBucketService(ts.BucketService), m.kvStore)
 	dbrpSvc = dbrp.NewAuthorizedService(dbrpSvc)
+
+	cm := iqlcontrol.NewControllerMetrics([]string{})
+	m.reg.MustRegister(cm.PrometheusCollectors()...)
+
+	mapper := &iqlcoordinator.LocalShardMapper{
+		MetaClient: metaClient,
+		TSDBStore:  m.engine.TSDBStore(),
+		DBRP:       dbrpSvc,
+	}
+
+	m.log.Info("Configuring InfluxQL statement executor (zeros indicate unlimited).",
+		zap.Int("max_select_point", m.CoordinatorConfig.MaxSelectPointN),
+		zap.Int("max_select_series", m.CoordinatorConfig.MaxSelectSeriesN),
+		zap.Int("max_select_buckets", m.CoordinatorConfig.MaxSelectBucketsN))
+
+	qe := iqlquery.NewExecutor(m.log, cm)
+	se := &iqlcoordinator.StatementExecutor{
+		MetaClient:        metaClient,
+		TSDBStore:         m.engine.TSDBStore(),
+		ShardMapper:       mapper,
+		DBRP:              dbrpSvc,
+		MaxSelectPointN:   m.CoordinatorConfig.MaxSelectPointN,
+		MaxSelectSeriesN:  m.CoordinatorConfig.MaxSelectSeriesN,
+		MaxSelectBucketsN: m.CoordinatorConfig.MaxSelectBucketsN,
+	}
+	qe.StatementExecutor = se
+	qe.StatementNormalizer = se
 
 	var checkSvc platform.CheckService
 	{
@@ -963,6 +1103,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	ts.BucketService = storage.NewBucketService(ts.BucketService, m.engine)
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
 
+	var onboardOpts []tenant.OnboardServiceOptionFn
+	if m.testingAlwaysAllowSetup {
+		onboardOpts = append(onboardOpts, tenant.WithAlwaysAllowInitialUser())
+	}
+
+	onboardSvc := tenant.NewOnboardService(ts, authSvc, onboardOpts...)                               // basic service
+	onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
+	onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
+	onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
@@ -984,6 +1134,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		BucketService:                   ts.BucketService,
 		SessionService:                  sessionSvc,
 		UserService:                     ts.UserService,
+		OnboardingService:               onboardSvc,
 		DBRPService:                     dbrpSvc,
 		OrganizationService:             ts.OrganizationService,
 		UserResourceMappingService:      ts.UserResourceMappingService,
@@ -997,6 +1148,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		VariableService:                 variableSvc,
 		PasswordsService:                ts.PasswordsService,
 		InfluxQLService:                 storageQueryService,
+		InfluxqldService:                iqlquery.NewProxyExecutor(m.log, qe),
 		FluxService:                     storageQueryService,
 		FluxLanguageService:             fluxlang.DefaultService,
 		TaskService:                     taskSvc,
@@ -1060,16 +1212,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	userHTTPServer := ts.NewUserHTTPHandler(m.log)
-
-	var onboardHTTPServer *tenant.OnboardHandler
-	{
-		onboardSvc := tenant.NewOnboardService(ts, authSvc)                                               // basic service
-		onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
-		onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
-		onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
-
-		onboardHTTPServer = tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
-	}
+	onboardHTTPServer := tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
 
 	// feature flagging for new labels service
 	var oldLabelHandler nethttp.Handler
@@ -1229,6 +1372,53 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 		log.Info("Stopping")
 	}(m.log)
+
+	return nil
+}
+
+func checkForPriorVersion(ctx context.Context, log *zap.Logger, boltPath string, enginePath string, bs platform.BucketService, metaClient *meta.Client) error {
+	buckets, _, err := bs.FindBuckets(ctx, platform.BucketFilter{})
+	if err != nil {
+		log.Error("Failed to retrieve buckets", zap.Error(err))
+		return err
+	}
+
+	hasErrors := false
+
+	// if there are no buckets, we will be fine
+	if len(buckets) > 0 {
+		log.Info("Checking InfluxDB metadata for prior version.", zap.String("bolt_path", boltPath))
+
+		for i := range buckets {
+			bucket := buckets[i]
+			if dbi := metaClient.Database(bucket.ID.String()); dbi == nil {
+				log.Error("Missing metadata for bucket.", zap.String("bucket", bucket.Name), zap.Stringer("bucket_id", bucket.ID))
+				hasErrors = true
+			}
+		}
+
+		if hasErrors {
+			log.Error("Incompatible InfluxDB 2.0 metadata found. File must be moved before influxd will start.", zap.String("path", boltPath))
+		}
+	}
+
+	// see if there are existing files which match the old directory structure
+	{
+		for _, name := range []string{"_series", "index"} {
+			dir := filepath.Join(enginePath, name)
+			if fi, err := os.Stat(dir); err == nil {
+				if fi.IsDir() {
+					log.Error("Found directory that is incompatible with this version of InfluxDB.", zap.String("path", dir))
+					hasErrors = true
+				}
+			}
+		}
+	}
+
+	if hasErrors {
+		log.Error("Incompatible InfluxDB 2.0 version found. Move all files outside of engine_path before influxd will start.", zap.String("engine_path", enginePath))
+		return errors.New("incompatible InfluxDB version")
+	}
 
 	return nil
 }

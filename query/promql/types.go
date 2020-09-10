@@ -148,7 +148,7 @@ func (s *Selector) QuerySpec() (*flux.Spec, error) {
 		{
 			ID: "from", // TODO: Change this to a UUID
 			Spec: &influxdb.FromOpSpec{
-				Bucket: influxdb.NameOrID{Name: "prometheus"},
+				Bucket: "prometheus",
 			},
 		},
 	}
@@ -260,15 +260,11 @@ func NewWhereOperation(metricName string, labels []*LabelMatcher) (*flux.Operati
 			Fn: interpreter.ResolvedFunction{
 				Scope: nil,
 				Fn: &semantic.FunctionExpression{
-					Parameters: &semantic.FunctionParameters{
-						List: []*semantic.FunctionParameter{{Key: &semantic.Identifier{Name: "r"}}},
-					},
-					Block: &semantic.Block{
-						Body: []semantic.Statement{
-							&semantic.ReturnStatement{
-								Argument: node,
-							},
+					Block: &semantic.FunctionBlock{
+						Parameters: &semantic.FunctionParameters{
+							List: []*semantic.FunctionParameter{{Key: &semantic.Identifier{Name: "r"}}},
 						},
+						Body: node,
 					},
 				},
 			},

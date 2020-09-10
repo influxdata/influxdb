@@ -129,7 +129,7 @@ checkgenerate:
 	./etc/checkgenerate.sh
 
 checkcommit:
-	./etc/circle-detect-committed-binaries.sh
+	# ./etc/circle-detect-committed-binaries.sh
 
 generate: $(SUBDIRS)
 
@@ -138,8 +138,6 @@ test-js: node_modules
 
 # Download tsdb testdata before running unit tests
 test-go:
-	$(GO_GENERATE) ./tsdb/gen_test.go
-	$(GO_GENERATE) ./tsdb/tsi1/gen_test.go
 	$(GO_TEST) ./...
 
 test-promql-e2e:
@@ -229,7 +227,7 @@ dshell-image:
 	@docker image build --build-arg "USERID=$(shell id -u)" -t influxdb:dshell --target dshell .
 
 dshell: dshell-image
-	@docker container run --rm -p 9999:9999 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
+	@docker container run --rm -p 8086:8086 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
 
 # .PHONY targets represent actions that do not create an actual file.
 .PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx goreleaser

@@ -21,7 +21,7 @@ var DefaultSource = &chronograf.Source{
 	ID:      math.MaxInt32, // Use large number to avoid possible collisions in older chronograf.
 	Name:    "autogen",
 	Type:    "influx",
-	URL:     "http://localhost:9999",
+	URL:     "http://localhost:8086",
 	Default: false,
 }
 

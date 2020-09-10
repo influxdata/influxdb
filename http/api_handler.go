@@ -9,10 +9,10 @@ import (
 	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/http/metric"
+	"github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/prometheus/client_golang/prometheus"
@@ -60,6 +60,7 @@ type APIBackend struct {
 	BackupService                   influxdb.BackupService
 	KVBackupService                 influxdb.KVBackupService
 	AuthorizationService            influxdb.AuthorizationService
+	OnboardingService               influxdb.OnboardingService
 	DBRPService                     influxdb.DBRPMappingServiceV2
 	BucketService                   influxdb.BucketService
 	SessionService                  influxdb.SessionService
@@ -76,6 +77,7 @@ type APIBackend struct {
 	VariableService                 influxdb.VariableService
 	PasswordsService                influxdb.PasswordsService
 	InfluxQLService                 query.ProxyQueryService
+	InfluxqldService                influxql.ProxyQueryService
 	FluxService                     query.ProxyQueryService
 	FluxLanguageService             influxdb.FluxLanguageService
 	TaskService                     influxdb.TaskService
@@ -199,11 +201,11 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	writeBackend := NewWriteBackend(b.Logger.With(zap.String("handler", "write")), b)
 	h.Mount(prefixWrite, NewWriteHandler(b.Logger, writeBackend,
 		WithMaxBatchSizeBytes(b.MaxBatchSizeBytes),
-		WithParserOptions(
-			models.WithParserMaxBytes(b.WriteParserMaxBytes),
-			models.WithParserMaxLines(b.WriteParserMaxLines),
-			models.WithParserMaxValues(b.WriteParserMaxValues),
-		),
+		//WithParserOptions(
+		//	models.WithParserMaxBytes(b.WriteParserMaxBytes),
+		//	models.WithParserMaxLines(b.WriteParserMaxLines),
+		//	models.WithParserMaxValues(b.WriteParserMaxValues),
+		//),
 	))
 
 	for _, o := range opts {

@@ -86,7 +86,7 @@ func TestSessionHandler_handleSignin(t *testing.T) {
 			h := NewSessionHandler(zaptest.NewLogger(t), b)
 
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest("POST", "http://localhost:9999/api/v2/signin", nil)
+			r := httptest.NewRequest("POST", "http://localhost:8086/api/v2/signin", nil)
 			r.SetBasicAuth(tt.args.user, tt.args.password)
 			h.ServeHTTP(w, r)
 

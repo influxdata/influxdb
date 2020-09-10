@@ -6,7 +6,6 @@ import (
 
 	"github.com/influxdata/influxdb/v2/nats"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -21,12 +20,8 @@ func (s PointWriter) Record(collected MetricsCollection) error {
 	if err != nil {
 		return err
 	}
-	ps, err = tsdb.ExplodePoints(collected.OrgID, collected.BucketID, ps)
-	if err != nil {
-		return err
-	}
 
-	return s.Writer.WritePoints(context.TODO(), ps)
+	return s.Writer.WritePoints(context.TODO(), 0, 0, ps)
 }
 
 // Recorder record the metrics of a time based.

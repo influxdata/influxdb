@@ -15,23 +15,8 @@ import (
 	"github.com/influxdata/influxdb/v2/query"
 )
 
-const BucketsKind = "influxdata/influxdb.localBuckets"
-
 func init() {
-	execute.RegisterSource(BucketsKind, createBucketsSource)
-	plan.RegisterPhysicalRules(LocalBucketsRule{})
-}
-
-type LocalBucketsProcedureSpec struct {
-	plan.DefaultCost
-}
-
-func (s *LocalBucketsProcedureSpec) Kind() plan.ProcedureKind {
-	return BucketsKind
-}
-
-func (s *LocalBucketsProcedureSpec) Copy() plan.ProcedureSpec {
-	return new(LocalBucketsProcedureSpec)
+	execute.RegisterSource(influxdb.BucketsKind, createBucketsSource)
 }
 
 type BucketsDecoder struct {
@@ -114,7 +99,7 @@ func (bd *BucketsDecoder) Close() error {
 }
 
 func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	_, ok := prSpec.(*LocalBucketsProcedureSpec)
+	_, ok := prSpec.(*influxdb.BucketsProcedureSpec)
 	if !ok {
 		return nil, &flux.Error{
 			Code: codes.Internal,
@@ -143,27 +128,3 @@ type AllBucketLookup interface {
 	FindAllBuckets(ctx context.Context, orgID platform.ID) ([]*platform.Bucket, int)
 }
 type BucketDependencies AllBucketLookup
-
-type LocalBucketsRule struct{}
-
-func (rule LocalBucketsRule) Name() string {
-	return "influxdata/influxdb.LocalBucketsRule"
-}
-
-func (rule LocalBucketsRule) Pattern() plan.Pattern {
-	return plan.Pat(influxdb.BucketsKind)
-}
-
-func (rule LocalBucketsRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
-	fromSpec := node.ProcedureSpec().(*influxdb.BucketsProcedureSpec)
-	if fromSpec.Host != nil {
-		return node, false, nil
-	} else if fromSpec.Org != nil {
-		return node, false, &flux.Error{
-			Code: codes.Unimplemented,
-			Msg:  "buckets cannot list from a separate organization; please specify a host or remove the organization",
-		}
-	}
-
-	return plan.CreateLogicalNode("localBuckets", &LocalBucketsProcedureSpec{}), true, nil
-}
