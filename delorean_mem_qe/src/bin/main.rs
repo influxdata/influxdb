@@ -121,10 +121,10 @@ fn build_store(
         match rb {
             Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
             Ok(Some(rb)) => {
-                // if i < 364 {
-                //     i += 1;
-                //     continue;
-                // }
+                if i < 364 {
+                    i += 1;
+                    continue;
+                }
                 let schema = Schema::with_sort_order(
                     rb.schema(),
                     sort_order.iter().map(|s| s.to_string()).collect(),

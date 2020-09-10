@@ -595,7 +595,6 @@ impl Column {
             Column::Integer(c) => Vector::Integer(c.values(&row_ids_vec)),
         }
     }
-}
 
     pub fn maybe_contains(&self, value: Option<&Scalar<'_>>) -> bool {
         match self {
@@ -965,12 +964,13 @@ impl String {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Float {
     meta: metadata::F64,
 
     // TODO(edd): compression of float columns
-    data: encoding::PlainFixed<f64>,
+    // data: encoding::PlainFixed<f64>,
+    data: Box<dyn encoding::NumericEncoding<Item = f64>>,
 }
 
 impl Float {
@@ -1029,17 +1029,17 @@ impl From<&[f64]> for Float {
 
         Self {
             meta: metadata::F64::new((min, max), len),
-            data: encoding::PlainFixed::from(values),
+            data: Box::new(encoding::PlainFixed::from(values)),
         }
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Integer {
     meta: metadata::I64,
 
     // TODO(edd): compression of integers
-    data: encoding::PlainFixed<i64>,
+    data: Box<dyn encoding::NumericEncoding<Item = i64>>,
 }
 
 impl Integer {
@@ -1078,14 +1078,6 @@ impl Integer {
         }
         self.data.row_id_eq_value(v)
     }
-
-    /// Find the first logical row that contains a value >= v
-    pub fn row_id_ge_value(&self, v: i64) -> Option<usize> {
-        if self.meta.max() < v {
-            return None;
-        }
-        self.data.row_id_ge_value(v)
-    }
 }
 
 impl From<&[i64]> for Integer {
@@ -1102,7 +1094,7 @@ impl From<&[i64]> for Integer {
 
         Self {
             meta: metadata::I64::new((min, max), len),
-            data: encoding::PlainFixed::from(values),
+            data: Box::new(encoding::PlainFixed::from(values)),
         }
     }
 }

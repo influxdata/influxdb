@@ -423,8 +423,8 @@ impl Segment {
         }
         // println!("groups: {:?}", hash_table.len());
         log::debug!("({:?} rows processed) {:?}", processed_rows, hash_table);
-        // BTreeMap::new()
-        hash_table
+        BTreeMap::new()
+        // hash_table
     }
 
     pub fn aggregate_by_group_using_sort(
