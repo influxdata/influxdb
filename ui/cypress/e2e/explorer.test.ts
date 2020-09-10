@@ -853,6 +853,54 @@ describe('DataExplorer', () => {
         cy.getByTestID('dropdown-y').contains('_time')
       })
 
+      it('can zoom and unzoom horizontal axis', () => {
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+
+        const snapshot = makeGraphSnapshot()
+
+        cy.getByTestID('giraffe-layer-line').then(([canvas]) => {
+          const { width, height } = canvas
+
+          cy.wrap(canvas).trigger('mousedown', { x: width / 3, y: height / 2 })
+          cy.wrap(canvas).trigger('mousemove', { x: width * 2 / 3, y: height / 2 })
+          cy.wrap(canvas).trigger('mouseup', { force: true })
+        })
+
+        const snapshot2 = makeGraphSnapshot()
+        snapshot.shouldBeSameAs(snapshot2, false)
+
+        cy.getByTestID('giraffe-layer-line').dblclick({ force: true })
+        makeGraphSnapshot().shouldBeSameAs(snapshot)
+      })
+
+      it('can zoom and unzoom vertical axis', () => {
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+
+        const snapshot = makeGraphSnapshot()
+
+        cy.getByTestID('giraffe-layer-line').then(([canvas]) => {
+          const { width, height } = canvas
+
+          cy.wrap(canvas).trigger('mousedown', { x: width / 2, y: height / 3 })
+          cy.wrap(canvas).trigger('mousemove', { x: width / 2, y: height * 2 / 3 })
+          cy.wrap(canvas).trigger('mouseup', { force: true })
+        })
+
+        const snapshot2 = makeGraphSnapshot()
+        snapshot.shouldBeSameAs(snapshot2, false)
+
+        cy.getByTestID('giraffe-layer-line').dblclick({ force: true })
+        makeGraphSnapshot().shouldBeSameAs(snapshot)
+      })
+
       it('can hover over graph to show tooltip', () => {
         // build the query to return data from beforeEach
         cy.getByTestID(`selector-list m`).click()
