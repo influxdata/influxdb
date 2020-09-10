@@ -1240,8 +1240,8 @@ describe('DataExplorer', () => {
         })
       })
 
-      both.forEach(type => {
-        ;[true, false].forEach(withOffset => {
+      both.forEach(type =>
+        [true, false].forEach(withOffset => {
           it(`can create ${type} task with${
             withOffset ? '' : 'out'
           } offset`, () => {
@@ -1264,7 +1264,7 @@ describe('DataExplorer', () => {
             )
           })
         })
-      })
+      )
 
       it('can select buckets', () => {
         fillForm('every', {time: timeEvery, taskName})
