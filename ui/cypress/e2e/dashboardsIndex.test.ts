@@ -161,7 +161,7 @@ describe('Dashboards', () => {
           cy.createAndAddLabel('dashboards', id, body.id, newLabelName)
         })
 
-        cy.createDashboard(id, dashboardName2).then(({ body }) => {
+        cy.createDashboard(id, dashboardName2).then(({body}) => {
           cy.createAndAddLabel('dashboards', id, body.id, 'bar')
         })
       })
@@ -418,8 +418,7 @@ describe('Dashboards', () => {
         dashboardIsVisible(dashboardName)
         dashboardIsVisible(dashboardName2)
 
-        cy.get('input')
-          .type(dashSearchName)
+        cy.get('input').type(dashSearchName)
 
         dashboardIsVisible(dashboardName)
         dashboardIsVisible(dashboardName2, false)

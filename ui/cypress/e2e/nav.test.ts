@@ -2,7 +2,7 @@ describe('navigation', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.signin().then(({ body }) => {
+    cy.signin().then(({body}) => {
       cy.wrap(body.org.id).as('orgID')
     })
 
@@ -71,7 +71,7 @@ describe('navigation', () => {
   })
 
   it('can navigate to pages from homepage', () => {
-    ['load-data', 'dashboards', 'alerting'].forEach(card => {
+    ;['load-data', 'dashboards', 'alerting'].forEach(card => {
       cy.getByTestID('tree-nav--header').click()
       cy.getByTestID(`getting-started--${card}--button`).click()
       cy.url().should('contain', card)
@@ -97,7 +97,6 @@ describe('navigation', () => {
 
   it('can navigate in tabs of collapsed alerts page', () => {
     cy.getByTestID('nav-item-alerting').click()
-
     ;['checks', 'endpoints', 'rules'].forEach(tab => {
       cy.getByTestID(`alerting-tab--${tab}`).click()
       cy.getByTestID(`alerting-tab--${tab}--input`).should('to.be', 'checked')
@@ -107,13 +106,20 @@ describe('navigation', () => {
   it('can navigate in tabs from maximized left tree nav', () => {
     // TODO: check if nav is already maximized
     cy.get('.cf-tree-nav--toggle').click()
-
     ;[
-      'sources', 'buckets', 'telegrafs', 'scrapers', 'tokens',
+      'sources',
+      'buckets',
+      'telegrafs',
+      'scrapers',
+      'tokens',
       'history',
-      'variables', 'templates', 'labels',
+      'variables',
+      'templates',
+      'labels',
     ].forEach(x => {
-      cy.getByTestID(`nav-subitem-${x}`).last().click()
+      cy.getByTestID(`nav-subitem-${x}`)
+        .last()
+        .click()
       cy.url().should('contain', x)
     })
 

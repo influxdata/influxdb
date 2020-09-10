@@ -28,7 +28,11 @@ function getTimeMachineText() {
 }
 
 type GraphSnapshot = {
-  shouldBeSameAs: (other: GraphSnapshot, same?: boolean, part?: 'axes' | 'layer' | 'both') => void,
+  shouldBeSameAs: (
+    other: GraphSnapshot,
+    same?: boolean,
+    part?: 'axes' | 'layer' | 'both'
+  ) => void
   name: string
 }
 
@@ -54,12 +58,10 @@ const makeGraphSnapshot = (() => {
 
     return {
       name,
-      shouldBeSameAs: ({ name: nameOther }, same = true, part = 'both') => {
+      shouldBeSameAs: ({name: nameOther}, same = true, part = 'both') => {
         const assert = (str: any, str2: any, same: boolean) => {
-          if (same)
-            expect(str).to.eq(str2)
-          else
-            expect(str).to.not.eq(str2)
+          if (same) expect(str).to.eq(str2)
+          else expect(str).to.not.eq(str2)
         }
 
         if (part === 'both' || part === 'axes')
@@ -79,7 +81,6 @@ const makeGraphSnapshot = (() => {
     }
   }
 })()
-
 
 describe('DataExplorer', () => {
   beforeEach(() => {
@@ -139,8 +140,7 @@ describe('DataExplorer', () => {
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input').within(() => {
-          cy.getByTestID('input-field')
-            .clear()
+          cy.getByTestID('input-field').clear()
           cy.getByTestID('auto-input--custom').should(
             'have.class',
             'cf-select-group--option__active'
@@ -863,17 +863,20 @@ describe('DataExplorer', () => {
         const snapshot = makeGraphSnapshot()
 
         cy.getByTestID('giraffe-layer-line').then(([canvas]) => {
-          const { width, height } = canvas
+          const {width, height} = canvas
 
-          cy.wrap(canvas).trigger('mousedown', { x: width / 3, y: height / 2 })
-          cy.wrap(canvas).trigger('mousemove', { x: width * 2 / 3, y: height / 2 })
-          cy.wrap(canvas).trigger('mouseup', { force: true })
+          cy.wrap(canvas).trigger('mousedown', {x: width / 3, y: height / 2})
+          cy.wrap(canvas).trigger('mousemove', {
+            x: (width * 2) / 3,
+            y: height / 2,
+          })
+          cy.wrap(canvas).trigger('mouseup', {force: true})
         })
 
         const snapshot2 = makeGraphSnapshot()
         snapshot.shouldBeSameAs(snapshot2, false)
 
-        cy.getByTestID('giraffe-layer-line').dblclick({ force: true })
+        cy.getByTestID('giraffe-layer-line').dblclick({force: true})
         makeGraphSnapshot().shouldBeSameAs(snapshot)
       })
 
@@ -887,17 +890,20 @@ describe('DataExplorer', () => {
         const snapshot = makeGraphSnapshot()
 
         cy.getByTestID('giraffe-layer-line').then(([canvas]) => {
-          const { width, height } = canvas
+          const {width, height} = canvas
 
-          cy.wrap(canvas).trigger('mousedown', { x: width / 2, y: height / 3 })
-          cy.wrap(canvas).trigger('mousemove', { x: width / 2, y: height * 2 / 3 })
-          cy.wrap(canvas).trigger('mouseup', { force: true })
+          cy.wrap(canvas).trigger('mousedown', {x: width / 2, y: height / 3})
+          cy.wrap(canvas).trigger('mousemove', {
+            x: width / 2,
+            y: (height * 2) / 3,
+          })
+          cy.wrap(canvas).trigger('mouseup', {force: true})
         })
 
         const snapshot2 = makeGraphSnapshot()
         snapshot.shouldBeSameAs(snapshot2, false)
 
-        cy.getByTestID('giraffe-layer-line').dblclick({ force: true })
+        cy.getByTestID('giraffe-layer-line').dblclick({force: true})
         makeGraphSnapshot().shouldBeSameAs(snapshot)
       })
 
@@ -910,13 +916,15 @@ describe('DataExplorer', () => {
         cy.getByTestID('time-machine-submit-button').click()
 
         cy.getByTestID('giraffe-tooltip').should('not.visible')
-        cy.getByTestID('giraffe-layer-line').click().trigger('mouseover')
+        cy.getByTestID('giraffe-layer-line')
+          .click()
+          .trigger('mouseover')
 
         cy.wait(100)
-        cy.getByTestID('giraffe-layer-line').trigger('mousemove', {force: true })
+        cy.getByTestID('giraffe-layer-line').trigger('mousemove', {force: true})
 
         cy.getByTestID('giraffe-tooltip').should('visible')
-        cy.getByTestID('giraffe-layer-line').trigger('mouseout', {force: true })
+        cy.getByTestID('giraffe-layer-line').trigger('mouseout', {force: true})
         cy.getByTestID('giraffe-tooltip').should('not.visible')
       })
 
@@ -1090,7 +1098,7 @@ describe('DataExplorer', () => {
       cy.getByTestID('save-as-dashboard-cell--dropdown').should('be.visible')
 
       // close save as
-      cy.getByTestID('save-as-overlay--header').within(()=>{
+      cy.getByTestID('save-as-overlay--header').within(() => {
         cy.get('button').click()
       })
       cy.getByTestID('overlay--container').should('not.be.visible')
@@ -1101,10 +1109,10 @@ describe('DataExplorer', () => {
       const cellName = '📊 graph 1'
       const dashboardCreateName = '📋 board'
 
-      beforeEach(()=>{
+      beforeEach(() => {
         cy.get('@org').then(({id: orgID}: Organization) => {
           dashboardNames.forEach((d, i) => {
-            cy.createDashboard(orgID, d).then(({body})=>{
+            cy.createDashboard(orgID, d).then(({body}) => {
               cy.wrap(body.id).as(`dasboard${i}-id`)
             })
           })
@@ -1119,8 +1127,10 @@ describe('DataExplorer', () => {
       it('can save as cell into multiple dashboards', () => {
         // input dashboards and cell name
         cy.getByTestID('save-as-dashboard-cell--dropdown').click()
-        cy.getByTestID('save-as-dashboard-cell--dropdown-menu').within(()=>{
-          dashboardNames.forEach(d => { cy.contains(d).click() })
+        cy.getByTestID('save-as-dashboard-cell--dropdown-menu').within(() => {
+          dashboardNames.forEach(d => {
+            cy.contains(d).click()
+          })
         })
         cy.getByTestID('save-as-dashboard-cell--dropdown').click()
         cy.getByTestID('save-as-dashboard-cell--cell-name').type(cellName)
@@ -1130,8 +1140,8 @@ describe('DataExplorer', () => {
         // ensure cell exists at dashboards
         cy.get('@org').then(({id: orgID}: Organization) => {
           cy.fixture('routes').then(({orgs}) => {
-            dashboardNames.forEach((_, i)=>{
-              cy.get(`@dasboard${i}-id`).then(id=>{
+            dashboardNames.forEach((_, i) => {
+              cy.get(`@dasboard${i}-id`).then(id => {
                 cy.visit(`${orgs}/${orgID}/dashboards/${id}`)
                 cy.getByTestID(`cell ${cellName}`).should('exist')
               })
@@ -1140,7 +1150,7 @@ describe('DataExplorer', () => {
         })
       })
 
-      it('can create new dasboard as saving target', ()=>{
+      it('can create new dasboard as saving target', () => {
         // select and input new dashboard name and cell name
         cy.getByTestID('save-as-dashboard-cell--dropdown').click()
         cy.getByTestID('save-as-dashboard-cell--create-new-dash').click()
@@ -1178,17 +1188,15 @@ describe('DataExplorer', () => {
       const every = 'every'
       const both: ('cron' | 'every')[] = [cron, every]
 
-
       const fillForm = (
         type: 'cron' | 'every',
-        texts: { time?: string, offset?: string, taskName?: string }
-        ) => {
-        const checkAndType = (target: string, text: string | undefined) =>{
+        texts: {time?: string; offset?: string; taskName?: string}
+      ) => {
+        const checkAndType = (target: string, text: string | undefined) => {
           cy.getByTestID(target).clear()
-          if (text)
-            cy.getByTestID(target).type(text)
+          if (text) cy.getByTestID(target).type(text)
         }
-        const { offset, taskName, time } = texts
+        const {offset, taskName, time} = texts
 
         cy.getByTestID(`task-card-${type}-btn`).click()
         checkAndType('task-form-name', taskName)
@@ -1204,41 +1212,41 @@ describe('DataExplorer', () => {
         })
       }
 
-
       beforeEach(() => {
-        cy.get<Organization>('@org').then(({ id, name }: Organization) => {
+        cy.get<Organization>('@org').then(({id, name}: Organization) => {
           cy.createBucket(id, name, bucketName)
         })
 
         cy.getByTestID('selector-list defbuck').click()
-        cy.getByTestID('nav-item-data-explorer').click({ force: true })
+        cy.getByTestID('nav-item-data-explorer').click({force: true})
         cy.getByTestID(`selector-list m`).click()
-        cy.getByTestID('save-query-as').click({ force: true })
+        cy.getByTestID('save-query-as').click({force: true})
         cy.getByTestID('task--radio-button').click()
       })
 
       // TODO: enable when problem with switching cron/every is fixed
       it.skip('should enable/disable submit based on inputs', () => {
         both.forEach(type => {
-          const time = (type === 'every') ? timeEvery : timeCron
+          const time = type === 'every' ? timeEvery : timeCron
           cy.getByTestID('task-form-save').should('be.disabled')
           fillForm(type, {})
           cy.getByTestID('task-form-save').should('be.disabled')
-          fillForm(type, { time, taskName })
+          fillForm(type, {time, taskName})
           cy.getByTestID('task-form-save').should('be.enabled')
-          fillForm(type, { taskName, offset })
+          fillForm(type, {taskName, offset})
           cy.getByTestID('task-form-save').should('be.disabled')
-          fillForm(type, { time, offset })
+          fillForm(type, {time, offset})
           cy.getByTestID('task-form-save').should('be.disabled')
         })
       })
 
       both.forEach(type => {
-        [true, false].forEach(withOffset => {
-          it(`can create ${type} task with${ withOffset ? '' : 'out' } offset`, () => {
-            const time = (type === 'every') ? timeEvery : timeCron
-            fillForm(type, { time, taskName,
-              ...(withOffset ? {offset} : {}) })
+        ;[true, false].forEach(withOffset => {
+          it(`can create ${type} task with${
+            withOffset ? '' : 'out'
+          } offset`, () => {
+            const time = type === 'every' ? timeEvery : timeCron
+            fillForm(type, {time, taskName, ...(withOffset ? {offset} : {})})
             cy.getByTestID('task-form-save').click()
 
             visitTasks()
@@ -1246,23 +1254,36 @@ describe('DataExplorer', () => {
             cy.getByTestID('task-card--name')
               .should('exist')
               .click()
-            cy.getByTestID('task-form-schedule-input').should('have.value', time)
-            cy.getByTestID('task-form-offset-input')
-              .should('have.value', withOffset ? offset : '')
+            cy.getByTestID('task-form-schedule-input').should(
+              'have.value',
+              time
+            )
+            cy.getByTestID('task-form-offset-input').should(
+              'have.value',
+              withOffset ? offset : ''
+            )
           })
         })
       })
 
       it('can select buckets', () => {
-        fillForm('every', { time: timeEvery, taskName })
+        fillForm('every', {time: timeEvery, taskName})
 
         cy.getByTestID('task-options-bucket-dropdown--button').click()
-        cy.getByTestID('dropdown-item').contains(bucketName).click()
-        cy.getByTestID('task-options-bucket-dropdown--button').contains(bucketName).should('exist')
+        cy.getByTestID('dropdown-item')
+          .contains(bucketName)
+          .click()
+        cy.getByTestID('task-options-bucket-dropdown--button')
+          .contains(bucketName)
+          .should('exist')
 
         cy.getByTestID('task-options-bucket-dropdown--button').click()
-        cy.getByTestID('dropdown-item').contains('defbuck').click()
-        cy.getByTestID('task-options-bucket-dropdown--button').contains('defbuck').should('exist')
+        cy.getByTestID('dropdown-item')
+          .contains('defbuck')
+          .click()
+        cy.getByTestID('task-options-bucket-dropdown--button')
+          .contains('defbuck')
+          .should('exist')
 
         cy.getByTestID('task-form-save').click()
       })
@@ -1279,11 +1300,10 @@ describe('DataExplorer', () => {
         })
       }
 
-
       beforeEach(() => {
-        cy.getByTestID('nav-item-data-explorer').click({ force: true })
+        cy.getByTestID('nav-item-data-explorer').click({force: true})
         cy.getByTestID(`selector-list m`).click()
-        cy.getByTestID('save-query-as').click({ force: true })
+        cy.getByTestID('save-query-as').click({force: true})
         cy.getByTestID('variable--radio-button').click()
       })
 
