@@ -1049,7 +1049,7 @@ describe('DataExplorer', () => {
       const snapshot = makeGraphSnapshot()
       cy.getByTestID('autorefresh-dropdown--button').click()
       cy.getByTestID('auto-refresh-5s').click()
-      
+
       cy.wait(3_000)
       makeGraphSnapshot().shouldBeSameAs(snapshot)
 

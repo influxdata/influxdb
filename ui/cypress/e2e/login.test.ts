@@ -39,7 +39,7 @@ describe('The Login Page', () => {
     cy.getByTestID('signin-page--content').should('exist')
   })
 
-  it.only('can logout from homepage', () => {
+  it('can logout from homepage', () => {
     cy.flush()
     cy.signin()
     cy.visit('/')
