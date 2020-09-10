@@ -5,6 +5,7 @@ builds:
       - linux
       - darwin
     goarch:
+      - 386
       - amd64
       - arm64
       - arm
@@ -27,6 +28,7 @@ builds:
 
   - id: influxd
     goos:
+      - 386
       - linux
       - darwin
     goarch:
