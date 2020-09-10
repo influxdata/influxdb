@@ -71,7 +71,7 @@ describe('navigation', () => {
   })
 
   it('can navigate to pages from homepage', () => {
-    ;['load-data', 'dashboards', 'alerting'].forEach(card => {
+    ['load-data', 'dashboards', 'alerting'].forEach(card => {
       cy.getByTestID('tree-nav--header').click()
       cy.getByTestID(`getting-started--${card}--button`).click()
       cy.url().should('contain', card)
