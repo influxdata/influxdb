@@ -1163,6 +1163,8 @@ describe('DataExplorer', () => {
 
         cy.getByTestID('save-as-dashboard-cell--submit').click()
 
+        // wait some time for save
+        cy.wait(100)
         // ensure dasboard created with cell
         cy.get('@org').then(({id: orgID}: Organization) => {
           cy.fixture('routes').then(({orgs}) => {
