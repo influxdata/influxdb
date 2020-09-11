@@ -573,16 +573,12 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 		for i := 0; i < er.Len(); i++ {
 			measurementName = ""
 			fields := make(models.Fields)
-			// leave space for measurement key, value at start, in an effort to
-			// keep kv sorted
-			kv = kv[:2]
+			kv = kv[:0]
 			// Gather the timestamp and the tags.
 			for j, col := range er.Cols() {
 				switch {
 				case col.Label == spec.MeasurementColumn:
 					measurementName = string(er.Strings(j).Value(i))
-					kv[0] = models.MeasurementTagKeyBytes
-					kv[1] = er.Strings(j).Value(i)
 				case col.Label == timeColLabel:
 					valueTime := execute.ValueForRow(er, i, j)
 					if valueTime.IsNull() {
@@ -661,24 +657,12 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				measurementStats[measurementName].Update(mstats)
 			}
 
-			fieldNames := make([]string, 0, len(fields))
-			for k := range fields {
-				fieldNames = append(fieldNames, k)
+			tags, _ = models.NewTagsKeyValues(tags, kv...)
+			pt, err := models.NewPoint(measurementName, tags, fields, pointTime)
+			if err != nil {
+				return err
 			}
-			sort.Strings(fieldNames)
-
-			for _, k := range fieldNames {
-				v := fields[k]
-				// append field tag key and field key
-				kvf := append(kv, models.FieldKeyTagKeyBytes, []byte(k))
-				tags, _ = models.NewTagsKeyValues(tags, kvf...)
-
-				pt, err := models.NewPoint(measurementName, tags, models.Fields{k: v}, pointTime)
-				if err != nil {
-					return err
-				}
-				points = append(points, pt)
-			}
+			points = append(points, pt)
 
 			if err := execute.AppendRecord(i, er, builder); err != nil {
 				return err
