@@ -148,6 +148,13 @@ pub struct ParsedLine<'a> {
 }
 
 /// Converts from a ParsedLine back to (canonical) LineProtocol
+///
+/// A note on validity: This code does not errors or panics if the
+/// `ParsedLine` represents invalid LineProtocol (for example, if it
+/// has 0 fields).
+///
+/// Thus, if the ParsedLine represents invalid LineProtocol, then
+/// the result of `Display` / `to_string()` will also be invalid.
 impl<'a> Display for ParsedLine<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.series)?;
