@@ -67,10 +67,10 @@ nfpms:
       "scripts/init.sh": "/usr/lib/influxdb/scripts/init.sh"
       "scripts/influxdb.service": "/usr/lib/influxdb/scripts/influxdb.service"
       "scripts/logrotate": "/etc/logrotate.d/influxdb"
-      scripts:
-        preinstall:  "scripts/pre-install.sh"
-        postinstall: "scripts/post-install.sh"
-        postremove: "scripts/post-uninstall.sh"
+    scripts:
+      preinstall:  "scripts/pre-install.sh"
+      postinstall: "scripts/post-install.sh"
+      postremove: "scripts/post-uninstall.sh"
     overrides:
       rpm:
         replacements:
