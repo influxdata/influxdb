@@ -757,6 +757,7 @@ type BandViewProperties struct {
 	XColumn           string           `json:"xColumn"`
 	YColumn           string           `json:"yColumn"`
 	UpperColumn       string           `json:"upperColumn"`
+	MainColumn        string           `json:"mainColumn"`
 	LowerColumn       string           `json:"lowerColumn"`
 }
 

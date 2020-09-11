@@ -2244,6 +2244,7 @@ func TestService(t *testing.T) {
 									XColumn:           "x",
 									YColumn:           "y",
 									UpperColumn:       "upper",
+									MainColumn:        "main",
 									LowerColumn:       "lower",
 									TimeFormat:        "",
 								},

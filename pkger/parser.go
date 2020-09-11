@@ -1467,6 +1467,7 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 		FillColumns:    r.slcStr(fieldChartFillColumns),
 		YSeriesColumns: r.slcStr(fieldChartYSeriesColumns),
 		UpperColumn:    r.stringShort(fieldChartUpperColumn),
+		MainColumn:     r.stringShort(fieldChartMainColumn),
 		LowerColumn:    r.stringShort(fieldChartLowerColumn),
 	}
 
