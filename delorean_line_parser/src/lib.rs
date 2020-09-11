@@ -286,10 +286,12 @@ pub enum FieldValue<'a> {
 }
 
 /// Converts FieldValue back to LineProtocol
+/// See https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/
+/// for more detail.
 impl<'a> Display for FieldValue<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::I64(v) => write!(f, "{}", v),
+            Self::I64(v) => write!(f, "{}i", v),
             Self::F64(v) => write!(f, "{}", v),
             Self::String(v) => write!(f, "{}", v),
             Self::Boolean(v) => write!(f, "{}", v),
@@ -1815,7 +1817,7 @@ her"#,
 
     #[test]
     fn field_value_display() -> Result {
-        assert_eq!(FieldValue::I64(42).to_string(), "42");
+        assert_eq!(FieldValue::I64(42).to_string(), "42i");
         assert_eq!(FieldValue::F64(42.11).to_string(), "42.11");
         assert_eq!(
             FieldValue::String(EscapedStr::from("foo")).to_string(),
