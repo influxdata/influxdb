@@ -934,6 +934,21 @@ impl Segment {
     }
 }
 
+impl std::fmt::Display for Segment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "Rows: {}\nSize: {} Columns: ",
+            self.num_rows(),
+            self.size()
+        )?;
+        for (c, name) in self.columns.iter().zip(self.column_names().iter()) {
+            writeln!(f, "{} {}", name, c)?;
+        }
+        Ok(())
+    }
+}
+
 /// Meta data for a segment. This data is mainly used to determine if a segment
 /// may contain a value that can answer a query.
 #[derive(Debug)]

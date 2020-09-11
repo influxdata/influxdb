@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::iter;
+use std::mem::size_of;
 
 use arrow::array::{Array, PrimitiveArray};
 use arrow::datatypes::ArrowNumericType;
-use arrow::datatypes::*;
 
-pub trait Encoding: Send + Sync {
+pub trait NumericEncoding: Send + Sync + std::fmt::Display + std::fmt::Debug {
     type Item;
 
     fn size(&self) -> usize;
@@ -15,39 +15,15 @@ pub trait Encoding: Send + Sync {
     fn all_encoded_values(&self) -> Vec<Self::Item>;
     fn scan_from(&self, row_id: usize) -> &[Self::Item];
 
-    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize;
-
-    // TODO(edd): clean up the API for getting row ids that match predicates.
-    //
-    // Ideally you should be able to provide a collection of predicates to
-    // match on.
-    //
-    // A simpler approach would be to provide a method that matches on a single
-    // predicate and then call that multiple times, unioning or intersecting the
-    // resulting row sets.
-    fn row_id_eq_value(&self, v: Self::Item) -> Option<usize>;
-    fn row_ids_single_cmp_roaring(
-        &self,
-        wanted: &Self::Item,
-        order: std::cmp::Ordering,
-    ) -> croaring::Bitmap;
-    fn row_ids_gte_lt_roaring(&self, from: &Self::Item, to: &Self::Item) -> croaring::Bitmap;
-}
-
-pub trait NumericEncoding: Send + Sync {
-    type Item;
-
-    fn size(&self) -> usize;
-    fn value(&self, row_id: usize) -> Self::Item;
-    fn values(&self, row_ids: &[usize]) -> Vec<Self::Item>;
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Self::Item>;
-    fn all_encoded_values(&self) -> Vec<Self::Item>;
-    fn scan_from(&self, row_id: usize) -> &[Self::Item];
     fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Self::Item;
     fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Self::Item;
+
     fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize;
+    fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64;
 
     fn row_id_eq_value(&self, v: Self::Item) -> Option<usize>;
+    fn row_id_ge_value(&self, v: Self::Item) -> Option<usize>;
+
     fn row_ids_single_cmp_roaring(
         &self,
         wanted: &Self::Item,
@@ -56,39 +32,37 @@ pub trait NumericEncoding: Send + Sync {
     fn row_ids_gte_lt_roaring(&self, from: &Self::Item, to: &Self::Item) -> croaring::Bitmap;
 }
 
-impl std::fmt::Debug for dyn NumericEncoding<Item = f64> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", "todo")
-    }
-}
-
-impl std::fmt::Debug for dyn NumericEncoding<Item = i64> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", "todo")
-    }
-}
-
+#[derive(Debug)]
 pub struct PlainArrow<T>
 where
-    // T: ArrowNumericType + std::ops::Add,
     T: ArrowNumericType,
-    // T: Default + PartialEq + PartialOrd + Copy + std::fmt::Debug + std::ops::AddAssign,
+    T::Native: Default
+        + PartialEq
+        + PartialOrd
+        + Copy
+        + std::fmt::Debug
+        + std::ops::Add<Output = T::Native>,
 {
     arr: PrimitiveArray<T>,
-    // _phantom: T,
 }
 
-impl<T> PlainArrow<T>
+impl<T> NumericEncoding for PlainArrow<T>
 where
-    // T: ArrowNumericType + std::ops::Add,
-    T: ArrowNumericType,
-    // T: Default + PartialEq + PartialOrd + Copy + std::fmt::Debug + std::ops::AddAssign,
+    T: ArrowNumericType + std::fmt::Debug,
+    T::Native: Default
+        + PartialEq
+        + PartialOrd
+        + Copy
+        + std::fmt::Debug
+        + std::ops::Add<Output = T::Native>,
 {
-    pub fn size(&self) -> usize {
+    type Item = Option<T::Native>;
+
+    fn size(&self) -> usize {
         self.arr.len()
     }
 
-    pub fn value(&self, row_id: usize) -> Option<T::Native> {
+    fn value(&self, row_id: usize) -> Option<T::Native> {
         if self.arr.is_null(row_id) {
             return None;
         }
@@ -109,12 +83,12 @@ where
     }
 
     /// Well this is terribly slow
-    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<Option<T::Native>> {
+    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Option<T::Native>> {
         self.values(row_ids)
     }
 
     /// TODO(edd): there must be a more efficient way.
-    pub fn all_encoded_values(&self) -> Vec<Option<T::Native>> {
+    fn all_encoded_values(&self) -> Vec<Option<T::Native>> {
         let mut out = Vec::with_capacity(self.arr.len());
         for i in 0..self.arr.len() {
             if self.arr.is_null(i) {
@@ -127,11 +101,10 @@ where
         out
     }
 
-    pub fn scan_from(&self, row_id: usize) -> &[Option<T::Native>] {
-        // todo
-
-        &[]
-
+    // TODO(edd): problem here is returning a slice because we need to own the
+    // backing vector.
+    fn scan_from(&self, row_id: usize) -> &[Option<T::Native>] {
+        unimplemented!("need to figure out returning a slice");
         // let mut out = Vec::with_capacity(self.arr.len() - row_id);
         // for i in row_id..self.arr.len() {
         //     if self.arr.is_null(i) {
@@ -144,18 +117,22 @@ where
         // out.as_slice()
     }
 
-    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<T::Native> {
-        // let mut res = T::Native::default();
-
-        // // HMMMMM - materialising which has a memory cost.
-        // let vec = row_ids.to_vec();
-        // for v in vec {
-        //     res += self.arr.value(v as usize);
-        // }
-        None // todo
+    fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<T::Native> {
+        // TODO(edd): this is expensive - may pay to expose method to do this
+        // where you accept an array.
+        let mut res = T::Native::default();
+        let vec = row_ids.to_vec();
+        for row_id in vec {
+            let i = row_id as usize;
+            if self.arr.is_null(i) {
+                return None;
+            }
+            res = res + self.arr.value(i);
+        }
+        Some(res)
     }
 
-    pub fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<T::Native> {
+    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<T::Native> {
         // if the column contains a null value between the range then the result
         // will be None.
         for i in from_row_id..to_row_id {
@@ -165,57 +142,35 @@ where
         }
 
         // Otherwise sum all the values between in the range.
-        // let mut res = f64::from(self.arr.value(from_row_id));
-        // for i in from_row_id + 1..to_row_id {
-        //     res = res + self.arr.value(i);
-        // }
-        // Some(res)
-        None
-    }
-
-    pub fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
-        // TODO - count values that are not null in the row range.
-        0 // todo
-    }
-}
-
-impl NumericEncoding for PlainArrow<Float64Type> {
-    type Item = Option<f64>;
-
-    fn size(&self) -> usize {
-        self.size()
-    }
-
-    fn value(&self, row_id: usize) -> Self::Item {
-        self.value(row_id)
-    }
-
-    fn values(&self, row_ids: &[usize]) -> Vec<Self::Item> {
-        self.values(row_ids)
-    }
-
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Self::Item> {
-        self.encoded_values(row_ids)
-    }
-
-    fn all_encoded_values(&self) -> Vec<Self::Item> {
-        self.all_encoded_values()
-    }
-
-    fn scan_from(&self, row_id: usize) -> &[Self::Item] {
-        self.scan_from(row_id)
-    }
-
-    fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Self::Item {
-        self.sum_by_ids(row_ids)
-    }
-
-    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Self::Item {
-        self.sum_by_id_range(from_row_id, to_row_id)
+        let mut res = T::Native::default();
+        for i in from_row_id..to_row_id {
+            res = res + self.arr.value(i);
+        }
+        Some(res)
     }
 
     fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
-        self.count_by_id_range(from_row_id, to_row_id)
+        // TODO - count values that are not null in the row range.
+        let mut count = 0;
+        for i in from_row_id..to_row_id {
+            if self.arr.is_null(i) {
+                continue;
+            }
+            count += 1;
+        }
+        count
+    }
+
+    fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64 {
+        todo!()
+    }
+
+    fn row_id_eq_value(&self, v: Self::Item) -> Option<usize> {
+        todo!()
+    }
+
+    fn row_id_ge_value(&self, v: Self::Item) -> Option<usize> {
+        todo!()
     }
 
     fn row_ids_single_cmp_roaring(
@@ -223,15 +178,26 @@ impl NumericEncoding for PlainArrow<Float64Type> {
         wanted: &Self::Item,
         order: std::cmp::Ordering,
     ) -> croaring::Bitmap {
-        self.row_ids_single_cmp_roaring(wanted, order)
+        todo!()
     }
 
     fn row_ids_gte_lt_roaring(&self, from: &Self::Item, to: &Self::Item) -> croaring::Bitmap {
-        self.row_ids_gte_lt_roaring(from, to)
+        todo!()
     }
+}
 
-    fn row_id_eq_value(&self, v: Self::Item) -> Option<usize> {
-        self.row_id_eq_value(v)
+impl<T: ArrowNumericType> std::fmt::Display for PlainArrow<T>
+where
+    T: ArrowNumericType + std::fmt::Debug,
+    T::Native: Default
+        + PartialEq
+        + PartialOrd
+        + Copy
+        + std::fmt::Debug
+        + std::ops::Add<Output = T::Native>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[PlainArrow<T>] size: {}", self.size())
     }
 }
 
@@ -242,31 +208,60 @@ pub struct PlainFixed<T> {
     // total_order can be used as a hint to stop scanning the column early when
     // applying a comparison predicate to the column.
     total_order: bool,
+
+    size: usize,
 }
 
-impl<T> PlainFixed<T>
+impl<T> std::fmt::Display for PlainFixed<T>
 where
-    T: Default + PartialEq + PartialOrd + Copy + std::fmt::Debug + std::ops::AddAssign,
+    T: Default
+        + PartialEq
+        + PartialOrd
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + Sync
+        + Send
+        + std::ops::AddAssign,
 {
-    pub fn size(&self) -> usize {
-        self.values.len() * std::mem::size_of::<T>()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[PlainFixed<T>] size: {}", self.size(),)
+    }
+}
+
+impl<T> NumericEncoding for PlainFixed<T>
+where
+    T: Default
+        + PartialEq
+        + PartialOrd
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + Sync
+        + Send
+        + std::ops::AddAssign,
+{
+    type Item = T;
+
+    fn size(&self) -> usize {
+        self.size
     }
 
-    pub fn row_id_eq_value(&self, v: T) -> Option<usize> {
+    fn row_id_eq_value(&self, v: T) -> Option<usize> {
         self.values.iter().position(|x| *x == v)
     }
 
-    pub fn row_id_ge_value(&self, v: T) -> Option<usize> {
+    fn row_id_ge_value(&self, v: T) -> Option<usize> {
         self.values.iter().position(|x| *x >= v)
     }
 
     // get value at row_id. Panics if out of bounds.
-    pub fn value(&self, row_id: usize) -> T {
+    fn value(&self, row_id: usize) -> T {
         self.values[row_id]
     }
 
     /// Return the decoded values for the provided logical row ids.
-    pub fn values(&self, row_ids: &[usize]) -> Vec<T> {
+    fn values(&self, row_ids: &[usize]) -> Vec<T> {
         let mut out = Vec::with_capacity(row_ids.len());
         for chunks in row_ids.chunks_exact(4) {
             out.push(self.values[chunks[3]]);
@@ -286,24 +281,24 @@ where
 
     /// Return the raw encoded values for the provided logical row ids. For Plain
     /// encoding this is just the decoded values.
-    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<T> {
+    fn encoded_values(&self, row_ids: &[usize]) -> Vec<T> {
         self.values(row_ids)
     }
 
     /// Return all encoded values. For this encoding this is just the decoded
     /// values
-    pub fn all_encoded_values(&self) -> Vec<T> {
+    fn all_encoded_values(&self) -> Vec<T> {
         self.values.clone()
     }
 
-    pub fn scan_from(&self, row_id: usize) -> &[T] {
+    fn scan_from(&self, row_id: usize) -> &[T] {
         &self.values[row_id..]
     }
 
     /// returns a set of row ids that match a single ordering on a desired value
     ///
     /// This supports `value = x` , `value < x` or `value > x`.
-    pub fn row_ids_single_cmp_roaring(
+    fn row_ids_single_cmp_roaring(
         &self,
         wanted: &T,
         order: std::cmp::Ordering,
@@ -343,7 +338,7 @@ where
     /// returns a set of row ids that match the half open interval `[from, to)`.
     ///
     /// The main use-case for this is time range filtering.
-    pub fn row_ids_gte_lt_roaring(&self, from: &T, to: &T) -> croaring::Bitmap {
+    fn row_ids_gte_lt_roaring(&self, from: &T, to: &T) -> croaring::Bitmap {
         let mut bm = croaring::Bitmap::create();
 
         let mut found = false; //self.values[0];
@@ -376,7 +371,7 @@ where
         bm
     }
 
-    pub fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> T {
+    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> T {
         let mut res = T::default();
         for v in self.values[from_row_id..to_row_id].iter() {
             res += *v;
@@ -384,12 +379,12 @@ where
         res
     }
 
-    pub fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
+    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
         to_row_id - from_row_id
     }
 
     // TODO(edd): make faster
-    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> T {
+    fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> T {
         let mut res = T::default();
         // println!(
         //     "cardinality is {:?} out of {:?}",
@@ -449,7 +444,7 @@ where
         res
     }
 
-    pub fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64 {
+    fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64 {
         row_ids.cardinality()
     }
 }
@@ -460,6 +455,10 @@ impl From<&[i64]> for PlainFixed<i64> {
             values: v.to_vec(),
             // buf: Vec::with_capacity(v.len()),
             total_order: false,
+            size: size_of::<Vec<i64>>()
+                + (size_of::<i64>() * v.len())
+                + size_of::<bool>()
+                + size_of::<usize>(),
         }
     }
 }
@@ -470,119 +469,11 @@ impl From<&[f64]> for PlainFixed<f64> {
             values: v.to_vec(),
             // buf: Vec::with_capacity(v.len()),
             total_order: false,
+            size: size_of::<Vec<f64>>()
+                + (size_of::<f64>() * v.len())
+                + size_of::<bool>()
+                + size_of::<usize>(),
         }
-    }
-}
-
-impl NumericEncoding for PlainFixed<f64> {
-    type Item = f64;
-
-    fn size(&self) -> usize {
-        self.size()
-    }
-
-    fn value(&self, row_id: usize) -> Self::Item {
-        self.value(row_id)
-    }
-
-    fn values(&self, row_ids: &[usize]) -> Vec<Self::Item> {
-        self.values(row_ids)
-    }
-
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Self::Item> {
-        self.encoded_values(row_ids)
-    }
-
-    fn all_encoded_values(&self) -> Vec<Self::Item> {
-        self.all_encoded_values()
-    }
-
-    fn scan_from(&self, row_id: usize) -> &[Self::Item] {
-        self.scan_from(row_id)
-    }
-
-    fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Self::Item {
-        self.sum_by_ids(row_ids)
-    }
-
-    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Self::Item {
-        self.sum_by_id_range(from_row_id, to_row_id)
-    }
-
-    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
-        self.count_by_id_range(from_row_id, to_row_id)
-    }
-
-    fn row_ids_single_cmp_roaring(
-        &self,
-        wanted: &Self::Item,
-        order: std::cmp::Ordering,
-    ) -> croaring::Bitmap {
-        self.row_ids_single_cmp_roaring(wanted, order)
-    }
-
-    fn row_ids_gte_lt_roaring(&self, from: &Self::Item, to: &Self::Item) -> croaring::Bitmap {
-        self.row_ids_gte_lt_roaring(from, to)
-    }
-
-    fn row_id_eq_value(&self, v: Self::Item) -> Option<usize> {
-        self.row_id_eq_value(v)
-    }
-}
-
-impl NumericEncoding for PlainFixed<i64> {
-    type Item = i64;
-
-    fn size(&self) -> usize {
-        self.size()
-    }
-
-    fn value(&self, row_id: usize) -> Self::Item {
-        self.value(row_id)
-    }
-
-    fn values(&self, row_ids: &[usize]) -> Vec<Self::Item> {
-        self.values(row_ids)
-    }
-
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Self::Item> {
-        self.encoded_values(row_ids)
-    }
-
-    fn all_encoded_values(&self) -> Vec<Self::Item> {
-        self.all_encoded_values()
-    }
-
-    fn scan_from(&self, row_id: usize) -> &[Self::Item] {
-        self.scan_from(row_id)
-    }
-
-    fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Self::Item {
-        self.sum_by_ids(row_ids)
-    }
-
-    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Self::Item {
-        self.sum_by_id_range(from_row_id, to_row_id)
-    }
-
-    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
-        self.count_by_id_range(from_row_id, to_row_id)
-    }
-
-    fn row_ids_single_cmp_roaring(
-        &self,
-        wanted: &Self::Item,
-        order: std::cmp::Ordering,
-    ) -> croaring::Bitmap {
-        self.row_ids_single_cmp_roaring(wanted, order)
-    }
-
-    fn row_ids_gte_lt_roaring(&self, from: &Self::Item, to: &Self::Item) -> croaring::Bitmap {
-        self.row_ids_gte_lt_roaring(from, to)
-    }
-
-    fn row_id_eq_value(&self, v: Self::Item) -> Option<usize> {
-        self.row_id_eq_value(v)
     }
 }
 
@@ -602,7 +493,6 @@ pub struct DictionaryRLE {
     // stores tuples where each pair refers to a dictionary entry and the number
     // of times the entry repeats.
     run_lengths: Vec<(usize, u64)>,
-    run_length_size: usize,
 
     total: u64,
 }
@@ -615,7 +505,6 @@ impl DictionaryRLE {
             index_entry: BTreeMap::new(),
             map_size: 0,
             run_lengths: Vec::new(),
-            run_length_size: 0,
             total: 0,
         }
     }
@@ -627,7 +516,6 @@ impl DictionaryRLE {
             index_entry: BTreeMap::new(),
             map_size: 0,
             run_lengths: Vec::new(),
-            run_length_size: 0,
             total: 0,
         };
 
@@ -663,7 +551,6 @@ impl DictionaryRLE {
                     } else {
                         // start a new run-length
                         self.run_lengths.push((*idx, additional));
-                        self.run_length_size += std::mem::size_of::<(usize, u64)>();
                     }
                     self.index_row_ids
                         .get_mut(&(*idx as u32))
@@ -690,7 +577,6 @@ impl DictionaryRLE {
                         .get_mut(&(idx as u32))
                         .unwrap()
                         .add_range(self.total..self.total + additional);
-                    self.run_length_size += std::mem::size_of::<(usize, u64)>();
                 }
             }
         }
@@ -927,8 +813,28 @@ impl DictionaryRLE {
     }
 
     pub fn size(&self) -> usize {
-        // mapping and reverse mapping then the rles
-        2 * self.map_size + self.run_length_size
+        // entry_index: BTreeMap<Option<String>, usize>,
+
+        // // stores the mapping between an index and its entry.
+        // index_entry: BTreeMap<usize, Option<String>>,
+
+        (self.index_entry.len() * size_of::<BTreeMap<usize, Option<String>>>())
+            + (self.index_row_ids.len() * size_of::<BTreeMap<u32, croaring::Bitmap>>())
+            + size_of::<usize>()
+            + (self.run_lengths.len() * size_of::<Vec<(usize, u64)>>())
+            + size_of::<u64>()
+    }
+}
+
+impl std::fmt::Display for DictionaryRLE {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[DictionaryRLE] size: {}, dict entries: {}, runs: {} ",
+            self.size(),
+            self.index_entry.len(),
+            self.run_lengths.len()
+        )
     }
 }
 
@@ -959,6 +865,7 @@ impl std::convert::From<&delorean_table::Packer<delorean_table::ByteArray>> for 
 
 #[cfg(test)]
 mod test {
+    use super::NumericEncoding;
 
     #[test]
     fn plain_arrow() {

@@ -134,6 +134,7 @@ fn build_store(
                 let mut segment = Segment::new(rb.num_rows(), schema);
                 convert_record_batch(rb, &mut segment)?;
 
+                println!("{}", &segment);
                 store.add_segment(segment);
             }
             Ok(None) => {

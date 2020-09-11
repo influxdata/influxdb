@@ -873,6 +873,23 @@ impl Column {
     }
 }
 
+impl std::fmt::Display for Column {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            Column::String(c) => {
+                write!(f, "{}", c)?;
+            }
+            Column::Float(c) => {
+                write!(f, "{}", c)?;
+            }
+            Column::Integer(c) => {
+                write!(f, "{}", c)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 impl AggregatableByRange for &Column {
     fn aggregate_by_id_range(
         &self,
@@ -964,6 +981,12 @@ impl String {
     }
 }
 
+impl std::fmt::Display for String {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Meta: {}, Data: {}", self.meta, self.data)
+    }
+}
+
 #[derive(Debug)]
 pub struct Float {
     meta: metadata::F64,
@@ -1015,6 +1038,12 @@ impl Float {
     }
 }
 
+impl std::fmt::Display for Float {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Meta: {}, Data: {}", self.meta, self.data)
+    }
+}
+
 impl From<&[f64]> for Float {
     fn from(values: &[f64]) -> Self {
         let len = values.len();
@@ -1033,6 +1062,32 @@ impl From<&[f64]> for Float {
         }
     }
 }
+
+// use arrow::array::Array;
+// impl From<arrow::array::PrimitiveArray<arrow::datatypes::Float64Type>> for Float {
+//     fn from(arr: arrow::array::PrimitiveArray<arrow::datatypes::Float64Type>) -> Self {
+//         let len = arr.len();
+//         let mut min = std::f64::MAX;
+//         let mut max = std::f64::MIN;
+
+//         // calculate min/max for meta data
+//         // TODO(edd): can use compute kernels for this.
+//         for i in 0..arr.len() {
+//             if arr.is_null(i) {
+//                 continue;
+//             }
+
+//             let v = arr.value(i);
+//             min = min.min(v);
+//             max = max.max(v);
+//         }
+
+//         Self {
+//             meta: metadata::F64::new((min, max), len),
+//             data: Box::new(encoding::PlainArrow { arr }),
+//         }
+//     }
+// }
 
 #[derive(Debug)]
 pub struct Integer {
@@ -1080,6 +1135,12 @@ impl Integer {
     }
 }
 
+impl std::fmt::Display for Integer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Meta: {}, Data: {}", self.meta, self.data)
+    }
+}
+
 impl From<&[i64]> for Integer {
     fn from(values: &[i64]) -> Self {
         let len = values.len();
@@ -1100,11 +1161,12 @@ impl From<&[i64]> for Integer {
 }
 
 pub mod metadata {
+    use std::mem::size_of;
+
     #[derive(Debug, Default)]
     pub struct Str {
         range: (Option<String>, Option<String>),
         num_rows: usize,
-        // sparse_index: BTreeMap<String, usize>,
     }
 
     impl Str {
@@ -1145,8 +1207,20 @@ pub mod metadata {
         }
 
         pub fn size(&self) -> usize {
-            // TODO!!!!
-            0 //self.range.0.len() + self.range.1.len() + std::mem::size_of::<usize>()
+            // size of types for num_rows and range
+            let base_size = size_of::<usize>() + (2 * size_of::<Option<String>>());
+            match &self.range {
+                (None, None) => base_size,
+                (Some(min), None) => base_size + min.len(),
+                (None, Some(max)) => base_size + max.len(),
+                (Some(min), Some(max)) => base_size + min.len() + max.len(),
+            }
+        }
+    }
+
+    impl std::fmt::Display for Str {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Range: ({:?})", self.range)
         }
     }
 
@@ -1184,7 +1258,13 @@ pub mod metadata {
         }
 
         pub fn size(&self) -> usize {
-            std::mem::size_of::<(f64, f64)>() + std::mem::size_of::<usize>()
+            size_of::<usize>() + (size_of::<(f64, f64)>())
+        }
+    }
+
+    impl std::fmt::Display for F64 {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Range: ({:?})", self.range)
         }
     }
 
@@ -1219,7 +1299,13 @@ pub mod metadata {
         }
 
         pub fn size(&self) -> usize {
-            std::mem::size_of::<(i64, i64)>() + std::mem::size_of::<usize>()
+            size_of::<usize>() + (size_of::<(i64, i64)>())
+        }
+    }
+
+    impl std::fmt::Display for I64 {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Range: ({:?})", self.range)
         }
     }
 }

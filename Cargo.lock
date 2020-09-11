@@ -819,6 +819,7 @@ dependencies = [
  "datafusion 2.0.0-SNAPSHOT (git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd)",
  "delorean_table",
  "env_logger",
+ "heapsize",
  "human_format",
  "log",
  "parquet 2.0.0-SNAPSHOT (git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd)",
@@ -1354,6 +1355,15 @@ checksum = "34f595585f103464d8d2f6e9864682d74c1601fed5e07d62b1c9058dba8246fb"
 dependencies = [
  "ahash",
  "autocfg",
+]
+
+[[package]]
+name = "heapsize"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1679e6ea370dee694f91f1dc469bf94cf8f52051d147aec3e1f9497c6fc22461"
+dependencies = [
+ "winapi 0.3.8",
 ]
 
 [[package]]
