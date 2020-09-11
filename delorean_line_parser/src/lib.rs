@@ -15,6 +15,7 @@
     clippy::use_self
 )]
 
+use fmt::Display;
 use log::debug;
 use nom::{
     branch::alt,
@@ -146,6 +147,39 @@ pub struct ParsedLine<'a> {
     pub timestamp: Option<i64>,
 }
 
+/// Converts from a ParsedLine back to (canonical) LineProtocol
+///
+/// A note on validity: This code does not errors or panics if the
+/// `ParsedLine` represents invalid LineProtocol (for example, if it
+/// has 0 fields).
+///
+/// Thus, if the ParsedLine represents invalid LineProtocol, then
+/// the result of `Display` / `to_string()` will also be invalid.
+impl<'a> Display for ParsedLine<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.series)?;
+
+        if !self.field_set.is_empty() {
+            write!(f, " ")?;
+
+            let mut first = true;
+            for (field_name, field_value) in &self.field_set {
+                if !first {
+                    write!(f, ",")?;
+                }
+                first = false;
+                escape_and_write_value(f, field_name.as_str(), FIELD_KEY_DELIMITERS)?;
+                write!(f, "={}", field_value)?;
+            }
+        }
+
+        if let Some(timestamp) = self.timestamp {
+            write!(f, " {}", timestamp)?
+        }
+        Ok(())
+    }
+}
+
 /// Represents the identifier of a series (measurement, tagset) for
 /// line protocol data
 #[derive(Debug)]
@@ -153,6 +187,27 @@ pub struct Series<'a> {
     raw_input: &'a str,
     pub measurement: EscapedStr<'a>,
     pub tag_set: Option<TagSet<'a>>,
+}
+
+/// Converts Series back to LineProtocol
+impl<'a> Display for Series<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        escape_and_write_value(f, self.measurement.as_str(), MEASUREMENT_DELIMITERS)?;
+        if let Some(tag_set) = &self.tag_set {
+            write!(f, ",")?;
+            let mut first = true;
+            for (tag_name, tag_value) in tag_set {
+                if !first {
+                    write!(f, ",")?;
+                }
+                first = false;
+                escape_and_write_value(f, tag_name.as_str(), TAG_KEY_DELIMITERS)?;
+                write!(f, "=")?;
+                escape_and_write_value(f, tag_value.as_str(), TAG_VALUE_DELIMITERS)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<'a> Series<'a> {
@@ -236,6 +291,20 @@ pub enum FieldValue<'a> {
     F64(f64),
     String(EscapedStr<'a>),
     Boolean(bool),
+}
+
+/// Converts FieldValue back to LineProtocol
+/// See https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/
+/// for more detail.
+impl<'a> Display for FieldValue<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::I64(v) => write!(f, "{}i", v),
+            Self::F64(v) => write!(f, "{}", v),
+            Self::String(v) => escape_and_write_value(f, v, FIELD_VALUE_STRING_DELIMITERS),
+            Self::Boolean(v) => write!(f, "{}", v),
+        }
+    }
 }
 
 /// Represents single logical string in the input.
@@ -863,10 +932,48 @@ fn map_fail<'a, R1, R2>(
     }
 }
 
+// copy / pasted from influxdb2_client to avoid a dependency on that crate
+
+/// Characters to escape when writing measurement names
+const MEASUREMENT_DELIMITERS: &[char] = &[',', ' '];
+
+/// Characters to escape when writing tag keys
+const TAG_KEY_DELIMITERS: &[char] = &[',', '=', ' '];
+
+/// Characters to escape when writing tag values
+const TAG_VALUE_DELIMITERS: &[char] = TAG_KEY_DELIMITERS;
+
+/// Characters to escape when writing field keys
+const FIELD_KEY_DELIMITERS: &[char] = TAG_KEY_DELIMITERS;
+
+/// Characters to escape when writing string values in fields
+const FIELD_VALUE_STRING_DELIMITERS: &[char] = &['"'];
+
+/// Writes a str value to f, escaping all caracters in
+/// escaping_escaping specificiation.
+///
+/// Use the constants defined in this module
+fn escape_and_write_value(
+    f: &mut fmt::Formatter<'_>,
+    value: &str,
+    escaping_specification: &[char],
+) -> fmt::Result {
+    let mut last = 0;
+
+    for (idx, delim) in value.match_indices(escaping_specification) {
+        let s = &value[last..idx];
+        write!(f, r#"{}\{}"#, s, delim)?;
+        last = idx + delim.len();
+    }
+
+    f.write_str(&value[last..])
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use delorean_test_helpers::approximately_equal;
+    use smallvec::smallvec;
 
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
@@ -1750,6 +1857,158 @@ her"#,
             5.
         ));
 
+        Ok(())
+    }
+
+    #[test]
+    fn field_value_display() -> Result {
+        assert_eq!(FieldValue::I64(42).to_string(), "42i");
+        assert_eq!(FieldValue::F64(42.11).to_string(), "42.11");
+        assert_eq!(
+            FieldValue::String(EscapedStr::from("foo")).to_string(),
+            "foo"
+        );
+        assert_eq!(FieldValue::Boolean(true).to_string(), "true");
+        assert_eq!(FieldValue::Boolean(false).to_string(), "false");
+        Ok(())
+    }
+
+    #[test]
+    fn series_display_no_tags() -> Result {
+        let series = Series {
+            raw_input: "foo",
+            measurement: EscapedStr::from("m"),
+            tag_set: None,
+        };
+        assert_eq!(series.to_string(), "m");
+        Ok(())
+    }
+
+    #[test]
+    fn series_display_one_tag() -> Result {
+        let series = Series {
+            raw_input: "foo",
+            measurement: EscapedStr::from("m"),
+            tag_set: Some(smallvec![(
+                EscapedStr::from("tag1"),
+                EscapedStr::from("val1")
+            )]),
+        };
+        assert_eq!(series.to_string(), "m,tag1=val1");
+        Ok(())
+    }
+
+    #[test]
+    fn series_display_two_tags() -> Result {
+        let series = Series {
+            raw_input: "foo",
+            measurement: EscapedStr::from("m"),
+            tag_set: Some(smallvec![
+                (EscapedStr::from("tag1"), EscapedStr::from("val1")),
+                (EscapedStr::from("tag2"), EscapedStr::from("val2")),
+            ]),
+        };
+        assert_eq!(series.to_string(), "m,tag1=val1,tag2=val2");
+        Ok(())
+    }
+
+    #[test]
+    fn parsed_line_display_one_field_no_timestamp() -> Result {
+        let series = Series {
+            raw_input: "foo",
+            measurement: EscapedStr::from("m"),
+            tag_set: Some(smallvec![(
+                EscapedStr::from("tag1"),
+                EscapedStr::from("val1")
+            ),]),
+        };
+        let field_set = smallvec![(EscapedStr::from("field1"), FieldValue::F64(42.1))];
+
+        let parsed_line = ParsedLine {
+            series,
+            field_set,
+            timestamp: None,
+        };
+
+        assert_eq!(parsed_line.to_string(), "m,tag1=val1 field1=42.1");
+        Ok(())
+    }
+
+    #[test]
+    fn parsed_line_display_one_field_timestamp() -> Result {
+        let series = Series {
+            raw_input: "foo",
+            measurement: EscapedStr::from("m"),
+            tag_set: Some(smallvec![(
+                EscapedStr::from("tag1"),
+                EscapedStr::from("val1")
+            ),]),
+        };
+        let field_set = smallvec![(EscapedStr::from("field1"), FieldValue::F64(42.1))];
+
+        let parsed_line = ParsedLine {
+            series,
+            field_set,
+            timestamp: Some(33),
+        };
+
+        assert_eq!(parsed_line.to_string(), "m,tag1=val1 field1=42.1 33");
+        Ok(())
+    }
+
+    #[test]
+    fn parsed_line_display_two_fields_timestamp() -> Result {
+        let series = Series {
+            raw_input: "foo",
+            measurement: EscapedStr::from("m"),
+            tag_set: Some(smallvec![(
+                EscapedStr::from("tag1"),
+                EscapedStr::from("val1")
+            ),]),
+        };
+        let field_set = smallvec![
+            (EscapedStr::from("field1"), FieldValue::F64(42.1)),
+            (EscapedStr::from("field2"), FieldValue::Boolean(false)),
+        ];
+
+        let parsed_line = ParsedLine {
+            series,
+            field_set,
+            timestamp: Some(33),
+        };
+
+        assert_eq!(
+            parsed_line.to_string(),
+            "m,tag1=val1 field1=42.1,field2=false 33"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn parsed_line_display_escaped() -> Result {
+        let series = Series {
+            raw_input: "foo",
+            measurement: EscapedStr::from("m,and m"),
+            tag_set: Some(smallvec![(
+                EscapedStr::from("tag ,1"),
+                EscapedStr::from("val ,1")
+            ),]),
+        };
+        let field_set = smallvec![(
+            EscapedStr::from("field ,1"),
+            FieldValue::String(EscapedStr::from("Foo\"Bar"))
+        ),];
+
+        let parsed_line = ParsedLine {
+            series,
+            field_set,
+            timestamp: Some(33),
+        };
+
+        assert_eq!(
+            parsed_line.to_string(),
+            r#"m\,and\ m,tag\ \,1=val\ \,1 field\ \,1=Foo\"Bar 33"#
+        );
         Ok(())
     }
 }
