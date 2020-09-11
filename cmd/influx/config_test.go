@@ -30,7 +30,7 @@ func TestCmdConfig(t *testing.T) {
 					flags: []string{
 						"--config-name", "default",
 						"--org", "org1",
-						"--host-url", "http://localhost:9999",
+						"--host-url", "http://localhost:8086",
 						"--token", "tok1",
 						"--active",
 					},
@@ -40,7 +40,7 @@ func TestCmdConfig(t *testing.T) {
 						Org:    "org1",
 						Active: true,
 						Token:  "tok1",
-						Host:   "http://localhost:9999",
+						Host:   "http://localhost:8086",
 					},
 				},
 				{
@@ -48,7 +48,7 @@ func TestCmdConfig(t *testing.T) {
 					flags: []string{
 						"-n", "default",
 						"-o", "org1",
-						"-u", "http://localhost:9999",
+						"-u", "http://localhost:8086",
 						"-t", "tok1",
 						"-a",
 					},
@@ -58,7 +58,7 @@ func TestCmdConfig(t *testing.T) {
 						Org:    "org1",
 						Active: true,
 						Token:  "tok1",
-						Host:   "http://localhost:9999",
+						Host:   "http://localhost:8086",
 					},
 				},
 				{
@@ -66,7 +66,7 @@ func TestCmdConfig(t *testing.T) {
 					flags: []string{
 						"-n", "default",
 						"-o", "org1",
-						"-u", "http://localhost:9999",
+						"-u", "http://localhost:8086",
 						"-t", "tok1",
 						"-a",
 					},
@@ -83,7 +83,7 @@ func TestCmdConfig(t *testing.T) {
 						Org:    "org1",
 						Active: true,
 						Token:  "tok1",
-						Host:   "http://localhost:9999",
+						Host:   "http://localhost:8086",
 					},
 				},
 			}
@@ -138,7 +138,7 @@ func TestCmdConfig(t *testing.T) {
 				"--configs-path=" + file,
 				"-n", "default",
 				"-o", "org1",
-				"-u", "http://localhost:9999",
+				"-u", "http://localhost:8086",
 				"-t", "tok1",
 				"-a",
 			}
@@ -152,7 +152,7 @@ func TestCmdConfig(t *testing.T) {
 			require.True(t, ok)
 			assert.Equal(t, "default", cfg.Name)
 			assert.Equal(t, "org1", cfg.Org)
-			assert.Equal(t, "http://localhost:9999", cfg.Host)
+			assert.Equal(t, "http://localhost:8086", cfg.Host)
 			assert.Equal(t, "tok1", cfg.Token)
 			assert.True(t, cfg.Active)
 		})
@@ -199,7 +199,7 @@ func TestCmdConfig(t *testing.T) {
 						Org:    "org1",
 						Active: false,
 						Token:  "tok1",
-						Host:   "http://localhost:9999",
+						Host:   "http://localhost:8086",
 					},
 				},
 				expected: config.Config{
@@ -207,7 +207,7 @@ func TestCmdConfig(t *testing.T) {
 					Org:    "org1",
 					Active: true,
 					Token:  "tok1",
-					Host:   "http://localhost:9999",
+					Host:   "http://localhost:8086",
 				},
 			},
 			{
@@ -227,7 +227,7 @@ func TestCmdConfig(t *testing.T) {
 						Active:         false,
 						PreviousActive: true,
 						Token:          "tok1",
-						Host:           "http://localhost:9999",
+						Host:           "http://localhost:8086",
 					},
 				},
 				expected: config.Config{
@@ -235,7 +235,7 @@ func TestCmdConfig(t *testing.T) {
 					Org:    "org1",
 					Active: true,
 					Token:  "tok1",
-					Host:   "http://localhost:9999",
+					Host:   "http://localhost:8086",
 				},
 			},
 		}
@@ -299,7 +299,7 @@ func TestCmdConfig(t *testing.T) {
 					flags: []string{
 						"--config-name", "default",
 						"--org", "org1",
-						"--host-url", "http://localhost:9999",
+						"--host-url", "http://localhost:8086",
 						"--token", "tok1",
 						"--active",
 					},
@@ -308,7 +308,7 @@ func TestCmdConfig(t *testing.T) {
 						Org:    "org1",
 						Active: true,
 						Token:  "tok1",
-						Host:   "http://localhost:9999",
+						Host:   "http://localhost:8086",
 					},
 				},
 				{
@@ -362,7 +362,7 @@ func TestCmdConfig(t *testing.T) {
 					flags: []string{
 						"-n", "default",
 						"-o", "org1",
-						"-u", "http://localhost:9999",
+						"-u", "http://localhost:8086",
 						"-t", "tok1",
 						"-a",
 					},
@@ -371,7 +371,7 @@ func TestCmdConfig(t *testing.T) {
 						Org:    "org1",
 						Active: true,
 						Token:  "tok1",
-						Host:   "http://localhost:9999",
+						Host:   "http://localhost:8086",
 					},
 				},
 			}
@@ -546,7 +546,7 @@ func TestCmdConfig(t *testing.T) {
 						Org:    "org1",
 						Active: false,
 						Token:  "tok1",
-						Host:   "http://localhost:9999",
+						Host:   "http://localhost:8086",
 					},
 				},
 			},
@@ -594,7 +594,7 @@ func testConfigInvalidURLs(t *testing.T, cmdName string, cmdFn func(*globalFlags
 			flags: []string{
 				"--config-name", "default",
 				"--org", "org1",
-				"--host-url", "localhost:9999",
+				"--host-url", "localhost:8086",
 				"--token", "tok1",
 			},
 		},

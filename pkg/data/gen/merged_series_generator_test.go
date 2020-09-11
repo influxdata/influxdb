@@ -8,48 +8,33 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
-var (
-	org         = influxdb.ID(0xff00ff00)
-	bucket      = influxdb.ID(0xcc00cc00)
-	orgBucketID = tsdb.EncodeName(org, bucket)
-)
-
-func sg(m, prefix, field string, counts ...int) SeriesGenerator {
+func sg(name, prefix, field string, counts ...int) SeriesGenerator {
 	spec := TimeSequenceSpec{Count: 1, Start: time.Unix(0, 0), Delta: time.Second}
 	ts := NewTimestampSequenceFromSpec(spec)
 	vs := NewFloatConstantValuesSequence(1)
 	vg := NewTimeFloatValuesSequence(spec.Count, ts, vs)
-	return NewSeriesGenerator(orgBucketID, []byte(field), vg, NewTagsValuesSequenceCounts(m, field, prefix, counts))
+	return NewSeriesGenerator([]byte(name), []byte(field), vg, NewTagsValuesSequenceCounts(prefix, counts))
 }
 
-func tags(sb *strings.Builder, m, prefix, f string, vals []int) {
+func tags(sb *strings.Builder, prefix string, vals []int) {
 	sb.WriteByte(',')
 
 	// max tag width
 	tw := int(math.Ceil(math.Log10(float64(len(vals)))))
 	tf := fmt.Sprintf("%s%%0%dd=value%%d", prefix, tw)
-	tvs := make([]string, 0, len(vals)+2)
-
-	tvs = append(tvs, fmt.Sprintf("%s=%s", models.MeasurementTagKey, m))
-
+	tvs := make([]string, len(vals))
 	for i := range vals {
-		tvs = append(tvs, fmt.Sprintf(tf, i, vals[i]))
+		tvs[i] = fmt.Sprintf(tf, i, vals[i])
 	}
-
-	tvs = append(tvs, fmt.Sprintf("%s=%s", models.FieldKeyTagKey, f))
-
 	sb.WriteString(strings.Join(tvs, ","))
 }
 
 func line(name, prefix, field string, vals ...int) string {
 	var sb strings.Builder
-	sb.Write(orgBucketID[:])
-	tags(&sb, name, prefix, field, vals)
+	sb.WriteString(name)
+	tags(&sb, prefix, vals)
 	sb.WriteString("#!~#")
 	sb.WriteString(field)
 	return sb.String()

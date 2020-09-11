@@ -2,7 +2,6 @@ package influxql
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/influxdata/flux"
@@ -43,7 +42,7 @@ func NewCompiler(dbrpMappingSvc platform.DBRPMappingServiceV2) *Compiler {
 }
 
 // Compile transpiles the query into a Program.
-func (c *Compiler) Compile(ctx context.Context, runtime flux.Runtime) (flux.Program, error) {
+func (c *Compiler) Compile(ctx context.Context) (flux.Program, error) {
 	var now time.Time
 	if c.Now != nil {
 		now = *c.Now
@@ -65,15 +64,7 @@ func (c *Compiler) Compile(ctx context.Context, runtime flux.Runtime) (flux.Prog
 		return nil, err
 	}
 	compileOptions := lang.WithLogPlanOpts(c.logicalPlannerOptions...)
-	bs, err := json.Marshal(astPkg)
-	if err != nil {
-		return nil, err
-	}
-	hdl, err := runtime.JSONToHandle(bs)
-	if err != nil {
-		return nil, err
-	}
-	return lang.CompileAST(hdl, runtime, now, compileOptions), nil
+	return lang.CompileAST(astPkg, now, compileOptions), nil
 }
 
 func (c *Compiler) CompilerType() flux.CompilerType {

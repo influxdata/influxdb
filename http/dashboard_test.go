@@ -1851,7 +1851,7 @@ func TestService_handlePostDashboardLabel(t *testing.T) {
 				t.Fatalf("failed to unmarshal label mapping: %v", err)
 			}
 
-			url := fmt.Sprintf("http://localhost:9999/api/v2/dashboards/%s/labels", tt.args.dashboardID)
+			url := fmt.Sprintf("http://localhost:8086/api/v2/dashboards/%s/labels", tt.args.dashboardID)
 			r := httptest.NewRequest("POST", url, bytes.NewReader(b))
 			w := httptest.NewRecorder()
 

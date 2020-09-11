@@ -51,7 +51,6 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"integral_columns":    "unbounded test",
 		"map":                 "unbounded test",
 		"join_missing_on_col": "unbounded test",
-		"join_use_previous":   "unbounded test (https://github.com/influxdata/flux/issues/2996)",
 		"rowfn_with_import":   "unbounded test",
 
 		// the following tests have a difference between the CSV-decoded input table, and the storage-retrieved version of that table
@@ -91,7 +90,6 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"to_uint": "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
 
 		"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
-		"map_nulls":          "to cannot write null values",
 	},
 	"experimental": {
 		"set":       "Reason TBD",
@@ -139,8 +137,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"join": "unbounded test",
 	},
 	"testing/chronograf": {
-		"buckets":                "unbounded test",
-		"aggregate_window_count": "flakey test: https://github.com/influxdata/influxdb/issues/18463",
+		"buckets": "unbounded test",
 	},
 	"testing/kapacitor": {
 		"fill_default": "unknown field type for f1",
@@ -160,16 +157,4 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 
 type PerTestFeatureFlagMap = map[string]map[string]map[string]string
 
-var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{
-	"planner": {
-		"bare_mean_push": {
-			"pushDownWindowAggregateMean": "true",
-		},
-		"window_mean_push": {
-			"pushDownWindowAggregateMean": "true",
-		},
-		"merge_filters": {
-			"mergeFilterRule": "true",
-		},
-	},
-}
+var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{}

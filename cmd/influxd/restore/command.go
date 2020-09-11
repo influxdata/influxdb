@@ -8,10 +8,8 @@ import (
 	"strings"
 
 	"github.com/influxdata/influxdb/v2/bolt"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
-	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -123,12 +121,14 @@ func restoreE(cmd *cobra.Command, args []string) error {
 	}
 
 	if flags.rebuildTSI {
-		sFilePath := filepath.Join(flags.enginePath, storage.DefaultSeriesFileDirectoryName)
-		indexPath := filepath.Join(flags.enginePath, storage.DefaultIndexDirectoryName)
+		// FIXME: Implement rebuildTSI
+		panic("not implemented")
+		//sFilePath := filepath.Join(flags.enginePath, storage.DefaultSeriesFileDirectoryName)
+		//indexPath := filepath.Join(flags.enginePath, storage.DefaultIndexDirectoryName)
 
-		rebuild := inspect.NewBuildTSICommand()
-		rebuild.SetArgs([]string{"--sfile-path", sFilePath, "--tsi-path", indexPath})
-		rebuild.Execute()
+		//rebuild := inspect.NewBuildTSICommand()
+		//rebuild.SetArgs([]string{"--sfile-path", sFilePath, "--tsi-path", indexPath})
+		//rebuild.Execute()
 	}
 
 	if err := removeTmpBolt(); err != nil {

@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/kafka"
@@ -22,20 +22,15 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
-const (
-	// ToKind is the kind for the `to` flux function
-	ToKind = influxdb.ToKind
+// ToKind is the kind for the `to` flux function
+const ToKind = influxdb.ToKind
 
-	// TODO(jlapacik) remove this once we have execute.DefaultFieldColLabel
-	defaultFieldColLabel       = "_field"
-	DefaultMeasurementColLabel = "_measurement"
-	DefaultBufferSize          = 1 << 14
-
-	toOp = "influxdata/influxdb/to"
-)
+// TODO(jlapacik) remove this once we have execute.DefaultFieldColLabel
+const defaultFieldColLabel = "_field"
+const DefaultMeasurementColLabel = "_measurement"
+const DefaultBufferSize = 1 << 14
 
 // ToOpSpec is the flux.OperationSpec for the `to` flux function.
 type ToOpSpec struct {
@@ -52,8 +47,29 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", ToKind)
-	runtime.ReplacePackageValue("influxdata/influxdb", "to", flux.MustValue(flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature)))
+	toSignature := flux.FunctionSignature(
+		map[string]semantic.PolyType{
+			"bucket":            semantic.String,
+			"bucketID":          semantic.String,
+			"org":               semantic.String,
+			"orgID":             semantic.String,
+			"host":              semantic.String,
+			"token":             semantic.String,
+			"timeColumn":        semantic.String,
+			"measurementColumn": semantic.String,
+			"tagColumns":        semantic.Array,
+			"fieldFn": semantic.NewFunctionPolyType(semantic.FunctionPolySignature{
+				Parameters: map[string]semantic.PolyType{
+					"r": semantic.Tvar(1),
+				},
+				Required: semantic.LabelSet{"r"},
+				Return:   semantic.Tvar(2),
+			}),
+		},
+		[]string{},
+	)
+
+	flux.ReplacePackageValue("influxdata/influxdb", "to", flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature))
 	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
 	execute.RegisterTransformation(ToKind, createToTransformation)
@@ -241,15 +257,8 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 	}
 	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
-	deps := GetStorageDependencies(a.Context())
-	if deps == (StorageDependencies{}) {
-		return nil, nil, &flux.Error{
-			Code: codes.Unimplemented,
-			Msg:  "cannot return storage dependencies; storage dependencies are unimplemented",
-		}
-	}
-	toDeps := deps.ToDeps
-	t, err := NewToTransformation(a.Context(), d, cache, s, toDeps)
+	deps := GetStorageDependencies(a.Context()).ToDeps
+	t, err := NewToTransformation(a.Context(), d, cache, s, deps)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -278,10 +287,13 @@ func (t *ToTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey)
 // NewToTransformation returns a new *ToTransformation with the appropriate fields set.
 func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, toSpec *ToProcedureSpec, deps ToDependencies) (x *ToTransformation, err error) {
 	var fn *execute.RowMapFn
+	//var err error
 	spec := toSpec.Spec
 	var bucketID, orgID *platform.ID
 	if spec.FieldFn.Fn != nil {
-		fn = execute.NewRowMapFn(spec.FieldFn.Fn, compiler.ToScope(spec.FieldFn.Scope))
+		if fn, err = execute.NewRowMapFn(spec.FieldFn.Fn, compiler.ToScope(spec.FieldFn.Scope)); err != nil {
+			return nil, err
+		}
 	}
 	// Get organization ID
 	if spec.Org != "" {
@@ -301,11 +313,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		// No org or orgID provided as an arg, use the orgID from the context
 		req := query.RequestFromContext(ctx)
 		if req == nil {
-			return nil, &platform.Error{
-				Code: platform.EInternal,
-				Msg:  "missing request on context",
-				Op:   toOp,
-			}
+			return nil, errors.New("missing request on context")
 		}
 		orgID = &req.OrganizationID
 	}
@@ -343,7 +351,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		spec:               toSpec,
 		implicitTagColumns: spec.TagColumns == nil,
 		deps:               deps,
-		buf:                storage.NewBufferedPointsWriter(DefaultBufferSize, deps.PointsWriter),
+		buf:                storage.NewBufferedPointsWriter(*orgID, *bucketID, DefaultBufferSize, deps.PointsWriter),
 	}, nil
 }
 
@@ -352,26 +360,23 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 	if t.implicitTagColumns {
 
 		// If no tag columns are specified, by default we exclude
-		// _field, _value and _measurement from being tag columns.
+		// _field and _value from being tag columns.
 		excludeColumns := map[string]bool{
 			execute.DefaultValueColLabel: true,
 			defaultFieldColLabel:         true,
-			DefaultMeasurementColLabel:   true,
 		}
 
 		// If a field function is specified then we exclude any column that
 		// is referenced in the function expression from being a tag column.
 		if t.spec.Spec.FieldFn.Fn != nil {
-			recordParam := t.spec.Spec.FieldFn.Fn.Parameters.List[0].Key.Name
+			recordParam := t.spec.Spec.FieldFn.Fn.Block.Parameters.List[0].Key.Name
 			exprNode := t.spec.Spec.FieldFn.Fn
 			colVisitor := newFieldFunctionVisitor(recordParam, tbl.Cols())
 
 			// Walk the field function expression and record which columns
 			// are referenced. None of these columns will be used as tag columns.
 			semantic.Walk(colVisitor, exprNode)
-			for k, v := range colVisitor.captured {
-				excludeColumns[k] = v
-			}
+			excludeColumns = colVisitor.captured
 		}
 
 		addTagsFromTable(t.spec.Spec, tbl, excludeColumns)
@@ -466,25 +471,13 @@ type ToDependencies struct {
 // Validate returns an error if any required field is unset.
 func (d ToDependencies) Validate() error {
 	if d.BucketLookup == nil {
-		return &platform.Error{
-			Code: platform.EInternal,
-			Msg:  "missing bucket lookup dependency",
-			Op:   toOp,
-		}
+		return errors.New("missing bucket lookup dependency")
 	}
 	if d.OrganizationLookup == nil {
-		return &platform.Error{
-			Code: platform.EInternal,
-			Msg:  "missing organization lookup dependency",
-			Op:   toOp,
-		}
+		return errors.New("missing organization lookup dependency")
 	}
 	if d.PointsWriter == nil {
-		return &platform.Error{
-			Code: platform.EInternal,
-			Msg:  "missing points writer dependency",
-			Op:   toOp,
-		}
+		return errors.New("missing points writer dependency")
 	}
 	return nil
 }
@@ -547,10 +540,8 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 	}
 
 	// prepare field function if applicable and record the number of values to write per row
-	var fn *execute.RowMapPreparedFn
 	if spec.FieldFn.Fn != nil {
-		var err error
-		if fn, err = t.fn.Prepare(columns); err != nil {
+		if err = t.fn.Prepare(columns); err != nil {
 			return err
 		}
 
@@ -574,16 +565,12 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 		for i := 0; i < er.Len(); i++ {
 			measurementName = ""
 			fields := make(models.Fields)
-			// leave space for measurement key, value at start, in an effort to
-			// keep kv sorted
-			kv = kv[:2]
+			kv = kv[:0]
 			// Gather the timestamp and the tags.
 			for j, col := range er.Cols() {
 				switch {
 				case col.Label == spec.MeasurementColumn:
 					measurementName = string(er.Strings(j).Value(i))
-					kv[0] = models.MeasurementTagKeyBytes
-					kv[1] = er.Strings(j).Value(i)
 				case col.Label == timeColLabel:
 					valueTime := execute.ValueForRow(er, i, j)
 					if valueTime.IsNull() {
@@ -593,11 +580,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 					pointTime = valueTime.Time().Time()
 				case isTag[j]:
 					if col.Type != flux.TString {
-						return &platform.Error{
-							Code: platform.EInvalid,
-							Msg:  "invalid type for tag column",
-							Op:   toOp,
-						}
+						return errors.New("invalid type for tag column")
 					}
 					// TODO(docmerlin): instead of doing this sort of thing, it would be nice if we had a way that allocated a lot less.
 					kv = append(kv, []byte(col.Label), er.Strings(j).Value(i))
@@ -619,11 +602,11 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 			}
 
 			var fieldValues values.Object
-			if fn == nil {
+			if spec.FieldFn.Fn == nil {
 				if fieldValues, err = defaultFieldMapping(er, i); err != nil {
 					return err
 				}
-			} else if fieldValues, err = fn.Eval(t.Ctx, i, er); err != nil {
+			} else if fieldValues, err = t.fn.Eval(t.Ctx, i, er); err != nil {
 				return err
 			}
 
@@ -632,7 +615,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 					fields[k] = nil
 					return
 				}
-				switch v.Type().Nature() {
+				switch v.Type() {
 				case semantic.Float:
 					fields[k] = v.Float()
 				case semantic.Int:
@@ -662,26 +645,12 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				measurementStats[measurementName].Update(mstats)
 			}
 
-			name := tsdb.EncodeNameString(t.OrgID, t.BucketID)
-
-			fieldNames := make([]string, 0, len(fields))
-			for k := range fields {
-				fieldNames = append(fieldNames, k)
+			tags, _ = models.NewTagsKeyValues(tags, kv...)
+			pt, err := models.NewPoint(measurementName, tags, fields, pointTime)
+			if err != nil {
+				return err
 			}
-			sort.Strings(fieldNames)
-
-			for _, k := range fieldNames {
-				v := fields[k]
-				// append field tag key and field key
-				kvf := append(kv, models.FieldKeyTagKeyBytes, []byte(k))
-				tags, _ = models.NewTagsKeyValues(tags, kvf...)
-
-				pt, err := models.NewPoint(name, tags, models.Fields{k: v}, pointTime)
-				if err != nil {
-					return err
-				}
-				points = append(points, pt)
-			}
+			points = append(points, pt)
 
 			if err := execute.AppendRecord(i, er, builder); err != nil {
 				return err
@@ -711,14 +680,10 @@ func defaultFieldMapping(er flux.ColReader, row int) (values.Object, error) {
 	}
 
 	value := execute.ValueForRow(er, row, valueColumnIdx)
+
+	fieldValueMapping := values.NewObject()
 	field := execute.ValueForRow(er, row, fieldColumnIdx)
-	props := []semantic.PropertyType{
-		{
-			Key:   []byte(field.Str()),
-			Value: value.Type(),
-		},
-	}
-	fieldValueMapping := values.NewObject(semantic.NewObjectType(props))
 	fieldValueMapping.Set(field.Str(), value)
+
 	return fieldValueMapping, nil
 }

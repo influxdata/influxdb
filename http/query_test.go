@@ -3,7 +3,6 @@ package http
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -34,7 +33,7 @@ var cmpOptions = cmp.Options{
 func TestQueryRequest_WithDefaults(t *testing.T) {
 	type fields struct {
 		Spec    *flux.Spec
-		AST     json.RawMessage
+		AST     *ast.Package
 		Query   string
 		Type    string
 		Dialect QueryDialect
@@ -60,6 +59,7 @@ func TestQueryRequest_WithDefaults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := QueryRequest{
+				Spec:    tt.fields.Spec,
 				AST:     tt.fields.AST,
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
@@ -75,8 +75,9 @@ func TestQueryRequest_WithDefaults(t *testing.T) {
 
 func TestQueryRequest_Validate(t *testing.T) {
 	type fields struct {
-		Extern  json.RawMessage
-		AST     json.RawMessage
+		Extern  *ast.File
+		Spec    *flux.Spec
+		AST     *ast.Package
 		Query   string
 		Type    string
 		Dialect QueryDialect
@@ -91,6 +92,19 @@ func TestQueryRequest_Validate(t *testing.T) {
 			name: "requires query, spec, or ast",
 			fields: fields{
 				Type: "flux",
+			},
+			wantErr: true,
+		},
+		{
+			name: "query cannot have both extern and spec",
+			fields: fields{
+				Extern: &ast.File{},
+				Spec:   &flux.Spec{},
+				Type:   "flux",
+				Dialect: QueryDialect{
+					Delimiter:      ",",
+					DateTimeFormat: "RFC3339",
+				},
 			},
 			wantErr: true,
 		},
@@ -175,6 +189,7 @@ func TestQueryRequest_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := QueryRequest{
 				Extern:  tt.fields.Extern,
+				Spec:    tt.fields.Spec,
 				AST:     tt.fields.AST,
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
@@ -190,9 +205,9 @@ func TestQueryRequest_Validate(t *testing.T) {
 
 func TestQueryRequest_proxyRequest(t *testing.T) {
 	type fields struct {
-		Extern  json.RawMessage
+		Extern  *ast.File
 		Spec    *flux.Spec
-		AST     json.RawMessage
+		AST     *ast.Package
 		Query   string
 		Type    string
 		Dialect QueryDialect
@@ -243,7 +258,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 		{
 			name: "valid AST",
 			fields: fields{
-				AST:  mustMarshal(&ast.Package{}),
+				AST:  &ast.Package{},
 				Type: "flux",
 				Dialect: QueryDialect{
 					Delimiter:      ",",
@@ -256,7 +271,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 			want: &query.ProxyRequest{
 				Request: query.Request{
 					Compiler: lang.ASTCompiler{
-						AST: mustMarshal(&ast.Package{}),
+						AST: &ast.Package{},
 						Now: time.Unix(1, 1),
 					},
 				},
@@ -271,7 +286,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 		{
 			name: "valid AST with calculated now",
 			fields: fields{
-				AST:  mustMarshal(&ast.Package{}),
+				AST:  &ast.Package{},
 				Type: "flux",
 				Dialect: QueryDialect{
 					Delimiter:      ",",
@@ -283,7 +298,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 			want: &query.ProxyRequest{
 				Request: query.Request{
 					Compiler: lang.ASTCompiler{
-						AST: mustMarshal(&ast.Package{}),
+						AST: &ast.Package{},
 						Now: time.Unix(2, 2),
 					},
 				},
@@ -298,7 +313,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 		{
 			name: "valid AST with extern",
 			fields: fields{
-				Extern: mustMarshal(&ast.File{
+				Extern: &ast.File{
 					Body: []ast.Statement{
 						&ast.OptionStatement{
 							Assignment: &ast.VariableAssignment{
@@ -307,8 +322,8 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 							},
 						},
 					},
-				}),
-				AST:  mustMarshal(&ast.Package{}),
+				},
+				AST:  &ast.Package{},
 				Type: "flux",
 				Dialect: QueryDialect{
 					Delimiter:      ",",
@@ -320,17 +335,20 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 			want: &query.ProxyRequest{
 				Request: query.Request{
 					Compiler: lang.ASTCompiler{
-						Extern: mustMarshal(&ast.File{
-							Body: []ast.Statement{
-								&ast.OptionStatement{
-									Assignment: &ast.VariableAssignment{
-										ID:   &ast.Identifier{Name: "x"},
-										Init: &ast.IntegerLiteral{Value: 0},
+						AST: &ast.Package{
+							Files: []*ast.File{
+								{
+									Body: []ast.Statement{
+										&ast.OptionStatement{
+											Assignment: &ast.VariableAssignment{
+												ID:   &ast.Identifier{Name: "x"},
+												Init: &ast.IntegerLiteral{Value: 0},
+											},
+										},
 									},
 								},
 							},
-						}),
-						AST: mustMarshal(&ast.Package{}),
+						},
 						Now: time.Unix(1, 1),
 					},
 				},
@@ -347,6 +365,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := QueryRequest{
 				Extern:  tt.fields.Extern,
+				Spec:    tt.fields.Spec,
 				AST:     tt.fields.AST,
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
@@ -364,14 +383,6 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 			}
 		})
 	}
-}
-
-func mustMarshal(p ast.Node) []byte {
-	bs, err := json.Marshal(p)
-	if err != nil {
-		panic(err)
-	}
-	return bs
 }
 
 func Test_decodeQueryRequest(t *testing.T) {
@@ -470,25 +481,6 @@ func Test_decodeQueryRequest(t *testing.T) {
 }
 
 func Test_decodeProxyQueryRequest(t *testing.T) {
-	externJSON := `{
-		"type": "File",
-		"body": [
-			{
-				"type": "OptionStatement",
-				"assignment": {
-					"type": "VariableAssignment",
-					"id": {
-						"type": "Identifier",
-						"name": "x"
-					},
-					"init": {
-						"type": "IntegerLiteral",
-						"value": "0"
-					}
-				}
-			}
-		]
-	}`
 	type args struct {
 		ctx  context.Context
 		r    *http.Request
@@ -533,7 +525,25 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 			args: args{
 				r: httptest.NewRequest("POST", "/", bytes.NewBufferString(`
 {
-	"extern": `+externJSON+`,
+	"extern": {
+		"type": "File",
+		"body": [
+			{
+				"type": "OptionStatement",
+				"assignment": {
+					"type": "VariableAssignment",
+					"id": {
+						"type": "Identifier",
+						"name": "x"
+					},
+					"init": {
+						"type": "IntegerLiteral",
+						"value": "0"
+					}
+				}
+			}
+		]
+	},
 	"query": "from(bucket: \"mybucket\")"
 }
 `)),
@@ -549,8 +559,17 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 				Request: query.Request{
 					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 					Compiler: lang.FluxCompiler{
-						Extern: []byte(externJSON),
-						Query:  `from(bucket: "mybucket")`,
+						Extern: &ast.File{
+							Body: []ast.Statement{
+								&ast.OptionStatement{
+									Assignment: &ast.VariableAssignment{
+										ID:   &ast.Identifier{Name: "x"},
+										Init: &ast.IntegerLiteral{Value: 0},
+									},
+								},
+							},
+						},
+						Query: `from(bucket: "mybucket")`,
 					},
 				},
 				Dialect: &csv.Dialect{
@@ -606,62 +625,6 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 			}
 			if !cmp.Equal(tt.want, got, cmpOptions...) {
 				t.Errorf("decodeProxyQueryRequest() -want/+got\n%s", cmp.Diff(tt.want, got, cmpOptions...))
-			}
-		})
-	}
-}
-
-func TestProxyRequestToQueryRequest_Compilers(t *testing.T) {
-	tests := []struct {
-		name string
-		pr   query.ProxyRequest
-		want QueryRequest
-	}{
-		{
-			name: "flux compiler copied",
-			pr: query.ProxyRequest{
-				Dialect: &query.NoContentDialect{},
-				Request: query.Request{
-					Compiler: lang.FluxCompiler{
-						Query: `howdy`,
-						Now:   time.Unix(45, 45),
-					},
-				},
-			},
-			want: QueryRequest{
-				Type:            "flux",
-				Query:           `howdy`,
-				PreferNoContent: true,
-				Now:             time.Unix(45, 45),
-			},
-		},
-		{
-			name: "AST compiler copied",
-			pr: query.ProxyRequest{
-				Dialect: &query.NoContentDialect{},
-				Request: query.Request{
-					Compiler: lang.ASTCompiler{
-						Now: time.Unix(45, 45),
-						AST: mustMarshal(&ast.Package{}),
-					},
-				},
-			},
-			want: QueryRequest{
-				Type:            "flux",
-				PreferNoContent: true,
-				AST:             mustMarshal(&ast.Package{}),
-				Now:             time.Unix(45, 45),
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-
-			got, err := QueryRequestFromProxyRequest(&tt.pr)
-			if err != nil {
-				t.Error(err)
-			} else if !reflect.DeepEqual(*got, tt.want) {
-				t.Errorf("QueryRequestFromProxyRequest = %v, want %v", got, tt.want)
 			}
 		})
 	}

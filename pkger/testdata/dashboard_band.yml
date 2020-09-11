@@ -16,6 +16,7 @@ spec:
       xCol: _time
       yCol: _value
       upperColumn: foo
+      mainColumn: baz
       lowerColumn: bar
       hoverDimension: "y"
       geom: line

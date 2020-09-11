@@ -5,18 +5,29 @@ import (
 	"encoding"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"os/user"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
+
+	"github.com/dustin/go-humanize"
+	"github.com/spf13/pflag"
 )
 
 // Duration is a TOML wrapper type for time.Duration.
 type Duration time.Duration
+
+var _ pflag.Value = (*Duration)(nil)
+
+func (d *Duration) Set(s string) error {
+	return d.UnmarshalText([]byte(s))
+}
+
+func (d Duration) Type() string {
+	return "Duration"
+}
 
 // String returns the string representation of the duration.
 func (d Duration) String() string {
@@ -51,48 +62,32 @@ func (d Duration) MarshalText() (text []byte, err error) {
 // and "g" or "G" for gibibytes. If a size suffix isn't specified then bytes are assumed.
 type Size uint64
 
+var _ pflag.Value = (*Size)(nil)
+
+func (s Size) String() string {
+	return humanize.IBytes(uint64(s))
+}
+
+func (s *Size) Set(d string) error {
+	return s.UnmarshalText([]byte(d))
+}
+
+func (s Size) Type() string {
+	return "Size"
+}
+
 // UnmarshalText parses a byte size from text.
 func (s *Size) UnmarshalText(text []byte) error {
 	if len(text) == 0 {
 		return fmt.Errorf("size was empty")
 	}
 
-	// The multiplier defaults to 1 in case the size has
-	// no suffix (and is then just raw bytes)
-	mult := uint64(1)
-
-	// Preserve the original text for error messages
-	sizeText := text
-
-	// Parse unit of measure
-	suffix := text[len(sizeText)-1]
-	if !unicode.IsDigit(rune(suffix)) {
-		switch suffix {
-		case 'k', 'K':
-			mult = 1 << 10 // KiB
-		case 'm', 'M':
-			mult = 1 << 20 // MiB
-		case 'g', 'G':
-			mult = 1 << 30 // GiB
-		default:
-			return fmt.Errorf("unknown size suffix: %c (expected k, m, or g)", suffix)
-		}
-		sizeText = sizeText[:len(sizeText)-1]
-	}
-
-	// Parse numeric portion of value.
-	size, err := strconv.ParseUint(string(sizeText), 10, 64)
+	v, err := humanize.ParseBytes(string(text))
 	if err != nil {
-		return fmt.Errorf("invalid size: %s", string(text))
+		return err
 	}
+	*s = Size(v)
 
-	if math.MaxUint64/mult < size {
-		return fmt.Errorf("size would overflow the max size (%d) of a uint: %s", uint64(math.MaxUint64), string(text))
-	}
-
-	size *= mult
-
-	*s = Size(size)
 	return nil
 }
 

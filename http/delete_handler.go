@@ -13,7 +13,6 @@ import (
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/predicate"
-	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 	"go.uber.org/zap"
 )
 
@@ -122,7 +121,6 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		dr.Start,
 		dr.Stop,
 		dr.Predicate,
-		influxdb.DeletePrefixRangeOptions{KeepSeries: dr.KeepSeries},
 	)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -157,33 +155,28 @@ func decodeDeleteRequest(ctx context.Context, r *http.Request, orgSvc influxdb.O
 }
 
 type deleteRequest struct {
-	Org        *influxdb.Organization
-	Bucket     *influxdb.Bucket
-	Start      int64
-	Stop       int64
-	Predicate  influxdb.Predicate
-	KeepSeries bool
+	Org       *influxdb.Organization
+	Bucket    *influxdb.Bucket
+	Start     int64
+	Stop      int64
+	Predicate influxdb.Predicate
 }
 
 type deleteRequestDecode struct {
-	Start          string `json:"start"`
-	Stop           string `json:"stop"`
-	Predicate      string `json:"predicate"`
-	PredicateBytes []byte `json:"predicate_bytes"`
-	KeepSeries     bool   `json:"keep_series"`
+	Start     string `json:"start"`
+	Stop      string `json:"stop"`
+	Predicate string `json:"predicate"`
 }
 
 // DeleteRequest is the request send over http to delete points.
 type DeleteRequest struct {
-	OrgID          string `json:"-"`
-	Org            string `json:"-"` // org name
-	BucketID       string `json:"-"`
-	Bucket         string `json:"-"`
-	Start          string `json:"start"`
-	Stop           string `json:"stop"`
-	Predicate      string `json:"predicate"`
-	PredicateBytes []byte `json:"predicate_bytes"`
-	KeepSeries     bool   `json:"keep_series"`
+	OrgID     string `json:"-"`
+	Org       string `json:"-"` // org name
+	BucketID  string `json:"-"`
+	Bucket    string `json:"-"`
+	Start     string `json:"start"`
+	Stop      string `json:"stop"`
+	Predicate string `json:"predicate"`
 }
 
 func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
@@ -195,8 +188,7 @@ func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 			Err:  err,
 		}
 	}
-
-	*dr = deleteRequest{KeepSeries: drd.KeepSeries}
+	*dr = deleteRequest{}
 	start, err := time.Parse(time.RFC3339Nano, drd.Start)
 	if err != nil {
 		return &influxdb.Error{
@@ -216,22 +208,12 @@ func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 		}
 	}
 	dr.Stop = stop.UnixNano()
-
-	if len(drd.PredicateBytes) != 0 {
-		if dr.Predicate, err = tsm1.UnmarshalPredicate(drd.PredicateBytes); err != nil {
-			return err
-		}
-	} else {
-		node, err := predicate.Parse(drd.Predicate)
-		if err != nil {
-			return err
-		}
-		if dr.Predicate, err = predicate.New(node); err != nil {
-			return err
-		}
+	node, err := predicate.Parse(drd.Predicate)
+	if err != nil {
+		return err
 	}
-
-	return nil
+	dr.Predicate, err = predicate.New(node)
+	return err
 }
 
 // DeleteService sends data over HTTP to delete points.

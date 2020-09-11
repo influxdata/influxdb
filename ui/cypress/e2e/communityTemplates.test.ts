@@ -226,15 +226,9 @@ describe('Community Templates', () => {
       cy.go('back')
     })
 
-    it('takes you to github when you click on the Community Templates link', () => {
-      cy.getByTestID('template-source-link').within(() => {
-        cy.contains('Community Templates').should(
-          'have.attr',
-          'href',
-          'https://github.com/influxdata/community-templates/blob/master/docker/docker.yml'
-        )
-      })
-      //TODO: add the link from CLI
+    it('takes you to github readme when you click on the Community Templates button', () => {
+      cy.getByTestID('community-template-readme-overlay-button').click()
+      cy.get('.markdown-format').should('contain', 'Docker Monitoring template')
     })
 
     it('Can delete template', () => {

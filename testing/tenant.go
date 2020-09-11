@@ -798,10 +798,6 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		defer done()
 		ctx := context.Background()
 
-		// Number of base buckets return by a find operation.
-		// This is because, for now, system buckets always get returned for compatibility with the old system.
-		const baseNBuckets = 2
-
 		// Delete org1.
 		// We expect its buckets to be deleted.
 		// We expect urms to those buckets to be deleted too.
@@ -817,7 +813,7 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nbs != baseNBuckets {
+		if nbs != 0 {
 			t.Errorf("expected org buckets to be deleted, got: %+v", bs)
 		}
 
@@ -869,7 +865,7 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nbs != baseNBuckets {
+		if nbs != 0 {
 			t.Errorf("expected buckets to be deleted, got: %+v", bs)
 		}
 	})

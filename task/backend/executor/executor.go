@@ -2,15 +2,12 @@ package executor
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/feature"
@@ -24,8 +21,6 @@ import (
 const (
 	maxPromises       = 1000
 	defaultMaxWorkers = 100
-
-	lastSuccessOption = "tasks.lastSuccessTime"
 )
 
 var _ scheduler.Executor = (*Executor)(nil)
@@ -74,31 +69,7 @@ func WithMaxWorkers(n int) executorOption {
 
 // CompilerBuilderFunc is a function that yields a new flux.Compiler. The
 // context.Context provided can be assumed to be an authorized context.
-type CompilerBuilderFunc func(ctx context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error)
-
-// CompilerBuilderTimestamps contains timestamps which should be provided along
-// with a Task query.
-type CompilerBuilderTimestamps struct {
-	Now           time.Time
-	LatestSuccess time.Time
-}
-
-func (ts CompilerBuilderTimestamps) Extern() *ast.File {
-	var body []ast.Statement
-
-	if !ts.LatestSuccess.IsZero() {
-		body = append(body, &ast.OptionStatement{
-			Assignment: &ast.VariableAssignment{
-				ID: &ast.Identifier{Name: lastSuccessOption},
-				Init: &ast.DateTimeLiteral{
-					Value: ts.LatestSuccess,
-				},
-			},
-		})
-	}
-
-	return &ast.File{Body: body}
-}
+type CompilerBuilderFunc func(ctx context.Context, query string, now time.Time) (flux.Compiler, error)
 
 // WithSystemCompilerBuilder is an Executor option that configures a
 // CompilerBuilderFunc to be used when compiling queries for System Tasks.
@@ -444,6 +415,8 @@ func (w *worker) start(p *promise) {
 }
 
 func (w *worker) finish(p *promise, rs influxdb.RunStatus, err error) {
+
+	// trace
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
 	defer span.Finish()
 
@@ -497,10 +470,7 @@ func (w *worker) executeQuery(p *promise) {
 	if p.task.Type != influxdb.TaskSystemType {
 		buildCompiler = w.nonSystemBuildCompiler
 	}
-	compiler, err := buildCompiler(ctx, p.task.Flux, CompilerBuilderTimestamps{
-		Now:           p.run.ScheduledFor,
-		LatestSuccess: p.task.LatestSuccess,
-	})
+	compiler, err := buildCompiler(ctx, p.task.Flux, p.run.ScheduledFor)
 	if err != nil {
 		w.finish(p, influxdb.RunFail, influxdb.ErrFluxParseError(err))
 		return
@@ -621,45 +591,21 @@ func exhaustResultIterators(res flux.Result) error {
 }
 
 // NewASTCompiler parses a Flux query string into an AST representatation.
-func NewASTCompiler(ctx context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
-	pkg, err := runtime.ParseToJSON(query)
+func NewASTCompiler(_ context.Context, query string, now time.Time) (flux.Compiler, error) {
+	pkg, err := flux.Parse(query)
 	if err != nil {
 		return nil, err
 	}
-	var externBytes []byte
-	if feature.InjectLatestSuccessTime().Enabled(ctx) {
-		extern := ts.Extern()
-		if len(extern.Body) > 0 {
-			var err error
-			externBytes, err = json.Marshal(extern)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
 	return lang.ASTCompiler{
-		AST:    pkg,
-		Now:    ts.Now,
-		Extern: externBytes,
+		AST: pkg,
+		Now: now,
 	}, nil
 }
 
 // NewFluxCompiler wraps a Flux query string in a raw-query representation.
-func NewFluxCompiler(ctx context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
-	var externBytes []byte
-	if feature.InjectLatestSuccessTime().Enabled(ctx) {
-		extern := ts.Extern()
-		if len(extern.Body) > 0 {
-			var err error
-			externBytes, err = json.Marshal(extern)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
+func NewFluxCompiler(_ context.Context, query string, _ time.Time) (flux.Compiler, error) {
 	return lang.FluxCompiler{
-		Query:  query,
-		Extern: externBytes,
+		Query: query,
 		// TODO(brett): This mitigates an immediate problem where
 		// Checks/Notifications breaks when sending Now, and system Tasks do not
 		// break when sending Now. We are currently sending C+N through using
@@ -670,13 +616,7 @@ func NewFluxCompiler(ctx context.Context, query string, ts CompilerBuilderTimest
 		// we are able to locate the root cause and use Flux Compiler for all
 		// Task types.
 		//
-		// It turns out this is due to the exclusive nature of the stop time in
-		// Flux "from" and that we weren't including the left-hand boundary of
-		// the range check for notifications. We're shipping a fix soon in
-		//
-		// https://github.com/influxdata/influxdb/pull/19392
-		//
-		// Once this has merged, we can send Now again.
+		// This should be removed once we diagnose the problem.
 		//
 		// Now: now,
 	}, nil

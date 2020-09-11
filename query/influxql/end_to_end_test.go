@@ -131,8 +131,6 @@ var skipTests = map[string]string{
 	"SelectorMath_29":          "Transpiler: unimplemented functions: top and bottom https://github.com/influxdata/influxdb/issues/10738",
 	"SelectorMath_30":          "Transpiler: unimplemented functions: top and bottom https://github.com/influxdata/influxdb/issues/10738",
 	"SelectorMath_31":          "Transpiler: unimplemented functions: top and bottom https://github.com/influxdata/influxdb/issues/10738",
-	"ands":                     "algo-w: https://github.com/influxdata/influxdb/issues/16811",
-	"ors":                      "algo-w: https://github.com/influxdata/influxdb/issues/16811",
 }
 
 var querier = fluxquerytest.NewQuerier()

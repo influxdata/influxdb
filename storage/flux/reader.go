@@ -9,12 +9,9 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	storage "github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -58,11 +55,11 @@ type storeReader struct {
 }
 
 // NewReader returns a new storageflux reader
-func NewReader(s storage.Store) query.StorageReader {
+func NewReader(s storage.Store) influxdb.Reader {
 	return &storeReader{s: s}
 }
 
-func (r *storeReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (r *storeReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
 	return &filterIterator{
 		ctx:   ctx,
 		s:     r.s,
@@ -72,14 +69,7 @@ func (r *storeReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec,
 	}, nil
 }
 
-func (r *storeReader) GetGroupCapability(ctx context.Context) query.GroupCapability {
-	if aggStore, ok := r.s.(storage.GroupStore); ok {
-		return aggStore.GetGroupCapability(ctx)
-	}
-	return nil
-}
-
-func (r *storeReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (r *storeReader) ReadGroup(ctx context.Context, spec influxdb.ReadGroupSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
 	return &groupIterator{
 		ctx:   ctx,
 		s:     r.s,
@@ -89,41 +79,42 @@ func (r *storeReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, a
 	}, nil
 }
 
-func (r *storeReader) GetWindowAggregateCapability(ctx context.Context) query.WindowAggregateCapability {
-	if aggStore, ok := r.s.(storage.WindowAggregateStore); ok {
-		return aggStore.GetWindowAggregateCapability(ctx)
+func (r *storeReader) ReadTagKeys(ctx context.Context, spec influxdb.ReadTagKeysSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+	var predicate *datatypes.Predicate
+	if spec.Predicate != nil {
+		p, err := toStoragePredicate(spec.Predicate)
+		if err != nil {
+			return nil, err
+		}
+		predicate = p
 	}
-	return nil
-}
 
-func (r *storeReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
-	return &windowAggregateIterator{
-		ctx:   ctx,
-		s:     r.s,
-		spec:  spec,
-		cache: newTagsCache(0),
-		alloc: alloc,
-	}, nil
-}
-
-func (r *storeReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &tagKeysIterator{
 		ctx:       ctx,
 		bounds:    spec.Bounds,
 		s:         r.s,
 		readSpec:  spec,
-		predicate: spec.Predicate,
+		predicate: predicate,
 		alloc:     alloc,
 	}, nil
 }
 
-func (r *storeReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (r *storeReader) ReadTagValues(ctx context.Context, spec influxdb.ReadTagValuesSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+	var predicate *datatypes.Predicate
+	if spec.Predicate != nil {
+		p, err := toStoragePredicate(spec.Predicate)
+		if err != nil {
+			return nil, err
+		}
+		predicate = p
+	}
+
 	return &tagValuesIterator{
 		ctx:       ctx,
 		bounds:    spec.Bounds,
 		s:         r.s,
 		readSpec:  spec,
-		predicate: spec.Predicate,
+		predicate: predicate,
 		alloc:     alloc,
 	}, nil
 }
@@ -133,7 +124,7 @@ func (r *storeReader) Close() {}
 type filterIterator struct {
 	ctx   context.Context
 	s     storage.Store
-	spec  query.ReadFilterSpec
+	spec  influxdb.ReadFilterSpec
 	stats cursors.CursorStats
 	cache *tagsCache
 	alloc *memory.Allocator
@@ -153,9 +144,18 @@ func (fi *filterIterator) Do(f func(flux.Table) error) error {
 		return err
 	}
 
+	var predicate *datatypes.Predicate
+	if fi.spec.Predicate != nil {
+		p, err := toStoragePredicate(fi.spec.Predicate)
+		if err != nil {
+			return err
+		}
+		predicate = p
+	}
+
 	var req datatypes.ReadFilterRequest
 	req.ReadSource = any
-	req.Predicate = fi.spec.Predicate
+	req.Predicate = predicate
 	req.Range.Start = int64(fi.spec.Bounds.Start)
 	req.Range.End = int64(fi.spec.Bounds.Stop)
 
@@ -248,7 +248,7 @@ READ:
 type groupIterator struct {
 	ctx   context.Context
 	s     storage.Store
-	spec  query.ReadGroupSpec
+	spec  influxdb.ReadGroupSpec
 	stats cursors.CursorStats
 	cache *tagsCache
 	alloc *memory.Allocator
@@ -268,18 +268,21 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 		return err
 	}
 
+	var predicate *datatypes.Predicate
+	if gi.spec.Predicate != nil {
+		p, err := toStoragePredicate(gi.spec.Predicate)
+		if err != nil {
+			return err
+		}
+		predicate = p
+	}
+
 	var req datatypes.ReadGroupRequest
 	req.ReadSource = any
-	req.Predicate = gi.spec.Predicate
+	req.Predicate = predicate
 	req.Range.Start = int64(gi.spec.Bounds.Start)
 	req.Range.End = int64(gi.spec.Bounds.Stop)
 
-	if len(gi.spec.GroupKeys) > 0 && gi.spec.GroupMode == query.GroupModeNone {
-		return &influxdb.Error{
-			Code: influxdb.EInternal,
-			Msg:  "cannot have group mode none with group key values",
-		}
-	}
 	req.Group = convertGroupMode(gi.spec.GroupMode)
 	req.GroupKeys = gi.spec.GroupKeys
 
@@ -343,19 +346,19 @@ READ:
 		done := make(chan struct{})
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt, gc.Aggregate(), key)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt)
 			table = newIntegerGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.FloatArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TFloat, gc.Aggregate(), key)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TFloat)
 			table = newFloatGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.UnsignedArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TUInt, gc.Aggregate(), key)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TUInt)
 			table = newUnsignedGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.BooleanArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TBool, gc.Aggregate(), key)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TBool)
 			table = newBooleanGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.StringArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString, gc.Aggregate(), key)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
 			table = newStringGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
@@ -399,67 +402,22 @@ func determineAggregateMethod(agg string) (datatypes.Aggregate_AggregateType, er
 	return 0, fmt.Errorf("unknown aggregate type %q", agg)
 }
 
-func convertGroupMode(m query.GroupMode) datatypes.ReadGroupRequest_Group {
+func convertGroupMode(m influxdb.GroupMode) datatypes.ReadGroupRequest_Group {
 	switch m {
-	case query.GroupModeNone:
+	case influxdb.GroupModeNone:
 		return datatypes.GroupNone
-	case query.GroupModeBy:
+	case influxdb.GroupModeBy:
 		return datatypes.GroupBy
 	}
 	panic(fmt.Sprint("invalid group mode: ", m))
 }
 
 const (
-	startColIdx            = 0
-	stopColIdx             = 1
-	timeColIdx             = 2
-	valueColIdxWithoutTime = 2
-	valueColIdx            = 3
+	startColIdx = 0
+	stopColIdx  = 1
+	timeColIdx  = 2
+	valueColIdx = 3
 )
-
-func determineTableColsForWindowAggregate(tags models.Tags, typ flux.ColType, hasTimeCol bool) ([]flux.ColMeta, [][]byte) {
-	var cols []flux.ColMeta
-	var defs [][]byte
-
-	// aggregates remove the _time column
-	size := 3
-	if hasTimeCol {
-		size++
-	}
-	cols = make([]flux.ColMeta, size+len(tags))
-	defs = make([][]byte, size+len(tags))
-	cols[startColIdx] = flux.ColMeta{
-		Label: execute.DefaultStartColLabel,
-		Type:  flux.TTime,
-	}
-	cols[stopColIdx] = flux.ColMeta{
-		Label: execute.DefaultStopColLabel,
-		Type:  flux.TTime,
-	}
-	if hasTimeCol {
-		cols[timeColIdx] = flux.ColMeta{
-			Label: execute.DefaultTimeColLabel,
-			Type:  flux.TTime,
-		}
-		cols[valueColIdx] = flux.ColMeta{
-			Label: execute.DefaultValueColLabel,
-			Type:  typ,
-		}
-	} else {
-		cols[valueColIdxWithoutTime] = flux.ColMeta{
-			Label: execute.DefaultValueColLabel,
-			Type:  typ,
-		}
-	}
-	for j, tag := range tags {
-		cols[size+j] = flux.ColMeta{
-			Label: string(tag.Key),
-			Type:  flux.TString,
-		}
-		defs[size+j] = []byte("")
-	}
-	return cols, defs
-}
 
 func determineTableColsForSeries(tags models.Tags, typ flux.ColType) ([]flux.ColMeta, [][]byte) {
 	cols := make([]flux.ColMeta, 4+len(tags))
@@ -513,35 +471,9 @@ func defaultGroupKeyForSeries(tags models.Tags, bnds execute.Bounds) flux.GroupK
 	return execute.NewGroupKey(cols, vs)
 }
 
-func IsSelector(agg *datatypes.Aggregate) bool {
-	if agg == nil {
-		return false
-	}
-	return agg.Type == datatypes.AggregateTypeMin || agg.Type == datatypes.AggregateTypeMax ||
-		agg.Type == datatypes.AggregateTypeFirst || agg.Type == datatypes.AggregateTypeLast
-}
-
-func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType, agg *datatypes.Aggregate, groupKey flux.GroupKey) ([]flux.ColMeta, [][]byte) {
-	var colSize int
-	if agg == nil || IsSelector(agg) {
-		// The group without aggregate or with selector (min, max, first, last) case:
-		// _start, _stop, _time, _value + tags
-		colSize += 4 + len(tagKeys)
-	} else {
-		// The group aggregate case:
-		// Only the group keys + _value are needed.
-		// Note that `groupKey` will contain _start, _stop, plus any group columns specified.
-		// _start and _stop will always be in the first two slots, see: groupKeyForGroup()
-		// For the group aggregate case the output does not contain a _time column.
-
-		// Also note that if in the future we will add support for mean, then it should also fall onto this branch.
-
-		colSize = len(groupKey.Cols()) + 1
-	}
-
-	cols := make([]flux.ColMeta, colSize)
-	defs := make([][]byte, colSize)
-	// No matter this has aggregate, selector, or neither, the first two columns are always _start and _stop
+func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType) ([]flux.ColMeta, [][]byte) {
+	cols := make([]flux.ColMeta, 4+len(tagKeys))
+	defs := make([][]byte, 4+len(tagKeys))
 	cols[startColIdx] = flux.ColMeta{
 		Label: execute.DefaultStartColLabel,
 		Type:  flux.TTime,
@@ -550,47 +482,26 @@ func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType, agg *datatyp
 		Label: execute.DefaultStopColLabel,
 		Type:  flux.TTime,
 	}
+	cols[timeColIdx] = flux.ColMeta{
+		Label: execute.DefaultTimeColLabel,
+		Type:  flux.TTime,
+	}
+	cols[valueColIdx] = flux.ColMeta{
+		Label: execute.DefaultValueColLabel,
+		Type:  typ,
+	}
+	for j, tag := range tagKeys {
+		cols[4+j] = flux.ColMeta{
+			Label: string(tag),
+			Type:  flux.TString,
+		}
+		defs[4+j] = []byte("")
 
-	if agg == nil || IsSelector(agg) {
-		// For the group without aggregate or with selector case:
-		cols[timeColIdx] = flux.ColMeta{
-			Label: execute.DefaultTimeColLabel,
-			Type:  flux.TTime,
-		}
-		cols[valueColIdx] = flux.ColMeta{
-			Label: execute.DefaultValueColLabel,
-			Type:  typ,
-		}
-		for j, tag := range tagKeys {
-			cols[4+j] = flux.ColMeta{
-				Label: string(tag),
-				Type:  flux.TString,
-			}
-			defs[4+j] = []byte("")
-		}
-	} else {
-		// Aggregate has no _time
-		cols[valueColIdxWithoutTime] = flux.ColMeta{
-			Label: execute.DefaultValueColLabel,
-			Type:  typ,
-		}
-		// From now on, only include group keys that are not _start and _stop.
-		// which are already included as the first two columns
-		// This highly depends on the implementation of groupKeyForGroup() which
-		// put _start and _stop into the first two slots.
-		for j := 2; j < len(groupKey.Cols()); j++ {
-			// the starting columns index for other group key columns is 3 (1+j)
-			cols[1+j] = flux.ColMeta{
-				Label: groupKey.Cols()[j].Label,
-				Type:  groupKey.Cols()[j].Type,
-			}
-			defs[1+j] = []byte("")
-		}
 	}
 	return cols, defs
 }
 
-func groupKeyForGroup(kv [][]byte, spec *query.ReadGroupSpec, bnds execute.Bounds) flux.GroupKey {
+func groupKeyForGroup(kv [][]byte, spec *influxdb.ReadGroupSpec, bnds execute.Bounds) flux.GroupKey {
 	cols := make([]flux.ColMeta, 2, len(spec.GroupKeys)+2)
 	vs := make([]values.Value, 2, len(spec.GroupKeys)+2)
 	cols[startColIdx] = flux.ColMeta{
@@ -616,234 +527,11 @@ func groupKeyForGroup(kv [][]byte, spec *query.ReadGroupSpec, bnds execute.Bound
 	return execute.NewGroupKey(cols, vs)
 }
 
-type windowAggregateIterator struct {
-	ctx   context.Context
-	s     storage.Store
-	spec  query.ReadWindowAggregateSpec
-	stats cursors.CursorStats
-	cache *tagsCache
-	alloc *memory.Allocator
-}
-
-func (wai *windowAggregateIterator) Statistics() cursors.CursorStats { return wai.stats }
-
-func (wai *windowAggregateIterator) Do(f func(flux.Table) error) error {
-	src := wai.s.GetSource(
-		uint64(wai.spec.OrganizationID),
-		uint64(wai.spec.BucketID),
-	)
-
-	// Setup read request
-	any, err := types.MarshalAny(src)
-	if err != nil {
-		return err
-	}
-
-	var req datatypes.ReadWindowAggregateRequest
-	req.ReadSource = any
-	req.Predicate = wai.spec.Predicate
-	req.Range.Start = int64(wai.spec.Bounds.Start)
-	req.Range.End = int64(wai.spec.Bounds.Stop)
-
-	req.WindowEvery = wai.spec.WindowEvery
-	req.Offset = wai.spec.Offset
-	req.Aggregate = make([]*datatypes.Aggregate, len(wai.spec.Aggregates))
-
-	for i, aggKind := range wai.spec.Aggregates {
-		if agg, err := determineAggregateMethod(string(aggKind)); err != nil {
-			return err
-		} else if agg != datatypes.AggregateTypeNone {
-			req.Aggregate[i] = &datatypes.Aggregate{Type: agg}
-		}
-	}
-
-	aggStore, ok := wai.s.(storage.WindowAggregateStore)
-	if !ok {
-		return errors.New("storage does not support window aggregate")
-	}
-	rs, err := aggStore.WindowAggregate(wai.ctx, &req)
-	if err != nil {
-		return err
-	}
-
-	if rs == nil {
-		return nil
-	}
-	return wai.handleRead(f, rs)
-}
-
-const (
-	CountKind = "count"
-	SumKind   = "sum"
-	FirstKind = "first"
-	LastKind  = "last"
-	MinKind   = "min"
-	MaxKind   = "max"
-	MeanKind  = "mean"
-)
-
-// isSelector returns true if given a procedure kind that represents a selector operator.
-func isSelector(kind plan.ProcedureKind) bool {
-	return kind == FirstKind || kind == LastKind || kind == MinKind || kind == MaxKind
-}
-
-func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs storage.ResultSet) error {
-	windowEvery := wai.spec.WindowEvery
-	offset := wai.spec.Offset
-	createEmpty := wai.spec.CreateEmpty
-
-	selector := len(wai.spec.Aggregates) > 0 && isSelector(wai.spec.Aggregates[0])
-
-	timeColumn := wai.spec.TimeColumn
-	if timeColumn == "" {
-		tableFn := f
-		f = func(table flux.Table) error {
-			return splitWindows(wai.ctx, wai.alloc, table, selector, tableFn)
-		}
-	}
-
-	// these resources must be closed if not nil on return
-	var (
-		cur   cursors.Cursor
-		table storageTable
-	)
-
-	defer func() {
-		if table != nil {
-			table.Close()
-		}
-		if cur != nil {
-			cur.Close()
-		}
-		rs.Close()
-		wai.cache.Release()
-	}()
-
-READ:
-	for rs.Next() {
-		cur = rs.Cursor()
-		if cur == nil {
-			// no data for series key + field combination
-			continue
-		}
-
-		bnds := wai.spec.Bounds
-		key := defaultGroupKeyForSeries(rs.Tags(), bnds)
-		done := make(chan struct{})
-		hasTimeCol := timeColumn != ""
-		switch typedCur := cur.(type) {
-		case cursors.IntegerArrayCursor:
-			if !selector {
-				var fillValue *int64
-				if isAggregateCount(wai.spec.Aggregates[0]) {
-					fillValue = func(v int64) *int64 { return &v }(0)
-				}
-				cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TInt, hasTimeCol)
-				table = newIntegerWindowTable(done, typedCur, bnds, windowEvery, offset, createEmpty, timeColumn, fillValue, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			} else if createEmpty && !hasTimeCol {
-				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TInt)
-				table = newIntegerEmptyWindowSelectorTable(done, typedCur, bnds, windowEvery, offset, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			} else {
-				// Note hasTimeCol == true means that aggregateWindow() was called.
-				// Because aggregateWindow() ultimately removes empty tables we
-				// don't bother creating them here.
-				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TInt)
-				table = newIntegerWindowSelectorTable(done, typedCur, bnds, windowEvery, offset, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			}
-		case cursors.FloatArrayCursor:
-			if !selector {
-				cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TFloat, hasTimeCol)
-				table = newFloatWindowTable(done, typedCur, bnds, windowEvery, offset, createEmpty, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			} else if createEmpty && !hasTimeCol {
-				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TFloat)
-				table = newFloatEmptyWindowSelectorTable(done, typedCur, bnds, windowEvery, offset, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			} else {
-				// Note hasTimeCol == true means that aggregateWindow() was called.
-				// Because aggregateWindow() ultimately removes empty tables we
-				// don't bother creating them here.
-				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TFloat)
-				table = newFloatWindowSelectorTable(done, typedCur, bnds, windowEvery, offset, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			}
-		case cursors.UnsignedArrayCursor:
-			if !selector {
-				cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TUInt, hasTimeCol)
-				table = newUnsignedWindowTable(done, typedCur, bnds, windowEvery, offset, createEmpty, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			} else if createEmpty && !hasTimeCol {
-				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TUInt)
-				table = newUnsignedEmptyWindowSelectorTable(done, typedCur, bnds, windowEvery, offset, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			} else {
-				// Note hasTimeCol == true means that aggregateWindow() was called.
-				// Because aggregateWindow() ultimately removes empty tables we
-				// don't bother creating them here.
-				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TUInt)
-				table = newUnsignedWindowSelectorTable(done, typedCur, bnds, windowEvery, offset, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			}
-		case cursors.BooleanArrayCursor:
-			if !selector {
-				cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TBool, hasTimeCol)
-				table = newBooleanWindowTable(done, typedCur, bnds, windowEvery, offset, createEmpty, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			} else if createEmpty && !hasTimeCol {
-				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TBool)
-				table = newBooleanEmptyWindowSelectorTable(done, typedCur, bnds, windowEvery, offset, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			} else {
-				// Note hasTimeCol == true means that aggregateWindow() was called.
-				// Because aggregateWindow() ultimately removes empty tables we
-				// don't bother creating them here.
-				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TBool)
-				table = newBooleanWindowSelectorTable(done, typedCur, bnds, windowEvery, offset, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			}
-		case cursors.StringArrayCursor:
-			if !selector {
-				cols, defs := determineTableColsForWindowAggregate(rs.Tags(), flux.TString, hasTimeCol)
-				table = newStringWindowTable(done, typedCur, bnds, windowEvery, offset, createEmpty, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			} else if createEmpty && !hasTimeCol {
-				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
-				table = newStringEmptyWindowSelectorTable(done, typedCur, bnds, windowEvery, offset, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			} else {
-				// Note hasTimeCol == true means that aggregateWindow() was called.
-				// Because aggregateWindow() ultimately removes empty tables we
-				// don't bother creating them here.
-				cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
-				table = newStringWindowSelectorTable(done, typedCur, bnds, windowEvery, offset, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
-			}
-		default:
-			panic(fmt.Sprintf("unreachable: %T", typedCur))
-		}
-
-		cur = nil
-
-		if !table.Empty() {
-			if err := f(table); err != nil {
-				table.Close()
-				table = nil
-				return err
-			}
-			select {
-			case <-done:
-			case <-wai.ctx.Done():
-				table.Cancel()
-				break READ
-			}
-		}
-
-		stats := table.Statistics()
-		wai.stats.ScannedValues += stats.ScannedValues
-		wai.stats.ScannedBytes += stats.ScannedBytes
-		table.Close()
-		table = nil
-	}
-	return rs.Err()
-}
-
-func isAggregateCount(kind plan.ProcedureKind) bool {
-	return kind == CountKind
-}
-
 type tagKeysIterator struct {
 	ctx       context.Context
 	bounds    execute.Bounds
 	s         storage.Store
-	readSpec  query.ReadTagKeysSpec
+	readSpec  influxdb.ReadTagKeysSpec
 	predicate *datatypes.Predicate
 	alloc     *memory.Allocator
 }
@@ -926,7 +614,7 @@ type tagValuesIterator struct {
 	ctx       context.Context
 	bounds    execute.Bounds
 	s         storage.Store
-	readSpec  query.ReadTagValuesSpec
+	readSpec  influxdb.ReadTagValuesSpec
 	predicate *datatypes.Predicate
 	alloc     *memory.Allocator
 }

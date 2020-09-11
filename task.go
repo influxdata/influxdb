@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/pkg/flux/ast/edit"
 	"github.com/influxdata/influxdb/v2/task/options"
 )
 

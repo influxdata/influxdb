@@ -1317,6 +1317,7 @@ spec:
 						assert.True(t, props.ShowNoteWhenEmpty)
 						assert.Equal(t, "y", props.HoverDimension)
 						assert.Equal(t, "foo", props.UpperColumn)
+						assert.Equal(t, "baz", props.MainColumn)
 						assert.Equal(t, "bar", props.LowerColumn)
 
 						require.Len(t, props.ViewColors, 1)

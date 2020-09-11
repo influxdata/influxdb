@@ -3,24 +3,9 @@
 package fs
 
 import (
-	"fmt"
 	"os"
 	"syscall"
 )
-
-// A FileExistsError is returned when an operation cannot be completed due to a
-// file already existing.
-type FileExistsError struct {
-	path string
-}
-
-func newFileExistsError(path string) FileExistsError {
-	return FileExistsError{path: path}
-}
-
-func (e FileExistsError) Error() string {
-	return fmt.Sprintf("operation not allowed, file %q exists", e.path)
-}
 
 // SyncDir flushes any file renames to the filesystem.
 func SyncDir(dirName string) error {

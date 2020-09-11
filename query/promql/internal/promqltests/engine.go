@@ -19,7 +19,7 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
-	itsdb "github.com/influxdata/influxdb/v2/tsdb"
+	itsdb "github.com/influxdata/influxdb/v2/v1/tsdb"
 	ipromql "github.com/influxdata/promql/v2"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"

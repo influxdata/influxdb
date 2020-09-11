@@ -2,13 +2,10 @@ package inspect
 
 import (
 	"bufio"
-	"context"
 	"os"
-	"path/filepath"
 
-	"github.com/influxdata/influxdb/v2/internal/fs"
-	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
 )
 
@@ -21,26 +18,23 @@ This command will export all series in a TSI index to
 SQL format for easier inspection and debugging.`,
 	}
 
-	defaultDataDir, _ := fs.InfluxDir()
-	defaultDataDir = filepath.Join(defaultDataDir, "engine")
-	defaultIndexDir := filepath.Join(defaultDataDir, "index")
-	defaultSeriesDir := filepath.Join(defaultDataDir, "_series")
-
 	var seriesFilePath, dataPath string
-	cmd.Flags().StringVar(&seriesFilePath, "series-path", defaultSeriesDir, "Path to series file")
-	cmd.Flags().StringVar(&dataPath, "index-path", defaultIndexDir, "Path to the index directory of the data engine")
+	cmd.Flags().StringVar(&seriesFilePath, "series-path", "", "Path to series file")
+	cmd.Flags().StringVar(&dataPath, "index-path", "", "Path to the index directory of the data engine")
+	_ = cmd.MarkFlagRequired("series-path")
+	_ = cmd.MarkFlagRequired("index-path")
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		// Initialize series file.
-		sfile := seriesfile.NewSeriesFile(seriesFilePath)
-		if err := sfile.Open(context.Background()); err != nil {
+		sfile := tsdb.NewSeriesFile(seriesFilePath)
+		if err := sfile.Open(); err != nil {
 			return err
 		}
 		defer sfile.Close()
 
 		// Open index.
-		idx := tsi1.NewIndex(sfile, tsi1.NewConfig(), tsi1.WithPath(dataPath), tsi1.DisableCompactions())
-		if err := idx.Open(context.Background()); err != nil {
+		idx := tsi1.NewIndex(sfile, "", tsi1.WithPath(dataPath), tsi1.DisableCompactions())
+		if err := idx.Open(); err != nil {
 			return err
 		}
 		defer idx.Close()

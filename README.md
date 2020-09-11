@@ -42,7 +42,7 @@ Planned activities include:
 
 ## Installing from Source
 
-We have nightly and weekly versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/).
+We have nightly and weekly versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the `influx` command line interface (CLI) client as a separate binary available at the same location.
 
 ## Building From Source
 
@@ -133,17 +133,12 @@ Everything in InfluxDB is organized under a concept of an organization. The API 
 Buckets represent where you store time series data.
 They're synonymous with what was previously in InfluxDB 1.x a database and retention policy.
 
-The simplest way to get set up is to point your browser to [http://localhost:9999](http://localhost:9999) and go through the prompts.
+The simplest way to get set up is to point your browser to [http://localhost:8086](http://localhost:8086) and go through the prompts.
 
-**Note**: Port 9999 will be used during the beta phases of development of InfluxDB v2.0.
-This should allow a v2.0-beta instance to be run alongside a v1.x instance without interfering on port 8086.
-InfluxDB will thereafter continue to use 8086.
-
-You can also get set up from the CLI using the subcommands `influx user`, `influx auth`, `influx org` and `influx bucket`,
-or do it all in one breath with `influx setup`:
+You can also get set up from the CLI using the command `influx setup`:
 
 
-```
+```bash
 $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup
 Welcome to InfluxDB 2.0!
 Please type your primary username: marty
@@ -169,48 +164,50 @@ Confirm? (y/n): y
 
 UserID                  Username        Organization    Bucket
 033a3f2c5ccaa000        marty           InfluxData      Telegraf
-Your token has been stored in /Users/marty/.influxdbv2/credentials
+Your token has been stored in /Users/marty/.influxdbv2/configs
 ```
 
-You may get into a development loop where `influx setup` becomes tedious.
+You can run this command non-interactively using the `-f, --force` flag if you are automating the setup.
 Some added flags can help:
-```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup --username marty --password F1uxKapacit0r85 --org InfluxData --bucket telegraf --retention 168 --token where-were-going-we-dont-need-roads --force
-```
-
-`~/.influxdbv2/credentials` contains your auth token.
-Most `influx` commands read the token from this file path by default.
-
-You may need the organization ID and bucket ID later:
-
-```
-$ influx org find
-ID                      Name
-033a3f2c708aa000        InfluxData
+```bash
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup \
+--username marty \
+--password F1uxKapacit0r85 \
+--org InfluxData \
+--bucket telegraf \
+--retention 168 \
+--token where-were-going-we-dont-need-roads \
+--force
 ```
 
-```
-$ influx bucket find
-ID                      Name            Retention       Organization    OrganizationID
-033a3f2c710aa000        telegraf        72h0m0s         InfluxData      033a3f2c708aa000
+Once setup is complete, a configuration profile is created to allow you to interact with your local InfluxDB without passing in credentials each time. You can list and manage those profiles using the `influx config` command.
+```bash
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx config
+Active	Name	URL			            Org
+*	    default	http://localhost:8086	InfluxData
 ```
 
+## Writing Data
 Write to measurement `m`, with tag `v=2`, in bucket `telegraf`, which belongs to organization `InfluxData`:
 
+```bash
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx write --bucket telegraf --precision s "m v=2 $(date +%s)"
 ```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx write --org InfluxData --bucket telegraf --precision s "m v=2 $(date +%s)"
-```
+
+Since you have a default profile set up, you can omit the Organization and Token from the command.
 
 Write the same point using `curl`:
 
-```
-curl --header "Authorization: Token $(cat ~/.influxdbv2/credentials)" --data-raw "m v=2 $(date +%s)" "http://localhost:9999/api/v2/write?org=InfluxData&bucket=telegraf&precision=s"
+```bash
+curl --header "Authorization: Token $(bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx auth list --json | jq -r '.[0].token')" \
+--data-raw "m v=2 $(date +%s)" \
+"http://localhost:8086/api/v2/write?org=InfluxData&bucket=telegraf&precision=s"
 ```
 
 Read that back with a simple Flux query:
 
-```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx query -o InfluxData 'from(bucket:"telegraf") |> range(start:-1h)'
+```bash
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx query 'from(bucket:"telegraf") |> range(start:-1h)'
 Result: _result
 Table: keys: [_start, _stop, _field, _measurement]
                    _start:time                      _stop:time           _field:string     _measurement:string                      _time:time                  _value:float
@@ -218,19 +215,7 @@ Table: keys: [_start, _stop, _field, _measurement]
 2019-12-30T22:19:39.043918000Z  2019-12-30T23:19:39.043918000Z                       v                       m  2019-12-30T23:17:02.000000000Z                             2
 ```
 
-Use the fancy REPL:
-
-```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx repl -o InfluxData
-> from(bucket:"telegraf") |> range(start:-1h)
-Result: _result
-Table: keys: [_start, _stop, _field, _measurement]
-                   _start:time                      _stop:time           _field:string     _measurement:string                      _time:time                  _value:float
-------------------------------  ------------------------------  ----------------------  ----------------------  ------------------------------  ----------------------------
-2019-12-30T22:22:44.776351000Z  2019-12-30T23:22:44.776351000Z                       v                       m  2019-12-30T23:17:02.000000000Z                             2
->
-```
-
+Use the `-r, --raw` option to return the raw flux response from the query. This is useful for moving data from one instance to another as the `influx write` command can accept the Flux response using the `--format csv` option. 
 
 ## Introducing Flux
 

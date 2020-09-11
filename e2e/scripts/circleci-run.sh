@@ -3,7 +3,7 @@
 sleep 30
 
 sudo netstat -tlnp
-curl -v --connect-timeout 60 --max-time 60 http://localhost:9999/debug/flush
+curl -v --connect-timeout 60 --max-time 60 http://localhost:8086/debug/flush
 
 git clone https://github.com/influxdata/influxdb.git
 

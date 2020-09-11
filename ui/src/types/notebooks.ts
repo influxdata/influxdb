@@ -1,15 +1,5 @@
-export interface Tag {
-  [tagName: string]: string[]
-}
+import {Schema as GenSchema, Tag as GenTag} from '@influxdata/giraffe'
 
-export interface SchemaValues {
-  fields: string[]
-  tags: Tag
-  type?: string
-}
+export interface Tag extends GenTag {}
 
-export type Measurement = string
-
-export interface Schema {
-  [measurement: string]: SchemaValues
-}
+export interface Schema extends GenSchema {}

@@ -42,8 +42,8 @@ pull_docker(){
 run_docker_influx(){
    mkdir -p ${LOG_DIR}
    echo "["$(date +"%d.%m.%Y %T")"] starting docker instance ${INSTANCE_NAME}"
-   sudo docker run --name ${INSTANCE_NAME} --publish 9999:9999 ${DOCKER_IMAGE} > ${LOG_FILE} 2>&1 &
-   echo "["$(date +"%d.%m.%Y %T")"] started instance $INSTANCE_NAME listening at port 9999."
+   sudo docker run --name ${INSTANCE_NAME} --publish 8086:8086 ${DOCKER_IMAGE} > ${LOG_FILE} 2>&1 &
+   echo "["$(date +"%d.%m.%Y %T")"] started instance $INSTANCE_NAME listening at port 8086."
    echo "logfile at $LOG_FILE"
    sleep 3
    echo "\n$(tail -n32 $LOG_FILE)\n"
@@ -56,7 +56,7 @@ run_docker_influx_test_env(){
    sudo docker rm $INSTANCE_NAME
    sudo docker pull quay.io/influxdb/influx:nightly
    sudo docker build -t influxdb_test_image .
-   sudo docker run --name $INSTANCE_NAME --publish 9999:9999 influxdb_test_image > ${LOG_FILE} 2>&1 &
+   sudo docker run --name $INSTANCE_NAME --publish 8086:8086 influxdb_test_image > ${LOG_FILE} 2>&1 &
 
 }
 

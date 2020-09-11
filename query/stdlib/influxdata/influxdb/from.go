@@ -6,32 +6,131 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 const FromKind = "influxDBFrom"
 
-type (
-	NameOrID   = influxdb.NameOrID
-	FromOpSpec = influxdb.FromOpSpec
-)
-
-type FromStorageProcedureSpec struct {
-	Bucket influxdb.NameOrID
+type FromOpSpec struct {
+	Bucket   string `json:"bucket,omitempty"`
+	BucketID string `json:"bucketID,omitempty"`
 }
 
-func (s *FromStorageProcedureSpec) Kind() plan.ProcedureKind {
+func init() {
+	fromSignature := semantic.FunctionPolySignature{
+		Parameters: map[string]semantic.PolyType{
+			"bucket":   semantic.String,
+			"bucketID": semantic.String,
+		},
+		Required: nil,
+		Return:   flux.TableObjectType,
+	}
+
+	flux.ReplacePackageValue("influxdata/influxdb", influxdb.FromKind, flux.FunctionValue(FromKind, createFromOpSpec, fromSignature))
+	flux.RegisterOpSpec(FromKind, newFromOp)
+	plan.RegisterProcedureSpec(FromKind, newFromProcedure, FromKind)
+}
+
+func createFromOpSpec(args flux.Arguments, a *flux.Administration) (flux.OperationSpec, error) {
+	spec := new(FromOpSpec)
+
+	if bucket, ok, err := args.GetString("bucket"); err != nil {
+		return nil, err
+	} else if ok {
+		spec.Bucket = bucket
+	}
+
+	if bucketID, ok, err := args.GetString("bucketID"); err != nil {
+		return nil, err
+	} else if ok {
+		spec.BucketID = bucketID
+	}
+
+	if spec.Bucket == "" && spec.BucketID == "" {
+		return nil, &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "must specify one of bucket or bucketID",
+		}
+	}
+	if spec.Bucket != "" && spec.BucketID != "" {
+		return nil, &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "must specify only one of bucket or bucketID",
+		}
+	}
+	return spec, nil
+}
+
+func newFromOp() flux.OperationSpec {
+	return new(FromOpSpec)
+}
+
+func (s *FromOpSpec) Kind() flux.OperationKind {
 	return FromKind
 }
 
-func (s *FromStorageProcedureSpec) Copy() plan.ProcedureSpec {
-	ns := new(FromStorageProcedureSpec)
+// BucketsAccessed makes FromOpSpec a query.BucketAwareOperationSpec
+func (s *FromOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter) {
+	bf := platform.BucketFilter{}
+	if s.Bucket != "" {
+		bf.Name = &s.Bucket
+	}
+	if orgID != nil {
+		bf.OrganizationID = orgID
+	}
+
+	if len(s.BucketID) > 0 {
+		if id, err := platform.IDFromString(s.BucketID); err != nil {
+			invalidID := platform.InvalidID()
+			bf.ID = &invalidID
+		} else {
+			bf.ID = id
+		}
+	}
+
+	if bf.ID != nil || bf.Name != nil {
+		readBuckets = append(readBuckets, bf)
+	}
+	return readBuckets, writeBuckets
+}
+
+type FromProcedureSpec struct {
+	Bucket   string
+	BucketID string
+}
+
+func newFromProcedure(qs flux.OperationSpec, pa plan.Administration) (plan.ProcedureSpec, error) {
+	spec, ok := qs.(*FromOpSpec)
+	if !ok {
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  fmt.Sprintf("invalid spec type %T", qs),
+		}
+	}
+
+	return &FromProcedureSpec{
+		Bucket:   spec.Bucket,
+		BucketID: spec.BucketID,
+	}, nil
+}
+
+func (s *FromProcedureSpec) Kind() plan.ProcedureKind {
+	return FromKind
+}
+
+func (s *FromProcedureSpec) Copy() plan.ProcedureSpec {
+	ns := new(FromProcedureSpec)
+
 	ns.Bucket = s.Bucket
+	ns.BucketID = s.BucketID
+
 	return ns
 }
 
-func (s *FromStorageProcedureSpec) PostPhysicalValidate(id plan.NodeID) error {
-	// FromStorageProcedureSpec is a logical operation representing any read
+func (s *FromProcedureSpec) PostPhysicalValidate(id plan.NodeID) error {
+	// FromProcedureSpec is a logical operation representing any read
 	// from storage. However as a logical operation, it doesn't specify
 	// how data is to be read from storage. It is the query planner's
 	// job to determine the optimal read strategy and to convert this
@@ -43,10 +142,10 @@ func (s *FromStorageProcedureSpec) PostPhysicalValidate(id plan.NodeID) error {
 	// not support unbounded reads, and so this query must not be
 	// validated.
 	var bucket string
-	if s.Bucket.Name != "" {
-		bucket = s.Bucket.Name
+	if len(s.Bucket) > 0 {
+		bucket = s.Bucket
 	} else {
-		bucket = s.Bucket.ID
+		bucket = s.BucketID
 	}
 	return &flux.Error{
 		Code: codes.Invalid,

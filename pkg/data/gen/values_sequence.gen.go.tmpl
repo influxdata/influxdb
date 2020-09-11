@@ -2,7 +2,7 @@ package gen
 
 import (
 	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 {{range .}}
@@ -21,7 +21,7 @@ type time{{.Name}}ValuesSequence struct {
 
 func NewTime{{.Name}}ValuesSequence(count int, ts TimestampSequence, vs {{.Name}}ValuesSequence) TimeValuesSequence {
 	return &time{{.Name}}ValuesSequence{
-		vals:  *new{{.Name}}ArrayLen(cursors.DefaultMaxPointsPerBlock),
+		vals:  *new{{.Name}}ArrayLen(tsdb.DefaultMaxPointsPerBlock),
 		ts:    ts,
 		vs:    vs,
 		count: count,
@@ -37,7 +37,7 @@ func (s *time{{.Name}}ValuesSequence) Reset() {
 
 func (s *time{{.Name}}ValuesSequence) Next() bool {
 	if s.n > 0 {
-		c := min(s.n, cursors.DefaultMaxPointsPerBlock)
+		c := min(s.n, tsdb.DefaultMaxPointsPerBlock)
 		s.n -= c
 		s.vals.Timestamps = s.vals.Timestamps[:c]
 		s.vals.Values = s.vals.Values[:c]

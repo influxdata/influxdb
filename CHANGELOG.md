@@ -1,5 +1,28 @@
 ## v2.0.0-beta.17 [unreleased]
 
+### Breaking Changes
+
+In the interests of simplifying the migration for existing users of InfluxDB 1.x, this
+release includes significant breaking changes.
+
+**Upgrading from previous beta builds of `influxd` is not supported**
+
+In order to continue using `influxd` betas, users will be required to move all existing 
+data out of their `~/.influxdbv2` (or equivalent) path, including `influxd.bolt`. This 
+means all existing dashboards, tasks, integrations, alerts, users and tokens will need to
+be recreated. The `influx export all` command may be used to export and re-import most
+of this data.
+
+At this time, there is no tooling to convert existing time series data from previous 
+beta releases. If data from a prior beta release is found, `influxd` will refuse to start.
+
+We have also changed the default port of InfluxDB from 9999 back to 8086. If you still would like 
+to run on port 9999, you can start influxd with the `--http-bind-address` option. You will also
+need to update any InfluxDB CLI config profiles with the new port number.
+
+1. [19446](https://github.com/influxdata/influxdb/pull/19446): Port TSM1 storage engine
+1. [19494](https://github.com/influxdata/influxdb/pull/19494): Changing the default port from 9999 to 8086
+
 ### Features
 
 1. [19246](https://github.com/influxdata/influxdb/pull/19246): Redesign load data page to increase discovery and ease of use
@@ -8,6 +31,8 @@
 1. [19390](https://github.com/influxdata/influxdb/pull/19390): Record last success and failure run times in the Task
 1. [19402](https://github.com/influxdata/influxdb/pull/19402): Inject Task's LatestSuccess Timestamp In Flux Extern
 1. [19433](https://github.com/influxdata/influxdb/pull/19433): Add option to dump raw query results in CLI
+1. [19506](https://github.com/influxdata/influxdb/pull/19506): Add TSM 1.x storage options as flags
+1. [19508](https://github.com/influxdata/influxdb/pull/19508): Add subset of InfluxQL coordinator options as flags
 
 ### Bug Fixes
 

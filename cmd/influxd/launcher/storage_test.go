@@ -4,16 +4,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	nethttp "net/http"
-	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/http"
-	"github.com/influxdata/influxdb/v2/toml"
-	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 )
 
 func TestStorage_WriteAndQuery(t *testing.T) {
@@ -130,7 +126,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 
 	// Verify the cardinality in the engine.
 	engine := l.Launcher.Engine()
-	if got, exp := engine.SeriesCardinality(), int64(1); got != exp {
+	if got, exp := engine.SeriesCardinality(l.Org.ID, l.Bucket.ID), int64(1); got != exp {
 		t.Fatalf("got %d, exp %d", got, exp)
 	}
 
@@ -152,98 +148,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 	}
 
 	// Verify that the data has been removed from the storage engine.
-	if got, exp := engine.SeriesCardinality(), int64(0); got != exp {
+	if got, exp := engine.SeriesCardinality(l.Org.ID, l.Bucket.ID), int64(0); got != exp {
 		t.Fatalf("after bucket delete got %d, exp %d", got, exp)
-	}
-}
-
-func TestStorage_CacheSnapshot_Size(t *testing.T) {
-	l := launcher.NewTestLauncher(nil)
-	l.StorageConfig.Engine.Cache.SnapshotMemorySize = 10
-	l.StorageConfig.Engine.Cache.SnapshotAgeDuration = toml.Duration(time.Hour)
-	defer l.ShutdownOrFail(t, ctx)
-
-	if err := l.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	l.SetupOrFail(t)
-
-	org1 := l.OnBoardOrFail(t, &influxdb.OnboardingRequest{
-		User:     "USER-1",
-		Password: "PASSWORD-1",
-		Org:      "ORG-01",
-		Bucket:   "BUCKET",
-	})
-
-	// Execute single write against the server.
-	l.WriteOrFail(t, org1, `m,k=v1 f=100i 946684800000000000`)
-	l.WriteOrFail(t, org1, `m,k=v2 f=101i 946684800000000000`)
-	l.WriteOrFail(t, org1, `m,k=v3 f=102i 946684800000000000`)
-	l.WriteOrFail(t, org1, `m,k=v4 f=103i 946684800000000000`)
-	l.WriteOrFail(t, org1, `m,k=v5 f=104i 946684800000000000`)
-
-	// Wait for cache to snapshot. This should take no longer than one second.
-	time.Sleep(time.Second * 5)
-
-	// Check there is TSM data.
-	report := tsm1.Report{
-		Dir:   filepath.Join(l.Path, "/engine/data"),
-		Exact: true,
-	}
-
-	summary, err := report.Run(false)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Five series should be in the snapshot
-	if got, exp := summary.Total, uint64(5); got != exp {
-		t.Fatalf("got %d series in TSM files, expected %d", got, exp)
-	}
-}
-
-func TestStorage_CacheSnapshot_Age(t *testing.T) {
-	l := launcher.NewTestLauncher(nil)
-	l.StorageConfig.Engine.Cache.SnapshotAgeDuration = toml.Duration(time.Second)
-	defer l.ShutdownOrFail(t, ctx)
-
-	if err := l.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	l.SetupOrFail(t)
-
-	org1 := l.OnBoardOrFail(t, &influxdb.OnboardingRequest{
-		User:     "USER-1",
-		Password: "PASSWORD-1",
-		Org:      "ORG-01",
-		Bucket:   "BUCKET",
-	})
-
-	// Execute single write against the server.
-	l.WriteOrFail(t, org1, `m,k=v1 f=100i 946684800000000000`)
-	l.WriteOrFail(t, org1, `m,k=v2 f=101i 946684800000000000`)
-	l.WriteOrFail(t, org1, `m,k=v3 f=102i 946684800000000000`)
-	l.WriteOrFail(t, org1, `m,k=v4 f=102i 946684800000000000`)
-	l.WriteOrFail(t, org1, `m,k=v5 f=102i 946684800000000000`)
-
-	// Wait for cache to snapshot. This should take no longer than one second.
-	time.Sleep(time.Second * 5)
-
-	// Check there is TSM data.
-	report := tsm1.Report{
-		Dir:   filepath.Join(l.Path, "/engine/data"),
-		Exact: true,
-	}
-
-	summary, err := report.Run(false)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Five series should be in the snapshot
-	if got, exp := summary.Total, uint64(5); got != exp {
-		t.Fatalf("got %d series in TSM files, expected %d", got, exp)
 	}
 }

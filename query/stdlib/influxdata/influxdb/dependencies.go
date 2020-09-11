@@ -26,9 +26,6 @@ func (d StorageDependencies) Inject(ctx context.Context) context.Context {
 }
 
 func GetStorageDependencies(ctx context.Context) StorageDependencies {
-	if ctx.Value(dependenciesKey) == nil {
-		return StorageDependencies{}
-	}
 	return ctx.Value(dependenciesKey).(StorageDependencies)
 }
 
@@ -68,7 +65,7 @@ func (d Dependencies) PrometheusCollectors() []prometheus.Collector {
 }
 
 func NewDependencies(
-	reader query.StorageReader,
+	reader Reader,
 	writer storage.PointsWriter,
 	bucketSvc influxdb.BucketService,
 	orgSvc influxdb.OrganizationService,

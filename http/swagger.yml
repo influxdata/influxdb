@@ -9004,6 +9004,8 @@ components:
           type: string
         upperColumn:
           type: string
+        mainColumn:
+          type: string
         lowerColumn:
           type: string
         hoverDimension:
