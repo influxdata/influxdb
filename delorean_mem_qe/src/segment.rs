@@ -424,6 +424,7 @@ impl Segment {
         // println!("groups: {:?}", hash_table.len());
         log::debug!("({:?} rows processed) {:?}", processed_rows, hash_table);
         BTreeMap::new()
+
         // hash_table
     }
 
