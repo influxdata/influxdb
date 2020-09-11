@@ -36,7 +36,9 @@ describe('Dashboards', () => {
     })
   })
 
-  it('can CRUD dashboards from empty state, header, and a Template', () => {
+  it('can CRUD and filter dashboards from empty state, header, and a Template', () => {
+    const newName = 'new 🅱️ashboard'
+
     // Create from empty state
     cy.getByTestID('empty-dashboards-list').within(() => {
       cy.getByTestID('add-resource-dropdown--button').click()
@@ -51,8 +53,6 @@ describe('Dashboards', () => {
           })
         })
       })
-
-    const newName = 'new 🅱️ashboard'
 
     cy.getByTestID('dashboard-card').within(() => {
       cy.getByTestID('dashboard-card--name')
@@ -97,6 +97,17 @@ describe('Dashboards', () => {
     cy.getByTestID('template--Bashboard-Template').click()
     cy.getByTestID('template-panel').should('exist')
     cy.getByTestID('create-dashboard-button').click()
+
+    cy.getByTestID('dashboard-card').should('have.length', 3)
+
+    // Filter dashboards by name
+    cy.getByTestID(`search-widget`).type(newName.slice(0, 5))
+
+    cy.getByTestID('dashboard-card')
+      .should('have.length', 1)
+      .and('contain', newName)
+
+    cy.getByTestID(`search-widget`).clear()
 
     cy.getByTestID('dashboard-card').should('have.length', 3)
 
