@@ -40,6 +40,8 @@ integer-encoding = "1.0.7"
 hyper = "0.13"
 tokio = { version = "0.2", features = ["full"] }
 
+async-trait = "0.1.40"
+
 clap = "2.33.1"
 dotenv = "0.15.0"
 dirs = "2.0.2"

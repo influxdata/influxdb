@@ -26,7 +26,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     };
     debug!("Delorean Server using database directory: {:?}", db_dir);
 
-    let storage = WriteBufferDatabases::new(&db_dir);
+    let storage = Arc::new(WriteBufferDatabases::new(&db_dir));
     let dirs = storage.wal_dirs()?;
 
     // TODO: make recovery of multiple databases multi-threaded
@@ -45,7 +45,6 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     };
 
-    let storage = Arc::new(storage);
     let make_svc = make_service_fn(move |_conn| {
         let storage = storage.clone();
         async move {

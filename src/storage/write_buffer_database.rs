@@ -1,3 +1,5 @@
+use super::org_and_bucket_to_database;
+use tonic::async_trait;
 use tracing::info;
 
 use crate::generated_types::wal as wb;
@@ -193,8 +195,14 @@ impl WriteBufferDatabases {
         let mut databases = self.databases.write().await;
         databases.insert(db.name.clone(), Arc::new(db));
     }
+}
 
-    pub async fn db(&self, org: &str, bucket: &str) -> Option<Arc<Db>> {
+#[async_trait]
+impl super::DatabaseStore for WriteBufferDatabases {
+    type Database = Db;
+    type Error = Error;
+
+    async fn db(&self, org: &str, bucket: &str) -> Option<Arc<Self::Database>> {
         let databases = self.databases.read().await;
 
         databases
@@ -202,7 +210,11 @@ impl WriteBufferDatabases {
             .cloned()
     }
 
-    pub async fn db_or_create(&self, org: &str, bucket: &str) -> Result<Arc<Db>> {
+    async fn db_or_create(
+        &self,
+        org: &str,
+        bucket: &str,
+    ) -> Result<Arc<Self::Database>, Self::Error> {
         let db_name = org_and_bucket_to_database(org, bucket);
 
         // get it through a read lock first if we can
@@ -228,10 +240,6 @@ impl WriteBufferDatabases {
 
         Ok(db)
     }
-}
-
-fn org_and_bucket_to_database(org: &str, bucket: &str) -> String {
-    org.to_owned() + "_" + bucket
 }
 
 #[derive(Debug)]
@@ -384,10 +392,15 @@ impl Db {
             wal_details: Some(wal_details),
         })
     }
+}
+
+#[async_trait]
+impl super::Database for Db {
+    type Error = Error;
 
     // TODO: writes lines creates a column named "time" for the timestmap data. If
     //       we keep this we need to validate that no tag or field has the same name.
-    pub async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<()> {
+    async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
         let partition_keys: Vec<_> = lines.iter().map(|l| (l, self.partition_key(l))).collect();
         let mut partitions = self.partitions.write().await;
 
@@ -429,20 +442,20 @@ impl Db {
         Ok(())
     }
 
-    pub async fn table_to_arrow(
+    async fn table_to_arrow(
         &self,
         table_name: &str,
         _columns: &[&str],
-    ) -> Result<Vec<RecordBatch>> {
+    ) -> Result<Vec<RecordBatch>, Self::Error> {
         let partitions = self.partitions.read().await;
 
         partitions
             .iter()
             .map(|p| p.table_to_arrow(table_name))
-            .collect()
+            .collect::<Result<Vec<_>>>()
     }
 
-    pub async fn query(&self, query: &str) -> Result<Vec<RecordBatch>> {
+    async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
         let mut tables = vec![];
 
         let dialect = GenericDialect {};
@@ -478,29 +491,24 @@ impl Db {
         let mut ctx = ExecutionContext::new();
 
         for table in tables {
-            let provider = MemTable::new(table.schema, vec![table.data]).context(QueryError {
-                query: query.to_string(),
-            })?;
+            let provider =
+                MemTable::new(table.schema, vec![table.data]).context(QueryError { query })?;
             ctx.register_table(&table.name, Box::new(provider));
         }
 
-        let plan = ctx.create_logical_plan(&query).context(QueryError {
-            query: query.to_string(),
-        })?;
-        let plan = ctx.optimize(&plan).context(QueryError {
-            query: query.to_string(),
-        })?;
+        let plan = ctx
+            .create_logical_plan(&query)
+            .context(QueryError { query })?;
+        let plan = ctx.optimize(&plan).context(QueryError { query })?;
         let plan = ctx
             .create_physical_plan(&plan, 1024 * 1024)
-            .context(QueryError {
-                query: query.to_string(),
-            })?;
+            .context(QueryError { query })?;
 
-        ctx.collect(plan.as_ref()).context(QueryError {
-            query: query.to_string(),
-        })
+        ctx.collect(plan.as_ref()).context(QueryError { query })
     }
+}
 
+impl Db {
     // partition_key returns the partition key for the given line. The key will be the prefix of a
     // partition name (multiple partitions can exist for each key). It uses the user defined
     // partitioning rules to construct this key
@@ -1264,6 +1272,7 @@ impl Column {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::Database;
     use arrow::util::pretty::pretty_format_batches;
     use delorean_line_parser::parse_lines;
 
