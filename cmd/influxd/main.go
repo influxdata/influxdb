@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/upgrade"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
