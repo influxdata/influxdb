@@ -1,7 +1,38 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::iter;
 
-use arrow::array::Array;
+use arrow::array::{Array, PrimitiveArray};
+use arrow::datatypes::ArrowNumericType;
+use arrow::datatypes::*;
+
+pub trait Encoding: Send + Sync {
+    type Item;
+
+    fn size(&self) -> usize;
+    fn value(&self, row_id: usize) -> Self::Item;
+    fn values(&self, row_ids: &[usize]) -> Vec<Self::Item>;
+    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Self::Item>;
+    fn all_encoded_values(&self) -> Vec<Self::Item>;
+    fn scan_from(&self, row_id: usize) -> &[Self::Item];
+
+    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize;
+
+    // TODO(edd): clean up the API for getting row ids that match predicates.
+    //
+    // Ideally you should be able to provide a collection of predicates to
+    // match on.
+    //
+    // A simpler approach would be to provide a method that matches on a single
+    // predicate and then call that multiple times, unioning or intersecting the
+    // resulting row sets.
+    fn row_id_eq_value(&self, v: Self::Item) -> Option<usize>;
+    fn row_ids_single_cmp_roaring(
+        &self,
+        wanted: &Self::Item,
+        order: std::cmp::Ordering,
+    ) -> croaring::Bitmap;
+    fn row_ids_gte_lt_roaring(&self, from: &Self::Item, to: &Self::Item) -> croaring::Bitmap;
+}
 
 pub trait NumericEncoding: Send + Sync {
     type Item;
@@ -34,6 +65,173 @@ impl std::fmt::Debug for dyn NumericEncoding<Item = f64> {
 impl std::fmt::Debug for dyn NumericEncoding<Item = i64> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", "todo")
+    }
+}
+
+pub struct PlainArrow<T>
+where
+    // T: ArrowNumericType + std::ops::Add,
+    T: ArrowNumericType,
+    // T: Default + PartialEq + PartialOrd + Copy + std::fmt::Debug + std::ops::AddAssign,
+{
+    arr: PrimitiveArray<T>,
+    // _phantom: T,
+}
+
+impl<T> PlainArrow<T>
+where
+    // T: ArrowNumericType + std::ops::Add,
+    T: ArrowNumericType,
+    // T: Default + PartialEq + PartialOrd + Copy + std::fmt::Debug + std::ops::AddAssign,
+{
+    pub fn size(&self) -> usize {
+        self.arr.len()
+    }
+
+    pub fn value(&self, row_id: usize) -> Option<T::Native> {
+        if self.arr.is_null(row_id) {
+            return None;
+        }
+        Some(self.arr.value(row_id))
+    }
+
+    fn values(&self, row_ids: &[usize]) -> Vec<Option<T::Native>> {
+        let mut out = Vec::with_capacity(row_ids.len());
+        for &row_id in row_ids {
+            if self.arr.is_null(row_id) {
+                out.push(None)
+            } else {
+                out.push(Some(self.arr.value(row_id)))
+            }
+        }
+        assert_eq!(out.len(), row_ids.len());
+        out
+    }
+
+    /// Well this is terribly slow
+    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<Option<T::Native>> {
+        self.values(row_ids)
+    }
+
+    /// TODO(edd): there must be a more efficient way.
+    pub fn all_encoded_values(&self) -> Vec<Option<T::Native>> {
+        let mut out = Vec::with_capacity(self.arr.len());
+        for i in 0..self.arr.len() {
+            if self.arr.is_null(i) {
+                out.push(None)
+            } else {
+                out.push(Some(self.arr.value(i)))
+            }
+        }
+        assert_eq!(out.len(), self.arr.len());
+        out
+    }
+
+    pub fn scan_from(&self, row_id: usize) -> &[Option<T::Native>] {
+        // todo
+
+        &[]
+
+        // let mut out = Vec::with_capacity(self.arr.len() - row_id);
+        // for i in row_id..self.arr.len() {
+        //     if self.arr.is_null(i) {
+        //         out.push(None)
+        //     } else {
+        //         out.push(Some(self.arr.value(i)))
+        //     }
+        // }
+        // assert_eq!(out.len(), self.arr.len());
+        // out.as_slice()
+    }
+
+    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<T::Native> {
+        // let mut res = T::Native::default();
+
+        // // HMMMMM - materialising which has a memory cost.
+        // let vec = row_ids.to_vec();
+        // for v in vec {
+        //     res += self.arr.value(v as usize);
+        // }
+        None // todo
+    }
+
+    pub fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<T::Native> {
+        // if the column contains a null value between the range then the result
+        // will be None.
+        for i in from_row_id..to_row_id {
+            if self.arr.is_null(i) {
+                return None;
+            }
+        }
+
+        // Otherwise sum all the values between in the range.
+        // let mut res = f64::from(self.arr.value(from_row_id));
+        // for i in from_row_id + 1..to_row_id {
+        //     res = res + self.arr.value(i);
+        // }
+        // Some(res)
+        None
+    }
+
+    pub fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
+        // TODO - count values that are not null in the row range.
+        0 // todo
+    }
+}
+
+impl NumericEncoding for PlainArrow<Float64Type> {
+    type Item = Option<f64>;
+
+    fn size(&self) -> usize {
+        self.size()
+    }
+
+    fn value(&self, row_id: usize) -> Self::Item {
+        self.value(row_id)
+    }
+
+    fn values(&self, row_ids: &[usize]) -> Vec<Self::Item> {
+        self.values(row_ids)
+    }
+
+    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Self::Item> {
+        self.encoded_values(row_ids)
+    }
+
+    fn all_encoded_values(&self) -> Vec<Self::Item> {
+        self.all_encoded_values()
+    }
+
+    fn scan_from(&self, row_id: usize) -> &[Self::Item] {
+        self.scan_from(row_id)
+    }
+
+    fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Self::Item {
+        self.sum_by_ids(row_ids)
+    }
+
+    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Self::Item {
+        self.sum_by_id_range(from_row_id, to_row_id)
+    }
+
+    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
+        self.count_by_id_range(from_row_id, to_row_id)
+    }
+
+    fn row_ids_single_cmp_roaring(
+        &self,
+        wanted: &Self::Item,
+        order: std::cmp::Ordering,
+    ) -> croaring::Bitmap {
+        self.row_ids_single_cmp_roaring(wanted, order)
+    }
+
+    fn row_ids_gte_lt_roaring(&self, from: &Self::Item, to: &Self::Item) -> croaring::Bitmap {
+        self.row_ids_gte_lt_roaring(from, to)
+    }
+
+    fn row_id_eq_value(&self, v: Self::Item) -> Option<usize> {
+        self.row_id_eq_value(v)
     }
 }
 
@@ -761,6 +959,20 @@ impl std::convert::From<&delorean_table::Packer<delorean_table::ByteArray>> for 
 
 #[cfg(test)]
 mod test {
+
+    #[test]
+    fn plain_arrow() {
+        let col = super::PlainArrow {
+            arr: super::PrimitiveArray::from(vec![Some(2.3), Some(44.56), None]),
+        };
+
+        let encoded = col.all_encoded_values();
+        assert_eq!(encoded, vec![Some(2.3), Some(44.56), None]);
+
+        let sum = col.sum_by_id_range(0, 1);
+        assert_eq!(sum, Some(46.86));
+    }
+
     #[test]
     fn plain_row_ids_roaring_eq() {
         let input = vec![1, 1, 1, 1, 3, 4, 4, 5, 6, 5, 5, 5, 1, 5];
