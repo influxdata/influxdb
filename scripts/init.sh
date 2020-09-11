@@ -39,11 +39,14 @@ if [ ! -x $DAEMON ]; then
 fi
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 # Configuration file
 CONFIG=/etc/influxdb/influxdb.conf
 
 >>>>>>> chore: add rpm script files
+=======
+>>>>>>> chore: update install scripts
 # PID file for the daemon
 PIDFILE=/var/run/influxdb/influxd.pid
 PIDDIR=`dirname $PIDFILE`
@@ -62,10 +65,14 @@ fi
 # Logging
 if [ -z "$STDOUT" ]; then
 <<<<<<< HEAD
+<<<<<<< HEAD
     STDOUT=/var/log/influxdb/influxd.log
 =======
     STDOUT=/dev/null
 >>>>>>> chore: add rpm script files
+=======
+    STDOUT=/var/log/influxdb/influxd.log
+>>>>>>> chore: update install scripts
 fi
 
 if [ ! -f "$STDOUT" ]; then
@@ -95,6 +102,7 @@ function log_success_msg() {
 
 function start() {
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     # Check if config file exist
     if [ ! -r $CONFIG ]; then
@@ -103,6 +111,8 @@ function start() {
     fi
 
 >>>>>>> chore: add rpm script files
+=======
+>>>>>>> chore: update install scripts
     # Check that the PID file exists, and check the actual status of process
     if [ -f $PIDFILE ]; then
         PID="$(cat $PIDFILE)"
@@ -143,12 +153,16 @@ function start() {
         local CMD="$DAEMON $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &"
 =======
             -pidfile $PIDFILE \
-            -config $CONFIG \
             $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
     else
+<<<<<<< HEAD
         local CMD="$DAEMON -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &"
 >>>>>>> chore: add rpm script files
+=======
+        local CMD="$DAEMON $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &"
+>>>>>>> chore: update install scripts
         su -s /bin/sh -c "$CMD" $USER
+        echo $(pgrep -u $USER -f influxd) > $PIDFILE
     fi
 
     # Sleep to verify process is still up
