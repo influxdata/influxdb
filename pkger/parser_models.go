@@ -555,6 +555,7 @@ const (
 	fieldChartTimeFormat     = "timeFormat"
 	fieldChartYSeriesColumns = "ySeriesColumns"
 	fieldChartUpperColumn    = "upperColumn"
+	fieldChartMainColumn     = "mainColumn"
 	fieldChartLowerColumn    = "lowerColumn"
 	fieldChartWidth          = "width"
 	fieldChartXCol           = "xCol"
@@ -584,6 +585,7 @@ type chart struct {
 	YSeriesColumns  []string
 	XCol, YCol      string
 	UpperColumn     string
+	MainColumn      string
 	LowerColumn     string
 	XPos, YPos      int
 	Height, Width   int
@@ -682,6 +684,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			XColumn:           c.XCol,
 			YColumn:           c.YCol,
 			UpperColumn:       c.UpperColumn,
+			MainColumn:        c.MainColumn,
 			LowerColumn:       c.LowerColumn,
 			Axes:              c.Axes.influxAxes(),
 			Geom:              c.Geom,

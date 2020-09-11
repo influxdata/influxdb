@@ -692,6 +692,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
 		ch.UpperColumn = p.UpperColumn
+		ch.MainColumn = p.MainColumn
 		ch.LowerColumn = p.LowerColumn
 	case influxdb.XYViewProperties:
 		setCommon(chartKindXY, p.ViewColors, influxdb.DecimalPlaces{}, p.Queries)
@@ -739,6 +740,9 @@ func convertChartToResource(ch chart) Resource {
 	}
 	if len(ch.UpperColumn) > 0 {
 		r[fieldChartUpperColumn] = ch.UpperColumn
+	}
+	if len(ch.MainColumn) > 0 {
+		r[fieldChartMainColumn] = ch.MainColumn
 	}
 	if len(ch.LowerColumn) > 0 {
 		r[fieldChartLowerColumn] = ch.LowerColumn
