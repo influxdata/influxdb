@@ -130,7 +130,7 @@ export const generateNavItems = (orgID: string): NavItem[] => {
         type: 'link',
         location: `${orgPrefix}/dashboards-list`,
       },
-      activeKeywords: ['dashboards'],
+      activeKeywords: ['dashboards', 'dashboards-list'],
     },
     {
       id: 'tasks',
