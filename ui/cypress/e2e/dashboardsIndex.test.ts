@@ -407,19 +407,17 @@ describe('Dashboards', () => {
     })
   })
 
-  describe('When a dashboard does not exist', () => {
-    it('should route the user to the dashboard index page', () => {
-      const nonexistentID = '/0499992503cd3700'
+  it('should redirect to the dashboard list when dashboard not exist', () => {
+    const nonexistentID = '0499992503cd3700'
 
-      // visiting the dashboard edit page
-      cy.get('@org').then(({id}: Organization) => {
-        cy.fixture('routes').then(({orgs, dashboards}) => {
-          cy.visit(`${orgs}/${id}${dashboards}${nonexistentID}`)
-          cy.url().should(
-            'eq',
-            `${Cypress.config().baseUrl}${orgs}/${id}/dashboards-list`
-          )
-        })
+    // visiting the dashboard edit page
+    cy.get('@org').then(({id}: Organization) => {
+      cy.fixture('routes').then(({orgs, dashboards}) => {
+        cy.visit(`${orgs}/${id}${dashboards}/${nonexistentID}`)
+        cy.url().should(
+          'eq',
+          `${Cypress.config().baseUrl}${orgs}/${id}/dashboards-list`
+        )
       })
     })
   })
