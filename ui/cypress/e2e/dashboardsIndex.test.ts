@@ -117,6 +117,34 @@ describe('Dashboards', () => {
         cy.getByTestID('context-delete-dashboard').click()
       })
 
+    const dashboardDescription = 'this dashboard contains secret information'
+
+    // change description
+    cy.getByTestID('resource-list--editable-description')
+      .click('topLeft')
+      .within(() => {
+        cy.getByTestID('input-field')
+          .type(dashboardDescription)
+          .type('{enter}')
+      })
+    cy.getByTestID('resource-list--editable-description').should(
+      'contain',
+      dashboardDescription
+    )
+
+    // remove description
+    cy.getByTestID('resource-list--editable-description')
+      .click('topLeft')
+      .within(() => {
+        cy.getByTestID('input-field')
+          .clear()
+          .type('{enter}')
+      })
+    cy.getByTestID('resource-list--editable-description').should(
+      'not.contain',
+      dashboardDescription
+    )
+
     cy.getByTestID('dashboard-card')
       .first()
       .trigger('mouseover')

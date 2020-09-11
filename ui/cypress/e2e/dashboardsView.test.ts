@@ -164,7 +164,7 @@ describe('Dashboard', () => {
     cy.getByTestID('note-editor--overlay').within(() => {
       cy.get('.CodeMirror')
         .then($codeMirror => {
-          const len = ($codeMirror[0].innerText as string).length
+          const len = $codeMirror[0].innerText.length
           cy.wrap($codeMirror).type('{backspace}'.repeat(len))
         })
         .type(`${headerPrefix2} ${noteText2}`)
