@@ -100,17 +100,6 @@ describe('Dashboards', () => {
 
     cy.getByTestID('dashboard-card').should('have.length', 3)
 
-    // Filter dashboards by name
-    cy.getByTestID(`search-widget`).type(newName.slice(0, 5))
-
-    cy.getByTestID('dashboard-card')
-      .should('have.length', 1)
-      .and('contain', newName)
-
-    cy.getByTestID(`search-widget`).clear()
-
-    cy.getByTestID('dashboard-card').should('have.length', 3)
-
     // Delete dashboards
     cy.getByTestID('dashboard-card')
       .first()
