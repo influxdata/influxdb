@@ -1868,28 +1868,6 @@ her"#,
     }
 
     #[test]
-    fn parsed_line_display_no_fields_no_timestamp() -> Result {
-        let series = Series {
-            raw_input: "foo",
-            measurement: EscapedStr::from("m"),
-            tag_set: Some(smallvec![(
-                EscapedStr::from("tag1"),
-                EscapedStr::from("val1")
-            ),]),
-        };
-        let field_set = smallvec![];
-
-        let parsed_line = ParsedLine {
-            series,
-            field_set,
-            timestamp: None,
-        };
-
-        assert_eq!(parsed_line.to_string(), "m,tag1=val1");
-        Ok(())
-    }
-
-    #[test]
     fn parsed_line_display_one_field_no_timestamp() -> Result {
         let series = Series {
             raw_input: "foo",
