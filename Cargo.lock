@@ -713,6 +713,7 @@ version = "0.1.0"
 dependencies = [
  "delorean_test_helpers",
  "either",
+ "influxdb2_client",
  "log",
  "nom",
  "smallvec",

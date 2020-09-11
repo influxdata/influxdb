@@ -10,6 +10,7 @@ either = "1.5.3"
 nom = "5.1.1"
 smallvec = "1.2.0"
 snafu = "0.6.2"
+influxdb2_client = { path = "../influxdb2_client" }
 
 [dev-dependencies]
 delorean_test_helpers = { path = "../delorean_test_helpers" }
