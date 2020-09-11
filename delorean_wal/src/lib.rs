@@ -90,6 +90,14 @@ enum InternalError {
         source: io::Error,
     },
 
+    UnableToCompressData {
+        source: snap::Error,
+    },
+
+    UnableToDecompressData {
+        source: snap::Error,
+    },
+
     UnableToSync {
         source: io::Error,
     },
@@ -520,22 +528,23 @@ impl Loader {
         let expected_len_us =
             usize::try_from(header.len).expect("Only designed to run on 32-bit systems or higher");
 
-        let mut data = Vec::with_capacity(expected_len_us);
-        let actual_len = file
+        let mut compressed_data = Vec::with_capacity(expected_len_us);
+
+        let actual_compressed_len = file
             .take(u64::from(header.len))
-            .read_to_end(&mut data)
+            .read_to_end(&mut compressed_data)
             .context(UnableToReadData)?;
 
         ensure!(
-            expected_len_us == actual_len,
+            expected_len_us == actual_compressed_len,
             LengthMismatch {
                 expected: expected_len_us,
-                actual: actual_len
+                actual: actual_compressed_len
             }
         );
 
         let mut hasher = Hasher::new();
-        hasher.update(&data);
+        hasher.update(&compressed_data);
         let actual_checksum = hasher.finalize();
 
         ensure!(
@@ -545,6 +554,11 @@ impl Loader {
                 actual: actual_checksum
             }
         );
+
+        let mut decoder = snap::raw::Decoder::new();
+        let data = decoder
+            .decompress_vec(&compressed_data)
+            .context(UnableToDecompressData)?;
 
         let entry = Entry {
             sequence_number: header.sequence_number,
@@ -627,20 +641,32 @@ pub struct WritePayload {
 }
 
 impl WritePayload {
-    /// Initializes a write payload and computes its CRC from the passed in vec.
-    pub fn new(data: Vec<u8>) -> Result<Self> {
+    /// Initializes a write payload, compresses the data, and computes its CRC.
+    pub fn new(uncompressed_data: Vec<u8>) -> Result<Self> {
         // Only designed to support chunks up to `u32::max` bytes long.
-        let len = data.len();
-        let len = u32::try_from(len).context(ChunkSizeTooLarge { actual: len })?;
+        let uncompressed_len = uncompressed_data.len();
+        let _ = u32::try_from(uncompressed_len).context(ChunkSizeTooLarge {
+            actual: uncompressed_len,
+        })?;
+
+        let mut encoder = snap::raw::Encoder::new();
+        let compressed_data = encoder
+            .compress_vec(&uncompressed_data)
+            .context(UnableToCompressData)?;
+        let actual_compressed_len = compressed_data.len();
+        let actual_compressed_len =
+            u32::try_from(actual_compressed_len).context(ChunkSizeTooLarge {
+                actual: actual_compressed_len,
+            })?;
 
         let mut hasher = Hasher::new();
-        hasher.update(&data);
+        hasher.update(&compressed_data);
         let checksum = hasher.finalize();
 
         Ok(Self {
             checksum,
-            data,
-            len,
+            data: compressed_data,
+            len: actual_compressed_len,
         })
     }
 }
