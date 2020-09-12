@@ -1,4 +1,3 @@
-use super::org_and_bucket_to_database;
 use tonic::async_trait;
 use tracing::info;
 
@@ -202,26 +201,18 @@ impl super::DatabaseStore for WriteBufferDatabases {
     type Database = Db;
     type Error = Error;
 
-    async fn db(&self, org: &str, bucket: &str) -> Option<Arc<Self::Database>> {
+    async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
         let databases = self.databases.read().await;
 
-        databases
-            .get(&org_and_bucket_to_database(org, bucket))
-            .cloned()
+        databases.get(name).cloned()
     }
 
-    async fn db_or_create(
-        &self,
-        org: &str,
-        bucket: &str,
-    ) -> Result<Arc<Self::Database>, Self::Error> {
-        let db_name = org_and_bucket_to_database(org, bucket);
-
+    async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
         // get it through a read lock first if we can
         {
             let databases = self.databases.read().await;
 
-            if let Some(db) = databases.get(&db_name) {
+            if let Some(db) = databases.get(name) {
                 return Ok(db.clone());
             }
         }
@@ -230,13 +221,13 @@ impl super::DatabaseStore for WriteBufferDatabases {
         let mut databases = self.databases.write().await;
 
         // make sure it didn't get inserted by someone else while we were waiting for the write lock
-        if let Some(db) = databases.get(&db_name) {
+        if let Some(db) = databases.get(name) {
             return Ok(db.clone());
         }
 
-        let db = Db::try_with_wal(db_name.to_string(), &mut self.base_dir.clone()).await?;
+        let db = Db::try_with_wal(name, &mut self.base_dir.clone()).await?;
         let db = Arc::new(db);
-        databases.insert(db_name, db.clone());
+        databases.insert(name.to_string(), db.clone());
 
         Ok(db)
     }
@@ -253,7 +244,7 @@ pub struct Db {
 }
 
 impl Db {
-    pub async fn try_with_wal(name: String, wal_dir: &mut PathBuf) -> Result<Self> {
+    pub async fn try_with_wal(name: &str, wal_dir: &mut PathBuf) -> Result<Self> {
         wal_dir.push(&name);
         if let Err(e) = std::fs::create_dir(wal_dir.clone()) {
             match e.kind() {
@@ -269,16 +260,16 @@ impl Db {
         }
         let dir = wal_dir.clone();
         let wal_builder = WalBuilder::new(wal_dir.clone());
-        let wal_details = start_wal_sync_task(wal_builder).await.context(OpeningWal {
-            database: name.clone(),
-        })?;
+        let wal_details = start_wal_sync_task(wal_builder)
+            .await
+            .context(OpeningWal { database: name })?;
         wal_details
             .write_metadata()
             .await
-            .context(OpeningWal { database: &name })?;
+            .context(OpeningWal { database: name })?;
 
         Ok(Self {
-            name,
+            name: name.to_string(),
             dir,
             partitions: RwLock::new(vec![]),
             next_partition_id: AtomicU32::new(1),
@@ -1305,7 +1296,7 @@ mod tests {
 "#;
 
         {
-            let db = Db::try_with_wal("mydb".to_string(), &mut dir).await?;
+            let db = Db::try_with_wal("mydb", &mut dir).await?;
             let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i,str=\"some string\",b=true 10\ndisk,region=west,host=A bytes=23432323i,used_percent=76.2 10").map(|l| l.unwrap()).collect();
             db.write_lines(&lines).await?;
             let lines: Vec<_> = parse_lines("cpu,region=west,host=B user=23.1 15")
