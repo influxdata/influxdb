@@ -169,7 +169,7 @@ func Test_ConcatAnnotation(t *testing.T) {
 		{[]string{"dateTime", "3", ""}, "_", "3", linePartTime},
 		{[]string{"long", "fN", "fV"}, "fN", "fV", 0},
 		// concat values
-		{[]string{"string", "fN", "${$}-${b}-${a}"}, "fN", "$-2-1", 0},
+		{[]string{"string", "fN", "$-${b}-${a}"}, "fN", "$-2-1", 0},
 	}
 	exampleRow := []string{"1", "2"}
 	for i, test := range tests {

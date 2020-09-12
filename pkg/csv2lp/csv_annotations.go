@@ -34,7 +34,7 @@ func (a annotationComment) matches(comment string) bool {
 	return strings.HasPrefix(strings.ToLower(comment), a.prefix)
 }
 
-func createConstantOrConcatColumn(table *CsvTable, row []string) CsvTableColumn {
+func createConstantOrConcatColumn(table *CsvTable, row []string, annotationName string) CsvTableColumn {
 	// adds a virtual column with constant value to all data rows
 	// supported types of constant annotation rows are:
 	//  1. "#constant,datatype,label,defaultValue"
@@ -72,10 +72,10 @@ func createConstantOrConcatColumn(table *CsvTable, row []string) CsvTableColumn 
 		if col.DefaultValue == "" && col.Label != "" {
 			// type 2,3,5,6
 			col.DefaultValue = col.Label
-			col.Label = "#constant " + col.DataType
+			col.Label = annotationName + " " + col.DataType
 		} else if col.Label == "" {
-			// setup a label if no label is supplied fo focused error messages
-			col.Label = "#constant " + col.DataType
+			// setup a label if no label is supplied for focused error messages
+			col.Label = annotationName + " " + col.DataType
 		}
 	}
 	// add a virtual column to the table
@@ -84,7 +84,7 @@ func createConstantOrConcatColumn(table *CsvTable, row []string) CsvTableColumn 
 
 // constantSetupTable setups the supplied CSV table from #constant annotation
 func constantSetupTable(table *CsvTable, row []string) error {
-	col := createConstantOrConcatColumn(table, row)
+	col := createConstantOrConcatColumn(table, row, "#constant")
 	// add a virtual column to the table
 	table.extraColumns = append(table.extraColumns, &col)
 	return nil
@@ -95,14 +95,11 @@ var computedReplacer *regexp.Regexp = regexp.MustCompile(`\$\{[^}]+\}`)
 
 // concatSetupTable setups the supplied CSV table from #concat annotation
 func concatSetupTable(table *CsvTable, row []string) error {
-	col := createConstantOrConcatColumn(table, row)
+	col := createConstantOrConcatColumn(table, row, "#concat")
 	template := col.DefaultValue
 	col.ComputeValue = func(row []string) string {
 		return computedReplacer.ReplaceAllStringFunc(template, func(text string) string {
 			columnLabel := text[2 : len(text)-1] // ${columnLabel}
-			if columnLabel == "$" {
-				return "$" // ${$} is a way to print $, if it would require escaping
-			}
 			if placeholderColumn := table.Column(columnLabel); placeholderColumn != nil {
 				return placeholderColumn.Value(row)
 			}
@@ -118,7 +115,7 @@ func concatSetupTable(table *CsvTable, row []string) error {
 		for _, placeholder := range placeholders {
 			columnLabel := placeholder[2 : len(placeholder)-1] // ${columnLabel}
 			if columnLabel == "$" {
-				return nil // ${$} is a way to print $
+				return nil
 			}
 			if placeholderColumn := table.Column(columnLabel); placeholderColumn == nil {
 				return CsvColumnError{
