@@ -204,6 +204,68 @@ func Test_CsvToLineProtocol_SkipRowOnError(t *testing.T) {
 	require.Equal(t, messages, 2)
 }
 
+// Test_CsvToLineProtocol_RowSkipped tests that error rows are reported to configured RowSkipped listener
+func Test_CsvToLineProtocol_RowSkipped(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	oldFlags := log.Flags()
+	log.SetFlags(0)
+	defer func() {
+		log.SetOutput(os.Stderr)
+		log.SetFlags(oldFlags)
+	}()
+
+	type ActualArguments = struct {
+		src *CsvToLineReader
+		err error
+		row []string
+	}
+	type ExpectedArguments = struct {
+		errorString string
+		row         []string
+	}
+
+	csv := "sep=;\n_measurement;a|long:strict\n;1\ncpu;2.1\ncpu;3a\n"
+	calledArgs := []ActualArguments{}
+	expectedArgs := []ExpectedArguments{
+		{
+			"line 3: column '_measurement': no measurement supplied",
+			[]string{"", "1"},
+		},
+		{
+			"line 4: column 'a': '2.1' cannot fit into long data type",
+			[]string{"cpu", "2.1"},
+		},
+		{
+			"line 5: column 'a': strconv.ParseInt:",
+			[]string{"cpu", "3a"},
+		},
+	}
+
+	reader := CsvToLineProtocol(strings.NewReader(csv)).SkipRowOnError(true)
+	reader.RowSkipped = func(src *CsvToLineReader, err error, _row []string) {
+		// make a copy of _row
+		row := make([]string, len(_row))
+		copy(row, _row)
+		// remember for comparison
+		calledArgs = append(calledArgs, ActualArguments{
+			src, err, row,
+		})
+	}
+	// read all the data
+	ioutil.ReadAll(reader)
+
+	out := buf.String()
+	require.Empty(t, out, "No log messages expected because RowSkipped handler is set")
+
+	require.Len(t, calledArgs, 3)
+	for i, expected := range expectedArgs {
+		require.Equal(t, reader, calledArgs[i].src)
+		require.Contains(t, calledArgs[i].err.Error(), expected.errorString)
+		require.Equal(t, expected.row, calledArgs[i].row)
+	}
+}
+
 // Test_CsvLineError tests CsvLineError error format
 func Test_CsvLineError(t *testing.T) {
 	var tests = []struct {
@@ -217,6 +279,10 @@ func Test_CsvLineError(t *testing.T) {
 		{
 			CsvLineError{Line: 2, Err: CsvColumnError{"a", errors.New("cause")}},
 			"line 2: column 'a': cause",
+		},
+		{
+			CsvLineError{Line: -1, Err: CsvColumnError{"a", errors.New("cause")}},
+			"column 'a': cause",
 		},
 	}
 	for _, test := range tests {
