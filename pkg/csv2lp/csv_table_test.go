@@ -255,6 +255,15 @@ func Test_CsvTableProcessing(t *testing.T) {
 			"#default cpu,yes,0,1\n#datatype ,tag,,\n_measurement,test,col1,_time\n,,,",
 			"cpu,test=yes col1=0 1",
 		},
+		{
+			"no duplicate tags", // duplicate tags are ignored, the last column wins, https://github.com/influxdata/influxdb/issues/19453
+			"#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string,string,string,string,string,string,string\n" +
+				"#group,true,true,false,false,false,false,true,true,true,true,true,true,true,true,true,true\n" +
+				"#default,_result,,,,,,,,,,,,,,,\n" +
+				",result,table,_start,_stop,_time,_value,_field,_measurement,env,host,hostname,nodename,org,result,table,url\n" +
+				",,0,2020-08-26T23:10:54.023607624Z,2020-08-26T23:15:54.023607624Z,2020-08-26T23:11:00Z,0,0.001,something,host,pod,node,host,,success,role,http://127.0.0.1:8099/metrics\n",
+			"something,env=host,host=pod,hostname=node,nodename=host,result=success,table=role,url=http://127.0.0.1:8099/metrics 0.001=0 1598483460000000000",
+		},
 	}
 
 	for _, test := range tests {
