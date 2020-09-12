@@ -114,9 +114,6 @@ func concatSetupTable(table *CsvTable, row []string) error {
 		placeholders := computedReplacer.FindAllString(template, len(template))
 		for _, placeholder := range placeholders {
 			columnLabel := placeholder[2 : len(placeholder)-1] // ${columnLabel}
-			if columnLabel == "$" {
-				return nil
-			}
 			if placeholderColumn := table.Column(columnLabel); placeholderColumn == nil {
 				return CsvColumnError{
 					Column: col.Label,
