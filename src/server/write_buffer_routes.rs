@@ -9,7 +9,7 @@
 use http::header::CONTENT_ENCODING;
 use tracing::{debug, error, info};
 
-use delorean::storage::{org_and_bucket_to_database, Database, DatabaseStore};
+use delorean::storage::{Database, DatabaseStore};
 use delorean_line_parser::parse_lines;
 
 use bytes::{Bytes, BytesMut};
@@ -208,10 +208,8 @@ async fn write<T: DatabaseStore>(
         query_string: String::from(query),
     })?;
 
-    let db_name = org_and_bucket_to_database(&write_info.org, &write_info.bucket);
-
     let db = storage
-        .db_or_create(&db_name)
+        .db_or_create(&write_info.org, &write_info.bucket)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(BucketByName {
@@ -262,12 +260,13 @@ async fn read<T: DatabaseStore>(
         query_string: query,
     })?;
 
-    let db_name = org_and_bucket_to_database(&read_info.org, &read_info.bucket);
-
-    let db = storage.db(&db_name).await.context(BucketNotFound {
-        org: read_info.org.clone(),
-        bucket: read_info.bucket.clone(),
-    })?;
+    let db = storage
+        .db(&read_info.org, &read_info.bucket)
+        .await
+        .context(BucketNotFound {
+            org: read_info.org.clone(),
+            bucket: read_info.bucket.clone(),
+        })?;
 
     let results = db
         .query(&read_info.query)
@@ -336,7 +335,7 @@ mod tests {
     use std::{collections::BTreeMap, net::SocketAddr};
 
     use arrow::record_batch::RecordBatch;
-    use delorean::storage::{Database, DatabaseStore};
+    use delorean::storage::{org_and_bucket_to_database, Database, DatabaseStore};
     use delorean_line_parser::ParsedLine;
     use reqwest::{Client, Response};
     use tonic::async_trait;
@@ -385,7 +384,7 @@ mod tests {
 
         // Check that the data got into the right bucket
         let test_db = test_storage
-            .db("MyOrg_MyBucket")
+            .db("MyOrg", "MyBucket")
             .await
             .expect("Database exists");
 
@@ -507,23 +506,36 @@ mod tests {
     impl DatabaseStore for TestDatabaseStore {
         type Database = TestDatabase;
         type Error = TestError;
-        /// Retrieve the database specified name
-        async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
+        /// Retrieve the database specified by the org and bucket name,
+        /// returning None if no such database exists
+        ///
+        /// TODO: change this to take a single database name, and move the
+        /// computation of org/bucket to the callers
+        async fn db(&self, org: &str, bucket: &str) -> Option<Arc<Self::Database>> {
+            let db_name = org_and_bucket_to_database(org, bucket);
             let databases = self.databases.lock().await;
 
-            databases.get(name).cloned()
+            databases.get(&db_name).cloned()
         }
 
-        /// Retrieve the database specified by name, creating it if it
-        /// doesn't exist.
-        async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
+        /// Retrieve the database specified by the org and bucket name,
+        /// creating it if it doesn't exist.
+        ///
+        /// TODO: change this to take a single database name, and move the computation of org/bucket
+        /// to the callers
+        async fn db_or_create(
+            &self,
+            org: &str,
+            bucket: &str,
+        ) -> Result<Arc<Self::Database>, Self::Error> {
+            let db_name = org_and_bucket_to_database(org, bucket);
             let mut databases = self.databases.lock().await;
 
-            if let Some(db) = databases.get(name) {
+            if let Some(db) = databases.get(&db_name) {
                 Ok(db.clone())
             } else {
                 let new_db = Arc::new(TestDatabase::new());
-                databases.insert(name.to_string(), new_db.clone());
+                databases.insert(db_name, new_db.clone());
                 Ok(new_db)
             }
         }
