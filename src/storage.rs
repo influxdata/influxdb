@@ -99,26 +99,17 @@ pub trait DatabaseStore: Debug + Send + Sync {
     /// The type of error this DataBase store generates
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// Retrieve the database specified by the org and bucket name,
-    /// returning None if no such database exists
-    ///
-    /// TODO: change this to take a single database name, and move the
-    /// computation of org/bucket to the callers
-    async fn db(&self, org: &str, bucket: &str) -> Option<Arc<Self::Database>>;
+    /// Retrieve the database specified by `name` returning None if no
+    /// such database exists
+    async fn db(&self, name: &str) -> Option<Arc<Self::Database>>;
 
-    /// Retrieve the database specified by the org and bucket name,
-    /// creating it if it doesn't exist.
-    ///
-    /// TODO: change this to take a single database name, and move the computation of org/bucket
-    /// to the callers
-    async fn db_or_create(
-        &self,
-        org: &str,
-        bucket: &str,
-    ) -> Result<Arc<Self::Database>, Self::Error>;
+    /// Retrieve the database specified by `name`, creating it if it
+    /// doesn't exist.
+    async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error>;
 }
 
-/// return the database name to use for the specified org and bucket name.
+/// Compatibility: return the database name to use for the specified
+/// org and bucket name.
 ///
 /// TODO move to somewhere else / change the traits to take the database name directly
 pub fn org_and_bucket_to_database(org: &str, bucket: &str) -> String {
