@@ -18,7 +18,7 @@ mod commands {
     mod input;
     pub mod server;
     pub mod stats;
-    pub mod write_buffer;
+    pub mod write_buffer_server;
 }
 
 enum ReturnCode {
@@ -175,7 +175,7 @@ Examples:
         }
         ("write-buffer", Some(_sub_matches)) => {
             println!("Starting delorean server using WriteBuffer implementation...");
-            match commands::write_buffer::main().await {
+            match commands::write_buffer_server::main().await {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {
                     error!("Server shutdown with error: {:?}", e);

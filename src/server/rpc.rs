@@ -1,4 +1,5 @@
-//! This module contains gRPC service implementatations
+//! This module contains gRPC service implementatations for the MemDB
+//! (deprecated) storage implementation
 
 // Something about how `tracing::instrument` works triggers a clippy
 // warning about complex types

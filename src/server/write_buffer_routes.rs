@@ -1,5 +1,5 @@
 //! This module contains a parallel implementation of the /v2 HTTP api
-//! routes for Delorean.
+//! routes for Delorean based on the WriteBuffer storage implementation.
 //!
 //! The goal is that eventually the implementation in these routes
 //! will replace the implementation in http_routes.rs
