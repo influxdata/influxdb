@@ -330,9 +330,7 @@ impl Db {
             .await
             .context(OpeningWal { database: &name })?;
 
-        let mut row_count = 0;
-        let mut dict_values = 0;
-        let mut tables = HashSet::new();
+        let mut stats = RestorationStats::default();
 
         // TODO: check wal metadata format
         let entries = wal_builder
@@ -367,11 +365,11 @@ impl Db {
                                     database: &name,
                                     partition_id: da.partition_id(),
                                 })?;
-                        dict_values += 1;
+                        stats.dict_values += 1;
                         p.intern_new_dict_entry(da.value().unwrap());
                     } else if let Some(sa) = entry.schema_append() {
                         let tid = sa.table_id();
-                        tables.insert(tid);
+                        stats.tables.insert(tid);
                         let p =
                             partitions
                                 .get_mut(&sa.partition_id())
@@ -388,7 +386,7 @@ impl Db {
                                     database: &name,
                                     partition_id: row.partition_id(),
                                 })?;
-                        row_count += 1;
+                        stats.row_count += 1;
                         p.add_wal_row(row.table_id(), &row.values().unwrap())?;
                     }
                 }
@@ -398,10 +396,10 @@ impl Db {
         info!(
             "{} database loaded {} rows in {:?} with {} dictionary adds in {} tables",
             &name,
-            row_count,
+            stats.row_count,
             elapsed,
-            dict_values,
-            tables.len()
+            stats.dict_values,
+            stats.tables.len(),
         );
 
         let partitions: Vec<_> = partitions.into_iter().map(|(_, p)| p).collect();
@@ -421,6 +419,13 @@ impl Db {
             wal_details: Some(wal_details),
         })
     }
+}
+
+#[derive(Default, Debug)]
+struct RestorationStats {
+    row_count: usize,
+    dict_values: usize,
+    tables: HashSet<u32>,
 }
 
 #[async_trait]
