@@ -148,11 +148,14 @@ function start() {
             --exec $DAEMON \
             -- \
 <<<<<<< HEAD
+<<<<<<< HEAD
             $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
     else
         local CMD="$DAEMON $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &"
 =======
             -pidfile $PIDFILE \
+=======
+>>>>>>> chore: write process after sleeping for a sec
             $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
     else
 <<<<<<< HEAD
@@ -162,15 +165,18 @@ function start() {
         local CMD="$DAEMON $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &"
 >>>>>>> chore: update install scripts
         su -s /bin/sh -c "$CMD" $USER
-        echo $(pgrep -u $USER -f influxd) > $PIDFILE
     fi
 
     # Sleep to verify process is still up
     sleep 1
 <<<<<<< HEAD
+<<<<<<< HEAD
     echo $(pgrep -u $USER -f influxd) > $PIDFILE
 =======
 >>>>>>> chore: add rpm script files
+=======
+    echo $(pgrep -u $USER -f influxd) > $PIDFILE
+>>>>>>> chore: write process after sleeping for a sec
     if [ -f $PIDFILE ]; then
         # PIDFILE exists
         if kill -0 $(cat $PIDFILE) &>/dev/null; then
