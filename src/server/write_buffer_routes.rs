@@ -333,11 +333,12 @@ pub async fn service<T: DatabaseStore>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{collections::BTreeMap, net::SocketAddr};
+    use std::{collections::BTreeMap, net::IpAddr, net::Ipv4Addr, net::SocketAddr};
 
     use arrow::record_batch::RecordBatch;
     use delorean::storage::{Database, DatabaseStore};
     use delorean_line_parser::ParsedLine;
+    use http::header;
     use reqwest::{Client, Response};
     use tonic::async_trait;
 
@@ -349,20 +350,24 @@ mod tests {
     type Result<T, E = Error> = std::result::Result<T, E>;
 
     #[tokio::test]
-    async fn test_write() -> Result<()> {
+    async fn test_ping() -> Result<()> {
         let test_storage = Arc::new(TestDatabaseStore::new());
         let server_url = test_server(test_storage.clone());
-        println!("Started server at {}", server_url);
-        // now, make a http client and send some requests
 
         let client = Client::new();
-        let response = client
-            .request(Method::GET, &format!("{}/ping", server_url))
-            .send()
-            .await;
+        let response = client.get(&format!("{}/ping", server_url)).send().await;
 
         // Print the response so if the test fails, we have a log of what went wrong
         check_response("ping", response, StatusCode::OK, "PONG").await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write() -> Result<()> {
+        let test_storage = Arc::new(TestDatabaseStore::new());
+        let server_url = test_server(test_storage.clone());
+
+        let client = Client::new();
 
         let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
 
@@ -370,14 +375,57 @@ mod tests {
         let bucket_name = "MyBucket";
         let org_name = "MyOrg";
         let response = client
-            .request(
-                Method::POST,
-                &format!(
-                    "{}/api/v2/write?bucket={}&org={}",
-                    server_url, bucket_name, org_name
-                ),
-            )
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
             .body(lp_data)
+            .send()
+            .await;
+
+        check_response("write", response, StatusCode::NO_CONTENT, "").await;
+
+        // Check that the data got into the right bucket
+        let test_db = test_storage
+            .db("MyOrg_MyBucket")
+            .await
+            .expect("Database exists");
+
+        // Ensure the same line protocol data gets through
+        assert_eq!(test_db.get_lines().await, vec![lp_data]);
+        Ok(())
+    }
+
+    fn gzip_str(s: &str) -> Vec<u8> {
+        use libflate::gzip::Encoder;
+        use std::io::Write;
+
+        let mut encoder = Encoder::new(Vec::new()).expect("creating gzip encoder");
+        write!(encoder, "{}", s).expect("writing into encoder");
+        encoder
+            .finish()
+            .into_result()
+            .expect("successfully encoding gzip data")
+    }
+
+    #[tokio::test]
+    async fn test_gzip_write() -> Result<()> {
+        let test_storage = Arc::new(TestDatabaseStore::new());
+        let server_url = test_server(test_storage.clone());
+
+        let client = Client::new();
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
+
+        // send write data encoded with gzip
+        let bucket_name = "MyBucket";
+        let org_name = "MyOrg";
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .header(header::CONTENT_ENCODING, "gzip")
+            .body(gzip_str(lp_data))
             .send()
             .await;
 
@@ -432,11 +480,12 @@ mod tests {
             }
         });
 
-        // TODO pick the port dynamically and return it
-        let bind_addr: SocketAddr = "127.0.0.1:18080".parse().unwrap();
+        // NB: specify port 0 to let the OS pick the port.
+        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
         let server = Server::bind(&bind_addr).serve(make_svc);
-        let server_url = format!("http://{}", bind_addr);
+        let server_url = format!("http://{}", server.local_addr());
         tokio::task::spawn(server);
+        println!("Started server at {}", server_url);
         server_url
     }
 
