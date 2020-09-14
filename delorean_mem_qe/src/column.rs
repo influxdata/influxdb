@@ -3,6 +3,13 @@ use std::convert::From;
 use super::encoding;
 
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub enum Value<'a> {
+    Null,
+    String(&'a str),
+    Scalar(Scalar<'a>),
+}
+
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Scalar<'a> {
     String(&'a str),
     Float(f64),
@@ -162,49 +169,94 @@ pub enum Vector<'a> {
     EncodedString(Vec<i64>),
     Float(Vec<Option<f64>>),
     Integer(Vec<Option<i64>>),
+    // TODO(edd): add types like this:
+    //
+    // Integer16(Vec<i16>),
+    // NullInteger16(Vec<Option<i16>>), // contains one or more NULL values
+    // ...
+    // ...
+    //
+    // We won't need EncodedString then (it can use one of the non-null integer variants)
+    //
 }
 
 impl<'a> Vector<'a> {
-    // pub fn aggregate_by_id_range(
-    //     &self,
-    //     agg_type: &AggregateType,
-    //     from_row_id: usize,
-    //     to_row_id: usize,
-    // ) -> Aggregate<'a> {
-    //     match agg_type {
-    //         AggregateType::Count => {
-    //             Aggregate::Count(self.count_by_id_range(from_row_id, to_row_id) as u64)
-    //         }
-    //         AggregateType::Sum => Aggregate::Sum(self.sum_by_id_range(from_row_id, to_row_id)),
-    //     }
-    // }
+    pub fn aggregate_by_id_range(
+        &self,
+        agg_type: &AggregateType,
+        from_row_id: usize,
+        to_row_id: usize,
+    ) -> Aggregate<'a> {
+        match agg_type {
+            AggregateType::Count => {
+                Aggregate::Count(self.count_by_id_range(from_row_id, to_row_id) as u64)
+            }
+            AggregateType::Sum => Aggregate::Sum(self.sum_by_id_range(from_row_id, to_row_id)),
+        }
+    }
 
-    // fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Scalar<'a> {
-    //     match self {
-    //         Vector::String(_) => {
-    //             panic!("can't sum strings....");
-    //         }
-    //         Vector::Float(values) => {
-    //             let mut res = 0.0;
-    //             // TODO(edd): check asm to see if it's vectorising
-    //             for v in values[from_row_id..to_row_id].iter() {
-    //                 res += *v;
-    //             }
-    //             Scalar::Float(res)
-    //         }
-    //         Vector::Integer(values) => {
-    //             let mut res = 0;
-    //             // TODO(edd): check asm to see if it's vectorising
-    //             for v in values[from_row_id..to_row_id].iter() {
-    //                 res += *v;
-    //             }
-    //             Scalar::Integer(res)
-    //         }
-    //     }
-    // }
+    // Return the sum of values in the vector. NULL values are ignored. If there
+    // are no non-null values in the vector being summed then None is returned.
+    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<Scalar<'a>> {
+        match self {
+            Vector::String(_) => {
+                panic!("can't sum strings....");
+            }
+            Vector::Float(values) => {
+                let mut res = 0.0;
+                let mut found = false;
 
+                // TODO(edd): check asm to see if it's vectorising
+                for v in values[from_row_id..to_row_id].iter() {
+                    if let Some(v) = v {
+                        res += *v;
+                        found = true;
+                    }
+                }
+
+                if found {
+                    return Some(Scalar::Float(res));
+                }
+                None
+            }
+            Vector::Integer(values) => {
+                let mut res = 0;
+                let mut found = false;
+
+                // TODO(edd): check asm to see if it's vectorising
+                for v in values[from_row_id..to_row_id].iter() {
+                    if let Some(v) = v {
+                        res += *v;
+                        found = true;
+                    }
+                }
+
+                if found {
+                    return Some(Scalar::Integer(res));
+                }
+                None
+            }
+            Vector::EncodedString(values) => {
+                let mut res = 0;
+
+                // TODO(edd): check asm to see if it's vectorising
+                for v in values[from_row_id..to_row_id].iter() {
+                    res += *v;
+                }
+                Some(Scalar::Integer(res))
+            }
+        }
+    }
+
+    // return the count of values on the column. NULL values do not contribute
+    // to the count.
     fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
-        to_row_id - from_row_id
+        match self {
+            Vector::String(vec) => vec.iter().filter(|x| x.is_some()).count(),
+            Vector::EncodedString(_) => to_row_id - from_row_id, // fast - no possible NULL values
+            Vector::Float(vec) => vec.iter().filter(|x| x.is_some()).count(),
+            Vector::Integer(vec) => vec.iter().filter(|x| x.is_some()).count(),
+        }
     }
 
     pub fn extend(&mut self, other: Self) {
@@ -230,6 +282,13 @@ impl<'a> Vector<'a> {
                     unreachable!("string can't be extended");
                 }
             }
+            Vector::EncodedString(v) => {
+                if let Self::EncodedString(other) = other {
+                    v.extend(other);
+                } else {
+                    unreachable!("string can't be extended");
+                }
+            }
         }
     }
 
@@ -242,15 +301,27 @@ impl<'a> Vector<'a> {
             Self::String(v) => v.len(),
             Self::Float(v) => v.len(),
             Self::Integer(v) => v.len(),
+            Vector::EncodedString(v) => v.len(),
         }
     }
 
-    pub fn get(&self, i: usize) -> Scalar<'a> {
+    /// Return the value within the vector at position `i`. If the value at
+    /// position `i` is NULL then `None` is returned.
+    pub fn get(&self, i: usize) -> Value<'a> {
         match self {
-            // FIXME(edd): SORT THIS OPTION OUT
-            Self::String(v) => Scalar::String(v[i].as_ref().unwrap()),
-            Self::Float(v) => Scalar::Float(v[i]),
-            Self::Integer(v) => Scalar::Integer(v[i]),
+            Self::String(v) => match v[i] {
+                Some(v) => Value::String(v),
+                None => Value::Null, // Scalar::String(v[i].as_ref().unwrap()),
+            },
+            Self::Float(v) => match v[i] {
+                Some(v) => Value::Scalar(Scalar::Float(v)),
+                None => Value::Null,
+            },
+            Self::Integer(v) => match v[i] {
+                Some(v) => Value::Scalar(Scalar::Integer(v)),
+                None => Value::Null,
+            },
+            Self::EncodedString(v) => Value::Scalar(Scalar::Integer(v[i])),
         }
     }
 
@@ -265,6 +336,7 @@ impl<'a> Vector<'a> {
             Self::Integer(v) => {
                 v.swap(a, b);
             }
+            Vector::EncodedString(v) => v.swap(a, b),
         }
     }
 }
@@ -293,7 +365,7 @@ impl<'a> VectorIterator<'a> {
     }
 }
 impl<'a> Iterator for VectorIterator<'a> {
-    type Item = Scalar<'a>;
+    type Item = Value<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let curr_i = self.next_i;
@@ -316,11 +388,17 @@ impl<'a> std::fmt::Display for Vector<'a> {
             Self::Float(v) => write!(f, "{:?}", v),
             Self::Integer(v) => {
                 for x in v.iter() {
-                    let ts = NaiveDateTime::from_timestamp(*x / 1000 / 1000, 0);
-                    write!(f, "{}, ", ts)?;
+                    match x {
+                        Some(x) => {
+                            let ts = NaiveDateTime::from_timestamp(*x / 1000 / 1000, 0);
+                            write!(f, "{}, ", ts)?;
+                        }
+                        None => write!(f, "NULL, ")?,
+                    }
                 }
                 Ok(())
             }
+            Vector::EncodedString(v) => write!(f, "{:?}", v),
         }
     }
 }
