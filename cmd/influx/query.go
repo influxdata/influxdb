@@ -105,7 +105,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		"query": q,
 		"type":  "flux",
 		"dialect": map[string]interface{}{
-			"annotations": []string{"datatype", "group", "default"},
+			"annotations": []string{"group", "datatype", "default"},
 			"delimiter":   ",",
 			"header":      true,
 		},
