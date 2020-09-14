@@ -330,12 +330,12 @@ impl Db {
             .await
             .context(OpeningWal { database: &name })?;
 
-        let mut stats = RestorationStats::default();
-
         // TODO: check wal metadata format
         let entries = wal_builder
             .entries()
             .context(LoadingWal { database: &name })?;
+
+        let mut stats = RestorationStats::default();
         let mut partitions = HashMap::new();
         let mut next_partition_id = 0;
         for entry in entries {
@@ -392,6 +392,8 @@ impl Db {
                 }
             }
         }
+        let partitions: Vec<_> = partitions.into_iter().map(|(_, p)| p).collect();
+
         let elapsed = now.elapsed();
         info!(
             "{} database loaded {} rows in {:?} with {} dictionary adds in {} tables",
@@ -401,8 +403,6 @@ impl Db {
             stats.dict_values,
             stats.tables.len(),
         );
-
-        let partitions: Vec<_> = partitions.into_iter().map(|(_, p)| p).collect();
 
         info!(
             "{} database partition count: {}, next_id {}",
