@@ -199,6 +199,25 @@ jobs:
           path: ~/e2e/test-results
       - store_artifacts:
           path: ~/e2e/artifacts
+  grace_daily:
+    machine: true
+    steps:
+      - attach_workspace:
+          at: ~/project
+      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -e TEST_RESULTS=~/project quay.io/influxdb/grace:latest
+      - run:
+          name: Grace Tests Success
+          when: on_success
+          command: bash ~/project/etc/grace_success_notify.sh
+      - run:
+          name: Grace Tests Fail
+          when: on_fail
+          command: bash ~/project/etc/grace_fail_notify.sh
+      - store_artifacts:
+          path: ~/project
+      - store_test_results:
+          path: ~/project
   grace_nightly:
     machine: true
     steps:
@@ -206,6 +225,14 @@ jobs:
           at: ~/project
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -e TEST_RESULTS=~/project quay.io/influxdb/grace:latest
+      - run:
+          name: Grace Tests Success
+          when: on_success
+          command: bash ~/project/etc/grace_success_notify.sh
+      - run:
+          name: Grace Tests Fail
+          when: on_fail
+          command: bash ~/project/etc/grace_fail_notify.sh
       - store_artifacts:
           path: ~/project
       - store_test_results:
@@ -408,6 +435,8 @@ jobs:
             - bin/linux/influx
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
+            - etc/grace_success_notify.sh
+            - etc/grace_fail_notify.sh
   deploy-nightly:
     docker:
       - image: circleci/golang:1.13-node-browsers
@@ -443,6 +472,8 @@ jobs:
           paths:
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
+            - etc/grace_success_notify.sh
+            - etc/grace_fail_notify.sh
 
   release:
     docker:
@@ -499,6 +530,12 @@ workflows:
             branches:
               only:
                 - master
+      - grace_daily:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /^(?!pull\/).*$/
   e2e:
     jobs:
       - e2e
