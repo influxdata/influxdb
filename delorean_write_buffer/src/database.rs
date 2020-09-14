@@ -1709,4 +1709,106 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test(threaded_scheduler)]
+    #[ignore]
+    async fn recover_partial_entries() -> Result {
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+
+        let expected_cpu_table = r#"+--------+------+------+-------+-------------+-------+------+---------+-----------+
+| region | host | user | other | str         | b     | time | new_tag | new_field |
++--------+------+------+-------+-------------+-------+------+---------+-----------+
+| west   | A    | 23.2 | 1     | some string | true  | 10   |         | 0         |
+| west   | B    | 23.1 | 0     |             | false | 15   |         | 0         |
+|        | A    | 0    | 0     |             | false | 20   | foo     | 15.1      |
++--------+------+------+-------+-------------+-------+------+---------+-----------+
+"#;
+        let expected_mem_table = r#"+--------+------+-------+------+
+| region | host | val   | time |
++--------+------+-------+------+
+| east   | C    | 23432 | 10   |
++--------+------+-------+------+
+"#;
+        let expected_disk_table = r#"+--------+------+----------+--------------+------+
+| region | host | bytes    | used_percent | time |
++--------+------+----------+--------------+------+
+| west   | A    | 23432323 | 76.2         | 10   |
++--------+------+----------+--------------+------+
+"#;
+
+        {
+            let db = Db::try_with_wal("mydb", &mut dir).await?;
+            let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i,str=\"some string\",b=true 10\ndisk,region=west,host=A bytes=23432323i,used_percent=76.2 10").map(|l| l.unwrap()).collect();
+            db.write_lines(&lines).await?;
+            let lines: Vec<_> = parse_lines("cpu,region=west,host=B user=23.1 15")
+                .map(|l| l.unwrap())
+                .collect();
+            db.write_lines(&lines).await?;
+            let lines: Vec<_> = parse_lines("cpu,host=A,new_tag=foo new_field=15.1 20")
+                .map(|l| l.unwrap())
+                .collect();
+            db.write_lines(&lines).await?;
+            let lines: Vec<_> = parse_lines("mem,region=east,host=C val=23432 10")
+                .map(|l| l.unwrap())
+                .collect();
+            db.write_lines(&lines).await?;
+
+            let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
+            let res = pretty_format_batches(&partitions).unwrap();
+            assert_eq!(expected_cpu_table, res);
+            let partitions = db.table_to_arrow("mem", &[]).await?;
+            let res = pretty_format_batches(&partitions).unwrap();
+            assert_eq!(expected_mem_table, res);
+            let partitions = db.table_to_arrow("disk", &[]).await?;
+            let res = pretty_format_batches(&partitions).unwrap();
+            assert_eq!(expected_disk_table, res);
+        }
+
+        // check that it can recover from the last 2 self-describing entries of the wal
+        {
+            let name = dir.iter().last().unwrap().to_str().unwrap().to_string();
+
+            let wal_builder = WalBuilder::new(&dir);
+
+            let wal_entries = wal_builder
+                .entries()
+                .context(LoadingWal { database: &name })?;
+
+            // Skip the first 2 entries in the wal; only restore from the last 2
+            let wal_entries = wal_entries.skip(2);
+
+            let (partitions, next_partition_id, _stats) = restore_partitions_from_wal(wal_entries)?;
+
+            let db = Db {
+                name,
+                dir,
+                partitions: RwLock::new(partitions),
+                next_partition_id: AtomicU32::new(next_partition_id + 1),
+                wal_details: None,
+            };
+
+            // some cpu
+            let smaller_cpu_table = r#"+------+------+-------+-------------+-------+------+---------+-----------+
+| host | user | other | str         | b     | time | new_tag | new_field |
++------+------+-------+-------------+-------+------+---------+-----------+
+| A    | 0    | 0     |             | false | 20   | foo     | 15.1      |
++------+------+-------+-------------+-------+------+---------+-----------+
+"#;
+            let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
+            let res = pretty_format_batches(&partitions).unwrap();
+            assert_eq!(smaller_cpu_table, res);
+
+            // all of mem
+            let partitions = db.table_to_arrow("mem", &[]).await?;
+            let res = pretty_format_batches(&partitions).unwrap();
+            assert_eq!(expected_mem_table, res);
+
+            // no disk
+            let partitions = db.table_to_arrow("disk", &[]).await?;
+            let res = pretty_format_batches(&partitions).unwrap();
+            assert_eq!("", res);
+        }
+
+        Ok(())
+    }
 }
