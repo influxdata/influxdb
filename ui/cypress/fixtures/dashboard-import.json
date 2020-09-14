@@ -1,0 +1,167 @@
+{
+  "meta": {
+    "version": "1",
+    "type": "dashboard",
+    "name": "IMPORT dashboard-Template",
+    "description": "template created from dashboard: IMPORT dashboard"
+  },
+  "content": {
+    "data": {
+      "type": "dashboard",
+      "attributes": {
+        "name": "IMPORT dashboard",
+        "description": "Desk desc"
+      },
+      "relationships": {
+        "label": {
+          "data": [
+            {
+              "type": "label",
+              "id": "064b5eb6c11a5000"
+            }
+          ]
+        },
+        "cell": {
+          "data": [
+            {
+              "type": "cell",
+              "id": "064b5f0d751a5000"
+            },
+            {
+              "type": "cell",
+              "id": "064b5f48459a5000"
+            }
+          ]
+        },
+        "variable": {
+          "data": []
+        }
+      }
+    },
+    "included": [
+      {
+        "type": "label",
+        "id": "064b5eb6c11a5000",
+        "attributes": {
+          "name": "bar",
+          "properties": {
+            "color": "#ff00ff",
+            "description": "test bar"
+          }
+        }
+      },
+      {
+        "id": "064b5f0d751a5000",
+        "type": "cell",
+        "attributes": {
+          "x": 0,
+          "y": 0,
+          "w": 1,
+          "h": 5
+        },
+        "relationships": {
+          "view": {
+            "data": {
+              "type": "view",
+              "id": "064b5f0d751a5000"
+            }
+          }
+        }
+      },
+      {
+        "id": "064b5f48459a5000",
+        "type": "cell",
+        "attributes": {
+          "x": 4,
+          "y": 0,
+          "w": 6,
+          "h": 7
+        },
+        "relationships": {
+          "view": {
+            "data": {
+              "type": "view",
+              "id": "064b5f48459a5000"
+            }
+          }
+        }
+      },
+      {
+        "type": "view",
+        "id": "064b5f0d751a5000",
+        "attributes": {
+          "name": "cellll",
+          "properties": {
+            "shape": "chronograf-v2",
+            "type": "heatmap",
+            "queries": [
+              {
+                "text": "",
+                "editMode": "advanced",
+                "name": "",
+                "builderConfig": {
+                  "buckets": [],
+                  "tags": [
+                    {
+                      "key": "_measurement",
+                      "values": [],
+                      "aggregateFunctionType": "filter"
+                    }
+                  ],
+                  "functions": [
+                    {
+                      "name": "mean"
+                    }
+                  ],
+                  "aggregateWindow": {
+                    "period": "auto",
+                    "fillValues": false
+                  }
+                }
+              }
+            ],
+            "colors": [
+              "#000004",
+              "#110a30",
+              "#320a5e",
+              "#57106e",
+              "#781c6d",
+              "#9a2865",
+              "#bc3754",
+              "#d84c3e",
+              "#ed6925",
+              "#f98e09",
+              "#fbb61a",
+              "#f4df53"
+            ],
+            "binSize": 10,
+            "xColumn": "",
+            "yColumn": "",
+            "xAxisLabel": "",
+            "yAxisLabel": "",
+            "xPrefix": "",
+            "xSuffix": "",
+            "yPrefix": "",
+            "ySuffix": "",
+            "note": "",
+            "showNoteWhenEmpty": false,
+            "timeFormat": ""
+          }
+        }
+      },
+      {
+        "type": "view",
+        "id": "064b5f48459a5000",
+        "attributes": {
+          "name": "Name this Cell",
+          "properties": {
+            "shape": "chronograf-v2",
+            "type": "markdown",
+            "note": "# Note about no tea"
+          }
+        }
+      }
+    ]
+  },
+  "labels": []
+}

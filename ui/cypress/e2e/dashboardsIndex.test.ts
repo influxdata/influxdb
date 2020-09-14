@@ -156,6 +156,73 @@ describe('Dashboards', () => {
     cy.getByTestID('empty-dashboards-list').should('exist')
   })
 
+  it('can import as JSON or file', () => {
+    const checkImportedDashboard = () => {
+      // wait for importing done
+      cy.wait(100)
+      cy.getByTestID('dashboard-card--name')
+        .should('contain', 'IMPORT dashboard')
+        .click()
+      cy.getByTestID('cell--view-empty markdown').should(
+        'contain',
+        'Note about no tea'
+      )
+      cy.getByTestID('cell cellll').should('exist')
+
+      // return to previous page
+      cy.fixture('routes').then(({orgs}) => {
+        cy.get('@org').then(({id}: Organization) => {
+          cy.visit(`${orgs}/${id}/dashboards-list`)
+        })
+      })
+    }
+
+    // import dashboard from file
+    cy.getByTestID('add-resource-dropdown--button')
+      .first()
+      .click()
+    cy.getByTestID('add-resource-dropdown--import').click()
+
+    cy.getByTestID('drag-and-drop--input').attachFile({
+      filePath: 'dashboard-import.json',
+    })
+
+    cy.getByTestID('submit-button Dashboard').click()
+    checkImportedDashboard()
+
+    // delete dashboard before reimport
+    cy.getByTestID('dashboard-card')
+      .first()
+      .trigger('mouseover')
+      .within(() => {
+        cy.getByTestID('context-delete-menu').click()
+        cy.getByTestID('context-delete-dashboard').click()
+      })
+
+    // dasboard no longer exists
+    cy.getByTestID('dashboard-card').should('not.exist')
+
+    // import dashboard as json
+    cy.getByTestID('add-resource-dropdown--button')
+      .first()
+      .click()
+    cy.getByTestID('add-resource-dropdown--import').click()
+
+    cy.getByTestID('select-group--option')
+      .contains('Paste')
+      .click()
+
+    cy.fixture('dashboard-import.json').then(json => {
+      cy.getByTestID('import-overlay--textarea')
+        .should('be.visible')
+        .click()
+        .type(JSON.stringify(json), {parseSpecialCharSequences: false})
+    })
+
+    cy.getByTestID('submit-button Dashboard').click()
+    checkImportedDashboard()
+  })
+
   it('keeps user input in text area when attempting to import invalid JSON', () => {
     cy.getByTestID('page-control-bar').within(() => {
       cy.getByTestID('add-resource-dropdown--button').click()
