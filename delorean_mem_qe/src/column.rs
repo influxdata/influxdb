@@ -100,7 +100,7 @@ impl<'a> std::ops::AddAssign<&Scalar<'a>> for Scalar<'a> {
 #[derive(Clone, Debug)]
 pub enum Aggregate<'a> {
     Count(u64),
-    Sum(Scalar<'a>),
+    Sum(Option<Scalar<'a>>),
 }
 
 #[derive(Debug, Clone)]
@@ -109,29 +109,16 @@ pub enum AggregateType {
     Sum,
 }
 
-impl<'a> Aggregate<'a> {
-    pub fn update_with(&mut self, other: Scalar<'a>) {
-        match self {
-            Self::Count(v) => {
-                *v = *v + 1;
-            }
-            Self::Sum(v) => {
-                v.add(other);
-            }
-        }
-    }
-}
+// impl<'a> std::ops::Add<Scalar<'a>> for Aggregate<'a> {
+//     type Output = Aggregate<'a>;
 
-impl<'a> std::ops::Add<Scalar<'a>> for Aggregate<'a> {
-    type Output = Aggregate<'a>;
-
-    fn add(self, _rhs: Scalar<'a>) -> Self::Output {
-        match self {
-            Self::Count(c) => Self::Count(c + 1),
-            Self::Sum(s) => Self::Sum(s + &_rhs),
-        }
-    }
-}
+//     fn add(self, _rhs: Scalar<'a>) -> Self::Output {
+//         match self {
+//             Self::Count(c) => Self::Count(c + 1),
+//             Self::Sum(s) => Self::Sum(s + &_rhs),
+//         }
+//     }
+// }
 
 impl<'a> std::ops::Add<&Aggregate<'a>> for Aggregate<'a> {
     type Output = Aggregate<'a>;
@@ -147,7 +134,12 @@ impl<'a> std::ops::Add<&Aggregate<'a>> for Aggregate<'a> {
             }
             Self::Sum(s) => {
                 if let Self::Sum(other) = _rhs {
-                    Self::Sum(s + other)
+                    match (s, other) {
+                        (None, None) => Self::Sum(None),
+                        (None, Some(other)) => Self::Sum(Some(*other)),
+                        (Some(s), None) => Self::Sum(Some(s)),
+                        (Some(s), Some(other)) => Self::Sum(Some(s + other)),
+                    }
                 } else {
                     panic!("invalid");
                 }
@@ -167,48 +159,49 @@ pub trait AggregatableByRange {
 /// A Vector is a materialised vector of values from a column.
 pub enum Vector<'a> {
     String(Vec<&'a Option<std::string::String>>),
-    Float(Vec<f64>),
-    Integer(Vec<i64>),
+    EncodedString(Vec<i64>),
+    Float(Vec<Option<f64>>),
+    Integer(Vec<Option<i64>>),
 }
 
 impl<'a> Vector<'a> {
-    pub fn aggregate_by_id_range(
-        &self,
-        agg_type: &AggregateType,
-        from_row_id: usize,
-        to_row_id: usize,
-    ) -> Aggregate<'a> {
-        match agg_type {
-            AggregateType::Count => {
-                Aggregate::Count(self.count_by_id_range(from_row_id, to_row_id) as u64)
-            }
-            AggregateType::Sum => Aggregate::Sum(self.sum_by_id_range(from_row_id, to_row_id)),
-        }
-    }
+    // pub fn aggregate_by_id_range(
+    //     &self,
+    //     agg_type: &AggregateType,
+    //     from_row_id: usize,
+    //     to_row_id: usize,
+    // ) -> Aggregate<'a> {
+    //     match agg_type {
+    //         AggregateType::Count => {
+    //             Aggregate::Count(self.count_by_id_range(from_row_id, to_row_id) as u64)
+    //         }
+    //         AggregateType::Sum => Aggregate::Sum(self.sum_by_id_range(from_row_id, to_row_id)),
+    //     }
+    // }
 
-    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Scalar<'a> {
-        match self {
-            Vector::String(_) => {
-                panic!("can't sum strings....");
-            }
-            Vector::Float(values) => {
-                let mut res = 0.0;
-                // TODO(edd): check asm to see if it's vectorising
-                for v in values[from_row_id..to_row_id].iter() {
-                    res += *v;
-                }
-                Scalar::Float(res)
-            }
-            Vector::Integer(values) => {
-                let mut res = 0;
-                // TODO(edd): check asm to see if it's vectorising
-                for v in values[from_row_id..to_row_id].iter() {
-                    res += *v;
-                }
-                Scalar::Integer(res)
-            }
-        }
-    }
+    // fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Scalar<'a> {
+    //     match self {
+    //         Vector::String(_) => {
+    //             panic!("can't sum strings....");
+    //         }
+    //         Vector::Float(values) => {
+    //             let mut res = 0.0;
+    //             // TODO(edd): check asm to see if it's vectorising
+    //             for v in values[from_row_id..to_row_id].iter() {
+    //                 res += *v;
+    //             }
+    //             Scalar::Float(res)
+    //         }
+    //         Vector::Integer(values) => {
+    //             let mut res = 0;
+    //             // TODO(edd): check asm to see if it's vectorising
+    //             for v in values[from_row_id..to_row_id].iter() {
+    //                 res += *v;
+    //             }
+    //             Scalar::Integer(res)
+    //         }
+    //     }
+    // }
 
     fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
         to_row_id - from_row_id
@@ -335,8 +328,8 @@ impl<'a> std::fmt::Display for Vector<'a> {
 #[derive(Debug)]
 pub enum Column {
     String(String),
-    Float(Float),
-    Integer(Integer),
+    Float(NumericColumn<f64>),
+    Integer(NumericColumn<i64>),
 }
 
 impl Column {
@@ -376,13 +369,23 @@ impl Column {
                 if row_id >= self.num_rows() {
                     return None;
                 }
-                Some(Scalar::Float(c.value(row_id)))
+
+                let v = c.value(row_id);
+                if let Some(v) = v {
+                    return Some(Scalar::Float(v));
+                }
+                None
             }
             Column::Integer(c) => {
                 if row_id >= self.num_rows() {
                     return None;
                 }
-                Some(Scalar::Integer(c.value(row_id)))
+
+                let v = c.value(row_id);
+                if let Some(v) = v {
+                    return Some(Scalar::Integer(v));
+                }
+                None
             }
         }
     }
@@ -485,7 +488,7 @@ impl Column {
                 let now = std::time::Instant::now();
                 let v = c.encoded_values(&row_ids_vec);
                 log::debug!("time getting encoded values {:?}", now.elapsed());
-                Vector::Integer(v)
+                Vector::EncodedString(v)
             }
             Column::Float(c) => {
                 if row_ids.is_empty() {
@@ -518,7 +521,7 @@ impl Column {
                 log::debug!("time getting encoded values {:?}", now.elapsed());
 
                 log::debug!("dictionary {:?}", c.data.dictionary());
-                Vector::Integer(v)
+                Vector::EncodedString(v)
             }
             Column::Float(c) => {
                 if row_ids.is_empty() {
@@ -546,7 +549,7 @@ impl Column {
                 log::debug!("time getting all encoded values {:?}", now.elapsed());
 
                 log::debug!("dictionary {:?}", c.data.dictionary());
-                Vector::Integer(v)
+                Vector::EncodedString(v)
             }
             Column::Float(c) => Vector::Float(c.all_encoded_values()),
             Column::Integer(c) => Vector::Integer(c.all_encoded_values()),
@@ -596,28 +599,25 @@ impl Column {
         }
     }
 
-    pub fn maybe_contains(&self, value: Option<&Scalar<'_>>) -> bool {
+    pub fn maybe_contains(&self, value: &Scalar<'_>) -> bool {
         match self {
-            Column::String(c) => match value {
-                Some(scalar) => {
-                    if let Scalar::String(v) = scalar {
-                        c.meta.maybe_contains_value(Some(v.to_string()))
-                    } else {
-                        panic!("invalid value");
-                    }
+            Column::String(c) => {
+                if let Scalar::String(v) = value {
+                    c.meta.maybe_contains_value(v.to_string())
+                } else {
+                    panic!("invalid value");
                 }
-                None => c.meta.maybe_contains_value(None),
-            },
+            }
             Column::Float(c) => {
-                if let Some(Scalar::Float(v)) = value {
-                    c.meta.maybe_contains_value(v.to_owned())
+                if let Scalar::Float(v) = value {
+                    c.meta.maybe_contains_value(*v)
                 } else {
                     panic!("invalid value or unsupported null");
                 }
             }
             Column::Integer(c) => {
-                if let Some(Scalar::Integer(v)) = value {
-                    c.meta.maybe_contains_value(v.to_owned())
+                if let Scalar::Integer(v) = value {
+                    c.meta.maybe_contains_value(*v)
                 } else {
                     panic!("invalid value or unsupported null");
                 }
@@ -626,76 +626,98 @@ impl Column {
     }
 
     /// returns true if the column cannot contain
-    pub fn max_less_than(&self, value: Option<&Scalar<'_>>) -> bool {
+    pub fn max_less_than(&self, value: &Scalar<'_>) -> bool {
         match self {
-            Column::String(c) => match value {
-                Some(scalar) => {
-                    if let Scalar::String(v) = scalar {
-                        c.meta.range().1 < Some(&v.to_string())
+            Column::String(c) => {
+                if let Scalar::String(v) = value {
+                    if let Some(range) = c.meta.range() {
+                        range.1 < v.to_string()
                     } else {
-                        panic!("invalid value");
+                        false
                     }
-                }
-                None => c.meta.range().1 < None,
-            },
-            Column::Float(c) => {
-                if let Some(Scalar::Float(v)) = value {
-                    c.meta.range().1 < *v
                 } else {
-                    panic!("invalid value or unsupported null");
+                    panic!("invalid value");
+                }
+            }
+            Column::Float(c) => {
+                if let Scalar::Float(v) = value {
+                    if let Some(range) = c.meta.range() {
+                        range.1 < *v
+                    } else {
+                        false
+                    }
+                } else {
+                    panic!("invalid value");
                 }
             }
             Column::Integer(c) => {
-                if let Some(Scalar::Integer(v)) = value {
-                    c.meta.range().1 < *v
+                if let Scalar::Integer(v) = value {
+                    if let Some(range) = c.meta.range() {
+                        range.1 < *v
+                    } else {
+                        false
+                    }
                 } else {
-                    panic!("invalid value or unsupported null");
+                    panic!("invalid value");
                 }
             }
         }
     }
 
-    pub fn min_greater_than(&self, value: Option<&Scalar<'_>>) -> bool {
+    // TODO(edd): consolodate with max_less_than... Should just be single cmp function
+    pub fn min_greater_than(&self, value: &Scalar<'_>) -> bool {
         match self {
-            Column::String(c) => match value {
-                Some(scalar) => {
-                    if let Scalar::String(v) = scalar {
-                        c.meta.range().0 > Some(&v.to_string())
+            Column::String(c) => {
+                if let Scalar::String(v) = value {
+                    if let Some(range) = c.meta.range() {
+                        range.0 > v.to_string()
                     } else {
-                        panic!("invalid value");
+                        false
                     }
-                }
-                None => c.meta.range().0 > None,
-            },
-            Column::Float(c) => {
-                if let Some(Scalar::Float(v)) = value {
-                    c.meta.range().0 > *v
                 } else {
-                    panic!("invalid value or unsupported null");
+                    panic!("invalid value");
+                }
+            }
+            Column::Float(c) => {
+                if let Scalar::Float(v) = value {
+                    if let Some(range) = c.meta.range() {
+                        range.0 > *v
+                    } else {
+                        false
+                    }
+                } else {
+                    panic!("invalid value");
                 }
             }
             Column::Integer(c) => {
-                if let Some(Scalar::Integer(v)) = value {
-                    c.meta.range().0 > *v
+                if let Scalar::Integer(v) = value {
+                    if let Some(range) = c.meta.range() {
+                        range.0 > *v
+                    } else {
+                        false
+                    }
                 } else {
-                    panic!("invalid value or unsupported null");
+                    panic!("invalid value");
                 }
             }
         }
     }
 
     /// Returns the minimum value contained within this column.
-    // FIXME(edd): Support NULL integers and floats
     pub fn min(&self) -> Option<Scalar<'_>> {
         match self {
-            Column::String(c) => {
-                if let Some(min) = c.meta.range().0 {
-                    return Some(Scalar::String(min));
-                }
-                None
-            }
-            Column::Float(c) => Some(Scalar::Float(c.meta.range().0)),
-            Column::Integer(c) => Some(Scalar::Integer(c.meta.range().0)),
+            Column::String(c) => match c.meta.range() {
+                Some(range) => Some(Scalar::String(&range.0)),
+                None => None,
+            },
+            Column::Float(c) => match c.meta.range() {
+                Some(range) => Some(Scalar::Float(range.0)),
+                None => None,
+            },
+            Column::Integer(c) => match c.meta.range() {
+                Some(range) => Some(Scalar::Integer(range.0)),
+                None => None,
+            },
         }
     }
 
@@ -703,21 +725,28 @@ impl Column {
     // FIXME(edd): Support NULL integers and floats
     pub fn max(&self) -> Option<Scalar<'_>> {
         match self {
-            Column::String(c) => {
-                if let Some(max) = c.meta.range().1 {
-                    return Some(Scalar::String(max));
-                }
-                None
-            }
-            Column::Float(c) => Some(Scalar::Float(c.meta.range().1)),
-            Column::Integer(c) => Some(Scalar::Integer(c.meta.range().1)),
+            Column::String(c) => match c.meta.range() {
+                Some(range) => Some(Scalar::String(&range.1)),
+                None => None,
+            },
+            Column::Float(c) => match c.meta.range() {
+                Some(range) => Some(Scalar::Float(range.1)),
+                None => None,
+            },
+            Column::Integer(c) => match c.meta.range() {
+                Some(range) => Some(Scalar::Integer(range.1)),
+                None => None,
+            },
         }
     }
 
     pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Scalar<'_>> {
         match self {
             Column::String(_) => unimplemented!("not implemented"),
-            Column::Float(c) => Some(Scalar::Float(c.sum_by_ids(row_ids))),
+            Column::Float(c) => match c.sum_by_ids(row_ids) {
+                Some(sum) => Some(Scalar::Float(sum)),
+                None => None,
+            },
             Column::Integer(_) => unimplemented!("not implemented"),
         }
     }
@@ -734,9 +763,10 @@ impl Column {
                 AggregateType::Count => {
                     Aggregate::Count(c.count_by_id_range(from_row_id, to_row_id) as u64)
                 }
-                AggregateType::Sum => {
-                    Aggregate::Sum(Scalar::Float(c.sum_by_id_range(from_row_id, to_row_id)))
-                }
+                AggregateType::Sum => match c.sum_by_id_range(from_row_id, to_row_id) {
+                    Some(sum) => Aggregate::Sum(Some(Scalar::Float(sum))),
+                    None => Aggregate::Sum(None),
+                },
             },
 
             Column::Integer(_) => unimplemented!("not implemented"),
@@ -753,20 +783,25 @@ impl Column {
 
     // TODO(edd) shouldn't let roaring stuff leak out...
     pub fn row_ids_eq(&self, value: Option<&Scalar<'_>>) -> Option<croaring::Bitmap> {
+        let value = match value {
+            Some(v) => v,
+            None => return None,
+        };
+
         if !self.maybe_contains(value) {
             return None;
         }
         self.row_ids(value, std::cmp::Ordering::Equal)
     }
 
-    pub fn row_ids_gt(&self, value: Option<&Scalar<'_>>) -> Option<croaring::Bitmap> {
+    pub fn row_ids_gt(&self, value: &Scalar<'_>) -> Option<croaring::Bitmap> {
         if self.max_less_than(value) {
             return None;
         }
         self.row_ids(value, std::cmp::Ordering::Greater)
     }
 
-    pub fn row_ids_lt(&self, value: Option<&Scalar<'_>>) -> Option<croaring::Bitmap> {
+    pub fn row_ids_lt(&self, value: &Scalar<'_>) -> Option<croaring::Bitmap> {
         if self.min_greater_than(value) {
             return None;
         }
@@ -785,9 +820,14 @@ impl Column {
                 unimplemented!("not implemented yet");
             }
             Column::Float(c) => {
-                let (col_min, col_max) = c.meta.range();
+                let (col_min, col_max) = match c.meta.range() {
+                    Some(range) => range,
+                    // no min/max on column which means must be all NULL values.
+                    None => return None,
+                };
+
                 if let (Scalar::Float(low), Scalar::Float(high)) = (low, high) {
-                    if *low <= col_min && *high > col_max {
+                    if low <= col_min && high > col_max {
                         // In this case the query completely covers the range of the column.
                         // TODO: PERF - need to _not_ return a bitset rather than
                         // return a full one. Need to differentiate between "no values"
@@ -808,9 +848,14 @@ impl Column {
                 }
             }
             Column::Integer(c) => {
-                let (col_min, col_max) = c.meta.range();
+                let (col_min, col_max) = match c.meta.range() {
+                    Some(range) => range,
+                    // no min/max on column which means must be all NULL values.
+                    None => return None,
+                };
+
                 if let (Scalar::Integer(low), Scalar::Integer(high)) = (low, high) {
-                    if *low <= col_min && *high > col_max {
+                    if low <= col_min && high > col_max {
                         // In this case the query completely covers the range of the column.
                         // TODO: PERF - need to _not_ return a bitset rather than
                         // return a full one. Need to differentiate between "no values"
@@ -834,36 +879,28 @@ impl Column {
     }
 
     // TODO(edd) shouldn't let roaring stuff leak out...
-    fn row_ids(
-        &self,
-        value: Option<&Scalar<'_>>,
-        order: std::cmp::Ordering,
-    ) -> Option<croaring::Bitmap> {
+    fn row_ids(&self, value: &Scalar<'_>, order: std::cmp::Ordering) -> Option<croaring::Bitmap> {
         match self {
             Column::String(c) => {
                 if order != std::cmp::Ordering::Equal {
                     unimplemented!("> < not supported on strings yet");
                 }
-                match value {
-                    Some(scalar) => {
-                        if let Scalar::String(v) = scalar {
-                            Some(c.data.row_ids_eq_roaring(Some(v.to_string())))
-                        } else {
-                            panic!("invalid value");
-                        }
-                    }
-                    None => Some(c.data.row_ids_eq_roaring(None)),
+
+                if let Scalar::String(v) = value {
+                    Some(c.data.row_ids_eq_roaring(Some(v.to_string())))
+                } else {
+                    panic!("invalid value");
                 }
             }
             Column::Float(c) => {
-                if let Some(Scalar::Float(v)) = value {
+                if let Scalar::Float(v) = value {
                     Some(c.data.row_ids_single_cmp_roaring(v, order))
                 } else {
                     panic!("invalid value or unsupported null");
                 }
             }
             Column::Integer(c) => {
-                if let Some(Scalar::Integer(v)) = value {
+                if let Scalar::Integer(v) = value {
                     Some(c.data.row_ids_single_cmp_roaring(v, order))
                 } else {
                     panic!("invalid value or unsupported null");
@@ -901,21 +938,21 @@ impl AggregatableByRange for &Column {
     }
 }
 
-impl From<&[f64]> for Column {
-    fn from(values: &[f64]) -> Self {
-        Self::Float(Float::from(values))
-    }
-}
+// impl From<&[f64]> for Column {
+//     fn from(values: &[f64]) -> Self {
+//         Self::Float(Float::from(values))
+//     }
+// }
 
-impl From<&[i64]> for Column {
-    fn from(values: &[i64]) -> Self {
-        Self::Integer(Integer::from(values))
-    }
-}
+// impl From<&[i64]> for Column {
+//     fn from(values: &[i64]) -> Self {
+//         Self::Integer(Integer::from(values))
+//     }
+// }
 
 #[derive(Debug, Default)]
 pub struct String {
-    meta: metadata::Str,
+    meta: metadata::Metadata<std::string::String>,
 
     // TODO(edd): this would probably have multiple possible encodings
     data: encoding::DictionaryRLE,
@@ -940,7 +977,7 @@ impl String {
         self.data.push_additional(s, additional);
     }
 
-    pub fn column_range(&self) -> (Option<&std::string::String>, Option<&std::string::String>) {
+    pub fn column_range(&self) -> &Option<(std::string::String, std::string::String)> {
         self.meta.range()
     }
 
@@ -987,81 +1024,81 @@ impl std::fmt::Display for String {
     }
 }
 
-#[derive(Debug)]
-pub struct Float {
-    meta: metadata::F64,
+// #[derive(Debug)]
+// pub struct Float {
+//     meta: metadata::F64,
 
-    // TODO(edd): compression of float columns
-    // data: encoding::PlainFixed<f64>,
-    data: Box<dyn encoding::NumericEncoding<Item = f64>>,
-}
+//     // TODO(edd): compression of float columns
+//     // data: encoding::PlainFixed<f64>,
+//     data: Box<dyn encoding::NumericEncoding<Item = f64>>,
+// }
 
-impl Float {
-    pub fn column_range(&self) -> (f64, f64) {
-        self.meta.range()
-    }
+// impl Float {
+//     pub fn column_range(&self) -> (f64, f64) {
+//         self.meta.range()
+//     }
 
-    pub fn size(&self) -> usize {
-        self.meta.size() + self.data.size()
-    }
+//     pub fn size(&self) -> usize {
+//         self.meta.size() + self.data.size()
+//     }
 
-    pub fn value(&self, row_id: usize) -> f64 {
-        self.data.value(row_id)
-    }
+//     pub fn value(&self, row_id: usize) -> f64 {
+//         self.data.value(row_id)
+//     }
 
-    pub fn values(&self, row_ids: &[usize]) -> Vec<f64> {
-        self.data.values(row_ids)
-    }
+//     pub fn values(&self, row_ids: &[usize]) -> Vec<f64> {
+//         self.data.values(row_ids)
+//     }
 
-    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<f64> {
-        self.data.encoded_values(row_ids)
-    }
+//     pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<f64> {
+//         self.data.encoded_values(row_ids)
+//     }
 
-    pub fn all_encoded_values(&self) -> Vec<f64> {
-        self.data.all_encoded_values()
-    }
+//     pub fn all_encoded_values(&self) -> Vec<f64> {
+//         self.data.all_encoded_values()
+//     }
 
-    pub fn scan_from(&self, row_id: usize) -> &[f64] {
-        self.data.scan_from(row_id)
-    }
+//     pub fn scan_from(&self, row_id: usize) -> &[f64] {
+//         self.data.scan_from(row_id)
+//     }
 
-    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> f64 {
-        self.data.sum_by_ids(row_ids)
-    }
+//     pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> f64 {
+//         self.data.sum_by_ids(row_ids)
+//     }
 
-    pub fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> f64 {
-        self.data.sum_by_id_range(from_row_id, to_row_id)
-    }
+//     pub fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> f64 {
+//         self.data.sum_by_id_range(from_row_id, to_row_id)
+//     }
 
-    pub fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
-        self.data.count_by_id_range(from_row_id, to_row_id)
-    }
-}
+//     pub fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
+//         self.data.count_by_id_range(from_row_id, to_row_id)
+//     }
+// }
 
-impl std::fmt::Display for Float {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Meta: {}, Data: {}", self.meta, self.data)
-    }
-}
+// impl std::fmt::Display for Float {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "Meta: {}, Data: {}", self.meta, self.data)
+//     }
+// }
 
-impl From<&[f64]> for Float {
-    fn from(values: &[f64]) -> Self {
-        let len = values.len();
-        let mut min = std::f64::MAX;
-        let mut max = std::f64::MIN;
+// impl From<&[f64]> for Float {
+//     fn from(values: &[f64]) -> Self {
+//         let len = values.len();
+//         let mut min = std::f64::MAX;
+//         let mut max = std::f64::MIN;
 
-        // calculate min/max for meta data
-        for v in values {
-            min = min.min(*v);
-            max = max.max(*v);
-        }
+//         // calculate min/max for meta data
+//         for v in values {
+//             min = min.min(*v);
+//             max = max.max(*v);
+//         }
 
-        Self {
-            meta: metadata::F64::new((min, max), len),
-            data: Box::new(encoding::PlainFixed::from(values)),
-        }
-    }
-}
+//         Self {
+//             meta: metadata::F64::new((min, max), len),
+//             data: Box::new(encoding::PlainFixed::from(values)),
+//         }
+//     }
+// }
 
 // use arrow::array::Array;
 // impl From<arrow::array::PrimitiveArray<arrow::datatypes::Float64Type>> for Float {
@@ -1089,16 +1126,93 @@ impl From<&[f64]> for Float {
 //     }
 // }
 
+// #[derive(Debug)]
+// pub struct Integer {
+//     meta: metadata::Metadata<i64>,
+
+//     // TODO(edd): compression of integers
+//     data: Box<dyn encoding::NumericEncoding<Item = i64>>,
+// }
+
+// impl Integer {
+//     pub fn column_range(&self) -> (Option<&i64>, Option<&i64>) {
+//         self.meta.range()
+//     }
+
+//     pub fn size(&self) -> usize {
+//         self.meta.size() + self.data.size()
+//     }
+
+//     pub fn value(&self, row_id: usize) -> i64 {
+//         self.data.value(row_id)
+//     }
+
+//     pub fn values(&self, row_ids: &[usize]) -> Vec<i64> {
+//         self.data.values(row_ids)
+//     }
+
+//     pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<i64> {
+//         self.data.encoded_values(row_ids)
+//     }
+
+//     pub fn all_encoded_values(&self) -> Vec<i64> {
+//         self.data.all_encoded_values()
+//     }
+
+//     pub fn scan_from(&self, row_id: usize) -> &[i64] {
+//         self.data.scan_from(row_id)
+//     }
+
+//     /// Find the first logical row that contains this value.
+//     pub fn row_id_eq_value(&self, v: i64) -> Option<usize> {
+//         if !self.meta.maybe_contains_value(v) {
+//             return None;
+//         }
+//         self.data.row_id_eq_value(v)
+//     }
+// }
+
+// impl std::fmt::Display for Integer {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "Meta: {}, Data: {}", self.meta, self.data)
+//     }
+// }
+
+// impl From<&[i64]> for Integer {
+//     fn from(values: &[i64]) -> Self {
+//         let len = values.len();
+//         let mut min = std::i64::MAX;
+//         let mut max = std::i64::MIN;
+
+//         // calculate min/max for meta data
+//         for v in values {
+//             min = min.min(*v);
+//             max = max.max(*v);
+//         }
+
+//         Self {
+//             meta: metadata::Metadata::new((Some(min), Some(max)), len),
+//             data: Box::new(encoding::PlainFixed::from(values)),
+//         }
+//     }
+// }
+
 #[derive(Debug)]
-pub struct Integer {
-    meta: metadata::I64,
+pub struct NumericColumn<T>
+where
+    T: Clone + std::cmp::PartialOrd + std::fmt::Debug,
+{
+    meta: metadata::Metadata<T>,
 
     // TODO(edd): compression of integers
-    data: Box<dyn encoding::NumericEncoding<Item = i64>>,
+    data: Box<dyn encoding::NumericEncoding<Item = T>>,
 }
 
-impl Integer {
-    pub fn column_range(&self) -> (i64, i64) {
+impl<T> NumericColumn<T>
+where
+    T: Clone + std::cmp::PartialOrd + std::fmt::Debug,
+{
+    pub fn column_range(&self) -> &Option<(T, T)> {
         self.meta.range()
     }
 
@@ -1106,57 +1220,53 @@ impl Integer {
         self.meta.size() + self.data.size()
     }
 
-    pub fn value(&self, row_id: usize) -> i64 {
+    pub fn value(&self, row_id: usize) -> Option<T> {
         self.data.value(row_id)
     }
 
-    pub fn values(&self, row_ids: &[usize]) -> Vec<i64> {
+    pub fn values(&self, row_ids: &[usize]) -> Vec<Option<T>> {
         self.data.values(row_ids)
     }
 
-    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<i64> {
+    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<Option<T>> {
         self.data.encoded_values(row_ids)
     }
 
-    pub fn all_encoded_values(&self) -> Vec<i64> {
+    pub fn all_encoded_values(&self) -> Vec<Option<T>> {
         self.data.all_encoded_values()
     }
 
-    pub fn scan_from(&self, row_id: usize) -> &[i64] {
+    pub fn scan_from(&self, row_id: usize) -> &[Option<T>] {
         self.data.scan_from(row_id)
     }
 
     /// Find the first logical row that contains this value.
-    pub fn row_id_eq_value(&self, v: i64) -> Option<usize> {
+    pub fn row_id_eq_value(&self, v: T) -> Option<usize> {
         if !self.meta.maybe_contains_value(v) {
             return None;
         }
         self.data.row_id_eq_value(v)
     }
-}
 
-impl std::fmt::Display for Integer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Meta: {}, Data: {}", self.meta, self.data)
+    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<T> {
+        self.data.sum_by_ids(row_ids)
+    }
+
+    pub fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<T> {
+        self.data.sum_by_id_range(from_row_id, to_row_id)
+    }
+
+    pub fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
+        self.data.count_by_id_range(from_row_id, to_row_id)
     }
 }
 
-impl From<&[i64]> for Integer {
-    fn from(values: &[i64]) -> Self {
-        let len = values.len();
-        let mut min = std::i64::MAX;
-        let mut max = std::i64::MIN;
-
-        // calculate min/max for meta data
-        for v in values {
-            min = min.min(*v);
-            max = max.max(*v);
-        }
-
-        Self {
-            meta: metadata::I64::new((min, max), len),
-            data: Box::new(encoding::PlainFixed::from(values)),
-        }
+impl<T> std::fmt::Display for NumericColumn<T>
+where
+    T: Clone + std::cmp::PartialOrd + std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Meta: {}, Data: {}", self.meta, self.data)
     }
 }
 
@@ -1164,33 +1274,55 @@ pub mod metadata {
     use std::mem::size_of;
 
     #[derive(Debug, Default)]
-    pub struct Str {
-        range: (Option<String>, Option<String>),
+    pub struct Metadata<T>
+    where
+        T: Clone + std::fmt::Debug,
+    {
+        range: Option<(T, T)>,
         num_rows: usize,
     }
 
-    impl Str {
-        pub fn add(&mut self, s: Option<String>) {
-            self.num_rows += 1;
-
-            if s < self.range.0 {
-                self.range.0 = s.clone();
-            }
-
-            if s > self.range.1 {
-                self.range.1 = s;
+    impl<T> Metadata<T>
+    where
+        T: Clone + std::cmp::PartialOrd<T> + std::fmt::Debug,
+    {
+        pub fn new(range: Option<(T, T)>, rows: usize) -> Self {
+            Self {
+                range,
+                num_rows: rows,
             }
         }
 
-        pub fn add_repeated(&mut self, s: Option<String>, additional: usize) {
+        fn update_range(&mut self, v: T) {
+            match self.range {
+                Some(range) => {
+                    if v < range.0 {
+                        range.0 = v;
+                    }
+
+                    if v > range.1 {
+                        range.1 = v;
+                    }
+                }
+                None => {
+                    self.range = Some((v, v));
+                }
+            }
+        }
+
+        pub fn add(&mut self, v: Option<T>) {
+            self.num_rows += 1;
+
+            if let Some(v) = v {
+                self.update_range(v);
+            }
+        }
+
+        pub fn add_repeated(&mut self, v: Option<T>, additional: usize) {
             self.num_rows += additional;
 
-            if s < self.range.0 {
-                self.range.0 = s.clone();
-            }
-
-            if s > self.range.1 {
-                self.range.1 = s;
+            if let Some(v) = v {
+                self.update_range(v);
             }
         }
 
@@ -1198,114 +1330,183 @@ pub mod metadata {
             self.num_rows
         }
 
-        pub fn maybe_contains_value(&self, v: Option<String>) -> bool {
-            self.range.0 <= v && v <= self.range.1
+        pub fn maybe_contains_value(&self, v: T) -> bool {
+            match self.range {
+                Some(range) => range.0 <= v && v <= range.1,
+                None => false,
+            }
         }
 
-        pub fn range(&self) -> (Option<&String>, Option<&String>) {
-            (self.range.0.as_ref(), self.range.1.as_ref())
+        pub fn range(&self) -> &Option<(T, T)> {
+            &self.range
         }
 
         pub fn size(&self) -> usize {
             // size of types for num_rows and range
             let base_size = size_of::<usize>() + (2 * size_of::<Option<String>>());
-            match &self.range {
-                (None, None) => base_size,
-                (Some(min), None) => base_size + min.len(),
-                (None, Some(max)) => base_size + max.len(),
-                (Some(min), Some(max)) => base_size + min.len() + max.len(),
-            }
+
+            //
+            //  TODO: figure out a way to specify that T must be able to describe its runtime size.
+            //
+            // match &self.range {
+            //     (None, None) => base_size,
+            //     (Some(min), None) => base_size + min.len(),
+            //     (None, Some(max)) => base_size + max.len(),
+            //     (Some(min), Some(max)) => base_size + min.len() + max.len(),
+            // }
+            base_size
         }
     }
 
-    impl std::fmt::Display for Str {
+    impl<T: Clone + std::fmt::Debug> std::fmt::Display for Metadata<T> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "Range: ({:?})", self.range)
         }
     }
 
-    #[derive(Debug, Default)]
-    pub struct F64 {
-        range: (f64, f64),
-        num_rows: usize,
-    }
+    // #[derive(Debug, Default)]
+    // pub struct Str {
+    //     range: (Option<String>, Option<String>),
+    //     num_rows: usize,
+    // }
 
-    impl F64 {
-        pub fn new(range: (f64, f64), rows: usize) -> Self {
-            Self {
-                range,
-                num_rows: rows,
-            }
-        }
+    // impl Str {
+    //     pub fn add(&mut self, s: Option<String>) {
+    //         self.num_rows += 1;
 
-        pub fn maybe_contains_value(&self, v: f64) -> bool {
-            let res = self.range.0 <= v && v <= self.range.1;
-            log::debug!(
-                "column with ({:?}) maybe contain {:?} -- {:?}",
-                self.range,
-                v,
-                res
-            );
-            res
-        }
+    //         if s < self.range.0 {
+    //             self.range.0 = s.clone();
+    //         }
 
-        pub fn num_rows(&self) -> usize {
-            self.num_rows
-        }
+    //         if s > self.range.1 {
+    //             self.range.1 = s;
+    //         }
+    //     }
 
-        pub fn range(&self) -> (f64, f64) {
-            self.range
-        }
+    //     pub fn add_repeated(&mut self, s: Option<String>, additional: usize) {
+    //         self.num_rows += additional;
 
-        pub fn size(&self) -> usize {
-            size_of::<usize>() + (size_of::<(f64, f64)>())
-        }
-    }
+    //         if s < self.range.0 {
+    //             self.range.0 = s.clone();
+    //         }
 
-    impl std::fmt::Display for F64 {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Range: ({:?})", self.range)
-        }
-    }
+    //         if s > self.range.1 {
+    //             self.range.1 = s;
+    //         }
+    //     }
 
-    #[derive(Debug, Default)]
-    pub struct I64 {
-        range: (i64, i64),
-        num_rows: usize,
-    }
+    //     pub fn num_rows(&self) -> usize {
+    //         self.num_rows
+    //     }
 
-    impl I64 {
-        pub fn new(range: (i64, i64), rows: usize) -> Self {
-            Self {
-                range,
-                num_rows: rows,
-            }
-        }
+    //     pub fn maybe_contains_value(&self, v: Option<String>) -> bool {
+    //         self.range.0 <= v && v <= self.range.1
+    //     }
 
-        pub fn maybe_contains_value(&self, v: i64) -> bool {
-            self.range.0 <= v && v <= self.range.1
-        }
+    //     pub fn range(&self) -> (Option<&String>, Option<&String>) {
+    //         (self.range.0.as_ref(), self.range.1.as_ref())
+    //     }
 
-        pub fn max(&self) -> i64 {
-            self.range.1
-        }
+    //     pub fn size(&self) -> usize {
+    //         // size of types for num_rows and range
+    //         let base_size = size_of::<usize>() + (2 * size_of::<Option<String>>());
+    //         match &self.range {
+    //             (None, None) => base_size,
+    //             (Some(min), None) => base_size + min.len(),
+    //             (None, Some(max)) => base_size + max.len(),
+    //             (Some(min), Some(max)) => base_size + min.len() + max.len(),
+    //         }
+    //     }
+    // }
 
-        pub fn num_rows(&self) -> usize {
-            self.num_rows
-        }
+    // impl std::fmt::Display for Str {
+    //     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    //         write!(f, "Range: ({:?})", self.range)
+    //     }
+    // }
 
-        pub fn range(&self) -> (i64, i64) {
-            self.range
-        }
+    // #[derive(Debug, Default)]
+    // pub struct F64 {
+    //     range: (f64, f64),
+    //     num_rows: usize,
+    // }
 
-        pub fn size(&self) -> usize {
-            size_of::<usize>() + (size_of::<(i64, i64)>())
-        }
-    }
+    // impl F64 {
+    //     pub fn new(range: (f64, f64), rows: usize) -> Self {
+    //         Self {
+    //             range,
+    //             num_rows: rows,
+    //         }
+    //     }
 
-    impl std::fmt::Display for I64 {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Range: ({:?})", self.range)
-        }
-    }
+    //     pub fn maybe_contains_value(&self, v: f64) -> bool {
+    //         let res = self.range.0 <= v && v <= self.range.1;
+    //         log::debug!(
+    //             "column with ({:?}) maybe contain {:?} -- {:?}",
+    //             self.range,
+    //             v,
+    //             res
+    //         );
+    //         res
+    //     }
+
+    //     pub fn num_rows(&self) -> usize {
+    //         self.num_rows
+    //     }
+
+    //     pub fn range(&self) -> (f64, f64) {
+    //         self.range
+    //     }
+
+    //     pub fn size(&self) -> usize {
+    //         size_of::<usize>() + (size_of::<(f64, f64)>())
+    //     }
+    // }
+
+    // impl std::fmt::Display for F64 {
+    //     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    //         write!(f, "Range: ({:?})", self.range)
+    //     }
+    // }
+
+    // #[derive(Debug, Default)]
+    // pub struct I64 {
+    //     range: (i64, i64),
+    //     num_rows: usize,
+    // }
+
+    // impl I64 {
+    //     pub fn new(range: (i64, i64), rows: usize) -> Self {
+    //         Self {
+    //             range,
+    //             num_rows: rows,
+    //         }
+    //     }
+
+    //     pub fn maybe_contains_value(&self, v: i64) -> bool {
+    //         self.range.0 <= v && v <= self.range.1
+    //     }
+
+    //     pub fn max(&self) -> i64 {
+    //         self.range.1
+    //     }
+
+    //     pub fn num_rows(&self) -> usize {
+    //         self.num_rows
+    //     }
+
+    //     pub fn range(&self) -> (i64, i64) {
+    //         self.range
+    //     }
+
+    //     pub fn size(&self) -> usize {
+    //         size_of::<usize>() + (size_of::<(i64, i64)>())
+    //     }
+    // }
+
+    // impl std::fmt::Display for I64 {
+    //     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    //         write!(f, "Range: ({:?})", self.range)
+    //     }
+    // }
 }

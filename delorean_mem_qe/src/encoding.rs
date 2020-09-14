@@ -9,14 +9,14 @@ pub trait NumericEncoding: Send + Sync + std::fmt::Display + std::fmt::Debug {
     type Item;
 
     fn size(&self) -> usize;
-    fn value(&self, row_id: usize) -> Self::Item;
-    fn values(&self, row_ids: &[usize]) -> Vec<Self::Item>;
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Self::Item>;
-    fn all_encoded_values(&self) -> Vec<Self::Item>;
-    fn scan_from(&self, row_id: usize) -> &[Self::Item];
+    fn value(&self, row_id: usize) -> Option<Self::Item>;
+    fn values(&self, row_ids: &[usize]) -> Vec<Option<Self::Item>>;
+    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Option<Self::Item>>;
+    fn all_encoded_values(&self) -> Vec<Option<Self::Item>>;
+    fn scan_from(&self, row_id: usize) -> &[Option<Self::Item>];
 
-    fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Self::Item;
-    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Self::Item;
+    fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Self::Item>;
+    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<Self::Item>;
 
     fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize;
     fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64;
@@ -56,7 +56,7 @@ where
         + std::fmt::Debug
         + std::ops::Add<Output = T::Native>,
 {
-    type Item = Option<T::Native>;
+    type Item = T::Native;
 
     fn size(&self) -> usize {
         self.arr.len()
@@ -122,31 +122,41 @@ where
         // where you accept an array.
         let mut res = T::Native::default();
         let vec = row_ids.to_vec();
+        let mut non_null = false;
         for row_id in vec {
             let i = row_id as usize;
             if self.arr.is_null(i) {
-                return None;
+                continue; // skip NULL values
             }
+            non_null = true;
             res = res + self.arr.value(i);
         }
-        Some(res)
+
+        // TODO: ghetto.
+        if non_null {
+            Some(res)
+        } else {
+            None
+        }
     }
 
     fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<T::Native> {
-        // if the column contains a null value between the range then the result
-        // will be None.
+        let mut res = T::Native::default();
+        let mut non_null = false;
+
         for i in from_row_id..to_row_id {
             if self.arr.is_null(i) {
-                return None;
+                continue;
             }
-        }
-
-        // Otherwise sum all the values between in the range.
-        let mut res = T::Native::default();
-        for i in from_row_id..to_row_id {
+            non_null = true;
             res = res + self.arr.value(i);
         }
-        Some(res)
+
+        if non_null {
+            Some(res)
+        } else {
+            None
+        }
     }
 
     fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
@@ -158,7 +168,7 @@ where
             }
             count += 1;
         }
-        count
+        count // if there are no non-null rows the result is 0 rather than NULL
     }
 
     fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64 {
@@ -256,23 +266,23 @@ where
     }
 
     // get value at row_id. Panics if out of bounds.
-    fn value(&self, row_id: usize) -> T {
-        self.values[row_id]
+    fn value(&self, row_id: usize) -> Option<Self::Item> {
+        Some(self.values[row_id])
     }
 
     /// Return the decoded values for the provided logical row ids.
-    fn values(&self, row_ids: &[usize]) -> Vec<T> {
+    fn values(&self, row_ids: &[usize]) -> Vec<Option<Self::Item>> {
         let mut out = Vec::with_capacity(row_ids.len());
         for chunks in row_ids.chunks_exact(4) {
-            out.push(self.values[chunks[3]]);
-            out.push(self.values[chunks[2]]);
-            out.push(self.values[chunks[1]]);
-            out.push(self.values[chunks[0]]);
+            out.push(Some(self.values[chunks[3]]));
+            out.push(Some(self.values[chunks[2]]));
+            out.push(Some(self.values[chunks[1]]));
+            out.push(Some(self.values[chunks[0]]));
         }
 
         let rem = row_ids.len() % 4;
         for &i in &row_ids[row_ids.len() - rem..row_ids.len()] {
-            out.push(self.values[i]);
+            out.push(Some(self.values[i]));
         }
 
         assert_eq!(out.len(), row_ids.len());
@@ -281,18 +291,19 @@ where
 
     /// Return the raw encoded values for the provided logical row ids. For Plain
     /// encoding this is just the decoded values.
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<T> {
+    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Option<Self::Item>> {
         self.values(row_ids)
     }
 
     /// Return all encoded values. For this encoding this is just the decoded
     /// values
-    fn all_encoded_values(&self) -> Vec<T> {
-        self.values.clone()
+    fn all_encoded_values(&self) -> Vec<Option<Self::Item>> {
+        self.values.iter().map(|x| Some(*x)).collect::<Vec<_>>()
     }
 
-    fn scan_from(&self, row_id: usize) -> &[T] {
-        &self.values[row_id..]
+    fn scan_from(&self, row_id: usize) -> &[Option<Self::Item>] {
+        unimplemented!("this should probably take a destination vector or maybe a closure");
+        // &self.values[row_id..]
     }
 
     /// returns a set of row ids that match a single ordering on a desired value
@@ -371,12 +382,12 @@ where
         bm
     }
 
-    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> T {
+    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<Self::Item> {
         let mut res = T::default();
         for v in self.values[from_row_id..to_row_id].iter() {
             res += *v;
         }
-        res
+        Some(res)
     }
 
     fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
@@ -384,64 +395,18 @@ where
     }
 
     // TODO(edd): make faster
-    fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> T {
+    fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Self::Item> {
         let mut res = T::default();
-        // println!(
-        //     "cardinality is {:?} out of {:?}",
-        //     row_ids.cardinality(),
-        //     self.values.len()
-        // );
 
-        // HMMMMM - materialising which has a memory cost.
-        // let vec = row_ids.to_vec();
-        // for v in vec.chunks_exact(4) {
-        //     res += self.value(v[0] as usize);
-        //     res += self.value(v[1] as usize);
-        //     res += self.value(v[2] as usize);
-        //     res += self.value(v[3] as usize);
-        // }
-
-        // HMMMMM - materialising which has a memory cost.
+        // Consider accepting a vec of ids if those ids need to be used again
+        // across other columns.
         let vec = row_ids.to_vec();
         for v in vec {
-            res += self.value(v as usize);
+            //  Todo(edd): this could benefit from unrolling (maybe)
+            res += self.values[v as usize];
         }
 
-        // for v in row_ids.iter() {
-        //     res += self.value(v as usize);
-        // }
-
-        // let step = 16_u64;
-        // for i in (0..self.values.len() as u64).step_by(step as usize) {
-        //     if row_ids.contains_range(i..i + step) {
-        //         res += self.value(i as usize + 15);
-        //         res += self.value(i as usize + 14);
-        //         res += self.value(i as usize + 13);
-        //         res += self.value(i as usize + 12);
-        //         res += self.value(i as usize + 11);
-        //         res += self.value(i as usize + 10);
-        //         res += self.value(i as usize + 9);
-        //         res += self.value(i as usize + 8);
-        //         res += self.value(i as usize + 7);
-        //         res += self.value(i as usize + 6);
-        //         res += self.value(i as usize + 5);
-        //         res += self.value(i as usize + 4);
-        //         res += self.value(i as usize + 3);
-        //         res += self.value(i as usize + 2);
-        //         res += self.value(i as usize + 1);
-        //         res += self.value(i as usize);
-        //         continue;
-        //     }
-
-        //     for j in i..i + step {
-        //         if row_ids.contains(j as u32) {
-        //             res += self.value(j as usize);
-        //         }
-        //     }
-        //  }
-
-        // row_ids.iter().for_each(|x| res += self.value(x as usize));
-        res
+        Some(res)
     }
 
     fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64 {
@@ -453,7 +418,6 @@ impl From<&[i64]> for PlainFixed<i64> {
     fn from(v: &[i64]) -> Self {
         Self {
             values: v.to_vec(),
-            // buf: Vec::with_capacity(v.len()),
             total_order: false,
             size: size_of::<Vec<i64>>()
                 + (size_of::<i64>() * v.len())
@@ -467,7 +431,6 @@ impl From<&[f64]> for PlainFixed<f64> {
     fn from(v: &[f64]) -> Self {
         Self {
             values: v.to_vec(),
-            // buf: Vec::with_capacity(v.len()),
             total_order: false,
             size: size_of::<Vec<f64>>()
                 + (size_of::<f64>() * v.len())
