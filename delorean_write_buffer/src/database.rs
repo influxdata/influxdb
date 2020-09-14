@@ -5,7 +5,7 @@ use delorean_generated_types::wal as wb;
 
 use delorean_line_parser::{FieldValue, ParsedLine};
 use delorean_storage_interface::{Database, DatabaseStore};
-use delorean_wal::WalBuilder;
+use delorean_wal::{Entry as WalEntry, Result as WalResult, WalBuilder};
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -335,64 +335,7 @@ impl Db {
             .entries()
             .context(LoadingWal { database: &name })?;
 
-        let mut stats = RestorationStats::default();
-        let mut partitions = HashMap::new();
-        let mut next_partition_id = 0;
-        for entry in entries {
-            let entry = entry.context(LoadingWal { database: &name })?;
-            let bytes = entry.as_data();
-
-            let entry = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&bytes);
-
-            if let Some(entries) = entry.entries() {
-                for entry in entries {
-                    if let Some(po) = entry.partition_open() {
-                        let id = po.id();
-                        if id > next_partition_id {
-                            next_partition_id = id;
-                        }
-                        let p = Partition::new(id, po.name().unwrap().to_string());
-                        partitions.insert(id, p);
-                    } else if let Some(_ps) = entry.partition_snapshot_started() {
-                        todo!("handle partition snapshot");
-                    } else if let Some(_pf) = entry.partition_snapshot_finished() {
-                        todo!("handle partition snapshot finished")
-                    } else if let Some(da) = entry.dictionary_add() {
-                        let p =
-                            partitions
-                                .get_mut(&da.partition_id())
-                                .context(WalRecoverError {
-                                    database: &name,
-                                    partition_id: da.partition_id(),
-                                })?;
-                        stats.dict_values += 1;
-                        p.intern_new_dict_entry(da.value().unwrap());
-                    } else if let Some(sa) = entry.schema_append() {
-                        let tid = sa.table_id();
-                        stats.tables.insert(tid);
-                        let p =
-                            partitions
-                                .get_mut(&sa.partition_id())
-                                .context(WalRecoverError {
-                                    database: &name,
-                                    partition_id: sa.partition_id(),
-                                })?;
-                        p.append_wal_schema(sa.table_id(), sa.column_id(), sa.column_type());
-                    } else if let Some(row) = entry.write() {
-                        let p =
-                            partitions
-                                .get_mut(&row.partition_id())
-                                .context(WalRecoverError {
-                                    database: &name,
-                                    partition_id: row.partition_id(),
-                                })?;
-                        stats.row_count += 1;
-                        p.add_wal_row(row.table_id(), &row.values().unwrap())?;
-                    }
-                }
-            }
-        }
-        let partitions: Vec<_> = partitions.into_iter().map(|(_, p)| p).collect();
+        let (partitions, next_partition_id, stats) = restore_partitions_from_wal(&name, entries)?;
 
         let elapsed = now.elapsed();
         info!(
@@ -419,6 +362,70 @@ impl Db {
             wal_details: Some(wal_details),
         })
     }
+}
+
+fn restore_partitions_from_wal(
+    name: &str,
+    wal_entries: impl Iterator<Item = WalResult<WalEntry>>,
+) -> Result<(Vec<Partition>, u32, RestorationStats)> {
+    let mut stats = RestorationStats::default();
+    let mut partitions = HashMap::new();
+    let mut next_partition_id = 0;
+
+    for wal_entry in wal_entries {
+        let wal_entry = wal_entry.context(LoadingWal { database: name })?;
+        let bytes = wal_entry.as_data();
+
+        let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&bytes);
+
+        if let Some(entries) = batch.entries() {
+            for entry in entries {
+                if let Some(po) = entry.partition_open() {
+                    let id = po.id();
+                    if id > next_partition_id {
+                        next_partition_id = id;
+                    }
+                    let p = Partition::new(id, po.name().unwrap().to_string());
+                    partitions.insert(id, p);
+                } else if let Some(_ps) = entry.partition_snapshot_started() {
+                    todo!("handle partition snapshot");
+                } else if let Some(_pf) = entry.partition_snapshot_finished() {
+                    todo!("handle partition snapshot finished")
+                } else if let Some(da) = entry.dictionary_add() {
+                    let p = partitions
+                        .get_mut(&da.partition_id())
+                        .context(WalRecoverError {
+                            database: name,
+                            partition_id: da.partition_id(),
+                        })?;
+                    stats.dict_values += 1;
+                    p.intern_new_dict_entry(da.value().unwrap());
+                } else if let Some(sa) = entry.schema_append() {
+                    let tid = sa.table_id();
+                    stats.tables.insert(tid);
+                    let p = partitions
+                        .get_mut(&sa.partition_id())
+                        .context(WalRecoverError {
+                            database: name,
+                            partition_id: sa.partition_id(),
+                        })?;
+                    p.append_wal_schema(sa.table_id(), sa.column_id(), sa.column_type());
+                } else if let Some(row) = entry.write() {
+                    let p = partitions
+                        .get_mut(&row.partition_id())
+                        .context(WalRecoverError {
+                            database: name,
+                            partition_id: row.partition_id(),
+                        })?;
+                    stats.row_count += 1;
+                    p.add_wal_row(row.table_id(), &row.values().unwrap())?;
+                }
+            }
+        }
+    }
+    let partitions: Vec<_> = partitions.into_iter().map(|(_, p)| p).collect();
+
+    Ok((partitions, next_partition_id, stats))
 }
 
 #[derive(Default, Debug)]
