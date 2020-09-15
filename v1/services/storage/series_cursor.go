@@ -2,8 +2,6 @@ package storage
 
 import (
 	"context"
-	"errors"
-	"sort"
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
@@ -112,22 +110,21 @@ func newIndexSeriesCursor(ctx context.Context, predicate *datatypes.Predicate, s
 			return p, nil
 		}
 
-		var (
-			itr query.Iterator
-			fi  query.FloatIterator
-		)
-		if itr, err = sg.CreateIterator(ctx, &influxql.Measurement{SystemIterator: "_fieldKeys"}, opt); itr != nil && err == nil {
-			if fi, err = toFloatIterator(itr); err != nil {
-				goto CLEANUP
-			}
-
-			p.fields = extractFields(fi)
-			fi.Close()
-			if len(p.fields) == 0 {
-				goto CLEANUP
-			}
-			return p, nil
+		var mfkeys map[string][]string
+		mfkeys, err = sg.FieldKeysByPredicate(opt.Condition)
+		if err != nil {
+			goto CLEANUP
 		}
+
+		p.fields = make(map[string][]field, len(mfkeys))
+		for name, fkeys := range mfkeys {
+			fields := make([]field, 0, len(fkeys))
+			for _, key := range fkeys {
+				fields = append(fields, field{n: key, nb: []byte(key)})
+			}
+			p.fields[name] = fields
+		}
+		return p, nil
 	}
 
 CLEANUP:
@@ -229,58 +226,4 @@ type measurementFields map[string][]field
 type field struct {
 	n  string
 	nb []byte
-}
-
-func extractFields(itr query.FloatIterator) measurementFields {
-	mf := make(measurementFields)
-
-	for {
-		p, err := itr.Next()
-		if err != nil {
-			return nil
-		} else if p == nil {
-			break
-		}
-
-		// Aux is populated by `fieldKeysIterator#Next`
-		fields := append(mf[p.Name], field{
-			n: p.Aux[0].(string),
-		})
-
-		mf[p.Name] = fields
-	}
-
-	if len(mf) == 0 {
-		return nil
-	}
-
-	for k, fields := range mf {
-		sort.Slice(fields, func(i, j int) bool {
-			return fields[i].n < fields[j].n
-		})
-
-		// deduplicate
-		i := 1
-		fields[0].nb = []byte(fields[0].n)
-		for j := 1; j < len(fields); j++ {
-			if fields[j].n != fields[j-1].n {
-				fields[i] = fields[j]
-				fields[i].nb = []byte(fields[i].n)
-				i++
-			}
-		}
-
-		mf[k] = fields[:i]
-	}
-
-	return mf
-}
-
-func toFloatIterator(iter query.Iterator) (query.FloatIterator, error) {
-	sitr, ok := iter.(query.FloatIterator)
-	if !ok {
-		return nil, errors.New("expected FloatIterator")
-	}
-
-	return sitr, nil
 }
