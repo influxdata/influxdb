@@ -267,13 +267,13 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			filter.IDs = []*influxdb.ID{&r.ID}
 		}
 
-		dashs, _, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
+		dashes, _, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
 		if err != nil {
 			return err
 		}
 
 		var mapped bool
-		for _, dash := range dashs {
+		for _, dash := range dashes {
 			if (!hasID && len(r.Name) > 0 && dash.Name != r.Name) || (hasID && dash.ID != r.ID) {
 				continue
 			}
@@ -320,22 +320,22 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 
 		switch {
 		case r.ID != influxdb.ID(0):
-			ndpoint, err := ex.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
+			notifEndpoint, err := ex.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
 			if err != nil {
 				return err
 			}
-			endpoints = append(endpoints, ndpoint)
+			endpoints = append(endpoints, notifEndpoint)
 		case len(r.Name) != 0:
 			allEndpoints, _, err := ex.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{})
 			if err != nil {
 				return err
 			}
 
-			for _, ndpoint := range allEndpoints {
-				if ndpoint.GetName() != r.Name || ndpoint == nil {
+			for _, notifEndpoint := range allEndpoints {
+				if notifEndpoint.GetName() != r.Name || notifEndpoint == nil {
 					continue
 				}
-				endpoints = append(endpoints, ndpoint)
+				endpoints = append(endpoints, notifEndpoint)
 			}
 		}
 

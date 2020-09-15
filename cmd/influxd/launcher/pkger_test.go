@@ -1970,7 +1970,6 @@ func TestLauncher_Pkger(t *testing.T) {
 			testStackApplyFn := func(t *testing.T) (pkger.Summary, pkger.Stack, func()) {
 				t.Helper()
 
-				// asdfasfd
 				stack, cleanup := newStackFn(t, pkger.StackCreate{})
 				defer func() {
 					if t.Failed() {

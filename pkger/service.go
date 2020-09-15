@@ -569,7 +569,6 @@ func ExportWithExistingResources(resources ...ResourceToClone) ExportOptFn {
 	return func(opt *ExportOpt) error {
 		for _, r := range resources {
 			if err := r.OK(); err != nil {
-				// todo: log and continue else append r to opt.Resources??
 				return err
 			}
 		}
@@ -745,8 +744,7 @@ func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID) ([]Reso
 		OrgID: &orgID,
 	}
 
-	// todo: if this was ever called, it would error, 100 is the limit.
-	labels, err := s.labelSVC.FindLabels(ctx, filter, influxdb.FindOptions{Limit: 10000})
+	labels, err := s.labelSVC.FindLabels(ctx, filter, influxdb.FindOptions{Limit: 100})
 	if err != nil {
 		return nil, ierrors.Wrap(err, "finding labels")
 	}
