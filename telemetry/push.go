@@ -78,10 +78,10 @@ func (p *Pusher) push(ctx context.Context) error {
 	req.Header.Set("Content-Type", string(p.PushFormat))
 
 	res, err := p.Client.Do(req)
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
+
+	// FIXME: consider why we're checking for cancellation here.
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	if err != nil {
