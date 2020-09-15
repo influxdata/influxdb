@@ -108,6 +108,8 @@ func (f *LogFile) bytes() int {
 
 // Open reads the log from a file and validates all the checksums.
 func (f *LogFile) Open() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.open(); err != nil {
 		f.Close()
 		return err
@@ -717,6 +719,7 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		}
 
 		ts.tagValues[string(v)] = tv
+
 		mm.tagSet[string(k)] = ts
 	}
 
