@@ -7,8 +7,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use crate::server::write_buffer_routes;
-use crate::server::write_buffer_rpc::GrpcService;
-use delorean::generated_types::delorean_server::DeloreanServer;
+use crate::server::write_buffer_rpc;
 use delorean::storage::write_buffer_database::{Db, WriteBufferDatabases};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
@@ -48,10 +47,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     };
 
-    let grpc_server = tonic::transport::Server::builder()
-        .add_service(DeloreanServer::new(GrpcService::new(storage.clone())))
-        //.add_service(StorageServer::new(GrpcServer { app: state.clone() }))
-        .serve(grpc_bind_addr);
+    let grpc_server = write_buffer_rpc::make_server(grpc_bind_addr, storage.clone());
 
     info!("gRPC server listening on http://{}", grpc_bind_addr);
 

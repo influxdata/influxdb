@@ -333,18 +333,14 @@ pub async fn service<T: DatabaseStore>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{collections::BTreeMap, net::IpAddr, net::Ipv4Addr, net::SocketAddr};
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-    use arrow::record_batch::RecordBatch;
-    use delorean::storage::{Database, DatabaseStore};
-    use delorean_line_parser::ParsedLine;
+    use delorean::storage::{test_fixtures::TestDatabaseStore, DatabaseStore};
     use http::header;
     use reqwest::{Client, Response};
-    use tonic::async_trait;
 
     use hyper::service::{make_service_fn, service_fn};
     use hyper::Server;
-    use tokio::sync::Mutex;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
@@ -487,94 +483,5 @@ mod tests {
         tokio::task::spawn(server);
         println!("Started server at {}", server_url);
         server_url
-    }
-
-    #[derive(Debug)]
-    struct TestDatabase {
-        // lines which have been written to this database, in order
-        saved_lines: Mutex<Vec<String>>,
-    }
-
-    #[derive(Snafu, Debug)]
-    enum TestError {}
-
-    impl TestDatabase {
-        fn new() -> Self {
-            Self {
-                saved_lines: Mutex::new(Vec::new()),
-            }
-        }
-
-        /// Get all lines written to this database
-        async fn get_lines(&self) -> Vec<String> {
-            self.saved_lines.lock().await.clone()
-        }
-    }
-
-    #[async_trait]
-    impl Database for TestDatabase {
-        type Error = TestError;
-
-        /// writes parsed lines into this database
-        async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
-            let mut saved_lines = self.saved_lines.lock().await;
-            for line in lines {
-                saved_lines.push(line.to_string())
-            }
-            Ok(())
-        }
-
-        /// Execute the specified query and return arrow record batches with the result
-        async fn query(&self, _query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
-            unimplemented!("query Not yet implemented");
-        }
-
-        /// Fetch the specified table names and columns as Arrow RecordBatches
-        async fn table_to_arrow(
-            &self,
-            _table_name: &str,
-            _columns: &[&str],
-        ) -> Result<Vec<RecordBatch>, Self::Error> {
-            unimplemented!("table_to_arrow Not yet implemented");
-        }
-    }
-
-    #[derive(Debug)]
-    struct TestDatabaseStore {
-        databases: Mutex<BTreeMap<String, Arc<TestDatabase>>>,
-    }
-
-    impl TestDatabaseStore {
-        fn new() -> Self {
-            Self {
-                databases: Mutex::new(BTreeMap::new()),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl DatabaseStore for TestDatabaseStore {
-        type Database = TestDatabase;
-        type Error = TestError;
-        /// Retrieve the database specified name
-        async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
-            let databases = self.databases.lock().await;
-
-            databases.get(name).cloned()
-        }
-
-        /// Retrieve the database specified by name, creating it if it
-        /// doesn't exist.
-        async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
-            let mut databases = self.databases.lock().await;
-
-            if let Some(db) = databases.get(name) {
-                Ok(db.clone())
-            } else {
-                let new_db = Arc::new(TestDatabase::new());
-                databases.insert(name.to_string(), new_db.clone());
-                Ok(new_db)
-            }
-        }
     }
 }

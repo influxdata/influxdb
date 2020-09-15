@@ -115,3 +115,130 @@ pub trait DatabaseStore: Debug + Send + Sync {
 pub fn org_and_bucket_to_database(org: &str, bucket: &str) -> String {
     org.to_owned() + "_" + bucket
 }
+
+/// In testing config, the `test_fixtures` module provides a simple
+/// reference implementaton of DatabaseSource and Database for use in
+/// testing
+
+// Note: I would like to compile this module only in the 'test' cfg,
+// but when I do so then other modules can not find them. For example:
+//
+// error[E0432]: unresolved import `delorean::storage::test_fixtures`
+//    --> src/server/write_buffer_routes.rs:340:9
+//     |
+// 340 |         test_fixtures::TestDatabaseStore
+//     |         ^^^^^^^^^^^^^ could not find `test_fixtures` in `storage`
+//
+//#[cfg(test)]
+pub mod test_fixtures {
+    use super::{Database, DatabaseStore};
+    use arrow::record_batch::RecordBatch;
+    use delorean_line_parser::ParsedLine;
+
+    use snafu::Snafu;
+    use std::{collections::BTreeMap, sync::Arc};
+    use tonic::async_trait;
+
+    use tokio::sync::Mutex;
+
+    #[derive(Debug)]
+    pub struct TestDatabase {
+        // lines which have been written to this database, in order
+        saved_lines: Mutex<Vec<String>>,
+    }
+
+    #[derive(Snafu, Debug, Clone, Copy)]
+    pub enum TestError {}
+
+    impl Default for TestDatabase {
+        fn default() -> Self {
+            Self {
+                saved_lines: Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl TestDatabase {
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Get all lines written to this database
+        pub async fn get_lines(&self) -> Vec<String> {
+            self.saved_lines.lock().await.clone()
+        }
+    }
+
+    #[async_trait]
+    impl Database for TestDatabase {
+        type Error = TestError;
+
+        /// writes parsed lines into this database
+        async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
+            let mut saved_lines = self.saved_lines.lock().await;
+            for line in lines {
+                saved_lines.push(line.to_string())
+            }
+            Ok(())
+        }
+
+        /// Execute the specified query and return arrow record batches with the result
+        async fn query(&self, _query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
+            unimplemented!("query Not yet implemented");
+        }
+
+        /// Fetch the specified table names and columns as Arrow RecordBatches
+        async fn table_to_arrow(
+            &self,
+            _table_name: &str,
+            _columns: &[&str],
+        ) -> Result<Vec<RecordBatch>, Self::Error> {
+            unimplemented!("table_to_arrow Not yet implemented");
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct TestDatabaseStore {
+        databases: Mutex<BTreeMap<String, Arc<TestDatabase>>>,
+    }
+
+    impl TestDatabaseStore {
+        pub fn new() -> Self {
+            Self::default()
+        }
+    }
+
+    impl Default for TestDatabaseStore {
+        fn default() -> Self {
+            Self {
+                databases: Mutex::new(BTreeMap::new()),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl DatabaseStore for TestDatabaseStore {
+        type Database = TestDatabase;
+        type Error = TestError;
+        /// Retrieve the database specified name
+        async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
+            let databases = self.databases.lock().await;
+
+            databases.get(name).cloned()
+        }
+
+        /// Retrieve the database specified by name, creating it if it
+        /// doesn't exist.
+        async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
+            let mut databases = self.databases.lock().await;
+
+            if let Some(db) = databases.get(name) {
+                Ok(db.clone())
+            } else {
+                let new_db = Arc::new(TestDatabase::new());
+                databases.insert(name.to_string(), new_db.clone());
+                Ok(new_db)
+            }
+        }
+    }
+}
