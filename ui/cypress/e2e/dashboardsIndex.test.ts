@@ -163,7 +163,7 @@ describe('Dashboards', () => {
       cy.getByTestID('dashboard-card--name')
         .should('contain', 'IMPORT dashboard')
         .click()
-      cy.getByTestID('cell--view-empty markdown').should(
+      cy.getByTestID('markdown-cell--contents').should(
         'contain',
         'Note about no tea'
       )
