@@ -51,9 +51,6 @@ message IndexLevel {
     string timezone = 2;
 }
 
-message S3PartitionRule {
-
-}
 
 service Delorean {
     rpc CreateBucket(CreateBucketRequest) returns (CreateBucketResponse) {}
@@ -111,44 +108,6 @@ message Predicate {
     Node root = 1;
 }
 
-/*
-S3 Organization scheme
-
-Considerations:
-  * Buckets are tied to a region, so storage servers should use buckets from a specific region
-
-  one bucket per region. don't do per org as there is a default 100 bucket limit per account
-
-  prefix:
-  indexes have their own spot. They can be built based on snapshot levels, which are like granularities. So
-  <server_id>/<org_id>/<bucket_id>/index/<snapshot level>/
-  <server_id>/<org_id>/<bucket_id>/data/<start time><end time><id start><id end>.tsm
-
-  Some things we'd want to query:
-  measurement = cpu and host = serverA
-  tag keys where host = server a
-  tag keys where (app = foo and app = bar)
-  hosts where measurement = redis
-  fields where measurement = redis
-  hosts where (app = foo AND app = bar)
-  hosts
-
-  group data by measurement_range, time, size limit. Roll over to next measurement range when we hit either time or size
-
-  so we can say we want to snapshot to S3 at least every 1h or 100MB. Should also be able to force S3 snapshot.
-
-  We can have overlapping S3 data, which is fine. Need ability to request that the server looks at overlaps and compacts them
-
-  given a set of key/value pairs, determine which ranges we need to lookup.
-
-  are the set of ranges fixed or dynamic? If dynamic they have to be able to overlap. Which means we'll need to be able to compact them?
-
-  be able to tell the server how many requests to send to s3 in parallel to load
-
-  configure when to roll to deeper prefix (size/file count based)
-
-  on boot it should load up its S3 file index and keep in memory
-*/
 
 // From https://github.com/influxdata/idpe/blob/master/storage/read/service.proto
 
