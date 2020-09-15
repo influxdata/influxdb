@@ -141,8 +141,9 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"join": "unbounded test",
 	},
 	"testing/chronograf": {
-		"buckets":                "unbounded test",
-		"aggregate_window_count": "flakey test: https://github.com/influxdata/influxdb/issues/18463",
+		"buckets":                 "unbounded test",
+		"aggregate_window_count":  "flakey test: https://github.com/influxdata/influxdb/issues/18463",
+		"aggregate_window_median": "failing with \"field type conflict\": https://github.com/influxdata/influxdb/issues/19565",
 	},
 	"testing/kapacitor": {
 		"fill_default": "unknown field type for f1",
@@ -152,11 +153,17 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"partition_strings_splitN":       "pandas. map does not correctly handled returned arrays (https://github.com/influxdata/flux/issues/1387)",
 	},
 	"testing/promql": {
-		"emptyTable": "tests a source",
-		"year":       "flakey test: https://github.com/influxdata/influxdb/issues/15667",
+		"emptyTable":                    "tests a source",
+		"year":                          "flakey test: https://github.com/influxdata/influxdb/issues/15667",
+		"extrapolatedRate_counter_rate": "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"extrapolatedRate_nocounter":    "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"extrapolatedRate_norate":       "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"linearRegression_nopredict":    "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"linearRegression_predict":      "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
 	},
 	"testing/influxql": {
 		"cumulative_sum": "invalid test data requires loadStorage to be overridden. See https://github.com/influxdata/flux/issues/3145",
+		"elapsed":        "failing since split with Flux upgrade: https://github.com/influxdata/influxdb/issues/19568",
 	},
 }
 
