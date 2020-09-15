@@ -11,14 +11,16 @@ pub trait NumericEncoding: Send + Sync + std::fmt::Display + std::fmt::Debug {
     fn size(&self) -> usize;
     fn value(&self, row_id: usize) -> Option<Self::Item>;
     fn values(&self, row_ids: &[usize]) -> Vec<Option<Self::Item>>;
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Option<Self::Item>>;
-    fn all_encoded_values(&self) -> Vec<Option<Self::Item>>;
+
+    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Self::Item>;
+    fn all_encoded_values(&self) -> Vec<Self::Item>;
+
     fn scan_from(&self, row_id: usize) -> &[Option<Self::Item>];
 
     fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Self::Item>;
     fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<Self::Item>;
 
-    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize;
+    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> u64;
     fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64;
 
     fn row_id_eq_value(&self, v: Self::Item) -> Option<usize>;
@@ -82,20 +84,31 @@ where
         out
     }
 
-    /// Well this is terribly slow
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Option<T::Native>> {
-        self.values(row_ids)
+    /// encoded_values returns encoded values for the encoding. If the encoding
+    /// supports null values then the values returned are undefined.
+    ///
+    /// encoded_values should not be called on nullable columns.
+    fn encoded_values(&self, row_ids: &[usize]) -> Vec<T::Native> {
+        // assertion here during development to check this isn't called on
+        // encodings that can have null values.
+        assert_eq!(self.arr.null_count(), 0);
+
+        let mut out = Vec::with_capacity(row_ids.len());
+        for &row_id in row_ids {
+            out.push(self.arr.value(row_id));
+        }
+        assert_eq!(out.len(), row_ids.len());
+        out
     }
 
-    /// TODO(edd): there must be a more efficient way.
-    fn all_encoded_values(&self) -> Vec<Option<T::Native>> {
+    fn all_encoded_values(&self) -> Vec<T::Native> {
+        // assertion here during development to check this isn't called on
+        // encodings that can have null values.
+        assert_eq!(self.arr.null_count(), 0);
+
         let mut out = Vec::with_capacity(self.arr.len());
         for i in 0..self.arr.len() {
-            if self.arr.is_null(i) {
-                out.push(None)
-            } else {
-                out.push(Some(self.arr.value(i)))
-            }
+            out.push(self.arr.value(i));
         }
         assert_eq!(out.len(), self.arr.len());
         out
@@ -159,7 +172,7 @@ where
         }
     }
 
-    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
+    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> u64 {
         // TODO - count values that are not null in the row range.
         let mut count = 0;
         for i in from_row_id..to_row_id {
@@ -291,14 +304,28 @@ where
 
     /// Return the raw encoded values for the provided logical row ids. For Plain
     /// encoding this is just the decoded values.
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Option<Self::Item>> {
-        self.values(row_ids)
+    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Self::Item> {
+        let mut out = Vec::with_capacity(row_ids.len());
+        for chunks in row_ids.chunks_exact(4) {
+            out.push(self.values[chunks[3]]);
+            out.push(self.values[chunks[2]]);
+            out.push(self.values[chunks[1]]);
+            out.push(self.values[chunks[0]]);
+        }
+
+        let rem = row_ids.len() % 4;
+        for &i in &row_ids[row_ids.len() - rem..row_ids.len()] {
+            out.push(self.values[i]);
+        }
+
+        assert_eq!(out.len(), row_ids.len());
+        out
     }
 
     /// Return all encoded values. For this encoding this is just the decoded
     /// values
-    fn all_encoded_values(&self) -> Vec<Option<Self::Item>> {
-        self.values.iter().map(|x| Some(*x)).collect::<Vec<_>>()
+    fn all_encoded_values(&self) -> Vec<Self::Item> {
+        self.values.clone() // TODO(edd):perf probably can return reference to vec.
     }
 
     fn scan_from(&self, row_id: usize) -> &[Option<Self::Item>] {
@@ -390,8 +417,8 @@ where
         Some(res)
     }
 
-    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
-        to_row_id - from_row_id
+    fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> u64 {
+        (to_row_id - from_row_id) as u64
     }
 
     // TODO(edd): make faster
