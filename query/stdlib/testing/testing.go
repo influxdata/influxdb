@@ -94,6 +94,8 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"map_nulls":          "to cannot write null values",
 
 		"range_stop": "pushed down range stop no longer exclusive https://github.com/influxdata/influxdb/issues/19564",
+
+		"to_time": "Flaky test https://github.com/influxdata/influxdb/issues/19577",
 	},
 	"experimental": {
 		"set":       "Reason TBD",
