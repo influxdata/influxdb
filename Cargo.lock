@@ -809,6 +809,7 @@ dependencies = [
  "once_cell",
  "regex",
  "snafu",
+ "snap",
  "tokio",
 ]
 
