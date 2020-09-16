@@ -10,14 +10,13 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"
-	ast2 "github.com/influxdata/influxdb/v2/pkg/flux/ast"
-	"github.com/influxdata/influxdb/v2/pkg/flux/ast/edit"
 )
 
 type identity struct {
@@ -2314,7 +2313,7 @@ func convertRefToRefSummary(field string, ref *references) SummaryReference {
 
 func astBoolFromIface(v interface{}) *ast.BooleanLiteral {
 	b, _ := v.(bool)
-	return ast2.BooleanLiteralFromValue(b)
+	return ast.BooleanLiteralFromValue(b)
 }
 
 func astDurationFromIface(v interface{}) *ast.DurationLiteral {
@@ -2332,18 +2331,18 @@ func astDurationFromIface(v interface{}) *ast.DurationLiteral {
 
 func astFloatFromIface(v interface{}) *ast.FloatLiteral {
 	if i, ok := v.(int); ok {
-		return ast2.FloatLiteralFromValue(float64(i))
+		return ast.FloatLiteralFromValue(float64(i))
 	}
 	f, _ := v.(float64)
-	return ast2.FloatLiteralFromValue(f)
+	return ast.FloatLiteralFromValue(f)
 }
 
 func astIntegerFromIface(v interface{}) *ast.IntegerLiteral {
 	if f, ok := v.(float64); ok {
-		return ast2.IntegerLiteralFromValue(int64(f))
+		return ast.IntegerLiteralFromValue(int64(f))
 	}
 	i, _ := v.(int64)
-	return ast2.IntegerLiteralFromValue(i)
+	return ast.IntegerLiteralFromValue(i)
 }
 
 func astNow() *ast.CallExpression {
@@ -2354,12 +2353,12 @@ func astNow() *ast.CallExpression {
 
 func astStringFromIface(v interface{}) *ast.StringLiteral {
 	s, _ := v.(string)
-	return ast2.StringLiteralFromValue(s)
+	return ast.StringLiteralFromValue(s)
 }
 
 func astTimeFromIface(v interface{}) *ast.DateTimeLiteral {
 	if t, ok := v.(time.Time); ok {
-		return ast2.DateTimeLiteralFromValue(t)
+		return ast.DateTimeLiteralFromValue(t)
 	}
 
 	s, ok := v.(string)
