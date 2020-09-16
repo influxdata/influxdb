@@ -7,6 +7,11 @@ builds:
     goarch:
       - amd64
       - arm64
+      - arm
+    goarm:
+      - 5
+      - 6
+
     main: ./cmd/influx/
     flags:
       - -tags={{if and (eq .Os "linux") (eq .Arch "amd64")}}osusergo,netgo,static_build{{end}}
@@ -19,6 +24,7 @@ builds:
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if and (eq .Os "linux") (eq .Arch "amd64")}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influx
+
   - id: influxd
     goos:
       - linux
@@ -26,6 +32,11 @@ builds:
     goarch:
       - amd64
       - arm64
+      - arm
+    goarm:
+      - 5
+      - 6
+
     main: ./cmd/influxd/
     flags:
       - -tags=assets{{if and (eq .Os "linux") (eq .Arch "amd64")}},osusergo,netgo,static_build{{end}}
@@ -41,6 +52,35 @@ builds:
     hooks:
       pre: make generate
 
+nfpms:
+  -
+    id: "influxdata"
+    builds: ["influx", "influxd"]
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    files:
+      "scripts/init.sh": "/usr/lib/influxdb/scripts/init.sh"
+      "scripts/influxdb.service": "/usr/lib/influxdb/scripts/influxdb.service"
+      "scripts/logrotate": "/etc/logrotate.d/influxdb"
+    scripts:
+      preinstall:  "scripts/pre-install.sh"
+      postinstall: "scripts/post-install.sh"
+      postremove: "scripts/post-uninstall.sh"
+    overrides:
+      rpm:
+        replacements:
+          amd64: x86_64
+        file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+      deb:
+        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+    vendor: InfluxData
+    homepage: https://influxdata.com
+    maintainer: support@influxdb.com
+    description: Distributed time-series database.
+    license: Proprietary
+
 archives:
   - id: influxdb_client
     builds: ["influx"]
@@ -49,7 +89,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
     files:
       - LICENSE
       - README.md
@@ -59,7 +99,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    name_template: "influxdb-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
     files:
       - LICENSE
       - README.md
@@ -69,6 +109,10 @@ blobs:
     bucket: "dl.influxdata.com"
     region: "us-east-1"
     folder: "influxdb/releases/"
+
+checksum:
+  name_template: "influxdb_{{ .Version }}.sha256"
+  algorithm: sha256
 
 dockers:
   - goos: linux

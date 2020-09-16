@@ -162,7 +162,7 @@ build: all
 
 goreleaser:
 	curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh
-	sh goreleaser-install v0.135.0
+	sh goreleaser-install v0.142.0
 	go build -o $(GOPATH)/bin/pkg-config github.com/influxdata/pkg-config
 	install xcc.sh $(GOPATH)/bin/xcc
 

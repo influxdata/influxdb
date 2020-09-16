@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	nethttp "net/http"
 	_ "net/http/pprof" // needed to add pprof to our binary.
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -91,6 +91,8 @@ const (
 	LogTracing = "log"
 	// JaegerTracing enables tracing via the Jaeger client library
 	JaegerTracing = "jaeger"
+	// Max Integer
+	MaxInt = 1<<uint(strconv.IntSize-1) - 1
 )
 
 func NewInfluxdCommand(ctx context.Context, subCommands ...*cobra.Command) *cobra.Command {
@@ -352,7 +354,7 @@ func launcherOpts(l *Launcher) []cli.Opt {
 		{
 			DestP:   &l.memoryBytesQuotaPerQuery,
 			Flag:    "query-memory-bytes",
-			Default: math.MaxInt64,
+			Default: MaxInt,
 			Desc:    "maximum number of bytes a query is allowed to use at any given time. This must be greater or equal to query-initial-memory-bytes",
 		},
 		{
