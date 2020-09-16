@@ -97,8 +97,17 @@ pub enum Error {
         err: std::io::Error,
     },
 
-    #[snafu(display("Schema mismatch: Write with the following errors: {}", error))]
-    SchemaMismatch { error: String },
+    #[snafu(display(
+        "Schema mismatch: for column {}: can't insert {} into column with type {}",
+        column_id,
+        inserted_value_type,
+        existing_column_type
+    ))]
+    SchemaMismatch {
+        column_id: usize,
+        existing_column_type: String,
+        inserted_value_type: String,
+    },
 
     #[snafu(display("Database {} doesn't exist", database))]
     DatabaseNotFound { database: String },
@@ -774,8 +783,34 @@ enum Value<'a> {
     FieldValue(&'a delorean_line_parser::FieldValue<'a>),
 }
 
+impl<'a> Value<'a> {
+    fn type_description(&self) -> &'static str {
+        match self {
+            Value::TagValueId(_) => "tag",
+            Value::FieldValue(FieldValue::I64(_)) => "i64",
+            Value::FieldValue(FieldValue::F64(_)) => "f64",
+            Value::FieldValue(FieldValue::Boolean(_)) => "bool",
+            Value::FieldValue(FieldValue::String(_)) => "String",
+        }
+    }
+}
+
 fn symbol_to_u32(sym: DefaultSymbol) -> u32 {
     sym.to_usize() as u32
+}
+
+fn type_description(value: wb::ColumnValue) -> &'static str {
+    use wb::ColumnValue::*;
+
+    match value {
+        NONE => "none",
+        TagValue => "tag",
+        I64Value => "i64",
+        U64Value => "u64",
+        F64Value => "f64",
+        BoolValue => "bool",
+        StringValue => "String",
+    }
 }
 
 #[derive(Debug)]
@@ -878,9 +913,11 @@ impl Table {
                     })?;
                     vals.push(Some(v.value()));
                 }
-                _ => {
+                (existing_column, inserted_value) => {
                     return SchemaMismatch {
-                        error: "column type mismatch recovering from WAL",
+                        column_id: value.column_index(),
+                        existing_column_type: existing_column.type_description(),
+                        inserted_value_type: type_description(inserted_value),
                     }
                     .fail()
                 }
@@ -918,8 +955,8 @@ impl Table {
 
         // insert new columns and validate existing ones
         for val in values {
-            let column = match self.column_id_to_index.get(&val.id) {
-                Some(idx) => &mut self.columns[*idx],
+            let (column, column_id) = match self.column_id_to_index.get(&val.id) {
+                Some(idx) => (&mut self.columns[*idx], *idx),
                 None => {
                     // Add the column and make all values for existing rows None
                     let index = self.columns.len();
@@ -958,14 +995,16 @@ impl Table {
                         builder.add_schema_append(self.partition_id, self.id, val.id, wal_type);
                     }
 
-                    &mut self.columns[index]
+                    (&mut self.columns[index], index)
                 }
             };
 
             ensure!(
                 column.matches_type(&val),
                 SchemaMismatch {
-                    error: format!("new column type {:?} doesn't match existing type", val)
+                    column_id,
+                    existing_column_type: column.type_description(),
+                    inserted_value_type: val.value.type_description(),
                 }
             );
         }
@@ -986,9 +1025,11 @@ impl Table {
                         }
                         vals.push(Some(*val))
                     }
-                    _ => {
+                    col => {
                         return SchemaMismatch {
-                            error: "passed value is a tag and existing column is not".to_string(),
+                            column_id: *idx,
+                            existing_column_type: col.type_description(),
+                            inserted_value_type: "tag",
                         }
                         .fail()
                     }
@@ -996,7 +1037,9 @@ impl Table {
                 Value::FieldValue(field) => match (column, field) {
                     (Column::Tag(_), _) => {
                         return SchemaMismatch {
-                            error: "existing column is a tag and passed value is not".to_string(),
+                            column_id: *idx,
+                            existing_column_type: "tag",
+                            inserted_value_type: val.value.type_description(),
                         }
                         .fail()
                     }
@@ -1024,7 +1067,14 @@ impl Table {
                         }
                         vals.push(Some(*val))
                     }
-                    _ => panic!("yarrr the field didn't match"),
+                    (column, _) => {
+                        return SchemaMismatch {
+                            column_id: *idx,
+                            existing_column_type: column.type_description(),
+                            inserted_value_type: val.value.type_description(),
+                        }
+                        .fail()
+                    }
                 },
             }
         }
@@ -1329,6 +1379,16 @@ impl Column {
             Self::String(v) => v.len(),
             Self::Bool(v) => v.len(),
             Self::Tag(v) => v.len(),
+        }
+    }
+
+    fn type_description(&self) -> &'static str {
+        match self {
+            Self::F64(_) => "f64",
+            Self::I64(_) => "i64",
+            Self::String(_) => "String",
+            Self::Bool(_) => "bool",
+            Self::Tag(_) => "tag",
         }
     }
 
