@@ -5,10 +5,11 @@ use crate::generated_types::wal as wb;
 use crate::storage::partitioned_store::{
     start_wal_sync_task, Error as PartitionedStoreError, WalDetails,
 };
+
 use delorean_line_parser::{FieldValue, ParsedLine};
 use delorean_wal::WalBuilder;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fs;
 use std::io::ErrorKind;
@@ -117,8 +118,8 @@ pub enum Error {
     #[snafu(display("dictionary lookup error on id {}", id))]
     DictionaryIdLookupError { id: u32 },
 
-    #[snafu(display("dictionary lookup error on name {}", name))]
-    DictionaryNameLokupError { name: String },
+    #[snafu(display("Internal write buffer error: {}", source))]
+    InternalError { source: Box<Error> },
 
     #[snafu(display("id conversion error"))]
     IdConversionError { source: std::num::TryFromIntError },
@@ -244,6 +245,8 @@ pub struct Db {
 }
 
 impl Db {
+    /// Create a new DB that will create and use the Write Ahead Log
+    /// (WAL) directory `wal_dir`
     pub async fn try_with_wal(name: &str, wal_dir: &mut PathBuf) -> Result<Self> {
         wal_dir.push(&name);
         if let Err(e) = std::fs::create_dir(wal_dir.clone()) {
@@ -277,6 +280,8 @@ impl Db {
         })
     }
 
+    /// Create a new DB and initially restore pre-existing data in the
+    /// Write Ahead Log (WAL) directory `wal_dir`
     pub async fn restore_from_wal(wal_dir: PathBuf) -> Result<Self> {
         let now = std::time::Instant::now();
         let name = wal_dir
@@ -433,6 +438,25 @@ impl super::Database for Db {
         Ok(())
     }
 
+    async fn table_names(&self) -> Result<Arc<BTreeSet<String>>, Self::Error> {
+        // TODO: Cache this information to avoid creating this each time
+        let partitions = self.partitions.read().await;
+        let mut table_names = BTreeSet::new();
+        for partition in partitions.iter() {
+            for table_name_symbol in partition.tables.keys() {
+                table_names.insert(
+                    partition
+                        .lookup_id(*table_name_symbol)
+                        .map_err(|e| Error::InternalError {
+                            source: Box::new(e),
+                        })?
+                        .into(),
+                );
+            }
+        }
+        Ok(Arc::new(table_names))
+    }
+
     async fn table_to_arrow(
         &self,
         table_name: &str,
@@ -523,8 +547,11 @@ struct ArrowTable {
 struct Partition {
     name: String,
     id: u32,
+    /// `dictionary` maps &str -> u32. The u32s are used in place of
+    /// String or str to avoid slow string operations. The same
+    /// dictionary is used for table names, tag and field values
     dictionary: StringInterner<DefaultSymbol, StringBackend<DefaultSymbol>, DefaultHashBuilder>,
-    // tables is a map of the dictionary ID for the table name to the table
+    /// tables is a map of the dictionary ID for the table name to the table
     tables: HashMap<u32, Table>,
     is_open: bool,
 }
@@ -542,6 +569,16 @@ impl Partition {
 
     fn intern_new_dict_entry(&mut self, name: &str) {
         self.dictionary.get_or_intern(name);
+    }
+
+    /// returns the str in self.dictionary that corresponds to `id`,
+    /// if any. Returns an error if no such id is found
+    fn lookup_id(&self, id: u32) -> Result<&str> {
+        let symbol =
+            Symbol::try_from_usize(id as usize).expect("to be able to convert u32 to symbol");
+        self.dictionary
+            .resolve(symbol)
+            .context(DictionaryIdLookupError { id })
     }
 
     fn append_wal_schema(&mut self, table_id: u32, column_id: u32, column_type: wb::ColumnType) {
@@ -642,7 +679,7 @@ impl Partition {
         let table = self.tables.get(&table_id).context(TableNotFound {
             table: format!("id: {}", table_id),
         })?;
-        table.to_arrow(&self.dictionary)
+        table.to_arrow(|id| self.lookup_id(id))
     }
 }
 
@@ -667,6 +704,7 @@ fn symbol_to_u32(sym: DefaultSymbol) -> u32 {
 struct Table {
     id: u32,
     partition_id: u32,
+    /// Maps column name (as a u32 in the partition dictionary) to an index in self.columns
     column_id_to_index: HashMap<u32, usize>,
     columns: Vec<Column>,
 }
@@ -914,14 +952,10 @@ impl Table {
         Ok(())
     }
 
-    fn to_arrow(
-        &self,
-        dictionary: &StringInterner<
-            DefaultSymbol,
-            StringBackend<DefaultSymbol>,
-            DefaultHashBuilder,
-        >,
-    ) -> Result<RecordBatch> {
+    fn to_arrow<'a, F>(&self, lookup_id: F) -> Result<RecordBatch>
+    where
+        F: Fn(u32) -> Result<&'a str>,
+    {
         let mut index: Vec<_> = self.column_id_to_index.iter().collect();
         index.sort_by(|a, b| a.1.cmp(b.1));
         let ids: Vec<_> = index.iter().map(|(a, _)| **a).collect();
@@ -930,10 +964,7 @@ impl Table {
         let mut columns: Vec<ArrayRef> = Vec::with_capacity(self.columns.len());
 
         for (col, id) in self.columns.iter().zip(ids) {
-            let symbol = Symbol::try_from_usize(id as usize).unwrap();
-            let column_name = dictionary
-                .resolve(symbol)
-                .context(DictionaryIdLookupError { id })?;
+            let column_name = lookup_id(id)?;
 
             let arrow_col: ArrayRef = match col {
                 Column::String(vals) => {
@@ -958,10 +989,7 @@ impl Table {
                         match v {
                             None => builder.append_null(),
                             Some(id) => {
-                                let symbol = Symbol::try_from_usize(*id as usize).unwrap();
-                                let tag_value = dictionary
-                                    .resolve(symbol)
-                                    .context(DictionaryIdLookupError { id: *id })?;
+                                let tag_value = lookup_id(*id)?;
                                 builder.append_value(tag_value)
                             }
                         }
@@ -1269,6 +1297,31 @@ mod tests {
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
+
+    #[tokio::test(threaded_scheduler)]
+    async fn list_table_names() -> Result {
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+
+        let db = Db::try_with_wal("mydb", &mut dir).await?;
+
+        // no tables initially
+        assert_eq!(*db.table_names().await?, BTreeSet::new());
+
+        // write two different tables
+        let lines: Vec<_> =
+            parse_lines("cpu,region=west user=23.2 10\ndisk,region=east bytes=99i 11")
+                .map(|l| l.unwrap())
+                .collect();
+        db.write_lines(&lines).await?;
+
+        // Now, we should have the two tables
+        let expected_tables = vec!["cpu".into(), "disk".into()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        assert_eq!(*db.table_names().await?, expected_tables);
+
+        Ok(())
+    }
 
     #[tokio::test(threaded_scheduler)]
     async fn write_data_and_recover() -> Result {

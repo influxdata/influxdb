@@ -3,7 +3,7 @@
 //! interface as well as being able to test other parts of Delorean
 //! using mockups that conform to these traits
 
-use std::convert::TryFrom;
+use std::{collections::BTreeSet, convert::TryFrom};
 
 pub mod block;
 pub mod database;
@@ -82,6 +82,9 @@ pub trait Database: Debug + Send + Sync {
     /// Execute the specified query and return arrow record batches with the result
     async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error>;
 
+    /// Returns the list of table names in this database.
+    async fn table_names(&self) -> Result<Arc<BTreeSet<String>>, Self::Error>;
+
     /// Fetch the specified table names and columns as Arrow RecordBatches
     async fn table_to_arrow(
         &self,
@@ -112,8 +115,8 @@ pub trait DatabaseStore: Debug + Send + Sync {
 /// org and bucket name.
 ///
 /// TODO move to somewhere else / change the traits to take the database name directly
-pub fn org_and_bucket_to_database(org: &str, bucket: &str) -> String {
-    org.to_owned() + "_" + bucket
+pub fn org_and_bucket_to_database(org: impl Into<String>, bucket: &str) -> String {
+    org.into() + "_" + bucket
 }
 
 /// In testing config, the `test_fixtures` module provides a simple
@@ -133,10 +136,10 @@ pub fn org_and_bucket_to_database(org: &str, bucket: &str) -> String {
 pub mod test_fixtures {
     use super::{Database, DatabaseStore};
     use arrow::record_batch::RecordBatch;
-    use delorean_line_parser::ParsedLine;
+    use delorean_line_parser::{parse_lines, ParsedLine};
 
     use snafu::Snafu;
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::{collections::BTreeMap, collections::BTreeSet, sync::Arc};
     use tonic::async_trait;
 
     use tokio::sync::Mutex;
@@ -167,6 +170,18 @@ pub mod test_fixtures {
         pub async fn get_lines(&self) -> Vec<String> {
             self.saved_lines.lock().await.clone()
         }
+
+        /// Parse line protocol and add it as new lines to this
+        /// database
+        pub async fn add_lp_string(&self, lp_data: &str) {
+            let parsed_lines = parse_lines(&lp_data)
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap_or_else(|_| panic!("parsing line protocol: {}", lp_data));
+
+            self.write_lines(&parsed_lines)
+                .await
+                .expect("writing lines");
+        }
     }
 
     #[async_trait]
@@ -187,6 +202,20 @@ pub mod test_fixtures {
             unimplemented!("query Not yet implemented");
         }
 
+        /// Return all measurement names that are saved in this database
+        async fn table_names(&self) -> Result<Arc<BTreeSet<String>>, Self::Error> {
+            let saved_lines = self.saved_lines.lock().await;
+
+            Ok(Arc::new(
+                parse_lines(&saved_lines.join("\n"))
+                    .map(|line| {
+                        let line = line.expect("Correctly parsed saved line");
+                        line.series.measurement.to_string()
+                    })
+                    .collect::<BTreeSet<_>>(),
+            ))
+        }
+
         /// Fetch the specified table names and columns as Arrow RecordBatches
         async fn table_to_arrow(
             &self,
@@ -205,6 +234,15 @@ pub mod test_fixtures {
     impl TestDatabaseStore {
         pub fn new() -> Self {
             Self::default()
+        }
+
+        /// Parse line protocol and add it as new lines to the `db_name` database
+        pub async fn add_lp_string(&self, db_name: &str, lp_data: &str) {
+            self.db_or_create(db_name)
+                .await
+                .expect("db_or_create suceeeds")
+                .add_lp_string(lp_data)
+                .await
         }
     }
 

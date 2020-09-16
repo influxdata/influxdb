@@ -9,8 +9,8 @@
 #![allow(clippy::type_complexity)]
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tracing::warn;
 
-use delorean::storage::DatabaseStore;
 use snafu::{ResultExt, Snafu};
 
 use delorean::generated_types::{
@@ -23,6 +23,9 @@ use delorean::generated_types::{
     TagValuesRequest,
 };
 
+use crate::server::rpc::input::GrpcInputs;
+use delorean::storage::{org_and_bucket_to_database, Database, DatabaseStore};
+
 use tokio::sync::mpsc;
 use tonic::Status;
 
@@ -31,11 +34,32 @@ pub enum Error {
     #[snafu(display("gRPC server error:  {}", source))]
     ServerError { source: tonic::transport::Error },
 
+    #[snafu(display("Database not found: {}", db_name))]
+    DatabaseNotFound { db_name: String },
+
+    #[snafu(display("Can not retrieve table list for '{}': {}", db_name, source))]
+    GettingTables {
+        db_name: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[snafu(display("Operation not yet implemented:  {}", operation))]
     NotYetImplemented { operation: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl Error {
+    /// Converts a result from the business logic into the appropriate tonic status
+    fn to_status(&self) -> tonic::Status {
+        match &self {
+            Self::ServerError { .. } => Status::internal(self.to_string()),
+            Self::DatabaseNotFound { .. } => Status::not_found(self.to_string()),
+            Self::GettingTables { .. } => Status::internal(self.to_string()),
+            Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct GrpcService<T: DatabaseStore> {
@@ -149,7 +173,35 @@ where
         &self,
         req: tonic::Request<MeasurementNamesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementNamesStream>, Status> {
-        Err(Status::unimplemented("measurement_names"))
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let measurement_names_request = req.into_inner();
+
+        let db_name = org_and_bucket_to_database(
+            measurement_names_request.org_id()?,
+            &measurement_names_request.bucket_name()?,
+        );
+
+        // This request can also have a time range. TODO handle this
+        // reasonably somehow (select count(*) from table_name where <PREDICATE>???).
+        // For now, return all measurements.
+        if let Some(range) = measurement_names_request.range {
+            warn!(
+                "Timestamp ranges not yet supported in measurement_names storage gRPC request,\
+                   ignoring: {:?}",
+                range
+            );
+        }
+
+        let response = measurement_name_impl(self.db_store.clone(), db_name)
+            .await
+            .map_err(|e| e.to_status());
+
+        tx.send(response)
+            .await
+            .expect("sending measurement names response to server");
+
+        Ok(tonic::Response::new(rx))
     }
 
     type MeasurementTagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
@@ -183,6 +235,40 @@ where
     }
 }
 
+// The following code implements the business logic of the requests as
+// methods that return Results with module specific Errors (and thus
+// can use ?, etc). The trait implemententations then handle mapping
+// to the appropriate tonic Status
+//
+// TODO: Do this work on a separate worker pool, not the main tokio task pool
+async fn measurement_name_impl<T>(db_store: Arc<T>, db_name: String) -> Result<StringValuesResponse>
+where
+    T: DatabaseStore,
+{
+    let table_names = db_store
+        .db(&db_name)
+        .await
+        .ok_or_else(|| Error::DatabaseNotFound {
+            db_name: db_name.clone(),
+        })?
+        .table_names()
+        .await
+        .map_err(|e| Error::GettingTables {
+            db_name: db_name.clone(),
+            source: Box::new(e),
+        })?;
+
+    // In theory this could be combined with the chain above, but
+    // we break it into its own statement here for readability
+
+    // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
+    let values = table_names
+        .iter()
+        .map(|name| name.bytes().collect())
+        .collect::<Vec<_>>();
+
+    Ok(StringValuesResponse { values })
+}
 /// Instantiate a server listening on the specified address
 /// implementing the Delorean and Storage gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
@@ -202,26 +288,27 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use delorean::storage::test_fixtures::TestDatabaseStore;
+    use delorean::{id::Id, storage::test_fixtures::TestDatabaseStore};
     use std::{
+        convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
         time::Duration,
     };
     use tonic::Code;
 
-    use delorean_generated_types::{delorean_client, storage_client};
+    use futures::prelude::*;
+
+    use delorean_generated_types::{delorean_client, storage_client, ReadSource};
+    use prost::Message;
 
     type DeloreanClient = delorean_client::DeloreanClient<tonic::transport::Channel>;
     type StorageClient = storage_client::StorageClient<tonic::transport::Channel>;
 
-    struct Clients {
-        delorean_client: DeloreanClient,
-        storage_client: StorageClient,
-    }
-
     #[tokio::test]
-    async fn test_delorean_rpc_create() -> Result<()> {
-        let mut clients = make_test_server().await.expect("Connecting to test server");
+    async fn test_delorean_rpc() -> Result<()> {
+        let mut fixture = Fixture::new(11807)
+            .await
+            .expect("Connecting to test server");
 
         let org = Organization {
             id: 1337,
@@ -230,7 +317,7 @@ mod tests {
         };
 
         // Test response from delorean server
-        let res = clients.delorean_client.get_buckets(org).await;
+        let res = fixture.delorean_client.get_buckets(org).await;
 
         match res {
             Err(e) => {
@@ -242,63 +329,141 @@ mod tests {
             }
         };
 
-        // Test response from storage server
-        let res = clients.storage_client.capabilities(()).await;
-        match res {
-            Err(e) => {
-                assert!(false, "Unexpected storage_client error: {:?}", e);
-                assert_eq!(e.message(), "get_buckets");
-            }
-            Ok(caps) => {
-                let expected_caps = CapabilitiesResponse {
-                    caps: HashMap::new(),
-                };
+        Ok(())
+    }
 
-                assert_eq!(*caps.get_ref(), expected_caps);
-            }
-        };
+    #[tokio::test]
+    async fn test_storage_rpc_capabilities() -> Result<(), tonic::Status> {
+        // Note we use a unique port. TODO: let the OS pick the port
+        let mut fixture = Fixture::new(11808)
+            .await
+            .expect("Connecting to test server");
+
+        // Test response from storage server
+        assert_eq!(HashMap::new(), fixture.storage_client.capabilities().await?);
 
         Ok(())
     }
 
-    // Start up a test rpc server, returning clients suitable for communication with it.
-    async fn make_test_server() -> Result<Clients, tonic::transport::Error> {
-        let test_storage = Arc::new(TestDatabaseStore::new());
-        // TODO: specify port 0 to let the OS pick the port (need to
-        // figure out how to get access to the actual addr from tonic)
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11807);
+    #[tokio::test]
+    async fn test_storage_rpc_measurement_names() -> Result<(), tonic::Status> {
+        // Note we use a unique port. TODO: let the OS pick the port
+        let mut fixture = Fixture::new(11809)
+            .await
+            .expect("Connecting to test server");
 
-        println!("Starting delorean rpc test server on {:?}", bind_addr);
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
 
-        let server = make_server(bind_addr, test_storage.clone());
-        tokio::task::spawn(server);
+        let lp_data = "h2o,state=CA temp=50.4 1568756160\no2,state=MA temp=50.4 1568756160";
+        fixture
+            .test_storage
+            .add_lp_string(&db_info.db_name, lp_data)
+            .await;
 
-        let delorean_client = connect_to_server::<DeloreanClient>(bind_addr).await?;
-        let storage_client = connect_to_server::<StorageClient>(bind_addr).await?;
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
+        let request = MeasurementNamesRequest {
+            source,
+            range: None,
+        };
 
-        Ok(Clients {
-            delorean_client,
-            storage_client,
-        })
+        let actual_measurements = fixture.storage_client.measurement_names(request).await?;
+
+        let expected_measurements = vec![String::from("h2o"), String::from("o2")];
+        assert_eq!(actual_measurements, expected_measurements);
+
+        Ok(())
     }
 
-    /// Represents something that can make a connection to a server
-    #[tonic::async_trait]
-    trait NewClient: Sized + std::fmt::Debug {
-        async fn connect(addr: String) -> Result<Self, tonic::transport::Error>;
+    /// Delorean deals with database names. The gRPC interface deals
+    /// with org_id and bucket_id represented as 16 digit hex
+    /// values. This struct manages creating the org_id, bucket_id,
+    /// and database names to be consistent with the implementation
+    struct OrgAndBucket {
+        org_id: u64,
+        bucket_id: u64,
+        /// The delorean database name corresponding to `org_id` and `bucket_id`
+        db_name: String,
     }
 
-    #[tonic::async_trait]
-    impl NewClient for DeloreanClient {
-        async fn connect(addr: String) -> Result<Self, tonic::transport::Error> {
-            Self::connect(addr).await
+    impl OrgAndBucket {
+        fn new(org_id: u64, bucket_id: u64) -> Self {
+            let org_id_str = Id::try_from(org_id).expect("org_id was valid").to_string();
+
+            let bucket_id_str = Id::try_from(bucket_id)
+                .expect("bucket_id was valid")
+                .to_string();
+
+            let db_name = org_and_bucket_to_database(&org_id_str, &bucket_id_str);
+
+            Self {
+                org_id,
+                bucket_id,
+                db_name,
+            }
         }
     }
 
-    #[tonic::async_trait]
-    impl NewClient for StorageClient {
-        async fn connect(addr: String) -> Result<Self, tonic::transport::Error> {
-            Self::connect(addr).await
+    /// Wrapper around a StorageClient that does the various tonic /
+    /// futures dance
+    struct StorageClientWrapper {
+        inner: StorageClient,
+    }
+
+    impl StorageClientWrapper {
+        fn new(inner: StorageClient) -> Self {
+            Self { inner }
+        }
+
+        /// Create a ReadSource suitable for constructing messages
+        fn read_source(org_id: u64, bucket_id: u64, partition_id: u64) -> prost_types::Any {
+            let read_source = ReadSource {
+                org_id,
+                bucket_id,
+                partition_id,
+            };
+            let mut d = Vec::new();
+            read_source
+                .encode(&mut d)
+                .expect("encoded read source appropriately");
+            prost_types::Any {
+                type_url: "/TODO".to_string(),
+                value: d,
+            }
+        }
+
+        /// return the capabilities of the server as a hash map
+        async fn capabilities(&mut self) -> Result<HashMap<String, String>, tonic::Status> {
+            let response = self.inner.capabilities(()).await?.into_inner();
+
+            let CapabilitiesResponse { caps } = response;
+
+            Ok(caps)
+        }
+
+        // Make a request to Storage::measurement_names and do the
+        // required async dance to flatten the resulting stream to Strings
+        async fn measurement_names(
+            &mut self,
+            request: MeasurementNamesRequest,
+        ) -> Result<Vec<String>, tonic::Status> {
+            let responses = self.inner.measurement_names(request).await?;
+
+            // type annotations to help future readers
+            let responses: Vec<StringValuesResponse> = responses.into_inner().try_collect().await?;
+
+            let measurements = responses
+                .into_iter()
+                .map(|r| r.values.into_iter())
+                .flatten()
+                .map(|v| String::from_utf8(v).expect("measurement name was utf8"))
+                .collect::<Vec<_>>();
+
+            Ok(measurements)
         }
     }
 
@@ -333,6 +498,59 @@ mod tests {
                 }
             };
             interval.tick().await;
+        }
+    }
+
+    // Wrapper around raw clients and test database
+    struct Fixture {
+        delorean_client: DeloreanClient,
+        storage_client: StorageClientWrapper,
+        test_storage: Arc<TestDatabaseStore>,
+    }
+
+    impl Fixture {
+        /// Start up a test rpc server listening on `port`, returning
+        /// a fixture with the test server and clients
+        async fn new(port: u16) -> Result<Self, tonic::transport::Error> {
+            let test_storage = Arc::new(TestDatabaseStore::new());
+            // TODO: specify port 0 to let the OS pick the port (need to
+            // figure out how to get access to the actual addr from tonic)
+            let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
+
+            println!("Starting delorean rpc test server on {:?}", bind_addr);
+
+            let server = make_server(bind_addr, test_storage.clone());
+            tokio::task::spawn(server);
+
+            let delorean_client = connect_to_server::<DeloreanClient>(bind_addr).await?;
+            let storage_client =
+                StorageClientWrapper::new(connect_to_server::<StorageClient>(bind_addr).await?);
+
+            Ok(Self {
+                delorean_client,
+                storage_client,
+                test_storage,
+            })
+        }
+    }
+
+    /// Represents something that can make a connection to a server
+    #[tonic::async_trait]
+    trait NewClient: Sized + std::fmt::Debug {
+        async fn connect(addr: String) -> Result<Self, tonic::transport::Error>;
+    }
+
+    #[tonic::async_trait]
+    impl NewClient for DeloreanClient {
+        async fn connect(addr: String) -> Result<Self, tonic::transport::Error> {
+            Self::connect(addr).await
+        }
+    }
+
+    #[tonic::async_trait]
+    impl NewClient for StorageClient {
+        async fn connect(addr: String) -> Result<Self, tonic::transport::Error> {
+            Self::connect(addr).await
         }
     }
 }
