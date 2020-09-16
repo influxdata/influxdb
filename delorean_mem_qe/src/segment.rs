@@ -78,7 +78,8 @@ impl Segment {
         // TODO(edd) yuk
         if name == "time" {
             if let column::Column::Integer(ts) = &c {
-                self.meta.time_range = ts.column_range();
+                // Right now assumption is ts column has some non-null values
+                self.meta.time_range = ts.column_range().unwrap();
             } else {
                 panic!("incorrect column type for time");
             }
@@ -316,12 +317,10 @@ impl Segment {
         // filtering stage we will just emit None.
         let mut group_itrs = group_column_encoded_values
             .iter()
-            .map(|vector| {
-                if let column::Vector::Integer(v) = vector {
-                    v.iter()
-                } else {
-                    panic!("don't support grouping on non-encoded values");
-                }
+            .map(|vector| match vector {
+                column::Vector::Unsigned32(_) => column::VectorIterator::new(vector), // encoded tag columns
+                column::Vector::Integer(_) => column::VectorIterator::new(vector), // encoded (but actually just raw) timestamp column
+                _ => panic!("don't support grouping on non-encoded values or timestamps"),
             })
             .collect::<Vec<_>>();
 
@@ -331,7 +330,10 @@ impl Segment {
         let mut aggregate_itrs = aggregate_column_decoded_values
             .iter()
             .map(|(col_name, values)| match values {
-                Some(values) => (col_name.as_str(), Some(column::VectorIterator::new(values))),
+                Some(values) => (
+                    col_name.as_str(),
+                    Some(column::NullVectorIterator::new(values)),
+                ),
                 None => (col_name.as_str(), None),
             })
             .collect::<Vec<_>>();
@@ -339,7 +341,7 @@ impl Segment {
         // hashMap is about 20% faster than BTreeMap in this case
         let mut hash_table: BTreeMap<
             Vec<i64>,
-            Vec<(&'a String, &'a AggregateType, Option<column::Aggregate<'_>>)>,
+            Vec<(&'a String, &'a AggregateType, column::Aggregate<'_>)>,
         > = BTreeMap::new();
 
         let mut aggregate_row: Vec<(&str, Option<column::Scalar<'_>>)> =
@@ -355,29 +357,50 @@ impl Segment {
             group_itrs.iter_mut().enumerate().for_each(|(i, itr)| {
                 if i == group_itrs_len - 1 && window > 0 {
                     // time column - apply window function
-                    group_key[i] = itr.next().unwrap() / window * window;
+                    if let Some(column::Value::Scalar(column::Scalar::Integer(v))) = itr.next() {
+                        group_key[i] = v / window * window;
+                    } else {
+                        unreachable!(
+                            "something broken with grouping! Either processed None or wrong type"
+                        );
+                    }
+                } else if let Some(column::Value::Scalar(column::Scalar::Unsigned32(v))) =
+                    itr.next()
+                {
+                    group_key[i] = v as i64
                 } else {
-                    group_key[i] = *itr.next().unwrap();
+                    unreachable!(
+                        "something broken with grouping! Either processed None or wrong type"
+                    );
                 }
             });
 
             // re-use aggregate_row vector.
             for (i, &mut (col_name, ref mut itr)) in aggregate_itrs.iter_mut().enumerate() {
                 match itr {
-                    Some(itr) => aggregate_row[i] = (col_name, itr.next()),
+                    Some(itr) => {
+                        // This is clunky. We don't need to check for the sentinel None value
+                        // to indicate the end of the iterator because we use the guard in
+                        // the while loop to do so.
+                        aggregate_row[i] = (col_name, itr.next().unwrap_or(None));
+                    }
                     None => aggregate_row[i] = (col_name, None),
                 }
             }
 
             // This is cheaper than allocating a key and using the entry API
             if !hash_table.contains_key(&group_key) {
-                let mut agg_results: Vec<(
-                    &'a String,
-                    &'a AggregateType,
-                    Option<column::Aggregate<'_>>,
-                )> = Vec::with_capacity(aggregates.len());
+                let mut agg_results: Vec<(&'a String, &'a AggregateType, column::Aggregate<'_>)> =
+                    Vec::with_capacity(aggregates.len());
                 for (col_name, agg_type) in aggregates {
-                    agg_results.push((col_name, agg_type, None)); // switch out Aggregate for Option<column::Aggregate>
+                    agg_results.push((
+                        col_name,
+                        agg_type,
+                        match agg_type {
+                            AggregateType::Count => column::Aggregate::Count(0),
+                            AggregateType::Sum => column::Aggregate::Sum(None),
+                        },
+                    ));
                 }
                 hash_table.insert(group_key.clone(), agg_results);
             }
@@ -395,28 +418,39 @@ impl Segment {
                         continue;
                     }
 
-                    // TODO(edd): remove unwrap - it should work because we are
-                    // tracking iteration count in loop.
-                    let row_value = row_value.as_ref().unwrap();
-
                     match cum_agg_value {
-                        Some(agg) => match agg {
-                            column::Aggregate::Count(cum_count) => {
-                                *cum_count += 1;
-                            }
-                            column::Aggregate::Sum(cum_sum) => {
-                                *cum_sum += row_value;
-                            }
-                        },
-                        None => {
-                            *cum_agg_value = match agg_type {
-                                AggregateType::Count => Some(column::Aggregate::Count(0)),
-                                AggregateType::Sum => {
-                                    Some(column::Aggregate::Sum(row_value.clone()))
+                        column::Aggregate::Count(x) => {
+                            *x += 1;
+                        }
+                        column::Aggregate::Sum(v) => {
+                            if let Some(row_value) = row_value {
+                                match v {
+                                    Some(x) => {
+                                        *x += row_value;
+                                    }
+                                    None => *v = Some(row_value.clone()),
                                 }
                             }
                         }
                     }
+                    // match cum_agg_value {
+                    //     Some(agg) => match agg {
+                    //         column::Aggregate::Count(_) => {
+                    //             *cum_agg_value = Some(agg + column::Aggregate::Count(Some(1)));
+                    //         }
+                    //         column::Aggregate::Sum(cum_sum) => {
+                    //             *cum_sum += row_value;
+                    //         }
+                    //     },
+                    //     None => {
+                    //         *cum_agg_value = match agg_type {
+                    //             AggregateType::Count => Some(column::Aggregate::Count(Some(0))),
+                    //             AggregateType::Sum => {
+                    //                 Some(column::Aggregate::Sum(row_value.clone()))
+                    //             }
+                    //         }
+                    //     }
+                    // }
                 }
             }
             processed_rows += 1;
@@ -757,10 +791,6 @@ impl Segment {
     }
 
     // Returns the count aggregate for a given column name.
-    //
-    // Since we guarantee to provide row ids for the segment, and all columns
-    // have the same number of logical rows, the count is just the number of
-    // requested logical rows.
     pub fn count_column(&self, name: &str, row_ids: &mut croaring::Bitmap) -> Option<u64> {
         if self.column(name).is_some() {
             return Some(row_ids.cardinality() as u64);
@@ -899,8 +929,8 @@ impl Segment {
                                 aggs.push((
                                     (col_name.to_string(), agg.clone()),
                                     column::Aggregate::Sum(
-                                        self.sum_column(col_name, &mut filtered_row_ids).unwrap(),
-                                    ), // assuming no non-null group keys
+                                        self.sum_column(col_name, &mut filtered_row_ids),
+                                    ),
                                 ));
                             }
                             AggregateType::Count => {
@@ -908,7 +938,7 @@ impl Segment {
                                     (col_name.to_string(), agg.clone()),
                                     column::Aggregate::Count(
                                         self.count_column(col_name, &mut filtered_row_ids).unwrap(),
-                                    ), // assuming no non-null group keys
+                                    ),
                                 ));
                             }
                         }
@@ -1392,7 +1422,7 @@ impl<'a> Segments<'a> {
         // first find the logical row id of the minimum timestamp value
         if let Column::Integer(ts_col) = &segment.columns[segment.time_column_idx] {
             // TODO(edd): clean up unwrap
-            let min_ts = ts_col.column_range().0;
+            let min_ts = ts_col.column_range().unwrap().0;
             assert_eq!(min_ts, segment.meta.time_range.0);
 
             let min_ts_id = ts_col.row_id_eq_value(min_ts).unwrap();
@@ -1424,7 +1454,7 @@ impl<'a> Segments<'a> {
         // first find the logical row id of the minimum timestamp value
         if let Column::Integer(ts_col) = &segment.columns[segment.time_column_idx] {
             // TODO(edd): clean up unwrap
-            let max_ts = ts_col.column_range().1;
+            let max_ts = ts_col.column_range().unwrap().1;
             assert_eq!(max_ts, segment.meta.time_range.1);
 
             let max_ts_id = ts_col.row_id_eq_value(max_ts).unwrap();

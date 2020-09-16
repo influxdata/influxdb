@@ -39,7 +39,7 @@ pub enum Error {
 /// comparison scan performed on them to ensure they're not already sorted.
 const SORTED_CHECK_SIZE: usize = 1000;
 
-/// Sort a slice of `Packers` based on the provided column indexes.
+/// Sort a slice of `Vector` based on the provided column indexes.
 ///
 /// All chosen columns will be sorted in ascending order; the sort is *not*
 /// stable.
@@ -77,9 +77,6 @@ pub fn sort(vectors: &mut [column::Vector<'_>], sort_by: &[usize]) -> Result<(),
             log::debug!("columns already sorted");
             return Ok(());
         }
-        // if vectors_sorted_asc(vectors, n, sort_by) {
-        //     return Ok(());
-        // }
     }
     let now = std::time::Instant::now();
     quicksort_by(vectors, 0..n - 1, sort_by);
@@ -136,7 +133,7 @@ fn partition(vectors: &mut [column::Vector<'_>], range: &Range<usize>, sort_by: 
 fn cmp(vectors: &[column::Vector<'_>], a: usize, b: usize, sort_by: &[usize]) -> Ordering {
     for &idx in sort_by {
         match &vectors[idx] {
-            column::Vector::String(p) => {
+            column::Vector::NullString(p) => {
                 let cmp = p.get(a).cmp(&p.get(b));
                 if cmp != Ordering::Equal {
                     return cmp;
@@ -150,7 +147,7 @@ fn cmp(vectors: &[column::Vector<'_>], a: usize, b: usize, sort_by: &[usize]) ->
                 }
                 // if cmp equal then try next vector.
             }
-            _ => continue, // don't compare on non-string / timestamp cols
+            _ => unimplemented!("todo!"), // don't compare on non-string / timestamp cols
         }
     }
     Ordering::Equal
@@ -161,7 +158,7 @@ fn vectors_sorted_asc(vectors: &[column::Vector<'_>], len: usize, sort_by: &[usi
     'row_wise: for i in 1..len {
         for &idx in sort_by {
             match &vectors[idx] {
-                column::Vector::String(vec) => {
+                column::Vector::NullString(vec) => {
                     if vec[i - 1] < vec[i] {
                         continue 'row_wise;
                     } else if vec[i - 1] == vec[i] {
@@ -183,7 +180,7 @@ fn vectors_sorted_asc(vectors: &[column::Vector<'_>], len: usize, sort_by: &[usi
                         return false;
                     }
                 }
-                _ => continue, // don't compare on non-string / timestamp cols
+                _ => unimplemented!("todo!"), // don't compare on non-string / timestamp cols
             }
         }
     }

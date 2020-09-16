@@ -89,29 +89,11 @@ where
     ///
     /// encoded_values should not be called on nullable columns.
     fn encoded_values(&self, row_ids: &[usize]) -> Vec<T::Native> {
-        // assertion here during development to check this isn't called on
-        // encodings that can have null values.
-        assert_eq!(self.arr.null_count(), 0);
-
-        let mut out = Vec::with_capacity(row_ids.len());
-        for &row_id in row_ids {
-            out.push(self.arr.value(row_id));
-        }
-        assert_eq!(out.len(), row_ids.len());
-        out
+        panic!("encoded_values not implemented yet");
     }
 
     fn all_encoded_values(&self) -> Vec<T::Native> {
-        // assertion here during development to check this isn't called on
-        // encodings that can have null values.
-        assert_eq!(self.arr.null_count(), 0);
-
-        let mut out = Vec::with_capacity(self.arr.len());
-        for i in 0..self.arr.len() {
-            out.push(self.arr.value(i));
-        }
-        assert_eq!(out.len(), self.arr.len());
-        out
+        panic!("all_encoded_values not implemented yet");
     }
 
     // TODO(edd): problem here is returning a slice because we need to own the
@@ -304,7 +286,7 @@ where
 
     /// Return the raw encoded values for the provided logical row ids. For Plain
     /// encoding this is just the decoded values.
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<Self::Item> {
+    fn encoded_values(&self, row_ids: &[usize]) -> Vec<T> {
         let mut out = Vec::with_capacity(row_ids.len());
         for chunks in row_ids.chunks_exact(4) {
             out.push(self.values[chunks[3]]);
@@ -324,7 +306,7 @@ where
 
     /// Return all encoded values. For this encoding this is just the decoded
     /// values
-    fn all_encoded_values(&self) -> Vec<Self::Item> {
+    fn all_encoded_values(&self) -> Vec<T> {
         self.values.clone() // TODO(edd):perf probably can return reference to vec.
     }
 
@@ -723,8 +705,8 @@ impl DictionaryRLE {
     ///
     /// TODO(edd): return type is wrong but I'm making it fit
     ///
-    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<i64> {
-        let mut out: Vec<i64> = Vec::with_capacity(row_ids.len());
+    pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<u32> {
+        let mut out = Vec::with_capacity(row_ids.len());
 
         let mut curr_logical_row_id = 0;
 
@@ -746,7 +728,7 @@ impl DictionaryRLE {
             }
 
             // this entry covers the row_id we want.
-            out.push(curr_entry_id as i64);
+            out.push(curr_entry_id as u32);
             curr_logical_row_id += 1;
             curr_entry_rl -= 1;
         }
@@ -757,11 +739,11 @@ impl DictionaryRLE {
 
     // all_encoded_values materialises a vector of all encoded values for the
     // column.
-    pub fn all_encoded_values(&self) -> Vec<i64> {
-        let mut out: Vec<i64> = Vec::with_capacity(self.total as usize);
+    pub fn all_encoded_values(&self) -> Vec<u32> {
+        let mut out = Vec::with_capacity(self.total as usize);
 
         for (idx, rl) in &self.run_lengths {
-            out.extend(iter::repeat(*idx as i64).take(*rl as usize));
+            out.extend(iter::repeat(*idx as u32).take(*rl as usize));
         }
         out
     }
@@ -863,8 +845,8 @@ mod test {
             arr: super::PrimitiveArray::from(vec![Some(2.3), Some(44.56), None]),
         };
 
-        let encoded = col.all_encoded_values();
-        assert_eq!(encoded, vec![Some(2.3), Some(44.56), None]);
+        // let encoded = col.all();
+        // assert_eq!(encoded, vec![Some(2.3), Some(44.56), None]);
 
         let sum = col.sum_by_id_range(0, 1);
         assert_eq!(sum, Some(46.86));
