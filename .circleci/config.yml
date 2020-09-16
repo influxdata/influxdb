@@ -509,15 +509,15 @@ jobs:
       - run:
           name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: sudo apt-get update && sudo apt-get install -y bzr
-      - install_rust_compiler
-      - install_release_tools
-      - run: make protoc # installs protoc
       - run:
           name: import GPG key
           command:  |
             echo -e "$GPG_PRIVATE_KEY" > private.key
             gpg --batch --import private.key
+      - run: sudo apt-get update && sudo apt-get install -y bzr
+      - install_rust_compiler
+      - install_release_tools
+      - run: make protoc # installs protoc
       - run:
           name: "Build release"
           command: make gershon-release
