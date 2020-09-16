@@ -431,8 +431,9 @@ pub fn restore_partitions_from_wal(
                     if id > next_partition_id {
                         next_partition_id = id;
                     }
-                    let p = Partition::new(id, po.name().unwrap().to_string());
-                    partitions.insert(id, p);
+                    partitions
+                        .entry(id)
+                        .or_insert_with(|| Partition::new(id, po.name().unwrap().to_string()));
                 } else if let Some(_ps) = entry.partition_snapshot_started() {
                     todo!("handle partition snapshot");
                 } else if let Some(_pf) = entry.partition_snapshot_finished() {
@@ -492,6 +493,7 @@ impl Database for Db {
             fbb: flatbuffers::FlatBufferBuilder::new_with_capacity(1024),
             entries: vec![],
             row_values: vec![],
+            partitions: BTreeSet::new(),
         });
 
         // TODO: rollback writes to partitions on validation failures
@@ -717,6 +719,10 @@ impl Partition {
         line: &ParsedLine<'_>,
         builder: &mut Option<WalEntryBuilder<'_>>,
     ) -> Result<()> {
+        if let Some(b) = builder.as_mut() {
+            b.ensure_partition_exists(self.id, &self.name);
+        }
+
         let measurement = line.series.measurement.as_str();
         let table_id = self.dict_or_insert(measurement, builder);
         let partition_id = self.id;
@@ -1230,6 +1236,7 @@ struct WalEntryBuilder<'a> {
     fbb: flatbuffers::FlatBufferBuilder<'a>,
     entries: Vec<flatbuffers::WIPOffset<wb::WriteBufferEntry<'a>>>,
     row_values: Vec<flatbuffers::WIPOffset<wb::Value<'a>>>,
+    partitions: BTreeSet<u32>,
 }
 
 impl WalEntryBuilder<'_> {
@@ -1256,7 +1263,14 @@ impl WalEntryBuilder<'_> {
         self.entries.push(entry);
     }
 
+    fn ensure_partition_exists(&mut self, id: u32, name: &str) {
+        if !self.partitions.contains(&id) {
+            self.add_partition_open(id, name);
+        }
+    }
+
     fn add_partition_open(&mut self, id: u32, name: &str) {
+        self.partitions.insert(id);
         let partition_name = self.fbb.create_string(&name);
 
         let partition_open = wb::PartitionOpen::create(
