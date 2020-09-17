@@ -494,12 +494,6 @@ jobs:
       DOCKER_VERSION: 2.0.0-beta
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
-      - run:
-            name: import GPG key
-            command:  |
-              echo -e "$GPG_KEY" > private.key
-              ls -l private.key
-              gpg --batch --import private.key
       - checkout
 
       # Speed up `make nightly` by restoring caches from previous runs.
@@ -524,6 +518,12 @@ jobs:
       - install_rust_compiler
       - install_release_tools
       - run: make protoc # installs protoc
+      - run:
+          name: import GPG key
+          command:  |
+            echo -e "$GPG_KEY" > private.key
+            ls -l private.key
+            gpg --batch --import private.key
       - run:
           name: "Build release"
           command: make gershon-release
