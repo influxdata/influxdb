@@ -23,7 +23,7 @@ func TestHealthHandler(t *testing.T) {
 		{
 			name: "health endpoint returns pass",
 			w:    httptest.NewRecorder(),
-			r:    httptest.NewRequest(http.MethodGet, "/health", nil),
+			r:    httptest.NewRequest(http.MethodGet, "/api/v2/health", nil),
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",

@@ -16,10 +16,10 @@ import (
 const (
 	// MetricsPath exposes the prometheus metrics over /metrics.
 	MetricsPath = "/metrics"
-	// ReadyPath exposes the readiness of the service over /ready.
-	ReadyPath = "/ready"
-	// HealthPath exposes the health of the service over /health.
-	HealthPath = "/health"
+	// ReadyPath exposes the readiness of the service over /api/v2/ready.
+	ReadyPath = "/api/v2/ready"
+	// HealthPath exposes the health of the service over /api/v2/health.
+	HealthPath = "/api/v2/health"
 	// DebugPath exposes /debug/pprof for go debugging.
 	DebugPath = "/debug"
 )

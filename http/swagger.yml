@@ -1934,8 +1934,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /ready:
-    servers:
-      - url: /
     get:
       operationId: GetReady
       tags:
@@ -1957,8 +1955,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /health:
-    servers:
-      - url: /
     get:
       operationId: GetHealth
       tags:
