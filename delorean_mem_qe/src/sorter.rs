@@ -133,7 +133,7 @@ fn partition(vectors: &mut [column::Vector<'_>], range: &Range<usize>, sort_by: 
 fn cmp(vectors: &[column::Vector<'_>], a: usize, b: usize, sort_by: &[usize]) -> Ordering {
     for &idx in sort_by {
         match &vectors[idx] {
-            column::Vector::NullString(p) => {
+            column::Vector::Unsigned32(p) => {
                 let cmp = p.get(a).cmp(&p.get(b));
                 if cmp != Ordering::Equal {
                     return cmp;
@@ -158,27 +158,38 @@ fn vectors_sorted_asc(vectors: &[column::Vector<'_>], len: usize, sort_by: &[usi
     'row_wise: for i in 1..len {
         for &idx in sort_by {
             match &vectors[idx] {
-                column::Vector::NullString(vec) => {
-                    if vec[i - 1] < vec[i] {
-                        continue 'row_wise;
-                    } else if vec[i - 1] == vec[i] {
-                        // try next column
-                        continue;
-                    } else {
-                        // value is > so
-                        return false;
+                column::Vector::Unsigned32(vec) => {
+                    match vec[i - 1].cmp(&vec[i]) {
+                        Ordering::Less => continue 'row_wise,
+                        Ordering::Equal => continue,
+                        Ordering::Greater => return false,
                     }
+                    // if vec[i - 1] < vec[i] {
+                    //     continue 'row_wise;
+                    // } else if vec[i - 1] == vec[i] {
+                    //     // try next column
+                    //     continue;
+                    // } else {
+                    //     // value is > so
+                    //     return false;
+                    // }
                 }
                 column::Vector::Integer(vec) => {
-                    if vec[i - 1] < vec[i] {
-                        continue 'row_wise;
-                    } else if vec[i - 1] == vec[i] {
-                        // try next column
-                        continue;
-                    } else {
-                        // value is > so
-                        return false;
+                    match vec[i - 1].cmp(&vec[i]) {
+                        Ordering::Less => continue 'row_wise,
+                        Ordering::Equal => continue,
+                        Ordering::Greater => return false,
                     }
+
+                    // if vec[i - 1] < vec[i] {
+                    //     continue 'row_wise;
+                    // } else if vec[i - 1] == vec[i] {
+                    //     // try next column
+                    //     continue;
+                    // } else {
+                    //     // value is > so
+                    //     return false;
+                    // }
                 }
                 _ => unimplemented!("todo!"), // don't compare on non-string / timestamp cols
             }

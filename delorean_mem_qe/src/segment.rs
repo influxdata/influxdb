@@ -566,15 +566,25 @@ impl Segment {
         }
         log::debug!("time checking sort {:?}", now.elapsed());
 
+        // let group_itrs = all_columns
+        //     .iter()
+        //     .take(group_columns.len()) // only use grouping columns
+        //     .map(|vector| {
+        //         if let column::Vector::Integer(v) = vector {
+        //             v.iter()
+        //         } else {
+        //             panic!("don't support grouping on non-encoded values");
+        //         }
+        //     })
+        //     .collect::<Vec<_>>();
+
         let group_itrs = all_columns
             .iter()
-            .take(group_columns.len()) // only use grouping columns
-            .map(|vector| {
-                if let column::Vector::Integer(v) = vector {
-                    v.iter()
-                } else {
-                    panic!("don't support grouping on non-encoded values");
-                }
+            .take(group_columns.len())
+            .map(|vector| match vector {
+                column::Vector::Unsigned32(_) => column::VectorIterator::new(vector), // encoded tag columns
+                column::Vector::Integer(_) => column::VectorIterator::new(vector), // encoded (but actually just raw) timestamp column
+                _ => panic!("don't support grouping on non-encoded values or timestamps"),
             })
             .collect::<Vec<_>>();
 
@@ -653,16 +663,25 @@ impl Segment {
             }
         }
 
-        let group_itrs = group_column_encoded_values
+        let mut group_itrs = group_column_encoded_values
             .iter()
-            .map(|vector| {
-                if let column::Vector::Integer(v) = vector {
-                    v.iter()
-                } else {
-                    panic!("don't support grouping on non-encoded values");
-                }
+            .map(|vector| match vector {
+                column::Vector::Unsigned32(_) => column::VectorIterator::new(vector), // encoded tag columns
+                column::Vector::Integer(_) => column::VectorIterator::new(vector), // encoded (but actually just raw) timestamp column
+                _ => panic!("don't support grouping on non-encoded values or timestamps"),
             })
             .collect::<Vec<_>>();
+
+        // let group_itrs = group_column_encoded_values
+        //     .iter()
+        //     .map(|vector| {
+        //         if let column::Vector::Integer(v) = vector {
+        //             v.iter()
+        //         } else {
+        //             panic!("don't support grouping on non-encoded values");
+        //         }
+        //     })
+        //     .collect::<Vec<_>>();
 
         let mut aggregate_cols = Vec::with_capacity(aggregates.len());
         for (column_name, agg_type) in aggregates {
@@ -676,7 +695,7 @@ impl Segment {
     // available and appropriately sorted this method will build a result set of
     // aggregates in a streaming way.
     pub fn stream_grouped_aggregates<'a>(
-        mut group_itrs: Vec<core::slice::Iter<'_, i64>>,
+        mut group_itrs: Vec<column::VectorIterator<'_>>,
         aggregate_cols: Vec<(&String, &AggregateType, impl column::AggregatableByRange)>,
         total_rows: usize,
         window: i64,
@@ -688,11 +707,30 @@ impl Segment {
             .iter_mut()
             .enumerate()
             .map(|(i, itr)| {
+                // if i == group_itrs_len - 1 && window > 0 {
+                //     // time column - apply window function
+                //     return itr.next().unwrap() / window * window;
+                // }
+                // *itr.next().unwrap()
+
                 if i == group_itrs_len - 1 && window > 0 {
                     // time column - apply window function
-                    return itr.next().unwrap() / window * window;
+                    if let Some(column::Value::Scalar(column::Scalar::Integer(v))) = itr.next() {
+                        v / window * window
+                    } else {
+                        unreachable!(
+                            "something broken with grouping! Either processed None or wrong type"
+                        );
+                    }
+                } else if let Some(column::Value::Scalar(column::Scalar::Unsigned32(v))) =
+                    itr.next()
+                {
+                    v as i64
+                } else {
+                    unreachable!(
+                        "something broken with grouping! Either processed None or wrong type"
+                    );
                 }
-                *itr.next().unwrap()
             })
             .collect::<Vec<_>>();
 
@@ -713,12 +751,31 @@ impl Segment {
                 .zip(group_itrs.iter_mut())
                 .enumerate()
             {
+                // let next_v = if i == group_itrs_len - 1 && window > 0 {
+                //     // time column - apply window function
+                //     itr.next().unwrap() / window * window
+                // } else {
+                //     *itr.next().unwrap()
+                // };
                 let next_v = if i == group_itrs_len - 1 && window > 0 {
                     // time column - apply window function
-                    itr.next().unwrap() / window * window
+                    if let Some(column::Value::Scalar(column::Scalar::Integer(v))) = itr.next() {
+                        v / window * window
+                    } else {
+                        unreachable!(
+                            "something broken with grouping! Either processed None or wrong type"
+                        );
+                    }
+                } else if let Some(column::Value::Scalar(column::Scalar::Unsigned32(v))) =
+                    itr.next()
+                {
+                    v as i64
                 } else {
-                    *itr.next().unwrap()
+                    unreachable!(
+                        "something broken with grouping! Either processed None or wrong type"
+                    );
                 };
+
                 if curr_v != &next_v {
                     group_key_changed = true;
                 }

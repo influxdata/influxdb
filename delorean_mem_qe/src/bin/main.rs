@@ -121,10 +121,10 @@ fn build_store(
         match rb {
             Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
             Ok(Some(rb)) => {
-                if i < 364 {
-                    i += 1;
-                    continue;
-                }
+                // if i < 364 {
+                //     i += 1;
+                //     continue;
+                // }
                 let schema = Schema::with_sort_order(
                     rb.schema(),
                     sort_order.iter().map(|s| s.to_string()).collect(),
@@ -134,7 +134,7 @@ fn build_store(
                 let mut segment = Segment::new(rb.num_rows(), schema);
                 convert_record_batch(rb, &mut segment)?;
 
-                println!("{}", &segment);
+                // println!("{}", &segment);
                 store.add_segment(segment);
             }
             Ok(None) => {
@@ -166,30 +166,46 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
                     .as_any()
                     .downcast_ref::<array::Float64Array>()
                     .unwrap();
-
                 let column = Column::from(arr.value_slice(0, rb.num_rows()));
                 segment.add_column(rb.schema().field(i).name(), column);
+
+                // TODO(edd): figure out how to get ownership here without
+                // cloning
+                // let arr: array::Float64Array = arrow::array::PrimitiveArray::from(column.data());
+                // let column = Column::from(arr);
+                // segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Int64 => {
                 if column.null_count() > 0 {
-                    panic!("null times");
+                    panic!("null integers not expected in testing");
                 }
                 let arr = column.as_any().downcast_ref::<array::Int64Array>().unwrap();
-
                 let column = Column::from(arr.value_slice(0, rb.num_rows()));
                 segment.add_column(rb.schema().field(i).name(), column);
+
+                // TODO(edd): figure out how to get ownership here without
+                // cloning
+                // let arr: array::Int64Array = arrow::array::PrimitiveArray::from(column.data());
+                // let column = Column::from(arr);
+                // segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Timestamp(TimeUnit::Microsecond, None) => {
                 if column.null_count() > 0 {
-                    panic!("null times");
+                    panic!("null timestamps not expected in testing");
                 }
                 let arr = column
                     .as_any()
                     .downcast_ref::<array::TimestampMicrosecondArray>()
                     .unwrap();
-
                 let column = Column::from(arr.value_slice(0, rb.num_rows()));
                 segment.add_column(rb.schema().field(i).name(), column);
+
+                // TODO(edd): figure out how to get ownership here without
+                // cloning
+                // let arr: array::TimestampMicrosecondArray =
+                // arrow::array::PrimitiveArray::from(column.data());
+                // let column = Column::from(arr);
+                // segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Utf8 => {
                 let arr = column
@@ -469,9 +485,9 @@ fn time_group_single_with_pred(store: &Store) {
 fn time_group_by_multi_agg_count(store: &Store) {
     let strats = vec![
         GroupingStrategy::HashGroup,
-        // GroupingStrategy::HashGroupConcurrent,
+        GroupingStrategy::HashGroupConcurrent,
         GroupingStrategy::SortGroup,
-        // GroupingStrategy::SortGroupConcurrent,
+        GroupingStrategy::SortGroupConcurrent,
     ];
 
     for strat in &strats {
@@ -520,7 +536,7 @@ fn time_group_by_multi_agg_sorted_count(store: &Store) {
     ];
 
     for strat in &strats {
-        let repeat = 1;
+        let repeat = 10;
         let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
         let mut total_max = 0;
         let segments = store.segments();

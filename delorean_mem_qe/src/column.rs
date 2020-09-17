@@ -1251,17 +1251,36 @@ impl AggregatableByRange for &Column {
     }
 }
 
-// impl From<&[f64]> for Column {
-//     fn from(values: &[f64]) -> Self {
-//         Self::Float(Float::from(values))
-//     }
-// }
+use arrow::array::{Float64Array, Int64Array, TimestampMicrosecondArray};
+impl From<Float64Array> for Column {
+    fn from(arr: arrow::array::Float64Array) -> Self {
+        Self::Float(NumericColumn::from(arr))
+    }
+}
 
-// impl From<&[i64]> for Column {
-//     fn from(values: &[i64]) -> Self {
-//         Self::Integer(Integer::from(values))
-//     }
-// }
+impl From<TimestampMicrosecondArray> for Column {
+    fn from(arr: TimestampMicrosecondArray) -> Self {
+        Self::Integer(NumericColumn::from(arr))
+    }
+}
+
+impl From<Int64Array> for Column {
+    fn from(arr: Int64Array) -> Self {
+        Self::Integer(NumericColumn::from(arr))
+    }
+}
+
+impl From<&[f64]> for Column {
+    fn from(values: &[f64]) -> Self {
+        Self::Float(NumericColumn::from(values))
+    }
+}
+
+impl From<&[i64]> for Column {
+    fn from(values: &[i64]) -> Self {
+        Self::Integer(NumericColumn::from(values))
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct String {
@@ -1580,6 +1599,150 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Meta: {}, Data: {}", self.meta, self.data)
+    }
+}
+
+use arrow::array::Array;
+impl From<arrow::array::Float64Array> for NumericColumn<f64> {
+    fn from(arr: arrow::array::Float64Array) -> Self {
+        let len = arr.len();
+        let mut range: Option<(f64, f64)> = None;
+
+        // calculate min/max for meta data
+        // TODO(edd): can use compute kernels for this.
+        for i in 0..arr.len() {
+            if arr.is_null(i) {
+                continue;
+            }
+
+            let v = arr.value(i);
+            match range {
+                Some(mut range) => {
+                    range.0 = range.0.min(v);
+                    range.1 = range.1.max(v);
+                }
+                None => {
+                    range = Some((v, v));
+                }
+            }
+        }
+
+        Self {
+            meta: metadata::Metadata::new(range, len),
+            data: Box::new(encoding::PlainArrow::new(arr)),
+        }
+    }
+}
+
+impl From<arrow::array::Int64Array> for NumericColumn<i64> {
+    fn from(arr: arrow::array::Int64Array) -> Self {
+        let len = arr.len();
+        let mut range: Option<(i64, i64)> = None;
+
+        // calculate min/max for meta data
+        // TODO(edd): can use compute kernels for this.
+        for i in 0..arr.len() {
+            if arr.is_null(i) {
+                continue;
+            }
+
+            let v = arr.value(i);
+            match range {
+                Some(mut range) => {
+                    range.0 = range.0.min(v);
+                    range.1 = range.1.max(v);
+                }
+                None => {
+                    range = Some((v, v));
+                }
+            }
+        }
+
+        Self {
+            meta: metadata::Metadata::new(range, len),
+            data: Box::new(encoding::PlainArrow::new(arr)),
+        }
+    }
+}
+
+impl From<arrow::array::TimestampMicrosecondArray> for NumericColumn<i64> {
+    fn from(arr: arrow::array::TimestampMicrosecondArray) -> Self {
+        let len = arr.len();
+        let mut range: Option<(i64, i64)> = None;
+
+        // calculate min/max for meta data
+        // TODO(edd): can use compute kernels for this.
+        for i in 0..arr.len() {
+            if arr.is_null(i) {
+                continue;
+            }
+
+            let v = arr.value(i);
+            match range {
+                Some(mut range) => {
+                    range.0 = range.0.min(v);
+                    range.1 = range.1.max(v);
+                }
+                None => {
+                    range = Some((v, v));
+                }
+            }
+        }
+
+        Self {
+            meta: metadata::Metadata::new(range, len),
+            data: Box::new(encoding::PlainArrow::new(arr)),
+        }
+    }
+}
+
+impl From<&[f64]> for NumericColumn<f64> {
+    fn from(values: &[f64]) -> Self {
+        let len = values.len();
+        let mut range: Option<(f64, f64)> = None;
+
+        // calculate min/max for meta data
+        for &v in values {
+            match range {
+                Some(mut range) => {
+                    range.0 = range.0.min(v);
+                    range.1 = range.1.max(v);
+                }
+                None => {
+                    range = Some((v, v));
+                }
+            }
+        }
+
+        Self {
+            meta: metadata::Metadata::new(range, len),
+            data: Box::new(encoding::PlainFixed::from(values)),
+        }
+    }
+}
+
+impl From<&[i64]> for NumericColumn<i64> {
+    fn from(values: &[i64]) -> Self {
+        let len = values.len();
+        let mut range: Option<(i64, i64)> = None;
+
+        // calculate min/max for meta data
+        for &v in values {
+            match range {
+                Some(mut range) => {
+                    range.0 = range.0.min(v);
+                    range.1 = range.1.max(v);
+                }
+                None => {
+                    range = Some((v, v));
+                }
+            }
+        }
+
+        Self {
+            meta: metadata::Metadata::new(range, len),
+            data: Box::new(encoding::PlainFixed::from(values)),
+        }
     }
 }
 

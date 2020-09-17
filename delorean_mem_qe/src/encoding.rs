@@ -48,6 +48,21 @@ where
     arr: PrimitiveArray<T>,
 }
 
+impl<T> PlainArrow<T>
+where
+    T: ArrowNumericType + std::fmt::Debug,
+    T::Native: Default
+        + PartialEq
+        + PartialOrd
+        + Copy
+        + std::fmt::Debug
+        + std::ops::Add<Output = T::Native>,
+{
+    pub fn new(arr: PrimitiveArray<T>) -> Self {
+        Self { arr }
+    }
+}
+
 impl<T> NumericEncoding for PlainArrow<T>
 where
     T: ArrowNumericType + std::fmt::Debug,
