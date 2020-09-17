@@ -522,7 +522,6 @@ jobs:
           name: import GPG key
           command:  |
             echo -e "$GPG_KEY" > private.key
-            ls -l private.key
             gpg --batch --import private.key
       - run:
           name: "Build release"
