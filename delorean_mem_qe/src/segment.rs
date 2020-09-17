@@ -229,8 +229,7 @@ impl Segment {
         group_columns: &[String],
         aggregates: &'a [(String, AggregateType)],
         window: i64,
-    ) -> BTreeMap<Vec<i64>, Vec<(&'a String, &'a AggregateType, Option<column::Aggregate<'a>>)>>
-    {
+    ) -> BTreeMap<Vec<i64>, Vec<(&'a String, &'a AggregateType, column::Aggregate<'a>)>> {
         // Build a hash table - essentially, scan columns for matching row ids,
         // emitting the encoded value for each column and track those value
         // combinations in a hashmap with running aggregates.
@@ -497,6 +496,7 @@ impl Segment {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
+        log::debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
 
         // materialise all encoded values for the matching rows in the columns
         // we are grouping on and store each group as an iterator.
@@ -557,14 +557,12 @@ impl Segment {
         }
 
         let now = std::time::Instant::now();
-        if self.group_key_sorted(group_columns) {
-            panic!("This shouldn't be called!!!");
-        } else {
-            // now sort on the first grouping columns. Right now the order doesn't matter...
-            let group_col_sort_order = &(0..group_columns.len()).collect::<Vec<_>>();
-            super::sorter::sort(&mut all_columns, group_col_sort_order).unwrap();
-        }
+        assert!(!self.group_key_sorted(group_columns)); // should always need a sort if in this method
         log::debug!("time checking sort {:?}", now.elapsed());
+
+        // now sort on the first grouping columns. Right now the order doesn't matter...
+        let group_col_sort_order = &(0..group_columns.len()).collect::<Vec<_>>();
+        super::sorter::sort(&mut all_columns, group_col_sort_order).unwrap();
 
         // let group_itrs = all_columns
         //     .iter()
@@ -582,7 +580,9 @@ impl Segment {
             .iter()
             .take(group_columns.len())
             .map(|vector| match vector {
-                column::Vector::Unsigned32(_) => column::VectorIterator::new(vector), // encoded tag columns
+                column::Vector::Unsigned32(_) => {
+                    column::VectorIterator::new(vector) // encoded tag columns
+                }
                 column::Vector::Integer(_) => column::VectorIterator::new(vector), // encoded (but actually just raw) timestamp column
                 _ => panic!("don't support grouping on non-encoded values or timestamps"),
             })
@@ -641,6 +641,7 @@ impl Segment {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
+        log::debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
 
         // materialise all encoded values for the matching rows in the columns
         // we are grouping on and store each group as an iterator.
@@ -663,7 +664,7 @@ impl Segment {
             }
         }
 
-        let mut group_itrs = group_column_encoded_values
+        let group_itrs = group_column_encoded_values
             .iter()
             .map(|vector| match vector {
                 column::Vector::Unsigned32(_) => column::VectorIterator::new(vector), // encoded tag columns

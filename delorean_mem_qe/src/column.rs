@@ -393,20 +393,41 @@ impl<'a> Vector<'a> {
     fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> u64 {
         match self {
             Self::NullString(vec) => {
-                let count = vec.iter().filter(|x| x.is_some()).count();
+                let mut count = 0;
+                for v in &vec[from_row_id..to_row_id] {
+                    if v.is_some() {
+                        count += 1;
+                    }
+                }
                 count as u64
             }
             Self::NullFloat(vec) => {
-                let count = vec.iter().filter(|x| x.is_some()).count();
+                let mut count = 0;
+                for v in &vec[from_row_id..to_row_id] {
+                    if v.is_some() {
+                        count += 1;
+                    }
+                }
                 count as u64
             }
             Self::NullInteger(vec) => {
-                let count = vec.iter().filter(|x| x.is_some()).count();
+                let mut count = 0;
+                for v in &vec[from_row_id..to_row_id] {
+                    if v.is_some() {
+                        count += 1;
+                    }
+                }
                 count as u64
             }
-            Self::Float(vec) => (to_row_id - from_row_id) as u64, // fast - no possible NULL values
-            Self::Integer(vec) => (to_row_id - from_row_id) as u64, // fast - no possible NULL values
-            Self::Unsigned32(vec) => (to_row_id - from_row_id) as u64, // fast - no possible NULL values
+            Self::Float(_) => {
+                (to_row_id - from_row_id) as u64 // fast - no possible NULL values
+            }
+            Self::Integer(_) => {
+                (to_row_id - from_row_id) as u64 // fast - no possible NULL values
+            }
+            Self::Unsigned32(_) => {
+                (to_row_id - from_row_id) as u64 // fast - no possible NULL values
+            }
         }
     }
 
@@ -705,6 +726,13 @@ impl Column {
 
     /// Materialise all of the decoded values matching the provided logical
     /// row ids.
+    //
+    // FIXME(edd): we need to provide an API on an encoding to return raw_values
+    // so that we can return non-null vectors when we know the underlying encoding
+    // doesn't contain any null values. Right now we return nullable vectors, w
+    // which take up more memory and mean we can't do fast counts (since we need
+    // to check each value is non-null).
+    //
     pub fn values(&self, row_ids: &[usize]) -> Vector<'_> {
         match self {
             Column::String(c) => {
@@ -1227,13 +1255,13 @@ impl std::fmt::Display for Column {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
             Column::String(c) => {
-                write!(f, "{}", c)?;
+                write!(f, "[String Column]: {}", c)?;
             }
             Column::Float(c) => {
-                write!(f, "{}", c)?;
+                write!(f, "[Float Column]:{}", c)?;
             }
             Column::Integer(c) => {
-                write!(f, "{}", c)?;
+                write!(f, "[Integer Column]: {}", c)?;
             }
         }
         Ok(())
@@ -1617,7 +1645,7 @@ impl From<arrow::array::Float64Array> for NumericColumn<f64> {
 
             let v = arr.value(i);
             match range {
-                Some(mut range) => {
+                Some(ref mut range) => {
                     range.0 = range.0.min(v);
                     range.1 = range.1.max(v);
                 }
@@ -1648,7 +1676,7 @@ impl From<arrow::array::Int64Array> for NumericColumn<i64> {
 
             let v = arr.value(i);
             match range {
-                Some(mut range) => {
+                Some(ref mut range) => {
                     range.0 = range.0.min(v);
                     range.1 = range.1.max(v);
                 }
@@ -1679,7 +1707,7 @@ impl From<arrow::array::TimestampMicrosecondArray> for NumericColumn<i64> {
 
             let v = arr.value(i);
             match range {
-                Some(mut range) => {
+                Some(ref mut range) => {
                     range.0 = range.0.min(v);
                     range.1 = range.1.max(v);
                 }
@@ -1704,7 +1732,10 @@ impl From<&[f64]> for NumericColumn<f64> {
         // calculate min/max for meta data
         for &v in values {
             match range {
-                Some(mut range) => {
+                // wow this ref totally confused me for a while. Without it
+                // the code will compile fine but the range option will never
+                // reflect changes because the tuple range will be a copy.
+                Some(ref mut range) => {
                     range.0 = range.0.min(v);
                     range.1 = range.1.max(v);
                 }
@@ -1729,7 +1760,7 @@ impl From<&[i64]> for NumericColumn<i64> {
         // calculate min/max for meta data
         for &v in values {
             match range {
-                Some(mut range) => {
+                Some(ref mut range) => {
                     range.0 = range.0.min(v);
                     range.1 = range.1.max(v);
                 }

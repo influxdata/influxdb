@@ -63,14 +63,14 @@ fn main() {
     );
     let store = Arc::new(store);
 
-    time_select_with_pred(&store);
-    time_datafusion_select_with_pred(store.clone());
-    time_first_host(&store);
-    time_sum_range(&store);
-    time_count_range(&store);
-    time_group_single_with_pred(&store);
-    time_group_by_multi_agg_count(&store);
-    time_group_by_multi_agg_sorted_count(&store);
+    // time_select_with_pred(&store);
+    // time_datafusion_select_with_pred(store.clone());
+    // time_first_host(&store);
+    // time_sum_range(&store);
+    // time_count_range(&store);
+    // time_group_single_with_pred(&store);
+    // time_group_by_multi_agg_count(&store);
+    // time_group_by_multi_agg_sorted_count(&store);
     time_window_agg_count(&store);
     // time_group_by_different_columns(&store);
 }
@@ -121,10 +121,10 @@ fn build_store(
         match rb {
             Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
             Ok(Some(rb)) => {
-                // if i < 364 {
-                //     i += 1;
-                //     continue;
-                // }
+                if i < 364 {
+                    i += 1;
+                    continue;
+                }
                 let schema = Schema::with_sort_order(
                     rb.schema(),
                     sort_order.iter().map(|s| s.to_string()).collect(),
@@ -134,7 +134,7 @@ fn build_store(
                 let mut segment = Segment::new(rb.num_rows(), schema);
                 convert_record_batch(rb, &mut segment)?;
 
-                // println!("{}", &segment);
+                log::debug!("{}", &segment);
                 store.add_segment(segment);
             }
             Ok(None) => {
@@ -499,7 +499,7 @@ fn time_group_by_multi_agg_count(store: &Store) {
             let now = std::time::Instant::now();
 
             let groups = segments.read_group_eq(
-                (1589000000000001, 1590044410000000),
+                (1589000000000001, 1590044410000001),
                 &[],
                 vec!["status".to_string(), "method".to_string()],
                 vec![("counter".to_string(), AggregateType::Count)],
@@ -575,7 +575,7 @@ fn time_window_agg_count(store: &Store) {
     ];
 
     for strat in &strats {
-        let repeat = 1;
+        let repeat = 10;
         let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
         let mut total_max = 0;
         let segments = store.segments();

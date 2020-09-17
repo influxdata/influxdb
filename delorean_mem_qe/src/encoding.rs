@@ -217,7 +217,13 @@ where
         + std::ops::Add<Output = T::Native>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[PlainArrow<T>] size: {}", self.size())
+        write!(
+            f,
+            "[PlainArrow<T>] rows: {:?}, nulls: {:?}, size: {}",
+            self.arr.len(),
+            self.arr.null_count(),
+            self.size()
+        )
     }
 }
 
@@ -245,7 +251,12 @@ where
         + std::ops::AddAssign,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[PlainFixed<T>] size: {}", self.size(),)
+        write!(
+            f,
+            "[PlainFixed<T>] rows: {:?}, size: {}",
+            self.values.len(),
+            self.size()
+        )
     }
 }
 
@@ -481,6 +492,7 @@ pub struct DictionaryRLE {
     // of times the entry repeats.
     run_lengths: Vec<(usize, u64)>,
 
+    nulls: u64,
     total: u64,
 }
 
@@ -492,6 +504,7 @@ impl DictionaryRLE {
             index_entry: BTreeMap::new(),
             map_size: 0,
             run_lengths: Vec::new(),
+            nulls: 0,
             total: 0,
         }
     }
@@ -503,6 +516,7 @@ impl DictionaryRLE {
             index_entry: BTreeMap::new(),
             map_size: 0,
             run_lengths: Vec::new(),
+            nulls: 0,
             total: 0,
         };
 
@@ -514,7 +528,7 @@ impl DictionaryRLE {
                 .index_row_ids
                 .insert(next_idx as u32, croaring::Bitmap::create());
 
-            _self.run_lengths.push((next_idx, 0)); // could this cause a bug?ta
+            _self.run_lengths.push((next_idx, 0)); // could this cause a bug?
         }
         _self
     }
@@ -568,6 +582,9 @@ impl DictionaryRLE {
             }
         }
         self.total += additional;
+        if v.is_none() {
+            self.nulls += additional;
+        }
     }
 
     // row_ids returns an iterator over the set of row ids matching the provided
@@ -817,7 +834,9 @@ impl std::fmt::Display for DictionaryRLE {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[DictionaryRLE] size: {}, dict entries: {}, runs: {} ",
+            "[DictionaryRLE] rows: {:?} nulls: {:?}, size: {}, dict entries: {}, runs: {} ",
+            self.total,
+            self.nulls,
             self.size(),
             self.index_entry.len(),
             self.run_lengths.len()
