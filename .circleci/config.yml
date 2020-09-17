@@ -494,7 +494,7 @@ jobs:
       DOCKER_VERSION: 2.0.0-beta
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
-      - - run:
+      - run:
             name: import GPG key
             command:  |
               echo -e "$GPG_KEY" > private.key
