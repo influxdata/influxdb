@@ -89,7 +89,7 @@ const (
 	LogTracing = "log"
 	// JaegerTracing enables tracing via the Jaeger client library
 	JaegerTracing = "jaeger"
-	MaxInt = 1<<uint(strconv.IntSize-1) - 1
+	MaxInt        = 1<<uint(strconv.IntSize-1) - 1
 )
 
 // Launcher represents the main program execution.
