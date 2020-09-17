@@ -1577,6 +1577,14 @@ mod tests {
         Ok(())
     }
 
+    // Abstract a bit of boilerplate around table assertions and improve the failure output.
+    // The default failure message uses Debug formatting, which prints newlines as `\n`.
+    // This prints the pretty_format_batches using Display so it's easier to read the tables.
+    fn assert_table_eq(table: &str, partitions: &[arrow::record_batch::RecordBatch]) {
+        let res = pretty_format_batches(partitions).unwrap();
+        assert_eq!(table, res, "\n\nleft:\n\n{}\nright:\n\n{}", table, res);
+    }
+
     #[tokio::test(threaded_scheduler)]
     async fn list_table_names() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
@@ -1682,14 +1690,13 @@ mod tests {
             db.write_lines(&lines).await?;
 
             let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_cpu_table, res);
+            assert_table_eq(expected_cpu_table, &partitions);
+
             let partitions = db.table_to_arrow("mem", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_mem_table, res);
+            assert_table_eq(expected_mem_table, &partitions);
+
             let partitions = db.table_to_arrow("disk", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_disk_table, res);
+            assert_table_eq(expected_disk_table, &partitions);
         }
 
         // check that it recovers from the wal
@@ -1697,14 +1704,13 @@ mod tests {
             let db = Db::restore_from_wal(dir).await?;
 
             let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_cpu_table, res);
+            assert_table_eq(expected_cpu_table, &partitions);
+
             let partitions = db.table_to_arrow("mem", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_mem_table, res);
+            assert_table_eq(expected_mem_table, &partitions);
+
             let partitions = db.table_to_arrow("disk", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_disk_table, res);
+            assert_table_eq(expected_disk_table, &partitions);
         }
 
         Ok(())
@@ -1754,14 +1760,13 @@ mod tests {
             db.write_lines(&lines).await?;
 
             let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_cpu_table, res);
+            assert_table_eq(expected_cpu_table, &partitions);
+
             let partitions = db.table_to_arrow("mem", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_mem_table, res);
+            assert_table_eq(expected_mem_table, &partitions);
+
             let partitions = db.table_to_arrow("disk", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_disk_table, res);
+            assert_table_eq(expected_disk_table, &partitions);
         }
 
         // check that it can recover from the last 2 self-describing entries of the wal
@@ -1795,18 +1800,15 @@ mod tests {
 +------+------+-------+-------------+-------+------+---------+-----------+
 "#;
             let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(smaller_cpu_table, res);
+            assert_table_eq(smaller_cpu_table, &partitions);
 
             // all of mem
             let partitions = db.table_to_arrow("mem", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_mem_table, res);
+            assert_table_eq(expected_mem_table, &partitions);
 
             // no disk
             let partitions = db.table_to_arrow("disk", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!("", res);
+            assert_table_eq("", &partitions);
         }
 
         Ok(())
