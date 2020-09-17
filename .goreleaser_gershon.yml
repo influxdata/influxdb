@@ -3,14 +3,13 @@ builds:
   - id: influx
     goos:
       - linux
-   #   - darwin
+      - darwin
     goarch:
-   #   - amd64
-   #   - arm64
+      - amd64
+      - arm64
       - arm
     goarm:
       - 6
-   #   - 6
 
     main: ./cmd/influx/
     flags:
@@ -28,14 +27,13 @@ builds:
   - id: influxd
     goos:
       - linux
-   #   - darwin
+      - darwin
     goarch:
-   #   - amd64
-   #   - arm64
+      - amd64
+      - arm64
       - arm
     goarm:
       - 6
-   #   - 6
 
     main: ./cmd/influxd/
     flags:
