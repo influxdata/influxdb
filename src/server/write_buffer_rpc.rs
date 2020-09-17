@@ -288,7 +288,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use delorean::{id::Id, storage::test_fixtures::TestDatabaseStore};
+    use delorean::id::Id;
+    use delorean::test::storage::TestDatabaseStore;
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},

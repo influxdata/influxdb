@@ -1,3 +1,4 @@
+//! Entrypoint of delorean binary
 #![deny(rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,

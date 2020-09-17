@@ -343,12 +343,14 @@ mod tests {
     use super::*;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-    use delorean::storage::{test_fixtures::TestDatabaseStore, DatabaseStore};
     use http::header;
     use reqwest::{Client, Response};
 
     use hyper::service::{make_service_fn, service_fn};
     use hyper::Server;
+
+    use delorean::storage::DatabaseStore;
+    use delorean::test::storage::TestDatabaseStore;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;

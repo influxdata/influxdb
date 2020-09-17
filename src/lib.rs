@@ -1,3 +1,4 @@
+//! Entrypoint of delorean when used as a library (e.g. 'use delorean::...')
 #![deny(rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
@@ -33,3 +34,15 @@ impl error::Error for Error {
         None
     }
 }
+
+// Note: I would like to compile this module only in the 'test' cfg,
+// but when I do so then other modules can not find them. For example:
+//
+// error[E0433]: failed to resolve: could not find `test` in `delorean`
+//   --> src/server/write_buffer_routes.rs:353:19
+//     |
+// 353 |     use delorean::test::storage::TestDatabaseStore;
+//     |                   ^^^^ could not find `test` in `delorean`
+//
+//#[cfg(test)]
+pub mod test;
