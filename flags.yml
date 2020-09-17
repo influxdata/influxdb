@@ -83,6 +83,13 @@
   contact: Query Team
   lifetime: temporary
 
+- name: Query Tracing
+  description: Turn on query tracing for queries that are sampled
+  key: queryTracing
+  default: false
+  contact: Query Team
+  lifetime: permanent
+
 - name: Simple Task Options Extraction
   description: Simplified task options extraction to avoid undefined functions when saving tasks
   key: simpleTaskOptionsExtraction
@@ -130,6 +137,12 @@
 - name: Org Only Member list
   description: Enforce only org members have access to view members of org related resorces
   key: orgOnlyMemberList
+  default: false
+  contact: Compute Team
+
+- name: Inject Latest Success Time
+  description: Inject the latest successful task run timestamp into a Task query extern when executing.
+  key: injectLatestSuccessTime
   default: false
   contact: Compute Team
 

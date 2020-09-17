@@ -9,8 +9,8 @@ import (
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/query"
@@ -20,6 +20,7 @@ import (
 func init() {
 	execute.RegisterSource(ReadRangePhysKind, createReadFilterSource)
 	execute.RegisterSource(ReadGroupPhysKind, createReadGroupSource)
+	execute.RegisterSource(ReadWindowAggregatePhysKind, createReadWindowAggregateSource)
 	execute.RegisterSource(ReadTagKeysPhysKind, createReadTagKeysSource)
 	execute.RegisterSource(ReadTagValuesPhysKind, createReadTagValuesSource)
 }
@@ -46,7 +47,7 @@ func (s *Source) Run(ctx context.Context) {
 	labelValues := s.m.getLabelValues(ctx, s.orgID, s.op)
 	start := time.Now()
 	var err error
-	if flux.IsExperimentalTracingEnabled() {
+	if flux.IsExperimentalTracingEnabled(ctx) {
 		span, ctxWithSpan := tracing.StartSpanFromContextWithOperationName(ctx, "source-"+s.op)
 		err = s.runner.run(ctxWithSpan)
 		span.Finish()
@@ -63,14 +64,14 @@ func (s *Source) AddTransformation(t execute.Transformation) {
 	s.ts = append(s.ts, t)
 }
 
-func (s *Source) Metadata() flux.Metadata {
-	return flux.Metadata{
+func (s *Source) Metadata() metadata.Metadata {
+	return metadata.Metadata{
 		"influxdb/scanned-bytes":  []interface{}{s.stats.ScannedBytes},
 		"influxdb/scanned-values": []interface{}{s.stats.ScannedValues},
 	}
 }
 
-func (s *Source) processTables(ctx context.Context, tables TableIterator, watermark execute.Time) error {
+func (s *Source) processTables(ctx context.Context, tables query.TableIterator, watermark execute.Time) error {
 	err := tables.Do(func(tbl flux.Table) error {
 		return s.processTable(ctx, tbl)
 	})
@@ -117,11 +118,11 @@ func (s *Source) processTable(ctx context.Context, tbl flux.Table) error {
 
 type readFilterSource struct {
 	Source
-	reader   Reader
-	readSpec ReadFilterSpec
+	reader   query.StorageReader
+	readSpec query.ReadFilterSpec
 }
 
-func ReadFilterSource(id execute.DatasetID, r Reader, readSpec ReadFilterSpec, a execute.Administration) execute.Source {
+func ReadFilterSource(id execute.DatasetID, r query.StorageReader, readSpec query.ReadFilterSpec, a execute.Administration) execute.Source {
 	src := new(readFilterSource)
 
 	src.id = id
@@ -181,18 +182,14 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 		return nil, err
 	}
 
-	var filter *semantic.FunctionExpression
-	if spec.FilterSet {
-		filter = spec.Filter
-	}
 	return ReadFilterSource(
 		id,
 		deps.Reader,
-		ReadFilterSpec{
+		query.ReadFilterSpec{
 			OrganizationID: orgID,
 			BucketID:       bucketID,
 			Bounds:         *bounds,
-			Predicate:      filter,
+			Predicate:      spec.Filter,
 		},
 		a,
 	), nil
@@ -200,11 +197,11 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 
 type readGroupSource struct {
 	Source
-	reader   Reader
-	readSpec ReadGroupSpec
+	reader   query.StorageReader
+	readSpec query.ReadGroupSpec
 }
 
-func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, a execute.Administration) execute.Source {
+func ReadGroupSource(id execute.DatasetID, r query.StorageReader, readSpec query.ReadGroupSpec, a execute.Administration) execute.Source {
 	src := new(readGroupSource)
 
 	src.id = id
@@ -215,7 +212,7 @@ func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, a e
 
 	src.m = GetStorageDependencies(a.Context()).FromDeps.Metrics
 	src.orgID = readSpec.OrganizationID
-	src.op = "readGroup"
+	src.op = readSpec.Name()
 
 	src.runner = src
 	return src
@@ -258,23 +255,106 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 		return nil, err
 	}
 
-	var filter *semantic.FunctionExpression
-	if spec.FilterSet {
-		filter = spec.Filter
-	}
 	return ReadGroupSource(
 		id,
 		deps.Reader,
-		ReadGroupSpec{
-			ReadFilterSpec: ReadFilterSpec{
+		query.ReadGroupSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
 				OrganizationID: orgID,
 				BucketID:       bucketID,
 				Bounds:         *bounds,
-				Predicate:      filter,
+				Predicate:      spec.Filter,
 			},
-			GroupMode:       ToGroupMode(spec.GroupMode),
+			GroupMode:       query.ToGroupMode(spec.GroupMode),
 			GroupKeys:       spec.GroupKeys,
 			AggregateMethod: spec.AggregateMethod,
+		},
+		a,
+	), nil
+}
+
+type readWindowAggregateSource struct {
+	Source
+	reader   query.WindowAggregateReader
+	readSpec query.ReadWindowAggregateSpec
+}
+
+func ReadWindowAggregateSource(id execute.DatasetID, r query.WindowAggregateReader, readSpec query.ReadWindowAggregateSpec, a execute.Administration) execute.Source {
+	src := new(readWindowAggregateSource)
+
+	src.id = id
+	src.alloc = a.Allocator()
+
+	src.reader = r
+	src.readSpec = readSpec
+
+	src.m = GetStorageDependencies(a.Context()).FromDeps.Metrics
+	src.orgID = readSpec.OrganizationID
+	src.op = readSpec.Name()
+
+	src.runner = src
+	return src
+}
+
+func (s *readWindowAggregateSource) run(ctx context.Context) error {
+	stop := s.readSpec.Bounds.Stop
+	tables, err := s.reader.ReadWindowAggregate(
+		ctx,
+		s.readSpec,
+		s.alloc,
+	)
+	if err != nil {
+		return err
+	}
+	return s.processTables(ctx, tables, stop)
+}
+
+func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+	span, ctx := tracing.StartSpanFromContext(a.Context())
+	defer span.Finish()
+
+	spec := s.(*ReadWindowAggregatePhysSpec)
+
+	bounds := a.StreamContext().Bounds()
+	if bounds == nil {
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  "nil bounds passed to from",
+		}
+	}
+
+	deps := GetStorageDependencies(a.Context()).FromDeps
+	reader := deps.Reader.(query.WindowAggregateReader)
+
+	req := query.RequestFromContext(a.Context())
+	if req == nil {
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  "missing request on context",
+		}
+	}
+
+	orgID := req.OrganizationID
+	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
+	if err != nil {
+		return nil, err
+	}
+
+	return ReadWindowAggregateSource(
+		id,
+		reader,
+		query.ReadWindowAggregateSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
+				OrganizationID: orgID,
+				BucketID:       bucketID,
+				Bounds:         *bounds,
+				Predicate:      spec.Filter,
+			},
+			WindowEvery: spec.WindowEvery,
+			Offset:      spec.Offset,
+			Aggregates:  spec.Aggregates,
+			CreateEmpty: spec.CreateEmpty,
+			TimeColumn:  spec.TimeColumn,
 		},
 		a,
 	), nil
@@ -297,21 +377,16 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, 
 		return nil, err
 	}
 
-	var filter *semantic.FunctionExpression
-	if spec.FilterSet {
-		filter = spec.Filter
-	}
-
 	bounds := a.StreamContext().Bounds()
 	return ReadTagKeysSource(
 		dsid,
 		deps.Reader,
-		ReadTagKeysSpec{
-			ReadFilterSpec: ReadFilterSpec{
+		query.ReadTagKeysSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
 				OrganizationID: orgID,
 				BucketID:       bucketID,
 				Bounds:         *bounds,
-				Predicate:      filter,
+				Predicate:      spec.Filter,
 			},
 		},
 		a,
@@ -321,11 +396,11 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, 
 type readTagKeysSource struct {
 	Source
 
-	reader   Reader
-	readSpec ReadTagKeysSpec
+	reader   query.StorageReader
+	readSpec query.ReadTagKeysSpec
 }
 
-func ReadTagKeysSource(id execute.DatasetID, r Reader, readSpec ReadTagKeysSpec, a execute.Administration) execute.Source {
+func ReadTagKeysSource(id execute.DatasetID, r query.StorageReader, readSpec query.ReadTagKeysSpec, a execute.Administration) execute.Source {
 	src := &readTagKeysSource{
 		reader:   r,
 		readSpec: readSpec,
@@ -366,21 +441,16 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
 		return nil, err
 	}
 
-	var filter *semantic.FunctionExpression
-	if spec.FilterSet {
-		filter = spec.Filter
-	}
-
 	bounds := a.StreamContext().Bounds()
 	return ReadTagValuesSource(
 		dsid,
 		deps.Reader,
-		ReadTagValuesSpec{
-			ReadFilterSpec: ReadFilterSpec{
+		query.ReadTagValuesSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
 				OrganizationID: orgID,
 				BucketID:       bucketID,
 				Bounds:         *bounds,
-				Predicate:      filter,
+				Predicate:      spec.Filter,
 			},
 			TagKey: spec.TagKey,
 		},
@@ -391,11 +461,11 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
 type readTagValuesSource struct {
 	Source
 
-	reader   Reader
-	readSpec ReadTagValuesSpec
+	reader   query.StorageReader
+	readSpec query.ReadTagValuesSpec
 }
 
-func ReadTagValuesSource(id execute.DatasetID, r Reader, readSpec ReadTagValuesSpec, a execute.Administration) execute.Source {
+func ReadTagValuesSource(id execute.DatasetID, r query.StorageReader, readSpec query.ReadTagValuesSpec, a execute.Administration) execute.Source {
 	src := &readTagValuesSource{
 		reader:   r,
 		readSpec: readSpec,

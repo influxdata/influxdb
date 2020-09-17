@@ -142,6 +142,20 @@ func MemoryOptimizedSchemaMutation() BoolFlag {
 	return memoryOptimizedSchemaMutation
 }
 
+var queryTracing = MakeBoolFlag(
+	"Query Tracing",
+	"queryTracing",
+	"Query Team",
+	false,
+	Permanent,
+	false,
+)
+
+// QueryTracing - Turn on query tracing for queries that are sampled
+func QueryTracing() BoolFlag {
+	return queryTracing
+}
+
 var simpleTaskOptionsExtraction = MakeBoolFlag(
 	"Simple Task Options Extraction",
 	"simpleTaskOptionsExtraction",
@@ -240,6 +254,20 @@ func OrgOnlyMemberList() BoolFlag {
 	return orgOnlyMemberList
 }
 
+var injectLatestSuccessTime = MakeBoolFlag(
+	"Inject Latest Success Time",
+	"injectLatestSuccessTime",
+	"Compute Team",
+	false,
+	Temporary,
+	false,
+)
+
+// InjectLatestSuccessTime - Inject the latest successful task run timestamp into a Task query extern when executing.
+func InjectLatestSuccessTime() BoolFlag {
+	return injectLatestSuccessTime
+}
+
 var enforceOrgDashboardLimits = MakeBoolFlag(
 	"Enforce Organization Dashboard Limits",
 	"enforceOrgDashboardLimits",
@@ -265,6 +293,7 @@ var all = []Flag{
 	newLabels,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
+	queryTracing,
 	simpleTaskOptionsExtraction,
 	mergeFiltersRule,
 	bandPlotType,
@@ -272,6 +301,7 @@ var all = []Flag{
 	notebooks,
 	pushDownGroupAggregateMinMax,
 	orgOnlyMemberList,
+	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
 }
 
@@ -286,6 +316,7 @@ var byKey = map[string]Flag{
 	"newLabels":                     newLabels,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
+	"queryTracing":                  queryTracing,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"mergeFiltersRule":              mergeFiltersRule,
 	"bandPlotType":                  bandPlotType,
@@ -293,5 +324,6 @@ var byKey = map[string]Flag{
 	"notebooks":                     notebooks,
 	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
 	"orgOnlyMemberList":             orgOnlyMemberList,
+	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 }
