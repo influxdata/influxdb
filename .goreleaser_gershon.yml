@@ -3,13 +3,13 @@ builds:
   - id: influx
     goos:
       - linux
-      - darwin
+   #   - darwin
     goarch:
-      - amd64
-      - arm64
-   #   - arm
-   # goarm:
-   #  - 5
+   #   - amd64
+   #   - arm64
+      - arm
+    goarm:
+      - 5
    #   - 6
 
     main: ./cmd/influx/
@@ -28,13 +28,13 @@ builds:
   - id: influxd
     goos:
       - linux
-      - darwin
+   #   - darwin
     goarch:
-      - amd64
-      - arm64
-   #   - arm
-   #goarm:
-   #   - 5
+   #   - amd64
+   #   - arm64
+      - arm
+    goarm:
+      - 5
    #   - 6
 
     main: ./cmd/influxd/
@@ -61,7 +61,6 @@ signs:
     cmd: gpg
     args: ["--armor",  "--detach-sign", "${artifact}"]
     artifacts: all
-
 
 nfpms:
   -
