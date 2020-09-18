@@ -18,17 +18,24 @@
           "xCol": "_value",
           "position": "stacked",
           "binCount": 30,
-          "fillColumns": ["a", "b"],
+          "legendOrientationThreshold": 5,
+          "fillColumns": [
+            "a",
+            "b"
+          ],
           "queries": [
             {
               "query": "from(bucket: v.bucket) |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"boltdb_reads_total\") |> filter(fn: (r) => r._field == \"counter\")"
             }
           ],
-          "axes":[
+          "axes": [
             {
               "name": "x",
               "label": "x_label",
-              "domain": [0, 10]
+              "domain": [
+                0,
+                10
+              ]
             }
           ],
           "colors": [

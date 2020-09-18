@@ -8956,6 +8956,8 @@ components:
           enum: [overlaid, stacked]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendOrientationThreshold:
+          type: integer
     XYGeom:
       type: string
       enum: [line, step, stacked, bar, monotoneX]
@@ -9013,6 +9015,8 @@ components:
           enum: [auto, x, y, xy]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendOrientationThreshold:
+          type: integer
     LinePlusSingleStatProperties:
       type: object
       required:
@@ -9073,6 +9077,8 @@ components:
           type: string
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendOrientationThreshold:
+          type: integer
     MosaicViewProperties:
       type: object
       required:
@@ -9148,6 +9154,8 @@ components:
           type: string
         ySuffix:
           type: string
+        legendOrientationThreshold:
+          type: integer
     ScatterViewProperties:
       type: object
       required:
@@ -9226,6 +9234,8 @@ components:
           type: string
         ySuffix:
           type: string
+        legendOrientationThreshold:
+          type: integer
     HeatmapViewProperties:
       type: object
       required:
@@ -9297,6 +9307,8 @@ components:
           type: string
         binSize:
           type: number
+        legendOrientationThreshold:
+          type: integer
     SingleStatViewProperties:
       type: object
       required:
@@ -9345,6 +9357,8 @@ components:
           $ref: "#/components/schemas/Legend"
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendOrientationThreshold:
+          type: integer
     HistogramViewProperties:
       type: object
       required:
@@ -9398,6 +9412,8 @@ components:
           type: string
           enum: [overlaid, stacked]
         binCount:
+          type: integer
+        legendOrientationThreshold:
           type: integer
     GaugeViewProperties:
       type: object
@@ -9561,6 +9577,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardColor"
+        legendOrientationThreshold:
+          type: integer
     Axes:
       description: The viewport for a View's visualizations
       type: object

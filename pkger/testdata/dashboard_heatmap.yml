@@ -14,6 +14,7 @@ spec:
       width:  6
       height: 3
       binSize: 10
+      legendOrientationThreshold: 5
       xCol: _time
       yCol: _value
       queries:

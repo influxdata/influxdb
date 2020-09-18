@@ -17,6 +17,7 @@ spec:
       yCol: _value
       width:  6
       height: 3
+      legendOrientationThreshold: 5
       queries:
         - query: >
             from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")

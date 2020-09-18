@@ -25,6 +25,7 @@
           "xColumn": "_time",
           "yColumn": "_value",
           "position": "overlaid",
+          "legendOrientationThreshold": 5,
           "legend": {
             "type": "leg_type",
             "orientation": "horizontal"

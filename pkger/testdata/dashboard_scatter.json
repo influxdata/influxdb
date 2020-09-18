@@ -19,25 +19,32 @@
           "height": 3,
           "xCol": "_time",
           "yCol": "_value",
+          "legendOrientationThreshold": 5,
           "queries": [
             {
               "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
             }
           ],
-          "axes":[
+          "axes": [
             {
               "name": "x",
               "label": "x_label",
               "prefix": "x_prefix",
               "suffix": "x_suffix",
-              "domain": [0, 10]
+              "domain": [
+                0,
+                10
+              ]
             },
             {
               "name": "y",
               "label": "y_label",
               "prefix": "y_prefix",
               "suffix": "y_suffix",
-              "domain": [0, 100]
+              "domain": [
+                0,
+                100
+              ]
             }
           ],
           "colors": [

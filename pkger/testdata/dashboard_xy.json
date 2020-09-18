@@ -24,7 +24,7 @@
           "hoverDimension": "y",
           "xColumn": "_time",
           "yColumn": "_value",
-          "legend": {},
+          "legendOrientationThreshold": 5,
           "queries": [
             {
               "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"

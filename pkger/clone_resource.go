@@ -612,6 +612,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 		ch.BinSize = int(p.BinSize)
+		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.HistogramViewProperties:
 		ch.Kind = chartKindHistogram
 		ch.Queries = convertQueries(p.Queries)
@@ -623,6 +624,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 		ch.BinCount = p.BinCount
 		ch.Position = p.Position
+		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.MarkdownViewProperties:
 		ch.Kind = chartKindMarkdown
 		ch.Note = p.Note
@@ -636,11 +638,13 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
 		ch.Position = p.Position
+		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.SingleStatViewProperties:
 		setCommon(chartKindSingleStat, p.ViewColors, p.DecimalPlaces, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
 		ch.TickPrefix = p.TickPrefix
 		ch.TickSuffix = p.TickSuffix
+		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.MosaicViewProperties:
 		ch.Kind = chartKindMosaic
 		ch.Queries = convertQueries(p.Queries)
@@ -653,6 +657,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		}
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.ScatterViewProperties:
 		ch.Kind = chartKindScatter
 		ch.Queries = convertQueries(p.Queries)
@@ -665,6 +670,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		}
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.TableViewProperties:
 		setCommon(chartKindTable, p.ViewColors, p.DecimalPlaces, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, "", "")
@@ -694,6 +700,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.UpperColumn = p.UpperColumn
 		ch.MainColumn = p.MainColumn
 		ch.LowerColumn = p.LowerColumn
+		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.XYViewProperties:
 		setCommon(chartKindXY, p.ViewColors, influxdb.DecimalPlaces{}, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, "", "")
@@ -705,6 +712,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
 		ch.Position = p.Position
+		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	}
 
 	sort.Slice(ch.Axes, func(i, j int) bool {
@@ -808,10 +816,11 @@ func convertChartToResource(ch chart) Resource {
 	})
 
 	assignNonZeroInts(r, map[string]int{
-		fieldChartXPos:     ch.XPos,
-		fieldChartYPos:     ch.YPos,
-		fieldChartBinCount: ch.BinCount,
-		fieldChartBinSize:  ch.BinSize,
+		fieldChartXPos:                       ch.XPos,
+		fieldChartYPos:                       ch.YPos,
+		fieldChartBinCount:                   ch.BinCount,
+		fieldChartBinSize:                    ch.BinSize,
+		fieldChartLegendOrientationThreshold: ch.LegendOrientationThreshold,
 	})
 
 	return r

@@ -448,24 +448,25 @@ func TestService_handleGetDashboard(t *testing.T) {
       "x": 1,
       "y": 2,
       "w": 3,
-	  "h": 4,
-	  "name": "the cell name",
-	  "properties": {
-		"shape": "chronograf-v2",
-		"axes": null,
-		"colors": null,
-		"geom": "",
-		"legend": {},
-		"position": "",
-		"note": "",
-		"queries": null,
-		"shadeBelow": false,
-		"hoverDimension": "",
-		"showNoteWhenEmpty": false,
-		"timeFormat": "",
-		"type": "xy",
-		"xColumn": "",
-		"yColumn": ""
+			"h": 4,
+			"name": "the cell name",
+			"properties": {
+			"shape": "chronograf-v2",
+			"axes": null,
+			"colors": null,
+			"geom": "",
+			"legend": {},
+			"position": "",
+			"note": "",
+			"queries": null,
+			"shadeBelow": false,
+			"hoverDimension": "",
+			"showNoteWhenEmpty": false,
+			"timeFormat": "",
+			"type": "xy",
+			"xColumn": "",
+			"yColumn": "",
+			"legendOrientationThreshold": 0
 	  },
 	  "links": {
 		"self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
@@ -983,7 +984,8 @@ func TestService_handlePostDashboard(t *testing.T) {
 								"type": "",
 								"xColumn": "",
 								"yColumn": "",
-								"type": "xy"
+								"type": "xy",
+								"legendOrientationThreshold": 0
 							},
 							"links": {
 								"self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
