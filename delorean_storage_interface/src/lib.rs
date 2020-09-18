@@ -1,3 +1,11 @@
+#![deny(rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    clippy::use_self
+)]
+
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use delorean_line_parser::ParsedLine;

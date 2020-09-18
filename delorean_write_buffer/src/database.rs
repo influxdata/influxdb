@@ -1,10 +1,6 @@
-use async_trait::async_trait;
-use tracing::info;
-
 use delorean_generated_types::wal as wb;
-
 use delorean_line_parser::{FieldValue, ParsedLine};
-use delorean_storage_interface::{Database, DatabaseStore};
+use delorean_storage_interface::{Database, DatabaseStore, TimestampRange};
 use delorean_wal::{Entry as WalEntry, Result as WalResult, WalBuilder};
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
@@ -21,24 +17,22 @@ use arrow::{
     datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema},
     record_batch::RecordBatch,
 };
+use async_trait::async_trait;
+use chrono::{offset::TimeZone, Utc};
 use datafusion::{
     datasource::MemTable, error::ExecutionError, execution::context::ExecutionContext,
 };
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use sqlparser::{
-    ast::{SetExpr, Statement},
+    ast::{SetExpr, Statement, TableFactor},
     dialect::GenericDialect,
     parser::Parser,
 };
-
-use chrono::{DateTime, NaiveDateTime, Utc};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use sqlparser::ast::TableFactor;
 use string_interner::{
     backend::StringBackend, DefaultHashBuilder, DefaultSymbol, StringInterner, Symbol,
 };
 use tokio::sync::RwLock;
-
-use delorean_storage_interface::TimestampRange;
+use tracing::info;
 
 const TIME_COLUMN_NAME: &str = "time";
 
@@ -486,18 +480,13 @@ impl Database for Db {
     // TODO: writes lines creates a column named "time" for the timestmap data. If
     //       we keep this we need to validate that no tag or field has the same name.
     async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
-        let partition_keys: Vec<_> = lines.iter().map(|l| (l, self.partition_key(l))).collect();
         let mut partitions = self.partitions.write().await;
 
-        let mut builder = self.wal_details.as_ref().map(|_| WalEntryBuilder {
-            fbb: flatbuffers::FlatBufferBuilder::new_with_capacity(1024),
-            entries: vec![],
-            row_values: vec![],
-            partitions: BTreeSet::new(),
-        });
+        let mut builder = self.wal_details.as_ref().map(|_| WalEntryBuilder::new());
 
         // TODO: rollback writes to partitions on validation failures
-        for (line, key) in partition_keys {
+        for line in lines {
+            let key = self.partition_key(line);
             match partitions.iter_mut().find(|p| p.should_write(&key)) {
                 Some(p) => p.write_line(line, &mut builder)?,
                 None => {
@@ -515,11 +504,10 @@ impl Database for Db {
         }
 
         if let Some(wal) = &self.wal_details {
-            let mut builder = builder.unwrap();
-            builder.create_batch();
+            let data = builder
+                .expect("Where there's wal_details, there's a builder")
+                .data();
 
-            let (mut data, idx) = builder.fbb.collapse();
-            let data = data.split_off(idx);
             wal.write_and_sync(data).await.context(WritingWal {
                 database: self.name.clone(),
             })?;
@@ -640,9 +628,7 @@ impl Db {
     fn partition_key(&self, line: &ParsedLine<'_>) -> String {
         // TODO - wire this up to use partitioning rules, for now just partition by day
         let ts = line.timestamp.unwrap();
-        let secs = ts / 1_000_000_000;
-        let nsecs = (ts % 1_000_000_000) as u32;
-        let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(secs, nsecs), Utc);
+        let dt = Utc.timestamp_nanos(ts);
         dt.format("%Y-%m-%dT%H").to_string()
     }
 }
@@ -727,8 +713,7 @@ impl Partition {
         let table_id = self.dict_or_insert(measurement, builder);
         let partition_id = self.id;
 
-        let column_count =
-            1 + line.field_set.len() + line.series.tag_set.as_ref().map(|t| t.len()).unwrap_or(0);
+        let column_count = line.column_count();
         let mut values: Vec<ColumnValue<'_>> = Vec::with_capacity(column_count);
 
         // Make sure the time, tag and field names exist in the dictionary
@@ -1240,6 +1225,15 @@ struct WalEntryBuilder<'a> {
 }
 
 impl WalEntryBuilder<'_> {
+    fn new() -> Self {
+        Self {
+            fbb: flatbuffers::FlatBufferBuilder::new_with_capacity(1024),
+            entries: vec![],
+            row_values: vec![],
+            partitions: BTreeSet::new(),
+        }
+    }
+
     fn add_dictionary_entry(&mut self, partition_id: u32, value: &str, id: u32) {
         let value_offset = self.fbb.create_string(value);
 
@@ -1418,6 +1412,13 @@ impl WalEntryBuilder<'_> {
         );
 
         self.fbb.finish(batch, None);
+    }
+
+    fn data(mut self) -> Vec<u8> {
+        self.create_batch();
+
+        let (mut data, idx) = self.fbb.collapse();
+        data.split_off(idx)
     }
 }
 
@@ -1810,6 +1811,24 @@ mod tests {
             let partitions = db.table_to_arrow("disk", &[]).await?;
             assert_table_eq("", &partitions);
         }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn db_partition_key() -> Result {
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+        let db = Db::try_with_wal("mydb", &mut dir).await?;
+
+        let partition_keys: Vec<_> = parse_lines(
+            "\
+cpu user=23.2 1600107710000000000
+disk bytes=23432323i 1600136510000000000",
+        )
+        .map(|line| db.partition_key(&line.unwrap()))
+        .collect();
+
+        assert_eq!(partition_keys, vec!["2020-09-14T18", "2020-09-15T02"]);
 
         Ok(())
     }

@@ -4,17 +4,7 @@ version = "0.1.0"
 authors = ["alamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-string-interner = "0.12.0"
-async-trait = "0.1.40"
-chrono = "0.4"
-sqlparser = "0.6.1"
-snafu = "0.6.2"
-tracing = "0.1"
-flatbuffers = "0.6.1"
-
 arrow = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4"}
 datafusion = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4" }
 
@@ -23,8 +13,15 @@ delorean_line_parser = { path = "../delorean_line_parser" }
 delorean_storage_interface = { path = "../delorean_storage_interface" }
 delorean_wal = { path = "../delorean_wal" }
 delorean_wal_writer = { path = "../delorean_wal_writer" }
-tokio = { version = "0.2", features = ["full"] }
 
+async-trait = "0.1.40"
+chrono = "0.4"
+flatbuffers = "0.6.1"
+snafu = "0.6.2"
+sqlparser = "0.6.1"
+string-interner = "0.12.0"
+tokio = { version = "0.2", features = ["full"] }
+tracing = "0.1"
 
 [dev-dependencies]
 delorean_test_helpers = { path = "../delorean_test_helpers" }

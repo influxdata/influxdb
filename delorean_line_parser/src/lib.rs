@@ -147,6 +147,29 @@ pub struct ParsedLine<'a> {
     pub timestamp: Option<i64>,
 }
 
+impl<'a> ParsedLine<'a> {
+    /// Total number of columns on this line, including fields, tags, and timestamp (which is
+    /// always present).
+    ///
+    /// ```
+    /// use delorean_line_parser::{ParsedLine, FieldValue};
+    ///
+    /// let mut parsed_lines =
+    ///     delorean_line_parser::parse_lines(
+    ///         "cpu,host=A,region=west usage_system=64i 1590488773254420000"
+    ///     );
+    /// let parsed_line = parsed_lines
+    ///     .next()
+    ///     .expect("Should have at least one line")
+    ///     .expect("Should parse successfully");
+    ///
+    /// assert_eq!(parsed_line.column_count(), 4);
+    /// ```
+    pub fn column_count(&self) -> usize {
+        1 + self.field_set.len() + self.series.tag_set.as_ref().map_or(0, |t| t.len())
+    }
+}
+
 /// Converts from a ParsedLine back to (canonical) LineProtocol
 ///
 /// A note on validity: This code does not errors or panics if the

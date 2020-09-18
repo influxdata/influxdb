@@ -1,3 +1,10 @@
+#![deny(rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    clippy::use_self
+)]
 use delorean_wal::{Error as WalError, SequenceNumber, WalBuilder, WritePayload};
 
 use futures::{channel::mpsc, SinkExt, StreamExt};
