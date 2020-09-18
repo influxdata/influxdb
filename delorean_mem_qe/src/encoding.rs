@@ -23,7 +23,10 @@ pub trait NumericEncoding: Send + Sync + std::fmt::Display + std::fmt::Debug {
     fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> u64;
     fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64;
 
+    // Returns the index of the first value equal to `v`
     fn row_id_eq_value(&self, v: Self::Item) -> Option<usize>;
+
+    // Returns the index of the first value greater or equal to `v`
     fn row_id_ge_value(&self, v: Self::Item) -> Option<usize>;
 
     fn row_ids_single_cmp_roaring(
@@ -186,11 +189,25 @@ where
     }
 
     fn row_id_eq_value(&self, v: Self::Item) -> Option<usize> {
-        todo!()
+        for i in 0..self.arr.len() {
+            if self.arr.is_null(i) {
+                continue;
+            } else if self.arr.value(i) == v {
+                return Some(i);
+            }
+        }
+        None
     }
 
     fn row_id_ge_value(&self, v: Self::Item) -> Option<usize> {
-        todo!()
+        for i in 0..self.arr.len() {
+            if self.arr.is_null(i) {
+                continue;
+            } else if self.arr.value(i) >= v {
+                return Some(i);
+            }
+        }
+        None
     }
 
     fn row_ids_single_cmp_roaring(
@@ -202,7 +219,38 @@ where
     }
 
     fn row_ids_gte_lt_roaring(&self, from: &Self::Item, to: &Self::Item) -> croaring::Bitmap {
-        todo!()
+        let mut bm = croaring::Bitmap::create();
+
+        let mut found = false; //self.values[0];
+        let mut count = 0;
+        let mut i = 0;
+        for i in 0..self.arr.len() {
+            let next = &self.arr.value(i);
+            if (self.arr.is_null(i) || next < from || next >= to) && found {
+                let (min, max) = (i as u64 - count as u64, i as u64);
+                bm.add_range(min..max);
+                found = false;
+                count = 0;
+                continue;
+            } else if self.arr.is_null(i) || next < from || next >= to {
+                continue;
+            }
+
+            if !found {
+                found = true;
+            }
+            count += 1;
+        }
+
+        // add any remaining range.
+        if found {
+            let (min, max) = (
+                (self.arr.len()) as u64 - count as u64,
+                (self.arr.len()) as u64,
+            );
+            bm.add_range(min..max);
+        }
+        bm
     }
 }
 
@@ -528,7 +576,7 @@ impl DictionaryRLE {
                 .index_row_ids
                 .insert(next_idx as u32, croaring::Bitmap::create());
 
-            _self.run_lengths.push((next_idx, 0)); // could this cause a bug?
+            _self.run_lengths.push((next_idx, 0)); // could this cause a bug?ta
         }
         _self
     }

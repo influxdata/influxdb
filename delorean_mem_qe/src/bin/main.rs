@@ -63,15 +63,15 @@ fn main() {
     );
     let store = Arc::new(store);
 
-    // time_select_with_pred(&store);
-    // time_datafusion_select_with_pred(store.clone());
-    // time_first_host(&store);
-    // time_sum_range(&store);
-    // time_count_range(&store);
-    // time_group_single_with_pred(&store);
-    // time_group_by_multi_agg_count(&store);
-    // time_group_by_multi_agg_sorted_count(&store);
-    time_window_agg_count(&store);
+    time_select_with_pred(&store);
+    time_datafusion_select_with_pred(store.clone());
+    time_first_host(&store);
+    time_sum_range(&store);
+    time_count_range(&store);
+    time_group_single_with_pred(&store);
+    time_group_by_multi_agg_count(&store);
+    time_group_by_multi_agg_sorted_count(&store);
+    // time_window_agg_count(&store);
     // time_group_by_different_columns(&store);
 }
 
@@ -121,10 +121,10 @@ fn build_store(
         match rb {
             Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
             Ok(Some(rb)) => {
-                if i < 364 {
-                    i += 1;
-                    continue;
-                }
+                // if i < 364 {
+                //     i += 1;
+                //     continue;
+                // }
                 let schema = Schema::with_sort_order(
                     rb.schema(),
                     sort_order.iter().map(|s| s.to_string()).collect(),
@@ -162,50 +162,50 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
                 if column.null_count() > 0 {
                     panic!("null floats");
                 }
-                let arr = column
-                    .as_any()
-                    .downcast_ref::<array::Float64Array>()
-                    .unwrap();
-                let column = Column::from(arr.value_slice(0, rb.num_rows()));
-                segment.add_column(rb.schema().field(i).name(), column);
+                // let arr = column
+                //     .as_any()
+                //     .downcast_ref::<array::Float64Array>()
+                //     .unwrap();
+                // let column = Column::from(arr.value_slice(0, rb.num_rows()));
+                // segment.add_column(rb.schema().field(i).name(), column);
 
                 // TODO(edd): figure out how to get ownership here without
                 // cloning
-                // let arr: array::Float64Array = arrow::array::PrimitiveArray::from(column.data());
-                // let column = Column::from(arr);
-                // segment.add_column(rb.schema().field(i).name(), column);
+                let arr: array::Float64Array = arrow::array::PrimitiveArray::from(column.data());
+                let column = Column::from(arr);
+                segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Int64 => {
                 if column.null_count() > 0 {
                     panic!("null integers not expected in testing");
                 }
-                let arr = column.as_any().downcast_ref::<array::Int64Array>().unwrap();
-                let column = Column::from(arr.value_slice(0, rb.num_rows()));
-                segment.add_column(rb.schema().field(i).name(), column);
+                // let arr = column.as_any().downcast_ref::<array::Int64Array>().unwrap();
+                // let column = Column::from(arr.value_slice(0, rb.num_rows()));
+                // segment.add_column(rb.schema().field(i).name(), column);
 
                 // TODO(edd): figure out how to get ownership here without
                 // cloning
-                // let arr: array::Int64Array = arrow::array::PrimitiveArray::from(column.data());
-                // let column = Column::from(arr);
-                // segment.add_column(rb.schema().field(i).name(), column);
+                let arr: array::Int64Array = arrow::array::PrimitiveArray::from(column.data());
+                let column = Column::from(arr);
+                segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Timestamp(TimeUnit::Microsecond, None) => {
                 if column.null_count() > 0 {
                     panic!("null timestamps not expected in testing");
                 }
-                let arr = column
-                    .as_any()
-                    .downcast_ref::<array::TimestampMicrosecondArray>()
-                    .unwrap();
-                let column = Column::from(arr.value_slice(0, rb.num_rows()));
-                segment.add_column(rb.schema().field(i).name(), column);
+                // let arr = column
+                //     .as_any()
+                //     .downcast_ref::<array::TimestampMicrosecondArray>()
+                //     .unwrap();
+                // let column = Column::from(arr.value_slice(0, rb.num_rows()));
+                // segment.add_column(rb.schema().field(i).name(), column);
 
                 // TODO(edd): figure out how to get ownership here without
                 // cloning
-                // let arr: array::TimestampMicrosecondArray =
-                // arrow::array::PrimitiveArray::from(column.data());
-                // let column = Column::from(arr);
-                // segment.add_column(rb.schema().field(i).name(), column);
+                let arr: array::TimestampMicrosecondArray =
+                    arrow::array::PrimitiveArray::from(column.data());
+                let column = Column::from(arr);
+                segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Utf8 => {
                 let arr = column
