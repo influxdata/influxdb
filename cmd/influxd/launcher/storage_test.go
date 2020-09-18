@@ -5,11 +5,14 @@ import (
 	"io/ioutil"
 	nethttp "net/http"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStorage_WriteAndQuery(t *testing.T) {
@@ -151,4 +154,19 @@ func TestLauncher_BucketDelete(t *testing.T) {
 	if got, exp := engine.SeriesCardinality(l.Org.ID, l.Bucket.ID), int64(0); got != exp {
 		t.Fatalf("after bucket delete got %d, exp %d", got, exp)
 	}
+}
+
+func TestLauncher_UpdateRetentionPolicy(t *testing.T) {
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
+	l.SetupOrFail(t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	bucket, err := l.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{ID: &l.Bucket.ID})
+	require.NoError(t, err)
+	require.NotNil(t, bucket)
+
+	newRetentionPeriod := 1 * time.Hour
+	bucket, err = l.BucketService(t).UpdateBucket(ctx, bucket.ID, influxdb.BucketUpdate{RetentionPeriod: &newRetentionPeriod})
+	require.NoError(t, err)
+	assert.Equal(t, bucket.RetentionPeriod, newRetentionPeriod)
 }
