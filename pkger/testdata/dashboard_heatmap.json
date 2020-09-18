@@ -20,6 +20,7 @@
           "xCol": "_time",
           "yCol": "_value",
           "binSize": 10,
+          "legendOpacity": 1.0,
           "legendOrientationThreshold": 5,
           "queries": [
             {

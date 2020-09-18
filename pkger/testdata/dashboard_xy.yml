@@ -17,6 +17,7 @@ spec:
       hoverDimension: "y"
       geom: line
       position: stacked
+      legendOpacity: 1.0
       legendOrientationThreshold: 5
       queries:
         - query: >

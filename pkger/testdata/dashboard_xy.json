@@ -24,6 +24,7 @@
           "hoverDimension": "y",
           "xColumn": "_time",
           "yColumn": "_value",
+          "legendOpacity": 1.0,
           "legendOrientationThreshold": 5,
           "queries": [
             {

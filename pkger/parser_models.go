@@ -561,6 +561,7 @@ const (
 	fieldChartXPos                       = "xPos"
 	fieldChartYCol                       = "yCol"
 	fieldChartYPos                       = "yPos"
+	fieldChartLegendOpacity              = "legendOpacity"
 	fieldChartLegendOrientationThreshold = "legendOrientationThreshold"
 )
 
@@ -596,6 +597,7 @@ type chart struct {
 	FillColumns                []string
 	TableOptions               tableOptions
 	TimeFormat                 string
+	LegendOpacity              float64
 	LegendOrientationThreshold int
 }
 
@@ -636,6 +638,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindHistogram:
@@ -651,6 +654,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			BinCount:                   c.BinCount,
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindMarkdown:
@@ -676,6 +680,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindBand:
@@ -695,6 +700,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindScatter:
@@ -715,6 +721,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindSingleStat:
@@ -732,6 +739,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.influxViewColors(),
+			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindSingleStatPlusLine:
@@ -754,6 +762,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ViewColors:                 c.Colors.influxViewColors(),
 			Axes:                       c.Axes.influxAxes(),
 			Position:                   c.Position,
+			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindTable:
@@ -803,6 +812,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Geom:                       c.Geom,
 			Position:                   c.Position,
 			TimeFormat:                 c.TimeFormat,
+			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	default:

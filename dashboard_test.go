@@ -54,6 +54,7 @@ func TestView_MarshalJSON(t *testing.T) {
 		"position": "",
 		"timeFormat": "",
 		"hoverDimension": "",
+		"legendOpacity": 0,
 		"legendOrientationThreshold": 0
   }
 }

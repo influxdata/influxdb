@@ -19,6 +19,7 @@
           "height": 3,
           "xCol": "_time",
           "yCol": "_value",
+          "legendOpacity": 1.0,
           "legendOrientationThreshold": 5,
           "queries": [
             {

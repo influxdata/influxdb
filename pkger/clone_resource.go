@@ -612,6 +612,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 		ch.BinSize = int(p.BinSize)
+		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.HistogramViewProperties:
 		ch.Kind = chartKindHistogram
@@ -624,6 +625,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 		ch.BinCount = p.BinCount
 		ch.Position = p.Position
+		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.MarkdownViewProperties:
 		ch.Kind = chartKindMarkdown
@@ -638,12 +640,14 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
 		ch.Position = p.Position
+		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.SingleStatViewProperties:
 		setCommon(chartKindSingleStat, p.ViewColors, p.DecimalPlaces, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
 		ch.TickPrefix = p.TickPrefix
 		ch.TickSuffix = p.TickSuffix
+		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.MosaicViewProperties:
 		ch.Kind = chartKindMosaic
@@ -657,6 +661,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		}
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.ScatterViewProperties:
 		ch.Kind = chartKindScatter
@@ -670,6 +675,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		}
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.TableViewProperties:
 		setCommon(chartKindTable, p.ViewColors, p.DecimalPlaces, p.Queries)
@@ -700,6 +706,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.UpperColumn = p.UpperColumn
 		ch.MainColumn = p.MainColumn
 		ch.LowerColumn = p.LowerColumn
+		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.XYViewProperties:
 		setCommon(chartKindXY, p.ViewColors, influxdb.DecimalPlaces{}, p.Queries)
@@ -712,6 +719,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
 		ch.Position = p.Position
+		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	}
 
@@ -821,6 +829,10 @@ func convertChartToResource(ch chart) Resource {
 		fieldChartBinCount:                   ch.BinCount,
 		fieldChartBinSize:                    ch.BinSize,
 		fieldChartLegendOrientationThreshold: ch.LegendOrientationThreshold,
+	})
+
+	assignNonZeroFloats(r, map[string]float64{
+		fieldChartLegendOpacity: ch.LegendOpacity,
 	})
 
 	return r
@@ -1125,6 +1137,14 @@ func assignNonZeroBools(r Resource, m map[string]bool) {
 }
 
 func assignNonZeroInts(r Resource, m map[string]int) {
+	for k, v := range m {
+		if v != 0 {
+			r[k] = v
+		}
+	}
+}
+
+func assignNonZeroFloats(r Resource, m map[string]float64) {
 	for k, v := range m {
 		if v != 0 {
 			r[k] = v

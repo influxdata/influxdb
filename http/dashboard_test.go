@@ -466,6 +466,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 			"type": "xy",
 			"xColumn": "",
 			"yColumn": "",
+			"legendOpacity": 0,
 			"legendOrientationThreshold": 0
 	  },
 	  "links": {
@@ -985,6 +986,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 								"xColumn": "",
 								"yColumn": "",
 								"type": "xy",
+								"legendOpacity": 0,
 								"legendOrientationThreshold": 0
 							},
 							"links": {

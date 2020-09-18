@@ -8956,6 +8956,8 @@ components:
           enum: [overlaid, stacked]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendOpacity:
+          type: float
         legendOrientationThreshold:
           type: integer
     XYGeom:
@@ -9015,6 +9017,8 @@ components:
           enum: [auto, x, y, xy]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendOpacity:
+          type: float
         legendOrientationThreshold:
           type: integer
     LinePlusSingleStatProperties:
@@ -9077,6 +9081,8 @@ components:
           type: string
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendOpacity:
+          type: float
         legendOrientationThreshold:
           type: integer
     MosaicViewProperties:
@@ -9154,6 +9160,8 @@ components:
           type: string
         ySuffix:
           type: string
+        legendOpacity:
+          type: float
         legendOrientationThreshold:
           type: integer
     ScatterViewProperties:
@@ -9234,6 +9242,8 @@ components:
           type: string
         ySuffix:
           type: string
+        legendOpacity:
+          type: float
         legendOrientationThreshold:
           type: integer
     HeatmapViewProperties:
@@ -9307,6 +9317,8 @@ components:
           type: string
         binSize:
           type: number
+        legendOpacity:
+          type: float
         legendOrientationThreshold:
           type: integer
     SingleStatViewProperties:
@@ -9357,6 +9369,8 @@ components:
           $ref: "#/components/schemas/Legend"
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendOpacity:
+          type: float
         legendOrientationThreshold:
           type: integer
     HistogramViewProperties:
@@ -9413,6 +9427,8 @@ components:
           enum: [overlaid, stacked]
         binCount:
           type: integer
+        legendOpacity:
+          type: float
         legendOrientationThreshold:
           type: integer
     GaugeViewProperties:
@@ -9577,6 +9593,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardColor"
+        legendOpacity:
+          type: float
         legendOrientationThreshold:
           type: integer
     Axes:

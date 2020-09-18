@@ -722,6 +722,7 @@ type LinePlusSingleStatProperties struct {
 	Position                   string           `json:"position"`
 	TimeFormat                 string           `json:"timeFormat"`
 	HoverDimension             string           `json:"hoverDimension"`
+	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
 
@@ -741,6 +742,7 @@ type XYViewProperties struct {
 	Position                   string           `json:"position"`
 	TimeFormat                 string           `json:"timeFormat"`
 	HoverDimension             string           `json:"hoverDimension"`
+	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
 
@@ -761,6 +763,7 @@ type BandViewProperties struct {
 	UpperColumn                string           `json:"upperColumn"`
 	MainColumn                 string           `json:"mainColumn"`
 	LowerColumn                string           `json:"lowerColumn"`
+	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
 
@@ -770,6 +773,7 @@ type CheckViewProperties struct {
 	CheckID                    string           `json:"checkID"`
 	Queries                    []DashboardQuery `json:"queries"`
 	ViewColors                 []string         `json:"colors"`
+	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
 
@@ -785,6 +789,7 @@ type SingleStatViewProperties struct {
 	DecimalPlaces              DecimalPlaces    `json:"decimalPlaces"`
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
+	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
 
@@ -801,6 +806,7 @@ type HistogramViewProperties struct {
 	BinCount                   int              `json:"binCount"`
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
+	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
 
@@ -823,6 +829,7 @@ type HeatmapViewProperties struct {
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	TimeFormat                 string           `json:"timeFormat"`
+	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
 
@@ -846,6 +853,7 @@ type ScatterViewProperties struct {
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	TimeFormat                 string           `json:"timeFormat"`
+	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
 
@@ -868,6 +876,7 @@ type MosaicViewProperties struct {
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	TimeFormat                 string           `json:"timeFormat"`
+	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
 
