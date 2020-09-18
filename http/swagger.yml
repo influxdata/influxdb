@@ -8957,7 +8957,8 @@ components:
         geom:
           $ref: "#/components/schemas/XYGeom"
         legendOpacity:
-          type: float
+          type: number
+          format: float
         legendOrientationThreshold:
           type: integer
     XYGeom:
@@ -9018,7 +9019,8 @@ components:
         geom:
           $ref: "#/components/schemas/XYGeom"
         legendOpacity:
-          type: float
+          type: number
+          format: float
         legendOrientationThreshold:
           type: integer
     LinePlusSingleStatProperties:
@@ -9082,7 +9084,8 @@ components:
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
         legendOpacity:
-          type: float
+          type: number
+          format: float
         legendOrientationThreshold:
           type: integer
     MosaicViewProperties:
@@ -9161,7 +9164,8 @@ components:
         ySuffix:
           type: string
         legendOpacity:
-          type: float
+          type: number
+          format: float
         legendOrientationThreshold:
           type: integer
     ScatterViewProperties:
@@ -9243,7 +9247,8 @@ components:
         ySuffix:
           type: string
         legendOpacity:
-          type: float
+          type: number
+          format: float
         legendOrientationThreshold:
           type: integer
     HeatmapViewProperties:
@@ -9318,7 +9323,8 @@ components:
         binSize:
           type: number
         legendOpacity:
-          type: float
+          type: number
+          format: float
         legendOrientationThreshold:
           type: integer
     SingleStatViewProperties:
@@ -9370,7 +9376,8 @@ components:
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
         legendOpacity:
-          type: float
+          type: number
+          format: float
         legendOrientationThreshold:
           type: integer
     HistogramViewProperties:
@@ -9428,7 +9435,8 @@ components:
         binCount:
           type: integer
         legendOpacity:
-          type: float
+          type: number
+          format: float
         legendOrientationThreshold:
           type: integer
     GaugeViewProperties:
@@ -9594,7 +9602,8 @@ components:
           items:
             $ref: "#/components/schemas/DashboardColor"
         legendOpacity:
-          type: float
+          type: number
+          format: float
         legendOrientationThreshold:
           type: integer
     Axes:
