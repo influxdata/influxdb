@@ -431,8 +431,9 @@ pub fn restore_partitions_from_wal(
                     if id > next_partition_id {
                         next_partition_id = id;
                     }
-                    let p = Partition::new(id, po.name().unwrap().to_string());
-                    partitions.insert(id, p);
+                    partitions
+                        .entry(id)
+                        .or_insert_with(|| Partition::new(id, po.name().unwrap().to_string()));
                 } else if let Some(_ps) = entry.partition_snapshot_started() {
                     todo!("handle partition snapshot");
                 } else if let Some(_pf) = entry.partition_snapshot_finished() {
@@ -492,6 +493,7 @@ impl Database for Db {
             fbb: flatbuffers::FlatBufferBuilder::new_with_capacity(1024),
             entries: vec![],
             row_values: vec![],
+            partitions: BTreeSet::new(),
         });
 
         // TODO: rollback writes to partitions on validation failures
@@ -717,6 +719,10 @@ impl Partition {
         line: &ParsedLine<'_>,
         builder: &mut Option<WalEntryBuilder<'_>>,
     ) -> Result<()> {
+        if let Some(b) = builder.as_mut() {
+            b.ensure_partition_exists(self.id, &self.name);
+        }
+
         let measurement = line.series.measurement.as_str();
         let table_id = self.dict_or_insert(measurement, builder);
         let partition_id = self.id;
@@ -1230,6 +1236,7 @@ struct WalEntryBuilder<'a> {
     fbb: flatbuffers::FlatBufferBuilder<'a>,
     entries: Vec<flatbuffers::WIPOffset<wb::WriteBufferEntry<'a>>>,
     row_values: Vec<flatbuffers::WIPOffset<wb::Value<'a>>>,
+    partitions: BTreeSet<u32>,
 }
 
 impl WalEntryBuilder<'_> {
@@ -1256,7 +1263,14 @@ impl WalEntryBuilder<'_> {
         self.entries.push(entry);
     }
 
+    fn ensure_partition_exists(&mut self, id: u32, name: &str) {
+        if !self.partitions.contains(&id) {
+            self.add_partition_open(id, name);
+        }
+    }
+
     fn add_partition_open(&mut self, id: u32, name: &str) {
+        self.partitions.insert(id);
         let partition_name = self.fbb.create_string(&name);
 
         let partition_open = wb::PartitionOpen::create(
@@ -1563,6 +1577,14 @@ mod tests {
         Ok(())
     }
 
+    // Abstract a bit of boilerplate around table assertions and improve the failure output.
+    // The default failure message uses Debug formatting, which prints newlines as `\n`.
+    // This prints the pretty_format_batches using Display so it's easier to read the tables.
+    fn assert_table_eq(table: &str, partitions: &[arrow::record_batch::RecordBatch]) {
+        let res = pretty_format_batches(partitions).unwrap();
+        assert_eq!(table, res, "\n\nleft:\n\n{}\nright:\n\n{}", table, res);
+    }
+
     #[tokio::test(threaded_scheduler)]
     async fn list_table_names() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
@@ -1668,14 +1690,13 @@ mod tests {
             db.write_lines(&lines).await?;
 
             let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_cpu_table, res);
+            assert_table_eq(expected_cpu_table, &partitions);
+
             let partitions = db.table_to_arrow("mem", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_mem_table, res);
+            assert_table_eq(expected_mem_table, &partitions);
+
             let partitions = db.table_to_arrow("disk", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_disk_table, res);
+            assert_table_eq(expected_disk_table, &partitions);
         }
 
         // check that it recovers from the wal
@@ -1683,14 +1704,111 @@ mod tests {
             let db = Db::restore_from_wal(dir).await?;
 
             let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_cpu_table, res);
+            assert_table_eq(expected_cpu_table, &partitions);
+
             let partitions = db.table_to_arrow("mem", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_mem_table, res);
+            assert_table_eq(expected_mem_table, &partitions);
+
             let partitions = db.table_to_arrow("disk", &[]).await?;
-            let res = pretty_format_batches(&partitions).unwrap();
-            assert_eq!(expected_disk_table, res);
+            assert_table_eq(expected_disk_table, &partitions);
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    #[ignore]
+    async fn recover_partial_entries() -> Result {
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+
+        let expected_cpu_table = r#"+--------+------+------+-------+-------------+-------+------+---------+-----------+
+| region | host | user | other | str         | b     | time | new_tag | new_field |
++--------+------+------+-------+-------------+-------+------+---------+-----------+
+| west   | A    | 23.2 | 1     | some string | true  | 10   |         | 0         |
+| west   | B    | 23.1 | 0     |             | false | 15   |         | 0         |
+|        | A    | 0    | 0     |             | false | 20   | foo     | 15.1      |
++--------+------+------+-------+-------------+-------+------+---------+-----------+
+"#;
+        let expected_mem_table = r#"+--------+------+-------+------+
+| region | host | val   | time |
++--------+------+-------+------+
+| east   | C    | 23432 | 10   |
++--------+------+-------+------+
+"#;
+        let expected_disk_table = r#"+--------+------+----------+--------------+------+
+| region | host | bytes    | used_percent | time |
++--------+------+----------+--------------+------+
+| west   | A    | 23432323 | 76.2         | 10   |
++--------+------+----------+--------------+------+
+"#;
+
+        {
+            let db = Db::try_with_wal("mydb", &mut dir).await?;
+            let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i,str=\"some string\",b=true 10\ndisk,region=west,host=A bytes=23432323i,used_percent=76.2 10").map(|l| l.unwrap()).collect();
+            db.write_lines(&lines).await?;
+            let lines: Vec<_> = parse_lines("cpu,region=west,host=B user=23.1 15")
+                .map(|l| l.unwrap())
+                .collect();
+            db.write_lines(&lines).await?;
+            let lines: Vec<_> = parse_lines("cpu,host=A,new_tag=foo new_field=15.1 20")
+                .map(|l| l.unwrap())
+                .collect();
+            db.write_lines(&lines).await?;
+            let lines: Vec<_> = parse_lines("mem,region=east,host=C val=23432 10")
+                .map(|l| l.unwrap())
+                .collect();
+            db.write_lines(&lines).await?;
+
+            let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
+            assert_table_eq(expected_cpu_table, &partitions);
+
+            let partitions = db.table_to_arrow("mem", &[]).await?;
+            assert_table_eq(expected_mem_table, &partitions);
+
+            let partitions = db.table_to_arrow("disk", &[]).await?;
+            assert_table_eq(expected_disk_table, &partitions);
+        }
+
+        // check that it can recover from the last 2 self-describing entries of the wal
+        {
+            let name = dir.iter().last().unwrap().to_str().unwrap().to_string();
+
+            let wal_builder = WalBuilder::new(&dir);
+
+            let wal_entries = wal_builder
+                .entries()
+                .context(LoadingWal { database: &name })?;
+
+            // Skip the first 2 entries in the wal; only restore from the last 2
+            let wal_entries = wal_entries.skip(2);
+
+            let (partitions, next_partition_id, _stats) = restore_partitions_from_wal(wal_entries)?;
+
+            let db = Db {
+                name,
+                dir,
+                partitions: RwLock::new(partitions),
+                next_partition_id: AtomicU32::new(next_partition_id + 1),
+                wal_details: None,
+            };
+
+            // some cpu
+            let smaller_cpu_table = r#"+------+------+-------+-------------+-------+------+---------+-----------+
+| host | user | other | str         | b     | time | new_tag | new_field |
++------+------+-------+-------------+-------+------+---------+-----------+
+| A    | 0    | 0     |             | false | 20   | foo     | 15.1      |
++------+------+-------+-------------+-------+------+---------+-----------+
+"#;
+            let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
+            assert_table_eq(smaller_cpu_table, &partitions);
+
+            // all of mem
+            let partitions = db.table_to_arrow("mem", &[]).await?;
+            assert_table_eq(expected_mem_table, &partitions);
+
+            // no disk
+            let partitions = db.table_to_arrow("disk", &[]).await?;
+            assert_table_eq("", &partitions);
         }
 
         Ok(())
