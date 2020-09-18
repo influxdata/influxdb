@@ -12,7 +12,7 @@ fn line_parser(c: &mut Criterion) {
 
     group.bench_function("all lines", |b| {
         b.iter(|| {
-            let lines = delorean::line_parser::parse(LINES).unwrap();
+            let lines = delorean_partitioned_store::line_parser::parse(LINES).unwrap();
             assert_eq!(582, lines.len());
         })
     });

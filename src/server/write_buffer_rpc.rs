@@ -12,7 +12,7 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use snafu::{ResultExt, Snafu};
 
-use delorean::generated_types::{
+use delorean_generated_types::{
     delorean_server::{Delorean, DeloreanServer},
     storage_server::{Storage, StorageServer},
     CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
@@ -292,8 +292,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use delorean::id::Id;
-    use delorean_storage_interface::test::TestDatabaseStore;
+    use delorean_storage_interface::{id::Id, test::TestDatabaseStore};
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},

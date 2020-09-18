@@ -1,8 +1,8 @@
-use crate::generated_types::{Node, Predicate, TimestampRange};
 use crate::line_parser::{self, index_pairs, Error as LineParserError, Point, PointType};
 use crate::storage::partitioned_store::{ReadBatch, ReadValues};
 use crate::storage::predicate::{Error as PredicateError, Evaluate, EvaluateVisitor};
 use crate::storage::{ReadPoint, SeriesDataType};
+use delorean_generated_types::{Node, Predicate, TimestampRange};
 
 use croaring::Treemap;
 use futures::stream::{self, BoxStream};

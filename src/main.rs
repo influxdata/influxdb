@@ -9,7 +9,7 @@
 
 use clap::{crate_authors, crate_version, value_t, App, Arg, SubCommand};
 use delorean_parquet::writer::CompressionLevel;
-use log::{debug, error, warn};
+use tracing::{debug, error, warn};
 
 pub mod server;
 

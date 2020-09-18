@@ -6,7 +6,6 @@ use delorean_parquet::writer::Error as ParquetWriterError;
 use delorean_parquet::writer::{CompressionLevel, DeloreanParquetTableWriter};
 use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use delorean_table_schema::Schema;
-use log::{debug, info, warn};
 use snafu::{ResultExt, Snafu};
 use std::{
     convert::TryInto,
@@ -15,6 +14,7 @@ use std::{
     io::{BufReader, Read},
     path::{Path, PathBuf},
 };
+use tracing::{debug, info, warn};
 
 use crate::commands::input::{FileType, InputReader};
 
