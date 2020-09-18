@@ -861,6 +861,7 @@ dependencies = [
  "arrow",
  "async-trait",
  "chrono",
+ "criterion",
  "datafusion",
  "delorean_generated_types",
  "delorean_line_parser",
