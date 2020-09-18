@@ -2,6 +2,8 @@ package influxdb
 
 import "context"
 
+const minPasswordLength = 8
+
 // OnboardingService represents a service for the first run.
 type OnboardingService interface {
 	// IsOnboarding determine if onboarding request is allowed.
@@ -52,6 +54,13 @@ func (r *OnboardingRequest) Valid() error {
 		return &Error{
 			Code: EEmptyValue,
 			Msg:  "bucket name is empty",
+		}
+	}
+
+	if len(r.Password) < minPasswordLength {
+		return &Error{
+			Code: EInvalid,
+			Msg:  "password too short",
 		}
 	}
 	return nil
