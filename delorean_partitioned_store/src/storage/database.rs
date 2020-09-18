@@ -1,8 +1,9 @@
 use tracing::{debug, error, info};
 
-use crate::generated_types::{Bucket, Predicate, TimestampRange};
-use crate::id::{self, Id};
 use crate::line_parser::PointType;
+use delorean_generated_types::{Bucket, Predicate, TimestampRange};
+use delorean_storage_interface::id::{self, Id};
+
 use crate::storage::{
     memdb::MemDB,
     partitioned_store::{Error as PartitionError, Partition, PartitionStore, ReadBatch},

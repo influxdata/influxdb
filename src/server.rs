@@ -1,5 +1,5 @@
 #![deny(rust_2018_idioms)]
-use delorean::storage::database::Database;
+use delorean_partitioned_store::storage::database::Database;
 
 pub mod http_routes;
 pub mod rpc;

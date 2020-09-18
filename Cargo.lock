@@ -631,15 +631,14 @@ dependencies = [
  "byteorder",
  "bytes",
  "clap",
- "crc32fast",
  "criterion",
- "croaring",
  "csv",
  "delorean_generated_types",
  "delorean_ingest",
  "delorean_line_parser",
  "delorean_object_store",
  "delorean_parquet",
+ "delorean_partitioned_store",
  "delorean_storage_interface",
  "delorean_table",
  "delorean_table_schema",
@@ -650,19 +649,13 @@ dependencies = [
  "delorean_write_buffer",
  "dirs 2.0.2",
  "dotenv",
- "either",
  "env_logger",
- "flatbuffers",
  "futures",
  "hex",
  "http",
  "hyper",
  "influxdb2_client",
- "integer-encoding",
  "libflate",
- "log",
- "num 0.2.1",
- "num_cpus",
  "predicates",
  "prost",
  "prost-types",
@@ -749,12 +742,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "delorean_partitioned_store"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "croaring",
+ "delorean_generated_types",
+ "delorean_line_parser",
+ "delorean_storage_interface",
+ "delorean_test_helpers",
+ "delorean_tsm",
+ "delorean_wal",
+ "delorean_wal_writer",
+ "delorean_write_buffer",
+ "either",
+ "flatbuffers",
+ "futures",
+ "integer-encoding",
+ "num 0.2.1",
+ "snafu",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "delorean_storage_interface"
 version = "0.1.0"
 dependencies = [
  "arrow",
  "async-trait",
  "delorean_line_parser",
+ "serde",
+ "serde_urlencoded",
  "snafu",
  "tokio",
 ]

@@ -1,11 +1,11 @@
 use delorean_parquet::metadata::print_parquet_metadata;
 use delorean_tsm::{reader::IndexEntry, reader::TSMIndexReader, InfluxID, TSMError};
-use log::{debug, info};
 use snafu::{ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryInto,
 };
+use tracing::{debug, info};
 
 use crate::commands::input::{FileType, InputReader};
 

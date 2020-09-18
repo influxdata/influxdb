@@ -5,8 +5,8 @@ use delorean_table::{
     stats::{FileSetStatsBuilder, FileStats},
     Name,
 };
-use log::info;
 use snafu::{ResultExt, Snafu};
+use tracing::info;
 
 use crate::commands::input::{FileType, InputPath, InputReader};
 

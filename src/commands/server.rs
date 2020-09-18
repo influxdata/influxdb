@@ -2,8 +2,8 @@
 
 use tracing::{debug, info};
 
-use delorean::generated_types::{delorean_server::DeloreanServer, storage_server::StorageServer};
-use delorean::storage::database::Database;
+use delorean_generated_types::{delorean_server::DeloreanServer, storage_server::StorageServer};
+use delorean_partitioned_store::storage::database::Database;
 
 use std::env::VarError;
 use std::net::SocketAddr;

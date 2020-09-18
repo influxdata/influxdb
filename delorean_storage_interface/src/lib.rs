@@ -5,6 +5,8 @@ use std::collections::BTreeSet;
 
 use std::{fmt::Debug, sync::Arc};
 
+pub mod id;
+
 /// Specifies a continuous range of nanosecond timestamps. Timestamp
 /// predicates are so common and critical to performance of timeseries
 /// databases in general, and delorean in particular, they handled specially

@@ -12,6 +12,7 @@ members = [
     "delorean_line_parser",
     "delorean_object_store",
     "delorean_parquet",
+    "delorean_partitioned_store",
     "delorean_table",
     "delorean_table_schema",
     "delorean_test_helpers",
@@ -31,6 +32,7 @@ delorean_generated_types = { path = "delorean_generated_types" }
 delorean_ingest = { path = "delorean_ingest" }
 delorean_line_parser = { path = "delorean_line_parser" }
 delorean_parquet = { path = "delorean_parquet" }
+delorean_partitioned_store = { path = "delorean_partitioned_store" }
 delorean_table = { path = "delorean_table" }
 delorean_table_schema = { path = "delorean_table_schema" }
 delorean_wal = { path = "delorean_wal" }
@@ -41,8 +43,6 @@ delorean_storage_interface = { path = "delorean_storage_interface" }
 delorean_tsm = { path = "delorean_tsm" }
 
 bytes = "0.5.4"
-integer-encoding = "1.0.7"
-
 hyper = "0.13"
 tokio = { version = "0.2", features = ["full"] }
 
@@ -50,15 +50,13 @@ clap = "2.33.1"
 dotenv = "0.15.0"
 dirs = "2.0.2"
 env_logger = "0.7.1"
-log = "0.4.8"
 futures = "0.3.1"
 
 serde_json = "1.0.44"
+serde_urlencoded = "0.6.1"
 serde = { version = "1.0", features = ["derive"] }
 csv = "1.1"
 byteorder = "1.3.4"
-
-num_cpus = "1.11.1"
 
 tonic = "0.2.0"
 prost = "0.6.1"
@@ -66,24 +64,11 @@ prost-types = "0.6.1"
 tracing = "0.1"
 tracing-futures="0.2.4"
 
-
-crc32fast = "1.2.0"
-num = "0.2.1"
-
-# using croaring here because we needed Treemap support for u64
-# for series ids and we needed serialization, which the pure Rust
-# crate didn't offer.
-croaring = "0.4.5"
 http = "0.2.0"
-serde_urlencoded = "0.6.1"
 snafu = "0.6.2"
-either = "1.5.3"
-flatbuffers = "0.6.1"
 libflate = "1.0.0"
 arrow = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4"}
-#chrono = "0.4"
-#sqlparser = "0.6.1"
-#datafusion = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4" }
+
 
 [dev-dependencies]
 assert_cmd = "1.0.0"

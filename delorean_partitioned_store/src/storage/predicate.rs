@@ -1,4 +1,4 @@
-use crate::generated_types::{
+use delorean_generated_types::{
     node::{self, Comparison, Logical, Value},
     Node, Predicate,
 };

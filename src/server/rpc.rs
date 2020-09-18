@@ -7,7 +7,7 @@
 
 use tracing::error;
 
-use delorean::generated_types::{
+use delorean_generated_types::{
     delorean_server::Delorean,
     measurement_fields_response::MessageField,
     read_response::{
@@ -21,11 +21,11 @@ use delorean::generated_types::{
     Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse, StringValuesResponse, Tag,
     TagKeysRequest, TagValuesRequest, TimestampRange,
 };
-use delorean::id::Id;
-use delorean::storage::{
+use delorean_partitioned_store::storage::{
     partitioned_store::{PartitionKeyValues, ReadValues},
     SeriesDataType,
 };
+use delorean_storage_interface::id::Id;
 
 use crate::server::rpc::input::GrpcInputs;
 

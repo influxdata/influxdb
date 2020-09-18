@@ -5,13 +5,13 @@
 
 use std::convert::TryFrom;
 
-pub mod block;
+mod block;
 pub mod database;
-pub mod memdb;
+mod memdb;
 pub mod partitioned_store;
 pub mod predicate;
-pub mod remote_partition;
-pub mod s3_partition;
+mod remote_partition;
+mod s3_partition;
 
 use std::fmt::Debug;
 

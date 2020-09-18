@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Responsible for storing and serialising blocks of time-series data.
 //!
 //! The block module provides an API for creating, updating, reading and writing blocks of

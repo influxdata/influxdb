@@ -28,7 +28,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// be represented as a `Point<T>` like this:
 ///
 /// ```
-/// use delorean::line_parser::Point;
+/// use delorean_partitioned_store::line_parser::Point;
 ///
 /// let p = Point {
 ///     series: "cpu,host=A,region=west\tusage_system".to_string(),

@@ -1,13 +1,11 @@
 use tonic::Status;
 
-use delorean::{
-    generated_types::{
-        MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
-        MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest, ReadSource,
-        TagKeysRequest, TagValuesRequest,
-    },
-    id::Id,
+use delorean_generated_types::{
+    MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
+    MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest, ReadSource, TagKeysRequest,
+    TagValuesRequest,
 };
+use delorean_storage_interface::id::Id;
 
 use std::convert::TryInto;
 
