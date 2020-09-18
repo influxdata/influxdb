@@ -74,12 +74,11 @@ pub enum Error {
         source: delorean_wal::Error,
     },
 
-    #[snafu(display(
-        "Error recovering WAL for database {} on partition {}",
-        database,
-        partition_id
-    ))]
-    WalRecoverError { database: String, partition_id: u32 },
+    #[snafu(display("Error recovering WAL for database {}: {}", database, source))]
+    WalRecoverError {
+        database: String,
+        source: RestorationError,
+    },
 
     #[snafu(display(
         "Error recovering WAL for partition {} on table {}",
@@ -115,8 +114,11 @@ pub enum Error {
     #[snafu(display("Partition {} is full", partition_id))]
     PartitionFull { partition_id: String },
 
-    #[snafu(display("Table {} not found", table))]
-    TableNotFound { table: String },
+    #[snafu(display("Table {} not found in dictionary", table))]
+    TableNotFoundInDictionary { table: String },
+
+    #[snafu(display("Table {} not found in partition {}", table, partition))]
+    TableNotFoundInPartition { table: u32, partition: u32 },
 
     #[snafu(display("Internal Error: Column {} not found", column_id))]
     InternaColumnNotFound { column_id: u32 },
@@ -344,7 +346,8 @@ impl Db {
             .entries()
             .context(LoadingWal { database: &name })?;
 
-        let (partitions, next_partition_id, stats) = restore_partitions_from_wal(&name, entries)?;
+        let (partitions, next_partition_id, stats) =
+            restore_partitions_from_wal(entries).context(WalRecoverError { database: &name })?;
 
         let elapsed = now.elapsed();
         info!(
@@ -373,16 +376,50 @@ impl Db {
     }
 }
 
-fn restore_partitions_from_wal(
-    name: &str,
+#[derive(Debug, Snafu)]
+pub enum RestorationError {
+    #[snafu(display("Could not read WAL entry: {}", source))]
+    WalEntryRead { source: delorean_wal::Error },
+
+    #[snafu(display("Partition {} not found", partition))]
+    PartitionNotFound { partition: u32 },
+
+    #[snafu(display("Table {} not found", table))]
+    TableNotFound { table: u32 },
+
+    #[snafu(display("Column {} not found", column))]
+    ColumnNotFound { column: u32 },
+
+    #[snafu(display(
+        "Column {} said it was type {} but extracting a value of that type failed",
+        column,
+        expected
+    ))]
+    WalValueTypeMismatch { column: u32, expected: String },
+
+    #[snafu(display(
+        "Column type mismatch for column {}: can't insert {} into column with type {}",
+        column,
+        inserted_value_type,
+        existing_column_type
+    ))]
+    ColumnTypeMismatch {
+        column: usize,
+        existing_column_type: String,
+        inserted_value_type: String,
+    },
+}
+
+/// Given a set of WAL entries, restore them into a set of Partitions.
+pub fn restore_partitions_from_wal(
     wal_entries: impl Iterator<Item = WalResult<WalEntry>>,
-) -> Result<(Vec<Partition>, u32, RestorationStats)> {
+) -> Result<(Vec<Partition>, u32, RestorationStats), RestorationError> {
     let mut stats = RestorationStats::default();
     let mut partitions = HashMap::new();
     let mut next_partition_id = 0;
 
     for wal_entry in wal_entries {
-        let wal_entry = wal_entry.context(LoadingWal { database: name })?;
+        let wal_entry = wal_entry.context(WalEntryRead)?;
         let bytes = wal_entry.as_data();
 
         let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&bytes);
@@ -403,9 +440,8 @@ fn restore_partitions_from_wal(
                 } else if let Some(da) = entry.dictionary_add() {
                     let p = partitions
                         .get_mut(&da.partition_id())
-                        .context(WalRecoverError {
-                            database: name,
-                            partition_id: da.partition_id(),
+                        .context(PartitionNotFound {
+                            partition: da.partition_id(),
                         })?;
                     stats.dict_values += 1;
                     p.intern_new_dict_entry(da.value().unwrap());
@@ -414,17 +450,15 @@ fn restore_partitions_from_wal(
                     stats.tables.insert(tid);
                     let p = partitions
                         .get_mut(&sa.partition_id())
-                        .context(WalRecoverError {
-                            database: name,
-                            partition_id: sa.partition_id(),
+                        .context(PartitionNotFound {
+                            partition: sa.partition_id(),
                         })?;
                     p.append_wal_schema(sa.table_id(), sa.column_id(), sa.column_type());
                 } else if let Some(row) = entry.write() {
                     let p = partitions
                         .get_mut(&row.partition_id())
-                        .context(WalRecoverError {
-                            database: name,
-                            partition_id: row.partition_id(),
+                        .context(PartitionNotFound {
+                            partition: row.partition_id(),
                         })?;
                     stats.row_count += 1;
                     p.add_wal_row(row.table_id(), &row.values().unwrap())?;
@@ -438,7 +472,7 @@ fn restore_partitions_from_wal(
 }
 
 #[derive(Default, Debug)]
-struct RestorationStats {
+pub struct RestorationStats {
     row_count: usize,
     dict_values: usize,
     tables: HashSet<u32>,
@@ -618,7 +652,7 @@ struct ArrowTable {
 }
 
 #[derive(Debug)]
-struct Partition {
+pub struct Partition {
     name: String,
     id: u32,
     /// `dictionary` maps &str -> u32. The u32s are used in place of
@@ -670,11 +704,11 @@ impl Partition {
         &mut self,
         table_id: u32,
         values: &flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<wb::Value<'_>>>,
-    ) -> Result<()> {
-        let t = self.tables.get_mut(&table_id).context(WalPartitionError {
-            partition_id: self.id,
-            table_id,
-        })?;
+    ) -> Result<(), RestorationError> {
+        let t = self
+            .tables
+            .get_mut(&table_id)
+            .context(TableNotFound { table: table_id })?;
         t.add_wal_row(values)
     }
 
@@ -758,14 +792,21 @@ impl Partition {
     }
 
     fn table_to_arrow(&self, table_name: &str) -> Result<RecordBatch> {
-        let table_id = self.dictionary.get(table_name).context(TableNotFound {
-            table: table_name.to_string(),
-        })?;
+        let table_id = self
+            .dictionary
+            .get(table_name)
+            .context(TableNotFoundInDictionary {
+                table: table_name.to_string(),
+            })?;
         let table_id = u32::try_from(table_id.to_usize()).context(IdConversionError {})?;
 
-        let table = self.tables.get(&table_id).context(TableNotFound {
-            table: format!("id: {}", table_id),
-        })?;
+        let table = self
+            .tables
+            .get(&table_id)
+            .context(TableNotFoundInPartition {
+                table: table_id,
+                partition: self.id,
+            })?;
         table.to_arrow(|id| self.lookup_id(id))
     }
 }
@@ -872,50 +913,57 @@ impl Table {
     fn add_wal_row(
         &mut self,
         values: &flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<wb::Value<'_>>>,
-    ) -> Result<()> {
+    ) -> Result<(), RestorationError> {
         let row_count = self.row_count();
 
         for value in values {
             let col = self
                 .columns
                 .get_mut(value.column_index() as usize)
-                .context(WalColumnError {
-                    column_id: value.column_index(),
+                .context(ColumnNotFound {
+                    column: value.column_index(),
                 })?;
             match (col, value.value_type()) {
                 (Column::Tag(vals), wb::ColumnValue::TagValue) => {
-                    let v = value.value_as_tag_value().context(WalColumnError {
-                        column_id: value.column_index(),
+                    let v = value.value_as_tag_value().context(WalValueTypeMismatch {
+                        column: value.column_index(),
+                        expected: "tag",
                     })?;
                     vals.push(Some(v.value()));
                 }
                 (Column::Bool(vals), wb::ColumnValue::BoolValue) => {
-                    let v = value.value_as_bool_value().context(WalColumnError {
-                        column_id: value.column_index(),
+                    let v = value.value_as_bool_value().context(WalValueTypeMismatch {
+                        column: value.column_index(),
+                        expected: "bool",
                     })?;
                     vals.push(Some(v.value()));
                 }
                 (Column::String(vals), wb::ColumnValue::StringValue) => {
-                    let v = value.value_as_string_value().context(WalColumnError {
-                        column_id: value.column_index(),
-                    })?;
+                    let v = value
+                        .value_as_string_value()
+                        .context(WalValueTypeMismatch {
+                            column: value.column_index(),
+                            expected: "String",
+                        })?;
                     vals.push(Some(v.value().unwrap().to_string()));
                 }
                 (Column::I64(vals), wb::ColumnValue::I64Value) => {
-                    let v = value.value_as_i64value().context(WalColumnError {
-                        column_id: value.column_index(),
+                    let v = value.value_as_i64value().context(WalValueTypeMismatch {
+                        column: value.column_index(),
+                        expected: "i64",
                     })?;
                     vals.push(Some(v.value()));
                 }
                 (Column::F64(vals), wb::ColumnValue::F64Value) => {
-                    let v = value.value_as_f64value().context(WalColumnError {
-                        column_id: value.column_index(),
+                    let v = value.value_as_f64value().context(WalValueTypeMismatch {
+                        column: value.column_index(),
+                        expected: "f64",
                     })?;
                     vals.push(Some(v.value()));
                 }
                 (existing_column, inserted_value) => {
-                    return SchemaMismatch {
-                        column_id: value.column_index(),
+                    return ColumnTypeMismatch {
+                        column: value.column_index(),
                         existing_column_type: existing_column.type_description(),
                         inserted_value_type: type_description(inserted_value),
                     }
