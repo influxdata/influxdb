@@ -1,0 +1,17 @@
+[package]
+name = "delorean_wal_writer"
+version = "0.1.0"
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+delorean_wal = { path = "../delorean_wal" }
+
+tokio = { version = "0.2", features = ["full"] }
+serde_json = "1.0.44"
+serde = { version = "1.0", features = ["derive"] }
+futures = "0.3.1"
+tracing = "0.1"
+snafu = "0.6.2"

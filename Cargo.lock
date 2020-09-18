@@ -648,6 +648,7 @@ dependencies = [
  "delorean_test_helpers",
  "delorean_tsm",
  "delorean_wal",
+ "delorean_wal_writer",
  "dirs 2.0.2",
  "dotenv",
  "either",
@@ -811,6 +812,19 @@ dependencies = [
  "snafu",
  "snap",
  "tokio",
+]
+
+[[package]]
+name = "delorean_wal_writer"
+version = "0.1.0"
+dependencies = [
+ "delorean_wal",
+ "futures",
+ "serde",
+ "serde_json",
+ "snafu",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

@@ -2,12 +2,10 @@ use tonic::async_trait;
 use tracing::info;
 
 use crate::generated_types::wal as wb;
-use crate::storage::partitioned_store::{
-    start_wal_sync_task, Error as PartitionedStoreError, WalDetails,
-};
 
 use delorean_line_parser::{FieldValue, ParsedLine};
 use delorean_wal::WalBuilder;
+use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::TryFrom;
@@ -54,22 +52,19 @@ pub enum Error {
     #[snafu(display("Error reading metadata: {}", source))]
     ReadMetadataError { source: std::io::Error },
 
-    #[snafu(display("Partition error writing to WAL: {}", source))]
-    WritingToWal { source: std::io::Error },
-
     #[snafu(display("Dir {:?} invalid for DB", dir))]
     OpenDb { dir: PathBuf },
 
     #[snafu(display("Error opening WAL for database {}: {}", database, source))]
     OpeningWal {
         database: String,
-        source: PartitionedStoreError,
+        source: WalWriterError,
     },
 
     #[snafu(display("Error writing to WAL for database {}: {}", database, source))]
     WritingWal {
         database: String,
-        source: PartitionedStoreError,
+        source: WalWriterError,
     },
 
     #[snafu(display("Error opening WAL for database {}: {}", database, source))]

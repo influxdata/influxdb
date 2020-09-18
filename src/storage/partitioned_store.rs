@@ -9,13 +9,10 @@ use crate::storage::{
     ReadPoint, SeriesDataType,
 };
 
-use delorean_wal::{Error as WalError, SequenceNumber, WalBuilder, WritePayload};
-use futures::{
-    channel::mpsc,
-    stream::{BoxStream, Stream},
-    SinkExt, StreamExt,
-};
-use serde::{Deserialize, Serialize};
+use delorean_wal::{Error as WalError, WalBuilder};
+use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails, WalFormat};
+
+use futures::stream::{BoxStream, Stream};
 use snafu::{ResultExt, Snafu};
 use std::{
     cmp::Ordering,
@@ -25,8 +22,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-use tokio::task;
-use tracing::{debug, error, info};
+use tracing::debug;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -36,20 +32,11 @@ pub enum Error {
     #[snafu(display("Partition error with WAL: {}", source))]
     UnderlyingWalError { source: WalError },
 
-    #[snafu(display("Partition error writing to WAL: {}", source))]
-    WrtitingToWal { source: std::io::Error },
+    #[snafu(display("Partition error with WAL Writer: {}", source))]
+    UnderlyingWalWriterError { source: WalWriterError },
 
     #[snafu(display("Partition error with MemDB: {}", source))]
     UnderlyingMemDBError { source: MemDBError },
-
-    #[snafu(display("Error serializing metadata: {}", source))]
-    SerializeMetadata { source: serde_json::error::Error },
-
-    #[snafu(display("Error writing metadata to '{:?}': {}", metadata_path, source))]
-    WritingMetadata {
-        metadata_path: PathBuf,
-        source: std::io::Error,
-    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -78,53 +65,6 @@ pub struct Partition {
     wal_details: Option<WalDetails>,
 }
 
-#[derive(Debug)]
-pub struct WalDetails {
-    metadata_path: PathBuf,
-    metadata: WalMetadata,
-    write_tx: mpsc::Sender<WalWrite>,
-}
-
-#[derive(Debug)]
-struct WalWrite {
-    payload: WritePayload,
-    notify_tx: mpsc::Sender<Result<SequenceNumber, WalError>>,
-}
-
-impl WalDetails {
-    pub async fn write_metadata(&self) -> Result<()> {
-        Ok(tokio::fs::write(
-            self.metadata_path.clone(),
-            serde_json::to_string(&self.metadata).context(SerializeMetadata)?,
-        )
-        .await
-        .context(WritingMetadata {
-            metadata_path: &self.metadata_path,
-        })?)
-    }
-
-    pub async fn write_and_sync(&self, data: Vec<u8>) -> Result<()> {
-        let payload = WritePayload::new(data).context(UnderlyingWalError {})?;
-
-        let (notify_tx, mut notify_rx) = mpsc::channel(1);
-
-        let write = WalWrite { payload, notify_tx };
-
-        let mut tx = self.write_tx.clone();
-        tx.send(write)
-            .await
-            .expect("The WAL thread should always be running to receive a write");
-
-        let _ = notify_rx
-            .next()
-            .await
-            .expect("The WAL thread should always be running to send a response.")
-            .context(UnderlyingWalError {})?;
-
-        Ok(())
-    }
-}
-
 impl Partition {
     pub fn new_without_wal(store: PartitionStore) -> Self {
         Self {
@@ -135,8 +75,14 @@ impl Partition {
 
     pub async fn new_with_wal(store: PartitionStore, wal_dir: PathBuf) -> Result<Self> {
         let wal_builder = WalBuilder::new(wal_dir);
-        let wal_details = start_wal_sync_task(wal_builder).await?;
-        wal_details.write_metadata().await?;
+        let wal_details = start_wal_sync_task(wal_builder)
+            .await
+            .context(UnderlyingWalWriterError)?;
+
+        wal_details
+            .write_metadata()
+            .await
+            .context(UnderlyingWalWriterError)?;
 
         Ok(Self {
             store,
@@ -148,7 +94,10 @@ impl Partition {
         let partition_id = bucket_name.to_string();
         let mut db = MemDB::new(partition_id);
         let wal_builder = WalBuilder::new(bucket_dir);
-        let wal_details = start_wal_sync_task(wal_builder.clone()).await?;
+        let wal_details = start_wal_sync_task(wal_builder.clone())
+            .await
+            .context(UnderlyingWalWriterError)?;
+
         debug!("Wal details {:?}", wal_details);
 
         match wal_details.metadata.format {
@@ -185,7 +134,10 @@ impl Partition {
         }
 
         let store = PartitionStore::MemDB(Box::new(db));
-        wal_details.write_metadata().await?;
+        wal_details
+            .write_metadata()
+            .await
+            .context(UnderlyingWalWriterError)?;
 
         Ok(Self {
             store,
@@ -201,7 +153,9 @@ impl Partition {
             let flatbuffer = points_to_flatbuffer(&points);
             let (mut data, idx) = flatbuffer.collapse();
             let data = data.split_off(idx);
-            wal.write_and_sync(data).await?;
+            wal.write_and_sync(data)
+                .await
+                .context(UnderlyingWalWriterError)?;
         }
 
         match &mut self.store {
@@ -329,75 +283,6 @@ impl Partition {
             PartitionStore::Remote(_) => panic!("remote partition not implemented!"),
         }
     }
-}
-
-pub async fn start_wal_sync_task(wal_builder: WalBuilder) -> Result<WalDetails> {
-    let mut wal = wal_builder.wal().context(UnderlyingWalError)?;
-
-    let metadata = tokio::fs::read_to_string(wal.metadata_path())
-        .await
-        .and_then(|raw_metadata| {
-            serde_json::from_str::<WalMetadata>(&raw_metadata).map_err(Into::into)
-        })
-        .unwrap_or_default();
-    let metadata_path = wal.metadata_path();
-
-    let (write_tx, mut write_rx) = mpsc::channel::<WalWrite>(100);
-
-    tokio::spawn({
-        async move {
-            loop {
-                match write_rx.next().await {
-                    Some(write) => {
-                        let payload = write.payload;
-                        let mut tx = write.notify_tx;
-
-                        let result = task::block_in_place(|| {
-                            let seq = wal.append(payload)?;
-                            wal.sync_all()?;
-                            Ok(seq)
-                        });
-
-                        if let Err(e) = tx.send(result).await {
-                            error!("error sending result back to writer {:?}", e);
-                        }
-                    }
-                    None => {
-                        info!("shutting down WAL for {:?}", wal.metadata_path());
-                        return;
-                    }
-                }
-            }
-        }
-    });
-
-    Ok(WalDetails {
-        metadata_path,
-        metadata,
-        write_tx,
-    })
-}
-
-/// Metadata about this particular WAL
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
-pub struct WalMetadata {
-    format: WalFormat,
-}
-
-impl Default for WalMetadata {
-    fn default() -> Self {
-        Self {
-            format: WalFormat::FlatBuffers,
-        }
-    }
-}
-
-/// Supported WAL formats that can be restored
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
-enum WalFormat {
-    FlatBuffers,
-    #[serde(other)]
-    Unknown,
 }
 
 fn points_to_flatbuffer(points: &[PointType]) -> flatbuffers::FlatBufferBuilder<'_> {
