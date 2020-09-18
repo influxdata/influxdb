@@ -238,7 +238,6 @@ func (e *Engine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID in
 	defer span.Finish()
 
 	//TODO - remember to add back unicode validation...
-	//TODO - remember to check that there is a _field key / \xff key added.
 
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -266,13 +265,18 @@ func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err erro
 	return nil
 }
 
-func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) (err error) {
+func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
+	// A value of zero ensures the ShardGroupDuration is adjusted to an appropriate value based on the specified
+	//   duration
+	zero := time.Duration(0)
 	rpu := meta.RetentionPolicyUpdate{
-		Duration: &d,
+		Duration:           &d,
+		ShardGroupDuration: &zero,
 	}
+
 	return e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
 }
 
