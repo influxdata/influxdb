@@ -19,6 +19,7 @@ members = [
     "delorean_storage_interface",
     "delorean_wal",
     "delorean_wal_writer",
+    "delorean_write_buffer",
     "influxdb2_client",
 ]
 
@@ -34,6 +35,7 @@ delorean_table = { path = "delorean_table" }
 delorean_table_schema = { path = "delorean_table_schema" }
 delorean_wal = { path = "delorean_wal" }
 delorean_wal_writer = { path = "delorean_wal_writer" }
+delorean_write_buffer = { path = "delorean_write_buffer" }
 delorean_object_store = { path = "delorean_object_store" }
 delorean_storage_interface = { path = "delorean_storage_interface" }
 delorean_tsm = { path = "delorean_tsm" }
@@ -79,10 +81,9 @@ either = "1.5.3"
 flatbuffers = "0.6.1"
 libflate = "1.0.0"
 arrow = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4"}
-string-interner = "0.12.0"
-chrono = "0.4"
-sqlparser = "0.6.1"
-datafusion = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4" }
+#chrono = "0.4"
+#sqlparser = "0.6.1"
+#datafusion = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4" }
 
 [dev-dependencies]
 assert_cmd = "1.0.0"

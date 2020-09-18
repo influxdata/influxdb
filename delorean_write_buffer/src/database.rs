@@ -1,7 +1,7 @@
-use tonic::async_trait;
+use async_trait::async_trait;
 use tracing::info;
 
-use crate::generated_types::wal as wb;
+use delorean_generated_types::wal as wb;
 
 use delorean_line_parser::{FieldValue, ParsedLine};
 use delorean_storage_interface::{Database, DatabaseStore};
