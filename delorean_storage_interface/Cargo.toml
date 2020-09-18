@@ -1,0 +1,14 @@
+[package]
+name = "delorean_storage_interface"
+version = "0.1.0"
+authors = ["alamb <andrew@nerdnetworks.org>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+snafu = "0.6.2"
+async-trait = "0.1.40"
+arrow = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4"}
+tokio = { version = "0.2", features = ["full"] }
+delorean_line_parser = { path = "../delorean_line_parser" }

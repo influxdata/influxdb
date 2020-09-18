@@ -1,15 +1,15 @@
-/// This module provides a reference implementaton
-/// of storage::DatabaseSource and storage::Database for use in testing
-///
-/// Note: this module is only compiled in  the 'test' cfg,
+//! This module provides a reference implementaton
+//! of storage::DatabaseSource and storage::Database for use in testing
+//!
+//! Note: this module is only compiled in  the 'test' cfg,
 use arrow::record_batch::RecordBatch;
 
-use crate::storage::{Database, DatabaseStore, TimestampRange};
+use crate::{Database, DatabaseStore, TimestampRange};
 use delorean_line_parser::{parse_lines, ParsedLine};
 
+use async_trait::async_trait;
 use snafu::Snafu;
 use std::{collections::BTreeMap, collections::BTreeSet, sync::Arc};
-use tonic::async_trait;
 
 use tokio::sync::Mutex;
 

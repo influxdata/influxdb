@@ -4,6 +4,7 @@ use tracing::info;
 use crate::generated_types::wal as wb;
 
 use delorean_line_parser::{FieldValue, ParsedLine};
+use delorean_storage_interface::{Database, DatabaseStore};
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
@@ -37,7 +38,7 @@ use string_interner::{
 };
 use tokio::sync::RwLock;
 
-use super::TimestampRange;
+use delorean_storage_interface::TimestampRange;
 
 const TIME_COLUMN_NAME: &str = "time";
 
@@ -230,7 +231,7 @@ impl WriteBufferDatabases {
 }
 
 #[async_trait]
-impl super::DatabaseStore for WriteBufferDatabases {
+impl DatabaseStore for WriteBufferDatabases {
     type Database = Db;
     type Error = Error;
 
@@ -423,7 +424,7 @@ impl Db {
 }
 
 #[async_trait]
-impl super::Database for Db {
+impl Database for Db {
     type Error = Error;
 
     // TODO: writes lines creates a column named "time" for the timestmap data. If
@@ -1391,7 +1392,8 @@ impl Column {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::Database;
+    use delorean_storage_interface::{Database, TimestampRange};
+
     use arrow::util::pretty::pretty_format_batches;
     use delorean_line_parser::parse_lines;
 

@@ -628,7 +628,6 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "assert_cmd",
- "async-trait",
  "byteorder",
  "bytes",
  "chrono",
@@ -643,6 +642,7 @@ dependencies = [
  "delorean_line_parser",
  "delorean_object_store",
  "delorean_parquet",
+ "delorean_storage_interface",
  "delorean_table",
  "delorean_table_schema",
  "delorean_test_helpers",
@@ -749,6 +749,17 @@ dependencies = [
  "log",
  "parquet 1.0.0",
  "snafu",
+]
+
+[[package]]
+name = "delorean_storage_interface"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "async-trait",
+ "delorean_line_parser",
+ "snafu",
+ "tokio",
 ]
 
 [[package]]

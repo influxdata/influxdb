@@ -16,6 +16,7 @@ members = [
     "delorean_table_schema",
     "delorean_test_helpers",
     "delorean_tsm",
+    "delorean_storage_interface",
     "delorean_wal",
     "delorean_wal_writer",
     "influxdb2_client",
@@ -34,6 +35,7 @@ delorean_table_schema = { path = "delorean_table_schema" }
 delorean_wal = { path = "delorean_wal" }
 delorean_wal_writer = { path = "delorean_wal_writer" }
 delorean_object_store = { path = "delorean_object_store" }
+delorean_storage_interface = { path = "delorean_storage_interface" }
 delorean_tsm = { path = "delorean_tsm" }
 
 bytes = "0.5.4"
@@ -41,8 +43,6 @@ integer-encoding = "1.0.7"
 
 hyper = "0.13"
 tokio = { version = "0.2", features = ["full"] }
-
-async-trait = "0.1.40"
 
 clap = "2.33.1"
 dotenv = "0.15.0"

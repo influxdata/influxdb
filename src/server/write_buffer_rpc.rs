@@ -23,8 +23,9 @@ use delorean::generated_types::{
 };
 
 use crate::server::rpc::input::GrpcInputs;
-use delorean::storage;
-use delorean::storage::{Database, DatabaseStore};
+use delorean_storage_interface::{
+    org_and_bucket_to_database, Database, DatabaseStore, TimestampRange as StorageTimestampRange,
+};
 
 use tokio::sync::mpsc;
 use tonic::Status;
@@ -177,7 +178,7 @@ where
 
         let measurement_names_request = req.into_inner();
 
-        let db_name = storage::org_and_bucket_to_database(
+        let db_name = org_and_bucket_to_database(
             measurement_names_request.org_id()?,
             &measurement_names_request.bucket_name()?,
         );
@@ -226,8 +227,8 @@ where
     }
 }
 
-fn convert_range(range: Option<TimestampRange>) -> Option<storage::TimestampRange> {
-    range.map(|TimestampRange { start, end }| storage::TimestampRange { start, end })
+fn convert_range(range: Option<TimestampRange>) -> Option<StorageTimestampRange> {
+    range.map(|TimestampRange { start, end }| StorageTimestampRange { start, end })
 }
 
 // The following code implements the business logic of the requests as
@@ -243,7 +244,7 @@ fn convert_range(range: Option<TimestampRange>) -> Option<storage::TimestampRang
 async fn measurement_name_impl<T>(
     db_store: Arc<T>,
     db_name: String,
-    range: Option<storage::TimestampRange>,
+    range: Option<StorageTimestampRange>,
 ) -> Result<StringValuesResponse>
 where
     T: DatabaseStore,
@@ -292,7 +293,7 @@ where
 mod tests {
     use super::*;
     use delorean::id::Id;
-    use delorean::test::storage::TestDatabaseStore;
+    use delorean_storage_interface::test::TestDatabaseStore;
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -439,7 +440,7 @@ mod tests {
                 .expect("bucket_id was valid")
                 .to_string();
 
-            let db_name = storage::org_and_bucket_to_database(&org_id_str, &bucket_id_str);
+            let db_name = org_and_bucket_to_database(&org_id_str, &bucket_id_str);
 
             Self {
                 org_id,
