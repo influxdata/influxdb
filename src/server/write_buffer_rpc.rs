@@ -9,7 +9,6 @@
 #![allow(clippy::type_complexity)]
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-use tracing::warn;
 
 use snafu::{ResultExt, Snafu};
 
@@ -20,11 +19,12 @@ use delorean::generated_types::{
     DeleteBucketResponse, GetBucketsResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
     MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Organization,
     ReadFilterRequest, ReadGroupRequest, ReadResponse, StringValuesResponse, TagKeysRequest,
-    TagValuesRequest,
+    TagValuesRequest, TimestampRange,
 };
 
 use crate::server::rpc::input::GrpcInputs;
-use delorean::storage::{org_and_bucket_to_database, Database, DatabaseStore};
+use delorean::storage;
+use delorean::storage::{Database, DatabaseStore};
 
 use tokio::sync::mpsc;
 use tonic::Status;
@@ -177,23 +177,14 @@ where
 
         let measurement_names_request = req.into_inner();
 
-        let db_name = org_and_bucket_to_database(
+        let db_name = storage::org_and_bucket_to_database(
             measurement_names_request.org_id()?,
             &measurement_names_request.bucket_name()?,
         );
 
-        // This request can also have a time range. TODO handle this
-        // reasonably somehow (select count(*) from table_name where <PREDICATE>???).
-        // For now, return all measurements.
-        if let Some(range) = measurement_names_request.range {
-            warn!(
-                "Timestamp ranges not yet supported in measurement_names storage gRPC request,\
-                   ignoring: {:?}",
-                range
-            );
-        }
+        let range = convert_range(measurement_names_request.range);
 
-        let response = measurement_name_impl(self.db_store.clone(), db_name)
+        let response = measurement_name_impl(self.db_store.clone(), db_name, range)
             .await
             .map_err(|e| e.to_status());
 
@@ -235,13 +226,25 @@ where
     }
 }
 
+fn convert_range(range: Option<TimestampRange>) -> Option<storage::TimestampRange> {
+    range.map(|TimestampRange { start, end }| storage::TimestampRange { start, end })
+}
+
 // The following code implements the business logic of the requests as
 // methods that return Results with module specific Errors (and thus
 // can use ?, etc). The trait implemententations then handle mapping
 // to the appropriate tonic Status
-//
-// TODO: Do this work on a separate worker pool, not the main tokio task pool
-async fn measurement_name_impl<T>(db_store: Arc<T>, db_name: String) -> Result<StringValuesResponse>
+
+/// Gathers all measurement names that have data in the specified
+/// (optional) range
+///
+/// TODO: Do this work on a separate worker pool, not the main tokio
+/// task poo
+async fn measurement_name_impl<T>(
+    db_store: Arc<T>,
+    db_name: String,
+    range: Option<storage::TimestampRange>,
+) -> Result<StringValuesResponse>
 where
     T: DatabaseStore,
 {
@@ -251,7 +254,7 @@ where
         .ok_or_else(|| Error::DatabaseNotFound {
             db_name: db_name.clone(),
         })?
-        .table_names()
+        .table_names(range)
         .await
         .map_err(|e| Error::GettingTables {
             db_name: db_name.clone(),
@@ -380,6 +383,43 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_storage_rpc_measurement_names_timestamp() -> Result<(), tonic::Status> {
+        // Note we use a unique port. TODO: let the OS pick the port
+        let mut fixture = Fixture::new(11810)
+            .await
+            .expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let lp_data = "h2o,state=CA temp=50.4 100\no2,state=MA temp=50.4 200";
+        fixture
+            .test_storage
+            .add_lp_string(&db_info.db_name, lp_data)
+            .await;
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
+        let request = MeasurementNamesRequest {
+            source,
+            range: Some(TimestampRange {
+                start: 150,
+                end: 200,
+            }),
+        };
+
+        let actual_measurements = fixture.storage_client.measurement_names(request).await?;
+
+        let expected_measurements = vec![String::from("o2")];
+        assert_eq!(actual_measurements, expected_measurements);
+
+        Ok(())
+    }
+
     /// Delorean deals with database names. The gRPC interface deals
     /// with org_id and bucket_id represented as 16 digit hex
     /// values. This struct manages creating the org_id, bucket_id,
@@ -399,7 +439,7 @@ mod tests {
                 .expect("bucket_id was valid")
                 .to_string();
 
-            let db_name = org_and_bucket_to_database(&org_id_str, &bucket_id_str);
+            let db_name = storage::org_and_bucket_to_database(&org_id_str, &bucket_id_str);
 
             Self {
                 org_id,

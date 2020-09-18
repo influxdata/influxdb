@@ -71,6 +71,18 @@ impl TryFrom<u8> for SeriesDataType {
     }
 }
 
+/// Specifies a continuous range of nanosecond timestamps. Timestamp
+/// predicates are so common and critical to performance of timeseries
+/// databases in general, and delorean in particular, they handled specially
+#[derive(Clone, PartialEq, Copy, Debug)]
+pub struct TimestampRange {
+    /// Start defines the inclusive lower bound.
+    pub start: i64,
+
+    /// End defines the exclusive upper bound.
+    pub end: i64,
+}
+
 #[async_trait]
 /// A `Database` stores data and provides an interface to query that data.
 pub trait Database: Debug + Send + Sync {
@@ -82,8 +94,13 @@ pub trait Database: Debug + Send + Sync {
     /// Execute the specified query and return arrow record batches with the result
     async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error>;
 
-    /// Returns the list of table names in this database.
-    async fn table_names(&self) -> Result<Arc<BTreeSet<String>>, Self::Error>;
+    /// Returns the list of table names in this database. If a
+    /// timestamp range is specified, only tables which have data in
+    /// the specified time range are returned.
+    async fn table_names(
+        &self,
+        range: Option<TimestampRange>,
+    ) -> Result<Arc<BTreeSet<String>>, Self::Error>;
 
     /// Fetch the specified table names and columns as Arrow RecordBatches
     async fn table_to_arrow(

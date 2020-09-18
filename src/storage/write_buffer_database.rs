@@ -39,6 +39,10 @@ use string_interner::{
 };
 use tokio::sync::RwLock;
 
+use super::TimestampRange;
+
+const TIME_COLUMN_NAME: &str = "time";
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Error reading from dir {:?}: {}", dir, source))]
@@ -109,6 +113,9 @@ pub enum Error {
     #[snafu(display("Table {} not found", table))]
     TableNotFound { table: String },
 
+    #[snafu(display("Internal Error: Column {} not found", column_id))]
+    InternaColumnNotFound { column_id: u32 },
+
     #[snafu(display("Unexpected insert error"))]
     InsertError,
 
@@ -118,8 +125,21 @@ pub enum Error {
     #[snafu(display("dictionary lookup error on id {}", id))]
     DictionaryIdLookupError { id: u32 },
 
-    #[snafu(display("Internal write buffer error: {}", source))]
-    InternalError { source: Box<Error> },
+    #[snafu(display("dictionary lookup error for value {}", value))]
+    DictionaryValueLookupError { value: String },
+
+    /// This error "should not happen" and is not expected. However,
+    /// for robustness, rather than panic! we handle it gracefully
+    #[snafu(display("Internal Error '{}'", description))]
+    InternalError { description: String },
+
+    /// This error "should not happen" and is not expected. However,
+    /// for robustness, rather than panic! we handle it gracefully
+    #[snafu(display("Internal Error '{}': {}", description, source))]
+    InternalUnderlyingError {
+        description: String,
+        source: Box<Error>,
+    },
 
     #[snafu(display("id conversion error"))]
     IdConversionError { source: std::num::TryFromIntError },
@@ -147,6 +167,23 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+trait ToInternalError<T>: Sized {
+    /// Converts e into an internal error with human readable
+    /// description, as opposed to panic!
+    fn to_internal(self, description: &str) -> Result<T>;
+}
+
+// Add a "to_internal" method to Result to transform errrors to
+// something interpretable
+impl<T> ToInternalError<T> for Result<T> {
+    fn to_internal(self, description: &str) -> Self {
+        self.map_err(|e| Error::InternalUnderlyingError {
+            description: description.into(),
+            source: Box::new(e),
+        })
+    }
+}
 
 #[derive(Debug)]
 pub struct WriteBufferDatabases {
@@ -438,20 +475,40 @@ impl super::Database for Db {
         Ok(())
     }
 
-    async fn table_names(&self) -> Result<Arc<BTreeSet<String>>, Self::Error> {
+    async fn table_names(
+        &self,
+        range: Option<TimestampRange>,
+    ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
         // TODO: Cache this information to avoid creating this each time
         let partitions = self.partitions.read().await;
         let mut table_names = BTreeSet::new();
         for partition in partitions.iter() {
-            for table_name_symbol in partition.tables.keys() {
-                table_names.insert(
-                    partition
-                        .lookup_id(*table_name_symbol)
-                        .map_err(|e| Error::InternalError {
-                            source: Box::new(e),
-                        })?
-                        .into(),
-                );
+            for (table_name_symbol, table) in &partition.tables {
+                let mut add_table_name = true;
+
+                if let Some(range) = range {
+                    let time_column_id = partition
+                        .lookup_value(TIME_COLUMN_NAME)
+                        .to_internal("looking up time column name")?;
+
+                    // if timestamps fall outside the min/max of the
+                    // time column, then don't add table name
+                    if !table
+                        .column(time_column_id)?
+                        .has_i64_range(range.start, range.end)?
+                    {
+                        add_table_name = false;
+                    }
+                };
+
+                if add_table_name {
+                    table_names.insert(
+                        partition
+                            .lookup_id(*table_name_symbol)
+                            .to_internal("Looking up table name in symbol table")?
+                            .into(),
+                    );
+                }
             }
         }
         Ok(Arc::new(table_names))
@@ -567,6 +624,7 @@ impl Partition {
         }
     }
 
+    /// Creates  a new symbol corresponding to `name` if one does not already exist
     fn intern_new_dict_entry(&mut self, name: &str) {
         self.dictionary.get_or_intern(name);
     }
@@ -634,7 +692,7 @@ impl Partition {
                 value: Value::FieldValue(value),
             });
         }
-        let time_id = self.dict_or_insert("time", builder);
+        let time_id = self.dict_or_insert(TIME_COLUMN_NAME, builder);
         let time = line.timestamp.unwrap_or(0);
         let time_value = FieldValue::I64(time);
         values.push(ColumnValue {
@@ -651,6 +709,8 @@ impl Partition {
         Ok(())
     }
 
+    /// Returns the id corresponding to value, adding an entry for the
+    /// id if it is not yet present in the dictionary.
     fn dict_or_insert(&mut self, value: &str, builder: &mut Option<WalEntryBuilder<'_>>) -> u32 {
         match self.dictionary.get(value) {
             Some(id) => symbol_to_u32(id),
@@ -664,6 +724,16 @@ impl Partition {
                 id
             }
         }
+    }
+
+    /// Returns the id corresponding to value, or an error if no such
+    /// symbol exists. Note: this does not add to the dictionary as
+    /// doing so requires updating the WAL as well.
+    fn lookup_value(&self, value: &str) -> Result<u32> {
+        self.dictionary
+            .get(value)
+            .map(symbol_to_u32)
+            .context(DictionaryValueLookupError { value })
     }
 
     fn should_write(&self, key: &str) -> bool {
@@ -818,6 +888,17 @@ impl Table {
 
     fn row_count(&self) -> usize {
         self.columns.first().map_or(0, |v| v.len())
+    }
+
+    /// Returns a reference to the specified column
+    fn column(&self, column_id: u32) -> Result<&Column> {
+        match self.column_id_to_index.get(&column_id) {
+            Some(column_index) => Ok(&self.columns[*column_index]),
+            None => InternalError {
+                description: format!("Column id {} not found", column_id),
+            }
+            .fail(),
+        }
     }
 
     fn add_row(
@@ -1221,6 +1302,9 @@ impl WalEntryBuilder<'_> {
 }
 
 #[derive(Debug)]
+/// Stores the actual data for columns in a  partition
+///
+/// TODO: add some summary statistics (like min/max for example)
 enum Column {
     F64(Vec<Option<f64>>),
     I64(Vec<Option<i64>>),
@@ -1286,6 +1370,27 @@ impl Column {
             }
         }
     }
+
+    /// Returns true if any rows are within the range [min_value,
+    /// max_value], inclusive
+    fn has_i64_range(&self, start: i64, end: i64) -> Result<bool> {
+        match self {
+            Self::I64(v) => {
+                for val in v.iter() {
+                    if let Some(val) = val {
+                        if start <= *val && *val <= end {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            _ => InternalError {
+                description: "Applying i64 range on a column with non-i64 type",
+            }
+            .fail(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1298,6 +1403,49 @@ mod tests {
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
+    fn to_set(v: Vec<&str>) -> BTreeSet<String> {
+        v.iter().map(|s| s.to_string()).collect::<BTreeSet<_>>()
+    }
+
+    #[test]
+    fn test_has_i64_range() -> Result {
+        let col = Column::I64(vec![]);
+        assert!(!col.has_i64_range(-1, 0)?);
+
+        let col = Column::I64(vec![Some(1), None, Some(2)]);
+        assert!(!col.has_i64_range(-1, 0)?);
+        assert!(col.has_i64_range(0, 1)?);
+        assert!(col.has_i64_range(1, 2)?);
+        assert!(col.has_i64_range(2, 3)?);
+        assert!(!col.has_i64_range(3, 4)?);
+
+        let col = Column::I64(vec![Some(2), None, Some(1)]);
+        assert!(!col.has_i64_range(-1, 0)?);
+        assert!(col.has_i64_range(0, 1)?);
+        assert!(col.has_i64_range(1, 2)?);
+        assert!(col.has_i64_range(2, 3)?);
+        assert!(!col.has_i64_range(3, 4)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_has_i64_range_does_not_panic() -> Result {
+        // providing the wrong column type should get an internal error, not a panic
+        let col = Column::F64(vec![]);
+        let res = col.has_i64_range(-1, 0);
+        assert!(res.is_err());
+        let res_string = format!("{:?}", res);
+        let expected = "InternalError";
+        assert!(
+            res_string.contains(expected),
+            "Did not find expected text '{}' in '{}'",
+            expected,
+            res_string
+        );
+        Ok(())
+    }
+
     #[tokio::test(threaded_scheduler)]
     async fn list_table_names() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
@@ -1305,7 +1453,7 @@ mod tests {
         let db = Db::try_with_wal("mydb", &mut dir).await?;
 
         // no tables initially
-        assert_eq!(*db.table_names().await?, BTreeSet::new());
+        assert_eq!(*db.table_names(None).await?, BTreeSet::new());
 
         // write two different tables
         let lines: Vec<_> =
@@ -1314,11 +1462,48 @@ mod tests {
                 .collect();
         db.write_lines(&lines).await?;
 
-        // Now, we should have the two tables
-        let expected_tables = vec!["cpu".into(), "disk".into()]
-            .into_iter()
-            .collect::<BTreeSet<_>>();
-        assert_eq!(*db.table_names().await?, expected_tables);
+        // Now, we should see the two tables
+        assert_eq!(*db.table_names(None).await?, to_set(vec!["cpu", "disk"]));
+
+        Ok(())
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    async fn list_table_names_timestamps() -> Result {
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+
+        let db = Db::try_with_wal("mydb", &mut dir).await?;
+
+        // write two different tables at the following times:
+        // cpu: 100 and 150
+        // disk: 200
+        let lines: Vec<_> =
+            parse_lines("cpu,region=west user=23.2 100\ncpu,region=west user=21.0 150\ndisk,region=east bytes=99i 200")
+                .map(|l| l.unwrap())
+                .collect();
+        db.write_lines(&lines).await?;
+
+        // Cover all times
+        let range = Some(TimestampRange { start: 0, end: 200 });
+        assert_eq!(*db.table_names(range).await?, to_set(vec!["cpu", "disk"]));
+
+        // Right before disk
+        let range = Some(TimestampRange { start: 0, end: 199 });
+        assert_eq!(*db.table_names(range).await?, to_set(vec!["cpu"]));
+
+        // only one point of cpu
+        let range = Some(TimestampRange {
+            start: 50,
+            end: 100,
+        });
+        assert_eq!(*db.table_names(range).await?, to_set(vec!["cpu"]));
+
+        // no ranges
+        let range = Some(TimestampRange {
+            start: 250,
+            end: 350,
+        });
+        assert_eq!(*db.table_names(range).await?, to_set(vec![]));
 
         Ok(())
     }

@@ -4,7 +4,7 @@
 /// Note: this module is only compiled in  the 'test' cfg,
 use arrow::record_batch::RecordBatch;
 
-use crate::storage::{Database, DatabaseStore};
+use crate::storage::{Database, DatabaseStore, TimestampRange};
 use delorean_line_parser::{parse_lines, ParsedLine};
 
 use snafu::Snafu;
@@ -53,6 +53,17 @@ impl TestDatabase {
     }
 }
 
+/// returns true if this line is within the range of the timestamp
+fn line_in_range(line: &ParsedLine<'_>, range: &Option<TimestampRange>) -> bool {
+    match range {
+        Some(range) => {
+            let timestamp = line.timestamp.expect("had a timestamp on line");
+            range.start <= timestamp && timestamp <= range.end
+        }
+        None => true,
+    }
+}
+
 #[async_trait]
 impl Database for TestDatabase {
     type Error = TestError;
@@ -72,14 +83,21 @@ impl Database for TestDatabase {
     }
 
     /// Return all measurement names that are saved in this database
-    async fn table_names(&self) -> Result<Arc<BTreeSet<String>>, Self::Error> {
+    async fn table_names(
+        &self,
+        range: Option<TimestampRange>,
+    ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
         let saved_lines = self.saved_lines.lock().await;
 
         Ok(Arc::new(
             parse_lines(&saved_lines.join("\n"))
-                .map(|line| {
+                .filter_map(|line| {
                     let line = line.expect("Correctly parsed saved line");
-                    line.series.measurement.to_string()
+                    if line_in_range(&line, &range) {
+                        Some(line.series.measurement.to_string())
+                    } else {
+                        None
+                    }
                 })
                 .collect::<BTreeSet<_>>(),
         ))
