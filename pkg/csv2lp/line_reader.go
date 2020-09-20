@@ -9,19 +9,19 @@ const (
 )
 
 // LineReader wraps an io.Reader to count lines that go though read
-// function and returns at most one line during every invovation of
-// read. It provides a wrokaround to golang's CSV reader that
+// function and returns at most one line during every invocation of
+// read. It provides a workaround to golang's CSV reader that
 // does not expose current line number at all
 // (see https://github.com/golang/go/issues/26679)
 //
 // At most one line is returned by every read in order to ensure that
 // golang's CSV reader buffers at most one single line into its nested
-// bufio.Reader, so that numbers reported are currect also for the
-// CSV reader.
+// bufio.Reader.
 type LineReader struct {
-	// LineNumber of the next read operation, 0 is the first line by default, can be set to 0 to count from 1
+	// LineNumber of the next read operation, 0 is the first line by default.
+	// It can be set to 1 start counting from 1.
 	LineNumber int
-	// LastLineNumber is the number of the last read row
+	// LastLineNumber is the number of the last read row.
 	LastLineNumber int
 
 	// rs is a wrapped reader
@@ -30,13 +30,13 @@ type LineReader struct {
 	buf []byte
 	// readPos is a read position in the buffer
 	readPos int
-	// bufSize is the length of cached data in the buffer
+	// bufSize is the length of data read from rd into buf
 	bufSize int
-	// err contain the last error during read
+	// err contains the last error during read
 	err error
 }
 
-// NewLineReader returns a new LineReader that wraps an io.Reader
+// NewLineReader returns a new LineReader.
 func NewLineReader(rd io.Reader) *LineReader {
 	return NewLineReaderSize(rd, defaultBufSize)
 }
@@ -80,8 +80,8 @@ func (lr *LineReader) Read(p []byte) (n int, err error) {
 	}
 	// copy at most one line and don't overflow internal buffer or p
 	i := 0
+	lr.LastLineNumber = lr.LineNumber
 	for lr.readPos < lr.bufSize && i < n {
-		lr.LastLineNumber = lr.LineNumber
 		b := lr.buf[lr.readPos]
 		lr.readPos++
 		p[i] = b
@@ -95,7 +95,7 @@ func (lr *LineReader) Read(p []byte) (n int, err error) {
 	return i, nil
 }
 
-// readErr returns the last error
+// readErr returns the last error and resets err status
 func (lr *LineReader) readErr() error {
 	err := lr.err
 	lr.err = nil

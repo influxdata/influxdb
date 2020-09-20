@@ -2,7 +2,6 @@ package csv2lp_test
 
 import (
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -13,18 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testCloser struct {
-	errorMsg string
-}
-
-func (c testCloser) Close() error {
-	if c.errorMsg == "" {
-		return nil
-	}
-	return errors.New(c.errorMsg)
-}
-
-// TestLineReader tests correctness of line reporting and reader implementation
+// TestLineReader tests correctness of line reporting and reader implementation of LineReader
 func TestLineReader(t *testing.T) {
 	type TestInput = struct {
 		lines               [4]string
@@ -106,8 +94,8 @@ func TestLineReader(t *testing.T) {
 	}
 }
 
-// TestLineReader_viaCsv test correct line reporting when read through a CSV reader with various buffer sizes
-// to emulate multiple required reads on small data set
+// TestLineReader_viaCsv tests correct line reporting when read through a CSV reader with various buffer sizes
+// to emulate multiple required reads with a small test data set
 func TestLineReader_viaCsv(t *testing.T) {
 	type RowWithLine = struct {
 		row        []string
