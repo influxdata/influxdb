@@ -2,14 +2,11 @@ package tenant
 
 import (
 	"context"
-	"fmt"
 	"path"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
-
-const minPasswordLength = 8
 
 // OnboardClientService connects to Influx via HTTP to perform onboarding operations
 type OnboardClientService struct {
@@ -57,10 +54,6 @@ func (s *OnboardClientService) OnboardInitialUser(ctx context.Context, or *influ
 }
 
 func (s *OnboardClientService) OnboardUser(ctx context.Context, or *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
-	if len(or.Password) < minPasswordLength {
-		return nil, fmt.Errorf("password must be at least %d characters long", minPasswordLength)
-	}
-
 	res := &onboardingResponse{}
 
 	err := s.Client.
