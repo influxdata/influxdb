@@ -25,7 +25,6 @@ require (
 	github.com/klauspost/pgzip v1.0.2-0.20170402124221-0bf5dcad4ada
 	github.com/mattn/go-isatty v0.0.12
 	github.com/opentracing/opentracing-go v1.1.0
-	github.com/paulbellamy/ratecounter v0.2.0
 	github.com/peterh/liner v1.0.1-0.20180619022028-8c1271fcf47f
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.5.1
