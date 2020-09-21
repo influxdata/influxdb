@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -24,6 +23,7 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
@@ -41,6 +41,7 @@ type Engine struct {
 	metaClient   MetaClient
 	pointsWriter interface {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+		Close() error
 	}
 
 	retentionService  *retention.Service
@@ -208,21 +209,23 @@ func (e *Engine) Close() error {
 	defer e.mu.Unlock()
 	e.closing = nil
 
-	var retErr *multierror.Error
-
+	var retErr error
 	if err := e.precreatorService.Close(); err != nil {
-		retErr = multierror.Append(retErr, fmt.Errorf("error closing shard precreator service: %w", err))
+		retErr = multierr.Append(retErr, fmt.Errorf("error closing shard precreator service: %w", err))
 	}
 
 	if err := e.retentionService.Close(); err != nil {
-		retErr = multierror.Append(retErr, fmt.Errorf("error closing retention service: %w", err))
+		retErr = multierr.Append(retErr, fmt.Errorf("error closing retention service: %w", err))
 	}
 
 	if err := e.tsdbStore.Close(); err != nil {
-		retErr = multierror.Append(retErr, fmt.Errorf("error closing TSDB store: %w", err))
+		retErr = multierr.Append(retErr, fmt.Errorf("error closing TSDB store: %w", err))
 	}
 
-	return retErr.ErrorOrNil()
+	if err := e.pointsWriter.Close(); err != nil {
+		retErr = multierr.Append(retErr, fmt.Errorf("error closing points writer: %w", err))
+	}
+	return retErr
 }
 
 // WritePoints writes the provided points to the engine.
