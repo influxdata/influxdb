@@ -96,7 +96,7 @@ targets = {
 supported_builds = {
     'darwin': [ "amd64" ],
     'windows': [ "amd64" ],
-    'linux': [ "amd64", "i386", "armhf", "arm64", "armel", "static_i386", "static_amd64" ]
+    'linux': [ "amd64", "i386", "armhf", "arm64", "armel", "static_i386", "static_amd64", "s390x" ]
 }
 
 supported_packages = {
