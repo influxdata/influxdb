@@ -25,3 +25,8 @@ tracing = "0.1"
 
 [dev-dependencies]
 delorean_test_helpers = { path = "../delorean_test_helpers" }
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false

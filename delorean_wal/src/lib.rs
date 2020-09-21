@@ -609,7 +609,7 @@ impl Header {
 /// One batch of data read from the WAL.
 ///
 /// This corresponds to one call to `Wal::append`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Entry {
     sequence_number: u64,
     data: Vec<u8>,
