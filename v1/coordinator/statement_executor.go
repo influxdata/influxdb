@@ -203,11 +203,8 @@ func (e *StatementExecutor) executeExplainAnalyzeStatement(ctx context.Context, 
 			goto CLEANUP
 		} else if row == nil {
 			// Check if the query was interrupted while emitting.
-			select {
-			case <-ctx.Done():
-				err = ctx.Err()
+			if err = ctx.Err(); err != nil {
 				goto CLEANUP
-			default:
 			}
 			break
 		}
@@ -266,10 +263,8 @@ func (e *StatementExecutor) executeSelectStatement(ctx context.Context, stmt *in
 			return err
 		} else if row == nil {
 			// Check if the query was interrupted while emitting.
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
+			if err := ctx.Err(); err != nil {
+				return err
 			}
 			break
 		}

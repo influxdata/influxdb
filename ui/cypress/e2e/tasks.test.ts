@@ -39,7 +39,7 @@ from(bucket: "${name}"{rightarrow}
 
     cy.getByTestID('notification-error').should(
       'contain',
-      'error calling function "to": missing required keyword argument "bucketID"'
+      'error calling function "to" @12:8-12:26: missing required keyword argument "bucketID"'
     )
   })
 

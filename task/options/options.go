@@ -11,11 +11,10 @@ import (
 	"github.com/influxdata/cron"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
-	ast2 "github.com/influxdata/influxdb/v2/pkg/flux/ast"
-	"github.com/influxdata/influxdb/v2/pkg/flux/ast/edit"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
 )
 
@@ -293,7 +292,7 @@ func extractNameOption(opts *Options, objExpr *ast.ObjectExpression) error {
 	if !ok {
 		return errParseTaskOptionField(optName)
 	}
-	opts.Name = ast2.StringFromLiteral(nameStr)
+	opts.Name = ast.StringFromLiteral(nameStr)
 
 	return nil
 }
@@ -313,7 +312,7 @@ func extractScheduleOptions(opts *Options, objExpr *ast.ObjectExpression) error 
 		if !ok {
 			return errParseTaskOptionField(optCron)
 		}
-		opts.Cron = ast2.StringFromLiteral(cronExprStr)
+		opts.Cron = ast.StringFromLiteral(cronExprStr)
 	}
 
 	if everyErr == nil {
@@ -359,7 +358,7 @@ func extractConcurrencyOption(opts *Options, objExpr *ast.ObjectExpression) erro
 	if !ok {
 		return errParseTaskOptionField(optConcurrency)
 	}
-	val := ast2.IntegerFromLiteral(concurInt)
+	val := ast.IntegerFromLiteral(concurInt)
 	opts.Concurrency = &val
 
 	return nil
@@ -375,7 +374,7 @@ func extractRetryOption(opts *Options, objExpr *ast.ObjectExpression) error {
 	if !ok {
 		return errParseTaskOptionField(optRetry)
 	}
-	val := ast2.IntegerFromLiteral(retryInt)
+	val := ast.IntegerFromLiteral(retryInt)
 	opts.Retry = &val
 
 	return nil

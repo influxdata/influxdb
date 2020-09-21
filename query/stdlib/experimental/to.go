@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/experimental"
 	platform "github.com/influxdata/influxdb/v2"
@@ -32,19 +33,8 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := flux.FunctionSignature(
-		map[string]semantic.PolyType{
-			"bucket":   semantic.String,
-			"bucketID": semantic.String,
-			"org":      semantic.String,
-			"orgID":    semantic.String,
-			"host":     semantic.String,
-			"token":    semantic.String,
-		},
-		[]string{},
-	)
-
-	flux.ReplacePackageValue("experimental", "to", flux.FunctionValueWithSideEffect("to", createToOpSpec, toSignature))
+	toSignature := runtime.MustLookupBuiltinType("experimental", "to")
+	runtime.ReplacePackageValue("experimental", "to", flux.MustValue(flux.FunctionValueWithSideEffect("to", createToOpSpec, toSignature)))
 	flux.RegisterOpSpec(ExperimentalToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ExperimentalToKind, newToProcedure, ExperimentalToKind)
 	execute.RegisterTransformation(ExperimentalToKind, createToTransformation)
@@ -185,9 +175,7 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 // ToTransformation is the transformation for the `to` flux function.
 type ToTransformation struct {
 	ctx      context.Context
-	bucket   string
 	bucketID platform.ID
-	org      string
 	orgID    platform.ID
 	d        execute.Dataset
 	cache    execute.TableBuilderCache
@@ -206,7 +194,6 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 	var err error
 
 	var orgID platform.ID
-	var org string
 	// Get organization name and ID
 	if spec.Spec.Org != "" {
 		oID, ok := deps.OrganizationLookup.Lookup(ctx, spec.Spec.Org)
@@ -214,7 +201,6 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 			return nil, fmt.Errorf("failed to look up organization %q", spec.Spec.Org)
 		}
 		orgID = oID
-		org = spec.Spec.Org
 	} else if spec.Spec.OrgID != "" {
 		if oid, err := platform.IDFromString(spec.Spec.OrgID); err != nil {
 			return nil, err
@@ -229,15 +215,8 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		}
 		orgID = req.OrganizationID
 	}
-	if org == "" {
-		org = deps.OrganizationLookup.LookupName(ctx, orgID)
-		if org == "" {
-			return nil, fmt.Errorf("failed to look up organization name for ID %q", orgID.String())
-		}
-	}
 
 	var bucketID *platform.ID
-	var bucket string
 	// Get bucket name and ID
 	// User will have specified exactly one in the ToOpSpec.
 	if spec.Spec.Bucket != "" {
@@ -246,21 +225,14 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 			return nil, fmt.Errorf("failed to look up bucket %q in org %q", spec.Spec.Bucket, spec.Spec.Org)
 		}
 		bucketID = &bID
-		bucket = spec.Spec.Bucket
 	} else {
 		if bucketID, err = platform.IDFromString(spec.Spec.BucketID); err != nil {
 			return nil, err
 		}
-		bucket = deps.BucketLookup.LookupName(ctx, orgID, *bucketID)
-		if bucket == "" {
-			return nil, fmt.Errorf("failed to look up bucket with ID %q in org %q", bucketID, org)
-		}
 	}
 	return &ToTransformation{
 		ctx:      ctx,
-		bucket:   bucket,
 		bucketID: *bucketID,
-		org:      org,
 		orgID:    orgID,
 		d:        d,
 		cache:    cache,
@@ -313,6 +285,8 @@ type TablePointsMetadata struct {
 	MeasurementName string
 	// The tags in the table (final element is left as nil, to be replaced by field name)
 	Tags [][]byte
+	// The offset in tags where to store the field name
+	FieldKeyTagValueOffset int
 	// The column offset in the input table where the _time column is stored
 	TimestampOffset int
 	// The labels and offsets of all the fields in the table
@@ -428,15 +402,15 @@ func (t *ToTransformation) writeTable(ctx context.Context, tbl flux.Table) error
 				}
 
 				switch fieldVal.Type() {
-				case semantic.Float:
+				case semantic.BasicFloat:
 					fields[lao.Label] = fieldVal.Float()
-				case semantic.Int:
+				case semantic.BasicInt:
 					fields[lao.Label] = fieldVal.Int()
-				case semantic.UInt:
+				case semantic.BasicUint:
 					fields[lao.Label] = fieldVal.UInt()
-				case semantic.String:
+				case semantic.BasicString:
 					fields[lao.Label] = fieldVal.Str()
-				case semantic.Bool:
+				case semantic.BasicBool:
 					fields[lao.Label] = fieldVal.Bool()
 				default:
 					return fmt.Errorf("unsupported field type %v", fieldVal.Type())

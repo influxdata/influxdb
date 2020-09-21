@@ -191,7 +191,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				httprouter.Params{
 					{
 						Key:   "userID",
-						Value: string(tt.args.session.UserID),
+						Value: fmt.Sprintf("%d", tt.args.session.UserID),
 					},
 				}))
 

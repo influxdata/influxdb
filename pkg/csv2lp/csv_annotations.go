@@ -2,6 +2,7 @@ package csv2lp
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -33,9 +34,8 @@ func (a annotationComment) matches(comment string) bool {
 	return strings.HasPrefix(strings.ToLower(comment), a.prefix)
 }
 
-// constantSetupTable setups the supplied CSV table from #constant annotation
-func constantSetupTable(table *CsvTable, row []string) error {
-	// adds a virtual column with contsant value to all data rows
+func createConstantOrConcatColumn(table *CsvTable, row []string, annotationName string) CsvTableColumn {
+	// adds a virtual column with constant value to all data rows
 	// supported types of constant annotation rows are:
 	//  1. "#constant,datatype,label,defaultValue"
 	//  2. "#constant,measurement,value"
@@ -72,14 +72,58 @@ func constantSetupTable(table *CsvTable, row []string) error {
 		if col.DefaultValue == "" && col.Label != "" {
 			// type 2,3,5,6
 			col.DefaultValue = col.Label
-			col.Label = "#constant " + col.DataType
+			col.Label = annotationName + " " + col.DataType
 		} else if col.Label == "" {
-			// setup a label if no label is supplied fo focused error messages
-			col.Label = "#constant " + col.DataType
+			// setup a label if no label is supplied for focused error messages
+			col.Label = annotationName + " " + col.DataType
 		}
 	}
 	// add a virtual column to the table
+	return col
+}
+
+// constantSetupTable setups the supplied CSV table from #constant annotation
+func constantSetupTable(table *CsvTable, row []string) error {
+	col := createConstantOrConcatColumn(table, row, "#constant")
+	// add a virtual column to the table
 	table.extraColumns = append(table.extraColumns, &col)
+	return nil
+}
+
+// computedReplacer is used to replace value in computed columns
+var computedReplacer *regexp.Regexp = regexp.MustCompile(`\$\{[^}]+\}`)
+
+// concatSetupTable setups the supplied CSV table from #concat annotation
+func concatSetupTable(table *CsvTable, row []string) error {
+	col := createConstantOrConcatColumn(table, row, "#concat")
+	template := col.DefaultValue
+	col.ComputeValue = func(row []string) string {
+		return computedReplacer.ReplaceAllStringFunc(template, func(text string) string {
+			columnLabel := text[2 : len(text)-1] // ${columnLabel}
+			if placeholderColumn := table.Column(columnLabel); placeholderColumn != nil {
+				return placeholderColumn.Value(row)
+			}
+			log.Printf("WARNING: column %s: column '%s' cannot be replaced, no such column available", col.Label, columnLabel)
+			return ""
+		})
+	}
+	// add a virtual column to the table
+	table.extraColumns = append(table.extraColumns, &col)
+	// add validator to report error when no placeholder column is available
+	table.validators = append(table.validators, func(table *CsvTable) error {
+		placeholders := computedReplacer.FindAllString(template, len(template))
+		for _, placeholder := range placeholders {
+			columnLabel := placeholder[2 : len(placeholder)-1] // ${columnLabel}
+			if placeholderColumn := table.Column(columnLabel); placeholderColumn == nil {
+				return CsvColumnError{
+					Column: col.Label,
+					Err: fmt.Errorf("'%s' references an uknown column '%s', available columns are: %v",
+						template, columnLabel, strings.Join(table.ColumnLabels(), ",")),
+				}
+			}
+		}
+		return nil
+	})
 	return nil
 }
 
@@ -91,7 +135,10 @@ var supportedAnnotations = []annotationComment{
 		setupColumn: func(column *CsvTableColumn, value string) {
 			// standard flux query result annotation
 			if strings.HasSuffix(value, "true") {
-				column.LinePart = linePartTag
+				// setup column's line part unless it is already set (#19452)
+				if column.LinePart == 0 {
+					column.LinePart = linePartTag
+				}
 			}
 		},
 	},
@@ -130,6 +177,10 @@ var supportedAnnotations = []annotationComment{
 			table.timeZone = tz
 			return nil
 		},
+	},
+	{
+		prefix:     "#concat",
+		setupTable: concatSetupTable,
 	},
 }
 

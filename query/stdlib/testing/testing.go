@@ -51,6 +51,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"integral_columns":    "unbounded test",
 		"map":                 "unbounded test",
 		"join_missing_on_col": "unbounded test",
+		"join_use_previous":   "unbounded test (https://github.com/influxdata/flux/issues/2996)",
 		"rowfn_with_import":   "unbounded test",
 
 		// the following tests have a difference between the CSV-decoded input table, and the storage-retrieved version of that table
@@ -90,6 +91,11 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"to_uint": "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
 
 		"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
+		"map_nulls":          "to cannot write null values",
+
+		"range_stop": "pushed down range stop no longer exclusive https://github.com/influxdata/influxdb/issues/19564",
+
+		"to_time": "Flaky test https://github.com/influxdata/influxdb/issues/19577",
 	},
 	"experimental": {
 		"set":       "Reason TBD",
@@ -137,7 +143,9 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"join": "unbounded test",
 	},
 	"testing/chronograf": {
-		"buckets": "unbounded test",
+		"buckets":                 "unbounded test",
+		"aggregate_window_count":  "flakey test: https://github.com/influxdata/influxdb/issues/18463",
+		"aggregate_window_median": "failing with \"field type conflict\": https://github.com/influxdata/influxdb/issues/19565",
 	},
 	"testing/kapacitor": {
 		"fill_default": "unknown field type for f1",
@@ -147,14 +155,32 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"partition_strings_splitN":       "pandas. map does not correctly handled returned arrays (https://github.com/influxdata/flux/issues/1387)",
 	},
 	"testing/promql": {
-		"emptyTable": "tests a source",
-		"year":       "flakey test: https://github.com/influxdata/influxdb/issues/15667",
+		"emptyTable":                    "tests a source",
+		"year":                          "flakey test: https://github.com/influxdata/influxdb/issues/15667",
+		"extrapolatedRate_counter_rate": "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"extrapolatedRate_nocounter":    "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"extrapolatedRate_norate":       "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"linearRegression_nopredict":    "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"linearRegression_predict":      "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
 	},
 	"testing/influxql": {
 		"cumulative_sum": "invalid test data requires loadStorage to be overridden. See https://github.com/influxdata/flux/issues/3145",
+		"elapsed":        "failing since split with Flux upgrade: https://github.com/influxdata/influxdb/issues/19568",
 	},
 }
 
 type PerTestFeatureFlagMap = map[string]map[string]map[string]string
 
-var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{}
+var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{
+	"planner": {
+		"bare_mean_push": {
+			"pushDownWindowAggregateMean": "true",
+		},
+		"window_mean_push": {
+			"pushDownWindowAggregateMean": "true",
+		},
+		"merge_filters": {
+			"mergeFilterRule": "true",
+		},
+	},
+}

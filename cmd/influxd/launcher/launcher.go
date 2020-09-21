@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	nethttp "net/http"
 	_ "net/http/pprof" // needed to add pprof to our binary.
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -48,7 +48,6 @@ import (
 	"github.com/influxdata/influxdb/v2/pkger"
 	infprom "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/query"
-	"github.com/influxdata/influxdb/v2/query/builtinlazy"
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
@@ -91,6 +90,8 @@ const (
 	LogTracing = "log"
 	// JaegerTracing enables tracing via the Jaeger client library
 	JaegerTracing = "jaeger"
+	// Max Integer
+	MaxInt = 1<<uint(strconv.IntSize-1) - 1
 )
 
 func NewInfluxdCommand(ctx context.Context, subCommands ...*cobra.Command) *cobra.Command {
@@ -134,8 +135,6 @@ func cmdRunE(ctx context.Context, l *Launcher) func() error {
 	return func() error {
 		// exit with SIGINT and SIGTERM
 		ctx = signals.WithStandardSignals(ctx)
-
-		builtinlazy.Initialize()
 
 		if err := l.run(ctx); err != nil {
 			return err
@@ -352,7 +351,7 @@ func launcherOpts(l *Launcher) []cli.Opt {
 		{
 			DestP:   &l.memoryBytesQuotaPerQuery,
 			Flag:    "query-memory-bytes",
-			Default: math.MaxInt64,
+			Default: MaxInt,
 			Desc:    "maximum number of bytes a query is allowed to use at any given time. This must be greater or equal to query-initial-memory-bytes",
 		},
 		{

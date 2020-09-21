@@ -26,10 +26,13 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
+	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
@@ -206,6 +209,10 @@ func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query,
 	for _, dep := range c.dependencies {
 		ctx = dep.Inject(ctx)
 	}
+	// Add per-transformation spans if the feature flag is set.
+	if feature.QueryTracing().Enabled(ctx) {
+		ctx = flux.WithExperimentalTracingEnabled(ctx)
+	}
 	q, err := c.query(ctx, req.Compiler)
 	if err != nil {
 		return q, err
@@ -338,7 +345,7 @@ func (c *Controller) compileQuery(q *Query, compiler flux.Compiler) (err error) 
 		}
 	}
 
-	prog, err := compiler.Compile(ctx)
+	prog, err := compiler.Compile(ctx, runtime.Default)
 	if err != nil {
 		return &flux.Error{
 			Msg: "compilation failed",
@@ -545,6 +552,23 @@ type Query struct {
 
 	memoryManager *queryMemoryManager
 	alloc         *memory.Allocator
+}
+
+func (q *Query) ProfilerResults() (flux.ResultIterator, error) {
+	p := q.program.(*lang.AstProgram)
+	if len(p.Profilers) == 0 {
+		return nil, nil
+	}
+	tables := make([]flux.Table, 0)
+	for _, profiler := range p.Profilers {
+		if result, err := profiler.GetResult(q, q.alloc); err != nil {
+			return nil, err
+		} else {
+			tables = append(tables, result)
+		}
+	}
+	res := table.NewProfilerResult(tables...)
+	return flux.NewSliceResultIterator([]flux.Result{&res}), nil
 }
 
 // ID reports an ephemeral unique ID for the query.

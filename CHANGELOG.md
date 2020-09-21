@@ -25,6 +25,7 @@ need to update any InfluxDB CLI config profiles with the new port number.
 
 ### Features
 
+1. [18779](https://github.com/influxdata/influxdb/pull/18779): Add new processing options and enhancements to influx write.
 1. [19246](https://github.com/influxdata/influxdb/pull/19246): Redesign load data page to increase discovery and ease of use
 1. [19334](https://github.com/influxdata/influxdb/pull/19334): Add --active-config flag to influx to set config for single command
 1. [19219](https://github.com/influxdata/influxdb/pull/19219): List buckets via the API now supports after (ID) parameter as an alternative to offset.
@@ -37,7 +38,9 @@ need to update any InfluxDB CLI config profiles with the new port number.
 ### Bug Fixes
 
 1. [19331](https://github.com/influxdata/influxdb/pull/19331): Add description to auth influx command outputs.
-1. [19392](https://github.com/influxdata/influxdb/pull/19392) Include the edge of the boundary we are observing.
+1. [19392](https://github.com/influxdata/influxdb/pull/19392): Include the edge of the boundary we are observing.
+1. [19453](https://github.com/influxdata/influxdb/pull/19453): Warn about duplicate tag names during influx write csv.
+1. [19466](https://github.com/influxdata/influxdb/pull/19466): Do not override existing line part in group annotation.
 
 ## v2.0.0-beta.16 [2020-08-07]
 

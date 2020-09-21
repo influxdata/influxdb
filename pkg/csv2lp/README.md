@@ -139,6 +139,11 @@ Existing [data types](https://v2.docs.influxdata.com/v2.0/reference/syntax/annot
 - `#constant` annotation adds a constant column to the data, so you can set measurement, time, field or tag of every row you import 
    - the format of a constant annotation row is `#constant,datatype,name,value`', it contains supported datatype, a column name, and a constant value
    - _column name_ can be omitted for _dateTime_ or _measurement_ columns, so the annotation can be simply `#constant,measurement,cpu`
+- `#concat` annotation adds a new column that is concatenated from existing columns according to a template
+   - the format of a concat annotation row is `#concat,datatype,name,template`', it contains supported datatype, a column name, and a template value
+   - the `template` is a string with `${columnName}` placeholders, in which the placeholders are replaced by values of existing columns
+      - for example: `#concat,string,fullName,${firstName} ${lastName}`
+   - _column name_ can be omitted for _dateTime_ or _measurement_ columns
 - `#timezone` annotation specifies the time zone of the data using an offset, which is either `+hhmm` or `-hhmm` or `Local` to use the local/computer time zone. Examples:  _#timezone,+0100_  _#timezone -0500_ _#timezone Local_
 
 #### Data type with data format
@@ -158,6 +163,9 @@ All data types can include the format that is used to parse column data. It is t
    - note that you have to quote column delimiters whenever they appear in a CSV column value, for example:
       - `#constant,"double:,.",myColumn,"1.234,011"`
 - `long:format` and `unsignedLong:format` support the same format as `double`, but everything after and including a fraction character is ignored
+   - the format can be prepended with `strict` to fail when a fraction digit is present, for example:
+      - `1000.000` is `1000` when parsed as `long`, but fails when parsed as `long:strict`
+      - `1_000,000` is `1000` when parsed as `long:,_`, but fails when parsed as `long:strict,_`
 - `boolean:truthy:falsy`
    - `truthy` and `falsy` are comma-separated lists of values, they can be empty to assume all values as truthy/falsy; for example `boolean:sí,yes,ja,oui,ano,да:no,nein,non,ne,нет` 
    - a  `boolean` data type (without the format) parses column values that start with any of _tTyY1_ as `true` values, _fFnN0_ as `false` values and fails on other values

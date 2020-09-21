@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -31,7 +32,7 @@ type fakeQueryService struct {
 var _ query.AsyncQueryService = (*fakeQueryService)(nil)
 
 func makeAST(q string) lang.ASTCompiler {
-	pkg, err := flux.Parse(q)
+	pkg, err := runtime.ParseToJSON(q)
 	if err != nil {
 		panic(err)
 	}
@@ -170,10 +171,11 @@ type fakeQuery struct {
 
 var _ flux.Query = (*fakeQuery)(nil)
 
-func (q *fakeQuery) Done()                       {}
-func (q *fakeQuery) Cancel()                     { close(q.results) }
-func (q *fakeQuery) Statistics() flux.Statistics { return flux.Statistics{} }
-func (q *fakeQuery) Results() <-chan flux.Result { return q.results }
+func (q *fakeQuery) Done()                                         {}
+func (q *fakeQuery) Cancel()                                       { close(q.results) }
+func (q *fakeQuery) Statistics() flux.Statistics                   { return flux.Statistics{} }
+func (q *fakeQuery) Results() <-chan flux.Result                   { return q.results }
+func (q *fakeQuery) ProfilerResults() (flux.ResultIterator, error) { return nil, nil }
 
 func (q *fakeQuery) Err() error {
 	if q.ctxErr != nil {

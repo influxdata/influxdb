@@ -311,15 +311,7 @@ LOOP:
 		e.Metrics.Requests.WithLabelValues(statusLabel).Inc()
 
 		// Check if the query was interrupted during an uninterruptible statement.
-		interrupted := false
-		select {
-		case <-ctx.Done():
-			interrupted = true
-		default:
-			// Query has not been interrupted.
-		}
-
-		if interrupted {
+		if err := ctx.Err(); err != nil {
 			statusLabel = control.LabelInterruptedErr
 			e.Metrics.Requests.WithLabelValues(statusLabel).Inc()
 			break

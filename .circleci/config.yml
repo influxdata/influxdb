@@ -553,31 +553,31 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(rc|alpha|beta)\.[0-9]+$/
       - golint:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(rc|alpha|beta)\.[0-9]+$/
       - lint-feature-flags:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(rc|alpha|beta)\.[0-9]+$/
       - jstest:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(rc|alpha|beta)\.[0-9]+$/
       - jslint:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(rc|alpha|beta)\.[0-9]+$/
       - release:
           requires:
             - gotest
@@ -589,4 +589,4 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(rc|alpha|beta)\.[0-9]+$/

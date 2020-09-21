@@ -10,14 +10,13 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"
-	ast2 "github.com/influxdata/influxdb/v2/pkg/flux/ast"
-	"github.com/influxdata/influxdb/v2/pkg/flux/ast/edit"
 )
 
 type identity struct {
@@ -532,70 +531,74 @@ func (d *dashboard) valid() []validationErr {
 }
 
 const (
-	fieldChartAxes           = "axes"
-	fieldChartBinCount       = "binCount"
-	fieldChartBinSize        = "binSize"
-	fieldChartColors         = "colors"
-	fieldChartDecimalPlaces  = "decimalPlaces"
-	fieldChartDomain         = "domain"
-	fieldChartFillColumns    = "fillColumns"
-	fieldChartGeom           = "geom"
-	fieldChartHeight         = "height"
-	fieldChartLegend         = "legend"
-	fieldChartNote           = "note"
-	fieldChartNoteOnEmpty    = "noteOnEmpty"
-	fieldChartPosition       = "position"
-	fieldChartQueries        = "queries"
-	fieldChartShade          = "shade"
-	fieldChartHoverDimension = "hoverDimension"
-	fieldChartFieldOptions   = "fieldOptions"
-	fieldChartTableOptions   = "tableOptions"
-	fieldChartTickPrefix     = "tickPrefix"
-	fieldChartTickSuffix     = "tickSuffix"
-	fieldChartTimeFormat     = "timeFormat"
-	fieldChartYSeriesColumns = "ySeriesColumns"
-	fieldChartUpperColumn    = "upperColumn"
-	fieldChartMainColumn     = "mainColumn"
-	fieldChartLowerColumn    = "lowerColumn"
-	fieldChartWidth          = "width"
-	fieldChartXCol           = "xCol"
-	fieldChartXPos           = "xPos"
-	fieldChartYCol           = "yCol"
-	fieldChartYPos           = "yPos"
+	fieldChartAxes                       = "axes"
+	fieldChartBinCount                   = "binCount"
+	fieldChartBinSize                    = "binSize"
+	fieldChartColors                     = "colors"
+	fieldChartDecimalPlaces              = "decimalPlaces"
+	fieldChartDomain                     = "domain"
+	fieldChartFillColumns                = "fillColumns"
+	fieldChartGeom                       = "geom"
+	fieldChartHeight                     = "height"
+	fieldChartLegend                     = "legend"
+	fieldChartNote                       = "note"
+	fieldChartNoteOnEmpty                = "noteOnEmpty"
+	fieldChartPosition                   = "position"
+	fieldChartQueries                    = "queries"
+	fieldChartShade                      = "shade"
+	fieldChartHoverDimension             = "hoverDimension"
+	fieldChartFieldOptions               = "fieldOptions"
+	fieldChartTableOptions               = "tableOptions"
+	fieldChartTickPrefix                 = "tickPrefix"
+	fieldChartTickSuffix                 = "tickSuffix"
+	fieldChartTimeFormat                 = "timeFormat"
+	fieldChartYSeriesColumns             = "ySeriesColumns"
+	fieldChartUpperColumn                = "upperColumn"
+	fieldChartMainColumn                 = "mainColumn"
+	fieldChartLowerColumn                = "lowerColumn"
+	fieldChartWidth                      = "width"
+	fieldChartXCol                       = "xCol"
+	fieldChartXPos                       = "xPos"
+	fieldChartYCol                       = "yCol"
+	fieldChartYPos                       = "yPos"
+	fieldChartLegendOpacity              = "legendOpacity"
+	fieldChartLegendOrientationThreshold = "legendOrientationThreshold"
 )
 
 type chart struct {
-	Kind            chartKind
-	Name            string
-	Prefix          string
-	TickPrefix      string
-	Suffix          string
-	TickSuffix      string
-	Note            string
-	NoteOnEmpty     bool
-	DecimalPlaces   int
-	EnforceDecimals bool
-	Shade           bool
-	HoverDimension  string
-	Legend          legend
-	Colors          colors
-	Queries         queries
-	Axes            axes
-	Geom            string
-	YSeriesColumns  []string
-	XCol, YCol      string
-	UpperColumn     string
-	MainColumn      string
-	LowerColumn     string
-	XPos, YPos      int
-	Height, Width   int
-	BinSize         int
-	BinCount        int
-	Position        string
-	FieldOptions    []fieldOption
-	FillColumns     []string
-	TableOptions    tableOptions
-	TimeFormat      string
+	Kind                       chartKind
+	Name                       string
+	Prefix                     string
+	TickPrefix                 string
+	Suffix                     string
+	TickSuffix                 string
+	Note                       string
+	NoteOnEmpty                bool
+	DecimalPlaces              int
+	EnforceDecimals            bool
+	Shade                      bool
+	HoverDimension             string
+	Legend                     legend
+	Colors                     colors
+	Queries                    queries
+	Axes                       axes
+	Geom                       string
+	YSeriesColumns             []string
+	XCol, YCol                 string
+	UpperColumn                string
+	MainColumn                 string
+	LowerColumn                string
+	XPos, YPos                 int
+	Height, Width              int
+	BinSize                    int
+	BinCount                   int
+	Position                   string
+	FieldOptions               []fieldOption
+	FillColumns                []string
+	TableOptions               tableOptions
+	TimeFormat                 string
+	LegendOpacity              float64
+	LegendOrientationThreshold int
 }
 
 func (c *chart) properties() influxdb.ViewProperties {
@@ -618,37 +621,41 @@ func (c *chart) properties() influxdb.ViewProperties {
 		}
 	case chartKindHeatMap:
 		return influxdb.HeatmapViewProperties{
-			Type:              influxdb.ViewPropertyTypeHeatMap,
-			Queries:           c.Queries.influxDashQueries(),
-			ViewColors:        c.Colors.strings(),
-			BinSize:           int32(c.BinSize),
-			XColumn:           c.XCol,
-			YColumn:           c.YCol,
-			XDomain:           c.Axes.get("x").Domain,
-			YDomain:           c.Axes.get("y").Domain,
-			XPrefix:           c.Axes.get("x").Prefix,
-			YPrefix:           c.Axes.get("y").Prefix,
-			XSuffix:           c.Axes.get("x").Suffix,
-			YSuffix:           c.Axes.get("y").Suffix,
-			XAxisLabel:        c.Axes.get("x").Label,
-			YAxisLabel:        c.Axes.get("y").Label,
-			Note:              c.Note,
-			ShowNoteWhenEmpty: c.NoteOnEmpty,
-			TimeFormat:        c.TimeFormat,
+			Type:                       influxdb.ViewPropertyTypeHeatMap,
+			Queries:                    c.Queries.influxDashQueries(),
+			ViewColors:                 c.Colors.strings(),
+			BinSize:                    int32(c.BinSize),
+			XColumn:                    c.XCol,
+			YColumn:                    c.YCol,
+			XDomain:                    c.Axes.get("x").Domain,
+			YDomain:                    c.Axes.get("y").Domain,
+			XPrefix:                    c.Axes.get("x").Prefix,
+			YPrefix:                    c.Axes.get("y").Prefix,
+			XSuffix:                    c.Axes.get("x").Suffix,
+			YSuffix:                    c.Axes.get("y").Suffix,
+			XAxisLabel:                 c.Axes.get("x").Label,
+			YAxisLabel:                 c.Axes.get("y").Label,
+			Note:                       c.Note,
+			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			TimeFormat:                 c.TimeFormat,
+			LegendOpacity:              float64(c.LegendOpacity),
+			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindHistogram:
 		return influxdb.HistogramViewProperties{
-			Type:              influxdb.ViewPropertyTypeHistogram,
-			Queries:           c.Queries.influxDashQueries(),
-			ViewColors:        c.Colors.influxViewColors(),
-			FillColumns:       c.FillColumns,
-			XColumn:           c.XCol,
-			XDomain:           c.Axes.get("x").Domain,
-			XAxisLabel:        c.Axes.get("x").Label,
-			Position:          c.Position,
-			BinCount:          c.BinCount,
-			Note:              c.Note,
-			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			Type:                       influxdb.ViewPropertyTypeHistogram,
+			Queries:                    c.Queries.influxDashQueries(),
+			ViewColors:                 c.Colors.influxViewColors(),
+			FillColumns:                c.FillColumns,
+			XColumn:                    c.XCol,
+			XDomain:                    c.Axes.get("x").Domain,
+			XAxisLabel:                 c.Axes.get("x").Label,
+			Position:                   c.Position,
+			BinCount:                   c.BinCount,
+			Note:                       c.Note,
+			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			LegendOpacity:              float64(c.LegendOpacity),
+			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindMarkdown:
 		return influxdb.MarkdownViewProperties{
@@ -657,59 +664,65 @@ func (c *chart) properties() influxdb.ViewProperties {
 		}
 	case chartKindMosaic:
 		return influxdb.MosaicViewProperties{
-			Type:              influxdb.ViewPropertyTypeMosaic,
-			Queries:           c.Queries.influxDashQueries(),
-			ViewColors:        c.Colors.strings(),
-			XColumn:           c.XCol,
-			YSeriesColumns:    c.YSeriesColumns,
-			XDomain:           c.Axes.get("x").Domain,
-			YDomain:           c.Axes.get("y").Domain,
-			XPrefix:           c.Axes.get("x").Prefix,
-			YPrefix:           c.Axes.get("y").Prefix,
-			XSuffix:           c.Axes.get("x").Suffix,
-			YSuffix:           c.Axes.get("y").Suffix,
-			XAxisLabel:        c.Axes.get("x").Label,
-			YAxisLabel:        c.Axes.get("y").Label,
-			Note:              c.Note,
-			ShowNoteWhenEmpty: c.NoteOnEmpty,
-			TimeFormat:        c.TimeFormat,
+			Type:                       influxdb.ViewPropertyTypeMosaic,
+			Queries:                    c.Queries.influxDashQueries(),
+			ViewColors:                 c.Colors.strings(),
+			XColumn:                    c.XCol,
+			YSeriesColumns:             c.YSeriesColumns,
+			XDomain:                    c.Axes.get("x").Domain,
+			YDomain:                    c.Axes.get("y").Domain,
+			XPrefix:                    c.Axes.get("x").Prefix,
+			YPrefix:                    c.Axes.get("y").Prefix,
+			XSuffix:                    c.Axes.get("x").Suffix,
+			YSuffix:                    c.Axes.get("y").Suffix,
+			XAxisLabel:                 c.Axes.get("x").Label,
+			YAxisLabel:                 c.Axes.get("y").Label,
+			Note:                       c.Note,
+			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			TimeFormat:                 c.TimeFormat,
+			LegendOpacity:              float64(c.LegendOpacity),
+			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindBand:
 		return influxdb.BandViewProperties{
-			Type:              influxdb.ViewPropertyTypeBand,
-			Queries:           c.Queries.influxDashQueries(),
-			ViewColors:        c.Colors.influxViewColors(),
-			Legend:            c.Legend.influxLegend(),
-			HoverDimension:    c.HoverDimension,
-			XColumn:           c.XCol,
-			YColumn:           c.YCol,
-			UpperColumn:       c.UpperColumn,
-			MainColumn:        c.MainColumn,
-			LowerColumn:       c.LowerColumn,
-			Axes:              c.Axes.influxAxes(),
-			Geom:              c.Geom,
-			Note:              c.Note,
-			ShowNoteWhenEmpty: c.NoteOnEmpty,
-			TimeFormat:        c.TimeFormat,
+			Type:                       influxdb.ViewPropertyTypeBand,
+			Queries:                    c.Queries.influxDashQueries(),
+			ViewColors:                 c.Colors.influxViewColors(),
+			Legend:                     c.Legend.influxLegend(),
+			HoverDimension:             c.HoverDimension,
+			XColumn:                    c.XCol,
+			YColumn:                    c.YCol,
+			UpperColumn:                c.UpperColumn,
+			MainColumn:                 c.MainColumn,
+			LowerColumn:                c.LowerColumn,
+			Axes:                       c.Axes.influxAxes(),
+			Geom:                       c.Geom,
+			Note:                       c.Note,
+			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			TimeFormat:                 c.TimeFormat,
+			LegendOpacity:              float64(c.LegendOpacity),
+			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindScatter:
 		return influxdb.ScatterViewProperties{
-			Type:              influxdb.ViewPropertyTypeScatter,
-			Queries:           c.Queries.influxDashQueries(),
-			ViewColors:        c.Colors.strings(),
-			XColumn:           c.XCol,
-			YColumn:           c.YCol,
-			XDomain:           c.Axes.get("x").Domain,
-			YDomain:           c.Axes.get("y").Domain,
-			XPrefix:           c.Axes.get("x").Prefix,
-			YPrefix:           c.Axes.get("y").Prefix,
-			XSuffix:           c.Axes.get("x").Suffix,
-			YSuffix:           c.Axes.get("y").Suffix,
-			XAxisLabel:        c.Axes.get("x").Label,
-			YAxisLabel:        c.Axes.get("y").Label,
-			Note:              c.Note,
-			ShowNoteWhenEmpty: c.NoteOnEmpty,
-			TimeFormat:        c.TimeFormat,
+			Type:                       influxdb.ViewPropertyTypeScatter,
+			Queries:                    c.Queries.influxDashQueries(),
+			ViewColors:                 c.Colors.strings(),
+			XColumn:                    c.XCol,
+			YColumn:                    c.YCol,
+			XDomain:                    c.Axes.get("x").Domain,
+			YDomain:                    c.Axes.get("y").Domain,
+			XPrefix:                    c.Axes.get("x").Prefix,
+			YPrefix:                    c.Axes.get("y").Prefix,
+			XSuffix:                    c.Axes.get("x").Suffix,
+			YSuffix:                    c.Axes.get("y").Suffix,
+			XAxisLabel:                 c.Axes.get("x").Label,
+			YAxisLabel:                 c.Axes.get("y").Label,
+			Note:                       c.Note,
+			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			TimeFormat:                 c.TimeFormat,
+			LegendOpacity:              float64(c.LegendOpacity),
+			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindSingleStat:
 		return influxdb.SingleStatViewProperties{
@@ -722,10 +735,12 @@ func (c *chart) properties() influxdb.ViewProperties {
 				IsEnforced: c.EnforceDecimals,
 				Digits:     int32(c.DecimalPlaces),
 			},
-			Note:              c.Note,
-			ShowNoteWhenEmpty: c.NoteOnEmpty,
-			Queries:           c.Queries.influxDashQueries(),
-			ViewColors:        c.Colors.influxViewColors(),
+			Note:                       c.Note,
+			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			Queries:                    c.Queries.influxDashQueries(),
+			ViewColors:                 c.Colors.influxViewColors(),
+			LegendOpacity:              float64(c.LegendOpacity),
+			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindSingleStatPlusLine:
 		return influxdb.LinePlusSingleStatProperties{
@@ -736,17 +751,19 @@ func (c *chart) properties() influxdb.ViewProperties {
 				IsEnforced: c.EnforceDecimals,
 				Digits:     int32(c.DecimalPlaces),
 			},
-			Note:              c.Note,
-			ShowNoteWhenEmpty: c.NoteOnEmpty,
-			XColumn:           c.XCol,
-			YColumn:           c.YCol,
-			ShadeBelow:        c.Shade,
-			HoverDimension:    c.HoverDimension,
-			Legend:            c.Legend.influxLegend(),
-			Queries:           c.Queries.influxDashQueries(),
-			ViewColors:        c.Colors.influxViewColors(),
-			Axes:              c.Axes.influxAxes(),
-			Position:          c.Position,
+			Note:                       c.Note,
+			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			XColumn:                    c.XCol,
+			YColumn:                    c.YCol,
+			ShadeBelow:                 c.Shade,
+			HoverDimension:             c.HoverDimension,
+			Legend:                     c.Legend.influxLegend(),
+			Queries:                    c.Queries.influxDashQueries(),
+			ViewColors:                 c.Colors.influxViewColors(),
+			Axes:                       c.Axes.influxAxes(),
+			Position:                   c.Position,
+			LegendOpacity:              float64(c.LegendOpacity),
+			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	case chartKindTable:
 		fieldOptions := make([]influxdb.RenamableField, 0, len(c.FieldOptions))
@@ -781,20 +798,22 @@ func (c *chart) properties() influxdb.ViewProperties {
 		}
 	case chartKindXY:
 		return influxdb.XYViewProperties{
-			Type:              influxdb.ViewPropertyTypeXY,
-			Note:              c.Note,
-			ShowNoteWhenEmpty: c.NoteOnEmpty,
-			XColumn:           c.XCol,
-			YColumn:           c.YCol,
-			ShadeBelow:        c.Shade,
-			HoverDimension:    c.HoverDimension,
-			Legend:            c.Legend.influxLegend(),
-			Queries:           c.Queries.influxDashQueries(),
-			ViewColors:        c.Colors.influxViewColors(),
-			Axes:              c.Axes.influxAxes(),
-			Geom:              c.Geom,
-			Position:          c.Position,
-			TimeFormat:        c.TimeFormat,
+			Type:                       influxdb.ViewPropertyTypeXY,
+			Note:                       c.Note,
+			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			XColumn:                    c.XCol,
+			YColumn:                    c.YCol,
+			ShadeBelow:                 c.Shade,
+			HoverDimension:             c.HoverDimension,
+			Legend:                     c.Legend.influxLegend(),
+			Queries:                    c.Queries.influxDashQueries(),
+			ViewColors:                 c.Colors.influxViewColors(),
+			Axes:                       c.Axes.influxAxes(),
+			Geom:                       c.Geom,
+			Position:                   c.Position,
+			TimeFormat:                 c.TimeFormat,
+			LegendOpacity:              float64(c.LegendOpacity),
+			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
 	default:
 		return nil
@@ -2313,7 +2332,7 @@ func convertRefToRefSummary(field string, ref *references) SummaryReference {
 
 func astBoolFromIface(v interface{}) *ast.BooleanLiteral {
 	b, _ := v.(bool)
-	return ast2.BooleanLiteralFromValue(b)
+	return ast.BooleanLiteralFromValue(b)
 }
 
 func astDurationFromIface(v interface{}) *ast.DurationLiteral {
@@ -2331,18 +2350,18 @@ func astDurationFromIface(v interface{}) *ast.DurationLiteral {
 
 func astFloatFromIface(v interface{}) *ast.FloatLiteral {
 	if i, ok := v.(int); ok {
-		return ast2.FloatLiteralFromValue(float64(i))
+		return ast.FloatLiteralFromValue(float64(i))
 	}
 	f, _ := v.(float64)
-	return ast2.FloatLiteralFromValue(f)
+	return ast.FloatLiteralFromValue(f)
 }
 
 func astIntegerFromIface(v interface{}) *ast.IntegerLiteral {
 	if f, ok := v.(float64); ok {
-		return ast2.IntegerLiteralFromValue(int64(f))
+		return ast.IntegerLiteralFromValue(int64(f))
 	}
 	i, _ := v.(int64)
-	return ast2.IntegerLiteralFromValue(i)
+	return ast.IntegerLiteralFromValue(i)
 }
 
 func astNow() *ast.CallExpression {
@@ -2353,12 +2372,12 @@ func astNow() *ast.CallExpression {
 
 func astStringFromIface(v interface{}) *ast.StringLiteral {
 	s, _ := v.(string)
-	return ast2.StringLiteralFromValue(s)
+	return ast.StringLiteralFromValue(s)
 }
 
 func astTimeFromIface(v interface{}) *ast.DateTimeLiteral {
 	if t, ok := v.(time.Time); ok {
-		return ast2.DateTimeLiteralFromValue(t)
+		return ast.DateTimeLiteralFromValue(t)
 	}
 
 	s, ok := v.(string)

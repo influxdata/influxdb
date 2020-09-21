@@ -20,10 +20,14 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/stdlib/universe"
+	"github.com/influxdata/influxdb/v2/kit/feature"
+	pmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/zap/zaptest"
@@ -1287,6 +1291,102 @@ func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	validateUnusedMemory(t, reg, config)
+}
+
+func TestController_QueryTracing(t *testing.T) {
+	// temporarily install a mock tracer to see which spans are created.
+	oldTracer := opentracing.GlobalTracer()
+	defer opentracing.SetGlobalTracer(oldTracer)
+	mockTracer := mocktracer.New()
+	opentracing.SetGlobalTracer(mockTracer)
+
+	const memoryBytesQuotaPerQuery = 64
+	config := config
+	config.MemoryBytesQuotaPerQuery = memoryBytesQuotaPerQuery
+	ctrl, err := control.New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	flagger := pmock.NewFlagger(map[feature.Flag]interface{}{
+		feature.QueryTracing(): true,
+	})
+	plainCtx := context.Background()
+	withFlagger, err := feature.Annotate(plainCtx, flagger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tcs := []struct {
+		name          string
+		ctx           context.Context
+		doNotWantSpan string
+		wantSpan      string
+	}{
+		{
+			name:          "feature flag off",
+			ctx:           plainCtx,
+			doNotWantSpan: "*executetest.AllocatingFromProcedureSpec",
+		},
+		{
+			name:     "feature flag on",
+			ctx:      withFlagger,
+			wantSpan: "*executetest.AllocatingFromProcedureSpec",
+		},
+	}
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			mockTracer.Reset()
+
+			compiler := &mock.Compiler{
+				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					// Return a program that will allocate one more byte than is allowed.
+					pts := plantest.PlanSpec{
+						Nodes: []plan.Node{
+							plan.CreatePhysicalNode("allocating-from-test", &executetest.AllocatingFromProcedureSpec{
+								ByteCount: 16,
+							}),
+							plan.CreatePhysicalNode("yield", &universe.YieldProcedureSpec{Name: "_result"}),
+						},
+						Edges: [][2]int{
+							{0, 1},
+						},
+						Resources: flux.ResourceManagement{
+							ConcurrencyQuota: 1,
+						},
+					}
+
+					ps := plantest.CreatePlanSpec(&pts)
+					prog := &lang.Program{
+						Logger:   zaptest.NewLogger(t),
+						PlanSpec: ps,
+					}
+
+					return prog, nil
+				},
+			}
+
+			// Depending on how the feature flag is set in the context,
+			// we may or may not do query tracing here.
+			q, err := ctrl.Query(tc.ctx, makeRequest(compiler))
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			consumeResults(t, q)
+			gotSpans := make(map[string]struct{})
+			for _, span := range mockTracer.FinishedSpans() {
+				gotSpans[span.OperationName] = struct{}{}
+			}
+			if _, found := gotSpans[tc.doNotWantSpan]; tc.doNotWantSpan != "" && found {
+				t.Fatalf("did not want to find span %q but it was there", tc.doNotWantSpan)
+			}
+			if _, found := gotSpans[tc.wantSpan]; tc.wantSpan != "" && !found {
+				t.Fatalf("wanted to find span %q but it was not there", tc.wantSpan)
+			}
+		})
+	}
 }
 
 func consumeResults(tb testing.TB, q flux.Query) {

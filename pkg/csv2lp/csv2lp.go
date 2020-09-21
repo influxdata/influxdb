@@ -17,7 +17,21 @@ type CsvLineError struct {
 }
 
 func (e CsvLineError) Error() string {
-	return fmt.Sprintf("line %d: %v", e.Line, e.Err)
+	if e.Line > 0 {
+		return fmt.Sprintf("line %d: %v", e.Line, e.Err)
+	}
+	return fmt.Sprintf("%v", e.Err)
+}
+
+// CreateRowColumnError wraps an existing error to add line and column coordinates
+func CreateRowColumnError(line int, columnLabel string, err error) CsvLineError {
+	return CsvLineError{
+		Line: line,
+		Err: CsvColumnError{
+			Column: columnLabel,
+			Err:    err,
+		},
+	}
 }
 
 // CsvToLineReader represents state of transformation from csv data to lien protocol reader
@@ -34,6 +48,8 @@ type CsvToLineReader struct {
 	dataRowAdded bool
 	// log CSV data errors to sterr and continue with CSV processing
 	skipRowOnError bool
+	// RowSkipped is called when a row is skipped because of data parsing error
+	RowSkipped func(source *CsvToLineReader, lineError error, row []string)
 
 	// reader results
 	buffer     []byte
@@ -52,6 +68,11 @@ func (state *CsvToLineReader) LogTableColumns(val bool) *CsvToLineReader {
 func (state *CsvToLineReader) SkipRowOnError(val bool) *CsvToLineReader {
 	state.skipRowOnError = val
 	return state
+}
+
+// Comma returns a field delimiter used in an input CSV file
+func (state *CsvToLineReader) Comma() rune {
+	return state.csv.Comma
 }
 
 // Read implements io.Reader that returns protocol lines
@@ -98,13 +119,17 @@ func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 		if state.Table.AddRow(row) {
 			var err error
 			state.lineBuffer = state.lineBuffer[:0] // reuse line buffer
-			state.lineBuffer, err = state.Table.AppendLine(state.lineBuffer, row)
+			state.lineBuffer, err = state.Table.AppendLine(state.lineBuffer, row, state.LineNumber)
 			if !state.dataRowAdded && state.logTableDataColumns {
 				log.Println(state.Table.DataColumnsInfo())
 			}
 			state.dataRowAdded = true
 			if err != nil {
 				lineError := CsvLineError{state.LineNumber, err}
+				if state.RowSkipped != nil {
+					state.RowSkipped(state, lineError, row)
+					continue
+				}
 				if state.skipRowOnError {
 					log.Println(lineError)
 					continue

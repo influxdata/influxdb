@@ -7,10 +7,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/upgrade"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
@@ -42,11 +42,6 @@ func main() {
 			},
 		},
 	)
-
-	// TODO: this should be removed in the future: https://github.com/influxdata/influxdb/issues/16220
-	if os.Getenv("QUERY_TRACING") == "1" {
-		flux.EnableExperimentalTracing()
-	}
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

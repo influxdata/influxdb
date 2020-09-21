@@ -46,7 +46,9 @@ type CsvTableColumn struct {
 	// TimeZone of dateTime column, applied when parsing dateTime DataType
 	TimeZone *time.Location
 	// ParseF is an optional function used to convert column's string value to interface{}
-	ParseF func(string) (interface{}, error)
+	ParseF func(value string) (interface{}, error)
+	// ComputeValue is an optional function used to compute column value out of row data
+	ComputeValue func(row []string) string
 
 	// escapedLabel contains escaped label that can be directly used in line protocol
 	escapedLabel string
@@ -63,6 +65,9 @@ func (c *CsvTableColumn) LineLabel() string {
 // Value returns the value of the column for the supplied row
 func (c *CsvTableColumn) Value(row []string) string {
 	if c.Index < 0 || c.Index >= len(row) {
+		if c.ComputeValue != nil {
+			return c.ComputeValue(row)
+		}
 		return c.DefaultValue
 	}
 	val := row[c.Index]
@@ -126,9 +131,18 @@ func (c *CsvTableColumn) setupDataType(columnValue string) {
 	// setup column data type
 	c.DataType = columnValue
 
-	// setup custom parsing of bool data type
+	// setup custom parsing
 	if c.DataType == boolDatatype && c.DataFormat != "" {
 		c.ParseF = createBoolParseFn(c.DataFormat)
+		return
+	}
+	if c.DataType == longDatatype && strings.HasPrefix(c.DataFormat, "strict") {
+		c.ParseF = createStrictLongParseFn(c.DataFormat[6:])
+		return
+	}
+	if c.DataType == uLongDatatype && strings.HasPrefix(c.DataFormat, "strict") {
+		c.ParseF = createStrictUnsignedLongParseFn(c.DataFormat[6:])
+		return
 	}
 }
 
@@ -163,6 +177,8 @@ type CsvTable struct {
 	ignoreDataTypeInColumnName bool
 	// timeZone of dateTime column(s), applied when parsing dateTime value without a time zone specified
 	timeZone *time.Location
+	// validators validate table structure right before processing data rows
+	validators []func(*CsvTable) error
 
 	/* cached columns are initialized before reading the data rows using the computeLineProtocolColumns fn */
 	// cachedMeasurement is a required column that read (line protocol) measurement
@@ -193,6 +209,7 @@ func (t *CsvTable) DataColumnsInfo() string {
 		return "<nil>"
 	}
 	var builder = strings.Builder{}
+	t.computeLineProtocolColumns() // censure that ached columns are initialized
 	builder.WriteString(fmt.Sprintf("CsvTable{ dataColumns: %d constantColumns: %d\n", len(t.columns), len(t.extraColumns)))
 	builder.WriteString(fmt.Sprintf(" measurement: %+v\n", t.cachedMeasurement))
 	for _, col := range t.cachedTags {
@@ -232,7 +249,7 @@ func (t *CsvTable) AddRow(row []string) bool {
 	// detect data row or table header row
 	if len(row[0]) == 0 || row[0][0] != '#' {
 		if !t.readTableData {
-			// row must a header row now
+			// expect a header row
 			t.lpColumnsValid = false // line protocol columns change
 			if t.partBits == 0 {
 				// create columns since no column anotations were processed
@@ -328,6 +345,8 @@ func (t *CsvTable) recomputeLineProtocolColumns() {
 	t.cachedFieldValue = nil
 	t.cachedTags = nil
 	t.cachedFields = nil
+	// collect unique tag names (#19453)
+	var tags = make(map[string]*CsvTableColumn)
 
 	// having a _field column indicates fields without a line type are ignored
 	defaultIsField := t.Column(labelFieldName) == nil
@@ -353,8 +372,11 @@ func (t *CsvTable) recomputeLineProtocolColumns() {
 		case col.Label == labelFieldValue:
 			t.cachedFieldValue = col
 		case col.LinePart == linePartTag:
+			if val, found := tags[col.Label]; found {
+				log.Printf("WARNING: ignoring duplicate tag '%s' at column index %d, using column at index %d\n", col.Label, val.Index, col.Index)
+			}
 			col.escapedLabel = escapeTag(col.Label)
-			t.cachedTags = append(t.cachedTags, col)
+			tags[col.Label] = col
 		case col.LinePart == linePartField:
 			col.escapedLabel = escapeTag(col.Label)
 			t.cachedFields = append(t.cachedFields, col)
@@ -365,8 +387,12 @@ func (t *CsvTable) recomputeLineProtocolColumns() {
 			}
 		}
 	}
-	// line protocol requires sorted tags
-	if t.cachedTags != nil && len(t.cachedTags) > 0 {
+	// line protocol requires sorted unique tags
+	if len(tags) > 0 {
+		t.cachedTags = make([]*CsvTableColumn, 0, len(tags))
+		for _, v := range tags {
+			t.cachedTags = append(t.cachedTags, v)
+		}
 		sort.Slice(t.cachedTags, func(i, j int) bool {
 			return t.cachedTags[i].Label < t.cachedTags[j].Label
 		})
@@ -382,7 +408,7 @@ func (t *CsvTable) recomputeLineProtocolColumns() {
 // CreateLine produces a protocol line out of the supplied row or returns error
 func (t *CsvTable) CreateLine(row []string) (line string, err error) {
 	buffer := make([]byte, 100)[:0]
-	buffer, err = t.AppendLine(buffer, row)
+	buffer, err = t.AppendLine(buffer, row, -1)
 	if err != nil {
 		return "", err
 	}
@@ -390,7 +416,7 @@ func (t *CsvTable) CreateLine(row []string) (line string, err error) {
 }
 
 // AppendLine appends a protocol line to the supplied buffer using a CSV row and returns appended buffer or an error if any
-func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
+func (t *CsvTable) AppendLine(buffer []byte, row []string, lineNumber int) ([]byte, error) {
 	if t.computeLineProtocolColumns() {
 		// validate column data types
 		if t.cachedFieldValue != nil && !IsTypeSupported(t.cachedFieldValue.DataType) {
@@ -405,6 +431,11 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 					c.Label,
 					fmt.Errorf("data type '%s' is not supported", c.DataType),
 				}
+			}
+		}
+		for _, v := range t.validators {
+			if err := v(t); err != nil {
+				return buffer, err
 			}
 		}
 	}
@@ -438,7 +469,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 			buffer = append(buffer, escapeTag(field)...)
 			buffer = append(buffer, '=')
 			var err error
-			buffer, err = appendConverted(buffer, value, t.cachedFieldValue)
+			buffer, err = appendConverted(buffer, value, t.cachedFieldValue, lineNumber)
 			if err != nil {
 				return buffer, CsvColumnError{
 					t.cachedFieldName.Label,
@@ -459,7 +490,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 			buffer = append(buffer, field.LineLabel()...)
 			buffer = append(buffer, '=')
 			var err error
-			buffer, err = appendConverted(buffer, value, field)
+			buffer, err = appendConverted(buffer, value, field, lineNumber)
 			if err != nil {
 				return buffer, CsvColumnError{
 					field.Label,
@@ -482,7 +513,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 			}
 			buffer = append(buffer, ' ')
 			var err error
-			buffer, err = appendConverted(buffer, timeVal, t.cachedTime)
+			buffer, err = appendConverted(buffer, timeVal, t.cachedTime, lineNumber)
 			if err != nil {
 				return buffer, CsvColumnError{
 					t.cachedTime.Label,
@@ -507,6 +538,15 @@ func (t *CsvTable) Column(label string) *CsvTableColumn {
 // Columns returns available columns
 func (t *CsvTable) Columns() []*CsvTableColumn {
 	return t.columns
+}
+
+// ColumnLabels returns available columns labels
+func (t *CsvTable) ColumnLabels() []string {
+	labels := make([]string, len(t.columns))
+	for i, col := range t.columns {
+		labels[i] = col.Label
+	}
+	return labels
 }
 
 // Measurement returns measurement column or nil

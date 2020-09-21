@@ -17,10 +17,9 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
-	ast2 "github.com/influxdata/influxdb/v2/pkg/flux/ast"
-	"github.com/influxdata/influxdb/v2/pkg/flux/ast/edit"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"gopkg.in/yaml.v3"
 )
@@ -1444,32 +1443,34 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 	}
 
 	c := chart{
-		Kind:           ck,
-		Name:           r.Name(),
-		BinSize:        r.intShort(fieldChartBinSize),
-		BinCount:       r.intShort(fieldChartBinCount),
-		Geom:           r.stringShort(fieldChartGeom),
-		Height:         r.intShort(fieldChartHeight),
-		Note:           r.stringShort(fieldChartNote),
-		NoteOnEmpty:    r.boolShort(fieldChartNoteOnEmpty),
-		Position:       r.stringShort(fieldChartPosition),
-		Prefix:         r.stringShort(fieldPrefix),
-		Shade:          r.boolShort(fieldChartShade),
-		HoverDimension: r.stringShort(fieldChartHoverDimension),
-		Suffix:         r.stringShort(fieldSuffix),
-		TickPrefix:     r.stringShort(fieldChartTickPrefix),
-		TickSuffix:     r.stringShort(fieldChartTickSuffix),
-		TimeFormat:     r.stringShort(fieldChartTimeFormat),
-		Width:          r.intShort(fieldChartWidth),
-		XCol:           r.stringShort(fieldChartXCol),
-		YCol:           r.stringShort(fieldChartYCol),
-		XPos:           r.intShort(fieldChartXPos),
-		YPos:           r.intShort(fieldChartYPos),
-		FillColumns:    r.slcStr(fieldChartFillColumns),
-		YSeriesColumns: r.slcStr(fieldChartYSeriesColumns),
-		UpperColumn:    r.stringShort(fieldChartUpperColumn),
-		MainColumn:     r.stringShort(fieldChartMainColumn),
-		LowerColumn:    r.stringShort(fieldChartLowerColumn),
+		Kind:                       ck,
+		Name:                       r.Name(),
+		BinSize:                    r.intShort(fieldChartBinSize),
+		BinCount:                   r.intShort(fieldChartBinCount),
+		Geom:                       r.stringShort(fieldChartGeom),
+		Height:                     r.intShort(fieldChartHeight),
+		Note:                       r.stringShort(fieldChartNote),
+		NoteOnEmpty:                r.boolShort(fieldChartNoteOnEmpty),
+		Position:                   r.stringShort(fieldChartPosition),
+		Prefix:                     r.stringShort(fieldPrefix),
+		Shade:                      r.boolShort(fieldChartShade),
+		HoverDimension:             r.stringShort(fieldChartHoverDimension),
+		Suffix:                     r.stringShort(fieldSuffix),
+		TickPrefix:                 r.stringShort(fieldChartTickPrefix),
+		TickSuffix:                 r.stringShort(fieldChartTickSuffix),
+		TimeFormat:                 r.stringShort(fieldChartTimeFormat),
+		Width:                      r.intShort(fieldChartWidth),
+		XCol:                       r.stringShort(fieldChartXCol),
+		YCol:                       r.stringShort(fieldChartYCol),
+		XPos:                       r.intShort(fieldChartXPos),
+		YPos:                       r.intShort(fieldChartYPos),
+		FillColumns:                r.slcStr(fieldChartFillColumns),
+		YSeriesColumns:             r.slcStr(fieldChartYSeriesColumns),
+		UpperColumn:                r.stringShort(fieldChartUpperColumn),
+		MainColumn:                 r.stringShort(fieldChartMainColumn),
+		LowerColumn:                r.stringShort(fieldChartLowerColumn),
+		LegendOpacity:              r.float64Short(fieldChartLegendOpacity),
+		LegendOrientationThreshold: r.intShort(fieldChartLegendOrientationThreshold),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {
@@ -1729,16 +1730,16 @@ func valFromExpr(p ast.Expression) interface{} {
 		}
 		return nil
 	case *ast.DateTimeLiteral:
-		return ast2.DateTimeFromLiteral(literal)
+		return ast.DateTimeFromLiteral(literal)
 	case *ast.FloatLiteral:
-		return ast2.FloatFromLiteral(literal)
+		return ast.FloatFromLiteral(literal)
 	case *ast.IntegerLiteral:
-		return ast2.IntegerFromLiteral(literal)
+		return ast.IntegerFromLiteral(literal)
 	case *ast.DurationLiteral:
 		dur, _ := ast.DurationFrom(literal, time.Time{})
 		return dur
 	case *ast.StringLiteral:
-		return ast2.StringFromLiteral(literal)
+		return ast.StringFromLiteral(literal)
 	case *ast.UnaryExpression:
 		// a signed duration is represented by a UnaryExpression.
 		// it is the only unary expression allowed.

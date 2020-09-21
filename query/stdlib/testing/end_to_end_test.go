@@ -1,25 +1,25 @@
-//lint:file-ignore U1000 ignore these flagger-related dead code issues until we can circle back
 package testing_test
 
 import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/stdlib"
-	"github.com/influxdata/influxdb/v2/kit/feature"
-	"github.com/influxdata/influxdb/v2/kit/feature/override"
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/feature/override"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 	_ "github.com/influxdata/influxdb/v2/query/stdlib"
@@ -77,11 +77,10 @@ func (f Flagger) Flags(ctx context.Context, _f ...feature.Flag) (map[string]inte
 var ctx = influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(true, nil))
 
 func init() {
-	flux.FinalizeBuiltIns()
+	runtime.FinalizeBuiltIns()
 }
 
 func TestFluxEndToEnd(t *testing.T) {
-	t.Skip("Skipping per https://github.com/influxdata/influxdb/issues/19299")
 	runEndToEnd(t, stdlib.FluxTestPackages)
 }
 func BenchmarkFluxEndToEnd(b *testing.B) {
@@ -110,6 +109,8 @@ func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
 					if reason, ok := itesting.FluxEndToEndSkipList[pkg.Path][name]; ok {
 						t.Skip(reason)
 					}
+
+					flagger.SetActiveTestCase(pkg.Path, name)
 					testFlux(t, l, file)
 				})
 			}
@@ -153,12 +154,15 @@ func makeTestPackage(file *ast.File) *ast.Package {
 var optionsSource = `
 import "testing"
 import c "csv"
+import "experimental"
 
 // Options bucket and org are defined dynamically per test
 
 option testing.loadStorage = (csv) => {
-	c.from(csv: csv) |> to(bucket: bucket, org: org)
-	return from(bucket: bucket)
+	return experimental.chain(
+		first:  c.from(csv: csv) |> to(bucket: bucket, org: org),
+		second: from(bucket:bucket)
+	)
 }
 `
 var optionsAST *ast.File
@@ -173,8 +177,6 @@ func init() {
 
 func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 
-	// Query server to ensure write persists.
-
 	b := &platform.Bucket{
 		OrgID:           l.Org.ID,
 		Name:            t.Name(),
@@ -185,6 +187,11 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 	if err := s.CreateBucket(context.Background(), b); err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := s.DeleteBucket(context.Background(), b.ID); err != nil {
+			t.Logf("Failed to delete bucket: %s", err)
+		}
+	}()
 
 	// Define bucket and org options
 	bucketOpt := &ast.OptionStatement{
@@ -206,76 +213,55 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 	pkg := makeTestPackage(file)
 	pkg.Files = append(pkg.Files, options)
 
-	// Add testing.inspect call to ensure the data is loaded
+	// Use testing.inspect call to get all of diff, want, and got
 	inspectCalls := stdlib.TestingInspectCalls(pkg)
 	pkg.Files = append(pkg.Files, inspectCalls)
 
-	req := &query.Request{
-		OrganizationID: l.Org.ID,
-		Compiler:       lang.ASTCompiler{AST: pkg},
-	}
-	if r, err := l.FluxQueryService().Query(ctx, req); err != nil {
-		t.Fatal(err)
-	} else {
-		for r.More() {
-			v := r.Next()
-			if err := v.Tables().Do(func(tbl flux.Table) error {
-				return tbl.Do(func(reader flux.ColReader) error {
-					return nil
-				})
-			}); err != nil {
-				t.Error(err)
-			}
-		}
-	}
-
-	// quirk: our execution engine doesn't guarantee the order of execution for disconnected DAGS
-	// so that our function-with-side effects call to `to` may run _after_ the test instead of before.
-	// running twice makes sure that `to` happens at least once before we run the test.
-	// this time we use a call to `run` so that the assertion error is triggered
-	runCalls := stdlib.TestingRunCalls(pkg)
-	pkg.Files[len(pkg.Files)-1] = runCalls
-	r, err := l.FluxQueryService().Query(ctx, req)
+	bs, err := json.Marshal(pkg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for r.More() {
-		v := r.Next()
-		if err := v.Tables().Do(func(tbl flux.Table) error {
-			return tbl.Do(func(reader flux.ColReader) error {
-				return nil
-			})
-		}); err != nil {
-			t.Error(err)
-		}
+	req := &query.Request{
+		OrganizationID: l.Org.ID,
+		Compiler:       lang.ASTCompiler{AST: bs},
 	}
-	if err := r.Err(); err != nil {
-		t.Error(err)
-		// Replace the testing.run calls with testing.inspect calls.
-		pkg.Files[len(pkg.Files)-1] = inspectCalls
-		r, err := l.FluxQueryService().Query(ctx, req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var out bytes.Buffer
-		defer func() {
-			if t.Failed() {
-				scanner := bufio.NewScanner(&out)
-				for scanner.Scan() {
-					t.Log(scanner.Text())
-				}
-			}
-		}()
+
+	if r, err := l.FluxQueryService().Query(ctx, req); err != nil {
+		t.Fatal(err)
+	} else {
+		results := make(map[string]*bytes.Buffer)
+
 		for r.More() {
 			v := r.Next()
-			err := execute.FormatResult(&out, v)
+
+			if _, ok := results[v.Name()]; !ok {
+				results[v.Name()] = &bytes.Buffer{}
+			}
+			err := execute.FormatResult(results[v.Name()], v)
 			if err != nil {
 				t.Error(err)
 			}
 		}
 		if err := r.Err(); err != nil {
 			t.Error(err)
+		}
+
+		logFormatted := func(name string, results map[string]*bytes.Buffer) {
+			if _, ok := results[name]; ok {
+				scanner := bufio.NewScanner(results[name])
+				for scanner.Scan() {
+					t.Log(scanner.Text())
+				}
+			} else {
+				t.Log("table ", name, " not present in results")
+			}
+		}
+		if _, ok := results["diff"]; ok {
+			t.Error("diff table was not empty")
+			logFormatted("diff", results)
+			logFormatted("want", results)
+			logFormatted("got", results)
 		}
 	}
 }

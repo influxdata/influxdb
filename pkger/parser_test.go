@@ -1058,6 +1058,8 @@ spec:
 						assert.Equal(t, "heatmap", props.GetType())
 						assert.Equal(t, "heatmap note", props.Note)
 						assert.Equal(t, int32(10), props.BinSize)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 						assert.True(t, props.ShowNoteWhenEmpty)
 
 						assert.Equal(t, []float64{0, 10}, props.XDomain)
@@ -1175,6 +1177,8 @@ spec:
 						assert.Equal(t, "histogram", props.GetType())
 						assert.Equal(t, "histogram note", props.Note)
 						assert.Equal(t, 30, props.BinCount)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 						assert.True(t, props.ShowNoteWhenEmpty)
 						assert.Equal(t, []float64{0, 10}, props.XDomain)
 						assert.Equal(t, []string{"a", "b"}, props.FillColumns)
@@ -1289,6 +1293,8 @@ spec:
 						assert.Equal(t, "y_prefix", props.YPrefix)
 						assert.Equal(t, "x_suffix", props.XSuffix)
 						assert.Equal(t, "y_suffix", props.YSuffix)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 					})
 				})
 			})
@@ -1319,6 +1325,8 @@ spec:
 						assert.Equal(t, "foo", props.UpperColumn)
 						assert.Equal(t, "baz", props.MainColumn)
 						assert.Equal(t, "bar", props.LowerColumn)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 
 						require.Len(t, props.ViewColors, 1)
 						c := props.ViewColors[0]
@@ -1382,6 +1390,8 @@ spec:
 						assert.Equal(t, "y_prefix", props.YPrefix)
 						assert.Equal(t, "x_suffix", props.XSuffix)
 						assert.Equal(t, "y_suffix", props.YSuffix)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 					})
 				})
 
@@ -1820,6 +1830,8 @@ spec:
 						assert.Equal(t, "overlaid", props.Position)
 						assert.Equal(t, "leg_type", props.Legend.Type)
 						assert.Equal(t, "horizontal", props.Legend.Orientation)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 
 						require.Len(t, props.Queries, 1)
 						q := props.Queries[0]
@@ -2274,6 +2286,8 @@ spec:
 						assert.Equal(t, "xy chart note", props.Note)
 						assert.True(t, props.ShowNoteWhenEmpty)
 						assert.Equal(t, "stacked", props.Position)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 
 						require.Len(t, props.Queries, 1)
 						q := props.Queries[0]
