@@ -8956,6 +8956,11 @@ components:
           enum: [overlaid, stacked]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     XYGeom:
       type: string
       enum: [line, step, stacked, bar, monotoneX]
@@ -9013,6 +9018,11 @@ components:
           enum: [auto, x, y, xy]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     LinePlusSingleStatProperties:
       type: object
       required:
@@ -9073,6 +9083,11 @@ components:
           type: string
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     MosaicViewProperties:
       type: object
       required:
@@ -9148,6 +9163,11 @@ components:
           type: string
         ySuffix:
           type: string
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     ScatterViewProperties:
       type: object
       required:
@@ -9226,6 +9246,11 @@ components:
           type: string
         ySuffix:
           type: string
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     HeatmapViewProperties:
       type: object
       required:
@@ -9297,6 +9322,11 @@ components:
           type: string
         binSize:
           type: number
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     SingleStatViewProperties:
       type: object
       required:
@@ -9345,6 +9375,11 @@ components:
           $ref: "#/components/schemas/Legend"
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     HistogramViewProperties:
       type: object
       required:
@@ -9398,6 +9433,11 @@ components:
           type: string
           enum: [overlaid, stacked]
         binCount:
+          type: integer
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
           type: integer
     GaugeViewProperties:
       type: object
@@ -9561,6 +9601,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardColor"
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     Axes:
       description: The viewport for a View's visualizations
       type: object
