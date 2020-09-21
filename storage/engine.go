@@ -284,7 +284,7 @@ func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influ
 func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-	return e.tsdbStore.DeleteRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName)
+	return e.tsdbStore.DeleteDatabase(bucketID.String())
 }
 
 // DeleteBucketRange deletes an entire range of data from the storage engine.
