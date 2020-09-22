@@ -367,7 +367,7 @@ func (b *cmdTemplateBuilder) cmdExport() *cobra.Command {
 	cmd.Flags().StringVar(&b.exportOpts.labelNames, "label-names", "", "List of label names comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.ruleNames, "rule-names", "", "List of notification rule names comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.taskNames, "task-names", "", "List of task names comma separated")
-	cmd.Flags().StringVar(&b.exportOpts.telegrafNames, "telegra-namef-configs", "", "List of telegraf config names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.telegrafNames, "telegraf-config-names", "", "List of telegraf config names comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.variableNames, "variable-names", "", "List of variable names comma separated")
 
 	return cmd
