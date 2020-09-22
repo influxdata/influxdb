@@ -209,8 +209,10 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	if err := dep.passSVC.SetPassword(ctx, user.ID, pass); err != nil {
-		return err
+	if pass != "" {
+		if err := dep.passSVC.SetPassword(ctx, user.ID, pass); err != nil {
+			return err
+		}
 	}
 
 	return b.printUser(userPrintOpts{user: user})

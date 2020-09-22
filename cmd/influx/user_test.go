@@ -98,6 +98,18 @@ func TestCmdUser(t *testing.T) {
 				},
 			},
 			{
+				name: "without password",
+				flags: []string{
+					"--name=new name",
+					"--org=org name",
+				},
+				expected: userResult{
+					user: influxdb.User{
+						Name: "new name",
+					},
+				},
+			},
+			{
 				name: "shorts",
 				flags: []string{
 					"-n=new name",
