@@ -25,7 +25,6 @@ func TestDashboards_All(t *testing.T) {
 	}
 	type args struct {
 		organization string
-		ctx          context.Context
 	}
 	tests := []struct {
 		name    string
@@ -65,7 +64,6 @@ func TestDashboards_All(t *testing.T) {
 			},
 			args: args{
 				organization: "1337",
-				ctx:          context.Background(),
 			},
 			want: []chronograf.Dashboard{
 				{
@@ -76,18 +74,20 @@ func TestDashboards_All(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := organizations.NewDashboardsStore(tt.fields.DashboardsStore, tt.args.organization)
-		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.organization)
-		gots, err := s.All(tt.args.ctx)
-		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. DashboardsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
-			continue
-		}
-		for i, got := range gots {
-			if diff := cmp.Diff(got, tt.want[i], dashboardCmpOptions...); diff != "" {
-				t.Errorf("%q. DashboardsStore.All():\n-got/+want\ndiff %s", tt.name, diff)
+		t.Run(tt.name, func(t *testing.T) {
+			s := organizations.NewDashboardsStore(tt.fields.DashboardsStore, tt.args.organization)
+			ctx := context.WithValue(context.Background(), organizations.ContextKey, tt.args.organization)
+			gots, err := s.All(ctx)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%q. DashboardsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+				return
 			}
-		}
+			for i, got := range gots {
+				if diff := cmp.Diff(got, tt.want[i], dashboardCmpOptions...); diff != "" {
+					t.Errorf("%q. DashboardsStore.All():\n-got/+want\ndiff %s", tt.name, diff)
+				}
+			}
+		})
 	}
 }
 
