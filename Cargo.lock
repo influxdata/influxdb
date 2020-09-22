@@ -639,7 +639,7 @@ dependencies = [
  "delorean_object_store",
  "delorean_parquet",
  "delorean_partitioned_store",
- "delorean_storage_interface",
+ "delorean_storage",
  "delorean_table",
  "delorean_table_schema",
  "delorean_test_helpers",
@@ -749,7 +749,7 @@ dependencies = [
  "croaring",
  "delorean_generated_types",
  "delorean_line_parser",
- "delorean_storage_interface",
+ "delorean_storage",
  "delorean_test_helpers",
  "delorean_tsm",
  "delorean_wal",
@@ -766,7 +766,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "delorean_storage_interface"
+name = "delorean_storage"
 version = "0.1.0"
 dependencies = [
  "arrow",
@@ -864,7 +864,7 @@ dependencies = [
  "criterion",
  "delorean_generated_types",
  "delorean_line_parser",
- "delorean_storage_interface",
+ "delorean_storage",
  "delorean_test_helpers",
  "delorean_wal",
  "delorean_wal_writer",

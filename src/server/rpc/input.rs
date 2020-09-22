@@ -5,7 +5,7 @@ use delorean_generated_types::{
     MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest, ReadSource, TagKeysRequest,
     TagValuesRequest,
 };
-use delorean_storage_interface::id::Id;
+use delorean_storage::id::Id;
 
 use std::convert::TryInto;
 

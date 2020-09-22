@@ -9,7 +9,7 @@ use delorean_partitioned_store::{
     line_parser::index_pairs,
     storage::{database::Error as DatabaseError, partitioned_store::ReadValues, predicate},
 };
-use delorean_storage_interface::id::Id;
+use delorean_storage::id::Id;
 
 use std::sync::Arc;
 use std::time::Duration;

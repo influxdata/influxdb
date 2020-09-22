@@ -25,7 +25,7 @@ use delorean_partitioned_store::storage::{
     partitioned_store::{PartitionKeyValues, ReadValues},
     SeriesDataType,
 };
-use delorean_storage_interface::id::Id;
+use delorean_storage::id::Id;
 
 use crate::server::rpc::input::GrpcInputs;
 

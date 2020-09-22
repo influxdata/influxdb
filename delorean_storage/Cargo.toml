@@ -1,5 +1,5 @@
 [package]
-name = "delorean_storage_interface"
+name = "delorean_storage"
 version = "0.1.0"
 authors = ["alamb <andrew@nerdnetworks.org>"]
 edition = "2018"

@@ -1,6 +1,6 @@
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::{FieldValue, ParsedLine};
-use delorean_storage_interface::{Database, DatabaseStore, Predicate, TimestampRange};
+use delorean_storage::{Database, DatabaseStore, Predicate, TimestampRange};
 use delorean_wal::{Entry as WalEntry, Result as WalResult, WalBuilder};
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
-use delorean_storage_interface::{
+use delorean_storage::{
     arrow,
     arrow::{
         array::{ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder},
@@ -1676,7 +1676,7 @@ impl Column {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use delorean_storage_interface::{Database, TimestampRange};
+    use delorean_storage::{Database, TimestampRange};
 
     use arrow::util::pretty::pretty_format_batches;
     use delorean_line_parser::parse_lines;

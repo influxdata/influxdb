@@ -8,7 +8,7 @@ edition = "2018"
 
 delorean_generated_types = { path = "../delorean_generated_types" }
 delorean_line_parser = { path = "../delorean_line_parser" }
-delorean_storage_interface = { path = "../delorean_storage_interface" }
+delorean_storage = { path = "../delorean_storage" }
 delorean_wal = { path = "../delorean_wal" }
 delorean_wal_writer = { path = "../delorean_wal_writer" }
 

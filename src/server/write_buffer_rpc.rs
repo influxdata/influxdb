@@ -26,7 +26,7 @@ use delorean_generated_types::{
 use delorean_generated_types::{node, Node};
 
 use crate::server::rpc::input::GrpcInputs;
-use delorean_storage_interface::{
+use delorean_storage::{
     org_and_bucket_to_database, Database, DatabaseStore, Predicate as StoragePredicate,
     TimestampRange as StorageTimestampRange,
 };
@@ -460,7 +460,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use delorean_storage_interface::{id::Id, test::ColumnNamesRequest, test::TestDatabaseStore};
+    use delorean_storage::{id::Id, test::ColumnNamesRequest, test::TestDatabaseStore};
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},

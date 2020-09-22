@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use delorean_line_parser as line_parser;
-use delorean_storage_interface::Database;
+use delorean_storage::Database;
 use delorean_wal::{Entry, WalBuilder};
 use delorean_write_buffer::database::{restore_partitions_from_wal, Db};
 

@@ -134,8 +134,8 @@ pub fn org_and_bucket_to_database(org: impl Into<String>, bucket: &str) -> Strin
 // error[E0433]: failed to resolve: could not find `test` in `delorean`
 //   --> src/server/write_buffer_routes.rs:353:19
 //     |
-// 353 |     use delorean_storage_interface::test::TestDatabaseStore;
-//     |                                     ^^^^ could not find `test` in `delorean_storage_interface`
+// 353 |     use delorean_storage::test::TestDatabaseStore;
+//     |                           ^^^^ could not find `test` in `delorean_storage`
 
 //
 //#[cfg(test)]

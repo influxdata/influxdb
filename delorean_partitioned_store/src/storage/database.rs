@@ -2,7 +2,7 @@ use tracing::{debug, error, info};
 
 use crate::line_parser::PointType;
 use delorean_generated_types::{Bucket, Predicate, TimestampRange};
-use delorean_storage_interface::id::{self, Id};
+use delorean_storage::id::{self, Id};
 
 use crate::storage::{
     memdb::MemDB,
