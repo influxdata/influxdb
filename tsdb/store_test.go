@@ -192,7 +192,7 @@ func TestStore_CreateMixedShards(t *testing.T) {
 	}
 
 	indexes := tsdb.RegisteredIndexes()
-	for i, _ := range indexes {
+	for i := range indexes {
 		j := (i + 1) % len(indexes)
 		index1 := indexes[i]
 		index2 := indexes[j]
@@ -237,7 +237,7 @@ func TestStore_DropMeasurementMixedShards(t *testing.T) {
 	}
 
 	indexes := tsdb.RegisteredIndexes()
-	for i, _ := range indexes {
+	for i := range indexes {
 		j := (i + 1) % len(indexes)
 		index1 := indexes[i]
 		index2 := indexes[j]
@@ -264,28 +264,30 @@ func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 
 		s.MustWriteToShardString(2, "mem,server=b v=1 20")
 
-		var wg sync.WaitGroup
-		wg.Add(2)
-
+		errCh := make(chan error)
 		go func() {
-			defer wg.Done()
 			for i := 0; i < 50; i++ {
 				s.MustWriteToShardString(1, "cpu,server=a v=1 10")
 				s.MustWriteToShardString(2, "cpu,server=b v=1 20")
 			}
+			errCh <- nil
 		}()
 
 		go func() {
-			defer wg.Done()
 			for i := 0; i < 50; i++ {
-				err := s.DeleteMeasurement("db0", "cpu")
-				if err != nil {
-					t.Fatal(err)
+				if err := s.DeleteMeasurement("db0", "cpu"); err != nil {
+					errCh <- err
+					return
 				}
 			}
+			errCh <- nil
 		}()
 
-		wg.Wait()
+		for i := 0; i < 2; i++ {
+			if err := <-errCh; err != nil {
+				t.Fatal(err)
+			}
+		}
 
 		err := s.DeleteMeasurement("db0", "cpu")
 		if err != nil {
@@ -372,7 +374,7 @@ func TestStore_WriteMixedShards(t *testing.T) {
 	}
 
 	indexes := tsdb.RegisteredIndexes()
-	for i, _ := range indexes {
+	for i := range indexes {
 		j := (i + 1) % len(indexes)
 		index1 := indexes[i]
 		index2 := indexes[j]
@@ -2060,11 +2062,11 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 				default:
 					stmt, err := influxql.ParseStatement(`SHOW TAG VALUES WITH KEY = "host"`)
 					if err != nil {
-						t.Fatal(err)
+						errC <- err
 					}
 					rewrite, err := query.RewriteStatement(stmt)
 					if err != nil {
-						t.Fatal(err)
+						errC <- err
 					}
 
 					cond := rewrite.(*influxql.ShowTagValuesStatement).Condition
@@ -2081,8 +2083,8 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 					exp := tsdb.TagValues{
 						Measurement: "cpu",
 						Values: []tsdb.KeyValue{
-							tsdb.KeyValue{Key: "host", Value: "serverA"},
-							tsdb.KeyValue{Key: "host", Value: "serverC"},
+							{Key: "host", Value: "serverA"},
+							{Key: "host", Value: "serverC"},
 						},
 					}
 
