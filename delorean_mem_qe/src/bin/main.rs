@@ -13,7 +13,7 @@ use arrow::{array, array::Array, datatypes, ipc};
 
 use delorean_mem_qe::column;
 use delorean_mem_qe::column::{AggregateType, Column};
-use delorean_mem_qe::segment::{GroupingStrategy, Schema, Segment};
+use delorean_mem_qe::segment::{ColumnType, GroupingStrategy, Schema, Segment};
 use delorean_mem_qe::{adapter::DeloreanQueryEngine, Store};
 use parquet::arrow::arrow_reader::ArrowReader;
 
@@ -63,15 +63,16 @@ fn main() {
     );
     let store = Arc::new(store);
 
-    time_select_with_pred(&store);
-    time_datafusion_select_with_pred(store.clone());
-    time_first_host(&store);
-    time_sum_range(&store);
-    time_count_range(&store);
-    time_group_single_with_pred(&store);
-    time_group_by_multi_agg_count(&store);
-    time_group_by_multi_agg_sorted_count(&store);
+    // time_select_with_pred(&store);
+    // time_datafusion_select_with_pred(store.clone());
+    // time_first_host(&store);
+    // time_sum_range(&store);
+    // time_count_range(&store);
+    // time_group_single_with_pred(&store);
+    // time_group_by_multi_agg_count(&store);
+    // time_group_by_multi_agg_sorted_count(&store);
     // time_window_agg_count(&store);
+    time_tag_keys_with_pred(&store);
     // time_group_by_different_columns(&store);
 }
 
@@ -121,10 +122,10 @@ fn build_store(
         match rb {
             Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
             Ok(Some(rb)) => {
-                // if i < 364 {
-                //     i += 1;
-                //     continue;
-                // }
+                if i < 360 {
+                    i += 1;
+                    continue;
+                }
                 let schema = Schema::with_sort_order(
                     rb.schema(),
                     sort_order.iter().map(|s| s.to_string()).collect(),
@@ -162,50 +163,50 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
                 if column.null_count() > 0 {
                     panic!("null floats");
                 }
-                // let arr = column
-                //     .as_any()
-                //     .downcast_ref::<array::Float64Array>()
-                //     .unwrap();
-                // let column = Column::from(arr.value_slice(0, rb.num_rows()));
-                // segment.add_column(rb.schema().field(i).name(), column);
+                let arr = column
+                    .as_any()
+                    .downcast_ref::<array::Float64Array>()
+                    .unwrap();
+                let column = Column::from(arr.value_slice(0, rb.num_rows()));
+                segment.add_column(rb.schema().field(i).name(), ColumnType::Field(column));
 
                 // TODO(edd): figure out how to get ownership here without
                 // cloning
-                let arr: array::Float64Array = arrow::array::PrimitiveArray::from(column.data());
-                let column = Column::from(arr);
-                segment.add_column(rb.schema().field(i).name(), column);
+                // let arr: array::Float64Array = arrow::array::PrimitiveArray::from(column.data());
+                // let column = Column::from(arr);
+                // segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Int64 => {
                 if column.null_count() > 0 {
                     panic!("null integers not expected in testing");
                 }
-                // let arr = column.as_any().downcast_ref::<array::Int64Array>().unwrap();
-                // let column = Column::from(arr.value_slice(0, rb.num_rows()));
-                // segment.add_column(rb.schema().field(i).name(), column);
+                let arr = column.as_any().downcast_ref::<array::Int64Array>().unwrap();
+                let column = Column::from(arr.value_slice(0, rb.num_rows()));
+                segment.add_column(rb.schema().field(i).name(), ColumnType::Time(column));
 
                 // TODO(edd): figure out how to get ownership here without
                 // cloning
-                let arr: array::Int64Array = arrow::array::PrimitiveArray::from(column.data());
-                let column = Column::from(arr);
-                segment.add_column(rb.schema().field(i).name(), column);
+                // let arr: array::Int64Array = arrow::array::PrimitiveArray::from(column.data());
+                // let column = Column::from(arr);
+                // segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Timestamp(TimeUnit::Microsecond, None) => {
                 if column.null_count() > 0 {
                     panic!("null timestamps not expected in testing");
                 }
-                // let arr = column
-                //     .as_any()
-                //     .downcast_ref::<array::TimestampMicrosecondArray>()
-                //     .unwrap();
-                // let column = Column::from(arr.value_slice(0, rb.num_rows()));
-                // segment.add_column(rb.schema().field(i).name(), column);
+                let arr = column
+                    .as_any()
+                    .downcast_ref::<array::TimestampMicrosecondArray>()
+                    .unwrap();
+                let column = Column::from(arr.value_slice(0, rb.num_rows()));
+                segment.add_column(rb.schema().field(i).name(), ColumnType::Time(column));
 
                 // TODO(edd): figure out how to get ownership here without
                 // cloning
-                let arr: array::TimestampMicrosecondArray =
-                    arrow::array::PrimitiveArray::from(column.data());
-                let column = Column::from(arr);
-                segment.add_column(rb.schema().field(i).name(), column);
+                // let arr: array::TimestampMicrosecondArray =
+                //     arrow::array::PrimitiveArray::from(column.data());
+                // let column = Column::from(arr);
+                // segment.add_column(rb.schema().field(i).name(), column);
             }
             datatypes::DataType::Utf8 => {
                 let arr = column
@@ -266,7 +267,10 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
                     None => c.add_additional(None, count),
                 }
 
-                segment.add_column(rb.schema().field(i).name(), Column::String(c));
+                segment.add_column(
+                    rb.schema().field(i).name(),
+                    ColumnType::Tag(Column::String(c)),
+                );
             }
             datatypes::DataType::Boolean => {
                 panic!("unsupported");
@@ -383,7 +387,7 @@ fn time_select_with_pred(store: &Store) {
 
         let columns = segments.read_filter_eq(
             (1590036110000000, 1590040770000000),
-            &[("env", Some(&column::Scalar::String("prod01-eu-central-1")))],
+            &[("env", Some(column::Scalar::String("prod01-eu-central-1")))],
             vec![
                 "env".to_string(),
                 "method".to_string(),
@@ -603,6 +607,34 @@ fn time_window_agg_count(store: &Store) {
             total_max
         );
     }
+}
+
+//
+// SHOW TAG KEYS WHERE time >= x and time < y AND "env" = 'prod01-eu-central-1'
+fn time_tag_keys_with_pred(store: &Store) {
+    let repeat = 1000000;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut track = 0;
+    let segments = store.segments();
+    for _ in 0..repeat {
+        let now = std::time::Instant::now();
+
+        let columns = segments.tag_keys(
+            (1588834080000000, 1590044410000000),
+            &[("env", "prod01-eu-central-1"), ("method", "GET")],
+        );
+
+        total_time += now.elapsed();
+        track += columns.len();
+        // println!("{:?}", columns);
+    }
+    println!(
+        "time_tag_keys_with_pred ran {:?} in {:?} {:?} / call {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        track
+    );
 }
 
 // This is for a performance experiment where I wanted to show the performance

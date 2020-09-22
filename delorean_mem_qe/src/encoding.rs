@@ -107,11 +107,11 @@ where
     ///
     /// encoded_values should not be called on nullable columns.
     fn encoded_values(&self, row_ids: &[usize]) -> Vec<T::Native> {
-        panic!("encoded_values not implemented yet");
+        todo!();
     }
 
     fn all_encoded_values(&self) -> Vec<T::Native> {
-        panic!("all_encoded_values not implemented yet");
+        todo!();
     }
 
     // TODO(edd): problem here is returning a slice because we need to own the
@@ -774,6 +774,58 @@ impl DictionaryRLE {
         out
     }
 
+    pub fn has_non_null_value_in_row_ids(&self, row_ids: &[usize]) -> bool {
+        let null_encoded_value = self.entry_index.get(&None);
+        if null_encoded_value.is_none() {
+            // there are no NULL entries in this encoded column so return true
+            // as soon a row_id is found that's < the number of rows encoded in
+            // the column.
+            for &id in row_ids {
+                if (id as u64) < self.total {
+                    return true;
+                }
+            }
+            return false;
+        }
+        let null_encoded_value = *null_encoded_value.unwrap();
+
+        // Return true if there exists an encoded value at any of the row ids
+        // that is not equal to `null_encoded_value`. In such a case the column
+        // contains a non-NULL value at one of the row ids.
+        let mut curr_logical_row_id = 0;
+        let mut run_lengths_iter = self.run_lengths.iter();
+        let (mut curr_encoded_id, mut curr_entry_rl) = run_lengths_iter.next().unwrap();
+
+        for &row_id in row_ids {
+            if (row_id as u64) >= self.total {
+                continue; // can't possibly have a value at this row id.
+            }
+
+            while curr_logical_row_id + curr_entry_rl <= row_id as u64 {
+                // this encoded entry does not cover the row we need.
+                // move on to next encoded id
+                curr_logical_row_id += curr_entry_rl;
+                match run_lengths_iter.next() {
+                    Some(res) => {
+                        curr_encoded_id = res.0;
+                        curr_entry_rl = res.1;
+                    }
+                    // TODO(edd): deal with this properly.
+                    None => panic!("shouldn't get here"),
+                }
+            }
+
+            // this entry covers the row_id we want.
+            if curr_encoded_id != null_encoded_value {
+                return true;
+            }
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+
+        false
+    }
+
     /// Return the decoded value for an encoded ID.
     ///
     /// Panics if there is no decoded value for the provided id
@@ -1092,6 +1144,52 @@ mod test {
         let results = drle.scan_from(9);
         let exp: Vec<&Option<String>> = vec![];
         assert_eq!(results, exp);
+    }
+
+    #[test]
+    fn dict_rle_has_value_no_null() {
+        let mut drle = super::DictionaryRLE::new();
+        let west = Some("west".to_string());
+        let east = Some("east".to_string());
+        let north = Some("north".to_string());
+        drle.push_additional(west, 3);
+        drle.push_additional(east, 2);
+        drle.push_additional(north, 4);
+
+        // w,w,w,e,e,n,n,n,n
+        // 0 1 2 3 4 5 6 7 8
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[0]), true);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[1, 3]), true);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[8]), true);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[12, 132]), false);
+    }
+
+    #[test]
+    fn dict_rle_has_value() {
+        let mut drle = super::DictionaryRLE::new();
+        let west = Some("west".to_string());
+        let east = Some("east".to_string());
+        let north = Some("north".to_string());
+        drle.push_additional(west.clone(), 3);
+        drle.push_additional(None, 1);
+        drle.push_additional(east, 2);
+        drle.push_additional(north, 4);
+        drle.push_additional(None, 4);
+        drle.push_additional(west, 3);
+
+        // w,w,w,?,e,e,n,n,n,n, ?, ?,  ?,  ?,  w,  w,  w
+        // 0 1 2 3 4 5 6 7 8 9 10 11, 12, 13, 14, 15, 16
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[0]), true);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[2, 3]), true);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[2, 3]), true);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[3, 4, 10]), true);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[16, 19]), true);
+
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[3]), false);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[3, 10]), false);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[17]), false);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[17, 19]), false);
+        assert_eq!(drle.has_non_null_value_in_row_ids(&[12, 19]), false);
     }
 
     #[test]

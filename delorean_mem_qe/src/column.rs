@@ -1123,16 +1123,16 @@ impl Column {
     }
 
     // TODO(edd) shouldn't let roaring stuff leak out...
-    pub fn row_ids_eq(&self, value: Option<&Scalar<'_>>) -> Option<croaring::Bitmap> {
+    pub fn row_ids_eq(&self, value: Option<Scalar<'_>>) -> Option<croaring::Bitmap> {
         let value = match value {
             Some(v) => v,
             None => return None,
         };
 
-        if !self.maybe_contains(value) {
+        if !self.maybe_contains(&value) {
             return None;
         }
-        self.row_ids(value, std::cmp::Ordering::Equal)
+        self.row_ids(&value, std::cmp::Ordering::Equal)
     }
 
     pub fn row_ids_gt(&self, value: &Scalar<'_>) -> Option<croaring::Bitmap> {
@@ -1247,6 +1247,18 @@ impl Column {
                     panic!("invalid value or unsupported null");
                 }
             }
+        }
+    }
+
+    // great catchy name... This determines as efficiently as possible if the
+    // column contains a non-null value in at least one of the provided row
+    // ids.
+    //
+    // row_ids *must* be in ascending order.
+    pub fn has_non_null_value_in_row_ids(&self, row_ids: &[usize]) -> bool {
+        match self {
+            Column::String(c) => c.data.has_non_null_value_in_row_ids(row_ids),
+            _ => unreachable!("not supported at the moment"),
         }
     }
 }

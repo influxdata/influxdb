@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::column;
 use super::column::{AggregateType, Column};
@@ -6,6 +6,23 @@ use arrow::datatypes::SchemaRef;
 
 // Only used in a couple of specific places for experimentation.
 const THREADS: usize = 16;
+
+/// ColumnType describes the logical type a column can have.
+pub enum ColumnType {
+    Tag(column::Column),
+    Field(column::Column),
+    Time(column::Column),
+}
+
+impl ColumnType {
+    fn num_rows(&self) -> usize {
+        match &self {
+            ColumnType::Tag(c) => c.num_rows(),
+            ColumnType::Field(c) => c.num_rows(),
+            ColumnType::Time(c) => c.num_rows(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Schema {
@@ -51,7 +68,9 @@ pub struct Segment {
     meta: SegmentMetaData,
 
     // Columns within a segment
-    columns: Vec<column::Column>,
+    columns: Vec<Column>,
+
+    tag_column_idxs: Vec<usize>, // todo(edd): add vectors to each type
     time_column_idx: usize,
 }
 
@@ -61,35 +80,46 @@ impl Segment {
         Self {
             meta: SegmentMetaData::new(rows, schema),
             columns: Vec::with_capacity(cols),
+            tag_column_idxs: vec![],
             time_column_idx: 0,
         }
     }
 
-    pub fn add_column(&mut self, name: &str, c: column::Column) {
+    pub fn add_column(&mut self, name: &str, ct: ColumnType) {
         assert_eq!(
             self.meta.rows,
-            c.num_rows(),
+            ct.num_rows(),
             "Column {:?} has {:?} rows but wanted {:?}",
             name,
-            c.num_rows(),
+            ct.num_rows(),
             self.meta.rows
         );
-
-        // TODO(edd) yuk
-        if name == "time" {
-            if let column::Column::Integer(ts) = &c {
-                // Right now assumption is ts column has some non-null values
-                self.meta.time_range = ts.column_range().unwrap();
-            } else {
-                panic!("incorrect column type for time");
-            }
-            self.time_column_idx = self.columns.len();
-        }
 
         // validate column doesn't already exist in segment
         assert!(!self.meta.column_names.contains(&name.to_owned()));
         self.meta.column_names.push(name.to_owned());
-        self.columns.push(c);
+
+        match ct {
+            ColumnType::Time(c) => {
+                assert_eq!(name, "time");
+
+                if let Column::Integer(ts) = &c {
+                    // Right now assumption is ts column has some non-null values
+                    self.meta.time_range = ts.column_range().unwrap();
+                } else {
+                    panic!("incorrect column type for time");
+                }
+                self.time_column_idx = self.columns.len();
+                self.columns.push(c);
+            }
+            ColumnType::Tag(c) => {
+                self.tag_column_idxs.push(self.columns.len());
+                self.columns.push(c);
+            }
+            ColumnType::Field(c) => {
+                self.columns.push(c);
+            }
+        }
     }
 
     pub fn num_rows(&self) -> usize {
@@ -101,7 +131,7 @@ impl Segment {
     }
 
     /// column returns the column with name
-    pub fn column(&self, name: &str) -> Option<&column::Column> {
+    pub fn column(&self, name: &str) -> Option<&Column> {
         if let Some(id) = &self.meta.column_names.iter().position(|c| c == name) {
             return self.columns.get(*id);
         }
@@ -225,7 +255,7 @@ impl Segment {
     pub fn aggregate_by_group_with_hash<'a>(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'a>>)],
+        predicates: &[(&str, Option<column::Scalar<'a>>)],
         group_columns: &[String],
         aggregates: &'a [(String, AggregateType)],
         window: i64,
@@ -464,7 +494,7 @@ impl Segment {
     pub fn aggregate_by_group_using_sort(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'_>>)],
+        predicates: &[(&str, Option<column::Scalar<'_>>)],
         group_columns: &[String],
         aggregates: &[(String, AggregateType)],
         window: i64,
@@ -609,7 +639,7 @@ impl Segment {
     pub fn aggregate_by_group_using_stream<'a>(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'_>>)],
+        predicates: &[(&str, Option<column::Scalar<'_>>)],
         group_columns: &[String],
         aggregates: &[(String, AggregateType)],
         window: i64,
@@ -859,7 +889,7 @@ impl Segment {
     pub fn filter_by_predicates_eq(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'_>>)],
+        predicates: &[(&str, Option<column::Scalar<'_>>)],
     ) -> Option<croaring::Bitmap> {
         if !self.meta.overlaps_time_range(time_range.0, time_range.1) {
             return None; // segment doesn't have time range
@@ -877,7 +907,7 @@ impl Segment {
     fn filter_by_predicates_eq_time(
         &self,
         time_range: (i64, i64),
-        predicates: Vec<(&str, Option<&column::Scalar<'_>>)>,
+        predicates: Vec<(&str, Option<column::Scalar<'_>>)>,
     ) -> Option<croaring::Bitmap> {
         // Get all row_ids matching the time range:
         //
@@ -915,7 +945,7 @@ impl Segment {
     // meta row_ids bitmap.
     fn filter_by_predicates_eq_no_time(
         &self,
-        predicates: &[(&str, Option<&column::Scalar<'_>>)],
+        predicates: &[(&str, Option<column::Scalar<'_>>)],
     ) -> Option<croaring::Bitmap> {
         if predicates.is_empty() {
             // In this case there are no predicates provided and we have no time
@@ -930,7 +960,7 @@ impl Segment {
         for (col_pred_name, col_pred_value) in predicates {
             if let Some(c) = self.column(col_pred_name) {
                 // TODO(edd): rework this clone
-                match c.row_ids_eq(*col_pred_value) {
+                match c.row_ids_eq(col_pred_value.clone()) {
                     Some(row_ids) => {
                         if row_ids.is_empty() {
                             return None;
@@ -959,7 +989,7 @@ impl Segment {
     pub fn group_single_agg_by_predicate_eq(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'_>>)],
+        predicates: &[(&str, Option<column::Scalar<'_>>)],
         group_column: &String,
         aggregates: &Vec<(String, column::AggregateType)>,
     ) -> BTreeMap<u32, Vec<((String, AggregateType), column::Aggregate<'_>)>> {
@@ -1020,6 +1050,59 @@ impl Segment {
             log::error!("don't have column - can't group");
         }
         grouped_results
+    }
+
+    pub fn tag_keys(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, &str)],
+    ) -> BTreeSet<String> {
+        let (seg_min, seg_max) = self.meta.time_range;
+        if predicates.is_empty() && time_range.0 <= seg_min && time_range.1 > seg_max {
+            // the segment is completely overlapped by the time range of query,
+            // and there are no predicates
+            todo!("fast path")
+        }
+
+        let pred_vec = predicates
+            .iter()
+            .map(|p| (p.0, Some(column::Scalar::String(p.1))))
+            .collect::<Vec<_>>();
+
+        let filtered_row_ids: croaring::Bitmap;
+        if let Some(row_ids) = self.filter_by_predicates_eq(time_range, pred_vec.as_slice()) {
+            filtered_row_ids = row_ids;
+        } else {
+            return BTreeSet::new(); // no matching rows for predicate + time range
+        }
+
+        let filtered_row_ids_vec = filtered_row_ids
+            .to_vec()
+            .iter()
+            .map(|v| *v as usize)
+            .collect::<Vec<_>>();
+        log::debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
+        let mut results = BTreeSet::new();
+
+        // any columns that are in predicate set using equality predicates should
+        // be automatically included in results.
+        //
+        // TODO(edd): when predicates get more complicated it's likely this
+        // assumption will be a hard one to make.
+        for (col, _) in predicates {
+            results.insert(String::from(*col));
+        }
+
+        // now check if any of the other tag columns have a non-null value for
+        // any of the filtered ids.
+        for &i in &self.tag_column_idxs {
+            let col = &self.columns[i];
+            if col.has_non_null_value_in_row_ids(&filtered_row_ids_vec) {
+                results.insert(self.column_names().get(i).unwrap().clone());
+            }
+        }
+
+        results
     }
 }
 
@@ -1111,7 +1194,7 @@ impl<'a> Segments<'a> {
     pub fn read_filter_eq(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'_>>)],
+        predicates: &[(&str, Option<column::Scalar<'_>>)],
         select_columns: Vec<String>,
     ) -> BTreeMap<String, column::Vector<'_>> {
         let (min, max) = time_range;
@@ -1147,7 +1230,7 @@ impl<'a> Segments<'a> {
     pub fn read_group_eq(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'a>>)],
+        predicates: &[(&str, Option<column::Scalar<'a>>)],
         group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
@@ -1197,7 +1280,7 @@ impl<'a> Segments<'a> {
     fn read_group_eq_hash(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'a>>)],
+        predicates: &[(&str, Option<column::Scalar<'a>>)],
         mut group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
@@ -1283,7 +1366,7 @@ impl<'a> Segments<'a> {
     fn read_group_eq_sort(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<&column::Scalar<'a>>)],
+        predicates: &[(&str, Option<column::Scalar<'a>>)],
         mut group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
@@ -1523,6 +1606,28 @@ impl<'a> Segments<'a> {
         } else {
             panic!("time column wrong type!");
         }
+    }
+
+    pub fn tag_keys(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, &str)],
+    ) -> BTreeSet<String> {
+        let (min, max) = time_range;
+        if max <= min {
+            panic!("max <= min");
+        }
+
+        let mut columns = BTreeSet::new();
+
+        for segment in &self.segments {
+            if !segment.meta.overlaps_time_range(min, max) {
+                continue; // segment doesn't have time range
+            }
+            columns.append(&mut segment.tag_keys(time_range, predicates));
+        }
+
+        columns
     }
 }
 

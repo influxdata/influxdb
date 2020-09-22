@@ -309,7 +309,7 @@ impl Partition for SegmentPartition {
         // Here
         let _columns = segments.read_filter_eq(
             self.time_range,
-            &[(col_name, Some(&scalar))],
+            &[(col_name, Some(scalar))],
             vec![
                 "env".to_string(),
                 "method".to_string(),
