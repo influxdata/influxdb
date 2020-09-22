@@ -4603,8 +4603,8 @@ paths:
           application/json:
             schema:
               oneOf:
-                $ref: "#/components/schemas/TemplateExportByID"
-                $ref: "#/components/schemas/TemplateExportByName"
+                - $ref: "#/components/schemas/TemplateExportByID"
+                - $ref: "#/components/schemas/TemplateExportByName"
       responses:
         "200":
           description: InfluxDB template created
