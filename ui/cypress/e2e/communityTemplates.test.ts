@@ -14,7 +14,7 @@ describe('Community Templates', () => {
     })
   })
 
-  it('The browse community template button launches github', () => {
+  it('launches github when the browse community template button is clicked', () => {
     cy.window().then(win => {
       cy.stub(win, 'open').as('windowOpenSpy')
     })
@@ -27,7 +27,7 @@ describe('Community Templates', () => {
     )
   })
 
-  it('The lookup template errors on invalid data', () => {
+  it('displays an error when invalid data is submitted through the field', () => {
     //on empty
     cy.getByTestID('lookup-template-button').click()
     cy.getByTestID('notification-error').should('be.visible')
@@ -40,109 +40,128 @@ describe('Community Templates', () => {
     cy.getByTestID('notification-error').should('be.visible')
   })
 
-  it.skip('Can install from CLI', () => {
-    //authorization is preventing this from working
-    cy.exec(
-      'go run ../cmd/influx apply -t eiDTSTOZ_WAgLfw9eK5_JUsVnqeIYWWBY2QHXe6KC-UneLThJBGveTMm8k6_W1cAmswzLEKJTPeqoirvHH5kQg==  -f pkger/testdata/variables.yml'
-    ).then(result => {
-      result
-    })
-  })
-
-  it('Simple Download', () => {
-    //The lookup template accepts github raw link
-    cy.getByTestID('lookup-template-input').type(
-      'https://raw.githubusercontent.com/influxdata/community-templates/master/downsampling/dashboard.yml'
-    )
-    cy.getByTestID('lookup-template-button').click()
-    cy.getByTestID('template-install-overlay').should('be.visible')
-
-    //check that with 1 resource pluralization is correct
-    cy.getByTestID('template-install-title').should('contain', 'resource')
-    cy.getByTestID('template-install-title').should('not.contain', 'resources')
-
-    //check that no resources check lead to disabled install button
-    cy.getByTestID('heading-Dashboards').click()
-    cy.getByTestID('templates-toggle--Downsampling Status').should('be.visible')
-    cy.getByTestID('template-install-button').should('exist')
-    cy.getByTestID('templates-toggle--Downsampling Status').click()
-    cy.getByTestID('template-install-button').should('not.exist')
-
-    //and check that 0 resources pluralization is correct
-    cy.getByTestID('template-install-title').should('contain', 'resources')
-
-    //check that valid read me appears
-    cy.getByTestID('community-templates-readme-tab').click()
-    cy.get('.markdown-format').should('contain', 'Downsampling Template')
-  })
-
-  describe('Opening the install overlay', () => {
-    beforeEach(() => {
-      //lookup normal github link
+  describe('installing a community template from the web', () => {
+    it('accepts raw github and pluralizes resources properly', () => {
+      //The lookup template accepts github raw link
       cy.getByTestID('lookup-template-input').type(
-        'https://github.com/influxdata/community-templates/blob/master/docker/docker.yml'
+        'https://raw.githubusercontent.com/influxdata/influxdb/master/pkger/testdata/dashboard_gauge.yml'
       )
       cy.getByTestID('lookup-template-button').click()
       cy.getByTestID('template-install-overlay').should('be.visible')
-    })
 
-    it('Complicated Download', () => {
-      //check that with multiple resources pluralization is correct
-      cy.getByTestID('template-install-title').should('contain', 'resources')
-
-      //no uncheck of buckets
-      cy.getByTestID('template-install-title').should('contain', '22')
-      cy.getByTestID('heading-Buckets').click()
-      cy.getByTestID('templates-toggle--docker').should('be.visible')
-      cy.getByTestID('template-install-title').should('contain', '22')
-      // cy.getByTestID('templates-toggle--docker').should('be.disabled')
-
-      //no uncheck of variables
-      cy.getByTestID('template-install-title').should('contain', '22')
-      cy.getByTestID('heading-Variables').click()
-      cy.getByTestID('templates-toggle--bucket').should('be.visible')
-      cy.getByTestID('template-install-title').should('contain', '22')
-      // cy.getByTestID('templates-toggle--bucket').should('be.disabled')
-
-      //can check and uncheck other resources
-      cy.getByTestID('template-install-title').should('contain', '22')
-      cy.getByTestID('heading-Checks').click()
-      cy.getByTestID('templates-toggle--Container Disk Usage').should(
-        'be.visible'
+      //check that with 1 resource pluralization is correct
+      cy.getByTestID('template-install-title').should(
+        'contain',
+        'will create 1 resource'
       )
-      cy.getByTestID('templates-toggle--Container Disk Usage').click()
-      cy.getByTestID('template-install-title').should('contain', '21')
+      cy.getByTestID('template-install-title').should(
+        'not.contain',
+        'resources'
+      )
 
-      cy.getByTestID('heading-Notification Rules').click()
-      cy.getByTestID('templates-toggle--Crit Notifier').should('be.visible')
-      cy.getByTestID('templates-toggle--Crit Notifier').click()
-      cy.getByTestID('template-install-title').should('contain', '20')
+      //check that no resources check lead to disabled install button
+      cy.getByTestID('heading-Dashboards').click()
+      cy.getByTestID('template-install-button').should('exist')
+      cy.getByTestID('templates-toggle--dash-1').click()
+      cy.getByTestID('template-install-button').should('not.exist')
+
+      //and check that 0 resources pluralization is correct
+      cy.getByTestID('template-install-title').should(
+        'contain',
+        'will create 0 resources'
+      )
     })
 
-    it('Can install template', () => {
+    it('forces installation of variables and buckets but allows selecting all other resources', () => {
+      cy.getByTestID('lookup-template-input').type(
+        'https://github.com/influxdata/influxdb/blob/master/pkger/testdata/variables.yml'
+      )
+      cy.getByTestID('lookup-template-button').click()
+      cy.getByTestID('template-install-overlay').should('be.visible')
+
+      cy.getByTestID('template-install-title').should(
+        'contain',
+        'will create 4 resources'
+      )
+
+      // no unchecking of variables
+      cy.getByTestID('heading-Variables').click()
+      cy.getByTestID('templates-toggle--var-const-3').should('be.visible')
+      cy.getByTestID('templates-toggle--var-const-3--input').should(
+        'be.disabled'
+      )
+      cy.getByTestID('templates-toggle--var-const-3').click()
+      cy.getByTestID('template-install-title').should(
+        'contain',
+        'will create 4 resources'
+      )
+
+      cy.get('.cf-overlay--dismiss').click()
+      cy.getByTestID('lookup-template-input').clear()
+      cy.getByTestID('lookup-template-input').type(
+        'https://github.com/influxdata/influxdb/blob/master/pkger/testdata/bucket.yml'
+      )
+      cy.getByTestID('lookup-template-button').click()
+      cy.getByTestID('template-install-overlay').should('be.visible')
+
+      // no unchecking  of buckets
+      cy.getByTestID('template-install-title').should(
+        'contain',
+        'will create 2 resources'
+      )
+      cy.getByTestID('heading-Buckets').click()
+      cy.getByTestID('templates-toggle--rucket-11').should('be.visible')
+      cy.getByTestID('template-install-title').should(
+        'contain',
+        'will create 2 resources'
+      )
+      cy.getByTestID('templates-toggle--rucket-11--input').should('be.disabled')
+
+      cy.get('.cf-overlay--dismiss').click()
+      cy.getByTestID('lookup-template-input').clear()
+      cy.getByTestID('lookup-template-input').type(
+        'https://github.com/influxdata/influxdb/blob/master/pkger/testdata/tasks.yml'
+      )
+      cy.getByTestID('lookup-template-button').click()
+      cy.getByTestID('template-install-overlay').should('be.visible')
+
+      // can check and uncheck other resources
+      cy.getByTestID('template-install-title').should(
+        'contain',
+        'will create 3 resources'
+      )
+      cy.getByTestID('heading-Tasks').click()
+      cy.getByTestID('templates-toggle--task-1').should('be.visible')
+      cy.getByTestID('templates-toggle--task-1').click()
+      cy.getByTestID('template-install-title').should(
+        'contain',
+        'will create 2 resources'
+      )
+
       cy.getByTestID('template-install-button').click()
       cy.getByTestID('notification-success').should('be.visible')
-      cy.getByTestID('installed-template-docker').should('be.visible')
+      cy.getByTestID('installed-template-tasks').should('be.visible')
     })
   })
 
-  describe('Install Completed', () => {
+  describe('the behavior of installed templates', () => {
     beforeEach(() => {
       cy.getByTestID('lookup-template-input').type(
-        'https://github.com/influxdata/community-templates/blob/master/docker/docker.yml'
+        'https://github.com/influxdata/influxdb/blob/master/pkger/testdata/dashboard.json'
       )
       cy.getByTestID('lookup-template-button').click()
+
       cy.getByTestID('template-install-overlay').should('be.visible')
       cy.getByTestID('template-install-button').should('exist')
       cy.getByTestID('template-install-button').click()
       cy.getByTestID('notification-success').should('be.visible')
-      cy.getByTestID('installed-template-docker').should('be.visible')
+      cy.getByTestID('installed-template-dashboard').should('be.visible')
     })
 
-    it('Install Identical template', () => {
+    it('will install separate, identical templates', () => {
       cy.getByTestID('lookup-template-input').clear()
       cy.getByTestID('lookup-template-input').type(
-        'https://github.com/influxdata/community-templates/blob/master/docker/docker.yml'
+        'https://github.com/influxdata/influxdb/blob/master/pkger/testdata/dashboard.json'
       )
       cy.getByTestID('lookup-template-button').click()
       cy.getByTestID('template-install-overlay').should('be.visible')
@@ -152,89 +171,52 @@ describe('Community Templates', () => {
       cy.getByTestID('installed-template-list').should('have', '2')
     })
 
-    it('Can click on template resources', () => {
-      cy.getByTestID('template-resource-link').click()
-      //buckets
-      cy.get('.community-templates--resources-table')
-        .contains('Bucket')
-        .siblings('td')
-        .click('left') // force a click on the far left of the target, in case the text is aligned left and short
-      cy.url().should('include', 'load-data/buckets')
-      cy.go('back')
+    it('links out to areas of the application where template resources were installed', () => {
+      cy.getByTestID('lookup-template-input').clear()
+      cy.getByTestID('lookup-template-input').type(
+        'https://github.com/influxdata/influxdb/blob/master/pkger/testdata/telegraf.yml'
+      )
+      cy.getByTestID('lookup-template-button').click()
+      cy.getByTestID('template-install-button').click()
 
-      cy.getByTestID('template-resource-link').click()
-      //telegraf
+      cy.getByTestID('template-resource-link').click({multiple: true})
+      // dashboard
       cy.get('.community-templates--resources-table')
-        .contains('Telegraf')
-        .siblings('td')
-        .click('left')
-      cy.url().should('include', 'load-data/telegrafs')
-      cy.go('back')
-
-      cy.getByTestID('template-resource-link').click()
-      //check
-      cy.get('.community-templates--resources-table')
-        .contains('Check')
-        .siblings('td')
-        .click('left')
-      cy.url().should('include', 'alerting/checks')
-      cy.go('back')
-
-      cy.getByTestID('template-resource-link').click()
-      //label
-      cy.get('.community-templates--resources-table')
-        .contains('Label')
-        .siblings('td')
-        .click('left')
-      cy.url().should('include', 'settings/labels')
-      cy.go('back')
-
-      cy.getByTestID('template-resource-link').click()
-      //Dashboard
-      cy.get('.community-templates--resources-table')
-        .contains('Dashboard')
-        .siblings('td')
-        .click('left')
+        .contains('dash-1')
+        .click()
       cy.url().should('include', 'dashboards')
       cy.go('back')
 
-      cy.getByTestID('template-resource-link').click()
-      //Notification Endpoint
+      cy.getByTestID('template-resource-link').click({multiple: true})
+      // telegraf
       cy.get('.community-templates--resources-table')
-        .contains('NotificationEndpoint')
-        .siblings('td')
-        .click('left')
-      cy.url().should('include', 'alerting')
+        .contains('tele-2')
+        .click()
+      cy.url().should(
+        'match',
+        /.*\/load-data\/telegrafs\/[\w\d]+\/instructions/
+      )
       cy.go('back')
 
-      cy.getByTestID('template-resource-link').click()
-      //Notification Rule
+      cy.getByTestID('template-resource-link').click({multiple: true})
+      // label
       cy.get('.community-templates--resources-table')
-        .contains('NotificationRule')
-        .siblings('td')
-        .click('left')
-      cy.url().should('include', 'alerting')
-      cy.go('back')
-
-      cy.getByTestID('template-resource-link').click()
-      //Variable
-      cy.get('.community-templates--resources-table')
-        .contains('Variable')
-        .siblings('td')
-        .click('left')
-      cy.url().should('include', 'settings/variables')
+        .contains('label-1')
+        .click()
+      cy.url().should('include', 'settings/labels')
       cy.go('back')
     })
 
-    it('takes you to github readme when you click on the Community Templates button', () => {
+    // this behavior should be cleaned up
+    it.skip('takes you to github readme when you click on the Community Templates button', () => {
       cy.getByTestID('community-template-readme-overlay-button').click()
-      cy.get('.markdown-format').should('contain', 'Docker Monitoring template')
+      cy.get('.markdown-format').should('contain', 'Setup Instructions')
     })
 
-    it('Can delete template', () => {
-      cy.getByTestID('template-delete-button-docker--button').click()
-      cy.getByTestID('template-delete-button-docker--confirm-button').click()
-      cy.getByTestID('installed-template-docker').should('not.be.visible')
+    it('deletes templates', () => {
+      cy.getByTestID('template-delete-button-dashboard--button').click()
+      cy.getByTestID('template-delete-button-dashboard--confirm-button').click()
+      cy.getByTestID('installed-template-dashboard').should('not.be.visible')
     })
   })
 })
