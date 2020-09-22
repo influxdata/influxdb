@@ -771,6 +771,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "async-trait",
+ "datafusion",
  "delorean_line_parser",
  "serde",
  "serde_urlencoded",
@@ -858,11 +859,9 @@ dependencies = [
 name = "delorean_write_buffer"
 version = "0.1.0"
 dependencies = [
- "arrow",
  "async-trait",
  "chrono",
  "criterion",
- "datafusion",
  "delorean_generated_types",
  "delorean_line_parser",
  "delorean_storage_interface",

@@ -13,6 +13,11 @@ use std::collections::BTreeSet;
 
 use std::{fmt::Debug, sync::Arc};
 
+// export arrow and datafusion publically so we can have a single
+// reference in cargo
+pub use arrow;
+pub use datafusion;
+
 pub mod id;
 
 /// Specifies a continuous range of nanosecond timestamps. Timestamp
@@ -22,10 +27,19 @@ pub mod id;
 pub struct TimestampRange {
     /// Start defines the inclusive lower bound.
     pub start: i64,
-
     /// End defines the exclusive upper bound.
     pub end: i64,
 }
+
+impl TimestampRange {
+    pub fn new(start: i64, end: i64) -> Self {
+        Self { start, end }
+    }
+}
+
+/// Represents a general purpose predicate for evaluation
+#[derive(Clone, PartialEq, Copy, Debug)]
+pub struct Predicate {}
 
 #[async_trait]
 /// A `Database` stores data and provides an interface to query that data.
@@ -38,12 +52,46 @@ pub trait Database: Debug + Send + Sync {
     /// Execute the specified query and return arrow record batches with the result
     async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error>;
 
-    /// Returns the list of table names in this database. If a
-    /// timestamp range is specified, only tables which have data in
-    /// the specified time range are returned.
+    /// Returns the list of table names in this database.
+    ///
+    /// If `range` is specified, only tables which have data in the
+    /// specified timestamp range are included.
     async fn table_names(
         &self,
         range: Option<TimestampRange>,
+    ) -> Result<Arc<BTreeSet<String>>, Self::Error>;
+
+    /// Performance optimization: Returns the list of column names in
+    /// this database which store tags (as defined in the ParsedLines
+    /// when written), and which have rows that match optional predicates.
+    ///
+    /// If `table` is specified, then only columns from the
+    /// specified database which match other predictes are included.
+    ///
+    /// If `range` is specified, only columns which have data in the
+    /// specified timestamp range which match other predictes are
+    /// included.
+    async fn tag_column_names(
+        &self,
+        table: Option<String>,
+        range: Option<TimestampRange>,
+    ) -> Result<Arc<BTreeSet<String>>, Self::Error>;
+
+    /// Performance optimization: Returns the list of column names in
+    /// this database which store tags (as defined in the ParsedLines
+    /// when written), and which have rows that match optional predicates.
+    ///
+    /// `table` and `range` arguments have the same meaning as
+    /// described on column_names
+    ///
+    /// If `predicate` is specified, then only columns which have at
+    /// least one non-null value any row that matches the predicate
+    /// are returned
+    async fn tag_column_names_with_predicate(
+        &self,
+        table: Option<String>,
+        range: Option<TimestampRange>,
+        predicate: Predicate,
     ) -> Result<Arc<BTreeSet<String>>, Self::Error>;
 
     /// Fetch the specified table names and columns as Arrow RecordBatches

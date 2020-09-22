@@ -8,9 +8,7 @@
 // warning about complex types
 #![allow(clippy::type_complexity)]
 
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-
-use snafu::{ResultExt, Snafu};
+use std::{collections::BTreeSet, collections::HashMap, net::SocketAddr, sync::Arc};
 
 use delorean_generated_types::{
     delorean_server::{Delorean, DeloreanServer},
@@ -18,17 +16,26 @@ use delorean_generated_types::{
     CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
     DeleteBucketResponse, GetBucketsResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
     MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Organization,
-    ReadFilterRequest, ReadGroupRequest, ReadResponse, StringValuesResponse, TagKeysRequest,
-    TagValuesRequest, TimestampRange,
+    Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse, StringValuesResponse,
+    TagKeysRequest, TagValuesRequest, TimestampRange,
 };
+
+// For some reason rust thinks these imports are unused, but then
+// complains of unresolved imports if they are not imported.
+#[allow(unused_imports)]
+use delorean_generated_types::{node, Node};
 
 use crate::server::rpc::input::GrpcInputs;
 use delorean_storage_interface::{
-    org_and_bucket_to_database, Database, DatabaseStore, TimestampRange as StorageTimestampRange,
+    org_and_bucket_to_database, Database, DatabaseStore, Predicate as StoragePredicate,
+    TimestampRange as StorageTimestampRange,
 };
+
+use snafu::{ResultExt, Snafu};
 
 use tokio::sync::mpsc;
 use tonic::Status;
+use tracing::warn;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -39,7 +46,13 @@ pub enum Error {
     DatabaseNotFound { db_name: String },
 
     #[snafu(display("Can not retrieve table list for '{}': {}", db_name, source))]
-    GettingTables {
+    ListingTables {
+        db_name: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    #[snafu(display("Can not retrieve column list '{}': {}", db_name, source))]
+    ListingColumns {
         db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
@@ -56,7 +69,11 @@ impl Error {
         match &self {
             Self::ServerError { .. } => Status::internal(self.to_string()),
             Self::DatabaseNotFound { .. } => Status::not_found(self.to_string()),
-            Self::GettingTables { .. } => Status::internal(self.to_string()),
+            Self::ListingTables { .. } => Status::internal(self.to_string()),
+            Self::ListingColumns { .. } => {
+                // TODO: distinguish between input errors and internal errors
+                Status::internal(self.to_string())
+            }
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
     }
@@ -138,7 +155,35 @@ where
         &self,
         req: tonic::Request<TagKeysRequest>,
     ) -> Result<tonic::Response<Self::TagKeysStream>, Status> {
-        Err(Status::unimplemented("tag_keys"))
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let tag_keys_request = req.into_inner();
+
+        let db_name = get_database_name(&tag_keys_request)?;
+
+        let TagKeysRequest {
+            tags_source: _tag_source,
+            range,
+            predicate,
+        } = tag_keys_request;
+
+        let measurement = None;
+
+        let response = tag_keys_impl(
+            self.db_store.clone(),
+            db_name,
+            measurement,
+            range,
+            predicate,
+        )
+        .await
+        .map_err(|e| e.to_status());
+
+        tx.send(response)
+            .await
+            .expect("sending tag_keys response to server");
+
+        Ok(tonic::Response::new(rx))
     }
 
     type TagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
@@ -178,12 +223,12 @@ where
 
         let measurement_names_request = req.into_inner();
 
-        let db_name = org_and_bucket_to_database(
-            measurement_names_request.org_id()?,
-            &measurement_names_request.bucket_name()?,
-        );
+        let db_name = get_database_name(&measurement_names_request)?;
 
-        let range = convert_range(measurement_names_request.range);
+        let MeasurementNamesRequest {
+            source: _source,
+            range,
+        } = measurement_names_request;
 
         let response = measurement_name_impl(self.db_store.clone(), db_name, range)
             .await
@@ -198,12 +243,41 @@ where
 
     type MeasurementTagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
-    #[tracing::instrument(level = "debug")]
+    //#[tracing::instrument(level = "debug")]
     async fn measurement_tag_keys(
         &self,
         req: tonic::Request<MeasurementTagKeysRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagKeysStream>, Status> {
-        Err(Status::unimplemented("measurement_tag_keys"))
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let measurement_tag_keys_request = req.into_inner();
+
+        let db_name = get_database_name(&measurement_tag_keys_request)?;
+
+        let MeasurementTagKeysRequest {
+            source: _source,
+            measurement,
+            range,
+            predicate,
+        } = measurement_tag_keys_request;
+
+        let measurement = Some(measurement);
+
+        let response = tag_keys_impl(
+            self.db_store.clone(),
+            db_name,
+            measurement,
+            range,
+            predicate,
+        )
+        .await
+        .map_err(|e| e.to_status());
+
+        tx.send(response)
+            .await
+            .expect("sending measurement_tag_keys response to server");
+
+        Ok(tonic::Response::new(rx))
     }
 
     type MeasurementTagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
@@ -231,6 +305,22 @@ fn convert_range(range: Option<TimestampRange>) -> Option<StorageTimestampRange>
     range.map(|TimestampRange { start, end }| StorageTimestampRange { start, end })
 }
 
+fn get_database_name(input: &impl GrpcInputs) -> Result<String, Status> {
+    Ok(org_and_bucket_to_database(
+        input.org_id()?,
+        &input.bucket_name()?,
+    ))
+}
+
+/// converts the Node (predicate tree) into a datafusion Expr for evaluation
+fn convert_predicate(predicate: Predicate) -> Result<StoragePredicate> {
+    warn!(
+        "Not yet implemented: converting predicates: {:?}",
+        predicate
+    );
+    Ok(StoragePredicate {})
+}
+
 // The following code implements the business logic of the requests as
 // methods that return Results with module specific Errors (and thus
 // can use ?, etc). The trait implemententations then handle mapping
@@ -244,11 +334,13 @@ fn convert_range(range: Option<TimestampRange>) -> Option<StorageTimestampRange>
 async fn measurement_name_impl<T>(
     db_store: Arc<T>,
     db_name: String,
-    range: Option<StorageTimestampRange>,
+    range: Option<TimestampRange>,
 ) -> Result<StringValuesResponse>
 where
     T: DatabaseStore,
 {
+    let range = convert_range(range);
+
     let table_names = db_store
         .db(&db_name)
         .await
@@ -257,7 +349,7 @@ where
         })?
         .table_names(range)
         .await
-        .map_err(|e| Error::GettingTables {
+        .map_err(|e| Error::ListingTables {
             db_name: db_name.clone(),
             source: Box::new(e),
         })?;
@@ -273,6 +365,82 @@ where
 
     Ok(StringValuesResponse { values })
 }
+
+/// Return tag key names by querying columns
+async fn tag_keys_impl<T>(
+    db_store: Arc<T>,
+    db_name: String,
+    measurement: Option<String>,
+    range: Option<TimestampRange>,
+    predicate: Option<Predicate>,
+) -> Result<StringValuesResponse>
+where
+    T: DatabaseStore,
+{
+    let range = convert_range(range);
+
+    let db = db_store
+        .db(&db_name)
+        .await
+        .ok_or_else(|| Error::DatabaseNotFound {
+            db_name: db_name.clone(),
+        })?;
+
+    let table_names = match predicate {
+        Some(predicate) => {
+            find_tag_keys_with_predicate(db, db_name, measurement, range, predicate).await
+        }
+        // no predicate, take fast path
+        None => find_tag_keys_without_predicate(db, db_name, measurement, range).await,
+    }?;
+
+    // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
+    let values = table_names
+        .iter()
+        .map(|name| name.bytes().collect())
+        .collect::<Vec<_>>();
+
+    Ok(StringValuesResponse { values })
+}
+
+async fn find_tag_keys_without_predicate<D>(
+    db: Arc<D>,
+    db_name: String,
+    measurement: Option<String>,
+    range: Option<StorageTimestampRange>,
+) -> Result<Arc<BTreeSet<String>>>
+where
+    D: Database,
+{
+    db.tag_column_names(measurement, range)
+        .await
+        .map_err(|e| Error::ListingColumns {
+            db_name,
+            source: Box::new(e),
+        })
+}
+
+async fn find_tag_keys_with_predicate<D>(
+    db: Arc<D>,
+    db_name: String,
+    measurement: Option<String>,
+    range: Option<StorageTimestampRange>,
+    predicate: Predicate,
+) -> Result<Arc<BTreeSet<String>>>
+where
+    D: Database,
+{
+    let predicate = convert_predicate(predicate)?;
+
+    // TODO: fire up some executors and run the predicate for real here
+    db.tag_column_names_with_predicate(measurement, range, predicate)
+        .await
+        .map_err(|e| Error::ListingColumns {
+            db_name,
+            source: Box::new(e),
+        })
+}
+
 /// Instantiate a server listening on the specified address
 /// implementing the Delorean and Storage gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
@@ -292,7 +460,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use delorean_storage_interface::{id::Id, test::TestDatabaseStore};
+    use delorean_storage_interface::{id::Id, test::ColumnNamesRequest, test::TestDatabaseStore};
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -359,7 +527,8 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let lp_data = "h2o,state=CA temp=50.4 1568756160\no2,state=MA temp=50.4 1568756160";
+        let lp_data = "h2o,state=CA temp=50.4 100\n\
+                       o2,state=MA temp=50.4 200";
         fixture
             .test_storage
             .add_lp_string(&db_info.db_name, lp_data)
@@ -370,21 +539,39 @@ mod tests {
             db_info.bucket_id,
             partition_id,
         ));
+
+        // --- No timestamps
         let request = MeasurementNamesRequest {
-            source,
+            source: source.clone(),
             range: None,
         };
 
         let actual_measurements = fixture.storage_client.measurement_names(request).await?;
+        let expected_measurements = to_string_vec(&["h2o", "o2"]);
+        assert_eq!(actual_measurements, expected_measurements);
 
-        let expected_measurements = vec![String::from("h2o"), String::from("o2")];
+        // --- Timestamp range
+        let range = TimestampRange {
+            start: 150,
+            end: 200,
+        };
+        let request = MeasurementNamesRequest {
+            source,
+            range: Some(range),
+        };
+
+        let actual_measurements = fixture.storage_client.measurement_names(request).await?;
+        let expected_measurements = to_string_vec(&["o2"]);
         assert_eq!(actual_measurements, expected_measurements);
 
         Ok(())
     }
 
+    /// test the plumbing of the RPC layer for tag_keys -- specifically that
+    /// the right parameters are passed into the Database interface
+    /// and that the returned values are sent back via gRPC.
     #[tokio::test]
-    async fn test_storage_rpc_measurement_names_timestamp() -> Result<(), tonic::Status> {
+    async fn test_storage_rpc_tag_keys() -> Result<(), tonic::Status> {
         // Note we use a unique port. TODO: let the OS pick the port
         let mut fixture = Fixture::new(11810)
             .await
@@ -393,31 +580,336 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let lp_data = "h2o,state=CA temp=50.4 100\no2,state=MA temp=50.4 200";
-        fixture
+        let test_db = fixture
             .test_storage
-            .add_lp_string(&db_info.db_name, lp_data)
-            .await;
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("creating test database");
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
             db_info.bucket_id,
             partition_id,
         ));
-        let request = MeasurementNamesRequest {
-            source,
-            range: Some(TimestampRange {
-                start: 150,
-                end: 200,
-            }),
+
+        #[derive(Debug)]
+        struct TestCase<'a> {
+            /// The tag keys to load into the database
+            tag_keys: Vec<&'a str>,
+            request: TagKeysRequest,
+            expected_request: ColumnNamesRequest,
+        }
+
+        let test_cases = vec![
+            // ---
+            // No predicates / timestamps
+            // ---
+            TestCase {
+                tag_keys: vec!["k1"],
+                request: TagKeysRequest {
+                    tags_source: source.clone(),
+                    range: None,
+                    predicate: None,
+                },
+                expected_request: ColumnNamesRequest {
+                    table: None,
+                    range: None,
+                    predicate: None,
+                },
+            },
+            // ---
+            // Timestamp range
+            // ---
+            TestCase {
+                tag_keys: vec!["k1", "k2"],
+                request: TagKeysRequest {
+                    tags_source: source.clone(),
+                    range: make_timestamp_range(150, 200),
+                    predicate: None,
+                },
+                expected_request: ColumnNamesRequest {
+                    table: None,
+                    range: Some(StorageTimestampRange::new(150, 200)),
+                    predicate: None,
+                },
+            },
+            // ---
+            // Predicate
+            // ---
+            TestCase {
+                tag_keys: vec!["k1", "k2", "k3"],
+                request: TagKeysRequest {
+                    tags_source: source.clone(),
+                    range: None,
+                    predicate: make_state_ma_predicate(),
+                },
+                expected_request: ColumnNamesRequest {
+                    table: None,
+                    range: None,
+                    predicate: Some(StoragePredicate {}), // TODO fill this in with the appropriate translation
+                },
+            },
+            // ---
+            // Timestamp + Predicate
+            // ---
+            TestCase {
+                tag_keys: vec!["k1", "k2", "k3", "k4"],
+                request: TagKeysRequest {
+                    tags_source: source.clone(),
+                    range: make_timestamp_range(150, 200),
+                    predicate: make_state_ma_predicate(),
+                },
+                expected_request: ColumnNamesRequest {
+                    table: None,
+                    range: Some(StorageTimestampRange::new(150, 200)),
+                    predicate: Some(StoragePredicate {}), // TODO fill this in with the appropriate translation
+                },
+            },
+        ];
+
+        for test_case in test_cases.into_iter() {
+            let test_case_str = format!("{:?}", test_case);
+            let TestCase {
+                tag_keys,
+                request,
+                expected_request,
+            } = test_case;
+
+            test_db.set_column_names(to_string_vec(&tag_keys)).await;
+
+            let actual_tag_keys = fixture.storage_client.tag_keys(request).await?;
+            assert_eq!(
+                actual_tag_keys, tag_keys,
+                "unexpected tag keys while getting column names: {}",
+                test_case_str
+            );
+            assert_eq!(
+                test_db.get_column_names_request().await,
+                Some(expected_request),
+                "unexpected request while getting column names: {}",
+                test_case_str
+            );
+        }
+
+        // ---
+        // test error
+        // ---
+        let request = TagKeysRequest {
+            tags_source: source.clone(),
+            range: None,
+            predicate: None,
         };
 
-        let actual_measurements = fixture.storage_client.measurement_names(request).await?;
+        // Note we don't set the column_names on the test database, so we expect an error
+        let response = fixture.storage_client.tag_keys(request).await;
+        assert!(response.is_err());
+        let response_string = format!("{:?}", response);
+        let expected_error = "No saved column_names in TestDatabase";
+        assert!(
+            response_string.contains(expected_error),
+            "'{}' did not contain expected content '{}'",
+            response_string,
+            expected_error
+        );
 
-        let expected_measurements = vec![String::from("o2")];
-        assert_eq!(actual_measurements, expected_measurements);
+        let expected_request = Some(ColumnNamesRequest {
+            table: None,
+            range: None,
+            predicate: None,
+        });
+        assert_eq!(test_db.get_column_names_request().await, expected_request);
 
         Ok(())
+    }
+
+    /// test the plumbing of the RPC layer for measurement_tag_keys-- specifically that
+    /// the right parameters are passed into the Database interface
+    /// and that the returned values are sent back via gRPC.
+    #[tokio::test]
+    async fn test_storage_rpc_measurement_tag_keys() -> Result<(), tonic::Status> {
+        // Note we use a unique port. TODO: let the OS pick the port
+        let mut fixture = Fixture::new(11811)
+            .await
+            .expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let test_db = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("creating test database");
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
+
+        #[derive(Debug)]
+        struct TestCase<'a> {
+            /// The tag keys to load into the database
+            tag_keys: Vec<&'a str>,
+            request: MeasurementTagKeysRequest,
+            expected_request: ColumnNamesRequest,
+        }
+
+        let test_cases = vec![
+            // ---
+            // No predicates / timestamps
+            // ---
+            TestCase {
+                tag_keys: vec!["k1"],
+                request: MeasurementTagKeysRequest {
+                    measurement: "m1".into(),
+                    source: source.clone(),
+                    range: None,
+                    predicate: None,
+                },
+                expected_request: ColumnNamesRequest {
+                    table: Some("m1".into()),
+                    range: None,
+                    predicate: None,
+                },
+            },
+            // ---
+            // Timestamp range
+            // ---
+            TestCase {
+                tag_keys: vec!["k1", "k2"],
+                request: MeasurementTagKeysRequest {
+                    measurement: "m2".into(),
+                    source: source.clone(),
+                    range: make_timestamp_range(150, 200),
+                    predicate: None,
+                },
+                expected_request: ColumnNamesRequest {
+                    table: Some("m2".into()),
+                    range: Some(StorageTimestampRange::new(150, 200)),
+                    predicate: None,
+                },
+            },
+            // ---
+            // Predicate
+            // ---
+            TestCase {
+                tag_keys: vec!["k1", "k2", "k3"],
+                request: MeasurementTagKeysRequest {
+                    measurement: "m3".into(),
+                    source: source.clone(),
+                    range: None,
+                    predicate: make_state_ma_predicate(),
+                },
+                expected_request: ColumnNamesRequest {
+                    table: Some("m3".into()),
+                    range: None,
+                    predicate: Some(StoragePredicate {}), // TODO fill this in with the appropriate translation
+                },
+            },
+            // ---
+            // Timestamp + Predicate
+            // ---
+            TestCase {
+                tag_keys: vec!["k1", "k2", "k3", "k4"],
+                request: MeasurementTagKeysRequest {
+                    measurement: "m4".into(),
+                    source: source.clone(),
+                    range: make_timestamp_range(150, 200),
+                    predicate: make_state_ma_predicate(),
+                },
+                expected_request: ColumnNamesRequest {
+                    table: Some("m4".into()),
+                    range: Some(StorageTimestampRange::new(150, 200)),
+                    predicate: Some(StoragePredicate {}), // TODO fill this in with the appropriate translation
+                },
+            },
+        ];
+
+        for test_case in test_cases.into_iter() {
+            let test_case_str = format!("{:?}", test_case);
+            let TestCase {
+                tag_keys,
+                request,
+                expected_request,
+            } = test_case;
+
+            test_db.set_column_names(to_string_vec(&tag_keys)).await;
+
+            let actual_tag_keys = fixture.storage_client.measurement_tag_keys(request).await?;
+            assert_eq!(
+                actual_tag_keys, tag_keys,
+                "unexpected tag keys while getting column names: {}",
+                test_case_str
+            );
+            assert_eq!(
+                test_db.get_column_names_request().await,
+                Some(expected_request),
+                "unexpected request while getting column names: {}",
+                test_case_str
+            );
+        }
+
+        // ---
+        // test error
+        // ---
+        let request = MeasurementTagKeysRequest {
+            measurement: "m5".into(),
+            source: source.clone(),
+            range: None,
+            predicate: None,
+        };
+
+        // Note we don't set the column_names on the test database, so we expect an error
+        let response = fixture.storage_client.measurement_tag_keys(request).await;
+        assert!(response.is_err());
+        let response_string = format!("{:?}", response);
+        let expected_error = "No saved column_names in TestDatabase";
+        assert!(
+            response_string.contains(expected_error),
+            "'{}' did not contain expected content '{}'",
+            response_string,
+            expected_error
+        );
+
+        let expected_request = Some(ColumnNamesRequest {
+            table: Some("m5".into()),
+            range: None,
+            predicate: None,
+        });
+        assert_eq!(test_db.get_column_names_request().await, expected_request);
+
+        Ok(())
+    }
+
+    fn make_timestamp_range(start: i64, end: i64) -> Option<TimestampRange> {
+        Some(TimestampRange { start, end })
+    }
+
+    /// return a predicate like
+    ///
+    /// state="MA"
+    fn make_state_ma_predicate() -> Option<Predicate> {
+        use node::{Comparison, Value};
+        let root = Node {
+            value: Some(Value::Comparison(Comparison::Equal as i32)),
+            children: vec![
+                Node {
+                    value: Some(Value::TagRefValue("state".to_string())),
+                    children: vec![],
+                },
+                Node {
+                    value: Some(Value::StringValue("MA".to_string())),
+                    children: vec![],
+                },
+            ],
+        };
+        Some(Predicate { root: Some(root) })
+    }
+
+    /// Convert to a Vec<String> to facilitate comparison with results of client
+    fn to_string_vec(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
     }
 
     /// Delorean deals with database names. The gRPC interface deals
@@ -486,25 +978,70 @@ mod tests {
             Ok(caps)
         }
 
-        // Make a request to Storage::measurement_names and do the
-        // required async dance to flatten the resulting stream to Strings
+        /// Make a request to Storage::measurement_names and do the
+        /// required async dance to flatten the resulting stream to Strings
         async fn measurement_names(
             &mut self,
             request: MeasurementNamesRequest,
         ) -> Result<Vec<String>, tonic::Status> {
-            let responses = self.inner.measurement_names(request).await?;
+            let responses = self
+                .inner
+                .measurement_names(request)
+                .await?
+                .into_inner()
+                .try_collect()
+                .await?;
 
-            // type annotations to help future readers
-            let responses: Vec<StringValuesResponse> = responses.into_inner().try_collect().await?;
+            Ok(self.to_string_vec(responses))
+        }
 
-            let measurements = responses
+        /// Make a request to Storage::tag_keys and do the
+        /// required async dance to flatten the resulting stream to Strings
+        async fn tag_keys(
+            &mut self,
+            request: TagKeysRequest,
+        ) -> Result<Vec<String>, tonic::Status> {
+            let responses = self
+                .inner
+                .tag_keys(request)
+                .await?
+                .into_inner()
+                .try_collect()
+                .await?;
+
+            Ok(self.to_string_vec(responses))
+        }
+
+        /// Make a request to Storage::measurement_tag_keys and do the
+        /// required async dance to flatten the resulting stream to Strings
+        async fn measurement_tag_keys(
+            &mut self,
+            request: MeasurementTagKeysRequest,
+        ) -> Result<Vec<String>, tonic::Status> {
+            let responses = self
+                .inner
+                .measurement_tag_keys(request)
+                .await?
+                .into_inner()
+                .try_collect()
+                .await?;
+
+            Ok(self.to_string_vec(responses))
+        }
+
+        /// Convert the StringValueResponses into rust Strings, sorting the values
+        /// to ensure  consistency.
+        fn to_string_vec(&self, responses: Vec<StringValuesResponse>) -> Vec<String> {
+            let mut strings = responses
                 .into_iter()
                 .map(|r| r.values.into_iter())
                 .flatten()
-                .map(|v| String::from_utf8(v).expect("measurement name was utf8"))
+                .map(|v| String::from_utf8(v).expect("string value response was not utf8"))
                 .collect::<Vec<_>>();
 
-            Ok(measurements)
+            strings.sort();
+
+            strings
         }
     }
 

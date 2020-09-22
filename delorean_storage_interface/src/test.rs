@@ -4,28 +4,47 @@
 //! Note: this module is only compiled in  the 'test' cfg,
 use arrow::record_batch::RecordBatch;
 
-use crate::{Database, DatabaseStore, TimestampRange};
+use crate::{Database, DatabaseStore, Predicate, TimestampRange};
 use delorean_line_parser::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;
-use snafu::Snafu;
+use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, collections::BTreeSet, sync::Arc};
 
 use tokio::sync::Mutex;
 
 #[derive(Debug)]
 pub struct TestDatabase {
-    // lines which have been written to this database, in order
+    /// lines which have been written to this database, in order
     saved_lines: Mutex<Vec<String>>,
+
+    /// column_names to return upon next request
+    column_names: Arc<Mutex<Option<BTreeSet<String>>>>,
+
+    /// the last request for column_names.
+    column_names_request: Arc<Mutex<Option<ColumnNamesRequest>>>,
 }
 
-#[derive(Snafu, Debug, Clone, Copy)]
-pub enum TestError {}
+/// Records the parameters passed to a column name request
+#[derive(Debug, PartialEq, Clone)]
+pub struct ColumnNamesRequest {
+    pub table: Option<String>,
+    pub range: Option<TimestampRange>,
+    pub predicate: Option<Predicate>,
+}
+
+#[derive(Snafu, Debug, Clone)]
+pub enum TestError {
+    #[snafu(display("Test database error:  {}", message))]
+    General { message: String },
+}
 
 impl Default for TestDatabase {
     fn default() -> Self {
         Self {
             saved_lines: Mutex::new(Vec::new()),
+            column_names: Arc::new(Mutex::new(None)),
+            column_names_request: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -50,6 +69,42 @@ impl TestDatabase {
         self.write_lines(&parsed_lines)
             .await
             .expect("writing lines");
+    }
+
+    /// Set the list of column names that will be returned on a call to column_names
+    pub async fn set_column_names(&self, column_names: Vec<String>) {
+        let column_names = column_names.into_iter().collect::<BTreeSet<String>>();
+
+        *(self.column_names.clone().lock_owned().await) = Some(column_names)
+    }
+
+    /// Get the parameters from the last column name request
+    pub async fn get_column_names_request(&self) -> Option<ColumnNamesRequest> {
+        self.column_names_request.clone().lock_owned().await.take()
+    }
+
+    // Common implementation for column names
+    async fn tag_column_names_impl(
+        &self,
+        table: Option<String>,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+    ) -> Result<Arc<BTreeSet<String>>, TestError> {
+        // save the request
+        let mut column_name_request = self.column_names_request.clone().lock_owned().await;
+
+        *column_name_request = Some(ColumnNamesRequest {
+            table,
+            range,
+            predicate,
+        });
+
+        // pull out the saved columns
+        let column_names = self.column_names.clone().lock_owned().await.take();
+
+        column_names.map(Arc::new).context(General {
+            message: "No saved column_names in TestDatabase",
+        })
     }
 }
 
@@ -82,7 +137,7 @@ impl Database for TestDatabase {
         unimplemented!("query Not yet implemented");
     }
 
-    /// Return all measurement names that are saved in this database
+    /// Return all table names that are saved in this database
     async fn table_names(
         &self,
         range: Option<TimestampRange>,
@@ -101,6 +156,26 @@ impl Database for TestDatabase {
                 })
                 .collect::<BTreeSet<_>>(),
         ))
+    }
+
+    /// return the mocked out column names, recording the request
+    async fn tag_column_names(
+        &self,
+        table: Option<String>,
+        range: Option<TimestampRange>,
+    ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
+        self.tag_column_names_impl(table, range, None).await
+    }
+
+    // return all column names with a predicate
+    async fn tag_column_names_with_predicate(
+        &self,
+        table: Option<String>,
+        range: Option<TimestampRange>,
+        predicate: Predicate,
+    ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
+        self.tag_column_names_impl(table, range, Some(predicate))
+            .await
     }
 
     /// Fetch the specified table names and columns as Arrow RecordBatches

@@ -5,8 +5,6 @@ authors = ["alamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 
 [dependencies]
-arrow = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4"}
-datafusion = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4" }
 
 delorean_generated_types = { path = "../delorean_generated_types" }
 delorean_line_parser = { path = "../delorean_line_parser" }

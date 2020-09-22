@@ -10,6 +10,7 @@ edition = "2018"
 snafu = "0.6.2"
 async-trait = "0.1.40"
 arrow = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4"}
+datafusion = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4" }
 tokio = { version = "0.2", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_urlencoded = "0.6.1"

@@ -1,6 +1,6 @@
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::{FieldValue, ParsedLine};
-use delorean_storage_interface::{Database, DatabaseStore, TimestampRange};
+use delorean_storage_interface::{Database, DatabaseStore, Predicate, TimestampRange};
 use delorean_wal::{Entry as WalEntry, Result as WalResult, WalBuilder};
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
@@ -12,16 +12,20 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
-use arrow::{
-    array::{ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder},
-    datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema},
-    record_batch::RecordBatch,
+use delorean_storage_interface::{
+    arrow,
+    arrow::{
+        array::{ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder},
+        datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema},
+        record_batch::RecordBatch,
+    },
+    datafusion::{
+        datasource::MemTable, error::ExecutionError, execution::context::ExecutionContext,
+    },
 };
+
 use async_trait::async_trait;
 use chrono::{offset::TimeZone, Utc};
-use datafusion::{
-    datasource::MemTable, error::ExecutionError, execution::context::ExecutionContext,
-};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use sqlparser::{
     ast::{SetExpr, Statement, TableFactor},
@@ -522,37 +526,87 @@ impl Database for Db {
     ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
         // TODO: Cache this information to avoid creating this each time
         let partitions = self.partitions.read().await;
-        let mut table_names = BTreeSet::new();
+        let mut table_names: BTreeSet<String> = BTreeSet::new();
         for partition in partitions.iter() {
+            let timestamp_predicate = partition.make_timestamp_predicate(range)?;
+
             for (table_name_symbol, table) in &partition.tables {
-                let mut add_table_name = true;
+                if table.matches_timestamp_predicate(&timestamp_predicate)? {
+                    let table_name = partition
+                        .lookup_id(*table_name_symbol)
+                        .to_internal("Looking up table name in symbol table")?;
 
-                if let Some(range) = range {
-                    let time_column_id = partition
-                        .lookup_value(TIME_COLUMN_NAME)
-                        .to_internal("looking up time column name")?;
-
-                    // if timestamps fall outside the min/max of the
-                    // time column, then don't add table name
-                    if !table
-                        .column(time_column_id)?
-                        .has_i64_range(range.start, range.end)?
-                    {
-                        add_table_name = false;
+                    if !table_names.contains(table_name) {
+                        table_names.insert(table_name.to_string());
                     }
-                };
-
-                if add_table_name {
-                    table_names.insert(
-                        partition
-                            .lookup_id(*table_name_symbol)
-                            .to_internal("Looking up table name in symbol table")?
-                            .into(),
-                    );
                 }
             }
         }
         Ok(Arc::new(table_names))
+    }
+
+    // return all column names in this database, while applying optional predicates
+    async fn tag_column_names(
+        &self,
+        table: Option<String>,
+        range: Option<TimestampRange>,
+    ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
+        let partitions = self.partitions.read().await;
+
+        let mut column_names = BTreeSet::new();
+
+        for partition in partitions.iter() {
+            // ids are relative to a specific partition
+            let table_symbol = match &table {
+                Some(name) => Some(partition.lookup_value(&name)?),
+                None => None,
+            };
+
+            let timestamp_predicate = partition.make_timestamp_predicate(range)?;
+
+            // Find all columns ids in all partition's tables so that we
+            // can look up id --> String conversion once
+            let mut partition_column_ids = BTreeSet::new();
+
+            let table_iter = partition
+                .tables
+                .values()
+                // filter out any tables that don't pass the predicates
+                .filter(|table| table.matches_id_predicate(&table_symbol));
+
+            for table in table_iter {
+                for (column_id, column_index) in &table.column_id_to_index {
+                    if let Column::Tag(col) = &table.columns[*column_index] {
+                        if table.column_matches_timestamp_predicate(col, &timestamp_predicate)? {
+                            partition_column_ids.insert(column_id);
+                        }
+                    }
+                }
+            }
+
+            // convert all the partition's column_ids to Strings
+            for column_id in partition_column_ids {
+                let column_name = partition
+                    .lookup_id(*column_id)
+                    .to_internal("Looking up column name in symbol table")?;
+
+                if !column_names.contains(column_name) {
+                    column_names.insert(column_name.to_string());
+                }
+            }
+        } // next partition
+
+        Ok(Arc::new(column_names))
+    }
+
+    // return all column names with a predicate
+    async fn tag_column_names_with_predicate(
+        &self,
+        _table: Option<String>,
+        _range: Option<TimestampRange>,
+        _predicate: Predicate,
+    ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
+        unimplemented!("tag_column_names_with_predicate in WriteBufferDatabase");
     }
 
     async fn table_to_arrow(
@@ -637,6 +691,11 @@ struct ArrowTable {
     name: String,
     schema: Arc<ArrowSchema>,
     data: Vec<RecordBatch>,
+}
+
+struct TimestampPredicate {
+    time_column_id: u32,
+    range: TimestampRange,
 }
 
 #[derive(Debug)]
@@ -734,11 +793,11 @@ impl Partition {
                 value: Value::FieldValue(value),
             });
         }
-        let time_id = self.dict_or_insert(TIME_COLUMN_NAME, builder);
+        let time_column_id = self.dict_or_insert(TIME_COLUMN_NAME, builder);
         let time = line.timestamp.unwrap_or(0);
         let time_value = FieldValue::I64(time);
         values.push(ColumnValue {
-            id: time_id,
+            id: time_column_id,
             value: Value::FieldValue(&time_value),
         });
 
@@ -778,6 +837,30 @@ impl Partition {
             .context(DictionaryValueLookupError { value })
     }
 
+    /// Create a predicate suitable for passing to
+    /// `matches_timestamp_predicate` on a table within this partition
+    /// from the input timestamp range.
+    fn make_timestamp_predicate(
+        &self,
+        range: Option<TimestampRange>,
+    ) -> Result<Option<TimestampPredicate>> {
+        match range {
+            None => Ok(None),
+            Some(range) => {
+                let time_column_id = self
+                    .lookup_value(TIME_COLUMN_NAME)
+                    .to_internal("looking up time column name")?;
+
+                Ok(Some(TimestampPredicate {
+                    range,
+                    time_column_id,
+                }))
+            }
+        }
+    }
+
+    /// returns true if data with partition key `key` should be
+    /// written to this partition,
     fn should_write(&self, key: &str) -> bool {
         self.name.starts_with(key) && self.is_open
     }
@@ -848,6 +931,7 @@ fn type_description(value: wb::ColumnValue) -> &'static str {
 #[derive(Debug)]
 struct Table {
     id: u32,
+    /// The id of the parititon that conains this table
     partition_id: u32,
     /// Maps column name (as a u32 in the partition dictionary) to an index in self.columns
     column_id_to_index: HashMap<u32, usize>,
@@ -1215,6 +1299,44 @@ impl Table {
 
         RecordBatch::try_new(Arc::new(schema), columns).context(ArrowError {})
     }
+
+    /// returns true if this table should be included in a query that
+    /// has an optional table_symbol_predicate. Returns true f the
+    /// table_symbol_predicate is not preset, or the table's id
+    fn matches_id_predicate(&self, table_symbol_predicate: &Option<u32>) -> bool {
+        match table_symbol_predicate {
+            None => true,
+            Some(table_symbol) => self.id == *table_symbol,
+        }
+    }
+
+    /// returns true if there are any timestamps in this table that
+    /// fall within the timestamp range
+    fn matches_timestamp_predicate(&self, pred: &Option<TimestampPredicate>) -> Result<bool> {
+        match pred {
+            None => Ok(true),
+            Some(pred) => {
+                let time_column = self.column(pred.time_column_id)?;
+                time_column.has_i64_range(pred.range.start, pred.range.end)
+            }
+        }
+    }
+
+    /// returns true if there are any rows in column that are non-null
+    /// and within the timestamp range specified by pred
+    fn column_matches_timestamp_predicate<T>(
+        &self,
+        column: &[Option<T>],
+        pred: &Option<TimestampPredicate>,
+    ) -> Result<bool> {
+        match pred {
+            None => Ok(true),
+            Some(pred) => {
+                let time_column = self.column(pred.time_column_id)?;
+                time_column.has_non_null_i64_range(column, pred.range.start, pred.range.end)
+            }
+        }
+    }
 }
 
 struct WalEntryBuilder<'a> {
@@ -1503,13 +1625,40 @@ impl Column {
     }
 
     /// Returns true if any rows are within the range [min_value,
-    /// max_value], inclusive
+    /// max_value). Inclusive of `start`, exclusive of `end`
     fn has_i64_range(&self, start: i64, end: i64) -> Result<bool> {
         match self {
             Self::I64(v) => {
                 for val in v.iter() {
                     if let Some(val) = val {
-                        if start <= *val && *val <= end {
+                        if start <= *val && *val < end {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            _ => InternalError {
+                description: "Applying i64 range on a column with non-i64 type",
+            }
+            .fail(),
+        }
+    }
+
+    /// Returns true if there exists at least one row idx where this
+    /// self[i] is within the range [min_value, max_value). Inclusive
+    /// of `start`, exclusive of `end` and where col[i] is non null
+    fn has_non_null_i64_range<T>(
+        &self,
+        column: &[Option<T>],
+        start: i64,
+        end: i64,
+    ) -> Result<bool> {
+        match self {
+            Self::I64(v) => {
+                for (index, val) in v.iter().enumerate() {
+                    if let Some(val) = val {
+                        if start <= *val && *val < end && column[index].is_some() {
                             return Ok(true);
                         }
                     }
@@ -1535,7 +1684,7 @@ mod tests {
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
-    fn to_set(v: Vec<&str>) -> BTreeSet<String> {
+    fn to_set(v: &[&str]) -> BTreeSet<String> {
         v.iter().map(|s| s.to_string()).collect::<BTreeSet<_>>()
     }
 
@@ -1546,14 +1695,14 @@ mod tests {
 
         let col = Column::I64(vec![Some(1), None, Some(2)]);
         assert!(!col.has_i64_range(-1, 0)?);
-        assert!(col.has_i64_range(0, 1)?);
+        assert!(!col.has_i64_range(0, 1)?);
         assert!(col.has_i64_range(1, 2)?);
         assert!(col.has_i64_range(2, 3)?);
         assert!(!col.has_i64_range(3, 4)?);
 
         let col = Column::I64(vec![Some(2), None, Some(1)]);
         assert!(!col.has_i64_range(-1, 0)?);
-        assert!(col.has_i64_range(0, 1)?);
+        assert!(!col.has_i64_range(0, 1)?);
         assert!(col.has_i64_range(1, 2)?);
         assert!(col.has_i64_range(2, 3)?);
         assert!(!col.has_i64_range(3, 4)?);
@@ -1575,6 +1724,31 @@ mod tests {
             expected,
             res_string
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_has_non_null_i64_range_() -> Result {
+        let col = Column::I64(vec![]);
+        assert!(!col.has_non_null_i64_range::<u32>(&[], -1, 0)?);
+
+        let none_col: Vec<Option<u32>> = vec![None, None, None];
+        let some_col: Vec<Option<u32>> = vec![Some(0), Some(0), Some(0)];
+
+        let col = Column::I64(vec![Some(1), None, Some(2)]);
+
+        assert!(!col.has_non_null_i64_range(&some_col, -1, 0)?);
+        assert!(!col.has_non_null_i64_range(&some_col, 0, 1)?);
+        assert!(col.has_non_null_i64_range(&some_col, 1, 2)?);
+        assert!(col.has_non_null_i64_range(&some_col, 2, 3)?);
+        assert!(!col.has_non_null_i64_range(&some_col, 3, 4)?);
+
+        assert!(!col.has_non_null_i64_range(&none_col, -1, 0)?);
+        assert!(!col.has_non_null_i64_range(&none_col, 0, 1)?);
+        assert!(!col.has_non_null_i64_range(&none_col, 1, 2)?);
+        assert!(!col.has_non_null_i64_range(&none_col, 2, 3)?);
+        assert!(!col.has_non_null_i64_range(&none_col, 3, 4)?);
+
         Ok(())
     }
 
@@ -1603,7 +1777,7 @@ mod tests {
         db.write_lines(&lines).await?;
 
         // Now, we should see the two tables
-        assert_eq!(*db.table_names(None).await?, to_set(vec!["cpu", "disk"]));
+        assert_eq!(*db.table_names(None).await?, to_set(&["cpu", "disk"]));
 
         Ok(())
     }
@@ -1624,26 +1798,26 @@ mod tests {
         db.write_lines(&lines).await?;
 
         // Cover all times
-        let range = Some(TimestampRange { start: 0, end: 200 });
-        assert_eq!(*db.table_names(range).await?, to_set(vec!["cpu", "disk"]));
+        let range = Some(TimestampRange { start: 0, end: 201 });
+        assert_eq!(*db.table_names(range).await?, to_set(&["cpu", "disk"]));
 
         // Right before disk
-        let range = Some(TimestampRange { start: 0, end: 199 });
-        assert_eq!(*db.table_names(range).await?, to_set(vec!["cpu"]));
+        let range = Some(TimestampRange { start: 0, end: 200 });
+        assert_eq!(*db.table_names(range).await?, to_set(&["cpu"]));
 
         // only one point of cpu
         let range = Some(TimestampRange {
             start: 50,
-            end: 100,
+            end: 101,
         });
-        assert_eq!(*db.table_names(range).await?, to_set(vec!["cpu"]));
+        assert_eq!(*db.table_names(range).await?, to_set(&["cpu"]));
 
         // no ranges
         let range = Some(TimestampRange {
             start: 250,
             end: 350,
         });
-        assert_eq!(*db.table_names(range).await?, to_set(vec![]));
+        assert_eq!(*db.table_names(range).await?, to_set(&[]));
 
         Ok(())
     }
@@ -1829,6 +2003,145 @@ disk bytes=23432323i 1600136510000000000",
         .collect();
 
         assert_eq!(partition_keys, vec!["2020-09-14T18", "2020-09-15T02"]);
+
+        Ok(())
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    async fn list_column_names() -> Result {
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+
+        let lp_data = "h2o,state=CA,city=LA,county=LA temp=70.4 100\n\
+                       h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250\n\
+                       o2,state=MA,city=Boston temp=50.4 200\n\
+                       o2,state=CA temp=79.0 300\n\
+                       o2,state=NY,city=NYC,borough=Brooklyn temp=60.8 400\n";
+
+        let lines: Vec<_> = parse_lines(lp_data).map(|l| l.unwrap()).collect();
+        db.write_lines(&lines).await?;
+
+        #[derive(Debug)]
+        struct TestCase<'a> {
+            measurement: Option<String>,
+            range: Option<TimestampRange>,
+            predicate: Option<Predicate>,
+            expected_tag_keys: Result<Vec<&'a str>>,
+        };
+
+        let test_cases = vec![
+            TestCase {
+                measurement: None,
+                range: None,
+                predicate: None,
+                expected_tag_keys: Ok(vec!["borough", "city", "county", "state"]),
+            },
+            TestCase {
+                measurement: None,
+                range: Some(TimestampRange::new(150, 201)),
+                predicate: None,
+                expected_tag_keys: Ok(vec!["city", "state"]),
+            },
+            // TODO: figure out how to do a predicate like this:
+            // -- Predicate: state="MA"
+            // use node::{Value, Comparison};
+            // let root = Node {
+            //     value: Some(Value::Comparison(Comparison::Equal as i32)),
+            //     children: vec![
+            //         Node {
+            //             value: Some(Value::TagRefValue("state".to_string())),
+            //             children: vec![],
+            //         },
+            //         Node {
+            //             value: Some(Value::StringValue("MA".to_string())),
+            //             children: vec![],
+            //         }
+            //     ],
+            // };
+
+            // TODO predicates
+            // TestCase {
+            //     measurement: None,
+            //     range: None,
+            //     predicate: None, // TODO: state=MA
+            //     expected_tag_keys: Ok(vec!["city", "county", "state"]),
+            // },
+            // TODO timestamp and predicate
+            // TestCase {
+            //     measurement: None,
+            //     range: Some(TimestampRange::new(150, 201)),
+            //     predicate: None, // TODO: state=MA
+            //     expected_tag_keys: Ok(vec!["city", "state"]),
+            // },
+            // Cases with measurement names (restrict to o2)
+            TestCase {
+                measurement: Some("o2".to_string()),
+                range: None,
+                predicate: None,
+                expected_tag_keys: Ok(vec!["borough", "city", "state"]),
+            },
+            TestCase {
+                measurement: Some("o2".to_string()),
+                range: Some(TimestampRange::new(150, 201)),
+                predicate: None,
+                expected_tag_keys: Ok(vec!["city", "state"]),
+            },
+            // TODO predicates
+            // TestCase {
+            //     measurement: Some("o2".to_string()),
+            //     range: None,
+            //     predicate: None, // TODO: state=CA
+            //     expected_tag_keys: Ok(vec!["city"]),
+            // },
+            // // TODO timestamp and predicate
+            // TestCase {
+            //     measurement: Some("o2".to_string()),
+            //     range: Some(TimestampRange::new(150, 201)),
+            //     predicate: None, // TODO: state=CA
+            //     expected_tag_keys: Ok(vec!["city"]),
+            // },
+        ];
+
+        for test_case in test_cases.into_iter() {
+            let test_case_str = format!("{:#?}", test_case);
+            println!("Running test case: {:?}", test_case);
+
+            let actual_tag_keys = match test_case.predicate {
+                Some(predicate) => db.tag_column_names_with_predicate(
+                    test_case.measurement,
+                    test_case.range,
+                    predicate,
+                ),
+                None => db.tag_column_names(test_case.measurement, test_case.range),
+            }
+            .await;
+
+            let is_match = if let Ok(expected_tag_keys) = &test_case.expected_tag_keys {
+                let expected_tag_keys = to_set(expected_tag_keys);
+                if let Ok(actual_tag_keys) = &actual_tag_keys {
+                    **actual_tag_keys == expected_tag_keys
+                } else {
+                    false
+                }
+            } else if let Err(e) = &actual_tag_keys {
+                // use string compare to compare errors to avoid having to build exact errors
+                format!("{:?}", e) == format!("{:?}", test_case.expected_tag_keys)
+            } else {
+                false
+            };
+
+            assert!(
+                is_match,
+                "Mismatch\n\
+                     actual_tag_keys: \n\
+                     {:?}\n\
+                     expected_tag_keys: \n\
+                     {:?}\n\
+                     Test_case: \n\
+                     {}",
+                actual_tag_keys, test_case.expected_tag_keys, test_case_str
+            );
+        }
 
         Ok(())
     }
