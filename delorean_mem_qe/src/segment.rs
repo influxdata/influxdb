@@ -916,11 +916,12 @@ impl Segment {
             &column::Scalar::Integer(time_range.0),
             &column::Scalar::Integer(time_range.1),
         )?;
+        log::debug!("time col bitmap contains {:?} values out of {:?} rows. requested range was {:?}, meta range is {:?}",bm.cardinality(),self.num_rows(), time_range, self.meta.time_range);
 
         // now intersect matching rows for each column
         for (col_pred_name, col_pred_value) in predicates {
             if let Some(c) = self.column(col_pred_name) {
-                match c.row_ids_eq(col_pred_value) {
+                match c.row_ids_eq(&col_pred_value) {
                     Some(row_ids) => {
                         if row_ids.is_empty() {
                             return None;
@@ -959,8 +960,7 @@ impl Segment {
         // now intersect matching rows for each column
         for (col_pred_name, col_pred_value) in predicates {
             if let Some(c) = self.column(col_pred_name) {
-                // TODO(edd): rework this clone
-                match c.row_ids_eq(col_pred_value.clone()) {
+                match c.row_ids_eq(col_pred_value) {
                     Some(row_ids) => {
                         if row_ids.is_empty() {
                             return None;
@@ -1056,7 +1056,23 @@ impl Segment {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-    ) -> BTreeSet<String> {
+        exclude_columns: &BTreeSet<String>,
+    ) -> Option<BTreeSet<String>> {
+        // first check if we have any columns not in the exclusion set.
+        let mut all_excluded = true;
+        for &i in &self.tag_column_idxs {
+            let col_name = self.column_names().get(i).unwrap();
+            if !exclude_columns.contains(col_name) {
+                all_excluded = false;
+                break;
+            }
+        }
+
+        if all_excluded {
+            log::debug!("skipping segment as all tag columns excluded");
+            return None; // we don't have any tag columns to offer.
+        }
+
         let (seg_min, seg_max) = self.meta.time_range;
         if predicates.is_empty() && time_range.0 <= seg_min && time_range.1 > seg_max {
             // the segment is completely overlapped by the time range of query,
@@ -1073,7 +1089,7 @@ impl Segment {
         if let Some(row_ids) = self.filter_by_predicates_eq(time_range, pred_vec.as_slice()) {
             filtered_row_ids = row_ids;
         } else {
-            return BTreeSet::new(); // no matching rows for predicate + time range
+            return None; // no matching rows for predicate + time range
         }
 
         let filtered_row_ids_vec = filtered_row_ids
@@ -1097,12 +1113,18 @@ impl Segment {
         // any of the filtered ids.
         for &i in &self.tag_column_idxs {
             let col = &self.columns[i];
+            let col_name = self.column_names().get(i).unwrap();
+
+            if exclude_columns.contains(col_name) {
+                continue;
+            }
+
             if col.has_non_null_value_in_row_ids(&filtered_row_ids_vec) {
-                results.insert(self.column_names().get(i).unwrap().clone());
+                results.insert(col_name.clone());
             }
         }
 
-        results
+        Some(results)
     }
 }
 
@@ -1624,7 +1646,10 @@ impl<'a> Segments<'a> {
             if !segment.meta.overlaps_time_range(min, max) {
                 continue; // segment doesn't have time range
             }
-            columns.append(&mut segment.tag_keys(time_range, predicates));
+            let segment_columns = segment.tag_keys(time_range, predicates, &columns);
+            if let Some(mut result) = segment_columns {
+                columns.append(&mut result);
+            }
         }
 
         columns

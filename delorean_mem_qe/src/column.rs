@@ -1123,16 +1123,16 @@ impl Column {
     }
 
     // TODO(edd) shouldn't let roaring stuff leak out...
-    pub fn row_ids_eq(&self, value: Option<Scalar<'_>>) -> Option<croaring::Bitmap> {
+    pub fn row_ids_eq(&self, value: &Option<Scalar<'_>>) -> Option<croaring::Bitmap> {
         let value = match value {
             Some(v) => v,
             None => return None,
         };
 
-        if !self.maybe_contains(&value) {
+        if !self.maybe_contains(value) {
             return None;
         }
-        self.row_ids(&value, std::cmp::Ordering::Equal)
+        self.row_ids(value, std::cmp::Ordering::Equal)
     }
 
     pub fn row_ids_gt(&self, value: &Scalar<'_>) -> Option<croaring::Bitmap> {

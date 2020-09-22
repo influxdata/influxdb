@@ -122,10 +122,10 @@ fn build_store(
         match rb {
             Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
             Ok(Some(rb)) => {
-                if i < 360 {
-                    i += 1;
-                    continue;
-                }
+                // if i < 360 {
+                //     i += 1;
+                //     continue;
+                // }
                 let schema = Schema::with_sort_order(
                     rb.schema(),
                     sort_order.iter().map(|s| s.to_string()).collect(),
@@ -612,7 +612,7 @@ fn time_window_agg_count(store: &Store) {
 //
 // SHOW TAG KEYS WHERE time >= x and time < y AND "env" = 'prod01-eu-central-1'
 fn time_tag_keys_with_pred(store: &Store) {
-    let repeat = 1000000;
+    let repeat = 10;
     let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
     let mut track = 0;
     let segments = store.segments();
