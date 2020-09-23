@@ -473,6 +473,11 @@ jobs:
       - install_release_tools
       - run: make protoc # installs protoc
       - run:
+          name: import GPG key
+          command: |
+            echo -e "$GPG_KEY" > private.key
+            gpg --batch --import private.key
+      - run:
           name: "Build release"
           command: make release
 
