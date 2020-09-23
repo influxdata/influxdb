@@ -126,7 +126,7 @@ jobs:
           destination: nightly-junit
   e2e:
     docker:
-      - image: circleci/golang:1.13-node-browsers
+      - image: circleci/golang:1.15-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -212,7 +212,7 @@ jobs:
           path: ~/project
   jstest:
     docker:
-      - image: circleci/golang:1.13-node-browsers
+      - image: circleci/golang:1.15-node-browsers
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -248,7 +248,7 @@ jobs:
             - ~/.cache/yarn
   jslint:
     docker:
-      - image: circleci/golang:1.13-node-browsers
+      - image: circleci/golang:1.15-node-browsers
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -278,7 +278,7 @@ jobs:
             - ~/.cache/yarn
   gotest:
     docker:
-      - image: circleci/golang:1.13
+      - image: circleci/golang:1.15
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -333,7 +333,7 @@ jobs:
 
   lint-feature-flags:
     docker:
-      - image: circleci/golang:1.13
+      - image: circleci/golang:1.15
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -344,7 +344,7 @@ jobs:
 
   golint:
     docker:
-      - image: circleci/golang:1.13
+      - image: circleci/golang:1.15
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -410,7 +410,7 @@ jobs:
             - etc/litmus_fail_notify.sh
   deploy-nightly:
     docker:
-      - image: circleci/golang:1.13-node-browsers
+      - image: circleci/golang:1.15-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -446,7 +446,7 @@ jobs:
 
   release:
     docker:
-      - image: circleci/golang:1.13-node-browsers
+      - image: circleci/golang:1.15-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
