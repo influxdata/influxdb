@@ -133,7 +133,9 @@ const postOrderDFS = (
 ): VariableNode[] => {
   // Handle the edge case that the function is
   // called without providing the root node
-  if (!node) return [...acc]
+  if (!node) {
+    return [...acc]
+  }
 
   for (const child of node.children) {
     // by checking the cache for existing variables, we ensure that the graph stops

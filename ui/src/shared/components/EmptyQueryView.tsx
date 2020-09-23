@@ -54,18 +54,20 @@ export default class EmptyQueryView extends PureComponent<Props> {
     }
 
     if (errorMessage) {
-      if (errorFormat === ErrorFormat.Tooltip)
+      if (errorFormat === ErrorFormat.Tooltip) {
         return (
           <EmptyGraphErrorTooltip
             message={errorMessage}
             testID="empty-graph--error"
           />
         )
+      }
 
-      if (errorFormat === ErrorFormat.Scroll)
+      if (errorFormat === ErrorFormat.Scroll) {
         return (
           <EmptyGraphError message={errorMessage} testID="empty-graph--error" />
         )
+      }
     }
 
     if (
