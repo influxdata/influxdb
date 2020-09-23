@@ -860,7 +860,8 @@ func (p *Template) graphLabels() *parseErr {
 
 func (p *Template) graphChecks() *parseErr {
 	p.mChecks = make(map[string]*check)
-	tracker := p.trackNames(true)
+	// todo: what is the business goal wrt having unique names? (currently duplicates are allowed)
+	tracker := p.trackNames(false)
 
 	checkKinds := []struct {
 		kind      Kind
