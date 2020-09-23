@@ -4,9 +4,9 @@ import (
 	"context"
 	"strconv"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/influxdb/v2/chronograf"
 	"github.com/influxdata/influxdb/v2/chronograf/bolt/internal"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Ensure DashboardsStore implements chronograf.DashboardsStore.

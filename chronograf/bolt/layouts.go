@@ -3,9 +3,9 @@ package bolt
 import (
 	"context"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/influxdb/v2/chronograf"
 	"github.com/influxdata/influxdb/v2/chronograf/bolt/internal"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Ensure LayoutsStore implements chronograf.LayoutsStore.

@@ -1,6 +1,6 @@
 module github.com/influxdata/influxdb/v2
 
-go 1.13
+go 1.15
 
 require (
 	github.com/BurntSushi/toml v0.3.1
@@ -15,7 +15,6 @@ require (
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/cespare/xxhash v1.1.0
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
-	github.com/coreos/bbolt v1.3.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
@@ -96,6 +95,7 @@ require (
 	github.com/yudai/gojsondiff v1.0.0
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yudai/pp v2.0.1+incompatible // indirect
+	go.etcd.io/bbolt v1.3.5
 	go.uber.org/multierr v1.5.0
 	go.uber.org/zap v1.14.1
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
@@ -116,3 +116,12 @@ require (
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
+
+// Arrow has been taking too long to merge our PR that addresses some checkptr fixes.
+// We are using our own fork, which specifically applies the change in
+// https://github.com/apache/arrow/pull/8112, on top of the commit of Arrow that flux uses.
+//
+// The next time Flux updates its Arrow dependency, we will see checkptr test failures,
+// if that version does not include PR 8112. In that event, someone (perhaps Mark R again)
+// will need to apply the change in 8112 on top of the newer version of Arrow.
+replace github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db => github.com/influxdata/arrow/go/arrow v0.0.0-20200917142114-986e413c1705
