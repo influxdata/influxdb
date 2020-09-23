@@ -3,7 +3,7 @@ package bolt
 import (
 	"time"
 
-	bolt "github.com/coreos/bbolt"
+	bolt "go.etcd.io/bbolt"
 )
 
 // SchemaVersionBucket stores ids of completed migrations
