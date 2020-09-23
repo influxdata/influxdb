@@ -487,7 +487,7 @@ jobs:
 
   gershon-release:
     docker:
-      - image: circleci/golang:1.13-node-browsers
+      - image: circleci/golang:1.15-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
