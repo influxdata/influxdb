@@ -43,6 +43,7 @@ need to update any InfluxDB CLI config profiles with the new port number.
 1. [19392](https://github.com/influxdata/influxdb/pull/19392): Include the edge of the boundary we are observing.
 1. [19453](https://github.com/influxdata/influxdb/pull/19453): Warn about duplicate tag names during influx write csv.
 1. [19466](https://github.com/influxdata/influxdb/pull/19466): Do not override existing line part in group annotation.
+1. [19637](https://github.com/influxdata/influxdb/pull/19637): Added PATCH to the list of allowed methods
 
 ## v2.0.0-beta.16 [2020-08-07]
 
