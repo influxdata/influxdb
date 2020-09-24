@@ -61,48 +61,34 @@ table WriteBufferEntry {
   partition_open: PartitionOpen;
   partition_snapshot_started: PartitionSnapshotStarted;
   partition_snapshot_finished: PartitionSnapshotFinished;
-  dictionary_add: DictionaryAdd;
-  schema_append: SchemaAppend;
   write: Row;
   delete: WriteBufferDelete;
 }
 
 table PartitionOpen {
-  id: uint32;
-  name: string;
+  generation: uint32;
+  key: string;
 }
 
 table PartitionSnapshotStarted {
-  id: uint32;
+  generation: uint32;
+  key: string;
 }
 
 table PartitionSnapshotFinished {
-  id: uint32;
-}
-
-table DictionaryAdd {
-  partition_id: uint32;
-  id: uint32;
-  value: string;
+  generation: uint32;
+  key: string;
 }
 
 enum ColumnType : byte { I64, U64, F64, Tag, String, Bool }
 
-table SchemaAppend {
-  partition_id: uint32;
-  table_id: uint32;
-  column_id: uint32;
-  column_type: ColumnType;
-}
-
 table Row {
-  partition_id: uint32;
-  table_id: uint32;
+  table: string;
   values: [Value];
 }
 
 table TagValue {
-  value: uint32;
+  value: string;
 }
 
 union ColumnValue {
@@ -115,7 +101,7 @@ union ColumnValue {
 }
 
 table Value {
-  column_index: uint16;
+  column: string;
   value: ColumnValue;
 }
 
