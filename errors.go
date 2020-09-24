@@ -14,6 +14,7 @@ import (
 // Any time this set of constants changes, you must also update the swagger for Error.properties.code.enum.
 const (
 	EInternal            = "internal error"
+	ENotImplemented      = "not implemented"
 	ENotFound            = "not found"
 	EConflict            = "conflict"             // action cannot be performed
 	EInvalid             = "invalid"              // validation failed
