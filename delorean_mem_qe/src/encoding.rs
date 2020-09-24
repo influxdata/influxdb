@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::iter;
 use std::mem::size_of;
 
-use arrow::array::{Array, PrimitiveArray};
-use arrow::datatypes::ArrowNumericType;
+use delorean_arrow::arrow::array::PrimitiveArrayOps;
+use delorean_arrow::arrow::array::{Array, PrimitiveArray};
+use delorean_arrow::arrow::datatypes::ArrowNumericType;
 
 pub trait NumericEncoding: Send + Sync + std::fmt::Display + std::fmt::Debug {
     type Item;

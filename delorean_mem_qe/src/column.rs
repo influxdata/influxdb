@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 use std::convert::From;
 
+use delorean_arrow::arrow;
+
 use super::encoding;
 
 #[derive(Debug)]
@@ -1331,21 +1333,20 @@ impl AggregatableByRange for &Column {
     }
 }
 
-use arrow::array::{Float64Array, Int64Array, TimestampMicrosecondArray};
-impl From<Float64Array> for Column {
+impl From<arrow::array::Float64Array> for Column {
     fn from(arr: arrow::array::Float64Array) -> Self {
         Self::Float(NumericColumn::from(arr))
     }
 }
 
-impl From<TimestampMicrosecondArray> for Column {
-    fn from(arr: TimestampMicrosecondArray) -> Self {
+impl From<arrow::array::TimestampMicrosecondArray> for Column {
+    fn from(arr: arrow::array::TimestampMicrosecondArray) -> Self {
         Self::Integer(NumericColumn::from(arr))
     }
 }
 
-impl From<Int64Array> for Column {
-    fn from(arr: Int64Array) -> Self {
+impl From<arrow::array::Int64Array> for Column {
+    fn from(arr: arrow::array::Int64Array) -> Self {
         Self::Integer(NumericColumn::from(arr))
     }
 }
@@ -1682,7 +1683,9 @@ where
     }
 }
 
-use arrow::array::Array;
+use delorean_arrow::arrow::array::Array;
+use delorean_arrow::arrow::array::PrimitiveArrayOps;
+
 impl From<arrow::array::Float64Array> for NumericColumn<f64> {
     fn from(arr: arrow::array::Float64Array) -> Self {
         let len = arr.len();

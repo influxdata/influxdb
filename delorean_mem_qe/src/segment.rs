@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::column;
 use super::column::{AggregateType, Column};
-use arrow::datatypes::SchemaRef;
+use delorean_arrow::arrow::datatypes::SchemaRef;
 
 // Only used in a couple of specific places for experimentation.
 const THREADS: usize = 16;
@@ -1812,12 +1812,12 @@ pub struct GroupedAggregates<'a> {
 #[cfg(test)]
 mod test {
 
-    use arrow::datatypes::*;
+    use delorean_arrow::arrow::datatypes::*;
 
     #[test]
     fn segment_group_key_sorted() {
         let schema = super::Schema::with_sort_order(
-            arrow::datatypes::SchemaRef::new(Schema::new(vec![
+            delorean_arrow::arrow::datatypes::SchemaRef::new(Schema::new(vec![
                 Field::new("env", DataType::Utf8, false),
                 Field::new("role", DataType::Utf8, false),
                 Field::new("path", DataType::Utf8, false),

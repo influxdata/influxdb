@@ -8,30 +8,21 @@ use std::{
     sync::Arc,
 };
 
-use arrow::record_batch::{RecordBatch, RecordBatchReader};
-use arrow::{array, array::Array, datatypes, ipc};
-
-use delorean_mem_qe::column;
-use delorean_mem_qe::column::{AggregateType, Column};
-use delorean_mem_qe::segment::{ColumnType, GroupingStrategy, Schema, Segment};
-use delorean_mem_qe::{adapter::DeloreanQueryEngine, Store};
-use parquet::arrow::arrow_reader::ArrowReader;
-
-// use snafu::ensure;
 use datatypes::TimeUnit;
 use snafu::Snafu;
 
+use delorean_arrow::arrow::array::StringArrayOps;
+use delorean_arrow::arrow::record_batch::{RecordBatch, RecordBatchReader};
+use delorean_arrow::arrow::{array, array::Array, datatypes, ipc};
+use delorean_arrow::parquet::arrow::arrow_reader::ArrowReader;
+use delorean_mem_qe::column;
+use delorean_mem_qe::column::{AggregateType, Column};
+use delorean_mem_qe::segment::{ColumnType, GroupingStrategy, Schema, Segment};
+use delorean_mem_qe::Store;
+// use delorean_mem_qe::{adapter::DeloreanQueryEngine, Store};
+
 #[derive(Snafu, Debug, Clone, Copy, PartialEq)]
-pub enum Error {
-    // #[snafu(display(r#"Too many sort columns specified"#))]
-// TooManyColumns,
-
-// #[snafu(display(r#"Same column specified as sort column multiple times"#))]
-// RepeatedColumns { index: usize },
-
-// #[snafu(display(r#"Specified column index is out bounds"#))]
-// OutOfBoundsColumn { index: usize },
-}
+pub enum Error {}
 
 fn format_size(sz: usize) -> String {
     human_format::Formatter::new().format(sz as f64)
@@ -88,9 +79,11 @@ fn build_parquet_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> 
         path
     );
 
-    let parquet_reader = parquet::file::reader::SerializedFileReader::new(r).unwrap();
-    let mut reader =
-        parquet::arrow::arrow_reader::ParquetFileArrowReader::new(Rc::new(parquet_reader));
+    let parquet_reader =
+        delorean_arrow::parquet::file::reader::SerializedFileReader::new(r).unwrap();
+    let mut reader = delorean_arrow::parquet::arrow::arrow_reader::ParquetFileArrowReader::new(
+        Rc::new(parquet_reader),
+    );
     let batch_size = 60000;
     let record_batch_reader = reader.get_record_reader(batch_size).unwrap();
     build_store(record_batch_reader, store, sort_order)
@@ -419,32 +412,32 @@ fn time_select_with_pred(store: &Store) {
 //
 // Use the hard coded timestamp values 1590036110000000, 1590040770000000
 
-fn time_datafusion_select_with_pred(store: Arc<Store>) {
-    let mut query_engine = DeloreanQueryEngine::new(store);
+// fn time_datafusion_select_with_pred(store: Arc<Store>) {
+//     let mut query_engine = DeloreanQueryEngine::new(store);
 
-    let sql_string = r#"SELECT env, method, host, counter, time
-               FROM measurement
-               WHERE time::BIGINT >= 1590036110000000
-               AND time::BIGINT < 1590040770000000
-               AND env = 'prod01-eu-central-1'
-     "#;
+//     let sql_string = r#"SELECT env, method, host, counter, time
+//                FROM measurement
+//                WHERE time::BIGINT >= 1590036110000000
+//                AND time::BIGINT < 1590040770000000
+//                AND env = 'prod01-eu-central-1'
+//      "#;
 
-    let repeat = 100;
-    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-    let mut track = 0;
-    for _ in 0..repeat {
-        let now = std::time::Instant::now();
-        track += query_engine.run_sql(&sql_string);
-        total_time += now.elapsed();
-    }
-    println!(
-        "time_datafusion_select_with_pred ran {:?} in {:?} {:?} / call {:?}",
-        repeat,
-        total_time,
-        total_time / repeat,
-        track
-    );
-}
+//     let repeat = 100;
+//     let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+//     let mut track = 0;
+//     for _ in 0..repeat {
+//         let now = std::time::Instant::now();
+//         track += query_engine.run_sql(&sql_string);
+//         total_time += now.elapsed();
+//     }
+//     println!(
+//         "time_datafusion_select_with_pred ran {:?} in {:?} {:?} / call {:?}",
+//         repeat,
+//         total_time,
+//         total_time / repeat,
+//         track
+//     );
+// }
 
 //
 // SELECT env, method, host, counter, time

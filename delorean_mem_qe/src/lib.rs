@@ -5,7 +5,7 @@ pub mod encoding;
 pub mod segment;
 pub mod sorter;
 
-use arrow::datatypes::SchemaRef;
+use delorean_arrow::arrow::datatypes::SchemaRef;
 use segment::{Segment, Segments};
 
 #[derive(Debug, Default)]
