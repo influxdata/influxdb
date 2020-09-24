@@ -802,10 +802,7 @@ impl Dictionary {
     /// Returns the id corresponding to value, adding an entry for the
     /// id if it is not yet present in the dictionary.
     fn lookup_value_or_insert(&mut self, value: &str) -> u32 {
-        match self.0.get(value) {
-            Some(id) => symbol_to_u32(id),
-            None => symbol_to_u32(self.0.get_or_intern(value)),
-        }
+        symbol_to_u32(self.0.get_or_intern(value))
     }
 
     /// Returns the ID in self.dictionary that corresponds to `value`, if any. Returns an error if
