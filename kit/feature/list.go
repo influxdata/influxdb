@@ -33,8 +33,8 @@ func BackendExample() BoolFlag {
 var communityTemplates = MakeBoolFlag(
 	"Community Templates",
 	"communityTemplates",
-	"Bucky, Johnny Steenbergen (Berg)",
-	false,
+	"Bucky",
+	true,
 	Permanent,
 	true,
 )
