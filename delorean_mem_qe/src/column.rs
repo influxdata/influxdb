@@ -1,6 +1,13 @@
+use std::collections::BTreeSet;
 use std::convert::From;
 
 use super::encoding;
+
+#[derive(Debug)]
+pub enum Set<'a> {
+    String(BTreeSet<&'a std::string::String>),
+    Integer(BTreeSet<i64>),
+}
 
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Value<'a> {
@@ -1258,6 +1265,39 @@ impl Column {
     pub fn has_non_null_value_in_row_ids(&self, row_ids: &[usize]) -> bool {
         match self {
             Column::String(c) => c.data.has_non_null_value_in_row_ids(row_ids),
+            _ => unreachable!("not supported at the moment"),
+        }
+    }
+
+    /// This returns the distinct set of values in the column from the set of
+    /// rows provided.
+    ///
+    /// NULL values are not included in the returned set even if present in the
+    /// column at provided rows.
+    ///
+    /// row_ids *must* be in ascending order.
+    pub fn distinct_values(&self, row_ids: &[usize]) -> Set<'_> {
+        match self {
+            Column::String(c) => Set::String(c.data.distinct_values(row_ids)),
+            _ => unreachable!("not supported at the moment"),
+        }
+    }
+
+    /// Returns true if the column contains any values other than those in
+    /// `values`.
+    pub fn contains_other_values(&self, values: &BTreeSet<&std::string::String>) -> bool {
+        match self {
+            Column::String(c) => {
+                // TODO(edd):
+                // had problems with ref inside of enum Set variant.
+
+                // if let Set::String(v) = values {
+                c.data.contains_other_values(values)
+                // } else {
+                // panic!("incompatible set with column type");
+                // }
+                // Set::String(c.data.distinct_values(row_ids))
+            }
             _ => unreachable!("not supported at the moment"),
         }
     }

@@ -130,6 +130,11 @@ impl Segment {
         &self.meta.column_names
     }
 
+    /// Determines if the segment contains a column with the provided name.
+    pub fn has_column(&self, name: &String) -> bool {
+        self.meta.column_names.contains(name)
+    }
+
     /// column returns the column with name
     pub fn column(&self, name: &str) -> Option<&Column> {
         if let Some(id) = &self.meta.column_names.iter().position(|c| c == name) {
@@ -1126,6 +1131,89 @@ impl Segment {
 
         Some(results)
     }
+
+    pub fn tag_values(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, &str)],
+        tag_keys: &[String],
+        excluded_tag_values: &BTreeMap<String, BTreeSet<&String>>,
+    ) -> Option<BTreeMap<&String, BTreeSet<&String>>> {
+        // first check if we have any columns that should be processed.
+        let mut have_some_cols = false;
+        for &i in &self.tag_column_idxs {
+            let col_name = self.column_names().get(i).unwrap();
+            if tag_keys.contains(col_name) {
+                have_some_cols = true;
+                break;
+            }
+        }
+
+        if !have_some_cols {
+            log::debug!("skipping segment because no columns for tag keys present");
+            return None; // we don't have any tag columns to offer.
+        }
+
+        let (seg_min, seg_max) = self.meta.time_range;
+        if predicates.is_empty() && time_range.0 <= seg_min && time_range.1 > seg_max {
+            // the segment is completely overlapped by the time range of query,
+            // and there are no predicates
+            todo!("fast path")
+        }
+
+        let pred_vec = predicates
+            .iter()
+            .map(|p| (p.0, Some(column::Scalar::String(p.1))))
+            .collect::<Vec<_>>();
+
+        let filtered_row_ids: croaring::Bitmap;
+        if let Some(row_ids) = self.filter_by_predicates_eq(time_range, pred_vec.as_slice()) {
+            filtered_row_ids = row_ids;
+        } else {
+            return None; // no matching rows for predicate + time range
+        }
+
+        let mut results = BTreeMap::new();
+
+        let filtered_row_ids_vec = filtered_row_ids
+            .to_vec()
+            .iter()
+            .map(|v| *v as usize)
+            .collect::<Vec<_>>();
+        log::debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
+
+        for &i in &self.tag_column_idxs {
+            let col = &self.columns[i];
+            let col_name = self.column_names().get(i).unwrap();
+
+            if !tag_keys.contains(col_name) {
+                continue;
+            }
+
+            // if !col.contains_other_values(&column::Set::String(
+            //     *excluded_tag_values.get(col_name).unwrap(),
+            // )) {
+            //     log::debug!("skipping!!");
+            //     continue;
+            // }
+
+            if let Some(exclude_tag_values) = excluded_tag_values.get(col_name) {
+                if !col.contains_other_values(exclude_tag_values) {
+                    log::debug!("skipping!!");
+                    continue;
+                }
+            }
+
+            if let column::Set::String(values) = col.distinct_values(&filtered_row_ids_vec) {
+                log::debug!("distinct values: {:?}", values);
+                results.insert(col_name, values);
+            } else {
+                unreachable!("only works on tag columns");
+            }
+        }
+
+        Some(results)
+    }
 }
 
 impl std::fmt::Display for Segment {
@@ -1630,6 +1718,8 @@ impl<'a> Segments<'a> {
         }
     }
 
+    /// Returns the distinct set of tag keys (column names) matching the provided
+    /// predicates and time range.
     pub fn tag_keys(
         &self,
         time_range: (i64, i64),
@@ -1653,6 +1743,55 @@ impl<'a> Segments<'a> {
         }
 
         columns
+    }
+
+    /// Returns the distinct set of tag values (column values) for each provided
+    /// tag key, where each returned value lives in a row matching the provided
+    /// predicates and time range.
+    ///
+    /// As a special case, if no values are provided for `tag_keys` then all
+    /// tag key-values are returned for the segments.
+    pub fn tag_values(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, &str)],
+        tag_keys: &[String],
+    ) -> BTreeMap<String, BTreeSet<&String>> {
+        let (min, max) = time_range;
+        if max <= min {
+            panic!("max <= min");
+        }
+
+        let mut results: BTreeMap<String, BTreeSet<&String>> = BTreeMap::new();
+
+        for segment in &self.segments {
+            if !segment.meta.overlaps_time_range(min, max) {
+                continue; // segment doesn't have time range
+            }
+
+            let col_names = if tag_keys.is_empty() {
+                segment.column_names()
+            } else {
+                tag_keys
+            };
+
+            let segment_values = segment.tag_values(time_range, predicates, col_names, &results);
+            match segment_values {
+                Some(values) => {
+                    for (tag_key, mut tag_values) in values {
+                        if !results.contains_key(tag_key) {
+                            results.insert(tag_key.clone(), tag_values);
+                        } else {
+                            let all_values = results.get_mut(tag_key).unwrap();
+                            all_values.append(&mut tag_values);
+                        }
+                    }
+                }
+                None => continue,
+            }
+        }
+
+        results
     }
 }
 

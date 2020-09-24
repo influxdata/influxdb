@@ -87,11 +87,7 @@ checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 [[package]]
 name = "arrow"
 version = "2.0.0-SNAPSHOT"
-<<<<<<< HEAD
 source = "git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d#171e8bfe5fe13467a1763227e495fae6bc5d011d"
-=======
-source = "git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd#46f18c2602072e083809e0846b810e0cc3c59fdd"
->>>>>>> 27b73c4... refactor: add encoding trait
 dependencies = [
  "chrono",
  "csv",
@@ -111,7 +107,7 @@ dependencies = [
 [[package]]
 name = "arrow"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=62dfa114d6683172927fab40fa6c4ddabae8fef4#62dfa114d6683172927fab40fa6c4ddabae8fef4"
+source = "git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd#46f18c2602072e083809e0846b810e0cc3c59fdd"
 dependencies = [
  "chrono",
  "csv",
@@ -669,27 +665,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "2.0.0-SNAPSHOT"
-<<<<<<< HEAD
 source = "git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d#171e8bfe5fe13467a1763227e495fae6bc5d011d"
-=======
-source = "git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd#46f18c2602072e083809e0846b810e0cc3c59fdd"
-dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd)",
- "clap",
- "crossbeam",
- "fnv",
- "num_cpus",
- "parquet 2.0.0-SNAPSHOT (git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd)",
- "paste",
- "rustyline",
- "sqlparser",
-]
-
-[[package]]
-name = "datafusion"
-version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=62dfa114d6683172927fab40fa6c4ddabae8fef4#62dfa114d6683172927fab40fa6c4ddabae8fef4"
->>>>>>> 27b73c4... refactor: add encoding trait
 dependencies = [
  "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
  "chrono",
@@ -698,6 +674,22 @@ dependencies = [
  "fnv",
  "num_cpus",
  "parquet 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
+ "paste",
+ "rustyline",
+ "sqlparser",
+]
+
+[[package]]
+name = "datafusion"
+version = "2.0.0-SNAPSHOT"
+source = "git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd#46f18c2602072e083809e0846b810e0cc3c59fdd"
+dependencies = [
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd)",
+ "clap",
+ "crossbeam",
+ "fnv",
+ "num_cpus",
+ "parquet 2.0.0-SNAPSHOT (git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd)",
  "paste",
  "rustyline",
  "sqlparser",
@@ -713,11 +705,7 @@ dependencies = [
  "clap",
  "criterion",
  "csv",
-<<<<<<< HEAD
  "delorean_arrow",
-=======
- "datafusion 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=62dfa114d6683172927fab40fa6c4ddabae8fef4)",
->>>>>>> 27b73c4... refactor: add encoding trait
  "delorean_generated_types",
  "delorean_ingest",
  "delorean_line_parser",
@@ -763,7 +751,7 @@ name = "delorean_arrow"
 version = "0.1.0"
 dependencies = [
  "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
- "datafusion",
+ "datafusion 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
  "parquet 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
 ]
 
@@ -2111,9 +2099,9 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=62dfa114d6683172927fab40fa6c4ddabae8fef4#62dfa114d6683172927fab40fa6c4ddabae8fef4"
+source = "git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd#46f18c2602072e083809e0846b810e0cc3c59fdd"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=62dfa114d6683172927fab40fa6c4ddabae8fef4)",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/alamb/arrow.git?rev=46f18c2602072e083809e0846b810e0cc3c59fdd)",
  "brotli",
  "byteorder",
  "chrono",

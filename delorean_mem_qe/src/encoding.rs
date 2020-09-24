@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::iter;
 use std::mem::size_of;
 
@@ -774,6 +774,82 @@ impl DictionaryRLE {
         out
     }
 
+    /// Returns the unique set of values encoded at each of the provided ids.
+    /// NULL values are not returned.
+    pub fn distinct_values(&self, row_ids: &[usize]) -> BTreeSet<&String> {
+        // TODO(edd): can improve on this if we know encoded data is totally
+        // ordered.
+        let mut encoded_values = HashSet::new();
+
+        let mut curr_logical_row_id = 0;
+        let mut run_lengths_iter = self.run_lengths.iter();
+        let (mut curr_entry_id, mut curr_entry_rl) = run_lengths_iter.next().unwrap();
+
+        'by_row: for row_id in row_ids {
+            while curr_logical_row_id + curr_entry_rl <= *row_id as u64 {
+                // this encoded entry does not cover the row we need.
+                // move on to next entry
+                curr_logical_row_id += curr_entry_rl;
+                match run_lengths_iter.next() {
+                    Some(res) => {
+                        curr_entry_id = res.0;
+                        curr_entry_rl = res.1;
+                    }
+                    None => panic!("shouldn't get here"),
+                }
+            }
+
+            // track encoded value
+            encoded_values.insert(curr_entry_id);
+            if encoded_values.len() == self.index_entry.len() {
+                // all distinct values have been read
+                break 'by_row;
+            }
+
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+
+        assert!(encoded_values.len() <= self.index_entry.len());
+
+        // Finally, materialise the decoded values for the encoded set.
+        let mut results = BTreeSet::new();
+        for id in encoded_values.iter() {
+            let decoded_value = self.index_entry.get(id).unwrap();
+            if let Some(value) = decoded_value {
+                results.insert(value);
+            }
+        }
+        results
+    }
+
+    /// Returns true if the encoding contains values other than those provided in
+    /// `values`.
+    pub fn contains_other_values(&self, values: &BTreeSet<&String>) -> bool {
+        let mut encoded_values = self.entry_index.len();
+        if self.entry_index.contains_key(&None) {
+            encoded_values -= 1;
+        }
+
+        if encoded_values > values.len() {
+            return true;
+        }
+
+        for key in self.entry_index.keys() {
+            match key {
+                Some(key) => {
+                    if !values.contains(key) {
+                        return true;
+                    }
+                }
+                None => continue, // skip NULL
+            }
+        }
+        false
+    }
+
+    /// Determines if the encoded data contains at least one non-null value at
+    /// any of the provided row ids.
     pub fn has_non_null_value_in_row_ids(&self, row_ids: &[usize]) -> bool {
         let null_encoded_value = self.entry_index.get(&None);
         if null_encoded_value.is_none() {

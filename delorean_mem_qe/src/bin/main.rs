@@ -72,7 +72,8 @@ fn main() {
     // time_group_by_multi_agg_count(&store);
     // time_group_by_multi_agg_sorted_count(&store);
     // time_window_agg_count(&store);
-    time_tag_keys_with_pred(&store);
+    // time_tag_keys_with_pred(&store);
+    time_tag_values_with_pred(&store);
     // time_group_by_different_columns(&store);
 }
 
@@ -621,7 +622,7 @@ fn time_tag_keys_with_pred(store: &Store) {
 
         let columns = segments.tag_keys(
             (1588834080000000, 1590044410000000),
-            &[("env", "prod01-eu-central-1"), ("method", "GET")],
+            &[("env", "prod01-eu-central-1")],
         );
 
         total_time += now.elapsed();
@@ -630,6 +631,34 @@ fn time_tag_keys_with_pred(store: &Store) {
     }
     println!(
         "time_tag_keys_with_pred ran {:?} in {:?} {:?} / call {:?}",
+        repeat,
+        total_time,
+        total_time / repeat,
+        track
+    );
+}
+
+//
+// SHOW TAG VALUES ON "host", "method" WHERE time >= x and time < y AND "env" = 'prod01-us-west-1'
+fn time_tag_values_with_pred(store: &Store) {
+    let repeat = 10;
+    let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
+    let mut track = 0;
+    let segments = store.segments();
+    for _ in 0..repeat {
+        let now = std::time::Instant::now();
+
+        let tag_values = segments.tag_values(
+            (1588834080000000, 1590044410000000),
+            &[("env", "prod01-us-west-2")],
+            &["host".to_string(), "method".to_string()],
+        );
+
+        total_time += now.elapsed();
+        track += tag_values.len();
+    }
+    println!(
+        "time_tag_values_with_pred ran {:?} in {:?} {:?} / call {:?}",
         repeat,
         total_time,
         total_time / repeat,
