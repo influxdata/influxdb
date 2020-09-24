@@ -11,13 +11,14 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
-use delorean_storage::{
+use delorean_arrow::{
     arrow,
     arrow::{
         array::{ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder},
         datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema},
         record_batch::RecordBatch,
     },
+    datafusion::prelude::ExecutionConfig,
     datafusion::{
         datasource::MemTable, error::ExecutionError, execution::context::ExecutionContext,
     },
@@ -719,7 +720,8 @@ impl Database for Db {
             }
         }
 
-        let mut ctx = ExecutionContext::new();
+        let config = ExecutionConfig::new().with_batch_size(1024 * 1024);
+        let mut ctx = ExecutionContext::with_config(config);
 
         for table in tables {
             let provider =
@@ -732,10 +734,10 @@ impl Database for Db {
             .context(QueryError { query })?;
         let plan = ctx.optimize(&plan).context(QueryError { query })?;
         let plan = ctx
-            .create_physical_plan(&plan, 1024 * 1024)
+            .create_physical_plan(&plan)
             .context(QueryError { query })?;
 
-        ctx.collect(plan.as_ref()).context(QueryError { query })
+        ctx.collect(plan).context(QueryError { query })
     }
 }
 

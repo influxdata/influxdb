@@ -8,7 +8,7 @@
 use core::iter::Iterator;
 use std::iter;
 
-use parquet::data_type::ByteArray;
+use delorean_arrow::parquet::data_type::ByteArray;
 use std::default::Default;
 
 // NOTE: See https://blog.twitter.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet.html

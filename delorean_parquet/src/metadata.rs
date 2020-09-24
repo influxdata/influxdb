@@ -1,9 +1,10 @@
 //! Provide storage statistics for parquet files
-use delorean_table_schema::DataType;
-use parquet::{
+use delorean_arrow::parquet::{
+    self,
     file::reader::{FileReader, SerializedFileReader},
     schema,
 };
+use delorean_table_schema::DataType;
 use snafu::ResultExt;
 use std::io::{Read, Seek};
 

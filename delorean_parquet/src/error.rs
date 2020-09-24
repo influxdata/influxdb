@@ -1,6 +1,6 @@
 use snafu::Snafu;
 
-use parquet::errors::ParquetError;
+use delorean_arrow::parquet::errors::ParquetError;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

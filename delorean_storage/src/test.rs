@@ -2,7 +2,7 @@
 //! of storage::DatabaseSource and storage::Database for use in testing
 //!
 //! Note: this module is only compiled in  the 'test' cfg,
-use arrow::record_batch::RecordBatch;
+use delorean_arrow::arrow::record_batch::RecordBatch;
 
 use crate::{Database, DatabaseStore, Predicate, TimestampRange};
 use delorean_line_parser::{parse_lines, ParsedLine};

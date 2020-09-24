@@ -1,6 +1,6 @@
 //! This module contains the code to write delorean table data to parquet
-use log::debug;
-use parquet::{
+use delorean_arrow::parquet::{
+    self,
     basic::{Compression, Encoding, LogicalType, Repetition, Type as PhysicalType},
     errors::ParquetError,
     file::{
@@ -10,6 +10,7 @@ use parquet::{
     },
     schema::types::{ColumnPath, Type},
 };
+use log::debug;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     fmt,
@@ -97,7 +98,7 @@ where
     /// # use delorean_table::DeloreanTableWriter;
     /// # use delorean_table::packers::{Packer, Packers};
     /// # use delorean_parquet::writer::{DeloreanParquetTableWriter, CompressionLevel};
-    /// # use parquet::data_type::ByteArray;
+    /// # use delorean_arrow::parquet::data_type::ByteArray;
     ///
     /// let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
     ///      .tag("tag1")

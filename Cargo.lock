@@ -87,7 +87,7 @@ checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 [[package]]
 name = "arrow"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=62dfa114d6683172927fab40fa6c4ddabae8fef4#62dfa114d6683172927fab40fa6c4ddabae8fef4"
+source = "git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d#171e8bfe5fe13467a1763227e495fae6bc5d011d"
 dependencies = [
  "chrono",
  "csv",
@@ -609,15 +609,16 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=62dfa114d6683172927fab40fa6c4ddabae8fef4#62dfa114d6683172927fab40fa6c4ddabae8fef4"
+source = "git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d#171e8bfe5fe13467a1763227e495fae6bc5d011d"
 dependencies = [
  "arrow",
+ "chrono",
  "clap",
  "crossbeam",
  "fnv",
- "parquet 2.0.0-SNAPSHOT",
+ "num_cpus",
+ "parquet",
  "paste",
- "prettytable-rs",
  "rustyline",
  "sqlparser",
 ]
@@ -626,13 +627,13 @@ dependencies = [
 name = "delorean"
 version = "0.1.0"
 dependencies = [
- "arrow",
  "assert_cmd",
  "byteorder",
  "bytes",
  "clap",
  "criterion",
  "csv",
+ "delorean_arrow",
  "delorean_generated_types",
  "delorean_ingest",
  "delorean_line_parser",
@@ -670,6 +671,15 @@ dependencies = [
  "tonic",
  "tracing",
  "tracing-futures",
+]
+
+[[package]]
+name = "delorean_arrow"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "datafusion",
+ "parquet",
 ]
 
 [[package]]
@@ -733,11 +743,11 @@ dependencies = [
 name = "delorean_parquet"
 version = "0.1.0"
 dependencies = [
+ "delorean_arrow",
  "delorean_table",
  "delorean_table_schema",
  "delorean_test_helpers",
  "log",
- "parquet 1.0.0",
  "snafu",
 ]
 
@@ -769,9 +779,8 @@ dependencies = [
 name = "delorean_storage"
 version = "0.1.0"
 dependencies = [
- "arrow",
  "async-trait",
- "datafusion",
+ "delorean_arrow",
  "delorean_line_parser",
  "serde",
  "serde_urlencoded",
@@ -783,12 +792,12 @@ dependencies = [
 name = "delorean_table"
 version = "0.1.0"
 dependencies = [
+ "delorean_arrow",
  "delorean_table_schema",
  "delorean_test_helpers",
  "delorean_tsm",
  "human_format",
  "log",
- "parquet 1.0.0",
  "rand",
  "snafu",
 ]
@@ -862,6 +871,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "criterion",
+ "delorean_arrow",
  "delorean_generated_types",
  "delorean_line_parser",
  "delorean_storage",
@@ -1969,27 +1979,8 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "234036500c16044c0f7c96bcd77c6655762c7663264a4ef154c52eeab6235003"
-dependencies = [
- "brotli",
- "byteorder",
- "chrono",
- "flate2",
- "lz4",
- "num-bigint 0.3.0",
- "parquet-format",
- "serde_json",
- "snap",
- "thrift",
- "zstd",
-]
-
-[[package]]
-name = "parquet"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=62dfa114d6683172927fab40fa6c4ddabae8fef4#62dfa114d6683172927fab40fa6c4ddabae8fef4"
+source = "git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d#171e8bfe5fe13467a1763227e495fae6bc5d011d"
 dependencies = [
  "arrow",
  "brotli",
@@ -1999,7 +1990,6 @@ dependencies = [
  "lz4",
  "num-bigint 0.3.0",
  "parquet-format",
- "serde_json",
  "snap",
  "thrift",
  "zstd",

@@ -6,17 +6,12 @@
     clippy::use_self
 )]
 
-use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
+use delorean_arrow::arrow::record_batch::RecordBatch;
 use delorean_line_parser::ParsedLine;
 use std::collections::BTreeSet;
 
 use std::{fmt::Debug, sync::Arc};
-
-// export arrow and datafusion publically so we can have a single
-// reference in cargo
-pub use arrow;
-pub use datafusion;
 
 pub mod id;
 

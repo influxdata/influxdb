@@ -1,13 +1,13 @@
 //! Provide storage statistics for parquet files
+use delorean_arrow::parquet::{
+    basic::{Compression, Encoding},
+    file::reader::{FileReader, SerializedFileReader},
+};
 use delorean_table::{
     stats::{ColumnStatsBuilder, FileStats, FileStatsBuilder},
     Name,
 };
 use log::debug;
-use parquet::{
-    basic::{Compression, Encoding},
-    file::reader::{FileReader, SerializedFileReader},
-};
 use snafu::ResultExt;
 use std::{
     collections::BTreeMap,

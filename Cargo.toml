@@ -7,6 +7,7 @@ default-run = "delorean"
 
 [workspace]
 members = [
+    "delorean_arrow",
     "delorean_generated_types",
     "delorean_ingest",
     "delorean_line_parser",
@@ -28,6 +29,7 @@ members = [
 debug = true
 
 [dependencies]
+delorean_arrow = { path = "delorean_arrow" }
 delorean_generated_types = { path = "delorean_generated_types" }
 delorean_ingest = { path = "delorean_ingest" }
 delorean_line_parser = { path = "delorean_line_parser" }
@@ -67,8 +69,6 @@ tracing-futures="0.2.4"
 http = "0.2.0"
 snafu = "0.6.2"
 libflate = "1.0.0"
-arrow = { git = "https://github.com/apache/arrow.git", rev = "62dfa114d6683172927fab40fa6c4ddabae8fef4"}
-
 
 [dev-dependencies]
 assert_cmd = "1.0.0"

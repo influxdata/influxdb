@@ -11,10 +11,7 @@ log = "0.4.8"
 rand = "0.7.3"
 human_format = "1.0.3"
 
-# Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time
-# and we're not currently using it anyway
-parquet = { version = "1.0.0", default-features = false, features = ["snap", "brotli", "flate2", "lz4", "zstd"] }
-
+delorean_arrow = { path = "../delorean_arrow" }
 delorean_table_schema = { path = "../delorean_table_schema" }
 delorean_tsm = { path = "../delorean_tsm" }
 
