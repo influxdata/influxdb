@@ -54,18 +54,18 @@ fn main() {
     );
     let store = Arc::new(store);
 
-    // time_select_with_pred(&store);
+    time_select_with_pred(&store);
     // time_datafusion_select_with_pred(store.clone());
-    // time_first_host(&store);
-    // time_sum_range(&store);
-    // time_count_range(&store);
-    // time_group_single_with_pred(&store);
-    // time_group_by_multi_agg_count(&store);
-    // time_group_by_multi_agg_sorted_count(&store);
-    // time_window_agg_count(&store);
-    // time_tag_keys_with_pred(&store);
+    time_first_host(&store);
+    time_sum_range(&store);
+    time_count_range(&store);
+    time_group_single_with_pred(&store);
+    time_group_by_multi_agg_count(&store);
+    time_group_by_multi_agg_sorted_count(&store);
+    time_window_agg_count(&store);
+    time_tag_keys_with_pred(&store);
     time_tag_values_with_pred(&store);
-    // time_group_by_different_columns(&store);
+    time_group_by_different_columns(&store);
 }
 
 fn build_parquet_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> Result<(), Error> {
@@ -110,7 +110,6 @@ fn build_store(
 ) -> Result<(), Error> {
     let mut total_rows_read = 0;
     let start = std::time::Instant::now();
-    let mut i = 0;
     loop {
         let rb = reader.next_batch();
         match rb {
@@ -269,7 +268,7 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
             datatypes::DataType::Boolean => {
                 panic!("unsupported");
             }
-            ref d @ _ => panic!("unsupported datatype: {:?}", d),
+            _ => panic!("unsupported datatype"),
         }
     }
     Ok(())
@@ -458,7 +457,7 @@ fn time_group_single_with_pred(store: &Store) {
                 (1588834080000000, 1590044410000000),
                 &[],
                 &"env".to_string(),
-                &vec![("counter".to_string(), AggregateType::Count)],
+                &[("counter".to_string(), AggregateType::Count)],
             );
             track += results.len();
         }
@@ -689,14 +688,12 @@ fn time_group_by_different_columns(store: &Store) {
     for strat in &strats {
         let repeat = 10;
         let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);
-        let mut total_max = 0;
         let segments = store.segments();
-
         for i in 1..=cols.len() {
             for _ in 0..repeat {
                 let now = std::time::Instant::now();
 
-                let groups = segments.read_group_eq(
+                segments.read_group_eq(
                     (1589000000000001, 1590044410000000),
                     &[],
                     cols[0..i].to_vec(),
@@ -706,7 +703,6 @@ fn time_group_by_different_columns(store: &Store) {
                 );
 
                 total_time += now.elapsed();
-                total_max += groups.len();
             }
             println!(
                 "time_group_by_different_columns{:?} cols: {:?} ran {:?} in {:?} {:?}",

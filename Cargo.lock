@@ -765,6 +765,7 @@ name = "delorean_mem_qe"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "criterion",
  "croaring",
  "crossbeam",
  "delorean_arrow",

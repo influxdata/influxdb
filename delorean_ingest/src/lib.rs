@@ -813,9 +813,9 @@ impl TSMFileConverter {
                     println!("verifying order");
                     let values = packed_columns[12].i64_packer_mut().values();
                     let mut last = values[0];
-                    for i in 1..values.len() {
-                        assert!(values[i] >= last);
-                        last = values[i];
+                    for &v in values.iter().skip(1) {
+                        assert!(v >= last);
+                        last = v;
                     }
                     println!("finished sort in {:?}", now.elapsed());
 
@@ -823,6 +823,7 @@ impl TSMFileConverter {
                     write_arrow_file(schema, packed_columns).unwrap();
                     println!("Done!");
 
+                    let _ = self.table_writer_source;
                     // if packed_columns.len() < 13 {
                     //     continue;
                     // }

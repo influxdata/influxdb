@@ -1,4 +1,5 @@
 #![deny(rust_2018_idioms)]
+#![allow(clippy::type_complexity)]
 pub mod adapter;
 pub mod column;
 pub mod encoding;

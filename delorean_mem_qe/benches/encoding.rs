@@ -24,7 +24,7 @@ fn benchmark_row_ids(
             let mut input = delorean_mem_qe::encoding::DictionaryRLE::new();
             let values = batch_size / cardinality;
             for i in 0..cardinality {
-                input.push_additional(i.to_string().as_str(), values as u64);
+                input.push_additional(Some(i.to_string()), values as u64);
             }
             group.throughput(Throughput::Bytes(batch_size as u64));
 
@@ -35,9 +35,7 @@ fn benchmark_row_ids(
                     b.iter(|| {
                         // do work
                         for i in 0..cardinality {
-                            let ids = input
-                                .row_ids(i.to_string().as_str())
-                                .collect::<Vec<usize>>();
+                            let _ = input.row_ids(Some(i.to_string())).collect::<Vec<usize>>();
                         }
                     });
                 },
@@ -68,7 +66,7 @@ fn benchmark_row_ids_roaring(
             let mut input = delorean_mem_qe::encoding::DictionaryRLE::new();
             let values = batch_size / cardinality;
             for i in 0..cardinality {
-                input.push_additional(i.to_string().as_str(), values as u64);
+                input.push_additional(Some(i.to_string()), values as u64);
             }
             group.throughput(Throughput::Bytes(batch_size as u64));
 
@@ -79,7 +77,7 @@ fn benchmark_row_ids_roaring(
                     b.iter(|| {
                         // do work
                         for i in 0..cardinality {
-                            let ids = input.row_ids_roaring(i.to_string().as_str());
+                            let _ = input.row_ids_eq_roaring(Some(i.to_string()));
                         }
                     });
                 },

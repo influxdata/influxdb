@@ -981,7 +981,7 @@ impl Column {
             Column::String(c) => {
                 if let Scalar::String(v) = value {
                     if let Some(range) = c.meta.range() {
-                        range.1 < v.to_string()
+                        &range.1.as_str() < v
                     } else {
                         false
                     }
@@ -1020,7 +1020,7 @@ impl Column {
             Column::String(c) => {
                 if let Scalar::String(v) = value {
                     if let Some(range) = c.meta.range() {
-                        range.0 > v.to_string()
+                        &range.0.as_str() > v
                     } else {
                         false
                     }
@@ -1905,7 +1905,7 @@ pub mod metadata {
 
         pub fn size(&self) -> usize {
             // size of types for num_rows and range
-            let base_size = size_of::<usize>() + (2 * size_of::<Option<String>>());
+            size_of::<usize>() + (2 * size_of::<Option<String>>())
 
             //
             //  TODO: figure out a way to specify that T must be able to describe its runtime size.
@@ -1916,7 +1916,7 @@ pub mod metadata {
             //     (None, Some(max)) => base_size + max.len(),
             //     (Some(min), Some(max)) => base_size + min.len() + max.len(),
             // }
-            base_size
+            // base_size
         }
     }
 

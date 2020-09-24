@@ -22,3 +22,4 @@ human_format = "1.0.3"
 
 
 [dev-dependencies]
+criterion = "0.3"

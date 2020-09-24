@@ -131,8 +131,8 @@ impl Segment {
     }
 
     /// Determines if the segment contains a column with the provided name.
-    pub fn has_column(&self, name: &String) -> bool {
-        self.meta.column_names.contains(name)
+    pub fn has_column(&self, name: &str) -> bool {
+        self.meta.column_names.contains(&name.to_string())
     }
 
     /// column returns the column with name
@@ -445,9 +445,7 @@ impl Segment {
             //
             // TODO(edd): this is probably a bit of a perf suck.
             for (col_name, row_value) in &aggregate_row {
-                for &mut (cum_col_name, agg_type, ref mut cum_agg_value) in
-                    group_key_entry.iter_mut()
-                {
+                for &mut (cum_col_name, _, ref mut cum_agg_value) in group_key_entry.iter_mut() {
                     if col_name != cum_col_name {
                         continue;
                     }
@@ -995,8 +993,8 @@ impl Segment {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, Option<column::Scalar<'_>>)],
-        group_column: &String,
-        aggregates: &Vec<(String, column::AggregateType)>,
+        group_column: &str,
+        aggregates: &[(String, column::AggregateType)],
     ) -> BTreeMap<u32, Vec<((String, AggregateType), column::Aggregate<'_>)>> {
         let mut grouped_results = BTreeMap::new();
 

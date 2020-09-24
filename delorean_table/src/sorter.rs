@@ -186,14 +186,10 @@ fn packers_sorted_asc(packers: &[Packers], len: usize, sort_by: &[usize]) -> boo
                 }
                 Packers::Integer(p) => {
                     let vec = p.values();
-                    if vec[i - 1] < vec[i] {
-                        continue 'row_wise;
-                    } else if vec[i - 1] == vec[i] {
-                        // try next column
-                        continue;
-                    } else {
-                        // value is > so
-                        return false;
+                    match vec[i - 1].cmp(&vec[i]) {
+                        Ordering::Less => continue 'row_wise,
+                        Ordering::Equal => continue,
+                        Ordering::Greater => return false,
                     }
                 }
                 _ => continue, // don't compare on non-string / timestamp cols

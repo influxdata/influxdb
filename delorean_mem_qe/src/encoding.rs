@@ -107,7 +107,7 @@ where
     /// supports null values then the values returned are undefined.
     ///
     /// encoded_values should not be called on nullable columns.
-    fn encoded_values(&self, row_ids: &[usize]) -> Vec<T::Native> {
+    fn encoded_values(&self, _: &[usize]) -> Vec<T::Native> {
         todo!();
     }
 
@@ -117,7 +117,7 @@ where
 
     // TODO(edd): problem here is returning a slice because we need to own the
     // backing vector.
-    fn scan_from(&self, row_id: usize) -> &[Option<T::Native>] {
+    fn scan_from(&self, _: usize) -> &[Option<T::Native>] {
         unimplemented!("need to figure out returning a slice");
         // let mut out = Vec::with_capacity(self.arr.len() - row_id);
         // for i in row_id..self.arr.len() {
@@ -185,7 +185,7 @@ where
         count // if there are no non-null rows the result is 0 rather than NULL
     }
 
-    fn count_by_ids(&self, row_ids: &croaring::Bitmap) -> u64 {
+    fn count_by_ids(&self, _: &croaring::Bitmap) -> u64 {
         todo!()
     }
 
@@ -213,8 +213,8 @@ where
 
     fn row_ids_single_cmp_roaring(
         &self,
-        wanted: &Self::Item,
-        order: std::cmp::Ordering,
+        _: &Self::Item,
+        _: std::cmp::Ordering,
     ) -> croaring::Bitmap {
         todo!()
     }
@@ -224,7 +224,6 @@ where
 
         let mut found = false; //self.values[0];
         let mut count = 0;
-        let mut i = 0;
         for i in 0..self.arr.len() {
             let next = &self.arr.value(i);
             if (self.arr.is_null(i) || next < from || next >= to) && found {
@@ -385,7 +384,7 @@ where
         self.values.clone() // TODO(edd):perf probably can return reference to vec.
     }
 
-    fn scan_from(&self, row_id: usize) -> &[Option<Self::Item>] {
+    fn scan_from(&self, _: usize) -> &[Option<Self::Item>] {
         unimplemented!("this should probably take a destination vector or maybe a closure");
         // &self.values[row_id..]
     }
@@ -1311,9 +1310,9 @@ mod test {
         let east = Some("east".to_string());
         let north = Some("north".to_string());
         drle.push_additional(west.clone(), 3);
-        drle.push_additional(east.clone(), 2);
-        drle.push_additional(north.clone(), 4);
-        drle.push_additional(west.clone(), 3);
+        drle.push_additional(east, 2);
+        drle.push_additional(north, 4);
+        drle.push_additional(west, 3);
 
         let results = drle.encoded_values(&[0, 1, 4, 5]);
 
