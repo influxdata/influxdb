@@ -1890,6 +1890,7 @@ func cors(inner http.Handler) http.Handler {
 				`OPTIONS`,
 				`POST`,
 				`PUT`,
+				`PATCH`,
 			}, ", "))
 
 			w.Header().Set(`Access-Control-Allow-Headers`, strings.Join([]string{
