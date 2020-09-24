@@ -27,9 +27,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrEngineClosed is returned when a caller attempts to use the engine while
-// it's closed.
-var ErrEngineClosed = errors.New("engine is closed")
+var (
+	// ErrEngineClosed is returned when a caller attempts to use the engine while
+	// it's closed.
+	ErrEngineClosed = errors.New("engine is closed")
+
+	// ErrNotImplemented is returned for APIs that are temporarily not implemented.
+	ErrNotImplemented = errors.New("not implemented")
+)
 
 type Engine struct {
 	config Config
@@ -292,44 +297,13 @@ func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) 
 
 // DeleteBucketRange deletes an entire range of data from the storage engine.
 func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64) error {
-	span, _ := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return ErrEngineClosed
-	}
-
-	// TODO(edd): create an influxql.Expr that represents the min and max time...
-	return e.tsdbStore.DeleteSeries(bucketID.String(), nil, nil)
+	return ErrNotImplemented
 }
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
 func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
-	span, _ := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return ErrEngineClosed
-	}
-
-	var predData []byte
-	var err error
-	if pred != nil {
-		// Marshal the predicate to add it to the WAL.
-		predData, err = pred.Marshal()
-		if err != nil {
-			return err
-		}
-	}
-	_ = predData
-
-	// TODO - edd convert the predicate into an influxql.Expr
-	return e.tsdbStore.DeleteSeries(bucketID.String(), nil, nil)
+	return ErrNotImplemented
 }
 
 // CreateBackup creates a "snapshot" of all TSM data in the Engine.
