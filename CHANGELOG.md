@@ -22,6 +22,7 @@ need to update any InfluxDB CLI config profiles with the new port number.
 
 1. [19446](https://github.com/influxdata/influxdb/pull/19446): Port TSM1 storage engine
 1. [19494](https://github.com/influxdata/influxdb/pull/19494): Changing the default port from 9999 to 8086
+1. [19636](https://github.com/influxdata/influxdb/pull/19636): Disable unimplemented delete with predicate API
 
 ### Features
 
