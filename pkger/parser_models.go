@@ -463,6 +463,7 @@ type dashboard struct {
 
 	Description string
 	Charts      []*chart
+	params      []*references
 
 	labels sortedLabels
 }
@@ -475,7 +476,7 @@ func (d *dashboard) ResourceType() influxdb.ResourceType {
 	return KindDashboard.ResourceType()
 }
 
-func (d *dashboard) refs() []*references {
+func (d *dashboard) queryRefs() []*references {
 	var queryRefs []*references
 	for _, c := range d.Charts {
 		queryRefs = append(queryRefs, c.Queries.references()...)
@@ -510,6 +511,11 @@ func (d *dashboard) summarize() SummaryDashboard {
 				sum.EnvReferences = append(sum.EnvReferences, convertRefToRefSummary(field, ref))
 			}
 		}
+	}
+	for _, p := range d.params {
+		parts := strings.Split(p.EnvRef, ".")
+		field := fmt.Sprintf("params.%s", parts[len(parts)-1])
+		sum.EnvReferences = append(sum.EnvReferences, convertRefToRefSummary(field, p))
 	}
 	sort.Slice(sum.EnvReferences, func(i, j int) bool {
 		return sum.EnvReferences[i].EnvRefKey < sum.EnvReferences[j].EnvRefKey
@@ -1080,8 +1086,8 @@ func (q query) DashboardQuery() string {
 		return q.Query
 	}
 
-	paramsOpt, paramsErr := edit.GetOption(files[0], "params")
-	taskOpt, taskErr := edit.GetOption(files[0], "task")
+	paramsOpt, paramsErr := edit.GetOption(files[0], fieldParams)
+	taskOpt, taskErr := edit.GetOption(files[0], fieldTask)
 	if taskErr != nil && paramsErr != nil {
 		return q.Query
 	}
