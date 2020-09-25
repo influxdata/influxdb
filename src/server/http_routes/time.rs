@@ -1,7 +1,25 @@
-use crate::Error;
+use std::{
+    fmt,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
-use std::time::SystemTime;
-use std::time::{Duration, UNIX_EPOCH};
+#[derive(Debug, Clone, PartialEq)]
+pub struct Error {
+    pub description: String,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.description)
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
 
 // TODO: because we're using SystemTime as our base time object, we only support times after
 //       unix epoch. We should fix this so we can represent a wider range of dates & times.

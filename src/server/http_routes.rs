@@ -2,7 +2,8 @@
 
 use tracing::{debug, error, info};
 
-use delorean::time::{parse_duration, time_as_i64_nanos};
+mod time;
+use self::time::{parse_duration, time_as_i64_nanos, Error as TimeError};
 use delorean_generated_types::{Bucket, TimestampRange};
 use delorean_partitioned_store::{
     line_parser,
@@ -110,10 +111,7 @@ pub enum ApplicationError {
     },
 
     #[snafu(display("Invalid duration '{}': {}", duration, source))]
-    InvalidDuration {
-        duration: String,
-        source: delorean::Error,
-    },
+    InvalidDuration { duration: String, source: TimeError },
 
     #[snafu(display("Could not parse predicate '{}':  {}", predicate, source))]
     InvalidPredicate {
