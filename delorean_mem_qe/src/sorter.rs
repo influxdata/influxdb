@@ -43,7 +43,7 @@ const SORTED_CHECK_SIZE: usize = 1000;
 ///
 /// All chosen columns will be sorted in ascending order; the sort is *not*
 /// stable.
-pub fn sort(vectors: &mut [column::Vector<'_>], sort_by: &[usize]) -> Result<(), Error> {
+pub fn sort(vectors: &mut [column::Vector], sort_by: &[usize]) -> Result<(), Error> {
     if vectors.is_empty() || sort_by.is_empty() {
         return Ok(());
     }
@@ -84,7 +84,7 @@ pub fn sort(vectors: &mut [column::Vector<'_>], sort_by: &[usize]) -> Result<(),
     Ok(())
 }
 
-fn quicksort_by(vectors: &mut [column::Vector<'_>], range: Range<usize>, sort_by: &[usize]) {
+fn quicksort_by(vectors: &mut [column::Vector], range: Range<usize>, sort_by: &[usize]) {
     if range.start >= range.end {
         return;
     }
@@ -94,7 +94,7 @@ fn quicksort_by(vectors: &mut [column::Vector<'_>], range: Range<usize>, sort_by
     quicksort_by(vectors, pivot + 1..range.end, sort_by);
 }
 
-fn partition(vectors: &mut [column::Vector<'_>], range: &Range<usize>, sort_by: &[usize]) -> usize {
+fn partition(vectors: &mut [column::Vector], range: &Range<usize>, sort_by: &[usize]) -> usize {
     let pivot = (range.start + range.end) / 2;
     let (lo, hi) = (range.start, range.end);
     if cmp(vectors, pivot as usize, lo as usize, sort_by) == Ordering::Less {
@@ -130,7 +130,7 @@ fn partition(vectors: &mut [column::Vector<'_>], range: &Range<usize>, sort_by: 
     }
 }
 
-fn cmp(vectors: &[column::Vector<'_>], a: usize, b: usize, sort_by: &[usize]) -> Ordering {
+fn cmp(vectors: &[column::Vector], a: usize, b: usize, sort_by: &[usize]) -> Ordering {
     for &idx in sort_by {
         match &vectors[idx] {
             column::Vector::Unsigned32(p) => {
@@ -154,7 +154,7 @@ fn cmp(vectors: &[column::Vector<'_>], a: usize, b: usize, sort_by: &[usize]) ->
 }
 
 #[allow(dead_code)]
-fn vectors_sorted_asc(vectors: &[column::Vector<'_>], len: usize, sort_by: &[usize]) -> bool {
+fn vectors_sorted_asc(vectors: &[column::Vector], len: usize, sort_by: &[usize]) -> bool {
     'row_wise: for i in 1..len {
         for &idx in sort_by {
             match &vectors[idx] {
@@ -199,7 +199,7 @@ fn vectors_sorted_asc(vectors: &[column::Vector<'_>], len: usize, sort_by: &[usi
 }
 
 // Swap the same pair of elements in each packer column
-fn swap(vectors: &mut [column::Vector<'_>], a: usize, b: usize) {
+fn swap(vectors: &mut [column::Vector], a: usize, b: usize) {
     for p in vectors {
         p.swap(a, b);
     }

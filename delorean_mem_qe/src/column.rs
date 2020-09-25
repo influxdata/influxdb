@@ -18,6 +18,40 @@ pub enum Value<'a> {
     Scalar(Scalar),
 }
 
+pub enum Values<'a> {
+    String(Vec<&'a Option<std::string::String>>),
+    Float(Vec<Option<f64>>),
+    Integer(Vec<Option<i64>>),
+}
+
+impl Values<'_> {
+    pub fn extend(&mut self, other: Self) {
+        match self {
+            Self::String(v) => {
+                if let Self::String(other) = other {
+                    v.extend(other);
+                } else {
+                    unreachable!("string can't be extended");
+                }
+            }
+            Self::Float(v) => {
+                if let Self::Float(other) = other {
+                    v.extend(other);
+                } else {
+                    unreachable!("string can't be extended");
+                }
+            }
+            Self::Integer(v) => {
+                if let Self::Integer(other) = other {
+                    v.extend(other);
+                } else {
+                    unreachable!("string can't be extended");
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Scalar {
     Float(f64),
@@ -550,7 +584,7 @@ impl Vector {
     }
 }
 
-impl AggregatableByRange for &Vector {
+impl AggregatableByRange for Vector {
     fn aggregate_by_id_range(
         &self,
         agg_type: &AggregateType,
@@ -676,7 +710,7 @@ impl Column {
 
     /// Materialise the decoded value matching the provided logical
     /// row id.
-    pub fn value<'a>(&'a self, row_id: usize) -> Value<'a> {
+    pub fn value(&'_ self, row_id: usize) -> Value<'_> {
         match self {
             Column::String(c) => {
                 if row_id >= self.num_rows() {
@@ -724,7 +758,7 @@ impl Column {
     //
     pub fn values(&self, row_ids: &[usize]) -> Vector {
         match self {
-            Column::String(c) => {
+            Column::String(_) => {
                 panic!("unsupported at the moment")
                 // if row_ids.is_empty() {
                 //     return Vector::NullString(vec![]);
@@ -760,7 +794,7 @@ impl Column {
     /// row ids within the bitmap
     pub fn values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector {
         match self {
-            Column::String(c) => {
+            Column::String(_) => {
                 unreachable!("unsupported at the moment");
                 // if row_ids.is_empty() {
                 //     return Vector::NullString(vec![]);
@@ -909,7 +943,7 @@ impl Column {
     }
 
     /// materialise rows for each row_id
-    pub fn rows(&self, row_ids: &croaring::Bitmap) -> Vector {
+    pub fn rows(&self, row_ids: &croaring::Bitmap) -> Values<'_> {
         let now = std::time::Instant::now();
         let row_ids_vec = row_ids
             .to_vec()
@@ -925,9 +959,9 @@ impl Column {
             row_ids_vec[0]
         );
         match self {
-            Column::String(c) => panic!("unsupported"), //Vector::NullString(c.values(&row_ids_vec)),
-            Column::Float(c) => Vector::NullFloat(c.values(&row_ids_vec)),
-            Column::Integer(c) => Vector::NullInteger(c.values(&row_ids_vec)),
+            Column::String(c) => Values::String(c.values(&row_ids_vec)),
+            Column::Float(c) => Values::Float(c.values(&row_ids_vec)),
+            Column::Integer(c) => Values::Integer(c.values(&row_ids_vec)),
         }
     }
 
