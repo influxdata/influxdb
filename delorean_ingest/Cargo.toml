@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
+arrow = { git = "https://github.com/apache/arrow.git", rev="aa6889a74c57d6faea0d27ea8013d9b0c7ef809a", version = "2.0.0-SNAPSHOT" } 
 snafu = "0.6.2"
 env_logger = "0.7.1"
 log = "0.4.8"

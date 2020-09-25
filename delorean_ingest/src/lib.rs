@@ -508,6 +508,154 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
     packers
 }
 
+// use arrow::array;
+// use arrow::datatypes;
+// use arrow::ipc::writer;
+// use arrow::record_batch;
+// use std::fs::File;
+// use std::sync::Arc;
+
+// fn arrow_datatype(datatype: DataType) -> datatypes::DataType {
+//     match datatype {
+//         DataType::Float => datatypes::DataType::Float64,
+//         DataType::Integer => datatypes::DataType::Int64,
+//         DataType::String => datatypes::DataType::Utf8,
+//         // DataType::String => datatypes::DataType::Dictionary(
+//         //     std::boxed::Box::new(datatypes::DataType::Int16),
+//         //     std::boxed::Box::new(datatypes::DataType::Utf8),
+//         // ),
+//         DataType::Boolean => datatypes::DataType::Boolean,
+//         DataType::Timestamp => datatypes::DataType::Int64,
+//     }
+// }
+
+// fn write_arrow_file(parquet_schema: Schema, packers: Vec<Packers>) -> Result<(), Error> {
+//     let file = File::create("/tmp/http_api_requests_total.arrow").unwrap();
+
+//     let mut record_batch_fields: Vec<datatypes::Field> = vec![];
+//     // no default() on Field...
+//     record_batch_fields.resize(
+//         parquet_schema.get_col_defs().len(),
+//         datatypes::Field::new("foo", datatypes::DataType::Int64, false),
+//     );
+
+//     for col_def in parquet_schema.get_col_defs() {
+//         let nullable = col_def.data_type != DataType::Timestamp;
+//         // if col_def.data_type == DataType::Timestamp {
+//         //     nullable = false;
+//         // } else {
+//         //     nullable = true;
+//         // }
+
+//         record_batch_fields[col_def.index as usize] = datatypes::Field::new(
+//             col_def.name.as_str(),
+//             arrow_datatype(col_def.data_type),
+//             nullable,
+//         );
+//     }
+//     println!("{:?}", record_batch_fields);
+//     println!("{:?}", parquet_schema.get_col_defs());
+//     let schema = datatypes::Schema::new(record_batch_fields);
+
+//     let mut writer = writer::StreamWriter::try_new(file, &schema).unwrap();
+
+//     // let num_rows = packers[0].num_rows();
+//     let batch_size = 60_000;
+
+//     let mut packer_chunkers: Vec<PackerChunker<'_>> = vec![];
+//     for packer in &packers {
+//         packer_chunkers.push(packer.chunk_values(batch_size));
+//     }
+
+//     loop {
+//         let mut chunked_packers: Vec<Packers> = Vec::with_capacity(packers.len());
+//         for chunker in &mut packer_chunkers {
+//             match chunker {
+//                 PackerChunker::Float(c) => {
+//                     if let Some(chunk) = c.next() {
+//                         chunked_packers.push(Packers::Float(Packer::from(chunk)));
+//                     }
+//                 }
+//                 PackerChunker::Integer(c) => {
+//                     if let Some(chunk) = c.next() {
+//                         chunked_packers.push(Packers::Integer(Packer::from(chunk)));
+//                     }
+//                 }
+//                 PackerChunker::String(c) => {
+//                     if let Some(chunk) = c.next() {
+//                         chunked_packers.push(Packers::String(Packer::from(chunk)));
+//                     }
+//                 }
+//                 PackerChunker::Boolean(c) => {
+//                     if let Some(chunk) = c.next() {
+//                         chunked_packers.push(Packers::Boolean(Packer::from(chunk)));
+//                     }
+//                 }
+//             }
+//         }
+
+//         if chunked_packers.is_empty() {
+//             break;
+//         }
+
+//         // let sort = [0, 7, 6, 12];
+//         // let sort = [8, 4, 9, 0, 1, 7, 10, 6, 5, 2, 3, 12];
+//         let sort = [3, 2, 5, 6, 10, 7, 1, 0, 9, 4, 8, 12];
+//         delorean_table::sorter::sort(&mut chunked_packers, &sort).unwrap();
+
+//         println!(
+//             "Writing {:?} packers with size: {:?}",
+//             chunked_packers.len(),
+//             chunked_packers[0].num_rows()
+//         );
+//         write_arrow_batch(&mut writer, Arc::new(schema.clone()), chunked_packers);
+//     }
+
+//     writer.finish().unwrap();
+//     Ok(())
+// }
+
+// fn write_arrow_batch(
+//     w: &mut writer::StreamWriter<File>,
+//     schema: Arc<datatypes::Schema>,
+//     packers: Vec<Packers>,
+// ) {
+//     let mut record_batch_arrays: Vec<array::ArrayRef> = vec![];
+
+//     for packer in packers {
+//         match packer {
+//             Packers::Float(p) => {
+//                 record_batch_arrays.push(Arc::new(array::Float64Array::from(p.values().to_vec())));
+//             }
+//             Packers::Integer(p) => {
+//                 record_batch_arrays.push(Arc::new(array::Int64Array::from(p.values().to_vec())));
+//             }
+//             Packers::String(p) => {
+//                 let mut builder = array::StringBuilder::new(p.num_rows());
+//                 for v in p.values() {
+//                     match v {
+//                         Some(v) => {
+//                             builder.append_value(v.as_utf8().unwrap()).unwrap();
+//                         }
+//                         None => {
+//                             builder.append_null().unwrap();
+//                         }
+//                     }
+//                 }
+//                 let array = builder.finish();
+//                 record_batch_arrays.push(Arc::new(array));
+//             }
+//             Packers::Boolean(p) => {
+//                 let array = array::BooleanArray::from(p.values().to_vec());
+//                 record_batch_arrays.push(Arc::new(array));
+//             }
+//         }
+//     }
+
+//     let record_batch = record_batch::RecordBatch::try_new(schema, record_batch_arrays).unwrap();
+//     w.write(&record_batch).unwrap();
+// }
+
 /// Converts one or more TSM files into the delorean_table internal columnar
 /// data format and then passes that converted data to a `DeloreanTableWriter`.
 pub struct TSMFileConverter {

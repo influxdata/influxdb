@@ -105,6 +105,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrow"
+version = "2.0.0-SNAPSHOT"
+source = "git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a#aa6889a74c57d6faea0d27ea8013d9b0c7ef809a"
+dependencies = [
+ "arrow-flight",
+ "chrono",
+ "csv",
+ "flatbuffers",
+ "hex",
+ "indexmap",
+ "lazy_static",
+ "num 0.3.0",
+ "prettytable-rs",
+ "rand",
+ "regex",
+ "serde",
+ "serde_derive",
+ "serde_json",
+]
+
+[[package]]
+name = "arrow-flight"
+version = "2.0.0-SNAPSHOT"
+source = "git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a#aa6889a74c57d6faea0d27ea8013d9b0c7ef809a"
+dependencies = [
+ "bytes",
+ "futures",
+ "proc-macro2",
+ "prost",
+ "prost-derive",
+ "tokio",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
 name = "assert-json-diff"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -611,7 +647,7 @@ name = "datafusion"
 version = "2.0.0-SNAPSHOT"
 source = "git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d#171e8bfe5fe13467a1763227e495fae6bc5d011d"
 dependencies = [
- "arrow",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
  "chrono",
  "clap",
  "crossbeam",
@@ -637,6 +673,7 @@ dependencies = [
  "delorean_generated_types",
  "delorean_ingest",
  "delorean_line_parser",
+ "delorean_mem_qe",
  "delorean_object_store",
  "delorean_parquet",
  "delorean_partitioned_store",
@@ -677,7 +714,7 @@ dependencies = [
 name = "delorean_arrow"
 version = "0.1.0"
 dependencies = [
- "arrow",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
  "datafusion",
  "parquet",
 ]
@@ -698,6 +735,7 @@ dependencies = [
 name = "delorean_ingest"
 version = "0.1.0"
 dependencies = [
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a)",
  "delorean_line_parser",
  "delorean_table",
  "delorean_table_schema",
@@ -719,6 +757,23 @@ dependencies = [
  "log",
  "nom",
  "smallvec",
+ "snafu",
+]
+
+[[package]]
+name = "delorean_mem_qe"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "criterion",
+ "croaring",
+ "crossbeam",
+ "delorean_arrow",
+ "delorean_table",
+ "env_logger",
+ "heapsize",
+ "human_format",
+ "log",
  "snafu",
 ]
 
@@ -1254,6 +1309,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "heapsize"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1679e6ea370dee694f91f1dc469bf94cf8f52051d147aec3e1f9497c6fc22461"
+dependencies = [
+ "winapi 0.3.8",
+]
+
+[[package]]
 name = "heck"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1546,9 +1610,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.8"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14b6052be84e6b71ab17edffc2eeabf5c2c3ae1fdb464aae35ac50c67a44e1f7"
+checksum = "4fabed175da42fed1fa0746b0ea71f412aa9d35e76e95e59b192c64b9dc2bf8b"
 dependencies = [
  "cfg-if",
 ]
@@ -1982,7 +2046,7 @@ name = "parquet"
 version = "2.0.0-SNAPSHOT"
 source = "git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d#171e8bfe5fe13467a1763227e495fae6bc5d011d"
 dependencies = [
- "arrow",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
  "brotli",
  "byteorder",
  "chrono",
@@ -2757,9 +2821,9 @@ checksum = "3757cb9d89161a2f24e1cf78efa0c1fcff485d18e3f55e0aa3480824ddaa0f3f"
 
 [[package]]
 name = "snafu"
-version = "0.6.8"
+version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7f5aed652511f5c9123cf2afbe9c244c29db6effa2abb05c866e965c82405ce"
+checksum = "9c4e6046e4691afe918fd1b603fd6e515bcda5388a1092a9edbada307d159f09"
 dependencies = [
  "doc-comment",
  "futures-core",
@@ -2769,9 +2833,9 @@ dependencies = [
 
 [[package]]
 name = "snafu-derive"
-version = "0.6.8"
+version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebf8f7d5720104a9df0f7076a8682024e958bba0fe9848767bb44f251f3648e9"
+checksum = "7073448732a89f2f3e6581989106067f403d378faeafb4a50812eb814170d3e5"
 dependencies = [
  "proc-macro2",
  "quote",
