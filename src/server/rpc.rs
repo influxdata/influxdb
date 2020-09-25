@@ -19,7 +19,7 @@ use delorean_generated_types::{
     DeleteBucketResponse, GetBucketsResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
     MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Organization,
     Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse, StringValuesResponse, Tag,
-    TagKeysRequest, TagValuesRequest, TimestampRange,
+    TagKeysRequest, TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
 };
 use delorean_partitioned_store::storage::{
     partitioned_store::{PartitionKeyValues, ReadValues},
@@ -102,6 +102,13 @@ impl Delorean for GrpcServer {
             .map_err(|err| Status::internal(format!("error reading db: {}", err)))?;
 
         Ok(tonic::Response::new(GetBucketsResponse { buckets }))
+    }
+
+    async fn test_error(
+        &self,
+        _req: tonic::Request<TestErrorRequest>,
+    ) -> Result<tonic::Response<TestErrorResponse>, Status> {
+        panic!("test_error");
     }
 }
 

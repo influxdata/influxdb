@@ -17,7 +17,7 @@ use delorean_generated_types::{
     DeleteBucketResponse, GetBucketsResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
     MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Organization,
     Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse, StringValuesResponse,
-    TagKeysRequest, TagValuesRequest, TimestampRange,
+    TagKeysRequest, TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
 };
 
 // For some reason rust thinks these imports are unused, but then
@@ -120,6 +120,14 @@ where
         _req: tonic::Request<Organization>,
     ) -> Result<tonic::Response<GetBucketsResponse>, Status> {
         Err(Status::unimplemented("get_buckets"))
+    }
+
+    async fn test_error(
+        &self,
+        _req: tonic::Request<TestErrorRequest>,
+    ) -> Result<tonic::Response<TestErrorResponse>, Status> {
+        warn!("Got a test_error request. About to panic");
+        panic!("This is a test panic");
     }
 }
 
@@ -460,7 +468,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::panic::SendPanicsToTracing;
     use delorean_storage::{id::Id, test::ColumnNamesRequest, test::TestDatabaseStore};
+    use delorean_test_helpers::tracing::TracingCapture;
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -878,6 +888,76 @@ mod tests {
             predicate: None,
         });
         assert_eq!(test_db.get_column_names_request().await, expected_request);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_log_on_panic() -> Result<(), tonic::Status> {
+        // Send a message to a route that causes a panic and ensure:
+        // 1. We don't use up all executors 2. The panic message
+        // message ends up in the log system
+
+        // Normally, the global panic logger is set at program start
+        let f = SendPanicsToTracing::new();
+
+        // capture all tracing messages
+        let tracing_capture = TracingCapture::new();
+
+        // Note we use a unique port. TODO: let the OS pick the port
+        let mut fixture = Fixture::new(11812)
+            .await
+            .expect("Connecting to test server");
+
+        let request = TestErrorRequest {};
+
+        // Test response from storage server
+        let response = fixture.delorean_client.test_error(request).await;
+
+        match &response {
+            Ok(_) => {
+                panic!("Unexpected success: {:?}", response);
+            }
+            Err(status) => {
+                assert_eq!(status.code(), Code::Unknown);
+                assert!(
+                    status.message().contains("transport error"),
+                    "could not find 'transport error' in '{}'",
+                    status.message()
+                );
+            }
+        };
+
+        // Ensure that the logs captured the panic (and drop f
+        // beforehand -- if assert fails, it panics and during that
+        // panic `f` gets dropped causing a nasty error message)
+        drop(f);
+
+        let captured_logs = tracing_capture.to_string();
+        // Note we don't include the actual line / column in the
+        // expected panic message to avoid needing to update the test
+        // whenever the source code file changed.
+        let expected_error = "panicked at 'This is a test panic', src/server/write_buffer_rpc.rs:";
+        assert!(
+            captured_logs.contains(expected_error),
+            "Logs did not contain expected panic message '{}'. They were\n{}",
+            expected_error,
+            captured_logs
+        );
+
+        // Ensure that panics don't exhaust the tokio executor by
+        // running 100 times (success is if we can make a successful
+        // call after this)
+        for _ in 0usize..100 {
+            let request = TestErrorRequest {};
+
+            // Test response from storage server
+            let response = fixture.delorean_client.test_error(request).await;
+            assert!(response.is_err(), "Got an error response: {:?}", response);
+        }
+
+        // Ensure there are still threads to answer actual client queries
+        assert_eq!(HashMap::new(), fixture.storage_client.capabilities().await?);
 
         Ok(())
     }

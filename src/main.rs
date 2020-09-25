@@ -11,6 +11,7 @@ use clap::{crate_authors, crate_version, value_t, App, Arg, SubCommand};
 use delorean_parquet::writer::CompressionLevel;
 use tracing::{debug, error, warn};
 
+mod panic;
 pub mod server;
 
 mod commands {
@@ -21,6 +22,8 @@ mod commands {
     pub mod stats;
     pub mod write_buffer_server;
 }
+
+use panic::SendPanicsToTracing;
 
 enum ReturnCode {
     ConversionFailed = 1,
@@ -134,6 +137,9 @@ Examples:
         .get_matches();
 
     setup_logging(matches.occurrences_of("verbose"));
+    // Install custom panic handler (note can not use `_` otherwise
+    // drop will be called immediately).
+    let _f = SendPanicsToTracing::new();
 
     match matches.subcommand() {
         ("convert", Some(sub_matches)) => {

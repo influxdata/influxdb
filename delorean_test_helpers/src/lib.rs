@@ -9,6 +9,8 @@
 use std::{env, f64};
 pub use tempfile;
 
+pub mod tracing;
+
 pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T = (), E = Error> = std::result::Result<T, E>;
 

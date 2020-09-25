@@ -872,6 +872,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]

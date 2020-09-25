@@ -51,11 +51,19 @@ message IndexLevel {
     string timezone = 2;
 }
 
+// Send a message that will generate an internal error (used for testing)
+message TestErrorRequest {
+}
+
+message TestErrorResponse {
+}
+
 
 service Delorean {
     rpc CreateBucket(CreateBucketRequest) returns (CreateBucketResponse) {}
     rpc DeleteBucket(DeleteBucketRequest) returns (DeleteBucketResponse) {}
     rpc GetBuckets(Organization) returns (GetBucketsResponse) {}
+    rpc TestError(TestErrorRequest) returns (TestErrorResponse) {}
 }
 
 // The following section is taken from InfluxDB so this server can implement the storage RPC. From here:
