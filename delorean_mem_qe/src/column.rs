@@ -272,9 +272,9 @@ pub trait AggregatableByRange {
     ) -> Aggregate;
 }
 
-/// A Vector is a materialised vector of values from a column.
-pub enum Vector<'a> {
-    NullString(Vec<&'a Option<std::string::String>>),
+/// A Vector is a materialised vector of scalar values from a column.
+pub enum Vector {
+    // NullString(Vec<&'a Option<std::string::String>>),
     NullFloat(Vec<Option<f64>>),
     NullInteger(Vec<Option<i64>>),
 
@@ -292,7 +292,7 @@ pub enum Vector<'a> {
     //
 }
 
-impl<'a> Vector<'a> {
+impl Vector {
     pub fn aggregate_by_id_range(
         &self,
         agg_type: &AggregateType,
@@ -311,9 +311,9 @@ impl<'a> Vector<'a> {
     // are no non-null values in the vector being summed then None is returned.
     fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<Scalar> {
         match self {
-            Self::NullString(_) => {
-                panic!("can't sum strings....");
-            }
+            // Self::NullString(_) => {
+            //     panic!("can't sum strings....");
+            // }
             Self::NullFloat(values) => {
                 let mut res = 0.0;
                 let mut found = false; // TODO(edd): check if this is faster than a match.
@@ -382,15 +382,15 @@ impl<'a> Vector<'a> {
     // to the count.
     fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> u64 {
         match self {
-            Self::NullString(vec) => {
-                let mut count = 0;
-                for v in &vec[from_row_id..to_row_id] {
-                    if v.is_some() {
-                        count += 1;
-                    }
-                }
-                count as u64
-            }
+            // Self::NullString(vec) => {
+            //     let mut count = 0;
+            //     for v in &vec[from_row_id..to_row_id] {
+            //         if v.is_some() {
+            //             count += 1;
+            //         }
+            //     }
+            //     count as u64
+            // }
             Self::NullFloat(vec) => {
                 let mut count = 0;
                 for v in &vec[from_row_id..to_row_id] {
@@ -423,13 +423,13 @@ impl<'a> Vector<'a> {
 
     pub fn extend(&mut self, other: Self) {
         match self {
-            Self::NullString(v) => {
-                if let Self::NullString(other) = other {
-                    v.extend(other);
-                } else {
-                    unreachable!("string can't be extended");
-                }
-            }
+            // Self::NullString(v) => {
+            //     if let Self::NullString(other) = other {
+            //         v.extend(other);
+            //     } else {
+            //         unreachable!("string can't be extended");
+            //     }
+            // }
             Self::NullFloat(v) => {
                 if let Self::NullFloat(other) = other {
                     v.extend(other);
@@ -474,7 +474,7 @@ impl<'a> Vector<'a> {
 
     pub fn len(&self) -> usize {
         match self {
-            Self::NullString(v) => v.len(),
+            // Self::NullString(v) => v.len(),
             Self::NullFloat(v) => v.len(),
             Self::NullInteger(v) => v.len(),
             Self::Float(v) => v.len(),
@@ -485,33 +485,12 @@ impl<'a> Vector<'a> {
 
     /// Return the value within the vector at position `i`. If the value at
     /// position `i` is NULL then `None` is returned.
-    pub fn get(&self, i: usize) -> Value<'a> {
+    pub fn get(&self, i: usize) -> Option<Scalar> {
         match self {
-            Self::NullString(v) => match v[i] {
-                Some(v) => Value::String(v),
-                None => Value::Null, // Scalar::String(v[i].as_ref().unwrap()),
-            },
-            Self::NullFloat(v) => match v[i] {
-                Some(v) => Value::Scalar(Scalar::Float(v)),
-                None => Value::Null,
-            },
-            Self::NullInteger(v) => match v[i] {
-                Some(v) => Value::Scalar(Scalar::Integer(v)),
-                None => Value::Null,
-            },
-            Self::Float(v) => Value::Scalar(Scalar::Float(v[i])),
-            Self::Integer(v) => Value::Scalar(Scalar::Integer(v[i])),
-            Self::Unsigned32(v) => Value::Scalar(Scalar::Unsigned32(v[i])),
-        }
-    }
-
-    /// Return the value within the vector at position `i`. If the value at
-    /// position `i` is NULL then `None` is returned.
-    //
-    // TODO - sort out
-    pub fn get_scalar(&self, i: usize) -> Option<Scalar> {
-        match self {
-            Self::NullString(_) => panic!("unsupported get_scalar"),
+            // Self::NullString(v) => match v[i] {
+            //     Some(v) => Value::String(v),
+            //     None => Value::Null, // Scalar::String(v[i].as_ref().unwrap()),
+            // },
             Self::NullFloat(v) => match v[i] {
                 Some(v) => Some(Scalar::Float(v)),
                 None => None,
@@ -526,11 +505,32 @@ impl<'a> Vector<'a> {
         }
     }
 
+    /// Return the value within the vector at position `i`. If the value at
+    /// position `i` is NULL then `None` is returned.
+    //
+    // TODO - sort out
+    // pub fn get_scalar(&self, i: usize) -> Option<Scalar> {
+    //     match self {
+    //         Self::NullString(_) => panic!("unsupported get_scalar"),
+    //         Self::NullFloat(v) => match v[i] {
+    //             Some(v) => Some(Scalar::Float(v)),
+    //             None => None,
+    //         },
+    //         Self::NullInteger(v) => match v[i] {
+    //             Some(v) => Some(Scalar::Integer(v)),
+    //             None => None,
+    //         },
+    //         Self::Float(v) => Some(Scalar::Float(v[i])),
+    //         Self::Integer(v) => Some(Scalar::Integer(v[i])),
+    //         Self::Unsigned32(v) => Some(Scalar::Unsigned32(v[i])),
+    //     }
+    // }
+
     pub fn swap(&mut self, a: usize, b: usize) {
         match self {
-            Self::NullString(v) => {
-                v.swap(a, b);
-            }
+            // Self::NullString(v) => {
+            //     v.swap(a, b);
+            // }
             Self::NullFloat(v) => {
                 v.swap(a, b);
             }
@@ -550,7 +550,7 @@ impl<'a> Vector<'a> {
     }
 }
 
-impl AggregatableByRange for &Vector<'_> {
+impl AggregatableByRange for &Vector {
     fn aggregate_by_id_range(
         &self,
         agg_type: &AggregateType,
@@ -561,18 +561,18 @@ impl AggregatableByRange for &Vector<'_> {
     }
 }
 
-pub struct VectorIterator<'a> {
-    v: &'a Vector<'a>,
+pub struct VectorIterator {
+    v: Vector,
     next_i: usize,
 }
 
-impl<'a> VectorIterator<'a> {
-    pub fn new(v: &'a Vector<'a>) -> Self {
+impl VectorIterator {
+    pub fn new(v: Vector) -> Self {
         Self { v, next_i: 0 }
     }
 }
-impl<'a> Iterator for VectorIterator<'a> {
-    type Item = Value<'a>;
+impl Iterator for VectorIterator {
+    type Item = Option<Scalar>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let curr_i = self.next_i;
@@ -591,37 +591,36 @@ impl<'a> Iterator for VectorIterator<'a> {
 ///
 ///
 /// TODO - need to figure this out - currently only returns scalars
-pub struct NullVectorIterator<'a> {
-    v: &'a Vector<'a>,
-    next_i: usize,
-}
+// pub struct NullVectorIterator {
+//     v: Vector,
+//     next_i: usize,
+// }
 
-impl<'a> NullVectorIterator<'a> {
-    pub fn new(v: &'a Vector<'a>) -> Self {
-        Self { v, next_i: 0 }
-    }
-}
-impl<'a> Iterator for NullVectorIterator<'a> {
-    type Item = Option<Scalar>;
+// impl NullVectorIterator {
+//     pub fn new(v: Vector) -> Self {
+//         Self { v, next_i: 0 }
+//     }
+// }
+// impl Iterator for NullVectorIterator {
+//     type Item = Option<Scalar>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let curr_i = self.next_i;
-        self.next_i += 1;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let curr_i = self.next_i;
+//         self.next_i += 1;
 
-        if curr_i == self.v.len() {
-            return None;
-        }
+//         if curr_i == self.v.len() {
+//             return None;
+//         }
 
-        Some(self.v.get_scalar(curr_i))
-    }
-}
-
+//         Some(self.v.get_scalar(curr_i))
+//     }
+// }
 use chrono::prelude::*;
 
-impl<'a> std::fmt::Display for Vector<'a> {
+impl std::fmt::Display for Vector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NullString(v) => write!(f, "{:?}", v),
+            // Self::NullString(v) => write!(f, "{:?}", v),
             Self::NullFloat(v) => write!(f, "{:?}", v),
             Self::NullInteger(v) => {
                 for x in v.iter() {
@@ -723,14 +722,15 @@ impl Column {
     // which take up more memory and mean we can't do fast counts (since we need
     // to check each value is non-null).
     //
-    pub fn values(&self, row_ids: &[usize]) -> Vector<'_> {
+    pub fn values(&self, row_ids: &[usize]) -> Vector {
         match self {
             Column::String(c) => {
-                if row_ids.is_empty() {
-                    return Vector::NullString(vec![]);
-                }
+                panic!("unsupported at the moment")
+                // if row_ids.is_empty() {
+                //     return Vector::NullString(vec![]);
+                // }
 
-                Vector::NullString(c.values(row_ids))
+                // Vector::NullString(c.values(row_ids))
             }
             Column::Float(c) => {
                 if row_ids.is_empty() {
@@ -758,19 +758,20 @@ impl Column {
 
     /// Materialise all of the decoded values matching the provided logical
     /// row ids within the bitmap
-    pub fn values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector<'_> {
+    pub fn values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector {
         match self {
             Column::String(c) => {
-                if row_ids.is_empty() {
-                    return Vector::NullString(vec![]);
-                }
+                unreachable!("unsupported at the moment");
+                // if row_ids.is_empty() {
+                //     return Vector::NullString(vec![]);
+                // }
 
-                let row_id_vec = row_ids
-                    .to_vec()
-                    .iter()
-                    .map(|v| *v as usize)
-                    .collect::<Vec<_>>();
-                Vector::NullString(c.values(&row_id_vec))
+                // let row_id_vec = row_ids
+                //     .to_vec()
+                //     .iter()
+                //     .map(|v| *v as usize)
+                //     .collect::<Vec<_>>();
+                // Vector::NullString(c.values(&row_id_vec))
             }
             Column::Float(c) => {
                 if row_ids.is_empty() {
@@ -801,7 +802,7 @@ impl Column {
 
     /// Materialise all of the encoded values matching the provided logical
     /// row ids.
-    pub fn encoded_values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector<'_> {
+    pub fn encoded_values_bitmap(&self, row_ids: &croaring::Bitmap) -> Vector {
         let now = std::time::Instant::now();
         let row_ids_vec = row_ids
             .to_vec()
@@ -840,7 +841,7 @@ impl Column {
 
     /// Materialise all of the encoded values matching the provided logical
     /// row ids.
-    pub fn encoded_values(&self, row_ids: &[usize]) -> Vector<'_> {
+    pub fn encoded_values(&self, row_ids: &[usize]) -> Vector {
         match self {
             Column::String(c) => {
                 if row_ids.is_empty() {
@@ -872,7 +873,7 @@ impl Column {
     }
 
     /// Materialise all of the encoded values.
-    pub fn all_encoded_values(&self) -> Vector<'_> {
+    pub fn all_encoded_values(&self) -> Vector {
         match self {
             Column::String(c) => {
                 let now = std::time::Instant::now();
@@ -908,7 +909,7 @@ impl Column {
     }
 
     /// materialise rows for each row_id
-    pub fn rows(&self, row_ids: &croaring::Bitmap) -> Vector<'_> {
+    pub fn rows(&self, row_ids: &croaring::Bitmap) -> Vector {
         let now = std::time::Instant::now();
         let row_ids_vec = row_ids
             .to_vec()
@@ -924,7 +925,7 @@ impl Column {
             row_ids_vec[0]
         );
         match self {
-            Column::String(c) => Vector::NullString(c.values(&row_ids_vec)),
+            Column::String(c) => panic!("unsupported"), //Vector::NullString(c.values(&row_ids_vec)),
             Column::Float(c) => Vector::NullFloat(c.values(&row_ids_vec)),
             Column::Integer(c) => Vector::NullInteger(c.values(&row_ids_vec)),
         }
