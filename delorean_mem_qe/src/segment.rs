@@ -264,7 +264,7 @@ impl Segment {
         group_columns: &[String],
         aggregates: &'a [(String, AggregateType)],
         window: i64,
-    ) -> BTreeMap<Vec<i64>, Vec<(&'a String, &'a AggregateType, column::Aggregate)>> {
+    ) -> BTreeMap<Vec<i64>, Vec<(&'a String, column::Aggregate)>> {
         // Build a hash table - essentially, scan columns for matching row ids,
         // emitting the encoded value for each column and track those value
         // combinations in a hashmap with running aggregates.
@@ -318,7 +318,6 @@ impl Segment {
                 panic!("need to handle no results for filtering/grouping...");
             }
         }
-        // println!("grouped columns {:?}", group_column_encoded_values);
 
         // TODO(edd): we could do this with an iterator I expect.
         //
@@ -373,10 +372,8 @@ impl Segment {
             .collect::<Vec<_>>();
 
         // hashMap is about 20% faster than BTreeMap in this case
-        let mut hash_table: BTreeMap<
-            Vec<i64>,
-            Vec<(&'a String, &'a AggregateType, column::Aggregate)>,
-        > = BTreeMap::new();
+        let mut hash_table: BTreeMap<Vec<i64>, Vec<(&'a String, column::Aggregate)>> =
+            BTreeMap::new();
 
         let mut aggregate_row: Vec<(&str, Option<column::Scalar>)> =
             std::iter::repeat_with(|| ("", None))
@@ -424,12 +421,11 @@ impl Segment {
 
             // This is cheaper than allocating a key and using the entry API
             if !hash_table.contains_key(&group_key) {
-                let mut agg_results: Vec<(&'a String, &'a AggregateType, column::Aggregate)> =
+                let mut agg_results: Vec<(&'a String, column::Aggregate)> =
                     Vec::with_capacity(aggregates.len());
                 for (col_name, agg_type) in aggregates {
                     agg_results.push((
                         col_name,
-                        agg_type,
                         match agg_type {
                             AggregateType::Count => column::Aggregate::Count(0),
                             AggregateType::Sum => column::Aggregate::Sum(None),
@@ -445,7 +441,7 @@ impl Segment {
             //
             // TODO(edd): this is probably a bit of a perf suck.
             for (col_name, row_value) in &aggregate_row {
-                for &mut (cum_col_name, _, ref mut cum_agg_value) in group_key_entry.iter_mut() {
+                for &mut (cum_col_name, ref mut cum_agg_value) in group_key_entry.iter_mut() {
                     if col_name != cum_col_name {
                         continue;
                     }
@@ -465,33 +461,13 @@ impl Segment {
                             }
                         }
                     }
-                    // match cum_agg_value {
-                    //     Some(agg) => match agg {
-                    //         column::Aggregate::Count(_) => {
-                    //             *cum_agg_value = Some(agg + column::Aggregate::Count(Some(1)));
-                    //         }
-                    //         column::Aggregate::Sum(cum_sum) => {
-                    //             *cum_sum += row_value;
-                    //         }
-                    //     },
-                    //     None => {
-                    //         *cum_agg_value = match agg_type {
-                    //             AggregateType::Count => Some(column::Aggregate::Count(Some(0))),
-                    //             AggregateType::Sum => {
-                    //                 Some(column::Aggregate::Sum(row_value.clone()))
-                    //             }
-                    //         }
-                    //     }
-                    // }
                 }
             }
             processed_rows += 1;
         }
-        // println!("groups: {:?}", hash_table.len());
-        log::debug!("({:?} rows processed) {:?}", processed_rows, hash_table);
-        BTreeMap::new()
 
-        // hash_table
+        log::debug!("({:?} rows processed) {:?}", processed_rows, hash_table);
+        hash_table
     }
 
     pub fn aggregate_by_group_using_sort(
@@ -597,18 +573,6 @@ impl Segment {
         let group_col_sort_order = &(0..group_columns.len()).collect::<Vec<_>>();
         super::sorter::sort(&mut all_columns, group_col_sort_order).unwrap();
 
-        // let group_itrs = all_columns
-        //     .iter()
-        //     .take(group_columns.len()) // only use grouping columns
-        //     .map(|vector| {
-        //         if let column::Vector::Integer(v) = vector {
-        //             v.iter()
-        //         } else {
-        //             panic!("don't support grouping on non-encoded values");
-        //         }
-        //     })
-        //     .collect::<Vec<_>>();
-
         let group_itrs = all_columns
             .iter()
             .take(group_columns.len())
@@ -706,17 +670,6 @@ impl Segment {
             })
             .collect::<Vec<_>>();
 
-        // let group_itrs = group_column_encoded_values
-        //     .iter()
-        //     .map(|vector| {
-        //         if let column::Vector::Integer(v) = vector {
-        //             v.iter()
-        //         } else {
-        //             panic!("don't support grouping on non-encoded values");
-        //         }
-        //     })
-        //     .collect::<Vec<_>>();
-
         let mut aggregate_cols = Vec::with_capacity(aggregates.len());
         for (column_name, agg_type) in aggregates {
             aggregate_cols.push((column_name, agg_type, self.column(&column_name).unwrap()));
@@ -741,12 +694,6 @@ impl Segment {
             .iter_mut()
             .enumerate()
             .map(|(i, itr)| {
-                // if i == group_itrs_len - 1 && window > 0 {
-                //     // time column - apply window function
-                //     return itr.next().unwrap() / window * window;
-                // }
-                // *itr.next().unwrap()
-
                 if i == group_itrs_len - 1 && window > 0 {
                     // time column - apply window function
                     if let Some(column::Value::Scalar(column::Scalar::Integer(v))) = itr.next() {
@@ -785,12 +732,6 @@ impl Segment {
                 .zip(group_itrs.iter_mut())
                 .enumerate()
             {
-                // let next_v = if i == group_itrs_len - 1 && window > 0 {
-                //     // time column - apply window function
-                //     itr.next().unwrap() / window * window
-                // } else {
-                //     *itr.next().unwrap()
-                // };
                 let next_v = if i == group_itrs_len - 1 && window > 0 {
                     // time column - apply window function
                     if let Some(column::Value::Scalar(column::Scalar::Integer(v))) = itr.next() {
@@ -864,7 +805,6 @@ impl Segment {
             aggregates: group_key_aggregates,
         });
 
-        // println!("groups: {:?}", results.len());
         log::debug!("({:?} rows processed) {:?}", processed_rows, results);
         // results
         vec![]
