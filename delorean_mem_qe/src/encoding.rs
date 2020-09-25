@@ -1055,10 +1055,7 @@ mod test {
             arr: super::PrimitiveArray::from(vec![Some(2.3), Some(44.56), None]),
         };
 
-        // let encoded = col.all();
-        // assert_eq!(encoded, vec![Some(2.3), Some(44.56), None]);
-
-        let sum = col.sum_by_id_range(0, 1);
+        let sum = col.sum_by_id_range(0, 2);
         assert_eq!(sum, Some(46.86));
     }
 
