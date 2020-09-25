@@ -9,6 +9,7 @@ builds:
       - arm64
       - arm
     goarm:
+      - 5
       - 6
 
     main: ./cmd/influx/
@@ -33,6 +34,7 @@ builds:
       - arm64
       - arm
     goarm:
+      - 5
       - 6
 
     main: ./cmd/influxd/
@@ -49,13 +51,6 @@ builds:
     binary: influxd
     hooks:
       pre: make generate
-
-signs:
-  -
-    signature: "${artifact}.asc"
-    cmd: gpg
-    args: ["--armor", "--detach-sign", "${artifact}"]
-    artifacts: all
 
 nfpms:
   -
