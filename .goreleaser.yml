@@ -50,13 +50,6 @@ builds:
     hooks:
       pre: make generate
 
-signs:
-  -
-    signature: "${artifact}.asc"
-    cmd: gpg
-    args: ["--armor", "--detach-sign", "${artifact}"]
-    artifacts: all
-
 nfpms:
   -
     id: "influxdata"
