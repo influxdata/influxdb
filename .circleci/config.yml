@@ -521,8 +521,10 @@ jobs:
       - run:
           name: import GPG key
           command:  |
-            echo -e "$GPG_KEY" > private.key
+            echo -e "$GPG_PRIVATE_KEY" > private.key
+            echo -e "GPG_PUBLIC_KEY" > public.key
             gpg --batch --import private.key
+            gpg --batch --import public.key
       - run:
           name: "Build release"
           command: make gershon-release
