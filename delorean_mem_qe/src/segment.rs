@@ -260,11 +260,11 @@ impl Segment {
     pub fn aggregate_by_group_with_hash<'a>(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<column::Scalar<'a>>)],
+        predicates: &[(&str, &str)],
         group_columns: &[String],
         aggregates: &'a [(String, AggregateType)],
         window: i64,
-    ) -> BTreeMap<Vec<i64>, Vec<(&'a String, &'a AggregateType, column::Aggregate<'a>)>> {
+    ) -> BTreeMap<Vec<i64>, Vec<(&'a String, &'a AggregateType, column::Aggregate)>> {
         // Build a hash table - essentially, scan columns for matching row ids,
         // emitting the encoded value for each column and track those value
         // combinations in a hashmap with running aggregates.
@@ -375,10 +375,10 @@ impl Segment {
         // hashMap is about 20% faster than BTreeMap in this case
         let mut hash_table: BTreeMap<
             Vec<i64>,
-            Vec<(&'a String, &'a AggregateType, column::Aggregate<'_>)>,
+            Vec<(&'a String, &'a AggregateType, column::Aggregate)>,
         > = BTreeMap::new();
 
-        let mut aggregate_row: Vec<(&str, Option<column::Scalar<'_>>)> =
+        let mut aggregate_row: Vec<(&str, Option<column::Scalar>)> =
             std::iter::repeat_with(|| ("", None))
                 .take(aggregate_itrs.len())
                 .collect();
@@ -424,7 +424,7 @@ impl Segment {
 
             // This is cheaper than allocating a key and using the entry API
             if !hash_table.contains_key(&group_key) {
-                let mut agg_results: Vec<(&'a String, &'a AggregateType, column::Aggregate<'_>)> =
+                let mut agg_results: Vec<(&'a String, &'a AggregateType, column::Aggregate)> =
                     Vec::with_capacity(aggregates.len());
                 for (col_name, agg_type) in aggregates {
                     agg_results.push((
@@ -497,7 +497,7 @@ impl Segment {
     pub fn aggregate_by_group_using_sort(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<column::Scalar<'_>>)],
+        predicates: &[(&str, &str)],
         group_columns: &[String],
         aggregates: &[(String, AggregateType)],
         window: i64,
@@ -642,7 +642,7 @@ impl Segment {
     pub fn aggregate_by_group_using_stream<'a>(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<column::Scalar<'_>>)],
+        predicates: &[(&str, &str)],
         group_columns: &[String],
         aggregates: &[(String, AggregateType)],
         window: i64,
@@ -870,11 +870,7 @@ impl Segment {
         vec![]
     }
 
-    pub fn sum_column(
-        &self,
-        name: &str,
-        row_ids: &mut croaring::Bitmap,
-    ) -> Option<column::Scalar<'_>> {
+    pub fn sum_column(&self, name: &str, row_ids: &mut croaring::Bitmap) -> Option<column::Scalar> {
         if let Some(c) = self.column(name) {
             return c.sum_by_ids(row_ids);
         }
@@ -892,7 +888,7 @@ impl Segment {
     pub fn filter_by_predicates_eq(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<column::Scalar<'_>>)],
+        predicates: &[(&str, &str)],
     ) -> Option<croaring::Bitmap> {
         if !self.meta.overlaps_time_range(time_range.0, time_range.1) {
             return None; // segment doesn't have time range
@@ -904,27 +900,27 @@ impl Segment {
             // so don't  need to intersect predicate results with time column.
             return self.filter_by_predicates_eq_no_time(predicates);
         }
-        self.filter_by_predicates_eq_time(time_range, predicates.to_vec())
+        self.filter_by_predicates_eq_time(time_range, predicates)
     }
 
     fn filter_by_predicates_eq_time(
         &self,
         time_range: (i64, i64),
-        predicates: Vec<(&str, Option<column::Scalar<'_>>)>,
+        predicates: &[(&str, &str)],
     ) -> Option<croaring::Bitmap> {
         // Get all row_ids matching the time range:
         //
         //  time > time_range.0 AND time < time_range.1
         let mut bm = self.columns[self.time_column_idx].row_ids_gte_lt(
-            &column::Scalar::Integer(time_range.0),
-            &column::Scalar::Integer(time_range.1),
+            &column::Value::Scalar(column::Scalar::Integer(time_range.0)),
+            &column::Value::Scalar(column::Scalar::Integer(time_range.1)),
         )?;
         log::debug!("time col bitmap contains {:?} values out of {:?} rows. requested range was {:?}, meta range is {:?}",bm.cardinality(),self.num_rows(), time_range, self.meta.time_range);
 
         // now intersect matching rows for each column
         for (col_pred_name, col_pred_value) in predicates {
             if let Some(c) = self.column(col_pred_name) {
-                match c.row_ids_eq(&col_pred_value) {
+                match c.row_ids_eq(&column::Value::String(col_pred_value)) {
                     Some(row_ids) => {
                         if row_ids.is_empty() {
                             return None;
@@ -949,7 +945,7 @@ impl Segment {
     // meta row_ids bitmap.
     fn filter_by_predicates_eq_no_time(
         &self,
-        predicates: &[(&str, Option<column::Scalar<'_>>)],
+        predicates: &[(&str, &str)],
     ) -> Option<croaring::Bitmap> {
         if predicates.is_empty() {
             // In this case there are no predicates provided and we have no time
@@ -963,7 +959,7 @@ impl Segment {
         // now intersect matching rows for each column
         for (col_pred_name, col_pred_value) in predicates {
             if let Some(c) = self.column(col_pred_name) {
-                match c.row_ids_eq(col_pred_value) {
+                match c.row_ids_eq(&column::Value::String(col_pred_value)) {
                     Some(row_ids) => {
                         if row_ids.is_empty() {
                             return None;
@@ -992,10 +988,10 @@ impl Segment {
     pub fn group_single_agg_by_predicate_eq(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<column::Scalar<'_>>)],
+        predicates: &[(&str, &str)],
         group_column: &str,
         aggregates: &[(String, column::AggregateType)],
-    ) -> BTreeMap<u32, Vec<((String, AggregateType), column::Aggregate<'_>)>> {
+    ) -> BTreeMap<u32, Vec<((String, AggregateType), column::Aggregate)>> {
         let mut grouped_results = BTreeMap::new();
 
         let filter_row_ids: croaring::Bitmap;
@@ -1011,7 +1007,7 @@ impl Segment {
                 let mut filtered_row_ids = row_ids.and(&filter_row_ids);
                 if !filtered_row_ids.is_empty() {
                     // First calculate all of the aggregates for this grouped value
-                    let mut aggs: Vec<((String, AggregateType), column::Aggregate<'_>)> =
+                    let mut aggs: Vec<((String, AggregateType), column::Aggregate)> =
                         Vec::with_capacity(aggregates.len());
 
                     for (col_name, agg) in aggregates {
@@ -1083,13 +1079,8 @@ impl Segment {
             todo!("fast path")
         }
 
-        let pred_vec = predicates
-            .iter()
-            .map(|p| (p.0, Some(column::Scalar::String(p.1))))
-            .collect::<Vec<_>>();
-
         let filtered_row_ids: croaring::Bitmap;
-        if let Some(row_ids) = self.filter_by_predicates_eq(time_range, pred_vec.as_slice()) {
+        if let Some(row_ids) = self.filter_by_predicates_eq(time_range, predicates) {
             filtered_row_ids = row_ids;
         } else {
             return None; // no matching rows for predicate + time range
@@ -1159,13 +1150,8 @@ impl Segment {
             todo!("fast path")
         }
 
-        let pred_vec = predicates
-            .iter()
-            .map(|p| (p.0, Some(column::Scalar::String(p.1))))
-            .collect::<Vec<_>>();
-
         let filtered_row_ids: croaring::Bitmap;
-        if let Some(row_ids) = self.filter_by_predicates_eq(time_range, pred_vec.as_slice()) {
+        if let Some(row_ids) = self.filter_by_predicates_eq(time_range, predicates) {
             filtered_row_ids = row_ids;
         } else {
             return None; // no matching rows for predicate + time range
@@ -1302,7 +1288,7 @@ impl<'a> Segments<'a> {
     pub fn read_filter_eq(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<column::Scalar<'_>>)],
+        predicates: &[(&str, &str)],
         select_columns: Vec<String>,
     ) -> BTreeMap<String, column::Vector<'_>> {
         let (min, max) = time_range;
@@ -1338,12 +1324,12 @@ impl<'a> Segments<'a> {
     pub fn read_group_eq(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<column::Scalar<'a>>)],
+        predicates: &[(&str, &str)],
         group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
         strategy: &GroupingStrategy,
-    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate<'a>)>> {
+    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate)>> {
         let (min, max) = time_range;
         if max <= min {
             panic!("max <= min");
@@ -1388,12 +1374,12 @@ impl<'a> Segments<'a> {
     fn read_group_eq_hash(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<column::Scalar<'a>>)],
+        predicates: &[(&str, &str)],
         mut group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
         concurrent: bool,
-    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate<'a>)>> {
+    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate)>> {
         if window > 0 {
             // add time column to the group key
             group_columns.push("time".to_string());
@@ -1474,12 +1460,12 @@ impl<'a> Segments<'a> {
     fn read_group_eq_sort(
         &self,
         time_range: (i64, i64),
-        predicates: &[(&str, Option<column::Scalar<'a>>)],
+        predicates: &[(&str, &str)],
         mut group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
         concurrent: bool,
-    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate<'a>)>> {
+    ) -> BTreeMap<Vec<String>, Vec<((String, column::AggregateType), column::Aggregate)>> {
         if window > 0 {
             // add time column to the group key
             group_columns.push("time".to_string());
@@ -1611,16 +1597,16 @@ impl<'a> Segments<'a> {
     }
 
     /// Returns the minimum value for a column in a set of segments.
-    pub fn column_min(&self, column_name: &str) -> Option<column::Scalar<'_>> {
+    pub fn column_min(&self, column_name: &str) -> column::Value<'_> {
         if self.segments.is_empty() {
-            return None;
+            return column::Value::Null;
         }
 
-        let mut min_min: Option<column::Scalar<'_>> = None;
+        let mut min_min = column::Value::Null;
         for segment in &self.segments {
             if let Some(i) = segment.column_names().iter().position(|c| c == column_name) {
                 let min = segment.columns[i].min();
-                if min_min.is_none() {
+                if let column::Value::Null = min_min {
                     min_min = min
                 } else if min_min > min {
                     min_min = min;
@@ -1632,17 +1618,17 @@ impl<'a> Segments<'a> {
     }
 
     /// Returns the maximum value for a column in a set of segments.
-    pub fn column_max(&self, column_name: &str) -> Option<column::Scalar<'_>> {
+    pub fn column_max(&self, column_name: &str) -> column::Value<'_> {
         if self.segments.is_empty() {
-            return None;
+            return column::Value::Null;
         }
 
-        let mut max_max: Option<column::Scalar<'_>> = None;
+        let mut max_max = column::Value::Null;
         for segment in &self.segments {
             if let Some(i) = segment.column_names().iter().position(|c| c == column_name) {
                 let max = segment.columns[i].max();
-                if max_max.is_none() {
-                    max_max = max
+                if let column::Value::Null = max_max {
+                    max_max = max;
                 } else if max_max < max {
                     max_max = max;
                 }
@@ -1660,7 +1646,7 @@ impl<'a> Segments<'a> {
     /// If the time column has multiple max time values then the result is abitrary.
     ///
     /// TODO(edd): could return NULL value..
-    pub fn first(&self, column_name: &str) -> Option<(i64, Option<column::Scalar<'_>>, usize)> {
+    pub fn first(&self, column_name: &str) -> Option<(i64, column::Value<'_>, usize)> {
         // First let's find the segment with the earliest time range.
         // notice we order  a < b on max time range.
         let segment = self
@@ -1689,10 +1675,10 @@ impl<'a> Segments<'a> {
     /// The last value is based on the time column, therefore the returned value
     /// may not be at the end of the column.
     ///
-    /// If the time column has multiple max time values then the result is abitrary.
+    /// If the time column has multiple max time values then the result is undefined.
     ///
     /// TODO(edd): could return NULL value..
-    pub fn last(&self, column_name: &str) -> Option<(i64, Option<column::Scalar<'_>>, usize)> {
+    pub fn last(&self, column_name: &str) -> Option<(i64, column::Value<'_>, usize)> {
         // First let's find the segment with the latest time range.
         // notice we order a > b on max time range.
         let segment = self
@@ -1804,7 +1790,7 @@ pub enum GroupingStrategy {
 #[derive(Debug)]
 pub struct GroupedAggregates<'a> {
     pub group_key: Vec<i64>,
-    pub aggregates: Vec<(&'a String, column::Aggregate<'a>)>,
+    pub aggregates: Vec<(&'a String, column::Aggregate)>,
 }
 
 #[cfg(test)]

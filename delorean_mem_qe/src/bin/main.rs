@@ -380,7 +380,7 @@ fn time_select_with_pred(store: &Store) {
 
         let columns = segments.read_filter_eq(
             (1590036110000000, 1590040770000000),
-            &[("env", Some(column::Scalar::String("prod01-eu-central-1")))],
+            &[("env", "prod01-eu-central-1")],
             vec![
                 "env".to_string(),
                 "method".to_string(),

@@ -15,23 +15,19 @@ pub enum Set<'a> {
 pub enum Value<'a> {
     Null,
     String(&'a str),
-    Scalar(Scalar<'a>),
+    Scalar(Scalar),
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub enum Scalar<'a> {
-    String(&'a str),
+pub enum Scalar {
     Float(f64),
     Integer(i64),
     Unsigned32(u32),
 }
 
-impl<'a> Scalar<'a> {
+impl Scalar {
     pub fn reset(&mut self) {
         match self {
-            Scalar::String(_s) => {
-                panic!("not supported");
-            }
             Scalar::Float(v) => {
                 *v = 0.0;
             }
@@ -44,7 +40,7 @@ impl<'a> Scalar<'a> {
         }
     }
 
-    pub fn add(&mut self, other: Scalar<'a>) {
+    pub fn add(&mut self, other: Scalar) {
         match self {
             Self::Float(v) => {
                 if let Self::Float(other) = other {
@@ -67,17 +63,14 @@ impl<'a> Scalar<'a> {
                     panic!("invalid");
                 };
             }
-            Self::String(_) => {
-                unreachable!("not possible to add strings");
-            }
         }
     }
 }
 
-impl<'a> std::ops::Add<&Scalar<'a>> for &mut Scalar<'a> {
-    type Output = Scalar<'a>;
+impl<'a> std::ops::Add<&Scalar> for &mut Scalar {
+    type Output = Scalar;
 
-    fn add(self, _rhs: &Scalar<'a>) -> Self::Output {
+    fn add(self, _rhs: &Scalar) -> Self::Output {
         match *self {
             Scalar::Float(v) => {
                 if let Scalar::Float(other) = _rhs {
@@ -100,17 +93,14 @@ impl<'a> std::ops::Add<&Scalar<'a>> for &mut Scalar<'a> {
                     panic!("invalid");
                 }
             }
-            Scalar::String(_) => {
-                unreachable!("not possible to add strings");
-            }
         }
     }
 }
 
-impl<'a> std::ops::Add<&Scalar<'a>> for Scalar<'a> {
-    type Output = Scalar<'a>;
+impl<'a> std::ops::Add<&Scalar> for Scalar {
+    type Output = Scalar;
 
-    fn add(self, _rhs: &Scalar<'a>) -> Self::Output {
+    fn add(self, _rhs: &Scalar) -> Self::Output {
         match self {
             Self::Float(v) => {
                 if let Self::Float(other) = _rhs {
@@ -133,15 +123,12 @@ impl<'a> std::ops::Add<&Scalar<'a>> for Scalar<'a> {
                     panic!("invalid");
                 }
             }
-            Self::String(_) => {
-                unreachable!("not possible to add strings");
-            }
         }
     }
 }
 
-impl<'a> std::ops::AddAssign<&Scalar<'a>> for &mut Scalar<'a> {
-    fn add_assign(&mut self, _rhs: &Scalar<'a>) {
+impl<'a> std::ops::AddAssign<&Scalar> for &mut Scalar {
+    fn add_assign(&mut self, _rhs: &Scalar) {
         match self {
             Scalar::Float(v) => {
                 if let Scalar::Float(other) = _rhs {
@@ -164,15 +151,12 @@ impl<'a> std::ops::AddAssign<&Scalar<'a>> for &mut Scalar<'a> {
                     panic!("invalid");
                 };
             }
-            Scalar::String(_) => {
-                unreachable!("not possible to add strings");
-            }
         }
     }
 }
 
-impl<'a> std::ops::AddAssign<&Scalar<'a>> for Scalar<'a> {
-    fn add_assign(&mut self, _rhs: &Scalar<'a>) {
+impl<'a> std::ops::AddAssign<&Scalar> for Scalar {
+    fn add_assign(&mut self, _rhs: &Scalar) {
         match self {
             Self::Float(v) => {
                 if let Self::Float(other) = _rhs {
@@ -195,19 +179,16 @@ impl<'a> std::ops::AddAssign<&Scalar<'a>> for Scalar<'a> {
                     panic!("invalid");
                 };
             }
-            Self::String(_) => {
-                unreachable!("not possible to add strings");
-            }
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum Aggregate<'a> {
+pub enum Aggregate {
     Count(u64),
     // Sum can be `None` is for example all values being aggregated are themselves
     // `None`.
-    Sum(Option<Scalar<'a>>),
+    Sum(Option<Scalar>),
 }
 
 #[derive(Debug, Clone)]
@@ -216,10 +197,10 @@ pub enum AggregateType {
     Sum,
 }
 
-// impl<'a> std::ops::Add<&Option<Scalar<'a>>> for Aggregate<'a> {
-//     type Output = Aggregate<'a>;
+// impl<'a> std::ops::Add<&Option<Scalar>> for Aggregate {
+//     type Output = Aggregate;
 
-//     fn add(self, _rhs: &Option<Scalar<'a>>) -> Self::Output {
+//     fn add(self, _rhs: &Option<Scalar>) -> Self::Output {
 //         match self {
 //             Self::Count(self_count) => match _rhs {
 //                 Some(other_scalar) => match other_scalar {
@@ -252,10 +233,10 @@ pub enum AggregateType {
 //     }
 // }
 
-// impl<'a> std::ops::Add<&Aggregate<'a>> for Aggregate<'a> {
-//     type Output = Aggregate<'a>;
+// impl<'a> std::ops::Add<&Aggregate> for Aggregate {
+//     type Output = Aggregate;
 
-//     fn add(self, _rhs: &Aggregate<'a>) -> Self::Output {
+//     fn add(self, _rhs: &Aggregate) -> Self::Output {
 //         match self {
 //             Self::Count(self_count) => {
 //                 if let Self::Count(other) = _rhs {
@@ -288,7 +269,7 @@ pub trait AggregatableByRange {
         agg_type: &AggregateType,
         from_row_id: usize,
         to_row_id: usize,
-    ) -> Aggregate<'_>;
+    ) -> Aggregate;
 }
 
 /// A Vector is a materialised vector of values from a column.
@@ -317,7 +298,7 @@ impl<'a> Vector<'a> {
         agg_type: &AggregateType,
         from_row_id: usize,
         to_row_id: usize,
-    ) -> Aggregate<'a> {
+    ) -> Aggregate {
         match agg_type {
             AggregateType::Count => {
                 Aggregate::Count(self.count_by_id_range(from_row_id, to_row_id))
@@ -328,7 +309,7 @@ impl<'a> Vector<'a> {
 
     // Return the sum of values in the vector. NULL values are ignored. If there
     // are no non-null values in the vector being summed then None is returned.
-    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<Scalar<'a>> {
+    fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> Option<Scalar> {
         match self {
             Self::NullString(_) => {
                 panic!("can't sum strings....");
@@ -528,7 +509,7 @@ impl<'a> Vector<'a> {
     /// position `i` is NULL then `None` is returned.
     //
     // TODO - sort out
-    pub fn get_scalar(&self, i: usize) -> Option<Scalar<'a>> {
+    pub fn get_scalar(&self, i: usize) -> Option<Scalar> {
         match self {
             Self::NullString(_) => panic!("unsupported get_scalar"),
             Self::NullFloat(v) => match v[i] {
@@ -575,7 +556,7 @@ impl AggregatableByRange for &Vector<'_> {
         agg_type: &AggregateType,
         from_row_id: usize,
         to_row_id: usize,
-    ) -> Aggregate<'_> {
+    ) -> Aggregate {
         Vector::aggregate_by_id_range(&self, agg_type, from_row_id, to_row_id)
     }
 }
@@ -621,7 +602,7 @@ impl<'a> NullVectorIterator<'a> {
     }
 }
 impl<'a> Iterator for NullVectorIterator<'a> {
-    type Item = Option<Scalar<'a>>;
+    type Item = Option<Scalar>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let curr_i = self.next_i;
@@ -696,39 +677,39 @@ impl Column {
 
     /// Materialise the decoded value matching the provided logical
     /// row id.
-    pub fn value(&self, row_id: usize) -> Option<Scalar<'_>> {
+    pub fn value<'a>(&'a self, row_id: usize) -> Value<'a> {
         match self {
             Column::String(c) => {
                 if row_id >= self.num_rows() {
-                    return None;
+                    return Value::Null;
                 }
 
                 match c.value(row_id) {
-                    Some(v) => Some(Scalar::String(v)),
-                    None => None,
+                    Some(v) => Value::String(v),
+                    None => Value::Null,
                 }
             }
             Column::Float(c) => {
                 if row_id >= self.num_rows() {
-                    return None;
+                    return Value::Null;
                 }
 
                 let v = c.value(row_id);
                 if let Some(v) = v {
-                    return Some(Scalar::Float(v));
+                    return Value::Scalar(Scalar::Float(v));
                 }
-                None
+                Value::Null
             }
             Column::Integer(c) => {
                 if row_id >= self.num_rows() {
-                    return None;
+                    return Value::Null;
                 }
 
                 let v = c.value(row_id);
                 if let Some(v) = v {
-                    return Some(Scalar::Integer(v));
+                    return Value::Scalar(Scalar::Integer(v));
                 }
-                None
+                Value::Null
             }
         }
     }
@@ -949,37 +930,37 @@ impl Column {
         }
     }
 
-    pub fn maybe_contains(&self, value: &Scalar<'_>) -> bool {
+    pub fn maybe_contains(&self, value: &Value<'_>) -> bool {
         match self {
             Column::String(c) => {
-                if let Scalar::String(v) = value {
+                if let Value::String(v) = value {
                     c.meta.maybe_contains_value(v.to_string())
+                } else {
+                    panic!("a String column cannot contain a non-string value");
+                }
+            }
+            Column::Float(c) => {
+                if let Value::Scalar(Scalar::Float(v)) = value {
+                    c.meta.maybe_contains_value(*v)
                 } else {
                     panic!("invalid value");
                 }
             }
-            Column::Float(c) => {
-                if let Scalar::Float(v) = value {
-                    c.meta.maybe_contains_value(*v)
-                } else {
-                    panic!("invalid value or unsupported null");
-                }
-            }
             Column::Integer(c) => {
-                if let Scalar::Integer(v) = value {
+                if let Value::Scalar(Scalar::Integer(v)) = value {
                     c.meta.maybe_contains_value(*v)
                 } else {
-                    panic!("invalid value or unsupported null");
+                    panic!("invalid value");
                 }
             }
         }
     }
 
     /// returns true if the column cannot contain
-    pub fn max_less_than(&self, value: &Scalar<'_>) -> bool {
+    pub fn max_less_than(&self, value: &Value<'_>) -> bool {
         match self {
             Column::String(c) => {
-                if let Scalar::String(v) = value {
+                if let Value::String(v) = value {
                     if let Some(range) = c.meta.range() {
                         &range.1.as_str() < v
                     } else {
@@ -990,7 +971,7 @@ impl Column {
                 }
             }
             Column::Float(c) => {
-                if let Scalar::Float(v) = value {
+                if let Value::Scalar(Scalar::Float(v)) = value {
                     if let Some(range) = c.meta.range() {
                         range.1 < *v
                     } else {
@@ -1001,7 +982,7 @@ impl Column {
                 }
             }
             Column::Integer(c) => {
-                if let Scalar::Integer(v) = value {
+                if let Value::Scalar(Scalar::Integer(v)) = value {
                     if let Some(range) = c.meta.range() {
                         range.1 < *v
                     } else {
@@ -1015,10 +996,10 @@ impl Column {
     }
 
     // TODO(edd): consolodate with max_less_than... Should just be single cmp function
-    pub fn min_greater_than(&self, value: &Scalar<'_>) -> bool {
+    pub fn min_greater_than(&self, value: &Value<'_>) -> bool {
         match self {
             Column::String(c) => {
-                if let Scalar::String(v) = value {
+                if let Value::String(v) = value {
                     if let Some(range) = c.meta.range() {
                         &range.0.as_str() > v
                     } else {
@@ -1029,7 +1010,7 @@ impl Column {
                 }
             }
             Column::Float(c) => {
-                if let Scalar::Float(v) = value {
+                if let Value::Scalar(Scalar::Float(v)) = value {
                     if let Some(range) = c.meta.range() {
                         range.0 > *v
                     } else {
@@ -1040,7 +1021,7 @@ impl Column {
                 }
             }
             Column::Integer(c) => {
-                if let Scalar::Integer(v) = value {
+                if let Value::Scalar(Scalar::Integer(v)) = value {
                     if let Some(range) = c.meta.range() {
                         range.0 > *v
                     } else {
@@ -1054,43 +1035,43 @@ impl Column {
     }
 
     /// Returns the minimum value contained within this column.
-    pub fn min(&self) -> Option<Scalar<'_>> {
+    pub fn min(&self) -> Value<'_> {
         match self {
             Column::String(c) => match c.meta.range() {
-                Some(range) => Some(Scalar::String(&range.0)),
-                None => None,
+                Some(range) => Value::String(&range.0),
+                None => Value::Null,
             },
             Column::Float(c) => match c.meta.range() {
-                Some(range) => Some(Scalar::Float(range.0)),
-                None => None,
+                Some(range) => Value::Scalar(Scalar::Float(range.0)),
+                None => Value::Null,
             },
             Column::Integer(c) => match c.meta.range() {
-                Some(range) => Some(Scalar::Integer(range.0)),
-                None => None,
+                Some(range) => Value::Scalar(Scalar::Integer(range.0)),
+                None => Value::Null,
             },
         }
     }
 
     /// Returns the maximum value contained within this column.
     // FIXME(edd): Support NULL integers and floats
-    pub fn max(&self) -> Option<Scalar<'_>> {
+    pub fn max(&self) -> Value<'_> {
         match self {
             Column::String(c) => match c.meta.range() {
-                Some(range) => Some(Scalar::String(&range.1)),
-                None => None,
+                Some(range) => Value::String(&range.1),
+                None => Value::Null,
             },
             Column::Float(c) => match c.meta.range() {
-                Some(range) => Some(Scalar::Float(range.1)),
-                None => None,
+                Some(range) => Value::Scalar(Scalar::Float(range.1)),
+                None => Value::Null,
             },
             Column::Integer(c) => match c.meta.range() {
-                Some(range) => Some(Scalar::Integer(range.1)),
-                None => None,
+                Some(range) => Value::Scalar(Scalar::Integer(range.1)),
+                None => Value::Null,
             },
         }
     }
 
-    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Scalar<'_>> {
+    pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Scalar> {
         match self {
             Column::String(_) => unimplemented!("not implemented"),
             Column::Float(c) => match c.sum_by_ids(row_ids) {
@@ -1106,7 +1087,7 @@ impl Column {
         agg_type: &AggregateType,
         from_row_id: usize,
         to_row_id: usize,
-    ) -> Aggregate<'_> {
+    ) -> Aggregate {
         match self {
             Column::String(_) => unimplemented!("not implemented"),
             Column::Float(c) => match agg_type {
@@ -1132,11 +1113,10 @@ impl Column {
     }
 
     // TODO(edd) shouldn't let roaring stuff leak out...
-    pub fn row_ids_eq(&self, value: &Option<Scalar<'_>>) -> Option<croaring::Bitmap> {
-        let value = match value {
-            Some(v) => v,
-            None => return None,
-        };
+    pub fn row_ids_eq(&self, value: &Value<'_>) -> Option<croaring::Bitmap> {
+        if let Value::Null = value {
+            return None; // don't support "IS NULL" yet.
+        }
 
         if !self.maybe_contains(value) {
             return None;
@@ -1144,14 +1124,14 @@ impl Column {
         self.row_ids(value, std::cmp::Ordering::Equal)
     }
 
-    pub fn row_ids_gt(&self, value: &Scalar<'_>) -> Option<croaring::Bitmap> {
+    pub fn row_ids_gt(&self, value: &Value<'_>) -> Option<croaring::Bitmap> {
         if self.max_less_than(value) {
             return None;
         }
         self.row_ids(value, std::cmp::Ordering::Greater)
     }
 
-    pub fn row_ids_lt(&self, value: &Scalar<'_>) -> Option<croaring::Bitmap> {
+    pub fn row_ids_lt(&self, value: &Value<'_>) -> Option<croaring::Bitmap> {
         if self.min_greater_than(value) {
             return None;
         }
@@ -1164,7 +1144,11 @@ impl Column {
     // or
     //
     //      WHERE counter >= 102.2 AND counter < 2929.32
-    pub fn row_ids_gte_lt(&self, low: &Scalar<'_>, high: &Scalar<'_>) -> Option<croaring::Bitmap> {
+    pub fn row_ids_gte_lt(&self, low: &Value<'_>, high: &Value<'_>) -> Option<croaring::Bitmap> {
+        if let (Value::Null, _) | (_, Value::Null) = (low, high) {
+            panic!("unsupported NULL value in range");
+        }
+
         match self {
             Column::String(_c) => {
                 unimplemented!("not implemented yet");
@@ -1176,7 +1160,9 @@ impl Column {
                     None => return None,
                 };
 
-                if let (Scalar::Float(low), Scalar::Float(high)) = (low, high) {
+                if let (Value::Scalar(Scalar::Float(low)), Value::Scalar(Scalar::Float(high))) =
+                    (low, high)
+                {
                     if low <= col_min && high > col_max {
                         // In this case the query completely covers the range of the column.
                         // TODO: PERF - need to _not_ return a bitset rather than
@@ -1204,7 +1190,9 @@ impl Column {
                     None => return None,
                 };
 
-                if let (Scalar::Integer(low), Scalar::Integer(high)) = (low, high) {
+                if let (Value::Scalar(Scalar::Integer(low)), Value::Scalar(Scalar::Integer(high))) =
+                    (low, high)
+                {
                     if low <= col_min && high > col_max {
                         // In this case the query completely covers the range of the column.
                         // TODO: PERF - need to _not_ return a bitset rather than
@@ -1229,28 +1217,28 @@ impl Column {
     }
 
     // TODO(edd) shouldn't let roaring stuff leak out...
-    fn row_ids(&self, value: &Scalar<'_>, order: std::cmp::Ordering) -> Option<croaring::Bitmap> {
+    fn row_ids(&self, value: &Value<'_>, order: std::cmp::Ordering) -> Option<croaring::Bitmap> {
         match self {
             Column::String(c) => {
                 if order != std::cmp::Ordering::Equal {
                     unimplemented!("> < not supported on strings yet");
                 }
 
-                if let Scalar::String(v) = value {
+                if let Value::String(v) = value {
                     Some(c.data.row_ids_eq_roaring(Some(v.to_string())))
                 } else {
                     panic!("invalid value");
                 }
             }
             Column::Float(c) => {
-                if let Scalar::Float(v) = value {
+                if let Value::Scalar(Scalar::Float(v)) = value {
                     Some(c.data.row_ids_single_cmp_roaring(v, order))
                 } else {
                     panic!("invalid value or unsupported null");
                 }
             }
             Column::Integer(c) => {
-                if let Scalar::Integer(v) = value {
+                if let Value::Scalar(Scalar::Integer(v)) = value {
                     Some(c.data.row_ids_single_cmp_roaring(v, order))
                 } else {
                     panic!("invalid value or unsupported null");
@@ -1328,7 +1316,7 @@ impl AggregatableByRange for &Column {
         agg_type: &AggregateType,
         from_row_id: usize,
         to_row_id: usize,
-    ) -> Aggregate<'_> {
+    ) -> Aggregate {
         Column::aggregate_by_id_range(&self, agg_type, from_row_id, to_row_id)
     }
 }
