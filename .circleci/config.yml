@@ -517,7 +517,7 @@ jobs:
           name: import GPG key
           command:  |
             echo -e "$GPG_KEY" > private.key
-            gpg --batch --import private.key
+            gpg --batch --no-tty --import private.key
       - run:
           name: "Build release"
           command: make gershon-release
