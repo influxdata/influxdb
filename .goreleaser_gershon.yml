@@ -57,7 +57,7 @@ signs:
   -
     signature: "${artifact}.asc"
     cmd: gpg
-    args: [ "passphrase", "{{.Env.PASSPHRASE}}",  "--pinentry-mode=loopback", "--batch", "--armor",  "--detach-sign", "${artifact}"]
+    args: [ "--passphrase", "{{.Env.PASSPHRASE}}",  "--pinentry-mode=loopback", "--batch", "--armor",  "--detach-sign", "${artifact}"]
     artifacts: all
 
 #nfpms:
