@@ -802,10 +802,7 @@ impl Dictionary {
     /// Returns the id corresponding to value, adding an entry for the
     /// id if it is not yet present in the dictionary.
     fn lookup_value_or_insert(&mut self, value: &str) -> u32 {
-        match self.0.get(value) {
-            Some(id) => symbol_to_u32(id),
-            None => symbol_to_u32(self.0.get_or_intern(value)),
-        }
+        symbol_to_u32(self.0.get_or_intern(value))
     }
 
     /// Returns the ID in self.dictionary that corresponds to `value`, if any. Returns an error if
@@ -1050,7 +1047,7 @@ impl Table {
             let column_name = value.column().expect("WAL Value should have column");
             let column_id = dictionary.lookup_value_or_insert(column_name);
 
-            let column = match self.column_id_to_index.get(&column_id) {
+            let mut column = match self.column_id_to_index.get(&column_id) {
                 Some(idx) => &mut self.columns[*idx],
                 None => {
                     // Add the column and make all values for existing rows None
@@ -1063,55 +1060,27 @@ impl Table {
                 }
             };
 
-            match (column, value.value_type()) {
-                (Column::Tag(vals), wb::ColumnValue::TagValue) => {
-                    let v = value.value_as_tag_value().context(WalValueTypeMismatch {
-                        column: column_name,
-                        expected: "tag",
-                    })?;
+            if let (Column::Bool(vals), Some(v)) = (&mut column, value.value_as_bool_value()) {
+                vals.push(Some(v.value()));
+            } else if let (Column::I64(vals), Some(v)) = (&mut column, value.value_as_i64value()) {
+                vals.push(Some(v.value()));
+            } else if let (Column::F64(vals), Some(v)) = (&mut column, value.value_as_f64value()) {
+                vals.push(Some(v.value()));
+            } else if let (Column::String(vals), Some(v)) =
+                (&mut column, value.value_as_string_value())
+            {
+                vals.push(Some(v.value().unwrap().to_string()));
+            } else if let (Column::Tag(vals), Some(v)) = (&mut column, value.value_as_tag_value()) {
+                let v_id = dictionary.lookup_value_or_insert(v.value().unwrap());
 
-                    let v_id = dictionary.lookup_value_or_insert(v.value().unwrap());
-
-                    vals.push(Some(v_id));
+                vals.push(Some(v_id));
+            } else {
+                return ColumnTypeMismatch {
+                    column: column_name,
+                    existing_column_type: column.type_description(),
+                    inserted_value_type: type_description(value.value_type()),
                 }
-                (Column::Bool(vals), wb::ColumnValue::BoolValue) => {
-                    let v = value.value_as_bool_value().context(WalValueTypeMismatch {
-                        column: column_name,
-                        expected: "bool",
-                    })?;
-                    vals.push(Some(v.value()));
-                }
-                (Column::String(vals), wb::ColumnValue::StringValue) => {
-                    let v = value
-                        .value_as_string_value()
-                        .context(WalValueTypeMismatch {
-                            column: column_name,
-                            expected: "String",
-                        })?;
-                    vals.push(Some(v.value().unwrap().to_string()));
-                }
-                (Column::I64(vals), wb::ColumnValue::I64Value) => {
-                    let v = value.value_as_i64value().context(WalValueTypeMismatch {
-                        column: column_name,
-                        expected: "i64",
-                    })?;
-                    vals.push(Some(v.value()));
-                }
-                (Column::F64(vals), wb::ColumnValue::F64Value) => {
-                    let v = value.value_as_f64value().context(WalValueTypeMismatch {
-                        column: column_name,
-                        expected: "f64",
-                    })?;
-                    vals.push(Some(v.value()));
-                }
-                (existing_column, inserted_value) => {
-                    return ColumnTypeMismatch {
-                        column: column_name,
-                        existing_column_type: existing_column.type_description(),
-                        inserted_value_type: type_description(inserted_value),
-                    }
-                    .fail()
-                }
+                .fail();
             }
         }
 
