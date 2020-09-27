@@ -917,7 +917,9 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	var path string
 	for i := 0; i < 3; i++ {
 		path, err = e.CreateSnapshot()
-		if err != nil {
+		if err == nil {
+			break
+		} else if err != nil {
 			switch err {
 			case ErrSnapshotInProgress:
 				backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
