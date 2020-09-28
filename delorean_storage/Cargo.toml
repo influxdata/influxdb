@@ -12,5 +12,6 @@ async-trait = "0.1.40"
 tokio = { version = "0.2", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_urlencoded = "0.6.1"
+tracing = "0.1"
 delorean_arrow = { path = "../delorean_arrow" }
 delorean_line_parser = { path = "../delorean_line_parser" }

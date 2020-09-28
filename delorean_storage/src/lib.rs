@@ -13,6 +13,7 @@ use std::collections::BTreeSet;
 
 use std::{fmt::Debug, sync::Arc};
 
+pub mod exec;
 pub mod id;
 
 /// Specifies a continuous range of nanosecond timestamps. Timestamp

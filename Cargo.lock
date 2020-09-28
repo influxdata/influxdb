@@ -841,6 +841,7 @@ dependencies = [
  "serde_urlencoded 0.6.1",
  "snafu",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
