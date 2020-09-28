@@ -3,12 +3,13 @@ package httpd
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
 	httppprof "net/http/pprof"
+	"path"
 	"runtime/pprof"
+	"runtime/trace"
 	"sort"
 	"strconv"
 	"text/tabwriter"
@@ -31,13 +32,6 @@ func (h *Handler) handleProfiles(w http.ResponseWriter, r *http.Request) {
 	default:
 		httppprof.Index(w, r)
 	}
-}
-
-// prof describes a profile name and a debug value, or in the case of a CPU
-// profile, the number of seconds to collect the profile for.
-type prof struct {
-	Name  string
-	Debug int64
 }
 
 // archiveProfilesAndQueries collects the following profiles:
@@ -68,52 +62,165 @@ type prof struct {
 // as there is something there.
 //
 func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Request) {
-	var allProfs = []*prof{
-		{Name: "goroutine", Debug: 1},
-		{Name: "block", Debug: 1},
-		{Name: "mutex", Debug: 1},
-		{Name: "heap", Debug: 1},
+	// prof describes a profile name and a debug value, or in the case of a CPU
+	// profile, the number of seconds to collect the profile for.
+	type prof struct {
+		Name     string        // name of profile
+		Duration time.Duration // duration of profile if applicable.  curently only used by cpu and trace
 	}
 
-	// Capture a CPU profile?
-	if r.FormValue("cpu") != "" {
-		profile := &prof{Name: "cpu"}
+	var profiles = []prof{
+		{Name: "goroutine"},
+		{Name: "block"},
+		{Name: "mutex"},
+		{Name: "heap"},
+		{Name: "allocs"},
+		{Name: "threadcreate"},
+	}
 
-		// For a CPU profile we'll use the Debug field to indicate the number of
-		// seconds to capture the profile for.
-		profile.Debug, _ = strconv.ParseInt(r.FormValue("seconds"), 10, 64)
-		if profile.Debug <= 0 {
-			profile.Debug = 30
+	// We parse the form here so that we can use the http.Request.Form map.
+	//
+	// Otherwise we'd have to use r.FormValue() which makes it impossible to
+	// distinuish between a form value that exists and has no value and a one
+	// that does not exist at all.
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// In the following two blocks, we check if the request should include cpu
+	// profiles and a trace log.
+	//
+	// Since the submitted form can contain multiple version of a variable like:
+	//
+	//   http://localhost:8086?cpu=1s&cpu=30s&trace=3s&cpu=5s
+	//
+	// the question arises: which value should we use?  We choose to use the LAST
+	// value supplied.
+	//
+	// This is an edge case but if for some reason, for example, a url is
+	// programatically built and multiple values are supplied, this will do what
+	// is expected.
+	//
+
+	// last() returns either the last item from a slice of strings or an empty
+	// string if the supplied slice is empty or nill.
+	last := func(s []string) string {
+		if len(s) == 0 {
+			return ""
 		}
-		allProfs = append([]*prof{profile}, allProfs...) // CPU profile first.
+		return s[len(s)-1]
 	}
 
-	var (
-		resp bytes.Buffer // Temporary buffer for entire archive.
-		buf  bytes.Buffer // Temporary buffer for each profile/query result.
-	)
+	// if trace exsits as a form value, add it to the profiles slice with the
+	// decoded duration.
+	//
+	// Requests for a trace should look like:
+	//
+	//  ?trace=10s
+	//
+	if vals, exists := r.Form["trace"]; exists {
+		// parse the duration encoded in the last "trace" value supplied.
+		duration, err := time.ParseDuration(last(vals))
 
-	gz := gzip.NewWriter(&resp)
-	tw := tar.NewWriter(gz)
+		// If we can't parse the duration or if the users supplies a negative
+		// number, then set it to a reasonable default of 10s.
+		//
+		// This allows for stuff like ?trace=true -- which isn't recommened but
+		// makes the code do something reasonable.
+		//
+		// If someone wants to supply a trace duration of 0s I guess that's their
+		// perogative but lets ensure that it is positive.
+		if defaultDuration := time.Second * 10; err != nil || duration < 0 {
+			duration = defaultDuration
+		}
 
+		// Trace files can get big.  Lets clamp the maximum trace duration to 45s.
+		if maxDuration := time.Second * 45; duration > maxDuration {
+			duration = maxDuration
+		}
+
+		profiles = append(profiles, prof{"trace", duration})
+	}
+
+	// Capturing CPU profiles is a little tricker.  The preferred way to send the
+	// the cpu profile duration is via the supplied "cpu" variable's value.
+	//
+	// The duration should be encoded as a Go duration that can be parsed by
+	// time.ParseDuration().
+	//
+	// In the past users were encouraged to assign any value to cpu and provide
+	// the duration in a separate "seconds" value.
+	//
+	// The code below handles both -- first it attempts to use the old method
+	// which would look like:
+	//
+	//    ?cpu=foobar&seconds=10
+	//
+	// Then it attempts to ascertain the duration provided with:
+	//
+	//    ?cpu=10s
+	//
+	// This preserves backwards compatibility with any tools that have been
+	// written to gather profiles.
+	//
+	if vals, exists := r.Form["cpu"]; exists {
+		duration := time.Second * 30
+		val := last(vals)
+		if seconds, exists := r.Form["seconds"]; exists {
+			s, _ := strconv.ParseInt(last(seconds), 10, 64)
+			duration = time.Second * time.Duration(s)
+		} else if val != "" {
+			// see if the value of cpu is a duration like:  cpu=10s
+			duration, _ = time.ParseDuration(val)
+		}
+
+		// ensure that the duration is positive
+		if defaultDuration := time.Second * 30; duration < 0 {
+			duration = defaultDuration
+		}
+
+		// ensure that profile duration is less than 1 minute
+		if maxDuration := time.Minute * 1; duration > maxDuration {
+			duration = maxDuration
+		}
+
+		// prepend our profiles slice with cpu -- we want to fetch cpu profiles
+		// first.
+		profiles = append([]prof{{"cpu", duration}}, profiles...)
+	}
+
+	tarball := &bytes.Buffer{}
+	buf := &bytes.Buffer{} // Temporary buffer for each profile/query result.
+
+	tw := tar.NewWriter(tarball)
 	// Collect and write out profiles.
-	for _, profile := range allProfs {
-		if profile.Name == "cpu" {
-			if err := pprof.StartCPUProfile(&buf); err != nil {
+	for _, profile := range profiles {
+		switch profile.Name {
+		case "cpu":
+			if err := pprof.StartCPUProfile(buf); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-
-			sleep(w, time.Duration(profile.Debug)*time.Second)
+			sleep(r, profile.Duration)
 			pprof.StopCPUProfile()
-		} else {
+
+		case "trace":
+			if err := trace.Start(buf); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			sleep(r, profile.Duration)
+			trace.Stop()
+
+		default:
 			prof := pprof.Lookup(profile.Name)
 			if prof == nil {
 				http.Error(w, "unable to find profile "+profile.Name, http.StatusInternalServerError)
 				return
 			}
 
-			if err := prof.WriteTo(&buf, int(profile.Debug)); err != nil {
+			if err := prof.WriteTo(buf, 0); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -121,7 +228,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 
 		// Write the profile file's header.
 		err := tw.WriteHeader(&tar.Header{
-			Name: profile.Name + ".txt",
+			Name: path.Join("profiles", profile.Name+".pb.gz"),
 			Mode: 0600,
 			Size: int64(buf.Len()),
 		})
@@ -148,7 +255,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 		{"diagnostics", h.showDiagnostics},
 	}
 
-	tabW := tabwriter.NewWriter(&buf, 8, 8, 1, '\t', 0)
+	tabW := tabwriter.NewWriter(buf, 8, 8, 1, '\t', 0)
 	for _, query := range allQueries {
 		rows, err := query.fn()
 		if err != nil {
@@ -191,7 +298,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 		}
 
 		err = tw.WriteHeader(&tar.Header{
-			Name: query.name + ".txt",
+			Name: path.Join("profiles", query.name+".txt"),
 			Mode: 0600,
 			Size: int64(buf.Len()),
 		})
@@ -211,17 +318,13 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 	// Close the tar writer.
 	if err := tw.Close(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
-	// Close the gzip writer.
-	if err := gz.Close(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// Return the gzipped archive.
-	w.Header().Set("Content-Disposition", "attachment; filename=profiles.tar.gz")
-	w.Header().Set("Content-Type", "application/gzip")
-	io.Copy(w, &resp) // Nothing we can really do about an error at this point.
+	w.Header().Set("Content-Disposition", "attachment; filename=profiles.tar")
+	w.Header().Set("Content-Type", "application/x-tar")
+	io.Copy(w, tarball)
 }
 
 // showShards generates the same values that a StatementExecutor would if a
@@ -326,13 +429,10 @@ func joinUint64(a []uint64) string {
 }
 
 // Taken from net/http/pprof/pprof.go
-func sleep(w http.ResponseWriter, d time.Duration) {
-	var clientGone <-chan bool
-	if cn, ok := w.(http.CloseNotifier); ok {
-		clientGone = cn.CloseNotify()
-	}
+func sleep(r *http.Request, d time.Duration) {
+	// wait for either the timer to expire or the contex
 	select {
 	case <-time.After(d):
-	case <-clientGone:
+	case <-r.Context().Done():
 	}
 }
