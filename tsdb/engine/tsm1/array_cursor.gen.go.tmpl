@@ -134,9 +134,9 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] > c.end {
+		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
 			pos--
 		}
 		pos++
@@ -288,9 +288,9 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] < c.end {
+		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
 			pos--
 		}
 		pos++
