@@ -677,6 +677,7 @@ dependencies = [
  "delorean_object_store",
  "delorean_parquet",
  "delorean_partitioned_store",
+ "delorean_segment_store",
  "delorean_storage",
  "delorean_table",
  "delorean_table_schema",
@@ -828,6 +829,23 @@ dependencies = [
  "snafu",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "delorean_segment_store"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "criterion",
+ "croaring",
+ "crossbeam",
+ "delorean_arrow",
+ "delorean_table",
+ "env_logger",
+ "heapsize",
+ "human_format",
+ "log",
+ "snafu",
 ]
 
 [[package]]
