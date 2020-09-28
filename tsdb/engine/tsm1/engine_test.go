@@ -1952,7 +1952,7 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 				Field:     "value",
 				Ascending: true,
 				StartTime: 2,
-				EndTime:   11,
+				EndTime:   12,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -2011,7 +2011,7 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 				Tags:      models.ParseTags([]byte("cpu,host=A")),
 				Field:     "value",
 				Ascending: false,
-				StartTime: 2,
+				StartTime: 1,
 				EndTime:   11,
 			})
 			if err != nil {
