@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::server::write_buffer_routes;
 use crate::server::write_buffer_rpc;
-use delorean_write_buffer::database::{Db, WriteBufferDatabases};
+use delorean_write_buffer::{Db, WriteBufferDatabases};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
 

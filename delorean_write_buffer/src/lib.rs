@@ -1,4 +1,4 @@
-//! Process incoming data, back up data in a WAL, handle WAL recovery, and return data for queries.
+//! Contains an in memory write buffer that stores incoming data, durably.
 
 #![deny(rust_2018_idioms)]
 #![warn(
@@ -8,5 +8,16 @@
     clippy::use_self
 )]
 
-/// Contains the implementation of the in memory write buffer that stores incoming data.
-pub mod database;
+mod column;
+mod database;
+mod dictionary;
+mod partition;
+mod store;
+mod table;
+mod wal;
+
+// Allow restore partitions to be used outside of this crate (for
+// benchmarking)
+pub use crate::database::Db;
+pub use crate::partition::restore_partitions_from_wal;
+pub use crate::store::WriteBufferDatabases;
