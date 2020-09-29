@@ -56,10 +56,9 @@ func NewLineReaderSize(rd io.Reader, size int) *LineReader {
 // Read reads data into p. It fills in data that either does
 // not contain \n or ends with \n.
 // It returns the number of bytes read into p.
-func (lr *LineReader) Read(p []byte) (n int, err error) {
-	n = len(p)
-	// handle patologic case of reading into empty array
-	if n == 0 {
+func (lr *LineReader) Read(p []byte) (int, error) {
+	// handle pathological case of reading into empty array
+	if len(p) == 0 {
 		if lr.readPos < lr.bufSize {
 			return 0, nil
 		}
@@ -71,17 +70,15 @@ func (lr *LineReader) Read(p []byte) (n int, err error) {
 			return 0, lr.readErr()
 		}
 		lr.readPos = 0
-		lr.bufSize = 0
-		n, lr.err = lr.rd.Read(lr.buf)
-		if n == 0 {
+		lr.bufSize, lr.err = lr.rd.Read(lr.buf)
+		if lr.bufSize == 0 {
 			return 0, lr.readErr()
 		}
-		lr.bufSize = n
 	}
 	// copy at most one line and don't overflow internal buffer or p
 	i := 0
 	lr.LastLineNumber = lr.LineNumber
-	for lr.readPos < lr.bufSize && i < n {
+	for lr.readPos < lr.bufSize && i < len(p) {
 		b := lr.buf[lr.readPos]
 		lr.readPos++
 		p[i] = b
