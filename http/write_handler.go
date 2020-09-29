@@ -356,8 +356,6 @@ func compressWithGzip(data io.Reader) (io.Reader, error) {
 }
 
 // WriteTo writes to the bucket matching the filter.
-//
-// todo: naming
 func (s *WriteService) WriteTo(ctx context.Context, filter influxdb.BucketFilter, r io.Reader) error {
 	precision := s.Precision
 	if precision == "" {

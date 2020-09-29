@@ -293,6 +293,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
 	ac := flags.config()
 	// write to InfluxDB
 	s := write.Batcher{
@@ -306,6 +307,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	if err := s.WriteTo(ctx, filter, r); err != nil && err != context.Canceled {
 		return fmt.Errorf("failed to write data: %v", err)
 	}
+
 	return nil
 }
 
