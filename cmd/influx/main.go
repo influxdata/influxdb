@@ -604,17 +604,6 @@ func writeJSON(w io.Writer, v interface{}) error {
 	return enc.Encode(v)
 }
 
-func newBucketService() (influxdb.BucketService, error) {
-	client, err := newHTTPClient()
-	if err != nil {
-		return nil, err
-	}
-
-	return &http.BucketService{
-		Client: client,
-	}, nil
-}
-
 func rawDurationToTimeDuration(raw string) (time.Duration, error) {
 	if raw == "" {
 		return 0, nil

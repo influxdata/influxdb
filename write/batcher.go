@@ -136,6 +136,94 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 	errC <- nil
 }
 
+func (b *Batcher) WriteTo(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if b.Service == nil {
+		return fmt.Errorf("destination write service required")
+	}
+
+	lines := make(chan []byte)
+
+	errC := make(chan error, 2)
+	go b.writeTo(ctx, filter, lines, errC)
+	go b.read(ctx, r, lines, errC)
+
+	// we loop twice to check if both read and write have an error. if read exits
+	// cleanly, then we still want to wait for write.
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-errC:
+			// onky if there is any error, exit immediately.
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// finishes when the lines channel is closed or context is done.
+// if an error occurs while writing data to the write service, the error is send in the
+// errC channel and the function returns.
+func (b *Batcher) writeTo(ctx context.Context, filter platform.BucketFilter, lines <-chan []byte, errC chan<- error) {
+	flushInterval := b.MaxFlushInterval
+	if flushInterval == 0 {
+		flushInterval = DefaultInterval
+	}
+
+	maxBytes := b.MaxFlushBytes
+	if maxBytes == 0 {
+		maxBytes = DefaultMaxBytes
+	}
+
+	timer := time.NewTimer(flushInterval)
+	defer func() { _ = timer.Stop() }()
+
+	buf := make([]byte, 0, maxBytes)
+	r := bytes.NewReader(buf)
+
+	var line []byte
+	var more = true
+	// if read closes the channel normally, exit the loop
+	for more {
+		select {
+		case line, more = <-lines:
+			if more {
+				buf = append(buf, line...)
+			}
+			// write if we exceed the max lines OR read routine has finished
+			if len(buf) >= maxBytes || (!more && len(buf) > 0) {
+				r.Reset(buf)
+				timer.Reset(flushInterval)
+				if err := b.Service.WriteTo(ctx, filter, r); err != nil {
+					errC <- err
+					return
+				}
+				buf = buf[:0]
+			}
+		case <-timer.C:
+			if len(buf) > 0 {
+				r.Reset(buf)
+				timer.Reset(flushInterval)
+				if err := b.Service.WriteTo(ctx, filter, r); err != nil {
+					errC <- err
+					return
+				}
+				buf = buf[:0]
+			}
+		case <-ctx.Done():
+			errC <- ctx.Err()
+			return
+		}
+	}
+
+	errC <- nil
+}
+
 // ScanLines is used in bufio.Scanner.Split to split lines of line protocol.
 func ScanLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {

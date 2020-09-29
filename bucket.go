@@ -117,7 +117,7 @@ func (f BucketFilter) QueryParams() map[string][]string {
 	}
 
 	if f.Name != nil {
-		qp["name"] = []string{*f.Name}
+		qp["bucket"] = []string{*f.Name}
 	}
 
 	if f.OrganizationID != nil {
