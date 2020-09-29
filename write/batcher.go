@@ -66,13 +66,6 @@ func (b *Batcher) Write(ctx context.Context, org, bucket platform.ID, r io.Reade
 	return nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // read will close the line channel when there is no more data, or an error occurs.
 // it is possible for an io.Reader to block forever; Write's context can be
 // used to cancel, but, it's possible there will be dangling read go routines.
@@ -85,9 +78,7 @@ func (b *Batcher) read(ctx context.Context, r io.Reader, lines chan<- []byte, er
 	if b.MaxLineLength > 0 {
 		maxLineLength = b.MaxLineLength
 	}
-
-	// limit the initial size of the buffer to a maximum of bufio.MaxScanTokenSize bytes
-	scanner.Buffer(make([]byte, min(bufio.MaxScanTokenSize, maxLineLength)), maxLineLength)
+	scanner.Buffer(nil, maxLineLength)
 
 	for scanner.Scan() {
 		// exit early if the context is done
