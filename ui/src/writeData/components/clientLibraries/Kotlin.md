@@ -1,4 +1,4 @@
-For more detailed and up to date information check out the [GitHub Respository](https://github.com/influxdata/influxdb-client-java/tree/master/client-kotlin)
+For more detailed and up to date information check out the [GitHub Repository](https://github.com/influxdata/influxdb-client-java/tree/master/client-kotlin)
 
 ##### Add Dependency
 
