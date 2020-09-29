@@ -1,48 +1,15 @@
 # InfluxDB [![CircleCI](https://circleci.com/gh/influxdata/influxdb.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb)
 [![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://www.influxdata.com/slack)
 
-
 InfluxDB is an open source time series platform. This includes APIs for storing and querying data, processing it in the background for ETL or monitoring and alerting purposes, user dashboards, and visualizing and exploring the data and more. The master branch on this repo now represents the latest InfluxDB, which now includes functionality for Kapacitor (background processing) and Chronograf (the UI) all in a single binary.
 
 The list of InfluxDB Client Libraries that are compatible with the latest version can be found in [our documentation](https://v2.docs.influxdata.com/v2.0/reference/api/client-libraries/).
 
 If you are looking for the 1.x line of releases, there are branches for each minor version as well as a `master-1.x` branch that will contain the code for the next 1.x release. The master-1.x [working branch is here](https://github.com/influxdata/influxdb/tree/master-1.x). The [InfluxDB 1.x Go Client can be found here](https://github.com/influxdata/influxdb1-client).
 
-## State of the Project
-
-The latest InfluxDB 1.x is the stable release and recommended for production use. The InfluxDB that is on the master branch is currently in the beta stage. This means that it is still **NOT** recommended for production usage. There may be breaking API changes, breaking changes in the [Flux language](https://github.com/influxdata/flux), changes in the underlying storage format that will require you to delete all your data, and significant changes to the UI. The beta is intended for feature exploration and gathering feedback on the available feature set. It **SHOULD NOT** be used for performance testing, benchmarks, or other stress tests.
-
-Additional features will arrive during the beta period until we reach general availability (GA). We will be cutting versioned releases at least every two weeks starting in the first release. There will also be nightly builds based off the latest code in master.
-
-Once we close on the final feature set of what will be in the first GA release of InfluxDB in the 2.x line, we will move into the release candidate (RC) phase. At that point, we do not expect there to be breaking changes to the API or Flux language. We may still need to make a breaking change prior to GA due to some unforseen circumstance, but it would need to be extremely important and will be clearly communicated via the changelog and all available channels.
-
-Our current plans are to release RCs suitable for production usage, but we will re-evaluate in consultation with the community as the cycle progresses. During the RC period, we will focus on feedback from users, bug fixes, performance, and additive features (where time permits).
-
-### What you can expect in the Beta and RC Phases
-
-#### Beta
-**Releases every two weeks or as needed**
-
-Planned additions include:
-- Compatibility layer with 1.x including: 1.x HTTP Write API  and HTTP Read API support for InfluxQL
-- Import Bulk Data from 1.x - convert TSM from 1.x to 2.x
-- Performance tuning, stability improvements, and fine tuning based on community feedback.
-- Finalization of supported client libraries starting with JavaScript and Go.
-
-#### RC
-**As needed**
-
-Planned activities include:
-- Performance tuning, stability improvements, and fine-tuning based on community feedback.
-
-### What is **NOT** planned?
-- Migration of users/security permissions from InfluxDB v1.x to 2.x.  ACTION REQUIRED: Re-establish users and permissions within the new unified security model which now spans the underlying database and user interface.
-- Migration of Continuous Queries.  ACTION REQUIRED: These will need to be re-implemented as Flux tasks.
-- Direct support by InfluxDB for CollectD, StatsD, Graphite, or UDP.  ACTION REQUIRED: Leverage Telegraf 1.9+ along with the InfluxDB v2.0 output plugin to translate these protocols/formats.
-
 ## Installing from Source
 
-We have nightly and weekly versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the `influx` command line interface (CLI) client as a separate binary available at the same location.
+We have nightly and versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the `influx` command line interface (CLI) client as a separate binary available at the same location.
 
 ## Building From Source
 
@@ -126,7 +93,7 @@ $ go test ./...
 
 ## Getting Started
 
-For a complete getting started guide, please see our full [online documentation site](https://v2.docs.influxdata.com/v2.0/). 
+For a complete getting started guide, please see our full [online documentation site](https://docs.influxdata.com/influxdb/v2.0/). 
 
 To write and query data or use the API in any way, you'll need to first create a user, credentials, organization and bucket.
 Everything in InfluxDB is organized under a concept of an organization. The API is designed to be multi-tenant.
@@ -164,7 +131,7 @@ Confirm? (y/n): y
 
 UserID                  Username        Organization    Bucket
 033a3f2c5ccaa000        marty           InfluxData      Telegraf
-Your token has been stored in /Users/marty/.influxdbv2/configs
+Your token has been stored in /Users/marty/.influxdbv2/credentials
 ```
 
 You can run this command non-interactively using the `-f, --force` flag if you are automating the setup.
@@ -184,7 +151,7 @@ Once setup is complete, a configuration profile is created to allow you to inter
 ```bash
 $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx config
 Active	Name	URL			            Org
-*	    default	http://localhost:8086	InfluxData
+*	    default	http://localhost:9999	InfluxData
 ```
 
 ## Writing Data
