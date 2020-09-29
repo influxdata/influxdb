@@ -37,6 +37,7 @@ type writeFlagsType struct {
 	Debug                      bool
 	SkipRowOnError             bool
 	SkipHeader                 int
+	MaxLineLength              int
 	IgnoreDataTypeInColumnName bool
 	Encoding                   string
 	ErrorsFile                 string
@@ -84,6 +85,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&writeFlags.Debug, "debug", false, "Log CSV columns to stderr before reading data rows")
 	cmd.PersistentFlags().BoolVar(&writeFlags.SkipRowOnError, "skipRowOnError", false, "Log CSV data errors to stderr and continue with CSV processing")
 	cmd.PersistentFlags().IntVar(&writeFlags.SkipHeader, "skipHeader", 0, "Skip the first <n> rows from input data")
+	cmd.PersistentFlags().IntVar(&writeFlags.MaxLineLength, "max-line-length", 16_000_000, "Specifies the maximum number of bytes that can be read for a single line")
 	cmd.Flag("skipHeader").NoOptDefVal = "1" // skipHeader flag value is optional, skip the first header when unspecified
 	cmd.PersistentFlags().BoolVar(&writeFlags.IgnoreDataTypeInColumnName, "xIgnoreDataTypeInColumnName", false, "Ignores dataType which could be specified after ':' in column name")
 	cmd.PersistentFlags().MarkHidden("xIgnoreDataTypeInColumnName") // should be used only upon explicit advice
@@ -319,6 +321,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 			Precision:          writeFlags.Precision,
 			InsecureSkipVerify: flags.skipVerify,
 		},
+		MaxLineLength: writeFlags.MaxLineLength,
 	}
 	if err := s.Write(ctx, orgID, bucketID, r); err != nil && err != context.Canceled {
 		return fmt.Errorf("failed to write data: %v", err)
