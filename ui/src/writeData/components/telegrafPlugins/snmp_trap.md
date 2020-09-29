@@ -87,6 +87,7 @@ On Mac OS, listening on privileged ports is unrestricted on versions
 	- version (string, "1" or "2c" or "3")
 	- context_name (string, value from v3 trap)
 	- engine_id (string, value from v3 trap)
+	- community (string, value from 1 or 2c trap)
   - fields:
 	- Fields are mapped from variables in the trap. Field names are
       the trap variable names after MIB lookup. Field values are trap
@@ -94,8 +95,8 @@ On Mac OS, listening on privileged ports is unrestricted on versions
 
 ### Example Output
 ```
-snmp_trap,mib=SNMPv2-MIB,name=coldStart,oid=.1.3.6.1.6.3.1.1.5.1,source=192.168.122.102,version=2c snmpTrapEnterprise.0="linux",sysUpTimeInstance=1i 1574109187723429814
-snmp_trap,mib=NET-SNMP-AGENT-MIB,name=nsNotifyShutdown,oid=.1.3.6.1.4.1.8072.4.0.2,source=192.168.122.102,version=2c sysUpTimeInstance=5803i,snmpTrapEnterprise.0="netSnmpNotificationPrefix" 1574109186555115459
+snmp_trap,mib=SNMPv2-MIB,name=coldStart,oid=.1.3.6.1.6.3.1.1.5.1,source=192.168.122.102,version=2c,community=public snmpTrapEnterprise.0="linux",sysUpTimeInstance=1i 1574109187723429814
+snmp_trap,mib=NET-SNMP-AGENT-MIB,name=nsNotifyShutdown,oid=.1.3.6.1.4.1.8072.4.0.2,source=192.168.122.102,version=2c,community=public sysUpTimeInstance=5803i,snmpTrapEnterprise.0="netSnmpNotificationPrefix" 1574109186555115459
 ```
 
 [net-snmp]: http://www.net-snmp.org/
