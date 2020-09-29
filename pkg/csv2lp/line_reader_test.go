@@ -9,6 +9,7 @@ import (
 	"testing/iotest"
 
 	"github.com/influxdata/influxdb/v2/pkg/csv2lp"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -92,6 +93,18 @@ func TestLineReader(t *testing.T) {
 			require.NotNil(t, err)
 		})
 	}
+}
+
+// TestLineReader_Read_BufferOverflow ensures calling Read into
+// a slice does not panic. Fixes https://github.com/influxdata/influxdb/issues/19586
+func TestLineReader_Read_BufferOverflow(t *testing.T) {
+	sr := strings.NewReader("foo\nbar")
+	rd := csv2lp.NewLineReader(sr)
+	buf := make([]byte, 2)
+
+	n, err := rd.Read(buf)
+	assert.Equal(t, n, 2)
+	assert.NoError(t, err)
 }
 
 // TestLineReader_viaCsv tests correct line reporting when read through a CSV reader with various buffer sizes
