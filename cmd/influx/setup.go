@@ -31,6 +31,8 @@ var setupFlags struct {
 	username    string
 }
 
+const minPasswordLen int = 8
+
 func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("setup", nil, true)
 	cmd.RunE = setupF
@@ -222,6 +224,10 @@ func onboardingRequest() (*influxdb.OnboardingRequest, error) {
 }
 
 func nonInteractive() (*influxdb.OnboardingRequest, error) {
+	if len(setupFlags.password) < minPasswordLen {
+		return nil, errPasswordIsTooShort
+	}
+
 	req := &influxdb.OnboardingRequest{
 		User:            setupFlags.username,
 		Password:        setupFlags.password,
@@ -253,7 +259,7 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 	} else {
 		req.User = getInput(ui, "Please type your primary username", "")
 	}
-	if setupFlags.password != "" {
+	if setupFlags.password != "" && len(setupFlags.password) >= minPasswordLen {
 		req.Password = setupFlags.password
 	} else {
 		req.Password = getPassword(ui, false)
@@ -345,9 +351,9 @@ You have entered:
 	}
 }
 
-var errPasswordNotMatch = fmt.Errorf("passwords do not match")
+var errPasswordNotMatch = errors.New("passwords do not match")
 
-var errPasswordIsTooShort error = fmt.Errorf("password is too short")
+var errPasswordIsTooShort error = errors.New("password is too short")
 
 func getSecret(ui *input.UI) (secret string) {
 	var err error
@@ -387,7 +393,7 @@ enterPassword:
 			Hide:      true,
 			Mask:      false,
 			ValidateFunc: func(s string) error {
-				if len(s) < 8 {
+				if len(s) < minPasswordLen {
 					return errPasswordIsTooShort
 				}
 				return nil
@@ -397,7 +403,7 @@ enterPassword:
 		case input.ErrInterrupted:
 			os.Exit(1)
 		case errPasswordIsTooShort:
-			ui.Writer.Write(promptWithColor("Password too short - minimum length is 8 characters!\n\r", colorRed))
+			ui.Writer.Write(promptWithColor(fmt.Sprintf("Password too short - minimum length is %d characters!\n\r", minPasswordLen), colorRed))
 			continue
 		default:
 			if password = strings.TrimSpace(password); password == "" {
