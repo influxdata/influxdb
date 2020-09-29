@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -18,6 +19,11 @@ const (
 	DefaultInterval = 10 * time.Second
 )
 
+var (
+	// ErrLineTooLong is the error returned when reading a line that exceeds MaxLineLength.
+	ErrLineTooLong = errors.New("batcher: line too long")
+)
+
 // batcher is a write service that batches for another write service.
 var _ platform.WriteService = (*Batcher)(nil)
 
@@ -25,6 +31,7 @@ var _ platform.WriteService = (*Batcher)(nil)
 type Batcher struct {
 	MaxFlushBytes    int                   // MaxFlushBytes is the maximum number of bytes to buffer before flushing
 	MaxFlushInterval time.Duration         // MaxFlushInterval is the maximum amount of time to wait before flushing
+	MaxLineLength    int                   // MaxLineLength specifies the maximum length of a single line
 	Service          platform.WriteService // Service receives batches flushed from Batcher.
 }
 
@@ -50,13 +57,20 @@ func (b *Batcher) Write(ctx context.Context, org, bucket platform.ID, r io.Reade
 		case <-ctx.Done():
 			return ctx.Err()
 		case err := <-errC:
-			// onky if there is any error, exit immediately.
+			// only if there is any error, exit immediately.
 			if err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // read will close the line channel when there is no more data, or an error occurs.
@@ -66,6 +80,15 @@ func (b *Batcher) read(ctx context.Context, r io.Reader, lines chan<- []byte, er
 	defer close(lines)
 	scanner := bufio.NewScanner(r)
 	scanner.Split(ScanLines)
+
+	maxLineLength := bufio.MaxScanTokenSize
+	if b.MaxLineLength > 0 {
+		maxLineLength = b.MaxLineLength
+	}
+
+	// limit the initial size of the buffer to a maximum of bufio.MaxScanTokenSize bytes
+	scanner.Buffer(make([]byte, min(bufio.MaxScanTokenSize, maxLineLength)), maxLineLength)
+
 	for scanner.Scan() {
 		// exit early if the context is done
 		select {
@@ -75,7 +98,11 @@ func (b *Batcher) read(ctx context.Context, r io.Reader, lines chan<- []byte, er
 			return
 		}
 	}
-	errC <- scanner.Err()
+	err := scanner.Err()
+	if errors.Is(err, bufio.ErrTooLong) {
+		err = ErrLineTooLong
+	}
+	errC <- err
 }
 
 // finishes when the lines channel is closed or context is done.
