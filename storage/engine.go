@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -24,12 +23,18 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
-// ErrEngineClosed is returned when a caller attempts to use the engine while
-// it's closed.
-var ErrEngineClosed = errors.New("engine is closed")
+var (
+	// ErrEngineClosed is returned when a caller attempts to use the engine while
+	// it's closed.
+	ErrEngineClosed = errors.New("engine is closed")
+
+	// ErrNotImplemented is returned for APIs that are temporarily not implemented.
+	ErrNotImplemented = errors.New("not implemented")
+)
 
 type Engine struct {
 	config Config
@@ -41,6 +46,7 @@ type Engine struct {
 	metaClient   MetaClient
 	pointsWriter interface {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+		Close() error
 	}
 
 	retentionService  *retention.Service
@@ -208,21 +214,23 @@ func (e *Engine) Close() error {
 	defer e.mu.Unlock()
 	e.closing = nil
 
-	var retErr *multierror.Error
-
+	var retErr error
 	if err := e.precreatorService.Close(); err != nil {
-		retErr = multierror.Append(retErr, fmt.Errorf("error closing shard precreator service: %w", err))
+		retErr = multierr.Append(retErr, fmt.Errorf("error closing shard precreator service: %w", err))
 	}
 
 	if err := e.retentionService.Close(); err != nil {
-		retErr = multierror.Append(retErr, fmt.Errorf("error closing retention service: %w", err))
+		retErr = multierr.Append(retErr, fmt.Errorf("error closing retention service: %w", err))
 	}
 
 	if err := e.tsdbStore.Close(); err != nil {
-		retErr = multierror.Append(retErr, fmt.Errorf("error closing TSDB store: %w", err))
+		retErr = multierr.Append(retErr, fmt.Errorf("error closing TSDB store: %w", err))
 	}
 
-	return retErr.ErrorOrNil()
+	if err := e.pointsWriter.Close(); err != nil {
+		retErr = multierr.Append(retErr, fmt.Errorf("error closing points writer: %w", err))
+	}
+	return retErr
 }
 
 // WritePoints writes the provided points to the engine.
@@ -284,49 +292,18 @@ func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influ
 func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-	return e.tsdbStore.DeleteRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName)
+	return e.tsdbStore.DeleteDatabase(bucketID.String())
 }
 
 // DeleteBucketRange deletes an entire range of data from the storage engine.
 func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64) error {
-	span, _ := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return ErrEngineClosed
-	}
-
-	// TODO(edd): create an influxql.Expr that represents the min and max time...
-	return e.tsdbStore.DeleteSeries(bucketID.String(), nil, nil)
+	return ErrNotImplemented
 }
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
 func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
-	span, _ := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return ErrEngineClosed
-	}
-
-	var predData []byte
-	var err error
-	if pred != nil {
-		// Marshal the predicate to add it to the WAL.
-		predData, err = pred.Marshal()
-		if err != nil {
-			return err
-		}
-	}
-	_ = predData
-
-	// TODO - edd convert the predicate into an influxql.Expr
-	return e.tsdbStore.DeleteSeries(bucketID.String(), nil, nil)
+	return ErrNotImplemented
 }
 
 // CreateBackup creates a "snapshot" of all TSM data in the Engine.

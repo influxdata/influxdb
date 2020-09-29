@@ -38,6 +38,8 @@ func CreateRowColumnError(line int, columnLabel string, err error) CsvLineError 
 type CsvToLineReader struct {
 	// csv reading
 	csv *csv.Reader
+	// lineReader is used to report line number of the last read CSV line
+	lineReader *LineReader
 	// Table collects information about used columns
 	Table CsvTable
 	// LineNumber represents line number of csv.Reader, 1 is the first
@@ -100,8 +102,8 @@ func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 	// state3: fill buffer with data to read from
 	for {
 		// Read each record from csv
-		state.LineNumber++
 		row, err := state.csv.Read()
+		state.LineNumber = state.lineReader.LastLineNumber
 		if parseError, ok := err.(*csv.ParseError); ok && parseError.Err == csv.ErrFieldCount {
 			// every row can have different number of columns
 			err = nil
@@ -150,9 +152,12 @@ func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 
 // CsvToLineProtocol transforms csv data into line protocol data
 func CsvToLineProtocol(reader io.Reader) *CsvToLineReader {
-	csv := csv.NewReader(reader)
+	lineReader := NewLineReader(reader)
+	lineReader.LineNumber = 1 // start counting from 1
+	csv := csv.NewReader(lineReader)
 	csv.ReuseRecord = true
 	return &CsvToLineReader{
-		csv: csv,
+		csv:        csv,
+		lineReader: lineReader,
 	}
 }

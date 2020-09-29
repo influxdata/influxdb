@@ -155,7 +155,7 @@ export const CommunityTemplatesResourceSummary: FC<Props> = ({
             <td>{resource.kind}</td>
             <td>
               <CommunityTemplateHumanReadableResource
-                link={`/orgs/${orgID}/load-data/telegrafs/${resource.resourceID}/view`}
+                link={`/orgs/${orgID}/load-data/telegrafs/${resource.resourceID}/instructions`}
                 metaName={resource.templateMetaName}
                 resourceID={resource.resourceID}
               />

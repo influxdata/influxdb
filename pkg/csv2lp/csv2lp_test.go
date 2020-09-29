@@ -351,3 +351,76 @@ func Test_CsvLineError(t *testing.T) {
 		require.Equal(t, test.value, test.err.Error())
 	}
 }
+
+// Test_CsvToLineProtocol_lineNumbers tests that correct line numbers are reported
+func Test_CsvToLineProtocol_lineNumbers(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	oldFlags := log.Flags()
+	log.SetFlags(0)
+	defer func() {
+		log.SetOutput(os.Stderr)
+		log.SetFlags(oldFlags)
+	}()
+
+	type ActualArguments = struct {
+		src *CsvToLineReader
+		err error
+		row []string
+	}
+	type ExpectedArguments = struct {
+		errorString string
+		row         []string
+	}
+
+	// note: csv contains a field with newline and an extra empty lines
+	csv := `sep=;
+
+_measurement;a|long:strict
+;1
+cpu;"2
+.1"
+
+cpu;3a
+`
+	calledArgs := []ActualArguments{}
+	expectedArgs := []ExpectedArguments{
+		{
+			"line 4: column '_measurement': no measurement supplied",
+			[]string{"", "1"},
+		},
+		{
+			"line 6: column 'a': '2\n.1' cannot fit into long data type",
+			[]string{"cpu", "2\n.1"},
+		},
+		{
+			"line 8: column 'a': strconv.ParseInt:",
+			[]string{"cpu", "3a"},
+		},
+	}
+
+	reader := CsvToLineProtocol(strings.NewReader(csv)).SkipRowOnError(true)
+	reader.RowSkipped = func(src *CsvToLineReader, err error, _row []string) {
+		// make a copy of _row
+		row := make([]string, len(_row))
+		copy(row, _row)
+		// remember for comparison
+		calledArgs = append(calledArgs, ActualArguments{
+			src, err, row,
+		})
+	}
+	// read all the data
+	ioutil.ReadAll(reader)
+
+	out := buf.String()
+	require.Empty(t, out, "No log messages expected because RowSkipped handler is set")
+
+	require.Len(t, calledArgs, 3)
+	for i, expected := range expectedArgs {
+		require.Equal(t, reader, calledArgs[i].src)
+		require.Contains(t, calledArgs[i].err.Error(), expected.errorString)
+		require.Equal(t, expected.row, calledArgs[i].row)
+	}
+	// 8 lines were read
+	require.Equal(t, 8, reader.LineNumber)
+}

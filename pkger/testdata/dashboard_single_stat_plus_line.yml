@@ -19,6 +19,8 @@ spec:
       shade: true
       hoverDimension: "y"
       position: overlaid
+      legendOpacity: 1.0
+      legendOrientationThreshold: 5
       legend:
         type: leg_type
         orientation: horizontal

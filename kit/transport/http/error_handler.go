@@ -78,6 +78,7 @@ func ErrorCodeToStatusCode(ctx context.Context, code string) int {
 // influxDBErrorToStatusCode is a mapping of ErrorCode to http status code.
 var influxDBErrorToStatusCode = map[string]int{
 	influxdb.EInternal:            http.StatusInternalServerError,
+	influxdb.ENotImplemented:      http.StatusNotImplemented,
 	influxdb.EInvalid:             http.StatusBadRequest,
 	influxdb.EUnprocessableEntity: http.StatusUnprocessableEntity,
 	influxdb.EEmptyValue:          http.StatusBadRequest,

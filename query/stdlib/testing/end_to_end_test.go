@@ -187,6 +187,11 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 	if err := s.CreateBucket(context.Background(), b); err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := s.DeleteBucket(context.Background(), b.ID); err != nil {
+			t.Logf("Failed to delete bucket: %s", err)
+		}
+	}()
 
 	// Define bucket and org options
 	bucketOpt := &ast.OptionStatement{

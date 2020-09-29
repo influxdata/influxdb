@@ -4602,7 +4602,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TemplateExport"
+              oneOf:
+                - $ref: "#/components/schemas/TemplateExportByID"
+                - $ref: "#/components/schemas/TemplateExportByName"
       responses:
         "200":
           description: InfluxDB template created
@@ -7475,7 +7477,7 @@ components:
         - Task
         - Telegraf
         - Variable
-    TemplateExport:
+    TemplateExportByID:
       type: object
       properties:
         stackID:
@@ -7507,7 +7509,39 @@ components:
               $ref: "#/components/schemas/TemplateKind"
             name:
               type: string
+              description: "if defined with id, name is used for resource exported by id. if defined independently, resources strictly matching name are exported"
           required: [id, kind]
+    TemplateExportByName:
+      type: object
+      properties:
+        stackID:
+          type: string
+        orgIDs:
+          type: array
+          items:
+            type: object
+            properties:
+              orgID:
+                type: string
+              resourceFilters:
+                type: object
+                properties:
+                  byLabel:
+                    type: array
+                    items:
+                      type: string
+                  byResourceKind:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TemplateKind"
+        resources:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            name:
+              type: string
+          required: [name, kind]
     Template:
       type: array
       items:
@@ -8956,6 +8990,11 @@ components:
           enum: [overlaid, stacked]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     XYGeom:
       type: string
       enum: [line, step, stacked, bar, monotoneX]
@@ -9013,6 +9052,11 @@ components:
           enum: [auto, x, y, xy]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     LinePlusSingleStatProperties:
       type: object
       required:
@@ -9073,6 +9117,11 @@ components:
           type: string
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     MosaicViewProperties:
       type: object
       required:
@@ -9148,6 +9197,11 @@ components:
           type: string
         ySuffix:
           type: string
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     ScatterViewProperties:
       type: object
       required:
@@ -9226,6 +9280,11 @@ components:
           type: string
         ySuffix:
           type: string
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     HeatmapViewProperties:
       type: object
       required:
@@ -9297,6 +9356,11 @@ components:
           type: string
         binSize:
           type: number
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     SingleStatViewProperties:
       type: object
       required:
@@ -9345,6 +9409,11 @@ components:
           $ref: "#/components/schemas/Legend"
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     HistogramViewProperties:
       type: object
       required:
@@ -9398,6 +9467,11 @@ components:
           type: string
           enum: [overlaid, stacked]
         binCount:
+          type: integer
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
           type: integer
     GaugeViewProperties:
       type: object
@@ -9561,6 +9635,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardColor"
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     Axes:
       description: The viewport for a View's visualizations
       type: object

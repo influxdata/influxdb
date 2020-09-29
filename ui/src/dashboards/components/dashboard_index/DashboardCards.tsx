@@ -54,7 +54,9 @@ class DashboardCards extends PureComponent<OwnProps & StateProps> {
   private registerSpinner = elem => {
     this._spinner = elem
 
-    if (!elem) return
+    if (!elem) {
+      return
+    }
 
     let count = 1.0
     const threshold = []

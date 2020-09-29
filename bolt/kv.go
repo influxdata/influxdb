@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
+	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
 

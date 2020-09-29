@@ -29,6 +29,7 @@ module.exports = {
     },
   },
   rules: {
+    'curly': ['error', 'all'],
     'no-console': ['error', {allow: ['warn', 'error']}],
     'no-empty': 'off',
     'getter-return': 'off',

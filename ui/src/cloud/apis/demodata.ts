@@ -71,7 +71,9 @@ export const deleteDemoDataBucketMembership = async (bucketID: string) => {
 }
 
 export const fetchDemoDataBuckets = async (): Promise<Bucket[]> => {
-  if (!isFlagEnabled('demodata')) return []
+  if (!isFlagEnabled('demodata')) {
+    return []
+  }
 
   try {
     // FindBuckets paginates before filtering for authed buckets until #6591 is resolved,
