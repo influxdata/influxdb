@@ -234,6 +234,16 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			lines:  strings.Split(fileContents, "\n"),
 			lpData: true,
 		},
+		{
+			name: "read data from CSV file + transform to line protocol + throttle read to 1MB/min",
+			flags: writeFlagsType{
+				Files:     []string{csvFile1},
+				RateLimit: 1.0,
+			},
+			lines: []string{
+				"f1 b=f2,c=f3,d=f4",
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -244,7 +254,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			defer closer.Close()
 			require.Nil(t, err)
 			require.NotNil(t, reader)
-			if !test.lpData {
+			if !test.lpData && test.flags.RateLimit == 0.0 {
 				csvToLineReader, ok := reader.(*csv2lp.CsvToLineReader)
 				require.True(t, ok)
 				require.Equal(t, csvToLineReader.LineNumber, test.firstLineCorrection)

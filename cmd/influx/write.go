@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fujiwara/shapeio"
 	platform "github.com/influxdata/influxdb/v2"
 	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/signals"
@@ -41,6 +42,7 @@ type writeFlagsType struct {
 	IgnoreDataTypeInColumnName bool
 	Encoding                   string
 	ErrorsFile                 string
+	RateLimit                  float64
 }
 
 var writeFlags writeFlagsType
@@ -91,6 +93,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().MarkHidden("xIgnoreDataTypeInColumnName") // should be used only upon explicit advice
 	cmd.PersistentFlags().StringVar(&writeFlags.Encoding, "encoding", "UTF-8", "Character encoding of input files or stdin")
 	cmd.PersistentFlags().StringVar(&writeFlags.ErrorsFile, "errors-file", "", "The path to the file to write rejected rows to")
+	cmd.PersistentFlags().Float64Var(&writeFlags.RateLimit, "rate-limit", 0.0, "How many megabytes per minute the write will allow. Defaults to zero, which disables throttling.")
 
 	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -242,6 +245,16 @@ func (writeFlags *writeFlagsType) createLineReader(ctx context.Context, cmd *cob
 		csvReader.RowSkipped = rowSkippedListener
 		r = csvReader
 	}
+	// throttle reader if requested
+	if writeFlags.RateLimit > 0.0 {
+		// LineReader ensures that original reader is consumed in the smallest possible
+		// units (at most one protocol line) to avoid bigger pauses in throttling
+		r = csv2lp.NewLineReader(r)
+		throttledReader := shapeio.NewReaderWithContext(r, ctx)
+		throttledReader.SetRateLimit(writeFlags.RateLimit * 1024 * 1024 / 60) // convert from MB/minute to bytes/sec
+		r = throttledReader
+	}
+
 	return r, csv2lp.MultiCloser(closers...), nil
 }
 
