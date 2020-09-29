@@ -200,7 +200,8 @@ impl Partition {
         self.key.starts_with(key) && self.is_open
     }
 
-    pub fn table_to_arrow(&self, table_name: &str) -> Result<RecordBatch> {
+    /// Convert the table specified in this partition into an arrow record batch
+    pub fn table_to_arrow(&self, table_name: &str, columns: &[&str]) -> Result<RecordBatch> {
         let table_id =
             self.dictionary
                 .lookup_value(table_name)
@@ -217,7 +218,7 @@ impl Partition {
                 partition: self.generation,
             })?;
         table
-            .to_arrow(&self)
+            .to_arrow(&self, columns)
             .context(NamedTableError { table_name })
     }
 }

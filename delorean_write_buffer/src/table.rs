@@ -10,7 +10,7 @@ use crate::{
     partition::Partition,
     wal::{type_description, WalEntryBuilder},
 };
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use delorean_arrow::{
     arrow,
@@ -61,11 +61,22 @@ pub enum Error {
 
     #[snafu(display(
         "Column ID {} not found in dictionary of partition {}",
-        column,
+        column_id,
         partition
     ))]
     ColumnIdNotFoundInDictionary {
-        column: u32,
+        column_id: u32,
+        partition: u32,
+        source: DictionaryError,
+    },
+
+    #[snafu(display(
+        "Column name '{}' not found in dictionary of partition {}",
+        column_name,
+        partition
+    ))]
+    ColumnNameNotFoundInDictionary {
+        column_name: String,
         partition: u32,
         source: DictionaryError,
     },
@@ -90,6 +101,13 @@ pub enum Error {
         column: u32,
         source: crate::column::Error,
     },
+
+    #[snafu(display(
+        "No index entry found for column {} with id {}",
+        column_name,
+        column_id
+    ))]
+    InternalNoColumnInIndex { column_name: String, column_id: u32 },
 
     #[snafu(display("Error creating column from wal for column {}: {}", column, source))]
     CreatingFromWal {
@@ -294,24 +312,41 @@ impl Table {
         Ok(())
     }
 
-    pub fn to_arrow(&self, partition: &Partition) -> Result<RecordBatch> {
-        let mut index: Vec<_> = self.column_id_to_index.iter().collect();
-        index.sort_by(|a, b| a.1.cmp(b.1));
-        let ids: Vec<_> = index.iter().map(|(a, _)| **a).collect();
+    /// Converts this table to an arrow record batch.
+    pub fn to_arrow(
+        &self,
+        partition: &Partition,
+        requested_columns: &[&str],
+    ) -> Result<RecordBatch> {
+        // only retrieve the requested columns
+        let requested_columns_with_index =
+            requested_columns
+                .iter()
+                .map(|column_name| {
+                    let column_name = *column_name;
+                    let column_id = partition.dictionary.lookup_value(column_name).context(
+                        ColumnNameNotFoundInDictionary {
+                            column_name,
+                            partition: partition.generation,
+                        },
+                    )?;
 
-        let mut fields = Vec::with_capacity(self.columns.len());
-        let mut columns: Vec<ArrayRef> = Vec::with_capacity(self.columns.len());
+                    let column_index = *self.column_id_to_index.get(&column_id).context(
+                        InternalNoColumnInIndex {
+                            column_name,
+                            column_id,
+                        },
+                    )?;
 
-        for (col, id) in self.columns.iter().zip(ids) {
-            let column_name =
-                partition
-                    .dictionary
-                    .lookup_id(id)
-                    .context(ColumnIdNotFoundInDictionary {
-                        column: id,
-                        partition: partition.generation,
-                    })?;
-            let arrow_col: ArrayRef = match col {
+                    Ok((column_name, column_index))
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+        let mut fields = Vec::with_capacity(requested_columns_with_index.len());
+        let mut columns: Vec<ArrayRef> = Vec::with_capacity(requested_columns_with_index.len());
+
+        for (column_name, column_index) in requested_columns_with_index.into_iter() {
+            let arrow_col: ArrayRef = match &self.columns[column_index] {
                 Column::String(vals) => {
                     fields.push(ArrowField::new(column_name, ArrowDataType::Utf8, true));
                     let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);

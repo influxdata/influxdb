@@ -420,13 +420,16 @@ impl Database for Db {
     async fn table_to_arrow(
         &self,
         table_name: &str,
-        _columns: &[&str],
+        columns: &[&str],
     ) -> Result<Vec<RecordBatch>, Self::Error> {
         let partitions = self.partitions.read().await;
 
         partitions
             .iter()
-            .map(|p| p.table_to_arrow(table_name).context(PartitionError))
+            .map(|p| {
+                p.table_to_arrow(table_name, columns)
+                    .context(PartitionError)
+            })
             .collect::<Result<Vec<_>>>()
     }
 
@@ -507,7 +510,10 @@ mod tests {
     use super::*;
     use delorean_storage::{Database, TimestampRange};
 
-    use arrow::util::pretty::pretty_format_batches;
+    use arrow::{
+        array::{Array, StringArray, StringArrayOps},
+        util::pretty::pretty_format_batches,
+    };
     use delorean_line_parser::parse_lines;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -588,6 +594,60 @@ mod tests {
     }
 
     #[tokio::test(threaded_scheduler)]
+    async fn missing_tags_are_null() -> Result {
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+
+        let db = Db::try_with_wal("mydb", &mut dir).await?;
+
+        // Note the `region` tag is introduced in the second line, so
+        // the values in prior rows for the region column are
+        // null. Likewise the `core` tag is introduced in the third
+        // line so the prior columns are null
+        let lines: Vec<_> = parse_lines(
+            "cpu,region=west user=23.2 10\n\
+                         cpu, user=10.0 11\n\
+                         cpu,core=one user=10.0 11\n",
+        )
+        .map(|l| l.unwrap())
+        .collect();
+        db.write_lines(&lines).await?;
+
+        let partitions = db.table_to_arrow("cpu", &["region", "core"]).await?;
+        let columns = partitions[0].columns();
+
+        assert_eq!(
+            2,
+            columns.len(),
+            "Got only two columns in partiton: {:#?}",
+            columns
+        );
+
+        let region_col = columns[0]
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("Get region column as a string");
+
+        assert_eq!(region_col.len(), 3);
+        assert_eq!(region_col.value(0), "west", "region_col: {:?}", region_col);
+        assert!(!region_col.is_null(0), "is_null(0): {:?}", region_col);
+        assert!(region_col.is_null(1), "is_null(1): {:?}", region_col);
+        assert!(region_col.is_null(2), "is_null(1): {:?}", region_col);
+
+        let host_col = columns[1]
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("Get host column as a string");
+
+        assert_eq!(host_col.len(), 3);
+        assert!(host_col.is_null(0), "is_null(0): {:?}", host_col);
+        assert!(host_col.is_null(1), "is_null(1): {:?}", host_col);
+        assert!(!host_col.is_null(2), "is_null(2): {:?}", host_col);
+        assert_eq!(host_col.value(2), "one", "host_col: {:?}", host_col);
+
+        Ok(())
+    }
+
+    #[tokio::test(threaded_scheduler)]
     async fn write_data_and_recover() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
 
@@ -612,6 +672,20 @@ mod tests {
 +--------+------+----------+--------------+------+
 "#;
 
+        let cpu_columns = &[
+            "region",
+            "host",
+            "user",
+            "other",
+            "str",
+            "b",
+            "time",
+            "new_tag",
+            "new_field",
+        ];
+        let mem_columns = &["region", "host", "val", "time"];
+        let disk_columns = &["region", "host", "bytes", "used_percent", "time"];
+
         {
             let db = Db::try_with_wal("mydb", &mut dir).await?;
             let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i,str=\"some string\",b=true 10\ndisk,region=west,host=A bytes=23432323i,used_percent=76.2 10").map(|l| l.unwrap()).collect();
@@ -629,13 +703,13 @@ mod tests {
                 .collect();
             db.write_lines(&lines).await?;
 
-            let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
+            let partitions = db.table_to_arrow("cpu", cpu_columns).await?;
             assert_table_eq(expected_cpu_table, &partitions);
 
-            let partitions = db.table_to_arrow("mem", &[]).await?;
+            let partitions = db.table_to_arrow("mem", mem_columns).await?;
             assert_table_eq(expected_mem_table, &partitions);
 
-            let partitions = db.table_to_arrow("disk", &[]).await?;
+            let partitions = db.table_to_arrow("disk", disk_columns).await?;
             assert_table_eq(expected_disk_table, &partitions);
         }
 
@@ -643,13 +717,13 @@ mod tests {
         {
             let db = Db::restore_from_wal(dir).await?;
 
-            let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
+            let partitions = db.table_to_arrow("cpu", cpu_columns).await?;
             assert_table_eq(expected_cpu_table, &partitions);
 
-            let partitions = db.table_to_arrow("mem", &[]).await?;
+            let partitions = db.table_to_arrow("mem", mem_columns).await?;
             assert_table_eq(expected_mem_table, &partitions);
 
-            let partitions = db.table_to_arrow("disk", &[]).await?;
+            let partitions = db.table_to_arrow("disk", disk_columns).await?;
             assert_table_eq(expected_disk_table, &partitions);
         }
 
@@ -681,6 +755,19 @@ mod tests {
 +--------+------+----------+--------------+------+
 "#;
 
+        let cpu_columns = &[
+            "region",
+            "host",
+            "user",
+            "other",
+            "str",
+            "b",
+            "time",
+            "new_tag",
+            "new_field",
+        ];
+        let mem_columns = &["region", "host", "val", "time"];
+        let disk_columns = &["region", "host", "bytes", "used_percent", "time"];
         {
             let db = Db::try_with_wal("mydb", &mut dir).await?;
             let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i,str=\"some string\",b=true 10\ndisk,region=west,host=A bytes=23432323i,used_percent=76.2 10").map(|l| l.unwrap()).collect();
@@ -698,13 +785,13 @@ mod tests {
                 .collect();
             db.write_lines(&lines).await?;
 
-            let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
+            let partitions = db.table_to_arrow("cpu", cpu_columns).await?;
             assert_table_eq(expected_cpu_table, &partitions);
 
-            let partitions = db.table_to_arrow("mem", &[]).await?;
+            let partitions = db.table_to_arrow("mem", mem_columns).await?;
             assert_table_eq(expected_mem_table, &partitions);
 
-            let partitions = db.table_to_arrow("disk", &[]).await?;
+            let partitions = db.table_to_arrow("disk", disk_columns).await?;
             assert_table_eq(expected_disk_table, &partitions);
         }
 
@@ -739,15 +826,16 @@ mod tests {
 | A    | foo     | 15.1      | 20   |
 +------+---------+-----------+------+
 "#;
-            let partitions = db.table_to_arrow("cpu", &["region", "host"]).await?;
+            let smaller_cpu_columns = &["host", "new_tag", "new_field", "time"];
+            let partitions = db.table_to_arrow("cpu", smaller_cpu_columns).await?;
             assert_table_eq(smaller_cpu_table, &partitions);
 
             // all of mem
-            let partitions = db.table_to_arrow("mem", &[]).await?;
+            let partitions = db.table_to_arrow("mem", mem_columns).await?;
             assert_table_eq(expected_mem_table, &partitions);
 
             // no disk
-            let nonexistent_table = db.table_to_arrow("disk", &[]).await;
+            let nonexistent_table = db.table_to_arrow("disk", disk_columns).await;
             assert!(nonexistent_table.is_err());
             let actual_message = format!("{:?}", nonexistent_table);
             let expected_message = "TableNameNotFoundInDictionary";

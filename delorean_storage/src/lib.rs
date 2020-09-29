@@ -90,7 +90,8 @@ pub trait Database: Debug + Send + Sync {
         predicate: Predicate,
     ) -> Result<Arc<BTreeSet<String>>, Self::Error>;
 
-    /// Fetch the specified table names and columns as Arrow RecordBatches
+    /// Fetch the specified table names and columns as Arrow
+    /// RecordBatches. Columns are returned in the order specified.
     async fn table_to_arrow(
         &self,
         table_name: &str,
