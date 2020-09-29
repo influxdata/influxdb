@@ -37,6 +37,7 @@ need to update any InfluxDB CLI config profiles with the new port number.
 1. [19508](https://github.com/influxdata/influxdb/pull/19508): Add subset of InfluxQL coordinator options as flags
 1. [19457](https://github.com/influxdata/influxdb/pull/19457): Add ability to export resources by name via the CLI
 1. [19640](https://github.com/influxdata/influxdb/pull/19640): Turn on Community Templates
+1. [19662](https://github.com/influxdata/influxdb/pull/19662): Add `max-line-length` switch to `influx write` command to address `token too long` errors for large inputs
 
 ### Bug Fixes
 
