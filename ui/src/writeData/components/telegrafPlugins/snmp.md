@@ -130,9 +130,11 @@ formed with this option operate similarly way to the `snmptable` command.
 Control the handling of specific table columns using a nested `field`.  These
 nested fields are specified similarly to a top-level `field`.
 
-All columns of the SNMP table will be collected, it is not required to add a
-nested field for each column, only those which you wish to modify.  To exclude
-columns use [metric filtering][].
+By default all columns of the SNMP table will be collected - it is not required
+to add a nested field for each column, only those which you wish to modify. To
+*only* collect certain columns, omit the `oid` from the `table` section and only
+include `oid` settings in `field` sections. For more complex include/exclude
+cases for columns use [metric filtering][].
 
 One [metric][] is created for each row of the SNMP table.
 
