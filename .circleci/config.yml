@@ -450,7 +450,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
-      DOCKER_VERSION: 2.0.0-beta
+      DOCKER_VERSION: 2.0.0-rc
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
