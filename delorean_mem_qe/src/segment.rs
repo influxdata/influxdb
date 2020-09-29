@@ -830,10 +830,11 @@ impl Segment {
 
     // Returns the count aggregate for a given column name.
     pub fn count_column(&self, name: &str, row_ids: &mut croaring::Bitmap) -> Option<u64> {
-        if self.column(name).is_some() {
-            return Some(row_ids.cardinality() as u64);
-        }
-        None
+        // if self.column(name).is_some() {
+        //     return Some(row_ids.cardinality() as u64);
+        // }
+        // None
+        todo!() // call count on column
     }
 
     pub fn filter_by_predicates_eq(

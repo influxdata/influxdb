@@ -1,15 +1,15 @@
-use crate::segment::Segment;
+use std::collections::BTreeMap;
+
+use crate::table::Table;
+
+// The name of a measurement, i.e., a table name.
+type MeasurementName = String;
 
 pub struct Partition {
-    segments: Vec<Segment>,
-}
+    // The partition key uniquely identifies this partition.
+    key: String,
 
-impl Partition {
-    pub fn new() -> Self {
-        Self { segments: vec![] }
-    }
-
-    pub fn add_segment(&mut self, segment: Segment) {
-        todo!();
-    }
+    // The set of tables within this partition. Each table is identified by
+    // a measurement name.
+    tables: BTreeMap<MeasurementName, Table>,
 }
