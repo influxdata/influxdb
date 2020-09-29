@@ -1,4 +1,4 @@
-## v2.0.0-beta.17 [unreleased]
+## v2.0.0-rc.0 [2020-09-29]
 
 ### Breaking Changes
 
