@@ -527,7 +527,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Retrieves data from a comma-separated value (CSV) data source.',
     example: 'csv.from(csv: csvData)',
     category: 'Inputs',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/csv/from/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/csv/from/',
   },
   {
     name: 'csv.from',
@@ -2680,7 +2681,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the cosine of the radian argument x.',
     example: 'math.cos(x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/cos/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/cos/',
   },
   {
     name: 'math.cosh',
@@ -2716,7 +2718,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the maximum of (x - y) or 0.',
     example: 'math.dim(x: r._value1, y: r._value2)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/dim/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/dim/',
   },
   {
     name: 'math.erf',
@@ -2731,7 +2734,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the error function of x.',
     example: 'math.erf(x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/erf/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/erf/',
   },
   {
     name: 'math.erfc',
@@ -2796,7 +2800,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the base-e exponential of x (`e**x`).',
     example: 'math.exp(x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/exp/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/exp/',
   },
   {
     name: 'math.exp2',
@@ -2968,7 +2973,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the order-zero Bessel function of the first kind.',
     example: 'math.j0(x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/j0/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/j0/',
   },
   {
     name: 'math.j1',
@@ -2983,7 +2989,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the order-one Bessel function of the first kind.',
     example: 'math.j1(x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/j1/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/j1/',
   },
   {
     name: 'math.jn',
@@ -3003,7 +3010,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the order-n Bessel function of the first kind.',
     example: 'math.jn(n: 2, x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/jn/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/jn/',
   },
   {
     name: 'math.ldexp',
@@ -3056,7 +3064,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the natural logarithm of x.',
     example: 'math.log(x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/log/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/log/',
   },
   {
     name: 'math.log1p',
@@ -3183,7 +3192,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the floating-point remainder of x/y.',
     example: 'math.mod(x: r.x_value, y: r.y_value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/mod/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/mod/',
   },
   {
     name: 'math.modf',
@@ -3209,7 +3219,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns an IEEE 754 NaN value.',
     example: 'math.NaN()',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/nan/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/nan/',
   },
   {
     name: 'math.nextafter',
@@ -3250,7 +3261,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the base-x exponential of y, `x**y`.',
     example: 'math.pow(x: r.x_value, y: r.y_value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/pow/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/pow/',
   },
   {
     name: 'math.pow10',
@@ -3350,7 +3362,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the sine of the radian argument x.',
     example: 'math.sin(x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/sin/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/sin/',
   },
   {
     name: 'math.sincos',
@@ -3413,7 +3426,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the tangent of the radian argument x.',
     example: 'math.tan(x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/tan/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/tan/',
   },
   {
     name: 'math.tanh',
@@ -3460,7 +3474,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the order-zero Bessel function of the second kind.',
     example: 'math.y0(x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/y0/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/y0/',
   },
   {
     name: 'math.y1',
@@ -3475,7 +3490,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the order-one Bessel function of the second kind.',
     example: 'math.y1(x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/y1/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/y1/',
   },
   {
     name: 'math.yn',
@@ -3495,7 +3511,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the order-n Bessel function of the second kind.',
     example: 'math.yn(n: 3, x: r._value)',
     category: 'Transformations',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/yn/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/yn/',
   },
   {
     name: 'max',
@@ -4284,7 +4301,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example:
       'sql.from(driverName: "postgres", dataSourceName: "postgresql://user:password@localhost", query:"SELECT * FROM example_table")',
     category: 'Inputs',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/sql/from/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/sql/from/',
   },
   {
     name: 'sql.to',
@@ -4317,7 +4335,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example:
       'sql.to(driverName: "postgres", dataSourceName: "postgresql://user:password@localhost", table: "example_table")',
     category: 'Outputs',
-    link: 'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/sql/to/',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/sql/to/',
   },
   {
     name: 'stateCount',
@@ -5328,7 +5347,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'unit',
-        desc: 'The time duration used when computing the time-weighted average.',
+        desc:
+          'The time duration used when computing the time-weighted average.',
         type: 'Duration',
       },
     ],
