@@ -38,6 +38,7 @@ use tonic::Status;
 
 use crate::server::App;
 
+pub mod expr;
 pub mod input;
 
 #[derive(Debug)]
