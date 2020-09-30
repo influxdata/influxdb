@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::slice::Iter;
 
+use delorean_arrow::arrow::record_batch::RecordBatch;
+
 use crate::column::{AggregateResult, AggregateType, Scalar, Value, Values};
 use crate::segment::Segment;
 
@@ -358,6 +360,13 @@ impl<'a> Table<'a> {
         // the tag key down in an attempt to reduce execution against columns
         // that only have values that have already been found.
         todo!();
+    }
+}
+
+/// Convert a record batch into a table.
+impl From<RecordBatch> for Table<'_> {
+    fn from(rb: RecordBatch) -> Self {
+        todo!()
     }
 }
 

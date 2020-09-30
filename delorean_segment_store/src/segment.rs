@@ -6,6 +6,9 @@ use crate::column::{Column, Value};
 /// definition it has the same schema as all the other segments in the table.
 /// Further, all the columns within the segment have the same number of logical
 /// rows.
+///
+/// This implementation will pull over the bulk of the prototype segment store
+/// crate.
 pub struct Segment<'a> {
     meta: MetaData<'a>,
 

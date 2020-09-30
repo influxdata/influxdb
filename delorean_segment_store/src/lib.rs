@@ -41,6 +41,15 @@ impl<'a> Store<'a> {
         todo!()
     }
 
+    /// This method adds a partition to the segment store. It is probably what
+    /// the `WriteBuffer` will call.
+    ///
+    /// The partition should comprise a single table (record batch) for each
+    /// measurement name in the partition.
+    pub fn add_partition(&mut self, database_id: String, partition: BTreeMap<String, RecordBatch>) {
+        todo!()
+    }
+
     /// Executes selections against matching partitions, returning a single
     /// record batch with all partition results appended.
     ///
