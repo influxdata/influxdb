@@ -109,6 +109,9 @@ impl<'a> Table<'a> {
         predicates: &[(&str, &str)],
         select_columns: Vec<String>,
     ) -> BTreeMap<String, Values<'_>> {
+        // identify segments where time range and predicates match could match
+        // using segment meta data, and then execute against those segments and
+        // merge results.
         todo!();
     }
 
@@ -132,6 +135,9 @@ impl<'a> Table<'a> {
         group_columns: Vec<String>,
         aggregates: Vec<(String, AggregateType)>,
     ) -> BTreeMap<Vec<String>, Vec<(String, AggregateResult<'_>)>> {
+        // identify segments where time range and predicates match could match
+        // using segment meta data, and then execute against those segments and
+        // merge results.
         self.aggregate_window(time_range, predicates, group_columns, aggregates, 0)
     }
 
@@ -161,6 +167,9 @@ impl<'a> Table<'a> {
         aggregates: Vec<(String, AggregateType)>,
         window: i64,
     ) -> BTreeMap<Vec<String>, Vec<(String, AggregateResult<'_>)>> {
+        // identify segments where time range and predicates match could match
+        // using segment meta data, and then execute against those segments and
+        // merge results.
         todo!()
     }
 
@@ -317,7 +326,14 @@ impl<'a> Table<'a> {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
+        found_columns: &BTreeSet<String>,
     ) -> BTreeSet<String> {
+        // Firstly, this should short-circuit early if all of the table's columns
+        // are present in `found_columns`.
+        //
+        // Otherwise, identify segments where time range and predicates match could match
+        // using segment meta data and then execute against those segments and
+        // merge results.
         todo!();
     }
 
@@ -332,7 +348,15 @@ impl<'a> Table<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         tag_keys: &[String],
+        found_tag_values: &BTreeMap<String, BTreeSet<&String>>,
     ) -> BTreeMap<String, BTreeSet<&String>> {
+        // identify segments where time range, predicates and tag keys match
+        // could match using segment meta data, and then execute against those
+        // segments and merge results.
+        //
+        // For each segment push the tag values that have already been found for
+        // the tag key down in an attempt to reduce execution against columns
+        // that only have values that have already been found.
         todo!();
     }
 }
