@@ -1,5 +1,7 @@
 #![deny(rust_2018_idioms)]
 #![allow(dead_code)]
+#![allow(clippy::too_many_arguments)]
+#![allow(unused_variables)]
 pub(crate) mod column;
 pub(crate) mod partition;
 pub(crate) mod segment;
