@@ -1,0 +1,17 @@
+[package]
+name = "delorean_cluster"
+version = "0.1.0"
+authors = ["pauldix <paul@pauldix.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+snafu = "0.6"
+serde = "1.0"
+serde_json = "1.0"
+async-trait = "0.1"
+delorean_line_parser = { path = "../delorean_line_parser" }
+delorean_storage = { path = "../delorean_storage" }
+delorean_wal = { path = "../delorean_wal" }
+tokio = { version = "0.2", features = ["full"] }

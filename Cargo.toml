@@ -8,6 +8,7 @@ default-run = "delorean"
 [workspace]
 members = [
     "delorean_arrow",
+    "delorean_cluster",
     "delorean_generated_types",
     "delorean_ingest",
     "delorean_line_parser",
