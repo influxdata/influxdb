@@ -1,21 +1,24 @@
 //! This module handles the manipulation / execution of storage
 //! plans. This is currently implemented using DataFusion, and this
 //! interface abstracts away many of the details
+mod planning;
+mod schema_pivot;
+mod stringset;
 
-use std::{collections::BTreeSet, sync::atomic::AtomicU64, sync::atomic::Ordering, sync::Arc};
+use std::{sync::atomic::AtomicU64, sync::atomic::Ordering, sync::Arc};
 
-use datafusion::prelude::{ExecutionConfig, ExecutionContext};
 use delorean_arrow::{
-    arrow::{
-        array::{Array, StringArray, StringArrayOps},
-        datatypes::DataType,
-        record_batch::RecordBatch,
-    },
+    arrow::record_batch::RecordBatch,
     datafusion::{
         self,
         logical_plan::{Expr, LogicalPlan},
+        prelude::ExecutionConfig,
     },
 };
+
+use planning::make_exec_context;
+use schema_pivot::SchemaPivotNode;
+use stringset::{IntoStringSet, StringSetRef};
 
 use tracing::debug;
 
@@ -30,31 +33,31 @@ pub enum Error {
     },
 
     #[snafu(display("Internal error optimizing plan: {}", source))]
-    DataFusionOptimizationError {
+    DataFusionOptimization {
         source: datafusion::error::ExecutionError,
     },
 
     #[snafu(display("Internal error during physical planning: {}", source))]
-    DataFusionPhysicalPlanningError {
+    DataFusionPhysicalPlanning {
         source: datafusion::error::ExecutionError,
     },
 
     #[snafu(display("Internal error executing plan: {}", source))]
-    DataFusionExecutionError {
+    DataFusionExecution {
         source: datafusion::error::ExecutionError,
     },
 
     #[snafu(display("Internal error extracting results from Record Batches: {}", message))]
     InternalResultsExtraction { message: String },
 
+    #[snafu(display("Internal error creating StringSet: {}", source))]
+    StringSetConversion { source: stringset::Error },
+
     #[snafu(display("Joining execution task: {}", source))]
     JoinError { source: tokio::task::JoinError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-pub type StringSet = BTreeSet<String>;
-pub type StringSetRef = Arc<StringSet>;
 
 /// Represents a general purpose predicate for evaluation.
 ///
@@ -119,7 +122,8 @@ impl Executor {
             StringSetPlan::Known(res) => res,
             StringSetPlan::Plan(plans) => run_logical_plans(self.counters.clone(), plans)
                 .await?
-                .into_stringset(),
+                .into_stringset()
+                .context(StringSetConversion),
         }
     }
 }
@@ -134,6 +138,26 @@ impl ExecutionCounters {
     fn inc_plans_run(&self) {
         self.plans_run.fetch_add(1, Ordering::Relaxed);
     }
+}
+
+/// Create a SchemaPivot node which  an arbitrary input like
+///  ColA | ColB | ColC
+/// ------+------+------
+///   1   | NULL | NULL
+///   2   | 2    | NULL
+///   3   | 2    | NULL
+///
+/// And pivots it to a table with a single string column for any
+/// columns that had non null values.
+///
+///   non_null_column
+///  -----------------
+///   "ColA"
+///   "ColB"
+pub fn make_schema_pivot(input: LogicalPlan) -> LogicalPlan {
+    let node = Arc::new(SchemaPivotNode::new(input));
+
+    LogicalPlan::Extension { node }
 }
 
 /// plans and runs the plans in parallel and collects the results
@@ -172,112 +196,35 @@ fn run_logical_plan(
 
     // TBD: Should we be reusing an execution context across all executions?
     let config = ExecutionConfig::new().with_batch_size(BATCH_SIZE);
-    //let ctx = make_exec_context(config); // TODO (With the next chunk)
-    let ctx = ExecutionContext::with_config(config);
+    let ctx = make_exec_context(config);
 
     debug!("Running plan, input:\n{:?}", plan);
     // TODO the datafusion optimizer was removing filters..
-    //let logical_plan = ctx.optimize(&plan).context(DataFusionOptimizationError)?;
+    //let logical_plan = ctx.optimize(&plan).context(DataFusionOptimization)?;
     let logical_plan = plan;
     debug!("Running plan, optimized:\n{:?}", logical_plan);
 
     let physical_plan = ctx
         .create_physical_plan(&logical_plan)
-        .context(DataFusionPhysicalPlanningError)?;
+        .context(DataFusionPhysicalPlanning)?;
 
     debug!("Running plan, physical:\n{:?}", physical_plan);
 
     // This executes the query, using its own threads
     // internally. TODO figure out a better way to control
     // concurrency / plan admission
-    ctx.collect(physical_plan).context(DataFusionExecutionError)
-}
-
-trait IntoStringSet {
-    fn into_stringset(self) -> Result<StringSetRef>;
-}
-
-/// Converts record batches into StringSets. Assumes that the record
-/// batches each have a single string column
-impl IntoStringSet for Vec<RecordBatch> {
-    fn into_stringset(self) -> Result<StringSetRef> {
-        let mut strings = StringSet::new();
-
-        // process the record batches one by one
-        for record_batch in self.into_iter() {
-            let num_rows = record_batch.num_rows();
-            let schema = record_batch.schema();
-            let fields = schema.fields();
-            if fields.len() != 1 {
-                return InternalResultsExtraction {
-                    message: format!(
-                        "Expected exactly 1 field in StringSet schema, found {} field in {:?}",
-                        fields.len(),
-                        schema
-                    ),
-                }
-                .fail();
-            }
-            let field = &fields[0];
-
-            if *field.data_type() != DataType::Utf8 {
-                return InternalResultsExtraction {
-                    message: format!(
-                        "Expected StringSet schema field to be Utf8, instead it was {:?}",
-                        field.data_type()
-                    ),
-                }
-                .fail();
-            }
-
-            let array = record_batch
-                .column(0)
-                .as_any()
-                .downcast_ref::<StringArray>();
-
-            match array {
-                Some(array) => add_utf8_array_to_stringset(&mut strings, array, num_rows)?,
-                None => {
-                    return InternalResultsExtraction {
-                        message: format!("Failed to downcast field {:?} to StringArray", field),
-                    }
-                    .fail()
-                }
-            }
-        }
-        Ok(StringSetRef::new(strings))
-    }
-}
-
-fn add_utf8_array_to_stringset(
-    dest: &mut StringSet,
-    src: &StringArray,
-    num_rows: usize,
-) -> Result<()> {
-    for i in 0..num_rows {
-        // Not sure how to handle a NULL -- StringSet contains
-        // Strings, not Option<String>
-        if src.is_null(i) {
-            return InternalResultsExtraction {
-                message: "Unexpected null value",
-            }
-            .fail();
-        } else {
-            let src_value = src.value(i);
-            if !dest.contains(src_value) {
-                dest.insert(src_value.into());
-            }
-        }
-    }
-    Ok(())
+    ctx.collect(physical_plan).context(DataFusionExecution)
 }
 
 #[cfg(test)]
 mod tests {
     use delorean_arrow::arrow::{
         array::Int64Array,
+        array::StringArray,
+        datatypes::DataType,
         datatypes::{Field, Schema, SchemaRef},
     };
+    use stringset::StringSet;
 
     use super::*;
 
@@ -409,13 +356,16 @@ mod tests {
         let executor = Executor::new();
         let results = executor.to_string_set(plan).await;
 
-        assert!(results.is_err(), "result is {:?}", results);
-        let expected_error = "Unexpected null value";
+        let actual_error = match results {
+            Ok(_) => "Unexpected Ok".into(),
+            Err(e) => format!("{}", e),
+        };
+        let expected_error = "unexpected null value";
         assert!(
-            format!("{:?}", results).contains(expected_error),
+            actual_error.contains(expected_error),
             "expected error '{}' not found in '{:?}'",
             expected_error,
-            results
+            actual_error,
         );
 
         Ok(())
@@ -434,14 +384,47 @@ mod tests {
         let executor = Executor::new();
         let results = executor.to_string_set(plan).await;
 
-        assert!(results.is_err(), "result is {:?}", results);
-        let expected_error = "Expected StringSet schema field to be Utf8, instead it was Int64";
+        let actual_error = match results {
+            Ok(_) => "Unexpected Ok".into(),
+            Err(e) => format!("{}", e),
+        };
+
+        let expected_error = "schema not a single Utf8";
         assert!(
-            format!("{:?}", results).contains(expected_error),
+            actual_error.contains(expected_error),
             "expected error '{}' not found in '{:?}'",
             expected_error,
-            results
+            actual_error
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn make_schema_pivot_is_planned() -> Result<()> {
+        // Test that all the planning logic is wired up and that we
+        // can make a plan using a SchemaPivot node
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("f1", DataType::Utf8, true),
+            Field::new("f2", DataType::Utf8, true),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                to_string_array(&["foo", "bar"]),
+                to_string_array(&["baz", "bzz"]),
+            ],
+        )
+        .expect("created new record batch");
+
+        let scan = make_plan(schema, vec![batch]);
+        let pivot = make_schema_pivot(scan);
+        let plan = vec![pivot].into();
+
+        let executor = Executor::new();
+        let results = executor.to_string_set(plan).await.expect("Executed plan");
+
+        assert_eq!(results, to_set(&["f1", "f2"]));
 
         Ok(())
     }
