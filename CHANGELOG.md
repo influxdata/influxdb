@@ -1,5 +1,22 @@
-v1.8.3 [unreleased]
+v1.8.4 [unreleased]
 -------------------
+
+v1.8.3 [2020-09-30]
+-------------------
+
+### Features
+
+-	[#19187](https://github.com/influxdata/influxdb/pull/19187): feat: Collect values written stats.
+-	[#19611](https://github.com/influxdata/influxdb/pull/19611): feat: Add -lponly flag to export sub-command.
+
+### Bugfixes
+
+-	[#19409](https://github.com/influxdata/influxdb/pull/19409): chore: update uuid library from satori to gofrs.
+-	[#19439](https://github.com/influxdata/influxdb/pull/19439): fix(storage): ArrayFilterCursor truncation for multi-block data.
+-	[#19460](https://github.com/influxdata/influxdb/pull/19460): chore: Use latest version of influxql package.
+-	[#19512](https://github.com/influxdata/influxdb/pull/19512): chore: Quiet static analysis tools.
+-	[#19592](https://github.com/influxdata/influxdb/pull/19592): fix(services/storage): multi measurement queries return all applicable series.
+-	[#19612](https://github.com/influxdata/influxdb/pull/19612): fix: lock map before writes.
 
 v1.8.2 [2020-08-13]
 -------------------
