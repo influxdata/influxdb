@@ -13,23 +13,23 @@ use partition::Partition;
 ///
 ///
 #[derive(Default)]
-pub struct Store {
+pub struct Store<'a> {
     // A mapping from database name (tenant id, bucket id etc) to a database.
-    databases: BTreeMap<String, Database>,
+    databases: BTreeMap<String, Database<'a>>,
 
     // The current total size of the store
     size: u64,
 }
 
-impl Store {
+impl<'a> Store<'a> {
     // TODO(edd): accept a configuration of some sort.
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Add a new database to the store
-    pub fn add_database(&mut self, id: String, database: Database) {
-        self.size += database.size_bytes();
+    pub fn add_database(&mut self, id: String, database: Database<'a>) {
+        self.size += database.size();
         self.databases.insert(id, database);
     }
 }
@@ -38,30 +38,30 @@ impl Store {
 // tables for measurements. There is a 1:1 mapping between a table and a
 // measurement name.
 #[derive(Default)]
-pub struct Database {
+pub struct Database<'a> {
     // The collection of partitions in the database.
     //
     // TODO(edd): need to implement efficient ways of skipping partitions.
-    partitions: Vec<Partition>,
+    partitions: Vec<Partition<'a>>,
 
     // The current total size of the database.
     size: u64,
 }
 
-impl Database {
+impl<'a> Database<'a> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn add_partition(&mut self, partition: Partition) {
+    pub fn add_partition(&mut self, partition: Partition<'_>) {
         todo!()
     }
 
-    pub fn remove_partition(&mut self, partition: Partition) {
+    pub fn remove_partition(&mut self, partition: Partition<'_>) {
         todo!()
     }
 
-    pub fn size_bytes(&self) -> u64 {
+    pub fn size(&self) -> u64 {
         self.size
     }
 }

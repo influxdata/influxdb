@@ -1,3 +1,14 @@
+/// The possible logical types that column values can have. All values in a
+/// column have the same physical type.
+pub enum Column {
+    String,    // TODO - UTF-8 string
+    Float,     // TODO - 64-bit floating point values
+    Integer,   // TODO - 64-bit signed integers
+    Unsigned,  // TODO - 64-bit unsigned integers
+    Bool,      // TODO - booleans
+    ByteArray, // TODO - arbitrary bytes
+}
+
 /// These variants describe supported aggregates that can applied to columnar
 /// data.
 pub enum AggregateType {
@@ -43,6 +54,7 @@ pub enum Scalar {
     Integer(i64),
     Unsigned(u64),
 }
+
 /// Each variant is a possible value type that can be returned from a column.
 pub enum Value<'a> {
     // Represents a NULL value in a column row.
@@ -50,6 +62,12 @@ pub enum Value<'a> {
 
     // A UTF-8 valid string.
     String(&'a str),
+
+    // An arbitrary byte array.
+    ByteArray(&'a [u8]),
+
+    // A boolean value.
+    Boolean(bool),
 
     // A numeric scalar value.
     Scalar(Scalar),

@@ -20,25 +20,28 @@ use crate::segment::Segment;
 ///
 /// The total size of a table is tracked and can be increased or reduced by
 /// adding or removing segments.
-pub struct Table {
+pub struct Table<'a> {
     name: String,
+
+    // Metadata about the table's segments
+    meta: MetaData<'a>,
+
     // schema // TODO(edd): schema type
-    segments: Vec<Segment>,
+    segments: Vec<Segment<'a>>,
 }
 
-impl Table {
-    /// Create a new table.
-    ///
-    /// TODO(edd): it doesn't make sense to have a table without a segment.
-    pub fn new(name: String) -> Self {
+impl<'a> Table<'a> {
+    /// Create a new table with the provided segment.
+    pub fn new(name: String, segment: Segment<'a>) -> Self {
         Self {
             name,
-            segments: vec![],
+            meta: MetaData::new(&segment),
+            segments: vec![segment],
         }
     }
 
     /// Add a new segment to this table.
-    pub fn add_segment(&mut self, segment: Segment) {
+    pub fn add_segment(&mut self, segment: Segment<'_>) {
         todo!();
     }
 
@@ -48,7 +51,7 @@ impl Table {
     }
 
     /// Iterate over all segments for the table.
-    pub fn iter(&mut self) -> Iter<'_, Segment> {
+    pub fn iter(&mut self) -> Iter<'_, Segment<'_>> {
         self.segments.iter()
     }
 
@@ -65,6 +68,26 @@ impl Table {
     /// The total number of segments within this table.
     pub fn len(&self) -> usize {
         self.segments.len()
+    }
+
+    /// The total size of the table in bytes.
+    pub fn size(&self) -> u64 {
+        todo!()
+    }
+
+    /// The number of rows in this table.
+    pub fn rows(&self) -> u64 {
+        todo!()
+    }
+
+    /// The time range of all segments within this table.
+    pub fn time_range(&self) -> Option<(i64, i64)> {
+        todo!()
+    }
+
+    /// The ranges on each column in the table (across all segments).
+    pub fn column_ranges(&self) -> BTreeMap<String, (Value<'a>, Value<'a>)> {
+        todo!()
     }
 
     //
@@ -314,15 +337,51 @@ impl Table {
     }
 }
 
-#[derive(Debug)]
-struct PartitionMetaData {
-    // The current size of the partition in bytes.
-    size: usize,
+struct MetaData<'a> {
+    // The total size of the table in bytes.
+    size: u64,
 
-    // The total number of rows in the partition.
-    rows: usize,
+    // The total number of rows in the table.
+    rows: u64,
 
+    // The distinct set of columns for this table (all of these columns will
+    // appear in all of the table's segments) and the range of values for
+    // each of those columns.
     //
-    column_names: Vec<String>,
-    time_range: (i64, i64),
+    // This can be used to skip the table entirely if a logical predicate can't
+    // possibly match based on the range of values a column has.
+    column_ranges: BTreeMap<String, (Value<'a>, Value<'a>)>,
+
+    // The total time range of this table spanning all of the segments within
+    // the table.
+    //
+    // This can be used to skip the table entirely if the time range for a query
+    // falls outside of this range.
+    time_range: Option<(i64, i64)>,
+}
+
+impl<'a> MetaData<'a> {
+    pub fn new(segment: &Segment<'a>) -> Self {
+        Self {
+            size: segment.size(),
+            rows: segment.rows(),
+            column_ranges: segment
+                .column_ranges()
+                .into_iter()
+                .collect::<BTreeMap<String, (Value<'a>, Value<'a>)>>(),
+            time_range: segment.time_range(),
+        }
+    }
+
+    pub fn add_segment(&mut self, segment: &Segment<'_>) -> Self {
+        // update size, rows, column ranges, time range
+        todo!()
+    }
+
+    // invalidate should be called when a table is removed that impacts the
+    // meta data.
+    pub fn invalidate(&mut self) {
+        // Update size, rows, time_range by linearly scanning all tables.
+        todo!()
+    }
 }
