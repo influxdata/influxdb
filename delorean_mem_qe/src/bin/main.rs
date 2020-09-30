@@ -11,7 +11,6 @@ use std::{
 use datatypes::TimeUnit;
 use snafu::Snafu;
 
-use delorean_arrow::arrow::array::StringArrayOps;
 use delorean_arrow::arrow::record_batch::{RecordBatch, RecordBatchReader};
 use delorean_arrow::arrow::{array, array::Array, datatypes, ipc};
 use delorean_arrow::parquet::arrow::arrow_reader::ArrowReader;

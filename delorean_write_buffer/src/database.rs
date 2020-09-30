@@ -483,7 +483,7 @@ impl Database for Db {
             .create_physical_plan(&plan)
             .context(QueryError { query })?;
 
-        ctx.collect(plan).context(QueryError { query })
+        ctx.collect(plan).await.context(QueryError { query })
     }
 }
 
@@ -511,7 +511,7 @@ mod tests {
     use delorean_storage::{Database, TimestampRange};
 
     use arrow::{
-        array::{Array, StringArray, StringArrayOps},
+        array::{Array, StringArray},
         util::pretty::pretty_format_batches,
     };
     use delorean_line_parser::parse_lines;

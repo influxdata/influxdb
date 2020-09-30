@@ -6,7 +6,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use delorean_arrow::{
     arrow,
-    arrow::array::{Array, StringArray, StringArrayOps},
+    arrow::array::{Array, StringArray},
     arrow::datatypes::DataType,
 };
 use snafu::{ensure, OptionExt, Snafu};

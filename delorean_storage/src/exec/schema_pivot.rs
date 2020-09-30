@@ -26,8 +26,10 @@ use std::{
     sync::Mutex,
 };
 
+use async_trait::async_trait;
+
 use delorean_arrow::{
-    arrow::array::StringArray,
+    arrow::array::StringBuilder,
     arrow::datatypes::{DataType, Field, Schema, SchemaRef},
     arrow::record_batch::{RecordBatch, RecordBatchReader},
     datafusion::logical_plan::{self, Expr, LogicalPlan, UserDefinedLogicalNode},
@@ -148,7 +150,12 @@ impl Debug for SchemaPivotExec {
     }
 }
 
+#[async_trait]
 impl ExecutionPlan for SchemaPivotExec {
+    fn as_any(&self) -> &(dyn std::any::Any + 'static) {
+        self
+    }
+
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
@@ -181,7 +188,10 @@ impl ExecutionPlan for SchemaPivotExec {
     }
 
     /// Execute one partition and return an iterator over RecordBatch
-    fn execute(&self, partition: usize) -> Result<Arc<Mutex<dyn RecordBatchReader + Send + Sync>>> {
+    async fn execute(
+        &self,
+        partition: usize,
+    ) -> Result<Arc<Mutex<dyn RecordBatchReader + Send + Sync>>> {
         if 0 != partition {
             return Err(ExecutionError::General(format!(
                 "SchemaPivotExec invalid partition {}",
@@ -189,7 +199,7 @@ impl ExecutionPlan for SchemaPivotExec {
             )));
         }
 
-        let input_reader = self.input.execute(partition)?;
+        let input_reader = self.input.execute(partition).await?;
 
         // Algorithm: for each column we haven't seen a value for yet,
         // check each input row;
@@ -240,7 +250,7 @@ impl ExecutionPlan for SchemaPivotExec {
 
         // now, output a string for each column in the input schema
         // that we saw values for
-        let mut column_name_builder = StringArray::builder(num_fields);
+        let mut column_name_builder = StringBuilder::new(num_fields);
         field_indexes_with_seen_values
             .iter()
             .enumerate()
@@ -275,6 +285,7 @@ mod tests {
 
     use super::*;
     use delorean_arrow::{
+        arrow::array::StringArray,
         arrow::{
             array::Int64Array,
             datatypes::{Field, Schema, SchemaRef},
@@ -282,8 +293,8 @@ mod tests {
         datafusion::physical_plan::memory::MemoryExec,
     };
 
-    #[test]
-    fn schema_pivot_exec_all_null() -> Result<()> {
+    #[tokio::test]
+    async fn schema_pivot_exec_all_null() -> Result<()> {
         let case = SchemaTestCase {
             input_batches: &[TestBatch {
                 a: &[None, None],
@@ -291,13 +302,18 @@ mod tests {
             }],
             expected_output: &[],
         };
-        assert_eq!(case.pivot(), case.expected_output(), "TestCase: {:?}", case);
+        assert_eq!(
+            case.pivot().await,
+            case.expected_output(),
+            "TestCase: {:?}",
+            case
+        );
 
         Ok(())
     }
 
-    #[test]
-    fn schema_pivot_exec_both_non_null() -> Result<()> {
+    #[tokio::test]
+    async fn schema_pivot_exec_both_non_null() -> Result<()> {
         let case = SchemaTestCase {
             input_batches: &[TestBatch {
                 a: &[Some(1), None],
@@ -305,13 +321,18 @@ mod tests {
             }],
             expected_output: &["A", "B"],
         };
-        assert_eq!(case.pivot(), case.expected_output(), "TestCase: {:?}", case);
+        assert_eq!(
+            case.pivot().await,
+            case.expected_output(),
+            "TestCase: {:?}",
+            case
+        );
 
         Ok(())
     }
 
-    #[test]
-    fn schema_pivot_exec_one_non_null() -> Result<()> {
+    #[tokio::test]
+    async fn schema_pivot_exec_one_non_null() -> Result<()> {
         let case = SchemaTestCase {
             input_batches: &[TestBatch {
                 a: &[Some(1), None],
@@ -319,13 +340,18 @@ mod tests {
             }],
             expected_output: &["A"],
         };
-        assert_eq!(case.pivot(), case.expected_output(), "TestCase: {:?}", case);
+        assert_eq!(
+            case.pivot().await,
+            case.expected_output(),
+            "TestCase: {:?}",
+            case
+        );
 
         Ok(())
     }
 
-    #[test]
-    fn schema_pivot_exec_both_non_null_two_record_batches() -> Result<()> {
+    #[tokio::test]
+    async fn schema_pivot_exec_both_non_null_two_record_batches() -> Result<()> {
         let case = SchemaTestCase {
             input_batches: &[
                 TestBatch {
@@ -339,13 +365,18 @@ mod tests {
             ],
             expected_output: &["A", "B"],
         };
-        assert_eq!(case.pivot(), case.expected_output(), "TestCase: {:?}", case);
+        assert_eq!(
+            case.pivot().await,
+            case.expected_output(),
+            "TestCase: {:?}",
+            case
+        );
 
         Ok(())
     }
 
-    #[test]
-    fn schema_pivot_exec_one_non_null_in_second_record_batch() -> Result<()> {
+    #[tokio::test]
+    async fn schema_pivot_exec_one_non_null_in_second_record_batch() -> Result<()> {
         let case = SchemaTestCase {
             input_batches: &[
                 TestBatch {
@@ -359,18 +390,23 @@ mod tests {
             ],
             expected_output: &["A", "B"],
         };
-        assert_eq!(case.pivot(), case.expected_output(), "TestCase: {:?}", case);
+        assert_eq!(
+            case.pivot().await,
+            case.expected_output(),
+            "TestCase: {:?}",
+            case
+        );
 
         Ok(())
     }
 
-    #[test]
-    fn schema_pivot_exec_bad_partition() -> Result<()> {
+    #[tokio::test]
+    async fn schema_pivot_exec_bad_partition() -> Result<()> {
         // ensure passing in a bad partition generates a reasonable error
 
         let pivot = make_schema_pivot(SchemaTestCase::input_schema(), vec![]);
 
-        let results = pivot.execute(1);
+        let results = pivot.execute(1).await;
 
         let expected_error = "SchemaPivotExec invalid partition 1";
         let actual_error = match results {
@@ -426,7 +462,7 @@ mod tests {
     }
 
     fn to_string_array(strs: &[Option<&str>]) -> Arc<StringArray> {
-        let mut builder = StringArray::builder(strs.len());
+        let mut builder = StringBuilder::new(strs.len());
         for s in strs {
             match s {
                 Some(s) => builder.append_value(s).expect("appending; string"),
@@ -465,7 +501,7 @@ mod tests {
         }
 
         /// run the input batches through a schema pivot and return the results as a StringSetRef
-        fn pivot(&self) -> StringSetRef {
+        async fn pivot(&self) -> StringSetRef {
             let schema = Self::input_schema();
 
             // prepare input
@@ -487,7 +523,7 @@ mod tests {
 
             let pivot = make_schema_pivot(schema, input_batches);
 
-            let results = pivot.execute(0).expect("Correctly executed pivot");
+            let results = pivot.execute(0).await.expect("Correctly executed pivot");
 
             reader_to_stringset(results)
         }

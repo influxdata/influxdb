@@ -87,7 +87,7 @@ checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 [[package]]
 name = "arrow"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d#171e8bfe5fe13467a1763227e495fae6bc5d011d"
+source = "git+https://github.com/apache/arrow.git?rev=571d48e007718321bca8adb5f100555fed0e1957#571d48e007718321bca8adb5f100555fed0e1957"
 dependencies = [
  "chrono",
  "csv",
@@ -645,9 +645,10 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d#171e8bfe5fe13467a1763227e495fae6bc5d011d"
+source = "git+https://github.com/apache/arrow.git?rev=571d48e007718321bca8adb5f100555fed0e1957#571d48e007718321bca8adb5f100555fed0e1957"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=571d48e007718321bca8adb5f100555fed0e1957)",
+ "async-trait",
  "chrono",
  "clap",
  "crossbeam",
@@ -657,6 +658,7 @@ dependencies = [
  "paste",
  "rustyline",
  "sqlparser",
+ "tokio",
 ]
 
 [[package]]
@@ -714,7 +716,7 @@ dependencies = [
 name = "delorean_arrow"
 version = "0.1.0"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=571d48e007718321bca8adb5f100555fed0e1957)",
  "datafusion",
  "parquet",
 ]
@@ -2065,9 +2067,9 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d#171e8bfe5fe13467a1763227e495fae6bc5d011d"
+source = "git+https://github.com/apache/arrow.git?rev=571d48e007718321bca8adb5f100555fed0e1957#571d48e007718321bca8adb5f100555fed0e1957"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=171e8bfe5fe13467a1763227e495fae6bc5d011d)",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=571d48e007718321bca8adb5f100555fed0e1957)",
  "brotli",
  "byteorder",
  "chrono",

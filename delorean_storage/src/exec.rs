@@ -171,7 +171,7 @@ async fn run_logical_plans(
         .map(|plan| {
             let counters = counters.clone();
             // TODO run these on some executor other than the main tokio pool
-            tokio::task::spawn(async move { run_logical_plan(counters, plan) })
+            tokio::task::spawn(async move { run_logical_plan(counters, plan).await })
         })
         .collect::<Vec<_>>();
 
@@ -186,7 +186,7 @@ async fn run_logical_plans(
 }
 
 /// Executes the logical plan using DataFusion and produces RecordBatches
-fn run_logical_plan(
+async fn run_logical_plan(
     counters: Arc<ExecutionCounters>,
     plan: LogicalPlan,
 ) -> Result<Vec<RecordBatch>> {
@@ -213,7 +213,9 @@ fn run_logical_plan(
     // This executes the query, using its own threads
     // internally. TODO figure out a better way to control
     // concurrency / plan admission
-    ctx.collect(physical_plan).context(DataFusionExecution)
+    ctx.collect(physical_plan)
+        .await
+        .context(DataFusionExecution)
 }
 
 #[cfg(test)]
@@ -221,6 +223,7 @@ mod tests {
     use delorean_arrow::arrow::{
         array::Int64Array,
         array::StringArray,
+        array::StringBuilder,
         datatypes::DataType,
         datatypes::{Field, Schema, SchemaRef},
     };
@@ -344,7 +347,7 @@ mod tests {
         // Ensure that nulls in the output set are handled reasonably
         // (error, rather than silently ignored)
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
-        let mut builder = StringArray::builder(2);
+        let mut builder = StringBuilder::new(2);
         builder.append_value("foo").unwrap();
         builder.append_null().unwrap();
         let data = Arc::new(builder.finish());
@@ -435,7 +438,7 @@ mod tests {
     }
 
     fn to_string_array(strs: &[&str]) -> Arc<StringArray> {
-        let mut builder = StringArray::builder(strs.len());
+        let mut builder = StringBuilder::new(strs.len());
         for s in strs {
             builder.append_value(s).expect("appending string");
         }
