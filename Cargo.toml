@@ -16,6 +16,7 @@ members = [
     "delorean_mem_qe",
     "delorean_parquet",
     "delorean_partitioned_store",
+    "delorean_segment_store",
     "delorean_table",
     "delorean_table_schema",
     "delorean_test_helpers",
@@ -38,6 +39,7 @@ delorean_line_parser = { path = "delorean_line_parser" }
 delorean_mem_qe = { path = "delorean_mem_qe" }
 delorean_parquet = { path = "delorean_parquet" }
 delorean_partitioned_store = { path = "delorean_partitioned_store" }
+delorean_segment_store = { path = "delorean_segment_store" }
 delorean_table = { path = "delorean_table" }
 delorean_table_schema = { path = "delorean_table_schema" }
 delorean_wal = { path = "delorean_wal" }
