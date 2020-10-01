@@ -5,9 +5,10 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
-	input "github.com/tcnksm/go-input"
+	"github.com/tcnksm/go-input"
 )
 
 type secretSVCsFn func() (influxdb.SecretService, influxdb.OrganizationService, func(*input.UI) string, error)
@@ -245,5 +246,5 @@ func newSecretSVCs() (influxdb.SecretService, influxdb.OrganizationService, func
 	}
 	orgSvc := &http.OrganizationService{Client: httpClient}
 
-	return &http.SecretService{Client: httpClient}, orgSvc, getSecret, nil
+	return &http.SecretService{Client: httpClient}, orgSvc, internal.GetSecret, nil
 }

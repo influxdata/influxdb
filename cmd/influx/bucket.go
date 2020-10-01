@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
 )
@@ -88,7 +89,7 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	dur, err := rawDurationToTimeDuration(b.retention)
+	dur, err := internal.RawDurationToTimeDuration(b.retention)
 	if err != nil {
 		return err
 	}
@@ -273,7 +274,7 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		update.Description = &b.description
 	}
 
-	dur, err := rawDurationToTimeDuration(b.retention)
+	dur, err := internal.RawDurationToTimeDuration(b.retention)
 	if err != nil {
 		return err
 	}
