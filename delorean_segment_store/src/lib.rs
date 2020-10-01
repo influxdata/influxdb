@@ -49,9 +49,7 @@ impl<'a> Store<'a> {
     ///
     /// The partition should comprise a single table (record batch) for each
     /// measurement name in the partition.
-    pub fn add_partition(&mut self, database_id: String, partition: Vec<RecordBatch>) {
-        // TODO - add validation that there exists only one record batch per
-        // table name.
+    pub fn add_partition(&mut self, database_id: String, partition: BTreeMap<String, RecordBatch>) {
         todo!()
     }
 
