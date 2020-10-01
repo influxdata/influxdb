@@ -872,6 +872,7 @@ dependencies = [
  "criterion",
  "delorean_arrow",
  "delorean_table",
+ "rand",
 ]
 
 [[package]]

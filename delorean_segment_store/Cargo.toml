@@ -13,3 +13,8 @@ delorean_table = { path = "../delorean_table" }
 
 [dev-dependencies]
 criterion = "0.3"
+rand = "0.7.3"
+
+[[bench]]
+name = "plain"
+harness = false
