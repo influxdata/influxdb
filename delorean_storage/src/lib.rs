@@ -7,8 +7,9 @@
 )]
 
 use async_trait::async_trait;
-use delorean_arrow::arrow::record_batch::RecordBatch;
+use delorean_arrow::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
 use delorean_line_parser::ParsedLine;
+use exec::StringSetPlan;
 use std::collections::BTreeSet;
 
 use std::{fmt::Debug, sync::Arc};
@@ -34,8 +35,11 @@ impl TimestampRange {
 }
 
 /// Represents a general purpose predicate for evaluation
-#[derive(Clone, PartialEq, Copy, Debug)]
-pub struct Predicate {}
+#[derive(Clone, Debug)]
+pub struct Predicate {
+    /// An expresson using the DataFusion expression operations.
+    pub expr: Expr,
+}
 
 #[async_trait]
 /// A `Database` stores data and provides an interface to query that data.
@@ -52,6 +56,8 @@ pub trait Database: Debug + Send + Sync {
     ///
     /// If `range` is specified, only tables which have data in the
     /// specified timestamp range are included.
+    ///
+    /// TODO: change this to return a StringSetPlan
     async fn table_names(
         &self,
         range: Option<TimestampRange>,
@@ -67,28 +73,16 @@ pub trait Database: Debug + Send + Sync {
     /// If `range` is specified, only columns which have data in the
     /// specified timestamp range which match other predictes are
     /// included.
-    async fn tag_column_names(
-        &self,
-        table: Option<String>,
-        range: Option<TimestampRange>,
-    ) -> Result<Arc<BTreeSet<String>>, Self::Error>;
-
-    /// Performance optimization: Returns the list of column names in
-    /// this database which store tags (as defined in the ParsedLines
-    /// when written), and which have rows that match optional predicates.
-    ///
-    /// `table` and `range` arguments have the same meaning as
-    /// described on column_names
     ///
     /// If `predicate` is specified, then only columns which have at
     /// least one non-null value any row that matches the predicate
     /// are returned
-    async fn tag_column_names_with_predicate(
+    async fn tag_column_names(
         &self,
         table: Option<String>,
         range: Option<TimestampRange>,
-        predicate: Predicate,
-    ) -> Result<Arc<BTreeSet<String>>, Self::Error>;
+        predicate: Option<Predicate>,
+    ) -> Result<StringSetPlan, Self::Error>;
 
     /// Fetch the specified table names and columns as Arrow
     /// RecordBatches. Columns are returned in the order specified.

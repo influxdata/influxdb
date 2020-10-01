@@ -1,5 +1,7 @@
 use delorean_line_parser::ParsedLine;
-use delorean_storage::{Database, Predicate, TimestampRange};
+use delorean_storage::{
+    exec::StringSet, exec::StringSetPlan, exec::StringSetRef, Database, Predicate, TimestampRange,
+};
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
@@ -321,7 +323,7 @@ impl Database for Db {
                 .context(PartitionError)?;
             for (table_name_symbol, table) in &partition.tables {
                 if table
-                    .matches_timestamp_predicate(&timestamp_predicate)
+                    .matches_timestamp_predicate(timestamp_predicate.as_ref())
                     .context(TableError)?
                 {
                     let table_name = partition.dictionary.lookup_id(*table_name_symbol).context(
@@ -345,76 +347,18 @@ impl Database for Db {
         &self,
         table: Option<String>,
         range: Option<TimestampRange>,
-    ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
-        let partitions = self.partitions.read().await;
-
-        let mut column_names = BTreeSet::new();
-
-        for partition in partitions.iter() {
-            // ids are relative to a specific partition
-            let table_symbol = match &table {
-                Some(name) => Some(partition.dictionary.lookup_value(&name).context(
-                    TableNameNotFoundInDictionary {
-                        table: name,
-                        partition: partition.generation,
-                    },
-                )?),
-                None => None,
-            };
-
-            let timestamp_predicate = partition
-                .make_timestamp_predicate(range)
-                .context(PartitionError)?;
-
-            // Find all columns ids in all partition's tables so that we
-            // can look up id --> String conversion once
-            let mut partition_column_ids = BTreeSet::new();
-
-            let table_iter = partition
-                .tables
-                .values()
-                // filter out any tables that don't pass the predicates
-                .filter(|table| table.matches_id_predicate(&table_symbol));
-
-            for table in table_iter {
-                for (column_id, column_index) in &table.column_id_to_index {
-                    if let Column::Tag(col) = &table.columns[*column_index] {
-                        if table
-                            .column_matches_timestamp_predicate(col, &timestamp_predicate)
-                            .context(TableError)?
-                        {
-                            partition_column_ids.insert(column_id);
-                        }
-                    }
-                }
+        predicate: Option<Predicate>,
+    ) -> Result<StringSetPlan, Self::Error> {
+        match predicate {
+            None => {
+                let res = self.tag_column_names_no_predicate(table, range).await;
+                Ok(res.into())
             }
-
-            // convert all the partition's column_ids to Strings
-            for column_id in partition_column_ids {
-                let column_name = partition.dictionary.lookup_id(*column_id).context(
-                    ColumnIdNotFoundInDictionary {
-                        column: *column_id,
-                        partition: partition.generation,
-                    },
-                )?;
-
-                if !column_names.contains(column_name) {
-                    column_names.insert(column_name.to_string());
-                }
+            Some(predicate) => {
+                self.tag_column_names_with_predicate(table, range, predicate)
+                    .await
             }
-        } // next partition
-
-        Ok(Arc::new(column_names))
-    }
-
-    // return all column names with a predicate
-    async fn tag_column_names_with_predicate(
-        &self,
-        _table: Option<String>,
-        _range: Option<TimestampRange>,
-        _predicate: Predicate,
-    ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
-        unimplemented!("tag_column_names_with_predicate in WriteBufferDatabase");
+        }
     }
 
     async fn table_to_arrow(
@@ -497,6 +441,145 @@ impl Db {
         let dt = Utc.timestamp_nanos(ts);
         dt.format("%Y-%m-%dT%H").to_string()
     }
+
+    // specialized / optimized implementations
+
+    /// return all column names in this database, while applying the timestamp range
+    async fn tag_column_names_no_predicate(
+        &self,
+        table: Option<String>,
+        range: Option<TimestampRange>,
+    ) -> Result<StringSetRef, Error> {
+        let partitions = self.partitions.read().await;
+
+        let mut column_names = StringSet::new();
+
+        for partition in partitions.iter() {
+            // ids are relative to a specific partition
+            let table_symbol = match &table {
+                Some(name) => Some(partition.dictionary.lookup_value(&name).context(
+                    TableNameNotFoundInDictionary {
+                        table: name,
+                        partition: partition.generation,
+                    },
+                )?),
+                None => None,
+            };
+
+            let timestamp_predicate = partition
+                .make_timestamp_predicate(range)
+                .context(PartitionError)?;
+
+            let table_iter = partition
+                .tables
+                .values()
+                // filter out any tables that don't pass the predicates
+                .filter(|table| table.matches_id_predicate(&table_symbol));
+
+            // Find all columns ids in all partition's tables so that we
+            // can look up id --> String conversion once
+            let mut partition_column_ids = BTreeSet::new();
+
+            // The table iterator is the list of tables we want to process
+            for table in table_iter {
+                for (column_id, column_index) in &table.column_id_to_index {
+                    if let Column::Tag(col) = &table.columns[*column_index] {
+                        if table
+                            .column_matches_timestamp_predicate(col, timestamp_predicate.as_ref())
+                            .context(TableError)?
+                        {
+                            partition_column_ids.insert(column_id);
+                        }
+                    }
+                }
+            }
+
+            // convert all the partition's column_ids to Strings
+            for &column_id in partition_column_ids {
+                let column_name = partition.dictionary.lookup_id(column_id).context(
+                    ColumnIdNotFoundInDictionary {
+                        column: column_id,
+                        partition: partition.generation,
+                    },
+                )?;
+
+                if !column_names.contains(column_name) {
+                    column_names.insert(column_name.to_string());
+                }
+            }
+        } // next partition
+
+        Ok(StringSetRef::new(column_names))
+    }
+
+    /// Return all column names in this database, while applying a
+    /// general purpose predicate
+    ///
+    /// Here are some potential additional optimizations to rule out
+    /// tables that are not yet implemented:
+    ///
+    /// a) the table doesn't have a column that's in a "non-negation"
+    /// predicate, e.g., if you have env = "us-west" and a table
+    /// doesn't have an env column then it can be ignored; and
+    ///
+    /// b) the table doesn't have a column range that overlaps the
+    /// predicate values, e.g., if you have env = "us-west" and a
+    /// table's env column has the range ["eu-south", "us-north"].
+    async fn tag_column_names_with_predicate(
+        &self,
+        table: Option<String>,
+        range: Option<TimestampRange>,
+        predicate: Predicate,
+    ) -> Result<StringSetPlan, Error> {
+        let mut plans = Vec::new();
+
+        let partitions = self.partitions.read().await;
+
+        for partition in partitions.iter() {
+            // ids are relative to a specific partition
+            let table_symbol = &table
+                .as_ref()
+                .map(|name| partition.dictionary.lookup_value(&name))
+                .transpose()
+                .context(TableNameNotFoundInDictionary {
+                    table: (&table)
+                        .as_ref()
+                        .map(|s| s as &str)
+                        .unwrap_or_else(|| "UNKNOWN"),
+                    partition: partition.generation,
+                })?;
+
+            let timestamp_predicate = partition
+                .make_timestamp_predicate(range)
+                .context(PartitionError)?;
+
+            let table_iter = partition
+                .tables
+                .values()
+                // filter out any tables that don't pass table predicates
+                .filter(|table| table.matches_id_predicate(&table_symbol));
+
+            for table in table_iter {
+                // skip table entirely if there are no rows that fall in the timestamp
+                if table
+                    .matches_timestamp_predicate(timestamp_predicate.as_ref())
+                    .context(TableError)?
+                {
+                    plans.push(
+                        table
+                            .tag_column_names_plan(
+                                &predicate,
+                                timestamp_predicate.as_ref(),
+                                &partition,
+                            )
+                            .context(TableError)?,
+                    );
+                }
+            }
+        } // next partition
+
+        Ok(plans.into())
+    }
 }
 
 struct ArrowTable {
@@ -508,7 +591,12 @@ struct ArrowTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use delorean_storage::{Database, TimestampRange};
+    use delorean_arrow::datafusion::{
+        logical_plan::{self, Literal},
+        scalar::ScalarValue,
+    };
+    use delorean_storage::{exec::Executor, Database, TimestampRange};
+    use logical_plan::{Expr, Operator};
 
     use arrow::{
         array::{Array, StringArray},
@@ -877,13 +965,16 @@ disk bytes=23432323i 1600136510000000000",
                        h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250\n\
                        o2,state=MA,city=Boston temp=50.4 200\n\
                        o2,state=CA temp=79.0 300\n\
-                       o2,state=NY,city=NYC,borough=Brooklyn temp=60.8 400\n";
+                       o2,state=NY temp=60.8 400\n\
+                       o2,state=NY,city=NYC temp=61.0 500\n\
+                       o2,state=NY,city=NYC,borough=Brooklyn temp=61.0 600\n";
 
         let lines: Vec<_> = parse_lines(lp_data).map(|l| l.unwrap()).collect();
         db.write_lines(&lines).await?;
 
         #[derive(Debug)]
         struct TestCase<'a> {
+            description: &'a str,
             measurement: Option<String>,
             range: Option<TimestampRange>,
             predicate: Option<Predicate>,
@@ -892,90 +983,75 @@ disk bytes=23432323i 1600136510000000000",
 
         let test_cases = vec![
             TestCase {
+                description: "No predicates",
                 measurement: None,
                 range: None,
                 predicate: None,
                 expected_tag_keys: Ok(vec!["borough", "city", "county", "state"]),
             },
             TestCase {
+                description: "Restrictions: timestamp",
                 measurement: None,
                 range: Some(TimestampRange::new(150, 201)),
                 predicate: None,
                 expected_tag_keys: Ok(vec!["city", "state"]),
             },
-            // TODO: figure out how to do a predicate like this:
-            // -- Predicate: state="MA"
-            // use node::{Value, Comparison};
-            // let root = Node {
-            //     value: Some(Value::Comparison(Comparison::Equal as i32)),
-            //     children: vec![
-            //         Node {
-            //             value: Some(Value::TagRefValue("state".to_string())),
-            //             children: vec![],
-            //         },
-            //         Node {
-            //             value: Some(Value::StringValue("MA".to_string())),
-            //             children: vec![],
-            //         }
-            //     ],
-            // };
-
-            // TODO predicates
-            // TestCase {
-            //     measurement: None,
-            //     range: None,
-            //     predicate: None, // TODO: state=MA
-            //     expected_tag_keys: Ok(vec!["city", "county", "state"]),
-            // },
-            // TODO timestamp and predicate
-            // TestCase {
-            //     measurement: None,
-            //     range: Some(TimestampRange::new(150, 201)),
-            //     predicate: None, // TODO: state=MA
-            //     expected_tag_keys: Ok(vec!["city", "state"]),
-            // },
-            // Cases with measurement names (restrict to o2)
             TestCase {
+                description: "Restrictions: predicate",
+                measurement: None,
+                range: None,
+                predicate: make_column_eq_predicate("state", "MA"), // state=MA
+                expected_tag_keys: Ok(vec!["city", "county", "state"]),
+            },
+            TestCase {
+                description: "Restrictions: timestamp and predicate",
+                measurement: None,
+                range: Some(TimestampRange::new(150, 201)),
+                predicate: make_column_eq_predicate("state", "MA"), // state=MA
+                expected_tag_keys: Ok(vec!["city", "state"]),
+            },
+            TestCase {
+                description: "Restrictions: measurement name",
                 measurement: Some("o2".to_string()),
                 range: None,
                 predicate: None,
                 expected_tag_keys: Ok(vec!["borough", "city", "state"]),
             },
             TestCase {
+                description: "Restrictions: measurement name and timestamp",
                 measurement: Some("o2".to_string()),
                 range: Some(TimestampRange::new(150, 201)),
                 predicate: None,
                 expected_tag_keys: Ok(vec!["city", "state"]),
             },
-            // TODO predicates
-            // TestCase {
-            //     measurement: Some("o2".to_string()),
-            //     range: None,
-            //     predicate: None, // TODO: state=CA
-            //     expected_tag_keys: Ok(vec!["city"]),
-            // },
-            // // TODO timestamp and predicate
-            // TestCase {
-            //     measurement: Some("o2".to_string()),
-            //     range: Some(TimestampRange::new(150, 201)),
-            //     predicate: None, // TODO: state=CA
-            //     expected_tag_keys: Ok(vec!["city"]),
-            // },
+            TestCase {
+                description: "Restrictions: measurement name and predicate",
+                measurement: Some("o2".to_string()),
+                range: None,
+                predicate: make_column_eq_predicate("state", "NY"), // state=NY
+                expected_tag_keys: Ok(vec!["borough", "city", "state"]),
+            },
+            TestCase {
+                description: "Restrictions: measurement name, timestamp and predicate",
+                measurement: Some("o2".to_string()),
+                range: Some(TimestampRange::new(1, 550)),
+                predicate: make_column_eq_predicate("state", "NY"), // state=NY
+                expected_tag_keys: Ok(vec!["city", "state"]),
+            },
         ];
 
         for test_case in test_cases.into_iter() {
             let test_case_str = format!("{:#?}", test_case);
             println!("Running test case: {:?}", test_case);
 
-            let actual_tag_keys = match test_case.predicate {
-                Some(predicate) => db.tag_column_names_with_predicate(
-                    test_case.measurement,
-                    test_case.range,
-                    predicate,
-                ),
-                None => db.tag_column_names(test_case.measurement, test_case.range),
-            }
-            .await;
+            let tag_keys_plan = db
+                .tag_column_names(test_case.measurement, test_case.range, test_case.predicate)
+                .await
+                .expect("Created tag_keys plan successfully");
+
+            // run the execution plan (
+            let executor = Executor::default();
+            let actual_tag_keys = executor.to_string_set(tag_keys_plan).await;
 
             let is_match = if let Ok(expected_tag_keys) = &test_case.expected_tag_keys {
                 let expected_tag_keys = to_set(expected_tag_keys);
@@ -1004,6 +1080,55 @@ disk bytes=23432323i 1600136510000000000",
             );
         }
 
+        Ok(())
+    }
+
+    // Create a predicate of the form column_name = val
+    fn make_column_eq_predicate(column_name: &str, val: &str) -> Option<Predicate> {
+        let expr = Expr::BinaryExpr {
+            left: Box::new(Expr::Column(column_name.into())),
+            op: Operator::Eq,
+            right: Box::new(Expr::Literal(ScalarValue::Utf8(Some(val.into())))),
+        };
+        Some(Predicate { expr })
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    async fn list_column_names_predicate() -> Result {
+        // Demonstration test to show column names with predicate working
+
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+
+        let lp_data = "h2o,state=CA,city=LA,county=LA temp=70.4 100\n\
+                       h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250\n\
+                       o2,state=MA,city=Boston temp=50.4 200\n\
+                       o2,state=CA temp=79.0 300\n\
+                       o2,state=NY,city=NYC,borough=Brooklyn temp=60.8 400\n";
+
+        let lines: Vec<_> = parse_lines(lp_data).map(|l| l.unwrap()).collect();
+        db.write_lines(&lines).await?;
+
+        let measurement = None;
+        let range = None;
+
+        // Predicate: state=MA
+        let expr = logical_plan::col("state").eq("MA".lit());
+        let predicate = Some(Predicate { expr });
+
+        let tag_keys_plan = db
+            .tag_column_names(measurement, range, predicate)
+            .await
+            .expect("Created plan successfully");
+
+        // run the execution plan (
+        let executor = Executor::default();
+        let actual_tag_keys = executor
+            .to_string_set(tag_keys_plan)
+            .await
+            .expect("Execution of predicate plan");
+
+        assert_eq!(to_set(&["state", "city", "county"]), *actual_tag_keys);
         Ok(())
     }
 }

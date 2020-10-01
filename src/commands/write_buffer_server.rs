@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::server::write_buffer_routes;
 use crate::server::write_buffer_rpc;
+use delorean_storage::exec::Executor as StorageExecutor;
 use delorean_write_buffer::{Db, WriteBufferDatabases};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
@@ -35,6 +36,9 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         storage.add_db(db).await;
     }
 
+    // Fire up the query executor
+    let executor = Arc::new(StorageExecutor::default());
+
     // Construct and start up gRPC server
 
     let grpc_bind_addr: SocketAddr = match std::env::var("DELOREAN_GRPC_BIND_ADDR") {
@@ -47,7 +51,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     };
 
-    let grpc_server = write_buffer_rpc::make_server(grpc_bind_addr, storage.clone());
+    let grpc_server = write_buffer_rpc::make_server(grpc_bind_addr, storage.clone(), executor);
 
     info!("gRPC server listening on http://{}", grpc_bind_addr);
 

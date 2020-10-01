@@ -9,16 +9,14 @@ use std::{sync::atomic::AtomicU64, sync::atomic::Ordering, sync::Arc};
 
 use delorean_arrow::{
     arrow::record_batch::RecordBatch,
-    datafusion::{
-        self,
-        logical_plan::{Expr, LogicalPlan},
-        prelude::ExecutionConfig,
-    },
+    datafusion::{self, logical_plan::LogicalPlan, prelude::ExecutionConfig},
 };
 
 use planning::make_exec_context;
 use schema_pivot::SchemaPivotNode;
-use stringset::{IntoStringSet, StringSetRef};
+
+// Publically export StringSets
+pub use stringset::{IntoStringSet, StringSet, StringSetRef};
 
 use tracing::debug;
 
@@ -59,15 +57,6 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Represents a general purpose predicate for evaluation.
-///
-/// TBD can this predicate represent predicates for multiple tables?
-#[derive(Clone, Debug)]
-pub struct Predicate {
-    /// An expresson using the DataFusion expression operations.
-    pub expr: Expr,
-}
-
 /// A plan which produces a logical set of Strings (e.g. tag
 /// values). This includes variants with pre-calculated results as
 /// well a variant that runs a full on DataFusion plan.
@@ -84,7 +73,7 @@ impl<E> From<Result<StringSetRef, E>> for StringSetPlan
 where
     E: std::error::Error + Send + Sync + 'static,
 {
-    /// Create a plan from a known result, wrapping the error type
+    /// Create a StringSetPlan from a Result<StringSetRef> result, wrapping the error type
     /// appropriately
     fn from(result: Result<StringSetRef, E>) -> Self {
         match result {

@@ -8,7 +8,7 @@ use delorean_generated_types::{
     node::Comparison as RPCComparison, node::Logical as RPCLogical, node::Value as RPCValue,
     Node as RPCNode, Predicate as RPCPredicate,
 };
-use delorean_storage::exec::Predicate as StoragePredicate;
+use delorean_storage::Predicate as StoragePredicate;
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]

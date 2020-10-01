@@ -8,7 +8,7 @@
 // warning about complex types
 #![allow(clippy::type_complexity)]
 
-use std::{collections::BTreeSet, collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use delorean_generated_types::{
     delorean_server::{Delorean, DeloreanServer},
@@ -25,9 +25,11 @@ use delorean_generated_types::{
 #[allow(unused_imports)]
 use delorean_generated_types::{node, Node};
 
+use crate::server::rpc::expr::convert_predicate;
 use crate::server::rpc::input::GrpcInputs;
+
 use delorean_storage::{
-    org_and_bucket_to_database, Database, DatabaseStore, Predicate as StoragePredicate,
+    exec::Executor as StorageExecutor, org_and_bucket_to_database, Database, DatabaseStore,
     TimestampRange as StorageTimestampRange,
 };
 
@@ -57,6 +59,12 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
+    #[snafu(display("Converting Predicate:  {}", source))]
+    ConvertingPredicate {
+        predicate_string: String,
+        source: crate::server::rpc::expr::Error,
+    },
+
     #[snafu(display("Operation not yet implemented:  {}", operation))]
     NotYetImplemented { operation: String },
 }
@@ -74,6 +82,7 @@ impl Error {
                 // TODO: distinguish between input errors and internal errors
                 Status::internal(self.to_string())
             }
+            Self::ConvertingPredicate { .. } => Status::invalid_argument(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
     }
@@ -82,6 +91,7 @@ impl Error {
 #[derive(Debug)]
 pub struct GrpcService<T: DatabaseStore> {
     db_store: Arc<T>,
+    executor: Arc<StorageExecutor>,
 }
 
 impl<T> GrpcService<T>
@@ -89,8 +99,8 @@ where
     T: DatabaseStore + 'static,
 {
     /// Create a new GrpcService connected to `db_store`
-    pub fn new(db_store: Arc<T>) -> Self {
-        Self { db_store }
+    pub fn new(db_store: Arc<T>, executor: Arc<StorageExecutor>) -> Self {
+        Self { db_store, executor }
     }
 }
 
@@ -179,6 +189,7 @@ where
 
         let response = tag_keys_impl(
             self.db_store.clone(),
+            self.executor.clone(),
             db_name,
             measurement,
             range,
@@ -273,6 +284,7 @@ where
 
         let response = tag_keys_impl(
             self.db_store.clone(),
+            self.executor.clone(),
             db_name,
             measurement,
             range,
@@ -318,15 +330,6 @@ fn get_database_name(input: &impl GrpcInputs) -> Result<String, Status> {
         input.org_id()?,
         &input.bucket_name()?,
     ))
-}
-
-/// converts the Node (predicate tree) into a datafusion Expr for evaluation
-fn convert_predicate(predicate: Predicate) -> Result<StoragePredicate> {
-    warn!(
-        "Not yet implemented: converting predicates: {:?}",
-        predicate
-    );
-    Ok(StoragePredicate {})
 }
 
 // The following code implements the business logic of the requests as
@@ -377,6 +380,7 @@ where
 /// Return tag key names by querying columns
 async fn tag_keys_impl<T>(
     db_store: Arc<T>,
+    executor: Arc<StorageExecutor>,
     db_name: String,
     measurement: Option<String>,
     range: Option<TimestampRange>,
@@ -386,7 +390,6 @@ where
     T: DatabaseStore,
 {
     let range = convert_range(range);
-
     let db = db_store
         .db(&db_name)
         .await
@@ -394,16 +397,29 @@ where
             db_name: db_name.clone(),
         })?;
 
-    let table_names = match predicate {
-        Some(predicate) => {
-            find_tag_keys_with_predicate(db, db_name, measurement, range, predicate).await
-        }
-        // no predicate, take fast path
-        None => find_tag_keys_without_predicate(db, db_name, measurement, range).await,
-    }?;
+    let predicate_string = format!("{:?}", predicate);
+    let predicate =
+        convert_predicate(predicate).context(ConvertingPredicate { predicate_string })?;
+
+    let tag_key_plan = db
+        .tag_column_names(measurement, range, predicate)
+        .await
+        .map_err(|e| Error::ListingColumns {
+            db_name: db_name.clone(),
+            source: Box::new(e),
+        })?;
+
+    let tag_keys =
+        executor
+            .to_string_set(tag_key_plan)
+            .await
+            .map_err(|e| Error::ListingColumns {
+                db_name: db_name.clone(),
+                source: Box::new(e),
+            })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
-    let values = table_names
+    let values = tag_keys
         .iter()
         .map(|name| name.bytes().collect())
         .collect::<Vec<_>>();
@@ -411,55 +427,27 @@ where
     Ok(StringValuesResponse { values })
 }
 
-async fn find_tag_keys_without_predicate<D>(
-    db: Arc<D>,
-    db_name: String,
-    measurement: Option<String>,
-    range: Option<StorageTimestampRange>,
-) -> Result<Arc<BTreeSet<String>>>
-where
-    D: Database,
-{
-    db.tag_column_names(measurement, range)
-        .await
-        .map_err(|e| Error::ListingColumns {
-            db_name,
-            source: Box::new(e),
-        })
-}
-
-async fn find_tag_keys_with_predicate<D>(
-    db: Arc<D>,
-    db_name: String,
-    measurement: Option<String>,
-    range: Option<StorageTimestampRange>,
-    predicate: Predicate,
-) -> Result<Arc<BTreeSet<String>>>
-where
-    D: Database,
-{
-    let predicate = convert_predicate(predicate)?;
-
-    // TODO: fire up some executors and run the predicate for real here
-    db.tag_column_names_with_predicate(measurement, range, predicate)
-        .await
-        .map_err(|e| Error::ListingColumns {
-            db_name,
-            source: Box::new(e),
-        })
-}
-
 /// Instantiate a server listening on the specified address
 /// implementing the Delorean and Storage gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
 /// shutdown.
-pub async fn make_server<T>(bind_addr: SocketAddr, storage: Arc<T>) -> Result<()>
+pub async fn make_server<T>(
+    bind_addr: SocketAddr,
+    storage: Arc<T>,
+    executor: Arc<StorageExecutor>,
+) -> Result<()>
 where
     T: DatabaseStore + 'static,
 {
     tonic::transport::Server::builder()
-        .add_service(DeloreanServer::new(GrpcService::new(storage.clone())))
-        .add_service(StorageServer::new(GrpcService::new(storage.clone())))
+        .add_service(DeloreanServer::new(GrpcService::new(
+            storage.clone(),
+            executor.clone(),
+        )))
+        .add_service(StorageServer::new(GrpcService::new(
+            storage.clone(),
+            executor.clone(),
+        )))
         .serve(bind_addr)
         .await
         .context(ServerError {})
@@ -656,7 +644,7 @@ mod tests {
                 expected_request: ColumnNamesRequest {
                     table: None,
                     range: None,
-                    predicate: Some(StoragePredicate {}), // TODO fill this in with the appropriate translation
+                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
                 },
             },
             // ---
@@ -672,7 +660,7 @@ mod tests {
                 expected_request: ColumnNamesRequest {
                     table: None,
                     range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: Some(StoragePredicate {}), // TODO fill this in with the appropriate translation
+                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
                 },
             },
         ];
@@ -814,7 +802,7 @@ mod tests {
                 expected_request: ColumnNamesRequest {
                     table: Some("m3".into()),
                     range: None,
-                    predicate: Some(StoragePredicate {}), // TODO fill this in with the appropriate translation
+                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
                 },
             },
             // ---
@@ -831,7 +819,7 @@ mod tests {
                 expected_request: ColumnNamesRequest {
                     table: Some("m4".into()),
                     range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: Some(StoragePredicate {}), // TODO fill this in with the appropriate translation
+                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
                 },
             },
         ];
@@ -1164,6 +1152,7 @@ mod tests {
         delorean_client: DeloreanClient,
         storage_client: StorageClientWrapper,
         test_storage: Arc<TestDatabaseStore>,
+        _test_executor: Arc<StorageExecutor>,
     }
 
     impl Fixture {
@@ -1171,13 +1160,15 @@ mod tests {
         /// a fixture with the test server and clients
         async fn new(port: u16) -> Result<Self, tonic::transport::Error> {
             let test_storage = Arc::new(TestDatabaseStore::new());
+            let test_executor = Arc::new(StorageExecutor::default());
+
             // TODO: specify port 0 to let the OS pick the port (need to
             // figure out how to get access to the actual addr from tonic)
             let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
 
             println!("Starting delorean rpc test server on {:?}", bind_addr);
 
-            let server = make_server(bind_addr, test_storage.clone());
+            let server = make_server(bind_addr, test_storage.clone(), test_executor.clone());
             tokio::task::spawn(server);
 
             let delorean_client = connect_to_server::<DeloreanClient>(bind_addr).await?;
@@ -1188,6 +1179,7 @@ mod tests {
                 delorean_client,
                 storage_client,
                 test_storage,
+                _test_executor: test_executor,
             })
         }
     }

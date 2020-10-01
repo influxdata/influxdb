@@ -1,5 +1,5 @@
 use delorean_generated_types::wal as wb;
-use delorean_storage::TimestampRange;
+use delorean_storage::{exec::make_schema_pivot, Predicate, TimestampRange};
 
 use delorean_line_parser::FieldValue;
 use std::{collections::HashMap, sync::Arc};
@@ -8,6 +8,7 @@ use crate::{
     column::{Column, ColumnValue, Value},
     dictionary::{Dictionary, Error as DictionaryError},
     partition::Partition,
+    partition::TIME_COLUMN_NAME,
     wal::{type_description, WalEntryBuilder},
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -19,6 +20,12 @@ use delorean_arrow::{
         datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema},
         record_batch::RecordBatch,
     },
+    datafusion,
+    datafusion::logical_plan::Expr,
+    datafusion::logical_plan::LogicalPlan,
+    datafusion::logical_plan::LogicalPlanBuilder,
+    datafusion::logical_plan::Operator,
+    datafusion::scalar::ScalarValue,
 };
 
 #[derive(Debug, Snafu)]
@@ -60,17 +67,6 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Column ID {} not found in dictionary of partition {}",
-        column_id,
-        partition
-    ))]
-    ColumnIdNotFoundInDictionary {
-        column_id: u32,
-        partition: u32,
-        source: DictionaryError,
-    },
-
-    #[snafu(display(
         "Column name '{}' not found in dictionary of partition {}",
         column_name,
         partition
@@ -91,6 +87,11 @@ pub enum Error {
         column: u32,
         existing_column_type: String,
         inserted_value_type: String,
+    },
+
+    #[snafu(display("Error building plan: {}", source))]
+    BuildingPlan {
+        source: datafusion::error::ExecutionError,
     },
 
     #[snafu(display("arrow conversion error: {}", source))]
@@ -214,7 +215,7 @@ impl Table {
         Ok(self
             .column_id_to_index
             .get(&column_id)
-            .map(|column_index| &self.columns[*column_index])
+            .map(|&column_index| &self.columns[column_index])
             .expect("invalid column id"))
     }
 
@@ -312,6 +313,125 @@ impl Table {
         Ok(())
     }
 
+    /// Creates a DataFusion LogicalPlan that returns tag names as a
+    /// single column of Strings
+    ///
+    /// The created plan looks like:
+    ///
+    ///  Extension(PivotSchema)
+    ///    (Optional Projection to get rid of time)
+    ///        Filter(predicate)
+    ///          InMemoryScan
+    pub fn tag_column_names_plan(
+        &self,
+        predicate: &Predicate,
+        timestamp_predicate: Option<&TimestampPredicate>,
+        partition: &Partition,
+    ) -> Result<LogicalPlan> {
+        // Note we also need to add a timestamp predicate to this
+        // expression as some additional rows may be filtered out (and
+        // we couldn't prune out the entire Table based on range)
+        let df_predicate = predicate.expr.clone();
+        let (time_column_id, df_predicate) = match timestamp_predicate {
+            None => (None, df_predicate),
+            Some(timestamp_predicate) => (
+                Some(timestamp_predicate.time_column_id),
+                Self::add_timestamp_predicate_expr(df_predicate, timestamp_predicate),
+            ),
+        };
+
+        // figure out the tag columns
+        let requested_columns_with_index = self
+            .column_id_to_index
+            .iter()
+            .filter_map(|(&column_id, &column_index)| {
+                // keep tag columns and the timestamp column, if needed
+                let need_column = if let Column::Tag(_) = self.columns[column_index] {
+                    true
+                } else {
+                    Some(column_id) == time_column_id
+                };
+
+                if need_column {
+                    // the id came out of our map, so it should always be valid
+                    let column_name = partition.dictionary.lookup_id(column_id).unwrap();
+                    Some((column_name, column_index))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let data = self.to_arrow_impl(partition, &requested_columns_with_index)?;
+
+        let schema = data.schema();
+
+        let projection = None;
+        let projected_schema = schema.clone();
+
+        let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
+            data: vec![vec![data]],
+            schema,
+            projection,
+            projected_schema,
+        });
+        let plan_builder = plan_builder.filter(df_predicate).context(BuildingPlan)?;
+
+        // add optional selection to remove time column
+        let plan_builder = match time_column_id {
+            None => plan_builder,
+            Some(_) => {
+                // Create expressions for all columns except time
+                let select_exprs = requested_columns_with_index
+                    .iter()
+                    .filter_map(|&(column_name, _)| {
+                        if column_name != TIME_COLUMN_NAME {
+                            Some(Expr::Column(column_name.into()))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                plan_builder.project(select_exprs).context(BuildingPlan)?
+            }
+        };
+
+        let plan = plan_builder.build().context(BuildingPlan)?;
+
+        // And finally pivot the plan
+        let plan = make_schema_pivot(plan);
+        Ok(plan)
+    }
+
+    /// Creates a DataFusion predicate of the form:
+    ///
+    /// `expr AND (range.start <= time and time < range.end)`
+    fn add_timestamp_predicate_expr(expr: Expr, timestamp_predicate: &TimestampPredicate) -> Expr {
+        let range = timestamp_predicate.range;
+        let ts_low = Expr::BinaryExpr {
+            left: Box::new(Expr::Literal(ScalarValue::Int64(Some(range.start)))),
+            op: Operator::LtEq,
+            right: Box::new(Expr::Column(TIME_COLUMN_NAME.into())),
+        };
+        let ts_high = Expr::BinaryExpr {
+            left: Box::new(Expr::Column(TIME_COLUMN_NAME.into())),
+            op: Operator::Lt,
+            right: Box::new(Expr::Literal(ScalarValue::Int64(Some(range.end)))),
+        };
+        let ts_pred = Expr::BinaryExpr {
+            left: Box::new(ts_low),
+            op: Operator::And,
+            right: Box::new(ts_high),
+        };
+
+        Expr::BinaryExpr {
+            left: Box::new(expr),
+            op: Operator::And,
+            right: Box::new(ts_pred),
+        }
+    }
+
     /// Converts this table to an arrow record batch.
     pub fn to_arrow(
         &self,
@@ -322,8 +442,7 @@ impl Table {
         let requested_columns_with_index =
             requested_columns
                 .iter()
-                .map(|column_name| {
-                    let column_name = *column_name;
+                .map(|&column_name| {
                     let column_id = partition.dictionary.lookup_value(column_name).context(
                         ColumnNameNotFoundInDictionary {
                             column_name,
@@ -342,10 +461,21 @@ impl Table {
                 })
                 .collect::<Result<Vec<_>>>()?;
 
+        self.to_arrow_impl(partition, &requested_columns_with_index)
+    }
+
+    /// Converts this table to an arrow record batch,
+    ///
+    /// requested columns with index are tuples of column_name, column_index
+    pub fn to_arrow_impl(
+        &self,
+        partition: &Partition,
+        requested_columns_with_index: &[(&str, usize)],
+    ) -> Result<RecordBatch> {
         let mut fields = Vec::with_capacity(requested_columns_with_index.len());
         let mut columns: Vec<ArrayRef> = Vec::with_capacity(requested_columns_with_index.len());
 
-        for (column_name, column_index) in requested_columns_with_index.into_iter() {
+        for &(column_name, column_index) in requested_columns_with_index.iter() {
             let arrow_col: ArrayRef = match &self.columns[column_index] {
                 Column::String(vals) => {
                     fields.push(ArrowField::new(column_name, ArrowDataType::Utf8, true));
@@ -435,7 +565,7 @@ impl Table {
 
     /// returns true if there are any timestamps in this table that
     /// fall within the timestamp range
-    pub fn matches_timestamp_predicate(&self, pred: &Option<TimestampPredicate>) -> Result<bool> {
+    pub fn matches_timestamp_predicate(&self, pred: Option<&TimestampPredicate>) -> Result<bool> {
         match pred {
             None => Ok(true),
             Some(pred) => {
@@ -454,7 +584,7 @@ impl Table {
     pub fn column_matches_timestamp_predicate<T>(
         &self,
         column: &[Option<T>],
-        pred: &Option<TimestampPredicate>,
+        pred: Option<&TimestampPredicate>,
     ) -> Result<bool> {
         match pred {
             None => Ok(true),
@@ -467,5 +597,27 @@ impl Table {
                     })
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_timestamp_predicate_expr() {
+        // Test that the generated predicate is correct
+
+        let expr = Expr::Column(String::from("foo"));
+        let timestamp_predicate = TimestampPredicate {
+            time_column_id: 0,
+            range: TimestampRange::new(101, 202),
+        };
+
+        let ts_predicate_expr = Table::add_timestamp_predicate_expr(expr, &timestamp_predicate);
+        let expected_string = "#foo And Int64(101) LtEq #time And #time Lt Int64(202)";
+        let actual_string = format!("{:?}", ts_predicate_expr);
+
+        assert_eq!(actual_string, expected_string);
     }
 }
