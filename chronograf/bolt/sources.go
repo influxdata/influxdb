@@ -4,10 +4,10 @@ import (
 	"context"
 	"math"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/influxdb/v2/chronograf"
 	"github.com/influxdata/influxdb/v2/chronograf/bolt/internal"
 	"github.com/influxdata/influxdb/v2/chronograf/roles"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Ensure SourcesStore implements chronograf.SourcesStore.
@@ -21,7 +21,7 @@ var DefaultSource = &chronograf.Source{
 	ID:      math.MaxInt32, // Use large number to avoid possible collisions in older chronograf.
 	Name:    "autogen",
 	Type:    "influx",
-	URL:     "http://localhost:9999",
+	URL:     "http://localhost:8086",
 	Default: false,
 }
 

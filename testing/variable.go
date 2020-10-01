@@ -86,6 +86,10 @@ func VariableService(
 			fn:   UpdateVariable,
 		},
 		{
+			name: "ReplaceVariable",
+			fn:   ReplaceVariable,
+		},
+		{
 			name: "DeleteVariable",
 			fn:   DeleteVariable,
 		},
@@ -631,7 +635,7 @@ func FindVariableByID(init func(VariableFields, *testing.T) (influxdb.VariableSe
 				return
 			}
 
-			if diff := cmp.Diff(variable, tt.wants.variable); diff != "" {
+			if diff := cmp.Diff(variable, tt.wants.variable, variableCmpOptions...); diff != "" {
 				t.Fatalf("found unexpected variable -got/+want\ndiff %s", diff)
 			}
 		})
@@ -1117,6 +1121,114 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 
 			if variable != nil {
 				if tt.args.update.Name != "" && variable.Name != tt.args.update.Name {
+					t.Fatalf("variable name not updated")
+				}
+			}
+
+			variables, err := s.FindVariables(ctx, influxdb.VariableFilter{})
+			if err != nil {
+				t.Fatalf("failed to retrieve variables: %v", err)
+			}
+			if diff := cmp.Diff(variables, tt.wants.variables, variableCmpOptions...); diff != "" {
+				t.Fatalf("found unexpected variables -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+// ReplaceVariable tests influxdb.VariableService ReplaceVariable interface method
+func ReplaceVariable(init func(VariableFields, *testing.T) (influxdb.VariableService, string, func()), t *testing.T) {
+	type args struct {
+		id          influxdb.ID
+		newVariable *influxdb.Variable
+	}
+	type wants struct {
+		err       *influxdb.Error
+		variables []*influxdb.Variable
+	}
+
+	tests := []struct {
+		name   string
+		fields VariableFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "updating a variable's name",
+			fields: VariableFields{
+				TimeGenerator: fakeGenerator,
+				Variables: []*influxdb.Variable{
+					{
+						ID:             MustIDBase16(idA),
+						OrganizationID: influxdb.ID(7),
+						Name:           "existing-variable",
+						Arguments: &influxdb.VariableArguments{
+							Type:   "constant",
+							Values: influxdb.VariableConstantValues{},
+						},
+						CRUDLog: influxdb.CRUDLog{
+							CreatedAt: oldFakeDate,
+							UpdatedAt: fakeDate,
+						},
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(idB),
+				newVariable: &influxdb.Variable{
+					ID:             MustIDBase16(idA),
+					OrganizationID: influxdb.ID(7),
+					Name:           "renamed-variable",
+					Arguments: &influxdb.VariableArguments{
+						Type:   "constant",
+						Values: influxdb.VariableConstantValues{},
+					},
+					CRUDLog: influxdb.CRUDLog{
+						CreatedAt: oldFakeDate,
+						UpdatedAt: fakeDate,
+					},
+				},
+			},
+			wants: wants{
+				err: nil,
+				variables: []*influxdb.Variable{
+					{
+						ID:             MustIDBase16(idA),
+						OrganizationID: influxdb.ID(7),
+						Name:           "renamed-variable",
+						Arguments: &influxdb.VariableArguments{
+							Type:   "constant",
+							Values: influxdb.VariableConstantValues{},
+						},
+						CRUDLog: influxdb.CRUDLog{
+							CreatedAt: oldFakeDate,
+							UpdatedAt: fakeDate,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, _, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+
+			err := s.ReplaceVariable(ctx, tt.args.newVariable)
+			influxErrsEqual(t, tt.wants.err, err)
+			if err != nil {
+				return
+			}
+
+			variable, err := s.FindVariableByID(ctx, tt.args.id)
+			if err != nil {
+				return
+			}
+
+			if variable != nil {
+				if tt.args.newVariable.Name != "" && variable.Name != tt.args.newVariable.Name {
 					t.Fatalf("variable name not updated")
 				}
 			}

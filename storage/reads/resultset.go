@@ -2,25 +2,31 @@ package reads
 
 import (
 	"context"
+	"math"
 
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
+type multiShardCursors interface {
+	createCursor(row SeriesRow) cursors.Cursor
+	newAggregateCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor
+}
+
 type resultSet struct {
 	ctx          context.Context
+	agg          *datatypes.Aggregate
 	seriesCursor SeriesCursor
 	seriesRow    SeriesRow
-	arrayCursors *arrayCursors
-	cursor       cursors.Cursor
+	arrayCursors multiShardCursors
 }
 
 func NewFilteredResultSet(ctx context.Context, req *datatypes.ReadFilterRequest, seriesCursor SeriesCursor) ResultSet {
 	return &resultSet{
 		ctx:          ctx,
 		seriesCursor: seriesCursor,
-		arrayCursors: newArrayCursors(ctx, req.Range.Start, req.Range.End, true),
+		arrayCursors: newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true, math.MaxInt64),
 	}
 }
 
@@ -45,13 +51,18 @@ func (r *resultSet) Next() bool {
 	if seriesRow == nil {
 		return false
 	}
+
 	r.seriesRow = *seriesRow
-	r.cursor = r.arrayCursors.createCursor(r.seriesRow)
+
 	return true
 }
 
 func (r *resultSet) Cursor() cursors.Cursor {
-	return r.cursor
+	cur := r.arrayCursors.createCursor(r.seriesRow)
+	if r.agg != nil {
+		cur = r.arrayCursors.newAggregateCursor(r.ctx, r.agg, cur)
+	}
+	return cur
 }
 
 func (r *resultSet) Tags() models.Tags {
@@ -60,13 +71,4 @@ func (r *resultSet) Tags() models.Tags {
 
 // Stats returns the stats for the underlying cursors.
 // Available after resultset has been scanned.
-func (r *resultSet) Stats() cursors.CursorStats {
-	if r.seriesRow.Query == nil {
-		return cursors.CursorStats{}
-	}
-	// All seriesRows share the same underlying cursor iterator
-	// which contains the aggregated stats of the query.
-	// So this seems like it is returning the stats only from the
-	// last series, but this returns the stats from all series.
-	return r.seriesRow.Query.Stats()
-}
+func (r *resultSet) Stats() cursors.CursorStats { return r.seriesRow.Query.Stats() }

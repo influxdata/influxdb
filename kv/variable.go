@@ -215,9 +215,12 @@ func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) erro
 	})
 }
 
-// ReplaceVariable puts a variable in the store
+// ReplaceVariable replaces a variable that exists in the store or creates it if it does not
 func (s *Service) ReplaceVariable(ctx context.Context, v *influxdb.Variable) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
+		if found, _ := s.findVariableByID(ctx, tx, v.ID); found != nil {
+			return s.putVariable(ctx, tx, v, PutUpdate())
+		}
 		return s.putVariable(ctx, tx, v, PutNew())
 	})
 }

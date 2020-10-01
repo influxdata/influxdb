@@ -149,8 +149,7 @@ cpu usage_user=2.7
 	},
 	{
 		"columnSeparator",
-		`
-sep=;
+		`sep=;
 m|measurement;available|boolean:y,Y:|n;dt|dateTime:number
 test;nil;1
 test;N;2
@@ -168,23 +167,28 @@ test available=true 5
 	},
 }
 
-func (example *csvExample) normalize() {
+func (example *csvExample) normalize() rune {
 	for len(example.lp) > 0 && example.lp[0] == '\n' {
 		example.lp = example.lp[1:]
 	}
+	if strings.HasPrefix(example.csv, "sep=") {
+		return (rune)(example.csv[4])
+	}
+	return ','
 }
 
 // Test_Examples tests examples of README.md file herein
 func Test_Examples(t *testing.T) {
 	for _, example := range examples {
-		example.normalize()
 		t.Run(example.name, func(t *testing.T) {
+			comma := example.normalize()
 			transformer := CsvToLineProtocol(strings.NewReader(example.csv))
 			transformer.SkipRowOnError(true)
 			result, err := ioutil.ReadAll(transformer)
 			if err != nil {
 				require.Nil(t, fmt.Sprintf("%s", err))
 			}
+			require.Equal(t, comma, transformer.Comma())
 			require.Equal(t, example.lp, string(result))
 		})
 	}

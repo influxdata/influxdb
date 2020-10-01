@@ -266,7 +266,7 @@ func (s *mockStorage) UpdateTarget(ctx context.Context, update *influxdb.Scraper
 	defer s.Unlock()
 
 	for k, v := range s.Targets {
-		if v.ID.String() == string(update.ID) {
+		if v.ID.String() == update.ID.String() {
 			s.Targets[k] = *update
 			break
 		}

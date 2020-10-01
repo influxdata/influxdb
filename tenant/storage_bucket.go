@@ -117,28 +117,7 @@ func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID influxdb.ID
 
 	// allow for hard coded bucket names that dont exist in the system
 	if kv.IsNotFound(err) {
-		switch n {
-		case influxdb.TasksSystemBucketName:
-			return &influxdb.Bucket{
-				ID:              influxdb.TasksSystemBucketID,
-				Type:            influxdb.BucketTypeSystem,
-				Name:            influxdb.TasksSystemBucketName,
-				RetentionPeriod: influxdb.TasksSystemBucketRetention,
-				Description:     "System bucket for task logs",
-				OrgID:           orgID,
-			}, nil
-		case influxdb.MonitoringSystemBucketName:
-			return &influxdb.Bucket{
-				ID:              influxdb.MonitoringSystemBucketID,
-				Type:            influxdb.BucketTypeSystem,
-				Name:            influxdb.MonitoringSystemBucketName,
-				RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
-				Description:     "System bucket for monitoring logs",
-				OrgID:           orgID,
-			}, nil
-		default:
-			return nil, ErrBucketNotFoundByName(n)
-		}
+		return nil, ErrBucketNotFoundByName(n)
 	}
 
 	if err != nil {

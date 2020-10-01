@@ -4,8 +4,8 @@ import (
 	"log"
 	"strings"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/gogo/protobuf/proto"
+	bolt "go.etcd.io/bbolt"
 )
 
 // changeIntervalToDuration

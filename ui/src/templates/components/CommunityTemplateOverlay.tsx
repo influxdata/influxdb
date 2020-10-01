@@ -6,7 +6,7 @@ import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {Alignment, Orientation, Overlay, Tabs} from '@influxdata/clockface'
 import {CommunityTemplateInstallInstructions} from 'src/templates/components/CommunityTemplateInstallInstructions'
 import {CommunityTemplateReadme} from 'src/templates/components/CommunityTemplateReadme'
-import {CommunityTemplateOverlayContents} from 'src/templates/components/CommunityTemplateOverlayContents'
+import {CommunityTemplateResourceContent} from 'src/templates/components/CommunityTemplateResourceContent'
 
 // Types
 import {ComponentStatus} from '@influxdata/clockface'
@@ -83,7 +83,7 @@ class CommunityTemplateOverlayUnconnected extends PureComponent<Props, State> {
                 />
               </Tabs.Tabs>
               {this.state.activeTab === Tab.IncludedResources ? (
-                <CommunityTemplateOverlayContents />
+                <CommunityTemplateResourceContent />
               ) : (
                 <CommunityTemplateReadme directory={templateDirectory} />
               )}

@@ -47,7 +47,7 @@ func (s *Source) Run(ctx context.Context) {
 	labelValues := s.m.getLabelValues(ctx, s.orgID, s.op)
 	start := time.Now()
 	var err error
-	if flux.IsExperimentalTracingEnabled() {
+	if flux.IsExperimentalTracingEnabled(ctx) {
 		span, ctxWithSpan := tracing.StartSpanFromContextWithOperationName(ctx, "source-"+s.op)
 		err = s.runner.run(ctxWithSpan)
 		span.Finish()

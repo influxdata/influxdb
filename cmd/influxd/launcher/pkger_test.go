@@ -4301,7 +4301,7 @@ const telegrafCfg = `[agent]
   collection_jitter = "0s"
   flush_interval = "10s"
 [[outputs.influxdb_v2]]
-  urls = ["http://localhost:9999"]
+  urls = ["http://localhost:8086"]
   token = "$INFLUX_TOKEN"
   organization = "rg"
   bucket = "rucket_3"

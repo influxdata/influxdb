@@ -249,10 +249,8 @@ func WalkCursor(ctx context.Context, cursor ForwardCursor, visit VisitFunc) (err
 			return err
 		}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 	}
 

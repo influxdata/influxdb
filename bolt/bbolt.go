@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/rand"
 	"github.com/influxdata/influxdb/v2/snowflake"
+	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
 

@@ -11,8 +11,8 @@ import (
 
 // Ensure filter can insert values and verify they exist.
 func TestFilter_InsertContains(t *testing.T) {
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race and appveyor mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" || os.Getenv("CIRCLECI") != "" {
+		t.Skip("Skipping test in short, race, circle and appveyor mode.")
 	}
 
 	// Short, less comprehensive test.

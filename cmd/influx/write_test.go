@@ -56,6 +56,7 @@ func readLines(reader io.Reader) []string {
 
 func createTempFile(suffix string, contents []byte) string {
 	file, err := ioutil.TempFile("", "influx_writeTest*."+suffix)
+	file.Close() // Close immediatelly, since we need only a file name
 	if err != nil {
 		log.Fatal(err)
 		return "unknown.file"
@@ -425,6 +426,7 @@ func Test_fluxWriteF(t *testing.T) {
 		flags.token = prevToken
 	}()
 	useTestServer := func() {
+		httpClient = nil
 		lineData = lineData[:0]
 		flags.token = "myToken"
 		flags.host = server.URL
@@ -543,4 +545,20 @@ func Test_fluxWriteF(t *testing.T) {
 		require.Nil(t, err)
 		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(string(lineData), "\n"))
 	})
+}
+
+// Test_writeFlags_errorsFile tests that rejected rows are written to errors file
+func Test_writeFlags_errorsFile(t *testing.T) {
+	defer removeTempFiles()
+	errorsFile := createTempFile("errors", []byte{})
+	stdInContents := "_measurement,a|long:strict\nm,1\nm,1.1"
+	out := bytes.Buffer{}
+	command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
+	command.SetArgs([]string{"dryrun", "--format", "csv", "--errors-file", errorsFile})
+	err := command.Execute()
+	require.Nil(t, err)
+	require.Equal(t, "m a=1i", strings.Trim(out.String(), "\n"))
+	errorLines, err := ioutil.ReadFile(errorsFile)
+	require.Nil(t, err)
+	require.Equal(t, "# error : line 3: column 'a': '1.1' cannot fit into long data type\nm,1.1", strings.Trim(string(errorLines), "\n"))
 }

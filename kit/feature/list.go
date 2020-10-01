@@ -33,8 +33,8 @@ func BackendExample() BoolFlag {
 var communityTemplates = MakeBoolFlag(
 	"Community Templates",
 	"communityTemplates",
-	"Bucky, Johnny Steenbergen (Berg)",
-	false,
+	"Bucky",
+	true,
 	Permanent,
 	true,
 )
@@ -142,6 +142,20 @@ func MemoryOptimizedSchemaMutation() BoolFlag {
 	return memoryOptimizedSchemaMutation
 }
 
+var queryTracing = MakeBoolFlag(
+	"Query Tracing",
+	"queryTracing",
+	"Query Team",
+	false,
+	Permanent,
+	false,
+)
+
+// QueryTracing - Turn on query tracing for queries that are sampled
+func QueryTracing() BoolFlag {
+	return queryTracing
+}
+
 var simpleTaskOptionsExtraction = MakeBoolFlag(
 	"Simple Task Options Extraction",
 	"simpleTaskOptionsExtraction",
@@ -240,20 +254,6 @@ func OrgOnlyMemberList() BoolFlag {
 	return orgOnlyMemberList
 }
 
-var enforceOrgDashboardLimits = MakeBoolFlag(
-	"Enforce Organization Dashboard Limits",
-	"enforceOrgDashboardLimits",
-	"Compute Team",
-	false,
-	Temporary,
-	false,
-)
-
-// EnforceOrganizationDashboardLimits - Enforces the default limit params for the dashboards api when orgs are set
-func EnforceOrganizationDashboardLimits() BoolFlag {
-	return enforceOrgDashboardLimits
-}
-
 var injectLatestSuccessTime = MakeBoolFlag(
 	"Inject Latest Success Time",
 	"injectLatestSuccessTime",
@@ -268,6 +268,20 @@ func InjectLatestSuccessTime() BoolFlag {
 	return injectLatestSuccessTime
 }
 
+var enforceOrgDashboardLimits = MakeBoolFlag(
+	"Enforce Organization Dashboard Limits",
+	"enforceOrgDashboardLimits",
+	"Compute Team",
+	false,
+	Temporary,
+	false,
+)
+
+// EnforceOrganizationDashboardLimits - Enforces the default limit params for the dashboards api when orgs are set
+func EnforceOrganizationDashboardLimits() BoolFlag {
+	return enforceOrgDashboardLimits
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -279,6 +293,7 @@ var all = []Flag{
 	newLabels,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
+	queryTracing,
 	simpleTaskOptionsExtraction,
 	mergeFiltersRule,
 	bandPlotType,
@@ -286,8 +301,8 @@ var all = []Flag{
 	notebooks,
 	pushDownGroupAggregateMinMax,
 	orgOnlyMemberList,
-	enforceOrgDashboardLimits,
 	injectLatestSuccessTime,
+	enforceOrgDashboardLimits,
 }
 
 var byKey = map[string]Flag{
@@ -301,6 +316,7 @@ var byKey = map[string]Flag{
 	"newLabels":                     newLabels,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
+	"queryTracing":                  queryTracing,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"mergeFiltersRule":              mergeFiltersRule,
 	"bandPlotType":                  bandPlotType,
@@ -308,6 +324,6 @@ var byKey = map[string]Flag{
 	"notebooks":                     notebooks,
 	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
 	"orgOnlyMemberList":             orgOnlyMemberList,
-	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
+	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 }

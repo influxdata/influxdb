@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/influxdata/influxdb/v2"
-	ihttp "github.com/influxdata/influxdb/v2/http"
+	khttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
 
@@ -121,7 +121,7 @@ func (s *UserClientService) DeleteUser(ctx context.Context, id influxdb.ID) erro
 	return s.Client.
 		Delete(prefixUsers, id.String()).
 		StatusFn(func(resp *http.Response) error {
-			return ihttp.CheckErrorStatus(http.StatusNoContent, resp)
+			return khttp.CheckErrorStatus(http.StatusNoContent, resp)
 		}).
 		Do(ctx)
 }

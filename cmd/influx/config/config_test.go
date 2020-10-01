@@ -36,12 +36,12 @@ func TestWriteConfigs(t *testing.T) {
 				"default": Config{
 					Token:  "token1",
 					Org:    "org1",
-					Host:   "http://localhost:9999",
+					Host:   "http://localhost:8086",
 					Active: true,
 				},
 			},
 			result: `[default]
-  url = "http://localhost:9999"
+  url = "http://localhost:8086"
   token = "token1"
   org = "org1"
   active = true` + commentedStr,

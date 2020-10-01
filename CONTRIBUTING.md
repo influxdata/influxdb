@@ -16,13 +16,13 @@ Ideally, test cases would be in the form of `curl` commands.
 For example:
 ```bash
 # write data
-curl -XPOST "http://localhost:9999/api/v2/write?org=YOUR_ORG&bucket=YOUR_BUCKET&precision=s" \
+curl -XPOST "http://localhost:8086/api/v2/write?org=YOUR_ORG&bucket=YOUR_BUCKET&precision=s" \
   --header "Authorization: Token YOURAUTHTOKEN" \
   --data-raw "mem,host=host1 used_percent=23.43234543 1556896326"
 
 # query data
 # Bug: expected it to return no data, but data comes back.
-curl http://localhost:9999/api/v2/query?org=my-org -XPOST -sS \
+curl http://localhost:8086/api/v2/query?org=my-org -XPOST -sS \
   -H 'Authorization: Token YOURAUTHTOKEN' \
   -H 'Accept: application/csv' \
   -H 'Content-type: application/vnd.flux' \

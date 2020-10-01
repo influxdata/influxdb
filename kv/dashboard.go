@@ -135,7 +135,9 @@ func filterDashboardsFn(filter influxdb.DashboardFilter) func(d *influxdb.Dashbo
 		}
 	}
 
-	return func(d *influxdb.Dashboard) bool { return true }
+	return func(d *influxdb.Dashboard) bool {
+		return ((filter.OrganizationID == nil) || (*filter.OrganizationID == d.OrganizationID))
+	}
 }
 
 // FindDashboards retrives all dashboards that match an arbitrary dashboard filter.

@@ -31,9 +31,9 @@
 - name: Community Templates
   description: Replace current template uploading functionality with community driven templates
   key: communityTemplates
-  default: false
+  default: true
   expose: true
-  contact: Bucky, Johnny Steenbergen (Berg)
+  contact: Bucky
   lifetime: permanent
 
 - name: Frontend Example
@@ -82,6 +82,13 @@
   default: false
   contact: Query Team
   lifetime: temporary
+
+- name: Query Tracing
+  description: Turn on query tracing for queries that are sampled
+  key: queryTracing
+  default: false
+  contact: Query Team
+  lifetime: permanent
 
 - name: Simple Task Options Extraction
   description: Simplified task options extraction to avoid undefined functions when saving tasks
@@ -133,14 +140,14 @@
   default: false
   contact: Compute Team
 
-- name: Enforce Organization Dashboard Limits
-  description: Enforces the default limit params for the dashboards api when orgs are set
-  key: enforceOrgDashboardLimits
-  default: false
-  contact: Compute Team
-
 - name: Inject Latest Success Time
   description: Inject the latest successful task run timestamp into a Task query extern when executing.
   key: injectLatestSuccessTime
+  default: false
+  contact: Compute Team
+
+- name: Enforce Organization Dashboard Limits
+  description: Enforces the default limit params for the dashboards api when orgs are set
+  key: enforceOrgDashboardLimits
   default: false
   contact: Compute Team

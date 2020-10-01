@@ -179,30 +179,9 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 
 	buf, err := idx.Get(key)
 	if IsNotFound(err) {
-		switch n {
-		case influxdb.TasksSystemBucketName:
-			return &influxdb.Bucket{
-				ID:              influxdb.TasksSystemBucketID,
-				Type:            influxdb.BucketTypeSystem,
-				Name:            influxdb.TasksSystemBucketName,
-				RetentionPeriod: influxdb.TasksSystemBucketRetention,
-				Description:     "System bucket for task logs",
-				OrgID:           orgID,
-			}, nil
-		case influxdb.MonitoringSystemBucketName:
-			return &influxdb.Bucket{
-				ID:              influxdb.MonitoringSystemBucketID,
-				Type:            influxdb.BucketTypeSystem,
-				Name:            influxdb.MonitoringSystemBucketName,
-				RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
-				Description:     "System bucket for monitoring logs",
-				OrgID:           orgID,
-			}, nil
-		default:
-			return nil, &influxdb.Error{
-				Code: influxdb.ENotFound,
-				Msg:  fmt.Sprintf("bucket %q not found", n),
-			}
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  fmt.Sprintf("bucket %q not found", n),
 		}
 	}
 
@@ -343,46 +322,16 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return nil
 	})
 
+	if err != nil {
+		return nil, 0, err
+	}
+
 	// Don't append system buckets if Name is set. Users who don't have real
 	// system buckets won't get mocked buckets if they query for a bucket by name
 	// without the orgID, but this is a vanishing small number of users and has
 	// limited utility anyways. Can be removed once mock system code is ripped out.
 	if filter.Name != nil {
 		return bs, len(bs), nil
-	}
-
-	needsSystemBuckets := true
-	for _, b := range bs {
-		if b.Type == influxdb.BucketTypeSystem {
-			needsSystemBuckets = false
-			break
-		}
-	}
-
-	if needsSystemBuckets {
-		tb := &influxdb.Bucket{
-			ID:              influxdb.TasksSystemBucketID,
-			Type:            influxdb.BucketTypeSystem,
-			Name:            influxdb.TasksSystemBucketName,
-			RetentionPeriod: influxdb.TasksSystemBucketRetention,
-			Description:     "System bucket for task logs",
-		}
-
-		bs = append(bs, tb)
-
-		mb := &influxdb.Bucket{
-			ID:              influxdb.MonitoringSystemBucketID,
-			Type:            influxdb.BucketTypeSystem,
-			Name:            influxdb.MonitoringSystemBucketName,
-			RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
-			Description:     "System bucket for monitoring logs",
-		}
-
-		bs = append(bs, mb)
-	}
-
-	if err != nil {
-		return nil, 0, err
 	}
 
 	return bs, len(bs), nil

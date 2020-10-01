@@ -54,10 +54,9 @@ var (
 
 // TargetFields will include the IDGenerator, and targets
 type TargetFields struct {
-	IDGenerator          influxdb.IDGenerator
-	Targets              []*influxdb.ScraperTarget
-	UserResourceMappings []*influxdb.UserResourceMapping
-	Organizations        []*influxdb.Organization
+	IDGenerator   influxdb.IDGenerator
+	Targets       []*influxdb.ScraperTarget
+	Organizations []*influxdb.Organization
 }
 
 var targetCmpOptions = cmp.Options{
@@ -124,9 +123,8 @@ func AddTarget(
 		target *influxdb.ScraperTarget
 	}
 	type wants struct {
-		err                  error
-		targets              []influxdb.ScraperTarget
-		userResourceMappings []*influxdb.UserResourceMapping
+		err     error
+		targets []influxdb.ScraperTarget
 	}
 	tests := []struct {
 		name   string
@@ -137,10 +135,9 @@ func AddTarget(
 		{
 			name: "create targets with empty set",
 			fields: TargetFields{
-				IDGenerator:          mock.NewIDGenerator(targetOneID, t),
-				Targets:              []*influxdb.ScraperTarget{},
-				UserResourceMappings: []*influxdb.UserResourceMapping{},
-				Organizations:        []*influxdb.Organization{&org1},
+				IDGenerator:   mock.NewIDGenerator(targetOneID, t),
+				Targets:       []*influxdb.ScraperTarget{},
+				Organizations: []*influxdb.Organization{&org1},
 			},
 			args: args{
 				userID: MustIDBase16(threeID),
@@ -153,14 +150,6 @@ func AddTarget(
 				},
 			},
 			wants: wants{
-				userResourceMappings: []*influxdb.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: influxdb.ScraperResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Owner,
-					},
-				},
 				targets: []influxdb.ScraperTarget{
 					{
 						Name:     "name1",
@@ -176,9 +165,8 @@ func AddTarget(
 		{
 			name: "create target with invalid org id",
 			fields: TargetFields{
-				IDGenerator:          mock.NewIDGenerator(targetTwoID, t),
-				UserResourceMappings: []*influxdb.UserResourceMapping{},
-				Organizations:        []*influxdb.Organization{&org1},
+				IDGenerator:   mock.NewIDGenerator(targetTwoID, t),
+				Organizations: []*influxdb.Organization{&org1},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						Name:     "name1",
@@ -205,7 +193,6 @@ func AddTarget(
 					Msg:  "provided organization ID has invalid format",
 					Op:   influxdb.OpAddTarget,
 				},
-				userResourceMappings: []*influxdb.UserResourceMapping{},
 				targets: []influxdb.ScraperTarget{
 					{
 						Name:     "name1",
@@ -221,9 +208,8 @@ func AddTarget(
 		{
 			name: "create target with invalid bucket id",
 			fields: TargetFields{
-				IDGenerator:          mock.NewIDGenerator(targetTwoID, t),
-				UserResourceMappings: []*influxdb.UserResourceMapping{},
-				Organizations:        []*influxdb.Organization{&org1},
+				IDGenerator:   mock.NewIDGenerator(targetTwoID, t),
+				Organizations: []*influxdb.Organization{&org1},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						Name:     "name1",
@@ -250,7 +236,6 @@ func AddTarget(
 					Msg:  "provided bucket ID has invalid format",
 					Op:   influxdb.OpAddTarget,
 				},
-				userResourceMappings: []*influxdb.UserResourceMapping{},
 				targets: []influxdb.ScraperTarget{
 					{
 						Name:     "name1",
@@ -278,14 +263,6 @@ func AddTarget(
 					},
 				},
 				Organizations: []*influxdb.Organization{&org1, &org2},
-				UserResourceMappings: []*influxdb.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(targetOneID),
-						ResourceType: influxdb.ScraperResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Member,
-					},
-				},
 			},
 			args: args{
 				userID: MustIDBase16(threeID),
@@ -299,20 +276,6 @@ func AddTarget(
 				},
 			},
 			wants: wants{
-				userResourceMappings: []*influxdb.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: influxdb.ScraperResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Member,
-					},
-					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: influxdb.ScraperResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Owner,
-					},
-				},
 				targets: []influxdb.ScraperTarget{
 					{
 						Name:     "name1",
@@ -349,16 +312,6 @@ func AddTarget(
 			}
 			if diff := cmp.Diff(targets, tt.wants.targets, targetCmpOptions...); diff != "" {
 				t.Errorf("scraper targets are different -got/+want\ndiff %s", diff)
-			}
-			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
-				UserID:       tt.args.userID,
-				ResourceType: influxdb.ScraperResourceType,
-			})
-			if err != nil {
-				t.Fatalf("failed to retrieve user resource mappings: %v", err)
-			}
-			if diff := cmp.Diff(urms, tt.wants.userResourceMappings, userResourceMappingCmpOptions...); diff != "" {
-				t.Errorf("user resource mappings are different -got/+want\ndiff %s", diff)
 			}
 		})
 
@@ -678,9 +631,8 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 		userID influxdb.ID
 	}
 	type wants struct {
-		err                  error
-		userResourceMappings []*influxdb.UserResourceMapping
-		targets              []influxdb.ScraperTarget
+		err     error
+		targets []influxdb.ScraperTarget
 	}
 	tests := []struct {
 		name   string
@@ -692,20 +644,6 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 			name: "delete targets using exist id",
 			fields: TargetFields{
 				Organizations: []*influxdb.Organization{&org1},
-				UserResourceMappings: []*influxdb.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Owner,
-						ResourceType: influxdb.ScraperResourceType,
-					},
-					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Member,
-						ResourceType: influxdb.ScraperResourceType,
-					},
-				},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
@@ -724,14 +662,6 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 				userID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				userResourceMappings: []*influxdb.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Member,
-						ResourceType: influxdb.ScraperResourceType,
-					},
-				},
 				targets: []influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetTwoID),
@@ -745,20 +675,6 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 			name: "delete targets using id that does not exist",
 			fields: TargetFields{
 				Organizations: []*influxdb.Organization{&org1},
-				UserResourceMappings: []*influxdb.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Owner,
-						ResourceType: influxdb.ScraperResourceType,
-					},
-					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Member,
-						ResourceType: influxdb.ScraperResourceType,
-					},
-				},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
@@ -794,20 +710,6 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 						BucketID: idOne,
 					},
 				},
-				userResourceMappings: []*influxdb.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Owner,
-						ResourceType: influxdb.ScraperResourceType,
-					},
-					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     influxdb.Member,
-						ResourceType: influxdb.ScraperResourceType,
-					},
-				},
 			},
 		},
 	}
@@ -825,16 +727,6 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 			}
 			if diff := cmp.Diff(targets, tt.wants.targets, targetCmpOptions...); diff != "" {
 				t.Errorf("targets are different -got/+want\ndiff %s", diff)
-			}
-			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
-				UserID:       tt.args.userID,
-				ResourceType: influxdb.ScraperResourceType,
-			})
-			if err != nil {
-				t.Fatalf("failed to retrieve user resource mappings: %v", err)
-			}
-			if diff := cmp.Diff(urms, tt.wants.userResourceMappings, userResourceMappingCmpOptions...); diff != "" {
-				t.Errorf("user resource mappings are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}

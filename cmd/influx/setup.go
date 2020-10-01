@@ -7,15 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
+	internal2 "github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
-	input "github.com/tcnksm/go-input"
+	"github.com/tcnksm/go-input"
 )
 
 var setupFlags struct {
@@ -180,7 +180,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write config to path %q: %v", dPath, err)
 	}
 
-	fmt.Println(string(promptWithColor(fmt.Sprintf("Config %s has been stored in %s.", p.Name, dPath), colorCyan)))
+	fmt.Println(string(internal2.PromptWithColor(fmt.Sprintf("Config %s has been stored in %s.", p.Name, dPath), internal2.ColorCyan)))
 
 	w := cmd.OutOrStdout()
 	if setupFlags.json {
@@ -222,6 +222,10 @@ func onboardingRequest() (*influxdb.OnboardingRequest, error) {
 }
 
 func nonInteractive() (*influxdb.OnboardingRequest, error) {
+	if len(setupFlags.password) < internal2.MinPasswordLen {
+		return nil, internal2.ErrPasswordIsTooShort
+	}
+
 	req := &influxdb.OnboardingRequest{
 		User:            setupFlags.username,
 		Password:        setupFlags.password,
@@ -231,7 +235,7 @@ func nonInteractive() (*influxdb.OnboardingRequest, error) {
 		RetentionPeriod: influxdb.InfiniteRetention,
 	}
 
-	dur, err := rawDurationToTimeDuration(setupFlags.retention)
+	dur, err := internal2.RawDurationToTimeDuration(setupFlags.retention)
 	if err != nil {
 		return nil, err
 	}
@@ -247,16 +251,16 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 		Reader: os.Stdin,
 	}
 	req = new(influxdb.OnboardingRequest)
-	fmt.Println(string(promptWithColor(`Welcome to InfluxDB 2.0!`, colorYellow)))
+	fmt.Println(string(internal2.PromptWithColor(`Welcome to InfluxDB 2.0!`, internal2.ColorYellow)))
 	if setupFlags.username != "" {
 		req.User = setupFlags.username
 	} else {
-		req.User = getInput(ui, "Please type your primary username", "")
+		req.User = internal2.GetInput(ui, "Please type your primary username", "")
 	}
-	if setupFlags.password != "" {
+	if setupFlags.password != "" && len(setupFlags.password) >= internal2.MinPasswordLen {
 		req.Password = setupFlags.password
 	} else {
-		req.Password = getPassword(ui, false)
+		req.Password = internal2.GetPassword(ui, false)
 	}
 	if setupFlags.token != "" {
 		req.Token = setupFlags.token
@@ -265,15 +269,15 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 	if setupFlags.org != "" {
 		req.Org = setupFlags.org
 	} else {
-		req.Org = getInput(ui, "Please type your primary organization name", "")
+		req.Org = internal2.GetInput(ui, "Please type your primary organization name", "")
 	}
 	if setupFlags.bucket != "" {
 		req.Bucket = setupFlags.bucket
 	} else {
-		req.Bucket = getInput(ui, "Please type your primary bucket name", "")
+		req.Bucket = internal2.GetInput(ui, "Please type your primary bucket name", "")
 	}
 
-	dur, err := rawDurationToTimeDuration(setupFlags.retention)
+	dur, err := internal2.RawDurationToTimeDuration(setupFlags.retention)
 	if err != nil {
 		return nil, err
 	}
@@ -282,177 +286,32 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 		req.RetentionPeriod = uint(dur / time.Hour)
 	} else {
 		for {
-			rpStr := getInput(ui, "Please type your retention period in hours.\r\nOr press ENTER for infinite.", strconv.Itoa(influxdb.InfiniteRetention))
+			rpStr := internal2.GetInput(ui, "Please type your retention period in hours.\r\nOr press ENTER for infinite.", strconv.Itoa(influxdb.InfiniteRetention))
 			rp, err := strconv.Atoi(rpStr)
 			if rp >= 0 && err == nil {
-				req.RetentionPeriod = uint(rp)
+				req.RetentionPeriod = uint(rp) * uint(time.Hour)
 				break
 			}
 		}
 	}
 
 	if !setupFlags.force {
-		if confirmed := getConfirm(ui, req); !confirmed {
-			return nil, fmt.Errorf("setup was canceled")
-		}
-	}
-
-	return req, nil
-}
-
-// vt100EscapeCodes
-var (
-	keyEscape   = byte(27)
-	colorRed    = []byte{keyEscape, '[', '3', '1', 'm'}
-	colorYellow = []byte{keyEscape, '[', '3', '3', 'm'}
-	colorCyan   = []byte{keyEscape, '[', '3', '6', 'm'}
-	keyReset    = []byte{keyEscape, '[', '0', 'm'}
-)
-
-func promptWithColor(s string, color []byte) []byte {
-	bb := append(color, []byte(s)...)
-	return append(bb, keyReset...)
-}
-
-func getConfirm(ui *input.UI, or *influxdb.OnboardingRequest) bool {
-	prompt := promptWithColor("Confirm? (y/n)", colorRed)
-	for {
-		rp := "infinite"
-		if or.RetentionPeriod > 0 {
-			rp = fmt.Sprintf("%d hrs", time.Duration(or.RetentionPeriod)/time.Hour)
-		}
-		ui.Writer.Write(promptWithColor(fmt.Sprintf(`
+		if confirmed := internal2.GetConfirm(ui, func() string {
+			rp := "infinite"
+			if req.RetentionPeriod > 0 {
+				rp = fmt.Sprintf("%d hrs", time.Duration(req.RetentionPeriod)/time.Hour)
+			}
+			return fmt.Sprintf(`
 You have entered:
   Username:          %s
   Organization:      %s
   Bucket:            %s
   Retention Period:  %s
-`, or.User, or.Org, or.Bucket, rp), colorCyan))
-		result, err := ui.Ask(string(prompt), &input.Options{
-			HideOrder: true,
-		})
-		if err != nil {
-			return false
-		}
-		switch result {
-		case "y":
-			return true
-		case "n":
-			return false
-		default:
-			continue
+`, req.User, req.Org, req.Bucket, rp)
+		}); !confirmed {
+			return nil, fmt.Errorf("setup was canceled")
 		}
 	}
-}
 
-var errPasswordNotMatch = fmt.Errorf("passwords do not match")
-
-var errPasswordIsTooShort error = fmt.Errorf("password is too short")
-
-func getSecret(ui *input.UI) (secret string) {
-	var err error
-	query := string(promptWithColor("Please type your secret", colorCyan))
-	for {
-		secret, err = ui.Ask(query, &input.Options{
-			Required:  true,
-			HideOrder: true,
-			Hide:      true,
-			Mask:      false,
-		})
-		switch err {
-		case input.ErrInterrupted:
-			os.Exit(1)
-		default:
-			if secret = strings.TrimSpace(secret); secret == "" {
-				continue
-			}
-		}
-		break
-	}
-	return secret
-}
-
-func getPassword(ui *input.UI, showNew bool) (password string) {
-	newStr := ""
-	if showNew {
-		newStr = " new"
-	}
-	var err error
-enterPassword:
-	query := string(promptWithColor("Please type your"+newStr+" password", colorCyan))
-	for {
-		password, err = ui.Ask(query, &input.Options{
-			Required:  true,
-			HideOrder: true,
-			Hide:      true,
-			Mask:      false,
-			ValidateFunc: func(s string) error {
-				if len(s) < 8 {
-					return errPasswordIsTooShort
-				}
-				return nil
-			},
-		})
-		switch err {
-		case input.ErrInterrupted:
-			os.Exit(1)
-		case errPasswordIsTooShort:
-			ui.Writer.Write(promptWithColor("Password too short - minimum length is 8 characters!\n\r", colorRed))
-			continue
-		default:
-			if password = strings.TrimSpace(password); password == "" {
-				continue
-			}
-		}
-		break
-	}
-	query = string(promptWithColor("Please type your"+newStr+" password again", colorCyan))
-	for {
-		_, err = ui.Ask(query, &input.Options{
-			Required:  true,
-			HideOrder: true,
-			Hide:      true,
-			ValidateFunc: func(s string) error {
-				if s != password {
-					return errPasswordNotMatch
-				}
-				return nil
-			},
-		})
-		switch err {
-		case input.ErrInterrupted:
-			os.Exit(1)
-		case nil:
-			// Nothing.
-		default:
-			ui.Writer.Write(promptWithColor("Passwords do not match!\n", colorRed))
-			goto enterPassword
-		}
-		break
-	}
-	return password
-}
-
-func getInput(ui *input.UI, prompt, defaultValue string) string {
-	option := &input.Options{
-		Required:  true,
-		HideOrder: true,
-	}
-	if defaultValue != "" {
-		option.Default = defaultValue
-		option.HideDefault = true
-	}
-	prompt = string(promptWithColor(prompt, colorCyan))
-	for {
-		line, err := ui.Ask(prompt, option)
-		switch err {
-		case input.ErrInterrupted:
-			os.Exit(1)
-		default:
-			if line = strings.TrimSpace(line); line == "" {
-				continue
-			}
-			return line
-		}
-	}
+	return req, nil
 }

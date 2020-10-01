@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math/rand"
 
-	bolt "github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb/v2"
+	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
 

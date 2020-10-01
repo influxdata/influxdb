@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestSeriesIDSet_NewSeriesIDSetNegate(t *testing.T) {
+func TestSeriesIDSet_AndNot(t *testing.T) {
 	examples := [][3][]uint64{
 		[3][]uint64{
 			{1, 10, 20, 30},
@@ -44,73 +44,20 @@ func TestSeriesIDSet_NewSeriesIDSetNegate(t *testing.T) {
 			// Build sets.
 			a, b := NewSeriesIDSet(), NewSeriesIDSet()
 			for _, v := range example[0] {
-				a.Add(NewSeriesID(v))
+				a.Add(v)
 			}
 			for _, v := range example[1] {
-				b.Add(NewSeriesID(v))
+				b.Add(v)
 			}
 
 			expected := NewSeriesIDSet()
 			for _, v := range example[2] {
-				expected.Add(NewSeriesID(v))
+				expected.Add(v)
 			}
 
-			got := NewSeriesIDSetNegate(a, b)
+			got := a.AndNot(b)
 			if got.String() != expected.String() {
 				t.Fatalf("got %s, expected %s", got.String(), expected.String())
-			}
-		})
-	}
-}
-
-func TestSeriesIDSet_RemoveSet(t *testing.T) {
-	examples := [][3][]uint64{
-		[3][]uint64{
-			{1, 10, 20, 30},
-			{10, 12, 13, 14, 20},
-			{1, 30},
-		},
-		[3][]uint64{
-			{},
-			{10},
-			{},
-		},
-		[3][]uint64{
-			{1, 10, 20, 30},
-			{1, 10, 20, 30},
-			{},
-		},
-		[3][]uint64{
-			{1, 10},
-			{1, 10, 100},
-			{},
-		},
-		[3][]uint64{
-			{1, 10},
-			{},
-			{1, 10},
-		},
-	}
-
-	for i, example := range examples {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			// Build sets.
-			a, b := NewSeriesIDSet(), NewSeriesIDSet()
-			for _, v := range example[0] {
-				a.Add(NewSeriesID(v))
-			}
-			for _, v := range example[1] {
-				b.Add(NewSeriesID(v))
-			}
-
-			expected := NewSeriesIDSet()
-			for _, v := range example[2] {
-				expected.Add(NewSeriesID(v))
-			}
-
-			a.RemoveSet(b)
-			if a.String() != expected.String() {
-				t.Fatalf("got %s, expected %s", a.String(), expected.String())
 			}
 		})
 	}
@@ -121,9 +68,8 @@ func TestSeriesIDSet_Clone_Race(t *testing.T) {
 	main := NewSeriesIDSet()
 	total := NewSeriesIDSet()
 	for i := uint64(0); i < 1024; i++ {
-		id := NewSeriesID(i)
-		main.AddNoLock(id)
-		total.AddNoLock(id)
+		main.AddNoLock(i)
+		total.AddNoLock(i)
 	}
 
 	// One test with a closure around the main SeriesIDSet,
@@ -139,7 +85,7 @@ func TestSeriesIDSet_Clone_Race(t *testing.T) {
 				clones[i-1] = main.Clone()
 
 				for j := 0; j < 1000; j++ {
-					id := NewSeriesID(uint64(j + (100000 * i)))
+					id := uint64(j + (100000 * i))
 					total.Add(id)
 					clones[i-1].AddNoLock(id)
 				}
@@ -161,7 +107,7 @@ func TestSeriesIDSet_Clone_Race(t *testing.T) {
 		// Merging the clones should result in only 1024 shared values.
 		union := NewSeriesIDSet()
 		for _, o := range clones {
-			o.ForEachNoLock(func(id SeriesID) {
+			o.ForEachNoLock(func(id uint64) {
 				union.AddNoLock(id)
 			})
 		}
@@ -193,13 +139,13 @@ func BenchmarkSeriesIDSet_Contains(b *testing.B) {
 		// Setup...
 		set := NewSeriesIDSet()
 		for i := uint64(0); i < cardinality; i++ {
-			set.Add(NewSeriesID(i))
+			set.Add(i)
 		}
 
 		lookup := cardinality / 2
 		b.Run(fmt.Sprint(cardinality), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				resultBool = set.Contains(NewSeriesID(lookup))
+				resultBool = set.Contains(lookup)
 			}
 		})
 	}
@@ -225,16 +171,16 @@ func BenchmarkSeriesIDSet_AddMore(b *testing.B) {
 		// Setup...
 		set = NewSeriesIDSet()
 		for i := uint64(0); i < cardinality-1; i++ {
-			set.Add(NewSeriesID(i))
+			set.Add(i)
 		}
 
 		b.Run(fmt.Sprint(cardinality), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				// Add next value
-				set.Add(NewSeriesID(cardinality))
+				set.Add(cardinality)
 
 				b.StopTimer()
-				set.Remove(NewSeriesID(cardinality))
+				set.Remove(cardinality)
 				b.StartTimer()
 			}
 		})
@@ -261,9 +207,9 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 	// Setup...
 	set = NewSeriesIDSet()
 	for i := uint64(0); i < 1000000; i++ {
-		set.Add(NewSeriesID(i))
+		set.Add(i)
 	}
-	lookup := NewSeriesID(300032)
+	lookup := uint64(300032)
 
 	// Add the same value over and over.
 	b.Run("cardinality_1000000_add", func(b *testing.B) {
@@ -276,9 +222,9 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 		b.Run("random", func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				x := NewSeriesID(uint64(rand.Intn(math.MaxInt32)))
+				x := rand.Intn(math.MaxInt32)
 				b.StartTimer()
-				set.Add(x)
+				set.Add(uint64(x))
 			}
 		})
 
@@ -291,9 +237,9 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 		b.Run("random no lock", func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				x := NewSeriesID(uint64(rand.Intn(math.MaxInt32)))
+				x := rand.Intn(math.MaxInt32)
 				b.StartTimer()
-				set.AddNoLock(x)
+				set.AddNoLock(uint64(x))
 			}
 		})
 	})
@@ -311,10 +257,10 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 		b.Run("random no lock", func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				x := NewSeriesID(uint64(rand.Intn(math.MaxInt32)))
+				x := rand.Intn(math.MaxInt32)
 				b.StartTimer()
-				if !set.ContainsNoLock(x) {
-					set.AddNoLock(x)
+				if !set.ContainsNoLock(uint64(x)) {
+					set.AddNoLock(uint64(x))
 				}
 			}
 		})
@@ -332,11 +278,11 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 		b.Run("random global lock", func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				x := NewSeriesID(uint64(rand.Intn(math.MaxInt32)))
+				x := rand.Intn(math.MaxInt32)
 				b.StartTimer()
 				set.Lock()
-				if !set.ContainsNoLock(x) {
-					set.AddNoLock(x)
+				if !set.ContainsNoLock(uint64(x)) {
+					set.AddNoLock(uint64(x))
 				}
 				set.Unlock()
 			}
@@ -353,10 +299,10 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 		b.Run("random multi lock", func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				x := NewSeriesID(uint64(rand.Intn(math.MaxInt32)))
+				x := rand.Intn(math.MaxInt32)
 				b.StartTimer()
-				if !set.Contains(x) {
-					set.Add(x)
+				if !set.Contains(uint64(x)) {
+					set.Add(uint64(x))
 				}
 			}
 		})
@@ -446,7 +392,7 @@ func BenchmarkSeriesIDSet_Clone(b *testing.B) {
 				itr := other.Iterator()
 				ssResult.Lock()
 				for itr.HasNext() {
-					ssResult.AddNoLock(NewSeriesID(uint64(itr.Next())))
+					ssResult.AddNoLock(uint64(itr.Next()))
 				}
 				ssResult.Unlock()
 				b.StopTimer()
@@ -471,9 +417,9 @@ func BenchmarkSeriesIDSet_Clone(b *testing.B) {
 
 	for _, toAddCardinality := range toAddCardinalities {
 		b.Run(fmt.Sprintf("cardinality %d", toAddCardinality), func(b *testing.B) {
-			ids := make([]SeriesID, 0, toAddCardinality)
+			ids := make([]uint64, 0, toAddCardinality)
 			for i := 0; i < toAddCardinality; i++ {
-				ids = append(ids, NewSeriesID(uint64(rand.Intn(200000000))))
+				ids = append(ids, uint64(rand.Intn(200000000)))
 			}
 			other := NewSeriesIDSet(ids...)
 
@@ -498,9 +444,9 @@ func BenchmarkSeriesIDSet_AddMany(b *testing.B) {
 	toAddCardinalities := []int{1e3, 1e4, 1e5}
 
 	for _, cardinality := range cardinalities {
-		ids := make([]SeriesID, 0, cardinality)
+		ids := make([]uint64, 0, cardinality)
 		for i := 0; i < cardinality; i++ {
-			ids = append(ids, NewSeriesID(uint64(rand.Intn(200000000))))
+			ids = append(ids, uint64(rand.Intn(200000000)))
 		}
 
 		// Setup...
@@ -509,9 +455,9 @@ func BenchmarkSeriesIDSet_AddMany(b *testing.B) {
 		// Check if the value exists before adding it under two locks.
 		b.Run(fmt.Sprintf("cardinality %d", cardinality), func(b *testing.B) {
 			for _, toAddCardinality := range toAddCardinalities {
-				ids := make([]SeriesID, 0, toAddCardinality)
+				ids := make([]uint64, 0, toAddCardinality)
 				for i := 0; i < toAddCardinality; i++ {
-					ids = append(ids, NewSeriesID(uint64(rand.Intn(200000000))))
+					ids = append(ids, uint64(rand.Intn(200000000)))
 				}
 
 				b.Run(fmt.Sprintf("adding %d", toAddCardinality), func(b *testing.B) {
@@ -563,6 +509,7 @@ func BenchmarkSeriesIDSet_AddMany(b *testing.B) {
 						}
 					})
 				})
+
 			}
 		})
 	}
@@ -581,14 +528,14 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 	// Setup...
 	set = NewSeriesIDSet()
 	for i := uint64(0); i < 1000000; i++ {
-		set.Add(NewSeriesID(i))
+		set.Add(i)
 	}
 	lookup := uint64(300032)
 
 	// Remove the same value over and over.
 	b.Run("cardinality_1000000_remove_same", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			set.Remove(NewSeriesID(lookup))
+			set.Remove(lookup)
 		}
 	})
 
@@ -597,8 +544,8 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 	b.Run("cardinality_1000000_check_remove_global_lock", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			set.Lock()
-			if set.ContainsNoLock(NewSeriesID(lookup)) {
-				set.RemoveNoLock(NewSeriesID(lookup))
+			if set.ContainsNoLock(lookup) {
+				set.RemoveNoLock(lookup)
 			}
 			set.Unlock()
 		}
@@ -607,81 +554,9 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 	// Check if the value exists before adding it under two locks.
 	b.Run("cardinality_1000000_check_remove_multi_lock", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if set.Contains(NewSeriesID(lookup)) {
-				set.Remove(NewSeriesID(lookup))
+			if set.Contains(lookup) {
+				set.Remove(lookup)
 			}
-		}
-	})
-}
-
-// BenchmarkSeriesIDSet_MassRemove benchmarks the cost of removing a large set of values.
-func BenchmarkSeriesIDSet_MassRemove(b *testing.B) {
-	var size = uint64(1000000)
-	// Setup...
-	set = NewSeriesIDSet()
-	for i := uint64(0); i < size; i++ {
-		set.Add(NewSeriesID(i))
-	}
-
-	// Remove one at a time
-	b.Run("cardinality_1000000_remove_each", func(b *testing.B) {
-		clone := set.Clone()
-		for i := 0; i < b.N; i++ {
-			for j := uint64(0); j < size/2; j++ {
-				clone.RemoveNoLock(NewSeriesID(j))
-			}
-
-			b.StopTimer()
-			clone = set.Clone()
-			b.StartTimer()
-		}
-	})
-
-	// This is the case where a target series id set exists.
-	b.Run("cardinality_1000000_remove_set_exists", func(b *testing.B) {
-		clone := set.Clone()
-		other := NewSeriesIDSet()
-		for j := uint64(0); j < size/2; j++ {
-			other.AddNoLock(NewSeriesID(j))
-		}
-
-		for i := 0; i < b.N; i++ {
-			clone.RemoveSet(other)
-			b.StopTimer()
-			clone = set.Clone()
-			b.StartTimer()
-		}
-	})
-
-	// Make a target series id set and negate it
-	b.Run("cardinality_1000000_remove_set", func(b *testing.B) {
-		clone := set.Clone()
-		for i := 0; i < b.N; i++ {
-			other := NewSeriesIDSet()
-			for j := uint64(0); j < size/2; j++ {
-				other.AddNoLock(NewSeriesID(j))
-			}
-
-			clone.RemoveSet(other)
-			b.StopTimer()
-			clone = set.Clone()
-			b.StartTimer()
-		}
-	})
-
-	// This is the case where a new result set is created.
-	b.Run("cardinality_1000000_remove_set_new", func(b *testing.B) {
-		clone := set.Clone()
-		other := NewSeriesIDSet()
-		for j := uint64(0); j < size/2; j++ {
-			other.AddNoLock(NewSeriesID(j))
-		}
-
-		for i := 0; i < b.N; i++ {
-			_ = NewSeriesIDSetNegate(clone, other)
-			b.StopTimer()
-			clone = set.Clone()
-			b.StartTimer()
 		}
 	})
 }
@@ -707,7 +582,7 @@ func BenchmarkSeriesIDSet_Merge_Duplicates(b *testing.B) {
 	for _, cardinality := range cardinalities {
 		set = NewSeriesIDSet()
 		for i := 0; i < cardinality; i++ {
-			set.Add(NewSeriesID(uint64(i)))
+			set.Add(uint64(i))
 		}
 
 		for _, shard := range shards {
@@ -751,7 +626,7 @@ func BenchmarkSeriesIDSet_Merge_Unique(b *testing.B) {
 	for _, cardinality := range cardinalities {
 		set = NewSeriesIDSet()
 		for i := 0; i < cardinality; i++ {
-			set.Add(NewSeriesID(uint64(i)))
+			set.Add(uint64(i))
 		}
 
 		for _, shard := range shards {
@@ -759,7 +634,7 @@ func BenchmarkSeriesIDSet_Merge_Unique(b *testing.B) {
 			for s := 1; s <= shard; s++ {
 				other := NewSeriesIDSet()
 				for i := 0; i < cardinality; i++ {
-					other.Add(NewSeriesID(uint64(i + (s * cardinality))))
+					other.Add(uint64(i + (s * cardinality)))
 				}
 				others = append(others, other)
 			}

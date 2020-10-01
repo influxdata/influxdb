@@ -2,12 +2,15 @@ package endpoint_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
@@ -28,9 +31,10 @@ var goodBase = endpoint.Base{
 
 func TestValidEndpoint(t *testing.T) {
 	cases := []struct {
-		name string
-		src  influxdb.NotificationEndpoint
-		err  error
+		name  string
+		src   influxdb.NotificationEndpoint
+		err   error
+		errFn func(*testing.T) error
 	}{
 		{
 			name: "invalid endpoint id",
@@ -102,9 +106,16 @@ func TestValidEndpoint(t *testing.T) {
 				Base: goodBase,
 				URL:  "posts://er:{DEf1=ghi@:5432/db?ssl",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "slack endpoint URL is invalid: parse posts://er:{DEf1=ghi@:5432/db?ssl: net/url: invalid userinfo",
+			errFn: func(t *testing.T) error {
+				err := url.Error{
+					Op:  "parse",
+					URL: "posts://er:{DEf1=ghi@:5432/db?ssl",
+					Err: errors.New("net/url: invalid userinfo"),
+				}
+				return &influxdb.Error{
+					Code: influxdb.EInvalid,
+					Msg:  fmt.Sprintf("slack endpoint URL is invalid: %s", err.Error()),
+				}
 			},
 		},
 		{
@@ -186,7 +197,13 @@ func TestValidEndpoint(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got := c.src.Valid()
-			influxTesting.ErrorsEqual(t, got, c.err)
+			var exp error
+			if c.errFn != nil {
+				exp = c.errFn(t)
+			} else {
+				exp = c.err
+			}
+			influxTesting.ErrorsEqual(t, got, exp)
 		})
 	}
 }

@@ -128,48 +128,6 @@ func (s *BucketSvc) FindBuckets(ctx context.Context, filter influxdb.BucketFilte
 		return nil, 0, err
 	}
 
-	if len(opt) > 0 && len(buckets) >= opt[0].Limit {
-		// if we have reached the limit we will not add system buckets
-		return buckets, len(buckets), nil
-	}
-
-	// if a name is provided dont fill in system buckets
-	if filter.Name != nil {
-		return buckets, len(buckets), nil
-	}
-
-	// NOTE: this is a remnant of the old system.
-	// There are org that do not have system buckets stored, but still need to be displayed.
-	needsSystemBuckets := true
-	for _, b := range buckets {
-		if b.Type == influxdb.BucketTypeSystem {
-			needsSystemBuckets = false
-			break
-		}
-	}
-
-	if needsSystemBuckets {
-		tb := &influxdb.Bucket{
-			ID:              influxdb.TasksSystemBucketID,
-			Type:            influxdb.BucketTypeSystem,
-			Name:            influxdb.TasksSystemBucketName,
-			RetentionPeriod: influxdb.TasksSystemBucketRetention,
-			Description:     "System bucket for task logs",
-		}
-
-		buckets = append(buckets, tb)
-
-		mb := &influxdb.Bucket{
-			ID:              influxdb.MonitoringSystemBucketID,
-			Type:            influxdb.BucketTypeSystem,
-			Name:            influxdb.MonitoringSystemBucketName,
-			RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
-			Description:     "System bucket for monitoring logs",
-		}
-
-		buckets = append(buckets, mb)
-	}
-
 	return buckets, len(buckets), nil
 }
 

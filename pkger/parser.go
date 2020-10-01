@@ -860,7 +860,8 @@ func (p *Template) graphLabels() *parseErr {
 
 func (p *Template) graphChecks() *parseErr {
 	p.mChecks = make(map[string]*check)
-	tracker := p.trackNames(true)
+	// todo: what is the business goal wrt having unique names? (currently duplicates are allowed)
+	tracker := p.trackNames(false)
 
 	checkKinds := []struct {
 		kind      Kind
@@ -1442,31 +1443,34 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 	}
 
 	c := chart{
-		Kind:           ck,
-		Name:           r.Name(),
-		BinSize:        r.intShort(fieldChartBinSize),
-		BinCount:       r.intShort(fieldChartBinCount),
-		Geom:           r.stringShort(fieldChartGeom),
-		Height:         r.intShort(fieldChartHeight),
-		Note:           r.stringShort(fieldChartNote),
-		NoteOnEmpty:    r.boolShort(fieldChartNoteOnEmpty),
-		Position:       r.stringShort(fieldChartPosition),
-		Prefix:         r.stringShort(fieldPrefix),
-		Shade:          r.boolShort(fieldChartShade),
-		HoverDimension: r.stringShort(fieldChartHoverDimension),
-		Suffix:         r.stringShort(fieldSuffix),
-		TickPrefix:     r.stringShort(fieldChartTickPrefix),
-		TickSuffix:     r.stringShort(fieldChartTickSuffix),
-		TimeFormat:     r.stringShort(fieldChartTimeFormat),
-		Width:          r.intShort(fieldChartWidth),
-		XCol:           r.stringShort(fieldChartXCol),
-		YCol:           r.stringShort(fieldChartYCol),
-		XPos:           r.intShort(fieldChartXPos),
-		YPos:           r.intShort(fieldChartYPos),
-		FillColumns:    r.slcStr(fieldChartFillColumns),
-		YSeriesColumns: r.slcStr(fieldChartYSeriesColumns),
-		UpperColumn:    r.stringShort(fieldChartUpperColumn),
-		LowerColumn:    r.stringShort(fieldChartLowerColumn),
+		Kind:                       ck,
+		Name:                       r.Name(),
+		BinSize:                    r.intShort(fieldChartBinSize),
+		BinCount:                   r.intShort(fieldChartBinCount),
+		Geom:                       r.stringShort(fieldChartGeom),
+		Height:                     r.intShort(fieldChartHeight),
+		Note:                       r.stringShort(fieldChartNote),
+		NoteOnEmpty:                r.boolShort(fieldChartNoteOnEmpty),
+		Position:                   r.stringShort(fieldChartPosition),
+		Prefix:                     r.stringShort(fieldPrefix),
+		Shade:                      r.boolShort(fieldChartShade),
+		HoverDimension:             r.stringShort(fieldChartHoverDimension),
+		Suffix:                     r.stringShort(fieldSuffix),
+		TickPrefix:                 r.stringShort(fieldChartTickPrefix),
+		TickSuffix:                 r.stringShort(fieldChartTickSuffix),
+		TimeFormat:                 r.stringShort(fieldChartTimeFormat),
+		Width:                      r.intShort(fieldChartWidth),
+		XCol:                       r.stringShort(fieldChartXCol),
+		YCol:                       r.stringShort(fieldChartYCol),
+		XPos:                       r.intShort(fieldChartXPos),
+		YPos:                       r.intShort(fieldChartYPos),
+		FillColumns:                r.slcStr(fieldChartFillColumns),
+		YSeriesColumns:             r.slcStr(fieldChartYSeriesColumns),
+		UpperColumn:                r.stringShort(fieldChartUpperColumn),
+		MainColumn:                 r.stringShort(fieldChartMainColumn),
+		LowerColumn:                r.stringShort(fieldChartLowerColumn),
+		LegendOpacity:              r.float64Short(fieldChartLegendOpacity),
+		LegendOrientationThreshold: r.intShort(fieldChartLegendOrientationThreshold),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {

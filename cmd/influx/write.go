@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
@@ -36,8 +37,10 @@ type writeFlagsType struct {
 	Debug                      bool
 	SkipRowOnError             bool
 	SkipHeader                 int
+	MaxLineLength              int
 	IgnoreDataTypeInColumnName bool
 	Encoding                   string
+	ErrorsFile                 string
 }
 
 var writeFlags writeFlagsType
@@ -82,10 +85,12 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&writeFlags.Debug, "debug", false, "Log CSV columns to stderr before reading data rows")
 	cmd.PersistentFlags().BoolVar(&writeFlags.SkipRowOnError, "skipRowOnError", false, "Log CSV data errors to stderr and continue with CSV processing")
 	cmd.PersistentFlags().IntVar(&writeFlags.SkipHeader, "skipHeader", 0, "Skip the first <n> rows from input data")
+	cmd.PersistentFlags().IntVar(&writeFlags.MaxLineLength, "max-line-length", 16_000_000, "Specifies the maximum number of bytes that can be read for a single line")
 	cmd.Flag("skipHeader").NoOptDefVal = "1" // skipHeader flag value is optional, skip the first header when unspecified
 	cmd.PersistentFlags().BoolVar(&writeFlags.IgnoreDataTypeInColumnName, "xIgnoreDataTypeInColumnName", false, "Ignores dataType which could be specified after ':' in column name")
 	cmd.PersistentFlags().MarkHidden("xIgnoreDataTypeInColumnName") // should be used only upon explicit advice
 	cmd.PersistentFlags().StringVar(&writeFlags.Encoding, "encoding", "UTF-8", "Character encoding of input files or stdin")
+	cmd.PersistentFlags().StringVar(&writeFlags.ErrorsFile, "errors-file", "", "The path to the file to write rejected rows to")
 
 	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -204,6 +209,27 @@ func (writeFlags *writeFlagsType) createLineReader(ctx context.Context, cmd *cob
 		}
 	}
 
+	// create writer for errors-file, if supplied
+	var errorsFile *csv.Writer
+	var rowSkippedListener func(*csv2lp.CsvToLineReader, error, []string)
+	if writeFlags.ErrorsFile != "" {
+		writer, err := os.Create(writeFlags.ErrorsFile)
+		if err != nil {
+			return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to create %q: %v", writeFlags.ErrorsFile, err)
+		}
+		closers = append(closers, writer)
+		errorsFile = csv.NewWriter(writer)
+		rowSkippedListener = func(source *csv2lp.CsvToLineReader, lineError error, row []string) {
+			log.Println(lineError)
+			errorsFile.Comma = source.Comma()
+			errorsFile.Write([]string{fmt.Sprintf("# error : %v", lineError)})
+			if err := errorsFile.Write(row); err != nil {
+				log.Printf("Unable to write to error-file: %v\n", err)
+			}
+			errorsFile.Flush() // flush is required
+		}
+	}
+
 	// concatenate readers
 	r := io.MultiReader(readers...)
 	if writeFlags.Format == inputFormatCsv {
@@ -213,6 +239,7 @@ func (writeFlags *writeFlagsType) createLineReader(ctx context.Context, cmd *cob
 		csvReader.Table.IgnoreDataTypeInColumnName(writeFlags.IgnoreDataTypeInColumnName)
 		// change LineNumber to report file/stdin line numbers properly
 		csvReader.LineNumber = writeFlags.SkipHeader - len(writeFlags.Headers)
+		csvReader.RowSkipped = rowSkippedListener
 		r = csvReader
 	}
 	return r, csv2lp.MultiCloser(closers...), nil
@@ -294,6 +321,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 			Precision:          writeFlags.Precision,
 			InsecureSkipVerify: flags.skipVerify,
 		},
+		MaxLineLength: writeFlags.MaxLineLength,
 	}
 	if err := s.Write(ctx, orgID, bucketID, r); err != nil && err != context.Canceled {
 		return fmt.Errorf("failed to write data: %v", err)

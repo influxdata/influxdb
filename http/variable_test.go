@@ -595,6 +595,109 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 	}
 }
 
+func TestVariableService_handlePutVariable(t *testing.T) {
+	type fields struct {
+		VariableService platform.VariableService
+	}
+	type args struct {
+		id       string
+		variable string
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "PUT a variable",
+			fields: fields{
+				&mock.VariableService{
+					ReplaceVariableF: func(ctx context.Context, m *platform.Variable) error {
+						m.ID = itesting.MustIDBase16("75650d0a636f6d70")
+						m.OrganizationID = platform.ID(1)
+						m.UpdatedAt = faketime
+						m.CreatedAt = faketime
+						return nil
+					},
+				},
+			},
+			args: args{
+				id: "75650d0a636f6d70",
+				variable: `
+{
+  "name": "my-great-variable",
+  "orgID": "0000000000000001",
+  "arguments": {
+    "type": "constant",
+    "values": [
+      "bar",
+      "foo"
+    ]
+  },
+  "selected": [
+    "'foo'"
+  ],
+	"createdAt": "2006-05-04T01:02:03Z",
+	"updatedAt": "2006-05-04T01:02:03Z"
+}
+`,
+			},
+			wants: wants{
+				statusCode:  200,
+				contentType: "application/json; charset=utf-8",
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"my-great-variable","description":"","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"createdAt":"2006-05-04T01:02:03Z","updatedAt":"2006-05-04T01:02:03Z","labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
+`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			variableBackend := NewMockVariableBackend(t)
+			variableBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			variableBackend.VariableService = tt.fields.VariableService
+			h := NewVariableHandler(zaptest.NewLogger(t), variableBackend)
+			r := httptest.NewRequest("GET", "http://howdy.tld", bytes.NewReader([]byte(tt.args.variable)))
+			r = r.WithContext(context.WithValue(
+				context.TODO(),
+				httprouter.ParamsKey,
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.args.id,
+					},
+				}))
+			w := httptest.NewRecorder()
+
+			h.handlePutVariable(w, r)
+
+			res := w.Result()
+			contentType := res.Header.Get("Content-Type")
+			bodyBytes, _ := ioutil.ReadAll(res.Body)
+			body := string(bodyBytes[:])
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("got = %v, want %v", res.StatusCode, tt.wants.statusCode)
+			}
+			if contentType != tt.wants.contentType {
+				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
+			}
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
+				t.Errorf("%q. ***%s***", tt.name, diff)
+			}
+		})
+	}
+}
+
 func TestVariableService_handlePatchVariable(t *testing.T) {
 	type fields struct {
 		VariableService platform.VariableService
@@ -863,7 +966,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 				t.Fatalf("failed to unmarshal label mapping: %v", err)
 			}
 
-			url := fmt.Sprintf("http://localhost:9999/api/v2/variables/%s/labels", tt.args.variableID)
+			url := fmt.Sprintf("http://localhost:8086/api/v2/variables/%s/labels", tt.args.variableID)
 			r := httptest.NewRequest("POST", url, bytes.NewReader(b))
 			w := httptest.NewRecorder()
 

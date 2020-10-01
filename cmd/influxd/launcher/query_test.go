@@ -941,6 +941,7 @@ error2","query plan",109,110
 }
 
 func TestQueryPushDowns(t *testing.T) {
+	t.Skip("Not supported yet")
 	testcases := []struct {
 		name  string
 		data  []string

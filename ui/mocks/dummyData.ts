@@ -418,7 +418,7 @@ export const influxDB2Plugin = {
   type: 'output',
   comment: 'write to influxdb v2',
   config: {
-    urls: ['http://127.0.0.1:9999'],
+    urls: ['http://127.0.0.1:8086'],
     token,
     organization: 'default',
     bucket: 'defbuck',
@@ -636,7 +636,7 @@ export const setSetupParamsResponse = {
   status: 201,
   statusText: 'Created',
   headers: {
-    'access-control-allow-origin': 'http://localhost:9999',
+    'access-control-allow-origin': 'http://localhost:8086',
     date: 'Fri, 11 Jan 2019 22:49:33 GMT',
     'access-control-allow-headers':
       'Accept, Content-Type, Content-Length, Accept-Encoding, Authorization',
@@ -685,7 +685,7 @@ export const scraperTargets = [
     orgID: '03636a0aabb51000',
     organization: 'a',
     type: 'prometheus',
-    url: 'http://localhost:9999/metrics',
+    url: 'http://localhost:8086/metrics',
   },
   {
     bucket: 'a',
@@ -695,7 +695,7 @@ export const scraperTargets = [
     orgID: '03636a0aabb51000',
     organization: 'a',
     type: 'prometheus',
-    url: 'http://localhost:9999/metrics',
+    url: 'http://localhost:8086/metrics',
   },
 ]
 

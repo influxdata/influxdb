@@ -148,7 +148,7 @@ func (s *loggingMW) Export(ctx context.Context, opts ...ExportOptFn) (template *
 			s.logger.Error("failed to export template", zap.Error(err), dur)
 			return
 		}
-		s.logger.Info("failed to export template", append(s.summaryLogFields(template.Summary()), dur)...)
+		s.logger.Info("exported template", append(s.summaryLogFields(template.Summary()), dur)...)
 	}(time.Now())
 	return s.next.Export(ctx, opts...)
 }
