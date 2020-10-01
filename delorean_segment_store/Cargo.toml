@@ -17,5 +17,9 @@ criterion = "0.3"
 rand = "0.7.3"
 
 [[bench]]
+<<<<<<< HEAD
 name = "fixed"
+=======
+name = "plain"
+>>>>>>> 58524d7... feat: fixed encoding for non-null numerics
 harness = false
