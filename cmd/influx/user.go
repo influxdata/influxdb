@@ -6,9 +6,10 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
-	input "github.com/tcnksm/go-input"
+	"github.com/tcnksm/go-input"
 )
 
 type userSVCsFn func() (cmdUserDeps, error)
@@ -365,7 +366,7 @@ func newUserSVC() (cmdUserDeps, error) {
 	orgSvc := &http.OrganizationService{Client: httpClient}
 	passSvc := &http.PasswordService{Client: httpClient}
 	urmSvc := &http.UserResourceMappingService{Client: httpClient}
-	getPassFn := getPassword
+	getPassFn := internal.GetPassword
 
 	return cmdUserDeps{
 		userSVC:   userSvc,

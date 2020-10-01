@@ -33,7 +33,6 @@ func main() {
 		// FIXME
 		//generate.Command,
 		//restore.Command,
-		upgrade.Command,
 		&cobra.Command{
 			Use:   "version",
 			Short: "Print the influxd server version",
@@ -42,6 +41,9 @@ func main() {
 			},
 		},
 	)
+
+	// upgrade binds options to env variables, so it must be added after rootCmd is initialized
+	rootCmd.AddCommand(upgrade.NewCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

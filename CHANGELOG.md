@@ -1,4 +1,4 @@
-## v2.0.0-beta.17 [unreleased]
+## v2.0.0-rc.0 [2020-09-29]
 
 ### Breaking Changes
 
@@ -37,6 +37,8 @@ need to update any InfluxDB CLI config profiles with the new port number.
 1. [19508](https://github.com/influxdata/influxdb/pull/19508): Add subset of InfluxQL coordinator options as flags
 1. [19457](https://github.com/influxdata/influxdb/pull/19457): Add ability to export resources by name via the CLI
 1. [19640](https://github.com/influxdata/influxdb/pull/19640): Turn on Community Templates
+1. [19663](https://github.com/influxdata/influxdb/pull/19663): Added InfluxDB v2 Listener, NSD, OPC-UA, and Windows Event Log to the sources page
+1. [19662](https://github.com/influxdata/influxdb/pull/19662): Add `max-line-length` switch to `influx write` command to address `token too long` errors for large inputs
 
 ### Bug Fixes
 
@@ -53,6 +55,7 @@ need to update any InfluxDB CLI config profiles with the new port number.
 1. [19066](https://github.com/influxdata/influxdb/pull/19066): Drop deprecated /packages route tree
 1. [19116](https://github.com/influxdata/influxdb/pull/19116): Support more types for template envRef default value and require explicit default values
 1. [19104](https://github.com/influxdata/influxdb/pull/19104): Remove orgs/labels nested routes from the API.
+1. [19653](https://github.com/influxdata/influxdb/pull/19653): Remove PointBatcher from tsdb package API
 
 ### Features
 

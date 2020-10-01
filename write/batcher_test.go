@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 )
 
 func TestScanLines(t *testing.T) {
@@ -76,21 +77,18 @@ func TestBatcher_read(t *testing.T) {
 	type args struct {
 		cancel bool
 		r      io.Reader
-		lines  chan []byte
-		errC   chan error
+		max    int
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    []string
-		wantErr bool
+		name   string
+		args   args
+		want   []string
+		expErr error
 	}{
 		{
 			name: "reading two lines produces 2 lines",
 			args: args{
-				r:     strings.NewReader("m1,t1=v1 f1=1\nm2,t2=v2 f2=2"),
-				lines: make(chan []byte),
-				errC:  make(chan error, 1),
+				r: strings.NewReader("m1,t1=v1 f1=1\nm2,t2=v2 f2=2"),
 			},
 			want: []string{"m1,t1=v1 f1=1\n", "m2,t2=v2 f2=2"},
 		},
@@ -99,21 +97,42 @@ func TestBatcher_read(t *testing.T) {
 			args: args{
 				cancel: true,
 				r:      strings.NewReader("m1,t1=v1 f1=1"),
-				lines:  make(chan []byte),
-				errC:   make(chan error, 1),
 			},
-			want:    []string{},
-			wantErr: true,
+			want:   nil,
+			expErr: context.Canceled,
 		},
 		{
 			name: "error from reader returns error",
 			args: args{
-				r:     &errorReader{},
-				lines: make(chan []byte),
-				errC:  make(chan error, 1),
+				r: &errorReader{},
 			},
-			want:    []string{},
-			wantErr: true,
+			want:   nil,
+			expErr: fmt.Errorf("error"),
+		},
+		{
+			name: "error when input exceeds max line length",
+			args: args{
+				r:   strings.NewReader("m1,t1=v1 f1=1"),
+				max: 5,
+			},
+			want:   nil,
+			expErr: ErrLineTooLong,
+		},
+		{
+			name: "lines greater than MaxScanTokenSize are allowed",
+			args: args{
+				r:   strings.NewReader(strings.Repeat("a", bufio.MaxScanTokenSize+1)),
+				max: bufio.MaxScanTokenSize + 2,
+			},
+			want: []string{strings.Repeat("a", bufio.MaxScanTokenSize+1)},
+		},
+		{
+			name: "lines greater than MaxScanTokenSize by default are not allowed",
+			args: args{
+				r: strings.NewReader(strings.Repeat("a", bufio.MaxScanTokenSize+1)),
+			},
+			want:   nil,
+			expErr: ErrLineTooLong,
 		},
 	}
 	for _, tt := range tests {
@@ -122,29 +141,26 @@ func TestBatcher_read(t *testing.T) {
 			var cancel context.CancelFunc
 			if tt.args.cancel {
 				ctx, cancel = context.WithCancel(ctx)
+				cancel()
 			}
 
-			b := &Batcher{}
-			got := []string{}
+			b := &Batcher{MaxLineLength: tt.args.max}
+			var got []string
 
-			go b.read(ctx, tt.args.r, tt.args.lines, tt.args.errC)
-			if cancel != nil {
-				cancel()
-			} else {
-				for line := range tt.args.lines {
+			lines := make(chan []byte)
+			errC := make(chan error, 1)
+
+			go b.read(ctx, tt.args.r, lines, errC)
+
+			if cancel == nil {
+				for line := range lines {
 					got = append(got, string(line))
 				}
 			}
 
-			err := <-tt.args.errC
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ScanLines.read() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if !cmp.Equal(got, tt.want) {
-				t.Errorf("%q. Batcher.read() = -got/+want %s", tt.name, cmp.Diff(got, tt.want))
-			}
+			err := <-errC
+			assert.Equal(t, err, tt.expErr)
+			assert.Equal(t, got, tt.want)
 		})
 	}
 }
