@@ -13,6 +13,7 @@ use delorean_arrow::arrow::record_batch::RecordBatch;
 
 use column::AggregateType;
 use partition::Partition;
+use segment::ColumnName;
 
 /// The Segment Store is responsible for providing read access to partition data.
 ///
@@ -48,7 +49,9 @@ impl<'a> Store<'a> {
     ///
     /// The partition should comprise a single table (record batch) for each
     /// measurement name in the partition.
-    pub fn add_partition(&mut self, database_id: String, partition: BTreeMap<String, RecordBatch>) {
+    pub fn add_partition(&mut self, database_id: String, partition: Vec<RecordBatch>) {
+        // TODO - add validation that there exists only one record batch per
+        // table name.
         todo!()
     }
 
@@ -62,7 +65,7 @@ impl<'a> Store<'a> {
     pub fn select(
         &self,
         database_name: &str,
-        measurement: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         select_columns: Vec<String>,
@@ -72,7 +75,7 @@ impl<'a> Store<'a> {
         // TODO(edd): error handling on everything...................
         //
         if let Some(db) = self.databases.get(database_name) {
-            return db.select(measurement, time_range, predicates, select_columns);
+            return db.select(table_name, time_range, predicates, select_columns);
         }
         None
     }
@@ -95,15 +98,15 @@ impl<'a> Store<'a> {
     pub fn aggregate(
         &self,
         database_name: &str,
-        measurement: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         group_columns: Vec<String>,
-        aggregates: Vec<(String, AggregateType)>,
+        aggregates: Vec<(ColumnName, AggregateType)>,
     ) -> Option<RecordBatch> {
         if let Some(db) = self.databases.get(database_name) {
             return db.aggregate(
-                measurement,
+                table_name,
                 time_range,
                 predicates,
                 group_columns,
@@ -134,16 +137,16 @@ impl<'a> Store<'a> {
     pub fn aggregate_window(
         &self,
         database_name: &str,
-        measurement_name: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         group_columns: Vec<String>,
-        aggregates: Vec<(String, AggregateType)>,
+        aggregates: Vec<(ColumnName, AggregateType)>,
         window: i64,
     ) -> Option<RecordBatch> {
         if let Some(db) = self.databases.get(database_name) {
             return db.aggregate_window(
-                measurement_name,
+                table_name,
                 time_range,
                 predicates,
                 group_columns,
@@ -158,17 +161,31 @@ impl<'a> Store<'a> {
     // ---- Schema API queries
     //
 
+    /// Returns the distinct set of table names that contain data that satisfies
+    /// the time range and predicates.
+    pub fn table_names(
+        &self,
+        database_name: &str,
+        time_range: (i64, i64),
+        predicates: &[(&str, &str)],
+    ) -> Option<RecordBatch> {
+        if let Some(db) = self.databases.get(database_name) {
+            return db.table_names(database_name, time_range, predicates);
+        }
+        None
+    }
+
     /// Returns the distinct set of tag keys (column names) matching the provided
     /// optional predicates and time range.
     pub fn tag_keys(
         &self,
         database_name: &str,
-        measurement_name: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
     ) -> Option<RecordBatch> {
         if let Some(db) = self.databases.get(database_name) {
-            return db.tag_keys(measurement_name, time_range, predicates);
+            return db.tag_keys(table_name, time_range, predicates);
         }
         None
     }
@@ -182,13 +199,13 @@ impl<'a> Store<'a> {
     pub fn tag_values(
         &self,
         database_name: &str,
-        measurement_name: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         tag_keys: &[String],
     ) -> Option<RecordBatch> {
         if let Some(db) = self.databases.get(database_name) {
-            return db.tag_values(measurement_name, time_range, predicates, tag_keys);
+            return db.tag_values(table_name, time_range, predicates, tag_keys);
         }
         None
     }
@@ -233,7 +250,7 @@ impl<'a> Database<'a> {
     /// with the [min, max) time range domain.
     pub fn select(
         &self,
-        measurement: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         select_columns: Vec<String>,
@@ -264,11 +281,11 @@ impl<'a> Database<'a> {
     /// applied to the same column.
     pub fn aggregate(
         &self,
-        measurement: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         group_columns: Vec<String>,
-        aggregates: Vec<(String, AggregateType)>,
+        aggregates: Vec<(ColumnName, AggregateType)>,
     ) -> Option<RecordBatch> {
         // Find all matching partitions using:
         //   - time range
@@ -304,11 +321,11 @@ impl<'a> Database<'a> {
     /// results by one minute, window should be set to 600_000_000_000.
     pub fn aggregate_window(
         &self,
-        measurement_name: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         group_columns: Vec<String>,
-        aggregates: Vec<(String, AggregateType)>,
+        aggregates: Vec<(ColumnName, AggregateType)>,
         window: i64,
     ) -> Option<RecordBatch> {
         // Find all matching partitions using:
@@ -329,11 +346,26 @@ impl<'a> Database<'a> {
     // ---- Schema API queries
     //
 
+    /// Returns the distinct set of table names that contain data that satisfies
+    /// the time range and predicates.
+    pub fn table_names(
+        &self,
+        database_name: &str,
+        time_range: (i64, i64),
+        predicates: &[(&str, &str)],
+    ) -> Option<RecordBatch> {
+        //
+        // TODO(edd): do we want to add the ability to apply a predicate to the
+        // table names? For example, a regex where you only want table names
+        // beginning with /cpu.+/ or something?
+        todo!()
+    }
+
     /// Returns the distinct set of tag keys (column names) matching the provided
     /// optional predicates and time range.
     pub fn tag_keys(
         &self,
-        measurement_name: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
     ) -> Option<RecordBatch> {
@@ -356,7 +388,7 @@ impl<'a> Database<'a> {
     /// all columns (tag keys) are returned for the partition.
     pub fn tag_values(
         &self,
-        measurement_name: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         tag_keys: &[String],

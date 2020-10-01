@@ -46,6 +46,13 @@ impl<'a> Segment<'a> {
     }
 }
 
+// A GroupKey is an ordered collection of row values. The order determines which
+// columns the values originated from.
+pub type GroupKey = Vec<String>;
+
+// A representation of a column name.
+pub type ColumnName = String;
+
 /// The logical type that a column could have.
 pub enum ColumnType {
     Tag(Column),

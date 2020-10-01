@@ -4,7 +4,7 @@ use std::slice::Iter;
 use delorean_arrow::arrow::record_batch::RecordBatch;
 
 use crate::column::{AggregateResult, AggregateType, Scalar, Value, Values};
-use crate::segment::Segment;
+use crate::segment::{ColumnName, GroupKey, Segment};
 
 /// A Table represents data for a single measurement.
 ///
@@ -109,8 +109,8 @@ impl<'a> Table<'a> {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        select_columns: Vec<String>,
-    ) -> BTreeMap<String, Values<'_>> {
+        select_columns: Vec<ColumnName>,
+    ) -> BTreeMap<ColumnName, Values<'_>> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
@@ -134,9 +134,9 @@ impl<'a> Table<'a> {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        group_columns: Vec<String>,
-        aggregates: Vec<(String, AggregateType)>,
-    ) -> BTreeMap<Vec<String>, Vec<(String, AggregateResult<'_>)>> {
+        group_columns: Vec<ColumnName>,
+        aggregates: Vec<(ColumnName, AggregateType)>,
+    ) -> BTreeMap<GroupKey, Vec<(ColumnName, AggregateResult<'_>)>> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
@@ -165,10 +165,10 @@ impl<'a> Table<'a> {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        group_columns: Vec<String>,
-        aggregates: Vec<(String, AggregateType)>,
+        group_columns: Vec<ColumnName>,
+        aggregates: Vec<(ColumnName, AggregateType)>,
         window: i64,
-    ) -> BTreeMap<Vec<String>, Vec<(String, AggregateResult<'_>)>> {
+    ) -> BTreeMap<GroupKey, Vec<(ColumnName, AggregateResult<'_>)>> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
@@ -181,8 +181,8 @@ impl<'a> Table<'a> {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        aggregates: Vec<(String, AggregateType)>,
-    ) -> Vec<(String, AggregateResult<'_>)> {
+        aggregates: Vec<(ColumnName, AggregateType)>,
+    ) -> Vec<(ColumnName, AggregateResult<'_>)> {
         // The fast path where there are no predicates or a time range to apply.
         // We just want the equivalent of column statistics.
         if predicates.is_empty() {
@@ -329,7 +329,7 @@ impl<'a> Table<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         found_columns: &BTreeSet<String>,
-    ) -> BTreeSet<String> {
+    ) -> BTreeSet<ColumnName> {
         // Firstly, this should short-circuit early if all of the table's columns
         // are present in `found_columns`.
         //
@@ -351,7 +351,7 @@ impl<'a> Table<'a> {
         predicates: &[(&str, &str)],
         tag_keys: &[String],
         found_tag_values: &BTreeMap<String, BTreeSet<&String>>,
-    ) -> BTreeMap<String, BTreeSet<&String>> {
+    ) -> BTreeMap<ColumnName, BTreeSet<&String>> {
         // identify segments where time range, predicates and tag keys match
         // could match using segment meta data, and then execute against those
         // segments and merge results.

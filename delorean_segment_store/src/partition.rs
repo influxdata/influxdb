@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::column::{AggregateResult, AggregateType, Values};
+use crate::segment::{ColumnName, GroupKey};
 use crate::table::Table;
 
 // The name of a measurement, i.e., a table name.
@@ -46,11 +47,11 @@ impl<'a> Partition<'a> {
     /// with the [min, max) time range domain.
     pub fn select(
         &self,
-        measurement: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        select_columns: Vec<String>,
-    ) -> BTreeMap<String, Values<'_>> {
+        select_columns: Vec<ColumnName>,
+    ) -> BTreeMap<ColumnName, Values<'_>> {
         // Find the measurement name on the partition and dispatch query to the
         // table for that measurement if the partition's time range overlaps the
         // requested time range.
@@ -73,45 +74,12 @@ impl<'a> Partition<'a> {
     /// applied to the same column.
     pub fn aggregate(
         &self,
-        measurement: &str,
+        table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        group_columns: Vec<String>,
-        aggregates: Vec<(String, AggregateType)>,
-    ) -> BTreeMap<Vec<String>, Vec<(String, AggregateResult<'_>)>> {
-        // Find the measurement name on the partition and dispatch query to the
-        // table for that measurement if the partition's time range overlaps the
-        // requested time range.
-        todo!()
-    }
-
-    /// Returns aggregates segmented by grouping keys and windowed by time.
-    ///
-    /// The set of data to be aggregated may be filtered by (currently only)
-    /// equality predicates, but can be ranged by time, which should be
-    /// represented as nanoseconds since the epoch. Results are included if they
-    /// satisfy the predicate and fall with the [min, max) time range domain.
-    ///
-    /// Group keys are determined according to the provided group column names
-    /// (`group_columns`). Currently only grouping by string (tag key) columns
-    /// is supported.
-    ///
-    /// Required aggregates are specified via a tuple comprising a column name
-    /// and the type of aggregation required. Multiple aggregations can be
-    /// applied to the same column.
-    ///
-    /// Results are grouped and windowed according to the `window` parameter,
-    /// which represents an interval in nanoseconds. For example, to window
-    /// results by one minute, window should be set to 600_000_000_000.
-    pub fn aggregate_window(
-        &self,
-        measurement_name: String,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
-        group_columns: Vec<String>,
-        aggregates: Vec<(String, AggregateType)>,
-        window: i64,
-    ) -> BTreeMap<Vec<String>, Vec<(String, AggregateResult<'_>)>> {
+        group_columns: Vec<ColumnName>,
+        aggregates: Vec<(ColumnName, AggregateType)>,
+    ) -> BTreeMap<GroupKey, Vec<(ColumnName, AggregateResult<'_>)>> {
         // Find the measurement name on the partition and dispatch query to the
         // table for that measurement if the partition's time range overlaps the
         // requested time range.
@@ -122,15 +90,29 @@ impl<'a> Partition<'a> {
     // ---- Schema API queries
     //
 
+    /// Returns the distinct set of table names that contain data that satisfies
+    /// the time range and predicates.
+    pub fn table_names(
+        &self,
+        time_range: (i64, i64),
+        predicates: &[(&str, &str)],
+    ) -> BTreeSet<String> {
+        //
+        // TODO(edd): do we want to add the ability to apply a predicate to the
+        // table names? For example, a regex where you only want table names
+        // beginning with /cpu.+/ or something?
+        todo!()
+    }
+
     /// Returns the distinct set of tag keys (column names) matching the provided
     /// optional predicates and time range.
     pub fn tag_keys(
         &self,
-        measurement_name: String,
+        table_name: String,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        found_keys: &BTreeSet<String>,
-    ) -> BTreeSet<String> {
+        found_keys: &BTreeSet<ColumnName>,
+    ) -> BTreeSet<ColumnName> {
         // Dispatch query to the table for the provided measurement if the
         // partition's time range overlaps the requested time range *and* there
         // exists columns in the table's schema that are *not* already found.
@@ -145,12 +127,12 @@ impl<'a> Partition<'a> {
     /// all columns (tag keys) are returned for the partition.
     pub fn tag_values(
         &self,
-        measurement_name: String,
+        table_name: String,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        tag_keys: &[String],
-        found_tag_values: &BTreeMap<String, BTreeSet<&String>>,
-    ) -> BTreeMap<String, BTreeSet<&String>> {
+        tag_keys: &[ColumnName],
+        found_tag_values: &BTreeMap<ColumnName, BTreeSet<&String>>,
+    ) -> BTreeMap<ColumnName, BTreeSet<&String>> {
         // Find the measurement name on the partition and dispatch query to the
         // table for that measurement if the partition's time range overlaps the
         // requested time range.

@@ -18,6 +18,10 @@ pub enum AggregateType {
     Min,
     Max,
     Sum,
+    // TODO - support:
+    // Distinct - (edd): not sure this counts as an aggregations. Seems more like a special filter.
+    // CountDistinct
+    // Percentile
 }
 
 /// These variants hold aggregates, which are the results of applying aggregates
