@@ -67,33 +67,29 @@ pub fn convert_predicate(predicate: Option<RPCPredicate>) -> Result<Option<Stora
     match predicate {
         // no input predicate, is fine
         None => Ok(None),
-        Some(predicate) => {
-            let RPCPredicate { root } = predicate;
-            let expr = convert_node(root)?;
-            Ok(Some(StoragePredicate { expr }))
-        }
+        Some(predicate) => match predicate.root {
+            None => EmptyPredicateNode {}.fail(),
+            Some(node) => Ok(Some(StoragePredicate {
+                expr: convert_node(node)?,
+            })),
+        },
     }
 }
 
 // converts a Node from the RPC layer into a datafusion logical expr
-fn convert_node(node: Option<RPCNode>) -> Result<Expr> {
-    match node {
-        None => EmptyPredicateNode {}.fail(),
-        Some(node) => {
-            let RPCNode { children, value } = node;
-            let inputs = children
-                .into_iter()
-                .map(|child| convert_node(Some(child)))
-                .collect::<Result<Vec<_>>>()?;
+fn convert_node(node: RPCNode) -> Result<Expr> {
+    let RPCNode { children, value } = node;
+    let inputs = children
+        .into_iter()
+        .map(convert_node)
+        .collect::<Result<Vec<_>>>()?;
 
-            match value {
-                // I don't really understand what a None value
-                // means. So until we know they are needed error on
-                // them here instead.
-                None => EmptyPredicateValue {}.fail(),
-                Some(value) => build_node(value, inputs),
-            }
-        }
+    match value {
+        // I don't really understand what a None value
+        // means. So until we know they are needed error on
+        // them here instead.
+        None => EmptyPredicateValue {}.fail(),
+        Some(value) => build_node(value, inputs),
     }
 }
 
