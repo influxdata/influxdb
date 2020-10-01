@@ -20,6 +20,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
+	internal2 "github.com/influxdata/influxdb/v2/cmd/internal"
 	ihttp "github.com/influxdata/influxdb/v2/http"
 	ierror "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/pkger"
@@ -1109,7 +1110,7 @@ func (b *cmdTemplateBuilder) getInput(msg, defaultVal string) string {
 		Writer: b.w,
 		Reader: b.in,
 	}
-	return getInput(ui, msg, defaultVal)
+	return internal2.GetInput(ui, msg, defaultVal)
 }
 
 func (b *cmdTemplateBuilder) convertURLEncoding(url string) pkger.Encoding {
