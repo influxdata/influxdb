@@ -48,6 +48,9 @@ type TestLauncher struct {
 	Stdin  bytes.Buffer
 	Stdout bytes.Buffer
 	Stderr bytes.Buffer
+
+	// Flag to act as standard server: disk store, no-e2e testing flag
+	realServer bool
 }
 
 // NewTestLauncher returns a new instance of TestLauncher.
@@ -70,6 +73,13 @@ func NewTestLauncher(flagger feature.Flagger) *TestLauncher {
 	return l
 }
 
+// NewTestLauncherServer returns a new instance of TestLauncher configured as real server (disk store, no e2e flag).
+func NewTestLauncherServer(flagger feature.Flagger) *TestLauncher {
+	l := NewTestLauncher(flagger)
+	l.realServer = true
+	return l
+}
+
 // RunTestLauncherOrFail initializes and starts the server.
 func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, flagger feature.Flagger, args ...string) *TestLauncher {
 	tb.Helper()
@@ -85,8 +95,10 @@ func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, flagger feature.F
 // Passed arguments will overwrite/add to the default ones.
 func (tl *TestLauncher) Run(ctx context.Context, args ...string) error {
 	largs := make([]string, 0, len(args)+8)
-	largs = append(largs, "--store", "memory")
-	largs = append(largs, "--e2e-testing")
+	if !tl.realServer {
+		largs = append(largs, "--store", "memory")
+		largs = append(largs, "--e2e-testing")
+	}
 	largs = append(largs, "--testing-always-allow-setup")
 	largs = append(largs, "--bolt-path", filepath.Join(tl.Path, bolt.DefaultFilename))
 	largs = append(largs, "--engine-path", filepath.Join(tl.Path, "engine"))
@@ -98,8 +110,10 @@ func (tl *TestLauncher) Run(ctx context.Context, args ...string) error {
 
 // Shutdown stops the program and cleans up temporary paths.
 func (tl *TestLauncher) Shutdown(ctx context.Context) error {
-	tl.Cancel()
-	tl.Launcher.Shutdown(ctx)
+	if tl.running {
+		tl.Cancel()
+		tl.Launcher.Shutdown(ctx)
+	}
 	return os.RemoveAll(tl.Path)
 }
 

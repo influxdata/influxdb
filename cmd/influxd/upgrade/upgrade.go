@@ -346,7 +346,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 
 	options.target.token = or.Auth.Token
 
-	db2BucketIds, err := upgradeDatabases(ctx, v1, v2, or.Org.ID, log)
+	db2BucketIds, err := upgradeDatabases(ctx, v1, v2, &options.source, &options.target, or.Org.ID, log)
 	if err != nil {
 		//remove all files
 		log.Info("Database upgrade error, removing data")

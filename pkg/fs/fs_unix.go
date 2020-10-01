@@ -5,6 +5,8 @@ package fs
 import (
 	"os"
 	"syscall"
+
+	unix "golang.org/x/sys/unix"
 )
 
 // SyncDir flushes any file renames to the filesystem.
@@ -65,4 +67,19 @@ func CreateFile(newpath string) (*os.File, error) {
 	}
 
 	return os.Create(newpath)
+}
+
+// DiskUsage returns disk usage of disk of path
+func DiskUsage(path string) (*DiskStatus, error) {
+	var disk DiskStatus
+	fs := unix.Statfs_t{}
+	err := unix.Statfs(path, &fs)
+	if err != nil {
+		return nil, err
+	}
+	disk.All = fs.Blocks * uint64(fs.Bsize)
+	disk.Avail = fs.Bavail * uint64(fs.Bsize)
+	disk.Free = fs.Bfree * uint64(fs.Bsize)
+	disk.Used = disk.All - disk.Free
+	return &disk, nil
 }
