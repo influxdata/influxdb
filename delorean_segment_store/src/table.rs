@@ -411,7 +411,7 @@ impl<'a> MetaData<'a> {
         todo!()
     }
 
-    // invalidate should be called when a table is removed that impacts the
+    // invalidate should be called when a segment is removed that impacts the
     // meta data.
     pub fn invalidate(&mut self) {
         // Update size, rows, time_range by linearly scanning all tables.
