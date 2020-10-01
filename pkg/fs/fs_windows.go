@@ -1,6 +1,10 @@
 package fs
 
-import "os"
+import (
+	"os"
+	"syscall"
+	"unsafe"
+)
 
 func SyncDir(dirName string) error {
 	return nil
@@ -49,4 +53,24 @@ func CreateFile(newpath string) (*os.File, error) {
 	}
 
 	return os.Create(newpath)
+}
+
+// DiskUsage returns disk usage of disk of path
+func DiskUsage(path string) (*DiskStatus, error) {
+	var disk DiskStatus
+	h := syscall.MustLoadDLL("kernel32.dll")
+	c := h.MustFindProc("GetDiskFreeSpaceExW")
+	p, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return nil, err
+	}
+	r1, _, err := c.Call(uintptr(unsafe.Pointer(p)),
+		uintptr(unsafe.Pointer(&disk.Avail)),
+		uintptr(unsafe.Pointer(&disk.All)),
+		uintptr(unsafe.Pointer(&disk.Free)))
+	if r1 == 0 {
+		return nil, err
+	}
+	disk.Used = disk.All - disk.Free
+	return &disk, nil
 }

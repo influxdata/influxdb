@@ -709,8 +709,8 @@ func (c *Client) PruneShardGroups() error {
 	return nil
 }
 
-// CreateShardGroup creates a shard group on a database and policy for a given timestamp.
-func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+// CreateShardGroupWithShards creates a shard group on a database and policy for a given timestamp and assign shards to the shard group
+func (c *Client) CreateShardGroupWithShards(database, policy string, timestamp time.Time, shards []ShardInfo) (*ShardGroupInfo, error) {
 	// Check under a read-lock
 	c.mu.RLock()
 	if sg, _ := c.cacheData.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
@@ -728,7 +728,7 @@ func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) 
 		return sg, nil
 	}
 
-	sgi, err := createShardGroup(data, database, policy, timestamp)
+	sgi, err := createShardGroup(data, database, policy, timestamp, shards...)
 	if err != nil {
 		return nil, err
 	}
@@ -740,13 +740,17 @@ func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) 
 	return sgi, nil
 }
 
-func createShardGroup(data *Data, database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+	return c.CreateShardGroupWithShards(database, policy, timestamp, nil)
+}
+
+func createShardGroup(data *Data, database, policy string, timestamp time.Time, shards ...ShardInfo) (*ShardGroupInfo, error) {
 	// It is the responsibility of the caller to check if it exists before calling this method.
 	if sg, _ := data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
 		return nil, ErrShardGroupExists
 	}
 
-	if err := data.CreateShardGroup(database, policy, timestamp); err != nil {
+	if err := data.CreateShardGroup(database, policy, timestamp, shards...); err != nil {
 		return nil, err
 	}
 
