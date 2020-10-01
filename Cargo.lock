@@ -78,7 +78,7 @@ checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 [[package]]
 name = "arrow"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/alamb/arrow.git?branch=alamb/arrow-upstream#b83d867cbcf7cbe2d3bd97c0262a2dd7da0c3f00"
+source = "git+https://github.com/apache/arrow.git?rev=a1157b770dc5d51de22f32ad7a12131a1670aaca#a1157b770dc5d51de22f32ad7a12131a1670aaca"
 dependencies = [
  "chrono",
  "csv",
@@ -646,9 +646,9 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/alamb/arrow.git?branch=alamb/arrow-upstream#b83d867cbcf7cbe2d3bd97c0262a2dd7da0c3f00"
+source = "git+https://github.com/apache/arrow.git?rev=a1157b770dc5d51de22f32ad7a12131a1670aaca#a1157b770dc5d51de22f32ad7a12131a1670aaca"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/alamb/arrow.git?branch=alamb/arrow-upstream)",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=a1157b770dc5d51de22f32ad7a12131a1670aaca)",
  "async-trait",
  "chrono",
  "clap",
@@ -718,7 +718,7 @@ dependencies = [
 name = "delorean_arrow"
 version = "0.1.0"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/alamb/arrow.git?branch=alamb/arrow-upstream)",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=a1157b770dc5d51de22f32ad7a12131a1670aaca)",
  "datafusion",
  "parquet",
 ]
@@ -2108,9 +2108,9 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/alamb/arrow.git?branch=alamb/arrow-upstream#b83d867cbcf7cbe2d3bd97c0262a2dd7da0c3f00"
+source = "git+https://github.com/apache/arrow.git?rev=a1157b770dc5d51de22f32ad7a12131a1670aaca#a1157b770dc5d51de22f32ad7a12131a1670aaca"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/alamb/arrow.git?branch=alamb/arrow-upstream)",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=a1157b770dc5d51de22f32ad7a12131a1670aaca)",
  "brotli",
  "byteorder",
  "chrono",
