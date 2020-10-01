@@ -1,3 +1,5 @@
+use delorean_arrow::arrow;
+
 /// The possible logical types that column values can have. All values in a
 /// column have the same physical type.
 pub enum Column {
@@ -79,22 +81,22 @@ pub enum Value<'a> {
 
 /// Each variant is a typed vector of materialised values for a column. NULL
 /// values are represented as None
-pub enum Values<'a> {
+pub enum Values {
     // UTF-8 valid unicode strings
-    String(Vec<&'a Option<std::string::String>>),
+    String(Vec<arrow::array::StringArray>),
 
     // 64-bit floating point values
-    Float(Vec<Option<f64>>),
+    Float(arrow::array::Float64Array),
 
     // 64-bit signed integer values
-    Integer(Vec<Option<i64>>),
+    Integer(arrow::array::Int64Array),
 
     // 64-bit unsigned integer values
-    Unsigned(Vec<Option<u64>>),
+    Unsigned(arrow::array::UInt64Array),
 
     // Boolean values
-    Bool(Vec<Option<bool>>),
+    Bool(arrow::array::BooleanArray),
 
     // Arbitrary byte arrays
-    ByteArray(Vec<Option<&'a [u8]>>),
+    ByteArray(arrow::array::UInt8Array),
 }

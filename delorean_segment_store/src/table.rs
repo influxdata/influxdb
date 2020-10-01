@@ -110,7 +110,7 @@ impl<'a> Table<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         select_columns: Vec<ColumnName>,
-    ) -> BTreeMap<ColumnName, Values<'_>> {
+    ) -> BTreeMap<ColumnName, Values> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.

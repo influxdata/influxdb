@@ -51,7 +51,7 @@ impl<'a> Partition<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         select_columns: Vec<ColumnName>,
-    ) -> BTreeMap<ColumnName, Values<'_>> {
+    ) -> BTreeMap<ColumnName, Values> {
         // Find the measurement name on the partition and dispatch query to the
         // table for that measurement if the partition's time range overlaps the
         // requested time range.
