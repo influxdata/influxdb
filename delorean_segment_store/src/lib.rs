@@ -23,7 +23,7 @@ pub struct Store<'a> {
     // A mapping from database name (tenant id, bucket id etc) to a database.
     databases: BTreeMap<String, Database<'a>>,
 
-    // The current total size of the store
+    // The current total size of the store, in bytes
     size: u64,
 }
 
