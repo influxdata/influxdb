@@ -219,7 +219,8 @@ impl ExecutionPlan for SchemaPivotExec {
             let input_batch = input_reader
                 .lock()
                 .expect("locked input mutex")
-                .next_batch()?;
+                .next()
+                .transpose()?;
 
             keep_searching = match input_batch {
                 Some(input_batch) => {
@@ -429,7 +430,7 @@ mod tests {
         let mut batches = Vec::new();
         let mut reader = reader.lock().expect("locking record batch reader");
         // process the record batches one by one
-        while let Some(record_batch) = reader.next_batch().expect("reading next batch") {
+        while let Some(record_batch) = reader.next().transpose().expect("reading next batch") {
             batches.push(record_batch)
         }
         batches

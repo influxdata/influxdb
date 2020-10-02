@@ -110,7 +110,7 @@ fn build_store(
     let mut total_rows_read = 0;
     let start = std::time::Instant::now();
     loop {
-        let rb = reader.next_batch();
+        let rb = reader.next().transpose();
         match rb {
             Err(e) => println!("WARNING: error reading batch: {:?}, SKIPPING", e),
             Ok(Some(rb)) => {

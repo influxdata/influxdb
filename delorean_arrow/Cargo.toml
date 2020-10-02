@@ -11,10 +11,10 @@ description = "Apache Arrow / Parquet / DataFusion dependencies for delorean, to
 [dependencies]
 # We are using development version of arrow/parquet/datafusion and the dependencies are at the same rev
 
-# Check out the current rev @ https://github.com/apache/arrow/commit/a1157b770dc5d51de22f32ad7a12131a1670aaca
+# The version can be found here: https://github.com/apache/arrow/commit/238a9497269f39ab4d5bf20c28c2431a1b4e6673
 #
-arrow = { git = "https://github.com/apache/arrow.git", rev = "a1157b770dc5d51de22f32ad7a12131a1670aaca"}
-datafusion = { git = "https://github.com/apache/arrow.git", rev = "a1157b770dc5d51de22f32ad7a12131a1670aaca" }
+arrow = { git = "https://github.com/apache/arrow.git", rev = "238a9497269f39ab4d5bf20c28c2431a1b4e6673"}
+datafusion = { git = "https://github.com/apache/arrow.git", rev = "238a9497269f39ab4d5bf20c28c2431a1b4e6673" }
 # Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time
 # and we're not currently using it anyway
-parquet = { git = "https://github.com/apache/arrow.git", rev = "a1157b770dc5d51de22f32ad7a12131a1670aaca", default-features = false, features = ["snap", "brotli", "flate2", "lz4", "zstd"] }
+parquet = { git = "https://github.com/apache/arrow.git", rev = "238a9497269f39ab4d5bf20c28c2431a1b4e6673", default-features = false, features = ["snap", "brotli", "flate2", "lz4", "zstd"] }
