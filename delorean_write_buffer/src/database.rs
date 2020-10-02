@@ -1,7 +1,5 @@
 use delorean_line_parser::ParsedLine;
-use delorean_storage::{
-    exec::StringSet, exec::StringSetPlan, exec::StringSetRef, Database, Predicate, TimestampRange,
-};
+use delorean_storage::{exec::StringSet, exec::StringSetPlan, Database, Predicate, TimestampRange};
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
@@ -313,7 +311,7 @@ impl Database for Db {
     async fn table_names(
         &self,
         range: Option<TimestampRange>,
-    ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
+    ) -> Result<StringSetPlan, Self::Error> {
         // TODO: Cache this information to avoid creating this each time
         let partitions = self.partitions.read().await;
         let mut table_names: BTreeSet<String> = BTreeSet::new();
@@ -339,7 +337,7 @@ impl Database for Db {
                 }
             }
         }
-        Ok(Arc::new(table_names))
+        Ok(table_names.into())
     }
 
     // return all column names in this database, while applying optional predicates
@@ -350,10 +348,7 @@ impl Database for Db {
         predicate: Option<Predicate>,
     ) -> Result<StringSetPlan, Self::Error> {
         match predicate {
-            None => {
-                let res = self.tag_column_names_no_predicate(table, range).await;
-                Ok(res.into())
-            }
+            None => self.tag_column_names_no_predicate(table, range).await,
             Some(predicate) => {
                 self.tag_column_names_with_predicate(table, range, predicate)
                     .await
@@ -449,7 +444,7 @@ impl Db {
         &self,
         table: Option<String>,
         range: Option<TimestampRange>,
-    ) -> Result<StringSetRef, Error> {
+    ) -> Result<StringSetPlan, Error> {
         let partitions = self.partitions.read().await;
 
         let mut column_names = StringSet::new();
@@ -509,7 +504,7 @@ impl Db {
             }
         } // next partition
 
-        Ok(StringSetRef::new(column_names))
+        Ok(column_names.into())
     }
 
     /// Return all column names in this database, while applying a
@@ -619,6 +614,17 @@ mod tests {
         assert_eq!(table, res, "\n\nleft:\n\n{}\nright:\n\n{}", table, res);
     }
 
+    // query the table names, with optional range predicate
+    async fn table_names(db: &Db, range: Option<TimestampRange>) -> Result<StringSet> {
+        let plan = db.table_names(range).await?;
+        let executor = Executor::default();
+        let s = executor.to_string_set(plan).await?;
+
+        // unwrap it (for easy test comparisons)
+        let s = Arc::try_unwrap(s).expect("only one reference to the set in the test");
+        Ok(s)
+    }
+
     #[tokio::test(threaded_scheduler)]
     async fn list_table_names() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
@@ -626,7 +632,7 @@ mod tests {
         let db = Db::try_with_wal("mydb", &mut dir).await?;
 
         // no tables initially
-        assert_eq!(*db.table_names(None).await?, BTreeSet::new());
+        assert_eq!(table_names(&db, None).await?, BTreeSet::new());
 
         // write two different tables
         let lines: Vec<_> =
@@ -636,7 +642,7 @@ mod tests {
         db.write_lines(&lines).await?;
 
         // Now, we should see the two tables
-        assert_eq!(*db.table_names(None).await?, to_set(&["cpu", "disk"]));
+        assert_eq!(table_names(&db, None).await?, to_set(&["cpu", "disk"]));
 
         Ok(())
     }
@@ -658,25 +664,25 @@ mod tests {
 
         // Cover all times
         let range = Some(TimestampRange { start: 0, end: 201 });
-        assert_eq!(*db.table_names(range).await?, to_set(&["cpu", "disk"]));
+        assert_eq!(table_names(&db, range).await?, to_set(&["cpu", "disk"]));
 
         // Right before disk
         let range = Some(TimestampRange { start: 0, end: 200 });
-        assert_eq!(*db.table_names(range).await?, to_set(&["cpu"]));
+        assert_eq!(table_names(&db, range).await?, to_set(&["cpu"]));
 
         // only one point of cpu
         let range = Some(TimestampRange {
             start: 50,
             end: 101,
         });
-        assert_eq!(*db.table_names(range).await?, to_set(&["cpu"]));
+        assert_eq!(table_names(&db, range).await?, to_set(&["cpu"]));
 
         // no ranges
         let range = Some(TimestampRange {
             start: 250,
             end: 350,
         });
-        assert_eq!(*db.table_names(range).await?, to_set(&[]));
+        assert_eq!(table_names(&db, range).await?, to_set(&[]));
 
         Ok(())
     }

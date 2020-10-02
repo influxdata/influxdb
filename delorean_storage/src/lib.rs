@@ -10,7 +10,6 @@ use async_trait::async_trait;
 use delorean_arrow::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
 use delorean_line_parser::ParsedLine;
 use exec::StringSetPlan;
-use std::collections::BTreeSet;
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -61,7 +60,7 @@ pub trait Database: Debug + Send + Sync {
     async fn table_names(
         &self,
         range: Option<TimestampRange>,
-    ) -> Result<Arc<BTreeSet<String>>, Self::Error>;
+    ) -> Result<StringSetPlan, Self::Error>;
 
     /// Performance optimization: Returns the list of column names in
     /// this database which store tags (as defined in the ParsedLines

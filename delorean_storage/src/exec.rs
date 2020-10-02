@@ -69,6 +69,21 @@ pub enum StringSetPlan {
     Plan(Vec<LogicalPlan>),
 }
 
+impl From<StringSetRef> for StringSetPlan {
+    /// Create a StringSetPlan from a StringSetRef
+    fn from(set: StringSetRef) -> Self {
+        Self::Known(Ok(set))
+    }
+}
+
+impl From<StringSet> for StringSetPlan {
+    /// Create a StringSetPlan from a StringSet result, wrapping the error type
+    /// appropriately
+    fn from(set: StringSet) -> Self {
+        Self::Known(Ok(StringSetRef::new(set)))
+    }
+}
+
 impl<E> From<Result<StringSetRef, E>> for StringSetPlan
 where
     E: std::error::Error + Send + Sync + 'static,

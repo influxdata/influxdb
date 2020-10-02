@@ -12,7 +12,7 @@ use delorean_line_parser::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;
 use snafu::{OptionExt, Snafu};
-use std::{collections::BTreeMap, collections::BTreeSet, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use tokio::sync::Mutex;
 
@@ -125,21 +125,21 @@ impl Database for TestDatabase {
     async fn table_names(
         &self,
         range: Option<TimestampRange>,
-    ) -> Result<Arc<BTreeSet<String>>, Self::Error> {
+    ) -> Result<StringSetPlan, Self::Error> {
         let saved_lines = self.saved_lines.lock().await;
 
-        Ok(Arc::new(
-            parse_lines(&saved_lines.join("\n"))
-                .filter_map(|line| {
-                    let line = line.expect("Correctly parsed saved line");
-                    if line_in_range(&line, &range) {
-                        Some(line.series.measurement.to_string())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<BTreeSet<_>>(),
-        ))
+        let names = parse_lines(&saved_lines.join("\n"))
+            .filter_map(|line| {
+                let line = line.expect("Correctly parsed saved line");
+                if line_in_range(&line, &range) {
+                    Some(line.series.measurement.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect::<StringSet>();
+
+        Ok(names.into())
     }
 
     /// return the mocked out column names, recording the request

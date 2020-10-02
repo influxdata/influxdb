@@ -249,9 +249,10 @@ where
             range,
         } = measurement_names_request;
 
-        let response = measurement_name_impl(self.db_store.clone(), db_name, range)
-            .await
-            .map_err(|e| e.to_status());
+        let response =
+            measurement_name_impl(self.db_store.clone(), self.executor.clone(), db_name, range)
+                .await
+                .map_err(|e| e.to_status());
 
         tx.send(response)
             .await
@@ -339,11 +340,9 @@ fn get_database_name(input: &impl GrpcInputs) -> Result<String, Status> {
 
 /// Gathers all measurement names that have data in the specified
 /// (optional) range
-///
-/// TODO: Do this work on a separate worker pool, not the main tokio
-/// task poo
 async fn measurement_name_impl<T>(
     db_store: Arc<T>,
+    executor: Arc<StorageExecutor>,
     db_name: String,
     range: Option<TimestampRange>,
 ) -> Result<StringValuesResponse>
@@ -352,7 +351,7 @@ where
 {
     let range = convert_range(range);
 
-    let table_names = db_store
+    let plan = db_store
         .db(&db_name)
         .await
         .ok_or_else(|| Error::DatabaseNotFound {
@@ -365,8 +364,13 @@ where
             source: Box::new(e),
         })?;
 
-    // In theory this could be combined with the chain above, but
-    // we break it into its own statement here for readability
+    let table_names = executor
+        .to_string_set(plan)
+        .await
+        .map_err(|e| Error::ListingTables {
+            db_name: db_name.clone(),
+            source: Box::new(e),
+        })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
     let values = table_names
