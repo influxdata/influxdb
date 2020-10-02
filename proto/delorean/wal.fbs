@@ -58,32 +58,19 @@ table WriteBufferBatch {
 }
 
 table WriteBufferEntry {
-  partition_open: PartitionOpen;
-  partition_snapshot_started: PartitionSnapshotStarted;
-  partition_snapshot_finished: PartitionSnapshotFinished;
-  write: Row;
+  partition_key: string;
+  table_batches: [TableWriteBatch];
   delete: WriteBufferDelete;
-}
-
-table PartitionOpen {
-  generation: uint32;
-  key: string;
-}
-
-table PartitionSnapshotStarted {
-  generation: uint32;
-  key: string;
-}
-
-table PartitionSnapshotFinished {
-  generation: uint32;
-  key: string;
 }
 
 enum ColumnType : byte { I64, U64, F64, Tag, String, Bool }
 
+table TableWriteBatch {
+  name: string;
+  rows: [Row];
+}
+
 table Row {
-  table: string;
   values: [Value];
 }
 

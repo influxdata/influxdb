@@ -23,9 +23,8 @@ fn benchmark_restore_single_entry_single_partition(common_create_entries: &mut C
     group.bench_function("restore_single_entry_single_partition", |b| {
         b.iter(|| {
             let entries = entries.clone().into_iter().map(Ok);
-            let (partitions, partition_id, _stats) = restore_partitions_from_wal(entries).unwrap();
+            let (partitions, _stats) = restore_partitions_from_wal(entries).unwrap();
             assert_eq!(partitions.len(), 1);
-            assert_eq!(partition_id, 1);
         })
     });
     group.finish();
@@ -50,9 +49,8 @@ fn benchmark_restore_multiple_entry_multiple_partition(common_create_entries: &m
     group.bench_function("restore_multiple_entry_multiple_partition", |b| {
         b.iter(|| {
             let entries = entries.clone().into_iter().map(Ok);
-            let (partitions, partition_id, _stats) = restore_partitions_from_wal(entries).unwrap();
+            let (partitions, _stats) = restore_partitions_from_wal(entries).unwrap();
             assert_eq!(partitions.len(), 3);
-            assert_eq!(partition_id, 3);
         })
     });
     group.finish();

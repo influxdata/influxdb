@@ -1,17 +1,15 @@
 use delorean_generated_types::wal as wb;
 use delorean_storage::{exec::make_schema_pivot, Predicate, TimestampRange};
 
-use delorean_line_parser::FieldValue;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    column::{Column, ColumnValue, Value},
+    column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
-    partition::Partition,
-    partition::TIME_COLUMN_NAME,
-    wal::{type_description, WalEntryBuilder},
+    partition::{Partition, TIME_COLUMN_NAME},
+    wal::type_description,
 };
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 
 use delorean_arrow::{
     arrow,
@@ -50,7 +48,7 @@ pub enum Error {
     ))]
     TagValueIdNotFoundInDictionary {
         value: u32,
-        partition: u32,
+        partition: String,
         source: DictionaryError,
     },
 
@@ -73,7 +71,7 @@ pub enum Error {
     ))]
     ColumnNameNotFoundInDictionary {
         column_name: String,
-        partition: u32,
+        partition: String,
         source: DictionaryError,
     },
 
@@ -121,6 +119,9 @@ pub enum Error {
         column: u32,
         source: crate::column::Error,
     },
+
+    #[snafu(display("Row insert to table {} missing column name", table))]
+    ColumnNameNotInRow { table: u32 },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -132,7 +133,7 @@ pub struct TimestampPredicate {
 
 #[derive(Debug)]
 pub struct Table {
-    id: u32,
+    pub id: u32,
     /// Maps column name (as a u32 in the partition dictionary) to an index in self.columns
     pub column_id_to_index: HashMap<u32, usize>,
     pub columns: Vec<Column>,
@@ -147,7 +148,7 @@ impl Table {
         }
     }
 
-    pub fn add_wal_row(
+    fn append_row(
         &mut self,
         dictionary: &mut Dictionary,
         values: &flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<wb::Value<'_>>>,
@@ -156,7 +157,9 @@ impl Table {
 
         // insert new columns and validate existing ones
         for value in values {
-            let column_name = value.column().expect("WAL Value should have column");
+            let column_name = value
+                .column()
+                .context(ColumnNameNotInRow { table: self.id })?;
             let column_id = dictionary.lookup_value_or_insert(column_name);
 
             let mut column = match self.column_id_to_index.get(&column_id) {
@@ -219,95 +222,15 @@ impl Table {
             .expect("invalid column id"))
     }
 
-    pub fn add_row(
+    pub fn append_rows(
         &mut self,
-        values: &[ColumnValue<'_>],
-        dictionary: &Dictionary,
-        builder: &mut Option<WalEntryBuilder<'_>>,
+        dictionary: &mut Dictionary,
+        rows: &flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<wb::Row<'_>>>,
     ) -> Result<()> {
-        let row_count = self.row_count();
-
-        // insert new columns and validate existing ones
-        for col_val in values {
-            let column = match self.column_id_to_index.get(&col_val.id) {
-                Some(idx) => &mut self.columns[*idx],
-                None => {
-                    // Add the column and make all values for existing rows None
-                    let index = self.columns.len();
-                    self.column_id_to_index.insert(col_val.id, index);
-
-                    let column_values = match col_val.value {
-                        Value::TagValue(_, _) => {
-                            let mut v = Vec::with_capacity(row_count + 1);
-                            v.resize_with(row_count, || None);
-                            Column::Tag(v)
-                        }
-                        Value::FieldValue(FieldValue::I64(_)) => {
-                            let mut v = Vec::with_capacity(row_count + 1);
-                            v.resize_with(row_count, || None);
-                            Column::I64(v)
-                        }
-                        Value::FieldValue(FieldValue::F64(_)) => {
-                            let mut v = Vec::with_capacity(row_count + 1);
-                            v.resize_with(row_count, || None);
-                            Column::F64(v)
-                        }
-                        Value::FieldValue(FieldValue::Boolean(_)) => {
-                            let mut v = Vec::with_capacity(row_count + 1);
-                            v.resize_with(row_count, || None);
-                            Column::Bool(v)
-                        }
-                        Value::FieldValue(FieldValue::String(_)) => {
-                            let mut v = Vec::with_capacity(row_count + 1);
-                            v.resize_with(row_count, || None);
-                            Column::String(v)
-                        }
-                    };
-
-                    self.columns.push(column_values);
-
-                    &mut self.columns[index]
-                }
-            };
-
-            ensure!(
-                column.matches_type(&col_val),
-                SchemaMismatch {
-                    column: col_val.id,
-                    existing_column_type: column.type_description(),
-                    inserted_value_type: col_val.value.type_description(),
-                }
-            );
-        }
-
-        // insert the actual values
-        for col_val in values {
-            let idx = self
-                .column_id_to_index
-                .get(&col_val.id)
-                .expect("column id existed or was just inserted");
-
-            let column = self
-                .columns
-                .get_mut(*idx)
-                .expect("column existed or was just added");
-
-            column
-                .push(&col_val.value)
-                .context(InternalSchemaMismatch { column: col_val.id })?;
-        }
-
-        // send the values to the WAL
-        if let Some(builder) = builder {
-            let table_name = dictionary
-                .lookup_id(self.id)
-                .expect("this table's name should exist in the partition dictionary");
-            builder.add_row(table_name, values);
-        }
-
-        // make sure all columns are of the same length
-        for col in &mut self.columns {
-            col.push_none_if_len_equal(row_count);
+        for row in rows {
+            if let Some(values) = row.values() {
+                self.append_row(dictionary, &values)?;
+            }
         }
 
         Ok(())
@@ -446,7 +369,7 @@ impl Table {
                     let column_id = partition.dictionary.lookup_value(column_name).context(
                         ColumnNameNotFoundInDictionary {
                             column_name,
-                            partition: partition.generation,
+                            partition: &partition.key,
                         },
                     )?;
 
@@ -502,7 +425,7 @@ impl Table {
                                 let tag_value = partition.dictionary.lookup_id(*value_id).context(
                                     TagValueIdNotFoundInDictionary {
                                         value: *value_id,
-                                        partition: partition.generation,
+                                        partition: &partition.key,
                                     },
                                 )?;
                                 builder.append_value(tag_value)
