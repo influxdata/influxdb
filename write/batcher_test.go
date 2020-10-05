@@ -280,6 +280,14 @@ func TestBatcher_write(t *testing.T) {
 					got = string(b)
 					return err
 				},
+				WriteToF: func(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
+					if tt.args.writeError {
+						return fmt.Errorf("error")
+					}
+					b, err := ioutil.ReadAll(r)
+					got = string(b)
+					return err
+				},
 			}
 
 			b := &Batcher{

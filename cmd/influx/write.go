@@ -279,12 +279,11 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid precision")
 	}
 
-	bs, err := newBucketService()
-	if err != nil {
-		return err
-	}
+	var (
+		filter platform.BucketFilter
+		err    error
+	)
 
-	var filter platform.BucketFilter
 	if writeFlags.BucketID != "" {
 		filter.ID, err = platform.IDFromString(writeFlags.BucketID)
 		if err != nil {
@@ -306,21 +305,6 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := signals.WithStandardSignals(context.Background())
-	buckets, n, err := bs.FindBuckets(ctx, filter)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve buckets: %v", err)
-	}
-
-	if n == 0 {
-		if writeFlags.Bucket != "" {
-			return fmt.Errorf("bucket %q was not found", writeFlags.Bucket)
-		}
-
-		if writeFlags.BucketID != "" {
-			return fmt.Errorf("bucket with id %q does not exist", writeFlags.BucketID)
-		}
-	}
-	bucketID, orgID := buckets[0].ID, buckets[0].OrgID
 
 	// create line reader
 	r, closer, err := writeFlags.createLineReader(ctx, cmd, args)
@@ -342,7 +326,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		},
 		MaxLineLength: writeFlags.MaxLineLength,
 	}
-	if err := s.Write(ctx, orgID, bucketID, r); err != nil && err != context.Canceled {
+	if err := s.WriteTo(ctx, filter, r); err != nil && err != context.Canceled {
 		return fmt.Errorf("failed to write data: %v", err)
 	}
 

@@ -601,14 +601,3 @@ func writeJSON(w io.Writer, v interface{}) error {
 	enc.SetIndent("", "\t")
 	return enc.Encode(v)
 }
-
-func newBucketService() (influxdb.BucketService, error) {
-	client, err := newHTTPClient()
-	if err != nil {
-		return nil, err
-	}
-
-	return &http.BucketService{
-		Client: client,
-	}, nil
-}

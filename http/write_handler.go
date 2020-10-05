@@ -354,3 +354,55 @@ func compressWithGzip(data io.Reader) (io.Reader, error) {
 
 	return pr, err
 }
+
+// WriteTo writes to the bucket matching the filter.
+func (s *WriteService) WriteTo(ctx context.Context, filter influxdb.BucketFilter, r io.Reader) error {
+	precision := s.Precision
+	if precision == "" {
+		precision = "ns"
+	}
+
+	if !models.ValidPrecision(precision) {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Op:   "http/Write",
+			Msg:  msgInvalidPrecision,
+		}
+	}
+
+	u, err := NewURL(s.Addr, prefixWrite)
+	if err != nil {
+		return err
+	}
+
+	r, err = compressWithGzip(r)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), r)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	req.Header.Set("Content-Encoding", "gzip")
+	SetToken(s.Token, req)
+
+	params := req.URL.Query()
+	for key, param := range filter.QueryParams() {
+		params[key] = param
+	}
+	params.Set("precision", string(precision))
+	req.URL.RawQuery = params.Encode()
+
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return CheckError(resp)
+}
