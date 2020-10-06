@@ -26,11 +26,27 @@ pub struct TestDatabase {
 
     /// the last request for column_names.
     column_names_request: Arc<Mutex<Option<ColumnNamesRequest>>>,
+
+    /// column_values to return upon next request
+    column_values: Arc<Mutex<Option<StringSetRef>>>,
+
+    /// the last request for column_values.
+    column_values_request: Arc<Mutex<Option<ColumnValuesRequest>>>,
 }
 
 /// Records the parameters passed to a column name request
 #[derive(Debug, PartialEq, Clone)]
 pub struct ColumnNamesRequest {
+    pub table: Option<String>,
+    pub range: Option<TimestampRange>,
+    /// Stringified '{:?}' version of the predicate
+    pub predicate: Option<String>,
+}
+
+/// Records the parameters passed to a column values request
+#[derive(Debug, PartialEq, Clone)]
+pub struct ColumnValuesRequest {
+    pub column_name: String,
     pub table: Option<String>,
     pub range: Option<TimestampRange>,
     /// Stringified '{:?}' version of the predicate
@@ -52,6 +68,8 @@ impl Default for TestDatabase {
             saved_lines: Mutex::new(Vec::new()),
             column_names: Arc::new(Mutex::new(None)),
             column_names_request: Arc::new(Mutex::new(None)),
+            column_values: Arc::new(Mutex::new(None)),
+            column_values_request: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -89,6 +107,19 @@ impl TestDatabase {
     /// Get the parameters from the last column name request
     pub async fn get_column_names_request(&self) -> Option<ColumnNamesRequest> {
         self.column_names_request.clone().lock().await.take()
+    }
+
+    /// Set the list of column values that will be returned on a call to column_values
+    pub async fn set_column_values(&self, column_values: Vec<String>) {
+        let column_values = column_values.into_iter().collect::<StringSet>();
+        let column_values = Arc::new(column_values);
+
+        *(self.column_values.clone().lock().await) = Some(column_values)
+    }
+
+    /// Get the parameters from the last column name request
+    pub async fn get_column_values_request(&self) -> Option<ColumnValuesRequest> {
+        self.column_values_request.clone().lock().await.take()
     }
 }
 
@@ -173,6 +204,41 @@ impl Database for TestDatabase {
             });
 
         Ok(column_names.into())
+    }
+
+    /// return the mocked out column values, recording the request
+    async fn column_values(
+        &self,
+        column_name: &str,
+        table: Option<String>,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+    ) -> Result<StringSetPlan, Self::Error> {
+        // save the request
+        let predicate = predicate.map(|p| format!("{:?}", p));
+
+        let new_column_values_request = Some(ColumnValuesRequest {
+            column_name: column_name.to_string(),
+            table,
+            range,
+            predicate,
+        });
+
+        *self.column_values_request.clone().lock().await = new_column_values_request;
+
+        // pull out the saved columns
+        let column_values = self
+            .column_values
+            .clone()
+            .lock()
+            .await
+            .take()
+            // Turn None into an error
+            .context(General {
+                message: "No saved column_values in TestDatabase",
+            });
+
+        Ok(column_values.into())
     }
 
     /// Fetch the specified table names and columns as Arrow RecordBatches

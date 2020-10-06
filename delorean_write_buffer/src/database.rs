@@ -337,6 +337,16 @@ impl Database for Db {
         }
     }
 
+    async fn column_values(
+        &self,
+        _column_name: &str,
+        _table: Option<String>,
+        _range: Option<TimestampRange>,
+        _predicate: Option<Predicate>,
+    ) -> Result<StringSetPlan, Self::Error> {
+        unimplemented!("Write buffer database does not yet implement column_values");
+    }
+
     async fn table_to_arrow(
         &self,
         table_name: &str,

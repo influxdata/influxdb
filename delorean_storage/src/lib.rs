@@ -62,9 +62,9 @@ pub trait Database: Debug + Send + Sync {
         range: Option<TimestampRange>,
     ) -> Result<StringSetPlan, Self::Error>;
 
-    /// Performance optimization: Returns the list of column names in
-    /// this database which store tags (as defined in the ParsedLines
-    /// when written), and which have rows that match optional predicates.
+    /// Returns the list of column names in this database which store
+    /// tags (as defined in the ParsedLines when written), and which
+    /// have rows that match optional predicates.
     ///
     /// If `table` is specified, then only columns from the
     /// specified database which match other predictes are included.
@@ -74,10 +74,31 @@ pub trait Database: Debug + Send + Sync {
     /// included.
     ///
     /// If `predicate` is specified, then only columns which have at
-    /// least one non-null value any row that matches the predicate
+    /// least one non-null value in any row that matches the predicate
     /// are returned
     async fn tag_column_names(
         &self,
+        table: Option<String>,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+    ) -> Result<StringSetPlan, Self::Error>;
+
+    /// Returns the distinct values in the `column_name` column of
+    /// this database for rows that match optional predicates.
+    ///
+    /// If `table` is specified, then only values from the
+    /// specified database which match other predictes are included.
+    ///
+    /// If `range` is specified, only values which have data in the
+    /// specified timestamp range which match other predictes are
+    /// included.
+    ///
+    /// If `predicate` is specified, then only values which have at
+    /// least one non-null value in any row that matches the predicate
+    /// are returned
+    async fn column_values(
+        &self,
+        column_name: &str,
         table: Option<String>,
         range: Option<TimestampRange>,
         predicate: Option<Predicate>,

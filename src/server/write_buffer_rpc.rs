@@ -47,15 +47,27 @@ pub enum Error {
     #[snafu(display("Database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
 
-    #[snafu(display("Can not retrieve table list for '{}': {}", db_name, source))]
+    #[snafu(display("Can not retrieve table list for database '{}': {}", db_name, source))]
     ListingTables {
         db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display("Can not retrieve column list '{}': {}", db_name, source))]
+    #[snafu(display("Can not retrieve column list in database '{}': {}", db_name, source))]
     ListingColumns {
         db_name: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    #[snafu(display(
+        "Can not retrieve tag values for '{}' in database '{}': {}",
+        tag_name,
+        db_name,
+        source
+    ))]
+    ListingTagValues {
+        db_name: String,
+        tag_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
@@ -80,8 +92,9 @@ impl Error {
             Self::ListingTables { .. } => Status::internal(self.to_string()),
             Self::ListingColumns { .. } => {
                 // TODO: distinguish between input errors and internal errors
-                Status::internal(self.to_string())
+                Status::invalid_argument(self.to_string())
             }
+            Self::ListingTagValues { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingPredicate { .. } => Status::invalid_argument(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
@@ -212,7 +225,38 @@ where
         &self,
         req: tonic::Request<TagValuesRequest>,
     ) -> Result<tonic::Response<Self::TagValuesStream>, Status> {
-        Err(Status::unimplemented("tag_values"))
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let tag_values_request = req.into_inner();
+
+        let db_name = get_database_name(&tag_values_request)?;
+
+        let TagValuesRequest {
+            tags_source: _tag_source,
+            range,
+            predicate,
+            tag_key,
+        } = tag_values_request;
+
+        let measurement = None;
+
+        let response = tag_values_impl(
+            self.db_store.clone(),
+            self.executor.clone(),
+            db_name,
+            tag_key,
+            measurement,
+            range,
+            predicate,
+        )
+        .await
+        .map_err(|e| e.to_status());
+
+        tx.send(response)
+            .await
+            .expect("sending tag_values response to server");
+
+        Ok(tonic::Response::new(rx))
     }
 
     #[tracing::instrument(level = "debug")]
@@ -308,7 +352,39 @@ where
         &self,
         req: tonic::Request<MeasurementTagValuesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagValuesStream>, Status> {
-        Err(Status::unimplemented("measurement_tag_values"))
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let measurement_tag_values_request = req.into_inner();
+
+        let db_name = get_database_name(&measurement_tag_values_request)?;
+
+        let MeasurementTagValuesRequest {
+            source: _source,
+            measurement,
+            range,
+            predicate,
+            tag_key,
+        } = measurement_tag_values_request;
+
+        let measurement = Some(measurement);
+
+        let response = tag_values_impl(
+            self.db_store.clone(),
+            self.executor.clone(),
+            db_name,
+            tag_key,
+            measurement,
+            range,
+            predicate,
+        )
+        .await
+        .map_err(|e| e.to_status());
+
+        tx.send(response)
+            .await
+            .expect("sending measurement_tag_values response to server");
+
+        Ok(tonic::Response::new(rx))
     }
 
     type MeasurementFieldsStream = mpsc::Receiver<Result<MeasurementFieldsResponse, Status>>;
@@ -381,7 +457,7 @@ where
     Ok(StringValuesResponse { values })
 }
 
-/// Return tag key names by querying columns
+/// Return tag keys with optional measurement, timestamp and arbitratry predicates
 async fn tag_keys_impl<T>(
     db_store: Arc<T>,
     executor: Arc<StorageExecutor>,
@@ -431,6 +507,59 @@ where
     Ok(StringValuesResponse { values })
 }
 
+/// Return tag values for tag_name, with optional measurement, timestamp and arbitratry predicates
+async fn tag_values_impl<T>(
+    db_store: Arc<T>,
+    executor: Arc<StorageExecutor>,
+    db_name: String,
+    tag_name: String,
+    measurement: Option<String>,
+    range: Option<TimestampRange>,
+    predicate: Option<Predicate>,
+) -> Result<StringValuesResponse>
+where
+    T: DatabaseStore,
+{
+    let range = convert_range(range);
+    let db = db_store
+        .db(&db_name)
+        .await
+        .ok_or_else(|| Error::DatabaseNotFound {
+            db_name: db_name.clone(),
+        })?;
+
+    let predicate_string = format!("{:?}", predicate);
+    let predicate =
+        convert_predicate(predicate).context(ConvertingPredicate { predicate_string })?;
+
+    let tag_value_plan = db
+        .column_values(&tag_name, measurement, range, predicate)
+        .await
+        .map_err(|e| Error::ListingTagValues {
+            db_name: db_name.clone(),
+            tag_name: tag_name.clone(),
+            source: Box::new(e),
+        })?;
+
+    let tag_values =
+        executor
+            .to_string_set(tag_value_plan)
+            .await
+            .map_err(|e| Error::ListingTagValues {
+                db_name: db_name.clone(),
+                tag_name: tag_name.clone(),
+                source: Box::new(e),
+            })?;
+
+    // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
+    let values = tag_values
+        .iter()
+        .map(|name| name.bytes().collect())
+        .collect::<Vec<_>>();
+
+    Ok(StringValuesResponse { values })
+}
+
 /// Instantiate a server listening on the specified address
 /// implementing the Delorean and Storage gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
@@ -461,7 +590,9 @@ where
 mod tests {
     use super::*;
     use crate::panic::SendPanicsToTracing;
-    use delorean_storage::{id::Id, test::ColumnNamesRequest, test::TestDatabaseStore};
+    use delorean_storage::{
+        id::Id, test::ColumnNamesRequest, test::ColumnValuesRequest, test::TestDatabaseStore,
+    };
     use delorean_test_helpers::tracing::TracingCapture;
     use std::{
         convert::TryFrom,
@@ -884,6 +1015,344 @@ mod tests {
         Ok(())
     }
 
+    /// test the plumbing of the RPC layer for tag_keys -- specifically that
+    /// the right parameters are passed into the Database interface
+    /// and that the returned values are sent back via gRPC.
+    #[tokio::test]
+    async fn test_storage_rpc_tag_values() -> Result<(), tonic::Status> {
+        // Note we use a unique port. TODO: let the OS pick the port
+        let mut fixture = Fixture::new(11812)
+            .await
+            .expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let test_db = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("creating test database");
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
+
+        #[derive(Debug)]
+        struct TestCase<'a> {
+            /// The tag values to load into the database
+            tag_values: Vec<&'a str>,
+            request: TagValuesRequest,
+            expected_request: ColumnValuesRequest,
+        }
+
+        let test_cases = vec![
+            // ---
+            // No predicates / timestamps
+            // ---
+            TestCase {
+                tag_values: vec!["k1"],
+                request: TagValuesRequest {
+                    tags_source: source.clone(),
+                    range: None,
+                    predicate: None,
+                    tag_key: "the_tag_key".into(),
+                },
+                expected_request: ColumnValuesRequest {
+                    table: None,
+                    range: None,
+                    predicate: None,
+                    column_name: "the_tag_key".into(),
+                },
+            },
+            // ---
+            // Timestamp range
+            // ---
+            TestCase {
+                tag_values: vec!["k1", "k2"],
+                request: TagValuesRequest {
+                    tags_source: source.clone(),
+                    range: make_timestamp_range(150, 200),
+                    predicate: None,
+                    tag_key: "the_tag_key".into(),
+                },
+                expected_request: ColumnValuesRequest {
+                    table: None,
+                    range: Some(StorageTimestampRange::new(150, 200)),
+                    predicate: None,
+                    column_name: "the_tag_key".into(),
+                },
+            },
+            // ---
+            // Predicate
+            // ---
+            TestCase {
+                tag_values: vec!["k1", "k2", "k3"],
+                request: TagValuesRequest {
+                    tags_source: source.clone(),
+                    range: None,
+                    predicate: make_state_ma_predicate(),
+                    tag_key: "the_tag_key".into(),
+                },
+                expected_request: ColumnValuesRequest {
+                    table: None,
+                    range: None,
+                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
+                    column_name: "the_tag_key".into(),
+                },
+            },
+            // ---
+            // Timestamp + Predicate
+            // ---
+            TestCase {
+                tag_values: vec!["k1", "k2", "k3", "k4"],
+                request: TagValuesRequest {
+                    tags_source: source.clone(),
+                    range: make_timestamp_range(150, 200),
+                    predicate: make_state_ma_predicate(),
+                    tag_key: "the_tag_key".into(),
+                },
+                expected_request: ColumnValuesRequest {
+                    table: None,
+                    range: Some(StorageTimestampRange::new(150, 200)),
+                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
+                    column_name: "the_tag_key".into(),
+                },
+            },
+        ];
+
+        for test_case in test_cases.into_iter() {
+            let test_case_str = format!("{:?}", test_case);
+            let TestCase {
+                tag_values,
+                request,
+                expected_request,
+            } = test_case;
+
+            test_db.set_column_values(to_string_vec(&tag_values)).await;
+
+            let actual_tag_values = fixture.storage_client.tag_values(request).await?;
+            assert_eq!(
+                actual_tag_values, tag_values,
+                "unexpected tag values while getting tag values: {}",
+                test_case_str
+            );
+            assert_eq!(
+                test_db.get_column_values_request().await,
+                Some(expected_request),
+                "unexpected request while getting tag values: {}",
+                test_case_str
+            );
+        }
+
+        // ---
+        // test error
+        // ---
+        let request = TagValuesRequest {
+            tags_source: source.clone(),
+            range: None,
+            predicate: None,
+            tag_key: "the_tag_key".into(),
+        };
+
+        // Note we don't set the column_names on the test database, so we expect an error
+        let response = fixture.storage_client.tag_values(request).await;
+        assert!(response.is_err());
+        let response_string = format!("{:?}", response);
+        let expected_error = "No saved column_values in TestDatabase";
+        assert!(
+            response_string.contains(expected_error),
+            "'{}' did not contain expected content '{}'",
+            response_string,
+            expected_error
+        );
+
+        let expected_request = Some(ColumnValuesRequest {
+            table: None,
+            range: None,
+            predicate: None,
+            column_name: "the_tag_key".into(),
+        });
+        assert_eq!(test_db.get_column_values_request().await, expected_request);
+
+        Ok(())
+    }
+
+    /// test the plumbing of the RPC layer for measurement_tag_values-- specifically that
+    /// the right parameters are passed into the Database interface
+    /// and that the returned values are sent back via gRPC.
+    #[tokio::test]
+    async fn test_storage_rpc_measurement_tag_values() -> Result<(), tonic::Status> {
+        // Note we use a unique port. TODO: let the OS pick the port
+        let mut fixture = Fixture::new(11813)
+            .await
+            .expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let test_db = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("creating test database");
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
+
+        #[derive(Debug)]
+        struct TestCase<'a> {
+            /// The tag values to load into the database
+            tag_values: Vec<&'a str>,
+            request: MeasurementTagValuesRequest,
+            expected_request: ColumnValuesRequest,
+        }
+
+        let test_cases = vec![
+            // ---
+            // No predicates / timestamps
+            // ---
+            TestCase {
+                tag_values: vec!["k1"],
+                request: MeasurementTagValuesRequest {
+                    measurement: "m1".into(),
+                    source: source.clone(),
+                    range: None,
+                    predicate: None,
+                    tag_key: "the_tag_key".into(),
+                },
+                expected_request: ColumnValuesRequest {
+                    table: Some("m1".into()),
+                    range: None,
+                    predicate: None,
+                    column_name: "the_tag_key".into(),
+                },
+            },
+            // ---
+            // Timestamp range
+            // ---
+            TestCase {
+                tag_values: vec!["k1", "k2"],
+                request: MeasurementTagValuesRequest {
+                    measurement: "m2".into(),
+                    source: source.clone(),
+                    range: make_timestamp_range(150, 200),
+                    predicate: None,
+                    tag_key: "the_tag_key".into(),
+                },
+                expected_request: ColumnValuesRequest {
+                    table: Some("m2".into()),
+                    range: Some(StorageTimestampRange::new(150, 200)),
+                    predicate: None,
+                    column_name: "the_tag_key".into(),
+                },
+            },
+            // ---
+            // Predicate
+            // ---
+            TestCase {
+                tag_values: vec!["k1", "k2", "k3"],
+                request: MeasurementTagValuesRequest {
+                    measurement: "m3".into(),
+                    source: source.clone(),
+                    range: None,
+                    predicate: make_state_ma_predicate(),
+                    tag_key: "the_tag_key".into(),
+                },
+                expected_request: ColumnValuesRequest {
+                    table: Some("m3".into()),
+                    range: None,
+                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
+                    column_name: "the_tag_key".into(),
+                },
+            },
+            // ---
+            // Timestamp + Predicate
+            // ---
+            TestCase {
+                tag_values: vec!["k1", "k2", "k3", "k4"],
+                request: MeasurementTagValuesRequest {
+                    measurement: "m4".into(),
+                    source: source.clone(),
+                    range: make_timestamp_range(150, 200),
+                    predicate: make_state_ma_predicate(),
+                    tag_key: "the_tag_key".into(),
+                },
+                expected_request: ColumnValuesRequest {
+                    table: Some("m4".into()),
+                    range: Some(StorageTimestampRange::new(150, 200)),
+                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
+                    column_name: "the_tag_key".into(),
+                },
+            },
+        ];
+
+        for test_case in test_cases.into_iter() {
+            let test_case_str = format!("{:?}", test_case);
+            let TestCase {
+                tag_values,
+                request,
+                expected_request,
+            } = test_case;
+
+            test_db.set_column_values(to_string_vec(&tag_values)).await;
+
+            let actual_tag_values = fixture
+                .storage_client
+                .measurement_tag_values(request)
+                .await?;
+            assert_eq!(
+                actual_tag_values, tag_values,
+                "unexpected tag values while getting tag values: {}",
+                test_case_str
+            );
+            assert_eq!(
+                test_db.get_column_values_request().await,
+                Some(expected_request),
+                "unexpected request while getting tag values: {}",
+                test_case_str
+            );
+        }
+
+        // ---
+        // test error
+        // ---
+        let request = MeasurementTagValuesRequest {
+            measurement: "m5".into(),
+            source: source.clone(),
+            range: None,
+            predicate: None,
+            tag_key: "the_tag_key".into(),
+        };
+
+        // Note we don't set the column_names on the test database, so we expect an error
+        let response = fixture.storage_client.measurement_tag_values(request).await;
+        assert!(response.is_err());
+        let response_string = format!("{:?}", response);
+        let expected_error = "No saved column_values in TestDatabase";
+        assert!(
+            response_string.contains(expected_error),
+            "'{}' did not contain expected content '{}'",
+            response_string,
+            expected_error
+        );
+
+        let expected_request = Some(ColumnValuesRequest {
+            table: Some("m5".into()),
+            range: None,
+            predicate: None,
+            column_name: "the_tag_key".into(),
+        });
+        assert_eq!(test_db.get_column_values_request().await, expected_request);
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_log_on_panic() -> Result<(), tonic::Status> {
         // Send a message to a route that causes a panic and ensure:
@@ -897,7 +1366,7 @@ mod tests {
         let tracing_capture = TracingCapture::new();
 
         // Note we use a unique port. TODO: let the OS pick the port
-        let mut fixture = Fixture::new(11812)
+        let mut fixture = Fixture::new(11900)
             .await
             .expect("Connecting to test server");
 
@@ -1093,6 +1562,40 @@ mod tests {
             let responses = self
                 .inner
                 .measurement_tag_keys(request)
+                .await?
+                .into_inner()
+                .try_collect()
+                .await?;
+
+            Ok(self.to_string_vec(responses))
+        }
+
+        /// Make a request to Storage::tag_values and do the
+        /// required async dance to flatten the resulting stream to Strings
+        async fn tag_values(
+            &mut self,
+            request: TagValuesRequest,
+        ) -> Result<Vec<String>, tonic::Status> {
+            let responses = self
+                .inner
+                .tag_values(request)
+                .await?
+                .into_inner()
+                .try_collect()
+                .await?;
+
+            Ok(self.to_string_vec(responses))
+        }
+
+        /// Make a request to Storage::measurement_tag_values and do the
+        /// required async dance to flatten the resulting stream to Strings
+        async fn measurement_tag_values(
+            &mut self,
+            request: MeasurementTagValuesRequest,
+        ) -> Result<Vec<String>, tonic::Status> {
+            let responses = self
+                .inner
+                .measurement_tag_values(request)
                 .await?
                 .into_inner()
                 .try_collect()
