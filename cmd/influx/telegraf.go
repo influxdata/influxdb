@@ -82,19 +82,23 @@ func (b *cmdTelegrafBuilder) listRunE(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	var filter influxdb.UserResourceMappingFilter
 	if b.id != "" {
 		id, err := influxdb.IDFromString(b.id)
 		if err != nil {
 			return err
 		}
-		filter.ResourceID = *id
-		filter.ResourceType = influxdb.TelegrafsResourceType
+
+		cfg, err := svc.FindTelegrafConfigByID(context.Background(), *id)
+		if err != nil {
+			return err
+		}
+
+		return b.writeTelegrafConfig(cfg)
 	}
 
 	cfgs, _, err := svc.FindTelegrafConfigs(context.Background(), influxdb.TelegrafConfigFilter{
 		OrgID:                     &orgID,
-		UserResourceMappingFilter: filter,
+		UserResourceMappingFilter: influxdb.UserResourceMappingFilter{ResourceType: influxdb.TelegrafsResourceType},
 	})
 	if err != nil {
 		return err
