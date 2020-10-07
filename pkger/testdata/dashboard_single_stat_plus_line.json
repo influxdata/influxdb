@@ -38,12 +38,14 @@
           ],
           "colors": [
             {
+              "id": "base",
               "name": "laser",
               "type": "text",
               "hex": "#8F8AF4",
               "value": 3
             },
             {
+              "id": "base",
               "name": "android",
               "type": "scale",
               "hex": "#F4CF31",

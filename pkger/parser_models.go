@@ -977,6 +977,7 @@ const (
 )
 
 type color struct {
+	ID   string `json:"id,omitempty" yaml:"id,omitempty"`
 	Name string `json:"name,omitempty" yaml:"name,omitempty"`
 	Type string `json:"type,omitempty" yaml:"type,omitempty"`
 	Hex  string `json:"hex,omitempty" yaml:"hex,omitempty"`
@@ -1002,6 +1003,7 @@ func (c colors) influxViewColors() []influxdb.ViewColor {
 	var iColors []influxdb.ViewColor
 	for _, cc := range c {
 		iColors = append(iColors, influxdb.ViewColor{
+			ID:    cc.ID,
 			Type:  cc.Type,
 			Hex:   cc.Hex,
 			Name:  cc.Name,

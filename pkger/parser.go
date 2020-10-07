@@ -1506,6 +1506,7 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 	} else {
 		for _, rc := range r.slcResource(fieldChartColors) {
 			c.Colors = append(c.Colors, &color{
+				ID:    rc.stringShort("id"),
 				Name:  rc.Name(),
 				Type:  rc.stringShort(fieldType),
 				Hex:   rc.stringShort(fieldColorHex),

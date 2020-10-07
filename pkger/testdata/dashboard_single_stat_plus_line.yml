@@ -29,10 +29,12 @@ spec:
             from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
       colors:
         - name: laser
+          id: "base"
           type: text
           hex: "#8F8AF4"
           value: 3
         - name: android
+          id: "base"
           type: scale
           hex: "#F4CF31"
           value: 1
