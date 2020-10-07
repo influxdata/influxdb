@@ -11,7 +11,7 @@ import (
 
 type multiShardCursors interface {
 	createCursor(row SeriesRow) cursors.Cursor
-	newAggregateCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor
+	newAggregateCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) (cursors.Cursor, error)
 }
 
 type resultSet struct {
@@ -60,7 +60,7 @@ func (r *resultSet) Next() bool {
 func (r *resultSet) Cursor() cursors.Cursor {
 	cur := r.arrayCursors.createCursor(r.seriesRow)
 	if r.agg != nil {
-		cur = r.arrayCursors.newAggregateCursor(r.ctx, r.agg, cur)
+		cur, _ = r.arrayCursors.newAggregateCursor(r.ctx, r.agg, cur)
 	}
 	return cur
 }
