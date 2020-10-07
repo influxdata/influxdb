@@ -65,12 +65,35 @@ pub enum Error {
     },
 
     #[snafu(display(
+        "Internal error: Expected column {} to be type {} but was {}",
+        column_id,
+        expected_column_type,
+        actual_column_type
+    ))]
+    InternalColumnTypeMismatch {
+        column_id: u32,
+        expected_column_type: String,
+        actual_column_type: String,
+    },
+
+    #[snafu(display(
         "Column name '{}' not found in dictionary of partition {}",
         column_name,
         partition
     ))]
     ColumnNameNotFoundInDictionary {
         column_name: String,
+        partition: String,
+        source: DictionaryError,
+    },
+
+    #[snafu(display(
+        "Internal: Column id '{}' not found in dictionary of partition {}",
+        column_id,
+        partition
+    ))]
+    ColumnIdNotFoundInDictionary {
+        column_id: u32,
         partition: String,
         source: DictionaryError,
     },
@@ -222,6 +245,21 @@ impl Table {
             .expect("invalid column id"))
     }
 
+    /// Returns a reference to the specified column as a slice of
+    /// i64s. Errors if the type is not i64
+    pub fn column_i64(&self, column_id: u32) -> Result<&[Option<i64>]> {
+        let column = self.column(column_id)?;
+        match column {
+            Column::I64(vals) => Ok(vals),
+            _ => InternalColumnTypeMismatch {
+                column_id,
+                expected_column_type: "i64",
+                actual_column_type: column.type_description(),
+            }
+            .fail(),
+        }
+    }
+
     pub fn append_rows(
         &mut self,
         dictionary: &mut Dictionary,
@@ -285,6 +323,7 @@ impl Table {
             })
             .collect::<Vec<_>>();
 
+        // TODO avoid materializing here
         let data = self.to_arrow_impl(partition, &requested_columns_with_index)?;
 
         let schema = data.schema();
@@ -325,6 +364,59 @@ impl Table {
         // And finally pivot the plan
         let plan = make_schema_pivot(plan);
         Ok(plan)
+    }
+
+    /// Creates a DataFusion LogicalPlan that returns column values as a
+    /// single column of Strings
+    ///
+    /// The created plan looks like:
+    ///
+    ///    Projection
+    ///        Filter(predicate)
+    ///          InMemoryScan
+    pub fn tag_values_plan(
+        &self,
+        column_name: &str,
+        predicate: &Predicate,
+        timestamp_predicate: Option<&TimestampPredicate>,
+        partition: &Partition,
+    ) -> Result<LogicalPlan> {
+        // Note we also need to add a timestamp predicate to this
+        // expression as some additional rows may be filtered out (and
+        // we couldn't prune out the entire Table based on range)
+        let df_predicate = predicate.expr.clone();
+        let df_predicate = match timestamp_predicate {
+            None => df_predicate,
+            Some(timestamp_predicate) => {
+                Self::add_timestamp_predicate_expr(df_predicate, timestamp_predicate)
+            }
+        };
+
+        // TODO avoid materializing all the columns here (ideally
+        // DataFusion can prune them out)
+        let data = self.all_to_arrow(partition)?;
+
+        let schema = data.schema();
+
+        let projection = None;
+        let projected_schema = schema.clone();
+        let select_exprs = vec![Expr::Column(column_name.into())];
+
+        // And build the plan!
+        let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
+            data: vec![vec![data]],
+            schema,
+            projection,
+            projected_schema,
+        });
+
+        plan_builder
+            .filter(df_predicate)
+            .context(BuildingPlan)?
+            .project(select_exprs)
+            .context(BuildingPlan)?
+            .build()
+            .context(BuildingPlan)
     }
 
     /// Creates a DataFusion predicate of the form:
@@ -383,6 +475,25 @@ impl Table {
                     Ok((column_name, column_index))
                 })
                 .collect::<Result<Vec<_>>>()?;
+
+        self.to_arrow_impl(partition, &requested_columns_with_index)
+    }
+
+    /// Convert all columns to an arrow record batch
+    pub fn all_to_arrow(&self, partition: &Partition) -> Result<RecordBatch> {
+        let requested_columns_with_index = self
+            .column_id_to_index
+            .iter()
+            .map(|(&column_id, &column_index)| {
+                let column_name = partition.dictionary.lookup_id(column_id).context(
+                    ColumnIdNotFoundInDictionary {
+                        column_id,
+                        partition: &partition.key,
+                    },
+                )?;
+                Ok((column_name, column_index))
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         self.to_arrow_impl(partition, &requested_columns_with_index)
     }
