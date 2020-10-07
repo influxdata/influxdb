@@ -1851,12 +1851,14 @@ spec:
 
 						require.Len(t, props.ViewColors, 2)
 						c := props.ViewColors[0]
+						assert.Equal(t, "base", c.ID)
 						assert.Equal(t, "laser", c.Name)
 						assert.Equal(t, "text", c.Type)
 						assert.Equal(t, "#8F8AF4", c.Hex)
 						assert.Equal(t, 3.0, c.Value)
 
 						c = props.ViewColors[1]
+						assert.Equal(t, "base", c.ID)
 						assert.Equal(t, "android", c.Name)
 						assert.Equal(t, "scale", c.Type)
 						assert.Equal(t, "#F4CF31", c.Hex)

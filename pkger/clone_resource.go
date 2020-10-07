@@ -1007,6 +1007,7 @@ func convertColors(iColors []influxdb.ViewColor) colors {
 	out := make(colors, 0, len(iColors))
 	for _, ic := range iColors {
 		out = append(out, &color{
+			ID:    ic.ID,
 			Name:  ic.Name,
 			Type:  ic.Type,
 			Hex:   ic.Hex,
