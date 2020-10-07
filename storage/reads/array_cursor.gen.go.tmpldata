@@ -5,7 +5,17 @@
 		"Type":"float64",
 		"ValueType":"FloatValue",
 		"Nil":"0",
-		"Agg":true
+		"Agg":true,
+		"Aggs": [
+            {
+                "Name":"Mean",
+                "OutputTypeName":"Float",
+                "AccDecls":"var sum float64; var count int64",
+                "Accumulate":"sum += a.Values[rowIdx]; count++",
+                "AccEmit":"c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = sum / float64(count)",
+                "AccReset":"sum = 0; count = 0"
+            }
+		]
 	},
 	{
 		"Name":"Integer",
@@ -13,7 +23,17 @@
 		"Type":"int64",
 		"ValueType":"IntegerValue",
 		"Nil":"0",
-		"Agg":true
+		"Agg":true,
+		"Aggs": [
+            {
+                "Name":"Mean",
+                "OutputTypeName":"Float",
+                "AccDecls":"var sum int64; var count int64",
+                "Accumulate":"sum += a.Values[rowIdx]; count++",
+                "AccEmit":"c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = float64(sum) / float64(count)",
+                "AccReset":"sum = 0; count = 0"
+            }
+		]
 	},
 	{
 		"Name":"Unsigned",
@@ -21,7 +41,17 @@
 		"Type":"uint64",
 		"ValueType":"UnsignedValue",
 		"Nil":"0",
-		"Agg":true
+		"Agg":true,
+		"Aggs": [
+            {
+                "Name":"Mean",
+                "OutputTypeName":"Float",
+                "AccDecls":"var sum uint64; var count int64",
+                "Accumulate":"sum += a.Values[rowIdx]; count++",
+                "AccEmit":"c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = float64(sum) / float64(count)",
+                "AccReset":"sum = 0; count = 0"
+            }
+		]
 	},
 	{
 		"Name":"String",

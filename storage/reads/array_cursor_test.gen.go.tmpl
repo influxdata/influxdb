@@ -1,0 +1,109 @@
+package reads
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/values"
+	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+)
+
+{{range .}}
+{{$ColType := .Name}}
+{{$colType := .name}}
+
+{{range .Aggs}}
+{{if eq .Name "Mean"}}
+{{$Agg := .Name}}
+
+type Mock{{$ColType}}ArrayCursor struct {
+	CloseFunc func()
+	ErrFunc   func() error
+	StatsFunc func() cursors.CursorStats
+	NextFunc  func() *cursors.{{$ColType}}Array
+}
+
+func (c *Mock{{$ColType}}ArrayCursor) Close()                      { c.CloseFunc() }
+func (c *Mock{{$ColType}}ArrayCursor) Err() error                  { return c.ErrFunc() }
+func (c *Mock{{$ColType}}ArrayCursor) Stats() cursors.CursorStats  { return c.StatsFunc() }
+func (c *Mock{{$ColType}}ArrayCursor) Next() *cursors.{{$ColType}}Array { return c.NextFunc() }
+
+func TestNewAggregateArrayCursor_{{$ColType}}(t *testing.T) {
+	t.Run("{{$Agg}}", func(t *testing.T) {
+		want := &{{$colType}}Window{{$Agg}}ArrayCursor{
+			{{$ColType}}ArrayCursor: &Mock{{$ColType}}ArrayCursor{},
+			res:                cursors.New{{.OutputTypeName}}ArrayLen(1),
+			tmp:                &cursors.{{$ColType}}Array{},
+		}
+
+		agg := &datatypes.Aggregate{
+			Type: datatypes.AggregateType{{$Agg}},
+		}
+
+		got, _ := newAggregateArrayCursor(context.Background(), agg, &Mock{{$ColType}}ArrayCursor{})
+
+		if diff := cmp.Diff(got, want, cmp.AllowUnexported({{$colType}}Window{{$Agg}}ArrayCursor{})); diff != "" {
+			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
+		}
+	})
+}
+
+func TestNewWindowAggregateArrayCursorMonths_{{$ColType}}(t *testing.T) {
+	t.Run("{{$Agg}}", func(t *testing.T) {
+		window := execute.Window{
+			Every: values.MakeDuration(int64(time.Hour), 0, false),
+			Period: values.MakeDuration(int64(time.Hour), 0, false),
+		}
+
+		want := &{{$colType}}Window{{$Agg}}ArrayCursor{
+			{{$ColType}}ArrayCursor: &Mock{{$ColType}}ArrayCursor{},
+			res:                cursors.New{{.OutputTypeName}}ArrayLen(MaxPointsPerBlock),
+			tmp:                &cursors.{{$ColType}}Array{},
+			window:             window,
+		}
+
+		agg := &datatypes.Aggregate{
+			Type: datatypes.AggregateType{{$Agg}},
+		}
+
+		got, _ := newWindowAggregateArrayCursor(context.Background(), agg, window, &Mock{{$ColType}}ArrayCursor{})
+
+		if diff := cmp.Diff(got, want, cmp.AllowUnexported({{$colType}}Window{{$Agg}}ArrayCursor{})); diff != "" {
+			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
+		}
+	})
+}
+
+func TestNewWindowAggregateArrayCursor_{{$ColType}}(t *testing.T) {
+	t.Run("{{$Agg}}", func(t *testing.T) {
+		window := execute.Window{
+			Every: values.MakeDuration(0, 1, false),
+			Period: values.MakeDuration(0, 1, false),
+		}
+
+		want := &{{$colType}}Window{{$Agg}}ArrayCursor{
+			{{$ColType}}ArrayCursor: &Mock{{$ColType}}ArrayCursor{},
+			res:                cursors.New{{.OutputTypeName}}ArrayLen(MaxPointsPerBlock),
+			tmp:                &cursors.{{$ColType}}Array{},
+			window: window,
+		}
+
+		agg := &datatypes.Aggregate{
+			Type: datatypes.AggregateType{{$Agg}},
+		}
+
+		got, _ := newWindowAggregateArrayCursor(context.Background(), agg, window, &Mock{{$ColType}}ArrayCursor{})
+
+		if diff := cmp.Diff(got, want, cmp.AllowUnexported({{$colType}}Window{{$Agg}}ArrayCursor{})); diff != "" {
+			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
+		}
+	})
+}
+{{end}}
+{{end}}
+{{end}}{{/* range over each supported field type */}}
+

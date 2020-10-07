@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
@@ -16,16 +17,21 @@ func (v *singleValue) Value(key string) (interface{}, bool) {
 	return v.v, true
 }
 
-func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor {
-	if cursor == nil {
-		return nil
-	}
+func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) (cursors.Cursor, error) {
+	return newWindowAggregateArrayCursor(ctx, agg, execute.Window{}, cursor)
+}
 
+func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, window execute.Window, cursor cursors.Cursor) (cursors.Cursor, error) {
+	if cursor == nil {
+		return nil, nil
+	}
 	switch agg.Type {
 	case datatypes.AggregateTypeSum:
-		return newSumArrayCursor(cursor)
+		return newSumArrayCursor(cursor), nil
 	case datatypes.AggregateTypeCount:
-		return newCountArrayCursor(cursor)
+		return newCountArrayCursor(cursor), nil
+	case datatypes.AggregateTypeMean:
+		return newWindowMeanArrayCursor(cursor, window)
 	default:
 		// TODO(sgc): should be validated higher up
 		panic("invalid aggregate")
@@ -158,6 +164,6 @@ func (m *multiShardArrayCursors) createCursor(row SeriesRow) cursors.Cursor {
 	}
 }
 
-func (m *multiShardArrayCursors) newAggregateCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor {
+func (m *multiShardArrayCursors) newAggregateCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) (cursors.Cursor, error) {
 	return newAggregateArrayCursor(ctx, agg, cursor)
 }
