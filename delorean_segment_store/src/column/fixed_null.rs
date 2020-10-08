@@ -9,7 +9,7 @@ use delorean_arrow::arrow::datatypes::ArrowNumericType;
 use crate::column::cmp;
 
 #[derive(Debug)]
-pub struct Arrow<T>
+pub struct FixedNull<T>
 where
     T: ArrowNumericType,
 {
@@ -17,7 +17,7 @@ where
     arr: PrimitiveArray<T>,
 }
 
-impl<T: ArrowNumericType> std::fmt::Display for Arrow<T>
+impl<T: ArrowNumericType> std::fmt::Display for FixedNull<T>
 where
     T: ArrowNumericType + std::fmt::Debug,
     T::Native: Default
@@ -37,7 +37,7 @@ where
         )
     }
 }
-impl<T> Arrow<T>
+impl<T> FixedNull<T>
 where
     T: ArrowNumericType,
 {
@@ -470,7 +470,7 @@ where
 macro_rules! plain_from_impls {
     ($(($type_from:ty, $type_to:ty),)*) => {
         $(
-            impl From<&[$type_from]> for Arrow<$type_to> {
+            impl From<&[$type_from]> for FixedNull<$type_to> {
                 fn from(v: &[$type_from]) -> Self {
                     Self{
                         arr: PrimitiveArray::from(v.to_vec()),
@@ -478,7 +478,7 @@ macro_rules! plain_from_impls {
                 }
             }
 
-            impl From<&[Option<$type_from>]> for Arrow<$type_to> {
+            impl From<&[Option<$type_from>]> for FixedNull<$type_to> {
                 fn from(v: &[Option<$type_from>]) -> Self {
                     Self{
                         arr: PrimitiveArray::from(v.to_vec()),
@@ -534,7 +534,7 @@ mod test {
 
     #[test]
     fn first_row_id_eq_value() {
-        let v = super::Arrow::<Int64Type>::from(vec![22, 33, 18].as_slice());
+        let v = super::FixedNull::<Int64Type>::from(vec![22, 33, 18].as_slice());
 
         assert_eq!(v.first_row_id_eq_value(33), Some(1));
         assert_eq!(v.first_row_id_eq_value(100), None);
@@ -542,14 +542,14 @@ mod test {
 
     #[test]
     fn value() {
-        let v = super::Arrow::<Int8Type>::from(vec![22, 33, 18].as_slice());
+        let v = super::FixedNull::<Int8Type>::from(vec![22, 33, 18].as_slice());
 
         assert_eq!(v.value(2), Some(18));
     }
 
     #[test]
     fn values() {
-        let v = super::Arrow::<Int8Type>::from((0..10).collect::<Vec<_>>().as_slice());
+        let v = super::FixedNull::<Int8Type>::from((0..10).collect::<Vec<_>>().as_slice());
 
         assert_eq!(v.values(&[0, 1, 2, 3], vec![]), some_vec(vec![0, 1, 2, 3]));
         assert_eq!(
@@ -569,7 +569,7 @@ mod test {
 
     #[test]
     fn all_values() {
-        let v = super::Arrow::<Int8Type>::from((0..10).collect::<Vec<_>>().as_slice());
+        let v = super::FixedNull::<Int8Type>::from((0..10).collect::<Vec<_>>().as_slice());
 
         assert_eq!(
             v.all_values(vec![]),
@@ -585,7 +585,7 @@ mod test {
     #[test]
     fn count() {
         let data = vec![Some(0), None, Some(22), None, None, Some(33), Some(44)];
-        let v = super::Arrow::<Int8Type>::from(data.as_slice());
+        let v = super::FixedNull::<Int8Type>::from(data.as_slice());
 
         assert_eq!(v.count(&[0, 1, 2, 3, 4, 5, 6]), 4);
         assert_eq!(v.count(&[1, 3]), 0);
@@ -594,7 +594,7 @@ mod test {
 
     #[test]
     fn sum() {
-        let v = super::Arrow::<Int8Type>::from((0..10).collect::<Vec<_>>().as_slice());
+        let v = super::FixedNull::<Int8Type>::from((0..10).collect::<Vec<_>>().as_slice());
 
         assert_eq!(v.sum(&[3, 5, 6, 7]), Some(21));
         assert_eq!(v.sum(&[1, 2, 4, 7, 9]), Some(23));
@@ -602,35 +602,35 @@ mod test {
 
     #[test]
     fn first() {
-        let v = super::Arrow::<Int16Type>::from((10..20).collect::<Vec<_>>().as_slice());
+        let v = super::FixedNull::<Int16Type>::from((10..20).collect::<Vec<_>>().as_slice());
 
         assert_eq!(v.first(&[3, 5, 6, 7]), Some(13));
     }
 
     #[test]
     fn last() {
-        let v = super::Arrow::<Int16Type>::from((10..20).collect::<Vec<_>>().as_slice());
+        let v = super::FixedNull::<Int16Type>::from((10..20).collect::<Vec<_>>().as_slice());
 
         assert_eq!(v.last(&[3, 5, 6, 7]), Some(17));
     }
 
     #[test]
     fn min() {
-        let v = super::Arrow::<Int16Type>::from(vec![100, 110, 20, 1, 110].as_slice());
+        let v = super::FixedNull::<Int16Type>::from(vec![100, 110, 20, 1, 110].as_slice());
 
         assert_eq!(v.min(&[0, 1, 2, 3, 4]), Some(1));
     }
 
     #[test]
     fn max() {
-        let v = super::Arrow::<Int16Type>::from(vec![100, 110, 20, 1, 109].as_slice());
+        let v = super::FixedNull::<Int16Type>::from(vec![100, 110, 20, 1, 109].as_slice());
 
         assert_eq!(v.max(&[0, 1, 2, 3, 4]), Some(110));
     }
 
     #[test]
     fn row_ids_filter_eq() {
-        let v = super::Arrow::<Int64Type>::from(
+        let v = super::FixedNull::<Int64Type>::from(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
@@ -649,7 +649,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_neq() {
-        let v = super::Arrow::<Int64Type>::from(
+        let v = super::FixedNull::<Int64Type>::from(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
@@ -668,7 +668,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_lt() {
-        let v = super::Arrow::<Int64Type>::from(
+        let v = super::FixedNull::<Int64Type>::from(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
@@ -681,7 +681,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_lte() {
-        let v = super::Arrow::<Int64Type>::from(
+        let v = super::FixedNull::<Int64Type>::from(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
@@ -694,7 +694,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_gt() {
-        let v = super::Arrow::<Int64Type>::from(
+        let v = super::FixedNull::<Int64Type>::from(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
@@ -707,7 +707,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_gte() {
-        let v = super::Arrow::<Int64Type>::from(
+        let v = super::FixedNull::<Int64Type>::from(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
@@ -720,7 +720,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_range() {
-        let v = super::Arrow::<Int64Type>::from(
+        let v = super::FixedNull::<Int64Type>::from(
             vec![
                 Some(100),
                 Some(101),

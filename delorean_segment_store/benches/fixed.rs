@@ -5,7 +5,7 @@ use rand::prelude::*;
 
 use delorean_arrow::arrow::datatypes::*;
 use delorean_segment_store::column::fixed::Fixed;
-use delorean_segment_store::column::fixed_null::Arrow;
+use delorean_segment_store::column::fixed_null::FixedNull;
 
 // const ROWS: [usize; 5] = [10, 100, 1_000, 10_000, 60_000];
 const ROWS: [usize; 1] = [30_000];
@@ -104,7 +104,7 @@ fn benchmark_plain_sum(
                                 );
                             }
                             EncType::Arrow => {
-                                let encoding = Arrow::<Int64Type>::from(
+                                let encoding = FixedNull::<Int64Type>::from(
                                     (0..num_rows as i64).collect::<Vec<i64>>().as_slice(),
                                 );
 
@@ -149,7 +149,7 @@ fn benchmark_plain_sum(
                                 );
                             }
                             EncType::Arrow => {
-                                let encoding = Arrow::<Int32Type>::from(
+                                let encoding = FixedNull::<Int32Type>::from(
                                     (0..num_rows as i32).collect::<Vec<i32>>().as_slice(),
                                 );
 
@@ -194,7 +194,7 @@ fn benchmark_plain_sum(
                                 );
                             }
                             EncType::Arrow => {
-                                let encoding = Arrow::<Int16Type>::from(
+                                let encoding = FixedNull::<Int16Type>::from(
                                     (0..num_rows as i16).collect::<Vec<i16>>().as_slice(),
                                 );
 
