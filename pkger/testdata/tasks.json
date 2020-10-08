@@ -15,7 +15,7 @@
     "spec": {
       "name": "task-0",
       "description": "desc_0",
-      "every": "10m",
+      "every": "1d1h",
       "offset": "15s",
       "query": "from(bucket: \"rucket_1\")\n  |> range(start: -5d, stop: -1h)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")",
       "status": "inactive",

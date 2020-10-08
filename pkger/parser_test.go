@@ -3409,7 +3409,7 @@ spec:
 
 				task1 := tasks[1]
 				baseEqual(t, 0, influxdb.Inactive, task1)
-				assert.Equal(t, (10 * time.Minute).String(), task1.Every)
+				assert.Equal(t, (25 * time.Hour).String(), task1.Every)
 				assert.Equal(t, (15 * time.Second).String(), task1.Offset)
 			})
 		})
