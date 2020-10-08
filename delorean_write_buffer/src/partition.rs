@@ -37,9 +37,6 @@ pub enum Error {
         source: crate::table::Error,
     },
 
-    #[snafu(display("Table Error:: {}", source))]
-    TableError { source: crate::table::Error },
-
     #[snafu(display("Table Error in '{}': {}", table_name, source))]
     NamedTableError {
         table_name: String,
