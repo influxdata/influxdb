@@ -1,3 +1,10 @@
+## unreleased
+
+### Bug Fixes
+
+1. [#19679](https://github.com/influxdata/influxdb/issues/19679): Scrapers not working in RC0
+
+
 ## v2.0.0-rc.0 [2020-09-29]
 
 ### Breaking Changes
