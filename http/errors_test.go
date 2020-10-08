@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"testing"
@@ -12,13 +13,14 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheckError(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		write func(w *httptest.ResponseRecorder)
-		want  error
+		want  *influxdb.Error
 	}{
 		{
 			name: "platform error",
@@ -93,6 +95,43 @@ func TestCheckError(t *testing.T) {
 				Err:  stderrors.New(""),
 			},
 		},
+		{
+			name: "429 Retry-After with text response",
+			write: func(w *httptest.ResponseRecorder) {
+				w.Header().Set("Content-Type", "text/plain")
+				w.Header().Set("Retry-After", "1")
+				w.WriteHeader(429)
+				_, _ = io.WriteString(w, `Write Limit Exceeded`)
+			},
+			want: &influxdb.Error{
+				Code: influxdb.ETooManyRequests,
+				Err:  http.NewRetryAfterError(stderrors.New("Write Limit Exceeded"), 1),
+			},
+		},
+		{
+			name: "429 Retry-After with JSON response",
+			write: func(w *httptest.ResponseRecorder) {
+				w.Header().Set("Retry-After", "2")
+				w.WriteHeader(429)
+				_, _ = io.WriteString(w, `{"error": "Write Limit Exceeded"}`)
+			},
+			want: &influxdb.Error{
+				Code: influxdb.ETooManyRequests,
+				Err:  http.NewRetryAfterError(stderrors.New("Write Limit Exceeded"), 2),
+			},
+		},
+		{
+			name: "429 Retry-After unsupported value",
+			write: func(w *httptest.ResponseRecorder) {
+				w.Header().Set("Retry-After", "Sun, 06 Nov 2024 08:49:37 GMT")
+				w.WriteHeader(429)
+				_, _ = io.WriteString(w, `{"error": "Write Limit Exceeded"}`)
+			},
+			want: &influxdb.Error{
+				Code: influxdb.ETooManyRequests,
+				Err:  stderrors.New("Write Limit Exceeded"),
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
@@ -102,6 +141,9 @@ func TestCheckError(t *testing.T) {
 			cmpopt := cmp.Transformer("error", func(e error) string {
 				if e, ok := e.(*influxdb.Error); ok {
 					out, _ := json.Marshal(e)
+					if e2, ok := e.Err.(http.RetryAfterError); ok {
+						return fmt.Sprintf("%s; Retry-After: %v", string(out), e2.RetryAfter())
+					}
 					return string(out)
 				}
 				return e.Error()
@@ -111,4 +153,76 @@ func TestCheckError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRetryAfter(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		write func(w *httptest.ResponseRecorder)
+		want  int
+	}{
+		{
+			name: "429 Retry-After - server says don't retry",
+			write: func(w *httptest.ResponseRecorder) {
+				w.Header().Set("Retry-After", "0")
+				w.WriteHeader(429)
+				_, _ = io.WriteString(w, `{"error": "Write Limit Exceeded"}`)
+			},
+			want: 0,
+		},
+		{
+			name: "429 Retry-After - retry after seconds",
+			write: func(w *httptest.ResponseRecorder) {
+				w.Header().Set("Retry-After", "222")
+				w.WriteHeader(429)
+				_, _ = io.WriteString(w, `{"error": "Write Limit Exceeded"}`)
+			},
+			want: 222,
+		},
+		{
+			name: "429 Retry-After - unsupported retry",
+			write: func(w *httptest.ResponseRecorder) {
+				w.Header().Set("Retry-After", "Sun, 06 Nov 2024 08:49:37 GMT")
+				w.WriteHeader(429)
+				_, _ = io.WriteString(w, `{"error": "Write Limit Exceeded"}`)
+			},
+			want: -1,
+		},
+		{
+			name: "429 Retry-After - unknown retry",
+			write: func(w *httptest.ResponseRecorder) {
+				w.WriteHeader(429)
+				_, _ = io.WriteString(w, `{"error": "Write Limit Exceeded"}`)
+			},
+			want: -1,
+		},
+		{
+			name: "200 Retry-After - unknown retry",
+			write: func(w *httptest.ResponseRecorder) {
+				w.Header().Set("Retry-After", "0")
+				w.WriteHeader(200)
+				_, _ = io.WriteString(w, ``)
+			},
+			want: -1,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			tt.write(w)
+
+			resp := w.Result()
+			err := http.CheckError(resp)
+			if got, want := http.RetryAfter(err), tt.want; !cmp.Equal(want, got) {
+				t.Fatalf("unexpected retryAfter -want/+got:\n%s", cmp.Diff(want, got))
+			}
+		})
+	}
+}
+
+func TestNewRetryAfterError(t *testing.T) {
+	require.Equal(t, "test", http.NewRetryAfterError(stderrors.New("test"), 0).Error())
+	require.Equal(t, 1, http.NewRetryAfterError(stderrors.New("test"), 1).RetryAfter())
+	t.Run("nil wrapped error prints empty string", func(t *testing.T) {
+		require.Equal(t, "", http.NewRetryAfterError(nil, 0).Error())
+	})
 }
