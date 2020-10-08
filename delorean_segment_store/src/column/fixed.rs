@@ -262,18 +262,10 @@ where
     {
         let physical_value = T::from(value);
         match op {
-            cmp::Operator::GT => {
-                self.row_ids_cmp_order_bm(&physical_value, Self::ord_from_op(&op), bm)
-            }
-            cmp::Operator::GTE => {
-                self.row_ids_cmp_order_bm(&physical_value, Self::ord_from_op(&op), bm)
-            }
-            cmp::Operator::LT => {
-                self.row_ids_cmp_order_bm(&physical_value, Self::ord_from_op(&op), bm)
-            }
-            cmp::Operator::LTE => {
-                self.row_ids_cmp_order_bm(&physical_value, Self::ord_from_op(&op), bm)
-            }
+            cmp::Operator::GT => self.row_ids_cmp_order_bm(&physical_value, PartialOrd::gt, bm),
+            cmp::Operator::GTE => self.row_ids_cmp_order_bm(&physical_value, PartialOrd::ge, bm),
+            cmp::Operator::LT => self.row_ids_cmp_order_bm(&physical_value, PartialOrd::lt, bm),
+            cmp::Operator::LTE => self.row_ids_cmp_order_bm(&physical_value, PartialOrd::le, bm),
             _ => self.row_ids_equal_bm(&physical_value, op, bm),
         }
     }
@@ -340,26 +332,24 @@ where
     //
     // `op` is a tuple of comparisons where at least one of them must be
     // satisfied to satisfy the overall operator.
-    fn row_ids_cmp_order_bm(
-        &self,
-        value: &T,
-        op: (std::cmp::Ordering, std::cmp::Ordering),
-        mut bm: Bitmap,
-    ) -> Bitmap {
+    fn row_ids_cmp_order_bm<F>(&self, value: &T, op: F, mut bm: Bitmap) -> Bitmap
+    where
+        F: Fn(&T, &T) -> bool,
+    {
         bm.clear();
 
         let mut found = false;
         let mut count = 0;
         for (i, next) in self.values.iter().enumerate() {
-            let cmp_result = next.partial_cmp(value);
+            let cmp_result = op(next, value);
 
-            if cmp_result != Some(op.0) && cmp_result != Some(op.1) && found {
+            if !cmp_result && found {
                 let (min, max) = (i as u64 - count as u64, i as u64);
                 bm.add_range(min..max);
                 found = false;
                 count = 0;
                 continue;
-            } else if cmp_result != Some(op.0) && cmp_result != Some(op.1) {
+            } else if !cmp_result {
                 continue;
             }
 
