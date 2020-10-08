@@ -13,7 +13,7 @@ description = "Apache Arrow / Parquet / DataFusion dependencies for delorean, to
 
 # The version can be found here: https://github.com/apache/arrow/commit/238a9497269f39ab4d5bf20c28c2431a1b4e6673
 #
-arrow = { git = "https://github.com/apache/arrow.git", rev = "238a9497269f39ab4d5bf20c28c2431a1b4e6673"}
+arrow = { git = "https://github.com/apache/arrow.git", rev = "238a9497269f39ab4d5bf20c28c2431a1b4e6673" , features = ["simd"] }
 datafusion = { git = "https://github.com/apache/arrow.git", rev = "238a9497269f39ab4d5bf20c28c2431a1b4e6673" }
 # Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time
 # and we're not currently using it anyway

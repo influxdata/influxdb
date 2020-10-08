@@ -87,6 +87,7 @@ dependencies = [
  "indexmap",
  "lazy_static",
  "num 0.3.0",
+ "packed_simd",
  "prettytable-rs",
  "rand",
  "regex",
@@ -2103,6 +2104,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3741934be594d77de1c8461ebcbbe866f585ea616a9753aa78f2bdc69f0e4579"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "packed_simd"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a85ea9fc0d4ac0deb6fe7911d38786b32fc11119afd9e9d38b84ff691ce64220"
+dependencies = [
+ "cfg-if",
 ]
 
 [[package]]
