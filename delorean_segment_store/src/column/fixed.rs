@@ -534,6 +534,7 @@ plain_from_impls! {
      (u16, u8),
      (u8, u8),
      (f64, f64),
+     (f32, f32),
 }
 
 #[cfg(test)]
