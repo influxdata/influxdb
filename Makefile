@@ -33,6 +33,7 @@ endif
 export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh
 export GOOS=$(shell go env GOOS)
 export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS) -ldflags "$(LDFLAGS)"
+export GO_BUILD_SM=env GO111MODULE=on go build $(GO_ARGS) -ldflags "-s -w $(LDFLAGS)"
 export GO_INSTALL=env GO111MODULE=on go install $(GO_ARGS) -ldflags "$(LDFLAGS)"
 export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
@@ -65,8 +66,11 @@ CMDS := \
 # Other targets must depend on this target to correctly builds CMDS.
 ifeq ($(GOARCH), arm64)
     all: GO_ARGS=-tags 'assets noasm $(GO_TAGS)'
+    bin/$(GOOS)/influx: GO_ARGS=-tags 'noasm $(GO_TAGS)'
 else
     all: GO_ARGS=-tags 'assets $(GO_TAGS)'
+    bin/$(GOOS)/influx:	GO_ARGS=-tags '$(GO_TAGS)'
+
 endif
 all: $(SUBDIRS) generate $(CMDS)
 
@@ -80,6 +84,9 @@ $(SUBDIRS):
 #
 $(CMDS): $(SOURCES)
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
+
+bin/$(GOOS)/influx: $(SOURCES)
+	$(GO_BUILD_SM) -o $@ ./cmd/$(shell basename "$@")
 
 # Ease of use build for just the go binary
 influxd: bin/$(GOOS)/influxd
