@@ -7,8 +7,7 @@ use delorean_arrow::arrow::datatypes::*;
 use delorean_segment_store::column::fixed::Fixed;
 use delorean_segment_store::column::fixed_null::FixedNull;
 
-// const ROWS: [usize; 5] = [10, 100, 1_000, 10_000, 60_000];
-const ROWS: [usize; 1] = [30_000];
+const ROWS: [usize; 5] = [10, 100, 1_000, 10_000, 60_000];
 const CHUNKS: [Chunks; 4] = [
     Chunks::All,
     Chunks::Even,
