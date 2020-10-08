@@ -16,5 +16,5 @@ criterion = "0.3"
 rand = "0.7.3"
 
 [[bench]]
-name = "plain"
+name = "fixed"
 harness = false

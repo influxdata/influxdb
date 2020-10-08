@@ -483,7 +483,7 @@ macro_rules! plain_from_impls {
 
 // Supported logical and physical datatypes for the Plain encoding.
 //
-// Need to look at possibility of initialising smaller datatype
+// Need to look at possibility of initialising smaller datatypes...
 plain_from_impls! {
     (i64, delorean_arrow::arrow::datatypes::Int64Type),
     //  (i64, delorean_arrow::arrow::datatypes::Int32Type),
