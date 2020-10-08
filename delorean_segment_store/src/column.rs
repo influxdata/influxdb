@@ -1,5 +1,6 @@
 pub mod cmp;
 pub mod fixed;
+pub mod fixed_null;
 
 use delorean_arrow::arrow;
 
