@@ -477,6 +477,14 @@ macro_rules! plain_from_impls {
                     }
                 }
             }
+
+            impl From<&[Option<$type_from>]> for Arrow<$type_to> {
+                fn from(v: &[Option<$type_from>]) -> Self {
+                    Self{
+                        arr: PrimitiveArray::from(v.to_vec()),
+                    }
+                }
+            }
         )*
     };
 }
@@ -572,6 +580,16 @@ mod test {
         dst = v.all_values(dst);
         assert_eq!(dst, (0..10).map(Some).collect::<Vec<Option<i8>>>());
         assert_eq!(dst.capacity(), 10);
+    }
+
+    #[test]
+    fn count() {
+        let data = vec![Some(0), None, Some(22), None, None, Some(33), Some(44)];
+        let v = super::Arrow::<Int8Type>::from(data.as_slice());
+
+        assert_eq!(v.count(&[0, 1, 2, 3, 4, 5, 6]), 4);
+        assert_eq!(v.count(&[1, 3]), 0);
+        assert_eq!(v.count(&[6]), 1);
     }
 
     #[test]
@@ -703,21 +721,43 @@ mod test {
     #[test]
     fn row_ids_filter_range() {
         let v = super::Arrow::<Int64Type>::from(
-            vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
+            vec![
+                Some(100),
+                Some(101),
+                None,
+                None,
+                None,
+                Some(100),
+                Some(102),
+                Some(1000),
+                Some(300),
+                Some(2030),
+                None,
+                Some(3),
+                None,
+                Some(101),
+                Some(4),
+                Some(5),
+                Some(21),
+                Some(100),
+                None,
+                None,
+            ]
+            .as_slice(),
         );
 
         let bm =
             v.row_ids_filter_range((100, Operator::GTE), (240, Operator::LT), Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![0, 1, 2, 3, 8, 12]);
+        assert_eq!(bm.to_vec(), vec![0, 1, 5, 6, 13, 17]);
 
         let bm = v.row_ids_filter_range((100, Operator::GT), (240, Operator::LT), Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![1, 3, 8]);
+        assert_eq!(bm.to_vec(), vec![1, 6, 13]);
 
         let bm = v.row_ids_filter_range((10, Operator::LT), (-100, Operator::GT), Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![7, 9, 10]);
+        assert_eq!(bm.to_vec(), vec![11, 14, 15]);
 
         let bm = v.row_ids_filter_range((21, Operator::GTE), (21, Operator::LTE), Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![11]);
+        assert_eq!(bm.to_vec(), vec![16]);
 
         let bm = v.row_ids_filter_range(
             (10000, Operator::LTE),
