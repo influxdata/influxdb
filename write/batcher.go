@@ -27,25 +27,40 @@ var (
 // batcher is a write service that batches for another write service.
 var _ platform.WriteService = (*Batcher)(nil)
 
-// Batcher batches line protocol for sends to output.
+// Batcher batches line protocol for sends to service.
 type Batcher struct {
 	MaxFlushBytes    int                   // MaxFlushBytes is the maximum number of bytes to buffer before flushing
 	MaxFlushInterval time.Duration         // MaxFlushInterval is the maximum amount of time to wait before flushing
 	MaxLineLength    int                   // MaxLineLength specifies the maximum length of a single line
 	Service          platform.WriteService // Service receives batches flushed from Batcher.
+	RetryStrategy    RetryStrategy         // RetryStrategy is a strategy that computes pauses between retries, DefaultRetryStrategy if nil
 }
 
 // Write reads r in batches and writes to a target specified by org and bucket.
 func (b *Batcher) Write(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
+	retryStrategy := b.RetryStrategy
+	if retryStrategy == nil {
+		retryStrategy = DefaultRetryStrategy
+	}
+
 	return b.writeBytes(ctx, r, func(batch []byte) error {
-		return b.Service.Write(ctx, org, bucket, bytes.NewReader(batch))
+		return retry(ctx, retryStrategy, func() error {
+			return b.Service.Write(ctx, org, bucket, bytes.NewReader(batch))
+		})
 	})
 }
 
 // WriteTo reads r in batches and writes to a target specified by filter.
 func (b *Batcher) WriteTo(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
+	retryStrategy := b.RetryStrategy
+	if retryStrategy == nil {
+		retryStrategy = DefaultRetryStrategy
+	}
+
 	return b.writeBytes(ctx, r, func(batch []byte) error {
-		return b.Service.WriteTo(ctx, filter, bytes.NewReader(batch))
+		return retry(ctx, retryStrategy, func() error {
+			return b.Service.WriteTo(ctx, filter, bytes.NewReader(batch))
+		})
 	})
 }
 

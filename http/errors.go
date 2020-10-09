@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	platform "github.com/influxdata/influxdb/v2"
 	khttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -25,36 +26,38 @@ type AuthzError interface {
 	AuthzError() error
 }
 
-// RetryAfterError is an error that also contains value of "Retry-After"
-// HTTP response header
-type RetryAfterError interface {
+// RetriableError is an error that contains a duration to wait before the next retry.
+type RetriableError interface {
 	error
-	// RetryAfter returns count of seconds to wait for the next retry, possitive values shall be respected
-	RetryAfter() int
+	// RetryAfter returns a non-negative duration for the next retry
+	RetryAfter() time.Duration
 }
 
-// retryAfterErrorImpl is an implementation of RetryAfterError
-type retryAfterErrorImpl struct {
+// retriableErrorImpl is an implementation of RetriableError
+type retriableErrorImpl struct {
 	error      error
-	retryAfter int
+	retryAfter time.Duration
 }
 
 // Error prints out the nested error
-func (e *retryAfterErrorImpl) Error() string {
+func (e *retriableErrorImpl) Error() string {
 	if e.error == nil {
 		return ""
 	}
 	return e.error.Error()
 }
 
-// RetryAfter returns count of seconds to wait for the next retry, possitive values shall be respected
-func (e *retryAfterErrorImpl) RetryAfter() int {
+// RetryAfter returns a non-negative duration for the next retry
+func (e *retriableErrorImpl) RetryAfter() time.Duration {
 	return e.retryAfter
 }
 
-// NewRetryAfterError create a RetryAfterError
-func NewRetryAfterError(err error, retryAfter int) RetryAfterError {
-	return &retryAfterErrorImpl{
+// NewRetriableError wraps existing error to create RetriableError
+func NewRetriableError(err error, retryAfter time.Duration) RetriableError {
+	if retryAfter < 0 {
+		retryAfter = 0
+	}
+	return &retriableErrorImpl{
 		error:      err,
 		retryAfter: retryAfter,
 	}
@@ -133,8 +136,11 @@ func CheckError(resp *http.Response) (err error) {
 	}
 
 	if retryAfter := resp.Header.Get("Retry-After"); len(retryAfter) > 0 {
-		if intVal, err := strconv.Atoi(retryAfter); err == nil {
-			perr.Err = NewRetryAfterError(perr.Err, intVal)
+		if seconds, err := strconv.Atoi(retryAfter); err == nil {
+			perr.Err = NewRetriableError(perr.Err, time.Duration(seconds)*time.Second)
+		}
+		if exactTime, err := http.ParseTime(retryAfter); err == nil {
+			perr.Err = NewRetriableError(perr.Err, time.Until(exactTime))
 		}
 	}
 
@@ -162,14 +168,14 @@ func InactiveUserError(ctx context.Context, h platform.HTTPErrorHandler, w http.
 	}, w)
 }
 
-// RetryAfter returns count of seconds for an HTTP request to be retried. A zero value value indicates
+// RetryAfter returns duration for an HTTP request to be retried. A zero value value indicates
 // that retry is not possible, a negative value indicates that this information is not known.
 // Use with an error that is returned by CheckedError function.
-func RetryAfter(err error) int {
+func RetryAfter(err error) time.Duration {
 	if pErr, ok := err.(*platform.Error); ok {
 		return RetryAfter(pErr.Err)
 	}
-	if retryErr, ok := err.(RetryAfterError); ok {
+	if retryErr, ok := err.(RetriableError); ok {
 		return retryErr.RetryAfter()
 	}
 	return -1

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
@@ -105,7 +106,7 @@ func TestCheckError(t *testing.T) {
 			},
 			want: &influxdb.Error{
 				Code: influxdb.ETooManyRequests,
-				Err:  http.NewRetryAfterError(stderrors.New("Write Limit Exceeded"), 1),
+				Err:  http.NewRetriableError(stderrors.New("Write Limit Exceeded"), 1*time.Second),
 			},
 		},
 		{
@@ -117,13 +118,13 @@ func TestCheckError(t *testing.T) {
 			},
 			want: &influxdb.Error{
 				Code: influxdb.ETooManyRequests,
-				Err:  http.NewRetryAfterError(stderrors.New("Write Limit Exceeded"), 2),
+				Err:  http.NewRetriableError(stderrors.New("Write Limit Exceeded"), 2*time.Second),
 			},
 		},
 		{
 			name: "429 Retry-After unsupported value",
 			write: func(w *httptest.ResponseRecorder) {
-				w.Header().Set("Retry-After", "Sun, 06 Nov 2024 08:49:37 GMT")
+				w.Header().Set("Retry-After", "ee")
 				w.WriteHeader(429)
 				_, _ = io.WriteString(w, `{"error": "Write Limit Exceeded"}`)
 			},
@@ -141,7 +142,7 @@ func TestCheckError(t *testing.T) {
 			cmpopt := cmp.Transformer("error", func(e error) string {
 				if e, ok := e.(*influxdb.Error); ok {
 					out, _ := json.Marshal(e)
-					if e2, ok := e.Err.(http.RetryAfterError); ok {
+					if e2, ok := e.Err.(http.RetriableError); ok {
 						return fmt.Sprintf("%s; Retry-After: %v", string(out), e2.RetryAfter())
 					}
 					return string(out)
@@ -159,7 +160,7 @@ func TestRetryAfter(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		write func(w *httptest.ResponseRecorder)
-		want  int
+		want  time.Duration
 	}{
 		{
 			name: "429 Retry-After - server says don't retry",
@@ -177,16 +178,25 @@ func TestRetryAfter(t *testing.T) {
 				w.WriteHeader(429)
 				_, _ = io.WriteString(w, `{"error": "Write Limit Exceeded"}`)
 			},
-			want: 222,
+			want: 222 * time.Second,
 		},
 		{
 			name: "429 Retry-After - unsupported retry",
 			write: func(w *httptest.ResponseRecorder) {
-				w.Header().Set("Retry-After", "Sun, 06 Nov 2024 08:49:37 GMT")
+				w.Header().Set("Retry-After", "ee")
 				w.WriteHeader(429)
 				_, _ = io.WriteString(w, `{"error": "Write Limit Exceeded"}`)
 			},
 			want: -1,
+		},
+		{
+			name: "429 Retry-After - in the past",
+			write: func(w *httptest.ResponseRecorder) {
+				w.Header().Set("Retry-After", "Sun, 06 Oct 2019 08:49:37 GMT")
+				w.WriteHeader(429)
+				_, _ = io.WriteString(w, `{"error": "Write Limit Exceeded"}`)
+			},
+			want: 0,
 		},
 		{
 			name: "429 Retry-After - unknown retry",
@@ -220,9 +230,9 @@ func TestRetryAfter(t *testing.T) {
 }
 
 func TestNewRetryAfterError(t *testing.T) {
-	require.Equal(t, "test", http.NewRetryAfterError(stderrors.New("test"), 0).Error())
-	require.Equal(t, 1, http.NewRetryAfterError(stderrors.New("test"), 1).RetryAfter())
+	require.Equal(t, "test", http.NewRetriableError(stderrors.New("test"), 0).Error())
+	require.Equal(t, time.Duration(1), http.NewRetriableError(stderrors.New("test"), 1).RetryAfter())
 	t.Run("nil wrapped error prints empty string", func(t *testing.T) {
-		require.Equal(t, "", http.NewRetryAfterError(nil, 0).Error())
+		require.Equal(t, "", http.NewRetriableError(nil, 0).Error())
 	})
 }
