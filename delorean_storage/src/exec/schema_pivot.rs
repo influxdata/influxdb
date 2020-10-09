@@ -23,7 +23,6 @@ use std::{
     any::Any,
     fmt::{self, Debug},
     sync::Arc,
-    sync::Mutex,
 };
 
 use async_trait::async_trait;
@@ -188,10 +187,7 @@ impl ExecutionPlan for SchemaPivotExec {
     }
 
     /// Execute one partition and return an iterator over RecordBatch
-    async fn execute(
-        &self,
-        partition: usize,
-    ) -> Result<Arc<Mutex<dyn RecordBatchReader + Send + Sync>>> {
+    async fn execute(&self, partition: usize) -> Result<Box<dyn RecordBatchReader + Send>> {
         if 0 != partition {
             return Err(ExecutionError::General(format!(
                 "SchemaPivotExec invalid partition {}",
@@ -199,7 +195,7 @@ impl ExecutionPlan for SchemaPivotExec {
             )));
         }
 
-        let input_reader = self.input.execute(partition).await?;
+        let mut input_reader = self.input.execute(partition).await?;
 
         // Algorithm: for each column we haven't seen a value for yet,
         // check each input row;
@@ -216,11 +212,7 @@ impl ExecutionPlan for SchemaPivotExec {
         // use a loop so that we release the mutex once we have read each input_batch
         let mut keep_searching = true;
         while keep_searching {
-            let input_batch = input_reader
-                .lock()
-                .expect("locked input mutex")
-                .next()
-                .transpose()?;
+            let input_batch = input_reader.next().transpose()?;
 
             keep_searching = match input_batch {
                 Some(input_batch) => {
@@ -273,10 +265,7 @@ impl ExecutionPlan for SchemaPivotExec {
             RecordBatch::try_new(self.schema(), vec![Arc::new(column_name_builder.finish())])?;
 
         let batches = vec![Arc::new(batch)];
-        Ok(Arc::new(Mutex::new(RecordBatchIterator::new(
-            self.schema(),
-            batches,
-        ))))
+        Ok(Box::new(RecordBatchIterator::new(self.schema(), batches)))
     }
 }
 
@@ -426,9 +415,8 @@ mod tests {
     }
 
     /// Return a StringSet extracted from the record batch
-    fn reader_to_stringset(reader: Arc<Mutex<dyn RecordBatchReader>>) -> StringSetRef {
+    fn reader_to_stringset(mut reader: Box<dyn RecordBatchReader>) -> StringSetRef {
         let mut batches = Vec::new();
-        let mut reader = reader.lock().expect("locking record batch reader");
         // process the record batches one by one
         while let Some(record_batch) = reader.next().transpose().expect("reading next batch") {
             batches.push(record_batch)

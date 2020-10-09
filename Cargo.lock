@@ -78,7 +78,7 @@ checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 [[package]]
 name = "arrow"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=238a9497269f39ab4d5bf20c28c2431a1b4e6673#238a9497269f39ab4d5bf20c28c2431a1b4e6673"
+source = "git+https://github.com/apache/arrow.git?rev=599b458c68dfcba38fe5448913d4bb69723e1439#599b458c68dfcba38fe5448913d4bb69723e1439"
 dependencies = [
  "chrono",
  "csv",
@@ -647,9 +647,9 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=238a9497269f39ab4d5bf20c28c2431a1b4e6673#238a9497269f39ab4d5bf20c28c2431a1b4e6673"
+source = "git+https://github.com/apache/arrow.git?rev=599b458c68dfcba38fe5448913d4bb69723e1439#599b458c68dfcba38fe5448913d4bb69723e1439"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=238a9497269f39ab4d5bf20c28c2431a1b4e6673)",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=599b458c68dfcba38fe5448913d4bb69723e1439)",
  "async-trait",
  "chrono",
  "clap",
@@ -719,7 +719,7 @@ dependencies = [
 name = "delorean_arrow"
 version = "0.1.0"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=238a9497269f39ab4d5bf20c28c2431a1b4e6673)",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=599b458c68dfcba38fe5448913d4bb69723e1439)",
  "datafusion",
  "parquet",
 ]
@@ -2118,9 +2118,9 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=238a9497269f39ab4d5bf20c28c2431a1b4e6673#238a9497269f39ab4d5bf20c28c2431a1b4e6673"
+source = "git+https://github.com/apache/arrow.git?rev=599b458c68dfcba38fe5448913d4bb69723e1439#599b458c68dfcba38fe5448913d4bb69723e1439"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=238a9497269f39ab4d5bf20c28c2431a1b4e6673)",
+ "arrow 2.0.0-SNAPSHOT (git+https://github.com/apache/arrow.git?rev=599b458c68dfcba38fe5448913d4bb69723e1439)",
  "brotli",
  "byteorder",
  "chrono",
