@@ -631,6 +631,10 @@ mod test {
         v.values = vec![100, 110, 20, 1, 110];
 
         assert_eq!(v.min::<i64>(&[0, 1, 2, 3, 4]), 1);
+
+        // Test behaviour with non-real numbers - NaN is not the minimum
+        let v = Fixed::<f64>::from(vec![11.2, 3.32, std::f64::NAN, 34.9].as_slice());
+        assert!((v.min::<f64>(&[0, 1, 2, 3]) - 3.32).abs() < std::f64::EPSILON);
     }
 
     #[test]
@@ -639,6 +643,10 @@ mod test {
         v.values = vec![100, 110, 20, 1, 109];
 
         assert_eq!(v.max::<i64>(&[0, 1, 2, 3, 4]), 110);
+
+        // Test behaviour with non-real numbers - NaN should be the maximum.
+        let v = Fixed::<f64>::from(vec![11.2, 3.32, std::f64::NAN, 34.9].as_slice());
+        assert!(v.max::<f64>(&[0, 1, 2, 3]).is_nan());
     }
 
     #[test]
