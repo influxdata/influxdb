@@ -1,3 +1,17 @@
+//! An encoding for fixed width, nullable values backed by Arrow arrays.
+//!
+//! This encoding stores a column of fixed-width numerical values potentially
+//! using a smaller physical type in memory than the provided logical type.
+//!
+//! For example, if you have a column with 64-bit integers: [122, 232, 33, 0, -12]
+//! then you can reduce the space needed to store them, by converting them as a
+//! `Vec<i8>` instead of a `Vec<i64>`. In this case, this reduces the size of
+//! the column data by 87.5% and generally should increase throughput of
+//! operations on the column data.
+//!
+//! The encodings within this module do not concern themselves with choosing the
+//! appropriate physical type for a given logical type; that is the job of the
+//! consumer of these encodings.
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
