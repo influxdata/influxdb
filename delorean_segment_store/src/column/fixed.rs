@@ -50,7 +50,7 @@ where
         write!(
             f,
             "[Plain<T>] rows: {:?}, size: {}",
-            self.values.len(),
+            self.num_rows(),
             self.size()
         )
     }
@@ -432,6 +432,13 @@ where
     // `row_ids_cmp_order_bm` twice and predicates like `WHERE X > y and X <= x`
     // are very common, e.g., for timestamp columns.
     //
+    // The method accepts two orderings for each predicate. If the predicate is
+    // `x < y` then the orderings provided should be
+    // `(Ordering::Less, Ordering::Less)`. This does lead to a slight overhead
+    // in checking non-matching values, but it means that the predicate `x <= y`
+    // can be supported by providing the ordering
+    // `(Ordering::Less, Ordering::Equal)`.
+    //
     // For performance reasons ranges of matching values are collected up and
     // added in bulk to the bitmap.
     //
@@ -668,7 +675,7 @@ mod test {
         assert_eq!(bm.to_vec(), vec![6]);
 
         let bm = v.row_ids_filter(194, Operator::Equal, Bitmap::create());
-        assert_eq!(bm.to_vec(), Vec::<u32>::new());
+        assert!(bm.is_empty());
     }
 
     #[test]
@@ -710,7 +717,7 @@ mod test {
         assert_eq!(bm.to_vec(), vec![0, 2, 7, 9, 10, 11, 12]);
 
         let bm = v.row_ids_filter(2, Operator::LTE, Bitmap::create());
-        assert_eq!(bm.to_vec(), Vec::<u32>::new());
+        assert!(bm.is_empty());
     }
 
     #[test]
@@ -722,7 +729,7 @@ mod test {
         assert_eq!(bm.to_vec(), vec![1, 3, 4, 5, 6, 8]);
 
         let bm = v.row_ids_filter(2030, Operator::GT, Bitmap::create());
-        assert_eq!(bm.to_vec(), Vec::<u32>::new());
+        assert!(bm.is_empty());
     }
 
     #[test]
@@ -734,7 +741,7 @@ mod test {
         assert_eq!(bm.to_vec(), vec![0, 1, 2, 3, 4, 5, 6, 8, 12]);
 
         let bm = v.row_ids_filter(2031, Operator::GTE, Bitmap::create());
-        assert_eq!(bm.to_vec(), Vec::<u32>::new());
+        assert!(bm.is_empty());
     }
 
     #[test]
@@ -760,6 +767,6 @@ mod test {
             (3999, Operator::GT),
             Bitmap::create(),
         );
-        assert_eq!(bm.to_vec(), Vec::<u32>::new());
+        assert!(bm.is_empty());
     }
 }

@@ -157,9 +157,6 @@ where
 
     /// Returns the count of the non-null values for the provided
     /// row IDs.
-    ///
-    /// Since this encoding cannot have NULL values this is just the number of
-    /// rows requested.
     pub fn count(&self, row_ids: &[usize]) -> u64 {
         if self.arr.null_count() == 0 {
             return row_ids.len() as u64;
@@ -177,6 +174,12 @@ where
 
     /// Returns the summation of the non-null logical (decoded) values for the
     /// provided row IDs.
+    ///
+    /// TODO(edd): I have experimented with using the Arrow kernels for these
+    /// aggregations methods but they're currently significantly slower than this
+    /// implementation (about 85% in the `sum` case). We will revisit them in
+    /// the future as they do would the implementation of these aggregation
+    /// functions.
     pub fn sum(&self, row_ids: &[usize]) -> Option<T::Native>
     where
         T::Native: std::ops::Add<Output = T::Native>,

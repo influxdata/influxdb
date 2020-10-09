@@ -3,5 +3,3 @@
 .idea/
 .env
 *.tsm
-
-delorean_segment_store/src/bin/
