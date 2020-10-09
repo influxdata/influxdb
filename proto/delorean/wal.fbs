@@ -53,6 +53,21 @@ table Delete {
   stop_time: int64;
 }
 
+// ReplicatedWrite is what gets sent between Delorean servers and potentially
+// persisted up to object storage from the servers that receive it. The combination
+// of the writer, timestamp and checksum in this table can be used to deduplicate
+// replicated writes from other hosts.
+table ReplicatedWrite {
+  // writer is a unique identifier for the router that received this write
+  writer: uint8;
+  // timestamp is the nanosecond epoch when the writer received this write
+  timestamp: int64;
+  // checksu is a crc32 checksum of the payload
+  checksum: uint32;
+  // payload is the raw bytes of a WriteBufferBatch
+  payload: [byte];
+}
+
 table WriteBufferBatch {
   entries: [WriteBufferEntry];
 }

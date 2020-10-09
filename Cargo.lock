@@ -729,6 +729,7 @@ name = "delorean_cluster"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "delorean_generated_types",
  "delorean_line_parser",
  "delorean_storage",
  "delorean_wal",
