@@ -10,7 +10,7 @@ metadata:
 spec:
   name: task-0
   description: desc_0
-  every: 10m
+  every: 1d1h
   offset: 15s
   query:  >
     from(bucket: "rucket_1")

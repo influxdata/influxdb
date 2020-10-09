@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
+	"github.com/influxdata/influxdb/v2/task/options"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1837,7 +1838,12 @@ func (r Resource) boolShort(key string) bool {
 }
 
 func (r Resource) duration(key string) (time.Duration, bool) {
-	dur, err := time.ParseDuration(r.stringShort(key))
+	astDur, err := options.ParseSignedDuration(r.stringShort(key))
+	if err != nil {
+		return time.Duration(0), false
+	}
+
+	dur, err := ast.DurationFrom(astDur, time.Time{})
 	return dur, err == nil
 }
 
