@@ -168,6 +168,31 @@ impl<'a> ParsedLine<'a> {
     pub fn column_count(&self) -> usize {
         1 + self.field_set.len() + self.series.tag_set.as_ref().map_or(0, |t| t.len())
     }
+
+    /// Returns the value of the passed in tag, if present.
+    pub fn tag_value(&self, tag_key: &str) -> Option<&EscapedStr<'a>> {
+        match &self.series.tag_set {
+            Some(t) => {
+                let t = t.iter().find(|(k, _)| *k == tag_key);
+
+                match t {
+                    Some((_, val)) => Some(val),
+                    None => None,
+                }
+            }
+            None => None,
+        }
+    }
+
+    /// Returns the value of the passed in field, if present.
+    pub fn field_value(&self, field_key: &str) -> Option<&FieldValue<'a>> {
+        let f = self.field_set.iter().find(|(f, _)| *f == field_key);
+
+        match f {
+            Some((_, val)) => Some(val),
+            None => None,
+        }
+    }
 }
 
 /// Converts from a ParsedLine back to (canonical) LineProtocol
@@ -2032,6 +2057,42 @@ her"#,
             parsed_line.to_string(),
             r#"m\,and\ m,tag\ \,1=val\ \,1 field\ \,1=Foo\"Bar 33"#
         );
+        Ok(())
+    }
+
+    #[test]
+    fn field_value_returned() -> Result {
+        let input = r#"foo asdf=true 1234"#;
+        let vals = parse(input)?;
+
+        assert!(vals[0].field_value("asdf").unwrap().unwrap_bool());
+        Ok(())
+    }
+
+    #[test]
+    fn field_value_missing() -> Result {
+        let input = r#"foo asdf=true 1234"#;
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].field_value("jkl"), None);
+        Ok(())
+    }
+
+    #[test]
+    fn tag_value_returned() -> Result {
+        let input = r#"foo,test=stuff asdf=true 1234"#;
+        let vals = parse(input)?;
+
+        assert_eq!(*vals[0].tag_value("test").unwrap(), "stuff");
+        Ok(())
+    }
+
+    #[test]
+    fn tag_value_missing() -> Result {
+        let input = r#"foo,test=stuff asdf=true 1234"#;
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].tag_value("asdf"), None);
         Ok(())
     }
 }

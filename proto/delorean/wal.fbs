@@ -60,9 +60,9 @@ table Delete {
 table ReplicatedWrite {
   // writer is a unique identifier for the router that received this write
   writer: uint8;
-  // timestamp is the nanosecond epoch when the writer received this write
+  // sequence is number this write comes in. This resets on restart of the writer
   timestamp: int64;
-  // checksu is a crc32 checksum of the payload
+  // checksum is a crc32 checksum of the payload
   checksum: uint32;
   // payload is the raw bytes of a WriteBufferBatch
   payload: [byte];

@@ -729,10 +729,11 @@ name = "delorean_cluster"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "delorean_generated_types",
  "delorean_line_parser",
  "delorean_storage",
- "delorean_wal",
+ "delorean_write_buffer",
  "serde",
  "serde_json",
  "snafu",
