@@ -158,9 +158,6 @@ func TestService_SetPassword(t *testing.T) {
 										}
 										return nil, kv.ErrKeyNotFound
 									},
-									PutFn: func(key, val []byte) error {
-										return nil
-									},
 								}, nil
 							},
 						}
@@ -192,9 +189,6 @@ func TestService_SetPassword(t *testing.T) {
 											return []byte(`{"id": "0000000000000001", "name": "user1"}`), nil
 										}
 										return nil, kv.ErrKeyNotFound
-									},
-									PutFn: func(key, val []byte) error {
-										return nil
 									},
 								}, nil
 							},
@@ -230,9 +224,6 @@ func TestService_SetPassword(t *testing.T) {
 											return []byte(`{"id": "0000000000000001", "name": "user1"}`), nil
 										}
 										return nil, kv.ErrKeyNotFound
-									},
-									PutFn: func(key, val []byte) error {
-										return nil
 									},
 								}, nil
 							},

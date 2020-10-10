@@ -124,15 +124,19 @@ func (s *Service) OnboardInitialUser(ctx context.Context, req *influxdb.Onboardi
 		Token:       req.Token,
 	}
 
+	var passwordHash []byte
+	passwordHash, err = s.generatePasswordHash(req.Password)
+	if err != nil {
+		return nil, err
+	}
+
 	err = s.kv.Update(ctx, func(tx Tx) error {
 		if err := s.createUser(ctx, tx, u); err != nil {
 			return err
 		}
 
-		if req.Password != "" {
-			if err := s.setPassword(ctx, tx, u.ID, req.Password); err != nil {
-				return err
-			}
+		if err := s.setPasswordHashTx(ctx, tx, u.ID, passwordHash); err != nil {
+			return err
 		}
 
 		if err := s.createOrganization(ctx, tx, o); err != nil {
