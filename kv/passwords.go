@@ -75,34 +75,88 @@ var _ influxdb.PasswordsService = (*Service)(nil)
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
 func (s *Service) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old string, new string) error {
-	return s.kv.Update(ctx, func(tx Tx) error {
-		if err := s.comparePassword(ctx, tx, userID, old); err != nil {
-			return err
-		}
-		return s.setPassword(ctx, tx, userID, new)
-	})
+	newHash, err := s.generatePasswordHash(new)
+	if err != nil {
+		return err
+	}
+
+	if err := s.compareUserPassword(ctx, userID, old); err != nil {
+		return err
+	}
+
+	return s.setPasswordHash(ctx, userID, newHash)
 }
 
 // SetPassword overrides the password of a known user.
 func (s *Service) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
-	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.setPassword(ctx, tx, userID, password)
-	})
+	hash, err := s.generatePasswordHash(password)
+	if err != nil {
+		return err
+	}
+
+	return s.setPasswordHash(ctx, userID, hash)
 }
 
 // ComparePassword checks if the password matches the password recorded.
 // Passwords that do not match return errors.
 func (s *Service) ComparePassword(ctx context.Context, userID influxdb.ID, password string) error {
-	return s.kv.View(ctx, func(tx Tx) error {
-		return s.comparePassword(ctx, tx, userID, password)
+	return s.compareUserPassword(ctx, userID, password)
+}
+
+func (s *Service) getPasswordHash(ctx context.Context, userID influxdb.ID) ([]byte, error) {
+	var passwordHash []byte
+	err := s.kv.View(ctx, func(tx Tx) error {
+		var err error
+		encodedID, err := userID.Encode()
+		if err != nil {
+			return CorruptUserIDError(userID.String(), err)
+		}
+
+		if _, err := s.findUserByID(ctx, tx, userID); err != nil {
+			return EIncorrectUser
+		}
+
+		b, err := tx.Bucket(userpasswordBucket)
+		if err != nil {
+			return UnavailablePasswordServiceError(err)
+		}
+
+		passwordHash, err = b.Get(encodedID)
+		if err != nil {
+			return EIncorrectPassword
+		}
+
+		return nil
+	})
+
+	return passwordHash, err
+}
+
+func (s *Service) compareUserPassword(ctx context.Context, userID influxdb.ID, password string) error {
+	passwordHash, err := s.getPasswordHash(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	hasher := s.Hash
+	if hasher == nil {
+		hasher = &Bcrypt{}
+	}
+
+	if err := hasher.CompareHashAndPassword(passwordHash, []byte(password)); err != nil {
+		return EIncorrectPassword
+	}
+
+	return nil
+}
+
+func (s *Service) setPasswordHash(ctx context.Context, userID influxdb.ID, hash []byte) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
+		return s.setPasswordHashTx(ctx, tx, userID, hash)
 	})
 }
 
-func (s *Service) setPassword(ctx context.Context, tx Tx, userID influxdb.ID, password string) error {
-	if len(password) < MinPasswordLength {
-		return EShortPassword
-	}
-
+func (s *Service) setPasswordHashTx(ctx context.Context, tx Tx, userID influxdb.ID, hash []byte) error {
 	encodedID, err := userID.Encode()
 	if err != nil {
 		return CorruptUserIDError(userID.String(), err)
@@ -115,55 +169,29 @@ func (s *Service) setPassword(ctx context.Context, tx Tx, userID influxdb.ID, pa
 	b, err := tx.Bucket(userpasswordBucket)
 	if err != nil {
 		return UnavailablePasswordServiceError(err)
-	}
-
-	hasher := s.Hash
-	if hasher == nil {
-		hasher = &Bcrypt{}
-	}
-
-	hash, err := hasher.GenerateFromPassword([]byte(password), DefaultCost)
-	if err != nil {
-		return InternalPasswordHashError(err)
 	}
 
 	if err := b.Put(encodedID, hash); err != nil {
 		return UnavailablePasswordServiceError(err)
 	}
+
 	return nil
 }
 
-func (s *Service) comparePassword(ctx context.Context, tx Tx, userID influxdb.ID, password string) error {
-	encodedID, err := userID.Encode()
-	if err != nil {
-		return CorruptUserIDError(userID.String(), err)
-	}
-
-	if _, err := s.findUserByID(ctx, tx, userID); err != nil {
-		return EIncorrectUser
-	}
-
-	b, err := tx.Bucket(userpasswordBucket)
-	if err != nil {
-		return UnavailablePasswordServiceError(err)
-	}
-
-	hash, err := b.Get(encodedID)
-	if err != nil {
-		// User exists but has no password has been set.
-		return EIncorrectPassword
+func (s *Service) generatePasswordHash(password string) ([]byte, error) {
+	if len(password) < MinPasswordLength {
+		return nil, EShortPassword
 	}
 
 	hasher := s.Hash
 	if hasher == nil {
 		hasher = &Bcrypt{}
 	}
-
-	if err := hasher.CompareHashAndPassword(hash, []byte(password)); err != nil {
-		// User exists but the password was incorrect
-		return EIncorrectPassword
+	hash, err := hasher.GenerateFromPassword([]byte(password), DefaultCost)
+	if err != nil {
+		return nil, InternalPasswordHashError(err)
 	}
-	return nil
+	return hash, nil
 }
 
 // DefaultCost is the cost that will actually be set if a cost below MinCost
