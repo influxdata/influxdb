@@ -2,6 +2,7 @@ package write
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -295,8 +296,11 @@ func TestBatcher_write(t *testing.T) {
 				MaxFlushInterval: tt.fields.MaxFlushInterval,
 				Service:          svc,
 			}
+			writeFn := func(batch []byte) error {
+				return svc.Write(ctx, tt.args.org, tt.args.bucket, bytes.NewReader(batch))
+			}
 
-			go b.write(ctx, tt.args.org, tt.args.bucket, tt.args.lines, tt.args.errC)
+			go b.write(ctx, writeFn, tt.args.lines, tt.args.errC)
 
 			if cancel != nil {
 				cancel()
@@ -325,6 +329,17 @@ func TestBatcher_write(t *testing.T) {
 }
 
 func TestBatcher_Write(t *testing.T) {
+	createReader := func(data string) func() io.Reader {
+		if data == "error" {
+			return func() io.Reader {
+				return &errorReader{}
+			}
+		}
+		return func() io.Reader {
+			return strings.NewReader(data)
+		}
+	}
+
 	type fields struct {
 		MaxFlushBytes    int
 		MaxFlushInterval time.Duration
@@ -333,7 +348,7 @@ func TestBatcher_Write(t *testing.T) {
 		writeError bool
 		org        platform.ID
 		bucket     platform.ID
-		r          io.Reader
+		r          func() io.Reader
 	}
 	tests := []struct {
 		name        string
@@ -351,7 +366,7 @@ func TestBatcher_Write(t *testing.T) {
 			args: args{
 				org:    platform.ID(1),
 				bucket: platform.ID(2),
-				r:      strings.NewReader("m1,t1=v1 f1=1"),
+				r:      createReader("m1,t1=v1 f1=1"),
 			},
 			want:        "m1,t1=v1 f1=1",
 			wantFlushes: 1,
@@ -364,7 +379,7 @@ func TestBatcher_Write(t *testing.T) {
 			args: args{
 				org:    platform.ID(1),
 				bucket: platform.ID(2),
-				r:      strings.NewReader("m1,t1=v1 f1=1\nm2,t2=v2 f2=2\nm3,t3=v3 f3=3"),
+				r:      createReader("m1,t1=v1 f1=1\nm2,t2=v2 f2=2\nm3,t3=v3 f3=3"),
 			},
 			want:        "m3,t3=v3 f3=3",
 			wantFlushes: 3,
@@ -375,7 +390,7 @@ func TestBatcher_Write(t *testing.T) {
 			args: args{
 				org:    platform.ID(1),
 				bucket: platform.ID(2),
-				r:      &errorReader{},
+				r:      createReader("error"),
 			},
 			wantErr: true,
 		},
@@ -407,7 +422,46 @@ func TestBatcher_Write(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			if err := b.Write(ctx, tt.args.org, tt.args.bucket, tt.args.r); (err != nil) != tt.wantErr {
+			if err := b.Write(ctx, tt.args.org, tt.args.bucket, tt.args.r()); (err != nil) != tt.wantErr {
+				t.Errorf("Batcher.Write() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if gotFlushes != tt.wantFlushes {
+				t.Errorf("%q. Batcher.Write() flushes %d want %d", tt.name, gotFlushes, tt.wantFlushes)
+			}
+			if !cmp.Equal(got, tt.want) {
+				t.Errorf("%q. Batcher.Write() = -got/+want %s", tt.name, cmp.Diff(got, tt.want))
+			}
+		})
+		// test the same data, but now with WriteTo function
+		t.Run("WriteTo_"+tt.name, func(t *testing.T) {
+			// mocking the write service here to either return an error
+			// or get back all the bytes from the reader.
+			var (
+				got        string
+				gotFlushes int
+			)
+			svc := &mock.WriteService{
+				WriteToF: func(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
+					if tt.args.writeError {
+						return fmt.Errorf("error")
+					}
+					b, err := ioutil.ReadAll(r)
+					got = string(b)
+					gotFlushes++
+					return err
+				},
+			}
+
+			b := &Batcher{
+				MaxFlushBytes:    tt.fields.MaxFlushBytes,
+				MaxFlushInterval: tt.fields.MaxFlushInterval,
+				Service:          svc,
+			}
+
+			ctx := context.Background()
+			bucketFilter := platform.BucketFilter{ID: &tt.args.bucket, OrganizationID: &tt.args.org}
+			if err := b.WriteTo(ctx, bucketFilter, tt.args.r()); (err != nil) != tt.wantErr {
 				t.Errorf("Batcher.Write() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
