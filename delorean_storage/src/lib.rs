@@ -8,6 +8,7 @@
 
 use async_trait::async_trait;
 use delorean_arrow::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
+use delorean_data_types::data::ReplicatedWrite;
 use delorean_line_parser::ParsedLine;
 use exec::StringSetPlan;
 
@@ -59,6 +60,9 @@ pub trait Database: Debug + Send + Sync {
 
     /// writes parsed lines into this database
     async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error>;
+
+    /// Stores the replicated write in the write buffer and, if enabled, the write ahead log.
+    async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
 
     /// Execute the specified query and return arrow record batches with the result
     async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error>;

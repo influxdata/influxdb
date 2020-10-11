@@ -22,11 +22,10 @@ use delorean_arrow::{
         datasource::MemTable, error::ExecutionError, execution::context::ExecutionContext,
     },
 };
+use delorean_data_types::data::{split_lines_into_write_entry_partitions, ReplicatedWrite};
 
 use crate::dictionary::Error as DictionaryError;
 use crate::partition::restore_partitions_from_wal;
-
-use crate::wal::split_lines_into_write_entry_partitions;
 
 use async_trait::async_trait;
 use chrono::{offset::TimeZone, Utc};
@@ -188,6 +187,9 @@ pub enum Error {
 
     #[snafu(display("query error {} on query {}", message, query))]
     GenericQueryError { message: String, query: String },
+
+    #[snafu(display("replicated write from writer {} missing payload", writer))]
+    MissingPayload { writer: u8 },
 }
 
 impl From<crate::table::Error> for Error {
@@ -297,21 +299,11 @@ impl Db {
             wal_details: Some(wal_details),
         })
     }
-}
 
-#[async_trait]
-impl Database for Db {
-    type Error = Error;
-
-    // TODO: writes lines creates a column named "time" for the timestmap data. If
-    //       we keep this we need to validate that no tag or field has the same name.
-    async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
-        let mut partitions = self.partitions.write().await;
-
-        let data = split_lines_into_write_entry_partitions(partition_key, lines);
-        let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&data);
-
+    async fn write_entries_to_partitions(&self, batch: &wb::WriteBufferBatch<'_>) -> Result<()> {
         if let Some(entries) = batch.entries() {
+            let mut partitions = self.partitions.write().await;
+
             for entry in entries {
                 let key = entry
                     .partition_key()
@@ -328,10 +320,50 @@ impl Database for Db {
             }
         }
 
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl Database for Db {
+    type Error = Error;
+
+    // TODO: writes lines creates a column named "time" for the timestmap data. If
+    //       we keep this we need to validate that no tag or field has the same name.
+    async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
+        let data = split_lines_into_write_entry_partitions(partition_key, lines);
+        let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&data);
+
+        self.write_entries_to_partitions(&batch).await?;
+
         if let Some(wal) = &self.wal_details {
             wal.write_and_sync(data).await.context(WritingWal {
                 database: self.name.clone(),
             })?;
+        }
+
+        Ok(())
+    }
+
+    async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
+        match write.write_buffer_batch() {
+            Some(b) => self.write_entries_to_partitions(&b).await?,
+            None => {
+                return MissingPayload {
+                    writer: write.to_fb().writer(),
+                }
+                .fail()
+            }
+        };
+
+        if let Some(wal) = &self.wal_details {
+            // TODO(paul): refactor this so we're not cloning. Although replicated writes shouldn't
+            //  be using a WAL and how the WAL is used at all is likely to have a larger refactor soon.
+            wal.write_and_sync(write.data.clone())
+                .await
+                .context(WritingWal {
+                    database: self.name.clone(),
+                })?;
         }
 
         Ok(())

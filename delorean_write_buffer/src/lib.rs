@@ -14,7 +14,6 @@ mod dictionary;
 mod partition;
 mod store;
 mod table;
-mod wal;
 
 // Allow restore partitions to be used outside of this crate (for
 // benchmarking)

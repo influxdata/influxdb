@@ -729,15 +729,29 @@ name = "delorean_cluster"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "chrono",
+ "delorean_data_types",
  "delorean_generated_types",
  "delorean_line_parser",
  "delorean_storage",
  "delorean_write_buffer",
- "serde",
  "serde_json",
  "snafu",
  "tokio",
+]
+
+[[package]]
+name = "delorean_data_types"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "crc32fast",
+ "delorean_generated_types",
+ "delorean_line_parser",
+ "flatbuffers",
+ "serde",
+ "serde_json",
+ "snafu",
 ]
 
 [[package]]
@@ -867,6 +881,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "delorean_arrow",
+ "delorean_data_types",
  "delorean_line_parser",
  "serde",
  "serde_urlencoded 0.6.1",
@@ -960,6 +975,7 @@ dependencies = [
  "chrono",
  "criterion",
  "delorean_arrow",
+ "delorean_data_types",
  "delorean_generated_types",
  "delorean_line_parser",
  "delorean_storage",

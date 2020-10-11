@@ -3,14 +3,13 @@ use delorean_generated_types::wal as wb;
 use delorean_wal::{Entry as WalEntry, Result as WalResult};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use delorean_data_types::TIME_COLUMN_NAME;
 use delorean_storage::TimestampRange;
 
 use crate::dictionary::Dictionary;
 use crate::table::{Table, TimestampPredicate};
 
 use snafu::{OptionExt, ResultExt, Snafu};
-
-pub const TIME_COLUMN_NAME: &str = "time";
 
 #[derive(Debug, Snafu)]
 pub enum Error {

@@ -15,3 +15,4 @@ serde_urlencoded = "0.6.1"
 tracing = "0.1"
 delorean_arrow = { path = "../delorean_arrow" }
 delorean_line_parser = { path = "../delorean_line_parser" }
+delorean_data_types = { path = "../delorean_data_types" }
