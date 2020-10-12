@@ -484,7 +484,7 @@ func taskRunFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&taskRunFindFlags.runID, "run-id", "", "", "run id")
 	cmd.Flags().StringVarP(&taskRunFindFlags.afterTime, "after", "", "", "after time for filtering")
 	cmd.Flags().StringVarP(&taskRunFindFlags.beforeTime, "before", "", "", "before time for filtering")
-	cmd.Flags().IntVarP(&taskRunFindFlags.limit, "limit", "", 0, "limit the results")
+	cmd.Flags().IntVarP(&taskRunFindFlags.limit, "limit", "", 100, "limit the results; default is 100")
 
 	cmd.MarkFlagRequired("task-id")
 
