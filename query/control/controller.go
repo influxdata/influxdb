@@ -211,7 +211,7 @@ func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query,
 	}
 	// Add per-transformation spans if the feature flag is set.
 	if feature.QueryTracing().Enabled(ctx) {
-		ctx = flux.WithExperimentalTracingEnabled(ctx)
+		ctx = flux.WithQueryTracingEnabled(ctx)
 	}
 	q, err := c.query(ctx, req.Compiler)
 	if err != nil {

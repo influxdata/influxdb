@@ -753,7 +753,7 @@ from(bucket: "%s")
 	}
 }
 
-type TestQueryProfiler struct{
+type TestQueryProfiler struct {
 	start int64
 }
 
@@ -777,62 +777,62 @@ func (s TestQueryProfiler) GetResult(q flux.Query, alloc *memory.Allocator) (flu
 	colMeta := []flux.ColMeta{
 		{
 			Label: "_measurement",
-			Type: flux.TString,
+			Type:  flux.TString,
 		},
 		{
 			Label: "TotalDuration",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "CompileDuration",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "QueueDuration",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "PlanDuration",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "RequeueDuration",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "ExecuteDuration",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "Concurrency",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "MaxAllocated",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "TotalAllocated",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "RuntimeErrors",
-			Type: flux.TString,
+			Type:  flux.TString,
 		},
 		{
 			Label: "influxdb/scanned-bytes",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "influxdb/scanned-values",
-			Type: flux.TInt,
+			Type:  flux.TInt,
 		},
 		{
 			Label: "flux/query-plan",
-			Type: flux.TString,
+			Type:  flux.TString,
 		},
 	}
-	colData := []interface{} {
+	colData := []interface{}{
 		fmt.Sprintf("profiler/query%d", s.start),
 		s.start,
 		s.start + 1,
@@ -865,6 +865,14 @@ func (s TestQueryProfiler) GetResult(q flux.Query, alloc *memory.Allocator) (flu
 		return nil, err
 	}
 	return tbl, nil
+}
+
+func NewTestQueryProfiler0() execute.Profiler {
+	return &TestQueryProfiler{start: 0}
+}
+
+func NewTestQueryProfiler100() execute.Profiler {
+	return &TestQueryProfiler{start: 100}
 }
 
 func TestFluxProfiler(t *testing.T) {
@@ -903,7 +911,7 @@ error2","query plan",109,110
 `,
 		},
 	}
-	execute.RegisterProfilers(&TestQueryProfiler{}, &TestQueryProfiler{start: 100})
+	execute.RegisterProfilerFactories(NewTestQueryProfiler0, NewTestQueryProfiler100)
 	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

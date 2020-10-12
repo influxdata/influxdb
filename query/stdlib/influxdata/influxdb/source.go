@@ -30,6 +30,7 @@ type runner interface {
 }
 
 type Source struct {
+	execute.ExecutionNode
 	id execute.DatasetID
 	ts []execute.Transformation
 
@@ -47,7 +48,7 @@ func (s *Source) Run(ctx context.Context) {
 	labelValues := s.m.getLabelValues(ctx, s.orgID, s.op)
 	start := time.Now()
 	var err error
-	if flux.IsExperimentalTracingEnabled(ctx) {
+	if flux.IsQueryTracingEnabled(ctx) {
 		span, ctxWithSpan := tracing.StartSpanFromContextWithOperationName(ctx, "source-"+s.op)
 		err = s.runner.run(ctxWithSpan)
 		span.Finish()
