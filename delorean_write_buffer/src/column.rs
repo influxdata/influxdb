@@ -2,7 +2,7 @@ use delorean_generated_types::wal as wb;
 use delorean_line_parser::FieldValue;
 use snafu::Snafu;
 
-use crate::wal::type_description;
+use delorean_data_types::data::type_description;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
