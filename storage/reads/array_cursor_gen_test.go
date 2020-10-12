@@ -100,7 +100,6 @@ func TestNewWindowAggregateArrayCursor_Float(t *testing.T) {
 			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
 		}
 	})
-
 }
 
 type MockIntegerArrayCursor struct {
@@ -185,7 +184,6 @@ func TestNewWindowAggregateArrayCursor_Integer(t *testing.T) {
 			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
 		}
 	})
-
 }
 
 type MockUnsignedArrayCursor struct {
@@ -270,5 +268,4 @@ func TestNewWindowAggregateArrayCursor_Unsigned(t *testing.T) {
 			t.Fatalf("did not get expected cursor; -got/+want:\n%v", diff)
 		}
 	})
-
 }

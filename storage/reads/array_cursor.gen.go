@@ -114,6 +114,80 @@ LOOP:
 	return c.res
 }
 
+type floatArrayCursor struct {
+	cursors.FloatArrayCursor
+	cursorContext
+	filter *floatArrayFilterCursor
+}
+
+func (c *floatArrayCursor) reset(cur cursors.FloatArrayCursor, cursorIterators cursors.CursorIterators, cond expression) {
+	if cond != nil {
+		if c.filter == nil {
+			c.filter = newFloatFilterArrayCursor(cond)
+		}
+		c.filter.reset(cur)
+		cur = c.filter
+	}
+
+	c.FloatArrayCursor = cur
+	c.itrs = cursorIterators
+	c.err = nil
+}
+
+func (c *floatArrayCursor) Err() error { return c.err }
+
+func (c *floatArrayCursor) Stats() cursors.CursorStats {
+	return c.FloatArrayCursor.Stats()
+}
+
+func (c *floatArrayCursor) Next() *cursors.FloatArray {
+	for {
+		a := c.FloatArrayCursor.Next()
+		if a.Len() == 0 {
+			if c.nextArrayCursor() {
+				continue
+			}
+		}
+		return a
+	}
+}
+
+func (c *floatArrayCursor) nextArrayCursor() bool {
+	if len(c.itrs) < 1 {
+		return false
+	}
+
+	c.FloatArrayCursor.Close()
+
+	var itr cursors.CursorIterator
+	var cur cursors.Cursor
+	itr, c.itrs = c.itrs[0], c.itrs[1:]
+	cur, _ = itr.Next(c.ctx, c.req)
+
+	itr = nil
+
+	var ok bool
+	if cur != nil {
+		var next cursors.FloatArrayCursor
+		next, ok = cur.(cursors.FloatArrayCursor)
+		if !ok {
+			cur.Close()
+			next = FloatEmptyArrayCursor
+			itr = nil
+			c.err = errors.New("expected float cursor")
+		} else {
+			if c.filter != nil {
+				c.filter.reset(next)
+				next = c.filter
+			}
+		}
+		c.FloatArrayCursor = next
+	} else {
+		c.FloatArrayCursor = FloatEmptyArrayCursor
+	}
+	return ok
+}
+
 type floatMultiShardArrayCursor struct {
 	cursors.FloatArrayCursor
 	cursorContext
@@ -170,10 +244,8 @@ func (c *floatMultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	itr, c.itrs = c.itrs[0], c.itrs[1:]
+	cur, _ = itr.Next(c.ctx, c.req)
 
 	var ok bool
 	if cur != nil {
@@ -182,7 +254,6 @@ func (c *floatMultiShardArrayCursor) nextArrayCursor() bool {
 		if !ok {
 			cur.Close()
 			next = FloatEmptyArrayCursor
-			c.itrs = nil
 			c.err = errors.New("expected float cursor")
 		} else {
 			if c.filter != nil {
@@ -238,15 +309,15 @@ func (c floatArraySumCursor) Next() *cursors.FloatArray {
 	}
 }
 
-type integerFloatCountArrayCursor struct {
+type FloatCountArrayCursor struct {
 	cursors.FloatArrayCursor
 }
 
-func (c *integerFloatCountArrayCursor) Stats() cursors.CursorStats {
+func (c *FloatCountArrayCursor) Stats() cursors.CursorStats {
 	return c.FloatArrayCursor.Stats()
 }
 
-func (c *integerFloatCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *FloatCountArrayCursor) Next() *cursors.IntegerArray {
 	a := c.FloatArrayCursor.Next()
 	if len(a.Timestamps) == 0 {
 		return &cursors.IntegerArray{}
@@ -461,6 +532,80 @@ LOOP:
 	return c.res
 }
 
+type integerArrayCursor struct {
+	cursors.IntegerArrayCursor
+	cursorContext
+	filter *integerArrayFilterCursor
+}
+
+func (c *integerArrayCursor) reset(cur cursors.IntegerArrayCursor, cursorIterators cursors.CursorIterators, cond expression) {
+	if cond != nil {
+		if c.filter == nil {
+			c.filter = newIntegerFilterArrayCursor(cond)
+		}
+		c.filter.reset(cur)
+		cur = c.filter
+	}
+
+	c.IntegerArrayCursor = cur
+	c.itrs = cursorIterators
+	c.err = nil
+}
+
+func (c *integerArrayCursor) Err() error { return c.err }
+
+func (c *integerArrayCursor) Stats() cursors.CursorStats {
+	return c.IntegerArrayCursor.Stats()
+}
+
+func (c *integerArrayCursor) Next() *cursors.IntegerArray {
+	for {
+		a := c.IntegerArrayCursor.Next()
+		if a.Len() == 0 {
+			if c.nextArrayCursor() {
+				continue
+			}
+		}
+		return a
+	}
+}
+
+func (c *integerArrayCursor) nextArrayCursor() bool {
+	if len(c.itrs) < 1 {
+		return false
+	}
+
+	c.IntegerArrayCursor.Close()
+
+	var itr cursors.CursorIterator
+	var cur cursors.Cursor
+	itr, c.itrs = c.itrs[0], c.itrs[1:]
+	cur, _ = itr.Next(c.ctx, c.req)
+
+	itr = nil
+
+	var ok bool
+	if cur != nil {
+		var next cursors.IntegerArrayCursor
+		next, ok = cur.(cursors.IntegerArrayCursor)
+		if !ok {
+			cur.Close()
+			next = IntegerEmptyArrayCursor
+			itr = nil
+			c.err = errors.New("expected integer cursor")
+		} else {
+			if c.filter != nil {
+				c.filter.reset(next)
+				next = c.filter
+			}
+		}
+		c.IntegerArrayCursor = next
+	} else {
+		c.IntegerArrayCursor = IntegerEmptyArrayCursor
+	}
+	return ok
+}
+
 type integerMultiShardArrayCursor struct {
 	cursors.IntegerArrayCursor
 	cursorContext
@@ -517,10 +662,8 @@ func (c *integerMultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	itr, c.itrs = c.itrs[0], c.itrs[1:]
+	cur, _ = itr.Next(c.ctx, c.req)
 
 	var ok bool
 	if cur != nil {
@@ -529,7 +672,6 @@ func (c *integerMultiShardArrayCursor) nextArrayCursor() bool {
 		if !ok {
 			cur.Close()
 			next = IntegerEmptyArrayCursor
-			c.itrs = nil
 			c.err = errors.New("expected integer cursor")
 		} else {
 			if c.filter != nil {
@@ -585,15 +727,15 @@ func (c integerArraySumCursor) Next() *cursors.IntegerArray {
 	}
 }
 
-type integerIntegerCountArrayCursor struct {
+type IntegerCountArrayCursor struct {
 	cursors.IntegerArrayCursor
 }
 
-func (c *integerIntegerCountArrayCursor) Stats() cursors.CursorStats {
+func (c *IntegerCountArrayCursor) Stats() cursors.CursorStats {
 	return c.IntegerArrayCursor.Stats()
 }
 
-func (c *integerIntegerCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *IntegerCountArrayCursor) Next() *cursors.IntegerArray {
 	a := c.IntegerArrayCursor.Next()
 	if len(a.Timestamps) == 0 {
 		return &cursors.IntegerArray{}
@@ -808,6 +950,80 @@ LOOP:
 	return c.res
 }
 
+type unsignedArrayCursor struct {
+	cursors.UnsignedArrayCursor
+	cursorContext
+	filter *unsignedArrayFilterCursor
+}
+
+func (c *unsignedArrayCursor) reset(cur cursors.UnsignedArrayCursor, cursorIterators cursors.CursorIterators, cond expression) {
+	if cond != nil {
+		if c.filter == nil {
+			c.filter = newUnsignedFilterArrayCursor(cond)
+		}
+		c.filter.reset(cur)
+		cur = c.filter
+	}
+
+	c.UnsignedArrayCursor = cur
+	c.itrs = cursorIterators
+	c.err = nil
+}
+
+func (c *unsignedArrayCursor) Err() error { return c.err }
+
+func (c *unsignedArrayCursor) Stats() cursors.CursorStats {
+	return c.UnsignedArrayCursor.Stats()
+}
+
+func (c *unsignedArrayCursor) Next() *cursors.UnsignedArray {
+	for {
+		a := c.UnsignedArrayCursor.Next()
+		if a.Len() == 0 {
+			if c.nextArrayCursor() {
+				continue
+			}
+		}
+		return a
+	}
+}
+
+func (c *unsignedArrayCursor) nextArrayCursor() bool {
+	if len(c.itrs) < 1 {
+		return false
+	}
+
+	c.UnsignedArrayCursor.Close()
+
+	var itr cursors.CursorIterator
+	var cur cursors.Cursor
+	itr, c.itrs = c.itrs[0], c.itrs[1:]
+	cur, _ = itr.Next(c.ctx, c.req)
+
+	itr = nil
+
+	var ok bool
+	if cur != nil {
+		var next cursors.UnsignedArrayCursor
+		next, ok = cur.(cursors.UnsignedArrayCursor)
+		if !ok {
+			cur.Close()
+			next = UnsignedEmptyArrayCursor
+			itr = nil
+			c.err = errors.New("expected unsigned cursor")
+		} else {
+			if c.filter != nil {
+				c.filter.reset(next)
+				next = c.filter
+			}
+		}
+		c.UnsignedArrayCursor = next
+	} else {
+		c.UnsignedArrayCursor = UnsignedEmptyArrayCursor
+	}
+	return ok
+}
+
 type unsignedMultiShardArrayCursor struct {
 	cursors.UnsignedArrayCursor
 	cursorContext
@@ -864,10 +1080,8 @@ func (c *unsignedMultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	itr, c.itrs = c.itrs[0], c.itrs[1:]
+	cur, _ = itr.Next(c.ctx, c.req)
 
 	var ok bool
 	if cur != nil {
@@ -876,7 +1090,6 @@ func (c *unsignedMultiShardArrayCursor) nextArrayCursor() bool {
 		if !ok {
 			cur.Close()
 			next = UnsignedEmptyArrayCursor
-			c.itrs = nil
 			c.err = errors.New("expected unsigned cursor")
 		} else {
 			if c.filter != nil {
@@ -932,15 +1145,15 @@ func (c unsignedArraySumCursor) Next() *cursors.UnsignedArray {
 	}
 }
 
-type integerUnsignedCountArrayCursor struct {
+type UnsignedCountArrayCursor struct {
 	cursors.UnsignedArrayCursor
 }
 
-func (c *integerUnsignedCountArrayCursor) Stats() cursors.CursorStats {
+func (c *UnsignedCountArrayCursor) Stats() cursors.CursorStats {
 	return c.UnsignedArrayCursor.Stats()
 }
 
-func (c *integerUnsignedCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *UnsignedCountArrayCursor) Next() *cursors.IntegerArray {
 	a := c.UnsignedArrayCursor.Next()
 	if len(a.Timestamps) == 0 {
 		return &cursors.IntegerArray{}
@@ -1155,6 +1368,80 @@ LOOP:
 	return c.res
 }
 
+type stringArrayCursor struct {
+	cursors.StringArrayCursor
+	cursorContext
+	filter *stringArrayFilterCursor
+}
+
+func (c *stringArrayCursor) reset(cur cursors.StringArrayCursor, cursorIterators cursors.CursorIterators, cond expression) {
+	if cond != nil {
+		if c.filter == nil {
+			c.filter = newStringFilterArrayCursor(cond)
+		}
+		c.filter.reset(cur)
+		cur = c.filter
+	}
+
+	c.StringArrayCursor = cur
+	c.itrs = cursorIterators
+	c.err = nil
+}
+
+func (c *stringArrayCursor) Err() error { return c.err }
+
+func (c *stringArrayCursor) Stats() cursors.CursorStats {
+	return c.StringArrayCursor.Stats()
+}
+
+func (c *stringArrayCursor) Next() *cursors.StringArray {
+	for {
+		a := c.StringArrayCursor.Next()
+		if a.Len() == 0 {
+			if c.nextArrayCursor() {
+				continue
+			}
+		}
+		return a
+	}
+}
+
+func (c *stringArrayCursor) nextArrayCursor() bool {
+	if len(c.itrs) < 1 {
+		return false
+	}
+
+	c.StringArrayCursor.Close()
+
+	var itr cursors.CursorIterator
+	var cur cursors.Cursor
+	itr, c.itrs = c.itrs[0], c.itrs[1:]
+	cur, _ = itr.Next(c.ctx, c.req)
+
+	itr = nil
+
+	var ok bool
+	if cur != nil {
+		var next cursors.StringArrayCursor
+		next, ok = cur.(cursors.StringArrayCursor)
+		if !ok {
+			cur.Close()
+			next = StringEmptyArrayCursor
+			itr = nil
+			c.err = errors.New("expected string cursor")
+		} else {
+			if c.filter != nil {
+				c.filter.reset(next)
+				next = c.filter
+			}
+		}
+		c.StringArrayCursor = next
+	} else {
+		c.StringArrayCursor = StringEmptyArrayCursor
+	}
+	return ok
+}
+
 type stringMultiShardArrayCursor struct {
 	cursors.StringArrayCursor
 	cursorContext
@@ -1211,10 +1498,8 @@ func (c *stringMultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	itr, c.itrs = c.itrs[0], c.itrs[1:]
+	cur, _ = itr.Next(c.ctx, c.req)
 
 	var ok bool
 	if cur != nil {
@@ -1223,7 +1508,6 @@ func (c *stringMultiShardArrayCursor) nextArrayCursor() bool {
 		if !ok {
 			cur.Close()
 			next = StringEmptyArrayCursor
-			c.itrs = nil
 			c.err = errors.New("expected string cursor")
 		} else {
 			if c.filter != nil {
@@ -1239,15 +1523,15 @@ func (c *stringMultiShardArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-type integerStringCountArrayCursor struct {
+type StringCountArrayCursor struct {
 	cursors.StringArrayCursor
 }
 
-func (c *integerStringCountArrayCursor) Stats() cursors.CursorStats {
+func (c *StringCountArrayCursor) Stats() cursors.CursorStats {
 	return c.StringArrayCursor.Stats()
 }
 
-func (c *integerStringCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *StringCountArrayCursor) Next() *cursors.IntegerArray {
 	a := c.StringArrayCursor.Next()
 	if len(a.Timestamps) == 0 {
 		return &cursors.IntegerArray{}
@@ -1348,6 +1632,80 @@ LOOP:
 	return c.res
 }
 
+type booleanArrayCursor struct {
+	cursors.BooleanArrayCursor
+	cursorContext
+	filter *booleanArrayFilterCursor
+}
+
+func (c *booleanArrayCursor) reset(cur cursors.BooleanArrayCursor, cursorIterators cursors.CursorIterators, cond expression) {
+	if cond != nil {
+		if c.filter == nil {
+			c.filter = newBooleanFilterArrayCursor(cond)
+		}
+		c.filter.reset(cur)
+		cur = c.filter
+	}
+
+	c.BooleanArrayCursor = cur
+	c.itrs = cursorIterators
+	c.err = nil
+}
+
+func (c *booleanArrayCursor) Err() error { return c.err }
+
+func (c *booleanArrayCursor) Stats() cursors.CursorStats {
+	return c.BooleanArrayCursor.Stats()
+}
+
+func (c *booleanArrayCursor) Next() *cursors.BooleanArray {
+	for {
+		a := c.BooleanArrayCursor.Next()
+		if a.Len() == 0 {
+			if c.nextArrayCursor() {
+				continue
+			}
+		}
+		return a
+	}
+}
+
+func (c *booleanArrayCursor) nextArrayCursor() bool {
+	if len(c.itrs) < 1 {
+		return false
+	}
+
+	c.BooleanArrayCursor.Close()
+
+	var itr cursors.CursorIterator
+	var cur cursors.Cursor
+	itr, c.itrs = c.itrs[0], c.itrs[1:]
+	cur, _ = itr.Next(c.ctx, c.req)
+
+	itr = nil
+
+	var ok bool
+	if cur != nil {
+		var next cursors.BooleanArrayCursor
+		next, ok = cur.(cursors.BooleanArrayCursor)
+		if !ok {
+			cur.Close()
+			next = BooleanEmptyArrayCursor
+			itr = nil
+			c.err = errors.New("expected boolean cursor")
+		} else {
+			if c.filter != nil {
+				c.filter.reset(next)
+				next = c.filter
+			}
+		}
+		c.BooleanArrayCursor = next
+	} else {
+		c.BooleanArrayCursor = BooleanEmptyArrayCursor
+	}
+	return ok
+}
+
 type booleanMultiShardArrayCursor struct {
 	cursors.BooleanArrayCursor
 	cursorContext
@@ -1404,10 +1762,8 @@ func (c *booleanMultiShardArrayCursor) nextArrayCursor() bool {
 
 	var itr cursors.CursorIterator
 	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	itr, c.itrs = c.itrs[0], c.itrs[1:]
+	cur, _ = itr.Next(c.ctx, c.req)
 
 	var ok bool
 	if cur != nil {
@@ -1416,7 +1772,6 @@ func (c *booleanMultiShardArrayCursor) nextArrayCursor() bool {
 		if !ok {
 			cur.Close()
 			next = BooleanEmptyArrayCursor
-			c.itrs = nil
 			c.err = errors.New("expected boolean cursor")
 		} else {
 			if c.filter != nil {
@@ -1432,15 +1787,15 @@ func (c *booleanMultiShardArrayCursor) nextArrayCursor() bool {
 	return ok
 }
 
-type integerBooleanCountArrayCursor struct {
+type BooleanCountArrayCursor struct {
 	cursors.BooleanArrayCursor
 }
 
-func (c *integerBooleanCountArrayCursor) Stats() cursors.CursorStats {
+func (c *BooleanCountArrayCursor) Stats() cursors.CursorStats {
 	return c.BooleanArrayCursor.Stats()
 }
 
-func (c *integerBooleanCountArrayCursor) Next() *cursors.IntegerArray {
+func (c *BooleanCountArrayCursor) Next() *cursors.IntegerArray {
 	a := c.BooleanArrayCursor.Next()
 	if len(a.Timestamps) == 0 {
 		return &cursors.IntegerArray{}
