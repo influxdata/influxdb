@@ -6,9 +6,9 @@ use std::{collections::HashMap, sync::Arc};
 use crate::{
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
-    partition::{Partition, TIME_COLUMN_NAME},
-    wal::type_description,
+    partition::Partition,
 };
+use delorean_data_types::{data::type_description, TIME_COLUMN_NAME};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use delorean_arrow::{

@@ -56,16 +56,26 @@
 //! ```
 
 #![deny(rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    clippy::use_self
+)]
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
-use delorean_generated_types::wal::ReplicatedWrite;
+use delorean_data_types::{
+    data::{lines_to_replicated_write, ReplicatedWrite},
+    database_rules::DatabaseRules,
+};
+use delorean_generated_types::wal as wb;
 use delorean_line_parser::ParsedLine;
 use delorean_storage::{Database, DatabaseStore};
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
+use tokio::sync::RwLock;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -84,24 +94,69 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Server is the container struct for how Delorean servers store data internally
 /// as well as how they communicate with other Delorean servers. Each server
 /// will have one of these structs, which keeps track of all replication and query rules.
+#[derive(Debug)]
 pub struct Server<M: ConnectionManager, S: DatabaseStore> {
     #[allow(dead_code)]
-    database_rules: BTreeMap<String, DatabaseRules>,
-    local_store: S,
+    database_rules: RwLock<BTreeMap<String, Arc<DatabaseRules>>>,
+    pub local_store: S,
     #[allow(dead_code)]
     connection_manager: M,
 }
 
-impl<P: ConnectionManager, S: DatabaseStore> Server<P, S> {
-    pub fn local_store(&self) -> &S {
-        &self.local_store
+impl<M: ConnectionManager, S: DatabaseStore> Server<M, S> {
+    pub fn new(connection_manager: M, local_store: S) -> Self {
+        Self {
+            database_rules: RwLock::new(BTreeMap::new()),
+            local_store,
+            connection_manager,
+        }
+    }
+
+    pub async fn create_database(&self, db: &str, rules: DatabaseRules) -> Result<()> {
+        let mut rules_map = self.database_rules.write().await;
+        rules_map.insert(db.into(), Arc::new(rules));
+        Ok(())
     }
 
     /// write_lines takes in raw line protocol and converts it to a ReplicatedWrite, which
     /// is then replicated to other delorean servers based on the configuration of the db.
     /// This is step #1 from the above diagram.
-    pub fn write_lines(&self, _db: &str, _lines: &[ParsedLine<'_>]) -> Result<()> {
-        unimplemented!("implement")
+    pub async fn write_lines(&self, db: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
+        let rules = match self.database_rules.read().await.get(db) {
+            Some(d) => d.clone(),
+            None => return DatabaseNotFound { db }.fail(),
+        };
+
+        let data = lines_to_replicated_write(0, 0, lines, &rules);
+
+        if rules.store_locally {
+            self.store_local(db, &data).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn handle_replicated_write(
+        &self,
+        _db: &str,
+        _write: &wb::ReplicatedWrite<'_>,
+    ) -> Result<()> {
+        unimplemented!()
+    }
+
+    async fn store_local(&self, db: &str, write: &ReplicatedWrite) -> Result<()> {
+        let local = self
+            .local_store
+            .db_or_create(db)
+            .await
+            .map_err(|e| Box::new(e) as DatabaseError)
+            .context(UnknownDatabaseError {})?;
+
+        local
+            .store_replicated_write(write)
+            .await
+            .map_err(|e| Box::new(e) as DatabaseError)
+            .context(UnknownDatabaseError {})
     }
 }
 
@@ -127,149 +182,8 @@ pub trait RemoteServer {
     async fn replicate(
         &self,
         db: &str,
-        replicated_write: &ReplicatedWrite<'_>,
+        replicated_write: &wb::ReplicatedWrite<'_>,
     ) -> Result<(), Self::Error>;
-}
-
-impl<M: ConnectionManager, S: DatabaseStore> Server<M, S> {
-    pub fn new(connection_manager: M, local_store: S) -> Server<M, S> {
-        Server {
-            database_rules: BTreeMap::new(),
-            local_store,
-            connection_manager,
-        }
-    }
-
-    pub async fn write(&self, db: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
-        let local = self
-            .local_store
-            .db_or_create(db)
-            .await
-            .map_err(|e| Box::new(e) as DatabaseError)
-            .context(UnknownDatabaseError {})?;
-
-        local
-            .write_lines(lines)
-            .await
-            .map_err(|e| Box::new(e) as DatabaseError)
-            .context(UnknownDatabaseError {})?;
-
-        Ok(())
-    }
-}
-
-/// DatabaseRules contains the rules for replicating data, sending data to subscribers, and
-/// querying data for a single database.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DatabaseRules {
-    // Handlebars template for generating a partition key for each row
-    partition_template: Option<String>,
-    // store_locally if set to true will cause this delorean server to store writes and replicated
-    // writes in a local write buffer database. This is step #4 from the diagram.
-    store_locally: bool,
-    // replication is the set of host groups that data should be replicated to. Which host a
-    // write goes to within a host group is determined by consistent hashing the partition key.
-    // We'd use this to create a host group per availability zone. So you might have 5 availability
-    // zones with 2 hosts in each. Replication will ensure that N of those zones get a write. For
-    // each zone, only a single host needs to get the write. Replication is for ensuring a write
-    // exists across multiple hosts before returning success. Its purpose is to ensure write
-    // durability, rather than write availability for query (this is covered by subscriptions).
-    replication: Vec<HostGroupId>,
-    // replication_count is the minimum number of host groups to replicate a write to before
-    // success is returned. This can be overridden on a per request basis. Replication will
-    // continue to write to the other host groups in the background.
-    replication_count: u8,
-    // replication_queue_max_size is used to determine how far back replication can back up before
-    // either rejecting writes or dropping missed writes. The queue is kept in memory on a per
-    // database basis. A queue size of zero means it will only try to replicate synchronously and
-    // drop any failures.
-    replication_queue_max_size: usize,
-    // subscriptions are used for query servers to get data via either push or pull as it arrives.
-    // They are separate from replication as they have a different purpose. They're for query
-    // servers or other clients that want to subscribe to some subset of data being written in.
-    // This could either be specific partitions, ranges of partitions, tables, or rows matching
-    // some predicate. This is step #3 from the diagram.
-    subscriptions: Vec<Subscription>,
-
-    // query local is set to true if this server should answer queries from either its local
-    // write buffer and/or read-only partitions that it knows about. If set to true, results
-    // will be merged with any others from the remote goups or read only partitions.
-    query_local: bool,
-    // primary_query_group should be set to a host group if remote servers should be issued
-    // queries for this database. All hosts in the group should be queried with this server
-    // acting as the coordinator that merges results together. If a specific host in the group
-    // is unavailable, another host int he same position from a secondary group should be
-    // queried. For example, if we've partitioned the data in this DB into 4 partitions and
-    // we are replicating the data across 3 availability zones. Say we have 4 hosts in each
-    // of those AZs, thus they each have 1 partition. We'd set the primary group to be the 4
-    // hosts in the same AZ as this one. And the secondary groups as the hosts in the other
-    // 2 AZs.
-    primary_query_group: Option<HostGroupId>,
-    secondary_query_groups: Vec<HostGroupId>,
-
-    // read_only_partitions are used when a server should answer queries for partitions that
-    // come from object storage. This can be used to start up a new query server to handle
-    // queries by pointing it at a collection of partitions and then telling it to also pull
-    // data from the replication servers (writes that haven't been snapshotted into a partition).
-    read_only_partitions: Vec<PartitionId>,
-}
-
-/// PartitionId is the object storage identifier for a specific partition. It should be a
-/// path that can be used against an object store to local all the files and subdirectories
-/// for a partition. It takes the form of /<writer ID>/<database>/<partition key>/
-pub type PartitionId = String;
-pub type WriterId = String;
-
-#[derive(Debug, Serialize, Deserialize)]
-enum SubscriptionType {
-    Push,
-    Pull,
-}
-
-/// Subscription represent a group of hosts that want to either receive data pushed
-/// as it arrives or want to pull it periodically. The subscription has a matcher
-/// that is used to determine what data will match it, and an optional queue for
-/// storing matched writes.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Subscription {
-    name: String,
-    host_group: HostGroupId,
-    subscription_type: SubscriptionType,
-    matcher: Matcher,
-    // max_queue_size is used for subscriptions that can potentially get queued up either for
-    // pulling later, or in the case of a temporary outage for push subscriptions.
-    max_queue_size: usize,
-}
-
-/// Matcher specifies the rule against the table name and/or a predicate
-/// against the row to determine if it matches the write rule.
-#[derive(Debug, Serialize, Deserialize)]
-struct Matcher {
-    #[serde(flatten)]
-    tables: MatchTables,
-    // TODO: make this work with delorean_storage::Predicate
-    #[serde(skip_serializing_if = "Option::is_none")]
-    predicate: Option<String>,
-}
-
-/// MatchTables looks at the table name of a row to determine if it should
-/// match the rule.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-enum MatchTables {
-    #[serde(rename = "*")]
-    All,
-    Table(String),
-    Regex(String),
-}
-
-type HostGroupId = String;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct HostGroup {
-    id: HostGroupId,
-    // hosts is a vec of connection strings for remote hosts
-    hosts: Vec<String>,
 }
 
 #[cfg(test)]
@@ -284,23 +198,36 @@ mod tests {
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
     #[tokio::test(threaded_scheduler)]
-    async fn write_rule_match_all_local() -> Result {
+    async fn writes_local() -> Result {
+        // TODO: update this to use an actual database store and database backed entirely by memory
         let store = TestDatabaseStore::new();
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, store);
+        let rules = DatabaseRules {
+            store_locally: true,
+            ..Default::default()
+        };
+        server.create_database("foo", rules).await.unwrap();
 
         let line = "cpu foo=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
-        server.write("foo", &lines).await.unwrap();
-        let db = server.local_store().db("foo").await.unwrap();
-        assert_eq!(db.get_lines().await, vec![line]);
+        server.write_lines("foo", &lines).await.unwrap();
+
+        let db = server.local_store.db_or_create("foo").await.unwrap();
+        let write = &db.get_writes().await[0];
+        let batch = write.write_buffer_batch().unwrap();
+        let entry = batch.entries().unwrap().get(0);
+        let table_batch = entry.table_batches().unwrap().get(0);
+
+        assert_eq!(table_batch.name().unwrap(), "cpu");
+        assert_eq!(table_batch.rows().unwrap().len(), 1);
 
         Ok(())
     }
 
     #[derive(Snafu, Debug, Clone)]
     enum TestError {
-        #[snafu(display("Test database error:  {}", message))]
+        #[snafu(display("Test delorean_cluster error:  {}", message))]
         General { message: String },
     }
 
@@ -309,8 +236,8 @@ mod tests {
     }
 
     impl TestConnectionManager {
-        fn new() -> TestConnectionManager {
-            TestConnectionManager {
+        fn new() -> Self {
+            Self {
                 remote: TestRemoteServer {},
             }
         }
@@ -337,7 +264,7 @@ mod tests {
         async fn replicate(
             &self,
             _db: &str,
-            _replicated_write: &ReplicatedWrite<'_>,
+            _replicated_write: &wb::ReplicatedWrite<'_>,
         ) -> Result<(), Self::Error> {
             Ok(())
         }

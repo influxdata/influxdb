@@ -8,6 +8,7 @@ use crate::{
     exec::StringSet, exec::StringSetPlan, exec::StringSetRef, Database, DatabaseStore, Predicate,
     TimestampRange,
 };
+use delorean_data_types::data::ReplicatedWrite;
 use delorean_line_parser::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;
@@ -20,6 +21,9 @@ use tokio::sync::Mutex;
 pub struct TestDatabase {
     /// lines which have been written to this database, in order
     saved_lines: Mutex<Vec<String>>,
+
+    /// replicated writes which have been written to this database, in order
+    replicated_writes: Mutex<Vec<ReplicatedWrite>>,
 
     /// column_names to return upon next request
     column_names: Arc<Mutex<Option<StringSetRef>>>,
@@ -66,6 +70,7 @@ impl Default for TestDatabase {
     fn default() -> Self {
         Self {
             saved_lines: Mutex::new(Vec::new()),
+            replicated_writes: Mutex::new(Vec::new()),
             column_names: Arc::new(Mutex::new(None)),
             column_names_request: Arc::new(Mutex::new(None)),
             column_values: Arc::new(Mutex::new(None)),
@@ -82,6 +87,11 @@ impl TestDatabase {
     /// Get all lines written to this database
     pub async fn get_lines(&self) -> Vec<String> {
         self.saved_lines.lock().await.clone()
+    }
+
+    /// Get all replicated writs to this database
+    pub async fn get_writes(&self) -> Vec<ReplicatedWrite> {
+        self.replicated_writes.lock().await.clone()
     }
 
     /// Parse line protocol and add it as new lines to this
@@ -144,6 +154,12 @@ impl Database for TestDatabase {
         for line in lines {
             saved_lines.push(line.to_string())
         }
+        Ok(())
+    }
+
+    /// adds the replicated write to this database
+    async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
+        self.replicated_writes.lock().await.push(write.clone());
         Ok(())
     }
 

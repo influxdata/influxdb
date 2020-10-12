@@ -1,11 +1,15 @@
-//! This module contains code to restore write buffer partitions from the WAL
-use crate::partition::TIME_COLUMN_NAME;
+//! This module contains helper methods for constructing replicated writes
+//! based on DatabaseRules.
+
+use crate::database_rules::DatabaseRules;
+use crate::TIME_COLUMN_NAME;
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::{FieldValue, ParsedLine};
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use chrono::Utc;
+use crc32fast::Hasher;
 use flatbuffers::FlatBufferBuilder;
 
 pub fn type_description(value: wb::ColumnValue) -> &'static str {
@@ -19,6 +23,61 @@ pub fn type_description(value: wb::ColumnValue) -> &'static str {
         F64Value => "f64",
         BoolValue => "bool",
         StringValue => "String",
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReplicatedWrite {
+    pub data: Vec<u8>,
+}
+
+impl ReplicatedWrite {
+    pub fn to_fb(&self) -> wb::ReplicatedWrite<'_> {
+        flatbuffers::get_root::<wb::ReplicatedWrite<'_>>(&self.data)
+    }
+
+    pub fn write_buffer_batch(&self) -> Option<wb::WriteBufferBatch<'_>> {
+        match self.to_fb().payload() {
+            Some(d) => Some(flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&d)),
+            None => None,
+        }
+    }
+}
+
+pub fn lines_to_replicated_write(
+    writer: u8,
+    sequence: u64,
+    lines: &[ParsedLine<'_>],
+    rules: &Arc<DatabaseRules>,
+) -> ReplicatedWrite {
+    let default_time = Utc::now();
+    let entry_bytes = split_lines_into_write_entry_partitions(
+        |line| rules.partition_key(line, &default_time).unwrap(),
+        lines,
+    );
+
+    let mut hasher = Hasher::new();
+    hasher.update(&entry_bytes);
+    let checksum = hasher.finalize();
+
+    let mut fbb = flatbuffers::FlatBufferBuilder::new_with_capacity(1024);
+    let payload = fbb.create_vector_direct(&entry_bytes);
+
+    let write = wb::ReplicatedWrite::create(
+        &mut fbb,
+        &wb::ReplicatedWriteArgs {
+            writer,
+            sequence,
+            checksum,
+            payload: Some(payload),
+        },
+    );
+
+    fbb.finish(write, None);
+
+    let (mut data, idx) = fbb.collapse();
+    ReplicatedWrite {
+        data: data.split_off(idx),
     }
 }
 
