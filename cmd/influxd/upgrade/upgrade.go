@@ -360,7 +360,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 		return err
 	}
 
-	if err = generateSecurityScript(v1, db2BucketIds, log); err != nil {
+	if err = generateSecurityScript(v1, options.target, db2BucketIds, log); err != nil {
 		return err
 	}
 
