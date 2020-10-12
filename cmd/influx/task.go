@@ -29,6 +29,7 @@ func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		taskDeleteCmd(f, opt),
 		taskFindCmd(f, opt),
 		taskUpdateCmd(f, opt),
+		taskRunRetryCmd(f, opt),
 	)
 
 	return cmd
