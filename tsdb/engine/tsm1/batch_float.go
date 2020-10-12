@@ -10,7 +10,7 @@ import (
 )
 
 // FloatArrayEncodeAll encodes src into b, returning b and any error encountered.
-// The returned slice may be of a different length and capactity to b.
+// The returned slice may be of a different length and capacity to b.
 //
 // Currently only the float compression scheme used in Facebook's Gorilla is
 // supported, so this method implements a batch oriented version of that.
@@ -106,7 +106,7 @@ func FloatArrayEncodeAll(src []float64, b []byte) ([]byte, error) {
 				}
 
 				// Full value to write.
-				v := (vDelta >> prevTrailing) << (64 - l) // l least signifciant bits of v.
+				v := (vDelta >> prevTrailing) << (64 - l) // l least significant bits of v.
 
 				var m = n & 7 // Current bit in current byte.
 				var written uint64

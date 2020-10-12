@@ -85,7 +85,7 @@ func (p *LimitedBytes) Get(sz int) []byte {
 
 // Put returns a slice back to the pool.  If the pool is full, the byte
 // slice is discarded.  If the byte slice is over the configured max size
-// of any byte slice in the pool, it is discared.
+// of any byte slice in the pool, it is discarded.
 func (p *LimitedBytes) Put(c []byte) {
 	// Drop buffers that are larger than the max size
 	if cap(c) >= p.maxSize {

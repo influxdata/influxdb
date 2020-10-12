@@ -20,11 +20,11 @@ var (
 )
 
 // StringArrayEncodeAll encodes src into b, returning b and any error encountered.
-// The returned slice may be of a different length and capactity to b.
+// The returned slice may be of a different length and capacity to b.
 //
 // Currently only the string compression scheme used snappy.
 func StringArrayEncodeAll(src []string, b []byte) ([]byte, error) {
-	srcSz64 := int64(2 + len(src)*binary.MaxVarintLen32) // strings should't be longer than 64kb
+	srcSz64 := int64(2 + len(src)*binary.MaxVarintLen32) // strings shouldn't be longer than 64kb
 	for i := range src {
 		srcSz64 += int64(len(src[i]))
 	}

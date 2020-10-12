@@ -1905,7 +1905,7 @@ func mustMakeIndex(tb testing.TB, keys, blocks int) *indirectIndex {
 
 	indirect := NewIndirectIndex()
 	if err = indirect.UnmarshalBinary(bytes); err != nil {
-		tb.Fatalf("unexpected error unmarshaling index: %v", err)
+		tb.Fatalf("unexpected error unmarshalling index: %v", err)
 	}
 
 	return indirect

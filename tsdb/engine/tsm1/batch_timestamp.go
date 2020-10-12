@@ -31,7 +31,7 @@ func TimeArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 
 	// To prevent an allocation of the entire block we're encoding reuse the
 	// src slice to store the encoded deltas.
-	deltas := reintepretInt64ToUint64Slice(src)
+	deltas := reinterpretInt64ToUint64Slice(src)
 
 	if len(deltas) > 1 {
 		for i := len(deltas) - 1; i > 0; i-- {

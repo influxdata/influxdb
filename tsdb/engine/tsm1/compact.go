@@ -3,7 +3,7 @@ package tsm1
 // Compactions are the process of creating read-optimized TSM files.
 // The files are created by converting write-optimized WAL entries
 // to read-optimized TSM format.  They can also be created from existing
-// TSM files when there are tombstone records that neeed to be removed, points
+// TSM files when there are tombstone records that need to be removed, points
 // that were overwritten by later writes and need to updated, or multiple
 // smaller TSM files need to be merged to reduce file counts and improve
 // compression ratios.
@@ -110,7 +110,7 @@ type DefaultPlanner struct {
 	// compactFullWriteColdDuration specifies the length of time after
 	// which if no writes have been committed to the WAL, the engine will
 	// do a full compaction of the TSM files in this shard. This duration
-	// should always be greater than the CacheFlushWriteColdDuraion
+	// should always be greater than the CacheFlushWriteColdDuration
 	compactFullWriteColdDuration time.Duration
 
 	// lastPlanCheck is the last time Plan was called
@@ -255,7 +255,7 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 		cur := generations[i]
 
 		// See if this generation is orphan'd which would prevent it from being further
-		// compacted until a final full compactin runs.
+		// compacted until a final full compaction runs.
 		if i < len(generations)-1 {
 			if cur.level() < generations[i+1].level() {
 				currentGen = append(currentGen, cur)
@@ -356,7 +356,7 @@ func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
 		}
 
 		// See if this generation is orphan'd which would prevent it from being further
-		// compacted until a final full compactin runs.
+		// compacted until a final full compaction runs.
 		if i < len(generations)-1 {
 			if cur.level() < generations[i+1].level() {
 				currentGen = append(currentGen, cur)
