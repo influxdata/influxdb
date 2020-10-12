@@ -1,6 +1,8 @@
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::ParsedLine;
-use delorean_storage::{exec::StringSet, exec::StringSetPlan, Database, Predicate, TimestampRange};
+use delorean_storage::{
+    exec::SeriesSetPlan, exec::StringSet, exec::StringSetPlan, Database, Predicate, TimestampRange,
+};
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
@@ -437,6 +439,14 @@ impl Database for Db {
                 Ok(visitor.plans.into())
             }
         }
+    }
+
+    async fn query_series(
+        &self,
+        _range: Option<TimestampRange>,
+        _predicate: Option<Predicate>,
+    ) -> Result<SeriesSetPlan, Self::Error> {
+        unimplemented!("query series for write buffer database.");
     }
 
     async fn table_to_arrow(

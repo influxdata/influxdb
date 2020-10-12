@@ -5,8 +5,8 @@
 use delorean_arrow::arrow::record_batch::RecordBatch;
 
 use crate::{
-    exec::StringSet, exec::StringSetPlan, exec::StringSetRef, Database, DatabaseStore, Predicate,
-    TimestampRange,
+    exec::{SeriesSetPlan, StringSet, StringSetPlan, StringSetRef},
+    Database, DatabaseStore, Predicate, TimestampRange,
 };
 use delorean_data_types::data::ReplicatedWrite;
 use delorean_line_parser::{parse_lines, ParsedLine};
@@ -36,6 +36,12 @@ pub struct TestDatabase {
 
     /// the last request for column_values.
     column_values_request: Arc<Mutex<Option<ColumnValuesRequest>>>,
+
+    /// responses to return on the next request to query_series
+    query_series_values: Arc<Mutex<Option<SeriesSetPlan>>>,
+
+    /// the last request for query_series
+    query_series_request: Arc<Mutex<Option<QuerySeriesRequest>>>,
 }
 
 /// Records the parameters passed to a column name request
@@ -52,6 +58,14 @@ pub struct ColumnNamesRequest {
 pub struct ColumnValuesRequest {
     pub column_name: String,
     pub table: Option<String>,
+    pub range: Option<TimestampRange>,
+    /// Stringified '{:?}' version of the predicate
+    pub predicate: Option<String>,
+}
+
+/// Records the parameters passed to a query_series request
+#[derive(Debug, PartialEq, Clone)]
+pub struct QuerySeriesRequest {
     pub range: Option<TimestampRange>,
     /// Stringified '{:?}' version of the predicate
     pub predicate: Option<String>,
@@ -75,6 +89,8 @@ impl Default for TestDatabase {
             column_names_request: Arc::new(Mutex::new(None)),
             column_values: Arc::new(Mutex::new(None)),
             column_values_request: Arc::new(Mutex::new(None)),
+            query_series_values: Arc::new(Mutex::new(None)),
+            query_series_request: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -130,6 +146,17 @@ impl TestDatabase {
     /// Get the parameters from the last column name request
     pub async fn get_column_values_request(&self) -> Option<ColumnValuesRequest> {
         self.column_values_request.clone().lock().await.take()
+    }
+
+    /// Set the series that will be returned on a call to query_series
+    /// TODO add in the actual values
+    pub async fn set_query_series_values(&self, plan: SeriesSetPlan) {
+        *(self.query_series_values.clone().lock().await) = Some(plan);
+    }
+
+    /// Get the parameters from the last column name request
+    pub async fn get_query_series_request(&self) -> Option<QuerySeriesRequest> {
+        self.query_series_request.clone().lock().await.take()
     }
 }
 
@@ -255,6 +282,28 @@ impl Database for TestDatabase {
             });
 
         Ok(column_values.into())
+    }
+
+    async fn query_series(
+        &self,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+    ) -> Result<SeriesSetPlan, Self::Error> {
+        let predicate = predicate.map(|p| format!("{:?}", p));
+
+        let new_queries_series_request = Some(QuerySeriesRequest { range, predicate });
+
+        *self.query_series_request.clone().lock().await = new_queries_series_request;
+
+        self.query_series_values
+            .clone()
+            .lock()
+            .await
+            .take()
+            // Turn None into an error
+            .context(General {
+                message: "No saved query_series in TestDatabase",
+            })
     }
 
     /// Fetch the specified table names and columns as Arrow RecordBatches

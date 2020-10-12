@@ -3,6 +3,7 @@
 //! interface abstracts away many of the details
 mod planning;
 mod schema_pivot;
+mod seriesset;
 mod stringset;
 
 use std::{sync::atomic::AtomicU64, sync::atomic::Ordering, sync::Arc};
@@ -16,7 +17,9 @@ use planning::make_exec_context;
 use schema_pivot::SchemaPivotNode;
 
 // Publically export StringSets
+pub use seriesset::{SeriesSet, SeriesSetRef};
 pub use stringset::{IntoStringSet, StringSet, StringSetRef};
+use tokio::sync::mpsc;
 
 use tracing::debug;
 
@@ -109,6 +112,22 @@ impl From<Vec<LogicalPlan>> for StringSetPlan {
     }
 }
 
+/// A plan which produces a logical set of Series
+#[derive(Debug)]
+pub struct SeriesSetPlan {
+    /// Datafusion plan(s) to execute. Each plan must produce
+    /// RecordBatches with the following shape:
+    ///
+    /// TODO DOCUMENT
+    pub plans: Vec<LogicalPlan>,
+
+    // The names of the columns that define tags
+    pub tag_columns: Vec<String>,
+
+    // The names of the columns which are "fields"
+    pub field_columns: Vec<String>,
+}
+
 /// Handles executing plans, and marshalling the results into rust
 /// native structures.
 #[derive(Debug, Default)]
@@ -129,6 +148,19 @@ impl Executor {
                 .into_stringset()
                 .context(StringSetConversion),
         }
+    }
+
+    /// Executes this plan, sending the resulting `SeriesSet`s one by one
+    /// via `tx`
+    pub async fn to_series_set(
+        &self,
+        plan: SeriesSetPlan,
+        _tx: mpsc::Sender<Result<SeriesSet>>,
+    ) -> Result<()> {
+        if plan.plans.is_empty() {
+            return Ok(());
+        }
+        unimplemented!("Executing SeriesSet plans");
     }
 }
 

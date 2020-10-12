@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use delorean_arrow::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
 use delorean_data_types::data::ReplicatedWrite;
 use delorean_line_parser::ParsedLine;
-use exec::StringSetPlan;
+use exec::{SeriesSetPlan, StringSetPlan};
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -99,8 +99,9 @@ pub trait Database: Debug + Send + Sync {
         predicate: Option<Predicate>,
     ) -> Result<StringSetPlan, Self::Error>;
 
-    /// Returns the distinct values in the `column_name` column of
-    /// this database for rows that match optional predicates.
+    /// Returns a plan which can find the distinct values in the
+    /// `column_name` column of this database for rows that match
+    /// optional predicates.
     ///
     /// If `table` is specified, then only values from the
     /// specified database which match other predictes are included.
@@ -119,6 +120,23 @@ pub trait Database: Debug + Send + Sync {
         range: Option<TimestampRange>,
         predicate: Option<Predicate>,
     ) -> Result<StringSetPlan, Self::Error>;
+
+    /// Returns a plan that finds sets of rows which form logical time
+    /// series. Each series is defined by the unique values in a set
+    /// of "tag_columns" for each field in the "field_columns"
+    ///
+    /// If `range` is specified, only rows which have data in the
+    /// specified timestamp range which match other predictes are
+    /// included.
+    ///
+    /// If `predicate` is specified, then only rows which have at
+    /// least one non-null value in any row that matches the predicate
+    /// are returned
+    async fn query_series(
+        &self,
+        _range: Option<TimestampRange>,
+        _predicate: Option<Predicate>,
+    ) -> Result<SeriesSetPlan, Self::Error>;
 
     /// Fetch the specified table names and columns as Arrow
     /// RecordBatches. Columns are returned in the order specified.
