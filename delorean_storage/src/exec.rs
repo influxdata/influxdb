@@ -114,7 +114,8 @@ impl From<Vec<LogicalPlan>> for StringSetPlan {
     }
 }
 
-/// A plan which produces a logical set of Series
+/// A plan which produces a logical stream of time series, and can be
+/// executed to produce `SeriesSet`s.
 #[derive(Debug)]
 pub struct SeriesSetPlan {
     /// Datafusion plan(s) to execute. Each plan must produce
@@ -127,10 +128,18 @@ pub struct SeriesSetPlan {
     /// The plans are provided as tuples of "(Table Name, LogicalPlan)";
     pub plans: Vec<(Arc<String>, LogicalPlan)>,
 
-    // The names of the columns that define tags
+    /// The names of the columns that define tags.
+    ///
+    /// Note these are `Arc` strings because they are duplicated for
+    /// *each* resulting `SeriesSet` that is produced when this type
+    /// of plan is executed.
     pub tag_columns: Vec<Arc<String>>,
 
-    // The names of the columns which are "fields"
+    /// The names of the columns which are "fields"
+    ///
+    /// Note these are `Arc` strings because they are duplicated for
+    /// *each* resulting `SeriesSet` that is produced when this type
+    /// of plan is executed.
     pub field_columns: Vec<Arc<String>>,
 }
 

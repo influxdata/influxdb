@@ -65,6 +65,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 /// Represents several logical timeseries that share the same
 /// timestamps and name=value tag keys.
+///
+/// The heavy use of `Arc` is to avoid many duplicated Strings given
+/// the the fact that many SeriesSets share the same tag keys and
+/// table name.
 pub struct SeriesSet {
     /// The table name this series came from
     table_name: Arc<String>,
