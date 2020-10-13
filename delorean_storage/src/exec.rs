@@ -1,32 +1,31 @@
 //! This module handles the manipulation / execution of storage
 //! plans. This is currently implemented using DataFusion, and this
 //! interface abstracts away many of the details
+mod counters;
 mod planning;
 mod schema_pivot;
 mod seriesset;
 mod stringset;
 
-use std::{sync::atomic::AtomicU64, sync::atomic::Ordering, sync::Arc};
+use std::sync::Arc;
 
+use counters::ExecutionCounters;
 use delorean_arrow::{
     arrow::record_batch::RecordBatch,
-    datafusion::{self, logical_plan::LogicalPlan, prelude::ExecutionConfig},
+    datafusion::{self, logical_plan::LogicalPlan},
 };
 
-use planning::make_exec_context;
+use planning::DeloreanExecutionContext;
 use schema_pivot::SchemaPivotNode;
 
 // Publically export StringSets
-pub use seriesset::{SeriesSet, SeriesSetRef};
+pub use seriesset::{Error as SeriesSetError, SeriesSet, SeriesSetConverter, SeriesSetRef};
 pub use stringset::{IntoStringSet, StringSet, StringSetRef};
 use tokio::sync::mpsc;
-
-use tracing::debug;
 
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
-/// Opaque error type
 pub enum Error {
     #[snafu(display("Plan Execution Error: {}", source))]
     Execution {
@@ -53,6 +52,9 @@ pub enum Error {
 
     #[snafu(display("Internal error creating StringSet: {}", source))]
     StringSetConversion { source: stringset::Error },
+
+    #[snafu(display("Error converting results to SeriesSet: {}", source))]
+    SeriesSetConversion { source: seriesset::Error },
 
     #[snafu(display("Joining execution task: {}", source))]
     JoinError { source: tokio::task::JoinError },
@@ -116,16 +118,20 @@ impl From<Vec<LogicalPlan>> for StringSetPlan {
 #[derive(Debug)]
 pub struct SeriesSetPlan {
     /// Datafusion plan(s) to execute. Each plan must produce
-    /// RecordBatches with the following shape:
+    /// RecordBatches that have:
     ///
-    /// TODO DOCUMENT
-    pub plans: Vec<LogicalPlan>,
+    /// * fields with matching names for each value of `tag_columns` and `field_columns`
+    /// * include the timestamp column
+    /// * each column named in tag_columns must be a String (Utf8)
+    ///
+    /// The plans are provided as tuples of "(Table Name, LogicalPlan)";
+    pub plans: Vec<(Arc<String>, LogicalPlan)>,
 
     // The names of the columns that define tags
-    pub tag_columns: Vec<String>,
+    pub tag_columns: Vec<Arc<String>>,
 
     // The names of the columns which are "fields"
-    pub field_columns: Vec<String>,
+    pub field_columns: Vec<Arc<String>>,
 }
 
 /// Handles executing plans, and marshalling the results into rust
@@ -139,6 +145,7 @@ impl Executor {
     pub fn new() -> Self {
         Self::default()
     }
+
     /// Executes this plan and returns the resulting set of strings
     pub async fn to_string_set(&self, plan: StringSetPlan) -> Result<StringSetRef> {
         match plan {
@@ -154,28 +161,60 @@ impl Executor {
     /// via `tx`
     pub async fn to_series_set(
         &self,
-        plan: SeriesSetPlan,
-        _tx: mpsc::Sender<Result<SeriesSet>>,
+        series_set_plan: SeriesSetPlan,
+        tx: mpsc::Sender<Result<SeriesSet, SeriesSetError>>,
     ) -> Result<()> {
-        if plan.plans.is_empty() {
+        if series_set_plan.plans.is_empty() {
             return Ok(());
         }
-        unimplemented!("Executing SeriesSet plans");
+
+        let SeriesSetPlan {
+            plans,
+            tag_columns,
+            field_columns,
+        } = series_set_plan;
+
+        // wrap them in Arcs so we can share them among threads
+        let tag_columns = Arc::new(tag_columns);
+        let field_columns = Arc::new(field_columns);
+
+        let value_futures = plans
+            .into_iter()
+            .map(|(table_name, plan)| {
+                // Clone Arc's for transmission to threads
+                let counters = self.counters.clone();
+                let tx = tx.clone();
+                let tag_columns = tag_columns.clone();
+                let field_columns = field_columns.clone();
+
+                // TODO run these on some executor other than the main tokio pool
+                tokio::task::spawn(async move {
+                    let ctx = DeloreanExecutionContext::new(counters);
+                    let physical_plan = ctx
+                        .make_plan(&plan)
+                        .await
+                        .context(DataFusionPhysicalPlanning)?;
+
+                    let it = ctx
+                        .execute(physical_plan)
+                        .await
+                        .context(DataFusionExecution)?;
+
+                    SeriesSetConverter::new(tx)
+                        .convert(table_name, tag_columns, field_columns, it)
+                        .await
+                        .context(SeriesSetConversion)
+                })
+            })
+            .collect::<Vec<_>>();
+
+        // now, wait for all the values to resolve and reprot any errors
+        for join_handle in value_futures.into_iter() {
+            join_handle.await.context(JoinError)??;
+        }
+        Ok(())
     }
 }
-
-// Various statistics for execution
-#[derive(Debug, Default)]
-pub struct ExecutionCounters {
-    pub plans_run: AtomicU64,
-}
-
-impl ExecutionCounters {
-    fn inc_plans_run(&self) {
-        self.plans_run.fetch_add(1, Ordering::Relaxed);
-    }
-}
-
 /// Create a SchemaPivot node which  an arbitrary input like
 ///  ColA | ColB | ColC
 /// ------+------+------
@@ -207,7 +246,18 @@ async fn run_logical_plans(
         .map(|plan| {
             let counters = counters.clone();
             // TODO run these on some executor other than the main tokio pool
-            tokio::task::spawn(async move { run_logical_plan(counters, plan).await })
+            tokio::task::spawn(async move {
+                let ctx = DeloreanExecutionContext::new(counters);
+                let physical_plan = ctx
+                    .make_plan(&plan)
+                    .await
+                    .context(DataFusionPhysicalPlanning)?;
+
+                // TODO: avoid this buffering
+                ctx.collect(physical_plan)
+                    .await
+                    .context(DataFusionExecution)
+            })
         })
         .collect::<Vec<_>>();
 
@@ -215,43 +265,9 @@ async fn run_logical_plans(
     let mut results = Vec::new();
     for join_handle in value_futures.into_iter() {
         let mut plan_result = join_handle.await.context(JoinError)??;
-
         results.append(&mut plan_result);
     }
     Ok(results)
-}
-
-/// Executes the logical plan using DataFusion and produces RecordBatches
-async fn run_logical_plan(
-    counters: Arc<ExecutionCounters>,
-    plan: LogicalPlan,
-) -> Result<Vec<RecordBatch>> {
-    counters.inc_plans_run();
-
-    const BATCH_SIZE: usize = 1000;
-
-    // TBD: Should we be reusing an execution context across all executions?
-    let config = ExecutionConfig::new().with_batch_size(BATCH_SIZE);
-    let ctx = make_exec_context(config);
-
-    debug!("Running plan, input:\n{:?}", plan);
-    // TODO the datafusion optimizer was removing filters..
-    //let logical_plan = ctx.optimize(&plan).context(DataFusionOptimization)?;
-    let logical_plan = plan;
-    debug!("Running plan, optimized:\n{:?}", logical_plan);
-
-    let physical_plan = ctx
-        .create_physical_plan(&logical_plan)
-        .context(DataFusionPhysicalPlanning)?;
-
-    debug!("Running plan, physical:\n{:?}", physical_plan);
-
-    // This executes the query, using its own threads
-    // internally. TODO figure out a better way to control
-    // concurrency / plan admission
-    ctx.collect(physical_plan)
-        .await
-        .context(DataFusionExecution)
 }
 
 #[cfg(test)]

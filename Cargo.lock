@@ -870,7 +870,6 @@ name = "delorean_segment_store"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "croaring",
  "delorean_arrow",
  "delorean_table",
 ]
@@ -880,6 +879,7 @@ name = "delorean_storage"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "croaring",
  "delorean_arrow",
  "delorean_data_types",
  "delorean_line_parser",

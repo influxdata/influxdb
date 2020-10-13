@@ -30,8 +30,8 @@ use crate::server::rpc::expr::convert_predicate;
 use crate::server::rpc::input::GrpcInputs;
 
 use delorean_storage::{
-    exec::Executor as StorageExecutor, exec::SeriesSet, org_and_bucket_to_database, Database,
-    DatabaseStore, TimestampRange as StorageTimestampRange,
+    exec::{Executor as StorageExecutor, SeriesSet, SeriesSetError},
+    org_and_bucket_to_database, Database, DatabaseStore, TimestampRange as StorageTimestampRange,
 };
 
 use snafu::{ResultExt, Snafu};
@@ -653,7 +653,7 @@ where
 /// Receives SeriesSets from rx, converts them to ReadResponse and
 /// and sends them to tx
 async fn convert_series_set(
-    mut rx: mpsc::Receiver<delorean_storage::exec::Result<SeriesSet>>,
+    mut rx: mpsc::Receiver<Result<SeriesSet, SeriesSetError>>,
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
 ) {
     while let Some(series_set) = rx.recv().await {

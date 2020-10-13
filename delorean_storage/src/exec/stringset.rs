@@ -14,11 +14,6 @@ use snafu::{ensure, OptionExt, Snafu};
 #[derive(Debug, Snafu)]
 /// Opaque error type
 pub enum Error {
-    #[snafu(display("Plan Execution Error: {}", source))]
-    Execution {
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
-
     #[snafu(display(
         "Error extracting results from Record Batches: schema not a single Utf8: {:?}",
         schema
