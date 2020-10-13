@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
+	"runtime"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
@@ -69,7 +71,15 @@ type optionsV2 struct {
 	bucket             string
 	token              string
 	retention          string
+	influx2CommandPath string
 	securityScriptPath string
+}
+
+func (o *optionsV2) checkPaths() error {
+	if o.influx2CommandPath == "" {
+		return errors.New("influx command path not specified")
+	}
+	return nil
 }
 
 var options = struct {
@@ -197,6 +207,12 @@ func NewCommand() *cobra.Command {
 			Desc:    "optional: Custom InfluxDB 1.x config file path, else the default config file",
 		},
 		{
+			DestP:   &options.target.influx2CommandPath,
+			Flag:    "influx-command-path",
+			Default: influxExePathV2(),
+			Desc:    "optional: influx command path",
+		},
+		{
 			DestP:   &options.target.securityScriptPath,
 			Flag:    "security-script",
 			Default: filepath.Join(homeOrAnyDir(), "influxd-upgrade-security.sh"),
@@ -267,6 +283,11 @@ func runUpgradeE(*cobra.Command, []string) error {
 	if err != nil {
 		return err
 	}
+
+	if err := options.target.checkPaths(); err != nil {
+		return err
+	}
+
 	log.Info("Starting InfluxDB 1.x upgrade")
 
 	if options.source.configFile != "" {
@@ -494,6 +515,34 @@ func influxConfigPathV1() string {
 	} {
 		if _, err := os.Stat(path); err == nil {
 			return path
+		}
+	}
+
+	return ""
+}
+
+func influxExePathV2() string {
+	var exeName string
+	if runtime.GOOS == "win" {
+		exeName = "influx.exe"
+	} else {
+		exeName = "influx"
+	}
+	isV2 := func(path string) bool {
+		return exec.Command(path, "version").Run() == nil
+	}
+
+	exePath, err := exec.LookPath(exeName)
+	if err == nil {
+		if isV2(exePath) {
+			return exePath
+		}
+	}
+	exePath, err = os.Executable()
+	if err == nil {
+		exePath = filepath.Join(filepath.Dir(exePath), exeName)
+		if isV2(exePath) {
+			return exePath
 		}
 	}
 

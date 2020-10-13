@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"sort"
@@ -53,12 +51,6 @@ func generateSecurityScript(v1 *influxDBv1, targetOptions optionsV2, dbBuckets m
 		isFileOutput = true
 	}
 
-	// get `influx` path
-	influxExe, err := helper.getInflux2ExePath()
-	if err != nil {
-		return err
-	}
-
 	// template data type
 	type dataObject struct {
 		AdminUsers   []string
@@ -80,7 +72,7 @@ func generateSecurityScript(v1 *influxDBv1, targetOptions optionsV2, dbBuckets m
 		TargetOrg:    targetOptions.orgName,
 		TargetToken:  targetOptions.token,
 		IsFileOutput: isFileOutput,
-		InfluxExe:    influxExe,
+		InfluxExe:    targetOptions.influx2CommandPath,
 	}
 
 	// fill data with users and their permissions
@@ -181,37 +173,6 @@ func (h *securityScriptHelper) checkDbBuckets(meta *meta.Client, databases map[s
 	}
 
 	return ok
-}
-
-func (h *securityScriptHelper) getInflux2ExePath() (string, error) {
-	var exeName string
-	if runtime.GOOS == "win" {
-		exeName = "influx.exe"
-	} else {
-		exeName = "influx"
-	}
-	exePath, err := exec.LookPath(exeName)
-	if err == nil {
-		if h.checkInflux2Version(exePath) {
-			return exePath, nil
-		}
-	}
-	exePath, err = os.Executable()
-	if err == nil {
-		exePath = filepath.Join(filepath.Dir(exePath), exeName)
-		if h.checkInflux2Version(exePath) {
-			return exePath, nil
-		}
-
-		h.log.Error("Version 2.x influx executable not found.")
-		err = errors.New("upgrade: version 2.x influx executable not found")
-	}
-
-	return "", err
-}
-
-func (h *securityScriptHelper) checkInflux2Version(path string) bool {
-	return exec.Command(path, "version").Run() == nil
 }
 
 func (h *securityScriptHelper) sortUserInfo(info []meta.UserInfo) []meta.UserInfo {
