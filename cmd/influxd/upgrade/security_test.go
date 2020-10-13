@@ -100,17 +100,6 @@ func TestGenerateScript(t *testing.T) {
 			users: []meta.UserInfo{},
 			want:  "",
 		},
-		{
-			name: "influx 2.x not found",
-			users: []meta.UserInfo{
-				{
-					Name:  "dummy",
-					Admin: false,
-				},
-			},
-			skipExe: true,
-			wantErr: errors.New("upgrade: version 2.x influx executable not found"),
-		},
 	}
 
 	var shSuffix, mockInfluxCode string
@@ -142,19 +131,22 @@ func TestGenerateScript(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, tmpfile.Close())
 
+			// mock influx command path
+			testExePath, err := os.Executable()
+			require.NoError(t, err)
+			mockInfluxExePath := filepath.Join(filepath.Dir(testExePath), "influx")
+
 			// options passed on cmdline
 			targetOptions := optionsV2{
 				userName:           "admin",
 				orgName:            "demo",
 				token:              "ABC007==",
 				securityScriptPath: tmpfile.Name(),
+				influx2CommandPath: mockInfluxExePath,
 			}
 
 			// create mock v2.x influx executable
 			if !tc.skipExe {
-				testExePath, err := os.Executable()
-				require.NoError(t, err)
-				mockInfluxExePath := filepath.Join(filepath.Dir(testExePath), "influx")
 				file, err := os.OpenFile(mockInfluxExePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0777)
 				require.NoError(t, err)
 				_, err = file.WriteString(mockInfluxCode)
@@ -174,7 +166,7 @@ func TestGenerateScript(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else if tc.wantErr != nil {
-				t.Fatalf("should have with %v", tc.wantErr)
+				t.Fatalf("should have failed with %v", tc.wantErr)
 			}
 
 			// validate result by comparing arrays of non-empty lines of wanted vs actual output

@@ -26,7 +26,7 @@ func TestPathValidations(t *testing.T) {
 	err = os.MkdirAll(filepath.Join(enginePath, "db"), 0777)
 	require.Nil(t, err)
 
-	largs := make([]string, 0, 9)
+	largs := make([]string, 0)
 	largs = append(largs, "--username", "my-user")
 	largs = append(largs, "--password", "my-password")
 	largs = append(largs, "--org", "my-org")
@@ -39,6 +39,15 @@ func TestPathValidations(t *testing.T) {
 	largs = append(largs, "--config-file", "")
 
 	cmd := NewCommand()
+	cmd.SetArgs(largs)
+
+	err = cmd.Execute()
+	require.NotNil(t, err, "Must fail")
+	assert.Contains(t, err.Error(), "influx command path not specified")
+
+	influxPath := "/usr/local/bin/influx" // fake
+	largs = append(largs, "--influx-command-path", influxPath)
+	cmd = NewCommand()
 	cmd.SetArgs(largs)
 
 	err = cmd.Execute()
