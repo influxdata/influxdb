@@ -10,6 +10,12 @@
 //!
 //! Note that the data will come out ordered by the tag keys (ORDER BY
 //! (tag col0) (tag col1) ... (tag colN))
+//!
+//! NOTE: We think the influx storage engine returns series sorted by
+//! the tag values, but the order of the columns is also sorted. So
+//! for example, if you have `region`, `host`, and `service` as tags,
+//! the columns would be ordered `host`, `region`, and `service` as
+//! well.
 
 use std::sync::Arc;
 
