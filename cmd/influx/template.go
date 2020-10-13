@@ -62,6 +62,7 @@ type cmdTemplateBuilder struct {
 	disableTableBorders bool
 	hideHeaders         bool
 	json                bool
+	force               bool
 	name                string
 	names               []string
 	org                 organization
@@ -753,6 +754,7 @@ func (b *cmdTemplateBuilder) cmdStackRemove() *cobra.Command {
 	cmd.Aliases = []string{"remove", "uninstall"}
 
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to be removed")
+	cmd.Flags().BoolVar(&b.force, "force", false, "Remove stack without confirmation prompt")
 	cmd.MarkFlagRequired("stack-id")
 	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
 
@@ -810,10 +812,12 @@ func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string
 			return err
 		}
 
-		msg := fmt.Sprintf("Confirm removal of the stack[%s] and all associated resources (y/n)", stack.ID)
-		confirm := b.getInput(msg, "n")
-		if confirm != "y" {
-			continue
+		if !b.force {
+			msg := fmt.Sprintf("Confirm removal of the stack[%s] and all associated resources (y/n)", stack.ID)
+			confirm := b.getInput(msg, "n")
+			if confirm != "y" {
+				continue
+			}
 		}
 
 		err := templateSVC.DeleteStack(context.Background(), struct{ OrgID, UserID, StackID influxdb.ID }{
