@@ -220,10 +220,18 @@ pub struct Db {
     // TODO: partitions need to be wrapped in an Arc if they're going to be used without this lock
     partitions: RwLock<Vec<Partition>>,
     wal_details: Option<WalDetails>,
-    dir: PathBuf,
 }
 
 impl Db {
+    /// New creates a new in-memory only write buffer database
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            partitions: RwLock::new(vec![]),
+            wal_details: None,
+        }
+    }
+
     /// Create a new DB that will create and use the Write Ahead Log
     /// (WAL) directory `wal_dir`
     pub async fn try_with_wal(name: &str, wal_dir: &mut PathBuf) -> Result<Self> {
@@ -240,7 +248,6 @@ impl Db {
                 }
             }
         }
-        let dir = wal_dir.clone();
         let wal_builder = WalBuilder::new(wal_dir.clone());
         let wal_details = start_wal_sync_task(wal_builder)
             .await
@@ -252,7 +259,6 @@ impl Db {
 
         Ok(Self {
             name: name.to_string(),
-            dir,
             partitions: RwLock::new(vec![]),
             wal_details: Some(wal_details),
         })
@@ -296,7 +302,6 @@ impl Db {
 
         Ok(Self {
             name,
-            dir: wal_dir,
             partitions: RwLock::new(partitions),
             wal_details: Some(wal_details),
         })
@@ -1149,6 +1154,29 @@ mod tests {
     }
 
     #[tokio::test(threaded_scheduler)]
+    async fn write_and_query() -> Result {
+        let db = Db::new("foo");
+
+        let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i 10")
+            .map(|l| l.unwrap())
+            .collect();
+        db.write_lines(&lines).await?;
+
+        let results = db.query("select * from cpu").await?;
+
+        let expected_cpu_table = r#"+------+-------+--------+------+------+
+| host | other | region | time | user |
++------+-------+--------+------+------+
+| A    | 1     | west   | 10   | 23.2 |
++------+-------+--------+------+------+
+"#;
+
+        assert_table_eq(expected_cpu_table, &results);
+
+        Ok(())
+    }
+
+    #[tokio::test(threaded_scheduler)]
     async fn recover_partial_entries() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
 
@@ -1231,7 +1259,6 @@ mod tests {
 
             let db = Db {
                 name,
-                dir,
                 partitions: RwLock::new(partitions),
                 wal_details: None,
             };
