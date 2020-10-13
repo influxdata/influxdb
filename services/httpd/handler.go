@@ -1446,12 +1446,9 @@ func (h *Handler) logFluxQuery(n int64, stats flux.Statistics, compiler flux.Com
 		zap.Error(err),
 		zap.Duration("stat_total_duration", stats.TotalDuration),
 		zap.Duration("stat_compile_duration", stats.CompileDuration),
-		zap.Duration("stat_queue_duration", stats.QueueDuration),
-		zap.Duration("stat_plan_duration", stats.PlanDuration),
-		zap.Duration("stat_requeue_duration", stats.RequeueDuration),
 		zap.Duration("stat_execute_duration", stats.ExecuteDuration),
 		zap.Int64("stat_max_allocated", stats.MaxAllocated),
-		zap.Int("stat_concurrency", stats.Concurrency),
+		zap.Int64("stat_total_allocated", stats.TotalAllocated),
 	)
 }
 
