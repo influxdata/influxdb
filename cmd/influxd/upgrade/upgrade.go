@@ -210,7 +210,7 @@ func NewCommand() *cobra.Command {
 			DestP:   &options.target.influx2CommandPath,
 			Flag:    "influx-command-path",
 			Default: influxExePathV2(),
-			Desc:    "optional: influx command path",
+			Desc:    "path to influx command",
 		},
 		{
 			DestP:   &options.target.securityScriptPath,
