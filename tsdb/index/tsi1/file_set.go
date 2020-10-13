@@ -467,7 +467,7 @@ type File interface {
 	MeasurementsSketches() (s, t estimator.Sketch, err error)
 	SeriesSketches() (s, t estimator.Sketch, err error)
 
-	// Bitmap series existance.
+	// Bitmap series existence.
 	SeriesIDSet() (*tsdb.SeriesIDSet, error)
 	TombstoneSeriesIDSet() (*tsdb.SeriesIDSet, error)
 

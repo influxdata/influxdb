@@ -9,7 +9,7 @@ import (
 )
 
 // IntegerArrayEncodeAll encodes src into b, returning b and any error encountered.
-// The returned slice may be of a different length and capactity to b.
+// The returned slice may be of a different length and capacity to b.
 //
 // IntegerArrayEncodeAll implements batch oriented versions of the three integer
 // encoding types we support: uncompressed, simple8b and RLE.
@@ -26,7 +26,7 @@ func IntegerArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 
 	// To prevent an allocation of the entire block we're encoding reuse the
 	// src slice to store the encoded deltas.
-	deltas := reintepretInt64ToUint64Slice(src)
+	deltas := reinterpretInt64ToUint64Slice(src)
 	for i := len(deltas) - 1; i > 0; i-- {
 		deltas[i] = deltas[i] - deltas[i-1]
 		deltas[i] = ZigZagEncode(int64(deltas[i]))
@@ -115,7 +115,7 @@ func IntegerArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 }
 
 // UnsignedArrayEncodeAll encodes src into b, returning b and any error encountered.
-// The returned slice may be of a different length and capactity to b.
+// The returned slice may be of a different length and capacity to b.
 //
 // UnsignedArrayEncodeAll implements batch oriented versions of the three integer
 // encoding types we support: uncompressed, simple8b and RLE.
@@ -124,7 +124,7 @@ func IntegerArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 // scratch space for delta encoded values. It is NOT SAFE to use src after
 // passing it into IntegerArrayEncodeAll.
 func UnsignedArrayEncodeAll(src []uint64, b []byte) ([]byte, error) {
-	srcint := reintepretUint64ToInt64Slice(src)
+	srcint := reinterpretUint64ToInt64Slice(src)
 	return IntegerArrayEncodeAll(srcint, b)
 }
 
@@ -160,8 +160,8 @@ func UnsignedArrayDecodeAll(b []byte, dst []uint64) ([]uint64, error) {
 		encoding = 3 // integerBatchDecodeAllInvalid
 	}
 
-	res, err := integerBatchDecoderFunc[encoding&3](b, reintepretUint64ToInt64Slice(dst))
-	return reintepretInt64ToUint64Slice(res), err
+	res, err := integerBatchDecoderFunc[encoding&3](b, reinterpretUint64ToInt64Slice(dst))
+	return reinterpretInt64ToUint64Slice(res), err
 }
 
 func integerBatchDecodeAllUncompressed(b []byte, dst []int64) ([]int64, error) {
@@ -208,7 +208,7 @@ func integerBatchDecodeAllSimple(b []byte, dst []int64) ([]int64, error) {
 	dst[0] = ZigZagDecode(binary.BigEndian.Uint64(b))
 
 	// decode compressed values
-	buf := reintepretInt64ToUint64Slice(dst)
+	buf := reinterpretInt64ToUint64Slice(dst)
 	n, err := simple8b.DecodeBytesBigEndian(buf[1:], b[8:])
 	if err != nil {
 		return []int64{}, err
@@ -281,10 +281,10 @@ func integerBatchDecodeAllInvalid(b []byte, _ []int64) ([]int64, error) {
 	return []int64{}, fmt.Errorf("unknown encoding %v", b[0]>>4)
 }
 
-func reintepretInt64ToUint64Slice(src []int64) []uint64 {
+func reinterpretInt64ToUint64Slice(src []int64) []uint64 {
 	return *(*[]uint64)(unsafe.Pointer(&src))
 }
 
-func reintepretUint64ToInt64Slice(src []uint64) []int64 {
+func reinterpretUint64ToInt64Slice(src []uint64) []int64 {
 	return *(*[]int64)(unsafe.Pointer(&src))
 }

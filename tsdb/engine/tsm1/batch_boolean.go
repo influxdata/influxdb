@@ -6,7 +6,7 @@ import (
 )
 
 // BooleanArrayEncodeAll encodes src into b, returning b and any error encountered.
-// The returned slice may be of a different length and capactity to b.
+// The returned slice may be of a different length and capacity to b.
 func BooleanArrayEncodeAll(src []bool, b []byte) ([]byte, error) {
 	sz := 1 + 8 + ((len(src) + 7) / 8) // Header + Num bools + bool data.
 	if len(b) < sz && cap(b) > sz {

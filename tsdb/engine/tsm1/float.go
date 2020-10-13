@@ -2,7 +2,7 @@ package tsm1
 
 /*
 This code is originally from: https://github.com/dgryski/go-tsz and has been modified to remove
-the timestamp compression fuctionality.
+the timestamp compression functionality.
 
 It implements the float compression as presented in: http://www.vldb.org/pvldb/vol8/p1816-teller.pdf.
 This implementation uses a sentinel value of NaN which means that float64 NaN cannot be stored using
