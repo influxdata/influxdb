@@ -16,3 +16,4 @@ delorean_line_parser = { path = "../delorean_line_parser" }
 delorean_storage = { path = "../delorean_storage" }
 delorean_write_buffer = { path = "../delorean_write_buffer" }
 tokio = { version = "0.2", features = ["full"] }
+delorean_arrow = { path = "../delorean_arrow" }
