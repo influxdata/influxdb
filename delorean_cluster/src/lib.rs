@@ -127,17 +127,23 @@ impl<M: ConnectionManager> Server<M> {
 
     /// Tells the server the set of rules for a database. Currently, this is not persisted and
     /// is for in-memory processing rules only.
-    pub async fn create_database(&self, db_name: &str, rules: DatabaseRules) -> Result<()> {
+    pub async fn create_database(
+        &self,
+        db_name: impl Into<String>,
+        rules: DatabaseRules,
+    ) -> Result<()> {
+        let db_name = db_name.into();
+
         let mut database_map = self.databases.write().await;
         let buffer = if rules.store_locally {
-            Some(WriteBufferDb::new(db_name))
+            Some(WriteBufferDb::new(&db_name))
         } else {
             None
         };
 
         let db = Db { rules, buffer };
 
-        database_map.insert(db_name.into(), Arc::new(db));
+        database_map.insert(db_name, Arc::new(db));
 
         Ok(())
     }
