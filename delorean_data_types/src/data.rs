@@ -6,7 +6,7 @@ use crate::TIME_COLUMN_NAME;
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::{FieldValue, ParsedLine};
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use chrono::Utc;
 use crc32fast::Hasher;
@@ -48,7 +48,7 @@ pub fn lines_to_replicated_write(
     writer: u8,
     sequence: u64,
     lines: &[ParsedLine<'_>],
-    rules: &Arc<DatabaseRules>,
+    rules: &DatabaseRules,
 ) -> ReplicatedWrite {
     let default_time = Utc::now();
     let entry_bytes = split_lines_into_write_entry_partitions(
