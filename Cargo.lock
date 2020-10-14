@@ -870,6 +870,7 @@ name = "delorean_segment_store"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "croaring",
  "delorean_arrow",
  "delorean_table",
  "rand",
