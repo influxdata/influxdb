@@ -1,9 +1,19 @@
-## unreleased
+## ## v2.0.0-rc.1 [2020-10-14]
+
+### Features
+
+1. [19641](https://github.com/influxdata/influxdb/pull/19641): Added `influx upgrade` command for upgrading from 1.x to 2.0
+1. [19746](https://github.com/influxdata/influxdb/pull/19746): Added Intel RDT and RAS Daemon telegraf plugins
+1. [19731](https://github.com/influxdata/influxdb/pull/19731): Upgraded Flux to v0.89.0
 
 ### Bug Fixes
 
-1. [#19679](https://github.com/influxdata/influxdb/issues/19679): Scrapers not working in RC0
-
+1. [19708](https://github.com/influxdata/influxdb/pull/19708): Scrapers not working in RC0
+1. [19732](https://github.com/influxdata/influxdb/pull/19732): Update default value of list tasks influx CLI command to 100
+1. [19710](https://github.com/influxdata/influxdb/pull/19710): InfluxDB Templates: allow same duration unit identifiers that the tasks api allows
+1. [19700](https://github.com/influxdata/influxdb/pull/19700): InfluxDB Templates: preserve cell colors on export/import
+1. [19695](https://github.com/influxdata/influxdb/pull/19695): Influx CLI fix an issue where a single telegraf config was not being returned
+1. [19593](https://github.com/influxdata/influxdb/pull/19593): Don't allow short passwords in `influx setup`
 
 ## v2.0.0-rc.0 [2020-09-29]
 
