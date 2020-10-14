@@ -104,7 +104,7 @@ impl PartitionTemplate {
             .map(|p| match p {
                 TemplatePart::Table => line.series.measurement.to_string(),
                 TemplatePart::Column(column) => match line.tag_value(&column) {
-                    Some(v) => format!("{}_{}", column, v.to_string()),
+                    Some(v) => format!("{}_{}", column, v),
                     None => match line.field_value(&column) {
                         Some(v) => format!("{}_{}", column, v),
                         None => "".to_string(),
