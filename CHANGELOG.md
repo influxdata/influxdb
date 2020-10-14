@@ -47,6 +47,7 @@ need to update any InfluxDB CLI config profiles with the new port number.
 1. [19663](https://github.com/influxdata/influxdb/pull/19663): Added InfluxDB v2 Listener, NSD, OPC-UA, and Windows Event Log to the sources page
 1. [19662](https://github.com/influxdata/influxdb/pull/19662): Add `max-line-length` switch to `influx write` command to address `token too long` errors for large inputs
 1. [19660](https://github.com/influxdata/influxdb/pull/19660): Add --rate-limit option to `influx write`.
+1. [19740](https://github.com/influxdata/influxdb/pull/19740): Add `--force` option to `influx stack rm` to skip confirmation
 
 ### Bug Fixes
 
