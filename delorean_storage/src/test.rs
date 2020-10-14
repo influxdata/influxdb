@@ -17,7 +17,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use tokio::sync::Mutex;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TestDatabase {
     /// Lines which have been written to this database, in order
     saved_lines: Mutex<Vec<String>>,
@@ -78,21 +78,6 @@ pub enum TestError {
 
     #[snafu(display("Test database execution:  {:?}", source))]
     Execution { source: crate::exec::Error },
-}
-
-impl Default for TestDatabase {
-    fn default() -> Self {
-        Self {
-            saved_lines: Mutex::new(Vec::new()),
-            replicated_writes: Mutex::new(Vec::new()),
-            column_names: Arc::new(Mutex::new(None)),
-            column_names_request: Arc::new(Mutex::new(None)),
-            column_values: Arc::new(Mutex::new(None)),
-            column_values_request: Arc::new(Mutex::new(None)),
-            query_series_values: Arc::new(Mutex::new(None)),
-            query_series_request: Arc::new(Mutex::new(None)),
-        }
-    }
 }
 
 impl TestDatabase {
