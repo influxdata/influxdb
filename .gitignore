@@ -14,6 +14,9 @@ vendor
 influxd.bolt
 *.db
 
+# GPG private keys
+private.key
+
 # Project distribution
 /dist
 
