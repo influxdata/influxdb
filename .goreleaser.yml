@@ -124,6 +124,13 @@ dockers:
     extra_files:
       - docker/influxd/entrypoint.sh
 
+signs:
+  -
+    signature: "${artifact}.asc"
+    cmd: gpg
+    args: [ "--passphrase", "{{.Env.PASSPHRASE}}",  "--pinentry-mode=loopback", "--batch", "--armor",  "--detach-sign", "${artifact}"]
+    artifacts: all
+
 # Do not make github release
 release:
   name_template: "v{{.Version}}"
