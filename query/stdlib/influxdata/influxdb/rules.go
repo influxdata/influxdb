@@ -851,7 +851,7 @@ func (PushDownWindowAggregateByTimeRule) Rewrite(ctx context.Context, pn plan.No
 	}
 
 	// window(every: inf)
-	if windowSpec.Window.Every != values.ConvertDuration(math.MaxInt64) ||
+	if windowSpec.Window.Every != values.ConvertDurationNsecs(math.MaxInt64) ||
 		windowSpec.Window.Every != windowSpec.Window.Period ||
 		windowSpec.TimeColumn != execute.DefaultTimeColLabel ||
 		windowSpec.StartColumn != execute.DefaultStartColLabel ||

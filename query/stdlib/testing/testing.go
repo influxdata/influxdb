@@ -118,7 +118,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	"http": {
 		"http_endpoint": "need ability to test side effects in e2e tests: (https://github.com/influxdata/flux/issues/1723)",
 	},
-	"influxdata/influxdb/v1": {
+	"influxdata/influxdb/schema": {
 		"show_measurements": "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
 		"show_tag_values":   "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
 		"show_tag_keys":     "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
@@ -161,6 +161,9 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	"testing/influxql": {
 		"cumulative_sum": "invalid test data requires loadStorage to be overridden. See https://github.com/influxdata/flux/issues/3145",
 		"elapsed":        "failing since split with Flux upgrade: https://github.com/influxdata/influxdb/issues/19568",
+	},
+	"contrib/RohanSreerama5/naiveBayesClassifier": {
+		"bayes": "error calling tableFind: ",
 	},
 }
 

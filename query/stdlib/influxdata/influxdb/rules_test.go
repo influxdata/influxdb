@@ -1235,13 +1235,13 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		},
 	}
 
-	dur1m := values.ConvertDuration(60 * time.Second)
-	dur2m := values.ConvertDuration(120 * time.Second)
-	dur0 := values.ConvertDuration(0)
+	dur1m := values.ConvertDurationNsecs(60 * time.Second)
+	dur2m := values.ConvertDurationNsecs(120 * time.Second)
+	dur0 := values.ConvertDurationNsecs(0)
 	durNeg, _ := values.ParseDuration("-60s")
 	dur1mo, _ := values.ParseDuration("1mo")
 	dur1y, _ := values.ParseDuration("1y")
-	durInf := values.ConvertDuration(math.MaxInt64)
+	durInf := values.ConvertDurationNsecs(math.MaxInt64)
 
 	window := func(dur values.Duration) universe.WindowProcedureSpec {
 		return universe.WindowProcedureSpec{
@@ -1996,12 +1996,12 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 		return group(flux.GroupModeBy, keys...)
 	}
 
-	dur1m := values.ConvertDuration(60 * time.Second)
-	dur2m := values.ConvertDuration(120 * time.Second)
-	dur0 := values.ConvertDuration(0)
+	dur1m := values.ConvertDurationNsecs(60 * time.Second)
+	dur2m := values.ConvertDurationNsecs(120 * time.Second)
+	dur0 := values.ConvertDurationNsecs(0)
 	durNeg, _ := values.ParseDuration("-60s")
 	dur1y, _ := values.ParseDuration("1y")
-	durInf := values.ConvertDuration(math.MaxInt64)
+	durInf := values.ConvertDurationNsecs(math.MaxInt64)
 
 	window := func(dur values.Duration) universe.WindowProcedureSpec {
 		return universe.WindowProcedureSpec{
