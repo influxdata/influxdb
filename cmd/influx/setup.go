@@ -240,7 +240,7 @@ func nonInteractive() (*influxdb.OnboardingRequest, error) {
 		return nil, err
 	}
 	if dur > 0 {
-		req.RetentionPeriod = dur
+		req.RetentionPeriod = dur / time.Hour
 	}
 	return req, nil
 }
