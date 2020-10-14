@@ -225,16 +225,17 @@ pub struct Db {
 
 impl Db {
     /// New creates a new in-memory only write buffer database
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.to_string(),
+            name: name.into(),
             ..Default::default()
         }
     }
 
     /// Create a new DB that will create and use the Write Ahead Log
     /// (WAL) directory `wal_dir`
-    pub async fn try_with_wal(name: &str, wal_dir: &mut PathBuf) -> Result<Self> {
+    pub async fn try_with_wal(name: impl Into<String>, wal_dir: &mut PathBuf) -> Result<Self> {
+        let name = name.into();
         wal_dir.push(&name);
         if let Err(e) = std::fs::create_dir(wal_dir.clone()) {
             match e.kind() {
@@ -251,14 +252,14 @@ impl Db {
         let wal_builder = WalBuilder::new(wal_dir.clone());
         let wal_details = start_wal_sync_task(wal_builder)
             .await
-            .context(OpeningWal { database: name })?;
+            .context(OpeningWal { database: &name })?;
         wal_details
             .write_metadata()
             .await
-            .context(OpeningWal { database: name })?;
+            .context(OpeningWal { database: &name })?;
 
         Ok(Self {
-            name: name.to_string(),
+            name,
             wal_details: Some(wal_details),
             ..Default::default()
         })
@@ -345,7 +346,7 @@ impl Database for Db {
 
         if let Some(wal) = &self.wal_details {
             wal.write_and_sync(data).await.context(WritingWal {
-                database: self.name.clone(),
+                database: &self.name,
             })?;
         }
 
@@ -369,7 +370,7 @@ impl Database for Db {
             wal.write_and_sync(write.data.clone())
                 .await
                 .context(WritingWal {
-                    database: self.name.clone(),
+                    database: &self.name,
                 })?;
         }
 
