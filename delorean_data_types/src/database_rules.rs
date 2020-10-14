@@ -205,6 +205,7 @@ pub struct HostGroup {
     pub hosts: Vec<String>,
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
     use delorean_line_parser::parse_lines;
@@ -364,12 +365,10 @@ mod tests {
         Ok(())
     }
 
-    #[allow(dead_code)]
     fn parsed_lines(lp: &str) -> Vec<ParsedLine<'_>> {
         parse_lines(lp).map(|l| l.unwrap()).collect()
     }
 
-    #[allow(dead_code)]
     fn parse_line(line: &str) -> ParsedLine<'_> {
         parsed_lines(line).pop().unwrap()
     }
