@@ -1331,7 +1331,7 @@ func skipPredicate(dAtA []byte) (n int, err error) {
 }
 
 var (
-	ErrInvalidLengthPredicate        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrInvalidLengthPredicate        = fmt.Errorf("proto: negative length found during unmarshalling")
 	ErrIntOverflowPredicate          = fmt.Errorf("proto: integer overflow")
 	ErrUnexpectedEndOfGroupPredicate = fmt.Errorf("proto: unexpected end of group")
 )

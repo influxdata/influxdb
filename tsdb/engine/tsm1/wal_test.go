@@ -167,7 +167,7 @@ func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 		}
 	}
 
-	// Seek back to the beinning of the file for reading
+	// Seek back to the beginning of the file for reading
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		fatal(t, "seek", err)
 	}
@@ -294,7 +294,7 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 		fatal(t, "flush", err)
 	}
 
-	// Seek back to the beinning of the file for reading
+	// Seek back to the beginning of the file for reading
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		fatal(t, "seek", err)
 	}
@@ -393,7 +393,7 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 		fatal(t, "flush", err)
 	}
 
-	// Seek back to the beinning of the file for reading
+	// Seek back to the beginning of the file for reading
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		fatal(t, "seek", err)
 	}

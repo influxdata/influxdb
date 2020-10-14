@@ -4689,7 +4689,7 @@ func testTemplateErrors(t *testing.T, k Kind, tt testTemplateResourceError) {
 
 		defer func() {
 			if t.Failed() {
-				t.Logf("recieved unexpected err: %s", pErr)
+				t.Logf("received unexpected err: %s", pErr)
 			}
 		}()
 

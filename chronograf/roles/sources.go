@@ -7,7 +7,7 @@ import (
 )
 
 // NOTE:
-// This code is currently unused. however, it has been left in place because we aniticipate
+// This code is currently unused. however, it has been left in place because we anticipate
 // that it may be used in the future. It was originally developed as a misunderstanding of
 // https://github.com/influxdata/influxdb/chronograf/issues/1915
 

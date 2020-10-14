@@ -7,7 +7,7 @@ import {
 // Types
 import {RemoteDataState, Schema} from 'src/types'
 
-export const TEN_MINUTES = 10 * 60 * 1000 // 10 muinutes in ms
+export const TEN_MINUTES = 10 * 60 * 1000 // 10 minutes in ms
 export interface BucketSchema {
   schema: Schema
   exp: number

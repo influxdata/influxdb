@@ -15,7 +15,7 @@ type AuthedLabelService struct {
 	orgSvc authorizer.OrganizationService
 }
 
-// NewAuthedLabelService constructs an instance of an authorizing label serivce.
+// NewAuthedLabelService constructs an instance of an authorizing label service.
 func NewAuthedLabelService(s influxdb.LabelService, orgSvc authorizer.OrganizationService) *AuthedLabelService {
 	return &AuthedLabelService{
 		s:      s,

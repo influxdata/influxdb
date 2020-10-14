@@ -321,7 +321,7 @@ func TestEffectiveCronString(t *testing.T) {
 }
 
 func TestDurationMarshaling(t *testing.T) {
-	t.Run("unmarshaling", func(t *testing.T) {
+	t.Run("unmarshalling", func(t *testing.T) {
 		now := time.Now().UTC() /* to guarantee 24 hour days*/
 		dur1 := options.Duration{}
 		if err := dur1.UnmarshalText([]byte("1d1h10m3s")); err != nil {

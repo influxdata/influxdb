@@ -15,7 +15,7 @@ type TelegrafConfigService struct {
 	influxdb.UserResourceMappingService
 }
 
-// NewTelegrafConfigService constructs an instance of an authorizing telegraf serivce.
+// NewTelegrafConfigService constructs an instance of an authorizing telegraf service.
 func NewTelegrafConfigService(s influxdb.TelegrafConfigStore, urm influxdb.UserResourceMappingService) *TelegrafConfigService {
 	return &TelegrafConfigService{
 		s:                          s,

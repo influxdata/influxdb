@@ -134,7 +134,7 @@ type FloatPoint struct {
 }
 
 // Tags represent a map of keys and values.
-// It memoizes its key so it can be used efficiently during query execution.
+// It memorizes its key so it can be used efficiently during query execution.
 type Tags struct{}
 
 // Iterator represents a generic interface for all Iterators.

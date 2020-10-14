@@ -356,7 +356,7 @@ func TestService_handleGetBucket(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetBucket(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetBucket(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetBucket() = ***%s***", tt.name, diff)
 				}
@@ -517,7 +517,7 @@ func TestService_handlePostBucket(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePostBucket(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePostBucket(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePostBucket() = ***%s***", tt.name, diff)
 				}
@@ -621,7 +621,7 @@ func TestService_handleDeleteBucket(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleDeleteBucket(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleDeleteBucket(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleDeleteBucket() = ***%s***", tt.name, diff)
 				}
@@ -1002,7 +1002,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePatchBucket(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePatchBucket(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePatchBucket() = ***%s***", tt.name, diff)
 				}
@@ -1097,7 +1097,7 @@ func TestService_handlePostBucketMember(t *testing.T) {
 				t.Errorf("%q. handlePostBucketMember() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, handlePostBucketMember(). error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, handlePostBucketMember(). error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handlePostBucketMember() = ***%s***", tt.name, diff)
 			}
@@ -1191,7 +1191,7 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 				t.Errorf("%q. handlePostBucketOwner() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, handlePostBucketOwner(). error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, handlePostBucketOwner(). error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handlePostBucketOwner() = ***%s***", tt.name, diff)
 			}

@@ -76,7 +76,7 @@ class DashboardRoute extends PureComponent<Props> {
 
     // resource is still loading
     // we have to wait for it so that we can filter out arbitrary user input
-    // from the redux state before commiting it back to localstorage
+    // from the redux state before committing it back to localstorage
     if (!variables.length) {
       this.pendingVars = urlVars.vars
       return

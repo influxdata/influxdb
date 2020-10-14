@@ -41,7 +41,7 @@ func TestData(t *testing.T) {
 	q := chronograf.QueryConfig{}
 	err := json.Unmarshal([]byte(config), &q)
 	if err != nil {
-		t.Errorf("Error unmarshaling %v", err)
+		t.Errorf("Error unmarshalling %v", err)
 	}
 	alert := chronograf.AlertRule{
 		Trigger: "deadman",

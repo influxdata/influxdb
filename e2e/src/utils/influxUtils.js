@@ -218,7 +218,7 @@ const setupNewUser = async(newUser) => {
                 `at ${__config.host}.  User should already exist there` );
             break;
         default:
-            throw `Unkown create user method ${__config.create_method}`
+            throw `Unknown create user method ${__config.create_method}`
     }
 
     putUser(user);

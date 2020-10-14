@@ -602,7 +602,7 @@ If a user has put a lot of effort in creating dashboards, notifications, and tel
 
 Resources can be exported all at once, via the export by organization, by specific resource IDs, a combination of the above, and advanced filtering (i.e. by label name or resource type). You can read up more on the export options [here](https://github.com/influxdata/influxdb/blob/c926accb42d87c407bcac6bbda753f9a03f9ec95/pkger/service.go#L280-L330). 
 
-Each resouce that is exported is assigned a uniq `metadata.name` entry. The names are generated and are not strictly required to remain in that shape. If a user decides to use `metadata.name` as the name of the resource, they are free to do so. The only requirement is that within a package every resource type has a unique `metadata.name` per its type. For example each resource kind `metadata.name` field should have be unique amongst all resources of the same kind within a package. 
+Each resource that is exported is assigned a uniq `metadata.name` entry. The names are generated and are not strictly required to remain in that shape. If a user decides to use `metadata.name` as the name of the resource, they are free to do so. The only requirement is that within a package every resource type has a unique `metadata.name` per its type. For example each resource kind `metadata.name` field should have be unique amongst all resources of the same kind within a package. 
 
 > Each label should have a unique `metadata.name` field amongst all labels in the package.
 

@@ -17,7 +17,7 @@ type AuthedUserService struct {
 	s influxdb.UserService
 }
 
-// NewAuthedUserService constructs an instance of an authorizing user serivce.
+// NewAuthedUserService constructs an instance of an authorizing user service.
 func NewAuthedUserService(s influxdb.UserService) *AuthedUserService {
 	return &AuthedUserService{
 		s: s,
@@ -91,7 +91,7 @@ type AuthedPasswordService struct {
 	s influxdb.PasswordsService
 }
 
-// NewAuthedPasswordService wraps an existing password service with auth middlware.
+// NewAuthedPasswordService wraps an existing password service with auth middleware.
 func NewAuthedPasswordService(svc influxdb.PasswordsService) *AuthedPasswordService {
 	return &AuthedPasswordService{s: svc}
 }

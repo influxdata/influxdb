@@ -19,7 +19,7 @@ type BucketHandler struct {
 	api       *kithttp.API
 	log       *zap.Logger
 	bucketSvc influxdb.BucketService
-	labelSvc  influxdb.LabelService // we may need this for now but we dont want it perminantly
+	labelSvc  influxdb.LabelService // we may need this for now but we dont want it permanently
 }
 
 const (

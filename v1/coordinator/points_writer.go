@@ -276,12 +276,12 @@ func (l sgList) Append(sgi meta.ShardGroupInfo) sgList {
 	return next
 }
 
-// WritePoints writes the data to the underlying storage. consitencyLevel and user are only used for clustered scenarios
+// WritePoints writes the data to the underlying storage. consistencyLevel and user are only used for clustered scenarios
 func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
 	return w.WritePointsPrivileged(database, retentionPolicy, consistencyLevel, points)
 }
 
-// WritePointsPrivileged writes the data to the underlying storage, consitencyLevel is only used for clustered scenarios
+// WritePointsPrivileged writes the data to the underlying storage, consistencyLevel is only used for clustered scenarios
 func (w *PointsWriter) WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 	atomic.AddInt64(&w.stats.WriteReq, 1)
 	atomic.AddInt64(&w.stats.PointWriteReq, int64(len(points)))

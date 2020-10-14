@@ -113,14 +113,14 @@ describe('ThresholdSettings', () => {
 
   test('broadcasts edited thresholds only when changes are valid', async () => {
     const handleSetThresholdsSpy = jest.fn()
-    const testShresholds: Color[] = [
+    const testThresholds: Color[] = [
       {id: '0', type: 'min', name: 'thunder', hex: '', value: 20},
       {id: '1', type: 'threshold', name: 'fire', hex: '', value: 30},
       {id: '2', type: 'max', name: 'ruby', hex: '', value: 60},
     ]
 
     const TestWrapper = () => {
-      const [thresholds, setThresholds] = useState<Color[]>(testShresholds)
+      const [thresholds, setThresholds] = useState<Color[]>(testThresholds)
 
       const [didRerender, setDidRerender] = useState(false)
 

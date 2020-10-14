@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// StatusRule includes parametes of status rules.
+// StatusRule includes parameters of status rules.
 type StatusRule struct {
 	CurrentLevel  CheckLevel  `json:"currentLevel"`
 	PreviousLevel *CheckLevel `json:"previousLevel"`

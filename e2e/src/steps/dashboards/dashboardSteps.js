@@ -263,7 +263,7 @@ class dashboardSteps extends influxSteps {
     async clickDashboardPopOverlayAddNote(){
         await this.clickAndWait(await this.dbdPage.getCellPopoverContentsAddNote(), async () => {
             //await this.driver.wait(
-            //until.elementLocated(By.css(basePage.getPopupBodySelector().selector)) // not working consistentlly
+            //until.elementLocated(By.css(basePage.getPopupBodySelector().selector)) // not working consistently
             //);
             await this.driver.sleep(1000); //sometimes slow and then overrun by downstream steps
         });
@@ -524,7 +524,7 @@ class dashboardSteps extends influxSteps {
         });
     }
 
-    async dragToHorizonatlFractionOfGraphCell(fraction, name){
+    async dragToHorizontalFractionOfGraphCell(fraction, name){
         let fract = fraction.split('/');
         let denom = fract[1];
         let numer = fract[0];

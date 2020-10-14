@@ -61,7 +61,7 @@ export const reportError = (
 
 /*
   Parse React's error boundary info message to provide the name of the
-  component an error occured in.
+  component an error occurred in.
 
   For example, given the following info message:
 

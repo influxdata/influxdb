@@ -214,7 +214,7 @@ func (s *SourcesStore) get(ctx context.Context, id int, tx *bolt.Tx) (chronograf
 }
 
 func (s *SourcesStore) update(ctx context.Context, src chronograf.Source, tx *bolt.Tx) error {
-	// Get an existing soource with the same ID.
+	// Get an existing source with the same ID.
 	b := tx.Bucket(SourcesBucket)
 	if v := b.Get(itob(src.ID)); v == nil {
 		return chronograf.ErrSourceNotFound

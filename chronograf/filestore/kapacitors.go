@@ -19,7 +19,7 @@ var _ chronograf.ServersStore = &Kapacitors{}
 // Kapacitors are JSON kapacitors stored in the filesystem
 type Kapacitors struct {
 	Dir     string                                      // Dir is the directory containing the kapacitors.
-	Load    func(string, interface{}) error             // Load loads string name and dashbaord passed in as interface
+	Load    func(string, interface{}) error             // Load loads string name and dashboard passed in as interface
 	Create  func(string, interface{}) error             // Create will write kapacitor to file.
 	ReadDir func(dirname string) ([]os.FileInfo, error) // ReadDir reads the directory named by dirname and returns a list of directory entries sorted by filename.
 	Remove  func(name string) error                     // Remove file

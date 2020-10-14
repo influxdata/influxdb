@@ -56,9 +56,9 @@ func newInmemService(t *testing.T) *kv.Service {
 	return svc
 }
 
-// TestEndpointService_cummulativeSecrets tests that secrets are cummulatively added/updated and removed upon delete
+// TestEndpointService_cumulativeSecrets tests that secrets are cumulatively added/updated and removed upon delete
 // see https://github.com/influxdata/influxdb/pull/19082 for details
-func TestEndpointService_cummulativeSecrets(t *testing.T) {
+func TestEndpointService_cumulativeSecrets(t *testing.T) {
 	inMemService := newInmemService(t)
 	endpointService := endpoints.NewService(inMemService, inMemService, inMemService, inMemService)
 	secretService := inMemService

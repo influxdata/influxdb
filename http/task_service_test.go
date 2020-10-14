@@ -409,7 +409,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(tt.wants.body, string(body)); err != nil {
-					t.Errorf("%q, handleGetTasks(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetTasks(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetTasks() = ***%s***", tt.name, diff)
 				}
@@ -575,7 +575,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(tt.wants.body, string(body)); err != nil {
-					t.Errorf("%q, handlePostTask(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePostTask(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePostTask() = ***%s***", tt.name, diff)
 				}
@@ -689,7 +689,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetRun(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetRun(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetRun() = ***%s***", tt.name, diff)
 				}
@@ -807,7 +807,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetRuns(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetRuns(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetRuns() = ***%s***", tt.name, diff)
 				}
@@ -1197,7 +1197,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePostTaskLabel(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePostTaskLabel(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePostTaskLabel() = ***%s***", tt.name, diff)
 				}

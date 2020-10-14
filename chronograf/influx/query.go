@@ -10,7 +10,7 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-// TimeRangeAsEpochNano extracs the min and max epoch times from the expression
+// TimeRangeAsEpochNano extracts the min and max epoch times from the expression
 func TimeRangeAsEpochNano(expr influxql.Expr, now time.Time) (min, max int64, err error) {
 	// TODO(desa): is this OK?
 	_, trange, err := influxql.ConditionExpr(expr, nil)

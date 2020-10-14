@@ -145,7 +145,7 @@ func (s *Service) findOrganizationByName(ctx context.Context, tx Tx, n string) (
 	return s.findOrganizationByID(ctx, tx, id)
 }
 
-// FindOrganization retrives a organization using an arbitrary organization filter.
+// FindOrganization retrieves a organization using an arbitrary organization filter.
 // Filters using ID, or Name should be efficient.
 // Other filters will do a linear scan across organizations until it finds a match.
 func (s *Service) FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
@@ -196,7 +196,7 @@ func filterOrganizationsFn(filter influxdb.OrganizationFilter) func(o *influxdb.
 	return func(o *influxdb.Organization) bool { return true }
 }
 
-// FindOrganizations retrives all organizations that match an arbitrary organization filter.
+// FindOrganizations retrieves all organizations that match an arbitrary organization filter.
 // Filters using ID, or Name should be efficient.
 // Other filters will do a linear scan across all organizations searching for a match.
 func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.OrganizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Organization, int, error) {

@@ -137,7 +137,7 @@ func newMappingsResponse(ms []chronograf.Mapping) *mappingsResponse {
 	}
 }
 
-// Mappings retrives all mappings
+// Mappings retrieves all mappings
 func (s *Service) Mappings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

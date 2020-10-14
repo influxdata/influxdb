@@ -8,7 +8,7 @@ import {
   ClickOutside,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {isDurationParseable} from 'src/shared/utils/duration'
+import {isDurationParsable} from 'src/shared/utils/duration'
 
 const SUGGESTION_CLASS = 'duration-input--suggestion'
 
@@ -61,7 +61,7 @@ const DurationInput: FC<Props> = ({
   }
 
   const isValid = (i: string): boolean =>
-    isDurationParseable(i) || validFunction(i)
+    isDurationParsable(i) || validFunction(i)
 
   let inputStatus = controlledStatus || ComponentStatus.Default
 

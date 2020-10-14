@@ -35,7 +35,7 @@ var up = func(db *bolt.DB) error {
 
 			err := proto.Unmarshal(data, board)
 			if err != nil {
-				log.Fatal("unmarshaling error: ", err)
+				log.Fatal("unmarshalling error: ", err)
 			}
 
 			// Migrate the dashboard

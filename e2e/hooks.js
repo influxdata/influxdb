@@ -147,7 +147,7 @@ AfterAll(async function ( ) {
 
     if(perfUtils.performanceLog.length > 0){
         await perfUtils.writePerformanceLog();
-        await perfUtils.writePerfomanceReport();
+        await perfUtils.writePerformanceReport();
     }
 });
 

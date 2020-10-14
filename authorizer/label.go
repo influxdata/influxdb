@@ -16,7 +16,7 @@ type LabelService struct {
 	orgSvc OrganizationService
 }
 
-// NewLabelServiceWithOrg constructs an instance of an authorizing label serivce.
+// NewLabelServiceWithOrg constructs an instance of an authorizing label service.
 // Replaces NewLabelService.
 func NewLabelServiceWithOrg(s influxdb.LabelService, orgSvc OrganizationService) *LabelService {
 	return &LabelService{

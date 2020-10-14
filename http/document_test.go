@@ -325,7 +325,7 @@ func TestService_handleDeleteDocumentLabel(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleDeleteDocumentLabel(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleDeleteDocumentLabel(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleDeleteDocumentLabel() = ***%s***", tt.name, diff)
 				}
@@ -507,7 +507,7 @@ func TestService_handlePostDocumentLabel(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePostDocumentLabel(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePostDocumentLabel(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePostDocumentLabel() = ***%s***", tt.name, diff)
 				}
@@ -619,7 +619,7 @@ func TestService_handleGetDocumentLabels(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetDocumentLabel(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetDocumentLabel(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetDocumentLabel() = ***%s***", tt.name, diff)
 				}
@@ -740,7 +740,7 @@ func TestService_handleGetDocuments(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetDocuments(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetDocuments(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetDocuments() = ***%s***", tt.name, diff)
 				}
@@ -950,7 +950,7 @@ func TestService_handlePostDocuments(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(tt.wants.body, string(body)); err != nil {
-					t.Errorf("%q, handlePostDocument(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePostDocument(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePostDocument() = ***%s***", tt.name, diff)
 				}
