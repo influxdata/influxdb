@@ -1,6 +1,6 @@
 # Exec Input Plugin
 
-The `exec` plugin executes all the `commands` in parralel on every interval and parses metrics from
+The `exec` plugin executes all the `commands` in parallel on every interval and parses metrics from
 their output in any one of the accepted [Input Data Formats](https://github.com/influxdata/telegraf/blob/master/docs/DATA_FORMATS_INPUT.md).
 
 This plugin can be used to poll for custom metrics from any source.
