@@ -1352,7 +1352,7 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
   },
   {
     id: 'ras',
-    name: 'RAS',
+    name: 'RAS Daemon',
     url: `${TELEGRAF_PLUGINS}/ras`,
     markdown: rasMarkdown,
     image: rasLogo,
