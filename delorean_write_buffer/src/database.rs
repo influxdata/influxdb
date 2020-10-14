@@ -215,7 +215,7 @@ impl From<crate::partition::Error> for Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Db {
     pub name: String,
     // TODO: partitions need to be wrapped in an Arc if they're going to be used without this lock
@@ -228,8 +228,7 @@ impl Db {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            partitions: RwLock::new(vec![]),
-            wal_details: None,
+            ..Default::default()
         }
     }
 
@@ -260,8 +259,8 @@ impl Db {
 
         Ok(Self {
             name: name.to_string(),
-            partitions: RwLock::new(vec![]),
             wal_details: Some(wal_details),
+            ..Default::default()
         })
     }
 
