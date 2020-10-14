@@ -68,7 +68,7 @@ type (
 		Resources    []StackResource
 	}
 
-	// StackResource is a record for an individual resource side effect genereated from
+	// StackResource is a record for an individual resource side effect generated from
 	// applying a template.
 	StackResource struct {
 		APIVersion   string

@@ -12,7 +12,7 @@ type Enabler interface {
 	Enabled(ctx context.Context, flagger ...feature.Flagger) bool
 }
 
-// FeatureHandler is used to switch requests between an exisiting and a feature flagged
+// FeatureHandler is used to switch requests between an existing and a feature flagged
 // HTTP Handler on a per-request basis
 type FeatureHandler struct {
 	enabler    Enabler

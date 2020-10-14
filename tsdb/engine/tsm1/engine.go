@@ -3045,7 +3045,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 }
 
 // Type returns FieldType for a series.  If the series does not
-// exist, ErrUnkownFieldType is returned.
+// exist, ErrUnknownFieldType is returned.
 func (e *Engine) Type(series []byte) (models.FieldType, error) {
 	if typ, err := e.Cache.Type(series); err == nil {
 		return typ, nil

@@ -17,7 +17,7 @@ func IsUnrecoverable(err error) bool {
 		return true
 	}
 
-	// unparseable Flux requires user intervention to resolve
+	// unparsable Flux requires user intervention to resolve
 	if strings.Contains(errString, "could not parse Flux script") {
 		return true
 	}

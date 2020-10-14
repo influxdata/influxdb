@@ -123,7 +123,7 @@ func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("Labels retrived", zap.String("labels", fmt.Sprint(labels)))
+	h.log.Debug("Labels retrieved", zap.String("labels", fmt.Sprint(labels)))
 	err = encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(labels))
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)

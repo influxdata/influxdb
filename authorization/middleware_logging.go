@@ -81,7 +81,7 @@ func (l *AuthLogger) UpdateAuthorization(ctx context.Context, id influxdb.ID, up
 			l.logger.Debug("failed to update authorization", zap.Error(err), dur)
 			return
 		}
-		l.logger.Debug("authorizationauthorization update", dur)
+		l.logger.Debug("authorization update", dur)
 	}(time.Now())
 	return l.authService.UpdateAuthorization(ctx, id, upd)
 }

@@ -768,7 +768,7 @@ func (i *Index) dropMeasurement(name string) error {
 }
 
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
-// series for the measurment.
+// series for the measurement.
 func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -1136,7 +1136,7 @@ func (idx *ShardIndex) DropSeries(seriesID uint64, key []byte, _ bool) error {
 }
 
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
-// series for the measurment.
+// series for the measurement.
 func (idx *ShardIndex) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
 	idx.seriesIDSet.Lock()
 	curr := idx.measurements[string(name)]

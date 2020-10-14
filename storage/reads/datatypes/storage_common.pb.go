@@ -8154,7 +8154,7 @@ func skipStorageCommon(dAtA []byte) (n int, err error) {
 }
 
 var (
-	ErrInvalidLengthStorageCommon        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrInvalidLengthStorageCommon        = fmt.Errorf("proto: negative length found during unmarshalling")
 	ErrIntOverflowStorageCommon          = fmt.Errorf("proto: integer overflow")
 	ErrUnexpectedEndOfGroupStorageCommon = fmt.Errorf("proto: unexpected end of group")
 )

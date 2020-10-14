@@ -624,7 +624,7 @@ func (s *PasswordService) ComparePassword(ctx context.Context, userID influxdb.I
 	panic("not implemented")
 }
 
-// CompareAndSetPassword compares the old and new password and submits the new password if possoble.
+// CompareAndSetPassword compares the old and new password and submits the new password if possible.
 // Note: is not implemented.
 func (s *PasswordService) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old string, new string) error {
 	panic("not implemented")

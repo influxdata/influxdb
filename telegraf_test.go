@@ -32,7 +32,7 @@ var telegrafCmpOptions = cmp.Options{
 	}),
 }
 
-// tests backwards compatibillity with the current plugin aware system.
+// tests backwards compatibility with the current plugin aware system.
 func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 	s := `{
 		"name": "config 2",
@@ -171,7 +171,7 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 	}
 }
 
-// tests forwards compatibillity with the new plugin unaware system.
+// tests forwards compatibility with the new plugin unaware system.
 func TestTelegrafConfigJSONDecodeTOML(t *testing.T) {
 	s := `{
 		"name": "config 2",

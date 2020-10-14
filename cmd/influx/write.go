@@ -397,7 +397,7 @@ func ToBytesPerSecond(rateLimit string) (float64, error) {
 			return 0, fmt.Errorf("invalid rate limit %q: time is out of range: %v", strVal, err)
 		}
 		if int64Val <= 0 {
-			return 0, fmt.Errorf("invalid rate limit %q: possitive time expected but %v supplied", strVal, matches[3])
+			return 0, fmt.Errorf("invalid rate limit %q: positive time expected but %v supplied", strVal, matches[3])
 		}
 		time = float64(int64Val)
 	}

@@ -164,7 +164,7 @@ option testing.loadStorage = (csv) => {
 `
 
 // This options definition is for the second run, the test run. It loads the
-// data from previously written bucket. We check the results after runnig this
+// data from previously written bucket. We check the results after running this
 // second pass and report on them.
 var readOptSource = `
 import "testing"

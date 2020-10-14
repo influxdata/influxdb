@@ -52,7 +52,7 @@ type userContextKey string
 // UserContextKey is the context key for retrieving the user off of context
 const UserContextKey = userContextKey("user")
 
-// hasUserContext speficies if the context contains
+// hasUserContext specifies if the context contains
 // the UserContextKey and that the value stored there is chronograf.User
 func hasUserContext(ctx context.Context) (*chronograf.User, bool) {
 	// prevents panic in case of nil context
@@ -70,7 +70,7 @@ func hasUserContext(ctx context.Context) (*chronograf.User, bool) {
 	return u, true
 }
 
-// hasSuperAdminContext speficies if the context contains
+// hasSuperAdminContext specifies if the context contains
 // the UserContextKey user is a super admin
 func hasSuperAdminContext(ctx context.Context) bool {
 	u, ok := hasUserContext(ctx)
@@ -146,7 +146,7 @@ func (s *Store) Layouts(ctx context.Context) chronograf.LayoutsStore {
 // is returned.
 // If there is an organization specified on context, then an organizations.UsersStore
 // is returned.
-// If niether are specified, a noop.UsersStore is returned.
+// If neither are specified, a noop.UsersStore is returned.
 func (s *Store) Users(ctx context.Context) chronograf.UsersStore {
 	if isServer := hasServerContext(ctx); isServer {
 		return s.UsersStore
@@ -256,7 +256,7 @@ func (s *DirectStore) Layouts(ctx context.Context) chronograf.LayoutsStore {
 // is returned.
 // If there is an organization specified on context, then an organizations.UsersStore
 // is returned.
-// If niether are specified, a noop.UsersStore is returned.
+// If neither are specified, a noop.UsersStore is returned.
 func (s *DirectStore) Users(ctx context.Context) chronograf.UsersStore {
 	return s.UsersStore
 }

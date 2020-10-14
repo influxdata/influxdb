@@ -578,7 +578,7 @@ func TestPromiseFailure(t *testing.T) {
 	}
 
 	if promise != nil {
-		t.Fatalf("expected no promise but recieved one: %+v", promise)
+		t.Fatalf("expected no promise but received one: %+v", promise)
 	}
 
 	runs, _, err := tes.i.FindRuns(context.Background(), influxdb.RunFilter{Task: task.ID})

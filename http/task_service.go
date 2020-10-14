@@ -491,7 +491,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("Tasks retrived", zap.String("tasks", fmt.Sprint(tasks)))
+	h.log.Debug("Tasks retrieved", zap.String("tasks", fmt.Sprint(tasks)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(ctx, tasks, req.filter, h.LabelService)); err != nil {
 		logEncodingError(h.log, r, err)
 		return

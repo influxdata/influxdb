@@ -1199,7 +1199,7 @@ func skipMeta(dAtA []byte) (n int, err error) {
 }
 
 var (
-	ErrInvalidLengthMeta = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrInvalidLengthMeta = fmt.Errorf("proto: negative length found during unmarshalling")
 	ErrIntOverflowMeta   = fmt.Errorf("proto: integer overflow")
 )
 

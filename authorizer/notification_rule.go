@@ -16,7 +16,7 @@ type NotificationRuleStore struct {
 	influxdb.OrganizationService
 }
 
-// NewNotificationRuleStore constructs an instance of an authorizing notification rule serivce.
+// NewNotificationRuleStore constructs an instance of an authorizing notification rule service.
 func NewNotificationRuleStore(s influxdb.NotificationRuleStore, urm influxdb.UserResourceMappingService, org influxdb.OrganizationService) *NotificationRuleStore {
 	return &NotificationRuleStore{
 		s:                          s,

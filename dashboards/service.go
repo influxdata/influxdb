@@ -167,7 +167,7 @@ func filterDashboardsFn(filter influxdb.DashboardFilter) func(d *influxdb.Dashbo
 	}
 }
 
-// FindDashboards retrives all dashboards that match an arbitrary dashboard filter.
+// FindDashboards retrieves all dashboards that match an arbitrary dashboard filter.
 func (s *Service) FindDashboards(ctx context.Context, filter influxdb.DashboardFilter, opts influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
 	ds := []*influxdb.Dashboard{}
 	if len(filter.IDs) == 1 {

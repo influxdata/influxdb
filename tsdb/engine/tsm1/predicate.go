@@ -480,7 +480,7 @@ func (p *predicateNodeOr) Clone(state *predicateState) predicateNode {
 }
 
 // Update checks if either the left and right nodes are true. If both nodes
-// are false, then the node is definitely fasle. Otherwise, it needs more information.
+// are false, then the node is definitely false. Otherwise, it needs more information.
 func (p *predicateNodeOr) Update() predicateResponse {
 	if resp, ok := p.Cached(); ok {
 		return resp
