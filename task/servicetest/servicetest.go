@@ -1017,8 +1017,6 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatalf("expected: 1970-01-01T00:01:17Z, got %s", r.ScheduledFor)
 		}
 
-		// TODO(lh): Once we have moved over to kv we can list runs and see the manual queue in the list
-
 		// Forcing the same run before it's executed should be rejected.
 		if _, err = sys.TaskService.ForceRun(sys.Ctx, task.ID, scheduledFor); err == nil {
 			t.Fatalf("subsequent force should have been rejected; failed to error: %s", task.ID)
@@ -1474,7 +1472,6 @@ func testRunStorage(t *testing.T, sys *System) {
 
 	// Look for a run that doesn't exist.
 	_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
-	// TODO(lh): use kv.ErrRunNotFound in the future. Our error's are not exact
 	if err == nil {
 		t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
 	}
