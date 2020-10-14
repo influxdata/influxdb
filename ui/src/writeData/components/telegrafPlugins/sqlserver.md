@@ -78,7 +78,7 @@ GO
   ## - AzureSQLDBResourceGovernance
   ## - AzureSQLDBDatabaseIO
   ## - AzureSQLDBServerProperties
-  ## - AzureSQLDBSQLOsWaitstats
+  ## - AzureSQLDBOsWaitstats
   ## - AzureSQLDBMemoryClerks
   ## - AzureSQLDBPerformanceCounters
   ## - AzureSQLDBRequests
@@ -92,7 +92,7 @@ GO
    ## - AzureSQLMIOsWaitstats 
    ## - AzureSQLMIMemoryClerks
    ## - AzureSQLMIPerformanceCounters
-   ## - AzureSQLMIDBRequests
+   ## - AzureSQLMIRequests
    ## - AzureSQLMISchedulers
 
    ## database_type =  SQLServer by default collects the following queries

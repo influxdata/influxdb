@@ -14,6 +14,11 @@
   ## If no servers are specified, then localhost is used as the host.
   ## If no port is specified, 6379 is used
   servers = ["tcp://localhost:6379"]
+  ## Optional. Specify redis commands to retrieve values
+  # [[inputs.redis.commands]]
+  # command = ["get", "sample-key"]
+  # field = "sample-key-value"
+  # type = "string"
 
   ## specify server password
   # password = "s#cr@t%"

@@ -2,6 +2,8 @@
 
 The proxmox plugin gathers metrics about containers and VMs using the Proxmox API.
 
+Telegraf minimum version: Telegraf 1.16.0
+
 ### Configuration:
 
 ```toml

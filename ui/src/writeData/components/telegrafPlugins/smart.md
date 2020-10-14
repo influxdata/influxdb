@@ -7,13 +7,13 @@ SMART information is separated between different measurements: `smart_device` is
 
 If no devices are specified, the plugin will scan for SMART devices via the following command:
 
-```bash
+```
 smartctl --scan
 ```
 
 Metrics will be reported from the following `smartctl` command:
 
-```bash
+```
 smartctl --info --attributes --health -n <nocheck> --format=brief <device>
 ```
 
@@ -23,7 +23,7 @@ Also, NVMe capabilities were introduced in version 6.5.
 
 To enable SMART on a storage device run:
 
-```bash
+```
 smartctl -s on <device>
 ```
 ## NVMe vendor specific attributes
@@ -35,29 +35,29 @@ In case of `nvme-cli` absence NVMe vendor specific metrics will not be obtained.
 
 Vendor specific SMART metrics for NVMe disks may be reported from the following `nvme` command:
 
-```bash
+```
 nvme <vendor> smart-log-add <device>
 ```
 
 Note that vendor plugins for `nvme-cli` could require different naming convention and report format.
 
 To see installed plugin extensions, depended on the nvme-cli version, look at the bottom of:
-```bash
+```
 nvme help
 ```
 
 To gather disk vendor id (vid) `id-ctrl` could be used:
-```bash
+```
 nvme id-ctrl <device>
 ```
 Association between a vid and company can be found there: https://pcisig.com/membership/member-companies.
 
 Devices affiliation to being NVMe or non NVMe will be determined thanks to:
-```bash
+```
 smartctl --scan
 ```
 and:
-```bash
+```
 smartctl --scan -d nvme
 ```
 
@@ -203,16 +203,16 @@ If this plugin is not working as expected for your SMART enabled device,
 please run these commands and include the output in a bug report:
 
 For non NVMe devices (from smartctl version >= 7.0 this will also return NVMe devices by default):
-```bash
+```
 smartctl --scan
 ```
 For NVMe devices:
-```bash
+```
 smartctl --scan -d nvme
 ```
 Run the following command replacing your configuration setting for NOCHECK and
 the DEVICE (name of the device could be taken from the previous command):
-```bash
+```
 smartctl --info --health --attributes --tolerance=verypermissive --nocheck NOCHECK --format=brief -d DEVICE
 ```
 If you try to gather vendor specific metrics, please provide this commad

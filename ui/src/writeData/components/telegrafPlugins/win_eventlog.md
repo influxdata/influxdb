@@ -6,6 +6,8 @@ Supports Windows Vista and higher.
 
 Telegraf should have Administrator permissions to subscribe for some of the Windows Events Channels, like System Log.
 
+Telegraf minimum version: Telegraf 1.16.0
+
 ### Configuration
 
 ```toml

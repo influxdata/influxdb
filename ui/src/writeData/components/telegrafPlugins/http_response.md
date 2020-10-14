@@ -7,9 +7,7 @@ This input plugin checks HTTP/HTTPS connections.
 ```toml
 # HTTP/HTTPS request given an address a method and a timeout
 [[inputs.http_response]]
-  ## Deprecated in 1.12, use 'urls'
-  ## Server address (default http://localhost)
-  # address = "http://localhost"
+  ## address is Deprecated in 1.12, use 'urls'
 
   ## List of urls to query.
   # urls = ["http://localhost"]
@@ -39,8 +37,8 @@ This input plugin checks HTTP/HTTPS connections.
   # {'fake':'data'}
   # '''
 
-  ## Optional name of the field that will contain the body of the response. 
-  ## By default it is set to an empty String indicating that the body's content won't be added 
+  ## Optional name of the field that will contain the body of the response.
+  ## By default it is set to an empty String indicating that the body's content won't be added
   # response_body_field = ''
 
   ## Maximum allowed HTTP response body size in bytes.

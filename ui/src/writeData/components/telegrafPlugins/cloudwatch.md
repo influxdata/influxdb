@@ -58,6 +58,13 @@ API endpoint. In the following order the plugin will attempt to authenticate.
   ## gaps or overlap in pulled data
   interval = "5m"
 
+  ## Recommended if "delay" and "period" are both within 3 hours of request time. Invalid values will be ignored.
+  ## Recently Active feature will only poll for CloudWatch ListMetrics values that occurred within the last 3 Hours.
+  ## If enabled, it will reduce total API usage of the CloudWatch ListMetrics API and require less memory to retain.
+  ## Do not enable if "period" or "delay" is longer than 3 hours, as it will not return data more than 3 hours old.
+  ## See https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_ListMetrics.html
+  #recently_active = "PT3H"
+
   ## Configure the TTL for the internal cache of metrics.
   # cache_ttl = "1h"
 
@@ -150,7 +157,7 @@ To maximize efficiency and savings, consider making fewer requests by increasing
 
 ### Measurements & Fields:
 
-Each CloudWatch Namespace monitored records a measurement with fields for each available Metric Statistic
+Each CloudWatch Namespace monitored records a measurement with fields for each available Metric Statistic.
 Namespace and Metrics are represented in [snake case](https://en.wikipedia.org/wiki/Snake_case)
 
 - cloudwatch_{namespace}
