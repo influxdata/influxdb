@@ -106,9 +106,9 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Server is the container struct for how Delorean servers store data internally
-/// as well as how they communicate with other Delorean servers. Each server
-/// will have one of these structs, which keeps track of all replication and query rules.
+/// `Server` is the container struct for how servers store data internally, as well as how they
+/// communicate with other servers. Each server will have one of these structs, which keeps track
+/// of all replication and query rules.
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
     databases: RwLock<BTreeMap<String, Arc<Db>>>,
@@ -153,8 +153,8 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    /// write_lines takes in raw line protocol and converts it to a ReplicatedWrite, which
-    /// is then replicated to other delorean servers based on the configuration of the db.
+    /// `write_lines` takes in raw line protocol and converts it to a `ReplicatedWrite`, which
+    /// is then replicated to other servers based on the configuration of the `db`.
     /// This is step #1 from the above diagram.
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
         let db = self
@@ -231,8 +231,8 @@ impl<M: ConnectionManager> Server<M> {
     }
 }
 
-/// The Server will ask the ConnectionManager for connections to a specific remote server.
-/// These connections can be used to communicate with other Delorean servers.
+/// The `Server` will ask the `ConnectionManager` for connections to a specific remote server.
+/// These connections can be used to communicate with other servers.
 /// This is implemented as a trait for dependency injection in testing.
 #[async_trait]
 pub trait ConnectionManager {
@@ -243,13 +243,12 @@ pub trait ConnectionManager {
     async fn remote_server(&self, connect: &str) -> Result<Arc<Self::RemoteServer>, Self::Error>;
 }
 
-/// The RemoteServer represents the API for replicating, subscribing, and querying other
-/// delorean servers.
+/// The `RemoteServer` represents the API for replicating, subscribing, and querying other servers.
 #[async_trait]
 pub trait RemoteServer {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// replicate will send a replicated write to a remote server. This is step #2 from the diagram.
+    /// Sends a replicated write to a remote server. This is step #2 from the diagram.
     async fn replicate(
         &self,
         db: &str,
