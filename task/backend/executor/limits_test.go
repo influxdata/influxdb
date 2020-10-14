@@ -52,7 +52,4 @@ func TestTaskConcurrency(t *testing.T) {
 	if err := clFunc(taskWith10Concurrency, r4); err != nil {
 		t.Fatal(err)
 	}
-
-	// TODO(lh): add testing around infinite concurrency once the task options
-	// are not setting a default concurrency to 1.
 }
