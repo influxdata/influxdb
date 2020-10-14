@@ -453,35 +453,48 @@ impl Table {
         partition: &Partition,
         requested_columns: &[&str],
     ) -> Result<RecordBatch> {
-        // only retrieve the requested columns
-        let requested_columns_with_index =
-            requested_columns
-                .iter()
-                .map(|&column_name| {
-                    let column_id = partition.dictionary.lookup_value(column_name).context(
-                        ColumnNameNotFoundInDictionary {
-                            column_name,
-                            partition: &partition.key,
-                        },
-                    )?;
+        // if requested columns is empty, retrieve all columns in the table
+        if requested_columns.is_empty() {
+            self.all_to_arrow(partition)
+        } else {
+            let columns_with_index = self.column_names_with_index(partition, requested_columns)?;
 
-                    let column_index = *self.column_id_to_index.get(&column_id).context(
-                        InternalNoColumnInIndex {
+            self.to_arrow_impl(partition, &columns_with_index)
+        }
+    }
+
+    fn column_names_with_index<'a>(
+        &self,
+        partition: &Partition,
+        columns: &[&'a str],
+    ) -> Result<Vec<(&'a str, usize)>> {
+        columns
+            .iter()
+            .map(|&column_name| {
+                let column_id = partition.dictionary.lookup_value(column_name).context(
+                    ColumnNameNotFoundInDictionary {
+                        column_name,
+                        partition: &partition.key,
+                    },
+                )?;
+
+                let column_index =
+                    *self
+                        .column_id_to_index
+                        .get(&column_id)
+                        .context(InternalNoColumnInIndex {
                             column_name,
                             column_id,
-                        },
-                    )?;
+                        })?;
 
-                    Ok((column_name, column_index))
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-        self.to_arrow_impl(partition, &requested_columns_with_index)
+                Ok((column_name, column_index))
+            })
+            .collect()
     }
 
     /// Convert all columns to an arrow record batch
     pub fn all_to_arrow(&self, partition: &Partition) -> Result<RecordBatch> {
-        let requested_columns_with_index = self
+        let mut requested_columns_with_index = self
             .column_id_to_index
             .iter()
             .map(|(&column_id, &column_index)| {
@@ -494,6 +507,8 @@ impl Table {
                 Ok((column_name, column_index))
             })
             .collect::<Result<Vec<_>>>()?;
+
+        requested_columns_with_index.sort_by(|(a, _), (b, _)| a.cmp(b));
 
         self.to_arrow_impl(partition, &requested_columns_with_index)
     }
