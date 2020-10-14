@@ -895,9 +895,11 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 		TemplateURLs: b.urls,
 	}
 
+	failedString := []string{}
 	for _, res := range b.updateStackOpts.addResources {
 		parts := strings.SplitN(res, "=", 2)
 		if len(parts) < 2 {
+			failedString = append(failedString, res)
 			continue
 		}
 
@@ -915,6 +917,10 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 			ID:         *id,
 			Kind:       kind,
 		})
+	}
+
+	if len(failedString) > 0 {
+		return errors.New("invalid 'resourceType=resourceID' key value pair[s]: " + strings.Join(failedString, ";"))
 	}
 
 	stack, err := templateSVC.UpdateStack(context.Background(), update)
