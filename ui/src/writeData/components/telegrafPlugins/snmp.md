@@ -35,6 +35,9 @@ information.
   ## SNMP community string.
   # community = "public"
 
+  ## Agent host tag
+  # agent_host_tag = "agent_host"
+
   ## Number of retries to attempt.
   # retries = 3
 

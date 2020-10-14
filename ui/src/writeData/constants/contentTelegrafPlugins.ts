@@ -66,6 +66,7 @@ import icinga2Markdown from 'src/writeData/components/telegrafPlugins/icinga2.md
 import infinibandMarkdown from 'src/writeData/components/telegrafPlugins/infiniband.md'
 import influxdb_listenerMarkdown from 'src/writeData/components/telegrafPlugins/influxdb_listener.md'
 import influxdb_v2_listenerMarkdown from 'src/writeData/components/telegrafPlugins/influxdb_v2_listener.md'
+import intel_rdtMarkdown from 'src/writeData/components/telegrafPlugins/intel_rdt.md'
 import influxdbMarkdown from 'src/writeData/components/telegrafPlugins/influxdb.md'
 import internalMarkdown from 'src/writeData/components/telegrafPlugins/internal.md'
 import interruptsMarkdown from 'src/writeData/components/telegrafPlugins/interrupts.md'
@@ -143,6 +144,7 @@ import proxmoxMarkdown from 'src/writeData/components/telegrafPlugins/proxmox.md
 import puppetagentMarkdown from 'src/writeData/components/telegrafPlugins/puppetagent.md'
 import rabbitmqMarkdown from 'src/writeData/components/telegrafPlugins/rabbitmq.md'
 import raindropsMarkdown from 'src/writeData/components/telegrafPlugins/raindrops.md'
+import rasMarkdown from 'src/writeData/components/telegrafPlugins/ras.md'
 import redfishMarkdown from 'src/writeData/components/telegrafPlugins/redfish.md'
 import redisMarkdown from 'src/writeData/components/telegrafPlugins/redis.md'
 import rethinkdbMarkdown from 'src/writeData/components/telegrafPlugins/rethinkdb.md'
@@ -250,6 +252,7 @@ import icinga2Logo from 'src/writeData/graphics/icinga2.svg'
 import infinibandLogo from 'src/writeData/graphics/infiniband.svg'
 import influxdb_listenerLogo from 'src/writeData/graphics/influxdb_listener.svg'
 import influxdb_v2_listenerLogo from 'src/writeData/graphics/influxdb_v2_listener.svg'
+import intel_rdtLogo from 'src/writeData/graphics/intel_rdt.svg'
 import influxdbLogo from 'src/writeData/graphics/influxdb.svg'
 import internalLogo from 'src/writeData/graphics/internal.svg'
 import interruptsLogo from 'src/writeData/graphics/interrupts.svg'
@@ -327,6 +330,7 @@ import proxmoxLogo from 'src/writeData/graphics/proxmox.svg'
 import puppetagentLogo from 'src/writeData/graphics/puppetagent.svg'
 import rabbitmqLogo from 'src/writeData/graphics/rabbitmq.svg'
 import raindropsLogo from 'src/writeData/graphics/raindrops.svg'
+import rasLogo from 'src/writeData/graphics/ras.svg'
 import redfishLogo from 'src/writeData/graphics/redfish.svg'
 import redisLogo from 'src/writeData/graphics/redis.svg'
 import rethinkdbLogo from 'src/writeData/graphics/rethinkdb.svg'
@@ -806,6 +810,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     url: `${TELEGRAF_PLUGINS}/influxdb_v2_listener`,
     markdown: influxdb_v2_listenerMarkdown,
     image: influxdb_v2_listenerLogo,
+  },
+  {
+    id: 'intel_rdt',
+    name: 'Intel RDT',
+    url: `${TELEGRAF_PLUGINS}/intel_rdt`,
+    markdown: intel_rdtMarkdown,
+    image: intel_rdtLogo,
   },
   {
     id: 'internal',
@@ -1338,6 +1349,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     url: `${TELEGRAF_PLUGINS}/raindrops`,
     markdown: raindropsMarkdown,
     image: raindropsLogo,
+  },
+  {
+    id: 'ras',
+    name: 'RAS Daemon',
+    url: `${TELEGRAF_PLUGINS}/ras`,
+    markdown: rasMarkdown,
+    image: rasLogo,
   },
   {
     id: 'redfish',
