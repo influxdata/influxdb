@@ -1,3 +1,7 @@
+pub mod cmp;
+pub mod fixed;
+pub mod fixed_null;
+
 use delorean_arrow::arrow;
 
 /// The possible logical types that column values can have. All values in a

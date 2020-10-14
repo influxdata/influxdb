@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
 #![allow(unused_variables)]
-pub(crate) mod column;
+pub mod column;
 pub(crate) mod partition;
 pub(crate) mod segment;
 pub(crate) mod table;
