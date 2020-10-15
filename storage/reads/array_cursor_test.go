@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
-
 func TestIntegerFilterArrayCursor(t *testing.T) {
 	var i int
 	expr := MockExpression{

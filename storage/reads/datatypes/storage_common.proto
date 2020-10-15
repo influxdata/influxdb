@@ -255,4 +255,16 @@ message ReadWindowAggregateRequest {
   int64 WindowEvery = 4;
   int64 Offset = 6;
   repeated Aggregate aggregate = 5;
+  Window window = 7;
+}
+
+message Window {
+  Duration every = 1;
+  Duration offset = 2;
+}
+
+message Duration {
+  int64 nsecs = 1;
+  int64 months = 2;
+  bool negative = 3;
 }

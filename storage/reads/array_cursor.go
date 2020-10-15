@@ -38,6 +38,87 @@ func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate
 	}
 }
 
+type arrayCursors struct {
+	ctx context.Context
+	req cursors.CursorRequest
+
+	cursors struct {
+		i integerArrayCursor
+		f floatArrayCursor
+		u unsignedArrayCursor
+		b booleanArrayCursor
+		s stringArrayCursor
+	}
+}
+
+func newArrayCursors(ctx context.Context, start, end int64, asc bool) *arrayCursors {
+	m := &arrayCursors{
+		ctx: ctx,
+		req: cursors.CursorRequest{
+			Ascending: asc,
+			StartTime: start,
+			EndTime:   end,
+		},
+	}
+
+	cc := cursorContext{
+		ctx: ctx,
+		req: &m.req,
+	}
+
+	m.cursors.i.cursorContext = cc
+	m.cursors.f.cursorContext = cc
+	m.cursors.u.cursorContext = cc
+	m.cursors.b.cursorContext = cc
+	m.cursors.s.cursorContext = cc
+
+	return m
+}
+
+func (m *arrayCursors) createCursor(seriesRow SeriesRow) cursors.Cursor {
+	m.req.Name = seriesRow.Name
+	m.req.Tags = seriesRow.SeriesTags
+	m.req.Field = seriesRow.Field
+
+	var cond expression
+	if seriesRow.ValueCond != nil {
+		cond = &astExpr{seriesRow.ValueCond}
+	}
+
+	if seriesRow.Query == nil {
+		return nil
+	}
+
+	var itr cursors.CursorIterator
+	var cur cursors.Cursor
+	for cur == nil && len(seriesRow.Query) > 0 {
+		itr, seriesRow.Query = seriesRow.Query[0], seriesRow.Query[1:]
+		cur, _ = itr.Next(m.ctx, &m.req)
+
+		switch c := cur.(type) {
+		case cursors.IntegerArrayCursor:
+			m.cursors.i.reset(c, seriesRow.Query, cond)
+			return &m.cursors.i
+		case cursors.FloatArrayCursor:
+			m.cursors.f.reset(c, seriesRow.Query, cond)
+			return &m.cursors.f
+		case cursors.UnsignedArrayCursor:
+			m.cursors.u.reset(c, seriesRow.Query, cond)
+			return &m.cursors.u
+		case cursors.StringArrayCursor:
+			m.cursors.s.reset(c, seriesRow.Query, cond)
+			return &m.cursors.s
+		case cursors.BooleanArrayCursor:
+			m.cursors.b.reset(c, seriesRow.Query, cond)
+			return &m.cursors.b
+		default:
+			panic(fmt.Sprintf("unreachable: %T", cur))
+		}
+	}
+	// if cursor is nil
+	return nil
+}
+
 func newSumArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	switch cur := cur.(type) {
 	case cursors.FloatArrayCursor:
@@ -55,15 +136,15 @@ func newSumArrayCursor(cur cursors.Cursor) cursors.Cursor {
 func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	switch cur := cur.(type) {
 	case cursors.FloatArrayCursor:
-		return &integerFloatCountArrayCursor{FloatArrayCursor: cur}
+		return &FloatCountArrayCursor{FloatArrayCursor: cur}
 	case cursors.IntegerArrayCursor:
-		return &integerIntegerCountArrayCursor{IntegerArrayCursor: cur}
+		return &IntegerCountArrayCursor{IntegerArrayCursor: cur}
 	case cursors.UnsignedArrayCursor:
-		return &integerUnsignedCountArrayCursor{UnsignedArrayCursor: cur}
+		return &UnsignedCountArrayCursor{UnsignedArrayCursor: cur}
 	case cursors.StringArrayCursor:
-		return &integerStringCountArrayCursor{StringArrayCursor: cur}
+		return &StringCountArrayCursor{StringArrayCursor: cur}
 	case cursors.BooleanArrayCursor:
-		return &integerBooleanCountArrayCursor{BooleanArrayCursor: cur}
+		return &BooleanCountArrayCursor{BooleanArrayCursor: cur}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
