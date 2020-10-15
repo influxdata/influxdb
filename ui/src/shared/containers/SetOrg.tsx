@@ -19,7 +19,6 @@ import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
 import WriteDataPage from 'src/writeData/containers/WriteDataPage'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
-import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
@@ -30,6 +29,7 @@ import RouteToDashboardList from 'src/dashboards/components/RouteToDashboardList
 import ClientLibrariesPage from 'src/writeData/containers/ClientLibrariesPage'
 import TelegrafPluginsPage from 'src/writeData/containers/TelegrafPluginsPage'
 import FlowsIndex from 'src/notebooks/components/FlowsIndex'
+import {CommunityTemplatesIndex} from 'src/templates/containers/CommunityTemplatesIndex'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
@@ -188,7 +188,7 @@ const SetOrg: FC<Props> = ({
         />
         <Route
           path={`${orgPath}/settings/templates`}
-          component={TemplatesIndex}
+          component={CommunityTemplatesIndex}
         />
         <Route
           exact

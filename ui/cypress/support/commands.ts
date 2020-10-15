@@ -83,37 +83,6 @@ export const createDashWithViewAndVar = (
   )
 }
 
-export const createDashboardTemplate = (
-  orgID?: string,
-  name: string = 'Bashboard'
-): Cypress.Chainable<Cypress.Response> => {
-  return cy.request({
-    method: 'POST',
-    url: '/api/v2/documents/templates',
-    body: {
-      content: {
-        data: {
-          attributes: {name, description: ''},
-          relationships: {
-            label: {data: []},
-            cell: {data: []},
-            variable: {data: []},
-          },
-          type: 'dashboard',
-        },
-        included: [],
-      },
-      labels: [],
-      meta: {
-        description: `template created from dashboard: ${name}`,
-        version: '1',
-        name: `${name}-Template`,
-      },
-      orgID,
-    },
-  })
-}
-
 export const createOrg = (
   name = 'test org'
 ): Cypress.Chainable<Cypress.Response> => {
@@ -543,7 +512,6 @@ Cypress.Commands.add('setupUser', setupUser)
 
 // dashboards
 Cypress.Commands.add('createDashboard', createDashboard)
-Cypress.Commands.add('createDashboardTemplate', createDashboardTemplate)
 Cypress.Commands.add('createCell', createCell)
 Cypress.Commands.add('createDashWithCell', createDashWithCell)
 Cypress.Commands.add('createDashWithViewAndVar', createDashWithViewAndVar)

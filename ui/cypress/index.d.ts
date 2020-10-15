@@ -26,7 +26,6 @@ import {
   fluxEqual,
   createTelegraf,
   createToken,
-  createDashboardTemplate,
   writeData,
   getByTestIDSubStr,
   createEndpoint,
@@ -45,7 +44,6 @@ declare global {
       createQueryVariable: typeof createQueryVariable
       createTask: typeof createTask
       createMapVariable: typeof createMapVariable
-      createDashboardTemplate: typeof createDashboardTemplate
       createDashboard: typeof createDashboard
       createCell: typeof createCell
       createDashWithCell: typeof createDashWithCell
