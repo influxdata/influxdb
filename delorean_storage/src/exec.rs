@@ -114,19 +114,20 @@ impl From<Vec<LogicalPlan>> for StringSetPlan {
     }
 }
 
-/// A plan which produces a logical stream of time series, and can be
-/// executed to produce `SeriesSet`s.
+/// A plan that can be run to produce a sequence of SeriesSets from a
+/// single DataFusion plan
 #[derive(Debug)]
 pub struct SeriesSetPlan {
-    /// Datafusion plan(s) to execute. Each plan must produce
+    /// The table name this came from
+    pub table_name: Arc<String>,
+
+    /// Datafusion plan to execute. The plan must produce
     /// RecordBatches that have:
     ///
     /// * fields with matching names for each value of `tag_columns` and `field_columns`
     /// * include the timestamp column
     /// * each column named in tag_columns must be a String (Utf8)
-    ///
-    /// The plans are provided as tuples of "(Table Name, LogicalPlan)";
-    pub plans: Vec<(Arc<String>, LogicalPlan)>,
+    pub plan: LogicalPlan,
 
     /// The names of the columns that define tags.
     ///
@@ -141,6 +142,20 @@ pub struct SeriesSetPlan {
     /// *each* resulting `SeriesSet` that is produced when this type
     /// of plan is executed.
     pub field_columns: Vec<Arc<String>>,
+}
+
+/// A container for plans which each produces a logical stream of
+/// timeseries (from across many potential tables). A `SeriesSetPlans`
+/// and can be executed to produce streams of `SeriesSet`s.
+#[derive(Debug, Default)]
+pub struct SeriesSetPlans {
+    pub plans: Vec<SeriesSetPlan>,
+}
+
+impl From<Vec<SeriesSetPlan>> for SeriesSetPlans {
+    fn from(plans: Vec<SeriesSetPlan>) -> Self {
+        Self { plans }
+    }
 }
 
 /// Handles executing plans, and marshalling the results into rust
@@ -166,38 +181,44 @@ impl Executor {
         }
     }
 
-    /// Executes this plan, sending the resulting `SeriesSet`s one by one
-    /// via `tx`
+    /// Executes the embedded plans, each as separate tasks, sending
+    /// the resulting `SeriesSet`s one by one to the `tx` chanel.
+    ///
+    /// Note that the returned future resolves (e.g. "returns") once
+    /// all plans have been sent to `tx`. This means that the future
+    /// will not resolve if there is nothing hooked up receiving
+    /// results from the other end of the channel and the channel
+    /// can't hold all the resulting series.
     pub async fn to_series_set(
         &self,
-        series_set_plan: SeriesSetPlan,
+        series_set_plans: SeriesSetPlans,
         tx: mpsc::Sender<Result<SeriesSet, SeriesSetError>>,
     ) -> Result<()> {
-        if series_set_plan.plans.is_empty() {
+        let SeriesSetPlans { plans } = series_set_plans;
+
+        if plans.is_empty() {
             return Ok(());
         }
 
-        let SeriesSetPlan {
-            plans,
-            tag_columns,
-            field_columns,
-        } = series_set_plan;
-
-        // wrap them in Arcs so we can share them among threads
-        let tag_columns = Arc::new(tag_columns);
-        let field_columns = Arc::new(field_columns);
-
-        let value_futures = plans
+        // Run the plans in parallel
+        let handles = plans
             .into_iter()
-            .map(|(table_name, plan)| {
+            .map(|plan| {
                 // Clone Arc's for transmission to threads
                 let counters = self.counters.clone();
                 let tx = tx.clone();
-                let tag_columns = tag_columns.clone();
-                let field_columns = field_columns.clone();
-
-                // TODO run these on some executor other than the main tokio pool
                 tokio::task::spawn(async move {
+                    let SeriesSetPlan {
+                        table_name,
+                        plan,
+                        tag_columns,
+                        field_columns,
+                    } = plan;
+
+                    let tag_columns = Arc::new(tag_columns);
+                    let field_columns = Arc::new(field_columns);
+
+                    // TODO run these on some executor other than the main tokio pool (maybe?)
                     let ctx = DeloreanExecutionContext::new(counters);
                     let physical_plan = ctx
                         .make_plan(&plan)
@@ -212,16 +233,24 @@ impl Executor {
                     SeriesSetConverter::new(tx)
                         .convert(table_name, tag_columns, field_columns, it)
                         .await
-                        .context(SeriesSetConversion)
+                        .context(SeriesSetConversion)?;
+
+                    Ok(())
                 })
             })
             .collect::<Vec<_>>();
 
         // now, wait for all the values to resolve and reprot any errors
-        for join_handle in value_futures.into_iter() {
+        for join_handle in handles.into_iter() {
             join_handle.await.context(JoinError)??;
         }
         Ok(())
+    }
+
+    /// Run the plan and return a record batch reader for reading the results
+    pub async fn run_logical_plan(&self, plan: LogicalPlan) -> Result<Vec<RecordBatch>> {
+        let counters = self.counters.clone();
+        run_logical_plans(counters, vec![plan]).await
     }
 }
 /// Create a SchemaPivot node which  an arbitrary input like

@@ -6,7 +6,7 @@
     clippy::use_self
 )]
 
-use std::{env, f64};
+use std::{env, f64, sync::Arc};
 pub use tempfile;
 
 pub mod tracing;
@@ -32,6 +32,19 @@ pub fn tmp_dir() -> Result<tempfile::TempDir> {
     Ok(tempfile::Builder::new()
         .prefix("delorean")
         .tempdir_in(root)?)
+}
+
+/// convert form that is easier to type in tests to what some code needs
+pub fn str_vec_to_arc_vec(str_vec: &[&str]) -> Arc<Vec<Arc<String>>> {
+    Arc::new(str_vec.iter().map(|s| Arc::new(String::from(*s))).collect())
+}
+
+/// convert form that is easier to type in tests to what some code needs
+pub fn str_pair_vec_to_vec(str_vec: &[(&str, &str)]) -> Vec<(Arc<String>, Arc<String>)> {
+    str_vec
+        .iter()
+        .map(|(s1, s2)| (Arc::new(String::from(*s1)), Arc::new(String::from(*s2))))
+        .collect()
 }
 
 pub fn enable_logging() {

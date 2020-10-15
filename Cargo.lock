@@ -886,6 +886,7 @@ dependencies = [
  "delorean_arrow",
  "delorean_data_types",
  "delorean_line_parser",
+ "delorean_test_helpers",
  "serde",
  "serde_urlencoded 0.6.1",
  "snafu",

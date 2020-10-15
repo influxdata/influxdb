@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use delorean_arrow::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
 use delorean_data_types::data::ReplicatedWrite;
 use delorean_line_parser::ParsedLine;
-use exec::{SeriesSetPlan, StringSetPlan};
+use exec::{SeriesSetPlans, StringSetPlan};
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -136,7 +136,7 @@ pub trait Database: Debug + Send + Sync {
         &self,
         _range: Option<TimestampRange>,
         _predicate: Option<Predicate>,
-    ) -> Result<SeriesSetPlan, Self::Error>;
+    ) -> Result<SeriesSetPlans, Self::Error>;
 
     /// Fetch the specified table names and columns as Arrow
     /// RecordBatches. Columns are returned in the order specified.

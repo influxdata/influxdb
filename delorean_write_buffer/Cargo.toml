@@ -13,6 +13,7 @@ delorean_line_parser = { path = "../delorean_line_parser" }
 delorean_storage = { path = "../delorean_storage" }
 delorean_wal = { path = "../delorean_wal" }
 delorean_wal_writer = { path = "../delorean_wal_writer" }
+delorean_test_helpers = { path = "../delorean_test_helpers" }
 
 async-trait = "0.1.40"
 chrono = "0.4"

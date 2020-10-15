@@ -1,5 +1,5 @@
 use delorean_generated_types::wal as wb;
-use delorean_storage::{exec::make_schema_pivot, Predicate, TimestampRange};
+use delorean_storage::{exec::make_schema_pivot, exec::SeriesSetPlan, Predicate, TimestampRange};
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -30,9 +30,6 @@ use delorean_arrow::{
 pub enum Error {
     #[snafu(display("Table {} not found", table))]
     TableNotFound { table: String },
-
-    #[snafu(display("Column {} not found", column))]
-    ColumnNotFound { column: String },
 
     #[snafu(display(
         "Column {} said it was type {} but extracting a value of that type failed",
@@ -156,6 +153,7 @@ pub struct TimestampPredicate {
 
 #[derive(Debug)]
 pub struct Table {
+    /// Name of the table as a u32 in the partition dictionary
     pub id: u32,
     /// Maps column name (as a u32 in the partition dictionary) to an index in self.columns
     pub column_id_to_index: HashMap<u32, usize>,
@@ -274,7 +272,7 @@ impl Table {
         Ok(())
     }
 
-    /// Creates a DataFusion LogicalPlan that returns tag names as a
+    /// Creates a DataFusion LogicalPlan that returns column *names* as a
     /// single column of Strings
     ///
     /// The created plan looks like:
@@ -366,7 +364,7 @@ impl Table {
         Ok(plan)
     }
 
-    /// Creates a DataFusion LogicalPlan that returns column values as a
+    /// Creates a DataFusion LogicalPlan that returns column *values* as a
     /// single column of Strings
     ///
     /// The created plan looks like:
@@ -417,6 +415,127 @@ impl Table {
             .context(BuildingPlan)?
             .build()
             .context(BuildingPlan)
+    }
+
+    /// Creates a SeriesSet plan that produces an output table with rows that match the predicate
+    ///
+    /// The output looks like:
+    /// (tag_col1, tag_col2, ... field1, field2, ... timestamp)
+    ///
+    /// The order of the tag_columns is orderd by name.
+    ///
+    /// The data is sorted on tag_col1, tag_col2, ...) so that all
+    /// rows for a particular series (groups where all tags are the
+    /// same) occur together in the plan
+    ///
+    /// The created plan looks like:
+    ///
+    ///    Projection (select the columns columns needed)
+    ///      Order by (tag_columns, timestamp_column)
+    ///        Filter(predicate)
+    ///          InMemoryScan
+    pub fn series_set_plan(
+        &self,
+        predicate: Option<&Predicate>,
+        timestamp_predicate: Option<&TimestampPredicate>,
+        partition: &Partition,
+    ) -> Result<SeriesSetPlan> {
+        // Note we also need to add a timestamp predicate to this
+        // expression as some additional rows may be filtered out (and
+        // we couldn't prune out the entire Table based on range)
+
+        let df_predicate = predicate
+            .map(|predicate| predicate.expr.clone())
+            .map(|predicate| match timestamp_predicate {
+                None => predicate,
+                Some(timestamp_predicate) => {
+                    Self::add_timestamp_predicate_expr(predicate, timestamp_predicate)
+                }
+            });
+
+        // I wonder if all this string creation will be too slow?
+        let table_name = partition
+            .dictionary
+            .lookup_id(self.id)
+            .expect("looking up table name in dictionary")
+            .to_string();
+
+        let table_name = Arc::new(table_name);
+
+        let mut field_columns = Vec::with_capacity(self.column_id_to_index.len());
+        let mut tag_columns = Vec::with_capacity(self.column_id_to_index.len());
+
+        for (&column_id, &column_index) in &self.column_id_to_index {
+            let column_name = partition
+                .dictionary
+                .lookup_id(column_id)
+                .expect("Find column name in dictionary");
+
+            if column_name != TIME_COLUMN_NAME {
+                let column_name = Arc::new(column_name.to_string());
+
+                match self.columns[column_index] {
+                    Column::Tag(_) => tag_columns.push(column_name),
+                    _ => field_columns.push(column_name),
+                }
+            }
+        }
+
+        // tag columns are always sorted by name (aka sorted by tag
+        // key) in the output schema, so ensure the columns are sorted
+        // (the select exprs)
+        tag_columns.sort();
+
+        // Sort the field columns too so that the output always comes out in a predictable order
+        field_columns.sort();
+
+        // TODO avoid materializing all the columns here (ideally
+        // DataFusion can prune them out)
+        let data = self.all_to_arrow(partition)?;
+
+        let schema = data.schema();
+
+        let projection = None;
+        let projected_schema = schema.clone();
+
+        // And build the plan from the bottom up
+        let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
+            data: vec![vec![data]],
+            schema,
+            projection,
+            projected_schema,
+        });
+
+        // Filtering
+        let plan_builder = match df_predicate {
+            Some(df_predicate) => plan_builder.filter(df_predicate).context(BuildingPlan)?,
+            None => plan_builder,
+        };
+
+        let mut sort_exprs = Vec::new();
+        sort_exprs.extend(tag_columns.iter().map(|c| c.into_sort_expr()));
+        sort_exprs.push(TIME_COLUMN_NAME.into_sort_expr());
+
+        // Order by
+        let plan_builder = plan_builder.sort(sort_exprs).context(BuildingPlan)?;
+
+        // Selection
+        let mut select_exprs = Vec::new();
+        select_exprs.extend(tag_columns.iter().map(|c| c.into_expr()));
+        select_exprs.extend(field_columns.iter().map(|c| c.into_expr()));
+        select_exprs.push(TIME_COLUMN_NAME.into_expr());
+
+        let plan_builder = plan_builder.project(select_exprs).context(BuildingPlan)?;
+
+        // and finally create the plan
+        let plan = plan_builder.build().context(BuildingPlan)?;
+
+        Ok(SeriesSetPlan {
+            table_name,
+            plan,
+            tag_columns,
+            field_columns,
+        })
     }
 
     /// Creates a DataFusion predicate of the form:
@@ -649,8 +768,41 @@ impl Table {
     }
 }
 
+/// Traits to help creating DataFuson expressions from strings
+trait IntoExpr {
+    /// Creates a DataFuson expr
+    fn into_expr(&self) -> Expr;
+
+    /// creates a DataFusion SortExpr
+    fn into_sort_expr(&self) -> Expr {
+        Expr::Sort {
+            expr: Box::new(self.into_expr()),
+            asc: true, // Sort ASCENDING
+            nulls_first: true,
+        }
+    }
+}
+
+impl IntoExpr for Arc<String> {
+    fn into_expr(&self) -> Expr {
+        Expr::Column(self.as_ref().clone())
+    }
+}
+
+impl IntoExpr for str {
+    fn into_expr(&self) -> Expr {
+        Expr::Column(self.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use arrow::util::pretty::pretty_format_batches;
+    use delorean_data_types::data::split_lines_into_write_entry_partitions;
+    use delorean_line_parser::{parse_lines, ParsedLine};
+    use delorean_storage::exec::Executor;
+    use delorean_test_helpers::str_vec_to_arc_vec;
+
     use super::*;
 
     #[test]
@@ -668,5 +820,206 @@ mod tests {
         let actual_string = format!("{:?}", ts_predicate_expr);
 
         assert_eq!(actual_string, expected_string);
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    async fn test_series_set_plan() {
+        // setup a test table
+        let mut partition = Partition::new("dummy_partition_key");
+        let dictionary = &mut partition.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100",
+            "h2o,state=MA,city=Boston temp=72.4 250",
+            "h2o,state=CA,city=LA temp=90.0 200",
+            "h2o,state=CA,city=LA temp=90.0 350",
+        ];
+
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+
+        let predicate = None;
+        let timestamp_predicate = None;
+        let series_set_plan = table
+            .series_set_plan(predicate, timestamp_predicate, &partition)
+            .expect("creating the series set plan");
+
+        assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
+        assert_eq!(
+            series_set_plan.tag_columns,
+            *str_vec_to_arc_vec(&["city", "state"])
+        );
+        assert_eq!(
+            series_set_plan.field_columns,
+            *str_vec_to_arc_vec(&["temp"])
+        );
+
+        // run the created plan, ensuring the output is as expected
+        let results = run_plan(series_set_plan.plan).await;
+
+        let expected = vec![
+            "+--------+-------+------+------+",
+            "| city   | state | temp | time |",
+            "+--------+-------+------+------+",
+            "| Boston | MA    | 70.4 | 100  |",
+            "| Boston | MA    | 72.4 | 250  |",
+            "| LA     | CA    | 90   | 200  |",
+            "| LA     | CA    | 90   | 350  |",
+            "+--------+-------+------+------+",
+        ];
+        assert_eq!(expected, results, "expected output");
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    async fn test_series_set_plan_order() {
+        // test that the columns and rows come out in the right order (tags then timestamp)
+
+        // setup a test table
+        let mut partition = Partition::new("dummy_partition_key");
+        let dictionary = &mut partition.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
+
+        let lp_lines = vec![
+            "h2o,zz_tag=A,state=MA,city=Kingston temp=70.1 800",
+            "h2o,state=MA,city=Kingston,zz_tag=B temp=70.2 100",
+            "h2o,state=CA,city=Boston temp=70.3 250",
+            "h2o,state=MA,city=Boston,zz_tag=A temp=70.4 1000",
+            "h2o,state=MA,city=Boston temp=70.5,other=5.0 250",
+        ];
+
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+
+        let predicate = None;
+        let timestamp_predicate = None;
+        let series_set_plan = table
+            .series_set_plan(predicate, timestamp_predicate, &partition)
+            .expect("creating the series set plan");
+
+        assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
+        assert_eq!(
+            series_set_plan.tag_columns,
+            *str_vec_to_arc_vec(&["city", "state", "zz_tag"])
+        );
+        assert_eq!(
+            series_set_plan.field_columns,
+            *str_vec_to_arc_vec(&["other", "temp"])
+        );
+
+        // run the created plan, ensuring the output is as expected
+        let results = run_plan(series_set_plan.plan).await;
+
+        let expected = vec![
+            "+----------+-------+--------+-------+------+------+",
+            "| city     | state | zz_tag | other | temp | time |",
+            "+----------+-------+--------+-------+------+------+",
+            "| Boston   | CA    |        |       | 70.3 | 250  |",
+            "| Boston   | MA    |        | 5     | 70.5 | 250  |",
+            "| Boston   | MA    | A      |       | 70.4 | 1000 |",
+            "| Kingston | MA    | A      |       | 70.1 | 800  |",
+            "| Kingston | MA    | B      |       | 70.2 | 100  |",
+            "+----------+-------+--------+-------+------+------+",
+        ];
+
+        assert_eq!(expected, results, "expected output");
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    async fn test_series_set_plan_filter() {
+        // test that filters are applied reasonably
+
+        // setup a test table
+        let mut partition = Partition::new("dummy_partition_key");
+        let dictionary = &mut partition.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100",
+            "h2o,state=MA,city=Boston temp=72.4 250",
+            "h2o,state=CA,city=LA temp=90.0 200",
+            "h2o,state=CA,city=LA temp=90.0 350",
+        ];
+
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+
+        let expr = Expr::BinaryExpr {
+            left: Box::new(Expr::Column("city".into())),
+            op: Operator::Eq,
+            right: Box::new(Expr::Literal(ScalarValue::Utf8(Some("LA".into())))),
+        };
+        let predicate = Some(Predicate { expr });
+
+        let range = Some(TimestampRange::new(190, 210));
+        let timestamp_predicate = partition
+            .make_timestamp_predicate(range)
+            .expect("Made a timestamp predicate");
+
+        let series_set_plan = table
+            .series_set_plan(predicate.as_ref(), timestamp_predicate.as_ref(), &partition)
+            .expect("creating the series set plan");
+
+        assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
+        assert_eq!(
+            series_set_plan.tag_columns,
+            *str_vec_to_arc_vec(&["city", "state"])
+        );
+        assert_eq!(
+            series_set_plan.field_columns,
+            *str_vec_to_arc_vec(&["temp"])
+        );
+
+        // run the created plan, ensuring the output is as expected
+        let results = run_plan(series_set_plan.plan).await;
+
+        let expected = vec![
+            "+------+-------+------+------+",
+            "| city | state | temp | time |",
+            "+------+-------+------+------+",
+            "| LA   | CA    | 90   | 200  |",
+            "+------+-------+------+------+",
+        ];
+
+        assert_eq!(expected, results, "expected output");
+    }
+
+    /// Runs `plan` and returns the output as petty-formatted array of strings
+    async fn run_plan(plan: LogicalPlan) -> Vec<String> {
+        // run the created plan, ensuring the output is as expected
+        let batches = Executor::new()
+            .run_logical_plan(plan)
+            .await
+            .expect("ok running plan");
+
+        pretty_format_batches(&batches)
+            .expect("formatting results")
+            .trim()
+            .split('\n')
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+    }
+
+    ///  Insert the line protocol lines in `lp_lines` into this table
+    fn write_lines_to_table(table: &mut Table, dictionary: &mut Dictionary, lp_lines: Vec<&str>) {
+        let lp_data = lp_lines.join("\n");
+
+        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+
+        let data = split_lines_into_write_entry_partitions(partition_key_func, &lines);
+
+        let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&data);
+        let entries = batch.entries().expect("at least one entry");
+
+        for entry in entries {
+            let table_batches = entry.table_batches().expect("there were table batches");
+            for batch in table_batches {
+                let rows = batch.rows().expect("Had rows in the batch");
+                table
+                    .append_rows(dictionary, &rows)
+                    .expect("Appended the row");
+            }
+        }
+    }
+
+    fn partition_key_func(_: &ParsedLine<'_>) -> String {
+        String::from("the_partition_key")
     }
 }

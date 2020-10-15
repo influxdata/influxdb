@@ -1,7 +1,8 @@
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::ParsedLine;
 use delorean_storage::{
-    exec::SeriesSetPlan, exec::StringSet, exec::StringSetPlan, Database, Predicate, TimestampRange,
+    exec::SeriesSetPlan, exec::SeriesSetPlans, exec::StringSet, exec::StringSetPlan, Database,
+    Predicate, TimestampRange,
 };
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
@@ -448,10 +449,12 @@ impl Database for Db {
 
     async fn query_series(
         &self,
-        _range: Option<TimestampRange>,
-        _predicate: Option<Predicate>,
-    ) -> Result<SeriesSetPlan, Self::Error> {
-        unimplemented!("query series for write buffer database.");
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+    ) -> Result<SeriesSetPlans, Self::Error> {
+        let mut visitor = SeriesVisitor::new(predicate);
+        self.visit_tables(None, range, &mut visitor).await?;
+        Ok(visitor.plans.into())
     }
 
     async fn table_to_arrow(
@@ -896,6 +899,39 @@ impl<'a> Visitor for ValuePredVisitor<'a> {
     }
 }
 
+/// Return DataFusion plans to calculate which series pass the
+/// specified predicate.
+///
+/// TODO: Handle _f=<fieldname> and _m=<measurement> predicates
+/// specially (by filtering entire tables and selecting fields)
+struct SeriesVisitor {
+    predicate: Option<Predicate>,
+    plans: Vec<SeriesSetPlan>,
+}
+
+impl SeriesVisitor {
+    fn new(predicate: Option<Predicate>) -> Self {
+        Self {
+            predicate,
+            plans: Vec::new(),
+        }
+    }
+}
+
+impl Visitor for SeriesVisitor {
+    fn pre_visit_table(
+        &mut self,
+        table: &Table,
+        partition: &Partition,
+        ts_pred: Option<&TimestampPredicate>,
+    ) -> Result<()> {
+        self.plans
+            .push(table.series_set_plan(self.predicate.as_ref(), ts_pred, partition)?);
+
+        Ok(())
+    }
+}
+
 // partition_key returns the partition key for the given line. The key will be the prefix of a
 // partition name (multiple partitions can exist for each key). It uses the user defined
 // partitioning rules to construct this key
@@ -919,7 +955,9 @@ mod tests {
         logical_plan::{self, Literal},
         scalar::ScalarValue,
     };
-    use delorean_storage::{exec::Executor, Database, TimestampRange};
+    use delorean_storage::{
+        exec::Executor, exec::SeriesSet, exec::SeriesSetError, Database, TimestampRange,
+    };
     use logical_plan::{Expr, Operator};
 
     use arrow::{
@@ -927,6 +965,8 @@ mod tests {
         util::pretty::pretty_format_batches,
     };
     use delorean_line_parser::parse_lines;
+    use delorean_test_helpers::str_pair_vec_to_vec;
+    use tokio::sync::mpsc;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
@@ -1646,5 +1686,168 @@ disk bytes=23432323i 1600136510000000000",
         }
 
         Ok(())
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    async fn test_query_series() -> Result {
+        // This test checks that everything is wired together
+        // correctly.  There are more detailed tests in table.rs that
+        // test the generated queries.
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+
+        let mut lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
+            "h2o,state=MA,city=Boston temp=72.4 250", // to row 1
+            "h2o,state=CA,city=LA temp=90.0 200",     // to row 0
+            "h2o,state=CA,city=LA temp=90.0 350",     // to row 3
+            "o2,state=MA,city=Boston temp=50.4,reading=50 100", // to row 5
+            "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
+        ];
+
+        // Swap around  data is not inserted in series order
+        lp_lines.swap(0, 2);
+        lp_lines.swap(4, 5);
+
+        let lp_data = lp_lines.join("\n");
+
+        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+        db.write_lines(&lines).await?;
+
+        let range = None;
+        let predicate = None;
+
+        let plans = db
+            .query_series(range, predicate)
+            .await
+            .expect("Created tag_values plan successfully");
+
+        // Use a channel sufficiently large to buffer the series
+        let (tx, mut rx) = mpsc::channel(100);
+
+        // setup to run the execution plan (
+        let executor = Executor::default();
+        executor.to_series_set(plans, tx).await?;
+
+        // gather up the sets and compare them
+        let mut results = Vec::new();
+        while let Some(r) = rx.recv().await {
+            results.push(r)
+        }
+        // sort the results so that we can reliably use the comparisons below
+        sort_results(&mut results);
+        println!("The results are: {:#?}", results);
+
+        assert_eq!(results.len(), 3);
+
+        let series_set0 = results[0].as_ref().expect("Correctly converted");
+        assert_eq!(*series_set0.table_name, "h2o");
+        assert_eq!(
+            series_set0.tag_keys,
+            str_pair_vec_to_vec(&[("city", "Boston"), ("state", "MA")])
+        );
+        assert_eq!(series_set0.timestamp_index, 3);
+        assert_eq!(series_set0.field_indices, Arc::new(vec![2]));
+        assert_eq!(series_set0.start_row, 0);
+        assert_eq!(series_set0.num_rows, 2);
+
+        let series_set1 = results[1].as_ref().expect("Correctly converted");
+        assert_eq!(*series_set1.table_name, "h2o");
+        assert_eq!(
+            series_set1.tag_keys,
+            str_pair_vec_to_vec(&[("city", "LA"), ("state", "CA")])
+        );
+        assert_eq!(series_set1.timestamp_index, 3);
+        assert_eq!(series_set1.field_indices, Arc::new(vec![2]));
+        assert_eq!(series_set1.start_row, 2);
+        assert_eq!(series_set1.num_rows, 2);
+
+        let series_set2 = results[2].as_ref().expect("Correctly converted");
+        assert_eq!(*series_set2.table_name, "o2");
+        assert_eq!(
+            series_set2.tag_keys,
+            str_pair_vec_to_vec(&[("city", "Boston"), ("state", "MA")])
+        );
+        assert_eq!(series_set2.timestamp_index, 4);
+        assert_eq!(series_set2.field_indices, Arc::new(vec![2, 3]));
+        assert_eq!(series_set2.start_row, 0);
+        assert_eq!(series_set2.num_rows, 2);
+
+        Ok(())
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    async fn test_query_series_filter() -> Result {
+        // check the appropriate filters are applied in the datafusion plans
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100",
+            "h2o,state=MA,city=Boston temp=72.4 250",
+            "h2o,state=CA,city=LA temp=90.0 200",
+            "h2o,state=CA,city=LA temp=90.0 350",
+            "o2,state=MA,city=Boston temp=50.4,reading=50 100",
+            "o2,state=MA,city=Boston temp=53.4,reading=51 250",
+        ];
+
+        let lp_data = lp_lines.join("\n");
+
+        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+        db.write_lines(&lines).await?;
+
+        // filter out one row in h20
+        let range = Some(TimestampRange::new(200, 300));
+        let predicate = make_column_eq_predicate("state", "CA"); // state=CA
+
+        let plans = db
+            .query_series(range, predicate)
+            .await
+            .expect("Created tag_values plan successfully");
+
+        // Use a channel sufficiently large to buffer the series
+        let (tx, mut rx) = mpsc::channel(100);
+
+        // setup to run the execution plan (
+        let executor = Executor::default();
+        executor.to_series_set(plans, tx).await?;
+
+        // gather up the sets and compare them
+        let mut results = Vec::new();
+        while let Some(r) = rx.recv().await {
+            results.push(r)
+        }
+        // sort the results so that we can reliably use the comparisons below
+        sort_results(&mut results);
+        println!("The results are: {:#?}", results);
+
+        assert_eq!(results.len(), 1);
+
+        let series_set0 = results[0].as_ref().expect("Correctly converted");
+        assert_eq!(*series_set0.table_name, "h2o");
+        assert_eq!(
+            series_set0.tag_keys,
+            str_pair_vec_to_vec(&[("city", "LA"), ("state", "CA")])
+        );
+        assert_eq!(series_set0.timestamp_index, 3);
+        assert_eq!(series_set0.field_indices, Arc::new(vec![2]));
+        assert_eq!(series_set0.start_row, 0);
+        assert_eq!(series_set0.num_rows, 1); // only has one row!
+
+        Ok(())
+    }
+
+    fn sort_results(results: &mut Vec<Result<SeriesSet, SeriesSetError>>) {
+        // sort the results so that we can reliably use the comparisons below
+        results.sort_by(|r1, r2| {
+            match (r1, r2) {
+                (Ok(r1), Ok(r2)) => r1
+                    .table_name
+                    .cmp(&r2.table_name)
+                    .then(r1.tag_keys.cmp(&r2.tag_keys)),
+                // default sort by string representation
+                (r1, r2) => format!("{:?}", r1).cmp(&format!("{:?}", r2)),
+            }
+        });
     }
 }

@@ -708,8 +708,11 @@ mod tests {
     use super::*;
     use crate::panic::SendPanicsToTracing;
     use delorean_storage::{
-        exec::SeriesSetPlan, id::Id, test::ColumnNamesRequest, test::ColumnValuesRequest,
-        test::QuerySeriesRequest, test::TestDatabaseStore,
+        exec::SeriesSetPlans,
+        id::Id,
+        test::ColumnNamesRequest,
+        test::TestDatabaseStore,
+        test::{ColumnValuesRequest, QuerySeriesRequest},
     };
     use delorean_test_helpers::tracing::TracingCapture;
     use std::{
@@ -1635,11 +1638,7 @@ mod tests {
             } = test_case;
 
             // TODO setup any expected results
-            let dummy_series_set_plan = SeriesSetPlan {
-                plans: vec![],
-                tag_columns: vec![],
-                field_columns: vec![],
-            };
+            let dummy_series_set_plan = SeriesSetPlans::from(vec![]);
             test_db.set_query_series_values(dummy_series_set_plan).await;
 
             let actual_frames = fixture.storage_client.read_filter(request).await?;

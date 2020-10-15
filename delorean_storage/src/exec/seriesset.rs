@@ -47,8 +47,8 @@ pub enum Error {
     ))]
     ReadingRecordBatch { source: arrow::error::ArrowError },
 
-    #[snafu(display("Finding column: {:?} in schema: '{}'", column_name, source))]
-    ColumnNotFound {
+    #[snafu(display("Error finding column: {:?} in schema '{}'", column_name, source))]
+    ColumnNotFoundForSeriesSet {
         column_name: String,
         source: arrow::error::ArrowError,
     },
@@ -71,22 +71,22 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// table name.
 pub struct SeriesSet {
     /// The table name this series came from
-    table_name: Arc<String>,
+    pub table_name: Arc<String>,
 
     /// key = value pairs that define this series
-    tag_keys: Vec<(Arc<String>, Arc<String>)>,
+    pub tag_keys: Vec<(Arc<String>, Arc<String>)>,
 
     /// timestamp column index
-    timestamp_index: usize,
+    pub timestamp_index: usize,
 
     /// the column index each data field
-    field_indices: Arc<Vec<usize>>,
+    pub field_indices: Arc<Vec<usize>>,
 
     // The row in the record batch where the data starts (inclusive)
-    start_row: usize,
+    pub start_row: usize,
 
     // The number of rows in the record batch that the data goes to
-    num_rows: usize,
+    pub num_rows: usize,
 
     // The underlying record batch data
     batch: RecordBatch,
@@ -160,9 +160,12 @@ impl SeriesSetConverter {
             let schema = batch.schema();
             // TODO: check that the tag columns are sorted by tag name...
 
-            let timestamp_index = schema.index_of(TIME_COLUMN_NAME).context(ColumnNotFound {
-                column_name: TIME_COLUMN_NAME,
-            })?;
+            let timestamp_index =
+                schema
+                    .index_of(TIME_COLUMN_NAME)
+                    .context(ColumnNotFoundForSeriesSet {
+                        column_name: TIME_COLUMN_NAME,
+                    })?;
             let tag_indicies = Self::names_to_indices(&schema, &tag_columns)?;
             let field_indicies = Arc::new(Self::names_to_indices(&schema, &field_columns)?);
 
@@ -238,9 +241,11 @@ impl SeriesSetConverter {
         column_names
             .iter()
             .map(|column_name| {
-                schema.index_of(&*column_name).context(ColumnNotFound {
-                    column_name: column_name.as_ref(),
-                })
+                schema
+                    .index_of(&*column_name)
+                    .context(ColumnNotFoundForSeriesSet {
+                        column_name: column_name.as_ref(),
+                    })
             })
             .collect()
     }
@@ -325,6 +330,7 @@ mod tests {
         util::pretty::pretty_format_batches,
     };
     use delorean_arrow::datafusion::physical_plan::common::RecordBatchIterator;
+    use delorean_test_helpers::{str_pair_vec_to_vec, str_vec_to_arc_vec};
 
     use super::*;
 
@@ -571,19 +577,6 @@ mod tests {
             results.push(r)
         }
         results
-    }
-
-    // convert form that is easy to type in tests to the form that SeriesSetConverter wants
-    fn str_vec_to_arc_vec(str_vec: &[&str]) -> Arc<Vec<Arc<String>>> {
-        Arc::new(str_vec.iter().map(|s| Arc::new(String::from(*s))).collect())
-    }
-
-    // convert form that is easy to type in tests to the form that SeriesSetConverter wants
-    fn str_pair_vec_to_vec(str_vec: &[(&str, &str)]) -> Vec<(Arc<String>, Arc<String>)> {
-        str_vec
-            .iter()
-            .map(|(s1, s2)| (Arc::new(String::from(*s1)), Arc::new(String::from(*s2))))
-            .collect()
     }
 
     /// Test helper: parses the csv content into a single record batch arrow arrays

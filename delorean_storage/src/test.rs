@@ -5,7 +5,8 @@
 use delorean_arrow::arrow::record_batch::RecordBatch;
 
 use crate::{
-    exec::{SeriesSetPlan, StringSet, StringSetPlan, StringSetRef},
+    exec::SeriesSetPlans,
+    exec::{StringSet, StringSetPlan, StringSetRef},
     Database, DatabaseStore, Predicate, TimestampRange,
 };
 use delorean_data_types::data::ReplicatedWrite;
@@ -38,7 +39,7 @@ pub struct TestDatabase {
     column_values_request: Arc<Mutex<Option<ColumnValuesRequest>>>,
 
     /// responses to return on the next request to query_series
-    query_series_values: Arc<Mutex<Option<SeriesSetPlan>>>,
+    query_series_values: Arc<Mutex<Option<SeriesSetPlans>>>,
 
     /// the last request for query_series
     query_series_request: Arc<Mutex<Option<QuerySeriesRequest>>>,
@@ -150,7 +151,7 @@ impl TestDatabase {
 
     /// Set the series that will be returned on a call to query_series
     /// TODO add in the actual values
-    pub async fn set_query_series_values(&self, plan: SeriesSetPlan) {
+    pub async fn set_query_series_values(&self, plan: SeriesSetPlans) {
         *(self.query_series_values.clone().lock().await) = Some(plan);
     }
 
@@ -288,7 +289,7 @@ impl Database for TestDatabase {
         &self,
         range: Option<TimestampRange>,
         predicate: Option<Predicate>,
-    ) -> Result<SeriesSetPlan, Self::Error> {
+    ) -> Result<SeriesSetPlans, Self::Error> {
         let predicate = predicate.map(|p| format!("{:?}", p));
 
         let new_queries_series_request = Some(QuerySeriesRequest { range, predicate });
