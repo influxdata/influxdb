@@ -28,14 +28,6 @@
   contact: Gavin Cabbage
   lifetime: permanent
 
-- name: Community Templates
-  description: Replace current template uploading functionality with community driven templates
-  key: communityTemplates
-  default: true
-  expose: true
-  contact: Bucky
-  lifetime: permanent
-
 - name: Frontend Example
   description: A temporary frontend example integer flag
   key: frontendExample
