@@ -6,9 +6,15 @@ import {connect, ConnectedProps} from 'react-redux'
 import {CommunityTemplateOverlay} from 'src/templates/components/CommunityTemplateOverlay'
 
 // Actions
-import {setStagedCommunityTemplate} from 'src/templates/actions/creators'
-import {createTemplate, fetchAndSetStacks} from 'src/templates/actions/thunks'
+import {
+  setStagedCommunityTemplate,
+  setStagedTemplateUrl,
+} from 'src/templates/actions/creators'
+
 import {notify} from 'src/shared/actions/notifications'
+
+import {createTemplate, fetchAndSetStacks} from 'src/templates/actions/thunks'
+import {getBuckets} from 'src/buckets/actions/thunks'
 
 import {getTotalResourceCount} from 'src/templates/selectors'
 
@@ -39,14 +45,18 @@ interface State {
   status: ComponentStatus
 }
 
+interface OwnProps {
+  setTemplateUrlValidationMessage: (string) => void
+}
+
 type ReduxProps = ConnectedProps<typeof connector>
 type RouterProps = RouteComponentProps<{
   orgID: string
 }>
 
-type Props = ReduxProps & RouterProps
+type Props = OwnProps & ReduxProps & RouterProps
 
-class UnconnectedCommunityTemplateInstallOverlay extends PureComponent<Props> {
+class CommunityTemplateInstallOverlayUnconnected extends PureComponent<Props> {
   public state: State = {
     status: ComponentStatus.Default,
   }
@@ -63,9 +73,8 @@ class UnconnectedCommunityTemplateInstallOverlay extends PureComponent<Props> {
   }
 
   public render() {
-    const templateDetails = getTemplateNameFromUrl(this.props.stagedTemplateUrl)
-    const templateName = templateDetails.name
-    const templateDirectory = templateDetails.directory
+    const templateName = getTemplateNameFromUrl(this.props.stagedTemplateUrl)
+      .name
 
     return (
       <CommunityTemplateOverlay
@@ -74,7 +83,7 @@ class UnconnectedCommunityTemplateInstallOverlay extends PureComponent<Props> {
         resourceCount={this.props.resourceCount}
         status={this.state.status}
         templateName={templateName}
-        templateDirectory={templateDirectory}
+        url={this.props.stagedTemplateUrl}
         updateStatus={this.updateOverlayStatus}
       />
     )
@@ -113,9 +122,13 @@ class UnconnectedCommunityTemplateInstallOverlay extends PureComponent<Props> {
         this.props.resourcesToSkip,
         this.props.stagedTemplateEnvReferences
       )
+      event('template_install', {templateUrl: this.props.stagedTemplateUrl})
     } catch (err) {
       this.props.notify(communityTemplateInstallFailed(err.message))
-      reportError(err, {name: 'Failed to install community template'})
+      reportError(err, {
+        name: 'Failed to install community template',
+      })
+      return
     }
 
     try {
@@ -124,12 +137,18 @@ class UnconnectedCommunityTemplateInstallOverlay extends PureComponent<Props> {
       )
       await updateStackName(summary.stackID, templateDetails.name)
 
-      event('template_install', {templateName: templateDetails.name})
+      event('template_rename', {templateName: templateDetails.name})
 
+      this.props.setStagedTemplateUrl('')
+      this.props.setTemplateUrlValidationMessage('')
+
+      this.props.getBuckets()
       this.props.notify(communityTemplateInstallSucceeded(templateDetails.name))
     } catch (err) {
       this.props.notify(communityTemplateRenameFailed())
-      reportError(err, {name: 'The community template rename failed'})
+      reportError(err, {
+        name: 'The community template rename failed',
+      })
     } finally {
       this.props.fetchAndSetStacks(this.props.org.id)
       this.onDismiss()
@@ -181,18 +200,22 @@ const mstp = (state: AppState, props: RouterProps) => {
     resourcesToSkip:
       state.resources.templates.stagedCommunityTemplate.resourcesToSkip,
     stagedTemplateUrl: state.resources.templates.stagedTemplateUrl,
+    communityTemplateReadmeCollection:
+      state.resources.templates.communityTemplateReadmeCollection,
   }
 }
 
 const mdtp = {
   createTemplate,
+  getBuckets,
+  fetchAndSetStacks,
   notify,
   setStagedCommunityTemplate,
-  fetchAndSetStacks,
+  setStagedTemplateUrl,
 }
 
 const connector = connect(mstp, mdtp)
 
 export const CommunityTemplateInstallOverlay = connector(
-  withRouter(UnconnectedCommunityTemplateInstallOverlay)
+  withRouter(CommunityTemplateInstallOverlayUnconnected)
 )
