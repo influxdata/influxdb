@@ -197,13 +197,13 @@ enum MatchTables {
     Regex(String),
 }
 
-type HostGroupId = String;
+pub type HostGroupId = String;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HostGroup {
-    id: HostGroupId,
+    pub id: HostGroupId,
     // hosts is a vec of connection strings for remote hosts
-    hosts: Vec<String>,
+    pub hosts: Vec<String>,
 }
 
 mod tests {

@@ -6,7 +6,7 @@ use crate::TIME_COLUMN_NAME;
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::{FieldValue, ParsedLine};
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt};
 
 use chrono::Utc;
 use crc32fast::Hasher;
@@ -41,6 +41,82 @@ impl ReplicatedWrite {
             Some(d) => Some(flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&d)),
             None => None,
         }
+    }
+}
+
+impl fmt::Display for ReplicatedWrite {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let fb = self.to_fb();
+        write!(
+            f,
+            "\nwriter:{}, sequence:{}, checksum:{}\n",
+            fb.writer(),
+            fb.sequence(),
+            fb.checksum()
+        )?;
+
+        if let Some(batch) = self.write_buffer_batch() {
+            if let Some(entries) = batch.entries() {
+                for entry in entries {
+                    writeln!(f, "partition_key:{}", entry.partition_key().unwrap_or(""))?;
+
+                    if let Some(tables) = entry.table_batches() {
+                        for table in tables {
+                            writeln!(f, "  table:{}", table.name().unwrap_or(""))?;
+
+                            if let Some(rows) = table.rows() {
+                                for row in rows {
+                                    write!(f, "   ")?;
+                                    if let Some(values) = row.values() {
+                                        for value in values {
+                                            let val = match value.value_type() {
+                                                wb::ColumnValue::TagValue => value
+                                                    .value_as_tag_value()
+                                                    .unwrap()
+                                                    .value()
+                                                    .unwrap_or("")
+                                                    .to_string(),
+                                                wb::ColumnValue::F64Value => value
+                                                    .value_as_f64value()
+                                                    .unwrap()
+                                                    .value()
+                                                    .to_string(),
+                                                wb::ColumnValue::I64Value => value
+                                                    .value_as_i64value()
+                                                    .unwrap()
+                                                    .value()
+                                                    .to_string(),
+                                                wb::ColumnValue::U64Value => value
+                                                    .value_as_u64value()
+                                                    .unwrap()
+                                                    .value()
+                                                    .to_string(),
+                                                wb::ColumnValue::BoolValue => value
+                                                    .value_as_bool_value()
+                                                    .unwrap()
+                                                    .value()
+                                                    .to_string(),
+                                                wb::ColumnValue::StringValue => value
+                                                    .value_as_string_value()
+                                                    .unwrap()
+                                                    .value()
+                                                    .unwrap_or("")
+                                                    .to_string(),
+                                                wb::ColumnValue::NONE => "".to_string(),
+                                            };
+                                            write!(f, " {}:{}", value.column().unwrap_or(""), val)?;
+                                        }
+                                        writeln!(f)?;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
