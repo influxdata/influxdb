@@ -143,7 +143,7 @@ describe('ThresholdSettings', () => {
 
     const {getByTestId} = render(<TestWrapper />)
 
-    const input1 = getByTestId(`threshold-${testShresholds[1].id}-input`)
+    const input1 = getByTestId(`threshold-${testThresholds[1].id}-input`)
 
     // Enter an invalid value in the input
     fireEvent.change(input1, {

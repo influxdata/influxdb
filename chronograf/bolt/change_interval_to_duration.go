@@ -77,7 +77,7 @@ var down = func(db *bolt.DB) error {
 	This isolates the migration from the codebase, and prevents a future change
 	to a type definition from invalidating the migration functions.
 */
-var dashboardBucket = []byte("Dashoard")
+var dashboardBucket = []byte("Dashboard")
 
 type Source struct {
 	ID                 int64  `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
