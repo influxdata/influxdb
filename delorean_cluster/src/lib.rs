@@ -65,7 +65,10 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use delorean_data_types::{data::lines_to_replicated_write, database_rules::DatabaseRules};
+use delorean_data_types::{
+    data::{lines_to_replicated_write, ReplicatedWrite},
+    database_rules::{DatabaseRules, HostGroup, HostGroupId},
+};
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::ParsedLine;
 use delorean_storage::Database;
@@ -88,6 +91,17 @@ pub enum Error {
     UnknownDatabaseError { source: DatabaseError },
     #[snafu(display("no local buffer for database: {}", db))]
     NoLocalBuffer { db: String },
+    #[snafu(display("host group not found: {}", id))]
+    HostGroupNotFound { id: HostGroupId },
+    #[snafu(display("no hosts in group: {}", id))]
+    NoHostInGroup { id: HostGroupId },
+    #[snafu(display("unable to get connection to remote server: {}", server))]
+    UnableToGetConnection {
+        server: String,
+        source: DatabaseError,
+    },
+    #[snafu(display("error replicating to remote: {}", source))]
+    ErrorReplicating { source: DatabaseError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -98,7 +112,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
     databases: RwLock<BTreeMap<String, Arc<Db>>>,
-    #[allow(dead_code)]
+    host_groups: RwLock<BTreeMap<HostGroupId, Arc<HostGroup>>>,
     connection_manager: M,
 }
 
@@ -106,10 +120,13 @@ impl<M: ConnectionManager> Server<M> {
     pub fn new(connection_manager: M) -> Self {
         Self {
             databases: RwLock::new(BTreeMap::new()),
+            host_groups: RwLock::new(BTreeMap::new()),
             connection_manager,
         }
     }
 
+    /// Tells the server the set of rules for a database. Currently, this is not persisted and
+    /// is for in-memory processing rules only.
     pub async fn create_database(&self, db_name: &str, rules: DatabaseRules) -> Result<()> {
         let mut database_map = self.databases.write().await;
         let buffer = if rules.store_locally {
@@ -125,30 +142,70 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
+    /// Creates a host group with a set of connection strings to hosts. These host connection
+    /// strings should be something that the connection manager can use to return a remote server
+    /// to work with.
+    pub async fn create_host_group(&self, id: HostGroupId, hosts: Vec<String>) -> Result<()> {
+        let mut host_groups = self.host_groups.write().await;
+
+        host_groups.insert(id.clone(), Arc::new(HostGroup { id, hosts }));
+
+        Ok(())
+    }
+
     /// write_lines takes in raw line protocol and converts it to a ReplicatedWrite, which
     /// is then replicated to other delorean servers based on the configuration of the db.
     /// This is step #1 from the above diagram.
-    pub async fn write_lines(&self, db: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
+    pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
         let db = self
             .databases
             .read()
             .await
-            .get(db)
-            .context(DatabaseNotFound { db })?
+            .get(db_name)
+            .context(DatabaseNotFound { db: db_name })?
             .clone();
 
-        let data = lines_to_replicated_write(0, 0, lines, &db.rules);
+        let write = lines_to_replicated_write(0, 0, lines, &db.rules);
 
         if let Some(buf) = &db.buffer {
-            buf.store_replicated_write(&data)
+            buf.store_replicated_write(&write)
                 .await
                 .map_err(|e| Box::new(e) as DatabaseError)
                 .context(UnknownDatabaseError {})?;
         }
 
+        for host_group_id in &db.rules.replication {
+            let group = self
+                .host_groups
+                .read()
+                .await
+                .get(host_group_id)
+                .context(HostGroupNotFound { id: host_group_id })?
+                .clone();
+
+            let host = group
+                .hosts
+                .get(0)
+                .context(NoHostInGroup { id: host_group_id })?;
+
+            let connection = self
+                .connection_manager
+                .remote_server(host)
+                .await
+                .map_err(|e| Box::new(e) as DatabaseError)
+                .context(UnableToGetConnection { server: host })?;
+
+            connection
+                .replicate(db_name, &write)
+                .await
+                .map_err(|e| Box::new(e) as DatabaseError)
+                .context(ErrorReplicating {})?;
+        }
+
         Ok(())
     }
 
+    /// Executes a query against the local write buffer database, if one exists.
     pub async fn query_local(&self, db_name: &str, query: &str) -> Result<Vec<RecordBatch>> {
         let db = self
             .databases
@@ -183,7 +240,7 @@ pub trait ConnectionManager {
 
     type RemoteServer: RemoteServer;
 
-    async fn remote_server(&self, connect: &str) -> Result<&Self::RemoteServer, Self::Error>;
+    async fn remote_server(&self, connect: &str) -> Result<Arc<Self::RemoteServer>, Self::Error>;
 }
 
 /// The RemoteServer represents the API for replicating, subscribing, and querying other
@@ -196,7 +253,7 @@ pub trait RemoteServer {
     async fn replicate(
         &self,
         db: &str,
-        replicated_write: &wb::ReplicatedWrite<'_>,
+        replicated_write: &ReplicatedWrite,
     ) -> Result<(), Self::Error>;
 }
 
@@ -213,26 +270,24 @@ mod tests {
     use delorean_arrow::arrow::{csv, util::string_writer::StringWriter};
     use delorean_line_parser::parse_lines;
     use snafu::Snafu;
+    use std::sync::Mutex;
 
-    //    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
     #[tokio::test(threaded_scheduler)]
     async fn writes_local() -> Result {
-        // TODO: update this to use an actual database store and database backed entirely by memory
         let manager = TestConnectionManager::new();
         let server = Server::new(manager);
         let rules = DatabaseRules {
             store_locally: true,
             ..Default::default()
         };
-        server.create_database("foo", rules).await.unwrap();
+        server.create_database("foo", rules).await?;
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
         server.write_lines("foo", &lines).await.unwrap();
-
-        //        panic!("blah {:?}", server.db("foo").await.buffer.as_ref().unwrap().tag_column_names(Some("cpu".to_string()), None, None).await.unwrap());
 
         let results = server
             .query_local("foo", "select * from cpu")
@@ -251,47 +306,93 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test(threaded_scheduler)]
+    async fn replicate_to_single_group() -> Result {
+        let mut manager = TestConnectionManager::new();
+        let remote = Arc::new(TestRemoteServer::default());
+        let remote_id = "serverA";
+        manager
+            .remotes
+            .insert(remote_id.to_string(), remote.clone());
+
+        let server = Server::new(manager);
+        let host_group_id = "az1".to_string();
+        let rules = DatabaseRules {
+            replication: vec![host_group_id.clone()],
+            replication_count: 1,
+            ..Default::default()
+        };
+        server
+            .create_host_group(host_group_id.clone(), vec![remote_id.to_string()])
+            .await
+            .unwrap();
+        let db_name = "foo";
+        server.create_database(db_name, rules).await.unwrap();
+
+        let line = "cpu bar=1 10";
+        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
+        server.write_lines("foo", &lines).await.unwrap();
+
+        let writes = remote.writes.lock().unwrap().get(db_name).unwrap().clone();
+
+        let write_text = r#"
+writer:0, sequence:0, checksum:226387645
+partition_key:
+  table:cpu
+    bar:1 time:10
+"#;
+
+        assert_eq!(write_text, writes[0].to_string());
+
+        Ok(())
+    }
+
     #[derive(Snafu, Debug, Clone)]
-    enum TestError {
+    enum TestClusterError {
         #[snafu(display("Test delorean_cluster error:  {}", message))]
         General { message: String },
     }
 
     struct TestConnectionManager {
-        remote: TestRemoteServer,
+        remotes: BTreeMap<String, Arc<TestRemoteServer>>,
     }
 
     impl TestConnectionManager {
         fn new() -> Self {
             Self {
-                remote: TestRemoteServer {},
+                remotes: BTreeMap::new(),
             }
         }
     }
 
     #[async_trait]
     impl ConnectionManager for TestConnectionManager {
-        type Error = TestError;
+        type Error = TestClusterError;
         type RemoteServer = TestRemoteServer;
 
-        async fn remote_server<'a>(
-            &'a self,
-            _id: &str,
-        ) -> Result<&'a TestRemoteServer, Self::Error> {
-            Ok(&self.remote)
+        async fn remote_server(&self, id: &str) -> Result<Arc<TestRemoteServer>, Self::Error> {
+            Ok(self.remotes.get(id).unwrap().clone())
         }
     }
 
-    struct TestRemoteServer;
+    #[derive(Default)]
+    struct TestRemoteServer {
+        writes: Mutex<BTreeMap<String, Vec<ReplicatedWrite>>>,
+    }
+
     #[async_trait]
     impl RemoteServer for TestRemoteServer {
-        type Error = TestError;
+        type Error = TestClusterError;
 
         async fn replicate(
             &self,
-            _db: &str,
-            _replicated_write: &wb::ReplicatedWrite<'_>,
+            db: &str,
+            replicated_write: &ReplicatedWrite,
         ) -> Result<(), Self::Error> {
+            let mut writes = self.writes.lock().unwrap();
+            let entries = writes.entry(db.to_string()).or_insert_with(Vec::new);
+            entries.push(replicated_write.clone());
+
             Ok(())
         }
     }
