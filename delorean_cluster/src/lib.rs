@@ -77,7 +77,6 @@ use delorean_write_buffer::Db as WriteBufferDb;
 use async_trait::async_trait;
 use delorean_arrow::arrow::record_batch::RecordBatch;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tokio::sync::RwLock;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -102,6 +101,8 @@ pub enum Error {
     },
     #[snafu(display("error replicating to remote: {}", source))]
     ErrorReplicating { source: DatabaseError },
+    #[snafu(display("unable to use server until id is set"))]
+    IdNotSet,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -111,30 +112,41 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// of all replication and query rules.
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
-    databases: RwLock<BTreeMap<String, Arc<Db>>>,
-    host_groups: RwLock<BTreeMap<HostGroupId, Arc<HostGroup>>>,
+    // id is optional because this may not be set on startup. It might be set via an API call
+    id: Option<u16>,
+    databases: BTreeMap<String, Db>,
+    host_groups: BTreeMap<HostGroupId, HostGroup>,
     connection_manager: M,
 }
 
 impl<M: ConnectionManager> Server<M> {
     pub fn new(connection_manager: M) -> Self {
         Self {
-            databases: RwLock::new(BTreeMap::new()),
-            host_groups: RwLock::new(BTreeMap::new()),
+            id: None,
+            databases: BTreeMap::new(),
+            host_groups: BTreeMap::new(),
             connection_manager,
         }
+    }
+
+    /// sets the id of the server, which is used for replication and the base path in object storage
+    pub fn set_id(&mut self, id: u16) {
+        self.id = Some(id);
     }
 
     /// Tells the server the set of rules for a database. Currently, this is not persisted and
     /// is for in-memory processing rules only.
     pub async fn create_database(
-        &self,
+        &mut self,
         db_name: impl Into<String>,
         rules: DatabaseRules,
     ) -> Result<()> {
+        if self.id.is_none() {
+            return IdNotSet.fail();
+        }
+
         let db_name = db_name.into();
 
-        let mut database_map = self.databases.write().await;
         let buffer = if rules.store_locally {
             Some(WriteBufferDb::new(&db_name))
         } else {
@@ -143,7 +155,7 @@ impl<M: ConnectionManager> Server<M> {
 
         let db = Db { rules, buffer };
 
-        database_map.insert(db_name, Arc::new(db));
+        self.databases.insert(db_name, db);
 
         Ok(())
     }
@@ -151,10 +163,12 @@ impl<M: ConnectionManager> Server<M> {
     /// Creates a host group with a set of connection strings to hosts. These host connection
     /// strings should be something that the connection manager can use to return a remote server
     /// to work with.
-    pub async fn create_host_group(&self, id: HostGroupId, hosts: Vec<String>) -> Result<()> {
-        let mut host_groups = self.host_groups.write().await;
+    pub async fn create_host_group(&mut self, id: HostGroupId, hosts: Vec<String>) -> Result<()> {
+        if self.id.is_none() {
+            return IdNotSet.fail();
+        }
 
-        host_groups.insert(id.clone(), Arc::new(HostGroup { id, hosts }));
+        self.host_groups.insert(id.clone(), HostGroup { id, hosts });
 
         Ok(())
     }
@@ -163,15 +177,17 @@ impl<M: ConnectionManager> Server<M> {
     /// is then replicated to other servers based on the configuration of the `db`.
     /// This is step #1 from the above diagram.
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
+        let id = match self.id {
+            Some(id) => id,
+            None => return IdNotSet.fail(),
+        };
+
         let db = self
             .databases
-            .read()
-            .await
             .get(db_name)
-            .context(DatabaseNotFound { db: db_name })?
-            .clone();
+            .context(DatabaseNotFound { db: db_name })?;
 
-        let write = lines_to_replicated_write(0, 0, lines, &db.rules);
+        let write = lines_to_replicated_write(id, 0, lines, &db.rules);
 
         if let Some(buf) = &db.buffer {
             buf.store_replicated_write(&write)
@@ -183,11 +199,8 @@ impl<M: ConnectionManager> Server<M> {
         for host_group_id in &db.rules.replication {
             let group = self
                 .host_groups
-                .read()
-                .await
                 .get(host_group_id)
-                .context(HostGroupNotFound { id: host_group_id })?
-                .clone();
+                .context(HostGroupNotFound { id: host_group_id })?;
 
             let host = group
                 .hosts
@@ -215,11 +228,8 @@ impl<M: ConnectionManager> Server<M> {
     pub async fn query_local(&self, db_name: &str, query: &str) -> Result<Vec<RecordBatch>> {
         let db = self
             .databases
-            .read()
-            .await
             .get(db_name)
-            .context(DatabaseNotFound { db: db_name })?
-            .clone();
+            .context(DatabaseNotFound { db: db_name })?;
 
         let buff = db.buffer.as_ref().context(NoLocalBuffer { db: db_name })?;
         buff.query(query)
@@ -281,9 +291,32 @@ mod tests {
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
     #[tokio::test(threaded_scheduler)]
+    async fn server_api_calls_return_error_with_no_id_set() -> Result {
+        let manager = TestConnectionManager::new();
+        let mut server = Server::new(manager);
+
+        let rules = DatabaseRules::default();
+        let resp = server.create_database("foo", rules).await.unwrap_err();
+        assert!(matches!(resp, Error::IdNotSet));
+
+        let lines = parsed_lines("cpu foo=1 10");
+        let resp = server.write_lines("foo", &lines).await.unwrap_err();
+        assert!(matches!(resp, Error::IdNotSet));
+
+        let resp = server
+            .create_host_group("group1".to_string(), vec!["serverA".to_string()])
+            .await
+            .unwrap_err();
+        assert!(matches!(resp, Error::IdNotSet));
+
+        Ok(())
+    }
+
+    #[tokio::test(threaded_scheduler)]
     async fn writes_local() -> Result {
         let manager = TestConnectionManager::new();
-        let server = Server::new(manager);
+        let mut server = Server::new(manager);
+        server.set_id(1);
         let rules = DatabaseRules {
             store_locally: true,
             ..Default::default()
@@ -320,7 +353,8 @@ mod tests {
             .remotes
             .insert(remote_id.to_string(), remote.clone());
 
-        let server = Server::new(manager);
+        let mut server = Server::new(manager);
+        server.set_id(1);
         let host_group_id = "az1".to_string();
         let rules = DatabaseRules {
             replication: vec![host_group_id.clone()],
@@ -341,7 +375,7 @@ mod tests {
         let writes = remote.writes.lock().unwrap().get(db_name).unwrap().clone();
 
         let write_text = r#"
-writer:0, sequence:0, checksum:226387645
+writer:1, sequence:0, checksum:226387645
 partition_key:
   table:cpu
     bar:1 time:10
@@ -400,5 +434,9 @@ partition_key:
 
             Ok(())
         }
+    }
+
+    fn parsed_lines(lp: &str) -> Vec<ParsedLine<'_>> {
+        parse_lines(lp).map(|l| l.unwrap()).collect()
     }
 }
