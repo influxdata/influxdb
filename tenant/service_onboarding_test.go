@@ -35,7 +35,9 @@ func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *te
 	ten := tenant.NewService(storage)
 
 	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, kv.NewService(zaptest.NewLogger(t), s))
+	kvsvc := kv.NewService(zaptest.NewLogger(t), s)
+	kvsvc.TokenGenerator = f.TokenGenerator
+	svc := tenant.NewOnboardService(ten, kvsvc)
 
 	ctx := context.Background()
 

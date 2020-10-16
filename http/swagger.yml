@@ -10843,6 +10843,8 @@ components:
           type: string
         retentionPeriodHrs:
           type: integer
+        token:
+          type: string
       required:
         - username
         - org

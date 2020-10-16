@@ -22,7 +22,7 @@ var onboardCmpOptions = cmp.Options{
 		return x.User.Name == y.User.Name && x.User.OAuthID == y.User.OAuthID && x.User.Status == y.User.Status &&
 			x.Org.Name == y.Org.Name && x.Org.Description == y.Org.Description &&
 			x.Bucket.Type == y.Bucket.Type && x.Bucket.Description == y.Bucket.Description && x.Bucket.RetentionPolicyName == y.Bucket.RetentionPolicyName && x.Bucket.RetentionPeriod == y.Bucket.RetentionPeriod && x.Bucket.Name == y.Bucket.Name &&
-			(x.Auth != nil && y.Auth != nil && cmp.Equal(x.Auth.Permissions, y.Auth.Permissions)) // its possible auth wont exist on the basic service level
+			(x.Auth != nil && y.Auth != nil && cmp.Equal(x.Auth.Permissions, y.Auth.Permissions) && x.Auth.Token == y.Auth.Token) // its possible auth wont exist on the basic service level
 	}),
 }
 
@@ -189,6 +189,66 @@ func OnboardInitialUser(
 					Auth: &platform.Authorization{
 						ID:          MustIDBase16(fourID),
 						Token:       oneToken,
+						Status:      platform.Active,
+						UserID:      MustIDBase16(oneID),
+						Description: "admin's Token",
+						OrgID:       MustIDBase16(twoID),
+						Permissions: platform.OperPermissions(),
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "with defined token",
+			fields: OnboardingFields{
+				IDGenerator: &loopIDGenerator{
+					s: []string{oneID, twoID, threeID, fourID},
+				},
+				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
+				IsOnboarding:   true,
+			},
+			args: args{
+				request: &platform.OnboardingRequest{
+					User:            "admin",
+					Org:             "org1",
+					Bucket:          "bucket1",
+					Password:        "password1",
+					Token:           "token1",
+					RetentionPeriod: 24 * 7,
+				},
+			},
+			wants: wants{
+				results: &platform.OnboardingResults{
+					User: &platform.User{
+						ID:     MustIDBase16(oneID),
+						Name:   "admin",
+						Status: platform.Active,
+					},
+					Org: &platform.Organization{
+						ID:   MustIDBase16(twoID),
+						Name: "org1",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
+					},
+					Bucket: &platform.Bucket{
+						ID:              MustIDBase16(threeID),
+						Name:            "bucket1",
+						OrgID:           MustIDBase16(twoID),
+						RetentionPeriod: time.Hour * 24 * 7,
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
+					},
+					Auth: &platform.Authorization{
+						ID:          MustIDBase16(fourID),
+						Token:       "token1",
 						Status:      platform.Active,
 						UserID:      MustIDBase16(oneID),
 						Description: "admin's Token",

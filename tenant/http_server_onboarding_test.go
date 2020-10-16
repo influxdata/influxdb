@@ -25,6 +25,7 @@ func initOnboardHttpService(f itesting.OnboardingFields, t *testing.T) (influxdb
 	storage := tenant.NewStore(s)
 
 	authsvc := kv.NewService(zaptest.NewLogger(t), s)
+	authsvc.TokenGenerator = f.TokenGenerator
 
 	ten := tenant.NewService(storage)
 
