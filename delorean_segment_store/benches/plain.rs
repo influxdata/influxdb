@@ -3,10 +3,11 @@ use std::mem::size_of;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::prelude::*;
 
-use delorean_segment_store::column::plain::Plain;
+use delorean_arrow::arrow::datatypes::*;
+use delorean_segment_store::column::fixed::Fixed;
+use delorean_segment_store::column::fixed_null::FixedNull;
 
-// const ROWS: [usize; 5] = [10, 100, 1_000, 10_000, 60_000];
-const ROWS: [usize; 2] = [10_000, 30_000];
+const ROWS: [usize; 5] = [10, 100, 1_000, 10_000, 60_000];
 const CHUNKS: [Chunks; 4] = [
     Chunks::All,
     Chunks::Even,
@@ -24,97 +25,193 @@ enum Chunks {
     RandomTenPercent, // sum up random 10% of values
 }
 
+enum EncType {
+    Fixed,
+    Arrow,
+}
+
 enum PhysicalType {
     I64,
     I32,
     I16,
 }
 
-fn encoding_plain_sum(c: &mut Criterion) {
-    benchmark_plain_sum(c, "encoding_plain_sum", &ROWS, &CHUNKS, &PHYSICAL_TYPES);
+fn encoding_sum(c: &mut Criterion) {
+    benchmark_plain_sum(
+        c,
+        "encoding_fixed_sum",
+        EncType::Fixed,
+        &ROWS,
+        &CHUNKS,
+        &PHYSICAL_TYPES,
+    );
+    benchmark_plain_sum(
+        c,
+        "encoding_arrow_sum",
+        EncType::Arrow,
+        &ROWS,
+        &CHUNKS,
+        &PHYSICAL_TYPES,
+    );
 }
 
 fn benchmark_plain_sum(
     c: &mut Criterion,
     benchmark_group_name: &str,
+    enc_type: EncType,
     row_size: &[usize],
     chunks: &[Chunks],
     physical_type: &[PhysicalType],
 ) {
     let mut group = c.benchmark_group(benchmark_group_name);
     for &num_rows in row_size {
-        for j in 0..chunks.len() {
-            for k in 0..physical_type.len() {
+        for chunk in chunks {
+            for pt in physical_type {
                 // Encoded incrementing values.
 
                 let input: Vec<usize>;
-                match chunks[j] {
+                match chunk {
                     Chunks::All => input = (0..num_rows).collect(),
                     Chunks::Even => input = gen_even_chunk(num_rows),
                     Chunks::ManySmall => input = gen_many_small_chunk(num_rows),
                     Chunks::RandomTenPercent => input = gen_random_10_percent(num_rows),
                 }
 
-                match physical_type[k] {
+                match pt {
                     PhysicalType::I64 => {
-                        let encoding =
-                            Plain::from((0..num_rows as i64).collect::<Vec<i64>>().as_slice());
                         group
                             .throughput(Throughput::Bytes((input.len() * size_of::<i64>()) as u64));
 
-                        group.bench_with_input(
-                            BenchmarkId::from_parameter(format!(
-                                "{:?}_{:?}_i64",
-                                num_rows, chunks[j]
-                            )),
-                            &input,
-                            |b, input| {
-                                b.iter(|| {
-                                    // do work
-                                    let _ = encoding.sum::<i64>(&input);
-                                });
-                            },
-                        );
+                        match enc_type {
+                            EncType::Fixed => {
+                                let encoding = Fixed::<i64>::from(
+                                    (0..num_rows as i64).collect::<Vec<i64>>().as_slice(),
+                                );
+
+                                group.bench_with_input(
+                                    BenchmarkId::from_parameter(format!(
+                                        "{:?}_{:?}_i64",
+                                        num_rows, chunk
+                                    )),
+                                    &input,
+                                    |b, input| {
+                                        b.iter(|| {
+                                            // do work
+                                            let _ = encoding.sum::<i64>(&input);
+                                        });
+                                    },
+                                );
+                            }
+                            EncType::Arrow => {
+                                let encoding = FixedNull::<Int64Type>::from(
+                                    (0..num_rows as i64).collect::<Vec<i64>>().as_slice(),
+                                );
+
+                                group.bench_with_input(
+                                    BenchmarkId::from_parameter(format!(
+                                        "{:?}_{:?}_i64",
+                                        num_rows, chunk
+                                    )),
+                                    &input,
+                                    |b, input| {
+                                        b.iter(|| {
+                                            // do work
+                                            let _ = encoding.sum(&input);
+                                        });
+                                    },
+                                );
+                            }
+                        }
                     }
                     PhysicalType::I32 => {
-                        let encoding =
-                            Plain::from((0..num_rows as i32).collect::<Vec<i32>>().as_slice());
                         group
                             .throughput(Throughput::Bytes((input.len() * size_of::<i64>()) as u64));
 
-                        group.bench_with_input(
-                            BenchmarkId::from_parameter(format!(
-                                "{:?}_{:?}_i32",
-                                num_rows, chunks[j]
-                            )),
-                            &input,
-                            |b, input| {
-                                b.iter(|| {
-                                    // do work
-                                    let _ = encoding.sum::<i64>(&input);
-                                });
-                            },
-                        );
+                        match enc_type {
+                            EncType::Fixed => {
+                                let encoding = Fixed::<i32>::from(
+                                    (0..num_rows as i32).collect::<Vec<i32>>().as_slice(),
+                                );
+
+                                group.bench_with_input(
+                                    BenchmarkId::from_parameter(format!(
+                                        "{:?}_{:?}_i32",
+                                        num_rows, chunk
+                                    )),
+                                    &input,
+                                    |b, input| {
+                                        b.iter(|| {
+                                            // do work
+                                            let _ = encoding.sum::<i32>(&input);
+                                        });
+                                    },
+                                );
+                            }
+                            EncType::Arrow => {
+                                let encoding = FixedNull::<Int32Type>::from(
+                                    (0..num_rows as i32).collect::<Vec<i32>>().as_slice(),
+                                );
+
+                                group.bench_with_input(
+                                    BenchmarkId::from_parameter(format!(
+                                        "{:?}_{:?}_i32",
+                                        num_rows, chunk
+                                    )),
+                                    &input,
+                                    |b, input| {
+                                        b.iter(|| {
+                                            // do work
+                                            let _ = encoding.sum(&input);
+                                        });
+                                    },
+                                );
+                            }
+                        }
                     }
                     PhysicalType::I16 => {
-                        let encoding =
-                            Plain::from((0..num_rows as i16).collect::<Vec<i16>>().as_slice());
                         group
                             .throughput(Throughput::Bytes((input.len() * size_of::<i64>()) as u64));
 
-                        group.bench_with_input(
-                            BenchmarkId::from_parameter(format!(
-                                "{:?}_{:?}_i16",
-                                num_rows, chunks[j]
-                            )),
-                            &input,
-                            |b, input| {
-                                b.iter(|| {
-                                    // do work
-                                    let _ = encoding.sum::<i64>(&input);
-                                });
-                            },
-                        );
+                        match enc_type {
+                            EncType::Fixed => {
+                                let encoding = Fixed::<i16>::from(
+                                    (0..num_rows as i16).collect::<Vec<i16>>().as_slice(),
+                                );
+
+                                group.bench_with_input(
+                                    BenchmarkId::from_parameter(format!(
+                                        "{:?}_{:?}_i16",
+                                        num_rows, chunk
+                                    )),
+                                    &input,
+                                    |b, input| {
+                                        b.iter(|| {
+                                            // do work
+                                            let _ = encoding.sum::<i16>(&input);
+                                        });
+                                    },
+                                );
+                            }
+                            EncType::Arrow => {
+                                let encoding = FixedNull::<Int16Type>::from(
+                                    (0..num_rows as i16).collect::<Vec<i16>>().as_slice(),
+                                );
+
+                                group.bench_with_input(
+                                    BenchmarkId::from_parameter(format!(
+                                        "{:?}_{:?}_i16",
+                                        num_rows, chunk
+                                    )),
+                                    &input,
+                                    |b, input| {
+                                        b.iter(|| {
+                                            // do work
+                                            let _ = encoding.sum(&input);
+                                        });
+                                    },
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -168,5 +265,5 @@ fn gen_random_10_percent(rows: usize) -> Vec<usize> {
     input
 }
 
-criterion_group!(benches, encoding_plain_sum,);
+criterion_group!(benches, encoding_sum,);
 criterion_main!(benches);
