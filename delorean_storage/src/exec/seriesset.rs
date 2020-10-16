@@ -74,7 +74,7 @@ pub struct SeriesSet {
     pub table_name: Arc<String>,
 
     /// key = value pairs that define this series
-    pub tag_keys: Vec<(Arc<String>, Arc<String>)>,
+    pub tags: Vec<(Arc<String>, Arc<String>)>,
 
     /// timestamp column index
     pub timestamp_index: usize,
@@ -89,7 +89,7 @@ pub struct SeriesSet {
     pub num_rows: usize,
 
     // The underlying record batch data
-    batch: RecordBatch,
+    pub batch: RecordBatch,
 }
 pub type SeriesSetRef = Arc<SeriesSet>;
 
@@ -206,7 +206,7 @@ impl SeriesSetConverter {
                 .map(|end_row| {
                     let series_set = SeriesSet {
                         table_name: table_name.clone(),
-                        tag_keys: Self::get_tag_keys(
+                        tags: Self::get_tag_keys(
                             &batch,
                             start_row as usize,
                             &tag_columns,
@@ -375,7 +375,7 @@ mod tests {
         let series_set = results[0].as_ref().expect("Correctly converted");
 
         assert_eq!(*series_set.table_name, "foo");
-        assert_eq!(series_set.tag_keys.len(), 0);
+        assert!(series_set.tags.is_empty());
         assert_eq!(series_set.timestamp_index, 4);
         assert_eq!(series_set.field_indices, Arc::new(vec![2]));
         assert_eq!(series_set.start_row, 0);
@@ -428,10 +428,7 @@ mod tests {
         let series_set = results[0].as_ref().expect("Correctly converted");
 
         assert_eq!(*series_set.table_name, "bar");
-        assert_eq!(
-            series_set.tag_keys,
-            str_pair_vec_to_vec(&[("tag_a", "one")])
-        );
+        assert_eq!(series_set.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
         assert_eq!(series_set.timestamp_index, 4);
         assert_eq!(series_set.field_indices, Arc::new(vec![2]));
         assert_eq!(series_set.start_row, 0);
@@ -468,10 +465,7 @@ mod tests {
         let series_set1 = results[0].as_ref().expect("Correctly converted");
 
         assert_eq!(*series_set1.table_name, "foo");
-        assert_eq!(
-            series_set1.tag_keys,
-            str_pair_vec_to_vec(&[("tag_a", "one")])
-        );
+        assert_eq!(series_set1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
         assert_eq!(series_set1.timestamp_index, 4);
         assert_eq!(series_set1.field_indices, Arc::new(vec![3]));
         assert_eq!(series_set1.start_row, 0);
@@ -480,10 +474,7 @@ mod tests {
         let series_set2 = results[1].as_ref().expect("Correctly converted");
 
         assert_eq!(*series_set2.table_name, "foo");
-        assert_eq!(
-            series_set2.tag_keys,
-            str_pair_vec_to_vec(&[("tag_a", "two")])
-        );
+        assert_eq!(series_set2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
         assert_eq!(series_set2.timestamp_index, 4);
         assert_eq!(series_set2.field_indices, Arc::new(vec![3]));
         assert_eq!(series_set2.start_row, 3);
@@ -522,7 +513,7 @@ mod tests {
 
         assert_eq!(*series_set1.table_name, "foo");
         assert_eq!(
-            series_set1.tag_keys,
+            series_set1.tags,
             str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
         );
         assert_eq!(series_set1.start_row, 0);
@@ -532,7 +523,7 @@ mod tests {
 
         assert_eq!(*series_set2.table_name, "foo");
         assert_eq!(
-            series_set2.tag_keys,
+            series_set2.tags,
             str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
         );
         assert_eq!(series_set2.start_row, 2);
@@ -542,7 +533,7 @@ mod tests {
 
         assert_eq!(*series_set3.table_name, "foo");
         assert_eq!(
-            series_set3.tag_keys,
+            series_set3.tags,
             str_pair_vec_to_vec(&[("tag_a", "two"), ("tag_b", "eleven")])
         );
         assert_eq!(series_set3.start_row, 3);

@@ -1743,7 +1743,7 @@ disk bytes=23432323i 1600136510000000000",
         let series_set0 = results[0].as_ref().expect("Correctly converted");
         assert_eq!(*series_set0.table_name, "h2o");
         assert_eq!(
-            series_set0.tag_keys,
+            series_set0.tags,
             str_pair_vec_to_vec(&[("city", "Boston"), ("state", "MA")])
         );
         assert_eq!(series_set0.timestamp_index, 3);
@@ -1754,7 +1754,7 @@ disk bytes=23432323i 1600136510000000000",
         let series_set1 = results[1].as_ref().expect("Correctly converted");
         assert_eq!(*series_set1.table_name, "h2o");
         assert_eq!(
-            series_set1.tag_keys,
+            series_set1.tags,
             str_pair_vec_to_vec(&[("city", "LA"), ("state", "CA")])
         );
         assert_eq!(series_set1.timestamp_index, 3);
@@ -1765,7 +1765,7 @@ disk bytes=23432323i 1600136510000000000",
         let series_set2 = results[2].as_ref().expect("Correctly converted");
         assert_eq!(*series_set2.table_name, "o2");
         assert_eq!(
-            series_set2.tag_keys,
+            series_set2.tags,
             str_pair_vec_to_vec(&[("city", "Boston"), ("state", "MA")])
         );
         assert_eq!(series_set2.timestamp_index, 4);
@@ -1826,7 +1826,7 @@ disk bytes=23432323i 1600136510000000000",
         let series_set0 = results[0].as_ref().expect("Correctly converted");
         assert_eq!(*series_set0.table_name, "h2o");
         assert_eq!(
-            series_set0.tag_keys,
+            series_set0.tags,
             str_pair_vec_to_vec(&[("city", "LA"), ("state", "CA")])
         );
         assert_eq!(series_set0.timestamp_index, 3);
@@ -1844,7 +1844,7 @@ disk bytes=23432323i 1600136510000000000",
                 (Ok(r1), Ok(r2)) => r1
                     .table_name
                     .cmp(&r2.table_name)
-                    .then(r1.tag_keys.cmp(&r2.tag_keys)),
+                    .then(r1.tags.cmp(&r2.tags)),
                 // default sort by string representation
                 (r1, r2) => format!("{:?}", r1).cmp(&format!("{:?}", r2)),
             }

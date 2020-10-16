@@ -12,7 +12,6 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use delorean_generated_types::{
     delorean_server::{Delorean, DeloreanServer},
-    read_response::Frame,
     storage_server::{Storage, StorageServer},
     CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
     DeleteBucketResponse, GetBucketsResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
@@ -39,6 +38,8 @@ use snafu::{ResultExt, Snafu};
 use tokio::sync::mpsc;
 use tonic::Status;
 use tracing::warn;
+
+use super::rpc::data::series_set_to_read_response;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -90,6 +91,14 @@ pub enum Error {
         source: crate::server::rpc::expr::Error,
     },
 
+    #[snafu(display("Computing series: {}", source))]
+    ComputingSeriesSet { source: SeriesSetError },
+
+    #[snafu(display("Converting time series into gRPC response:  {}", source))]
+    ConvertingSeriesSet {
+        source: crate::server::rpc::data::Error,
+    },
+
     #[snafu(display("Operation not yet implemented:  {}", operation))]
     NotYetImplemented { operation: String },
 }
@@ -111,6 +120,8 @@ impl Error {
             Self::FilteringSeries { .. } => Status::invalid_argument(self.to_string()),
             Self::ListingTagValues { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingPredicate { .. } => Status::invalid_argument(self.to_string()),
+            Self::ComputingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
+            Self::ConvertingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
     }
@@ -658,15 +669,9 @@ async fn convert_series_set(
 ) {
     while let Some(series_set) = rx.recv().await {
         let response = series_set
-            .map(|_series_set| {
-                // todo the conversion here
-                warn!("Conversion NOT YET IMPLEMENTED");
-                ReadResponse {
-                    frames: vec![Frame {
-                        //data: Some(Data::Series(SeriesFrame { data_type, tags })),
-                        data: None,
-                    }],
-                }
+            .context(ComputingSeriesSet)
+            .and_then(|series_set| {
+                series_set_to_read_response(series_set).context(ConvertingSeriesSet)
             })
             .map_err(|e| Status::internal(e.to_string()));
 
