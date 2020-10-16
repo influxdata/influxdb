@@ -187,6 +187,81 @@ impl RLE {
         dst
     }
 
+    // The set of row ids for each distinct value in the column.
+    pub fn group_row_ids(&self) -> &BTreeMap<u32, Bitmap> {
+        &self.index_row_ids
+    }
+
+    //
+    //
+    // ---- Methods for getting materialised values.
+    //
+    //
+
+    pub fn dictionary(&self) -> &[Option<String>] {
+        &self.index_entries
+    }
+
+    /// Returns the logical value present at the provided row id.
+    ///
+    /// N.B right now this doesn't discern between an invalid row id and a NULL
+    /// value at a valid location.
+    pub fn value(&self, row_id: u32) -> &Option<String> {
+        if row_id < self.num_rows {
+            let mut total = 0;
+            for (encoded_id, rl) in &self.run_lengths {
+                if total + rl > row_id {
+                    // this run-length overlaps desired row id
+                    return &self.index_entries[*encoded_id as usize];
+                }
+                total += rl;
+            }
+        }
+        &None
+    }
+
+    /// Materialises a vector of references to the decoded values in the
+    /// provided row ids.
+    ///
+    /// NULL values are represented by None
+    pub fn values<'a>(
+        &'a self,
+        row_ids: &[u32],
+        mut dst: Vec<&'a Option<String>>,
+    ) -> Vec<&'a Option<String>> {
+        dst.clear();
+        dst.reserve(row_ids.len());
+
+        let mut curr_logical_row_id = 0;
+
+        let mut run_lengths_iter = self.run_lengths.iter();
+        let (mut curr_entry_id, mut curr_entry_rl) = run_lengths_iter.next().unwrap();
+
+        for wanted_row_id in row_ids {
+            while curr_logical_row_id + curr_entry_rl <= *wanted_row_id {
+                // this encoded entry does not cover the row we need.
+                // move on to next entry
+                curr_logical_row_id += curr_entry_rl;
+                match run_lengths_iter.next() {
+                    Some(res) => {
+                        curr_entry_id = res.0;
+                        curr_entry_rl = res.1;
+                    }
+                    None => panic!("shouldn't get here"),
+                }
+            }
+
+            // this encoded entry covers the row_id we want.
+            // let value = &self.index_entries[curr_entry_id as usize];
+            dst.push(&self.index_entries[curr_entry_id as usize]);
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+
+        assert_eq!(row_ids.len(), dst.len());
+        dst
+    }
+
     /// Returns references to the logical (decoded) values for all the rows in
     /// the column.
     ///
@@ -470,5 +545,50 @@ mod test {
             RowIDs::Vector(vec![]),
         );
         assert_eq!(ids, RowIDs::Vector((0..18).collect::<Vec<u32>>()));
+    }
+
+    #[test]
+    fn value() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3);
+        drle.push_additional(Some("north".to_string()), 1);
+        drle.push_additional(Some("east".to_string()), 5);
+        drle.push_additional(Some("south".to_string()), 2);
+
+        assert_eq!(drle.value(3), &Some("north".to_string()));
+        assert_eq!(drle.value(0), &Some("east".to_string()));
+        assert_eq!(drle.value(10), &Some("south".to_string()));
+
+        assert_eq!(drle.value(22), &None);
+    }
+
+    #[test]
+    fn values() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3);
+        drle.push_additional(Some("north".to_string()), 1);
+        drle.push_additional(Some("east".to_string()), 5);
+        drle.push_additional(Some("south".to_string()), 2);
+        drle.push_none();
+
+        let mut dst = Vec::with_capacity(1000);
+        dst = drle.values(&[0, 1, 3, 4], dst);
+        assert_eq!(
+            dst,
+            vec![
+                &Some("east".to_string()),
+                &Some("east".to_string()),
+                &Some("north".to_string()),
+                &Some("east".to_string())
+            ]
+        );
+
+        dst = drle.values(&[8, 10, 11], dst);
+        assert_eq!(
+            dst,
+            vec![&Some("east".to_string()), &Some("south".to_string()), &None]
+        );
+
+        assert_eq!(dst.capacity(), 1000);
     }
 }
