@@ -121,7 +121,7 @@ impl fmt::Display for ReplicatedWrite {
 }
 
 pub fn lines_to_replicated_write(
-    writer: u8,
+    writer: u16,
     sequence: u64,
     lines: &[ParsedLine<'_>],
     rules: &DatabaseRules,
