@@ -188,6 +188,7 @@ where
 {
     type ReadFilterStream = mpsc::Receiver<Result<ReadResponse, Status>>;
 
+    #[tracing::instrument(level = "debug")]
     async fn read_filter(
         &self,
         req: tonic::Request<ReadFilterRequest>,
