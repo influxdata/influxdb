@@ -1,5 +1,5 @@
 //! This module contains helper methods for constructing replicated writes
-//! based on DatabaseRules.
+//! based on `DatabaseRules`.
 
 use crate::database_rules::DatabaseRules;
 use crate::TIME_COLUMN_NAME;

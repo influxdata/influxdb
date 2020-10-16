@@ -1,7 +1,6 @@
-//! This module provides a reference implementaton
-//! of storage::DatabaseSource and storage::Database for use in testing
-//!
-//! Note: this module is only compiled in  the 'test' cfg,
+//! This module provides a reference implementaton of `storage::DatabaseSource` and
+//! `storage::Database` for use in testing.
+
 use delorean_arrow::arrow::record_batch::RecordBatch;
 
 use crate::{
@@ -18,30 +17,30 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use tokio::sync::Mutex;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TestDatabase {
-    /// lines which have been written to this database, in order
+    /// Lines which have been written to this database, in order
     saved_lines: Mutex<Vec<String>>,
 
-    /// replicated writes which have been written to this database, in order
+    /// Replicated writes which have been written to this database, in order
     replicated_writes: Mutex<Vec<ReplicatedWrite>>,
 
-    /// column_names to return upon next request
+    /// `column_names` to return upon next request
     column_names: Arc<Mutex<Option<StringSetRef>>>,
 
-    /// the last request for column_names.
+    /// The last request for `column_names`
     column_names_request: Arc<Mutex<Option<ColumnNamesRequest>>>,
 
-    /// column_values to return upon next request
+    /// `column_values` to return upon next request
     column_values: Arc<Mutex<Option<StringSetRef>>>,
 
-    /// the last request for column_values.
+    /// The last request for `column_values`
     column_values_request: Arc<Mutex<Option<ColumnValuesRequest>>>,
 
-    /// responses to return on the next request to query_series
+    /// Responses to return on the next request to `query_series`
     query_series_values: Arc<Mutex<Option<SeriesSetPlans>>>,
 
-    /// the last request for query_series
+    /// The last request for `query_series`
     query_series_request: Arc<Mutex<Option<QuerySeriesRequest>>>,
 }
 
@@ -64,7 +63,7 @@ pub struct ColumnValuesRequest {
     pub predicate: Option<String>,
 }
 
-/// Records the parameters passed to a query_series request
+/// Records the parameters passed to a `query_series` request
 #[derive(Debug, PartialEq, Clone)]
 pub struct QuerySeriesRequest {
     pub range: Option<TimestampRange>,
@@ -79,21 +78,6 @@ pub enum TestError {
 
     #[snafu(display("Test database execution:  {:?}", source))]
     Execution { source: crate::exec::Error },
-}
-
-impl Default for TestDatabase {
-    fn default() -> Self {
-        Self {
-            saved_lines: Mutex::new(Vec::new()),
-            replicated_writes: Mutex::new(Vec::new()),
-            column_names: Arc::new(Mutex::new(None)),
-            column_names_request: Arc::new(Mutex::new(None)),
-            column_values: Arc::new(Mutex::new(None)),
-            column_values_request: Arc::new(Mutex::new(None)),
-            query_series_values: Arc::new(Mutex::new(None)),
-            query_series_request: Arc::new(Mutex::new(None)),
-        }
-    }
 }
 
 impl TestDatabase {
@@ -176,7 +160,7 @@ fn line_in_range(line: &ParsedLine<'_>, range: &Option<TimestampRange>) -> bool 
 impl Database for TestDatabase {
     type Error = TestError;
 
-    /// writes parsed lines into this database
+    /// Writes parsed lines into this database
     async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
         let mut saved_lines = self.saved_lines.lock().await;
         for line in lines {
@@ -185,7 +169,7 @@ impl Database for TestDatabase {
         Ok(())
     }
 
-    /// adds the replicated write to this database
+    /// Adds the replicated write to this database
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         self.replicated_writes.lock().await.push(write.clone());
         Ok(())
@@ -217,7 +201,7 @@ impl Database for TestDatabase {
         Ok(names.into())
     }
 
-    /// return the mocked out column names, recording the request
+    /// Return the mocked out column names, recording the request
     async fn tag_column_names(
         &self,
         table: Option<String>,
@@ -250,7 +234,7 @@ impl Database for TestDatabase {
         Ok(column_names.into())
     }
 
-    /// return the mocked out column values, recording the request
+    /// Return the mocked out column values, recording the request
     async fn column_values(
         &self,
         column_name: &str,
