@@ -360,6 +360,58 @@ impl RLE {
 
     //
     //
+    // ---- Methods for getting encoded values directly, typically to be used
+    //      as part of group keys.
+    //
+    //
+
+    /// Return the raw encoded values for the provided logical row ids.
+    /// Encoded values for NULL values are included.
+    ///
+    pub fn encoded_values(&self, row_ids: &[u32], mut dst: Vec<u32>) -> Vec<u32> {
+        dst.clear();
+        dst.reserve(row_ids.len());
+
+        let mut curr_logical_row_id = 0;
+
+        let (mut curr_entry_id, mut curr_entry_rl) = self.run_lengths[0];
+
+        let mut i = 1;
+        for row_id in row_ids {
+            while curr_logical_row_id + curr_entry_rl <= *row_id {
+                // this encoded entry does not cover the row we need.
+                // move on to next entry
+                curr_logical_row_id += curr_entry_rl;
+                curr_entry_id = self.run_lengths[i].0;
+                curr_entry_rl = self.run_lengths[i].1;
+
+                i += 1;
+            }
+
+            // this entry covers the row_id we want.
+            dst.push(curr_entry_id);
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+
+        assert_eq!(row_ids.len(), dst.len());
+        dst
+    }
+
+    /// Returns all encoded values for the column including the encoded value
+    /// for any NULL values.
+    pub fn all_encoded_values(&self, mut dst: Vec<u32>) -> Vec<u32> {
+        dst.clear();
+        dst.reserve(self.num_rows as usize);
+
+        for (idx, rl) in &self.run_lengths {
+            dst.extend(iter::repeat(*idx).take(*rl as usize));
+        }
+        dst
+    }
+
+    //
+    //
     // ---- Methods for optimising schema exploration.
     //
     //
@@ -504,6 +556,18 @@ impl<'a> From<StringArray> for RLE {
             }
         }
         drle
+    }
+}
+
+impl std::fmt::Display for RLE {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[RLE] rows: {:?} dict entries: {}, runs: {} ",
+            self.num_rows,
+            self.index_entries.len(),
+            self.run_lengths.len()
+        )
     }
 }
 
@@ -860,5 +924,36 @@ mod test {
         drle.push_additional(None, 10);
         assert!(!drle.has_non_null_value(&[0]));
         assert!(!drle.has_non_null_value(&[4, 7]));
+    }
+
+    #[test]
+    fn encoded_values() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3);
+        drle.push_additional(Some("north".to_string()), 1);
+        drle.push_additional(Some("east".to_string()), 5);
+        drle.push_additional(Some("south".to_string()), 2);
+        drle.push_none();
+
+        let mut encoded = drle.encoded_values(&[0], vec![]);
+        assert_eq!(encoded, vec![0]);
+
+        encoded = drle.encoded_values(&[1, 3, 5, 6], vec![]);
+        assert_eq!(encoded, vec![0, 1, 0, 0]);
+
+        encoded = drle.encoded_values(&[9, 10, 11], vec![]);
+        assert_eq!(encoded, vec![2, 2, 3]);
+    }
+
+    #[test]
+    fn all_encoded_values() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3);
+        drle.push_additional(Some("north".to_string()), 2);
+
+        let dst = Vec::with_capacity(100);
+        let dst = drle.all_encoded_values(dst);
+        assert_eq!(dst, vec![0, 0, 0, 1, 1]);
+        assert_eq!(dst.capacity(), 100);
     }
 }
