@@ -220,6 +220,13 @@ impl RLE {
         &None
     }
 
+    /// Materialises the decoded value belonging to the provided encoded id.
+    ///
+    /// Panics if there is no decoded value for the provided id
+    pub fn decode_id(&self, encoded_id: u32) -> Option<String> {
+        self.index_entries[encoded_id as usize].clone()
+    }
+
     /// Materialises a vector of references to the decoded values in the
     /// provided row ids.
     ///
@@ -349,6 +356,94 @@ impl RLE {
 
         assert!(dst.len() <= self.index_entries.len());
         dst
+    }
+
+    //
+    //
+    // ---- Methods for optimising schema exploration.
+    //
+    //
+
+    /// Efficiently determines if this column contains non-null values that
+    /// differ from the provided set of values.
+    ///
+    /// More formally, this method returns the relative complement of this
+    /// column's values in the provided set of values.
+    ///
+    pub fn contains_other_values(&self, values: &BTreeSet<&String>) -> bool {
+        let mut encoded_values = self.index_entries.len();
+        if self.entry_index.contains_key(&None) {
+            encoded_values -= 1;
+        }
+
+        if encoded_values > values.len() {
+            return true;
+        }
+
+        for key in self.entry_index.keys() {
+            if let Some(key) = key {
+                if !values.contains(key) {
+                    return true;
+                }
+            }
+            // skip NULL entry
+        }
+        false
+    }
+
+    /// Determines if the column contains at least one non-null value at
+    /// any of the provided row ids.
+    ///
+    /// It is the caller's responsibility to ensure row ids are a monotonically
+    /// increasing set.
+    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
+        match self.entry_index.get(&None) {
+            Some(&id) => self.find_non_null_value(id, row_ids),
+            None => {
+                // There are no NULL entries in this column so just find a row id
+                // that falls on any row in the column.
+                for &id in row_ids {
+                    if id < self.num_rows {
+                        return true;
+                    }
+                }
+                false
+            }
+        }
+    }
+
+    // Returns true if there exists an encoded non-null value at any of the row
+    // ids.
+    fn find_non_null_value(&self, null_encoded_id: u32, row_ids: &[u32]) -> bool {
+        let mut curr_logical_row_id = 0;
+
+        let (mut curr_encoded_id, mut curr_entry_rl) = self.run_lengths[0];
+
+        let mut i = 1;
+        for &row_id in row_ids {
+            if row_id >= self.num_rows {
+                return false; // all other row ids beyond column.
+            }
+
+            while curr_logical_row_id + curr_entry_rl <= row_id {
+                // this encoded entry does not cover the row we need.
+                // move on to next encoded id
+                curr_logical_row_id += curr_entry_rl;
+                curr_encoded_id = self.run_lengths[i].0;
+                curr_entry_rl = self.run_lengths[i].1;
+
+                i += 1;
+            }
+
+            // this entry covers the row_id we want if it points to a non-null value.
+            if curr_encoded_id != null_encoded_id {
+                return true;
+            }
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+
+        false
     }
 }
 
@@ -710,5 +805,60 @@ mod test {
 
         let values = drle.distinct_values(&[100], BTreeSet::new());
         assert!(values.is_empty());
+    }
+
+    #[test]
+    fn contains_other_values() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3);
+        drle.push_additional(Some("north".to_string()), 1);
+        drle.push_additional(Some("east".to_string()), 5);
+        drle.push_additional(Some("south".to_string()), 2);
+        drle.push_none();
+
+        let east = "east".to_string();
+        let north = "north".to_string();
+        let south = "south".to_string();
+
+        let mut others = BTreeSet::new();
+        others.insert(&east);
+        others.insert(&north);
+
+        assert!(drle.contains_other_values(&others));
+
+        let f1 = "foo".to_string();
+        others.insert(&f1);
+        assert!(drle.contains_other_values(&others));
+
+        others.insert(&south);
+        assert!(!drle.contains_other_values(&others));
+
+        let f2 = "bar".to_string();
+        others.insert(&f2);
+        assert!(!drle.contains_other_values(&others));
+
+        assert!(drle.contains_other_values(&BTreeSet::new()));
+    }
+
+    #[test]
+    fn has_non_null_value() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3);
+        drle.push_additional(Some("north".to_string()), 1);
+        drle.push_additional(Some("east".to_string()), 5);
+        drle.push_additional(Some("south".to_string()), 2);
+        drle.push_none();
+
+        assert!(drle.has_non_null_value(&[0]));
+        assert!(drle.has_non_null_value(&[0, 1, 2]));
+        assert!(drle.has_non_null_value(&[10]));
+
+        assert!(!drle.has_non_null_value(&[11]));
+        assert!(!drle.has_non_null_value(&[11, 12, 100]));
+
+        drle = super::RLE::default();
+        drle.push_additional(None, 10);
+        assert!(!drle.has_non_null_value(&[0]));
+        assert!(!drle.has_non_null_value(&[4, 7]));
     }
 }
