@@ -29,7 +29,7 @@ use crate::server::rpc::expr::convert_predicate;
 use crate::server::rpc::input::GrpcInputs;
 
 use delorean_storage::{
-    exec::{Executor as StorageExecutor, SeriesSet, SeriesSetError},
+    exec::{Executor as StorageExecutor, GroupedSeriesSetItem, SeriesSet, SeriesSetError},
     org_and_bucket_to_database, Database, DatabaseStore, TimestampRange as StorageTimestampRange,
 };
 
@@ -39,7 +39,7 @@ use tokio::sync::mpsc;
 use tonic::Status;
 use tracing::warn;
 
-use super::rpc::data::series_set_to_read_response;
+use super::rpc::data::{grouped_series_set_to_read_response, series_set_to_read_response};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -67,8 +67,20 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
+    #[snafu(display("Error creating group plans for database '{}': {}", db_name, source))]
+    PlanningGroupSeries {
+        db_name: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[snafu(display("Error running series plans for database '{}': {}", db_name, source))]
     FilteringSeries {
+        db_name: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    #[snafu(display("Error running grouping plans for database '{}': {}", db_name, source))]
+    GroupingSeries {
         db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
@@ -94,6 +106,9 @@ pub enum Error {
     #[snafu(display("Computing series: {}", source))]
     ComputingSeriesSet { source: SeriesSetError },
 
+    #[snafu(display("Computing groups series: {}", source))]
+    ComputingGroupedSeriesSet { source: SeriesSetError },
+
     #[snafu(display("Converting time series into gRPC response:  {}", source))]
     ConvertingSeriesSet {
         source: crate::server::rpc::data::Error,
@@ -117,10 +132,13 @@ impl Error {
                 Status::invalid_argument(self.to_string())
             }
             Self::PlanningFilteringSeries { .. } => Status::invalid_argument(self.to_string()),
+            Self::PlanningGroupSeries { .. } => Status::invalid_argument(self.to_string()),
             Self::FilteringSeries { .. } => Status::invalid_argument(self.to_string()),
+            Self::GroupingSeries { .. } => Status::invalid_argument(self.to_string()),
             Self::ListingTagValues { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingPredicate { .. } => Status::invalid_argument(self.to_string()),
             Self::ComputingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
+            Self::ComputingGroupedSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
@@ -226,7 +244,37 @@ where
         &self,
         req: tonic::Request<ReadGroupRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
-        Err(Status::unimplemented("read_group"))
+        let (tx, rx) = mpsc::channel(4);
+
+        let read_group_request = req.into_inner();
+
+        let db_name = get_database_name(&read_group_request)?;
+
+        let ReadGroupRequest {
+            read_source: _read_source,
+            range,
+            predicate,
+            group_keys,
+            // TODO: handle Group::None
+            group: _group,
+            // TODO: handle aggregate values, especially whether None is the same as
+            // Some(AggregateType::None) or not
+            aggregate: _aggregate,
+        } = read_group_request;
+
+        read_group_impl(
+            tx.clone(),
+            self.db_store.clone(),
+            self.executor.clone(),
+            db_name,
+            range,
+            predicate,
+            group_keys,
+        )
+        .await
+        .map_err(|e| e.to_status())?;
+
+        Ok(tonic::Response::new(rx))
     }
 
     type TagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
@@ -683,6 +731,81 @@ async fn convert_series_set(
     }
 }
 
+/// Launch async tasks that send the result of executing read_group to `tx`
+async fn read_group_impl<T>(
+    tx: mpsc::Sender<Result<ReadResponse, Status>>,
+    db_store: Arc<T>,
+    executor: Arc<StorageExecutor>,
+    db_name: String,
+    range: Option<TimestampRange>,
+    predicate: Option<Predicate>,
+    group_keys: Vec<String>,
+) -> Result<()>
+where
+    T: DatabaseStore,
+{
+    let range = convert_range(range);
+    let db = db_store
+        .db(&db_name)
+        .await
+        .ok_or_else(|| Error::DatabaseNotFound {
+            db_name: db_name.clone(),
+        })?;
+
+    let predicate_string = format!("{:?}", predicate);
+    let predicate =
+        convert_predicate(predicate).context(ConvertingPredicate { predicate_string })?;
+
+    let grouped_series_set_plan = db
+        .query_groups(range, predicate, group_keys)
+        .await
+        .map_err(|e| Error::PlanningFilteringSeries {
+            db_name: db_name.clone(),
+            source: Box::new(e),
+        })?;
+
+    // Spawn task to convert between series sets and the gRPC results
+    // and to run the actual plans (so we can return a result to the
+    // client before we start sending result)
+    let (tx_series, rx_series) = mpsc::channel(4);
+    tokio::spawn(async move { convert_grouped_series_set(rx_series, tx).await });
+
+    // fire up the plans and start the pipeline flowing
+    tokio::spawn(async move {
+        executor
+            .to_grouped_series_set(grouped_series_set_plan, tx_series)
+            .await
+            .map_err(|e| Error::GroupingSeries {
+                db_name: db_name.clone(),
+                source: Box::new(e),
+            })
+    });
+
+    Ok(())
+}
+
+/// Receives SeriesSets from rx, converts them to ReadResponse and
+/// and sends them to tx
+async fn convert_grouped_series_set(
+    mut rx: mpsc::Receiver<Result<GroupedSeriesSetItem, SeriesSetError>>,
+    mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
+) {
+    while let Some(grouped_series_set_item) = rx.recv().await {
+        let response = grouped_series_set_item
+            .context(ComputingGroupedSeriesSet)
+            .and_then(|grouped_series_set_item| {
+                grouped_series_set_to_read_response(grouped_series_set_item)
+                    .context(ConvertingSeriesSet)
+            })
+            .map_err(|e| Status::internal(e.to_string()));
+
+        // ignore errors sending results there is no one to notice them, return early
+        if tx.send(response).await.is_err() {
+            return;
+        }
+    }
+}
+
 /// Instantiate a server listening on the specified address
 /// implementing the Delorean and Storage gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
@@ -714,9 +837,11 @@ mod tests {
     use super::*;
     use crate::panic::SendPanicsToTracing;
     use delorean_storage::{
+        exec::GroupedSeriesSetPlans,
         exec::SeriesSetPlans,
         id::Id,
         test::ColumnNamesRequest,
+        test::QueryGroupsRequest,
         test::TestDatabaseStore,
         test::{ColumnValuesRequest, QuerySeriesRequest},
     };
@@ -1695,6 +1820,96 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_read_group() -> Result<(), tonic::Status> {
+        // Note we use a unique port. TODO: let the OS pick the port
+        let mut fixture = Fixture::new(11902)
+            .await
+            .expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let test_db = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("creating test database");
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
+
+        let group = delorean_generated_types::read_group_request::Group::None as i32;
+
+        let request = ReadGroupRequest {
+            read_source: source.clone(),
+            range: make_timestamp_range(150, 200),
+            predicate: make_state_ma_predicate(),
+            group_keys: vec![String::from("tag1")],
+            group,
+            aggregate: None,
+        };
+
+        let expected_request = QueryGroupsRequest {
+            range: Some(StorageTimestampRange::new(150, 200)),
+            predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
+            group_columns: vec![String::from("tag1")],
+        };
+
+        // TODO setup any expected results
+        let dummy_groups_set_plan = GroupedSeriesSetPlans::from(vec![]);
+        test_db.set_query_groups_values(dummy_groups_set_plan).await;
+
+        let actual_frames = fixture.storage_client.read_group(request).await?;
+        let expected_frames: Vec<String> = vec!["0 group frames".into()];
+
+        assert_eq!(
+            actual_frames, expected_frames,
+            "unexpected frames returned by query_groups"
+        );
+        assert_eq!(
+            test_db.get_query_groups_request().await,
+            Some(expected_request),
+            "unexpected request to query_groups"
+        );
+
+        // ---
+        // test error
+        // ---
+        let request = ReadGroupRequest {
+            read_source: source.clone(),
+            range: None,
+            predicate: None,
+            group_keys: vec![],
+            group,
+            aggregate: None,
+        };
+
+        // Note we don't set the response on the test database, so we expect an error
+        let response = fixture.storage_client.read_group(request).await;
+        assert!(response.is_err());
+        let response_string = format!("{:?}", response);
+        let expected_error = "No saved query_groups in TestDatabase";
+        assert!(
+            response_string.contains(expected_error),
+            "'{}' did not contain expected content '{}'",
+            response_string,
+            expected_error
+        );
+
+        let expected_request = Some(QueryGroupsRequest {
+            range: None,
+            predicate: None,
+            group_columns: vec![],
+        });
+        assert_eq!(test_db.get_query_groups_request().await, expected_request);
+
+        Ok(())
+    }
+
     fn make_timestamp_range(start: i64, end: i64) -> Option<TimestampRange> {
         Some(TimestampRange { start, end })
     }
@@ -1898,7 +2113,31 @@ mod tests {
 
             let s = format!("{} frames", data_frames.len());
 
-            //Ok(self.to_string_vec(responses))
+            Ok(vec![s])
+        }
+
+        /// Make a request to Storage::query_groups and do the
+        /// required async dance to flatten the resulting stream
+        async fn read_group(
+            &mut self,
+            request: ReadGroupRequest,
+        ) -> Result<Vec<String>, tonic::Status> {
+            let responses: Vec<_> = self
+                .inner
+                .read_group(request)
+                .await?
+                .into_inner()
+                .try_collect()
+                .await?;
+
+            let data_frames: Vec<frame::Data> = responses
+                .into_iter()
+                .flat_map(|r| r.frames)
+                .flat_map(|f| f.data)
+                .collect();
+
+            let s = format!("{} group frames", data_frames.len());
+
             Ok(vec![s])
         }
 

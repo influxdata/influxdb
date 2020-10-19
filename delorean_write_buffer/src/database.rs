@@ -1,8 +1,8 @@
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::ParsedLine;
 use delorean_storage::{
-    exec::SeriesSetPlan, exec::SeriesSetPlans, exec::StringSet, exec::StringSetPlan, Database,
-    Predicate, TimestampRange,
+    exec::GroupedSeriesSetPlans, exec::SeriesSetPlan, exec::SeriesSetPlans, exec::StringSet,
+    exec::StringSetPlan, Database, Predicate, TimestampRange,
 };
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
@@ -455,6 +455,15 @@ impl Database for Db {
         let mut visitor = SeriesVisitor::new(predicate);
         self.visit_tables(None, range, &mut visitor).await?;
         Ok(visitor.plans.into())
+    }
+
+    async fn query_groups(
+        &self,
+        _range: Option<TimestampRange>,
+        _predicate: Option<Predicate>,
+        _group_columns: Vec<String>,
+    ) -> Result<GroupedSeriesSetPlans, Self::Error> {
+        unimplemented!("query_groups unimplemented as part of write buffer database");
     }
 
     async fn table_to_arrow(

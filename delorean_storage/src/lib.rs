@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use delorean_arrow::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
 use delorean_data_types::data::ReplicatedWrite;
 use delorean_line_parser::ParsedLine;
-use exec::{SeriesSetPlans, StringSetPlan};
+use exec::{GroupedSeriesSetPlans, SeriesSetPlans, StringSetPlan};
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -134,9 +134,29 @@ pub trait Database: Debug + Send + Sync {
     /// are returned
     async fn query_series(
         &self,
-        _range: Option<TimestampRange>,
-        _predicate: Option<Predicate>,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
     ) -> Result<SeriesSetPlans, Self::Error>;
+
+    /// Returns a plan that finds sets of rows which form groups of
+    /// logical time series. Each series is defined by the unique
+    /// values in a set of "tag_columns" for each field in the
+    /// "field_columns". Each group is is defined by unique
+    /// combinations of the columns described
+    ///
+    /// If `range` is specified, only rows which have data in the
+    /// specified timestamp range which match other predictes are
+    /// included.
+    ///
+    /// If `predicate` is specified, then only rows which have at
+    /// least one non-null value in any row that matches the predicate
+    /// are returned
+    async fn query_groups(
+        &self,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+        group_columns: Vec<String>,
+    ) -> Result<GroupedSeriesSetPlans, Self::Error>;
 
     /// Fetch the specified table names and columns as Arrow
     /// RecordBatches. Columns are returned in the order specified.

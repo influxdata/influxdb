@@ -91,7 +91,25 @@ pub struct SeriesSet {
     // The underlying record batch data
     pub batch: RecordBatch,
 }
-pub type SeriesSetRef = Arc<SeriesSet>;
+
+/// Describes a group of series "group of series" series. Namely,
+/// several logical timeseries that share the same timestamps and
+/// name=value tag keys, grouped by some subset of the tag keys
+///
+/// TODO: this may also support computing an aggregation per group,
+/// pending on what is required for the gRPC layer.
+#[derive(Debug)]
+pub struct GroupDescription {
+    /// key = value  pairs that define the group
+    pub tags: Vec<(Arc<String>, Arc<String>)>,
+    // TODO: maybe also include the resulting aggregate value (per group) here
+}
+
+#[derive(Debug)]
+pub enum GroupedSeriesSetItem {
+    GroupStart(GroupDescription),
+    GroupData(SeriesSet),
+}
 
 // Handles converting record batches into SeriesSets, and sending them
 // to tx
@@ -316,6 +334,30 @@ impl SeriesSetConverter {
                 (column_name.clone(), Arc::new(tag_value))
             })
             .collect()
+    }
+}
+
+// Handles converting record batches into GroupedSeriesSets, and
+// sending them to tx
+#[derive(Debug)]
+pub struct GroupedSeriesSetConverter {
+    tx: mpsc::Sender<Result<GroupedSeriesSetItem>>,
+}
+
+impl GroupedSeriesSetConverter {
+    pub fn new(tx: mpsc::Sender<Result<GroupedSeriesSetItem>>) -> Self {
+        Self { tx }
+    }
+
+    pub async fn convert(
+        &mut self,
+        _table_name: Arc<String>,
+        _tag_columns: Arc<Vec<Arc<String>>>,
+        _num_prefix_tag_group_columns: usize,
+        _field_columns: Arc<Vec<Arc<String>>>,
+        _it: Box<dyn RecordBatchReader + Send>,
+    ) -> Result<()> {
+        unimplemented!("GroupedSeriesConverter");
     }
 }
 

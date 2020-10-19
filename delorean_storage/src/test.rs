@@ -4,10 +4,12 @@
 use delorean_arrow::arrow::record_batch::RecordBatch;
 
 use crate::{
+    exec::GroupedSeriesSetPlans,
     exec::SeriesSetPlans,
     exec::{StringSet, StringSetPlan, StringSetRef},
     Database, DatabaseStore, Predicate, TimestampRange,
 };
+
 use delorean_data_types::data::ReplicatedWrite;
 use delorean_line_parser::{parse_lines, ParsedLine};
 
@@ -42,6 +44,12 @@ pub struct TestDatabase {
 
     /// The last request for `query_series`
     query_series_request: Arc<Mutex<Option<QuerySeriesRequest>>>,
+
+    /// Responses to return on the next request to `query_groups`
+    query_groups_values: Arc<Mutex<Option<GroupedSeriesSetPlans>>>,
+
+    /// The last request for `query_series`
+    query_groups_request: Arc<Mutex<Option<QueryGroupsRequest>>>,
 }
 
 /// Records the parameters passed to a column name request
@@ -69,6 +77,14 @@ pub struct QuerySeriesRequest {
     pub range: Option<TimestampRange>,
     /// Stringified '{:?}' version of the predicate
     pub predicate: Option<String>,
+}
+/// Records the parameters passed to a `query_groups` request
+#[derive(Debug, PartialEq, Clone)]
+pub struct QueryGroupsRequest {
+    pub range: Option<TimestampRange>,
+    /// Stringified '{:?}' version of the predicate
+    pub predicate: Option<String>,
+    pub group_columns: Vec<String>,
 }
 
 #[derive(Snafu, Debug)]
@@ -134,7 +150,6 @@ impl TestDatabase {
     }
 
     /// Set the series that will be returned on a call to query_series
-    /// TODO add in the actual values
     pub async fn set_query_series_values(&self, plan: SeriesSetPlans) {
         *(self.query_series_values.clone().lock().await) = Some(plan);
     }
@@ -142,6 +157,16 @@ impl TestDatabase {
     /// Get the parameters from the last column name request
     pub async fn get_query_series_request(&self) -> Option<QuerySeriesRequest> {
         self.query_series_request.clone().lock().await.take()
+    }
+
+    /// Set the series that will be returned on a call to query_groups
+    pub async fn set_query_groups_values(&self, plan: GroupedSeriesSetPlans) {
+        *(self.query_groups_values.clone().lock().await) = Some(plan);
+    }
+
+    /// Get the parameters from the last column name request
+    pub async fn get_query_groups_request(&self) -> Option<QueryGroupsRequest> {
+        self.query_groups_request.clone().lock().await.take()
     }
 }
 
@@ -288,6 +313,33 @@ impl Database for TestDatabase {
             // Turn None into an error
             .context(General {
                 message: "No saved query_series in TestDatabase",
+            })
+    }
+
+    async fn query_groups(
+        &self,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+        group_columns: Vec<String>,
+    ) -> Result<GroupedSeriesSetPlans, Self::Error> {
+        let predicate = predicate.map(|p| format!("{:?}", p));
+
+        let new_queries_groups_request = Some(QueryGroupsRequest {
+            range,
+            predicate,
+            group_columns,
+        });
+
+        *self.query_groups_request.clone().lock().await = new_queries_groups_request;
+
+        self.query_groups_values
+            .clone()
+            .lock()
+            .await
+            .take()
+            // Turn None into an error
+            .context(General {
+                message: "No saved query_groups in TestDatabase",
             })
     }
 

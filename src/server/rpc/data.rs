@@ -7,7 +7,7 @@ use delorean_arrow::arrow::{
     datatypes::DataType as ArrowDataType,
 };
 
-use delorean_storage::exec::SeriesSet;
+use delorean_storage::exec::{GroupedSeriesSetItem, SeriesSet};
 
 use delorean_generated_types::{
     read_response::{
@@ -56,6 +56,32 @@ pub fn series_set_to_read_response(series_set: SeriesSet) -> Result<ReadResponse
         .collect();
 
     Ok(ReadResponse { frames })
+}
+
+/// Convert `GroupedSeriesSetIem` into a form suitable for gRPC transport
+///
+/// Each `GroupedSeriesSetItem` gets converted into this pattern:
+///
+/// ```
+/// (GroupFrame)
+///
+/// (SeriesFrame for field1)
+/// (*Points for field1)
+/// (SeriesFrame for field12)
+/// (*Points for field1)
+/// (....)
+/// (SeriesFrame for field1)
+/// (*Points for field1)
+/// (SeriesFrame for field12)
+/// (*Points for field1)
+/// (....)
+/// ```
+///
+/// The specific type of (*Points) depends on the type of field column.
+pub fn grouped_series_set_to_read_response(
+    _grouped_series_set_item: GroupedSeriesSetItem,
+) -> Result<ReadResponse> {
+    unimplemented!("grouped_series_set_to_read_response");
 }
 
 fn data_type(array: &ArrayRef) -> Result<DataType> {

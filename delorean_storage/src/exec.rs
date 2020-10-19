@@ -18,8 +18,11 @@ use delorean_arrow::{
 use planning::DeloreanExecutionContext;
 use schema_pivot::SchemaPivotNode;
 
-// Publically export StringSets
-pub use seriesset::{Error as SeriesSetError, SeriesSet, SeriesSetConverter, SeriesSetRef};
+// Publically export the different types of plans
+pub use seriesset::{
+    Error as SeriesSetError, GroupedSeriesSetConverter, GroupedSeriesSetItem, SeriesSet,
+    SeriesSetConverter,
+};
 pub use stringset::{IntoStringSet, StringSet, StringSetRef};
 use tokio::sync::mpsc;
 
@@ -144,17 +147,46 @@ pub struct SeriesSetPlan {
     pub field_columns: Vec<Arc<String>>,
 }
 
+/// A plan to run that can produce a grouped set series.
+///
+/// TODO: this may also need / support computing an aggregation per
+/// group, pending on what is required for the gRPC layer.
+#[derive(Debug)]
+pub struct GroupedSeriesSetPlan {
+    /// The underlying SeriesSet
+    pub series_set_plan: SeriesSetPlan,
+
+    /// How many of the series_set_plan::tag_columns should be used to
+    /// compute the group
+    pub num_prefix_tag_group_columns: usize,
+}
+
 /// A container for plans which each produces a logical stream of
 /// timeseries (from across many potential tables). A `SeriesSetPlans`
-/// and can be executed to produce streams of `SeriesSet`s.
+/// can be executed to produce streams of `SeriesSet`s.
 #[derive(Debug, Default)]
 pub struct SeriesSetPlans {
     pub plans: Vec<SeriesSetPlan>,
 }
 
+/// A container for plans which each produces a logical stream of
+/// timeseries (from across many potential tables) grouped in some
+/// way. A `GroupedSeriesSetPlans` can be executed to produce
+/// streams of `GroupedSeriesSet`s.
+#[derive(Debug, Default)]
+pub struct GroupedSeriesSetPlans {
+    pub grouped_plans: Vec<GroupedSeriesSetPlan>,
+}
+
 impl From<Vec<SeriesSetPlan>> for SeriesSetPlans {
     fn from(plans: Vec<SeriesSetPlan>) -> Self {
         Self { plans }
+    }
+}
+
+impl From<Vec<GroupedSeriesSetPlan>> for GroupedSeriesSetPlans {
+    fn from(grouped_plans: Vec<GroupedSeriesSetPlan>) -> Self {
+        Self { grouped_plans }
     }
 }
 
@@ -232,6 +264,79 @@ impl Executor {
 
                     SeriesSetConverter::new(tx)
                         .convert(table_name, tag_columns, field_columns, it)
+                        .await
+                        .context(SeriesSetConversion)?;
+
+                    Ok(())
+                })
+            })
+            .collect::<Vec<_>>();
+
+        // now, wait for all the values to resolve and report any errors
+        for join_handle in handles.into_iter() {
+            join_handle.await.context(JoinError)??;
+        }
+        Ok(())
+    }
+
+    /// Executes the the Grouped plans, sending the
+    /// results one by one to the `tx` chanel.
+    ///
+    /// Note that the returned future resolves (e.g. "returns") once
+    /// all plans have been sent to `tx`. This means that the future
+    /// will not resolve if there is nothing hooked up receiving
+    /// results from the other end of the channel and the channel
+    /// can't hold all the resulting series.
+    pub async fn to_grouped_series_set(
+        &self,
+        grouped_series_set_plans: GroupedSeriesSetPlans,
+        tx: mpsc::Sender<Result<GroupedSeriesSetItem, SeriesSetError>>,
+    ) -> Result<()> {
+        let GroupedSeriesSetPlans { grouped_plans } = grouped_series_set_plans;
+
+        // Run the plans in parallel
+        let handles = grouped_plans
+            .into_iter()
+            .map(|plan| {
+                // Clone Arc's for transmission to threads
+                let counters = self.counters.clone();
+                let tx = tx.clone();
+                tokio::task::spawn(async move {
+                    let GroupedSeriesSetPlan {
+                        series_set_plan,
+                        num_prefix_tag_group_columns,
+                    } = plan;
+
+                    let SeriesSetPlan {
+                        table_name,
+                        plan,
+                        tag_columns,
+                        field_columns,
+                    } = series_set_plan;
+
+                    let tag_columns = Arc::new(tag_columns);
+                    let field_columns = Arc::new(field_columns);
+
+                    // TODO run these on some executor other than the main tokio pool (maybe?)
+                    let ctx = DeloreanExecutionContext::new(counters);
+                    let physical_plan = ctx
+                        .make_plan(&plan)
+                        .await
+                        .context(DataFusionPhysicalPlanning)?;
+
+                    let it = ctx
+                        .execute(physical_plan)
+                        .await
+                        .context(DataFusionExecution)?;
+
+                    GroupedSeriesSetConverter::new(tx)
+                        .convert(
+                            table_name,
+                            tag_columns,
+                            num_prefix_tag_group_columns,
+                            field_columns,
+                            it,
+                        )
                         .await
                         .context(SeriesSetConversion)?;
 
