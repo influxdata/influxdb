@@ -87,6 +87,9 @@ const (
 
 	// deleteFlushThreshold is the size in bytes of a batch of series keys to delete.
 	deleteFlushThreshold = 50 * 1024 * 1024
+
+	// DoNotCompactFile is the name of the file that disables compactions.
+	DoNotCompactFile = "do_not_compact"
 )
 
 // Statistics gathered by the engine.
@@ -2066,6 +2069,8 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
+	var nextDisabledMsg time.Time
+
 	for {
 		e.mu.RLock()
 		quit := e.done
@@ -2076,6 +2081,17 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			return
 
 		case <-t.C:
+			// See if compactions are disabled.
+			doNotCompactFile := filepath.Join(e.Path(), DoNotCompactFile)
+			_, err := os.Stat(doNotCompactFile)
+			if err == nil {
+				now := time.Now()
+				if now.After(nextDisabledMsg) {
+					e.logger.Info("TSM compaction disabled", logger.Shard(e.id), zap.String("reason", doNotCompactFile))
+					nextDisabledMsg = now.Add(time.Minute * 15)
+				}
+				continue
+			}
 
 			// Find our compaction plans
 			level1Groups := e.CompactionPlan.PlanLevel(1)
@@ -2240,7 +2256,7 @@ func (s *compactionStrategy) Apply() {
 // compactGroup executes the compaction strategy against a single CompactionGroup.
 func (s *compactionStrategy) compactGroup() {
 	group := s.group
-	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1_compact_group")
+	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1_compact_group", logger.Shard(s.engine.id))
 	defer logEnd()
 
 	log.Info("Beginning compaction", zap.Int("tsm1_files_n", len(group)))
