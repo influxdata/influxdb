@@ -72,6 +72,10 @@ Telegraf minimum version: Telegraf 1.16.0
   ## Get only first line of Message field. For most events first line is usually more than enough
   only_first_line_of_message = true
 
+  ## Parse timestamp from TimeCreated.SystemTime event field.
+  ## Will default to current time of telegraf processing on parsing error or if set to false
+  timestamp_from_event = true
+
   ## Fields to include as tags. Globbing supported ("Level*" for both "Level" and "LevelText")
   event_tags = ["Source", "EventID", "Level", "LevelText", "Task", "TaskText", "Opcode", "OpcodeText", "Keywords", "Channel", "Computer"]
 
@@ -79,7 +83,7 @@ Telegraf minimum version: Telegraf 1.16.0
   event_fields = ["*"]
 
   ## Fields to exclude. Also applied to data fields. Globbing supported
-  exclude_fields = ["Binary", "Data_Address*"]
+  exclude_fields = ["TimeCreated", "Binary", "Data_Address*"]
 
   ## Skip those tags or fields if their value is empty or equals to zero. Globbing supported
   exclude_empty = ["*ActivityID", "UserID"]
@@ -153,6 +157,8 @@ Fields `Level`, `Opcode` and `Task` are converted to text and saved as computed 
 `Username` field is found by looking up SID from UserID.
 
 `Message` field is rendered from the event data, and can be several kilobytes of text with line breaks. For most events the first line of this text is more then enough, and additional info is more useful to be parsed as XML fields. So, for brevity, plugin takes only the first line. You can set `only_first_line_of_message` parameter to `false` to take full message text.
+
+`TimeCreated` field is a string in RFC3339Nano format. By default Telegraf parses it as an event timestamp. If there is a field parse error or `timestamp_from_event` configration parameter is set to `false`, then event timestamp will be set to the exact time when Telegraf has parsed this event, so it will be rounded to the nearest minute.
 
 ### Additional Fields
 

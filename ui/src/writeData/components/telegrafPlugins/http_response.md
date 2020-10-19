@@ -51,6 +51,12 @@ This input plugin checks HTTP/HTTPS connections.
   # response_string_match = "ok"
   # response_string_match = "\".*_status\".?:.?\"up\""
 
+  ## Expected response status code.
+  ## The status code of the response is compared to this value. If they match, the field
+  ## "response_status_code_match" will be 1, otherwise it will be 0. If the
+  ## expected status code is 0, the check is disabled and the field won't be added.
+  # response_status_code = 0
+
   ## Optional TLS Config
   # tls_ca = "/etc/telegraf/ca.pem"
   # tls_cert = "/etc/telegraf/cert.pem"
@@ -83,6 +89,7 @@ This input plugin checks HTTP/HTTPS connections.
     - response_time (float, seconds)
     - content_length (int, response body length)
     - response_string_match (int, 0 = mismatch / body read error, 1 = match)
+    - response_status_code_match (int, 0 = mismatch, 1 = match)
     - http_response_code (int, response status code)
 	- result_type (string, deprecated in 1.6: use `result` tag and `result_code` field)
     - result_code (int, [see below](#result--result_code))
@@ -93,14 +100,15 @@ Upon finishing polling the target server, the plugin registers the result of the
 
 This tag is used to expose network and plugin errors. HTTP errors are considered a successful connection.
 
-|Tag value                |Corresponding field value|Description|
---------------------------|-------------------------|-----------|
-|success                  | 0                       |The HTTP request completed, even if the HTTP code represents an error|
-|response_string_mismatch | 1                       |The option `response_string_match` was used, and the body of the response didn't match the regex. HTTP errors with content in their body (like 4xx, 5xx) will trigger this error|
-|body_read_error          | 2                       |The option `response_string_match` was used, but the plugin wasn't able to read the body of the response. Responses with empty bodies (like 3xx, HEAD, etc) will trigger this error. Or the option `response_body_field` was used and the content of the response body was not a valid utf-8. Or the size of the body of the response exceeded the `response_body_max_size` |
-|connection_failed        | 3                       |Catch all for any network error not specifically handled by the plugin|
-|timeout                  | 4                       |The plugin timed out while awaiting the HTTP connection to complete|
-|dns_error                | 5                       |There was a DNS error while attempting to connect to the host|
+|Tag value                     |Corresponding field value|Description|
+-------------------------------|-------------------------|-----------|
+|success                       | 0                       |The HTTP request completed, even if the HTTP code represents an error|
+|response_string_mismatch      | 1                       |The option `response_string_match` was used, and the body of the response didn't match the regex. HTTP errors with content in their body (like 4xx, 5xx) will trigger this error|
+|body_read_error               | 2                       |The option `response_string_match` was used, but the plugin wasn't able to read the body of the response. Responses with empty bodies (like 3xx, HEAD, etc) will trigger this error. Or the option `response_body_field` was used and the content of the response body was not a valid utf-8. Or the size of the body of the response exceeded the `response_body_max_size` |
+|connection_failed             | 3                       |Catch all for any network error not specifically handled by the plugin|
+|timeout                       | 4                       |The plugin timed out while awaiting the HTTP connection to complete|
+|dns_error                     | 5                       |There was a DNS error while attempting to connect to the host|
+|response_status_code_mismatch | 6                       |The option `response_status_code_match` was used, and the status code of the response didn't match the value.|
 
 
 ### Example Output:
