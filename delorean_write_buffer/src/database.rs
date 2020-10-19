@@ -1,8 +1,9 @@
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::ParsedLine;
 use delorean_storage::{
-    exec::GroupedSeriesSetPlans, exec::SeriesSetPlan, exec::SeriesSetPlans, exec::StringSet,
-    exec::StringSetPlan, Database, Predicate, TimestampRange,
+    exec::GroupedSeriesSetPlan, exec::GroupedSeriesSetPlans, exec::SeriesSetPlan,
+    exec::SeriesSetPlans, exec::StringSet, exec::StringSetPlan, Database, Predicate,
+    TimestampRange,
 };
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
@@ -459,11 +460,13 @@ impl Database for Db {
 
     async fn query_groups(
         &self,
-        _range: Option<TimestampRange>,
-        _predicate: Option<Predicate>,
-        _group_columns: Vec<String>,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+        group_columns: Vec<String>,
     ) -> Result<GroupedSeriesSetPlans, Self::Error> {
-        unimplemented!("query_groups unimplemented as part of write buffer database");
+        let mut visitor = GroupsVisitor::new(predicate, group_columns);
+        self.visit_tables(None, range, &mut visitor).await?;
+        Ok(visitor.plans.into())
     }
 
     async fn table_to_arrow(
@@ -936,6 +939,45 @@ impl Visitor for SeriesVisitor {
     ) -> Result<()> {
         self.plans
             .push(table.series_set_plan(self.predicate.as_ref(), ts_pred, partition)?);
+
+        Ok(())
+    }
+}
+
+/// Return DataFusion plans to calculate series that pass the
+/// specified predicate, grouped according to grouped_columns
+///
+/// TODO: Handle _f=<fieldname> and _m=<measurement> predicates
+/// specially (by filtering entire tables and selecting fields)
+struct GroupsVisitor {
+    predicate: Option<Predicate>,
+    group_columns: Vec<String>,
+    plans: Vec<GroupedSeriesSetPlan>,
+}
+
+impl GroupsVisitor {
+    fn new(predicate: Option<Predicate>, group_columns: Vec<String>) -> Self {
+        Self {
+            predicate,
+            group_columns,
+            plans: Vec::new(),
+        }
+    }
+}
+
+impl Visitor for GroupsVisitor {
+    fn pre_visit_table(
+        &mut self,
+        table: &Table,
+        partition: &Partition,
+        ts_pred: Option<&TimestampPredicate>,
+    ) -> Result<()> {
+        self.plans.push(table.grouped_series_set_plan(
+            self.predicate.as_ref(),
+            ts_pred,
+            &self.group_columns,
+            partition,
+        )?);
 
         Ok(())
     }
