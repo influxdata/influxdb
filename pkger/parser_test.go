@@ -2433,7 +2433,7 @@ spec:
 }
 
 from(bucket: params.bucket)
-	|> range(start: params.start, end: params.stop)
+	|> range(start: params.start, stop: params.stop)
 	|> filter(fn: (r) =>
 		(r._measurement == "processes"))
 	|> filter(fn: (r) =>
@@ -3433,7 +3433,7 @@ spec:
 }
 
 from(bucket: params.bucket)
-	|> range(start: params.start, end: params.stop)
+	|> range(start: params.start, stop: params.stop)
 	|> filter(fn: (r) =>
 		(r._measurement == "processes"))
 	|> filter(fn: (r) =>
