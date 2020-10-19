@@ -134,6 +134,10 @@ impl<M: ConnectionManager> Server<M> {
         self.id = Some(id);
     }
 
+    fn require_id(&self) -> Result<u16> {
+        Ok(self.id.context(IdNotSet)?)
+    }
+
     /// Tells the server the set of rules for a database. Currently, this is not persisted and
     /// is for in-memory processing rules only.
     pub async fn create_database(
@@ -141,9 +145,7 @@ impl<M: ConnectionManager> Server<M> {
         db_name: impl Into<String>,
         rules: DatabaseRules,
     ) -> Result<()> {
-        if self.id.is_none() {
-            return IdNotSet.fail();
-        }
+        self.require_id()?;
 
         let db_name = db_name.into();
 
@@ -164,9 +166,7 @@ impl<M: ConnectionManager> Server<M> {
     /// strings should be something that the connection manager can use to return a remote server
     /// to work with.
     pub async fn create_host_group(&mut self, id: HostGroupId, hosts: Vec<String>) -> Result<()> {
-        if self.id.is_none() {
-            return IdNotSet.fail();
-        }
+        self.require_id()?;
 
         self.host_groups.insert(id.clone(), HostGroup { id, hosts });
 
@@ -177,10 +177,7 @@ impl<M: ConnectionManager> Server<M> {
     /// is then replicated to other servers based on the configuration of the `db`.
     /// This is step #1 from the above diagram.
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
-        let id = match self.id {
-            Some(id) => id,
-            None => return IdNotSet.fail(),
-        };
+        let id = self.require_id()?;
 
         let db = self
             .databases
