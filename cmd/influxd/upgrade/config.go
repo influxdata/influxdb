@@ -5,11 +5,8 @@ package upgrade
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -85,15 +82,9 @@ func upgradeConfig(configFile string, targetOptions optionsV2, log *zap.Logger) 
 	// update new config with upgrade command options
 	cu.updateV2Config(cTransformed, targetOptions)
 
-	// backup existing 2.x config if already exists (it should not)
-	configFileV2 := strings.TrimSuffix(configFile, filepath.Ext(configFile)) + ".toml"
-	err = cu.backupIfExists(configFileV2)
-	if err != nil {
-		return nil, err
-	}
-
 	// save new config
-	err = cu.save(cTransformed, configFileV2)
+	configFileV2 := strings.TrimSuffix(configFile, filepath.Ext(configFile)) + ".toml"
+	configFileV2, err = cu.save(cTransformed, configFileV2)
 	if err != nil {
 		return nil, err
 	}
@@ -109,34 +100,6 @@ func upgradeConfig(configFile string, targetOptions optionsV2, log *zap.Logger) 
 type configUpgrader struct {
 	rules map[string]string
 	log   *zap.Logger
-}
-
-func (cu *configUpgrader) backupIfExists(path string) error {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil
-	}
-
-	source, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-
-	backupFile := path + "~"
-	if _, err := os.Stat(backupFile); !os.IsNotExist(err) {
-		errMsg := fmt.Sprintf("upgrade: config file backup %s already exist", backupFile)
-		return errors.New(errMsg)
-	}
-
-	destination, err := os.Create(backupFile)
-	if err != nil {
-		return err
-	}
-	defer destination.Close()
-
-	_, err = io.Copy(destination, source)
-
-	return err
 }
 
 func (cu *configUpgrader) updateV2Config(config map[string]interface{}, targetOptions optionsV2) {
@@ -165,13 +128,20 @@ func (cu *configUpgrader) load(path string) ([]byte, error) {
 	return bs, err
 }
 
-func (cu *configUpgrader) save(config map[string]interface{}, path string) error {
+func (cu *configUpgrader) save(config map[string]interface{}, path string) (string, error) {
 	buf := new(bytes.Buffer)
 	if err := toml.NewEncoder(buf).Encode(&config); err != nil {
-		return err
+		return "", err
 	}
 
-	return ioutil.WriteFile(path, buf.Bytes(), 0666)
+	err := ioutil.WriteFile(path, buf.Bytes(), 0666)
+	if err != nil { // permission issue possible - try to save the file to home or current dir
+		cu.log.Warn(fmt.Sprintf("Could not save upgraded config to %s, trying to save it to user's home.", path), zap.Error(err))
+		path = filepath.Join(homeOrAnyDir(), filepath.Base(path))
+		err = ioutil.WriteFile(path, buf.Bytes(), 0666)
+	}
+
+	return path, err
 }
 
 // Credits: @rogpeppe (Roger Peppe)
