@@ -33,11 +33,11 @@ export const genFlux = (
 
   switch (func) {
     case 'derivative': {
-      return `|> derivative(unit: ${period}, nonNegative: false)`
+      return `|> derivative(unit: 1s, nonNegative: false)`
     }
 
     case 'nonnegative derivative': {
-      return `|> derivative(unit: ${period}, nonNegative: true)`
+      return `|> derivative(unit: 1s, nonNegative: true)`
     }
 
     case 'median':
