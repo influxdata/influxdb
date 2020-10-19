@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::From;
 use std::iter;
 
@@ -223,7 +223,8 @@ impl RLE {
     /// Materialises a vector of references to the decoded values in the
     /// provided row ids.
     ///
-    /// NULL values are represented by None
+    /// NULL values are represented by None. It is the caller's responsibility
+    /// to ensure row ids are a monotonically increasing set.
     pub fn values<'a>(
         &'a self,
         row_ids: &[u32],
@@ -234,21 +235,22 @@ impl RLE {
 
         let mut curr_logical_row_id = 0;
 
-        let mut run_lengths_iter = self.run_lengths.iter();
-        let (mut curr_entry_id, mut curr_entry_rl) = run_lengths_iter.next().unwrap();
+        let (mut curr_entry_id, mut curr_entry_rl) = self.run_lengths[0];
 
-        for wanted_row_id in row_ids {
-            while curr_logical_row_id + curr_entry_rl <= *wanted_row_id {
+        let mut i = 1;
+        for row_id in row_ids {
+            if row_id >= &self.num_rows {
+                return dst; // row ids beyond length of column
+            }
+
+            while curr_logical_row_id + curr_entry_rl <= *row_id {
                 // this encoded entry does not cover the row we need.
                 // move on to next entry
                 curr_logical_row_id += curr_entry_rl;
-                match run_lengths_iter.next() {
-                    Some(res) => {
-                        curr_entry_id = res.0;
-                        curr_entry_rl = res.1;
-                    }
-                    None => panic!("shouldn't get here"),
-                }
+                curr_entry_id = self.run_lengths[i].0;
+                curr_entry_rl = self.run_lengths[i].1;
+
+                i += 1;
             }
 
             // this encoded entry covers the row_id we want.
@@ -278,6 +280,74 @@ impl RLE {
             let v = &self.index_entries[*idx as usize];
             dst.extend(iter::repeat(v).take(*rl as usize));
         }
+        dst
+    }
+
+    /// Returns references to the unique set of values encoded at each of the
+    /// provided ids.
+    ///
+    /// It is the caller's responsibility to ensure row ids are a monotonically
+    /// increasing set.
+    pub fn distinct_values<'a>(
+        &'a self,
+        row_ids: &[u32],
+        mut dst: BTreeSet<&'a String>,
+    ) -> BTreeSet<&'a String> {
+        // TODO(edd): Perf... We can improve on this if we know the column is
+        // totally ordered.
+        dst.clear();
+
+        // Used to mark off when a decoded value has been added to the result
+        // set. TODO(perf) - this might benefit from being pooled somehow.
+        let mut encoded_values = Vec::with_capacity(self.index_entries.len());
+        encoded_values.resize(self.index_entries.len(), false);
+
+        let mut found = 0;
+        if let Some(i) = self.entry_index.get(&None) {
+            // the encoding contains NULL values, but we don't return those as
+            // distinct values. So we will mark them.
+            encoded_values[*i as usize] = true;
+            found += 1;
+        }
+
+        let mut curr_logical_row_id = 0;
+        let (mut curr_entry_id, mut curr_entry_rl) = self.run_lengths[0];
+
+        let mut i = 1;
+        'by_row: for row_id in row_ids {
+            if row_id >= &self.num_rows {
+                return dst; // rows beyond the column size
+            }
+
+            while curr_logical_row_id + curr_entry_rl <= *row_id {
+                // this encoded entry does not cover the row we need.
+                // move on to next entry
+                curr_logical_row_id += curr_entry_rl;
+                curr_entry_id = self.run_lengths[i].0;
+                curr_entry_rl = self.run_lengths[i].1;
+
+                i += 1;
+            }
+
+            // encoded value not already in result set.
+            if !encoded_values[curr_entry_id as usize] {
+                // annoying unwrap. We know that there can't be None here as
+                // we removed that at the top of the method.
+                dst.insert(self.index_entries[curr_entry_id as usize].as_ref().unwrap());
+                encoded_values[curr_entry_id as usize] = true;
+                found += 1;
+            }
+
+            if found == encoded_values.len() {
+                // all distinct values have been read
+                break 'by_row;
+            }
+
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+
+        assert!(dst.len() <= self.index_entries.len());
         dst
     }
 }
@@ -344,6 +414,8 @@ impl<'a> From<StringArray> for RLE {
 
 #[cfg(test)]
 mod test {
+    use std::collections::BTreeSet;
+
     use crate::column::{cmp, RowIDs};
 
     #[test]
@@ -590,5 +662,53 @@ mod test {
         );
 
         assert_eq!(dst.capacity(), 1000);
+
+        assert!(drle.values(&[1000], dst).is_empty());
+    }
+
+    #[test]
+    fn distinct_values() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 100);
+
+        let values = drle.distinct_values((0..100).collect::<Vec<_>>().as_slice(), BTreeSet::new());
+        assert_eq!(
+            values,
+            vec!["east".to_string()].iter().collect::<BTreeSet<_>>()
+        );
+
+        drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3);
+        drle.push_additional(Some("north".to_string()), 1);
+        drle.push_additional(Some("east".to_string()), 5);
+        drle.push_additional(Some("south".to_string()), 2);
+        drle.push_none();
+
+        let values = drle.distinct_values((0..11).collect::<Vec<_>>().as_slice(), BTreeSet::new());
+        assert_eq!(
+            values,
+            vec!["east".to_string(), "north".to_string(), "south".to_string(),]
+                .iter()
+                .collect::<BTreeSet<_>>()
+        );
+
+        let values = drle.distinct_values((0..4).collect::<Vec<_>>().as_slice(), BTreeSet::new());
+        assert_eq!(
+            values,
+            vec!["east".to_string(), "north".to_string(),]
+                .iter()
+                .collect::<BTreeSet<_>>()
+        );
+
+        let values = drle.distinct_values(&[3, 10], BTreeSet::new());
+        assert_eq!(
+            values,
+            vec!["north".to_string(), "south".to_string(),]
+                .iter()
+                .collect::<BTreeSet<_>>()
+        );
+
+        let values = drle.distinct_values(&[100], BTreeSet::new());
+        assert!(values.is_empty());
     }
 }
