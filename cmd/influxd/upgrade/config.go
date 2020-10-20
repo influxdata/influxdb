@@ -83,7 +83,7 @@ func upgradeConfig(configFile string, targetOptions optionsV2, log *zap.Logger) 
 	cu.updateV2Config(cTransformed, targetOptions)
 
 	// save new config
-	configFileV2 := strings.TrimSuffix(configFile, filepath.Ext(configFile)) + ".toml"
+	configFileV2 := filepath.Join(filepath.Dir(configFile), "config.toml")
 	configFileV2, err = cu.save(cTransformed, configFileV2)
 	if err != nil {
 		return nil, err
