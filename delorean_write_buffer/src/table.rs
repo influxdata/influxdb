@@ -4,7 +4,7 @@ use delorean_storage::{
     TimestampRange,
 };
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
 
 use crate::{
     column::Column,
@@ -165,6 +165,19 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct TimestampPredicate {
     pub time_column_id: u32,
     pub range: TimestampRange,
+}
+
+#[derive(Debug)]
+/// Describes a list of columns used in a predicate
+pub enum PredicateTableColumns {
+    /// Predicate exists, but has no columns
+    NoColumns,
+
+    /// Predicate exists, has columns, but at least one of those columns are not in the table
+    AtLeastOneMissing,
+
+    /// Predicate exists, has columns, and all columns are in the table
+    Present(BTreeSet<u32>),
 }
 
 #[derive(Debug)]
@@ -830,6 +843,32 @@ impl Table {
         }
     }
 
+    /// returns true if this table has all columns specified in
+    /// predicate_column_symbols or predicate_column_symbols is empty
+    pub fn has_all_predicate_columns(
+        &self,
+        predicate_table_columns: Option<&PredicateTableColumns>,
+    ) -> bool {
+        if let Some(predicate_table_columns) = predicate_table_columns {
+            use PredicateTableColumns::*;
+
+            match predicate_table_columns {
+                NoColumns => true,
+                AtLeastOneMissing => false,
+                Present(predicate_column_symbols) => {
+                    for symbol in predicate_column_symbols {
+                        if !self.column_id_to_index.contains_key(symbol) {
+                            return false;
+                        }
+                    }
+                    true
+                }
+            }
+        } else {
+            true
+        }
+    }
+
     /// returns true if there are any rows in column that are non-null
     /// and within the timestamp range specified by pred
     pub fn column_matches_timestamp_predicate<T>(
@@ -964,6 +1003,52 @@ mod tests {
         let actual_string = format!("{:?}", ts_predicate_expr);
 
         assert_eq!(actual_string, expected_string);
+    }
+
+    #[test]
+    fn test_has_all_predicate_columns() {
+        // setup a test table
+        let mut partition = Partition::new("dummy_partition_key");
+        let dictionary = &mut partition.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100",
+            "h2o,state=MA,city=Boston temp=72.4 250",
+        ];
+
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+
+        let state_symbol = dictionary.id("state").unwrap();
+        let new_symbol = dictionary.lookup_value_or_insert("not_a_columns");
+
+        assert!(table.has_all_predicate_columns(None));
+
+        let pred = PredicateTableColumns::NoColumns;
+        assert!(table.has_all_predicate_columns(Some(&pred)));
+
+        let pred = PredicateTableColumns::AtLeastOneMissing;
+        assert!(!table.has_all_predicate_columns(Some(&pred)));
+
+        let set = BTreeSet::<u32>::new();
+        let pred = PredicateTableColumns::Present(set);
+        assert!(table.has_all_predicate_columns(Some(&pred)));
+
+        let mut set = BTreeSet::new();
+        set.insert(state_symbol);
+        let pred = PredicateTableColumns::Present(set);
+        assert!(table.has_all_predicate_columns(Some(&pred)));
+
+        let mut set = BTreeSet::new();
+        set.insert(new_symbol);
+        let pred = PredicateTableColumns::Present(set);
+        assert!(!table.has_all_predicate_columns(Some(&pred)));
+
+        let mut set = BTreeSet::new();
+        set.insert(state_symbol);
+        set.insert(new_symbol);
+        let pred = PredicateTableColumns::Present(set);
+        assert!(!table.has_all_predicate_columns(Some(&pred)));
     }
 
     #[tokio::test(threaded_scheduler)]

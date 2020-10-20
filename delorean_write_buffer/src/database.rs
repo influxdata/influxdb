@@ -2,17 +2,17 @@ use delorean_generated_types::wal as wb;
 use delorean_line_parser::ParsedLine;
 use delorean_storage::{
     exec::GroupedSeriesSetPlan, exec::GroupedSeriesSetPlans, exec::SeriesSetPlan,
-    exec::SeriesSetPlans, exec::StringSet, exec::StringSetPlan, Database, Predicate,
-    TimestampRange,
+    exec::SeriesSetPlans, exec::StringSet, exec::StringSetPlan, util::visit_expression,
+    util::ExpressionVisitor, Database, Predicate, TimestampRange,
 };
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
-use crate::partition::Partition;
 use crate::table::Table;
 use crate::{column::Column, table::TimestampPredicate};
+use crate::{partition::Partition, table::PredicateTableColumns};
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,7 +20,10 @@ use std::sync::Arc;
 use delorean_arrow::{
     arrow,
     arrow::{datatypes::Schema as ArrowSchema, record_batch::RecordBatch},
+    datafusion::logical_plan::Expr,
     datafusion::logical_plan::LogicalPlan,
+    datafusion::logical_plan::Operator,
+    datafusion::optimizer::utils::expr_to_column_names,
     datafusion::prelude::ExecutionConfig,
     datafusion::{
         datasource::MemTable, error::ExecutionError, execution::context::ExecutionContext,
@@ -412,15 +415,17 @@ impl Database for Db {
         range: Option<TimestampRange>,
         predicate: Option<Predicate>,
     ) -> Result<StringSetPlan, Self::Error> {
+        let mut filter = PartitionTableFilter::new(table, range, predicate.as_ref());
+
         match predicate {
             None => {
                 let mut visitor = NameVisitor::new();
-                self.visit_tables(table, range, &mut visitor).await?;
+                self.visit_tables(&mut filter, &mut visitor).await?;
                 Ok(visitor.column_names.into())
             }
             Some(predicate) => {
                 let mut visitor = NamePredVisitor::new(predicate);
-                self.visit_tables(table, range, &mut visitor).await?;
+                self.visit_tables(&mut filter, &mut visitor).await?;
                 Ok(visitor.plans.into())
             }
         }
@@ -434,15 +439,17 @@ impl Database for Db {
         range: Option<TimestampRange>,
         predicate: Option<Predicate>,
     ) -> Result<StringSetPlan, Self::Error> {
+        let mut filter = PartitionTableFilter::new(table, range, predicate.as_ref());
+
         match predicate {
             None => {
                 let mut visitor = ValueVisitor::new(column_name);
-                self.visit_tables(table, range, &mut visitor).await?;
+                self.visit_tables(&mut filter, &mut visitor).await?;
                 Ok(visitor.column_values.into())
             }
             Some(predicate) => {
                 let mut visitor = ValuePredVisitor::new(column_name, predicate);
-                self.visit_tables(table, range, &mut visitor).await?;
+                self.visit_tables(&mut filter, &mut visitor).await?;
                 Ok(visitor.plans.into())
             }
         }
@@ -453,8 +460,9 @@ impl Database for Db {
         range: Option<TimestampRange>,
         predicate: Option<Predicate>,
     ) -> Result<SeriesSetPlans, Self::Error> {
+        let mut filter = PartitionTableFilter::new(None, range, predicate.as_ref());
         let mut visitor = SeriesVisitor::new(predicate);
-        self.visit_tables(None, range, &mut visitor).await?;
+        self.visit_tables(&mut filter, &mut visitor).await?;
         Ok(visitor.plans.into())
     }
 
@@ -464,8 +472,9 @@ impl Database for Db {
         predicate: Option<Predicate>,
         group_columns: Vec<String>,
     ) -> Result<GroupedSeriesSetPlans, Self::Error> {
+        let mut filter = PartitionTableFilter::new(None, range, predicate.as_ref());
         let mut visitor = GroupsVisitor::new(predicate, group_columns);
-        self.visit_tables(None, range, &mut visitor).await?;
+        self.visit_tables(&mut filter, &mut visitor).await?;
         Ok(visitor.plans.into())
     }
 
@@ -554,16 +563,16 @@ impl Database for Db {
 ///
 /// Then the methods would be invoked in the following order
 ///
-///  visitor.previsit_partition(YesterdayPartition)
-///  visitor.previsit_table(CPU Table1)
+///  visitor.pre_visit_partition(YesterdayPartition)
+///  visitor.pre_visit_table(CPU Table1)
 ///  visitor.visit_column(Col1)
-///  visitor.postvisit_table(CPU Table1)
-///  visitor.postvisit_partition(YesterdayPartition)
-///  visitor.previsit_partition(TodayPartition)
-///  visitor.previsit_table(CPU Table2)
+///  visitor.post_visit_table(CPU Table1)
+///  visitor.post_visit_partition(YesterdayPartition)
+///  visitor.pre_visit_partition(TodayPartition)
+///  visitor.pre_visit_table(CPU Table2)
 ///  visitor.visit_column(Col2)
-///  visitor.postvisit_table(CPU Table2)
-///  visitor.postvisit_partition(TodayPartition)
+///  visitor.post_visit_table(CPU Table2)
+///  visitor.post_visit_partition(TodayPartition)
 trait Visitor {
     // called once before any column in a partition is visisted
     fn pre_visit_partition(&mut self, _partition: &Partition) -> Result<()> {
@@ -575,7 +584,7 @@ trait Visitor {
         &mut self,
         _table: &Table,
         _partition: &Partition,
-        _ts_pred: Option<&TimestampPredicate>,
+        _filter: &mut PartitionTableFilter,
     ) -> Result<()> {
         Ok(())
     }
@@ -586,7 +595,7 @@ trait Visitor {
         _table: &Table,
         _column_id: u32,
         _column: &Column,
-        _ts_pred: Option<&TimestampPredicate>,
+        _filter: &mut PartitionTableFilter,
     ) -> Result<()> {
         Ok(())
     }
@@ -607,50 +616,28 @@ impl Db {
     /// functions, in order, of `visitor`, as described on the Visitor
     /// trait.
     ///
-    /// If table is specified, skips tables that do not match the
-    /// name.
-    ///
-    /// If range is specified, skips tables which do not have any
-    /// values within the timestamp range.
+    /// Skips visiting any table or columns of `filter.should_visit_table` returns false
     async fn visit_tables<V: Visitor>(
         &self,
-        table: Option<String>,
-        range: Option<TimestampRange>,
+        filter: &mut PartitionTableFilter,
         visitor: &mut V,
     ) -> Result<()> {
         let partitions = self.partitions.read().await;
 
         for partition in partitions.iter() {
-            // The id of the timestamp column is specific to each partition
-            let timestamp_predicate = partition.make_timestamp_predicate(range)?;
-
-            let ts_pred = timestamp_predicate.as_ref();
-
-            // ids are relative to a specific partition
-            let table_symbol = match &table {
-                Some(name) => Some(partition.dictionary.lookup_value(&name).context(
-                    TableNameNotFoundInDictionary {
-                        table: name,
-                        partition: &partition.key,
-                    },
-                )?),
-                None => None,
-            };
-
             visitor.pre_visit_partition(partition)?;
+            filter.pre_visit_partition(partition)?;
+
             for table in partition.tables.values() {
-                // Apply predicates, if any, to skip processing the table entirely
-                if table.matches_id_predicate(&table_symbol)
-                    && table.matches_timestamp_predicate(ts_pred)?
-                {
-                    visitor.pre_visit_table(table, partition, ts_pred)?;
+                if filter.should_visit_table(table)? {
+                    visitor.pre_visit_table(table, partition, filter)?;
 
                     for (column_id, column_index) in &table.column_id_to_index {
                         visitor.visit_column(
                             table,
                             *column_id,
                             &table.columns[*column_index],
-                            ts_pred,
+                            filter,
                         )?
                     }
 
@@ -661,6 +648,153 @@ impl Db {
         } // next partition
 
         Ok(())
+    }
+}
+
+/// Logic to filter out entire logic entire tables
+///
+/// Note that since each partition has its own dictionary, mappings
+/// between Strings --> we cache the String->id mappings per partition
+///
+/// b) the table doesn't have a column range that overlaps the
+/// predicate values, e.g., if you have env = "us-west" and a
+/// table's env column has the range ["eu-south", "us-north"].
+#[derive(Debug)]
+struct PartitionTableFilter {
+    /// Per Db timestamp range
+    range: Option<TimestampRange>,
+    /// Per Db specific table name
+    table: Option<String>,
+    /// Per Db specific columns used in predicates
+    predicate_columns: Option<HashSet<String>>,
+
+    /// Per partition predicate
+    ts_pred: Option<TimestampPredicate>,
+    /// Per partition table name
+    table_symbol: Option<u32>,
+    /// Per partition list of columns which appear in predicates
+    predicate_table_columns: Option<PredicateTableColumns>,
+}
+
+impl PartitionTableFilter {
+    fn new(
+        table: Option<String>,
+        range: Option<TimestampRange>,
+        predicate: Option<&Predicate>,
+    ) -> Self {
+        check_supported_predicate(predicate);
+
+        let predicate_columns = predicate
+            .map(|predicate| {
+                let mut accum: HashSet<String> = HashSet::new();
+                expr_to_column_names(&predicate.expr, &mut accum).unwrap();
+                accum
+            })
+            // If the predicate had no columns, don't know how to skip
+            // tables / columns based on that yet, so translate predicate
+            // to none
+            .filter(|predicate_columns| !predicate_columns.is_empty());
+
+        let ts_pred = None;
+        let table_symbol = None;
+        let predicate_table_columns = None;
+
+        Self {
+            range,
+            table,
+            predicate_columns,
+            ts_pred,
+            table_symbol,
+            predicate_table_columns,
+        }
+    }
+
+    /// Called when each partition gets visited. Since ids are
+    /// specific to each partitition, the predicates much get
+    /// translated each time.
+    fn pre_visit_partition(&mut self, partition: &Partition) -> Result<()> {
+        // The id of the timestamp column is specific to each partition
+        self.ts_pred = partition.make_timestamp_predicate(self.range)?;
+
+        // ids are relative to a specific partition
+        self.table_symbol = self
+            .table
+            .as_ref()
+            .map(|table_name| partition.dictionary.lookup_value(&table_name).unwrap());
+
+        self.predicate_table_columns = self.predicate_columns.as_ref().map(|predicate_columns| {
+            if predicate_columns.is_empty() {
+                return PredicateTableColumns::NoColumns;
+            }
+
+            let mut symbols = BTreeSet::new();
+            for column_name in predicate_columns {
+                if let Some(column_id) = partition.dictionary.id(column_name) {
+                    symbols.insert(column_id);
+                } else {
+                    return PredicateTableColumns::AtLeastOneMissing;
+                }
+            }
+
+            PredicateTableColumns::Present(symbols)
+        });
+
+        Ok(())
+    }
+
+    /// If returns false, skips visiting _table and all its columns
+    fn should_visit_table(&mut self, table: &Table) -> Result<bool> {
+        Ok(table.matches_id_predicate(&self.table_symbol)
+            && table.matches_timestamp_predicate(self.ts_pred.as_ref())?
+            && table.has_all_predicate_columns(self.predicate_table_columns.as_ref()))
+    }
+}
+
+/// fail fast if we have some non supported predicates (we made
+/// assumptions about column names appearing in predicates) above
+///
+/// Panics if such a predicate is there
+fn check_supported_predicate(predicate: Option<&Predicate>) {
+    if let Some(Predicate { expr }) = predicate {
+        let mut visitor = SupportVisitor {};
+        visit_expression(expr, &mut visitor);
+    }
+}
+
+struct SupportVisitor {}
+
+impl ExpressionVisitor for SupportVisitor {
+    fn visit(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Literal(..) => {}
+            Expr::Column(..) => {}
+            Expr::BinaryExpr { op, .. } => {
+                match op {
+                    Operator::Eq
+                    | Operator::Lt
+                    | Operator::LtEq
+                    | Operator::Gt
+                    | Operator::GtEq
+                    | Operator::Plus
+                    | Operator::Minus
+                    | Operator::Multiply
+                    | Operator::Divide
+                    | Operator::And => {}
+                    // Unsupported (need to think about ramifications)
+                    Operator::NotEq
+                    | Operator::Modulus
+                    | Operator::Or
+                    | Operator::Like
+                    | Operator::NotLike => {
+                        panic!("Unsupported binary operator in expression: {:?}", expr)
+                    }
+                }
+            }
+            _ => panic!(
+                "Unsupported expression in write_buffer database: {:?}",
+                expr
+            ),
+        }
     }
 }
 
@@ -685,10 +819,10 @@ impl Visitor for NameVisitor {
         table: &Table,
         column_id: u32,
         column: &Column,
-        ts_pred: Option<&TimestampPredicate>,
+        filter: &mut PartitionTableFilter,
     ) -> Result<()> {
         if let Column::Tag(column) = column {
-            if table.column_matches_timestamp_predicate(column, ts_pred)? {
+            if table.column_matches_timestamp_predicate(column, filter.ts_pred.as_ref())? {
                 self.partition_column_ids.insert(column_id);
             }
         }
@@ -720,17 +854,6 @@ impl Visitor for NameVisitor {
 
 /// Return all column names in this database, while applying a
 /// general purpose predicate
-///
-/// Here are some potential additional optimizations to rule out
-/// tables that are not yet implemented:
-///
-/// a) the table doesn't have a column that's in a "non-negation"
-/// predicate, e.g., if you have env = "us-west" and a table
-/// doesn't have an env column then it can be ignored; and
-///
-/// b) the table doesn't have a column range that overlaps the
-/// predicate values, e.g., if you have env = "us-west" and a
-/// table's env column has the range ["eu-south", "us-north"].
 struct NamePredVisitor {
     predicate: Predicate,
     plans: Vec<LogicalPlan>,
@@ -750,10 +873,13 @@ impl Visitor for NamePredVisitor {
         &mut self,
         table: &Table,
         partition: &Partition,
-        ts_pred: Option<&TimestampPredicate>,
+        filter: &mut PartitionTableFilter,
     ) -> Result<()> {
-        self.plans
-            .push(table.tag_column_names_plan(&self.predicate, ts_pred, partition)?);
+        self.plans.push(table.tag_column_names_plan(
+            &self.predicate,
+            filter.ts_pred.as_ref(),
+            partition,
+        )?);
         Ok(())
     }
 }
@@ -805,7 +931,7 @@ impl<'a> Visitor for ValueVisitor<'a> {
         table: &Table,
         column_id: u32,
         column: &Column,
-        ts_pred: Option<&TimestampPredicate>,
+        filter: &mut PartitionTableFilter,
     ) -> Result<()> {
         if Some(column_id) != self.column_id {
             return Ok(());
@@ -816,7 +942,7 @@ impl<'a> Visitor for ValueVisitor<'a> {
                 // if we have a timestamp prediate, find all values
                 // that the timestamp is within range. Otherwise take
                 // all values.
-                match ts_pred {
+                match filter.ts_pred {
                     None => {
                         // take all non-null values
                         column.iter().filter_map(|&s| s).for_each(|value_id| {
@@ -894,17 +1020,17 @@ impl<'a> Visitor for ValuePredVisitor<'a> {
         &mut self,
         table: &Table,
         partition: &Partition,
-        ts_pred: Option<&TimestampPredicate>,
+        filter: &mut PartitionTableFilter,
     ) -> Result<()> {
         // skip table entirely if there are no rows that fall in the timestamp
-        if !table.matches_timestamp_predicate(ts_pred)? {
+        if !table.matches_timestamp_predicate(filter.ts_pred.as_ref())? {
             return Ok(());
         }
 
         self.plans.push(table.tag_values_plan(
             self.column_name,
             &self.predicate,
-            ts_pred,
+            filter.ts_pred.as_ref(),
             partition,
         )?);
         Ok(())
@@ -935,10 +1061,13 @@ impl Visitor for SeriesVisitor {
         &mut self,
         table: &Table,
         partition: &Partition,
-        ts_pred: Option<&TimestampPredicate>,
+        filter: &mut PartitionTableFilter,
     ) -> Result<()> {
-        self.plans
-            .push(table.series_set_plan(self.predicate.as_ref(), ts_pred, partition)?);
+        self.plans.push(table.series_set_plan(
+            self.predicate.as_ref(),
+            filter.ts_pred.as_ref(),
+            partition,
+        )?);
 
         Ok(())
     }
@@ -970,11 +1099,11 @@ impl Visitor for GroupsVisitor {
         &mut self,
         table: &Table,
         partition: &Partition,
-        ts_pred: Option<&TimestampPredicate>,
+        filter: &mut PartitionTableFilter,
     ) -> Result<()> {
         self.plans.push(table.grouped_series_set_plan(
             self.predicate.as_ref(),
-            ts_pred,
+            filter.ts_pred.as_ref(),
             &self.group_columns,
             partition,
         )?);
@@ -1529,10 +1658,44 @@ disk bytes=23432323i 1600136510000000000",
 
     // Create a predicate of the form column_name = val
     fn make_column_eq_predicate(column_name: &str, val: &str) -> Option<Predicate> {
+        make_column_predicate(column_name, Operator::Eq, val)
+    }
+
+    // Create a predicate of the form column_name != val
+    fn make_column_neq_predicate(column_name: &str, val: &str) -> Option<Predicate> {
+        make_column_predicate(column_name, Operator::NotEq, val)
+    }
+
+    // Create a predicate of the form column_name <op> val
+    fn make_column_predicate(column_name: &str, op: Operator, val: &str) -> Option<Predicate> {
         let expr = Expr::BinaryExpr {
             left: Box::new(Expr::Column(column_name.into())),
-            op: Operator::Eq,
+            op,
             right: Box::new(Expr::Literal(ScalarValue::Utf8(Some(val.into())))),
+        };
+        Some(Predicate { expr })
+    }
+
+    // Create a predicate of the form "foo = "foo" (no column references, but is true)
+    fn make_no_column_predicate() -> Option<Predicate> {
+        let foo_literal = ScalarValue::Utf8(Some(String::from("foo")));
+
+        let expr = Expr::BinaryExpr {
+            left: Box::new(Expr::Literal(foo_literal.clone())),
+            op: Operator::Eq,
+            right: Box::new(Expr::Literal(foo_literal)),
+        };
+        Some(Predicate { expr })
+    }
+
+    // make p1 AND p2 predicate
+    fn make_and_predicate(p1: Option<Predicate>, p2: Option<Predicate>) -> Option<Predicate> {
+        let Predicate { expr: lhs } = p1.unwrap();
+        let Predicate { expr: rhs } = p2.unwrap();
+        let expr = Expr::BinaryExpr {
+            left: Box::new(lhs),
+            op: Operator::And,
+            right: Box::new(rhs),
         };
         Some(Predicate { expr })
     }
@@ -1773,21 +1936,7 @@ disk bytes=23432323i 1600136510000000000",
             .await
             .expect("Created tag_values plan successfully");
 
-        // Use a channel sufficiently large to buffer the series
-        let (tx, mut rx) = mpsc::channel(100);
-
-        // setup to run the execution plan (
-        let executor = Executor::default();
-        executor.to_series_set(plans, tx).await?;
-
-        // gather up the sets and compare them
-        let mut results = Vec::new();
-        while let Some(r) = rx.recv().await {
-            results.push(r)
-        }
-        // sort the results so that we can reliably use the comparisons below
-        sort_results(&mut results);
-        println!("The results are: {:#?}", results);
+        let results = run_and_gather_results(plans).await;
 
         assert_eq!(results.len(), 3);
 
@@ -1856,21 +2005,7 @@ disk bytes=23432323i 1600136510000000000",
             .await
             .expect("Created tag_values plan successfully");
 
-        // Use a channel sufficiently large to buffer the series
-        let (tx, mut rx) = mpsc::channel(100);
-
-        // setup to run the execution plan (
-        let executor = Executor::default();
-        executor.to_series_set(plans, tx).await?;
-
-        // gather up the sets and compare them
-        let mut results = Vec::new();
-        while let Some(r) = rx.recv().await {
-            results.push(r)
-        }
-        // sort the results so that we can reliably use the comparisons below
-        sort_results(&mut results);
-        println!("The results are: {:#?}", results);
+        let results = run_and_gather_results(plans).await;
 
         assert_eq!(results.len(), 1);
 
@@ -1888,8 +2023,106 @@ disk bytes=23432323i 1600136510000000000",
         Ok(())
     }
 
-    fn sort_results(results: &mut Vec<Result<SeriesSet, SeriesSetError>>) {
-        // sort the results so that we can reliably use the comparisons below
+    #[tokio::test(threaded_scheduler)]
+    async fn test_query_series_pred_refers_to_column_not_in_table() -> Result {
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100",
+            "h2o,state=MA,city=Boston temp=72.4 250",
+        ];
+
+        let lp_data = lp_lines.join("\n");
+
+        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+        db.write_lines(&lines).await?;
+
+        let range = None;
+        let predicate = make_column_eq_predicate("tag_not_in_h20", "foo");
+
+        let plans = db
+            .query_series(range, predicate)
+            .await
+            .expect("Created tag_values plan successfully");
+
+        let results = run_and_gather_results(plans).await;
+        assert!(results.is_empty());
+
+        // predicate with no columns,
+        let predicate = make_no_column_predicate();
+
+        let plans = db
+            .query_series(range, predicate)
+            .await
+            .expect("Created tag_values plan successfully");
+
+        let results = run_and_gather_results(plans).await;
+        assert_eq!(results.len(), 1);
+
+        // predicate with both a column that does and does not appear
+        let predicate = make_and_predicate(
+            make_column_eq_predicate("state", "MA"),
+            make_column_eq_predicate("tag_not_in_h20", "foo"),
+        );
+
+        let plans = db
+            .query_series(range, predicate)
+            .await
+            .expect("Created tag_values plan successfully");
+
+        let results = run_and_gather_results(plans).await;
+        assert!(results.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test(threaded_scheduler)]
+    #[should_panic(
+        expected = "Unsupported binary operator in expression: #state NotEq Utf8(\"MA\")"
+    )]
+    async fn test_query_series_pred_neq() {
+        let mut dir = delorean_test_helpers::tmp_dir().unwrap().into_path();
+        let db = Db::try_with_wal("column_namedb", &mut dir).await.unwrap();
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100",
+            "h2o,state=MA,city=Boston temp=72.4 250",
+        ];
+
+        let lp_data = lp_lines.join("\n");
+
+        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+        db.write_lines(&lines).await.unwrap();
+
+        let range = None;
+        let predicate = make_column_neq_predicate("state", "MA");
+
+        // Should panic as the neq path isn't implemented yet
+        db.query_series(range, predicate).await.unwrap();
+    }
+
+    /// Run the plan and gather the results in a order that can be compared
+    async fn run_and_gather_results(
+        plans: SeriesSetPlans,
+    ) -> Vec<Result<SeriesSet, SeriesSetError>> {
+        // Use a channel sufficiently large to buffer the series
+        let (tx, mut rx) = mpsc::channel(100);
+
+        // setup to run the execution plan (
+        let executor = Executor::default();
+        executor
+            .to_series_set(plans, tx)
+            .await
+            .expect("Running series set plan");
+
+        // gather up the sets and compare them
+        let mut results = Vec::new();
+        while let Some(r) = rx.recv().await {
+            results.push(r)
+        }
+
+        // sort the results so that we can reliably compare
         results.sort_by(|r1, r2| {
             match (r1, r2) {
                 (Ok(r1), Ok(r2)) => r1
@@ -1900,5 +2133,10 @@ disk bytes=23432323i 1600136510000000000",
                 (r1, r2) => format!("{:?}", r1).cmp(&format!("{:?}", r2)),
             }
         });
+
+        // Print to stdout / test log to facilitate debugging if fails on CI
+        println!("The results are: {:#?}", results);
+
+        results
     }
 }

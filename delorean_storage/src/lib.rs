@@ -16,6 +16,7 @@ use std::{fmt::Debug, sync::Arc};
 
 pub mod exec;
 pub mod id;
+pub mod util;
 
 /// Specifies a continuous range of nanosecond timestamps. Timestamp
 /// predicates are so common and critical to performance of timeseries
