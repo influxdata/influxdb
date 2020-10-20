@@ -60,8 +60,8 @@ impl<T> Fixed<T>
 where
     T: PartialOrd + Copy,
 {
-    pub fn num_rows(&self) -> u64 {
-        self.values.len() as u64
+    pub fn num_rows(&self) -> u32 {
+        self.values.len() as u32
     }
 
     pub fn is_empty(&self) -> bool {
@@ -71,8 +71,8 @@ where
     /// Returns the total size in bytes of the encoded data. Note, this method
     /// is really an "accurate" estimation. It doesn't include for example the
     /// size of the `Fixed` struct receiver.
-    pub fn size(&self) -> usize {
-        size_of::<Vec<T>>() + (size_of::<T>() * self.values.len())
+    pub fn size(&self) -> u64 {
+        (size_of::<Vec<T>>() + (size_of::<T>() * self.values.len())) as u64
     }
 
     //
