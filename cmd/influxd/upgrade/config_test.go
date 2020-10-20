@@ -2,31 +2,15 @@ package upgrade
 
 import (
 	"io/ioutil"
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
-
-func testCreateTempFile(t *testing.T, pattern, content string) string {
-	f, err := ioutil.TempFile("", pattern)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = f.WriteString(content)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = f.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	return f.Name()
-}
 
 func TestConfigUpgrade(t *testing.T) {
 	targetOtions := optionsV2{
@@ -79,13 +63,12 @@ func TestConfigUpgrade(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			configFile := testCreateTempFile(t, "influxdb-*.conf", tc.config1x)
-			configFileV2 := strings.TrimSuffix(configFile, filepath.Ext(configFile)) + ".toml"
-			defer func() {
-				os.Remove(configFile)
-				os.Remove(configFileV2)
-			}()
-			retval, err := upgradeConfig(configFile, targetOtions, zap.NewNop())
+			tmpdir := t.TempDir()
+			configFile := filepath.Join(tmpdir, "influxdb.conf")
+			configFileV2 := filepath.Join(filepath.Dir(configFile), "config.toml")
+			err := ioutil.WriteFile(configFile, []byte(tc.config1x), 0444)
+			require.NoError(t, err)
+			retval, err := upgradeConfig(configFile, targetOtions, zaptest.NewLogger(t))
 			if err != nil {
 				t.Fatal(err)
 			}
