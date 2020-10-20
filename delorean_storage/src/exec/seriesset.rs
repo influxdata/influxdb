@@ -29,7 +29,7 @@ use delorean_arrow::arrow::{self};
 use delorean_data_types::TIME_COLUMN_NAME;
 //use snafu::{ensure, OptionExt, Snafu};
 use snafu::{ResultExt, Snafu};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::SendError};
 
 use croaring::bitmap::Bitmap;
 
@@ -53,10 +53,18 @@ pub enum Error {
         source: arrow::error::ArrowError,
     },
 
-    #[snafu(display("Sending results: {:?}", source))]
-    Sending {
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    #[snafu(display("Sending series set results during conversion: {:?}", source))]
+    SendingDuringConversion {
+        source: Box<SendError<Result<SeriesSet>>>,
     },
+
+    #[snafu(display("Sending grouped series set results during conversion: {:?}", source))]
+    SendingDuringGroupedConversion {
+        source: Box<SendError<Result<GroupedSeriesSetItem>>>,
+    },
+
+    #[snafu(display("Joining conversion execution task: {}", source))]
+    JoinError { source: tokio::task::JoinError },
 }
 
 #[allow(dead_code)]
@@ -151,8 +159,8 @@ impl SeriesSetConverter {
             self.tx
                 .send(Err(e))
                 .await
-                .map_err(|send_err| Error::Sending {
-                    source: Box::new(send_err),
+                .map_err(|e| Error::SendingDuringConversion {
+                    source: Box::new(e),
                 })?
         }
         Ok(())
@@ -246,8 +254,8 @@ impl SeriesSetConverter {
                 self.tx
                     .send(Ok(series_set))
                     .await
-                    .map_err(|send_err| Error::Sending {
-                        source: Box::new(send_err),
+                    .map_err(|e| Error::SendingDuringConversion {
+                        source: Box::new(e),
                     })?;
             }
         }
@@ -349,15 +357,123 @@ impl GroupedSeriesSetConverter {
         Self { tx }
     }
 
+    /// Convert the results from running a DataFusion plan into the
+    /// appropriate SeriesSets, sending them self.tx
+    ///
+    /// The results must be in the logical format described in this
+    /// module's documentation (i.e. ordered by tag keys)
+    ///
+    /// table_name: The name of the table
+    ///
+    /// tag_columns: The names of the columns that define tags
+    ///
+    /// num_prefix_tag_group_columns: The size of the prefix of tag_columns that defines each group
+    ///
+    /// field_columns: The names of the columns which are "fields"
+    ///
+    /// it: record batch iterator that produces data in the desired order
     pub async fn convert(
         &mut self,
-        _table_name: Arc<String>,
-        _tag_columns: Arc<Vec<Arc<String>>>,
-        _num_prefix_tag_group_columns: usize,
-        _field_columns: Arc<Vec<Arc<String>>>,
-        _it: Box<dyn RecordBatchReader + Send>,
+        table_name: Arc<String>,
+        tag_columns: Arc<Vec<Arc<String>>>,
+        num_prefix_tag_group_columns: usize,
+        field_columns: Arc<Vec<Arc<String>>>,
+        it: Box<dyn RecordBatchReader + Send>,
     ) -> Result<()> {
-        unimplemented!("GroupedSeriesConverter");
+        // Make sure that any error that results from processing is sent along
+        if let Err(e) = self
+            .convert_impl(
+                table_name,
+                tag_columns,
+                num_prefix_tag_group_columns,
+                field_columns,
+                it,
+            )
+            .await
+        {
+            self.tx
+                .send(Err(e))
+                .await
+                .map_err(|e| Error::SendingDuringGroupedConversion {
+                    source: Box::new(e),
+                })?
+        }
+        Ok(())
+    }
+
+    /// Does the actual conversion logic, but returns any error in processing
+    pub async fn convert_impl(
+        &mut self,
+        table_name: Arc<String>,
+        tag_columns: Arc<Vec<Arc<String>>>,
+        num_prefix_tag_group_columns: usize,
+        field_columns: Arc<Vec<Arc<String>>>,
+        it: Box<dyn RecordBatchReader + Send>,
+    ) -> Result<()> {
+        // Convert the batches into series sets using
+        // SeriesSetConverter, and insert the appropriate GroupStart
+        // frames
+
+        let (tx, mut rx) = mpsc::channel(2);
+
+        // task that processes the sets from the series
+        let mut output_tx = self.tx.clone();
+        let task = tokio::task::spawn(async move {
+            // vec of num_prefix_tag_group_columns
+            let mut last_group_tags: Option<Vec<(Arc<String>, Arc<String>)>> = None;
+
+            while let Some(series_set) = rx.recv().await {
+                let series_set: SeriesSet = series_set?;
+
+                // figure out if we are in a new group
+                let need_group_start = match &last_group_tags {
+                    None => true,
+                    Some(last_group_tags) => {
+                        last_group_tags.as_slice()
+                            != &series_set.tags[0..num_prefix_tag_group_columns]
+                    }
+                };
+
+                if need_group_start {
+                    let group_tags = series_set.tags[0..num_prefix_tag_group_columns].to_vec();
+
+                    let group_desc = GroupDescription {
+                        tags: group_tags.clone(),
+                    };
+
+                    output_tx
+                        .send(Ok(GroupedSeriesSetItem::GroupStart(group_desc)))
+                        .await
+                        .map_err(|e| Error::SendingDuringGroupedConversion {
+                            source: Box::new(e),
+                        })?;
+
+                    last_group_tags = Some(group_tags);
+                }
+
+                output_tx
+                    .send(Ok(GroupedSeriesSetItem::GroupData(series_set)))
+                    .await
+                    .map_err(|e| Error::SendingDuringGroupedConversion {
+                        source: Box::new(e),
+                    })?;
+            }
+            Ok(()) as Result<()>
+        });
+
+        // Setup the task pipeline and start it running!
+        let mut series_converter = SeriesSetConverter::new(tx);
+        series_converter
+            .convert(table_name, tag_columns, field_columns, it)
+            .await?;
+
+        // tear down series converter manually, to drop the sending
+        // channel so the `task` knows no more results are coming
+        // before waiting for it to resolve.
+        std::mem::drop(series_converter);
+        task.await.context(JoinError)??;
+
+        Ok(())
     }
 }
 
@@ -584,6 +700,148 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test(threaded_scheduler)]
+    async fn test_convert_groups() -> Result<()> {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("tag_a", DataType::Utf8, true),
+            Field::new("tag_b", DataType::Utf8, true),
+            Field::new("float_field", DataType::Float64, true),
+            Field::new("time", DataType::Int64, false),
+        ]));
+
+        let input = parse_to_iterator(
+            schema,
+            "one,ten,10.0,1000\n\
+             one,eleven,10.1,2000\n\
+             two,eleven,10.3,3000\n",
+        );
+
+        let table_name = "foo";
+        let tag_columns = ["tag_a", "tag_b"];
+        let num_prefix_tag_group_columns = 1;
+        let field_columns = ["float_field"];
+        let results = convert_groups(
+            table_name,
+            &tag_columns,
+            num_prefix_tag_group_columns,
+            &field_columns,
+            input,
+        )
+        .await;
+
+        // expect the output to be
+        // Group1 (tag_a = one)
+        // Series1 (tag_a = one, tag_b = ten)
+        // Series2 (tag_a = one, tag_b = ten)
+        // Group2 (tag_a = two)
+        // Series3 (tag_a = two, tag_b = eleven)
+
+        assert_eq!(results.len(), 5, "results were\n{:#?}", results); // 3 series, two groups (one and two)
+
+        let group_1 = extract_group(results[0].as_ref().expect("correctly made group"));
+        let series_set1 = extract_series_set(results[1].as_ref().expect("Correctly converted"));
+        let series_set2 = extract_series_set(results[2].as_ref().expect("Correctly converted"));
+        let group_2 = extract_group(results[3].as_ref().expect("correctly made group"));
+        let series_set3 = extract_series_set(results[4].as_ref().expect("Correctly converted"));
+
+        assert_eq!(group_1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
+
+        assert_eq!(*series_set1.table_name, "foo");
+        assert_eq!(
+            series_set1.tags,
+            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
+        );
+        assert_eq!(series_set1.start_row, 0);
+        assert_eq!(series_set1.num_rows, 1);
+
+        assert_eq!(*series_set2.table_name, "foo");
+        assert_eq!(
+            series_set2.tags,
+            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
+        );
+        assert_eq!(series_set2.start_row, 1);
+        assert_eq!(series_set2.num_rows, 1);
+
+        assert_eq!(group_2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
+
+        assert_eq!(*series_set3.table_name, "foo");
+        assert_eq!(
+            series_set3.tags,
+            str_pair_vec_to_vec(&[("tag_a", "two"), ("tag_b", "eleven")])
+        );
+        assert_eq!(series_set3.start_row, 2);
+        assert_eq!(series_set3.num_rows, 1);
+
+        Ok(())
+    }
+
+    // test with no group tags specified
+    #[tokio::test(threaded_scheduler)]
+    async fn test_convert_groups_no_tags() -> Result<()> {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("tag_a", DataType::Utf8, true),
+            Field::new("tag_b", DataType::Utf8, true),
+            Field::new("float_field", DataType::Float64, true),
+            Field::new("time", DataType::Int64, false),
+        ]));
+
+        let input = parse_to_iterator(
+            schema,
+            "one,ten,10.0,1000\n\
+             one,eleven,10.1,2000\n",
+        );
+
+        let table_name = "foo";
+        let tag_columns = ["tag_a", "tag_b"];
+        let field_columns = ["float_field"];
+        let results = convert_groups(table_name, &tag_columns, 0, &field_columns, input).await;
+
+        // expect the output to be
+        // Group1 (tag_a = one)
+        // Series1 (tag_a = one, tag_b = ten)
+        // Series2 (tag_a = one, tag_b = ten)
+
+        assert_eq!(results.len(), 3, "results were\n{:#?}", results); // 3 series, two groups (one and two)
+
+        let group_1 = extract_group(results[0].as_ref().expect("correctly made group"));
+        let series_set1 = extract_series_set(results[1].as_ref().expect("Correctly converted"));
+        let series_set2 = extract_series_set(results[2].as_ref().expect("Correctly converted"));
+
+        assert_eq!(group_1.tags, &[]);
+
+        assert_eq!(*series_set1.table_name, "foo");
+        assert_eq!(
+            series_set1.tags,
+            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
+        );
+        assert_eq!(series_set1.start_row, 0);
+        assert_eq!(series_set1.num_rows, 1);
+
+        assert_eq!(*series_set2.table_name, "foo");
+        assert_eq!(
+            series_set2.tags,
+            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
+        );
+        assert_eq!(series_set2.start_row, 1);
+        assert_eq!(series_set2.num_rows, 1);
+
+        Ok(())
+    }
+
+    fn extract_group(item: &GroupedSeriesSetItem) -> &GroupDescription {
+        match item {
+            GroupedSeriesSetItem::GroupStart(group) => group,
+            _ => panic!("Expected group, but got: {:?}", item),
+        }
+    }
+
+    fn extract_series_set(item: &GroupedSeriesSetItem) -> &SeriesSet {
+        match item {
+            GroupedSeriesSetItem::GroupData(series_set) => series_set,
+            _ => panic!("Expected series set, but got: {:?}", item),
+        }
+    }
+
     /// Test helper: run conversion and return a Vec
     pub async fn convert<'a>(
         table_name: &'a str,
@@ -601,6 +859,41 @@ mod tests {
         tokio::task::spawn(async move {
             converter
                 .convert(table_name, tag_columns, field_columns, it)
+                .await
+                .expect("Conversion happened without error")
+        });
+
+        let mut results = Vec::new();
+        while let Some(r) = rx.recv().await {
+            results.push(r)
+        }
+        results
+    }
+
+    /// Test helper: run conversion to groups and return a Vec
+    pub async fn convert_groups<'a>(
+        table_name: &'a str,
+        tag_columns: &'a [&'a str],
+        num_prefix_tag_group_columns: usize,
+        field_columns: &'a [&'a str],
+        it: Box<dyn RecordBatchReader + Send>,
+    ) -> Vec<Result<GroupedSeriesSetItem>> {
+        let (tx, mut rx) = mpsc::channel(1);
+        let mut converter = GroupedSeriesSetConverter::new(tx);
+
+        let table_name = Arc::new(table_name.into());
+        let tag_columns = str_vec_to_arc_vec(tag_columns);
+        let field_columns = str_vec_to_arc_vec(field_columns);
+
+        tokio::task::spawn(async move {
+            converter
+                .convert(
+                    table_name,
+                    tag_columns,
+                    num_prefix_tag_group_columns,
+                    field_columns,
+                    it,
+                )
                 .await
                 .expect("Conversion happened without error")
         });
