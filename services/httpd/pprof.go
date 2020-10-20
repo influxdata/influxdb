@@ -81,8 +81,8 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 	// We parse the form here so that we can use the http.Request.Form map.
 	//
 	// Otherwise we'd have to use r.FormValue() which makes it impossible to
-	// distinuish between a form value that exists and has no value and a one
-	// that does not exist at all.
+	// distinuish between a form value that exists and has no value and one that
+	// does not exist at all.
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -123,7 +123,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 		// parse the duration encoded in the last "trace" value supplied.
 		duration, err := time.ParseDuration(last(vals))
 
-		// If we can't parse the duration or if the users supplies a negative
+		// If we can't parse the duration or if the user supplies a negative
 		// number, then set it to a reasonable default of 10s.
 		//
 		// This allows for stuff like ?trace=true -- which isn't recommened but
