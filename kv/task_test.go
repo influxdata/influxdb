@@ -34,17 +34,17 @@ func TestBoltTaskService(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			service := kv.NewService(zaptest.NewLogger(t), store, kv.ServiceConfig{
-				FluxLanguageService: fluxlang.DefaultService,
-			})
-
 			tenantStore := tenant.NewStore(store)
 			ts := tenant.NewService(tenantStore)
 
 			authStore, err := authorization.NewStore(store)
 			require.NoError(t, err)
 			authSvc := authorization.NewService(authStore, ts)
+
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			service := kv.NewService(zaptest.NewLogger(t), store, ts, kv.ServiceConfig{
+				FluxLanguageService: fluxlang.DefaultService,
+			})
 
 			go func() {
 				<-ctx.Done()
@@ -100,21 +100,28 @@ func newService(t *testing.T, ctx context.Context, c clock.Clock) *testService {
 
 	ts.Store = store
 
-	ts.Service = kv.NewService(zaptest.NewLogger(t), store, kv.ServiceConfig{
+	tenantStore := tenant.NewStore(store)
+	tenantSvc := tenant.NewService(tenantStore)
+
+	authStore, err := authorization.NewStore(store)
+	require.NoError(t, err)
+	authSvc := authorization.NewService(authStore, tenantSvc)
+
+	ts.Service = kv.NewService(zaptest.NewLogger(t), store, tenantSvc, kv.ServiceConfig{
 		Clock:               c,
 		FluxLanguageService: fluxlang.DefaultService,
 	})
 
 	ts.User = influxdb.User{Name: t.Name() + "-user"}
-	if err := ts.Service.CreateUser(ctx, &ts.User); err != nil {
+	if err := tenantSvc.CreateUser(ctx, &ts.User); err != nil {
 		t.Fatal(err)
 	}
 	ts.Org = influxdb.Organization{Name: t.Name() + "-org"}
-	if err := ts.Service.CreateOrganization(ctx, &ts.Org); err != nil {
+	if err := tenantSvc.CreateOrganization(ctx, &ts.Org); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := ts.Service.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+	if err := tenantSvc.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
 		ResourceType: influxdb.OrgsResourceType,
 		ResourceID:   ts.Org.ID,
 		UserID:       ts.User.ID,
@@ -128,7 +135,7 @@ func newService(t *testing.T, ctx context.Context, c clock.Clock) *testService {
 		UserID:      ts.User.ID,
 		Permissions: influxdb.OperPermissions(),
 	}
-	if err := ts.Service.CreateAuthorization(context.Background(), &ts.Auth); err != nil {
+	if err := authSvc.CreateAuthorization(context.Background(), &ts.Auth); err != nil {
 		t.Fatal(err)
 	}
 
@@ -269,20 +276,27 @@ func TestTaskRunCancellation(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	service := kv.NewService(zaptest.NewLogger(t), store, kv.ServiceConfig{
+	tenantStore := tenant.NewStore(store)
+	tenantSvc := tenant.NewService(tenantStore)
+
+	authStore, err := authorization.NewStore(store)
+	require.NoError(t, err)
+	authSvc := authorization.NewService(authStore, tenantSvc)
+
+	service := kv.NewService(zaptest.NewLogger(t), store, tenantSvc, kv.ServiceConfig{
 		FluxLanguageService: fluxlang.DefaultService,
 	})
 
 	u := &influxdb.User{Name: t.Name() + "-user"}
-	if err := service.CreateUser(ctx, u); err != nil {
+	if err := tenantSvc.CreateUser(ctx, u); err != nil {
 		t.Fatal(err)
 	}
 	o := &influxdb.Organization{Name: t.Name() + "-org"}
-	if err := service.CreateOrganization(ctx, o); err != nil {
+	if err := tenantSvc.CreateOrganization(ctx, o); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := service.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+	if err := tenantSvc.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
 		ResourceType: influxdb.OrgsResourceType,
 		ResourceID:   o.ID,
 		UserID:       u.ID,
@@ -296,7 +310,7 @@ func TestTaskRunCancellation(t *testing.T) {
 		UserID:      u.ID,
 		Permissions: influxdb.OperPermissions(),
 	}
-	if err := service.CreateAuthorization(context.Background(), &authz); err != nil {
+	if err := authSvc.CreateAuthorization(context.Background(), &authz); err != nil {
 		t.Fatal(err)
 	}
 

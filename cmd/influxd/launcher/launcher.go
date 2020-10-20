@@ -735,28 +735,23 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	serviceConfig := kv.ServiceConfig{
-		SessionLength:       time.Duration(m.sessionLength) * time.Minute,
-		FluxLanguageService: fluxlang.DefaultService,
-	}
-
-	flushers := flushers{}
+	var flushers flushers
 	switch m.storeType {
 	case BoltStore:
 		store := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), m.boltPath)
 		store.WithDB(m.boltClient.DB())
 		m.kvStore = store
-		m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
 			flushers = append(flushers, store)
 		}
+
 	case MemoryStore:
 		store := inmem.NewKVStore()
 		m.kvStore = store
-		m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
 			flushers = append(flushers, store)
 		}
+
 	default:
 		err := fmt.Errorf("unknown store type %s; expected bolt or memory", m.storeType)
 		m.log.Error("Failed opening bolt", zap.Error(err))
@@ -786,17 +781,26 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	)
 	m.reg.MustRegister(m.boltClient)
 
-	var (
-		variableSvc      platform.VariableService                 = m.kvService
-		sourceSvc        platform.SourceService                   = m.kvService
-		userLogSvc       platform.UserOperationLogService         = m.kvService
-		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
-		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
-		scraperTargetSvc platform.ScraperTargetStoreService       = m.kvService
-	)
-
 	tenantStore := tenant.NewStore(m.kvStore)
 	ts := tenant.NewSystem(tenantStore, m.log.With(zap.String("store", "new")), m.reg, metric.WithSuffix("new"))
+
+	serviceConfig := kv.ServiceConfig{
+		FluxLanguageService: fluxlang.DefaultService,
+	}
+
+	m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), m.kvStore, ts, serviceConfig)
+
+	var (
+		opLogSvc                                              = tenant.NewOpLogService(m.kvStore, m.kvService)
+		userLogSvc   platform.UserOperationLogService         = opLogSvc
+		bucketLogSvc platform.BucketOperationLogService       = opLogSvc
+		orgLogSvc    platform.OrganizationOperationLogService = opLogSvc
+	)
+	var (
+		variableSvc      platform.VariableService           = m.kvService
+		sourceSvc        platform.SourceService             = m.kvService
+		scraperTargetSvc platform.ScraperTargetStoreService = m.kvService
+	)
 
 	var authSvc platform.AuthorizationService
 	{
@@ -914,7 +918,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var taskSvc platform.TaskService
 	{
 		// create the task stack
-		combinedTaskService := taskbackend.NewAnalyticalStorage(m.log.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
+		combinedTaskService := taskbackend.NewAnalyticalStorage(
+			m.log.With(zap.String("service", "task-analytical-store")),
+			m.kvService,
+			ts.BucketService,
+			m.kvService,
+			pointsWriter,
+			query.QueryServiceBridge{AsyncQueryService: m.queryController},
+		)
 
 		executor, executorMetrics := executor.NewExecutor(
 			m.log.With(zap.String("service", "task-executor")),
@@ -1007,7 +1018,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var checkSvc platform.CheckService
 	{
 		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
-		checkSvc = checks.NewService(m.log.With(zap.String("svc", "checks")), m.kvStore, m.kvService, m.kvService)
+		checkSvc = checks.NewService(m.log.With(zap.String("svc", "checks")), m.kvStore, ts.OrganizationService, m.kvService)
 		checkSvc = middleware.NewCheckService(checkSvc, m.kvService, coordinator)
 	}
 
@@ -1111,8 +1122,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			m.log.Error("Failed creating new labels store", zap.Error(err))
 			return err
 		}
-		ls := label.NewService(labelsStore)
-		labelSvc = label.NewLabelController(m.flagger, m.kvService, ls)
+		labelSvc = label.NewService(labelsStore)
 	}
 
 	ts.BucketService = storage.NewBucketService(m.log, ts.BucketService, m.engine)
@@ -1228,7 +1238,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		ChronografService:               chronografSvc,
 		SecretService:                   secretSvc,
 		LookupService:                   resourceResolver,
-		DocumentService:                 m.kvService,
 		OrgLookupService:                resourceResolver,
 		WriteEventRecorder:              infprom.NewEventRecorder("write"),
 		QueryEventRecorder:              infprom.NewEventRecorder("query"),
@@ -1252,7 +1261,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
 			pkger.WithCheckSVC(authorizer.NewCheckService(b.CheckService, authedUrmSVC, authedOrgSVC)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
-			pkger.WithLabelSVC(authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)),
+			pkger.WithLabelSVC(label.NewAuthedLabelService(labelSvc, b.OrgLookupService)),
 			pkger.WithNotificationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, authedUrmSVC, authedOrgSVC)),
 			pkger.WithNotificationRuleSVC(authorizer.NewNotificationRuleStore(b.NotificationRuleStore, authedUrmSVC, authedOrgSVC)),
 			pkger.WithOrganizationService(authorizer.NewOrgService(b.OrganizationService)),
@@ -1283,12 +1292,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	onboardHTTPServer := tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
 
 	// feature flagging for new labels service
-	var oldLabelHandler nethttp.Handler
 	var labelHandler *label.LabelHandler
 	{
 		b := m.apibackend
-		labelSvcWithOrg := authorizer.NewLabelServiceWithOrg(labelSvc, b.OrgLookupService)
-		oldLabelHandler = http.NewLabelHandler(m.log.With(zap.String("handler", "labels")), labelSvcWithOrg, kithttp.ErrorHandler(0))
 
 		labelSvc = label.NewAuthedLabelService(labelSvc, b.OrgLookupService)
 		labelSvc = label.NewLabelLogger(m.log.With(zap.String("handler", "labels")), labelSvc)
@@ -1363,7 +1369,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(templatesHTTPServer),
 			http.WithResourceHandler(onboardHTTPServer),
 			http.WithResourceHandler(authHTTPServer),
-			http.WithResourceHandler(kithttp.NewFeatureHandler(feature.NewLabelPackage(), m.flagger, oldLabelHandler, labelHandler, labelHandler.Prefix())),
+			http.WithResourceHandler(labelHandler),
 			http.WithResourceHandler(sessionHTTPServer.SignInResourceHandler()),
 			http.WithResourceHandler(sessionHTTPServer.SignOutResourceHandler()),
 			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),

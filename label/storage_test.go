@@ -11,35 +11,38 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
+	"github.com/influxdata/influxdb/v2/mock"
 	"go.uber.org/zap/zaptest"
 )
 
 func TestLabels(t *testing.T) {
 	setup := func(t *testing.T, store *label.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
-			err := store.CreateLabel(context.Background(), tx, &influxdb.Label{
-				ID:    influxdb.ID(i),
-				Name:  fmt.Sprintf("labelname%d", i),
-				OrgID: influxdb.ID(i),
-			})
+			mock.SetIDForFunc(&store.IDGenerator, influxdb.ID(i), func() {
+				err := store.CreateLabel(context.Background(), tx, &influxdb.Label{
+					Name:  fmt.Sprintf("labelname%d", i),
+					OrgID: influxdb.ID(i),
+				})
 
-			if err != nil {
-				t.Fatal(err)
-			}
+				if err != nil {
+					t.Fatal(err)
+				}
+			})
 		}
 	}
 
 	setupForList := func(t *testing.T, store *label.Store, tx kv.Tx) {
 		setup(t, store, tx)
 
-		err := store.CreateLabel(context.Background(), tx, &influxdb.Label{
-			ID:    influxdb.ID(11),
-			Name:  fmt.Sprintf("labelname%d", 11),
-			OrgID: influxdb.ID(5),
+		mock.SetIDForFunc(&store.IDGenerator, influxdb.ID(11), func() {
+			err := store.CreateLabel(context.Background(), tx, &influxdb.Label{
+				Name:  fmt.Sprintf("labelname%d", 11),
+				OrgID: influxdb.ID(5),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
 	}
 
 	tt := []struct {

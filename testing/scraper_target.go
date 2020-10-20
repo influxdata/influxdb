@@ -3,6 +3,7 @@ package testing
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"sort"
 	"testing"
 
@@ -42,13 +43,11 @@ var (
 		URL:      "url3",
 		ID:       MustIDBase16(targetThreeID),
 	}
-	org1 = influxdb.Organization{
-		ID:   idOne,
-		Name: "org1",
-	}
-	org2 = influxdb.Organization{
-		ID:   idTwo,
-		Name: "org2",
+	newOrg = func(id influxdb.ID) *influxdb.Organization {
+		return &influxdb.Organization{
+			ID:   id,
+			Name: fmt.Sprintf("org%d", int(id)),
+		}
 	}
 )
 
@@ -137,7 +136,7 @@ func AddTarget(
 			fields: TargetFields{
 				IDGenerator:   mock.NewIDGenerator(targetOneID, t),
 				Targets:       []*influxdb.ScraperTarget{},
-				Organizations: []*influxdb.Organization{&org1},
+				Organizations: []*influxdb.Organization{newOrg(influxdb.ID(1))},
 			},
 			args: args{
 				userID: MustIDBase16(threeID),
@@ -166,7 +165,7 @@ func AddTarget(
 			name: "create target with invalid org id",
 			fields: TargetFields{
 				IDGenerator:   mock.NewIDGenerator(targetTwoID, t),
-				Organizations: []*influxdb.Organization{&org1},
+				Organizations: []*influxdb.Organization{newOrg(influxdb.ID(1))},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						Name:     "name1",
@@ -209,7 +208,7 @@ func AddTarget(
 			name: "create target with invalid bucket id",
 			fields: TargetFields{
 				IDGenerator:   mock.NewIDGenerator(targetTwoID, t),
-				Organizations: []*influxdb.Organization{&org1},
+				Organizations: []*influxdb.Organization{newOrg(influxdb.ID(1))},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						Name:     "name1",
@@ -262,7 +261,7 @@ func AddTarget(
 						ID:       MustIDBase16(targetOneID),
 					},
 				},
-				Organizations: []*influxdb.Organization{&org1, &org2},
+				Organizations: []*influxdb.Organization{newOrg(influxdb.ID(1)), newOrg(influxdb.ID(2))},
 			},
 			args: args{
 				userID: MustIDBase16(threeID),
@@ -341,8 +340,8 @@ func ListTargets(
 			name: "get all targets",
 			fields: TargetFields{
 				Organizations: []*influxdb.Organization{
-					&org1,
-					&org2,
+					newOrg(influxdb.ID(1)),
+					newOrg(influxdb.ID(2)),
 				},
 				Targets: []*influxdb.ScraperTarget{
 					&target1,
@@ -365,8 +364,8 @@ func ListTargets(
 			name: "filter by name",
 			fields: TargetFields{
 				Organizations: []*influxdb.Organization{
-					&org1,
-					&org2,
+					newOrg(influxdb.ID(1)),
+					newOrg(influxdb.ID(2)),
 				},
 				Targets: []*influxdb.ScraperTarget{
 					&target1,
@@ -389,8 +388,8 @@ func ListTargets(
 			name: "filter by id",
 			fields: TargetFields{
 				Organizations: []*influxdb.Organization{
-					&org1,
-					&org2,
+					newOrg(influxdb.ID(1)),
+					newOrg(influxdb.ID(2)),
 				},
 				Targets: []*influxdb.ScraperTarget{
 					&target1,
@@ -413,8 +412,8 @@ func ListTargets(
 			name: "filter targets by orgID",
 			fields: TargetFields{
 				Organizations: []*influxdb.Organization{
-					&org1,
-					&org2,
+					newOrg(influxdb.ID(1)),
+					newOrg(influxdb.ID(2)),
 				},
 				Targets: []*influxdb.ScraperTarget{
 					&target1,
@@ -435,36 +434,11 @@ func ListTargets(
 			},
 		},
 		{
-			name: "filter targets by orgID not exist",
-			fields: TargetFields{
-				Organizations: []*influxdb.Organization{
-					&org2,
-				},
-				Targets: []*influxdb.ScraperTarget{
-					&target1,
-					&target2,
-					&target3,
-				},
-			},
-			args: args{
-				filter: influxdb.ScraperTargetFilter{
-					OrgID: idPtr(idOne),
-				},
-			},
-			wants: wants{
-				targets: []influxdb.ScraperTarget{},
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
-					Msg:  "organization not found",
-				},
-			},
-		},
-		{
 			name: "filter targets by org name",
 			fields: TargetFields{
 				Organizations: []*influxdb.Organization{
-					&org1,
-					&org2,
+					newOrg(influxdb.ID(1)),
+					newOrg(influxdb.ID(2)),
 				},
 				Targets: []*influxdb.ScraperTarget{
 					&target1,
@@ -488,7 +462,7 @@ func ListTargets(
 			name: "filter targets by org name not exist",
 			fields: TargetFields{
 				Organizations: []*influxdb.Organization{
-					&org1,
+					newOrg(influxdb.ID(1)),
 				},
 				Targets: []*influxdb.ScraperTarget{
 					&target1,
@@ -548,7 +522,7 @@ func GetTargetByID(
 		{
 			name: "basic find target by id",
 			fields: TargetFields{
-				Organizations: []*influxdb.Organization{&org1},
+				Organizations: []*influxdb.Organization{newOrg(influxdb.ID(1))},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
@@ -643,7 +617,7 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 		{
 			name: "delete targets using exist id",
 			fields: TargetFields{
-				Organizations: []*influxdb.Organization{&org1},
+				Organizations: []*influxdb.Organization{newOrg(influxdb.ID(1))},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
@@ -674,7 +648,7 @@ func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetSto
 		{
 			name: "delete targets using id that does not exist",
 			fields: TargetFields{
-				Organizations: []*influxdb.Organization{&org1},
+				Organizations: []*influxdb.Organization{newOrg(influxdb.ID(1))},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
@@ -756,7 +730,7 @@ func UpdateTarget(
 		{
 			name: "update url with blank id",
 			fields: TargetFields{
-				Organizations: []*influxdb.Organization{&org1},
+				Organizations: []*influxdb.Organization{newOrg(influxdb.ID(1))},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
@@ -786,7 +760,7 @@ func UpdateTarget(
 		{
 			name: "update url with non exist id",
 			fields: TargetFields{
-				Organizations: []*influxdb.Organization{&org1},
+				Organizations: []*influxdb.Organization{newOrg(influxdb.ID(1))},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
@@ -817,7 +791,7 @@ func UpdateTarget(
 		{
 			name: "update url",
 			fields: TargetFields{
-				Organizations: []*influxdb.Organization{&org1},
+				Organizations: []*influxdb.Organization{newOrg(influxdb.ID(1))},
 				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),

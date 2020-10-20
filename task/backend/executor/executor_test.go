@@ -13,6 +13,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kit/prom"
@@ -25,7 +26,9 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/backend/executor/mock"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/opentracing/opentracing-go"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap/zaptest"
 )
@@ -67,8 +70,16 @@ func taskExecutorSystem(t *testing.T) tes {
 	ctrl := gomock.NewController(t)
 	ps := mock.NewMockPermissionService(ctrl)
 	ps.EXPECT().FindPermissionForUser(gomock.Any(), gomock.Any()).Return(influxdb.PermissionSet{}, nil).AnyTimes()
+
+	tenantStore := tenant.NewStore(store)
+	tenantSvc := tenant.NewService(tenantStore)
+
+	authStore, err := authorization.NewStore(store)
+	require.NoError(t, err)
+	authSvc := authorization.NewService(authStore, tenantSvc)
+
 	var (
-		svc = kv.NewService(logger, store, kv.ServiceConfig{
+		svc = kv.NewService(logger, store, tenantSvc, kv.ServiceConfig{
 			FluxLanguageService: fluxlang.DefaultService,
 		})
 
@@ -81,7 +92,7 @@ func taskExecutorSystem(t *testing.T) tes {
 		metrics: metrics,
 		i:       svc,
 		tcs:     tcs,
-		tc:      createCreds(t, svc),
+		tc:      createCreds(t, tenantSvc, tenantSvc, authSvc),
 	}
 }
 

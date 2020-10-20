@@ -16,7 +16,9 @@ import (
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
+	"github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/tenant"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -55,7 +57,13 @@ func TestBoltNotificationRuleStore(t *testing.T) {
 
 func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, influxdb.TaskService, func()) {
 	logger := zaptest.NewLogger(t)
-	kvsvc := kv.NewService(logger, s, kv.ServiceConfig{
+
+	var (
+		tenantStore = tenant.NewStore(s)
+		tenantSvc   = tenant.NewService(tenantStore)
+	)
+
+	kvsvc := kv.NewService(logger, s, tenantSvc, kv.ServiceConfig{
 		FluxLanguageService: fluxlang.DefaultService,
 	})
 	kvsvc.IDGenerator = f.IDGenerator
@@ -64,15 +72,14 @@ func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.
 		kvsvc.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
 
-	var (
-		tenantStore = tenant.NewStore(s)
-		tenantSvc   = tenant.NewService(tenantStore)
-	)
+	secretStore, err := secret.NewStore(s)
+	require.NoError(t, err)
+	secretSvc := secret.NewService(secretStore)
 
 	endpStore := endpointservice.NewStore(s)
 	endpStore.IDGenerator = f.IDGenerator
 	endpStore.TimeGenerator = f.TimeGenerator
-	endp := endpointservice.New(endpStore, kvsvc)
+	endp := endpointservice.New(endpStore, secretSvc)
 
 	svc, err := New(logger, s, kvsvc, tenantSvc, endp)
 	if err != nil {

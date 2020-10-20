@@ -16,6 +16,8 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+var user1ID = influxtesting.MustIDBase16("020f755c3c082001")
+
 // NewMockDeleteBackend returns a DeleteBackend with mock services.
 func NewMockDeleteBackend(t *testing.T) *DeleteBackend {
 	return &DeleteBackend{

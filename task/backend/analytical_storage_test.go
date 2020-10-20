@@ -44,16 +44,16 @@ func TestAnalyticalStore(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			svc := kv.NewService(logger, store, kv.ServiceConfig{
-				FluxLanguageService: fluxlang.DefaultService,
-			})
-
 			tenantStore := tenant.NewStore(store)
 			ts := tenant.NewService(tenantStore)
 
 			authStore, err := authorization.NewStore(store)
 			require.NoError(t, err)
 			authSvc := authorization.NewService(authStore, ts)
+
+			svc := kv.NewService(logger, store, ts, kv.ServiceConfig{
+				FluxLanguageService: fluxlang.DefaultService,
+			})
 
 			metaClient := meta.NewClient(meta.NewConfig(), store)
 			require.NoError(t, metaClient.Open())
