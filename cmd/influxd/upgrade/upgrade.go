@@ -115,13 +115,13 @@ func NewCommand() *cobra.Command {
 		Use:   "upgrade",
 		Short: "Upgrade a 1.x version of InfluxDB",
 		Long: `
-    Upgrades a 1.x version of InfluxDB by performing following actions:
-      1. Reads 1.x config file and creates 2.x config file with matching options. Unsupported 1.x options are reported.
-      2. Copies and upgrades 1.x database files.
-      3. Creates a script for creating 1.x users and their permissions. This scripts needs to be revised and run manually after starting 2.x.
+    Upgrades a 1.x version of InfluxDB by performing the following actions:
+      1. Reads the 1.x config file and creates a 2.x config file with matching options. Unsupported 1.x options are reported.
+      2. Copies 1.x database files.
+      3. Generates a script that will create tokens with permissions equivalent to the 1.x users. This script needs to be revised and run manually after starting 2.x.
 
-    If config file is not available, 1.x db folder (--v1-dir options) is taken as an input. 
-    Target 2.x database dir is specified by the --engine-path option. If changed, bolt path should to be changed as well.
+    If the config file is not available, 1.x db folder (--v1-dir options) is taken as an input.
+    Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
 `,
 		RunE: runUpgradeE,
 	}
@@ -190,7 +190,7 @@ func NewCommand() *cobra.Command {
 			DestP:   &options.target.retention,
 			Flag:    "retention",
 			Default: "",
-			Desc:    "optional: duration bucket will retain data. 0 is infinite. Default is 0.",
+			Desc:    "optional: duration bucket will retain data. 0 is infinite. The default is 0.",
 			Short:   'r',
 		},
 		{
@@ -228,7 +228,7 @@ func NewCommand() *cobra.Command {
 			DestP:   &options.force,
 			Flag:    "force",
 			Default: false,
-			Desc:    "skip confirmation prompt",
+			Desc:    "skip the confirmation prompt",
 			Short:   'f',
 		},
 	}
