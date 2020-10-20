@@ -2,7 +2,6 @@ package upgrade
 
 import (
 	"context"
-	"github.com/dustin/go-humanize"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -10,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	"github.com/dustin/go-humanize"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
@@ -161,7 +162,7 @@ func TestUpgradeRealDB(t *testing.T) {
 		}
 	}
 
-	auths, _, err := v2.kvService.FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
+	auths, _, err := v2.authSvcV2.FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
 	require.Nil(t, err)
 	require.Len(t, auths, 1)
 

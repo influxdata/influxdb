@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -29,7 +30,7 @@ func initBoltVariableService(f influxdbtesting.VariableFields, t *testing.T) (in
 
 func initVariableService(s kv.SchemaStore, f influxdbtesting.VariableFields, t *testing.T) (influxdb.VariableService, string, func()) {
 	ctx := context.Background()
-	svc := kv.NewService(zaptest.NewLogger(t), s)
+	svc := kv.NewService(zaptest.NewLogger(t), s, &mock.OrganizationService{})
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if svc.TimeGenerator == nil {

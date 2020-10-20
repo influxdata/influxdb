@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/inmem"
-	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/tenant"
@@ -162,13 +162,22 @@ func TestUpgradeSecurity(t *testing.T) {
 			require.NoError(t, err)
 			err = migrator.Up(ctx)
 			require.NoError(t, err)
-			authStore, err := authv1.NewStore(kvStore)
+
+			authStoreV1, err := authv1.NewStore(kvStore)
 			require.NoError(t, err)
+
 			tenantStore := tenant.NewStore(kvStore)
 			tenantSvc := tenant.NewService(tenantStore)
+
+			authStoreV2, err := authorization.NewStore(kvStore)
+			require.NoError(t, err)
+
 			v2 := &influxDBv2{
-				authSvc:    authv1.NewService(authStore, tenantSvc),
-				onboardSvc: tenant.NewOnboardService(tenantSvc, kv.NewService(zap.NewNop(), kvStore, kv.ServiceConfig{})),
+				authSvc: authv1.NewService(authStoreV1, tenantSvc),
+				onboardSvc: tenant.NewOnboardService(
+					tenantSvc,
+					authorization.NewService(authStoreV2, tenantSvc),
+				),
 			}
 
 			// onboard admin

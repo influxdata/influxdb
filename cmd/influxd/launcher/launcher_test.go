@@ -9,8 +9,9 @@ import (
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
-	"github.com/influxdata/influxdb/v2/http"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/tenant"
 )
 
 // Default context.
@@ -23,7 +24,12 @@ func TestLauncher_Setup(t *testing.T) {
 	}
 	defer l.Shutdown(ctx)
 
-	svc := &http.SetupService{Addr: l.URL()}
+	client, err := http.NewHTTPClient(l.URL(), "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc := &tenant.OnboardClientService{Client: client}
 	if results, err := svc.OnboardInitialUser(ctx, &platform.OnboardingRequest{
 		User:     "USER",
 		Password: "PASSWORD",

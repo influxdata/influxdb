@@ -42,22 +42,15 @@ type Service struct {
 	Token              string
 	InsecureSkipVerify bool
 
-	*AuthorizationService
 	*BackupService
-	*BucketService
 	*TaskService
-	*OrganizationService
 	*NotificationRuleService
-	*UserService
 	*VariableService
 	*WriteService
-	DocumentService
 	*CheckService
 	*NotificationEndpointService
-	*UserResourceMappingService
 	*TelegrafService
 	*LabelService
-	*SecretService
 	DBRPMappingServiceV2 *dbrp.Client
 }
 
@@ -75,30 +68,23 @@ type Service struct {
 // in the behavior of the returned service.
 func NewService(httpClient *httpc.Client, addr, token string) (*Service, error) {
 	return &Service{
-		Addr:                 addr,
-		Token:                token,
-		AuthorizationService: &AuthorizationService{Client: httpClient},
+		Addr:  addr,
+		Token: token,
 		BackupService: &BackupService{
 			Addr:  addr,
 			Token: token,
 		},
-		BucketService:           &BucketService{Client: httpClient},
 		TaskService:             &TaskService{Client: httpClient},
-		OrganizationService:     &OrganizationService{Client: httpClient},
 		NotificationRuleService: &NotificationRuleService{Client: httpClient},
-		UserService:             &UserService{Client: httpClient},
 		VariableService:         &VariableService{Client: httpClient},
 		WriteService: &WriteService{
 			Addr:  addr,
 			Token: token,
 		},
-		DocumentService:             NewDocumentService(httpClient),
 		CheckService:                &CheckService{Client: httpClient},
 		NotificationEndpointService: &NotificationEndpointService{Client: httpClient},
-		UserResourceMappingService:  &UserResourceMappingService{Client: httpClient},
 		TelegrafService:             NewTelegrafService(httpClient),
 		LabelService:                &LabelService{Client: httpClient},
-		SecretService:               &SecretService{Client: httpClient},
 		DBRPMappingServiceV2:        dbrp.NewClient(httpClient),
 	}, nil
 }

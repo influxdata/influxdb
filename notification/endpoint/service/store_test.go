@@ -14,7 +14,9 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	endpointsTesting "github.com/influxdata/influxdb/v2/notification/endpoint/service/testing"
+	"github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/tenant"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -80,7 +82,6 @@ func initInmemNotificationEndpointService(f endpointsTesting.NotificationEndpoin
 
 func initNotificationEndpointService(s kv.SchemaStore, f endpointsTesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
 	ctx := context.Background()
-	logger := zaptest.NewLogger(t)
 
 	tenantStore := tenant.NewStore(s)
 	if f.IDGenerator != nil {
@@ -90,7 +91,9 @@ func initNotificationEndpointService(s kv.SchemaStore, f endpointsTesting.Notifi
 
 	tenantSvc := tenant.NewService(tenantStore)
 
-	secretSvc := kv.NewService(logger, s)
+	secretStore, err := secret.NewStore(s)
+	require.NoError(t, err)
+	secretSvc := secret.NewService(secretStore)
 
 	store := service.NewStore(s)
 	store.IDGenerator = f.IDGenerator

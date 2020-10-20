@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 	"github.com/tcnksm/go-input"
 )
@@ -362,10 +363,10 @@ func newUserSVC() (cmdUserDeps, error) {
 	if err != nil {
 		return cmdUserDeps{}, err
 	}
-	userSvc := &http.UserService{Client: httpClient}
-	orgSvc := &http.OrganizationService{Client: httpClient}
-	passSvc := &http.PasswordService{Client: httpClient}
-	urmSvc := &http.UserResourceMappingService{Client: httpClient}
+	userSvc := &tenant.UserClientService{Client: httpClient}
+	orgSvc := &tenant.OrgClientService{Client: httpClient}
+	passSvc := &tenant.PasswordClientService{Client: httpClient}
+	urmSvc := &tenant.UserResourceMappingClient{Client: httpClient}
 	getPassFn := internal.GetPassword
 
 	return cmdUserDeps{

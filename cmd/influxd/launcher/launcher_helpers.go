@@ -22,10 +22,12 @@ import (
 	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/tenant"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )
@@ -363,9 +365,9 @@ func (tl *TestLauncher) FluxQueryService() *http.FluxQueryService {
 	return &http.FluxQueryService{Addr: tl.URL(), Token: tl.Auth.Token}
 }
 
-func (tl *TestLauncher) BucketService(tb testing.TB) *http.BucketService {
+func (tl *TestLauncher) BucketService(tb testing.TB) *tenant.BucketClientService {
 	tb.Helper()
-	return &http.BucketService{Client: tl.HTTPClient(tb)}
+	return &tenant.BucketClientService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) DashboardService(tb testing.TB) influxdb.DashboardService {
@@ -373,9 +375,9 @@ func (tl *TestLauncher) DashboardService(tb testing.TB) influxdb.DashboardServic
 	return &dashboardTransport.DashboardService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) LabelService(tb testing.TB) *http.LabelService {
+func (tl *TestLauncher) LabelService(tb testing.TB) influxdb.LabelService {
 	tb.Helper()
-	return &http.LabelService{Client: tl.HTTPClient(tb)}
+	return &label.LabelClientService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) NotificationEndpointService(tb testing.TB) *http.NotificationEndpointService {
@@ -389,7 +391,8 @@ func (tl *TestLauncher) NotificationRuleService(tb testing.TB) influxdb.Notifica
 }
 
 func (tl *TestLauncher) OrgService(tb testing.TB) influxdb.OrganizationService {
-	return tl.kvService
+	tb.Helper()
+	return &tenant.OrgClientService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) PkgerService(tb testing.TB) pkger.SVC {

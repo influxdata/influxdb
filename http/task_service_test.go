@@ -18,7 +18,6 @@ import (
 	"github.com/influxdata/influxdb/v2/authorization"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/mock"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
@@ -31,6 +30,9 @@ import (
 // NewMockTaskBackend returns a TaskBackend with mock services.
 func NewMockTaskBackend(t *testing.T) *TaskBackend {
 	t.Helper()
+	store := NewTestInmemStore(t)
+	tenantService := tenant.NewService(tenant.NewStore(store))
+
 	return &TaskBackend{
 		log: zaptest.NewLogger(t).With(zap.String("handler", "task")),
 
@@ -60,7 +62,7 @@ func NewMockTaskBackend(t *testing.T) *TaskBackend {
 				return org, nil
 			},
 		},
-		UserResourceMappingService: newInMemKVSVC(t),
+		UserResourceMappingService: tenantService,
 		LabelService:               mock.NewLabelService(),
 		UserService:                mock.NewUserService(),
 	}
@@ -819,14 +821,19 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 func TestTaskHandler_NotFoundStatus(t *testing.T) {
 	// Ensure that the HTTP handlers return 404s for missing resources, and OKs for matching.
 
-	im := newInMemKVSVC(t)
+	store := NewTestInmemStore(t)
+	tenantService := tenant.NewService(tenant.NewStore(store))
+
+	labelStore, _ := label.NewStore(store)
+	labelService := label.NewService(labelStore)
+
 	taskBackend := NewMockTaskBackend(t)
 	taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 	h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
-	h.UserResourceMappingService = im
-	h.LabelService = im
-	h.UserService = im
-	h.OrganizationService = im
+	h.UserResourceMappingService = tenantService
+	h.LabelService = labelService
+	h.UserService = tenantService
+	h.OrganizationService = tenantService
 
 	o := influxdb.Organization{Name: "o"}
 	ctx := context.Background()
@@ -1308,10 +1315,21 @@ func TestTaskHandler_Sessions(t *testing.T) {
 	t.Skip("rework these")
 	// Common setup to get a working base for using tasks.
 	st := NewTestInmemStore(t)
-	i := kv.NewService(zaptest.NewLogger(t), st)
 
 	tStore := tenant.NewStore(st)
 	tSvc := tenant.NewService(tStore)
+
+	labelStore, err := label.NewStore(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	labelService := label.NewService(labelStore)
+
+	authStore, err := authorization.NewStore(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authService := authorization.NewService(authStore, tSvc)
 
 	ctx := context.Background()
 
@@ -1357,10 +1375,10 @@ func TestTaskHandler_Sessions(t *testing.T) {
 			log:              zaptest.NewLogger(t),
 
 			TaskService:                ts,
-			AuthorizationService:       i,
+			AuthorizationService:       authService,
 			OrganizationService:        tSvc,
 			UserResourceMappingService: tSvc,
-			LabelService:               i,
+			LabelService:               labelService,
 			UserService:                tSvc,
 			BucketService:              tSvc,
 		})
@@ -1369,7 +1387,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 	t.Run("get runs for a task", func(t *testing.T) {
 		// Unique authorization to associate with our fake task.
 		taskAuth := &influxdb.Authorization{OrgID: o.ID, UserID: u.ID}
-		if err := i.CreateAuthorization(ctx, taskAuth); err != nil {
+		if err := authService.CreateAuthorization(ctx, taskAuth); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1434,7 +1452,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 		// Other user without permissions on the task or authorization should be disallowed.
 		otherUser := &influxdb.User{Name: "other-" + t.Name()}
-		if err := i.CreateUser(ctx, otherUser); err != nil {
+		if err := tSvc.CreateUser(ctx, otherUser); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1461,7 +1479,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 	t.Run("get single run for a task", func(t *testing.T) {
 		// Unique authorization to associate with our fake task.
 		taskAuth := &influxdb.Authorization{OrgID: o.ID, UserID: u.ID}
-		if err := i.CreateAuthorization(ctx, taskAuth); err != nil {
+		if err := authService.CreateAuthorization(ctx, taskAuth); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1528,7 +1546,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 		// Other user without permissions on the task or authorization should be disallowed.
 		otherUser := &influxdb.User{Name: "other-" + t.Name()}
-		if err := i.CreateUser(ctx, otherUser); err != nil {
+		if err := tSvc.CreateUser(ctx, otherUser); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1555,7 +1573,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 	t.Run("get logs for a run", func(t *testing.T) {
 		// Unique authorization to associate with our fake task.
 		taskAuth := &influxdb.Authorization{OrgID: o.ID, UserID: u.ID}
-		if err := i.CreateAuthorization(ctx, taskAuth); err != nil {
+		if err := authService.CreateAuthorization(ctx, taskAuth); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1623,7 +1641,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 		// Other user without permissions on the task or authorization should be disallowed.
 		otherUser := &influxdb.User{Name: "other-" + t.Name()}
-		if err := i.CreateUser(ctx, otherUser); err != nil {
+		if err := tSvc.CreateUser(ctx, otherUser); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1650,7 +1668,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 	t.Run("retry a run", func(t *testing.T) {
 		// Unique authorization to associate with our fake task.
 		taskAuth := &influxdb.Authorization{OrgID: o.ID, UserID: u.ID}
-		if err := i.CreateAuthorization(ctx, taskAuth); err != nil {
+		if err := authService.CreateAuthorization(ctx, taskAuth); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1717,7 +1735,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 		// Other user without permissions on the task or authorization should be disallowed.
 		otherUser := &influxdb.User{Name: "other-" + t.Name()}
-		if err := i.CreateUser(ctx, otherUser); err != nil {
+		if err := tSvc.CreateUser(ctx, otherUser); err != nil {
 			t.Fatal(err)
 		}
 
