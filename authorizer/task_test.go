@@ -6,23 +6,26 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	pctx "github.com/influxdata/influxdb/v2/context"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
-	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zaptest"
 )
 
 func TestOnboardingValidation(t *testing.T) {
-	svc := newKVSVC(t)
+	_, onboard := setup(t)
+
 	ts := authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(3, 2, 1))
 
-	r, err := svc.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
+	r, err := onboard.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
 		User:            "Setec Astronomy",
 		Password:        "too many secrets",
 		Org:             "thing",
@@ -120,9 +123,9 @@ func TestValidations(t *testing.T) {
 		otherOrg = &influxdb.Organization{Name: "other_org"}
 	)
 
-	svc := newKVSVC(t)
+	svc, onboard := setup(t)
 
-	r, err := svc.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
+	r, err := onboard.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
 		User:            "Setec Astronomy",
 		Password:        "too many secrets",
 		Org:             "thing",
@@ -572,7 +575,26 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 	}
 }
 
-func newKVSVC(t *testing.T) *kv.Service {
+func setup(t *testing.T) (*tenant.Service, influxdb.OnboardingService) {
+	t.Helper()
+
+	store := newStore(t)
+
+	svc := tenant.NewService(tenant.NewStore(store))
+
+	authStore, err := authorization.NewStore(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	authSvc := authorization.NewService(authStore, svc)
+
+	onboard := tenant.NewOnboardService(svc, authSvc)
+
+	return svc, onboard
+}
+
+func newStore(t *testing.T) kv.Store {
 	t.Helper()
 
 	store := inmem.NewKVStore()
@@ -581,5 +603,5 @@ func newKVSVC(t *testing.T) *kv.Service {
 		t.Fatal(err)
 	}
 
-	return kv.NewService(zaptest.NewLogger(t), store)
+	return store
 }

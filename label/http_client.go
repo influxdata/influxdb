@@ -22,6 +22,10 @@ func resourceIDPath(resourceType influxdb.ResourceType, resourceID influxdb.ID, 
 	return path.Join("/api/v2/", string(resourceType), resourceID.String(), p)
 }
 
+func resourceIDMappingPath(resourceType influxdb.ResourceType, resourceID influxdb.ID, p string, labelID influxdb.ID) string {
+	return path.Join("/api/v2/", string(resourceType), resourceID.String(), p, labelID.String())
+}
+
 // CreateLabel creates a new label.
 func (s *LabelClientService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	var lr labelResponse
@@ -130,6 +134,6 @@ func (s *LabelClientService) DeleteLabelMapping(ctx context.Context, m *influxdb
 	}
 
 	return s.Client.
-		Delete(resourceIDPath(m.ResourceType, m.ResourceID, "labels")).
+		Delete(resourceIDMappingPath(m.ResourceType, m.ResourceID, "labels", m.LabelID)).
 		Do(ctx)
 }

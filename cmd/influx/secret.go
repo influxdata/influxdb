@@ -6,7 +6,8 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
-	"github.com/influxdata/influxdb/v2/http"
+	isecret "github.com/influxdata/influxdb/v2/secret"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 	"github.com/tcnksm/go-input"
 )
@@ -244,7 +245,8 @@ func newSecretSVCs() (influxdb.SecretService, influxdb.OrganizationService, func
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	orgSvc := &http.OrganizationService{Client: httpClient}
 
-	return &http.SecretService{Client: httpClient}, orgSvc, internal.GetSecret, nil
+	orgSvc := &tenant.OrgClientService{Client: httpClient}
+
+	return &isecret.Client{Client: httpClient}, orgSvc, internal.GetSecret, nil
 }

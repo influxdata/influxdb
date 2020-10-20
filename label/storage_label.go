@@ -12,19 +12,11 @@ import (
 
 func (s *Store) CreateLabel(ctx context.Context, tx kv.Tx, l *influxdb.Label) error {
 	// if the provided ID is invalid, or already maps to an existing Auth, then generate a new one
-	if !l.ID.Valid() {
-		id, err := s.generateSafeID(ctx, tx, labelBucket)
-		if err != nil {
-			return nil
-		}
-		l.ID = id
-	} else if err := uniqueID(ctx, tx, l.ID); err != nil {
-		id, err := s.generateSafeID(ctx, tx, labelBucket)
-		if err != nil {
-			return nil
-		}
-		l.ID = id
+	id, err := s.generateSafeID(ctx, tx, labelBucket)
+	if err != nil {
+		return nil
 	}
+	l.ID = id
 
 	v, err := json.Marshal(l)
 	if err != nil {
@@ -472,30 +464,4 @@ func forEachLabel(ctx context.Context, tx kv.Tx, fn func(*influxdb.Label) bool) 
 	}
 
 	return cur.Close()
-}
-
-// uniqueID returns nil if the ID provided is unique, returns an error otherwise
-func uniqueID(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
-	encodedID, err := id.Encode()
-	if err != nil {
-		return influxdb.ErrInvalidID
-	}
-
-	b, err := tx.Bucket(labelBucket)
-	if err != nil {
-		return ErrInternalServiceError(err)
-	}
-
-	_, err = b.Get(encodedID)
-	// if not found then the ID is unique
-	if kv.IsNotFound(err) {
-		return nil
-	}
-	// no error means this is not unique
-	if err == nil {
-		return kv.NotUniqueError
-	}
-
-	// any other error is some sort of internal server error
-	return kv.UnexpectedIndexError(err)
 }

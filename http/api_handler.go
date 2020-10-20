@@ -1,9 +1,11 @@
 package http
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
@@ -142,10 +144,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	deleteBackend := NewDeleteBackend(b.Logger.With(zap.String("handler", "delete")), b)
 	h.Mount(prefixDelete, NewDeleteHandler(b.Logger, deleteBackend))
 
-	documentBackend := NewDocumentBackend(b.Logger.With(zap.String("handler", "document")), b)
-	documentBackend.DocumentService = authorizer.NewDocumentService(b.DocumentService)
-	h.Mount(prefixDocuments, NewDocumentHandler(documentBackend))
-
 	fluxBackend := NewFluxBackend(b.Logger.With(zap.String("handler", "query")), b)
 	h.Mount(prefixQuery, NewFluxHandler(b.Logger, fluxBackend))
 
@@ -267,4 +265,26 @@ func serveLinksHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
 		}
 	}
 	return http.HandlerFunc(fn)
+}
+
+func decodeIDFromCtx(ctx context.Context, name string) (influxdb.ID, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	idStr := params.ByName(name)
+
+	if idStr == "" {
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "url missing " + name,
+		}
+	}
+
+	var i influxdb.ID
+	if err := i.DecodeFromString(idStr); err != nil {
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}
+	}
+
+	return i, nil
 }

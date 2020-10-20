@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -29,7 +30,7 @@ func initBoltKeyValueLog(f influxdbtesting.KeyValueLogFields, t *testing.T) (inf
 
 func initKeyValueLog(s kv.SchemaStore, f influxdbtesting.KeyValueLogFields, t *testing.T) (influxdb.KeyValueLog, func()) {
 	ctx := context.Background()
-	svc := kv.NewService(zaptest.NewLogger(t), s)
+	svc := kv.NewService(zaptest.NewLogger(t), s, tenant.NewService(tenant.NewStore(s)))
 
 	for _, e := range f.LogEntries {
 		if err := svc.AddLogEntry(ctx, e.Key, e.Value, e.Time); err != nil {

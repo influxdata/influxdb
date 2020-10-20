@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -441,10 +442,12 @@ func writeConfigToPath(tok, org, path, dir string) error {
 }
 
 func checkSetup(host string, skipVerify bool) error {
-	s := &http.SetupService{
-		Addr:               host,
-		InsecureSkipVerify: skipVerify,
+	httpClient, err := newHTTPClient()
+	if err != nil {
+		return err
 	}
+
+	s := &tenant.OnboardClientService{Client: httpClient}
 
 	isOnboarding, err := s.IsOnboarding(context.Background())
 	if err != nil {

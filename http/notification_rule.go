@@ -731,20 +731,12 @@ func (h *NotificationRuleHandler) handleDeleteNotificationRule(w http.ResponseWr
 // NotificationRuleService is an http client that implements the NotificationRuleStore interface
 type NotificationRuleService struct {
 	Client *httpc.Client
-	*UserResourceMappingService
-	*OrganizationService
 }
 
 // NewNotificationRuleService wraps an httpc.Client in a NotificationRuleService
 func NewNotificationRuleService(client *httpc.Client) *NotificationRuleService {
 	return &NotificationRuleService{
 		Client: client,
-		UserResourceMappingService: &UserResourceMappingService{
-			Client: client,
-		},
-		OrganizationService: &OrganizationService{
-			Client: client,
-		},
 	}
 }
 

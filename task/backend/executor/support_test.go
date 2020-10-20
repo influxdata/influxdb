@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/query"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 )
@@ -255,16 +254,16 @@ type testCreds struct {
 	Auth          *influxdb.Authorization
 }
 
-func createCreds(t *testing.T, i *kv.Service) testCreds {
+func createCreds(t *testing.T, orgSvc influxdb.OrganizationService, userSvc influxdb.UserService, authSvc influxdb.AuthorizationService) testCreds {
 	t.Helper()
 
 	org := &influxdb.Organization{Name: t.Name() + "-org"}
-	if err := i.CreateOrganization(context.Background(), org); err != nil {
+	if err := orgSvc.CreateOrganization(context.Background(), org); err != nil {
 		t.Fatal(err)
 	}
 
 	user := &influxdb.User{Name: t.Name() + "-user"}
-	if err := i.CreateUser(context.Background(), user); err != nil {
+	if err := userSvc.CreateUser(context.Background(), user); err != nil {
 		t.Fatal(err)
 	}
 
@@ -282,7 +281,7 @@ func createCreds(t *testing.T, i *kv.Service) testCreds {
 		Token:       "hifriend!",
 		Permissions: []influxdb.Permission{*readPerm, *writePerm},
 	}
-	if err := i.CreateAuthorization(context.Background(), auth); err != nil {
+	if err := authSvc.CreateAuthorization(context.Background(), auth); err != nil {
 		t.Fatal(err)
 	}
 

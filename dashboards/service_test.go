@@ -12,6 +12,7 @@ import (
 	dashboardtesting "github.com/influxdata/influxdb/v2/dashboards/testing"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	"github.com/influxdata/influxdb/v2/mock"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -38,7 +39,7 @@ func initDashboardService(s kv.SchemaStore, f dashboardtesting.DashboardFields, 
 	}
 
 	ctx := context.Background()
-	kvSvc := kv.NewService(zaptest.NewLogger(t), s)
+	kvSvc := kv.NewService(zaptest.NewLogger(t), s, &mock.OrganizationService{})
 	kvSvc.IDGenerator = f.IDGenerator
 	kvSvc.TimeGenerator = f.TimeGenerator
 
