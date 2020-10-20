@@ -6,7 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
-	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 )
 
@@ -352,7 +352,7 @@ func newBucketSVCs() (influxdb.BucketService, influxdb.OrganizationService, erro
 		return nil, nil, err
 	}
 
-	orgSvc := &http.OrganizationService{Client: httpClient}
+	orgSvc := &tenant.OrgClientService{Client: httpClient}
 
-	return &http.BucketService{Client: httpClient}, orgSvc, nil
+	return &tenant.BucketClientService{Client: httpClient}, orgSvc, nil
 }

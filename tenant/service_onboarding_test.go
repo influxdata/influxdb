@@ -2,18 +2,20 @@ package tenant_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
+
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 
 	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
-	"go.uber.org/zap/zaptest"
 )
 
 func TestBoltOnboardingService(t *testing.T) {
@@ -36,8 +38,12 @@ func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *te
 	storage := tenant.NewStore(s)
 	ten := tenant.NewService(storage)
 
+	authStore, err := authorization.NewStore(s)
+	require.NoError(t, err)
+	authSvc := authorization.NewService(authStore, ten)
+
 	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, kv.NewService(zaptest.NewLogger(t), s))
+	svc := tenant.NewOnboardService(ten, authSvc)
 
 	ctx := context.Background()
 
@@ -58,8 +64,11 @@ func TestOnboardURM(t *testing.T) {
 	storage := tenant.NewStore(s)
 	ten := tenant.NewService(storage)
 
-	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, kv.NewService(zaptest.NewLogger(t), s))
+	authStore, err := authorization.NewStore(s)
+	require.NoError(t, err)
+	authSvc := authorization.NewService(authStore, ten)
+
+	svc := tenant.NewOnboardService(ten, authSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
@@ -93,8 +102,11 @@ func TestOnboardAuth(t *testing.T) {
 	storage := tenant.NewStore(s)
 	ten := tenant.NewService(storage)
 
-	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, kv.NewService(zaptest.NewLogger(t), s))
+	authStore, err := authorization.NewStore(s)
+	require.NoError(t, err)
+	authSvc := authorization.NewService(authStore, ten)
+
+	svc := tenant.NewOnboardService(ten, authSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
@@ -112,44 +124,44 @@ func TestOnboardAuth(t *testing.T) {
 
 	auth := onboard.Auth
 	expectedPerm := []influxdb.Permission{
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.AuthorizationsResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.AuthorizationsResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.BucketsResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.BucketsResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DashboardsResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DashboardsResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{ID: &onboard.Org.ID, Type: influxdb.OrgsResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{ID: &onboard.Org.ID, Type: influxdb.OrgsResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.SourcesResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.SourcesResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.TasksResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.TasksResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.TelegrafsResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.TelegrafsResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.UsersResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.UsersResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.VariablesResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.VariablesResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ScraperResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ScraperResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.SecretsResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.SecretsResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.LabelsResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.LabelsResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ViewsResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ViewsResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DocumentsResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DocumentsResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotificationRuleResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotificationRuleResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotificationEndpointResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotificationEndpointResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ChecksResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ChecksResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DBRPResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DBRPResourceType}},
-		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{ID: &onboard.User.ID, Type: influxdb.UsersResourceType}},
-		influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{ID: &onboard.User.ID, Type: influxdb.UsersResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.AuthorizationsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.AuthorizationsResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.BucketsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.BucketsResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DashboardsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DashboardsResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{ID: &onboard.Org.ID, Type: influxdb.OrgsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{ID: &onboard.Org.ID, Type: influxdb.OrgsResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.SourcesResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.SourcesResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.TasksResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.TasksResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.TelegrafsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.TelegrafsResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.UsersResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.UsersResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.VariablesResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.VariablesResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ScraperResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ScraperResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.SecretsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.SecretsResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.LabelsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.LabelsResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ViewsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ViewsResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DocumentsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DocumentsResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotificationRuleResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotificationRuleResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotificationEndpointResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.NotificationEndpointResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ChecksResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.ChecksResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DBRPResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{OrgID: &onboard.Org.ID, Type: influxdb.DBRPResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{ID: &onboard.User.ID, Type: influxdb.UsersResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{ID: &onboard.User.ID, Type: influxdb.UsersResourceType}},
 	}
 	if !cmp.Equal(auth.Permissions, expectedPerm) {
 		t.Fatalf("unequal permissions: \n %+v", cmp.Diff(auth.Permissions, expectedPerm))
@@ -162,8 +174,13 @@ func TestOnboardService_RetentionPolicy(t *testing.T) {
 	storage := tenant.NewStore(s)
 	ten := tenant.NewService(storage)
 
+	authStore, err := authorization.NewStore(s)
+	require.NoError(t, err)
+
+	authSvc := authorization.NewService(authStore, ten)
+
 	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, kv.NewService(zaptest.NewLogger(t), s))
+	svc := tenant.NewOnboardService(ten, authSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
@@ -171,9 +188,9 @@ func TestOnboardService_RetentionPolicy(t *testing.T) {
 
 	retention := 72 * time.Hour
 	onboard, err := svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
-		User:   "name",
-		Org:    "name",
-		Bucket: "name",
+		User:            "name",
+		Org:             "name",
+		Bucket:          "name",
 		RetentionPeriod: retention,
 	})
 

@@ -12,10 +12,12 @@ import (
 
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/tenant"
 	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -869,8 +871,17 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 
 	store := NewTestInmemStore(t)
-	svc := kv.NewService(zaptest.NewLogger(t), store)
-	svc.OrgIDs = f.OrgIDGenerator
+	tenantStore := tenant.NewStore(store)
+	tenantStore.OrgIDGen = f.OrgIDGenerator
+	tenantService := tenant.NewService(tenantStore)
+
+	authStore, err := authorization.NewStore(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authService := authorization.NewService(authStore, tenantService)
+
+	svc := kv.NewService(zaptest.NewLogger(t), store, tenantService)
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	svc.TimeGenerator = f.TimeGenerator
@@ -878,14 +889,13 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	ctx := context.Background()
 
 	for _, u := range f.Users {
-		if err := svc.PutUser(ctx, u); err != nil {
+		if err := tenantService.CreateUser(ctx, u); err != nil {
 			t.Fatalf("failed to populate users")
 		}
 	}
 
 	for _, o := range f.Orgs {
-		o.ID = svc.OrgIDs.ID()
-		if err := svc.PutOrganization(ctx, o); err != nil {
+		if err := tenantService.CreateOrganization(ctx, o); err != nil {
 			t.Fatalf("failed to populate orgs")
 		}
 	}
@@ -893,7 +903,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	var token string
 
 	for _, a := range f.Authorizations {
-		if err := svc.PutAuthorization(ctx, a); err != nil {
+		if err := authService.CreateAuthorization(ctx, a); err != nil {
 			t.Fatalf("failed to populate authorizations")
 		}
 
@@ -908,9 +918,9 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 
 	authorizationBackend := NewMockAuthorizationBackend(t)
 	authorizationBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
-	authorizationBackend.AuthorizationService = svc
+	authorizationBackend.AuthorizationService = authService
 	authorizationBackend.UserService = mus
-	authorizationBackend.OrganizationService = svc
+	authorizationBackend.OrganizationService = tenantService
 	authorizationBackend.LookupService = &mock.LookupService{
 		NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
 			switch resource {
@@ -925,7 +935,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 
 	authZ := NewAuthorizationHandler(zaptest.NewLogger(t), authorizationBackend)
 	authN := NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.ErrorHandler(0))
-	authN.AuthorizationService = svc
+	authN.AuthorizationService = authService
 	authN.Handler = authZ
 	authN.UserService = mus
 

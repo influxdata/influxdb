@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
+	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -68,13 +69,19 @@ func initLabelService(s kv.Store, f influxdbtesting.LabelFields, t *testing.T) (
 		t.Fatalf("failed to create label store: %v", err)
 	}
 
+	if f.IDGenerator != nil {
+		st.IDGenerator = f.IDGenerator
+	}
+
 	svc := label.NewService(st)
 	ctx := context.Background()
 
 	for _, l := range f.Labels {
-		if err := svc.CreateLabel(ctx, l); err != nil {
-			t.Fatalf("failed to populate labels: %v", err)
-		}
+		mock.SetIDForFunc(&st.IDGenerator, l.ID, func() {
+			if err := svc.CreateLabel(ctx, l); err != nil {
+				t.Fatalf("failed to populate labels: %v", err)
+			}
+		})
 	}
 
 	for _, m := range f.Mappings {

@@ -14,8 +14,8 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/http"
-	"github.com/influxdata/influxdb/v2/kv"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -40,10 +40,10 @@ type cmdRestoreBuilder struct {
 	kvEntry      *influxdb.ManifestKVEntry
 	shardEntries map[uint64]*influxdb.ManifestEntry
 
-	orgService     *http.OrganizationService
-	bucketService  *http.BucketService
+	orgService     *tenant.OrgClientService
+	bucketService  *tenant.BucketClientService
 	restoreService *http.RestoreService
-	kvService      *kv.Service
+	tenantService  *tenant.Service
 	metaClient     *meta.Client
 
 	logger *zap.Logger
@@ -123,8 +123,8 @@ func (b *cmdRestoreBuilder) restoreRunE(cmd *cobra.Command, args []string) (err 
 		return err
 	}
 
-	b.orgService = &http.OrganizationService{Client: client}
-	b.bucketService = &http.BucketService{Client: client}
+	b.orgService = &tenant.OrgClientService{Client: client}
+	b.bucketService = &tenant.BucketClientService{Client: client}
 
 	if !b.full {
 		return b.restorePartial(ctx)
@@ -177,7 +177,9 @@ func (b *cmdRestoreBuilder) restorePartial(ctx context.Context) (err error) {
 	// Open meta store so we can iterate over meta data.
 	kvStore := bolt.NewKVStore(b.logger, boltClient.Path)
 	kvStore.WithDB(boltClient.DB())
-	b.kvService = kv.NewService(b.logger, kvStore, kv.ServiceConfig{})
+
+	tenantStore := tenant.NewStore(kvStore)
+	b.tenantService = tenant.NewService(tenantStore)
 
 	b.metaClient = meta.NewClient(meta.NewConfig(), kvStore)
 	if err := b.metaClient.Open(); err != nil {
@@ -206,7 +208,7 @@ func (b *cmdRestoreBuilder) restoreOrganizations(ctx context.Context) (err error
 	}
 
 	// Retrieve a list of all matching organizations.
-	orgs, _, err := b.kvService.FindOrganizations(ctx, filter)
+	orgs, _, err := b.tenantService.FindOrganizations(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -251,7 +253,7 @@ func (b *cmdRestoreBuilder) restoreOrganization(ctx context.Context, org *influx
 	}
 
 	// Retrieve a list of all buckets for the organization in the local backup.
-	buckets, _, err := b.kvService.FindBuckets(ctx, filter)
+	buckets, _, err := b.tenantService.FindBuckets(ctx, filter)
 	if err != nil {
 		return err
 	}

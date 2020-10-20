@@ -21,9 +21,9 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	internal2 "github.com/influxdata/influxdb/v2/cmd/internal"
-	ihttp "github.com/influxdata/influxdb/v2/http"
 	ierror "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/pkger"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
@@ -1235,7 +1235,7 @@ func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
 		return nil, nil, err
 	}
 
-	orgSvc := &ihttp.OrganizationService{
+	orgSvc := &tenant.OrgClientService{
 		Client: httpClient,
 	}
 

@@ -5,11 +5,13 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
-	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -32,7 +34,11 @@ func TestCheckService(t *testing.T) {
 func initCheckService(f CheckFields, t *testing.T) (influxdb.CheckService, influxdb.TaskService, string, func()) {
 	store, closeKVStore := NewKVTestStore(t)
 	logger := zaptest.NewLogger(t)
-	svc := kv.NewService(logger, store, kv.ServiceConfig{
+
+	tenantStore := tenant.NewStore(store)
+	tenantSvc := tenant.NewService(tenantStore)
+
+	svc := kv.NewService(logger, store, tenantSvc, kv.ServiceConfig{
 		FluxLanguageService: fluxlang.DefaultService,
 	})
 	svc.IDGenerator = f.IDGenerator
@@ -41,22 +47,19 @@ func initCheckService(f CheckFields, t *testing.T) (influxdb.CheckService, influ
 		svc.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
 
-	checkService := NewService(logger, store, svc, svc)
+	checkService := NewService(logger, store, tenantSvc, svc)
 	checkService.idGenerator = f.IDGenerator
 	if f.TimeGenerator != nil {
 		checkService.timeGenerator = f.TimeGenerator
 	}
 
 	ctx := context.Background()
-	for _, m := range f.UserResourceMappings {
-		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
-			t.Fatalf("failed to populate user resource mapping: %v", err)
-		}
-	}
 	for _, o := range f.Organizations {
-		if err := svc.PutOrganization(ctx, o); err != nil {
-			t.Fatalf("failed to populate organizations")
-		}
+		mock.SetIDForFunc(&tenantStore.OrgIDGen, o.ID, func() {
+			if err := tenantSvc.CreateOrganization(ctx, o); err != nil {
+				t.Fatalf("failed to populate organizations")
+			}
+		})
 	}
 	for _, c := range f.Checks {
 		if err := checkService.PutCheck(ctx, c); err != nil {
@@ -70,13 +73,8 @@ func initCheckService(f CheckFields, t *testing.T) (influxdb.CheckService, influ
 	}
 	return checkService, svc, kv.OpPrefix, func() {
 		for _, o := range f.Organizations {
-			if err := svc.DeleteOrganization(ctx, o.ID); err != nil {
+			if err := tenantSvc.DeleteOrganization(ctx, o.ID); err != nil {
 				t.Logf("failed to remove organization: %v", err)
-			}
-		}
-		for _, urm := range f.UserResourceMappings {
-			if err := svc.DeleteUserResourceMapping(ctx, urm.ResourceID, urm.UserID); err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
-				t.Logf("failed to remove urm rule: %v", err)
 			}
 		}
 		for _, c := range f.Checks {

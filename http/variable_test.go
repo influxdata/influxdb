@@ -14,7 +14,9 @@ import (
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -992,7 +994,10 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 }
 
 func initVariableService(f itesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
-	svc := newInMemKVSVC(t)
+	store := NewTestInmemStore(t)
+	tenantService := tenant.NewService(tenant.NewStore(store))
+
+	svc := kv.NewService(zaptest.NewLogger(t), store, tenantService)
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 

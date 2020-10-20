@@ -1784,7 +1784,7 @@ func initDashboardService(f dashboardstesting.DashboardFields, t *testing.T) (in
 	log := zaptest.NewLogger(t)
 	store := newTestInmemStore(t)
 
-	kvsvc := kv.NewService(log, store)
+	kvsvc := kv.NewService(log, store, &mock.OrganizationService{})
 	kvsvc.IDGenerator = f.IDGenerator
 
 	svc := dashboards.NewService(

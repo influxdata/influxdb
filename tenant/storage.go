@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/rand"
 	"github.com/influxdata/influxdb/v2/snowflake"
+	"github.com/influxdata/influxdb/v2/tenant/index"
 )
 
 const MaxIDGenerationN = 100
@@ -35,7 +36,7 @@ func NewStore(kvStore kv.Store, opts ...StoreOption) *Store {
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		urmByUserIndex: kv.NewIndex(kv.URMByUserIndexMapping, kv.WithIndexReadPathEnabled),
+		urmByUserIndex: kv.NewIndex(index.URMByUserIndexMapping, kv.WithIndexReadPathEnabled),
 	}
 
 	for _, opt := range opts {

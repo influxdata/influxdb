@@ -637,6 +637,10 @@ func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *influxdb.Label
 	}
 
 	return s.Client.
-		Delete(resourceIDPath(m.ResourceType, m.ResourceID, "labels")).
+		Delete(resourceIDMappingPath(m.ResourceType, m.ResourceID, "labels", m.LabelID)).
 		Do(ctx)
+}
+
+func resourceIDMappingPath(resourceType influxdb.ResourceType, resourceID influxdb.ID, p string, labelID influxdb.ID) string {
+	return path.Join("/api/v2/", string(resourceType), resourceID.String(), p, labelID.String())
 }

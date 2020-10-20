@@ -6,7 +6,7 @@ import (
 	"io"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 )
 
@@ -525,9 +525,9 @@ func newOrgServices() (influxdb.OrganizationService, influxdb.UserResourceMappin
 		return nil, nil, nil, err
 	}
 
-	orgSVC := &http.OrganizationService{Client: client}
-	urmSVC := &http.UserResourceMappingService{Client: client}
-	userSVC := &http.UserService{Client: client}
+	orgSVC := &tenant.OrgClientService{Client: client}
+	urmSVC := &tenant.UserResourceMappingClient{Client: client}
+	userSVC := &tenant.UserClientService{Client: client}
 
 	return orgSVC, urmSVC, userSVC, nil
 }
@@ -538,7 +538,7 @@ func newOrganizationService() (influxdb.OrganizationService, error) {
 		return nil, err
 	}
 
-	return &http.OrganizationService{
+	return &tenant.OrgClientService{
 		Client: client,
 	}, nil
 }

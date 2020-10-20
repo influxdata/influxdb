@@ -21,8 +21,10 @@ import (
 	"github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	endpointTesting "github.com/influxdata/influxdb/v2/notification/endpoint/service/testing"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
+	"github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -1065,17 +1067,22 @@ func initNotificationEndpointService(f endpointTesting.NotificationEndpointField
 	ctx := context.Background()
 	store := NewTestInmemStore(t)
 	logger := zaptest.NewLogger(t)
-	kvSvc := kv.NewService(logger, store)
+
+	tenantStore := tenant.NewStore(store)
+	tenantService := tenant.NewService(tenantStore)
+
+	kvSvc := kv.NewService(logger, store, tenantService)
 	kvSvc.IDGenerator = f.IDGenerator
 	kvSvc.TimeGenerator = f.TimeGenerator
+
+	secretStore, err := secret.NewStore(store)
+	require.NoError(t, err)
+	secretSvc := secret.NewService(secretStore)
 
 	endpointStore := service.NewStore(store)
 	endpointStore.IDGenerator = f.IDGenerator
 	endpointStore.TimeGenerator = f.TimeGenerator
-	endpointService := service.New(endpointStore, kvSvc)
-
-	tenantStore := tenant.NewStore(store)
-	tenantService := tenant.NewService(tenantStore)
+	endpointService := service.New(endpointStore, secretSvc)
 
 	for _, o := range f.Orgs {
 		withOrgID(tenantStore, o.ID, func() {
@@ -1107,7 +1114,8 @@ func initNotificationEndpointService(f endpointTesting.NotificationEndpointField
 	done := server.Close
 
 	client := mustNewHTTPClient(t, server.URL, "")
-	return NewNotificationEndpointService(client), kvSvc, done
+
+	return NewNotificationEndpointService(client), secretSvc, done
 }
 
 func TestNotificationEndpointService(t *testing.T) {

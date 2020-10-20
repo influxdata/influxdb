@@ -12,6 +12,7 @@ import (
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
+	"github.com/influxdata/influxdb/v2/tenant"
 	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -29,19 +30,22 @@ func NewMockUserBackend(t *testing.T) *UserBackend {
 
 func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, string, func()) {
 	t.Helper()
-	svc := newInMemKVSVC(t)
-	svc.IDGenerator = f.IDGenerator
+
+	store := NewTestInmemStore(t)
+	tenantStore := tenant.NewStore(store)
+	tenantStore.IDGen = f.IDGenerator
+	tenantService := tenant.NewService(tenantStore)
 
 	ctx := context.Background()
 	for _, u := range f.Users {
-		if err := svc.PutUser(ctx, u); err != nil {
+		if err := tenantService.CreateUser(ctx, u); err != nil {
 			t.Fatalf("failed to populate users")
 		}
 	}
 
 	userBackend := NewMockUserBackend(t)
 	userBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
-	userBackend.UserService = svc
+	userBackend.UserService = tenantService
 	handler := NewUserHandler(zaptest.NewLogger(t), userBackend)
 	server := httptest.NewServer(handler)
 

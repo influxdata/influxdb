@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/influxql"
@@ -22,15 +23,15 @@ const (
 )
 
 type sourceResponse struct {
-	*platform.Source
+	*influxdb.Source
 	Links map[string]interface{} `json:"links"`
 }
 
-func newSourceResponse(s *platform.Source) *sourceResponse {
+func newSourceResponse(s *influxdb.Source) *sourceResponse {
 	s.Password = ""
 	s.SharedSecret = ""
 
-	if s.Type == platform.SelfSourceType {
+	if s.Type == influxdb.SelfSourceType {
 		return &sourceResponse{
 			Source: s,
 			Links: map[string]interface{}{
@@ -58,7 +59,7 @@ type sourcesResponse struct {
 	Links   map[string]interface{} `json:"links"`
 }
 
-func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
+func newSourcesResponse(srcs []*influxdb.Source) *sourcesResponse {
 	res := &sourcesResponse{
 		Links: map[string]interface{}{
 			"self": prefixSources,
@@ -76,13 +77,13 @@ func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
 // SourceBackend is all services and associated parameters required to construct
 // the SourceHandler.
 type SourceBackend struct {
-	platform.HTTPErrorHandler
+	influxdb.HTTPErrorHandler
 	log *zap.Logger
 
-	SourceService   platform.SourceService
-	LabelService    platform.LabelService
-	BucketService   platform.BucketService
-	NewQueryService func(s *platform.Source) (query.ProxyQueryService, error)
+	SourceService   influxdb.SourceService
+	LabelService    influxdb.LabelService
+	BucketService   influxdb.BucketService
+	NewQueryService func(s *influxdb.Source) (query.ProxyQueryService, error)
 }
 
 // NewSourceBackend returns a new instance of SourceBackend.
@@ -101,15 +102,15 @@ func NewSourceBackend(log *zap.Logger, b *APIBackend) *SourceBackend {
 // SourceHandler is a handler for sources
 type SourceHandler struct {
 	*httprouter.Router
-	platform.HTTPErrorHandler
+	influxdb.HTTPErrorHandler
 	log           *zap.Logger
-	SourceService platform.SourceService
-	LabelService  platform.LabelService
-	BucketService platform.BucketService
+	SourceService influxdb.SourceService
+	LabelService  influxdb.LabelService
+	BucketService influxdb.BucketService
 
 	// TODO(desa): this was done so in order to remove an import cycle and to allow
 	// for http mocking.
-	NewQueryService func(s *platform.Source) (query.ProxyQueryService, error)
+	NewQueryService func(s *influxdb.Source) (query.ProxyQueryService, error)
 }
 
 // NewSourceHandler returns a new instance of SourceHandler.
@@ -147,7 +148,7 @@ func decodeSourceQueryRequest(r *http.Request) (*query.ProxyRequest, error) {
 		DB             string      `json:"db"`
 		RP             string      `json:"rp"`
 		Cluster        string      `json:"cluster"`
-		OrganizationID platform.ID `json:"organizationID"`
+		OrganizationID influxdb.ID `json:"organizationID"`
 		// TODO(desa): support influxql dialect
 		Dialect csv.Dialect `json:"dialect"`
 	}{}
@@ -263,6 +264,149 @@ func decodeGetSourceBucketsRequest(ctx context.Context, r *http.Request) (*getSo
 	}, nil
 }
 
+type getBucketsRequest struct {
+	filter influxdb.BucketFilter
+	opts   influxdb.FindOptions
+}
+
+func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
+	qp := r.URL.Query()
+	req := &getBucketsRequest{}
+
+	opts, err := influxdb.DecodeFindOptions(r)
+	if err != nil {
+		return nil, err
+	}
+
+	req.opts = *opts
+
+	if orgID := qp.Get("orgID"); orgID != "" {
+		id, err := influxdb.IDFromString(orgID)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.OrganizationID = id
+	}
+
+	if org := qp.Get("org"); org != "" {
+		req.filter.Org = &org
+	}
+
+	if name := qp.Get("name"); name != "" {
+		req.filter.Name = &name
+	}
+
+	if bucketID := qp.Get("id"); bucketID != "" {
+		id, err := influxdb.IDFromString(bucketID)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.ID = id
+	}
+
+	return req, nil
+}
+
+type bucketResponse struct {
+	bucket
+	Links  map[string]string `json:"links"`
+	Labels []influxdb.Label  `json:"labels"`
+}
+
+type bucket struct {
+	ID                  influxdb.ID     `json:"id,omitempty"`
+	OrgID               influxdb.ID     `json:"orgID,omitempty"`
+	Type                string          `json:"type"`
+	Description         string          `json:"description,omitempty"`
+	Name                string          `json:"name"`
+	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
+	RetentionRules      []retentionRule `json:"retentionRules"`
+	influxdb.CRUDLog
+}
+
+func newBucket(pb *influxdb.Bucket) *bucket {
+	if pb == nil {
+		return nil
+	}
+
+	rules := []retentionRule{}
+	rp := int64(pb.RetentionPeriod.Round(time.Second) / time.Second)
+	if rp > 0 {
+		rules = append(rules, retentionRule{
+			Type:         "expire",
+			EverySeconds: rp,
+		})
+	}
+
+	return &bucket{
+		ID:                  pb.ID,
+		OrgID:               pb.OrgID,
+		Type:                pb.Type.String(),
+		Name:                pb.Name,
+		Description:         pb.Description,
+		RetentionPolicyName: pb.RetentionPolicyName,
+		RetentionRules:      rules,
+		CRUDLog:             pb.CRUDLog,
+	}
+}
+
+// retentionRule is the retention rule action for a bucket.
+type retentionRule struct {
+	Type         string `json:"type"`
+	EverySeconds int64  `json:"everySeconds"`
+}
+
+func (rr *retentionRule) RetentionPeriod() (time.Duration, error) {
+	t := time.Duration(rr.EverySeconds) * time.Second
+	if t < time.Second {
+		return t, &influxdb.Error{
+			Code: influxdb.EUnprocessableEntity,
+			Msg:  "expiration seconds must be greater than or equal to one second",
+		}
+	}
+
+	return t, nil
+}
+
+func NewBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResponse {
+	res := &bucketResponse{
+		Links: map[string]string{
+			"labels":  fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
+			"logs":    fmt.Sprintf("/api/v2/buckets/%s/logs", b.ID),
+			"members": fmt.Sprintf("/api/v2/buckets/%s/members", b.ID),
+			"org":     fmt.Sprintf("/api/v2/orgs/%s", b.OrgID),
+			"owners":  fmt.Sprintf("/api/v2/buckets/%s/owners", b.ID),
+			"self":    fmt.Sprintf("/api/v2/buckets/%s", b.ID),
+			"write":   fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", b.OrgID, b.ID),
+		},
+		bucket: *newBucket(b),
+		Labels: []influxdb.Label{},
+	}
+
+	for _, l := range labels {
+		res.Labels = append(res.Labels, *l)
+	}
+
+	return res
+}
+
+type bucketsResponse struct {
+	Links   *influxdb.PagingLinks `json:"links"`
+	Buckets []*bucketResponse     `json:"buckets"`
+}
+
+func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influxdb.BucketFilter, bs []*influxdb.Bucket, labelService influxdb.LabelService) *bucketsResponse {
+	rs := make([]*bucketResponse, 0, len(bs))
+	for _, b := range bs {
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID, ResourceType: influxdb.BucketsResourceType})
+		rs = append(rs, NewBucketResponse(b, labels))
+	}
+	return &bucketsResponse{
+		Links:   influxdb.NewPagingLinks(prefixBuckets, opts, f, len(bs)),
+		Buckets: rs,
+	}
+}
+
 // handlePostSource is the HTTP handler for the POST /api/v2/sources route.
 func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -286,11 +430,11 @@ func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request)
 }
 
 type postSourceRequest struct {
-	Source *platform.Source
+	Source *influxdb.Source
 }
 
 func decodePostSourceRequest(ctx context.Context, r *http.Request) (*postSourceRequest, error) {
-	b := &platform.Source{}
+	b := &influxdb.Source{}
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
 		return nil, err
 	}
@@ -349,20 +493,20 @@ func (h *SourceHandler) handleGetSourceHealth(w http.ResponseWriter, r *http.Req
 }
 
 type getSourceRequest struct {
-	SourceID platform.ID
+	SourceID influxdb.ID
 }
 
 func decodeGetSourceRequest(ctx context.Context, r *http.Request) (*getSourceRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -392,20 +536,20 @@ func (h *SourceHandler) handleDeleteSource(w http.ResponseWriter, r *http.Reques
 }
 
 type deleteSourceRequest struct {
-	SourceID platform.ID
+	SourceID influxdb.ID
 }
 
 func decodeDeleteSourceRequest(ctx context.Context, r *http.Request) (*deleteSourceRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -441,7 +585,7 @@ func (h *SourceHandler) handleGetSources(w http.ResponseWriter, r *http.Request)
 }
 
 type getSourcesRequest struct {
-	findOptions platform.FindOptions
+	findOptions influxdb.FindOptions
 }
 
 func decodeGetSourcesRequest(ctx context.Context, r *http.Request) (*getSourcesRequest, error) {
@@ -472,26 +616,26 @@ func (h *SourceHandler) handlePatchSource(w http.ResponseWriter, r *http.Request
 }
 
 type patchSourceRequest struct {
-	Update   platform.SourceUpdate
-	SourceID platform.ID
+	Update   influxdb.SourceUpdate
+	SourceID influxdb.ID
 }
 
 func decodePatchSourceRequest(ctx context.Context, r *http.Request) (*patchSourceRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
-	var upd platform.SourceUpdate
+	var upd influxdb.SourceUpdate
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, err
 	}
@@ -508,8 +652,8 @@ type SourceService struct {
 }
 
 // FindSourceByID returns a single source by ID.
-func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*platform.Source, error) {
-	var b platform.Source
+func (s *SourceService) FindSourceByID(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
+	var b influxdb.Source
 	err := s.Client.
 		Get(prefixSources, id.String()).
 		DecodeJSON(&b).
@@ -522,8 +666,8 @@ func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*pl
 
 // FindSources returns a list of sources that match filter and the total count of matching sources.
 // Additional options provide pagination & sorting.
-func (s *SourceService) FindSources(ctx context.Context, opt platform.FindOptions) ([]*platform.Source, int, error) {
-	var bs []*platform.Source
+func (s *SourceService) FindSources(ctx context.Context, opt influxdb.FindOptions) ([]*influxdb.Source, int, error) {
+	var bs []*influxdb.Source
 	err := s.Client.
 		Get(prefixSources).
 		DecodeJSON(&bs).
@@ -536,7 +680,7 @@ func (s *SourceService) FindSources(ctx context.Context, opt platform.FindOption
 }
 
 // CreateSource creates a new source and sets b.ID with the new identifier.
-func (s *SourceService) CreateSource(ctx context.Context, b *platform.Source) error {
+func (s *SourceService) CreateSource(ctx context.Context, b *influxdb.Source) error {
 	return s.Client.
 		PostJSON(b, prefixSources).
 		DecodeJSON(b).
@@ -545,8 +689,8 @@ func (s *SourceService) CreateSource(ctx context.Context, b *platform.Source) er
 
 // UpdateSource updates a single source with changeset.
 // Returns the new source state after update.
-func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd platform.SourceUpdate) (*platform.Source, error) {
-	var b platform.Source
+func (s *SourceService) UpdateSource(ctx context.Context, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
+	var b influxdb.Source
 	err := s.Client.
 		PatchJSON(upd, prefixSources, id.String()).
 		DecodeJSON(&b).
@@ -558,7 +702,7 @@ func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd pl
 }
 
 // DeleteSource removes a source by ID.
-func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error {
+func (s *SourceService) DeleteSource(ctx context.Context, id influxdb.ID) error {
 	return s.Client.
 		Delete(prefixSources, id.String()).
 		StatusFn(func(resp *http.Response) error {
