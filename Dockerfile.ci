@@ -5,7 +5,7 @@ RUN apt-get update \
   && apt-get install -y \
     git make clang cmake llvm \
     --no-install-recommends \
-  && git clone -- https://github.com/google/flatbuffers.git /usr/local/src/flatbuffers \
+  && git clone -b v1.12.0 -- https://github.com/google/flatbuffers.git /usr/local/src/flatbuffers \
   && cmake -S /usr/local/src/flatbuffers -B /usr/local/src/flatbuffers \
     -G "Unix Makefiles" \
     -DCMAKE_BUILD_TYPE=Release \
