@@ -86,20 +86,6 @@ func GroupWindowAggregateTranspose() BoolFlag {
 	return groupWindowAggregateTranspose
 }
 
-var newAuth = MakeBoolFlag(
-	"New Auth Package",
-	"newAuth",
-	"Alirie Gray",
-	false,
-	Temporary,
-	false,
-)
-
-// NewAuthPackage - Enables the refactored authorization api
-func NewAuthPackage() BoolFlag {
-	return newAuth
-}
-
 var newLabels = MakeBoolFlag(
 	"New Label Package",
 	"newLabels",
@@ -275,7 +261,6 @@ var all = []Flag{
 	frontendExample,
 	pushDownWindowAggregateMean,
 	groupWindowAggregateTranspose,
-	newAuth,
 	newLabels,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
@@ -297,7 +282,6 @@ var byKey = map[string]Flag{
 	"frontendExample":               frontendExample,
 	"pushDownWindowAggregateMean":   pushDownWindowAggregateMean,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
-	"newAuth":                       newAuth,
 	"newLabels":                     newLabels,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,

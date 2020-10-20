@@ -757,7 +757,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		authSvc                   platform.AuthorizationService            = m.kvService
 		variableSvc               platform.VariableService                 = m.kvService
 		sourceSvc                 platform.SourceService                   = m.kvService
 		dashboardSvc              platform.DashboardService                = m.kvService
@@ -773,6 +772,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	tenantStore := tenant.NewStore(m.kvStore)
 	ts := tenant.NewSystem(tenantStore, m.log.With(zap.String("store", "new")), m.reg, metric.WithSuffix("new"))
+
+	var authSvc platform.AuthorizationService
+	{
+		authStore, err := authorization.NewStore(m.kvStore)
+		if err != nil {
+			m.log.Error("Failed creating new authorization store", zap.Error(err))
+			return err
+		}
+		authSvc = authorization.NewService(authStore, ts)
+	}
 
 	secretStore, err := secret.NewStore(m.kvStore)
 	if err != nil {
@@ -1228,26 +1237,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	// feature flagging for new authorization service
-	var authHTTPServer *kithttp.FeatureHandler
+	var authHTTPServer *authorization.AuthHandler
 	{
 		authLogger := m.log.With(zap.String("handler", "authorization"))
 
-		oldBackend := http.NewAuthorizationBackend(authLogger, m.apibackend)
-		oldBackend.AuthorizationService = authorizer.NewAuthorizationService(authSvc)
-		oldHandler := http.NewAuthorizationHandler(authLogger, oldBackend)
-
-		authStore, err := authorization.NewStore(m.kvStore)
-		if err != nil {
-			m.log.Error("Failed creating new authorization store", zap.Error(err))
-			return err
-		}
-		authService := authorization.NewService(authStore, ts)
-		authService = authorization.NewAuthedAuthorizationService(authService, ts)
+		var authService platform.AuthorizationService
+		authService = authorization.NewAuthedAuthorizationService(authSvc, ts)
 		authService = authorization.NewAuthMetrics(m.reg, authService)
 		authService = authorization.NewAuthLogger(authLogger, authService)
 
-		newHandler := authorization.NewHTTPAuthHandler(m.log, authService, ts)
-		authHTTPServer = kithttp.NewFeatureHandler(feature.NewAuthPackage(), m.flagger, oldHandler, newHandler, newHandler.Prefix())
+		authHTTPServer = authorization.NewHTTPAuthHandler(m.log, authService, ts)
 	}
 
 	var sessionHTTPServer *session.SessionHandler

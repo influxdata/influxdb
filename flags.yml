@@ -55,13 +55,6 @@
   default: false
   contact: Query Team
 
-- name: New Auth Package
-  description: Enables the refactored authorization api
-  key: newAuth
-  default: false
-  contact: Alirie Gray
-  lifetime: temporaryc
-
 - name: New Label Package
   description: Enables the refactored labels api
   key: newLabels
