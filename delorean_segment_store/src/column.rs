@@ -1,6 +1,9 @@
 pub mod cmp;
+pub mod dictionary;
 pub mod fixed;
 pub mod fixed_null;
+
+use croaring::Bitmap;
 
 use delorean_arrow::arrow;
 
@@ -103,4 +106,42 @@ pub enum Values {
 
     // Arbitrary byte arrays
     ByteArray(arrow::array::UInt8Array),
+}
+
+/// Represents vectors of row IDs, which are usually used for intermediate
+/// results as a method of late materialisation.
+#[derive(PartialEq, Debug)]
+pub enum RowIDs {
+    Bitmap(Bitmap),
+    Vector(Vec<u32>),
+}
+
+impl RowIDs {
+    pub fn len(&self) -> usize {
+        match self {
+            RowIDs::Bitmap(ids) => ids.cardinality() as usize,
+            RowIDs::Vector(ids) => ids.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            RowIDs::Bitmap(ids) => ids.is_empty(),
+            RowIDs::Vector(ids) => ids.is_empty(),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        match self {
+            RowIDs::Bitmap(ids) => ids.clear(),
+            RowIDs::Vector(ids) => ids.clear(),
+        }
+    }
+
+    pub fn add_range(&mut self, from: u32, to: u32) {
+        match self {
+            RowIDs::Bitmap(ids) => ids.add_range(from as u64..to as u64),
+            RowIDs::Vector(ids) => ids.extend(from..to),
+        }
+    }
 }
