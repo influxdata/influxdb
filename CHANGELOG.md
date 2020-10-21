@@ -1,4 +1,23 @@
-## ## v2.0.0-rc.1 [2020-10-14]
+## v2.0.0-rc.2 [2020-10-21]
+
+### Features
+
+1. [19725](https://github.com/influxdata/influxdb/pull/19725): Add window agg result set
+1. [19740](https://github.com/influxdata/influxdb/pull/19740): Provide means to remove stack without confirmation
+1. [19750](https://github.com/influxdata/influxdb/pull/19750): Return error on failed resource addition
+1. [19774](https://github.com/influxdata/influxdb/pull/19774): Update Flux to v0.90.0
+
+### Bug Fixes
+
+1. [19465](https://github.com/influxdata/influxdb/pull/19465): Use valid flux in pkger test templates
+1. [19773](https://github.com/influxdata/influxdb/pull/19773): Upgrade: fallback to user's home when saving upgraded config
+1. [19775](https://github.com/influxdata/influxdb/pull/19775): Telegraf plugin updates (remove RAS for now)
+1. [19776](https://github.com/influxdata/influxdb/pull/19776): TimeMachine: change derivative to 1s
+1. [19789](https://github.com/influxdata/influxdb/pull/19789): Launcher: Switch to AuthorizationService from authorization package
+1. [19780](https://github.com/influxdata/influxdb/pull/19780): Upgrade: proper default 2.x config filename
+1. [19781](https://github.com/influxdata/influxdb/pull/19781): Upgrade: fixing typos and grammar errors
+
+## v2.0.0-rc.1 [2020-10-14]
 
 ### Features
 
