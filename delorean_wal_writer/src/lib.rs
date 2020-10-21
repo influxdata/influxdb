@@ -11,7 +11,6 @@ use futures::{channel::mpsc, SinkExt, StreamExt};
 use snafu::{ResultExt, Snafu};
 
 use serde::{Deserialize, Serialize};
-use tokio::task;
 use tracing::{error, info};
 
 use std::path::PathBuf;
@@ -126,8 +125,7 @@ pub async fn start_wal_sync_task(wal_builder: WalBuilder) -> Result<WalDetails> 
                         let payload = write.payload;
                         let mut tx = write.notify_tx;
 
-                        let result = task::block_in_place(|| {
-                            let seq = wal.append(payload)?;
+                        let result = wal.append(payload).and_then(|seq| {
                             wal.sync_all()?;
                             Ok(seq)
                         });

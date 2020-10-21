@@ -287,7 +287,7 @@ mod tests {
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn server_api_calls_return_error_with_no_id_set() -> Result {
         let manager = TestConnectionManager::new();
         let mut server = Server::new(manager);
@@ -309,7 +309,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn writes_local() -> Result {
         let manager = TestConnectionManager::new();
         let mut server = Server::new(manager);
@@ -341,7 +341,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn replicate_to_single_group() -> Result {
         let mut manager = TestConnectionManager::new();
         let remote = Arc::new(TestRemoteServer::default());

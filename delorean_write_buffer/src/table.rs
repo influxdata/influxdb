@@ -1051,7 +1051,7 @@ mod tests {
         assert!(!table.has_all_predicate_columns(Some(&pred)));
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_series_set_plan() {
         // setup a test table
         let mut partition = Partition::new("dummy_partition_key");
@@ -1099,7 +1099,7 @@ mod tests {
         assert_eq!(expected, results, "expected output");
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_series_set_plan_order() {
         // test that the columns and rows come out in the right order (tags then timestamp)
 
@@ -1152,7 +1152,7 @@ mod tests {
         assert_eq!(expected, results, "expected output");
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_series_set_plan_filter() {
         // test that filters are applied reasonably
 
@@ -1210,7 +1210,7 @@ mod tests {
         assert_eq!(expected, results, "expected output");
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_grouped_series_set_plan() {
         // test that filters are applied reasonably
 

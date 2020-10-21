@@ -1032,7 +1032,7 @@ mod tests {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn partition_writes_wal_metadata() -> Result<()> {
         let store = PartitionStore::MemDB(Box::new(MemDB::new("wal metadata write".into())));
         let dir = delorean_test_helpers::tmp_dir()?.into_path();
@@ -1045,7 +1045,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn partition_checks_metadata_for_supported_format() -> Result<()> {
         let bucket_name = "wal metadata read";
         let store = PartitionStore::MemDB(Box::new(MemDB::new(bucket_name.into())));

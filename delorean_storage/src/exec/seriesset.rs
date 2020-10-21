@@ -492,7 +492,7 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_convert_empty() -> Result<()> {
         let schema = Arc::new(Schema::new(vec![]));
         let empty_iterator: Box<dyn RecordBatchReader + Send> =
@@ -508,7 +508,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_convert_single_series_no_tags() -> Result<()> {
         // single series
         let schema = Arc::new(Schema::new(vec![
@@ -560,7 +560,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_convert_single_series_one_tag() -> Result<()> {
         // single series
         let schema = Arc::new(Schema::new(vec![
@@ -595,7 +595,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_convert_one_tag_multi_series() -> Result<()> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
@@ -642,7 +642,7 @@ mod tests {
     }
 
     // two tag columns, three series
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_convert_two_tag_multi_series() -> Result<()> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
@@ -700,7 +700,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_convert_groups() -> Result<()> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
@@ -776,7 +776,7 @@ mod tests {
     }
 
     // test with no group tags specified
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_convert_groups_no_tags() -> Result<()> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),

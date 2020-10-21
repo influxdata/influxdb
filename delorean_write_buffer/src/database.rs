@@ -1181,7 +1181,7 @@ mod tests {
         Ok(s)
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn list_table_names() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
 
@@ -1203,7 +1203,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn list_table_names_timestamps() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
 
@@ -1243,7 +1243,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn missing_tags_are_null() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
 
@@ -1297,7 +1297,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn write_data_and_recover() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
 
@@ -1380,7 +1380,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn write_and_query() -> Result {
         let db = Db::new("foo");
 
@@ -1403,7 +1403,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn recover_partial_entries() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
 
@@ -1536,7 +1536,7 @@ disk bytes=23432323i 1600136510000000000",
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn list_column_names() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
         let db = Db::try_with_wal("column_namedb", &mut dir).await?;
@@ -1707,7 +1707,7 @@ disk bytes=23432323i 1600136510000000000",
         Some(Predicate { expr })
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn list_column_names_predicate() -> Result {
         // Demonstration test to show column names with predicate working
 
@@ -1746,7 +1746,7 @@ disk bytes=23432323i 1600136510000000000",
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn list_column_values() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
         let db = Db::try_with_wal("column_namedb", &mut dir).await?;
@@ -1909,7 +1909,7 @@ disk bytes=23432323i 1600136510000000000",
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_query_series() -> Result {
         // This test checks that everything is wired together
         // correctly.  There are more detailed tests in table.rs that
@@ -1983,7 +1983,7 @@ disk bytes=23432323i 1600136510000000000",
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_query_series_filter() -> Result {
         // check the appropriate filters are applied in the datafusion plans
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
@@ -2030,7 +2030,7 @@ disk bytes=23432323i 1600136510000000000",
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     async fn test_query_series_pred_refers_to_column_not_in_table() -> Result {
         let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
         let db = Db::try_with_wal("column_namedb", &mut dir).await?;
@@ -2084,7 +2084,7 @@ disk bytes=23432323i 1600136510000000000",
         Ok(())
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test]
     #[should_panic(
         expected = "Unsupported binary operator in expression: #state NotEq Utf8(\"MA\")"
     )]

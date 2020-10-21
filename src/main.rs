@@ -7,9 +7,10 @@
     clippy::use_self
 )]
 
-use clap::{crate_authors, crate_version, value_t, App, Arg, SubCommand};
+use clap::{crate_authors, crate_version, value_t, App, Arg, ArgMatches, SubCommand};
 use delorean_parquet::writer::CompressionLevel;
-use tracing::{debug, error, warn};
+use tokio::runtime::Runtime;
+use tracing::{debug, error, info, warn};
 
 mod panic;
 pub mod server;
@@ -32,8 +33,7 @@ enum ReturnCode {
     ServerExitedAbnormally = 4,
 }
 
-#[tokio::main]
-async fn main() {
+fn main() -> Result<(), std::io::Error> {
     let help = r#"Delorean server and command line tools
 
 Examples:
@@ -134,13 +134,25 @@ Examples:
             "Enables verbose logging (use 'vv' for even more verbosity). You can also set log level via \
                        the environment variable RUST_LOG=<value>",
         ))
+        .arg(Arg::with_name("num-threads").long("num-threads").takes_value(true).help(
+            "Set the maximum number of threads to use. Defaults to the number of cores on the system",
+        ))
         .get_matches();
 
     setup_logging(matches.occurrences_of("verbose"));
+
     // Install custom panic handler (note can not use `_` otherwise
     // drop will be called immediately).
     let _f = SendPanicsToTracing::new();
 
+    let mut tokio_runtime = get_runtime(matches.value_of("num-threads"))?;
+    tokio_runtime.block_on(dispatch_args(matches));
+
+    info!("Delorean server shutting down");
+    Ok(())
+}
+
+async fn dispatch_args(matches: ArgMatches<'_>) {
     match matches.subcommand() {
         ("convert", Some(sub_matches)) => {
             let input_path = sub_matches.value_of("INPUT").unwrap();
@@ -239,4 +251,45 @@ fn setup_logging(num_verbose: u64) {
     }
 
     env_logger::init();
+}
+
+/// Creates the tokio runtime for executing delorean
+///
+/// if nthreads is none, uses the default scheduler
+/// otherwise, creates a scheduler with the number of threads
+fn get_runtime(num_threads: Option<&str>) -> Result<Runtime, std::io::Error> {
+    use tokio::runtime::Builder;
+    let kind = std::io::ErrorKind::Other;
+    match num_threads {
+        None => Runtime::new(),
+        Some(num_threads) => {
+            info!(
+                "Setting number of threads to '{}' per command line request",
+                num_threads
+            );
+            let n = num_threads.parse::<usize>().map_err(|e| {
+                let msg = format!(
+                    "Invalid num-threads: can not parse '{}' as an integer: {}",
+                    num_threads, e
+                );
+                std::io::Error::new(kind, msg)
+            })?;
+
+            match n {
+                0 => {
+                    let msg = format!(
+                        "Invalid num-threads: '{}' must be greater than zero",
+                        num_threads
+                    );
+                    Err(std::io::Error::new(kind, msg))
+                }
+                1 => Builder::new().basic_scheduler().enable_all().build(),
+                _ => Builder::new()
+                    .threaded_scheduler()
+                    .enable_all()
+                    .core_threads(n)
+                    .build(),
+            }
+        }
+    }
 }
