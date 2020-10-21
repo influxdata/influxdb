@@ -113,7 +113,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
     // id is optional because this may not be set on startup. It might be set via an API call
-    id: Option<u16>,
+    id: Option<u32>,
     databases: BTreeMap<String, Db>,
     host_groups: BTreeMap<HostGroupId, HostGroup>,
     connection_manager: M,
@@ -130,7 +130,7 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     /// sets the id of the server, which is used for replication and the base path in object storage
-    pub fn set_id(&mut self, id: u16) {
+    pub fn set_id(&mut self, id: u32) {
         self.id = Some(id);
     }
 

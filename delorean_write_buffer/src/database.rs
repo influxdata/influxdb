@@ -199,7 +199,7 @@ pub enum Error {
     GenericQueryError { message: String, query: String },
 
     #[snafu(display("replicated write from writer {} missing payload", writer))]
-    MissingPayload { writer: u16 },
+    MissingPayload { writer: u32 },
 }
 
 impl From<crate::table::Error> for Error {

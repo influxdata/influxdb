@@ -59,7 +59,7 @@ table Delete {
 // replicated writes from other hosts.
 table ReplicatedWrite {
   // writer is a unique identifier for the router that received this write
-  writer: uint16;
+  writer: uint32;
   // sequence is number this write comes in. This resets on restart of the writer
   sequence: uint64;
   // checksum is a crc32 checksum of the payload
