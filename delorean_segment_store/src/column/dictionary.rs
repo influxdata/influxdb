@@ -33,6 +33,35 @@ pub struct RLE {
 }
 
 impl RLE {
+    /// Initialises an RLE encoding with a set of column values, ensuring that
+    /// the rows in the column can be inserted in any order and the correct
+    /// ordinal relationship will exist between the encoded values.
+    pub fn with_dictionary(dictionary: BTreeSet<Option<String>>) -> Self {
+        let mut _self = Self::default();
+        let mut has_none = false;
+        let mut id = 0;
+        for entry in dictionary.into_iter() {
+            if entry.is_some() {
+                _self.entry_index.insert(entry.clone(), id as u32);
+                _self.index_entries.push(entry);
+                id += 1;
+            } else {
+                // add NULL values at end so they're encoded with the highest
+                // id.
+                has_none = true;
+            }
+        }
+
+        if has_none {
+            _self
+                .entry_index
+                .insert(None, _self.entry_index.len() as u32);
+            _self.index_entries.push(None);
+        }
+
+        _self
+    }
+
     /// Adds the provided string value to the encoded data. It is the caller's
     /// responsibility to ensure that the dictionary encoded remains sorted.
     pub fn push(&mut self, v: String) {
@@ -90,6 +119,10 @@ impl RLE {
             }
         }
         self.num_rows += additional;
+    }
+
+    pub fn num_rows(&self) -> u32 {
+        self.num_rows
     }
 
     //
@@ -586,6 +619,30 @@ mod test {
     use std::collections::BTreeSet;
 
     use crate::column::{cmp, RowIDs};
+
+    #[test]
+    fn rle_with_dictionary() {
+        let mut dictionary = BTreeSet::new();
+        dictionary.insert(Some("hello".to_string()));
+        dictionary.insert(Some("world".to_string()));
+        dictionary.insert(None);
+
+        let drle = super::RLE::with_dictionary(dictionary);
+        // the dictionary key set always puts None first...
+        assert_eq!(
+            drle.entry_index
+                .keys()
+                .cloned()
+                .collect::<Vec<Option<String>>>(),
+            vec![None, Some("hello".to_string()), Some("world".to_string()),]
+        );
+
+        // but None should always be encoded "last" (with the highest encoded id)
+        assert_eq!(
+            drle.entry_index.values().cloned().collect::<Vec<u32>>(),
+            vec![2, 0, 1],
+        );
+    }
 
     #[test]
     fn rle_push() {
