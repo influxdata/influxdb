@@ -63,7 +63,10 @@
     clippy::use_self
 )]
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{atomic::AtomicU64, Arc},
+};
 
 use delorean_data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
@@ -77,6 +80,7 @@ use delorean_write_buffer::Db as WriteBufferDb;
 use async_trait::async_trait;
 use delorean_arrow::arrow::record_batch::RecordBatch;
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::sync::atomic::Ordering;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -155,7 +159,12 @@ impl<M: ConnectionManager> Server<M> {
             None
         };
 
-        let db = Db { rules, buffer };
+        let sequence = AtomicU64::new(STARTING_SEQUENCE);
+        let db = Db {
+            rules,
+            buffer,
+            sequence,
+        };
 
         self.databases.insert(db_name, db);
 
@@ -184,7 +193,8 @@ impl<M: ConnectionManager> Server<M> {
             .get(db_name)
             .context(DatabaseNotFound { db: db_name })?;
 
-        let write = lines_to_replicated_write(id, 0, lines, &db.rules);
+        let sequence = db.next_sequence();
+        let write = lines_to_replicated_write(id, sequence, lines, &db.rules);
 
         if let Some(buf) = &db.buffer {
             buf.store_replicated_write(&write)
@@ -273,6 +283,15 @@ pub trait RemoteServer {
 struct Db {
     pub rules: DatabaseRules,
     pub buffer: Option<WriteBufferDb>,
+    sequence: AtomicU64,
+}
+
+const STARTING_SEQUENCE: u64 = 1;
+
+impl Db {
+    fn next_sequence(&self) -> u64 {
+        self.sequence.fetch_add(1, Ordering::SeqCst)
+    }
 }
 
 #[cfg(test)]
@@ -365,20 +384,35 @@ mod tests {
         let db_name = "foo";
         server.create_database(db_name, rules).await.unwrap();
 
-        let line = "cpu bar=1 10";
-        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
+        let lines = parsed_lines("cpu bar=1 10");
         server.write_lines("foo", &lines).await.unwrap();
 
         let writes = remote.writes.lock().unwrap().get(db_name).unwrap().clone();
 
         let write_text = r#"
-writer:1, sequence:0, checksum:226387645
+writer:1, sequence:1, checksum:226387645
 partition_key:
   table:cpu
     bar:1 time:10
 "#;
 
         assert_eq!(write_text, writes[0].to_string());
+
+        // ensure sequence number goes up
+        let lines = parsed_lines("mem,server=A,region=west user=232 12");
+        server.write_lines("foo", &lines).await.unwrap();
+
+        let writes = remote.writes.lock().unwrap().get(db_name).unwrap().clone();
+        assert_eq!(2, writes.len());
+
+        let write_text = r#"
+writer:1, sequence:2, checksum:3759030699
+partition_key:
+  table:mem
+    server:A region:west user:232 time:12
+"#;
+
+        assert_eq!(write_text, writes[1].to_string());
 
         Ok(())
     }
