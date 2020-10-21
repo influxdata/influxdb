@@ -7,12 +7,12 @@ use delorean_arrow::arrow::{
     datatypes::DataType as ArrowDataType,
 };
 
-use delorean_storage::exec::{GroupedSeriesSetItem, SeriesSet};
+use delorean_storage::exec::{GroupDescription, GroupedSeriesSetItem, SeriesSet};
 
 use delorean_generated_types::{
     read_response::{
-        frame::Data, BooleanPointsFrame, DataType, FloatPointsFrame, Frame, IntegerPointsFrame,
-        SeriesFrame, StringPointsFrame,
+        frame::Data, BooleanPointsFrame, DataType, FloatPointsFrame, Frame, GroupFrame,
+        IntegerPointsFrame, SeriesFrame, StringPointsFrame,
     },
     ReadResponse, Tag,
 };
@@ -41,6 +41,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// The specific type of (*Points) depends on the type of field column.
 pub fn series_set_to_read_response(series_set: SeriesSet) -> Result<ReadResponse> {
+    let frames = series_set_to_frames(series_set)?;
+    Ok(ReadResponse { frames })
+}
+
+fn series_set_to_frames(series_set: SeriesSet) -> Result<Vec<Frame>> {
     let mut data_records = Vec::new();
     for field_index in series_set.field_indices.iter() {
         field_to_data(&mut data_records, &series_set, *field_index)?
@@ -55,7 +60,7 @@ pub fn series_set_to_read_response(series_set: SeriesSet) -> Result<ReadResponse
         })
         .collect();
 
-    Ok(ReadResponse { frames })
+    Ok(frames)
 }
 
 /// Convert `GroupedSeriesSetIem` into a form suitable for gRPC transport
@@ -78,10 +83,34 @@ pub fn series_set_to_read_response(series_set: SeriesSet) -> Result<ReadResponse
 /// ```
 ///
 /// The specific type of (*Points) depends on the type of field column.
-pub fn grouped_series_set_to_read_response(
-    _grouped_series_set_item: GroupedSeriesSetItem,
+pub fn grouped_series_set_item_to_read_response(
+    grouped_series_set_item: GroupedSeriesSetItem,
 ) -> Result<ReadResponse> {
-    unimplemented!("grouped_series_set_to_read_response");
+    let frames = match grouped_series_set_item {
+        GroupedSeriesSetItem::GroupStart(group_description) => {
+            group_description_to_frames(group_description)?
+        }
+        GroupedSeriesSetItem::GroupData(series_set) => series_set_to_frames(series_set)?,
+    };
+    Ok(ReadResponse { frames })
+}
+
+fn group_description_to_frames(group_description: GroupDescription) -> Result<Vec<Frame>> {
+    // split key=value pairs into two separate vectors
+    let (tag_keys, partition_key_vals): (Vec<Vec<u8>>, Vec<Vec<u8>>) = group_description
+        .tags
+        .into_iter()
+        .map(|(k, v)| (k.bytes().collect(), v.bytes().collect()))
+        .unzip();
+
+    let group_frame = GroupFrame {
+        tag_keys,
+        partition_key_vals,
+    };
+
+    let data = Some(Data::Group(group_frame));
+
+    Ok(vec![Frame { data }])
 }
 
 fn data_type(array: &ArrayRef) -> Result<DataType> {
@@ -284,6 +313,85 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_group_group_conversion() {
+        let group_description = GroupDescription {
+            tags: vec![
+                (Arc::new("tag1".into()), Arc::new("val1".into())),
+                (Arc::new("tag2".into()), Arc::new("val2".into())),
+            ],
+        };
+
+        let grouped_series_set_item = GroupedSeriesSetItem::GroupStart(group_description);
+
+        let response = grouped_series_set_item_to_read_response(grouped_series_set_item)
+            .expect("Correctly converted grouped_series_set_item");
+        println!("Response is: {:#?}", response);
+
+        let dumped_frames = response
+            .frames
+            .iter()
+            .map(|f| dump_frame(f))
+            .collect::<Vec<_>>();
+
+        let expected_frames =
+            vec!["GroupFrame, tag_keys: tag1,tag2, partition_key_vals: val1,val2"];
+
+        assert_eq!(
+            dumped_frames, expected_frames,
+            "Expected:\n{:#?}\nActual:\n{:#?}",
+            expected_frames, dumped_frames
+        );
+    }
+
+    #[test]
+    fn test_group_series_conversion() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("float_field", ArrowDataType::Float64, true),
+            Field::new("time", ArrowDataType::Int64, true),
+        ]));
+
+        let float_array: ArrayRef = Arc::new(Float64Array::from(vec![10.1, 20.1, 30.1, 40.1]));
+        let timestamp_array: ArrayRef = Arc::new(Int64Array::from(vec![1000, 2000, 3000, 4000]));
+
+        let batch = RecordBatch::try_new(schema, vec![float_array, timestamp_array])
+            .expect("created new record batch");
+
+        let series_set = SeriesSet {
+            table_name: Arc::new("the_table".into()),
+            tags: vec![(Arc::new("tag1".into()), Arc::new("val1".into()))],
+            timestamp_index: 1,
+            field_indices: Arc::new(vec![0]),
+            start_row: 1,
+            num_rows: 2,
+            batch,
+        };
+
+        let grouped_series_set_item = GroupedSeriesSetItem::GroupData(series_set);
+
+        let response = grouped_series_set_item_to_read_response(grouped_series_set_item)
+            .expect("Correctly converted grouped_series_set_item");
+
+        println!("Response is: {:#?}", response);
+
+        let dumped_frames = response
+            .frames
+            .iter()
+            .map(|f| dump_frame(f))
+            .collect::<Vec<_>>();
+
+        let expected_frames = vec![
+            "SeriesFrame, tags: _f=float_field,_m=the_table,tag1=val1, type: 0",
+            "FloatPointsFrame, timestamps: [2000, 3000], values: \"20.1,30.1\"",
+        ];
+
+        assert_eq!(
+            dumped_frames, expected_frames,
+            "Expected:\n{:#?}\nActual:\n{:#?}",
+            expected_frames, dumped_frames
+        );
+    }
+
     fn dump_frame(frame: &Frame) -> String {
         let data = &frame.data;
         match data {
@@ -312,6 +420,14 @@ mod tests {
                 timestamps,
                 dump_values(values)
             ),
+            Some(Data::Group(GroupFrame {
+                tag_keys,
+                partition_key_vals,
+            })) => format!(
+                "GroupFrame, tag_keys: {}, partition_key_vals: {}",
+                dump_u8_vec(tag_keys),
+                dump_u8_vec(partition_key_vals),
+            ),
             None => "<NO data field>".into(),
             _ => ":thinking_face: unknown frame type".into(),
         }
@@ -323,6 +439,14 @@ mod tests {
     {
         v.iter()
             .map(|item| format!("{}", item))
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
+    fn dump_u8_vec(encoded_strings: &[Vec<u8>]) -> String {
+        encoded_strings
+            .iter()
+            .map(|b| String::from_utf8_lossy(b))
             .collect::<Vec<_>>()
             .join(",")
     }

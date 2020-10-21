@@ -39,7 +39,7 @@ use tokio::sync::mpsc;
 use tonic::Status;
 use tracing::warn;
 
-use super::rpc::data::{grouped_series_set_to_read_response, series_set_to_read_response};
+use super::rpc::data::{grouped_series_set_item_to_read_response, series_set_to_read_response};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -794,7 +794,7 @@ async fn convert_grouped_series_set(
         let response = grouped_series_set_item
             .context(ComputingGroupedSeriesSet)
             .and_then(|grouped_series_set_item| {
-                grouped_series_set_to_read_response(grouped_series_set_item)
+                grouped_series_set_item_to_read_response(grouped_series_set_item)
                     .context(ConvertingSeriesSet)
             })
             .map_err(|e| Status::internal(e.to_string()));

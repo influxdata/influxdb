@@ -20,8 +20,8 @@ use schema_pivot::SchemaPivotNode;
 
 // Publically export the different types of plans
 pub use seriesset::{
-    Error as SeriesSetError, GroupedSeriesSetConverter, GroupedSeriesSetItem, SeriesSet,
-    SeriesSetConverter,
+    Error as SeriesSetError, GroupDescription, GroupedSeriesSetConverter, GroupedSeriesSetItem,
+    SeriesSet, SeriesSetConverter,
 };
 pub use stringset::{IntoStringSet, StringSet, StringSetRef};
 use tokio::sync::mpsc;
