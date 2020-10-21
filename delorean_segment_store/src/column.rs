@@ -3,9 +3,11 @@ pub mod dictionary;
 pub mod fixed;
 pub mod fixed_null;
 
+use std::collections::BTreeSet;
+
 use croaring::Bitmap;
 
-use delorean_arrow::arrow;
+use delorean_arrow::{arrow, arrow::array::Array};
 
 /// The possible logical types that column values can have. All values in a
 /// column have the same physical type.
@@ -35,7 +37,7 @@ pub enum Column {
     ByteArray(MetaData<Vec<u8>>, StringEncoding), // TODO - arbitrary bytes
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq)]
 // The meta-data for a column
 pub struct MetaData<T> {
     // The total size of the column in bytes.
@@ -53,6 +55,179 @@ pub enum StringEncoding {
     // TODO - simple array encoding, e.g., via Arrow String array.
 }
 
+/// This implementation is concerned with how to produce string columns with
+/// different encodings.
+impl StringEncoding {
+    fn from_arrow_string_array(arr: arrow::array::StringArray) -> Self {
+        //
+        // TODO(edd): potentially switch on things like cardinality in the input
+        // and encode in different ways. Right now we only encode with RLE.
+        //
+
+        // RLE creation.
+
+        // build a sorted dictionary.
+        let mut dictionary = BTreeSet::new();
+
+        for i in 0..arr.len() {
+            if !arr.is_null(i) {
+                dictionary.insert(arr.value(i).to_string());
+            }
+        }
+
+        let mut data = dictionary::RLE::with_dictionary(dictionary);
+
+        let mut prev = if !arr.is_null(0) {
+            Some(arr.value(0))
+        } else {
+            None
+        };
+
+        let mut count = 1;
+        for i in 1..arr.len() {
+            let next = if arr.is_null(i) {
+                None
+            } else {
+                Some(arr.value(i))
+            };
+
+            if prev == next {
+                count += 1;
+                continue;
+            }
+
+            match prev {
+                Some(x) => data.push_additional(Some(x.to_string()), count),
+                None => data.push_additional(None, count),
+            }
+            prev = next;
+            count = 1;
+        }
+
+        // Add final batch to column if any
+        match prev {
+            Some(x) => data.push_additional(Some(x.to_string()), count),
+            None => data.push_additional(None, count),
+        };
+
+        // TODO(edd): size of RLE column.
+        let dictionary = data.dictionary();
+        let range = if !dictionary.is_empty() {
+            let min = data.dictionary()[0].clone();
+            let max = data.dictionary()[data.dictionary().len() - 1].clone();
+            Some((min, max))
+        } else {
+            None
+        };
+
+        let meta = MetaData {
+            size: 0,
+            rows: data.num_rows(),
+            range,
+        };
+
+        Self::RLE(data)
+    }
+
+    fn from_opt_strs(arr: &[Option<&str>]) -> Self {
+        //
+        // TODO(edd): potentially switch on things like cardinality in the input
+        // and encode in different ways. Right now we only encode with RLE.
+        //
+
+        // RLE creation.
+
+        // build a sorted dictionary.
+        let mut dictionary = BTreeSet::new();
+
+        for v in arr {
+            if let Some(x) = v {
+                dictionary.insert(x.to_string());
+            }
+        }
+
+        let mut data = dictionary::RLE::with_dictionary(dictionary);
+
+        let mut prev = &arr[0];
+
+        let mut count = 1;
+        for next in arr[1..].iter() {
+            if prev == next {
+                count += 1;
+                continue;
+            }
+
+            match prev {
+                Some(x) => data.push_additional(Some(x.to_string()), count),
+                None => data.push_additional(None, count),
+            }
+            prev = next;
+            count = 1;
+        }
+
+        // Add final batch to column if any
+        match prev {
+            Some(x) => data.push_additional(Some(x.to_string()), count),
+            None => data.push_additional(None, count),
+        };
+
+        Self::RLE(data)
+    }
+
+    fn from_strs(arr: &[&str]) -> Self {
+        //
+        // TODO(edd): potentially switch on things like cardinality in the input
+        // and encode in different ways. Right now we only encode with RLE.
+        //
+
+        // RLE creation.
+
+        // build a sorted dictionary.
+        let dictionary = arr.iter().map(|x| x.to_string()).collect::<BTreeSet<_>>();
+        let mut data = dictionary::RLE::with_dictionary(dictionary);
+
+        let mut prev = &arr[0];
+        let mut count = 1;
+        for next in arr[1..].iter() {
+            if prev == next {
+                count += 1;
+                continue;
+            }
+
+            data.push_additional(Some(prev.to_string()), count);
+            prev = next;
+            count = 1;
+        }
+
+        // Add final batch to column if any
+        data.push_additional(Some(prev.to_string()), count);
+
+        Self::RLE(data)
+    }
+
+    // generates metadata for an encoded column.
+    fn meta(data: &Self) -> MetaData<String> {
+        match data {
+            StringEncoding::RLE(data) => {
+                let dictionary = data.dictionary();
+                let range = if !dictionary.is_empty() {
+                    let min = data.dictionary()[0].clone();
+                    let max = data.dictionary()[data.dictionary().len() - 1].clone();
+                    Some((min, max))
+                } else {
+                    None
+                };
+
+                MetaData {
+                    size: 0,
+                    rows: data.num_rows(),
+                    range,
+                }
+            }
+        }
+    }
+}
+
 pub enum IntegerEncoding {
     S64S64(fixed::Fixed<i64>),
     S64S32(fixed::Fixed<i32>),
@@ -67,6 +242,34 @@ pub enum IntegerEncoding {
 pub enum FloatEncoding {
     Fixed64(fixed::Fixed<f64>),
     Fixed32(fixed::Fixed<f32>),
+}
+
+// Converts an Arrow `StringArray` into a column, currently using the RLE
+// encoding scheme. Other encodings can be supported and added to this
+// implementation.
+//
+// Note: this currently runs through the array and builds the dictionary before
+// creating the encoding. There is room for performance improvement here but
+// ideally it's a "write once read many" scenario.
+impl From<arrow::array::StringArray> for Column {
+    fn from(arr: arrow::array::StringArray) -> Self {
+        let data = StringEncoding::from_arrow_string_array(arr);
+        Column::String(StringEncoding::meta(&data), data)
+    }
+}
+
+impl From<&[Option<&str>]> for Column {
+    fn from(arr: &[Option<&str>]) -> Self {
+        let data = StringEncoding::from_opt_strs(arr);
+        Column::String(StringEncoding::meta(&data), data)
+    }
+}
+
+impl From<&[&str]> for Column {
+    fn from(arr: &[&str]) -> Self {
+        let data = StringEncoding::from_strs(arr);
+        Column::String(StringEncoding::meta(&data), data)
+    }
 }
 
 /// This method supports converting a slice of signed integers into the most
@@ -291,6 +494,64 @@ impl RowIDs {
 #[cfg(test)]
 mod test {
     use super::*;
+    use delorean_arrow::arrow::array::StringArray;
+
+    #[test]
+    fn from_arrow_string_array() {
+        let input = vec![None, Some("world"), None, Some("hello")];
+        let arr = StringArray::from(input);
+
+        let col = Column::from(arr);
+        if let Column::String(meta, StringEncoding::RLE(mut enc)) = col {
+            assert_eq!(
+                meta,
+                super::MetaData::<String> {
+                    size: 0,
+                    rows: 4,
+                    range: Some(("hello".to_string(), "world".to_string())),
+                }
+            );
+
+            assert_eq!(
+                enc.all_values(vec![]),
+                vec![
+                    None,
+                    Some(&"world".to_string()),
+                    None,
+                    Some(&"hello".to_string())
+                ]
+            );
+
+            assert_eq!(enc.all_encoded_values(vec![]), vec![0, 2, 0, 1,]);
+        } else {
+            panic!("invalid type");
+        }
+    }
+
+    #[test]
+    fn from_strs() {
+        let arr = vec!["world", "hello"];
+        let col = Column::from(arr.as_slice());
+        if let Column::String(meta, StringEncoding::RLE(mut enc)) = col {
+            assert_eq!(
+                meta,
+                super::MetaData::<String> {
+                    size: 0,
+                    rows: 2,
+                    range: Some(("hello".to_string(), "world".to_string())),
+                }
+            );
+
+            assert_eq!(
+                enc.all_values(vec![]),
+                vec![Some(&"world".to_string()), Some(&"hello".to_string())]
+            );
+
+            assert_eq!(enc.all_encoded_values(vec![]), vec![2, 1]);
+        } else {
+            panic!("invalid type");
+        }
+    }
 
     #[test]
     fn from_i64_slice() {
