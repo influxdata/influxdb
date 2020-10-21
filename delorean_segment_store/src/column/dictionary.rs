@@ -419,8 +419,18 @@ impl RLE {
     /// Efficiently determines if this column contains non-null values that
     /// differ from the provided set of values.
     ///
+    /// Informally, this method provides an efficient way of answering "is it
+    /// worth spending time reading this column for values or do I already have
+    /// all the values in a set".
+    ///
     /// More formally, this method returns the relative complement of this
     /// column's values in the provided set of values.
+    ///
+    /// This method would be useful when the same column is being read across
+    /// many segments, and one wants to determine to the total distinct set of
+    /// values. By exposing the current result set to each column (as an
+    /// argument to `contains_other_values`) columns can be short-circuited when
+    /// they only contain values that have already been discovered.
     ///
     pub fn contains_other_values(&self, values: &BTreeSet<&String>) -> bool {
         let mut encoded_values = self.index_entries.len();
