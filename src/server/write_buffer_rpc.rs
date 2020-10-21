@@ -29,7 +29,10 @@ use crate::server::rpc::expr::convert_predicate;
 use crate::server::rpc::input::GrpcInputs;
 
 use delorean_storage::{
-    exec::{Executor as StorageExecutor, GroupedSeriesSetItem, SeriesSet, SeriesSetError},
+    exec::{
+        seriesset::{Error as SeriesSetError, GroupedSeriesSetItem, SeriesSet},
+        Executor as StorageExecutor,
+    },
     org_and_bucket_to_database, Database, DatabaseStore, TimestampRange as StorageTimestampRange,
 };
 

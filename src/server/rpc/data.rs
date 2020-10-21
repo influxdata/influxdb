@@ -7,7 +7,7 @@ use delorean_arrow::arrow::{
     datatypes::DataType as ArrowDataType,
 };
 
-use delorean_storage::exec::{GroupDescription, GroupedSeriesSetItem, SeriesSet};
+use delorean_storage::exec::seriesset::{GroupDescription, GroupedSeriesSetItem, SeriesSet};
 
 use delorean_generated_types::{
     read_response::{

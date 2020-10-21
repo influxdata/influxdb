@@ -4,9 +4,10 @@
 use delorean_arrow::arrow::record_batch::RecordBatch;
 
 use crate::{
-    exec::GroupedSeriesSetPlans,
-    exec::SeriesSetPlans,
-    exec::{StringSet, StringSetPlan, StringSetRef},
+    exec::{
+        stringset::{StringSet, StringSetRef},
+        GroupedSeriesSetPlans, SeriesSetPlans, StringSetPlan,
+    },
     Database, DatabaseStore, Predicate, TimestampRange,
 };
 

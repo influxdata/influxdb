@@ -1,9 +1,12 @@
 use delorean_generated_types::wal as wb;
 use delorean_line_parser::ParsedLine;
 use delorean_storage::{
-    exec::GroupedSeriesSetPlan, exec::GroupedSeriesSetPlans, exec::SeriesSetPlan,
-    exec::SeriesSetPlans, exec::StringSet, exec::StringSetPlan, util::visit_expression,
-    util::ExpressionVisitor, Database, Predicate, TimestampRange,
+    exec::{
+        stringset::StringSet, GroupedSeriesSetPlan, GroupedSeriesSetPlans, SeriesSetPlan,
+        SeriesSetPlans, StringSetPlan,
+    },
+    util::{visit_expression, ExpressionVisitor},
+    Database, Predicate, TimestampRange,
 };
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
@@ -1136,7 +1139,11 @@ mod tests {
         scalar::ScalarValue,
     };
     use delorean_storage::{
-        exec::Executor, exec::SeriesSet, exec::SeriesSetError, Database, TimestampRange,
+        exec::{
+            seriesset::{Error as SeriesSetError, SeriesSet},
+            Executor,
+        },
+        Database, TimestampRange,
     };
     use logical_plan::{Expr, Operator};
 

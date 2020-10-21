@@ -4,8 +4,8 @@
 mod counters;
 mod planning;
 mod schema_pivot;
-mod seriesset;
-mod stringset;
+pub mod seriesset;
+pub mod stringset;
 
 use std::sync::Arc;
 
@@ -18,12 +18,11 @@ use delorean_arrow::{
 use planning::DeloreanExecutionContext;
 use schema_pivot::SchemaPivotNode;
 
-// Publically export the different types of plans
-pub use seriesset::{
-    Error as SeriesSetError, GroupDescription, GroupedSeriesSetConverter, GroupedSeriesSetItem,
-    SeriesSet, SeriesSetConverter,
+use seriesset::{
+    Error as SeriesSetError, GroupedSeriesSetConverter, GroupedSeriesSetItem, SeriesSet,
+    SeriesSetConverter,
 };
-pub use stringset::{IntoStringSet, StringSet, StringSetRef};
+use stringset::{IntoStringSet, StringSet, StringSetRef};
 use tokio::sync::mpsc;
 
 use snafu::{ResultExt, Snafu};
