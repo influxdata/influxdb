@@ -121,25 +121,28 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 	//
 	if vals, exists := r.Form["trace"]; exists {
 		// parse the duration encoded in the last "trace" value supplied.
-		duration, err := time.ParseDuration(last(vals))
+		val := last(vals)
+		duration, err := time.ParseDuration(val)
 
 		// If we can't parse the duration or if the user supplies a negative
-		// number, then set it to a reasonable default of 10s.
+		// number, return an appropriate error status and message.
 		//
-		// This allows for stuff like ?trace=true -- which isn't recommened but
-		// makes the code do something reasonable.
-		//
-		// If someone wants to supply a trace duration of 0s I guess that's their
-		// perogative but lets ensure that it is positive.
-		if defaultDuration := time.Second * 10; err != nil || duration < 0 {
-			duration = defaultDuration
+		// In this case it is a StatusBadRequest (400) since the problem is in the
+		// supplied form data.
+		if duration < 0 {
+			http.Error(w, fmt.Sprintf("negative trace durations not allowed"), http.StatusBadRequest)
+			return
+		}
+
+		if err != nil {
+			http.Error(w, fmt.Sprintf("could not parse supplied duration for trace %q", val), http.StatusBadRequest)
+			return
 		}
 
 		// Trace files can get big.  Lets clamp the maximum trace duration to 45s.
 		if maxDuration := time.Second * 45; duration > maxDuration {
 			duration = maxDuration
 		}
-
 		profiles = append(profiles, prof{"trace", duration})
 	}
 
@@ -167,22 +170,31 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 	if vals, exists := r.Form["cpu"]; exists {
 		duration := time.Second * 30
 		val := last(vals)
-		if seconds, exists := r.Form["seconds"]; exists {
-			s, _ := strconv.ParseInt(last(seconds), 10, 64)
-			duration = time.Second * time.Duration(s)
-		} else if val != "" {
+
+		// getDuration is a small function literal that encapsulates the logic
+		// for getting the duration from either the "seconds" form value or from
+		// the value assigned to "cpu".
+		getDuration := func() (time.Duration, error) {
+			if seconds, exists := r.Form["seconds"]; exists {
+				s, err := strconv.ParseInt(last(seconds), 10, 64)
+				if err != nil {
+					return 0, err
+				}
+				return time.Second * time.Duration(s), nil
+			}
 			// see if the value of cpu is a duration like:  cpu=10s
-			duration, _ = time.ParseDuration(val)
+			return time.ParseDuration(val)
 		}
 
-		// ensure that the duration is positive
-		if defaultDuration := time.Second * 30; duration < 0 {
-			duration = defaultDuration
+		duration, err := getDuration()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("could not parse supplied duration for cpu profile %q", val), http.StatusBadRequest)
+			return
 		}
 
-		// ensure that profile duration is less than 1 minute
-		if maxDuration := time.Minute * 1; duration > maxDuration {
-			duration = maxDuration
+		if duration < 0 {
+			http.Error(w, fmt.Sprintf("negative cpu profile durations not allowed"), http.StatusBadRequest)
+			return
 		}
 
 		// prepend our profiles slice with cpu -- we want to fetch cpu profiles
