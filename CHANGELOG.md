@@ -6,7 +6,6 @@
 1. [19740](https://github.com/influxdata/influxdb/pull/19740): Provide means to remove stack without confirmation
 1. [19750](https://github.com/influxdata/influxdb/pull/19750): Return error on failed resource addition
 1. [19774](https://github.com/influxdata/influxdb/pull/19774): Update Flux to v0.90.0
-1. []():
 
 ### Bug Fixes
 
