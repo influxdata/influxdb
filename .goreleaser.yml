@@ -7,6 +7,9 @@ builds:
     goarch:
       - amd64
       - arm64
+      - arm
+    goarm:
+      - 6
 
     main: ./cmd/influx/
     flags:
@@ -28,6 +31,9 @@ builds:
     goarch:
       - amd64
       - arm64
+      - arm
+    goarm:
+      - 6
 
     main: ./cmd/influxd/
     flags:

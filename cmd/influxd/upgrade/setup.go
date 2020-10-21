@@ -54,7 +54,7 @@ func nonInteractive() (*influxdb.OnboardingRequest, error) {
 		return nil, err
 	}
 	if dur > 0 {
-		req.RetentionPeriod = uint(dur / time.Hour)
+		req.RetentionPeriod = dur / time.Hour
 	}
 	return req, nil
 }
@@ -97,13 +97,13 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 	}
 
 	if dur > 0 {
-		req.RetentionPeriod = uint(dur / time.Hour)
+		req.RetentionPeriod = dur / time.Hour
 	} else {
 		for {
 			rpStr := internal.GetInput(ui, "Please type your retention period in hours.\r\nOr press ENTER for infinite.", strconv.Itoa(influxdb.InfiniteRetention))
 			rp, err := strconv.Atoi(rpStr)
 			if rp >= 0 && err == nil {
-				req.RetentionPeriod = uint(rp) * uint(time.Hour)
+				req.RetentionPeriod = time.Duration(rp) * time.Hour
 				break
 			}
 		}
@@ -113,7 +113,7 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 		if confirmed := internal.GetConfirm(ui, func() string {
 			rp := "infinite"
 			if req.RetentionPeriod > 0 {
-				rp = fmt.Sprintf("%d hrs", time.Duration(req.RetentionPeriod)/time.Hour)
+				rp = fmt.Sprintf("%d hrs", req.RetentionPeriod/time.Hour)
 			}
 			return fmt.Sprintf(`
 You have entered:
