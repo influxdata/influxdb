@@ -24,7 +24,6 @@ import (
 	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/dbrp"
-	"github.com/influxdata/influxdb/v2/endpoints"
 	"github.com/influxdata/influxdb/v2/gather"
 	"github.com/influxdata/influxdb/v2/http"
 	iqlcontrol "github.com/influxdata/influxdb/v2/influxql/control"
@@ -46,6 +45,7 @@ import (
 	"github.com/influxdata/influxdb/v2/label"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/nats"
+	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
 	"github.com/influxdata/influxdb/v2/pkger"
 	infprom "github.com/influxdata/influxdb/v2/prometheus"
@@ -759,17 +759,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		variableSvc               platform.VariableService                 = m.kvService
-		sourceSvc                 platform.SourceService                   = m.kvService
-		dashboardSvc              platform.DashboardService                = m.kvService
-		dashboardLogSvc           platform.DashboardOperationLogService    = m.kvService
-		userLogSvc                platform.UserOperationLogService         = m.kvService
-		bucketLogSvc              platform.BucketOperationLogService       = m.kvService
-		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
-		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
-		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
-		lookupSvc                 platform.LookupService                   = m.kvService
-		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
+		variableSvc      platform.VariableService                 = m.kvService
+		sourceSvc        platform.SourceService                   = m.kvService
+		dashboardSvc     platform.DashboardService                = m.kvService
+		dashboardLogSvc  platform.DashboardOperationLogService    = m.kvService
+		userLogSvc       platform.UserOperationLogService         = m.kvService
+		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
+		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
+		scraperTargetSvc platform.ScraperTargetStoreService       = m.kvService
+		telegrafSvc      platform.TelegrafConfigStore             = m.kvService
+		lookupSvc        platform.LookupService                   = m.kvService
 	)
 
 	tenantStore := tenant.NewStore(m.kvStore)
@@ -988,10 +987,15 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		checkSvc = middleware.NewCheckService(checkSvc, m.kvService, coordinator)
 	}
 
+	var notificationEndpointSvc platform.NotificationEndpointService
+	{
+		notificationEndpointSvc = endpointservice.New(endpointservice.NewStore(m.kvStore), secretSvc)
+	}
+
 	var notificationRuleSvc platform.NotificationRuleStore
 	{
 		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
-		notificationRuleSvc, err = ruleservice.NewRuleService(m.log, m.kvStore, m.kvService, ts.OrganizationService, m.kvService)
+		notificationRuleSvc, err = ruleservice.New(m.log, m.kvStore, m.kvService, ts.OrganizationService, notificationEndpointSvc)
 		if err != nil {
 			return err
 		}
@@ -1145,7 +1149,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		VariableFinder:             variableSvc,
 		TargetFinder:               scraperTargetSvc,
 		CheckFinder:                checkSvc,
-		NotificationEndpointFinder: notificationEndpointStore,
+		NotificationEndpointFinder: notificationEndpointSvc,
 		NotificationRuleFinder:     notificationRuleSvc,
 	}
 
@@ -1190,7 +1194,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		NotificationRuleStore:           notificationRuleSvc,
-		NotificationEndpointService:     endpoints.NewService(notificationEndpointStore, secretSvc, ts.UserResourceMappingService, ts.OrganizationService),
+		NotificationEndpointService:     notificationEndpointSvc,
 		CheckService:                    checkSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,
 		ChronografService:               chronografSvc,

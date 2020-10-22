@@ -56,8 +56,8 @@ func (m InitialMigration) Up(ctx context.Context, store SchemaStore) error {
 		// store base backed services
 		checkBucket,
 		checkIndexBucket,
-		notificationEndpointBucket,
-		notificationEndpointIndexBucket,
+		[]byte("notificationEndpointv1"),
+		[]byte("notificationEndpointIndexv1"),
 		variableBucket,
 		variableIndexBucket,
 		variableOrgsIndex,

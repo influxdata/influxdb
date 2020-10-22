@@ -1,45 +1,43 @@
-package endpoints_test
+package service_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/endpoints"
+	influxdb "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/endpoint/service"
+	"github.com/influxdata/influxdb/v2/pkg/pointer"
+	"github.com/influxdata/influxdb/v2/tenant"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
-var id1 = influxTesting.MustIDBase16Ptr("020f755c3c082000")
-var id2 = influxTesting.MustIDBase16Ptr("020f755c3c082001")
-var orgID = influxTesting.MustIDBase16Ptr("a10f755c3c082001")
-var userID = influxTesting.MustIDBase16Ptr("b10f755c3c082001")
+var (
+	id1    = influxTesting.MustIDBase16Ptr("020f755c3c082000")
+	id2    = influxTesting.MustIDBase16Ptr("020f755c3c082001")
+	orgID  = influxTesting.MustIDBase16Ptr("a10f755c3c082001")
+	userID = influxTesting.MustIDBase16Ptr("b10f755c3c082001")
 
-var timeGen1 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 13, 4, 19, 10, 0, time.UTC)}
-var timeGen2 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 14, 5, 23, 53, 10, time.UTC)}
-var testCrudLog = influxdb.CRUDLog{
-	CreatedAt: timeGen1.Now(),
-	UpdatedAt: timeGen2.Now(),
-}
+	timeGen1 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 13, 4, 19, 10, 0, time.UTC)}
+	timeGen2 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 14, 5, 23, 53, 10, time.UTC)}
 
-// newInmemService creates a new in-memory secret service
-func newInmemService(t *testing.T) *kv.Service {
+	testCrudLog = influxdb.CRUDLog{
+		CreatedAt: timeGen1.Now(),
+		UpdatedAt: timeGen2.Now(),
+	}
+)
+
+func newSecretService(t *testing.T, ctx context.Context, logger *zap.Logger, s kv.Store) influxdb.SecretService {
 	t.Helper()
 
-	store := inmem.NewKVStore()
-	logger := zaptest.NewLogger(t)
-	ctx := context.Background()
-	// initialize the store
-	if err := all.Up(ctx, logger, store); err != nil {
-		t.Fatal(err)
-	}
-	svc := kv.NewService(logger, store)
+	tenantSvc := tenant.NewService(tenant.NewStore(s))
 
 	// initialize organization
 	org := influxdb.Organization{
@@ -48,21 +46,26 @@ func newInmemService(t *testing.T) *kv.Service {
 		CRUDLog: testCrudLog,
 	}
 
-	if err := svc.CreateOrganization(ctx, &org); err != nil {
+	if err := tenantSvc.CreateOrganization(ctx, &org); err != nil {
 		t.Fatal(err)
 	}
 	orgID = &org.ID // orgID is generated
 
-	return svc
+	return kv.NewService(logger, s)
 }
 
 // TestEndpointService_cummulativeSecrets tests that secrets are cummulatively added/updated and removed upon delete
 // see https://github.com/influxdata/influxdb/pull/19082 for details
 func TestEndpointService_cummulativeSecrets(t *testing.T) {
-	inMemService := newInmemService(t)
-	endpointService := endpoints.NewService(inMemService, inMemService, inMemService, inMemService)
-	secretService := inMemService
 	ctx := context.Background()
+	store := inmem.NewKVStore()
+	logger := zaptest.NewLogger(t)
+	if err := all.Up(ctx, logger, store); err != nil {
+		t.Fatal(err)
+	}
+
+	secretService := newSecretService(t, ctx, logger, store)
+	endpointService := service.New(service.NewStore(store), secretService)
 
 	var endpoint1 = endpoint.HTTP{
 		Base: endpoint.Base{
@@ -79,8 +82,8 @@ func TestEndpointService_cummulativeSecrets(t *testing.T) {
 		AuthMethod: "basic",
 		Method:     "POST",
 		URL:        "http://example.com",
-		Username:   influxdb.SecretField{Key: id1.String() + "username-key", Value: strPtr("val1")},
-		Password:   influxdb.SecretField{Key: id1.String() + "password-key", Value: strPtr("val2")},
+		Username:   influxdb.SecretField{Key: id1.String() + "username-key", Value: pointer.String("val1")},
+		Password:   influxdb.SecretField{Key: id1.String() + "password-key", Value: pointer.String("val2")},
 	}
 	var endpoint2 = endpoint.HTTP{
 		Base: endpoint.Base{
@@ -97,8 +100,8 @@ func TestEndpointService_cummulativeSecrets(t *testing.T) {
 		AuthMethod: "basic",
 		Method:     "POST",
 		URL:        "http://example2.com",
-		Username:   influxdb.SecretField{Key: id2.String() + "username-key", Value: strPtr("val3")},
-		Password:   influxdb.SecretField{Key: id2.String() + "password-key", Value: strPtr("val4")},
+		Username:   influxdb.SecretField{Key: id2.String() + "username-key", Value: pointer.String("val3")},
+		Password:   influxdb.SecretField{Key: id2.String() + "password-key", Value: pointer.String("val4")},
 	}
 	var err error
 	var secretKeys []string
@@ -127,7 +130,7 @@ func TestEndpointService_cummulativeSecrets(t *testing.T) {
 
 	// update 1st endpoint and validate secrets
 	const updatedSecretValue = "updatedSecVal"
-	endpoint1.Username.Value = strPtr(updatedSecretValue)
+	endpoint1.Username.Value = pointer.String(updatedSecretValue)
 	if _, err = endpointService.UpdateNotificationEndpoint(ctx, *endpoint1.ID, &endpoint1, *userID); err != nil {
 		t.Fatal(err)
 	}
@@ -174,9 +177,4 @@ func TestEndpointService_cummulativeSecrets(t *testing.T) {
 	if len(secretKeys) != 0 {
 		t.Errorf("secrets after deleting the 2nd endpoint = %v, want %v", len(secretKeys), 2)
 	}
-}
-
-// strPtr returns string pointer
-func strPtr(s string) *string {
-	return &s
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
@@ -160,7 +159,7 @@ type CheckFields struct {
 	Tasks                []influxdb.TaskCreate
 }
 
-type checkServiceFactory func(CheckFields, *testing.T) (influxdb.CheckService, *kv.Service, string, func())
+type checkServiceFactory func(CheckFields, *testing.T) (influxdb.CheckService, influxdb.UserResourceMappingService, string, func())
 
 type checkServiceF func(
 	init checkServiceFactory,
