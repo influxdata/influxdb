@@ -72,13 +72,13 @@ use delorean_data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
     database_rules::{DatabaseRules, HostGroup, HostGroupId},
 };
-use delorean_generated_types::wal as wb;
 use delorean_line_parser::ParsedLine;
 use delorean_storage::Database;
 use delorean_write_buffer::Db as WriteBufferDb;
 
 use async_trait::async_trait;
 use delorean_arrow::arrow::record_batch::RecordBatch;
+use delorean_data_types::database_rules::MatchTables;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::atomic::Ordering;
 
@@ -196,37 +196,7 @@ impl<M: ConnectionManager> Server<M> {
         let sequence = db.next_sequence();
         let write = lines_to_replicated_write(id, sequence, lines, &db.rules);
 
-        if let Some(buf) = &db.buffer {
-            buf.store_replicated_write(&write)
-                .await
-                .map_err(|e| Box::new(e) as DatabaseError)
-                .context(UnknownDatabaseError {})?;
-        }
-
-        for host_group_id in &db.rules.replication {
-            let group = self
-                .host_groups
-                .get(host_group_id)
-                .context(HostGroupNotFound { id: host_group_id })?;
-
-            let host = group
-                .hosts
-                .get(0)
-                .context(NoHostInGroup { id: host_group_id })?;
-
-            let connection = self
-                .connection_manager
-                .remote_server(host)
-                .await
-                .map_err(|e| Box::new(e) as DatabaseError)
-                .context(UnableToGetConnection { server: host })?;
-
-            connection
-                .replicate(db_name, &write)
-                .await
-                .map_err(|e| Box::new(e) as DatabaseError)
-                .context(ErrorReplicating {})?;
-        }
+        self.handle_replicated_write(db_name, db, write).await?;
 
         Ok(())
     }
@@ -247,10 +217,66 @@ impl<M: ConnectionManager> Server<M> {
 
     pub async fn handle_replicated_write(
         &self,
-        _db: &str,
-        _write: &wb::ReplicatedWrite<'_>,
+        db_name: &str,
+        db: &Db,
+        write: ReplicatedWrite,
     ) -> Result<()> {
-        unimplemented!()
+        if let Some(buf) = &db.buffer {
+            buf.store_replicated_write(&write)
+                .await
+                .map_err(|e| Box::new(e) as DatabaseError)
+                .context(UnknownDatabaseError {})?;
+        }
+
+        for host_group_id in &db.rules.replication {
+            self.replicate_to_host_group(host_group_id, db_name, &write)
+                .await?;
+        }
+
+        for subscription in &db.rules.subscriptions {
+            match subscription.matcher.tables {
+                MatchTables::All => {
+                    self.replicate_to_host_group(&subscription.host_group_id, db_name, &write)
+                        .await?
+                }
+                MatchTables::Table(_) => unimplemented!(),
+                MatchTables::Regex(_) => unimplemented!(),
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn replicate_to_host_group(
+        &self,
+        host_group_id: &str,
+        db_name: &str,
+        write: &ReplicatedWrite,
+    ) -> Result<()> {
+        let group = self
+            .host_groups
+            .get(host_group_id)
+            .context(HostGroupNotFound { id: host_group_id })?;
+
+        let host = group
+            .hosts
+            .get(0)
+            .context(NoHostInGroup { id: host_group_id })?;
+
+        let connection = self
+            .connection_manager
+            .remote_server(host)
+            .await
+            .map_err(|e| Box::new(e) as DatabaseError)
+            .context(UnableToGetConnection { server: host })?;
+
+        connection
+            .replicate(db_name, write)
+            .await
+            .map_err(|e| Box::new(e) as DatabaseError)
+            .context(ErrorReplicating {})?;
+
+        Ok(())
     }
 }
 
@@ -280,7 +306,7 @@ pub trait RemoteServer {
 }
 
 #[derive(Debug)]
-struct Db {
+pub struct Db {
     pub rules: DatabaseRules,
     pub buffer: Option<WriteBufferDb>,
     sequence: AtomicU64,
@@ -299,6 +325,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use delorean_arrow::arrow::{csv, util::string_writer::StringWriter};
+    use delorean_data_types::database_rules::{MatchTables, Matcher, Subscription};
     use delorean_line_parser::parse_lines;
     use snafu::Snafu;
     use std::sync::Mutex;
@@ -375,6 +402,69 @@ mod tests {
         let rules = DatabaseRules {
             replication: vec![host_group_id.clone()],
             replication_count: 1,
+            ..Default::default()
+        };
+        server
+            .create_host_group(host_group_id.clone(), vec![remote_id.to_string()])
+            .await
+            .unwrap();
+        let db_name = "foo";
+        server.create_database(db_name, rules).await.unwrap();
+
+        let lines = parsed_lines("cpu bar=1 10");
+        server.write_lines("foo", &lines).await.unwrap();
+
+        let writes = remote.writes.lock().unwrap().get(db_name).unwrap().clone();
+
+        let write_text = r#"
+writer:1, sequence:1, checksum:226387645
+partition_key:
+  table:cpu
+    bar:1 time:10
+"#;
+
+        assert_eq!(write_text, writes[0].to_string());
+
+        // ensure sequence number goes up
+        let lines = parsed_lines("mem,server=A,region=west user=232 12");
+        server.write_lines("foo", &lines).await.unwrap();
+
+        let writes = remote.writes.lock().unwrap().get(db_name).unwrap().clone();
+        assert_eq!(2, writes.len());
+
+        let write_text = r#"
+writer:1, sequence:2, checksum:3759030699
+partition_key:
+  table:mem
+    server:A region:west user:232 time:12
+"#;
+
+        assert_eq!(write_text, writes[1].to_string());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn sends_all_to_subscriber() -> Result {
+        let mut manager = TestConnectionManager::new();
+        let remote = Arc::new(TestRemoteServer::default());
+        let remote_id = "serverA";
+        manager
+            .remotes
+            .insert(remote_id.to_string(), remote.clone());
+
+        let mut server = Server::new(manager);
+        server.set_id(1);
+        let host_group_id = "az1".to_string();
+        let rules = DatabaseRules {
+            subscriptions: vec![Subscription {
+                name: "query_server_1".to_string(),
+                host_group_id: host_group_id.clone(),
+                matcher: Matcher {
+                    tables: MatchTables::All,
+                    predicate: None,
+                },
+            }],
             ..Default::default()
         };
         server
