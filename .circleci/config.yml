@@ -1,24 +1,6 @@
 version: 2.1
 
-# Adding these commands but need confirmation of cache location
 commands:
-  cache_restore:
-    description: Restore Cargo Cache
-    steps:
-      - restore_cache:
-          name: Restoring Cargo Cache
-          keys:
-            - cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
-            - cargo-cache-{{ arch }}-{{ .Branch }}
-            - cargo-cache
-  cache_save:
-    description: Save Cargo Cache
-    steps:
-      - save_cache:
-          name: Save Cargo Cache
-          paths:
-            - /usr/local/cargo/registry
-          key: cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
 
   rust_nightly:
     description: Install nightly tools
@@ -55,25 +37,23 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - cache_restore
       - rust_nightly
       - run:
           name: Cargo test
           command: cargo test --workspace
-      - cache_save
   build:
     docker:
       - image: quay.io/influxdb/rust:ci
     steps:
       - checkout
-      - cache_restore
       - rust_nightly
       - run:
           name: Cargo build
           command: cargo build --workspace
-      - cache_save
+
   ci_image:
     machine: true
+    resource_class: xlarge
     steps:
       - checkout
       - run: |
@@ -89,7 +69,6 @@ jobs:
       - image: quay.io/influxdb/rust:ci
     steps:
       - checkout
-      - cache_restore
       - rust_nightly
       - run:
           name: Cargo release build with target arch set for CRoaring

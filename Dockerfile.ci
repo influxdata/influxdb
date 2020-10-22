@@ -1,4 +1,16 @@
+###
+# Dockerfile for the image used in the Delorean CI tests
+# As of October 202, it is rebuilt each night
+#
+# It expects to be run with the delorean repo checked out locally.
+# for example:
+#
+# cd delorean
+# docker build -f Dockerfile.ci .
+##
+
 # Build any binaries that can be copied into the CI image
+# Note we build flatbuffers from source (pinned to a particualar version)
 FROM rust:slim-buster AS flatc
 RUN apt-get update \
   && mkdir -p /usr/share/man/man1 \
@@ -48,5 +60,19 @@ RUN groupadd -g 1500 rust \
 
 USER rust
 ENV PATH /home/rust/.local/bin:/home/rust/bin:${PATH}
+
+# Copy the source into the image
+ADD . /home/rust/project
+RUN sudo chown -R rust:rust /home/rust/project
+RUN sudo chmod u+rwx  /home/rust/project
+RUN cd /home/rust/project && git checkout master && git reset --hard
+
+# Compile the code and bake the results into the image, so actual CI
+# builds are just incremental builds from the last time the image was
+# made.
+
+RUN cd /home/rust/project && cargo build --all && \
+    cargo clippy && \
+    cargo test --no-run
 
 CMD ["/bin/bash"]
