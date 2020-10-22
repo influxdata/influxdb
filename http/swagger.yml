@@ -11704,12 +11704,7 @@ components:
       type: string
       enum: ["slack", "pagerduty", "http", "telegram"]
     DBRP:
-      required:
-        - orgID
-        - org
-        - bucketID
-        - database
-        - retention_policy
+      type: object
       properties:
         id:
           type: string
@@ -11735,6 +11730,17 @@ components:
           description: Specify if this mapping represents the default retention policy for the database specificed.
         links:
           $ref: "#/components/schemas/Links"
+      oneOf:
+        - required:
+          - orgID
+          - bucketID
+          - database
+          - retention_policy
+        - required:
+          - org
+          - bucketID
+          - database
+          - retention_policy
     DBRPs:
       properties:
         notificationEndpoints:
