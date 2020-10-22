@@ -50,7 +50,56 @@ func TestService_handlePostAuthorization(t *testing.T) {
 		statusCode  int
 		contentType string
 		body        string
+		bodyErr     string
 	}
+
+	var (
+		defaultFields = fields{
+			AuthorizationService: &mock.AuthorizationService{
+				CreateAuthorizationFn: func(ctx context.Context, c *influxdb.Authorization) error {
+					c.ID = itesting.MustIDBase16("020f755c3c082000")
+					return nil
+				},
+			},
+			TenantService: &tenantService{
+				FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					return &influxdb.User{
+						ID:   id,
+						Name: "u1",
+					}, nil
+				},
+				FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+					return &influxdb.Organization{
+						ID:   id,
+						Name: "o1",
+					}, nil
+				},
+				FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+					return &influxdb.Bucket{
+						ID:   id,
+						Name: "b1",
+					}, nil
+				},
+			},
+		}
+
+		defaultSession = &influxdb.Authorization{
+			Token:       "session-token",
+			ID:          itesting.MustIDBase16("020f755c3c082000"),
+			UserID:      itesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+			OrgID:       itesting.MustIDBase16("020f755c3c083000"),
+			Description: "can write to authorization resource",
+			Permissions: []influxdb.Permission{
+				{
+					Action: influxdb.WriteAction,
+					Resource: influxdb.Resource{
+						Type:  influxdb.AuthorizationsResourceType,
+						OrgID: itesting.IDPtr(itesting.MustIDBase16("020f755c3c083000")),
+					},
+				},
+			},
+		}
+	)
 
 	tests := []struct {
 		name   string
@@ -59,52 +108,10 @@ func TestService_handlePostAuthorization(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "create a new authorization",
-			fields: fields{
-				AuthorizationService: &mock.AuthorizationService{
-					CreateAuthorizationFn: func(ctx context.Context, c *influxdb.Authorization) error {
-						c.ID = itesting.MustIDBase16("020f755c3c082000")
-						return nil
-					},
-				},
-				TenantService: &tenantService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
-						return &influxdb.User{
-							ID:   id,
-							Name: "u1",
-						}, nil
-					},
-					FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
-						return &influxdb.Organization{
-							ID:   id,
-							Name: "o1",
-						}, nil
-					},
-					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
-							ID:   id,
-							Name: "b1",
-						}, nil
-					},
-				},
-			},
+			name:   "create a new authorization",
+			fields: defaultFields,
 			args: args{
-				session: &influxdb.Authorization{
-					Token:       "session-token",
-					ID:          itesting.MustIDBase16("020f755c3c082000"),
-					UserID:      itesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
-					OrgID:       itesting.MustIDBase16("020f755c3c083000"),
-					Description: "can write to authorization resource",
-					Permissions: []influxdb.Permission{
-						{
-							Action: influxdb.WriteAction,
-							Resource: influxdb.Resource{
-								Type:  influxdb.AuthorizationsResourceType,
-								OrgID: itesting.IDPtr(itesting.MustIDBase16("020f755c3c083000")),
-							},
-						},
-					},
-				},
+				session: defaultSession,
 				authorization: &influxdb.Authorization{
 					ID:          itesting.MustIDBase16("020f755c3c082000"),
 					OrgID:       itesting.MustIDBase16("020f755c3c083000"),
@@ -146,9 +153,220 @@ func TestService_handlePostAuthorization(t *testing.T) {
     }
   ],
   "status": "active",
+  "authorizationType": "plain",
   "token": "new-test-token",
   "user": "u1",
   "userID": "aaaaaaaaaaaaaaaa"
+}
+`,
+			},
+		},
+		{
+			name:   "create a new plain authorization",
+			fields: defaultFields,
+			args: args{
+				session: defaultSession,
+				authorization: &influxdb.Authorization{
+					ID:          itesting.MustIDBase16("020f755c3c082000"),
+					OrgID:       itesting.MustIDBase16("020f755c3c083000"),
+					Type:        influxdb.AuthorizationTypePlain,
+					Description: "only read dashboards sucka",
+					Permissions: []influxdb.Permission{
+						{
+							Action: influxdb.ReadAction,
+							Resource: influxdb.Resource{
+								Type:  influxdb.DashboardsResourceType,
+								OrgID: itesting.IDPtr(itesting.MustIDBase16("020f755c3c083000")),
+							},
+						},
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+	"createdAt": "0001-01-01T00:00:00Z",
+	"updatedAt": "0001-01-01T00:00:00Z",
+  "description": "only read dashboards sucka",
+  "id": "020f755c3c082000",
+  "links": {
+    "self": "/api/v2/authorizations/020f755c3c082000",
+    "user": "/api/v2/users/aaaaaaaaaaaaaaaa"
+  },
+  "org": "o1",
+  "orgID": "020f755c3c083000",
+  "permissions": [
+    {
+      "action": "read",
+			"resource": {
+				"type": "dashboards",
+				"orgID": "020f755c3c083000",
+				"org": "o1"
+			}
+    }
+  ],
+  "status": "active",
+  "authorizationType": "plain",
+  "token": "new-test-token",
+  "user": "u1",
+  "userID": "aaaaaaaaaaaaaaaa"
+}
+`,
+			},
+		},
+		{
+			name:   "create a new plain authorization with token will error",
+			fields: defaultFields,
+			args: args{
+				session: defaultSession,
+				authorization: &influxdb.Authorization{
+					ID:          itesting.MustIDBase16("020f755c3c082000"),
+					OrgID:       itesting.MustIDBase16("020f755c3c083000"),
+					Token:       "foo",
+					Type:        influxdb.AuthorizationTypePlain,
+					Description: "only read dashboards sucka",
+					Permissions: []influxdb.Permission{
+						{
+							Action: influxdb.ReadAction,
+							Resource: influxdb.Resource{
+								Type:  influxdb.DashboardsResourceType,
+								OrgID: itesting.IDPtr(itesting.MustIDBase16("020f755c3c083000")),
+							},
+						},
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				bodyErr: `
+{
+	"code": "invalid",
+	"message": "token must be empty for authorization type plain"
+}
+`,
+			},
+		},
+
+		// V1 User token tests
+		{
+			name:   "create a new v1_user authorization",
+			fields: defaultFields,
+			args: args{
+				session: defaultSession,
+				authorization: &influxdb.Authorization{
+					ID:          itesting.MustIDBase16("020f755c3c082000"),
+					OrgID:       itesting.MustIDBase16("020f755c3c083000"),
+					Token:       "first:second",
+					Type:        influxdb.AuthorizationTypeV1User,
+					Description: "only read dashboards sucka",
+					Permissions: []influxdb.Permission{
+						{
+							Action: influxdb.ReadAction,
+							Resource: influxdb.Resource{
+								Type:  influxdb.DashboardsResourceType,
+								OrgID: itesting.IDPtr(itesting.MustIDBase16("020f755c3c083000")),
+							},
+						},
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+	"createdAt": "0001-01-01T00:00:00Z",
+	"updatedAt": "0001-01-01T00:00:00Z",
+  "description": "only read dashboards sucka",
+  "id": "020f755c3c082000",
+  "links": {
+    "self": "/api/v2/authorizations/020f755c3c082000",
+    "user": "/api/v2/users/aaaaaaaaaaaaaaaa"
+  },
+  "org": "o1",
+  "orgID": "020f755c3c083000",
+  "permissions": [
+    {
+      "action": "read",
+			"resource": {
+				"type": "dashboards",
+				"orgID": "020f755c3c083000",
+				"org": "o1"
+			}
+    }
+  ],
+  "status": "active",
+  "authorizationType": "v1_user",
+  "user": "u1",
+  "userID": "aaaaaaaaaaaaaaaa"
+}
+`,
+			},
+		},
+		{
+			name:   "create a new v1_user authorization with missing token",
+			fields: defaultFields,
+			args: args{
+				session: defaultSession,
+				authorization: &influxdb.Authorization{
+					ID:          itesting.MustIDBase16("020f755c3c082000"),
+					OrgID:       itesting.MustIDBase16("020f755c3c083000"),
+					Type:        influxdb.AuthorizationTypeV1User,
+					Description: "only read dashboards sucka",
+					Permissions: []influxdb.Permission{
+						{
+							Action: influxdb.ReadAction,
+							Resource: influxdb.Resource{
+								Type:  influxdb.DashboardsResourceType,
+								OrgID: itesting.IDPtr(itesting.MustIDBase16("020f755c3c083000")),
+							},
+						},
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				bodyErr: `
+{
+	"code": "invalid",
+	"message": "token required for v1_user authorization type"
+}
+`,
+			},
+		},
+		{
+			name:   "create a new v1_user authorization with invalid token",
+			fields: defaultFields,
+			args: args{
+				session: defaultSession,
+				authorization: &influxdb.Authorization{
+					ID:          itesting.MustIDBase16("020f755c3c082000"),
+					OrgID:       itesting.MustIDBase16("020f755c3c083000"),
+					Token:       "first",
+					Type:        influxdb.AuthorizationTypeV1User,
+					Description: "only read dashboards sucka",
+					Permissions: []influxdb.Permission{
+						{
+							Action: influxdb.ReadAction,
+							Resource: influxdb.Resource{
+								Type:  influxdb.DashboardsResourceType,
+								OrgID: itesting.IDPtr(itesting.MustIDBase16("020f755c3c083000")),
+							},
+						},
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				bodyErr: `
+{
+	"code": "invalid",
+	"message": "token format invalid for v1_user authorization type: must be username:password"
 }
 `,
 			},
@@ -175,10 +393,18 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			router := chi.NewRouter()
 			router.Mount(handler.Prefix(), handler)
 
-			req, err := newPostAuthorizationRequest(tt.args.authorization)
-			if err != nil {
-				t.Fatalf("failed to create new authorization request: %v", err)
+			newRequest := func(a *influxdb.Authorization) *postAuthorizationRequest {
+				return &postAuthorizationRequest{
+					OrgID:       a.OrgID,
+					Description: a.Description,
+					Permissions: a.Permissions,
+					Status:      a.Status,
+					Token:       a.Token,
+					Type:        a.Type,
+				}
 			}
+
+			req := newRequest(tt.args.authorization)
 			b, err := json.Marshal(req)
 			if err != nil {
 				t.Fatalf("failed to unmarshal authorization: %v", err)
@@ -213,11 +439,21 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostAuthorization() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if diff, err := jsonDiff(string(body), tt.wants.body); diff != "" {
-				t.Errorf("%q. handlePostAuthorization() = ***%s***", tt.name, diff)
-			} else if err != nil {
-				t.Errorf("%q, handlePostAuthorization() error: %v", tt.name, err)
+			if tt.wants.body != "" {
+				if diff, err := jsonDiff(string(body), tt.wants.body); diff != "" {
+					t.Errorf("%q. handlePostAuthorization() = ***%s***", tt.name, diff)
+				} else if err != nil {
+					t.Errorf("%q, handlePostAuthorization() error: %v", tt.name, err)
+				}
 			}
+			if tt.wants.bodyErr != "" {
+				if diff, err := jsonDiffErr(string(body), tt.wants.bodyErr); diff != "" {
+					t.Errorf("%q. handlePostAuthorization() = ***%s***", tt.name, diff)
+				} else if err != nil {
+					t.Errorf("%q, handlePostAuthorization() error: %v", tt.name, err)
+				}
+			}
+
 		})
 	}
 }
@@ -324,6 +560,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
     }
   ],
   "status": "",
+  "authorizationType": "plain",
   "token": "hello",
   "user": "u1",
   "userID": "020f755c3c082000"
@@ -862,6 +1099,32 @@ func jsonDiff(s1, s2 string) (diff string, err error) {
 	}
 
 	return cmp.Diff(o1, o2, authorizationCmpOptions...), err
+}
+
+func jsonDiffErr(s1, s2 string) (diff string, err error) {
+	if s1 == s2 {
+		return "", nil
+	}
+
+	if s1 == "" {
+		return s2, fmt.Errorf("s1 is empty")
+	}
+
+	if s2 == "" {
+		return s1, fmt.Errorf("s2 is empty")
+	}
+
+	var o1 influxdb.Error
+	if err = json.Unmarshal([]byte(s1), &o1); err != nil {
+		return
+	}
+
+	var o2 influxdb.Error
+	if err = json.Unmarshal([]byte(s2), &o2); err != nil {
+		return
+	}
+
+	return cmp.Diff(o1, o2), err
 }
 
 var authorizationCmpOptions = cmp.Options{

@@ -3221,7 +3221,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Authorization"
+              $ref: "#/components/schemas/PostAuthorizationRequest"
       responses:
         "201":
           description: Authorization created
@@ -7151,6 +7151,13 @@ components:
               readOnly: true
               type: string
               description: Name of the org token is scoped to.
+            authorizationType:
+              readOnly: true
+              type: string
+              default: plain
+              enum:
+                - plain
+                - user_key
             links:
               type: object
               readOnly: true
@@ -7164,6 +7171,37 @@ components:
                 user:
                   readOnly: true
                   $ref: "#/components/schemas/Link"
+    PostAuthorizationRequest:
+      properties:
+        status:
+          type: string
+          default: active
+          enum:
+            - active
+            - inactive
+        orgID:
+          type: string
+        userID:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        permissions:
+          type: array
+          minItems: 1
+          description: List of permissions for an auth.  An auth must have at least one Permission.
+          items:
+            $ref: "#/components/schemas/Permission"
+        authorizationType:
+          type: string
+          default: plain
+          enum:
+            - plain
+            - user_key
+        token:
+          type: string
+          nullable: true
     Authorizations:
       type: object
       properties:
