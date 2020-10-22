@@ -45,6 +45,7 @@ import (
 	"github.com/influxdata/influxdb/v2/label"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/nats"
+	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
 	"github.com/influxdata/influxdb/v2/pkger"
 	infprom "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/query"
@@ -989,7 +990,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var notificationRuleSvc platform.NotificationRuleStore
 	{
 		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
-		notificationRuleSvc = middleware.NewNotificationRuleStore(m.kvService, m.kvService, coordinator)
+		notificationRuleSvc, err = ruleservice.NewRuleService(m.log, m.kvStore, m.kvService, ts.OrganizationService, m.kvService)
+		if err != nil {
+			return err
+		}
+
+		// tasks service notification middleware which keeps task service up to date
+		// with persisted changes to notification rules.
+		notificationRuleSvc = middleware.NewNotificationRuleStore(notificationRuleSvc, m.kvService, coordinator)
 	}
 
 	// NATS streaming server
