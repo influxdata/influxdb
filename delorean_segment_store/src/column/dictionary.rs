@@ -226,7 +226,8 @@ impl RLE {
                 // no null values in column so return all row ids
                 dst.add_range(0, self.num_rows);
             } else {
-                todo!();
+                // some null values in column - determine matching non-null rows
+                dst = self.row_ids_not_null(dst);
             }
         }
 
@@ -283,6 +284,37 @@ impl RLE {
             }
             _ => unreachable!("operator not supported"),
         }
+        dst
+    }
+
+    /// Populates the provided destination container with the row ids for rows
+    /// that null.
+    pub fn row_ids_null(&self, dst: RowIDs) -> RowIDs {
+        self.row_ids_is_null(true, dst)
+    }
+
+    /// Populates the provided destination container with the row ids for rows
+    /// that are not null.
+    pub fn row_ids_not_null(&self, dst: RowIDs) -> RowIDs {
+        self.row_ids_is_null(false, dst)
+    }
+
+    // All row ids that have either NULL or not NULL values.
+    fn row_ids_is_null(&self, is_null: bool, mut dst: RowIDs) -> RowIDs {
+        dst.clear();
+
+        let mut index: u32 = 0;
+        for (other_encoded_id, other_rl) in &self.run_lengths {
+            let start = index;
+            index += *other_rl;
+
+            if (other_encoded_id == &NULL_ID) == is_null {
+                // we found a row that was either NULL (is_null == true) or not
+                // NULL (is_null == false) `value`.
+                dst.add_range(start, index)
+            }
+        }
+
         dst
     }
 
@@ -807,14 +839,13 @@ mod test {
         );
         assert!(ids.is_empty());
 
-        // TODO(edd): implement "NOT NULL" and "IS NULL"
-        // // != some value not in the column should exclude the NULL value.
-        // let ids = drle.row_ids_filter(
-        //     "foo".to_string(),
-        //     cmp::Operator::NotEqual,
-        //     RowIDs::Vector(vec![]),
-        // );
-        // assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11]));
+        // != some value not in the column should exclude the NULL value.
+        let ids = drle.row_ids_filter(
+            "foo".to_string(),
+            cmp::Operator::NotEqual,
+            RowIDs::Vector(vec![]),
+        );
+        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11]));
 
         let ids = drle.row_ids_filter(
             "east".to_string(),
@@ -939,6 +970,24 @@ mod test {
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18
             ])
         );
+    }
+
+    #[test]
+    fn row_ids_not_null() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3); // 0, 1, 2
+        drle.push_additional(None, 3); // 3, 4, 5
+        drle.push_additional(Some("north".to_string()), 1); // 6
+        drle.push_additional(None, 2); // 7, 8
+        drle.push_additional(Some("south".to_string()), 2); // 9, 10
+
+        // essentially `WHERE value IS NULL`
+        let ids = drle.row_ids_null(RowIDs::Vector(vec![]));
+        assert_eq!(ids, RowIDs::Vector(vec![3, 4, 5, 7, 8]));
+
+        // essentially `WHERE value IS NOT NULL`
+        let ids = drle.row_ids_not_null(RowIDs::Vector(vec![]));
+        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 6, 9, 10]));
     }
 
     #[test]
