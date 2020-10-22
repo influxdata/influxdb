@@ -1,4 +1,4 @@
-package authorization_test
+package authorization
 
 import (
 	"context"
@@ -7,15 +7,16 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	"github.com/influxdata/influxdb/v2/pkg/pointer"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zaptest"
 )
 
 func TestAuth(t *testing.T) {
-	setup := func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+	setup := func(t *testing.T, store *Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
 				ID:     influxdb.ID(i),
@@ -33,14 +34,14 @@ func TestAuth(t *testing.T) {
 
 	tt := []struct {
 		name    string
-		setup   func(*testing.T, *authorization.Store, kv.Tx)
-		update  func(*testing.T, *authorization.Store, kv.Tx)
-		results func(*testing.T, *authorization.Store, kv.Tx)
+		setup   func(*testing.T, *Store, kv.Tx)
+		update  func(*testing.T, *Store, kv.Tx)
+		results func(*testing.T, *Store, kv.Tx)
 	}{
 		{
 			name:  "create",
 			setup: setup,
-			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+			results: func(t *testing.T, store *Store, tx kv.Tx) {
 				auths, err := store.ListAuthorizations(context.Background(), tx, influxdb.AuthorizationFilter{})
 				if err != nil {
 					t.Fatal(err)
@@ -58,6 +59,7 @@ func TestAuth(t *testing.T) {
 						OrgID:  influxdb.ID(i),
 						UserID: influxdb.ID(i),
 						Status: "active",
+						Type:   influxdb.AuthorizationTypePlain,
 					})
 				}
 				if !reflect.DeepEqual(auths, expected) {
@@ -79,7 +81,7 @@ func TestAuth(t *testing.T) {
 		{
 			name:  "read",
 			setup: setup,
-			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+			results: func(t *testing.T, store *Store, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
 					expectedAuth := &influxdb.Authorization{
 						ID:     influxdb.ID(i),
@@ -87,6 +89,7 @@ func TestAuth(t *testing.T) {
 						OrgID:  influxdb.ID(i),
 						UserID: influxdb.ID(i),
 						Status: influxdb.Active,
+						Type:   influxdb.AuthorizationTypePlain,
 					}
 
 					authByID, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
@@ -113,7 +116,7 @@ func TestAuth(t *testing.T) {
 		{
 			name:  "update",
 			setup: setup,
-			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+			update: func(t *testing.T, store *Store, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
 					auth, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
 					if err != nil {
@@ -128,7 +131,7 @@ func TestAuth(t *testing.T) {
 					}
 				}
 			},
-			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+			results: func(t *testing.T, store *Store, tx kv.Tx) {
 
 				for i := 1; i <= 10; i++ {
 					auth, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
@@ -142,6 +145,7 @@ func TestAuth(t *testing.T) {
 						OrgID:  influxdb.ID(i),
 						UserID: influxdb.ID(i),
 						Status: influxdb.Inactive,
+						Type:   influxdb.AuthorizationTypePlain,
 					}
 
 					if !reflect.DeepEqual(auth, expectedAuth) {
@@ -153,7 +157,7 @@ func TestAuth(t *testing.T) {
 		{
 			name:  "delete",
 			setup: setup,
-			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+			update: func(t *testing.T, store *Store, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
 					err := store.DeleteAuthorization(context.Background(), tx, influxdb.ID(i))
 					if err != nil {
@@ -161,7 +165,7 @@ func TestAuth(t *testing.T) {
 					}
 				}
 			},
-			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+			results: func(t *testing.T, store *Store, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
 					_, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
 					if err == nil {
@@ -179,7 +183,7 @@ func TestAuth(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			ts, err := authorization.NewStore(store)
+			ts, err := NewStore(store)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -219,6 +223,166 @@ func TestAuth(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+		})
+	}
+}
+
+func Test_filterAuthorizationsFn(t *testing.T) {
+	var (
+		otherID   = influxdb.ID(999)
+		otherType = influxdb.AuthorizationTypeV1User
+	)
+
+	auth := influxdb.Authorization{
+		ID:     1000,
+		Token:  "foo",
+		Status: influxdb.Active,
+		Type:   influxdb.AuthorizationTypePlain,
+		OrgID:  2000,
+		UserID: 3000,
+	}
+	tests := []struct {
+		name string
+		filt influxdb.AuthorizationFilter
+		auth influxdb.Authorization
+		exp  bool
+	}{
+		{
+			name: "default is true",
+			filt: influxdb.AuthorizationFilter{},
+			auth: auth,
+			exp:  true,
+		},
+		{
+			name: "match id",
+			filt: influxdb.AuthorizationFilter{
+				ID: &auth.ID,
+			},
+			auth: auth,
+			exp:  true,
+		},
+		{
+			name: "no match id",
+			filt: influxdb.AuthorizationFilter{
+				ID: &otherID,
+			},
+			auth: auth,
+			exp:  false,
+		},
+		{
+			name: "match token",
+			filt: influxdb.AuthorizationFilter{
+				Token: &auth.Token,
+			},
+			auth: auth,
+			exp:  true,
+		},
+		{
+			name: "no match token",
+			filt: influxdb.AuthorizationFilter{
+				Token: pointer.String("2"),
+			},
+			auth: auth,
+			exp:  false,
+		},
+		{
+			name: "match org",
+			filt: influxdb.AuthorizationFilter{
+				OrgID: &auth.OrgID,
+			},
+			auth: auth,
+			exp:  true,
+		},
+		{
+			name: "no match org",
+			filt: influxdb.AuthorizationFilter{
+				OrgID: &otherID,
+			},
+			auth: auth,
+			exp:  false,
+		},
+		{
+			name: "match user",
+			filt: influxdb.AuthorizationFilter{
+				UserID: &auth.UserID,
+			},
+			auth: auth,
+			exp:  true,
+		},
+		{
+			name: "no match user",
+			filt: influxdb.AuthorizationFilter{
+				UserID: &otherID,
+			},
+			auth: auth,
+			exp:  false,
+		},
+		{
+			name: "match org and user",
+			filt: influxdb.AuthorizationFilter{
+				OrgID:  &auth.OrgID,
+				UserID: &auth.UserID,
+			},
+			auth: auth,
+			exp:  true,
+		},
+		{
+			name: "no match org and user",
+			filt: influxdb.AuthorizationFilter{
+				OrgID:  &otherID,
+				UserID: &auth.UserID,
+			},
+			auth: auth,
+			exp:  false,
+		},
+		{
+			name: "match type",
+			filt: influxdb.AuthorizationFilter{
+				Type: &auth.Type,
+			},
+			auth: auth,
+			exp:  true,
+		},
+		{
+			name: "match empty type as plain",
+			filt: influxdb.AuthorizationFilter{
+				Type: influxdb.AuthorizationTypePlain.Ptr(),
+			},
+			auth: influxdb.Authorization{Type: ""},
+			exp:  true,
+		},
+		{
+			name: "no match empty type as other",
+			filt: influxdb.AuthorizationFilter{
+				Type: &otherType,
+			},
+			auth: influxdb.Authorization{Type: ""},
+			exp:  false,
+		},
+		{
+			name: "no match type",
+			filt: influxdb.AuthorizationFilter{
+				Type: &otherType,
+			},
+			auth: auth,
+			exp:  false,
+		},
+		{
+			name: "no match org and type",
+			filt: influxdb.AuthorizationFilter{
+				OrgID: &auth.OrgID,
+				Type:  &otherType,
+			},
+			auth: auth,
+			exp:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pred := filterAuthorizationsFn(tc.filt)
+			got := pred(&tc.auth)
+			assert.Equal(t, tc.exp, got)
 		})
 	}
 }

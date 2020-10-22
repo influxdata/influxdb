@@ -407,10 +407,23 @@ func authorizationsPredicateFn(f influxdb.AuthorizationFilter) kv.CursorPredicat
 		}
 	}
 
+	if f.Type != nil {
+		exp := *f.Type
+		prevFn := pred
+		pred = func(key, value []byte) bool {
+			prev := prevFn == nil || prevFn(key, value)
+			got, _, _, err := jsonparser.Get(value, "authorizationType")
+			return prev && (exp == influxdb.AuthorizationType(got) || err != nil)
+		}
+	}
+
 	return pred
 }
 
-func filterAuthorizationsFn(filter influxdb.AuthorizationFilter) func(a *influxdb.Authorization) bool {
+type predicateFunc func(a *influxdb.Authorization) bool
+
+func filterAuthorizationsFn(filter influxdb.AuthorizationFilter) predicateFunc {
+
 	if filter.ID != nil {
 		return func(a *influxdb.Authorization) bool {
 			return a.ID == *filter.ID
@@ -423,24 +436,37 @@ func filterAuthorizationsFn(filter influxdb.AuthorizationFilter) func(a *influxd
 		}
 	}
 
-	// Filter by org and user
-	if filter.OrgID != nil && filter.UserID != nil {
-		return func(a *influxdb.Authorization) bool {
-			return a.OrgID == *filter.OrgID && a.UserID == *filter.UserID
-		}
-	}
-
+	var pred predicateFunc
 	if filter.OrgID != nil {
-		return func(a *influxdb.Authorization) bool {
-			return a.OrgID == *filter.OrgID
+		exp := *filter.OrgID
+		prevFn := pred
+		pred = func(a *influxdb.Authorization) bool {
+			prev := prevFn == nil || prevFn(a)
+			return prev && a.OrgID == exp
 		}
 	}
 
 	if filter.UserID != nil {
-		return func(a *influxdb.Authorization) bool {
-			return a.UserID == *filter.UserID
+		exp := *filter.UserID
+		prevFn := pred
+		pred = func(a *influxdb.Authorization) bool {
+			prev := prevFn == nil || prevFn(a)
+			return prev && a.UserID == exp
 		}
 	}
 
-	return func(a *influxdb.Authorization) bool { return true }
+	if filter.Type != nil {
+		exp := *filter.Type
+		prevFn := pred
+		pred = func(a *influxdb.Authorization) bool {
+			prev := prevFn == nil || prevFn(a)
+			return prev && a.Type == exp || (a.Type == "" && exp == influxdb.AuthorizationTypePlain)
+		}
+	}
+
+	if pred == nil {
+		pred = func(a *influxdb.Authorization) bool { return true }
+	}
+
+	return pred
 }
