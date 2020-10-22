@@ -16,13 +16,14 @@ var ErrUnableToCreateToken = &Error{
 
 // Authorization is an authorization. 🎉
 type Authorization struct {
-	ID          ID           `json:"id"`
-	Token       string       `json:"token"`
-	Status      Status       `json:"status"`
-	Description string       `json:"description"`
-	OrgID       ID           `json:"orgID"`
-	UserID      ID           `json:"userID,omitempty"`
-	Permissions []Permission `json:"permissions"`
+	ID          ID                `json:"id"`
+	Token       string            `json:"token,omitempty"`
+	Status      Status            `json:"status"`
+	Type        AuthorizationType `json:"authorizationType"`
+	Description string            `json:"description"`
+	OrgID       ID                `json:"orgID"`
+	UserID      ID                `json:"userID,omitempty"`
+	Permissions []Permission      `json:"permissions"`
 	CRUDLog
 }
 
@@ -41,6 +42,10 @@ func (a *Authorization) Valid() error {
 				Code: EInvalid,
 			}
 		}
+	}
+
+	if err := a.Type.Valid(); err != nil {
+		return err
 	}
 
 	return nil
@@ -121,4 +126,6 @@ type AuthorizationFilter struct {
 
 	OrgID *ID
 	Org   *string
+
+	Type *AuthorizationType
 }
