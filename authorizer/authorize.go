@@ -93,15 +93,23 @@ func authorizeReadSystemBucket(ctx context.Context, bid, oid influxdb.ID) (influ
 	return AuthorizeReadOrg(ctx, oid)
 }
 
+func authorizeReadLegacySystemBucket(ctx context.Context, bid, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+	if !oid.Valid() {
+		a, err := icontext.GetAuthorizer(ctx)
+		return a, influxdb.Permission{}, err
+	}
+	return authorize(ctx, influxdb.ReadAction, influxdb.BucketsResourceType, nil, &oid)
+}
+
 // AuthorizeReadBucket exists because buckets are a special case and should use this method.
 // I.e., instead of:
 //  AuthorizeRead(ctx, influxdb.BucketsResourceType, b.ID, b.OrgID)
 // use:
 //  AuthorizeReadBucket(ctx, b.Type, b.ID, b.OrgID)
 func AuthorizeReadBucket(ctx context.Context, bt influxdb.BucketType, bid, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
-	switch bt {
-	case influxdb.BucketTypeSystem:
-		return authorizeReadSystemBucket(ctx, bid, oid)
+	switch bid {
+	case influxdb.TasksSystemBucketID, influxdb.MonitoringSystemBucketID:
+		return authorizeReadLegacySystemBucket(ctx, bid, oid)
 	default:
 		return AuthorizeRead(ctx, influxdb.BucketsResourceType, bid, oid)
 	}
