@@ -54,6 +54,41 @@ type Store struct {
 	Logger     *zap.Logger
 }
 
+func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (reads.ResultSet, error) {
+	if req.ReadSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	source, err := getReadSource(*req.ReadSource)
+	if err != nil {
+		return nil, err
+	}
+
+	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
+	if err != nil {
+		return nil, err
+	}
+
+	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	if err != nil {
+		return nil, err
+	}
+	if len(shardIDs) == 0 { // TODO(jeff): this was a typed nil
+		return nil, nil
+	}
+
+	var cur reads.SeriesCursor
+	if ic, err := newIndexSeriesCursor(ctx, req.Predicate, s.TSDBStore.Shards(shardIDs)); err != nil {
+		return nil, err
+	} else if ic == nil { // TODO(jeff): this was a typed nil
+		return nil, nil
+	} else {
+		cur = ic
+	}
+
+	return reads.NewWindowAggregateResultSet(ctx, req, cur)
+}
+
 func NewStore(store TSDBStore, metaClient MetaClient) *Store {
 	return &Store{
 		TSDBStore:  store,

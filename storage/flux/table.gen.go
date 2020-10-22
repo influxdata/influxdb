@@ -9,10 +9,12 @@ package storageflux
 import (
 	"sync"
 
+	"github.com/apache/arrow/go/arrow/array"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
 	storage "github.com/influxdata/influxdb/v2/storage/reads"
@@ -94,6 +96,220 @@ func (t *floatTable) advance() bool {
 	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
 	t.appendTags(cr)
 	t.appendBounds(cr)
+	return true
+}
+
+// window table
+type floatWindowTable struct {
+	floatTable
+	arr         *cursors.FloatArray
+	nextTS      int64
+	idxInArr    int
+	createEmpty bool
+	timeColumn  string
+	window      execute.Window
+}
+
+func newFloatWindowTable(
+	done chan struct{},
+	cur cursors.FloatArrayCursor,
+	bounds execute.Bounds,
+	window execute.Window,
+	createEmpty bool,
+	timeColumn string,
+
+	key flux.GroupKey,
+	cols []flux.ColMeta,
+	tags models.Tags,
+	defs [][]byte,
+	cache *tagsCache,
+	alloc *memory.Allocator,
+) *floatWindowTable {
+	t := &floatWindowTable{
+		floatTable: floatTable{
+			table: newTable(done, bounds, key, cols, defs, cache, alloc),
+			cur:   cur,
+		},
+		window:      window,
+		createEmpty: createEmpty,
+		timeColumn:  timeColumn,
+	}
+	if t.createEmpty {
+		start := int64(bounds.Start)
+		t.nextTS = int64(window.GetEarliestBounds(values.Time(start)).Stop)
+	}
+	t.readTags(tags)
+	t.init(t.advance)
+
+	return t
+}
+
+func (t *floatWindowTable) Do(f func(flux.ColReader) error) error {
+	return t.do(f, t.advance)
+}
+
+// createNextBufferTimes will read the timestamps from the array
+// cursor and construct the values for the next buffer.
+func (t *floatWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+	startB := arrow.NewIntBuilder(t.alloc)
+	stopB := arrow.NewIntBuilder(t.alloc)
+
+	if t.createEmpty {
+		// There are no more windows when the start time is greater
+		// than or equal to the stop time.
+		subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+		if startT := int64(values.Time(t.nextTS).Add(subEvery)); startT >= int64(t.bounds.Stop) {
+			return nil, nil, false
+		}
+
+		// Create a buffer with the buffer size.
+		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
+		for ; ; t.nextTS = int64(values.Time(t.nextTS).Add(t.window.Every)) {
+			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+			if startT >= int64(t.bounds.Stop) {
+				break
+			}
+			startB.Append(startT)
+			stopB.Append(stopT)
+		}
+		start = startB.NewInt64Array()
+		stop = stopB.NewInt64Array()
+		return start, stop, true
+	}
+
+	// Retrieve the next buffer so we can copy the timestamps.
+	if !t.nextBuffer() {
+		return nil, nil, false
+	}
+
+	// Copy over the timestamps from the next buffer and adjust
+	// times for the boundaries.
+	startB.Resize(len(t.arr.Timestamps))
+	stopB.Resize(len(t.arr.Timestamps))
+	for _, stopT := range t.arr.Timestamps {
+		startT, stopT := t.getWindowBoundsFor(stopT)
+		startB.Append(startT)
+		stopB.Append(stopT)
+	}
+	start = startB.NewInt64Array()
+	stop = stopB.NewInt64Array()
+	return start, stop, true
+}
+
+func (t *floatWindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
+	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+	startT, stopT = int64(values.Time(ts).Add(subEvery)), ts
+	if startT < int64(t.bounds.Start) {
+		startT = int64(t.bounds.Start)
+	}
+	if stopT > int64(t.bounds.Stop) {
+		stopT = int64(t.bounds.Stop)
+	}
+	return startT, stopT
+}
+
+// nextAt will retrieve the next value that can be used with
+// the given stop timestamp. If no values can be used with the timestamp,
+// it will return the default value and false.
+func (t *floatWindowTable) nextAt(ts int64) (v float64, ok bool) {
+	if !t.nextBuffer() {
+		return
+	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+		return
+	}
+	v, ok = t.arr.Values[t.idxInArr], true
+	t.idxInArr++
+	return v, ok
+}
+
+// isInWindow will check if the given time at stop can be used within
+// the window stop time for ts. The ts may be a truncated stop time
+// because of a restricted boundary while stop will be the true
+// stop time returned by storage.
+func (t *floatWindowTable) isInWindow(ts int64, stop int64) bool {
+	// This method checks if the stop time is a valid stop time for
+	// that interval. This calculation is different from the calculation
+	// of the window itself. For example, for a 10 second window that
+	// starts at 20 seconds, we would include points between [20, 30).
+	// The stop time for this interval would be 30, but because the stop
+	// time can be truncated, valid stop times range from anywhere between
+	// (20, 30]. The storage engine will always produce 30 as the end time
+	// but we may have truncated the stop time because of the boundary
+	// and this is why we are checking for this range instead of checking
+	// if the two values are equal.
+	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+	start := int64(values.Time(stop).Add(subEvery))
+	return start < ts && ts <= stop
+}
+
+// nextBuffer will ensure the array cursor is filled
+// and will return true if there is at least one value
+// that can be read from it.
+func (t *floatWindowTable) nextBuffer() bool {
+	// Discard the current array cursor if we have
+	// exceeded it.
+	if t.arr != nil && t.idxInArr >= t.arr.Len() {
+		t.arr = nil
+	}
+
+	// Retrieve the next array cursor if needed.
+	if t.arr == nil {
+		arr := t.cur.Next()
+		if arr.Len() == 0 {
+			return false
+		}
+		t.arr, t.idxInArr = arr, 0
+	}
+	return true
+}
+
+// appendValues will scan the timestamps and append values
+// that match those timestamps from the buffer.
+func (t *floatWindowTable) appendValues(intervals []int64, appendValue func(v float64), appendNull func()) {
+	for i := 0; i < len(intervals); i++ {
+		if v, ok := t.nextAt(intervals[i]); ok {
+			appendValue(v)
+			continue
+		}
+		appendNull()
+	}
+}
+
+func (t *floatWindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
+	// Create the timestamps for the next window.
+	start, stop, ok := t.createNextBufferTimes()
+	if !ok {
+		return false
+	}
+	values := t.mergeValues(stop.Int64Values())
+
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(stop.Len())
+	if t.timeColumn != "" {
+		switch t.timeColumn {
+		case execute.DefaultStopColLabel:
+			cr.cols[timeColIdx] = stop
+			start.Release()
+		case execute.DefaultStartColLabel:
+			cr.cols[timeColIdx] = start
+			stop.Release()
+		}
+		cr.cols[valueColIdx] = values
+		t.appendBounds(cr)
+	} else {
+		cr.cols[startColIdx] = start
+		cr.cols[stopColIdx] = stop
+		cr.cols[valueColIdxWithoutTime] = values
+	}
+	t.appendTags(cr)
 	return true
 }
 
@@ -288,6 +504,222 @@ func (t *integerTable) advance() bool {
 	return true
 }
 
+// window table
+type integerWindowTable struct {
+	integerTable
+	arr         *cursors.IntegerArray
+	nextTS      int64
+	idxInArr    int
+	createEmpty bool
+	timeColumn  string
+	window      execute.Window
+	fillValue   *int64
+}
+
+func newIntegerWindowTable(
+	done chan struct{},
+	cur cursors.IntegerArrayCursor,
+	bounds execute.Bounds,
+	window execute.Window,
+	createEmpty bool,
+	timeColumn string,
+	fillValue *int64,
+	key flux.GroupKey,
+	cols []flux.ColMeta,
+	tags models.Tags,
+	defs [][]byte,
+	cache *tagsCache,
+	alloc *memory.Allocator,
+) *integerWindowTable {
+	t := &integerWindowTable{
+		integerTable: integerTable{
+			table: newTable(done, bounds, key, cols, defs, cache, alloc),
+			cur:   cur,
+		},
+		window:      window,
+		createEmpty: createEmpty,
+		timeColumn:  timeColumn,
+		fillValue:   fillValue,
+	}
+	if t.createEmpty {
+		start := int64(bounds.Start)
+		t.nextTS = int64(window.GetEarliestBounds(values.Time(start)).Stop)
+	}
+	t.readTags(tags)
+	t.init(t.advance)
+
+	return t
+}
+
+func (t *integerWindowTable) Do(f func(flux.ColReader) error) error {
+	return t.do(f, t.advance)
+}
+
+// createNextBufferTimes will read the timestamps from the array
+// cursor and construct the values for the next buffer.
+func (t *integerWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+	startB := arrow.NewIntBuilder(t.alloc)
+	stopB := arrow.NewIntBuilder(t.alloc)
+
+	if t.createEmpty {
+		// There are no more windows when the start time is greater
+		// than or equal to the stop time.
+		subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+		if startT := int64(values.Time(t.nextTS).Add(subEvery)); startT >= int64(t.bounds.Stop) {
+			return nil, nil, false
+		}
+
+		// Create a buffer with the buffer size.
+		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
+		for ; ; t.nextTS = int64(values.Time(t.nextTS).Add(t.window.Every)) {
+			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+			if startT >= int64(t.bounds.Stop) {
+				break
+			}
+			startB.Append(startT)
+			stopB.Append(stopT)
+		}
+		start = startB.NewInt64Array()
+		stop = stopB.NewInt64Array()
+		return start, stop, true
+	}
+
+	// Retrieve the next buffer so we can copy the timestamps.
+	if !t.nextBuffer() {
+		return nil, nil, false
+	}
+
+	// Copy over the timestamps from the next buffer and adjust
+	// times for the boundaries.
+	startB.Resize(len(t.arr.Timestamps))
+	stopB.Resize(len(t.arr.Timestamps))
+	for _, stopT := range t.arr.Timestamps {
+		startT, stopT := t.getWindowBoundsFor(stopT)
+		startB.Append(startT)
+		stopB.Append(stopT)
+	}
+	start = startB.NewInt64Array()
+	stop = stopB.NewInt64Array()
+	return start, stop, true
+}
+
+func (t *integerWindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
+	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+	startT, stopT = int64(values.Time(ts).Add(subEvery)), ts
+	if startT < int64(t.bounds.Start) {
+		startT = int64(t.bounds.Start)
+	}
+	if stopT > int64(t.bounds.Stop) {
+		stopT = int64(t.bounds.Stop)
+	}
+	return startT, stopT
+}
+
+// nextAt will retrieve the next value that can be used with
+// the given stop timestamp. If no values can be used with the timestamp,
+// it will return the default value and false.
+func (t *integerWindowTable) nextAt(ts int64) (v int64, ok bool) {
+	if !t.nextBuffer() {
+		return
+	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+		return
+	}
+	v, ok = t.arr.Values[t.idxInArr], true
+	t.idxInArr++
+	return v, ok
+}
+
+// isInWindow will check if the given time at stop can be used within
+// the window stop time for ts. The ts may be a truncated stop time
+// because of a restricted boundary while stop will be the true
+// stop time returned by storage.
+func (t *integerWindowTable) isInWindow(ts int64, stop int64) bool {
+	// This method checks if the stop time is a valid stop time for
+	// that interval. This calculation is different from the calculation
+	// of the window itself. For example, for a 10 second window that
+	// starts at 20 seconds, we would include points between [20, 30).
+	// The stop time for this interval would be 30, but because the stop
+	// time can be truncated, valid stop times range from anywhere between
+	// (20, 30]. The storage engine will always produce 30 as the end time
+	// but we may have truncated the stop time because of the boundary
+	// and this is why we are checking for this range instead of checking
+	// if the two values are equal.
+	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+	start := int64(values.Time(stop).Add(subEvery))
+	return start < ts && ts <= stop
+}
+
+// nextBuffer will ensure the array cursor is filled
+// and will return true if there is at least one value
+// that can be read from it.
+func (t *integerWindowTable) nextBuffer() bool {
+	// Discard the current array cursor if we have
+	// exceeded it.
+	if t.arr != nil && t.idxInArr >= t.arr.Len() {
+		t.arr = nil
+	}
+
+	// Retrieve the next array cursor if needed.
+	if t.arr == nil {
+		arr := t.cur.Next()
+		if arr.Len() == 0 {
+			return false
+		}
+		t.arr, t.idxInArr = arr, 0
+	}
+	return true
+}
+
+// appendValues will scan the timestamps and append values
+// that match those timestamps from the buffer.
+func (t *integerWindowTable) appendValues(intervals []int64, appendValue func(v int64), appendNull func()) {
+	for i := 0; i < len(intervals); i++ {
+		if v, ok := t.nextAt(intervals[i]); ok {
+			appendValue(v)
+			continue
+		}
+		appendNull()
+	}
+}
+
+func (t *integerWindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
+	// Create the timestamps for the next window.
+	start, stop, ok := t.createNextBufferTimes()
+	if !ok {
+		return false
+	}
+	values := t.mergeValues(stop.Int64Values())
+
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(stop.Len())
+	if t.timeColumn != "" {
+		switch t.timeColumn {
+		case execute.DefaultStopColLabel:
+			cr.cols[timeColIdx] = stop
+			start.Release()
+		case execute.DefaultStartColLabel:
+			cr.cols[timeColIdx] = start
+			stop.Release()
+		}
+		cr.cols[valueColIdx] = values
+		t.appendBounds(cr)
+	} else {
+		cr.cols[startColIdx] = start
+		cr.cols[stopColIdx] = stop
+		cr.cols[valueColIdxWithoutTime] = values
+	}
+	t.appendTags(cr)
+	return true
+}
+
 // group table
 
 type integerGroupTable struct {
@@ -476,6 +908,220 @@ func (t *unsignedTable) advance() bool {
 	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
 	t.appendTags(cr)
 	t.appendBounds(cr)
+	return true
+}
+
+// window table
+type unsignedWindowTable struct {
+	unsignedTable
+	arr         *cursors.UnsignedArray
+	nextTS      int64
+	idxInArr    int
+	createEmpty bool
+	timeColumn  string
+	window      execute.Window
+}
+
+func newUnsignedWindowTable(
+	done chan struct{},
+	cur cursors.UnsignedArrayCursor,
+	bounds execute.Bounds,
+	window execute.Window,
+	createEmpty bool,
+	timeColumn string,
+
+	key flux.GroupKey,
+	cols []flux.ColMeta,
+	tags models.Tags,
+	defs [][]byte,
+	cache *tagsCache,
+	alloc *memory.Allocator,
+) *unsignedWindowTable {
+	t := &unsignedWindowTable{
+		unsignedTable: unsignedTable{
+			table: newTable(done, bounds, key, cols, defs, cache, alloc),
+			cur:   cur,
+		},
+		window:      window,
+		createEmpty: createEmpty,
+		timeColumn:  timeColumn,
+	}
+	if t.createEmpty {
+		start := int64(bounds.Start)
+		t.nextTS = int64(window.GetEarliestBounds(values.Time(start)).Stop)
+	}
+	t.readTags(tags)
+	t.init(t.advance)
+
+	return t
+}
+
+func (t *unsignedWindowTable) Do(f func(flux.ColReader) error) error {
+	return t.do(f, t.advance)
+}
+
+// createNextBufferTimes will read the timestamps from the array
+// cursor and construct the values for the next buffer.
+func (t *unsignedWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+	startB := arrow.NewIntBuilder(t.alloc)
+	stopB := arrow.NewIntBuilder(t.alloc)
+
+	if t.createEmpty {
+		// There are no more windows when the start time is greater
+		// than or equal to the stop time.
+		subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+		if startT := int64(values.Time(t.nextTS).Add(subEvery)); startT >= int64(t.bounds.Stop) {
+			return nil, nil, false
+		}
+
+		// Create a buffer with the buffer size.
+		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
+		for ; ; t.nextTS = int64(values.Time(t.nextTS).Add(t.window.Every)) {
+			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+			if startT >= int64(t.bounds.Stop) {
+				break
+			}
+			startB.Append(startT)
+			stopB.Append(stopT)
+		}
+		start = startB.NewInt64Array()
+		stop = stopB.NewInt64Array()
+		return start, stop, true
+	}
+
+	// Retrieve the next buffer so we can copy the timestamps.
+	if !t.nextBuffer() {
+		return nil, nil, false
+	}
+
+	// Copy over the timestamps from the next buffer and adjust
+	// times for the boundaries.
+	startB.Resize(len(t.arr.Timestamps))
+	stopB.Resize(len(t.arr.Timestamps))
+	for _, stopT := range t.arr.Timestamps {
+		startT, stopT := t.getWindowBoundsFor(stopT)
+		startB.Append(startT)
+		stopB.Append(stopT)
+	}
+	start = startB.NewInt64Array()
+	stop = stopB.NewInt64Array()
+	return start, stop, true
+}
+
+func (t *unsignedWindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
+	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+	startT, stopT = int64(values.Time(ts).Add(subEvery)), ts
+	if startT < int64(t.bounds.Start) {
+		startT = int64(t.bounds.Start)
+	}
+	if stopT > int64(t.bounds.Stop) {
+		stopT = int64(t.bounds.Stop)
+	}
+	return startT, stopT
+}
+
+// nextAt will retrieve the next value that can be used with
+// the given stop timestamp. If no values can be used with the timestamp,
+// it will return the default value and false.
+func (t *unsignedWindowTable) nextAt(ts int64) (v uint64, ok bool) {
+	if !t.nextBuffer() {
+		return
+	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+		return
+	}
+	v, ok = t.arr.Values[t.idxInArr], true
+	t.idxInArr++
+	return v, ok
+}
+
+// isInWindow will check if the given time at stop can be used within
+// the window stop time for ts. The ts may be a truncated stop time
+// because of a restricted boundary while stop will be the true
+// stop time returned by storage.
+func (t *unsignedWindowTable) isInWindow(ts int64, stop int64) bool {
+	// This method checks if the stop time is a valid stop time for
+	// that interval. This calculation is different from the calculation
+	// of the window itself. For example, for a 10 second window that
+	// starts at 20 seconds, we would include points between [20, 30).
+	// The stop time for this interval would be 30, but because the stop
+	// time can be truncated, valid stop times range from anywhere between
+	// (20, 30]. The storage engine will always produce 30 as the end time
+	// but we may have truncated the stop time because of the boundary
+	// and this is why we are checking for this range instead of checking
+	// if the two values are equal.
+	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+	start := int64(values.Time(stop).Add(subEvery))
+	return start < ts && ts <= stop
+}
+
+// nextBuffer will ensure the array cursor is filled
+// and will return true if there is at least one value
+// that can be read from it.
+func (t *unsignedWindowTable) nextBuffer() bool {
+	// Discard the current array cursor if we have
+	// exceeded it.
+	if t.arr != nil && t.idxInArr >= t.arr.Len() {
+		t.arr = nil
+	}
+
+	// Retrieve the next array cursor if needed.
+	if t.arr == nil {
+		arr := t.cur.Next()
+		if arr.Len() == 0 {
+			return false
+		}
+		t.arr, t.idxInArr = arr, 0
+	}
+	return true
+}
+
+// appendValues will scan the timestamps and append values
+// that match those timestamps from the buffer.
+func (t *unsignedWindowTable) appendValues(intervals []int64, appendValue func(v uint64), appendNull func()) {
+	for i := 0; i < len(intervals); i++ {
+		if v, ok := t.nextAt(intervals[i]); ok {
+			appendValue(v)
+			continue
+		}
+		appendNull()
+	}
+}
+
+func (t *unsignedWindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
+	// Create the timestamps for the next window.
+	start, stop, ok := t.createNextBufferTimes()
+	if !ok {
+		return false
+	}
+	values := t.mergeValues(stop.Int64Values())
+
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(stop.Len())
+	if t.timeColumn != "" {
+		switch t.timeColumn {
+		case execute.DefaultStopColLabel:
+			cr.cols[timeColIdx] = stop
+			start.Release()
+		case execute.DefaultStartColLabel:
+			cr.cols[timeColIdx] = start
+			stop.Release()
+		}
+		cr.cols[valueColIdx] = values
+		t.appendBounds(cr)
+	} else {
+		cr.cols[startColIdx] = start
+		cr.cols[stopColIdx] = stop
+		cr.cols[valueColIdxWithoutTime] = values
+	}
+	t.appendTags(cr)
 	return true
 }
 
@@ -670,6 +1316,220 @@ func (t *stringTable) advance() bool {
 	return true
 }
 
+// window table
+type stringWindowTable struct {
+	stringTable
+	arr         *cursors.StringArray
+	nextTS      int64
+	idxInArr    int
+	createEmpty bool
+	timeColumn  string
+	window      execute.Window
+}
+
+func newStringWindowTable(
+	done chan struct{},
+	cur cursors.StringArrayCursor,
+	bounds execute.Bounds,
+	window execute.Window,
+	createEmpty bool,
+	timeColumn string,
+
+	key flux.GroupKey,
+	cols []flux.ColMeta,
+	tags models.Tags,
+	defs [][]byte,
+	cache *tagsCache,
+	alloc *memory.Allocator,
+) *stringWindowTable {
+	t := &stringWindowTable{
+		stringTable: stringTable{
+			table: newTable(done, bounds, key, cols, defs, cache, alloc),
+			cur:   cur,
+		},
+		window:      window,
+		createEmpty: createEmpty,
+		timeColumn:  timeColumn,
+	}
+	if t.createEmpty {
+		start := int64(bounds.Start)
+		t.nextTS = int64(window.GetEarliestBounds(values.Time(start)).Stop)
+	}
+	t.readTags(tags)
+	t.init(t.advance)
+
+	return t
+}
+
+func (t *stringWindowTable) Do(f func(flux.ColReader) error) error {
+	return t.do(f, t.advance)
+}
+
+// createNextBufferTimes will read the timestamps from the array
+// cursor and construct the values for the next buffer.
+func (t *stringWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+	startB := arrow.NewIntBuilder(t.alloc)
+	stopB := arrow.NewIntBuilder(t.alloc)
+
+	if t.createEmpty {
+		// There are no more windows when the start time is greater
+		// than or equal to the stop time.
+		subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+		if startT := int64(values.Time(t.nextTS).Add(subEvery)); startT >= int64(t.bounds.Stop) {
+			return nil, nil, false
+		}
+
+		// Create a buffer with the buffer size.
+		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
+		for ; ; t.nextTS = int64(values.Time(t.nextTS).Add(t.window.Every)) {
+			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+			if startT >= int64(t.bounds.Stop) {
+				break
+			}
+			startB.Append(startT)
+			stopB.Append(stopT)
+		}
+		start = startB.NewInt64Array()
+		stop = stopB.NewInt64Array()
+		return start, stop, true
+	}
+
+	// Retrieve the next buffer so we can copy the timestamps.
+	if !t.nextBuffer() {
+		return nil, nil, false
+	}
+
+	// Copy over the timestamps from the next buffer and adjust
+	// times for the boundaries.
+	startB.Resize(len(t.arr.Timestamps))
+	stopB.Resize(len(t.arr.Timestamps))
+	for _, stopT := range t.arr.Timestamps {
+		startT, stopT := t.getWindowBoundsFor(stopT)
+		startB.Append(startT)
+		stopB.Append(stopT)
+	}
+	start = startB.NewInt64Array()
+	stop = stopB.NewInt64Array()
+	return start, stop, true
+}
+
+func (t *stringWindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
+	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+	startT, stopT = int64(values.Time(ts).Add(subEvery)), ts
+	if startT < int64(t.bounds.Start) {
+		startT = int64(t.bounds.Start)
+	}
+	if stopT > int64(t.bounds.Stop) {
+		stopT = int64(t.bounds.Stop)
+	}
+	return startT, stopT
+}
+
+// nextAt will retrieve the next value that can be used with
+// the given stop timestamp. If no values can be used with the timestamp,
+// it will return the default value and false.
+func (t *stringWindowTable) nextAt(ts int64) (v string, ok bool) {
+	if !t.nextBuffer() {
+		return
+	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+		return
+	}
+	v, ok = t.arr.Values[t.idxInArr], true
+	t.idxInArr++
+	return v, ok
+}
+
+// isInWindow will check if the given time at stop can be used within
+// the window stop time for ts. The ts may be a truncated stop time
+// because of a restricted boundary while stop will be the true
+// stop time returned by storage.
+func (t *stringWindowTable) isInWindow(ts int64, stop int64) bool {
+	// This method checks if the stop time is a valid stop time for
+	// that interval. This calculation is different from the calculation
+	// of the window itself. For example, for a 10 second window that
+	// starts at 20 seconds, we would include points between [20, 30).
+	// The stop time for this interval would be 30, but because the stop
+	// time can be truncated, valid stop times range from anywhere between
+	// (20, 30]. The storage engine will always produce 30 as the end time
+	// but we may have truncated the stop time because of the boundary
+	// and this is why we are checking for this range instead of checking
+	// if the two values are equal.
+	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+	start := int64(values.Time(stop).Add(subEvery))
+	return start < ts && ts <= stop
+}
+
+// nextBuffer will ensure the array cursor is filled
+// and will return true if there is at least one value
+// that can be read from it.
+func (t *stringWindowTable) nextBuffer() bool {
+	// Discard the current array cursor if we have
+	// exceeded it.
+	if t.arr != nil && t.idxInArr >= t.arr.Len() {
+		t.arr = nil
+	}
+
+	// Retrieve the next array cursor if needed.
+	if t.arr == nil {
+		arr := t.cur.Next()
+		if arr.Len() == 0 {
+			return false
+		}
+		t.arr, t.idxInArr = arr, 0
+	}
+	return true
+}
+
+// appendValues will scan the timestamps and append values
+// that match those timestamps from the buffer.
+func (t *stringWindowTable) appendValues(intervals []int64, appendValue func(v string), appendNull func()) {
+	for i := 0; i < len(intervals); i++ {
+		if v, ok := t.nextAt(intervals[i]); ok {
+			appendValue(v)
+			continue
+		}
+		appendNull()
+	}
+}
+
+func (t *stringWindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
+	// Create the timestamps for the next window.
+	start, stop, ok := t.createNextBufferTimes()
+	if !ok {
+		return false
+	}
+	values := t.mergeValues(stop.Int64Values())
+
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(stop.Len())
+	if t.timeColumn != "" {
+		switch t.timeColumn {
+		case execute.DefaultStopColLabel:
+			cr.cols[timeColIdx] = stop
+			start.Release()
+		case execute.DefaultStartColLabel:
+			cr.cols[timeColIdx] = start
+			stop.Release()
+		}
+		cr.cols[valueColIdx] = values
+		t.appendBounds(cr)
+	} else {
+		cr.cols[startColIdx] = start
+		cr.cols[stopColIdx] = stop
+		cr.cols[valueColIdxWithoutTime] = values
+	}
+	t.appendTags(cr)
+	return true
+}
+
 // group table
 
 type stringGroupTable struct {
@@ -858,6 +1718,220 @@ func (t *booleanTable) advance() bool {
 	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
 	t.appendTags(cr)
 	t.appendBounds(cr)
+	return true
+}
+
+// window table
+type booleanWindowTable struct {
+	booleanTable
+	arr         *cursors.BooleanArray
+	nextTS      int64
+	idxInArr    int
+	createEmpty bool
+	timeColumn  string
+	window      execute.Window
+}
+
+func newBooleanWindowTable(
+	done chan struct{},
+	cur cursors.BooleanArrayCursor,
+	bounds execute.Bounds,
+	window execute.Window,
+	createEmpty bool,
+	timeColumn string,
+
+	key flux.GroupKey,
+	cols []flux.ColMeta,
+	tags models.Tags,
+	defs [][]byte,
+	cache *tagsCache,
+	alloc *memory.Allocator,
+) *booleanWindowTable {
+	t := &booleanWindowTable{
+		booleanTable: booleanTable{
+			table: newTable(done, bounds, key, cols, defs, cache, alloc),
+			cur:   cur,
+		},
+		window:      window,
+		createEmpty: createEmpty,
+		timeColumn:  timeColumn,
+	}
+	if t.createEmpty {
+		start := int64(bounds.Start)
+		t.nextTS = int64(window.GetEarliestBounds(values.Time(start)).Stop)
+	}
+	t.readTags(tags)
+	t.init(t.advance)
+
+	return t
+}
+
+func (t *booleanWindowTable) Do(f func(flux.ColReader) error) error {
+	return t.do(f, t.advance)
+}
+
+// createNextBufferTimes will read the timestamps from the array
+// cursor and construct the values for the next buffer.
+func (t *booleanWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+	startB := arrow.NewIntBuilder(t.alloc)
+	stopB := arrow.NewIntBuilder(t.alloc)
+
+	if t.createEmpty {
+		// There are no more windows when the start time is greater
+		// than or equal to the stop time.
+		subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+		if startT := int64(values.Time(t.nextTS).Add(subEvery)); startT >= int64(t.bounds.Stop) {
+			return nil, nil, false
+		}
+
+		// Create a buffer with the buffer size.
+		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
+		for ; ; t.nextTS = int64(values.Time(t.nextTS).Add(t.window.Every)) {
+			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+			if startT >= int64(t.bounds.Stop) {
+				break
+			}
+			startB.Append(startT)
+			stopB.Append(stopT)
+		}
+		start = startB.NewInt64Array()
+		stop = stopB.NewInt64Array()
+		return start, stop, true
+	}
+
+	// Retrieve the next buffer so we can copy the timestamps.
+	if !t.nextBuffer() {
+		return nil, nil, false
+	}
+
+	// Copy over the timestamps from the next buffer and adjust
+	// times for the boundaries.
+	startB.Resize(len(t.arr.Timestamps))
+	stopB.Resize(len(t.arr.Timestamps))
+	for _, stopT := range t.arr.Timestamps {
+		startT, stopT := t.getWindowBoundsFor(stopT)
+		startB.Append(startT)
+		stopB.Append(stopT)
+	}
+	start = startB.NewInt64Array()
+	stop = stopB.NewInt64Array()
+	return start, stop, true
+}
+
+func (t *booleanWindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
+	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+	startT, stopT = int64(values.Time(ts).Add(subEvery)), ts
+	if startT < int64(t.bounds.Start) {
+		startT = int64(t.bounds.Start)
+	}
+	if stopT > int64(t.bounds.Stop) {
+		stopT = int64(t.bounds.Stop)
+	}
+	return startT, stopT
+}
+
+// nextAt will retrieve the next value that can be used with
+// the given stop timestamp. If no values can be used with the timestamp,
+// it will return the default value and false.
+func (t *booleanWindowTable) nextAt(ts int64) (v bool, ok bool) {
+	if !t.nextBuffer() {
+		return
+	} else if !t.isInWindow(ts, t.arr.Timestamps[t.idxInArr]) {
+		return
+	}
+	v, ok = t.arr.Values[t.idxInArr], true
+	t.idxInArr++
+	return v, ok
+}
+
+// isInWindow will check if the given time at stop can be used within
+// the window stop time for ts. The ts may be a truncated stop time
+// because of a restricted boundary while stop will be the true
+// stop time returned by storage.
+func (t *booleanWindowTable) isInWindow(ts int64, stop int64) bool {
+	// This method checks if the stop time is a valid stop time for
+	// that interval. This calculation is different from the calculation
+	// of the window itself. For example, for a 10 second window that
+	// starts at 20 seconds, we would include points between [20, 30).
+	// The stop time for this interval would be 30, but because the stop
+	// time can be truncated, valid stop times range from anywhere between
+	// (20, 30]. The storage engine will always produce 30 as the end time
+	// but we may have truncated the stop time because of the boundary
+	// and this is why we are checking for this range instead of checking
+	// if the two values are equal.
+	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
+	start := int64(values.Time(stop).Add(subEvery))
+	return start < ts && ts <= stop
+}
+
+// nextBuffer will ensure the array cursor is filled
+// and will return true if there is at least one value
+// that can be read from it.
+func (t *booleanWindowTable) nextBuffer() bool {
+	// Discard the current array cursor if we have
+	// exceeded it.
+	if t.arr != nil && t.idxInArr >= t.arr.Len() {
+		t.arr = nil
+	}
+
+	// Retrieve the next array cursor if needed.
+	if t.arr == nil {
+		arr := t.cur.Next()
+		if arr.Len() == 0 {
+			return false
+		}
+		t.arr, t.idxInArr = arr, 0
+	}
+	return true
+}
+
+// appendValues will scan the timestamps and append values
+// that match those timestamps from the buffer.
+func (t *booleanWindowTable) appendValues(intervals []int64, appendValue func(v bool), appendNull func()) {
+	for i := 0; i < len(intervals); i++ {
+		if v, ok := t.nextAt(intervals[i]); ok {
+			appendValue(v)
+			continue
+		}
+		appendNull()
+	}
+}
+
+func (t *booleanWindowTable) advance() bool {
+	if !t.nextBuffer() {
+		return false
+	}
+	// Create the timestamps for the next window.
+	start, stop, ok := t.createNextBufferTimes()
+	if !ok {
+		return false
+	}
+	values := t.mergeValues(stop.Int64Values())
+
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(stop.Len())
+	if t.timeColumn != "" {
+		switch t.timeColumn {
+		case execute.DefaultStopColLabel:
+			cr.cols[timeColIdx] = stop
+			start.Release()
+		case execute.DefaultStartColLabel:
+			cr.cols[timeColIdx] = start
+			stop.Release()
+		}
+		cr.cols[valueColIdx] = values
+		t.appendBounds(cr)
+	} else {
+		cr.cols[startColIdx] = start
+		cr.cols[stopColIdx] = stop
+		cr.cols[valueColIdxWithoutTime] = values
+	}
+	t.appendTags(cr)
 	return true
 }
 

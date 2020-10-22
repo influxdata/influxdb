@@ -37,24 +37,8 @@ type GroupAggregator interface {
 	GetGroupCapability(ctx context.Context) GroupCapability
 }
 
-// WindowAggregateCapability describes what is supported by WindowAggregateReader.
-type WindowAggregateCapability interface {
-	HaveMin() bool
-	HaveMax() bool
-	HaveMean() bool
-	HaveCount() bool
-	HaveSum() bool
-	HaveFirst() bool
-	HaveLast() bool
-	HaveOffset() bool
-}
-
 // WindowAggregateReader implements the WindowAggregate capability.
 type WindowAggregateReader interface {
-	// GetWindowAggregateCapability will get a detailed list of what the RPC call supports
-	// for window aggregate.
-	GetWindowAggregateCapability(ctx context.Context) WindowAggregateCapability
-
 	// ReadWindowAggregate will read a table using the WindowAggregate method.
 	ReadWindowAggregate(ctx context.Context, spec ReadWindowAggregateSpec, alloc *memory.Allocator) (TableIterator, error)
 }
@@ -96,6 +80,7 @@ type ReadWindowAggregateSpec struct {
 	Aggregates  []plan.ProcedureKind
 	CreateEmpty bool
 	TimeColumn  string
+	Window      execute.Window
 }
 
 func (spec *ReadWindowAggregateSpec) Name() string {
