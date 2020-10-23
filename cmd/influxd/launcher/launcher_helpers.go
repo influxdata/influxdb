@@ -16,6 +16,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/influxdb/v2"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
@@ -386,8 +387,9 @@ func (tl *TestLauncher) NotificationEndpointService(tb testing.TB) *http.Notific
 	return http.NewNotificationEndpointService(tl.HTTPClient(tb))
 }
 
-func (tl *TestLauncher) NotificationRuleService() platform.NotificationRuleStore {
-	return tl.kvService
+func (tl *TestLauncher) NotificationRuleService(tb testing.TB) platform.NotificationRuleStore {
+	tb.Helper()
+	return http.NewNotificationRuleService(tl.HTTPClient(tb))
 }
 
 func (tl *TestLauncher) OrgService(tb testing.TB) platform.OrganizationService {
@@ -398,7 +400,7 @@ func (tl *TestLauncher) PkgerService(tb testing.TB) pkger.SVC {
 	return &pkger.HTTPRemoteService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TaskServiceKV() platform.TaskService {
+func (tl *TestLauncher) TaskServiceKV(tb testing.TB) platform.TaskService {
 	return tl.kvService
 }
 
@@ -416,7 +418,7 @@ func (tl *TestLauncher) AuthorizationService(tb testing.TB) *http.AuthorizationS
 	return &http.AuthorizationService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TaskService(tb testing.TB) *http.TaskService {
+func (tl *TestLauncher) TaskService(tb testing.TB) influxdb.TaskService {
 	return &http.TaskService{Client: tl.HTTPClient(tb)}
 }
 

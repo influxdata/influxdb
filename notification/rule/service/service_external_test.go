@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/pkg/pointer"
 )
 
 const (
@@ -157,7 +158,7 @@ func CreateNotificationRule(
 						Token: influxdb.SecretField{
 							// TODO(desa): not sure why this has to end in token, but it does
 							Key:   "020f755c3c082001-token",
-							Value: strPtr("abc123"),
+							Value: pointer.String("abc123"),
 						},
 						Base: endpoint.Base{
 							OrgID:  MustIDBase16Ptr(fourID),
@@ -313,7 +314,7 @@ func CreateNotificationRule(
 						Token: influxdb.SecretField{
 							// TODO(desa): not sure why this has to end in token, but it does
 							Key:   "020f755c3c082001-token",
-							Value: strPtr("abc123"),
+							Value: pointer.String("abc123"),
 						},
 						Base: endpoint.Base{
 							OrgID:  MustIDBase16Ptr(fourID),
@@ -906,7 +907,7 @@ func FindNotificationRules(
 			},
 			args: args{
 				filter: influxdb.NotificationRuleFilter{
-					Organization: strPtr("org4"),
+					Organization: pointer.String("org4"),
 				},
 			},
 			wants: wants{
@@ -1334,7 +1335,7 @@ func UpdateNotificationRule(
 						Token: influxdb.SecretField{
 							// TODO(desa): not sure why this has to end in token, but it does
 							Key:   "020f755c3c082001-token",
-							Value: strPtr("abc123"),
+							Value: pointer.String("abc123"),
 						},
 						Base: endpoint.Base{
 							OrgID:  MustIDBase16Ptr(fourID),
@@ -1569,7 +1570,7 @@ func PatchNotificationRule(
 						Token: influxdb.SecretField{
 							// TODO(desa): not sure why this has to end in token, but it does
 							Key:   "020f755c3c082001-token",
-							Value: strPtr("abc123"),
+							Value: pointer.String("abc123"),
 						},
 						Base: endpoint.Base{
 							OrgID:  MustIDBase16Ptr(fourID),
@@ -1694,7 +1695,7 @@ func PatchNotificationRule(
 						Token: influxdb.SecretField{
 							// TODO(desa): not sure why this has to end in token, but it does
 							Key:   "020f755c3c082001-token",
-							Value: strPtr("abc123"),
+							Value: pointer.String("abc123"),
 						},
 						Base: endpoint.Base{
 							OrgID:  MustIDBase16Ptr(fourID),

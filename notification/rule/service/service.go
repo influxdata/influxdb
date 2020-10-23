@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/pkg/pointer"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"go.uber.org/zap"
 )
@@ -134,7 +135,7 @@ func (s *RuleService) CreateNotificationRule(ctx context.Context, nr influxdb.No
 	}
 
 	// set task to notification rule create status
-	_, err = s.tasks.UpdateTask(ctx, t.ID, influxdb.TaskUpdate{Status: strPtr(string(nr.Status))})
+	_, err = s.tasks.UpdateTask(ctx, t.ID, influxdb.TaskUpdate{Status: pointer.String(string(nr.Status))})
 	return err
 }
 
@@ -202,7 +203,7 @@ func (s *RuleService) UpdateNotificationRule(ctx context.Context, id influxdb.ID
 		return nil, err
 	}
 
-	_, err = s.updateNotificationTask(ctx, nr, strPtr(string(nr.Status)))
+	_, err = s.updateNotificationTask(ctx, nr, pointer.String(string(nr.Status)))
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +228,7 @@ func (s *RuleService) updateNotificationTask(ctx context.Context, r influxdb.Not
 
 	tu := influxdb.TaskUpdate{
 		Flux:        &script,
-		Description: strPtr(r.GetDescription()),
+		Description: pointer.String(r.GetDescription()),
 		Status:      status,
 	}
 
@@ -256,7 +257,7 @@ func (s *RuleService) PatchNotificationRule(ctx context.Context, id influxdb.ID,
 
 	var status *string
 	if upd.Status != nil {
-		status = strPtr(string(*upd.Status))
+		status = pointer.String(string(*upd.Status))
 	}
 
 	nr.SetUpdatedAt(s.timeGenerator.Now())
@@ -493,10 +494,4 @@ func (s *RuleService) deleteNotificationRule(ctx context.Context, tx kv.Tx, r in
 	}
 
 	return nil
-}
-
-func strPtr(s string) *string {
-	ss := new(string)
-	*ss = s
-	return ss
 }
