@@ -18,7 +18,7 @@ type windowAggregateResultSet struct {
 	req          *datatypes.ReadWindowAggregateRequest
 	seriesCursor SeriesCursor
 	seriesRow    SeriesRow
-	arrayCursors *arrayCursors
+	arrayCursors multiShardCursors
 	cursor       cursors.Cursor
 	err          error
 }
@@ -57,7 +57,7 @@ func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowA
 		ctx:          ctx,
 		req:          req,
 		seriesCursor: cursor,
-		arrayCursors: newArrayCursors(ctx, req.Range.Start, req.Range.End, ascending),
+		arrayCursors: newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, ascending),
 	}
 	return results, nil
 }
