@@ -12,7 +12,6 @@ use delorean_arrow::{
 use snafu::{ensure, OptionExt, Snafu};
 
 #[derive(Debug, Snafu)]
-/// Opaque error type
 pub enum Error {
     #[snafu(display(
         "Error extracting results from Record Batches: schema not a single Utf8: {:?}",

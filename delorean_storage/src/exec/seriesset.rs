@@ -34,7 +34,6 @@ use tokio::sync::mpsc::{self, error::SendError};
 use croaring::bitmap::Bitmap;
 
 #[derive(Debug, Snafu)]
-/// Opaque error type
 pub enum Error {
     #[snafu(display("Plan Execution Error: {}", source))]
     Execution {

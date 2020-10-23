@@ -2,6 +2,7 @@
 //! plans. This is currently implemented using DataFusion, and this
 //! interface abstracts away many of the details
 mod counters;
+pub mod fieldlist;
 mod planning;
 mod schema_pivot;
 pub mod seriesset;
@@ -18,6 +19,7 @@ use delorean_arrow::{
 use planning::DeloreanExecutionContext;
 use schema_pivot::SchemaPivotNode;
 
+use fieldlist::{FieldList, IntoFieldList};
 use seriesset::{
     Error as SeriesSetError, GroupedSeriesSetConverter, GroupedSeriesSetItem, SeriesSet,
     SeriesSetConverter,
@@ -49,6 +51,21 @@ pub enum Error {
         source: datafusion::error::ExecutionError,
     },
 
+    #[snafu(display("Internal error executing series set set plan: {}", source))]
+    SeriesSetExecution {
+        source: datafusion::error::ExecutionError,
+    },
+
+    #[snafu(display("Internal error executing grouped series set set plan: {}", source))]
+    GroupedSeriesSetExecution {
+        source: datafusion::error::ExecutionError,
+    },
+
+    #[snafu(display("Internal error executing field set plan: {}", source))]
+    FieldListExectuon {
+        source: datafusion::error::ExecutionError,
+    },
+
     #[snafu(display("Internal error extracting results from Record Batches: {}", message))]
     InternalResultsExtraction { message: String },
 
@@ -57,6 +74,9 @@ pub enum Error {
 
     #[snafu(display("Error converting results to SeriesSet: {}", source))]
     SeriesSetConversion { source: seriesset::Error },
+
+    #[snafu(display("Internal error creating FieldList: {}", source))]
+    FieldListConversion { source: fieldlist::Error },
 
     #[snafu(display("Joining execution task: {}", source))]
     JoinError { source: tokio::task::JoinError },
@@ -189,6 +209,14 @@ impl From<Vec<GroupedSeriesSetPlan>> for GroupedSeriesSetPlans {
     }
 }
 
+/// A plan that can be run to produce a sequence of FieldLists
+/// DataFusion plans or a known set of results
+#[derive(Debug)]
+pub enum FieldListPlan {
+    Known(Result<FieldList>),
+    Plans(Vec<LogicalPlan>),
+}
+
 /// Handles executing plans, and marshalling the results into rust
 /// native structures.
 #[derive(Debug, Default)]
@@ -259,7 +287,7 @@ impl Executor {
                     let it = ctx
                         .execute(physical_plan)
                         .await
-                        .context(DataFusionExecution)?;
+                        .context(SeriesSetExecution)?;
 
                     SeriesSetConverter::new(tx)
                         .convert(table_name, tag_columns, field_columns, it)
@@ -326,7 +354,7 @@ impl Executor {
                     let it = ctx
                         .execute(physical_plan)
                         .await
-                        .context(DataFusionExecution)?;
+                        .context(GroupedSeriesSetExecution)?;
 
                     GroupedSeriesSetConverter::new(tx)
                         .convert(
@@ -349,6 +377,50 @@ impl Executor {
             join_handle.await.context(JoinError)??;
         }
         Ok(())
+    }
+
+    /// Executes `plan` and return the resulting FieldList
+    pub async fn to_fieldlist(&self, plan: FieldListPlan) -> Result<FieldList> {
+        match plan {
+            FieldListPlan::Known(res) => res,
+            FieldListPlan::Plans(plans) => {
+                // Run the plans in parallel
+                let handles = plans
+                    .into_iter()
+                    .map(|plan| {
+                        let counters = self.counters.clone();
+
+                        tokio::task::spawn(async move {
+                            let ctx = DeloreanExecutionContext::new(counters);
+                            let physical_plan = ctx
+                                .make_plan(&plan)
+                                .await
+                                .context(DataFusionPhysicalPlanning)?;
+
+                            // TODO: avoid this buffering
+                            let fieldlist = ctx
+                                .collect(physical_plan)
+                                .await
+                                .context(FieldListExectuon)?
+                                .into_fieldlist()
+                                .context(FieldListConversion);
+
+                            Ok(fieldlist)
+                        })
+                    })
+                    .collect::<Vec<_>>();
+
+                // collect them all up and combine them
+                let mut results = Vec::new();
+                for join_handle in handles.into_iter() {
+                    let fieldlist = join_handle.await.context(JoinError)???;
+
+                    results.push(fieldlist);
+                }
+
+                results.into_fieldlist().context(FieldListConversion)
+            }
+        }
     }
 
     /// Run the plan and return a record batch reader for reading the results

@@ -7,22 +7,29 @@ use delorean_arrow::arrow::{
     datatypes::DataType as ArrowDataType,
 };
 
-use delorean_storage::exec::seriesset::{GroupDescription, GroupedSeriesSetItem, SeriesSet};
+use delorean_storage::exec::{
+    fieldlist::FieldList,
+    seriesset::{GroupDescription, GroupedSeriesSetItem, SeriesSet},
+};
 
 use delorean_generated_types::{
+    measurement_fields_response::{FieldType, MessageField},
     read_response::{
         frame::Data, BooleanPointsFrame, DataType, FloatPointsFrame, Frame, GroupFrame,
         IntegerPointsFrame, SeriesFrame, StringPointsFrame,
     },
-    ReadResponse, Tag,
+    MeasurementFieldsResponse, ReadResponse, Tag,
 };
 
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Unsupported data type in gRPC data translation:  {}", type_name))]
+    #[snafu(display("Unsupported data type in gRPC data translation: {}", type_name))]
     UnsupportedDataType { type_name: String },
+
+    #[snafu(display("Unsupported field data type in gRPC data translation: {}", type_name))]
+    UnsupportedFieldType { type_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -262,17 +269,51 @@ impl ExtractValues<bool> for BooleanArray {
     }
 }
 
+/// Translates FieldList into the gRPC format
+pub fn fieldlist_to_measurement_fields_response(
+    fieldlist: FieldList,
+) -> Result<MeasurementFieldsResponse> {
+    let fields = fieldlist
+        .fields
+        .into_iter()
+        .map(|f| {
+            Ok(MessageField {
+                key: f.name,
+                r#type: datatype_to_measurement_field_enum(&f.data_type)? as i32,
+                timestamp: f.last_timestamp,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(MeasurementFieldsResponse { fields })
+}
+
+fn datatype_to_measurement_field_enum(data_type: &ArrowDataType) -> Result<FieldType> {
+    match data_type {
+        ArrowDataType::Float64 => Ok(FieldType::Float),
+        ArrowDataType::Int64 => Ok(FieldType::Integer),
+        ArrowDataType::UInt64 => Ok(FieldType::Unsigned),
+        ArrowDataType::Utf8 => Ok(FieldType::String),
+        ArrowDataType::Boolean => Ok(FieldType::Boolean),
+        _ => UnsupportedFieldType {
+            type_name: format!("{:?}", data_type),
+        }
+        .fail(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use delorean_arrow::arrow::{
-        datatypes::{DataType as ArrowDataType, Field, Schema},
+        datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema},
         record_batch::RecordBatch,
     };
+    use delorean_storage::exec::fieldlist::Field;
 
     use super::*;
 
     #[test]
-    fn test_conversion() {
+    fn test_series_set_conversion() {
         let series_set = SeriesSet {
             table_name: Arc::new("the_table".into()),
             tags: vec![(Arc::new("tag1".into()), Arc::new("val1".into()))],
@@ -347,8 +388,8 @@ mod tests {
     #[test]
     fn test_group_series_conversion() {
         let schema = Arc::new(Schema::new(vec![
-            Field::new("float_field", ArrowDataType::Float64, true),
-            Field::new("time", ArrowDataType::Int64, true),
+            ArrowField::new("float_field", ArrowDataType::Float64, true),
+            ArrowField::new("time", ArrowDataType::Int64, true),
         ]));
 
         let float_array: ArrayRef = Arc::new(Float64Array::from(vec![10.1, 20.1, 30.1, 40.1]));
@@ -390,6 +431,101 @@ mod tests {
             "Expected:\n{:#?}\nActual:\n{:#?}",
             expected_frames, dumped_frames
         );
+    }
+
+    #[test]
+    fn test_field_list_conversion() {
+        let input = FieldList {
+            fields: vec![
+                Field {
+                    name: "float".into(),
+                    data_type: ArrowDataType::Float64,
+                    last_timestamp: 1000,
+                },
+                Field {
+                    name: "int".into(),
+                    data_type: ArrowDataType::Int64,
+                    last_timestamp: 2000,
+                },
+                Field {
+                    name: "uint".into(),
+                    data_type: ArrowDataType::UInt64,
+                    last_timestamp: 3000,
+                },
+                Field {
+                    name: "string".into(),
+                    data_type: ArrowDataType::Utf8,
+                    last_timestamp: 4000,
+                },
+                Field {
+                    name: "bool".into(),
+                    data_type: ArrowDataType::Boolean,
+                    last_timestamp: 5000,
+                },
+            ],
+        };
+
+        let expected = MeasurementFieldsResponse {
+            fields: vec![
+                MessageField {
+                    key: "float".into(),
+                    r#type: FieldType::Float as i32,
+                    timestamp: 1000,
+                },
+                MessageField {
+                    key: "int".into(),
+                    r#type: FieldType::Integer as i32,
+                    timestamp: 2000,
+                },
+                MessageField {
+                    key: "uint".into(),
+                    r#type: FieldType::Unsigned as i32,
+                    timestamp: 3000,
+                },
+                MessageField {
+                    key: "string".into(),
+                    r#type: FieldType::String as i32,
+                    timestamp: 4000,
+                },
+                MessageField {
+                    key: "bool".into(),
+                    r#type: FieldType::Boolean as i32,
+                    timestamp: 5000,
+                },
+            ],
+        };
+
+        let actual = fieldlist_to_measurement_fields_response(input).unwrap();
+        assert_eq!(
+            actual, expected,
+            "Expected:\n{:#?}\nActual:\n{:#?}",
+            expected, actual
+        );
+    }
+
+    #[test]
+    fn test_field_list_conversion_error() {
+        let input = FieldList {
+            fields: vec![Field {
+                name: "unsupported".into(),
+                data_type: ArrowDataType::Int8,
+                last_timestamp: 1000,
+            }],
+        };
+        let result = fieldlist_to_measurement_fields_response(input);
+        match result {
+            Ok(r) => panic!("Unexpected success: {:?}", r),
+            Err(e) => {
+                let expected = "Unsupported field data type in gRPC data translation: Int8";
+                let actual = format!("{}", e);
+                assert!(
+                    actual.contains(expected),
+                    "Could not find expected '{}' in actual '{}'",
+                    expected,
+                    actual
+                );
+            }
+        }
     }
 
     fn dump_frame(frame: &Frame) -> String {
@@ -466,11 +602,11 @@ mod tests {
 
     fn make_record_batch() -> RecordBatch {
         let schema = Arc::new(Schema::new(vec![
-            Field::new("string_field", ArrowDataType::Utf8, true),
-            Field::new("int_field", ArrowDataType::Int64, true),
-            Field::new("float_field", ArrowDataType::Float64, true),
-            Field::new("boolean_field", ArrowDataType::Boolean, true),
-            Field::new("time", ArrowDataType::Int64, true),
+            ArrowField::new("string_field", ArrowDataType::Utf8, true),
+            ArrowField::new("int_field", ArrowDataType::Int64, true),
+            ArrowField::new("float_field", ArrowDataType::Float64, true),
+            ArrowField::new("boolean_field", ArrowDataType::Boolean, true),
+            ArrowField::new("time", ArrowDataType::Int64, true),
         ]));
 
         let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));

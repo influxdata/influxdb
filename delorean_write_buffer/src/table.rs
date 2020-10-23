@@ -180,6 +180,20 @@ pub enum PredicateTableColumns {
     Present(BTreeSet<u32>),
 }
 
+#[derive(Debug, Clone, Copy)]
+/// Describes a predicate on the table name
+pub enum PredicateTableName {
+    NoPredicate,
+
+    /// There is a table name predicate, but no such table exists in
+    /// this partition
+    NoTableInPartition,
+
+    /// There is a table name predicate, and the name maps to this id
+    /// in this partition
+    Present(u32),
+}
+
 #[derive(Debug)]
 pub struct Table {
     /// Name of the table as a u32 in the partition dictionary
@@ -303,6 +317,31 @@ impl Table {
         Ok(())
     }
 
+    /// Creates and adds a datafuson filtering expression, if any out of the
+    /// combination of predicate and timestamp. Returns None if no
+    /// predicate is needed
+    fn add_datafusion_predicate(
+        plan_builder: LogicalPlanBuilder,
+        predicate: Option<&Predicate>,
+        timestamp_predicate: Option<&TimestampPredicate>,
+    ) -> Result<LogicalPlanBuilder> {
+        let df_predicate = match (predicate, timestamp_predicate) {
+            (Some(predicate), Some(timestamp_predicate)) => Some(
+                Self::add_timestamp_predicate_expr(predicate.expr.clone(), timestamp_predicate),
+            ),
+            (Some(predicate), None) => Some(predicate.expr.clone()),
+            (None, Some(timestamp_predicate)) => {
+                Some(Self::make_timestamp_predicate_expr(timestamp_predicate))
+            }
+            (None, None) => None,
+        };
+
+        match df_predicate {
+            Some(df_predicate) => plan_builder.filter(df_predicate).context(BuildingPlan),
+            None => Ok(plan_builder),
+        }
+    }
+
     /// Creates a DataFusion LogicalPlan that returns column *names* as a
     /// single column of Strings
     ///
@@ -318,17 +357,7 @@ impl Table {
         timestamp_predicate: Option<&TimestampPredicate>,
         partition: &Partition,
     ) -> Result<LogicalPlan> {
-        // Note we also need to add a timestamp predicate to this
-        // expression as some additional rows may be filtered out (and
-        // we couldn't prune out the entire Table based on range)
-        let df_predicate = predicate.expr.clone();
-        let (time_column_id, df_predicate) = match timestamp_predicate {
-            None => (None, df_predicate),
-            Some(timestamp_predicate) => (
-                Some(timestamp_predicate.time_column_id),
-                Self::add_timestamp_predicate_expr(df_predicate, timestamp_predicate),
-            ),
-        };
+        let time_column_id = timestamp_predicate.map(|p| p.time_column_id);
 
         // figure out the tag columns
         let requested_columns_with_index = self
@@ -366,7 +395,9 @@ impl Table {
             projection,
             projected_schema,
         });
-        let plan_builder = plan_builder.filter(df_predicate).context(BuildingPlan)?;
+
+        let plan_builder =
+            Self::add_datafusion_predicate(plan_builder, Some(predicate), timestamp_predicate)?;
 
         // add optional selection to remove time column
         let plan_builder = match time_column_id {
@@ -410,17 +441,6 @@ impl Table {
         timestamp_predicate: Option<&TimestampPredicate>,
         partition: &Partition,
     ) -> Result<LogicalPlan> {
-        // Note we also need to add a timestamp predicate to this
-        // expression as some additional rows may be filtered out (and
-        // we couldn't prune out the entire Table based on range)
-        let df_predicate = predicate.expr.clone();
-        let df_predicate = match timestamp_predicate {
-            None => df_predicate,
-            Some(timestamp_predicate) => {
-                Self::add_timestamp_predicate_expr(df_predicate, timestamp_predicate)
-            }
-        };
-
         // TODO avoid materializing all the columns here (ideally
         // DataFusion can prune them out)
         let data = self.all_to_arrow(partition)?;
@@ -439,9 +459,10 @@ impl Table {
             projected_schema,
         });
 
+        let plan_builder =
+            Self::add_datafusion_predicate(plan_builder, Some(predicate), timestamp_predicate)?;
+
         plan_builder
-            .filter(df_predicate)
-            .context(BuildingPlan)?
             .project(select_exprs)
             .context(BuildingPlan)?
             .build()
@@ -481,19 +502,6 @@ impl Table {
         prefix_columns: Option<&[String]>,
         partition: &Partition,
     ) -> Result<SeriesSetPlan> {
-        // Note we also need to add a timestamp predicate to this
-        // expression as some additional rows may be filtered out (and
-        // we couldn't prune out the entire Table based on range)
-
-        let df_predicate = predicate
-            .map(|predicate| predicate.expr.clone())
-            .map(|predicate| match timestamp_predicate {
-                None => predicate,
-                Some(timestamp_predicate) => {
-                    Self::add_timestamp_predicate_expr(predicate, timestamp_predicate)
-                }
-            });
-
         // I wonder if all this string creation will be too slow?
         let table_name = partition
             .dictionary
@@ -527,10 +535,8 @@ impl Table {
         });
 
         // Filtering
-        let plan_builder = match df_predicate {
-            Some(df_predicate) => plan_builder.filter(df_predicate).context(BuildingPlan)?,
-            None => plan_builder,
-        };
+        let plan_builder =
+            Self::add_datafusion_predicate(plan_builder, predicate, timestamp_predicate)?;
 
         let mut sort_exprs = Vec::new();
         sort_exprs.extend(tag_columns.iter().map(|c| c.into_sort_expr()));
@@ -596,6 +602,58 @@ impl Table {
         })
     }
 
+    /// Creates a plan that produces an output table with rows that
+    /// match the predicate for all fields in the table.
+    ///
+    /// The output looks like (field0, field1, ..., time)
+    ///
+    /// The data is not sorted in any particular order
+    ///
+    /// The created plan looks like:
+    ///
+    ///    Projection (select the field columns needed)
+    ///        Filter(predicate) [optional]
+    ///          InMemoryScan
+    pub fn field_names_plan(
+        &self,
+        predicate: Option<&Predicate>,
+        timestamp_predicate: Option<&TimestampPredicate>,
+        partition: &Partition,
+    ) -> Result<LogicalPlan> {
+        // TODO avoid materializing all the columns here (ideally
+        // DataFusion can prune them out)
+        let data = self.all_to_arrow(partition)?;
+
+        let schema = data.schema();
+
+        let projection = None;
+        let projected_schema = schema.clone();
+
+        // And build the plan from the bottom up
+        let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
+            data: vec![vec![data]],
+            schema,
+            projection,
+            projected_schema,
+        });
+
+        // Filtering
+        let plan_builder =
+            Self::add_datafusion_predicate(plan_builder, predicate, timestamp_predicate)?;
+
+        // Selection
+        let select_exprs = self
+            .field_and_time_column_names(partition)
+            .into_iter()
+            .map(|c| c.into_expr())
+            .collect::<Vec<_>>();
+
+        let plan_builder = plan_builder.project(select_exprs).context(BuildingPlan)?;
+
+        // and finally create the plan
+        plan_builder.build().context(BuildingPlan)
+    }
+
     // Returns (tag_columns, field_columns) vectors with the names of
     // all tag and field columns, respectively. The vectors are sorted
     // by name.
@@ -634,10 +692,36 @@ impl Table {
         Ok((tag_columns, field_columns))
     }
 
-    /// Creates a DataFusion predicate of the form:
+    // Returns (field_columns and time) in sorted order
+    fn field_and_time_column_names(&self, partition: &Partition) -> ArcStringVec {
+        let mut field_columns = self
+            .column_id_to_index
+            .iter()
+            .filter_map(|(&column_id, &column_index)| {
+                match self.columns[column_index] {
+                    Column::Tag(_) => None, // skip tags
+                    _ => {
+                        let column_name = partition
+                            .dictionary
+                            .lookup_id(column_id)
+                            .expect("Find column name in dictionary");
+                        Some(Arc::new(column_name.to_string()))
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // Sort the field columns too so that the output always comes
+        // out in a predictable order
+        field_columns.sort();
+
+        field_columns
+    }
+
+    /// Creates a DataFusion predicate for appliying a timestamp range:
     ///
-    /// `expr AND (range.start <= time and time < range.end)`
-    fn add_timestamp_predicate_expr(expr: Expr, timestamp_predicate: &TimestampPredicate) -> Expr {
+    /// range.start <= time and time < range.end`
+    fn make_timestamp_predicate_expr(timestamp_predicate: &TimestampPredicate) -> Expr {
         let range = timestamp_predicate.range;
         let ts_low = Expr::BinaryExpr {
             left: Box::new(Expr::Literal(ScalarValue::Int64(Some(range.start)))),
@@ -649,11 +733,18 @@ impl Table {
             op: Operator::Lt,
             right: Box::new(Expr::Literal(ScalarValue::Int64(Some(range.end)))),
         };
-        let ts_pred = Expr::BinaryExpr {
+        Expr::BinaryExpr {
             left: Box::new(ts_low),
             op: Operator::And,
             right: Box::new(ts_high),
-        };
+        }
+    }
+
+    /// Creates a DataFusion predicate of the form:
+    ///
+    /// `expr AND (range.start <= time and time < range.end)`
+    fn add_timestamp_predicate_expr(expr: Expr, timestamp_predicate: &TimestampPredicate) -> Expr {
+        let ts_pred = Self::make_timestamp_predicate_expr(timestamp_predicate);
 
         Expr::BinaryExpr {
             left: Box::new(expr),
@@ -820,10 +911,15 @@ impl Table {
     /// returns true if this table should be included in a query that
     /// has an optional table_symbol_predicate. Returns true f the
     /// table_symbol_predicate is not preset, or the table's id
-    pub fn matches_id_predicate(&self, table_symbol_predicate: &Option<u32>) -> bool {
+    pub fn matches_id_predicate(
+        &self,
+        table_symbol_predicate: Option<&PredicateTableName>,
+    ) -> bool {
         match table_symbol_predicate {
             None => true,
-            Some(table_symbol) => self.id == *table_symbol,
+            Some(PredicateTableName::NoPredicate) => true,
+            Some(PredicateTableName::NoTableInPartition) => false,
+            Some(PredicateTableName::Present(table_symbol)) => self.id == *table_symbol,
         }
     }
 
@@ -1051,6 +1147,38 @@ mod tests {
         assert!(!table.has_all_predicate_columns(Some(&pred)));
     }
 
+    #[test]
+    fn test_matches_id_predicate() {
+        // setup a test table
+        let mut partition = Partition::new("dummy_partition_key");
+        let dictionary = &mut partition.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100",
+            "h2o,state=MA,city=Boston temp=72.4 250",
+        ];
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+
+        let h2o_symbol = dictionary.id("h2o").unwrap();
+
+        assert!(table.matches_id_predicate(None));
+
+        let table_symbol_predicate = PredicateTableName::NoPredicate;
+        assert!(table.matches_id_predicate(Some(&table_symbol_predicate)));
+
+        let table_symbol_predicate = PredicateTableName::NoTableInPartition;
+        assert!(!table.matches_id_predicate(Some(&table_symbol_predicate)));
+
+        let table_symbol_predicate = PredicateTableName::Present(h2o_symbol);
+        assert!(table.matches_id_predicate(Some(&table_symbol_predicate)));
+
+        // Some symbol that is not the same as h2o_symbol
+        assert_ne!(37377, h2o_symbol);
+        let table_symbol_predicate = PredicateTableName::Present(37377);
+        assert!(!table.matches_id_predicate(Some(&table_symbol_predicate)));
+    }
+
     #[tokio::test]
     async fn test_series_set_plan() {
         // setup a test table
@@ -1261,6 +1389,51 @@ mod tests {
             "+-------+------+------+------+",
             "| CA    | LA   | 90   | 200  |",
             "+-------+------+------+------+",
+        ];
+
+        assert_eq!(expected, results, "expected output");
+    }
+
+    #[tokio::test]
+    async fn test_field_name_plan() {
+        // setup a test table
+        let mut partition = Partition::new("dummy_partition_key");
+        let dictionary = &mut partition.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
+
+        let lp_lines = vec![
+            // Order this so field3 comes before field2
+            // (and thus the columns need to get reordered)
+            "h2o,tag1=foo,tag2=bar field1=70.6,field3=2 100",
+            "h2o,tag1=foo,tag2=bar field1=70.4,field2=\"ss\" 100",
+            "h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100",
+            "h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000",
+        ];
+
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+
+        let predicate = None;
+
+        let range = Some(TimestampRange::new(0, 200));
+        let timestamp_predicate = partition
+            .make_timestamp_predicate(range)
+            .expect("Made a timestamp predicate");
+
+        let field_names_set_plan = table
+            .field_names_plan(predicate.as_ref(), timestamp_predicate.as_ref(), &partition)
+            .expect("creating the field_name plan");
+
+        // run the created plan, ensuring the output is as expected
+        let results = run_plan(field_names_set_plan).await;
+
+        let expected = vec![
+            "+--------+--------+--------+--------+------+",
+            "| field1 | field2 | field3 | field4 | time |",
+            "+--------+--------+--------+--------+------+",
+            "| 70.6   |        | 2      |        | 100  |",
+            "| 70.4   | ss     |        |        | 100  |",
+            "| 70.5   | ss     |        |        | 100  |",
+            "+--------+--------+--------+--------+------+",
         ];
 
         assert_eq!(expected, results, "expected output");

@@ -36,13 +36,16 @@ use delorean_storage::{
     org_and_bucket_to_database, Database, DatabaseStore, TimestampRange as StorageTimestampRange,
 };
 
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 
 use tokio::sync::mpsc;
 use tonic::Status;
 use tracing::warn;
 
-use super::rpc::data::{grouped_series_set_item_to_read_response, series_set_to_read_response};
+use super::rpc::data::{
+    fieldlist_to_measurement_fields_response, grouped_series_set_item_to_read_response,
+    series_set_to_read_response,
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -52,14 +55,20 @@ pub enum Error {
     #[snafu(display("Database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
 
-    #[snafu(display("Can not retrieve table list for database '{}': {}", db_name, source))]
+    #[snafu(display("Error listing tables in database '{}': {}", db_name, source))]
     ListingTables {
         db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display("Can not retrieve column list in database '{}': {}", db_name, source))]
+    #[snafu(display("Error listing columns in database '{}': {}", db_name, source))]
     ListingColumns {
+        db_name: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    #[snafu(display("Error listing fields in database '{}': {}", db_name, source))]
+    ListingFields {
         db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
@@ -117,6 +126,11 @@ pub enum Error {
         source: crate::server::rpc::data::Error,
     },
 
+    #[snafu(display("Converting field information series into gRPC response:  {}", source))]
+    ConvertingFieldList {
+        source: crate::server::rpc::data::Error,
+    },
+
     #[snafu(display("Operation not yet implemented:  {}", operation))]
     NotYetImplemented { operation: String },
 }
@@ -134,6 +148,10 @@ impl Error {
                 // TODO: distinguish between input errors and internal errors
                 Status::invalid_argument(self.to_string())
             }
+            Self::ListingFields { .. } => {
+                // TODO: distinguish between input errors and internal errors
+                Status::invalid_argument(self.to_string())
+            }
             Self::PlanningFilteringSeries { .. } => Status::invalid_argument(self.to_string()),
             Self::PlanningGroupSeries { .. } => Status::invalid_argument(self.to_string()),
             Self::FilteringSeries { .. } => Status::invalid_argument(self.to_string()),
@@ -143,6 +161,7 @@ impl Error {
             Self::ComputingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ComputingGroupedSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
+            Self::ConvertingFieldList { .. } => Status::invalid_argument(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
     }
@@ -495,7 +514,37 @@ where
         &self,
         req: tonic::Request<MeasurementFieldsRequest>,
     ) -> Result<tonic::Response<Self::MeasurementFieldsStream>, Status> {
-        Err(Status::unimplemented("measurement_fields"))
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let measurement_fields_request = req.into_inner();
+
+        let db_name = get_database_name(&measurement_fields_request)?;
+
+        let MeasurementFieldsRequest {
+            source: _source,
+            measurement,
+            range,
+            predicate,
+        } = measurement_fields_request;
+
+        let measurement = measurement;
+
+        let response = measurement_fields_impl(
+            self.db_store.clone(),
+            self.executor.clone(),
+            db_name,
+            measurement,
+            range,
+            predicate,
+        )
+        .await
+        .map_err(|e| e.to_status());
+
+        tx.send(response)
+            .await
+            .expect("sending measurement_fields response to server");
+
+        Ok(tonic::Response::new(rx))
     }
 }
 
@@ -531,9 +580,7 @@ where
     let plan = db_store
         .db(&db_name)
         .await
-        .ok_or_else(|| Error::DatabaseNotFound {
-            db_name: db_name.clone(),
-        })?
+        .context(DatabaseNotFound { db_name: &db_name })?
         .table_names(range)
         .await
         .map_err(|e| Error::ListingTables {
@@ -574,9 +621,7 @@ where
     let db = db_store
         .db(&db_name)
         .await
-        .ok_or_else(|| Error::DatabaseNotFound {
-            db_name: db_name.clone(),
-        })?;
+        .context(DatabaseNotFound { db_name: &db_name })?;
 
     let predicate_string = format!("{:?}", predicate);
     let predicate =
@@ -625,9 +670,7 @@ where
     let db = db_store
         .db(&db_name)
         .await
-        .ok_or_else(|| Error::DatabaseNotFound {
-            db_name: db_name.clone(),
-        })?;
+        .context(DatabaseNotFound { db_name: &db_name })?;
 
     let predicate_string = format!("{:?}", predicate);
     let predicate =
@@ -677,9 +720,7 @@ where
     let db = db_store
         .db(&db_name)
         .await
-        .ok_or_else(|| Error::DatabaseNotFound {
-            db_name: db_name.clone(),
-        })?;
+        .context(DatabaseNotFound { db_name: &db_name })?;
 
     let predicate_string = format!("{:?}", predicate);
     let predicate =
@@ -751,9 +792,7 @@ where
     let db = db_store
         .db(&db_name)
         .await
-        .ok_or_else(|| Error::DatabaseNotFound {
-            db_name: db_name.clone(),
-        })?;
+        .context(DatabaseNotFound { db_name: &db_name })?;
 
     let predicate_string = format!("{:?}", predicate);
     let predicate =
@@ -809,6 +848,49 @@ async fn convert_grouped_series_set(
     }
 }
 
+/// Return fields with optional measurement, timestamp and arbitratry predicates
+async fn measurement_fields_impl<T>(
+    db_store: Arc<T>,
+    executor: Arc<StorageExecutor>,
+    db_name: String,
+    measurement: String,
+    range: Option<TimestampRange>,
+    predicate: Option<Predicate>,
+) -> Result<MeasurementFieldsResponse>
+where
+    T: DatabaseStore,
+{
+    let range = convert_range(range);
+    let db = db_store
+        .db(&db_name)
+        .await
+        .context(DatabaseNotFound { db_name: &db_name })?;
+
+    let predicate_string = format!("{:?}", predicate);
+    let predicate =
+        convert_predicate(predicate).context(ConvertingPredicate { predicate_string })?;
+
+    let fieldlist_plan = db
+        .field_columns(measurement, range, predicate)
+        .await
+        .map_err(|e| Error::ListingFields {
+            db_name: db_name.clone(),
+            source: Box::new(e),
+        })?;
+
+    let fieldlist =
+        executor
+            .to_fieldlist(fieldlist_plan)
+            .await
+            .map_err(|e| Error::ListingFields {
+                db_name: db_name.clone(),
+                source: Box::new(e),
+            })?;
+
+    // And convert the result
+    fieldlist_to_measurement_fields_response(fieldlist).context(ConvertingFieldList)
+}
+
 /// Instantiate a server listening on the specified address
 /// implementing the Delorean and Storage gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
@@ -839,11 +921,15 @@ where
 mod tests {
     use super::*;
     use crate::panic::SendPanicsToTracing;
+    use delorean_arrow::arrow::datatypes::DataType;
     use delorean_storage::{
+        exec::fieldlist::{Field, FieldList},
+        exec::FieldListPlan,
         exec::GroupedSeriesSetPlans,
         exec::SeriesSetPlans,
         id::Id,
         test::ColumnNamesRequest,
+        test::FieldColumnsRequest,
         test::QueryGroupsRequest,
         test::TestDatabaseStore,
         test::{ColumnValuesRequest, QuerySeriesRequest},
@@ -1913,6 +1999,97 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_measurement_fields() -> Result<(), tonic::Status> {
+        // Note we use a unique port. TODO: let the OS pick the port
+        let mut fixture = Fixture::new(11903)
+            .await
+            .expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let test_db = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("creating test database");
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
+
+        let request = MeasurementFieldsRequest {
+            source: source.clone(),
+            measurement: String::from("TheMeasurement"),
+            range: make_timestamp_range(150, 200),
+            predicate: make_state_ma_predicate(),
+        };
+
+        let expected_request = FieldColumnsRequest {
+            table: String::from("TheMeasurement"),
+            range: Some(StorageTimestampRange::new(150, 200)),
+            predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
+        };
+
+        let fieldlist = FieldList {
+            fields: vec![Field {
+                name: "Field1".into(),
+                data_type: DataType::Utf8,
+                last_timestamp: 1000,
+            }],
+        };
+
+        let fieldlist_plan = FieldListPlan::Known(Ok(fieldlist));
+        test_db.set_field_colum_names_values(fieldlist_plan).await;
+
+        let actual_fields = fixture.storage_client.measurement_fields(request).await?;
+        let expected_fields: Vec<String> = vec!["key: Field1, type: 3, timestamp: 1000".into()];
+
+        assert_eq!(
+            actual_fields, expected_fields,
+            "unexpected frames returned by measuremnt_fields"
+        );
+        assert_eq!(
+            test_db.get_field_columns_request().await,
+            Some(expected_request),
+            "unexpected request to measurement-fields"
+        );
+
+        // ---
+        // test error
+        // ---
+        let request = MeasurementFieldsRequest {
+            source: source.clone(),
+            measurement: String::from("TheMeasurement"),
+            range: None,
+            predicate: None,
+        };
+
+        // Note we don't set the response on the test database, so we expect an error
+        let response = fixture.storage_client.measurement_fields(request).await;
+        assert!(response.is_err());
+        let response_string = format!("{:?}", response);
+        let expected_error = "No saved field_column_name in TestDatabase";
+        assert!(
+            response_string.contains(expected_error),
+            "'{}' did not contain expected content '{}'",
+            response_string,
+            expected_error
+        );
+
+        let expected_request = Some(FieldColumnsRequest {
+            table: String::from("TheMeasurement"),
+            range: None,
+            predicate: None,
+        });
+        assert_eq!(test_db.get_field_columns_request().await, expected_request);
+
+        Ok(())
+    }
+
     fn make_timestamp_range(start: i64, end: i64) -> Option<TimestampRange> {
         Some(TimestampRange { start, end })
     }
@@ -2142,6 +2319,31 @@ mod tests {
             let s = format!("{} group frames", data_frames.len());
 
             Ok(vec![s])
+        }
+
+        /// Make a request to Storage::measurement_fields and do the
+        /// required async dance to flatten the resulting stream to Strings
+        async fn measurement_fields(
+            &mut self,
+            request: MeasurementFieldsRequest,
+        ) -> Result<Vec<String>, tonic::Status> {
+            let measurement_fields_response = self.inner.measurement_fields(request).await?;
+
+            let responses: Vec<_> = measurement_fields_response
+                .into_inner()
+                .try_collect::<Vec<_>>()
+                .await?
+                .into_iter()
+                .flat_map(|r| r.fields)
+                .map(|message_field| {
+                    format!(
+                        "key: {}, type: {}, timestamp: {}",
+                        message_field.key, message_field.r#type, message_field.timestamp
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            Ok(responses)
         }
 
         /// Convert the StringValueResponses into rust Strings, sorting the values

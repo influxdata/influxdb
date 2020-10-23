@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use delorean_arrow::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
 use delorean_data_types::data::ReplicatedWrite;
 use delorean_line_parser::ParsedLine;
-use exec::{GroupedSeriesSetPlans, SeriesSetPlans, StringSetPlan};
+use exec::{FieldListPlan, GroupedSeriesSetPlans, SeriesSetPlans, StringSetPlan};
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -84,7 +84,7 @@ pub trait Database: Debug + Send + Sync {
     /// have rows that match optional predicates.
     ///
     /// If `table` is specified, then only columns from the
-    /// specified database which match other predictes are included.
+    /// specified database which match other predicates are included.
     ///
     /// If `range` is specified, only columns which have data in the
     /// specified timestamp range which match other predictes are
@@ -99,6 +99,28 @@ pub trait Database: Debug + Send + Sync {
         range: Option<TimestampRange>,
         predicate: Option<Predicate>,
     ) -> Result<StringSetPlan, Self::Error>;
+
+    /// Returns the list of column names in this database which store
+    /// fields (as opposed to Tags), and which have rows that match
+    /// optional predicates. Fields are defined by the ParsedLines
+    /// when written to the database.
+    ///
+    /// If `table` is specified, then only columns from the
+    /// specified database which match other predicates are included.
+    ///
+    /// If `range` is specified, only columns which have data in the
+    /// specified timestamp range which match other predictes are
+    /// included.
+    ///
+    /// If `predicate` is specified, then only columns which have at
+    /// least one non-null value in any row that matches the predicate
+    /// are returned
+    async fn field_columns(
+        &self,
+        table: String,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+    ) -> Result<FieldListPlan, Self::Error>;
 
     /// Returns a plan which can find the distinct values in the
     /// `column_name` column of this database for rows that match

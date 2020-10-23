@@ -4,6 +4,7 @@
 use delorean_arrow::arrow::record_batch::RecordBatch;
 
 use crate::{
+    exec::FieldListPlan,
     exec::{
         stringset::{StringSet, StringSetRef},
         GroupedSeriesSetPlans, SeriesSetPlans, StringSetPlan,
@@ -51,6 +52,12 @@ pub struct TestDatabase {
 
     /// The last request for `query_series`
     query_groups_request: Arc<Mutex<Option<QueryGroupsRequest>>>,
+
+    /// Responses to return on the next request to `field_column_values`
+    field_columns_value: Arc<Mutex<Option<FieldListPlan>>>,
+
+    /// The last request for `query_series`
+    field_columns_request: Arc<Mutex<Option<FieldColumnsRequest>>>,
 }
 
 /// Records the parameters passed to a column name request
@@ -79,6 +86,7 @@ pub struct QuerySeriesRequest {
     /// Stringified '{:?}' version of the predicate
     pub predicate: Option<String>,
 }
+
 /// Records the parameters passed to a `query_groups` request
 #[derive(Debug, PartialEq, Clone)]
 pub struct QueryGroupsRequest {
@@ -86,6 +94,15 @@ pub struct QueryGroupsRequest {
     /// Stringified '{:?}' version of the predicate
     pub predicate: Option<String>,
     pub group_columns: Vec<String>,
+}
+
+/// Records the parameters passed to a `field_columns` request
+#[derive(Debug, PartialEq, Clone)]
+pub struct FieldColumnsRequest {
+    pub table: String,
+    pub range: Option<TimestampRange>,
+    /// Stringified '{:?}' version of the predicate
+    pub predicate: Option<String>,
 }
 
 #[derive(Snafu, Debug)]
@@ -168,6 +185,16 @@ impl TestDatabase {
     /// Get the parameters from the last column name request
     pub async fn get_query_groups_request(&self) -> Option<QueryGroupsRequest> {
         self.query_groups_request.clone().lock().await.take()
+    }
+
+    /// Set the FieldSet plan that will be returned
+    pub async fn set_field_colum_names_values(&self, plan: FieldListPlan) {
+        *(self.field_columns_value.clone().lock().await) = Some(plan);
+    }
+
+    /// Get the parameters from the last column name request
+    pub async fn get_field_columns_request(&self) -> Option<FieldColumnsRequest> {
+        self.field_columns_request.clone().lock().await.take()
     }
 }
 
@@ -258,6 +285,35 @@ impl Database for TestDatabase {
             });
 
         Ok(column_names.into())
+    }
+
+    async fn field_columns(
+        &self,
+        table: String,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+    ) -> Result<FieldListPlan, Self::Error> {
+        // save the request
+        let predicate = predicate.map(|p| format!("{:?}", p));
+
+        let field_columns_request = Some(FieldColumnsRequest {
+            table,
+            range,
+            predicate,
+        });
+
+        *self.field_columns_request.clone().lock().await = field_columns_request;
+
+        // pull out the saved columns
+        self.field_columns_value
+            .clone()
+            .lock()
+            .await
+            .take()
+            // Turn None into an error
+            .context(General {
+                message: "No saved field_column_name in TestDatabase",
+            })
     }
 
     /// Return the mocked out column values, recording the request

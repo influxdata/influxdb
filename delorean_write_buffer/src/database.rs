@@ -2,8 +2,8 @@ use delorean_generated_types::wal as wb;
 use delorean_line_parser::ParsedLine;
 use delorean_storage::{
     exec::{
-        stringset::StringSet, GroupedSeriesSetPlan, GroupedSeriesSetPlans, SeriesSetPlan,
-        SeriesSetPlans, StringSetPlan,
+        stringset::StringSet, FieldListPlan, GroupedSeriesSetPlan, GroupedSeriesSetPlans,
+        SeriesSetPlan, SeriesSetPlans, StringSetPlan,
     },
     util::{visit_expression, ExpressionVisitor},
     Database, Predicate, TimestampRange,
@@ -11,7 +11,7 @@ use delorean_storage::{
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
-use crate::table::Table;
+use crate::table::{PredicateTableName, Table};
 use crate::{column::Column, table::TimestampPredicate};
 use crate::{partition::Partition, table::PredicateTableColumns};
 
@@ -434,6 +434,19 @@ impl Database for Db {
         }
     }
 
+    /// return all field names in this database, while applying optional predicates
+    async fn field_columns(
+        &self,
+        table: String,
+        range: Option<TimestampRange>,
+        predicate: Option<Predicate>,
+    ) -> Result<FieldListPlan, Self::Error> {
+        let mut filter = PartitionTableFilter::new(Some(table), range, predicate.as_ref());
+        let mut visitor = TableFieldPredVisitor::new(predicate);
+        self.visit_tables(&mut filter, &mut visitor).await?;
+        Ok(visitor.into_fieldlist_plan())
+    }
+
     /// return all column values in this database, while applying optional predicates
     async fn column_values(
         &self,
@@ -615,6 +628,16 @@ trait Visitor {
 }
 
 impl Db {
+    /// returns the number of partitions in this database
+    pub async fn len(&self) -> usize {
+        self.partitions.read().await.len()
+    }
+
+    /// returns true if the database has no partititons
+    pub async fn is_empty(&self) -> bool {
+        self.partitions.read().await.is_empty()
+    }
+
     /// Traverse this database's tables, calling the relevant
     /// functions, in order, of `visitor`, as described on the Visitor
     /// trait.
@@ -673,8 +696,10 @@ struct PartitionTableFilter {
 
     /// Per partition predicate
     ts_pred: Option<TimestampPredicate>,
-    /// Per partition table name
-    table_symbol: Option<u32>,
+
+    /// Per partition table name, if it matches table
+    predicate_table_name: Option<PredicateTableName>,
+
     /// Per partition list of columns which appear in predicates
     predicate_table_columns: Option<PredicateTableColumns>,
 }
@@ -699,7 +724,7 @@ impl PartitionTableFilter {
             .filter(|predicate_columns| !predicate_columns.is_empty());
 
         let ts_pred = None;
-        let table_symbol = None;
+        let predicate_table_name = None;
         let predicate_table_columns = None;
 
         Self {
@@ -707,7 +732,7 @@ impl PartitionTableFilter {
             table,
             predicate_columns,
             ts_pred,
-            table_symbol,
+            predicate_table_name,
             predicate_table_columns,
         }
     }
@@ -720,10 +745,13 @@ impl PartitionTableFilter {
         self.ts_pred = partition.make_timestamp_predicate(self.range)?;
 
         // ids are relative to a specific partition
-        self.table_symbol = self
-            .table
-            .as_ref()
-            .map(|table_name| partition.dictionary.lookup_value(&table_name).unwrap());
+        self.predicate_table_name = Some(match self.table.as_ref() {
+            None => PredicateTableName::NoPredicate,
+            Some(table_name) => match partition.dictionary.id(table_name) {
+                None => PredicateTableName::NoTableInPartition,
+                Some(table_id) => PredicateTableName::Present(table_id),
+            },
+        });
 
         self.predicate_table_columns = self.predicate_columns.as_ref().map(|predicate_columns| {
             if predicate_columns.is_empty() {
@@ -747,9 +775,11 @@ impl PartitionTableFilter {
 
     /// If returns false, skips visiting _table and all its columns
     fn should_visit_table(&mut self, table: &Table) -> Result<bool> {
-        Ok(table.matches_id_predicate(&self.table_symbol)
-            && table.matches_timestamp_predicate(self.ts_pred.as_ref())?
-            && table.has_all_predicate_columns(self.predicate_table_columns.as_ref()))
+        Ok(
+            table.matches_id_predicate(self.predicate_table_name.as_ref())
+                && table.matches_timestamp_predicate(self.ts_pred.as_ref())?
+                && table.has_all_predicate_columns(self.predicate_table_columns.as_ref()),
+        )
     }
 }
 
@@ -884,6 +914,43 @@ impl Visitor for NamePredVisitor {
             partition,
         )?);
         Ok(())
+    }
+}
+
+/// return a plan that selects all values from field columns after
+/// applying timestamp and other predicates
+#[derive(Debug)]
+struct TableFieldPredVisitor {
+    predicate: Option<Predicate>,
+    // As Each table can be spread across multiple Partitions, we
+    // collect all the relevant plans and Union them together.
+    plans: Vec<LogicalPlan>,
+}
+
+impl Visitor for TableFieldPredVisitor {
+    fn pre_visit_table(
+        &mut self,
+        table: &Table,
+        partition: &Partition,
+        filter: &mut PartitionTableFilter,
+    ) -> Result<()> {
+        self.plans.push(table.field_names_plan(
+            self.predicate.as_ref(),
+            filter.ts_pred.as_ref(),
+            partition,
+        )?);
+        Ok(())
+    }
+}
+
+impl TableFieldPredVisitor {
+    fn new(predicate: Option<Predicate>) -> Self {
+        let plans = Vec::new();
+        Self { predicate, plans }
+    }
+
+    fn into_fieldlist_plan(self) -> FieldListPlan {
+        FieldListPlan::Plans(self.plans)
     }
 }
 
@@ -1139,6 +1206,8 @@ mod tests {
         scalar::ScalarValue,
     };
     use delorean_storage::{
+        exec::fieldlist::Field,
+        exec::fieldlist::FieldList,
         exec::{
             seriesset::{Error as SeriesSetError, SeriesSet},
             Executor,
@@ -1149,6 +1218,7 @@ mod tests {
 
     use arrow::{
         array::{Array, StringArray},
+        datatypes::DataType,
         util::pretty::pretty_format_batches,
     };
     use delorean_line_parser::parse_lines;
@@ -2107,6 +2177,147 @@ disk bytes=23432323i 1600136510000000000",
 
         // Should panic as the neq path isn't implemented yet
         db.query_series(range, predicate).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_field_columns() -> Result {
+        // Ensure that the database queries are hooked up correctly
+
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+
+        let lp_data = vec![
+            "h2o,state=MA,city=Boston temp=70.4 50",
+            "h2o,state=MA,city=Boston other_temp=70.4 250",
+            "h2o,state=CA,city=Boston other_temp=72.4 350",
+            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
+        ]
+        .join("\n");
+
+        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+        db.write_lines(&lines).await?;
+
+        // write a new lp_line that is in a new day and thus a new partition
+        let nanoseconds_per_day: i64 = 1_000_000_000 * 60 * 60 * 24;
+
+        let lp_data = vec![format!(
+            "h2o,state=MA,city=Boston temp=70.4,moisture=43.0 {}",
+            nanoseconds_per_day * 10
+        )]
+        .join("\n");
+        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+        db.write_lines(&lines).await?;
+
+        // ensure there are 2 partitions
+        assert_eq!(db.len().await, 2);
+
+        // setup to run the execution plan (
+        let executor = Executor::default();
+
+        let range = None;
+        let predicate = make_column_eq_predicate("state", "MA"); // state=MA
+
+        // make sure table filtering works (no tables match)
+        let plan = db
+            .field_columns("NoSuchTable".into(), range, predicate.clone())
+            .await
+            .expect("Created field_columns plan successfully");
+
+        let fieldlists = executor
+            .to_fieldlist(plan)
+            .await
+            .expect("Running fieldlist plan");
+        assert!(fieldlists.fields.is_empty());
+
+        // get only fields from h20 (but both partitions)
+        let plan = db
+            .field_columns("h2o".into(), range, predicate)
+            .await
+            .expect("Created field_columns plan successfully");
+
+        let actual = executor
+            .to_fieldlist(plan)
+            .await
+            .expect("Running fieldlist plan");
+
+        let expected = FieldList {
+            fields: vec![
+                Field {
+                    name: "moisture".into(),
+                    data_type: DataType::Float64,
+                    last_timestamp: nanoseconds_per_day * 10,
+                },
+                Field {
+                    name: "other_temp".into(),
+                    data_type: DataType::Float64,
+                    last_timestamp: 250,
+                },
+                Field {
+                    name: "temp".into(),
+                    data_type: DataType::Float64,
+                    last_timestamp: nanoseconds_per_day * 10,
+                },
+            ],
+        };
+
+        assert_eq!(
+            expected, actual,
+            "Expected:\n{:#?}\nActual:\n{:#?}",
+            expected, actual
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_field_columns_timestamp_predicate() -> Result {
+        // check the appropriate filters are applied in the datafusion plans
+        let mut dir = delorean_test_helpers::tmp_dir()?.into_path();
+        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+
+        let lp_data = vec![
+            "h2o,state=MA,city=Boston temp=70.4 50",
+            "h2o,state=MA,city=Boston other_temp=70.4 250",
+            "h2o,state=CA,city=Boston other_temp=72.4 350",
+            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
+        ]
+        .join("\n");
+
+        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+        db.write_lines(&lines).await?;
+
+        // setup to run the execution plan (
+        let executor = Executor::default();
+
+        let range = Some(TimestampRange::new(200, 300));
+        let predicate = make_column_eq_predicate("state", "MA"); // state=MA
+
+        let plan = db
+            .field_columns("h2o".into(), range, predicate)
+            .await
+            .expect("Created field_columns plan successfully");
+
+        let actual = executor
+            .to_fieldlist(plan)
+            .await
+            .expect("Running fieldlist plan");
+
+        // Should only have other_temp as a field
+        let expected = FieldList {
+            fields: vec![Field {
+                name: "other_temp".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 250,
+            }],
+        };
+
+        assert_eq!(
+            expected, actual,
+            "Expected:\n{:#?}\nActual:\n{:#?}",
+            expected, actual
+        );
+
+        Ok(())
     }
 
     /// Run the plan and gather the results in a order that can be compared
