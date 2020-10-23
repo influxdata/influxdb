@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 use croaring::Bitmap;
 
-use delorean_arrow::{arrow, arrow::array::Array};
+use delorean_arrow::{arrow, arrow::array::Array, arrow::array::PrimitiveArrayOps};
 
 /// The possible logical types that column values can have. All values in a
 /// column have the same physical type.
@@ -237,6 +237,9 @@ pub enum IntegerEncoding {
     S64S8(fixed::Fixed<i8>),
     S64U8(fixed::Fixed<u8>),
     // TODO - add all the other possible integer combinations.
+
+    // Nullable encodings
+    S64S64N(fixed_null::FixedNull<arrow::datatypes::Int64Type>),
 }
 
 pub enum FloatEncoding {
@@ -285,7 +288,10 @@ impl From<&[i64]> for Column {
             max = max.max(v);
         }
 
+        // This match is carefully ordered. It prioritises smaller physical
+        // datatypes that can safely represent the provided logical data type.
         match (min, max) {
+            // encode as u8 values
             (min, max) if min >= 0 && max <= u8::MAX as i64 => {
                 let data = fixed::Fixed::<u8>::from(arr);
                 let meta = MetaData {
@@ -295,6 +301,7 @@ impl From<&[i64]> for Column {
                 };
                 Column::Integer(meta, IntegerEncoding::S64U8(data))
             }
+            // encode as i8 values
             (min, max) if min >= i8::MIN as i64 && max <= i8::MAX as i64 => {
                 let data = fixed::Fixed::<i8>::from(arr);
                 let meta = MetaData {
@@ -304,6 +311,7 @@ impl From<&[i64]> for Column {
                 };
                 Column::Integer(meta, IntegerEncoding::S64S8(data))
             }
+            // encode as u16 values
             (min, max) if min >= 0 && max <= u16::MAX as i64 => {
                 let data = fixed::Fixed::<u16>::from(arr);
                 let meta = MetaData {
@@ -313,6 +321,7 @@ impl From<&[i64]> for Column {
                 };
                 Column::Integer(meta, IntegerEncoding::S64U16(data))
             }
+            // encode as i16 values
             (min, max) if min >= i16::MIN as i64 && max <= i16::MAX as i64 => {
                 let data = fixed::Fixed::<i16>::from(arr);
                 let meta = MetaData {
@@ -322,6 +331,7 @@ impl From<&[i64]> for Column {
                 };
                 Column::Integer(meta, IntegerEncoding::S64S16(data))
             }
+            // encode as u32 values
             (min, max) if min >= 0 && max <= u32::MAX as i64 => {
                 let data = fixed::Fixed::<u32>::from(arr);
                 let meta = MetaData {
@@ -331,6 +341,7 @@ impl From<&[i64]> for Column {
                 };
                 Column::Integer(meta, IntegerEncoding::S64U32(data))
             }
+            // encode as i32 values
             (min, max) if min >= i32::MIN as i64 && max <= i32::MAX as i64 => {
                 let data = fixed::Fixed::<i32>::from(arr);
                 let meta = MetaData {
@@ -340,6 +351,7 @@ impl From<&[i64]> for Column {
                 };
                 Column::Integer(meta, IntegerEncoding::S64S32(data))
             }
+            // otherwise, encode with the same physical type (i64)
             (_, _) => {
                 let data = fixed::Fixed::<i64>::from(arr);
                 let meta = MetaData {
@@ -350,6 +362,53 @@ impl From<&[i64]> for Column {
                 Column::Integer(meta, IntegerEncoding::S64S64(data))
             }
         }
+    }
+}
+
+impl From<arrow::array::Int64Array> for Column {
+    fn from(arr: arrow::array::Int64Array) -> Self {
+        // determine min and max values.
+        let mut min: Option<i64> = None;
+        let mut max: Option<i64> = None;
+
+        for i in 0..arr.len() {
+            if arr.is_null(i) {
+                continue;
+            }
+
+            let v = arr.value(i);
+            match min {
+                Some(m) => {
+                    if v < m {
+                        min = Some(v);
+                    }
+                }
+                None => min = Some(v),
+            };
+
+            match max {
+                Some(m) => {
+                    if v > m {
+                        max = Some(v)
+                    }
+                }
+                None => max = Some(v),
+            };
+        }
+
+        let range = match (min, max) {
+            (None, None) => None,
+            (Some(min), Some(max)) => Some((min, max)),
+            _ => unreachable!("min/max must both be Some or None"),
+        };
+
+        let data = fixed_null::FixedNull::<arrow::datatypes::Int64Type>::from(arr);
+        let meta = MetaData {
+            size: data.size(),
+            rows: data.num_rows(),
+            range,
+        };
+        Column::Integer(meta, IntegerEncoding::S64S64N(data))
     }
 }
 
