@@ -171,7 +171,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	}
 	filter.Limit = taskFindFlags.limit
 
-	var tasks []http.Task
+	var tasks []*influxdb.Task
 
 	if taskFindFlags.id != "" {
 		id, err := influxdb.IDFromString(taskFindFlags.id)
@@ -184,7 +184,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		tasks = append(tasks, *task)
+		tasks = append(tasks, task)
 	} else {
 		tasks, _, err = s.FindTasks(context.Background(), filter)
 		if err != nil {
@@ -322,8 +322,8 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 type taskPrintOpts struct {
 	hideHeaders bool
 	json        bool
-	task        *http.Task
-	tasks       []http.Task
+	task        *influxdb.Task
+	tasks       []*influxdb.Task
 }
 
 func printTasks(w io.Writer, opts taskPrintOpts) error {
@@ -351,7 +351,7 @@ func printTasks(w io.Writer, opts taskPrintOpts) error {
 	)
 
 	if opts.task != nil {
-		opts.tasks = append(opts.tasks, *opts.task)
+		opts.tasks = append(opts.tasks, opts.task)
 	}
 
 	for _, t := range opts.tasks {
