@@ -9767,6 +9767,170 @@ components:
           format: float
         legendOrientationThreshold:
           type: integer
+    GeoViewLayer:
+      type: object
+      oneOf:
+        - $ref: "#/components/schemas/GeoCircleViewLayer"
+        - $ref: "#/components/schemas/GeoHeatMapViewLayer"
+        - $ref: "#/components/schemas/GeoPointMapViewLayer"
+        - $ref: "#/components/schemas/GeoTrackMapViewLayer"
+    GeoViewLayerProperties:
+      type: object
+      required: [type, field, colors]
+      properties:
+        type:
+          type: string
+          enum: [ heatmap, circleMap, pointMap, trackMap]
+    FieldLegendProperties:
+      type: object
+      properties:
+        label: string
+    GeoCircleViewLayer:
+      allOf:
+        - $ref: "#/components/schemas/GeoViewLayerProperties"
+        - type: object
+          required: [radiusField, radiusDimension,colorField, colorDimension, colors]
+          properties:
+            radiusField:
+              type: string
+              description: Radius field
+            radiusDimension:
+              $ref: '#/components/schemas/Axis'
+            colorField:
+              type: string
+              description: Circle color field
+            colorDimension:
+              $ref: '#/components/schemas/Axis'
+            colors:
+              description: Colors define color encoding of data into a visualization
+              type: array
+              items:
+                $ref: "#/components/schemas/DashboardColor"
+            radius:
+              description: Maximum r  adius size in pixels
+              type: integer
+            interpolateColors:
+              description: Interpolate circle color based on displayed value
+              type: boolean
+    GeoPointMapViewLayer:
+      allOf:
+        - $ref: "#/components/schemas/GeoViewLayerProperties"
+        - type: object
+          required: [colorField, colorDimension, colors]
+          properties:
+            colorField:
+              type: string
+              description: Marker color field
+            colorDimension:
+              $ref: '#/components/schemas/Axis'
+            colors:
+              description: Colors define color encoding of data into a visualization
+              type: array
+              items:
+                $ref: "#/components/schemas/DashboardColor"
+            isClustered:
+              description: Cluster close markers together
+              type: boolean
+    GeoTrackMapViewLayer:
+      allOf:
+        - $ref: "#/components/schemas/GeoViewLayerProperties"
+        - type: object
+          required: [trackWidth, speed, randomColors, trackPointVisualization]
+      properties:
+        trackWidth:
+          description: Width of the track
+          type: integer
+        speed:
+          description: Speed of the track animation
+          type: integer
+        randomColors:
+          description: Assign different colors to different tracks
+          type: boolean
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+             $ref: "#/components/schemas/DashboardColor"
+    GeoHeatMapViewLayer:
+      allOf:
+        - $ref: "#/components/schemas/GeoViewLayerProperties"
+        - type: object
+          required: [intensityField, intensityDimension, radius, blur, colors]
+          properties:
+            intensityField:
+              type: string
+              description: Intensity field
+            intensityDimension:
+              $ref: '#/components/schemas/Axis'
+            radius:
+              description: Radius size in pixels
+              type: integer
+            blur:
+              description: Blur for heatmap points
+              type: integer
+            colors:
+              description: Colors define color encoding of data into a visualization
+              type: array
+              items:
+                $ref: "#/components/schemas/DashboardColor"
+    GeoViewProperties:
+      type: object
+      required: [type, shape, queries, note, showNoteWhenEmpty, center, zoom, allowPanAndZoom, detectCoordinateFields, layers]
+      properties:
+        type:
+          type: string
+          enum: [geo]
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        shape:
+          type: string
+          enum: ['chronograf-v2']
+        center:
+          description: Coordinates of the center of the map
+          type: object
+          required: [lat, lon]
+          properties:
+            lat:
+              description: Latitude of the center of the map
+              type: number
+              format: double
+            lon:
+              description: Longitude of the center of the map
+              type: number
+              format: double
+        zoom:
+          description: Zoom level used for initial display of the map
+          type: float64
+          minimum: 1
+          maximum: 28
+        allowPanAndZoom:
+          description: If true, map zoom and pan controls are enabled on the dashboard view
+          type: boolean
+          default: true
+        detectCoordinateFields:
+          description: If true, search results get automatically regroupped so that lon,lat and value are treated as columns
+          type: boolean
+          default: true
+        mapStyle:
+          description: Define map type - regular, satellite etc.
+          type: string
+        note:
+          type: string
+        showNoteWhenEmpty:
+          description: If true, will display note when empty
+          type: boolean
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardColor"
+        layers:
+          description: List of individual layers shown in the map
+          type: array
+          items:
+            $ref: "#/components/schemas/GeoViewLayer"
     Axes:
       description: The viewport for a View's visualizations
       type: object
@@ -9938,6 +10102,7 @@ components:
         - $ref: "#/components/schemas/HeatmapViewProperties"
         - $ref: "#/components/schemas/MosaicViewProperties"
         - $ref: "#/components/schemas/BandViewProperties"
+        - $ref: "#/components/schemas/GeoViewProperties"
     View:
       required:
         - name
