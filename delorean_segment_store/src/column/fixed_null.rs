@@ -16,6 +16,8 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 
 use croaring::Bitmap;
+
+use delorean_arrow::arrow;
 use delorean_arrow::arrow::array::PrimitiveArrayOps;
 use delorean_arrow::arrow::array::{Array, PrimitiveArray};
 use delorean_arrow::arrow::datatypes::ArrowNumericType;
@@ -55,8 +57,8 @@ impl<T> FixedNull<T>
 where
     T: ArrowNumericType,
 {
-    pub fn num_rows(&self) -> u64 {
-        self.arr.len() as u64
+    pub fn num_rows(&self) -> u32 {
+        self.arr.len() as u32
     }
 
     pub fn is_empty(&self) -> bool {
@@ -66,8 +68,8 @@ where
     /// Returns the total size in bytes of the encoded data. Note, this method
     /// is really an "accurate" estimation. It doesn't include for example the
     /// size of the `Plain` struct receiver.
-    pub fn size(&self) -> usize {
-        todo!("need to figure this out");
+    pub fn size(&self) -> u64 {
+        0
     }
 
     //
@@ -331,7 +333,7 @@ where
 
         // add any remaining range.
         if found {
-            let (min, max) = (self.num_rows() - count as u64, self.num_rows());
+            let (min, max) = ((self.num_rows() - count) as u64, self.num_rows() as u64);
             bm.add_range(min..max);
         }
         bm
@@ -377,7 +379,7 @@ where
 
         // add any remaining range.
         if found {
-            let (min, max) = (self.num_rows() - count as u64, self.num_rows());
+            let (min, max) = ((self.num_rows() - count) as u64, self.num_rows() as u64);
             bm.add_range(min..max);
         }
         bm
@@ -465,7 +467,7 @@ where
 
         // add any remaining range.
         if found {
-            let (min, max) = (self.num_rows() - count as u64, self.num_rows());
+            let (min, max) = ((self.num_rows() - count) as u64, self.num_rows() as u64);
             bm.add_range(min..max);
         }
         bm
@@ -476,15 +478,24 @@ where
 //
 // Here is an example implementation:
 //
-//    impl From<&[i64]> for Plain<i16> {
-//        fn from(v: &[i64]) -> Self {
-//          Self {
-//              values: v.to_vec().iter().map(|&x| x as i16).collect(),
+//  impl From<&[i64]> for FixedNull<delorean_arrow::arrow::datatypes::Int64Type> {
+//      fn from(v: &[i64]) -> Self {
+//          Self{
+//              arr: PrimitiveArray::from(v.to_vec()),
 //          }
-//        }
-//    }
+//      }
+//  }
 //
-macro_rules! plain_from_impls {
+//  impl From<&[Option<i64>]> for FixedNull<delorean_arrow::arrow::datatypes::Int64Type> {
+//      fn from(v: &[i64]) -> Self {
+//          Self{
+//              arr: PrimitiveArray::from(v.to_vec()),
+//          }
+//      }
+//  }
+//
+
+macro_rules! fixed_from_slice_impls {
     ($(($type_from:ty, $type_to:ty),)*) => {
         $(
             impl From<&[$type_from]> for FixedNull<$type_to> {
@@ -506,10 +517,10 @@ macro_rules! plain_from_impls {
     };
 }
 
-// Supported logical and physical datatypes for the Plain encoding.
+// Supported logical and physical datatypes for the FixedNull encoding.
 //
 // Need to look at possibility of initialising smaller datatypes...
-plain_from_impls! {
+fixed_from_slice_impls! {
     (i64, delorean_arrow::arrow::datatypes::Int64Type),
     //  (i64, delorean_arrow::arrow::datatypes::Int32Type),
     //  (i64, delorean_arrow::arrow::datatypes::Int16Type),
@@ -537,6 +548,26 @@ plain_from_impls! {
     //  (u16, delorean_arrow::arrow::datatypes::UInt8Type),
      (u8, delorean_arrow::arrow::datatypes::UInt8Type),
      (f64, delorean_arrow::arrow::datatypes::Float64Type),
+}
+
+macro_rules! fixed_from_arrow_impls {
+    ($(($type_from:ty, $type_to:ty),)*) => {
+        $(
+            impl From<$type_from> for FixedNull<$type_to> {
+                fn from(arr: $type_from) -> Self {
+                    Self{arr}
+                }
+            }
+        )*
+    };
+}
+
+// Supported logical and physical datatypes for the Plain encoding.
+//
+// Need to look at possibility of initialising smaller datatypes...
+fixed_from_arrow_impls! {
+    (arrow::array::Int64Array, delorean_arrow::arrow::datatypes::Int64Type),
+    // TODO(edd): add more datatypes
 }
 
 #[cfg(test)]
