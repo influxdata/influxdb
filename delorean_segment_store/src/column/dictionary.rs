@@ -99,24 +99,32 @@ impl RLE {
     }
 
     fn push_additional_some(&mut self, v: String, additional: u32) {
-        let id = self.entry_index.get(&v);
-        match id {
+        match self.entry_index.get(&v) {
+            // existing dictionary entry for value.
             Some(id) => {
-                // existing dictionary entry
-                if let Some((last_id, rl)) = self.run_lengths.last_mut() {
-                    if last_id == id {
-                        // update the existing run-length
-                        *rl += additional;
-                    } else {
-                        // start a new run-length
+                match self.run_lengths.last_mut() {
+                    Some((last_id, rl)) => {
+                        if last_id == id {
+                            // update the existing run-length
+                            *rl += additional;
+                        } else {
+                            // start a new run-length for an existing id
+                            self.run_lengths.push((*id, additional));
+                        }
+                    }
+                    // very first run-length in column...
+                    None => {
                         self.run_lengths.push((*id, additional));
                     }
-                    self.index_row_ids
-                        .get_mut(&(*id as u32))
-                        .unwrap()
-                        .add_range(self.num_rows as u64..self.num_rows as u64 + additional as u64);
                 }
+
+                // Update the rows associated with the value.
+                self.index_row_ids
+                    .get_mut(&id)
+                    .unwrap()
+                    .add_range(self.num_rows as u64..self.num_rows as u64 + additional as u64);
             }
+            // no dictionary entry for value.
             None => {
                 // New dictionary entry.
                 let next_id = self.next_encoded_id();
@@ -130,7 +138,10 @@ impl RLE {
                 self.entry_index.insert(v, next_id);
                 self.index_row_ids.insert(next_id, Bitmap::create());
 
+                // start a new run-length
                 self.run_lengths.push((next_id, additional));
+
+                // update the rows associated with the value.
                 self.index_row_ids
                     .get_mut(&(next_id as u32))
                     .unwrap()
@@ -151,6 +162,8 @@ impl RLE {
                 self.run_lengths.push((NULL_ID, additional));
                 self.contains_null = true; // set null marker.
             }
+
+            // update the rows associated with the value.
             self.index_row_ids
                 .get_mut(&NULL_ID)
                 .unwrap()
@@ -160,6 +173,7 @@ impl RLE {
             self.run_lengths.push((NULL_ID, additional));
             self.contains_null = true; // set null marker.
 
+            // update the rows associated with the value.
             self.index_row_ids
                 .get_mut(&NULL_ID)
                 .unwrap()
@@ -799,6 +813,32 @@ mod test {
                 None,
             ]
         );
+    }
+
+    // tests a defect I discovered.
+    #[test]
+    fn push_additional_first_run_length() {
+        let arr = vec!["world".to_string(), "hello".to_string()];
+
+        let mut drle = super::RLE::with_dictionary(arr.into_iter().collect::<BTreeSet<String>>());
+        drle.push_additional(Some("world".to_string()), 1);
+        drle.push_additional(Some("hello".to_string()), 1);
+
+        assert_eq!(
+            drle.all_values(vec![]),
+            vec![Some(&"world".to_string()), Some(&"hello".to_string())]
+        );
+        assert_eq!(drle.all_encoded_values(vec![]), vec![2, 1]);
+
+        drle = super::RLE::default();
+        drle.push_additional(Some("hello".to_string()), 1);
+        drle.push_additional(Some("world".to_string()), 1);
+
+        assert_eq!(
+            drle.all_values(vec![]),
+            vec![Some(&"hello".to_string()), Some(&"world".to_string())]
+        );
+        assert_eq!(drle.all_encoded_values(vec![]), vec![1, 2]);
     }
 
     #[test]
