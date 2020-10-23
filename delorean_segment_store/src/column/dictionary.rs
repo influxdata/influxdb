@@ -330,7 +330,7 @@ impl RLE {
     //
 
     pub fn dictionary(&self) -> &[String] {
-        &self.index_entries
+        &self.index_entries[1..]
     }
 
     /// Returns the logical value present at the provided row id.
@@ -1005,6 +1005,22 @@ mod test {
 
         assert_eq!(drle.value(11), None);
         assert_eq!(drle.value(22), None);
+    }
+
+    #[test]
+    fn dictionary() {
+        let mut drle = super::RLE::default();
+        assert!(drle.dictionary().is_empty());
+
+        drle.push_additional(Some("east".to_string()), 23);
+        drle.push_additional(Some("west".to_string()), 2);
+        drle.push_none();
+        drle.push_additional(Some("zoo".to_string()), 1);
+
+        assert_eq!(
+            drle.dictionary(),
+            &["east".to_string(), "west".to_string(), "zoo".to_string()]
+        );
     }
 
     #[test]
