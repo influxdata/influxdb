@@ -37,6 +37,124 @@ pub enum Column {
     ByteArray(MetaData<Vec<u8>>, StringEncoding), // TODO - arbitrary bytes
 }
 
+impl Column {
+    //
+    //  Meta information about the column
+    //
+    pub fn num_rows(&self) -> usize {
+        todo!()
+    }
+
+    pub fn size(&self) -> u64 {
+        todo!()
+    }
+
+    pub fn column_min(&self) -> Value<'_> {
+        todo!()
+    }
+
+    pub fn column_max(&self) -> Value<'_> {
+        todo!()
+    }
+
+    //
+    //  Methods for getting materialised values.
+    //
+
+    /// The value present at the provided logical row id.
+    pub fn value(&self, row_id: u32) -> Value<'_> {
+        todo!()
+    }
+
+    /// All values present at the provided logical row ids.
+    pub fn values(&self, row_ids: &[u32]) -> Values {
+        todo!()
+    }
+
+    // The distinct set of values found at the logical row ids.
+    pub fn distinct_values(&self, row_ids: &[u32]) -> ValuesSet<'_> {
+        todo!()
+    }
+
+    //
+    // Methods for getting encoded (compressed) values.
+    //
+
+    /// The encoded values found at the provided logical row ids.
+    pub fn encoded_values(&self, row_ids: &[u32]) -> Values {
+        todo!()
+    }
+
+    /// All encoded values in the column.
+    pub fn all_encoded_values(&self) -> Values {
+        todo!()
+    }
+
+    //
+    // Methods for filtering
+    //
+
+    /// Determine the set of row ids that satisfy the predicate.
+    pub fn row_ids_filter(&self, op: cmp::Operator, value: Value<'_>) -> RowIDsOption {
+        todo!()
+    }
+
+    /// Determine the set of row ids that satisfy both of the predicates.
+    ///
+    /// Note: this method is a special case for common range-based predicates
+    /// that are often found on timestamp columns.
+    pub fn row_ids_filter_range(
+        &self,
+        low: (cmp::Operator, Value<'_>),
+        high: (cmp::Operator, Value<'_>),
+    ) -> RowIDsOption {
+        todo!()
+    }
+
+    //
+    // Methods for selecting
+    //
+
+    /// The minimum value present within the set of rows.
+    pub fn min(&self, row_ids: &[u32]) -> Values {
+        todo!()
+    }
+
+    /// The minimum value present within the set of rows.
+    pub fn max(&self, row_ids: &[u32]) -> Values {
+        todo!()
+    }
+
+    //
+    // Methods for aggregating
+    //
+
+    /// The summation of all non-null values located at the provided rows.
+    pub fn sum(&self, row_ids: &[u32]) -> Values {
+        todo!()
+    }
+
+    /// The count of all non-null values located at the provided rows.
+    pub fn count(&self, row_ids: &[u32]) -> Values {
+        todo!()
+    }
+
+    //
+    // Methods for inspecting
+    //
+
+    /// Determines if the column has a non-null value at any of the provided rows.
+    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
+        todo!()
+    }
+
+    /// Determines if the column contains other values than those provided in
+    /// `values`.
+    pub fn contains_other_values(&self, values: &BTreeSet<Option<&String>>) -> bool {
+        todo!()
+    }
+}
+
 #[derive(Default, Debug, PartialEq)]
 // The meta-data for a column
 pub struct MetaData<T> {
@@ -494,7 +612,7 @@ pub enum Value<'a> {
 /// values are represented as None
 pub enum Values {
     // UTF-8 valid unicode strings
-    String(Vec<arrow::array::StringArray>),
+    String(arrow::array::StringArray),
 
     // 64-bit floating point values
     Float(arrow::array::Float64Array),
@@ -510,6 +628,27 @@ pub enum Values {
 
     // Arbitrary byte arrays
     ByteArray(arrow::array::UInt8Array),
+}
+
+pub enum ValuesSet<'a> {
+    // UTF-8 valid unicode strings
+    String(BTreeSet<Option<&'a String>>),
+    Float64(BTreeSet<Option<f64>>),
+    Integer64(BTreeSet<Option<i64>>),
+    Unsigned64(BTreeSet<Option<u64>>),
+    Bool(BTreeSet<Option<bool>>),
+    ByteArray(BTreeSet<Option<&'a [u8]>>),
+}
+
+/// A specific type of Option for `RowIDs` where the notion of all rows ids is
+/// represented.
+pub enum RowIDsOption {
+    None,
+    Some(RowIDs),
+
+    // All allows us to indicate to the caller that all possible rows are
+    // represented, without having to create a container to store all those ids.
+    All,
 }
 
 /// Represents vectors of row IDs, which are usually used for intermediate
