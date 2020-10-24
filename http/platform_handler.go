@@ -69,7 +69,8 @@ func (h *PlatformHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// of the platform API.
 	if !strings.HasPrefix(r.URL.Path, "/v1") &&
 		!strings.HasPrefix(r.URL.Path, "/api/v2") &&
-		!strings.HasPrefix(r.URL.Path, "/chronograf/") {
+		!strings.HasPrefix(r.URL.Path, "/chronograf/") &&
+		!strings.HasPrefix(r.URL.Path, "/private/") {
 		h.AssetHandler.ServeHTTP(w, r)
 		return
 	}
