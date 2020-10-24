@@ -67,6 +67,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tenant"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"  // needed for tsi1
+	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
 	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"
@@ -1249,6 +1250,27 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authHTTPServer = authorization.NewHTTPAuthHandler(m.log, authService, ts)
 	}
 
+	var v1AuthHTTPServer *authv1.AuthHandler
+	{
+		var v1AuthSvc platform.AuthorizationService
+		{
+			authStore, err := authv1.NewStore(m.kvStore)
+			if err != nil {
+				m.log.Error("Failed creating new authorization store", zap.Error(err))
+				return err
+			}
+			v1AuthSvc = authv1.NewService(authStore, ts)
+		}
+
+		authLogger := m.log.With(zap.String("handler", "v1_authorization"))
+
+		var authService platform.AuthorizationService
+		authService = authorization.NewAuthedAuthorizationService(v1AuthSvc, ts)
+		authService = authorization.NewAuthLogger(authLogger, authService)
+
+		v1AuthHTTPServer = authv1.NewHTTPAuthHandler(m.log, authService, ts)
+	}
+
 	var sessionHTTPServer *session.SessionHandler
 	{
 		sessionHTTPServer = session.NewSessionHandler(m.log.With(zap.String("handler", "session")), sessionSvc, ts.UserService, ts.PasswordsService)
@@ -1271,6 +1293,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
 			http.WithResourceHandler(orgHTTPServer),
 			http.WithResourceHandler(bucketHTTPServer),
+			http.WithResourceHandler(v1AuthHTTPServer),
 		)
 
 		httpLogger := m.log.With(zap.String("service", "http"))
