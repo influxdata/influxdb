@@ -17,7 +17,6 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb/v2"
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/http"
@@ -38,10 +37,10 @@ type TestLauncher struct {
 	Path string
 
 	// Initialized after calling the Setup() helper.
-	User   *platform.User
-	Org    *platform.Organization
-	Bucket *platform.Bucket
-	Auth   *platform.Authorization
+	User   *influxdb.User
+	Org    *influxdb.Organization
+	Bucket *influxdb.Bucket
+	Auth   *influxdb.Authorization
 
 	httpClient *httpc.Client
 
@@ -128,7 +127,7 @@ func (tl *TestLauncher) ShutdownOrFail(tb testing.TB, ctx context.Context) {
 
 // Setup creates a new user, bucket, org, and auth token.
 func (tl *TestLauncher) Setup() error {
-	results, err := tl.OnBoard(&platform.OnboardingRequest{
+	results, err := tl.OnBoard(&influxdb.OnboardingRequest{
 		User:     "USER",
 		Password: "PASSWORD",
 		Org:      "ORG",
@@ -154,13 +153,13 @@ func (tl *TestLauncher) SetupOrFail(tb testing.TB) {
 
 // OnBoard attempts an on-boarding request.
 // The on-boarding status is also reset to allow multiple user/org/buckets to be created.
-func (tl *TestLauncher) OnBoard(req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+func (tl *TestLauncher) OnBoard(req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
 	return tl.apibackend.OnboardingService.OnboardInitialUser(context.Background(), req)
 }
 
 // OnBoardOrFail attempts an on-boarding request or fails on error.
 // The on-boarding status is also reset to allow multiple user/org/buckets to be created.
-func (tl *TestLauncher) OnBoardOrFail(tb testing.TB, req *platform.OnboardingRequest) *platform.OnboardingResults {
+func (tl *TestLauncher) OnBoardOrFail(tb testing.TB, req *influxdb.OnboardingRequest) *influxdb.OnboardingResults {
 	tb.Helper()
 	res, err := tl.OnBoard(req)
 	if err != nil {
@@ -170,7 +169,7 @@ func (tl *TestLauncher) OnBoardOrFail(tb testing.TB, req *platform.OnboardingReq
 }
 
 // WriteOrFail attempts a write to the organization and bucket identified by to or fails if there is an error.
-func (tl *TestLauncher) WriteOrFail(tb testing.TB, to *platform.OnboardingResults, data string) {
+func (tl *TestLauncher) WriteOrFail(tb testing.TB, to *influxdb.OnboardingResults, data string) {
 	tb.Helper()
 	resp, err := nethttp.DefaultClient.Do(tl.NewHTTPRequestOrFail(tb, "POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", to.Org.ID, to.Bucket.ID), to.Auth.Token, data))
 	if err != nil {
@@ -296,7 +295,7 @@ func (tl *TestLauncher) QueryAndNopConsume(ctx context.Context, req *query.Reque
 
 // FluxQueryOrFail performs a query to the specified organization and returns the results
 // or fails if there is an error.
-func (tl *TestLauncher) FluxQueryOrFail(tb testing.TB, org *platform.Organization, token string, query string) string {
+func (tl *TestLauncher) FluxQueryOrFail(tb testing.TB, org *influxdb.Organization, token string, query string) string {
 	tb.Helper()
 
 	b, err := http.SimpleQuery(tl.URL(), query, org.Name, token)
@@ -309,7 +308,7 @@ func (tl *TestLauncher) FluxQueryOrFail(tb testing.TB, org *platform.Organizatio
 
 // QueryFlux returns the csv response from a flux query.
 // It also removes all the \r to make it easier to write tests.
-func (tl *TestLauncher) QueryFlux(tb testing.TB, org *platform.Organization, token, query string) string {
+func (tl *TestLauncher) QueryFlux(tb testing.TB, org *influxdb.Organization, token, query string) string {
 	tb.Helper()
 
 	b, err := http.SimpleQuery(tl.URL(), query, org.Name, token)
@@ -368,7 +367,7 @@ func (tl *TestLauncher) BucketService(tb testing.TB) *http.BucketService {
 	return &http.BucketService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) CheckService() platform.CheckService {
+func (tl *TestLauncher) CheckService() influxdb.CheckService {
 	return tl.kvService
 }
 
@@ -387,12 +386,12 @@ func (tl *TestLauncher) NotificationEndpointService(tb testing.TB) *http.Notific
 	return http.NewNotificationEndpointService(tl.HTTPClient(tb))
 }
 
-func (tl *TestLauncher) NotificationRuleService(tb testing.TB) platform.NotificationRuleStore {
+func (tl *TestLauncher) NotificationRuleService(tb testing.TB) influxdb.NotificationRuleStore {
 	tb.Helper()
 	return http.NewNotificationRuleService(tl.HTTPClient(tb))
 }
 
-func (tl *TestLauncher) OrgService(tb testing.TB) platform.OrganizationService {
+func (tl *TestLauncher) OrgService(tb testing.TB) influxdb.OrganizationService {
 	return tl.kvService
 }
 
@@ -400,7 +399,7 @@ func (tl *TestLauncher) PkgerService(tb testing.TB) pkger.SVC {
 	return &pkger.HTTPRemoteService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TaskServiceKV(tb testing.TB) platform.TaskService {
+func (tl *TestLauncher) TaskServiceKV(tb testing.TB) influxdb.TaskService {
 	return tl.kvService
 }
 
