@@ -87,7 +87,7 @@ type APIBackend struct {
 	SecretService                   influxdb.SecretService
 	LookupService                   influxdb.LookupService
 	ChronografService               *server.Service
-	OrgLookupService                authorizer.OrganizationService
+	OrgLookupService                authorizer.OrgIDResolver
 	DocumentService                 influxdb.DocumentService
 	NotificationRuleStore           influxdb.NotificationRuleStore
 	NotificationEndpointService     influxdb.NotificationEndpointService

@@ -31,6 +31,7 @@ import (
 	iqlquery "github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/internal/resource"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	overrideflagger "github.com/influxdata/influxdb/v2/kit/feature/override"
@@ -1129,6 +1130,25 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
 	onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
 
+	// orgIDResolver is a deprecated type which combines the lookups
+	// of multiple resources into one type, used to resolve the resources
+	// associated org ID. It is a stop-gap while we move this behaviour
+	// off of *kv.Service to aid in reducing the coupling on this type.
+	orgIDResolver := &resource.OrgIDResolver{
+		AuthorizationFinder:        authSvc,
+		BucketFinder:               ts.BucketService,
+		OrganizationFinder:         ts.OrganizationService,
+		DashboardFinder:            dashboardSvc,
+		SourceFinder:               sourceSvc,
+		TaskFinder:                 taskSvc,
+		TelegrafConfigFinder:       telegrafSvc,
+		VariableFinder:             variableSvc,
+		TargetFinder:               scraperTargetSvc,
+		CheckFinder:                checkSvc,
+		NotificationEndpointFinder: notificationEndpointStore,
+		NotificationRuleFinder:     notificationRuleSvc,
+	}
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
@@ -1177,7 +1197,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SecretService:                   secretSvc,
 		LookupService:                   lookupSvc,
 		DocumentService:                 m.kvService,
-		OrgLookupService:                m.kvService,
+		OrgLookupService:                orgIDResolver,
 		WriteEventRecorder:              infprom.NewEventRecorder("write"),
 		QueryEventRecorder:              infprom.NewEventRecorder("query"),
 		Flagger:                         m.flagger,

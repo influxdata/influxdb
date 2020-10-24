@@ -65,13 +65,14 @@ func setup(t *testing.T) (func(auth influxdb.Authorizer) *httptest.Server, func(
 	if err := ds.CreateDocument(ctx, adoc); err != nil {
 		panic(err)
 	}
+
 	// Organizations are needed only for creation.
 	// Need to cleanup for comparison later.
 	adoc.Organizations = nil
 	backend := NewMockDocumentBackend(t)
 	backend.HTTPErrorHandler = http.ErrorHandler(0)
 	backend.DocumentService = authorizer.NewDocumentService(svc)
-	backend.LabelService = authorizer.NewLabelServiceWithOrg(svc, svc)
+	backend.LabelService = authorizer.NewLabelServiceWithOrg(svc, staticOrgIDResolver(org.ID))
 	serverFn := func(auth influxdb.Authorizer) *httptest.Server {
 		handler := httpmock.NewAuthMiddlewareHandler(NewDocumentHandler(backend), auth)
 		return httptest.NewServer(handler)
@@ -750,4 +751,10 @@ func DeleteLabel(t *testing.T) {
 			t.Errorf("got unexpected length of labels:\n\t%v", diff)
 		}
 	})
+}
+
+type staticOrgIDResolver influxdb.ID
+
+func (s staticOrgIDResolver) FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id influxdb.ID) (influxdb.ID, error) {
+	return (influxdb.ID)(s), nil
 }
