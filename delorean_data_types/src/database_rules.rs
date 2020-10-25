@@ -153,43 +153,38 @@ pub struct StrftimeColumn {
 pub type PartitionId = String;
 pub type WriterId = String;
 
-#[derive(Debug, Serialize, Deserialize)]
-enum SubscriptionType {
-    Push,
-    Pull,
-}
-
-/// `Subscription` represents a group of hosts that want to either receive data pushed
-/// as it arrives or want to pull it periodically. The subscription has a matcher
-/// that is used to determine what data will match it, and an optional queue for
-/// storing matched writes.
+/// `Subscription` represents a group of hosts that want to receive data as it arrives.
+/// The subscription has a matcher that is used to determine what data will match it, and
+/// an optional queue for storing matched writes. Subscribers that recieve some subeset
+/// of an individual replicated write will get a new replicated write, but with the same
+/// originating writer ID and sequence number for the consuming subscriber's tracking
+/// purposes.
+///
+/// For pull based subscriptions, the requester will send a matcher, which the receiver
+/// will execute against its in-memory WAL.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Subscription {
-    name: String,
-    host_group: HostGroupId,
-    subscription_type: SubscriptionType,
-    matcher: Matcher,
-    /// `max_queue_size` is used for subscriptions that can potentially get queued up either for
-    /// pulling later, or in the case of a temporary outage for push subscriptions.
-    max_queue_size: usize,
+    pub name: String,
+    pub host_group_id: HostGroupId,
+    pub matcher: Matcher,
 }
 
 /// `Matcher` specifies the rule against the table name and/or a predicate
 /// against the row to determine if it matches the write rule.
 #[derive(Debug, Serialize, Deserialize)]
-struct Matcher {
+pub struct Matcher {
     #[serde(flatten)]
-    tables: MatchTables,
+    pub tables: MatchTables,
     // TODO: make this work with delorean_storage::Predicate
     #[serde(skip_serializing_if = "Option::is_none")]
-    predicate: Option<String>,
+    pub predicate: Option<String>,
 }
 
 /// `MatchTables` looks at the table name of a row to determine if it should
 /// match the rule.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-enum MatchTables {
+pub enum MatchTables {
     #[serde(rename = "*")]
     All,
     Table(String),
