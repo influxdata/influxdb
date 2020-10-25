@@ -65,22 +65,27 @@
 
 use std::{
     collections::BTreeMap,
-    sync::{atomic::AtomicU64, Arc},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
+use delorean_arrow::arrow::record_batch::RecordBatch;
 use delorean_data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
-    database_rules::{DatabaseRules, HostGroup, HostGroupId},
+    database_rules::{DatabaseRules, HostGroup, HostGroupId, MatchTables},
 };
 use delorean_line_parser::ParsedLine;
+use delorean_object_store::ObjectStore;
 use delorean_storage::Database;
 use delorean_write_buffer::Db as WriteBufferDb;
 
 use async_trait::async_trait;
-use delorean_arrow::arrow::record_batch::RecordBatch;
-use delorean_data_types::database_rules::MatchTables;
+use bytes::Bytes;
+use futures::stream::TryStreamExt;
+use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::sync::atomic::Ordering;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -107,6 +112,14 @@ pub enum Error {
     ErrorReplicating { source: DatabaseError },
     #[snafu(display("unable to use server until id is set"))]
     IdNotSet,
+    #[snafu(display("error serializing configuration {}", source))]
+    ErrorSerializing { source: serde_json::Error },
+    #[snafu(display("error deserializing configuration {}", source))]
+    ErrorDeserializing { source: serde_json::Error },
+    #[snafu(display("store error: {}", source))]
+    StoreError {
+        source: delorean_object_store::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -116,30 +129,35 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// of all replication and query rules.
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
+    config: Config,
+    connection_manager: M,
+    store: ObjectStore,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+struct Config {
     // id is optional because this may not be set on startup. It might be set via an API call
     id: Option<u32>,
     databases: BTreeMap<String, Db>,
     host_groups: BTreeMap<HostGroupId, HostGroup>,
-    connection_manager: M,
 }
 
 impl<M: ConnectionManager> Server<M> {
-    pub fn new(connection_manager: M) -> Self {
+    pub fn new(connection_manager: M, store: ObjectStore) -> Self {
         Self {
-            id: None,
-            databases: BTreeMap::new(),
-            host_groups: BTreeMap::new(),
+            config: Config::default(),
+            store,
             connection_manager,
         }
     }
 
     /// sets the id of the server, which is used for replication and the base path in object storage
     pub fn set_id(&mut self, id: u32) {
-        self.id = Some(id);
+        self.config.id = Some(id);
     }
 
     fn require_id(&self) -> Result<u32> {
-        Ok(self.id.context(IdNotSet)?)
+        Ok(self.config.id.context(IdNotSet)?)
     }
 
     /// Tells the server the set of rules for a database. Currently, this is not persisted and
@@ -166,7 +184,7 @@ impl<M: ConnectionManager> Server<M> {
             sequence,
         };
 
-        self.databases.insert(db_name, db);
+        self.config.databases.insert(db_name, db);
 
         Ok(())
     }
@@ -177,7 +195,52 @@ impl<M: ConnectionManager> Server<M> {
     pub async fn create_host_group(&mut self, id: HostGroupId, hosts: Vec<String>) -> Result<()> {
         self.require_id()?;
 
-        self.host_groups.insert(id.clone(), HostGroup { id, hosts });
+        self.config
+            .host_groups
+            .insert(id.clone(), HostGroup { id, hosts });
+
+        Ok(())
+    }
+
+    /// Saves the configuration of database rules and host groups to a single JSON file in
+    /// the configured store under a directory /<writer ID/config.json
+    pub async fn store_configuration(&self) -> Result<()> {
+        let id = self.require_id()?;
+
+        let data = Bytes::from(serde_json::to_vec(&self.config).context(ErrorSerializing)?);
+        let len = data.len();
+        let location = config_location(id);
+
+        let stream_data = std::io::Result::Ok(data);
+        self.store
+            .put(
+                &location,
+                futures::stream::once(async move { stream_data }),
+                len,
+            )
+            .await
+            .context(StoreError)?;
+
+        Ok(())
+    }
+
+    /// Loads the configuration for this server from the configured store. This replaces
+    /// any in-memory configuration that might already be set.
+    pub async fn load_configuration(&mut self, id: u32) -> Result<()> {
+        let location = config_location(id);
+
+        let read_data = self
+            .store
+            .get(&location)
+            .await
+            .context(StoreError)?
+            .map_ok(|b| bytes::BytesMut::from(&b[..]))
+            .try_concat()
+            .await
+            .context(StoreError)?;
+
+        let config: Config = serde_json::from_slice(&read_data).context(ErrorDeserializing)?;
+        self.config = config;
 
         Ok(())
     }
@@ -189,6 +252,7 @@ impl<M: ConnectionManager> Server<M> {
         let id = self.require_id()?;
 
         let db = self
+            .config
             .databases
             .get(db_name)
             .context(DatabaseNotFound { db: db_name })?;
@@ -204,6 +268,7 @@ impl<M: ConnectionManager> Server<M> {
     /// Executes a query against the local write buffer database, if one exists.
     pub async fn query_local(&self, db_name: &str, query: &str) -> Result<Vec<RecordBatch>> {
         let db = self
+            .config
             .databases
             .get(db_name)
             .context(DatabaseNotFound { db: db_name })?;
@@ -254,6 +319,7 @@ impl<M: ConnectionManager> Server<M> {
         write: &ReplicatedWrite,
     ) -> Result<()> {
         let group = self
+            .config
             .host_groups
             .get(host_group_id)
             .context(HostGroupNotFound { id: host_group_id })?;
@@ -305,12 +371,22 @@ pub trait RemoteServer {
     ) -> Result<(), Self::Error>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Db {
+    #[serde(flatten)]
     pub rules: DatabaseRules,
+    #[serde(skip)]
     pub buffer: Option<WriteBufferDb>,
+    #[serde(skip)]
     sequence: AtomicU64,
 }
+
+impl PartialEq for Db {
+    fn eq(&self, other: &Self) -> bool {
+        self.rules == other.rules
+    }
+}
+impl Eq for Db {}
 
 const STARTING_SEQUENCE: u64 = 1;
 
@@ -320,6 +396,11 @@ impl Db {
     }
 }
 
+// location in the store for the configuration file
+fn config_location(id: u32) -> String {
+    format!("{}/config.json", id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -327,6 +408,8 @@ mod tests {
     use delorean_arrow::arrow::{csv, util::string_writer::StringWriter};
     use delorean_data_types::database_rules::{MatchTables, Matcher, Subscription};
     use delorean_line_parser::parse_lines;
+    use delorean_object_store::{InMemory, ObjectStoreIntegration};
+    use futures::TryStreamExt;
     use snafu::Snafu;
     use std::sync::Mutex;
 
@@ -336,7 +419,8 @@ mod tests {
     #[tokio::test]
     async fn server_api_calls_return_error_with_no_id_set() -> Result {
         let manager = TestConnectionManager::new();
-        let mut server = Server::new(manager);
+        let store = ObjectStore::new_in_memory(InMemory::new());
+        let mut server = Server::new(manager, store);
 
         let rules = DatabaseRules::default();
         let resp = server.create_database("foo", rules).await.unwrap_err();
@@ -358,7 +442,8 @@ mod tests {
     #[tokio::test]
     async fn writes_local() -> Result {
         let manager = TestConnectionManager::new();
-        let mut server = Server::new(manager);
+        let store = ObjectStore::new_in_memory(InMemory::new());
+        let mut server = Server::new(manager, store);
         server.set_id(1);
         let rules = DatabaseRules {
             store_locally: true,
@@ -396,7 +481,9 @@ mod tests {
             .remotes
             .insert(remote_id.to_string(), remote.clone());
 
-        let mut server = Server::new(manager);
+        let store = ObjectStore::new_in_memory(InMemory::new());
+
+        let mut server = Server::new(manager, store);
         server.set_id(1);
         let host_group_id = "az1".to_string();
         let rules = DatabaseRules {
@@ -453,7 +540,9 @@ partition_key:
             .remotes
             .insert(remote_id.to_string(), remote.clone());
 
-        let mut server = Server::new(manager);
+        let store = ObjectStore::new_in_memory(InMemory::new());
+
+        let mut server = Server::new(manager, store);
         server.set_id(1);
         let host_group_id = "az1".to_string();
         let rules = DatabaseRules {
@@ -503,6 +592,59 @@ partition_key:
 "#;
 
         assert_eq!(write_text, writes[1].to_string());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn store_and_load_configuration() -> Result {
+        let manager = TestConnectionManager::new();
+        let store = ObjectStore::new_in_memory(InMemory::new());
+
+        let mut server = Server::new(manager, store);
+        server.set_id(1);
+        let host_group_id = "az1".to_string();
+        let remote_id = "serverA";
+        let rules = DatabaseRules {
+            replication: vec![host_group_id.clone()],
+            replication_count: 1,
+            ..Default::default()
+        };
+        server
+            .create_host_group(host_group_id.clone(), vec![remote_id.to_string()])
+            .await
+            .unwrap();
+        let db_name = "foo";
+        server.create_database(db_name, rules).await.unwrap();
+
+        server.store_configuration().await.unwrap();
+
+        let location = "1/config.json";
+        let read_data = server
+            .store
+            .get(location)
+            .await
+            .unwrap()
+            .map_ok(|b| bytes::BytesMut::from(&b[..]))
+            .try_concat()
+            .await
+            .unwrap();
+
+        let config = r#"{"id":1,"databases":{"foo":{"partition_template":{"parts":[]},"store_locally":false,"replication":["az1"],"replication_count":1,"replication_queue_max_size":0,"subscriptions":[],"query_local":false,"primary_query_group":null,"secondary_query_groups":[],"read_only_partitions":[]}},"host_groups":{"az1":{"id":"az1","hosts":["serverA"]}}}"#;
+        let read_data = std::str::from_utf8(&*read_data).unwrap();
+        assert_eq!(read_data, config);
+
+        let manager = TestConnectionManager::new();
+        let store = match server.store.0 {
+            ObjectStoreIntegration::InMemory(in_mem) => in_mem.clone().await,
+            _ => panic!("wrong type"),
+        };
+        let store = ObjectStore::new_in_memory(store);
+
+        let mut recovered_server = Server::new(manager, store);
+        assert_ne!(server.config, recovered_server.config);
+        recovered_server.load_configuration(1).await.unwrap();
+        assert_eq!(server.config, recovered_server.config);
 
         Ok(())
     }
