@@ -20,7 +20,7 @@ func NewLookupService() *LookupService {
 	}
 }
 
-// Name returns the name for the resource and ID.
-func (s *LookupService) Name(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
+// FindResourceName returns the name for the resource and ID.
+func (s *LookupService) FindResourceName(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
 	return s.NameFn(ctx, resource, id)
 }
