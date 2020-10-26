@@ -41,8 +41,15 @@ impl Column {
     //
     //  Meta information about the column
     //
-    pub fn num_rows(&self) -> usize {
-        todo!()
+    pub fn num_rows(&self) -> u32 {
+        match &self {
+            Column::String(meta, _) => meta.rows,
+            Column::Float(meta, _) => meta.rows,
+            Column::Integer(meta, _) => meta.rows,
+            Column::Unsigned(meta, _) => meta.rows,
+            Column::Bool => todo!(),
+            Column::ByteArray(meta, _) => meta.rows,
+        }
     }
 
     pub fn size(&self) -> u64 {
@@ -63,7 +70,23 @@ impl Column {
 
     /// The value present at the provided logical row id.
     pub fn value(&self, row_id: u32) -> Value<'_> {
-        todo!()
+        assert!(
+            row_id < self.num_rows(),
+            format!(
+                "cannot read row {:?} from column with {:?} rows",
+                row_id,
+                self.num_rows()
+            )
+        );
+
+        match &self {
+            Column::String(_, data) => data.value(row_id),
+            Column::Float(_, data) => data.value(row_id),
+            Column::Integer(_, data) => data.value(row_id),
+            Column::Unsigned(_, data) => data.value(row_id),
+            Column::Bool => todo!(),
+            Column::ByteArray(_, _) => todo!(),
+        }
     }
 
     /// All values present at the provided logical row ids.
@@ -176,6 +199,16 @@ pub enum StringEncoding {
 /// This implementation is concerned with how to produce string columns with
 /// different encodings.
 impl StringEncoding {
+    /// Returns the logical value found at the provided row id.
+    pub fn value(&self, row_id: u32) -> Value<'_> {
+        match &self {
+            Self::RLE(c) => match c.value(row_id) {
+                Some(v) => Value::String(v),
+                None => Value::Null,
+            },
+        }
+    }
+
     fn from_arrow_string_array(arr: arrow::array::StringArray) -> Self {
         //
         // TODO(edd): potentially switch on things like cardinality in the input
@@ -354,15 +387,52 @@ pub enum IntegerEncoding {
     I64U16(fixed::Fixed<u16>),
     I64I8(fixed::Fixed<i8>),
     I64U8(fixed::Fixed<u8>),
+
+    I32I32(fixed::Fixed<i32>),
     // TODO - add all the other possible integer combinations.
 
     // Nullable encodings
     I64I64N(fixed_null::FixedNull<arrow::datatypes::Int64Type>),
 }
 
+impl IntegerEncoding {
+    /// Returns the logical value found at the provided row id.
+    pub fn value(&self, row_id: u32) -> Value<'_> {
+        match &self {
+            // N.B., The `Scalar` variant determines the physical type `U` that
+            // `c.value` should return.
+            Self::I64I64(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
+            Self::I64I32(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
+            Self::I64U32(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
+            Self::I64I16(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
+            Self::I64U16(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
+            Self::I64I8(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
+            Self::I64U8(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
+            Self::I32I32(c) => Value::Scalar(Scalar::I32(c.value(row_id))),
+            Self::I64I64N(c) => match c.value(row_id) {
+                Some(v) => Value::Scalar(Scalar::I64(v)),
+                None => Value::Null,
+            },
+        }
+    }
+}
+
 pub enum FloatEncoding {
     Fixed64(fixed::Fixed<f64>),
     Fixed32(fixed::Fixed<f32>),
+    // TODO(edd): encodings for nullable columns
+}
+
+impl FloatEncoding {
+    /// Returns the logical value found at the provided row id.
+    pub fn value(&self, row_id: u32) -> Value<'_> {
+        match &self {
+            // N.B., The `Scalar` variant determines the physical type `U` that
+            // `c.value` should return.
+            Self::Fixed64(c) => Value::Scalar(Scalar::F64(c.value(row_id))),
+            Self::Fixed32(c) => Value::Scalar(Scalar::F32(c.value(row_id))),
+        }
+    }
 }
 
 // Converts an Arrow `StringArray` into a column, currently using the RLE
@@ -533,10 +603,22 @@ impl From<arrow::array::Int64Array> for Column {
 /// Converts a slice of `f64` values into a fixed-width column encoding.
 impl From<&[f64]> for Column {
     fn from(arr: &[f64]) -> Self {
-        Column::Float(
-            MetaData::default(),
-            FloatEncoding::Fixed64(fixed::Fixed::<f64>::from(arr)),
-        )
+        // determine min and max values.
+        let mut min = arr[0];
+        let mut max = arr[0];
+        for &v in arr.iter().skip(1) {
+            min = min.min(v);
+            max = max.max(v);
+        }
+
+        let data = fixed::Fixed::<f64>::from(arr);
+        let meta = MetaData {
+            size: data.size(),
+            rows: data.num_rows(),
+            range: Some((min, max)),
+        };
+
+        Column::Float(meta, FloatEncoding::Fixed64(data))
     }
 }
 
@@ -584,13 +666,20 @@ pub enum AggregateResult<'a> {
 }
 
 /// A scalar is a numerical value that can be aggregated.
+#[derive(Debug, PartialEq)]
+
 pub enum Scalar {
-    Float(f64),
-    Integer(i64),
-    Unsigned(u64),
+    // TODO(edd): flesh out more logical types.
+    I64(i64),
+    I32(i32),
+    U64(u64),
+
+    F64(f64),
+    F32(f32),
 }
 
 /// Each variant is a possible value type that can be returned from a column.
+#[derive(Debug, PartialEq)]
 pub enum Value<'a> {
     // Represents a NULL value in a column row.
     Null,
@@ -805,5 +894,18 @@ mod test {
         } else {
             panic!("invalid variant");
         }
+    }
+
+    #[test]
+    fn value() {
+        let col = Column::from(&[0, 1, 200, 20, -1][..]);
+        assert_eq!(col.value(4), Value::Scalar(Scalar::I64(-1)));
+
+        let col = Column::from(&[-19.2, -30.2][..]);
+        assert_eq!(col.value(0), Value::Scalar(Scalar::F64(-19.2)));
+
+        let col = Column::from(&[Some("a"), Some("b"), None, Some("c")][..]);
+        assert_eq!(col.value(1), Value::String("b"));
+        assert_eq!(col.value(2), Value::Null);
     }
 }
