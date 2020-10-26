@@ -51,11 +51,11 @@ var authCreateFlags struct {
 	writeUserPermission bool
 	readUserPermission  bool
 
-	writeBucketsPermission bool
-	readBucketsPermission  bool
+	writeAllBucketsPermission bool
+	readAllBucketsPermission  bool
 
-	writeBucketPermissions []string
-	readBucketPermissions  []string
+	writeBucketsPermissions []string
+	readBucketsPermissions  []string
 
 	writeTasksPermission bool
 	readTasksPermission  bool
@@ -99,11 +99,11 @@ func authCreateCmd(f *globalFlags) *cobra.Command {
 	cmd.Flags().BoolVarP(&authCreateFlags.writeUserPermission, "write-user", "", false, "Grants the permission to perform mutative actions against organization users")
 	cmd.Flags().BoolVarP(&authCreateFlags.readUserPermission, "read-user", "", false, "Grants the permission to perform read actions against organization users")
 
-	cmd.Flags().BoolVarP(&authCreateFlags.writeBucketsPermission, "write-buckets", "", false, "Grants the permission to perform mutative actions against organization buckets")
-	cmd.Flags().BoolVarP(&authCreateFlags.readBucketsPermission, "read-buckets", "", false, "Grants the permission to perform read actions against organization buckets")
+	cmd.Flags().BoolVarP(&authCreateFlags.writeAllBucketsPermission, "write-all-buckets", "", false, "Grants the permission to perform mutative actions against *all* organization buckets")
+	cmd.Flags().BoolVarP(&authCreateFlags.readAllBucketsPermission, "read-all-buckets", "", false, "Grants the permission to perform read actions against *all* organization buckets")
 
-	cmd.Flags().StringArrayVarP(&authCreateFlags.writeBucketPermissions, "write-bucket", "", []string{}, "The bucket id")
-	cmd.Flags().StringArrayVarP(&authCreateFlags.readBucketPermissions, "read-bucket", "", []string{}, "The bucket id")
+	cmd.Flags().StringArrayVarP(&authCreateFlags.writeBucketsPermissions, "write-buckets", "", []string{}, "Grants permission to write to specified bucket IDs")
+	cmd.Flags().StringArrayVarP(&authCreateFlags.readBucketsPermissions, "read-buckets", "", []string{}, "Grants permission to read specified bucket IDs")
 
 	cmd.Flags().BoolVarP(&authCreateFlags.writeTasksPermission, "write-tasks", "", false, "Grants the permission to create tasks")
 	cmd.Flags().BoolVarP(&authCreateFlags.readTasksPermission, "read-tasks", "", false, "Grants the permission to read tasks")
@@ -156,8 +156,8 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 		action platform.Action
 		perms  []string
 	}{
-		{action: platform.ReadAction, perms: authCreateFlags.readBucketPermissions},
-		{action: platform.WriteAction, perms: authCreateFlags.writeBucketPermissions},
+		{action: platform.ReadAction, perms: authCreateFlags.readBucketsPermissions},
+		{action: platform.WriteAction, perms: authCreateFlags.writeBucketsPermissions},
 	}
 
 	var permissions []platform.Permission
@@ -182,8 +182,8 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 		ResourceType        platform.ResourceType
 	}{
 		{
-			readPerm:     authCreateFlags.readBucketsPermission,
-			writePerm:    authCreateFlags.writeBucketsPermission,
+			readPerm:     authCreateFlags.readAllBucketsPermission,
+			writePerm:    authCreateFlags.writeAllBucketsPermission,
 			ResourceType: platform.BucketsResourceType,
 		},
 		{
