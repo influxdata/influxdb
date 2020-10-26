@@ -20,6 +20,7 @@ use std::ops::Range;
 
 use snafu::ensure;
 use snafu::Snafu;
+use tracing::debug;
 
 use super::column;
 
@@ -74,13 +75,13 @@ pub fn sort(vectors: &mut [column::Vector], sort_by: &[usize]) -> Result<(), Err
         }
 
         if sorted {
-            log::debug!("columns already sorted");
+            debug!("columns already sorted");
             return Ok(());
         }
     }
     let now = std::time::Instant::now();
     quicksort_by(vectors, 0..n - 1, sort_by);
-    log::debug!("sorted in {:?}", now.elapsed());
+    debug!("sorted in {:?}", now.elapsed());
     Ok(())
 }
 

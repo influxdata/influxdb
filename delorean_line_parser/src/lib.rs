@@ -16,7 +16,6 @@
 )]
 
 use fmt::Display;
-use log::debug;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -34,6 +33,7 @@ use std::{
     fmt,
     ops::Deref,
 };
+use tracing::debug;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

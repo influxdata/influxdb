@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 snafu = "0.6.2"
-log = "0.4.8"
+tracing = "0.1"
 
 delorean_arrow = { path = "../delorean_arrow" }
 delorean_table = { path = "../delorean_table" }

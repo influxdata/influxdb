@@ -37,9 +37,9 @@
 //! ```
 use delorean_tsm::BlockType;
 
-use log::warn;
 use std::collections::BTreeMap;
 use std::convert::From;
+use tracing::warn;
 
 /// Represents a specific Line Protocol Tag name
 #[derive(Debug, PartialEq)]

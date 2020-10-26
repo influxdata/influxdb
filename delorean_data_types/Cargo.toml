@@ -9,8 +9,6 @@ edition = "2018"
 [dependencies]
 snafu = "0.6"
 serde = "1.0"
-serde_json = "1.0"
-async-trait = "0.1"
 delorean_generated_types = { path = "../delorean_generated_types" }
 delorean_line_parser = { path = "../delorean_line_parser" }
 chrono = "0.4"

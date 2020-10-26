@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use tracing::{debug, error, info};
+
 use super::column;
 use super::column::{AggregateType, Column};
 use delorean_arrow::arrow::datatypes::SchemaRef;
@@ -269,7 +271,7 @@ impl Segment {
         // emitting the encoded value for each column and track those value
         // combinations in a hashmap with running aggregates.
 
-        log::debug!("aggregate_by_group_with_hash called");
+        debug!("aggregate_by_group_with_hash called");
 
         if window > 0 {
             // last column on group key should be time.
@@ -463,7 +465,7 @@ impl Segment {
             processed_rows += 1;
         }
 
-        log::debug!("({:?} rows processed) {:?}", processed_rows, hash_table);
+        debug!("({:?} rows processed) {:?}", processed_rows, hash_table);
         BTreeMap::new()
         // hash_table
     }
@@ -476,7 +478,7 @@ impl Segment {
         aggregates: &[(String, AggregateType)],
         window: i64,
     ) -> Vec<GroupedAggregates> {
-        log::debug!("aggregate_by_group_with_sort_unsorted called");
+        debug!("aggregate_by_group_with_sort_unsorted called");
 
         if window > 0 {
             // last column on group key should be time.
@@ -503,7 +505,7 @@ impl Segment {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
-        log::debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
+        debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
 
         // materialise all encoded values for the matching rows in the columns
         // we are grouping on and store each group as an iterator.
@@ -565,7 +567,7 @@ impl Segment {
 
         let now = std::time::Instant::now();
         assert!(!self.group_key_sorted(group_columns)); // should always need a sort if in this method
-        log::debug!("time checking sort {:?}", now.elapsed());
+        debug!("time checking sort {:?}", now.elapsed());
 
         // now sort on the first grouping columns. Right now the order doesn't matter...
         let group_col_sort_order = &(0..group_columns.len()).collect::<Vec<_>>();
@@ -619,7 +621,7 @@ impl Segment {
         aggregates: &[(String, AggregateType)],
         window: i64,
     ) -> Vec<GroupedAggregates> {
-        log::debug!("aggregate_by_group_using_stream called");
+        debug!("aggregate_by_group_using_stream called");
 
         if window > 0 {
             // last column on group key should be time.
@@ -646,7 +648,7 @@ impl Segment {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
-        log::debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
+        debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
 
         // materialise all encoded values for the matching rows in the columns
         // we are grouping on and store each group as an iterator.
@@ -816,7 +818,7 @@ impl Segment {
             aggregates: group_key_aggregates,
         });
 
-        log::debug!("({:?} rows processed) {:?}", processed_rows, results);
+        debug!("({:?} rows processed) {:?}", processed_rows, results);
         // vec![]
         results
     }
@@ -867,7 +869,7 @@ impl Segment {
             &column::Value::Scalar(column::Scalar::Integer(time_range.0)),
             &column::Value::Scalar(column::Scalar::Integer(time_range.1)),
         )?;
-        log::debug!("time col bitmap contains {:?} values out of {:?} rows. requested range was {:?}, meta range is {:?}",bm.cardinality(),self.num_rows(), time_range, self.meta.time_range);
+        debug!("time col bitmap contains {:?} values out of {:?} rows. requested range was {:?}, meta range is {:?}",bm.cardinality(),self.num_rows(), time_range, self.meta.time_range);
 
         // now intersect matching rows for each column
         for (col_pred_name, col_pred_value) in predicates {
@@ -990,7 +992,7 @@ impl Segment {
                 } else {
                     // In this case there are grouped values in the column with no
                     // rows falling into time-range/predicate set.
-                    log::error!(
+                    error!(
                         "grouped value {:?} has no rows in time-range/predicate set",
                         group_key_value
                     );
@@ -998,7 +1000,7 @@ impl Segment {
             }
         } else {
             // segment doesn't have the column so can't group on it.
-            log::error!("don't have column - can't group");
+            error!("don't have column - can't group");
         }
         grouped_results
     }
@@ -1020,7 +1022,7 @@ impl Segment {
         }
 
         if all_excluded {
-            log::debug!("skipping segment as all tag columns excluded");
+            debug!("skipping segment as all tag columns excluded");
             return None; // we don't have any tag columns to offer.
         }
 
@@ -1043,7 +1045,7 @@ impl Segment {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
-        log::debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
+        debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
         let mut results = BTreeSet::new();
 
         // any columns that are in predicate set using equality predicates should
@@ -1091,7 +1093,7 @@ impl Segment {
         }
 
         if !have_some_cols {
-            log::debug!("skipping segment because no columns for tag keys present");
+            debug!("skipping segment because no columns for tag keys present");
             return None; // we don't have any tag columns to offer.
         }
 
@@ -1116,7 +1118,7 @@ impl Segment {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
-        log::debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
+        debug!("filtered to {:?} rows.", filtered_row_ids_vec.len());
 
         for &i in &self.tag_column_idxs {
             let col = &self.columns[i];
@@ -1129,19 +1131,19 @@ impl Segment {
             // if !col.contains_other_values(&column::Set::String(
             //     *excluded_tag_values.get(col_name).unwrap(),
             // )) {
-            //     log::debug!("skipping!!");
+            //     debug!("skipping!!");
             //     continue;
             // }
 
             if let Some(exclude_tag_values) = excluded_tag_values.get(col_name) {
                 if !col.contains_other_values(exclude_tag_values) {
-                    log::debug!("skipping!!");
+                    debug!("skipping!!");
                     continue;
                 }
             }
 
             if let column::Set::String(values) = col.distinct_values(&filtered_row_ids_vec) {
-                log::debug!("distinct values: {:?}", values);
+                debug!("distinct values: {:?}", values);
                 results.insert(col_name, values);
             } else {
                 unreachable!("only works on tag columns");
@@ -1356,7 +1358,7 @@ impl<'a> Segments<'a> {
                                 &aggregates,
                                 window,
                             );
-                            log::info!(
+                            info!(
                                 "processed segment {:?} using multi-threaded hash-grouping in {:?}",
                                 segment.time_range(),
                                 now.elapsed()
@@ -1377,7 +1379,7 @@ impl<'a> Segments<'a> {
                     &aggregates,
                     window,
                 );
-                log::info!(
+                info!(
                     "processed segment {:?} using multi-threaded hash-grouping in {:?}",
                     segment.time_range(),
                     now.elapsed()
@@ -1399,7 +1401,7 @@ impl<'a> Segments<'a> {
                 &aggregates,
                 window,
             );
-            log::info!(
+            info!(
                 "processed segment {:?} using single-threaded hash-grouping in {:?}",
                 segment.time_range(),
                 now.elapsed()
@@ -1445,7 +1447,7 @@ impl<'a> Segments<'a> {
                                     &aggregates,
                                     window,
                                 );
-                                log::info!(
+                                info!(
                                     "processed segment {:?} using multi-threaded STREAM in {:?}",
                                     segment.time_range(),
                                     now.elapsed()
@@ -1458,7 +1460,7 @@ impl<'a> Segments<'a> {
                                     &aggregates,
                                     window,
                                 );
-                                log::info!(
+                                info!(
                                     "processed segment {:?} using multi-threaded SORT in {:?}",
                                     segment.time_range(),
                                     now.elapsed()
@@ -1485,7 +1487,7 @@ impl<'a> Segments<'a> {
                         &aggregates,
                         window,
                     );
-                    log::info!(
+                    info!(
                         "processed segment {:?} using multi-threaded STREAM in {:?}",
                         segment.time_range(),
                         now.elapsed()
@@ -1498,7 +1500,7 @@ impl<'a> Segments<'a> {
                         &aggregates,
                         window,
                     );
-                    log::info!(
+                    info!(
                         "processed segment {:?} using multi-threaded SORT in {:?}",
                         segment.time_range(),
                         now.elapsed()
@@ -1524,7 +1526,7 @@ impl<'a> Segments<'a> {
                     &aggregates,
                     window,
                 );
-                log::info!(
+                info!(
                     "processed segment {:?} using single-threaded STREAM in {:?}",
                     segment.time_range(),
                     now.elapsed()
@@ -1537,7 +1539,7 @@ impl<'a> Segments<'a> {
                     &aggregates,
                     window,
                 );
-                log::info!(
+                info!(
                     "processed segment {:?} using single-threaded SORT in {:?}",
                     segment.time_range(),
                     now.elapsed()

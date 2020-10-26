@@ -744,14 +744,12 @@ dependencies = [
 name = "delorean_data_types"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "chrono",
  "crc32fast",
  "delorean_generated_types",
  "delorean_line_parser",
  "flatbuffers",
  "serde",
- "serde_json",
  "snafu",
 ]
 
@@ -779,8 +777,8 @@ dependencies = [
  "delorean_tsm",
  "env_logger",
  "libflate",
- "log",
  "snafu",
+ "tracing",
 ]
 
 [[package]]
@@ -788,12 +786,11 @@ name = "delorean_line_parser"
 version = "0.1.0"
 dependencies = [
  "delorean_test_helpers",
- "either",
  "influxdb2_client",
- "log",
  "nom",
  "smallvec",
  "snafu",
+ "tracing",
 ]
 
 [[package]]
@@ -807,10 +804,9 @@ dependencies = [
  "delorean_arrow",
  "delorean_table",
  "env_logger",
- "heapsize",
  "human_format",
- "log",
  "snafu",
+ "tracing",
 ]
 
 [[package]]
@@ -838,8 +834,8 @@ dependencies = [
  "delorean_table",
  "delorean_table_schema",
  "delorean_test_helpers",
- "log",
  "snafu",
+ "tracing",
 ]
 
 [[package]]
@@ -903,9 +899,9 @@ dependencies = [
  "delorean_test_helpers",
  "delorean_tsm",
  "human_format",
- "log",
  "rand",
  "snafu",
+ "tracing",
 ]
 
 [[package]]
@@ -913,7 +909,7 @@ name = "delorean_table_schema"
 version = "0.1.0"
 dependencies = [
  "delorean_tsm",
- "log",
+ "tracing",
 ]
 
 [[package]]
@@ -934,19 +930,17 @@ dependencies = [
  "hex",
  "integer-encoding",
  "libflate",
- "log",
  "rand",
  "snafu",
  "snap",
+ "tracing",
 ]
 
 [[package]]
 name = "delorean_wal"
 version = "0.1.0"
 dependencies = [
- "arc-swap",
  "byteorder",
- "bytes",
  "crc32fast",
  "delorean_test_helpers",
  "futures",
@@ -1391,15 +1385,6 @@ name = "hashbrown"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
-
-[[package]]
-name = "heapsize"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1679e6ea370dee694f91f1dc469bf94cf8f52051d147aec3e1f9497c6fc22461"
-dependencies = [
- "winapi 0.3.9",
-]
 
 [[package]]
 name = "heck"

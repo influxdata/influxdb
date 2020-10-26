@@ -5,6 +5,8 @@ use delorean_arrow::arrow;
 
 use super::encoding;
 
+use tracing::debug;
+
 #[derive(Debug)]
 pub enum Set<'a> {
     String(BTreeSet<&'a std::string::String>),
@@ -773,7 +775,7 @@ impl Column {
 
                 let now = std::time::Instant::now();
                 let v = c.values(row_ids);
-                log::debug!("time getting decoded values for float {:?}", now.elapsed());
+                debug!("time getting decoded values for float {:?}", now.elapsed());
 
                 Vector::NullFloat(v)
             }
@@ -784,7 +786,7 @@ impl Column {
 
                 let now = std::time::Instant::now();
                 let v = c.values(row_ids);
-                log::debug!("time getting decoded values for int {:?}", now.elapsed());
+                debug!("time getting decoded values for int {:?}", now.elapsed());
                 Vector::NullInteger(v)
             }
         }
@@ -843,7 +845,7 @@ impl Column {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
-        log::debug!("time unpacking bitmap {:?}", now.elapsed());
+        debug!("time unpacking bitmap {:?}", now.elapsed());
 
         match self {
             Column::String(c) => {
@@ -853,7 +855,7 @@ impl Column {
 
                 let now = std::time::Instant::now();
                 let v = c.encoded_values(&row_ids_vec);
-                log::debug!("time getting encoded values {:?}", now.elapsed());
+                debug!("time getting encoded values {:?}", now.elapsed());
                 Vector::Unsigned32(v)
             }
             Column::Float(c) => {
@@ -884,9 +886,9 @@ impl Column {
 
                 let now = std::time::Instant::now();
                 let v = c.encoded_values(&row_ids);
-                log::debug!("time getting encoded values {:?}", now.elapsed());
+                debug!("time getting encoded values {:?}", now.elapsed());
 
-                log::debug!("dictionary {:?}", c.data.dictionary());
+                debug!("dictionary {:?}", c.data.dictionary());
                 Vector::Unsigned32(v)
             }
             Column::Float(c) => {
@@ -912,9 +914,9 @@ impl Column {
             Column::String(c) => {
                 let now = std::time::Instant::now();
                 let v = c.all_encoded_values();
-                log::debug!("time getting all encoded values {:?}", now.elapsed());
+                debug!("time getting all encoded values {:?}", now.elapsed());
 
-                log::debug!("dictionary {:?}", c.data.dictionary());
+                debug!("dictionary {:?}", c.data.dictionary());
                 Vector::Unsigned32(v)
             }
             Column::Float(c) => Vector::Float(c.all_encoded_values()),
@@ -950,7 +952,7 @@ impl Column {
             .iter()
             .map(|v| *v as usize)
             .collect::<Vec<_>>();
-        log::debug!("time unpacking bitmap {:?}", now.elapsed());
+        debug!("time unpacking bitmap {:?}", now.elapsed());
 
         assert!(
             row_ids_vec.len() == 1 || row_ids_vec[row_ids_vec.len() - 1] > row_ids_vec[0],
@@ -2026,7 +2028,7 @@ pub mod metadata {
 
     //     pub fn maybe_contains_value(&self, v: f64) -> bool {
     //         let res = self.range.0 <= v && v <= self.range.1;
-    //         log::debug!(
+    //         debug!(
     //             "column with ({:?}) maybe contain {:?} -- {:?}",
     //             self.range,
     //             v,

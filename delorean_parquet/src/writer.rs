@@ -10,7 +10,6 @@ use delorean_arrow::parquet::{
     },
     schema::types::{ColumnPath, Type},
 };
-use log::debug;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     fmt,
@@ -18,6 +17,7 @@ use std::{
     rc::Rc,
     str::FromStr,
 };
+use tracing::debug;
 
 use crate::metadata::parquet_schema_as_string;
 use delorean_table::{DeloreanTableWriter, Error as TableError, Packers};

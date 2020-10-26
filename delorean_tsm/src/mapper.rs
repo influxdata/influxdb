@@ -3,7 +3,7 @@
 use crate::reader::{BlockData, BlockDecoder, TSMIndexReader, ValuePair};
 use crate::{Block, BlockType, TSMError};
 
-use log::warn;
+use tracing::warn;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};

@@ -20,12 +20,12 @@ use delorean_tsm::{
     reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
     BlockType, TSMError,
 };
-use log::debug;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::{BufRead, Seek},
 };
+use tracing::debug;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ConversionSettings {

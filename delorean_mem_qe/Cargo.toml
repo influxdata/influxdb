@@ -10,12 +10,11 @@ edition = "2018"
 [dependencies]
 delorean_arrow = { path = "../delorean_arrow" }
 delorean_table = { path = "../delorean_table" }
-heapsize = "0.4.2"
 snafu = "0.6.8"
 croaring = "0.4.5"
 crossbeam = "0.7.3"
 chrono = "0.4"
-log = "0.4.11"
+tracing = "0.1"
 env_logger = "0.7.1"
 human_format = "1.0.3"
 

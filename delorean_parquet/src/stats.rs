@@ -7,13 +7,13 @@ use delorean_table::{
     stats::{ColumnStatsBuilder, FileStats, FileStatsBuilder},
     Name,
 };
-use log::debug;
 use snafu::ResultExt;
 use std::{
     collections::BTreeMap,
     convert::TryInto,
     io::{Read, Seek},
 };
+use tracing::debug;
 
 use crate::{error::Result, metadata::data_type_from_parquet_type, Length, TryClone};
 

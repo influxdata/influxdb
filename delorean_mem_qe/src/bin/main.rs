@@ -10,6 +10,7 @@ use std::{
 
 use datatypes::TimeUnit;
 use snafu::Snafu;
+use tracing::debug;
 
 use delorean_arrow::arrow::record_batch::{RecordBatch, RecordBatchReader};
 use delorean_arrow::arrow::{array, array::Array, datatypes, ipc};
@@ -127,7 +128,7 @@ fn build_store(
                 let mut segment = Segment::new(rb.num_rows(), schema);
                 convert_record_batch(rb, &mut segment)?;
 
-                log::debug!("{}", &segment);
+                debug!("{}", &segment);
                 store.add_segment(segment);
             }
             Ok(None) => {
