@@ -44,7 +44,7 @@ use tracing::warn;
 
 use super::rpc::data::{
     fieldlist_to_measurement_fields_response, grouped_series_set_item_to_read_response,
-    series_set_to_read_response,
+    series_set_to_read_response, tag_keys_to_byte_vecs,
 };
 
 #[derive(Debug, Snafu)]
@@ -645,10 +645,7 @@ where
             })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
-    let values = tag_keys
-        .iter()
-        .map(|name| name.bytes().collect())
-        .collect::<Vec<_>>();
+    let values = tag_keys_to_byte_vecs(tag_keys);
 
     Ok(StringValuesResponse { values })
 }
@@ -1154,8 +1151,11 @@ mod tests {
             test_db.set_column_names(to_string_vec(&tag_keys)).await;
 
             let actual_tag_keys = fixture.storage_client.tag_keys(request).await?;
+            let mut expected_tag_keys = vec!["_field", "_measurement"];
+            expected_tag_keys.extend(tag_keys.iter());
+
             assert_eq!(
-                actual_tag_keys, tag_keys,
+                actual_tag_keys, expected_tag_keys,
                 "unexpected tag keys while getting column names: {}",
                 test_case_str
             );
@@ -1313,11 +1313,16 @@ mod tests {
             test_db.set_column_names(to_string_vec(&tag_keys)).await;
 
             let actual_tag_keys = fixture.storage_client.measurement_tag_keys(request).await?;
+
+            let mut expected_tag_keys = vec!["_field", "_measurement"];
+            expected_tag_keys.extend(tag_keys.iter());
+
             assert_eq!(
-                actual_tag_keys, tag_keys,
+                actual_tag_keys, expected_tag_keys,
                 "unexpected tag keys while getting column names: {}",
                 test_case_str
             );
+
             assert_eq!(
                 test_db.get_column_names_request().await,
                 Some(expected_request),

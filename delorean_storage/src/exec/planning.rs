@@ -21,6 +21,7 @@ use delorean_arrow::{
 };
 
 use crate::exec::schema_pivot::{SchemaPivotExec, SchemaPivotNode};
+use crate::util::dump_plan;
 
 use tracing::debug;
 
@@ -99,12 +100,15 @@ impl DeloreanExecutionContext {
     }
 
     pub async fn make_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
-        debug!("Running plan, input:\n{:?}", plan);
+        debug!("Running plan, input\n----\n{}\n----", dump_plan(plan));
 
         // TODO the datafusion optimizer was removing filters..
         //let logical_plan = ctx.optimize(&plan).context(DataFusionOptimization)?;
         let logical_plan = plan;
-        debug!("Running plan, optimized:\n{:?}", logical_plan);
+        debug!(
+            "Running optimized plan\n----\n{}\n----",
+            dump_plan(logical_plan)
+        );
 
         self.inner.create_physical_plan(&logical_plan)
     }

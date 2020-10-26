@@ -1,6 +1,6 @@
 //! This module contains code to translate from delorean data formats into the formats needed by gRPC
 
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use delorean_arrow::arrow::{
     array::{ArrayRef, BooleanArray, Float64Array, Int64Array, PrimitiveArrayOps, StringArray},
@@ -33,6 +33,18 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Convert a set of tag_keys into a form suitable for gRPC transport
+///
+/// Namely, a Vec<Vec<u8>>, including the measurement and field names
+pub fn tag_keys_to_byte_vecs(tag_keys: Arc<BTreeSet<String>>) -> Vec<Vec<u8>> {
+    // special case measurement and field
+    let specials_iter = vec![b"_field".to_vec(), b"_measurement".to_vec()].into_iter();
+
+    let tag_keys_iter = tag_keys.iter().map(|name| name.bytes().collect());
+
+    specials_iter.chain(tag_keys_iter).collect()
+}
 
 /// Convert `SeriesSet` into a form suitable for gRPC transport
 ///
@@ -213,13 +225,13 @@ fn convert_tags(
     let mut converted_tags = Vec::new();
 
     // Special case "measurement" name which is modeled as a tag of
-    // "_m" and "field" which is modeled as a tag of "_f"
+    // "_measurement" and "field" which is modeled as a tag of "_field"
     converted_tags.push(Tag {
-        key: b"_f".to_vec(),
+        key: b"_field".to_vec(),
         value: field_name.bytes().collect(),
     });
     converted_tags.push(Tag {
-        key: b"_m".to_vec(),
+        key: b"_measurement".to_vec(),
         value: table_name.bytes().collect(),
     });
 
@@ -337,13 +349,13 @@ mod tests {
             .collect::<Vec<_>>();
 
         let expected_frames = vec![
-            "SeriesFrame, tags: _f=string_field,_m=the_table,tag1=val1, type: 4",
+            "SeriesFrame, tags: _field=string_field,_measurement=the_table,tag1=val1, type: 4",
             "StringPointsFrame, timestamps: [2000, 3000], values: bar,baz",
-            "SeriesFrame, tags: _f=int_field,_m=the_table,tag1=val1, type: 1",
+            "SeriesFrame, tags: _field=int_field,_measurement=the_table,tag1=val1, type: 1",
             "IntegerPointsFrame, timestamps: [2000, 3000], values: \"2,3\"",
-            "SeriesFrame, tags: _f=float_field,_m=the_table,tag1=val1, type: 0",
+            "SeriesFrame, tags: _field=float_field,_measurement=the_table,tag1=val1, type: 0",
             "FloatPointsFrame, timestamps: [2000, 3000], values: \"20.1,30.1\"",
-            "SeriesFrame, tags: _f=boolean_field,_m=the_table,tag1=val1, type: 3",
+            "SeriesFrame, tags: _field=boolean_field,_measurement=the_table,tag1=val1, type: 3",
             "BooleanPointsFrame, timestamps: [2000, 3000], values: false,true",
         ];
 
@@ -422,7 +434,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let expected_frames = vec![
-            "SeriesFrame, tags: _f=float_field,_m=the_table,tag1=val1, type: 0",
+            "SeriesFrame, tags: _field=float_field,_measurement=the_table,tag1=val1, type: 0",
             "FloatPointsFrame, timestamps: [2000, 3000], values: \"20.1,30.1\"",
         ];
 

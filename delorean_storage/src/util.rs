@@ -1,5 +1,8 @@
 //! This module contains DataFusion utility functions and helpers
-use delorean_arrow::datafusion::logical_plan::Expr;
+use delorean_arrow::datafusion::{
+    logical_plan::Expr, logical_plan::LogicalPlan, optimizer::utils::inputs,
+};
+use std::io::Write;
 
 /// Encode the traversal of an expression tree. When passed to
 /// `visit_expression`, `ExpressionVisitor::visit` is invoked
@@ -53,5 +56,19 @@ pub fn visit_expression<V: ExpressionVisitor>(expr: &Expr, visitor: &mut V) {
         }
         Expr::Nested(expr) => visit_expression(expr, visitor),
         Expr::Sort { expr, .. } => visit_expression(expr, visitor),
+    }
+}
+/// Dumps the plan, and schema information to a string
+pub fn dump_plan(p: &LogicalPlan) -> String {
+    let mut buf = Vec::new();
+    dump_plan_impl("", p, &mut buf);
+    String::from_utf8_lossy(&buf).to_string()
+}
+
+fn dump_plan_impl(prefix: &str, p: &LogicalPlan, buf: &mut impl Write) {
+    writeln!(buf, "{:?}, input schema: {:?}", p, p.schema()).unwrap();
+    let new_prefix = format!("{}    ", prefix);
+    for i in inputs(p) {
+        dump_plan_impl(&new_prefix, i, buf);
     }
 }

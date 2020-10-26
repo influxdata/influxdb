@@ -25,7 +25,7 @@ use seriesset::{
     SeriesSetConverter,
 };
 use stringset::{IntoStringSet, StringSet, StringSetRef};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::SendError};
 
 use snafu::{ResultExt, Snafu};
 
@@ -77,6 +77,11 @@ pub enum Error {
 
     #[snafu(display("Internal error creating FieldList: {}", source))]
     FieldListConversion { source: fieldlist::Error },
+
+    #[snafu(display("Sending series set results during conversion: {:?}", source))]
+    SendingDuringConversion {
+        source: Box<SendError<Result<SeriesSet, SeriesSetError>>>,
+    },
 
     #[snafu(display("Joining execution task: {}", source))]
     JoinError { source: tokio::task::JoinError },
@@ -243,6 +248,8 @@ impl Executor {
     /// Executes the embedded plans, each as separate tasks, sending
     /// the resulting `SeriesSet`s one by one to the `tx` chanel.
     ///
+    /// The SeriesSets are guaranteed to come back ordered by table_name
+    ///
     /// Note that the returned future resolves (e.g. "returns") once
     /// all plans have been sent to `tx`. This means that the future
     /// will not resolve if there is nothing hooked up receiving
@@ -251,13 +258,18 @@ impl Executor {
     pub async fn to_series_set(
         &self,
         series_set_plans: SeriesSetPlans,
-        tx: mpsc::Sender<Result<SeriesSet, SeriesSetError>>,
+        mut tx: mpsc::Sender<Result<SeriesSet, SeriesSetError>>,
     ) -> Result<()> {
-        let SeriesSetPlans { plans } = series_set_plans;
+        let SeriesSetPlans { mut plans } = series_set_plans;
 
         if plans.is_empty() {
             return Ok(());
         }
+
+        // sort by table name and send the results to separate
+        // channels
+        plans.sort_by(|a, b| a.table_name.cmp(&b.table_name));
+        let mut rx_channels = Vec::new(); // sorted by table names
 
         // Run the plans in parallel
         let handles = plans
@@ -265,7 +277,9 @@ impl Executor {
             .map(|plan| {
                 // Clone Arc's for transmission to threads
                 let counters = self.counters.clone();
-                let tx = tx.clone();
+                let (plan_tx, plan_rx) = mpsc::channel(1);
+                rx_channels.push(plan_rx);
+
                 tokio::task::spawn(async move {
                     let SeriesSetPlan {
                         table_name,
@@ -289,7 +303,7 @@ impl Executor {
                         .await
                         .context(SeriesSetExecution)?;
 
-                    SeriesSetConverter::new(tx)
+                    SeriesSetConverter::new(plan_tx)
                         .convert(table_name, tag_columns, field_columns, it)
                         .await
                         .context(SeriesSetConversion)?;
@@ -299,7 +313,19 @@ impl Executor {
             })
             .collect::<Vec<_>>();
 
-        // now, wait for all the values to resolve and report any errors
+        // transfer data from the rx steams in order
+        for mut rx in rx_channels {
+            while let Some(r) = rx.recv().await {
+                tx.send(r)
+                    .await
+                    .map_err(|e| Error::SendingDuringConversion {
+                        source: Box::new(e),
+                    })?
+            }
+        }
+
+        // now, wait for all the values to resolve so we can report
+        // any errors
         for join_handle in handles.into_iter() {
             join_handle.await.context(JoinError)??;
         }
@@ -462,10 +488,7 @@ async fn run_logical_plans(
             // TODO run these on some executor other than the main tokio pool
             tokio::task::spawn(async move {
                 let ctx = DeloreanExecutionContext::new(counters);
-                let physical_plan = ctx
-                    .make_plan(&plan)
-                    .await
-                    .context(DataFusionPhysicalPlanning)?;
+                let physical_plan = ctx.make_plan(&plan).await.expect("making logical plan");
 
                 // TODO: avoid this buffering
                 ctx.collect(physical_plan)

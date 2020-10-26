@@ -17,21 +17,20 @@
 
 use assert_cmd::prelude::*;
 use delorean_generated_types::{
-    delorean_client::DeloreanClient,
     node::{Comparison, Value},
     read_group_request::Group,
-    read_response::{frame::Data, DataType},
+    read_response::{frame::Data, *},
     storage_client::StorageClient,
     MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, Node, Organization, Predicate, ReadFilterRequest,
-    ReadGroupRequest, ReadSource, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
+    MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest, ReadSource,
+    Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 use delorean_test_helpers::*;
 use futures::prelude::*;
 use prost::Message;
 use std::convert::TryInto;
 use std::fs;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command};
 use std::str;
 use std::time::{Duration, SystemTime};
 use std::u32;
@@ -45,46 +44,31 @@ const TOKEN: &str = "delorean doesn't have authentication yet";
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-macro_rules! assert_unwrap {
-    ($e:expr, $p:path) => {
-        match $e {
-            $p(v) => v,
-            _ => panic!("{} was not a {}", stringify!($e), stringify!($p)),
-        }
-    };
-    ($e:expr, $p:path, $extra:tt) => {
-        match $e {
-            $p(v) => v,
-            _ => {
-                let extra = format_args!($extra);
-                panic!("{} was not a {}: {}", stringify!($e), stringify!($p), extra);
-            }
-        }
-    };
-}
-
-async fn read_data(
+async fn read_data_as_sql(
     client: &reqwest::Client,
     path: &str,
     org_id: &str,
     bucket_id: &str,
-    predicate: &str,
-    seconds_ago: u64,
-) -> Result<String> {
+    sql_query: &str,
+) -> Result<Vec<String>> {
     let url = format!("{}{}", API_BASE, path);
-    Ok(client
+    let lines = client
         .get(&url)
         .query(&[
             ("bucket", bucket_id),
             ("org", org_id),
-            ("predicate", predicate),
-            ("start", &format!("-{}s", seconds_ago)),
+            ("sql_query", sql_query),
         ])
         .send()
         .await?
         .error_for_status()?
         .text()
-        .await?)
+        .await?
+        .trim()
+        .split('\n')
+        .map(str::to_string)
+        .collect();
+    Ok(lines)
 }
 
 async fn write_data(
@@ -111,21 +95,6 @@ async fn read_and_write_data() -> Result<()> {
 
     let client = reqwest::Client::new();
     let client2 = influxdb2_client::Client::new(HTTP_BASE, TOKEN);
-    let mut grpc_client = DeloreanClient::connect(GRPC_URL_BASE).await?;
-
-    let get_buckets_request = tonic::Request::new(Organization {
-        id: org_id,
-        name: "test".into(),
-        buckets: vec![],
-    });
-    let get_buckets_response = grpc_client.get_buckets(get_buckets_request).await?;
-    let get_buckets_response = get_buckets_response.into_inner();
-    let org_buckets = get_buckets_response.buckets;
-
-    // This checks that gRPC is functioning and that we're starting from an org without buckets.
-    assert!(org_buckets.is_empty());
-
-    client2.create_bucket(org_id_str, bucket_id_str).await?;
 
     let start_time = SystemTime::now();
     let ns_since_epoch: i64 = start_time
@@ -190,49 +159,34 @@ async fn read_and_write_data() -> Result<()> {
     ];
     write_data(&client2, org_id_str, bucket_id_str, points).await?;
 
-    let end_time = SystemTime::now();
-    let duration = end_time
-        .duration_since(start_time)
-        .expect("End time should have been after start time");
-    let seconds_ago = duration.as_secs() + 1;
-
-    let expected_read_data = format!(
-        "\
-_m,host,region,_f,_time,_value
-cpu_load_short,server01,us-west,value,{},0.64
-cpu_load_short,server01,us-west,value,{},0.000003
-
-_m,host,_f,_time,_value
-cpu_load_short,server01,value,{},27.99
-
-_m,host,region,_f,_time,_value
-cpu_load_short,server01,us-east,value,{},1234567.891011
-
-_m,host,name,_f,_time,_value
-swap,server01,disk0,in,{},3
-
-_m,host,name,_f,_time,_value
-swap,server01,disk0,out,{},4
-
-",
+    let expected_read_data = substitute_nanos(
         ns_since_epoch,
-        ns_since_epoch + 4,
-        ns_since_epoch + 1,
-        ns_since_epoch + 3,
-        ns_since_epoch + 6,
-        ns_since_epoch + 6,
+        &[
+            "+----------+---------+---------------------+----------------+",
+            "| host     | region  | time                | value          |",
+            "+----------+---------+---------------------+----------------+",
+            "| server01 | us-west | ns0 | 0.64           |",
+            "| server01 |         | ns1 | 27.99          |",
+            "| server02 | us-west | ns2 | 3.89           |",
+            "| server01 | us-east | ns3 | 1234567.891011 |",
+            "| server01 | us-west | ns4 | 0.000003       |",
+            "+----------+---------+---------------------+----------------+",
+        ],
     );
 
-    let text = read_data(
+    let text = read_data_as_sql(
         &client,
         "/read",
         org_id_str,
         bucket_id_str,
-        r#"host="server01""#,
-        seconds_ago,
+        "select * from cpu_load_short",
     )
     .await?;
-    assert_eq!(text, expected_read_data);
+    assert_eq!(
+        text, expected_read_data,
+        "Actual:\n{:#?}\nExpected:\n{:#?}",
+        text, expected_read_data
+    );
 
     // Make an invalid organization WAL dir to test that the server ignores it instead of crashing
     let invalid_org_dir = server.dir.path().join("not-an-org-id");
@@ -243,19 +197,13 @@ swap,server01,disk0,out,{},4
     server.wait_until_ready().await;
 
     // Then check the entries are restored from the WAL
-    let end_time = SystemTime::now();
-    let duration = end_time
-        .duration_since(start_time)
-        .expect("End time should have been after start time");
-    let seconds_ago = duration.as_secs() + 1;
 
-    let text = read_data(
+    let text = read_data_as_sql(
         &client,
         "/read",
         org_id_str,
         bucket_id_str,
-        r#"host="server01""#,
-        seconds_ago,
+        "select * from cpu_load_short",
     )
     .await?;
     assert_eq!(text, expected_read_data);
@@ -312,7 +260,7 @@ swap,server01,disk0,out,{},4
     let read_response = storage_client.read_filter(read_filter_request).await?;
 
     let responses: Vec<_> = read_response.into_inner().try_collect().await?;
-    let frames: Vec<_> = responses
+    let frames: Vec<Data> = responses
         .into_iter()
         .flat_map(|r| r.frames)
         .flat_map(|f| f.data)
@@ -320,99 +268,28 @@ swap,server01,disk0,out,{},4
 
     assert_eq!(frames.len(), 10);
 
-    let f = assert_unwrap!(&frames[0], Data::Series, "in frame 0");
-    assert_eq!(f.data_type, DataType::Float as i32, "in frame 0");
+    let expected_frames = substitute_nanos(ns_since_epoch, &[
+        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=, type: 0",
+        "FloatPointsFrame, timestamps: [ns1], values: \"27.99\"",
+        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=us-east, type: 0",
+        "FloatPointsFrame, timestamps: [ns3], values: \"1234567.891011\"",
+        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=us-west, type: 0",
+        "FloatPointsFrame, timestamps: [ns0, ns4], values: \"0.64,0.000003\"",
+        "SeriesFrame, tags: _field=in,_measurement=swap,host=server01,name=disk0, type: 1",
+        "IntegerPointsFrame, timestamps: [ns6], values: \"3\"",
+        "SeriesFrame, tags: _field=out,_measurement=swap,host=server01,name=disk0, type: 1",
+        "IntegerPointsFrame, timestamps: [ns6], values: \"4\""
+    ]);
+
+    let actual_frames = dump_data_frames(&frames);
+
     assert_eq!(
-        tags_as_strings(&f.tags),
-        vec![
-            ("_field", "value"),
-            ("_measurement", "cpu_load_short"),
-            ("host", "server01"),
-            ("region", "us-west"),
-        ],
-        "in frame 0",
+        expected_frames,
+        actual_frames,
+        "Expected:\n{}\nActual:\n{}",
+        expected_frames.join("\n"),
+        actual_frames.join("\n")
     );
-
-    let f = assert_unwrap!(&frames[1], Data::FloatPoints, "in frame 1");
-    assert_eq!(
-        f.timestamps,
-        [ns_since_epoch, ns_since_epoch + 4],
-        "in frame 1"
-    );
-    assert!(
-        all_approximately_equal(&f.values, &[0.64, 0.000_003]),
-        "in frame 1"
-    );
-
-    let f = assert_unwrap!(&frames[2], Data::Series, "in frame 2");
-    assert_eq!(f.data_type, DataType::Float as i32, "in frame 2");
-    assert_eq!(
-        tags_as_strings(&f.tags),
-        vec![
-            ("_field", "value"),
-            ("_measurement", "cpu_load_short"),
-            ("host", "server01"),
-        ],
-        "in frame 2",
-    );
-
-    let f = assert_unwrap!(&frames[3], Data::FloatPoints, "in frame 3");
-    assert_eq!(f.timestamps, [ns_since_epoch + 1], "in frame 3");
-    assert!(all_approximately_equal(&f.values, &[27.99]), "in frame 3");
-
-    let f = assert_unwrap!(&frames[4], Data::Series, "in frame 4");
-    assert_eq!(f.data_type, DataType::Float as i32, "in frame 4");
-    assert_eq!(
-        tags_as_strings(&f.tags),
-        vec![
-            ("_field", "value"),
-            ("_measurement", "cpu_load_short"),
-            ("host", "server01"),
-            ("region", "us-east"),
-        ],
-        "in frame 4",
-    );
-
-    let f = assert_unwrap!(&frames[5], Data::FloatPoints, "in frame 5");
-    assert_eq!(f.timestamps, [ns_since_epoch + 3], "in frame 5");
-    assert!(
-        all_approximately_equal(&f.values, &[1_234_567.891_011]),
-        "in frame 5"
-    );
-
-    let f = assert_unwrap!(&frames[6], Data::Series, "in frame 6");
-    assert_eq!(f.data_type, DataType::Integer as i32, "in frame 6");
-    assert_eq!(
-        tags_as_strings(&f.tags),
-        vec![
-            ("_field", "in"),
-            ("_measurement", "swap"),
-            ("host", "server01"),
-            ("name", "disk0"),
-        ],
-        "in frame 6",
-    );
-
-    let f = assert_unwrap!(&frames[7], Data::IntegerPoints, "in frame 7");
-    assert_eq!(f.timestamps, [ns_since_epoch + 6], "in frame 7");
-    assert_eq!(f.values, [3], "in frame 7");
-
-    let f = assert_unwrap!(&frames[8], Data::Series, "in frame 8");
-    assert_eq!(f.data_type, DataType::Integer as i32, "in frame 8");
-    assert_eq!(
-        tags_as_strings(&f.tags),
-        vec![
-            ("_field", "out"),
-            ("_measurement", "swap"),
-            ("host", "server01"),
-            ("name", "disk0"),
-        ],
-        "in frame 8",
-    );
-
-    let f = assert_unwrap!(&frames[9], Data::IntegerPoints, "in frame 9");
-    assert_eq!(f.timestamps, [ns_since_epoch + 6], "in frame 9");
-    assert_eq!(f.values, [4], "in frame 9");
 
     let tag_keys_request = tonic::Request::new(TagKeysRequest {
         tags_source: read_source.clone(),
@@ -444,7 +321,7 @@ swap,server01,disk0,out,{},4
     let values = &responses[0].values;
     let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
-    assert_eq!(values, vec!["server01", "server02", "server03"]);
+    assert_eq!(values, vec!["server01"]);
 
     let read_group_request = tonic::Request::new(ReadGroupRequest {
         read_source: read_source.clone(),
@@ -464,53 +341,27 @@ swap,server01,disk0,out,{},4
         .flat_map(|f| f.data)
         .collect();
 
-    assert_eq!(frames.len(), 8);
+    let expected_group_frames = substitute_nanos(ns_since_epoch, &[
+        "GroupFrame, tag_keys: region, partition_key_vals: ",
+        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,region=,host=server01, type: 0",
+        "FloatPointsFrame, timestamps: [ns1], values: \"27.99\"",
+        "GroupFrame, tag_keys: region, partition_key_vals: us-east",
+        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,region=us-east,host=server01, type: 0",
+        "FloatPointsFrame, timestamps: [ns3], values: \"1234567.891011\"",
+        "GroupFrame, tag_keys: region, partition_key_vals: us-west",
+        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,region=us-west,host=server01, type: 0",
+        "FloatPointsFrame, timestamps: [ns0, ns4], values: \"0.64,0.000003\""
+    ]);
 
-    let f = assert_unwrap!(&frames[0], Data::Group, "in frame 0");
+    let actual_group_frames = dump_data_frames(&frames);
+
     assert_eq!(
-        byte_vecs_to_strings(&f.tag_keys),
-        vec!["_field", "_measurement", "host", "region"]
+        expected_group_frames,
+        actual_group_frames,
+        "Expected:\n{}\nActual:\n{}",
+        expected_group_frames.join("\n"),
+        actual_group_frames.join("\n")
     );
-    let partition_vals = byte_vecs_to_strings(&f.partition_key_vals);
-    assert_eq!(partition_vals, vec!["us-east"], "in frame 0");
-
-    let f = assert_unwrap!(&frames[1], Data::FloatPoints, "in frame 1");
-    assert_eq!(f.timestamps, [ns_since_epoch + 3], "in frame 1");
-    assert!(
-        all_approximately_equal(&f.values, &[1_234_567.891_011]),
-        "in frame 1"
-    );
-
-    let f = assert_unwrap!(&frames[2], Data::Group, "in frame 2");
-    assert_eq!(
-        byte_vecs_to_strings(&f.tag_keys),
-        vec!["_field", "_measurement", "host", "region"]
-    );
-    let partition_vals = byte_vecs_to_strings(&f.partition_key_vals);
-    assert_eq!(partition_vals, vec!["us-west"], "in frame 2");
-
-    let f = assert_unwrap!(&frames[3], Data::FloatPoints, "in frame 3");
-    assert_eq!(
-        f.timestamps,
-        [ns_since_epoch, ns_since_epoch + 4],
-        "in frame 3"
-    );
-    assert!(
-        all_approximately_equal(&f.values, &[0.64, 0.000_003]),
-        "in frame 3"
-    );
-
-    let f = assert_unwrap!(&frames[4], Data::Group, "in frame 4");
-    assert_eq!(
-        byte_vecs_to_strings(&f.tag_keys),
-        vec!["_field", "_measurement", "host", "name"]
-    );
-    assert_eq!(f.partition_key_vals.len(), 1, "in frame 4");
-    assert!(f.partition_key_vals[0].is_empty(), "in frame 4");
-
-    let f = assert_unwrap!(&frames[5], Data::FloatPoints, "in frame 5");
-    assert_eq!(f.timestamps, [ns_since_epoch + 1], "in frame 5");
-    assert!(all_approximately_equal(&f.values, &[27.99]), "in frame 5");
 
     let measurement_names_request = tonic::Request::new(MeasurementNamesRequest {
         source: read_source.clone(),
@@ -572,7 +423,7 @@ swap,server01,disk0,out,{},4
     let values = &responses[0].values;
     let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
-    assert_eq!(values, vec!["server01", "server02"]);
+    assert_eq!(values, vec!["server01"]);
 
     let measurement_fields_request = tonic::Request::new(MeasurementFieldsRequest {
         source: read_source.clone(),
@@ -611,19 +462,32 @@ async fn test_http_error_messages(client: &influxdb2_client::Client) -> Result<(
         .await
         .expect_err("Should have errored");
 
-    let expected_error = r#"HTTP request returned an error: 400 Bad Request, `{"error":"Invalid query string 'bucket=Foo&org=Bar': ID must have a length of 16 bytes, was 3 bytes: 'Foo'"}`"#;
+    let expected_error = "HTTP request returned an error: 400 Bad Request, `{\"error\":\"Error parsing line protocol: A generic parsing error occurred: TakeWhile1\"}`";
     assert_eq!(result.to_string(), expected_error);
 
     Ok(())
 }
 
-fn tags_as_strings(tags: &[Tag]) -> Vec<(&str, &str)> {
-    tags.iter()
-        .map(|t| {
-            (
-                str::from_utf8(&t.key).unwrap(),
-                str::from_utf8(&t.value).unwrap(),
-            )
+/// substitutes "ns" --> ns_since_epoch, ns1-->ns_since_epoch+1, etc
+fn substitute_nanos(ns_since_epoch: i64, lines: &[&str]) -> Vec<String> {
+    let substitutions = vec![
+        ("ns0", format!("{}", ns_since_epoch)),
+        ("ns1", format!("{}", ns_since_epoch + 1)),
+        ("ns2", format!("{}", ns_since_epoch + 2)),
+        ("ns3", format!("{}", ns_since_epoch + 3)),
+        ("ns4", format!("{}", ns_since_epoch + 4)),
+        ("ns5", format!("{}", ns_since_epoch + 5)),
+        ("ns6", format!("{}", ns_since_epoch + 6)),
+    ];
+
+    lines
+        .iter()
+        .map(|line| {
+            let mut line = line.to_string();
+            for (from, to) in &substitutions {
+                line = line.replace(from, to);
+            }
+            line
         })
         .collect()
 }
@@ -644,7 +508,9 @@ impl TestServer {
         let dir = delorean_test_helpers::tmp_dir()?;
 
         let server_process = Command::cargo_bin("delorean")?
-            .stdout(Stdio::null())
+            // Can enable for debbugging
+            //.arg("-vv")
+            .arg("write-buffer")
             .env("DELOREAN_DB_DIR", dir.path())
             .spawn()?;
 
@@ -658,7 +524,9 @@ impl TestServer {
         self.server_process.kill()?;
         self.server_process.wait()?;
         self.server_process = Command::cargo_bin("delorean")?
-            .stdout(Stdio::null())
+            // Can enable for debbugging
+            //.arg("-vv")
+            .arg("write-buffer")
             .env("DELOREAN_DB_DIR", self.dir.path())
             .spawn()?;
         Ok(())
@@ -723,6 +591,77 @@ impl Drop for TestServer {
     }
 }
 
-fn byte_vecs_to_strings(v: &[Vec<u8>]) -> Vec<&str> {
-    v.iter().map(|i| str::from_utf8(i).unwrap()).collect()
+fn dump_data_frames(frames: &[Data]) -> Vec<String> {
+    frames.iter().map(|f| dump_data(f)).collect()
+}
+
+fn dump_data(data: &Data) -> String {
+    match Some(data) {
+        Some(Data::Series(SeriesFrame { tags, data_type })) => format!(
+            "SeriesFrame, tags: {}, type: {:?}",
+            dump_tags(tags),
+            data_type
+        ),
+        Some(Data::FloatPoints(FloatPointsFrame { timestamps, values })) => format!(
+            "FloatPointsFrame, timestamps: {:?}, values: {:?}",
+            timestamps,
+            dump_values(values)
+        ),
+        Some(Data::IntegerPoints(IntegerPointsFrame { timestamps, values })) => format!(
+            "IntegerPointsFrame, timestamps: {:?}, values: {:?}",
+            timestamps,
+            dump_values(values)
+        ),
+        Some(Data::BooleanPoints(BooleanPointsFrame { timestamps, values })) => format!(
+            "BooleanPointsFrame, timestamps: {:?}, values: {}",
+            timestamps,
+            dump_values(values)
+        ),
+        Some(Data::StringPoints(StringPointsFrame { timestamps, values })) => format!(
+            "StringPointsFrame, timestamps: {:?}, values: {}",
+            timestamps,
+            dump_values(values)
+        ),
+        Some(Data::Group(GroupFrame {
+            tag_keys,
+            partition_key_vals,
+        })) => format!(
+            "GroupFrame, tag_keys: {}, partition_key_vals: {}",
+            dump_u8_vec(tag_keys),
+            dump_u8_vec(partition_key_vals),
+        ),
+        None => "<NO data field>".into(),
+        _ => ":thinking_face: unknown frame type".into(),
+    }
+}
+
+fn dump_values<T>(v: &[T]) -> String
+where
+    T: std::fmt::Display,
+{
+    v.iter()
+        .map(|item| format!("{}", item))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn dump_u8_vec(encoded_strings: &[Vec<u8>]) -> String {
+    encoded_strings
+        .iter()
+        .map(|b| String::from_utf8_lossy(b))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn dump_tags(tags: &[Tag]) -> String {
+    tags.iter()
+        .map(|tag| {
+            format!(
+                "{}={}",
+                String::from_utf8_lossy(&tag.key),
+                String::from_utf8_lossy(&tag.value),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
 }

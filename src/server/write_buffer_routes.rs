@@ -256,7 +256,7 @@ struct ReadInfo {
     bucket: String,
     // TODL This is currently a "SQL" request -- should be updated to conform
     // to the V2 API for reading (using timestamps, etc).
-    query: String,
+    sql_query: String,
 }
 
 // TODO: figure out how to stream read results out rather than rendering the whole thing in mem
@@ -279,7 +279,7 @@ async fn read<T: DatabaseStore>(
     })?;
 
     let results = db
-        .query(&read_info.query)
+        .query(&read_info.sql_query)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(QueryError {})?;

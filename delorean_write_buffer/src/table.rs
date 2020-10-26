@@ -1,8 +1,10 @@
 use delorean_generated_types::wal as wb;
 use delorean_storage::{
-    exec::make_schema_pivot, exec::GroupedSeriesSetPlan, exec::SeriesSetPlan, Predicate,
-    TimestampRange,
+    exec::{make_schema_pivot, GroupedSeriesSetPlan, SeriesSetPlan},
+    util::dump_plan,
+    Predicate, TimestampRange,
 };
+use tracing::debug;
 
 use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
 
@@ -423,6 +425,13 @@ impl Table {
 
         // And finally pivot the plan
         let plan = make_schema_pivot(plan);
+
+        debug!(
+            "Created column_name plan for table '{}':\n{}",
+            partition.dictionary.lookup_id(self.id).unwrap(),
+            dump_plan(&plan)
+        );
+
         Ok(plan)
     }
 

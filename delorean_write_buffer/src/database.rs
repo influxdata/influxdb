@@ -488,7 +488,10 @@ impl Database for Db {
         predicate: Option<Predicate>,
         group_columns: Vec<String>,
     ) -> Result<GroupedSeriesSetPlans, Self::Error> {
-        let mut filter = PartitionTableFilter::new(None, range, predicate.as_ref());
+        let mut filter = PartitionTableFilter::new(None, range, predicate.as_ref())
+            // Add any specified groups as predicate columns (so we can skip tables without those tags)
+            .add_predicate_columns(&group_columns);
+
         let mut visitor = GroupsVisitor::new(predicate, group_columns);
         self.visit_tables(&mut filter, &mut visitor).await?;
         Ok(visitor.plans.into())
@@ -735,6 +738,20 @@ impl PartitionTableFilter {
             predicate_table_name,
             predicate_table_columns,
         }
+    }
+
+    /// adds the specified columns to the list of columns used in predicates / etc
+    fn add_predicate_columns(mut self, column_names: &[String]) -> Self {
+        let mut predicate_columns = self.predicate_columns.take().unwrap_or_else(HashSet::new);
+
+        for c in column_names {
+            if !predicate_columns.contains(c) {
+                predicate_columns.insert(c.clone());
+            }
+        }
+
+        self.predicate_columns = Some(predicate_columns);
+        self
     }
 
     /// Called when each partition gets visited. Since ids are
