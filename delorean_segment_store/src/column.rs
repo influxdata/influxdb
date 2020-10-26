@@ -347,17 +347,17 @@ impl StringEncoding {
 }
 
 pub enum IntegerEncoding {
-    S64S64(fixed::Fixed<i64>),
-    S64S32(fixed::Fixed<i32>),
-    S64U32(fixed::Fixed<u32>),
-    S64S16(fixed::Fixed<i16>),
-    S64U16(fixed::Fixed<u16>),
-    S64S8(fixed::Fixed<i8>),
-    S64U8(fixed::Fixed<u8>),
+    I64I64(fixed::Fixed<i64>),
+    I64I32(fixed::Fixed<i32>),
+    I64U32(fixed::Fixed<u32>),
+    I64I16(fixed::Fixed<i16>),
+    I64U16(fixed::Fixed<u16>),
+    I64I8(fixed::Fixed<i8>),
+    I64U8(fixed::Fixed<u8>),
     // TODO - add all the other possible integer combinations.
 
     // Nullable encodings
-    S64S64N(fixed_null::FixedNull<arrow::datatypes::Int64Type>),
+    I64I64N(fixed_null::FixedNull<arrow::datatypes::Int64Type>),
 }
 
 pub enum FloatEncoding {
@@ -417,7 +417,7 @@ impl From<&[i64]> for Column {
                     rows: data.num_rows(),
                     range: Some((min, max)),
                 };
-                Column::Integer(meta, IntegerEncoding::S64U8(data))
+                Column::Integer(meta, IntegerEncoding::I64U8(data))
             }
             // encode as i8 values
             (min, max) if min >= i8::MIN as i64 && max <= i8::MAX as i64 => {
@@ -427,7 +427,7 @@ impl From<&[i64]> for Column {
                     rows: data.num_rows(),
                     range: Some((min, max)),
                 };
-                Column::Integer(meta, IntegerEncoding::S64S8(data))
+                Column::Integer(meta, IntegerEncoding::I64I8(data))
             }
             // encode as u16 values
             (min, max) if min >= 0 && max <= u16::MAX as i64 => {
@@ -437,7 +437,7 @@ impl From<&[i64]> for Column {
                     rows: data.num_rows(),
                     range: Some((min, max)),
                 };
-                Column::Integer(meta, IntegerEncoding::S64U16(data))
+                Column::Integer(meta, IntegerEncoding::I64U16(data))
             }
             // encode as i16 values
             (min, max) if min >= i16::MIN as i64 && max <= i16::MAX as i64 => {
@@ -447,7 +447,7 @@ impl From<&[i64]> for Column {
                     rows: data.num_rows(),
                     range: Some((min, max)),
                 };
-                Column::Integer(meta, IntegerEncoding::S64S16(data))
+                Column::Integer(meta, IntegerEncoding::I64I16(data))
             }
             // encode as u32 values
             (min, max) if min >= 0 && max <= u32::MAX as i64 => {
@@ -457,7 +457,7 @@ impl From<&[i64]> for Column {
                     rows: data.num_rows(),
                     range: Some((min, max)),
                 };
-                Column::Integer(meta, IntegerEncoding::S64U32(data))
+                Column::Integer(meta, IntegerEncoding::I64U32(data))
             }
             // encode as i32 values
             (min, max) if min >= i32::MIN as i64 && max <= i32::MAX as i64 => {
@@ -467,7 +467,7 @@ impl From<&[i64]> for Column {
                     rows: data.num_rows(),
                     range: Some((min, max)),
                 };
-                Column::Integer(meta, IntegerEncoding::S64S32(data))
+                Column::Integer(meta, IntegerEncoding::I64I32(data))
             }
             // otherwise, encode with the same physical type (i64)
             (_, _) => {
@@ -477,7 +477,7 @@ impl From<&[i64]> for Column {
                     rows: data.num_rows(),
                     range: Some((min, max)),
                 };
-                Column::Integer(meta, IntegerEncoding::S64S64(data))
+                Column::Integer(meta, IntegerEncoding::I64I64(data))
             }
         }
     }
@@ -526,7 +526,7 @@ impl From<arrow::array::Int64Array> for Column {
             rows: data.num_rows(),
             range,
         };
-        Column::Integer(meta, IntegerEncoding::S64S64N(data))
+        Column::Integer(meta, IntegerEncoding::I64I64N(data))
     }
 }
 
@@ -756,43 +756,49 @@ mod test {
         let input = &[0, u8::MAX as i64];
         assert!(matches!(
             Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::S64U8(_))
+            Column::Integer(_, IntegerEncoding::I64U8(_))
         ));
 
         let input = &[0, u16::MAX as i64];
         assert!(matches!(
             Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::S64U16(_))
+            Column::Integer(_, IntegerEncoding::I64U16(_))
         ));
 
         let input = &[0, u32::MAX as i64];
         assert!(matches!(
             Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::S64U32(_))
+            Column::Integer(_, IntegerEncoding::I64U32(_))
         ));
 
         let input = &[-1, i8::MAX as i64];
         assert!(matches!(
             Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::S64S8(_))
+            Column::Integer(_, IntegerEncoding::I64I8(_))
         ));
 
         let input = &[-1, i16::MAX as i64];
         assert!(matches!(
             Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::S64S16(_))
+            Column::Integer(_, IntegerEncoding::I64I16(_))
         ));
 
         let input = &[-1, i32::MAX as i64];
         assert!(matches!(
             Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::S64S32(_))
+            Column::Integer(_, IntegerEncoding::I64I32(_))
+        ));
+
+        let input = &[-1, i64::MAX];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I64I64(_))
         ));
 
         // validate min/max check
         let input = &[0, -12, u16::MAX as i64, 5];
         let col = Column::from(&input[..]);
-        if let Column::Integer(meta, IntegerEncoding::S64S32(_)) = col {
+        if let Column::Integer(meta, IntegerEncoding::I64I32(_)) = col {
             assert_eq!(meta.size, 40); // 3 i32s and a vec
             assert_eq!(meta.rows, 4);
             assert_eq!(meta.range, Some((-12, u16::MAX as i64)));
