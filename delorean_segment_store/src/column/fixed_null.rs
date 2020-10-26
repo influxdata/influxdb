@@ -96,11 +96,11 @@ where
 
     /// Return the logical (decoded) value at the provided row ID. A NULL value
     /// is represented by None.
-    pub fn value(&self, row_id: usize) -> Option<T::Native> {
-        if self.arr.is_null(row_id) {
+    pub fn value(&self, row_id: u32) -> Option<T::Native> {
+        if self.arr.is_null(row_id as usize) {
             return None;
         }
-        Some(self.arr.value(row_id))
+        Some(self.arr.value(row_id as usize))
     }
 
     /// Returns the logical (decoded) values for the provided row IDs.
@@ -111,17 +111,17 @@ where
     /// integers representing the null validity bitmap.
     pub fn values(
         &self,
-        row_ids: &[usize],
+        row_ids: &[u32],
         mut dst: Vec<Option<T::Native>>,
     ) -> Vec<Option<T::Native>> {
         dst.clear();
         dst.reserve(row_ids.len());
 
         for &row_id in row_ids {
-            if self.arr.is_null(row_id) {
+            if self.arr.is_null(row_id as usize) {
                 dst.push(None)
             } else {
-                dst.push(Some(self.arr.value(row_id)))
+                dst.push(Some(self.arr.value(row_id as usize)))
             }
         }
         assert_eq!(dst.len(), row_ids.len());
@@ -219,22 +219,22 @@ where
 
     /// Returns the first logical (decoded) value from the provided
     /// row IDs.
-    pub fn first(&self, row_ids: &[usize]) -> Option<T::Native> {
+    pub fn first(&self, row_ids: &[u32]) -> Option<T::Native> {
         self.value(row_ids[0])
     }
 
     /// Returns the last logical (decoded) value from the provided
     /// row IDs.
-    pub fn last(&self, row_ids: &[usize]) -> Option<T::Native> {
+    pub fn last(&self, row_ids: &[u32]) -> Option<T::Native> {
         self.value(row_ids[row_ids.len() - 1])
     }
 
     /// Returns the minimum logical (decoded) non-null value from the provided
     /// row IDs.
-    pub fn min(&self, row_ids: &[usize]) -> Option<T::Native> {
+    pub fn min(&self, row_ids: &[u32]) -> Option<T::Native> {
         let mut min: Option<T::Native> = self.value(row_ids[0]);
         for &v in row_ids.iter().skip(1) {
-            if self.arr.is_null(v) {
+            if self.arr.is_null(v as usize) {
                 continue;
             }
 
@@ -247,10 +247,10 @@ where
 
     /// Returns the maximum logical (decoded) non-null value from the provided
     /// row IDs.
-    pub fn max(&self, row_ids: &[usize]) -> Option<T::Native> {
+    pub fn max(&self, row_ids: &[u32]) -> Option<T::Native> {
         let mut max: Option<T::Native> = self.value(row_ids[0]);
         for &v in row_ids.iter().skip(1) {
-            if self.arr.is_null(v) {
+            if self.arr.is_null(v as usize) {
                 continue;
             }
 
