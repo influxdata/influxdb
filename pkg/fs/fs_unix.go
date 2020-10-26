@@ -71,14 +71,14 @@ func CreateFile(newpath string) (*os.File, error) {
 
 // DiskUsage returns disk usage of disk of path
 func DiskUsage(path string) (*DiskStatus, error) {
-	var disk DiskStatus
 	fs := unix.Statfs_t{}
-	err := unix.Statfs(path, &fs)
-	if err != nil {
+	if err := unix.Statfs(path, &fs); err != nil {
 		return nil, err
 	}
+
+	var disk DiskStatus
 	disk.All = fs.Blocks * uint64(fs.Bsize)
-	disk.Avail = fs.Bavail * uint64(fs.Bsize)
+	disk.Avail = uint64(fs.Bavail) * uint64(fs.Bsize)
 	disk.Free = fs.Bfree * uint64(fs.Bsize)
 	disk.Used = disk.All - disk.Free
 	return &disk, nil
