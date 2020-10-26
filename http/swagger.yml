@@ -1750,7 +1750,6 @@ paths:
   /api/v2/write:
     servers:
       - url: /
-        description: V1 compatible api endpoints.
     post:
       operationId: PostWrite
       tags:
@@ -3371,7 +3370,6 @@ paths:
   /api/v2/query:
     servers:
       - url: /
-        description: V1 compatible api endpoints.
     post:
       operationId: PostQuery
       tags:
