@@ -26,7 +26,7 @@ use tokio_util::codec::{BytesCodec, FramedRead};
 
 /// Universal interface to multiple object store services.
 #[derive(Debug)]
-pub struct ObjectStore(ObjectStoreIntegration);
+pub struct ObjectStore(pub ObjectStoreIntegration);
 
 impl ObjectStore {
     /// Configure a connection to Amazon S3.
@@ -108,10 +108,14 @@ impl ObjectStore {
 
 /// All supported object storage integrations
 #[derive(Debug)]
-enum ObjectStoreIntegration {
+pub enum ObjectStoreIntegration {
+    /// GCP storage
     GoogleCloudStorage(GoogleCloudStorage),
+    /// Amazon storage
     AmazonS3(AmazonS3),
+    /// In memory storage for testing
     InMemory(InMemory),
+    /// Local file system storage
     File(File),
 }
 
@@ -368,6 +372,16 @@ impl InMemory {
     /// Create new in-memory storage.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Creates a clone of the store
+    pub async fn clone(&self) -> Self {
+        let storage = self.storage.read().await;
+        let storage = storage.clone();
+
+        Self {
+            storage: RwLock::new(storage),
+        }
     }
 
     /// Save the provided bytes to the specified location.
