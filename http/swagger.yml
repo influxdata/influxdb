@@ -9654,10 +9654,6 @@ components:
         type:
           type: string
           enum: [ heatmap, circleMap, pointMap, trackMap]
-    FieldLegendProperties:
-      type: object
-      properties:
-        label: string
     GeoCircleViewLayer:
       allOf:
         - $ref: "#/components/schemas/GeoViewLayerProperties"
@@ -9775,7 +9771,8 @@ components:
               format: double
         zoom:
           description: Zoom level used for initial display of the map
-          type: float64
+          type: number
+          format: double
           minimum: 1
           maximum: 28
         allowPanAndZoom:
