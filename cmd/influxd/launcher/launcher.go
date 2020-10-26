@@ -65,6 +65,7 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/middleware"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	telegrafservice "github.com/influxdata/influxdb/v2/telegraf/service"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
@@ -768,8 +769,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
 		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
 		scraperTargetSvc platform.ScraperTargetStoreService       = m.kvService
-		telegrafSvc      platform.TelegrafConfigStore             = m.kvService
-		lookupSvc        platform.LookupService                   = m.kvService
 	)
 
 	tenantStore := tenant.NewStore(m.kvStore)
@@ -1006,6 +1005,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		notificationRuleSvc = middleware.NewNotificationRuleStore(notificationRuleSvc, m.kvService, coordinator)
 	}
 
+	var telegrafSvc platform.TelegrafConfigStore
+	{
+		telegrafSvc = telegrafservice.New(m.kvStore)
+	}
+
 	// NATS streaming server
 	natsOpts := nats.NewDefaultServerOptions()
 
@@ -1158,11 +1162,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 	}
 
-	// orgIDResolver is a deprecated type which combines the lookups
+	// resourceResolver is a deprecated type which combines the lookups
 	// of multiple resources into one type, used to resolve the resources
-	// associated org ID. It is a stop-gap while we move this behaviour
-	// off of *kv.Service to aid in reducing the coupling on this type.
-	orgIDResolver := &resource.OrgIDResolver{
+	// associated org ID or name . It is a stop-gap while we move this
+	// behaviour off of *kv.Service to aid in reducing the coupling on this type.
+	resourceResolver := &resource.Resolver{
 		AuthorizationFinder:        authSvc,
 		BucketFinder:               ts.BucketService,
 		OrganizationFinder:         ts.OrganizationService,
@@ -1224,9 +1228,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		ScraperTargetStoreService:       scraperTargetSvc,
 		ChronografService:               chronografSvc,
 		SecretService:                   secretSvc,
-		LookupService:                   lookupSvc,
+		LookupService:                   resourceResolver,
 		DocumentService:                 m.kvService,
-		OrgLookupService:                orgIDResolver,
+		OrgLookupService:                resourceResolver,
 		WriteEventRecorder:              infprom.NewEventRecorder("write"),
 		QueryEventRecorder:              infprom.NewEventRecorder("query"),
 		Flagger:                         m.flagger,
