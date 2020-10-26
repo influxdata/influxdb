@@ -80,7 +80,7 @@ struct MetaData<'a> {
     size: u64,
 
     // The total number of rows in the table.
-    rows: u64,
+    rows: u32,
 
     // The distinct set of columns for this table (all of these columns will
     // appear in all of the table's segments) and the range of values for
