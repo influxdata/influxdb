@@ -761,6 +761,10 @@ func (s TestQueryProfiler) Name() string {
 	return fmt.Sprintf("query%d", s.start)
 }
 
+func (s TestQueryProfiler) GetSortedResult(q flux.Query, alloc *memory.Allocator, desc bool, sortKeys ...string) (flux.Table, error) {
+	return nil, nil
+}
+
 func (s TestQueryProfiler) GetResult(q flux.Query, alloc *memory.Allocator) (flux.Table, error) {
 	groupKey := execute.NewGroupKey(
 		[]flux.ColMeta{
