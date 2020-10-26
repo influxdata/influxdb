@@ -9780,7 +9780,7 @@ components:
       properties:
         type:
           type: string
-          enum: [ heatmap, circleMap, pointMap, trackMap]
+          enum: [heatmap, circleMap, pointMap, trackMap]
     GeoCircleViewLayer:
       allOf:
         - $ref: "#/components/schemas/GeoViewLayerProperties"
