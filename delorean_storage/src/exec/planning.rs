@@ -132,7 +132,7 @@ impl DeloreanExecutionContext {
             1 => physical_plan.execute(0).await,
             _ => {
                 // merge into a single partition
-                let plan = MergeExec::new(physical_plan, self.inner.config().concurrency);
+                let plan = MergeExec::new(physical_plan);
                 // MergeExec must produce a single partition
                 assert_eq!(1, plan.output_partitioning().partition_count());
                 plan.execute(0).await

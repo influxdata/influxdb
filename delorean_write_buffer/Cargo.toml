@@ -15,7 +15,7 @@ delorean_wal = { path = "../delorean_wal" }
 delorean_wal_writer = { path = "../delorean_wal_writer" }
 delorean_test_helpers = { path = "../delorean_test_helpers" }
 
-async-trait = "0.1.40"
+async-trait = "0.1"
 chrono = "0.4"
 flatbuffers = "0.6.1"
 snafu = "0.6.2"
