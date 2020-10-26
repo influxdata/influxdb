@@ -6,8 +6,9 @@ use std::env::VarError;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::server::write_buffer_routes;
-use crate::server::write_buffer_rpc;
+use crate::server::http_routes;
+use crate::server::rpc::storage;
+
 use delorean_storage::exec::Executor as StorageExecutor;
 use delorean_write_buffer::{Db, WriteBufferDatabases};
 use hyper::service::{make_service_fn, service_fn};
@@ -51,7 +52,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     };
 
-    let grpc_server = write_buffer_rpc::make_server(grpc_bind_addr, storage.clone(), executor);
+    let grpc_server = storage::make_server(grpc_bind_addr, storage.clone(), executor);
 
     info!("gRPC server listening on http://{}", grpc_bind_addr);
 
@@ -72,7 +73,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         async move {
             Ok::<_, http::Error>(service_fn(move |req| {
                 let state = storage.clone();
-                write_buffer_routes::service(req, state)
+                http_routes::service(req, state)
             }))
         }
     });

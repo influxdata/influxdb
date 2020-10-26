@@ -1,5 +1,6 @@
-//! This module contains gRPC service implementatations for the WriteBuffer
-//! storage implementation
+//! This module contains implementations for the storage gRPC service
+//! implemented in terms of the `delorean_storage::Database` and
+//! `delorean_storage::DatabaseStore`
 
 // Something in instrument is causing lint warnings about unused braces
 #![allow(unused_braces)]
@@ -42,7 +43,7 @@ use tokio::sync::mpsc;
 use tonic::Status;
 use tracing::warn;
 
-use super::rpc::data::{
+use super::data::{
     fieldlist_to_measurement_fields_response, grouped_series_set_item_to_read_response,
     series_set_to_read_response, tag_keys_to_byte_vecs,
 };
@@ -1746,7 +1747,7 @@ mod tests {
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
-        let expected_error = "panicked at 'This is a test panic', src/server/write_buffer_rpc.rs:";
+        let expected_error = "panicked at 'This is a test panic', src/server/rpc/storage.rs";
         assert!(
             captured_logs.contains(expected_error),
             "Logs did not contain expected panic message '{}'. They were\n{}",
