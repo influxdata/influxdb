@@ -20,15 +20,15 @@
 use std::sync::Arc;
 
 use arrow::{
-    array::StringArray,
-    datatypes::DataType,
-    datatypes::SchemaRef,
-    record_batch::{RecordBatch, RecordBatchReader},
+    array::StringArray, datatypes::DataType, datatypes::SchemaRef, record_batch::RecordBatch,
 };
-use delorean_arrow::arrow::{self};
+use delorean_arrow::{
+    arrow::{self},
+    datafusion::physical_plan::SendableRecordBatchStream,
+};
 use delorean_data_types::TIME_COLUMN_NAME;
-//use snafu::{ensure, OptionExt, Snafu};
 use snafu::{ResultExt, Snafu};
+use tokio::stream::StreamExt;
 use tokio::sync::mpsc::{self, error::SendError};
 
 use croaring::bitmap::Bitmap;
@@ -148,7 +148,7 @@ impl SeriesSetConverter {
         table_name: Arc<String>,
         tag_columns: Arc<Vec<Arc<String>>>,
         field_columns: Arc<Vec<Arc<String>>>,
-        it: Box<dyn RecordBatchReader + Send>,
+        it: SendableRecordBatchStream,
     ) -> Result<()> {
         // Make sure that any error that results from processing is sent along
         if let Err(e) = self
@@ -171,13 +171,13 @@ impl SeriesSetConverter {
         table_name: Arc<String>,
         tag_columns: Arc<Vec<Arc<String>>>,
         field_columns: Arc<Vec<Arc<String>>>,
-        mut it: Box<dyn RecordBatchReader + Send>,
+        mut it: SendableRecordBatchStream,
     ) -> Result<()> {
         // for now, only handle a single record batch
-        if let Some(batch) = it.next() {
+        if let Some(batch) = it.next().await {
             let batch = batch.context(ReadingRecordBatch)?;
 
-            if it.next().is_some() {
+            if it.next().await.is_some() {
                 // but not yet
                 unimplemented!("Computing series across multiple record batches not yet supported");
             }
@@ -377,7 +377,7 @@ impl GroupedSeriesSetConverter {
         tag_columns: Arc<Vec<Arc<String>>>,
         num_prefix_tag_group_columns: usize,
         field_columns: Arc<Vec<Arc<String>>>,
-        it: Box<dyn RecordBatchReader + Send>,
+        it: SendableRecordBatchStream,
     ) -> Result<()> {
         // Make sure that any error that results from processing is sent along
         if let Err(e) = self
@@ -407,7 +407,7 @@ impl GroupedSeriesSetConverter {
         tag_columns: Arc<Vec<Arc<String>>>,
         num_prefix_tag_group_columns: usize,
         field_columns: Arc<Vec<Arc<String>>>,
-        it: Box<dyn RecordBatchReader + Send>,
+        it: SendableRecordBatchStream,
     ) -> Result<()> {
         // Convert the batches into series sets using
         // SeriesSetConverter, and insert the appropriate GroupStart
@@ -486,7 +486,7 @@ mod tests {
         record_batch::RecordBatch,
         util::pretty::pretty_format_batches,
     };
-    use delorean_arrow::datafusion::physical_plan::common::RecordBatchIterator;
+    use delorean_arrow::datafusion::physical_plan::common::SizedRecordBatchStream;
     use delorean_test_helpers::{str_pair_vec_to_vec, str_vec_to_arc_vec};
 
     use super::*;
@@ -494,8 +494,7 @@ mod tests {
     #[tokio::test]
     async fn test_convert_empty() -> Result<()> {
         let schema = Arc::new(Schema::new(vec![]));
-        let empty_iterator: Box<dyn RecordBatchReader + Send> =
-            Box::new(RecordBatchIterator::new(schema, vec![]));
+        let empty_iterator = Box::pin(SizedRecordBatchStream::new(schema, vec![]));
 
         let table_name = "foo";
         let tag_columns = [];
@@ -846,7 +845,7 @@ mod tests {
         table_name: &'a str,
         tag_columns: &'a [&'a str],
         field_columns: &'a [&'a str],
-        it: Box<dyn RecordBatchReader + Send>,
+        it: SendableRecordBatchStream,
     ) -> Vec<Result<SeriesSet>> {
         let (tx, mut rx) = mpsc::channel(1);
         let mut converter = SeriesSetConverter::new(tx);
@@ -875,7 +874,7 @@ mod tests {
         tag_columns: &'a [&'a str],
         num_prefix_tag_group_columns: usize,
         field_columns: &'a [&'a str],
-        it: Box<dyn RecordBatchReader + Send>,
+        it: SendableRecordBatchStream,
     ) -> Vec<Result<GroupedSeriesSetItem>> {
         let (tx, mut rx) = mpsc::channel(1);
         let mut converter = GroupedSeriesSetConverter::new(tx);
@@ -934,8 +933,8 @@ mod tests {
         first_batch.unwrap()
     }
 
-    fn parse_to_iterator(schema: SchemaRef, data: &str) -> Box<dyn RecordBatchReader + Send> {
+    fn parse_to_iterator(schema: SchemaRef, data: &str) -> SendableRecordBatchStream {
         let batch = parse_to_record_batch(schema.clone(), data);
-        Box::new(RecordBatchIterator::new(schema, vec![Arc::new(batch)]))
+        Box::pin(SizedRecordBatchStream::new(schema, vec![Arc::new(batch)]))
     }
 }

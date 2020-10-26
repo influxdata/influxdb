@@ -3,7 +3,7 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use delorean_arrow::arrow::{
-    array::{ArrayRef, BooleanArray, Float64Array, Int64Array, PrimitiveArrayOps, StringArray},
+    array::{ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray},
     datatypes::DataType as ArrowDataType,
 };
 

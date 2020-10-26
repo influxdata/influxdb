@@ -99,7 +99,7 @@ dependencies = [
 [[package]]
 name = "arrow"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=7696b89e68637ea1c54ef806a095a18ea7b2936f#7696b89e68637ea1c54ef806a095a18ea7b2936f"
+source = "git+https://github.com/apache/arrow.git?rev=eea8d352bf3196a29c1ccf5e6c7342913916048a#eea8d352bf3196a29c1ccf5e6c7342913916048a"
 dependencies = [
  "chrono",
  "csv",
@@ -700,7 +700,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=7696b89e68637ea1c54ef806a095a18ea7b2936f#7696b89e68637ea1c54ef806a095a18ea7b2936f"
+source = "git+https://github.com/apache/arrow.git?rev=eea8d352bf3196a29c1ccf5e6c7342913916048a#eea8d352bf3196a29c1ccf5e6c7342913916048a"
 dependencies = [
  "arrow 3.0.0-SNAPSHOT",
  "async-trait",
@@ -708,6 +708,7 @@ dependencies = [
  "clap",
  "crossbeam",
  "fnv",
+ "futures",
  "num_cpus",
  "parquet",
  "paste",
@@ -2186,7 +2187,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=7696b89e68637ea1c54ef806a095a18ea7b2936f#7696b89e68637ea1c54ef806a095a18ea7b2936f"
+source = "git+https://github.com/apache/arrow.git?rev=eea8d352bf3196a29c1ccf5e6c7342913916048a#eea8d352bf3196a29c1ccf5e6c7342913916048a"
 dependencies = [
  "arrow 3.0.0-SNAPSHOT",
  "brotli",

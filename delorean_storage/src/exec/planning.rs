@@ -4,9 +4,8 @@ use std::sync::Arc;
 
 use delorean_arrow::{
     arrow::record_batch::RecordBatch,
-    arrow::record_batch::RecordBatchReader,
-    datafusion::physical_plan::common::RecordBatchIterator,
     datafusion::physical_plan::merge::MergeExec,
+    datafusion::physical_plan::SendableRecordBatchStream,
     datafusion::{
         execution::context::ExecutionContextState,
         execution::context::QueryPlanner,
@@ -26,7 +25,7 @@ use crate::util::dump_plan;
 use tracing::debug;
 
 // Reuse DataFusion error and Result types for this module
-pub use delorean_arrow::datafusion::error::{ExecutionError as Error, Result};
+pub use delorean_arrow::datafusion::error::{DataFusionError as Error, Result};
 
 use super::counters::ExecutionCounters;
 
@@ -72,7 +71,7 @@ impl ExtensionPlanner for DeloreanExtensionPlanner {
                     schema_pivot.schema().clone(),
                 )))
             }
-            None => Err(Error::General(format!(
+            None => Err(Error::Internal(format!(
                 "Unknown extension node type {:?}",
                 node
             ))),
@@ -122,25 +121,20 @@ impl DeloreanExecutionContext {
         self.inner.collect(physical_plan).await
     }
 
-    /// Executes the physical plan and produces a RecordBatchReader
+    /// Executes the physical plan and produces a RecordBatchStream to stream over the result
     /// that iterates over the results.
     pub async fn execute(
         &self,
         physical_plan: Arc<dyn ExecutionPlan>,
-    ) -> Result<Box<dyn RecordBatchReader + Send>> {
-        match physical_plan.output_partitioning().partition_count() {
-            0 => {
-                let empty_iterator = RecordBatchIterator::new(physical_plan.schema(), vec![]);
-                Ok(Box::new(empty_iterator))
-            }
-            1 => physical_plan.execute(0).await,
-            _ => {
-                // merge into a single partition
-                let plan = MergeExec::new(physical_plan);
-                // MergeExec must produce a single partition
-                assert_eq!(1, plan.output_partitioning().partition_count());
-                plan.execute(0).await
-            }
+    ) -> Result<SendableRecordBatchStream> {
+        if physical_plan.output_partitioning().partition_count() <= 1 {
+            physical_plan.execute(0).await
+        } else {
+            // merge into a single partition
+            let plan = MergeExec::new(physical_plan);
+            // MergeExec must produce a single partition
+            assert_eq!(1, plan.output_partitioning().partition_count());
+            plan.execute(0).await
         }
     }
 }

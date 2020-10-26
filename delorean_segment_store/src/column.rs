@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 use croaring::Bitmap;
 
-use delorean_arrow::{arrow, arrow::array::Array, arrow::array::PrimitiveArrayOps};
+use delorean_arrow::{arrow, arrow::array::Array};
 
 /// The possible logical types that column values can have. All values in a
 /// column have the same physical type.

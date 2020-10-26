@@ -1709,7 +1709,6 @@ where
 }
 
 use delorean_arrow::arrow::array::Array;
-use delorean_arrow::arrow::array::PrimitiveArrayOps;
 
 impl From<arrow::array::Float64Array> for NumericColumn<f64> {
     fn from(arr: arrow::array::Float64Array) -> Self {

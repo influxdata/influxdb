@@ -114,7 +114,7 @@ pub enum Error {
 
     #[snafu(display("Error building plan: {}", source))]
     BuildingPlan {
-        source: datafusion::error::ExecutionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display("arrow conversion error: {}", source))]

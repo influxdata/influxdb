@@ -30,15 +30,19 @@ use async_trait::async_trait;
 use delorean_arrow::{
     arrow::array::StringBuilder,
     arrow::datatypes::{DataType, Field, Schema, SchemaRef},
-    arrow::record_batch::{RecordBatch, RecordBatchReader},
+    arrow::record_batch::RecordBatch,
     datafusion::logical_plan::{self, Expr, LogicalPlan, UserDefinedLogicalNode},
-    datafusion::physical_plan::{
-        common::RecordBatchIterator, Distribution, ExecutionPlan, Partitioning,
+    datafusion::physical_plan::common::SizedRecordBatchStream,
+    datafusion::physical_plan::SendableRecordBatchStream,
+    datafusion::{
+        error::DataFusionError,
+        physical_plan::{Distribution, ExecutionPlan, Partitioning},
     },
 };
 
-// publically export an opaque error type
-pub use delorean_arrow::datafusion::error::{ExecutionError, ExecutionError as Error, Result};
+use tokio::stream::StreamExt;
+
+pub use delorean_arrow::datafusion::error::{DataFusionError as Error, Result};
 
 /// Implementes the SchemaPivot operation described in make_schema_pivot,
 pub struct SchemaPivotNode {
@@ -180,16 +184,16 @@ impl ExecutionPlan for SchemaPivotExec {
                 input: children[0].clone(),
                 schema: self.schema.clone(),
             })),
-            _ => Err(ExecutionError::General(
+            _ => Err(DataFusionError::Internal(
                 "SchemaPivotExec wrong number of children".to_string(),
             )),
         }
     }
 
     /// Execute one partition and return an iterator over RecordBatch
-    async fn execute(&self, partition: usize) -> Result<Box<dyn RecordBatchReader + Send>> {
+    async fn execute(&self, partition: usize) -> Result<SendableRecordBatchStream> {
         if 0 != partition {
-            return Err(ExecutionError::General(format!(
+            return Err(DataFusionError::Internal(format!(
                 "SchemaPivotExec invalid partition {}",
                 partition
             )));
@@ -212,7 +216,7 @@ impl ExecutionPlan for SchemaPivotExec {
         // use a loop so that we release the mutex once we have read each input_batch
         let mut keep_searching = true;
         while keep_searching {
-            let input_batch = input_reader.next().transpose()?;
+            let input_batch = input_reader.next().await.transpose()?;
 
             keep_searching = match input_batch {
                 Some(input_batch) => {
@@ -265,7 +269,10 @@ impl ExecutionPlan for SchemaPivotExec {
             RecordBatch::try_new(self.schema(), vec![Arc::new(column_name_builder.finish())])?;
 
         let batches = vec![Arc::new(batch)];
-        Ok(Box::new(RecordBatchIterator::new(self.schema(), batches)))
+        Ok(Box::pin(SizedRecordBatchStream::new(
+            self.schema(),
+            batches,
+        )))
     }
 }
 
@@ -415,10 +422,11 @@ mod tests {
     }
 
     /// Return a StringSet extracted from the record batch
-    fn reader_to_stringset(mut reader: Box<dyn RecordBatchReader>) -> StringSetRef {
+    async fn reader_to_stringset(mut reader: SendableRecordBatchStream) -> StringSetRef {
         let mut batches = Vec::new();
         // process the record batches one by one
-        while let Some(record_batch) = reader.next().transpose().expect("reading next batch") {
+        while let Some(record_batch) = reader.next().await.transpose().expect("reading next batch")
+        {
             batches.push(record_batch)
         }
         batches
@@ -514,7 +522,7 @@ mod tests {
 
             let results = pivot.execute(0).await.expect("Correctly executed pivot");
 
-            reader_to_stringset(results)
+            reader_to_stringset(results).await
         }
     }
 }

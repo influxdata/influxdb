@@ -29,7 +29,7 @@ use delorean_arrow::{
     datafusion::optimizer::utils::expr_to_column_names,
     datafusion::prelude::ExecutionConfig,
     datafusion::{
-        datasource::MemTable, error::ExecutionError, execution::context::ExecutionContext,
+        datasource::MemTable, error::DataFusionError, execution::context::ExecutionContext,
     },
 };
 use delorean_data_types::data::{split_lines_into_write_entry_partitions, ReplicatedWrite};
@@ -186,7 +186,7 @@ pub enum Error {
     #[snafu(display("error executing query {}: {}", query, source))]
     QueryError {
         query: String,
-        source: ExecutionError,
+        source: DataFusionError,
     },
 
     #[snafu(display("Unsupported SQL statement in query {}: {}", query, statement))]

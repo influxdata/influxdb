@@ -38,32 +38,32 @@ pub enum Error {
 
     #[snafu(display("Internal error optimizing plan: {}", source))]
     DataFusionOptimization {
-        source: datafusion::error::ExecutionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display("Internal error during physical planning: {}", source))]
     DataFusionPhysicalPlanning {
-        source: datafusion::error::ExecutionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display("Internal error executing plan: {}", source))]
     DataFusionExecution {
-        source: datafusion::error::ExecutionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display("Internal error executing series set set plan: {}", source))]
     SeriesSetExecution {
-        source: datafusion::error::ExecutionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display("Internal error executing grouped series set set plan: {}", source))]
     GroupedSeriesSetExecution {
-        source: datafusion::error::ExecutionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display("Internal error executing field set plan: {}", source))]
     FieldListExectuon {
-        source: datafusion::error::ExecutionError,
+        source: datafusion::error::DataFusionError,
     },
 
     #[snafu(display("Internal error extracting results from Record Batches: {}", message))]

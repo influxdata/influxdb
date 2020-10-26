@@ -16,9 +16,7 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 
 use croaring::Bitmap;
-
 use delorean_arrow::arrow;
-use delorean_arrow::arrow::array::PrimitiveArrayOps;
 use delorean_arrow::arrow::array::{Array, PrimitiveArray};
 use delorean_arrow::arrow::datatypes::ArrowNumericType;
 

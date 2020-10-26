@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::iter;
 use std::mem::size_of;
 
-use delorean_arrow::arrow::array::PrimitiveArrayOps;
 use delorean_arrow::arrow::array::{Array, PrimitiveArray};
 use delorean_arrow::arrow::datatypes::ArrowNumericType;
 
