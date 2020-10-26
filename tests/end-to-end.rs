@@ -510,7 +510,6 @@ impl TestServer {
         let server_process = Command::cargo_bin("delorean")?
             // Can enable for debbugging
             //.arg("-vv")
-            .arg("write-buffer")
             .env("DELOREAN_DB_DIR", dir.path())
             .spawn()?;
 
@@ -526,7 +525,6 @@ impl TestServer {
         self.server_process = Command::cargo_bin("delorean")?
             // Can enable for debbugging
             //.arg("-vv")
-            .arg("write-buffer")
             .env("DELOREAN_DB_DIR", self.dir.path())
             .spawn()?;
         Ok(())

@@ -19,7 +19,6 @@ mod commands {
     pub mod convert;
     pub mod file_meta;
     mod input;
-    pub mod server;
     pub mod stats;
     pub mod write_buffer_server;
 }
@@ -118,17 +117,8 @@ Examples:
                 ),
         )
         .subcommand(
-            SubCommand::with_name("write-buffer")
-                .about("Starts the delorean server using the write buffer database implementation.")
-        )
-        .subcommand(
             SubCommand::with_name("server")
                 .about("Runs in server mode (default)")
-                .arg(
-                    Arg::with_name("write-buffer")
-                        .help("Run the server with the write buffer database enabled rather than MemDB")
-                        .short("wb"),
-                ),
         )
         .arg(Arg::with_name("verbose").short("v").long("verbose").multiple(true).help(
             "Enables verbose logging (use 'vv' for even more verbosity). You can also set log level via \
@@ -192,19 +182,9 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
                 }
             }
         }
-        ("write-buffer", Some(_sub_matches)) => {
-            println!("Starting delorean server using WriteBuffer implementation...");
-            match commands::write_buffer_server::main().await {
-                Ok(()) => eprintln!("Shutdown OK"),
-                Err(e) => {
-                    error!("Server shutdown with error: {:?}", e);
-                    std::process::exit(ReturnCode::ServerExitedAbnormally as _);
-                }
-            }
-        }
         ("server", Some(_)) | (_, _) => {
-            println!("Starting delorean server...");
-            match commands::server::main().await {
+            println!("Starting delorean server");
+            match commands::write_buffer_server::main().await {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {
                     error!("Server shutdown with error: {:?}", e);
