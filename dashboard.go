@@ -562,7 +562,7 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape string `json:"shape"`
 			GeoViewProperties
 		}{
-			Shape: "chronograf-v2",
+			Shape:             "chronograf-v2",
 			GeoViewProperties: vis,
 		}
 	case XYViewProperties:
@@ -968,44 +968,45 @@ type GaugeViewProperties struct {
 
 // Geographical coordinates
 type Datum struct {
-    Lat               float64          `json:"lat"`
-    Lon               float64          `json:"lon"`
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
 }
+
 // Single visualization layer properties of a chronograf map widget
 type GeoLayer struct {
-	Type                  string           `json:"type"`
-	RadiusField           string           `json:"radiusField"`
-	ColorField            string           `json:"colorField"`
-	IntensityField        string           `json:"intensityField"`
-    // circle layer properties
-	ViewColors            []ViewColor      `json:"colors"`
-	Radius                int32            `json:"radius"`
-	Blur                  int32            `json:"blur"`
-	RadiusDimension       Axis             `json:"radiusDimension"`
-	ColorDimension        Axis             `json:"colorDimension"`
-	IntensityDimension    Axis             `json:"intensityDimension"`
-	InterpolateColors     bool             `json:"interpolateColors"`
-    // track layer properties
-    TrackWidth            int32            `json:"trackWidth"`
-    Speed                 int32            `json:"speed"`
-    RandomColors          bool             `json:"randomColors"`
-    // point layer properties
-   	IsClustered           bool             `json:"isClustered"`
+	Type           string `json:"type"`
+	RadiusField    string `json:"radiusField"`
+	ColorField     string `json:"colorField"`
+	IntensityField string `json:"intensityField"`
+	// circle layer properties
+	ViewColors         []ViewColor `json:"colors"`
+	Radius             int32       `json:"radius"`
+	Blur               int32       `json:"blur"`
+	RadiusDimension    Axis        `json:"radiusDimension"`
+	ColorDimension     Axis        `json:"colorDimension"`
+	IntensityDimension Axis        `json:"intensityDimension"`
+	InterpolateColors  bool        `json:"interpolateColors"`
+	// track layer properties
+	TrackWidth   int32 `json:"trackWidth"`
+	Speed        int32 `json:"speed"`
+	RandomColors bool  `json:"randomColors"`
+	// point layer properties
+	IsClustered bool `json:"isClustered"`
 }
 
 // GeoViewProperties represents options for map view in Chronograf
 type GeoViewProperties struct {
-	Type                   string             `json:"type"`
-	Queries                []DashboardQuery   `json:"queries"`
-	Center                 Datum              `json:"center"`
-	Zoom                   float64            `json:"zoom"`
-	MapStyle               string             `json:"mapStyle"`
-	AllowPanAndZoom        bool               `json:"allowPanAndZoom"`
-	DetectCoordinateFields bool               `json:"detectCoordinateFields"`
-	ViewColor              []ViewColor        `json:"colors"`
-	GeoLayers              []GeoLayer         `json:"layers"`
-	Note                   string             `json:"note"`
-	ShowNoteWhenEmpty      bool               `json:"showNoteWhenEmpty"`
+	Type                   string           `json:"type"`
+	Queries                []DashboardQuery `json:"queries"`
+	Center                 Datum            `json:"center"`
+	Zoom                   float64          `json:"zoom"`
+	MapStyle               string           `json:"mapStyle"`
+	AllowPanAndZoom        bool             `json:"allowPanAndZoom"`
+	DetectCoordinateFields bool             `json:"detectCoordinateFields"`
+	ViewColor              []ViewColor      `json:"colors"`
+	GeoLayers              []GeoLayer       `json:"layers"`
+	Note                   string           `json:"note"`
+	ShowNoteWhenEmpty      bool             `json:"showNoteWhenEmpty"`
 }
 
 // TableViewProperties represents options for table view in Chronograf
