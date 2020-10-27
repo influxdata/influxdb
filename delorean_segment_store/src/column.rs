@@ -388,6 +388,17 @@ pub enum IntegerEncoding {
     I64I8(fixed::Fixed<i8>),
     I64U8(fixed::Fixed<u8>),
 
+    U64U64(fixed::Fixed<u64>),
+    U64U32(fixed::Fixed<u32>),
+    U64U16(fixed::Fixed<u16>),
+    U64U8(fixed::Fixed<u8>),
+    U32U32(fixed::Fixed<u32>),
+    U32U16(fixed::Fixed<u16>),
+    U32U8(fixed::Fixed<u8>),
+    U16U16(fixed::Fixed<u16>),
+    U16U8(fixed::Fixed<u8>),
+    U8U8(fixed::Fixed<u8>),
+
     I32I32(fixed::Fixed<i32>),
     // TODO - add all the other possible integer combinations.
 
@@ -400,7 +411,7 @@ impl IntegerEncoding {
     pub fn value(&self, row_id: u32) -> Value<'_> {
         match &self {
             // N.B., The `Scalar` variant determines the physical type `U` that
-            // `c.value` should return.
+            // `c.value` should return as the logical type
             Self::I64I64(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
             Self::I64I32(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
             Self::I64U32(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
@@ -408,7 +419,28 @@ impl IntegerEncoding {
             Self::I64U16(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
             Self::I64I8(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
             Self::I64U8(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
+
+            // unsigned 64-bit variants - logical type is u64 for all these
+            Self::U64U64(c) => Value::Scalar(Scalar::U64(c.value(row_id))),
+            Self::U64U32(c) => Value::Scalar(Scalar::U64(c.value(row_id))),
+            Self::U64U16(c) => Value::Scalar(Scalar::U64(c.value(row_id))),
+            Self::U64U8(c) => Value::Scalar(Scalar::U64(c.value(row_id))),
+
+            // unsigned 32-bit variants - logical type is u32 for all these
+            Self::U32U32(c) => Value::Scalar(Scalar::U32(c.value(row_id))),
+            Self::U32U16(c) => Value::Scalar(Scalar::U32(c.value(row_id))),
+            Self::U32U8(c) => Value::Scalar(Scalar::U32(c.value(row_id))),
+
+            // unsigned 16-bit variants - logical type is u16 for all these
+            Self::U16U16(c) => Value::Scalar(Scalar::U16(c.value(row_id))),
+            Self::U16U8(c) => Value::Scalar(Scalar::U16(c.value(row_id))),
+
+            // unsigned 8-bit variant - logical type is u8
+            Self::U8U8(c) => Value::Scalar(Scalar::U8(c.value(row_id))),
+
+            // signed 32-bit variants
             Self::I32I32(c) => Value::Scalar(Scalar::I32(c.value(row_id))),
+
             Self::I64I64N(c) => match c.value(row_id) {
                 Some(v) => Value::Scalar(Scalar::I64(v)),
                 None => Value::Null,
@@ -460,6 +492,177 @@ impl From<&[&str]> for Column {
     fn from(arr: &[&str]) -> Self {
         let data = StringEncoding::from_strs(arr);
         Column::String(StringEncoding::meta(&data), data)
+    }
+}
+
+/// Converts a slice of u64 values into the most compact fixed-width physical
+/// encoding.
+impl From<&[u64]> for Column {
+    fn from(arr: &[u64]) -> Self {
+        // determine min and max values.
+        let mut min = arr[0];
+        let mut max = arr[0];
+        for &v in arr.iter().skip(1) {
+            min = min.min(v);
+            max = max.max(v);
+        }
+
+        // This match is carefully ordered. It prioritises smaller physical
+        // datatypes that can safely represent the provided logical data type.
+        match (min, max) {
+            // encode as u8 values
+            (min, max) if max <= u8::MAX as u64 => {
+                let data = fixed::Fixed::<u8>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min, max)),
+                };
+                Column::Unsigned(meta, IntegerEncoding::U64U8(data))
+            }
+            // encode as u16 values
+            (min, max) if max <= u16::MAX as u64 => {
+                let data = fixed::Fixed::<u16>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min, max)),
+                };
+                Column::Unsigned(meta, IntegerEncoding::U64U16(data))
+            }
+            // encode as u32 values
+            (min, max) if max <= u32::MAX as u64 => {
+                let data = fixed::Fixed::<u32>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min, max)),
+                };
+                Column::Unsigned(meta, IntegerEncoding::U64U32(data))
+            }
+            // otherwise, encode with the same physical type (u64)
+            (_, _) => {
+                let data = fixed::Fixed::<u64>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min, max)),
+                };
+                Column::Unsigned(meta, IntegerEncoding::U64U64(data))
+            }
+        }
+    }
+}
+
+/// Converts a slice of u32 values into the most compact fixed-width physical
+/// encoding.
+impl From<&[u32]> for Column {
+    fn from(arr: &[u32]) -> Self {
+        // determine min and max values.
+        let mut min = arr[0];
+        let mut max = arr[0];
+        for &v in arr.iter().skip(1) {
+            min = min.min(v);
+            max = max.max(v);
+        }
+
+        // This match is carefully ordered. It prioritises smaller physical
+        // datatypes that can safely represent the provided logical data type.
+        match (min, max) {
+            // encode as u8 values
+            (min, max) if max <= u8::MAX as u32 => {
+                let data = fixed::Fixed::<u8>::from(arr);
+                let meta = MetaData::<u64> {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as u64, max as u64)),
+                };
+                Column::Unsigned(meta, IntegerEncoding::U32U8(data))
+            }
+            // encode as u16 values
+            (min, max) if max <= u16::MAX as u32 => {
+                let data = fixed::Fixed::<u16>::from(arr);
+                let meta = MetaData::<u64> {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as u64, max as u64)),
+                };
+                Column::Unsigned(meta, IntegerEncoding::U32U16(data))
+            }
+            // encode as u32 values
+            (_, _) => {
+                let data = fixed::Fixed::<u32>::from(arr);
+                let meta = MetaData::<u64> {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as u64, max as u64)),
+                };
+                Column::Unsigned(meta, IntegerEncoding::U32U32(data))
+            }
+        }
+    }
+}
+
+/// Converts a slice of u16 values into the most compact fixed-width physical
+/// encoding.
+impl From<&[u16]> for Column {
+    fn from(arr: &[u16]) -> Self {
+        // determine min and max values.
+        let mut min = arr[0];
+        let mut max = arr[0];
+        for &v in arr.iter().skip(1) {
+            min = min.min(v);
+            max = max.max(v);
+        }
+
+        // This match is carefully ordered. It prioritises smaller physical
+        // datatypes that can safely represent the provided logical data type.
+        match (min, max) {
+            // encode as u8 values
+            (min, max) if max <= u8::MAX as u16 => {
+                let data = fixed::Fixed::<u8>::from(arr);
+                let meta = MetaData::<u64> {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as u64, max as u64)),
+                };
+                Column::Unsigned(meta, IntegerEncoding::U16U8(data))
+            }
+            // encode as u16 values
+            (_, _) => {
+                let data = fixed::Fixed::<u16>::from(arr);
+                let meta = MetaData::<u64> {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as u64, max as u64)),
+                };
+                Column::Unsigned(meta, IntegerEncoding::U16U16(data))
+            }
+        }
+    }
+}
+
+/// Converts a slice of u8 values into the most compact fixed-width physical
+/// encoding.
+impl From<&[u8]> for Column {
+    fn from(arr: &[u8]) -> Self {
+        // determine min and max values.
+        let mut min = arr[0];
+        let mut max = arr[0];
+        for &v in arr.iter().skip(1) {
+            min = min.min(v);
+            max = max.max(v);
+        }
+
+        // This match is carefully ordered. It prioritises smaller physical
+        // datatypes that can safely represent the provided logical data type.
+        let data = fixed::Fixed::<u8>::from(arr);
+        let meta = MetaData::<u64> {
+            size: data.size(),
+            rows: data.num_rows(),
+            range: Some((min as u64, max as u64)),
+        };
+        Column::Unsigned(meta, IntegerEncoding::U8U8(data))
     }
 }
 
@@ -672,7 +875,11 @@ pub enum Scalar {
     // TODO(edd): flesh out more logical types.
     I64(i64),
     I32(i32),
+
     U64(u64),
+    U32(u32),
+    U16(u16),
+    U8(u8),
 
     F64(f64),
     F32(f32),
@@ -888,7 +1095,7 @@ mod test {
         let input = &[0, -12, u16::MAX as i64, 5];
         let col = Column::from(&input[..]);
         if let Column::Integer(meta, IntegerEncoding::I64I32(_)) = col {
-            assert_eq!(meta.size, 40); // 3 i32s and a vec
+            assert_eq!(meta.size, 40); // 4 i32s (16b) and a vec (24b)
             assert_eq!(meta.rows, 4);
             assert_eq!(meta.range, Some((-12, u16::MAX as i64)));
         } else {
@@ -897,9 +1104,140 @@ mod test {
     }
 
     #[test]
+    fn from_u64_slice() {
+        let input = &[0, u8::MAX as u64];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Unsigned(_, IntegerEncoding::U64U8(_))
+        ));
+
+        let input = &[0, u16::MAX as u64];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Unsigned(_, IntegerEncoding::U64U16(_))
+        ));
+
+        let input = &[0, u32::MAX as u64];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Unsigned(_, IntegerEncoding::U64U32(_))
+        ));
+
+        // validate min/max check
+        let input = &[13, 12, u16::MAX as u64, 5];
+        let col = Column::from(&input[..]);
+        if let Column::Unsigned(meta, IntegerEncoding::U64U16(_)) = col {
+            assert_eq!(meta.size, 32); // 4 u16s (8b) and a vec (24b)
+            assert_eq!(meta.rows, 4);
+            assert_eq!(meta.range, Some((5, u16::MAX as u64)));
+        } else {
+            panic!("invalid variant");
+        }
+    }
+
+    #[test]
+    fn from_u32_slice() {
+        let input = &[0, u8::MAX as u32];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Unsigned(_, IntegerEncoding::U32U8(_))
+        ));
+
+        let input = &[0, u16::MAX as u32];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Unsigned(_, IntegerEncoding::U32U16(_))
+        ));
+
+        let input = &[0, u32::MAX as u32];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Unsigned(_, IntegerEncoding::U32U32(_))
+        ));
+
+        // validate min/max check
+        let input = &[13, 12, u16::MAX as u32, 5];
+        let col = Column::from(&input[..]);
+        if let Column::Unsigned(meta, IntegerEncoding::U32U16(_)) = col {
+            assert_eq!(meta.size, 32); // 4 u16s (8b) and a vec (24b)
+            assert_eq!(meta.rows, 4);
+            assert_eq!(meta.range, Some((5, u16::MAX as u64)));
+        } else {
+            panic!("invalid variant");
+        }
+    }
+
+    #[test]
+    fn from_u16_slice() {
+        let input = &[0, u8::MAX as u16];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Unsigned(_, IntegerEncoding::U16U8(_))
+        ));
+
+        let input = &[0, u16::MAX as u16];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Unsigned(_, IntegerEncoding::U16U16(_))
+        ));
+
+        // validate min/max check
+        let input = &[13, 12, u8::MAX as u16, 5];
+        let col = Column::from(&input[..]);
+        if let Column::Unsigned(meta, IntegerEncoding::U16U8(_)) = col {
+            assert_eq!(meta.size, 28); // 4 u8s (4b) and a vec (24b)
+            assert_eq!(meta.rows, 4);
+            assert_eq!(meta.range, Some((5, u8::MAX as u64)));
+        } else {
+            panic!("invalid variant");
+        }
+    }
+
+    #[test]
+    fn from_u8_slice() {
+        let input = &[0, u8::MAX];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Unsigned(_, IntegerEncoding::U8U8(_))
+        ));
+
+        // validate min/max check
+        let input = &[13, 12, u8::MAX, 5];
+        let col = Column::from(&input[..]);
+        if let Column::Unsigned(meta, IntegerEncoding::U8U8(_)) = col {
+            assert_eq!(meta.size, 28); // 4 u8s (4b) and a vec (24b)
+            assert_eq!(meta.rows, 4);
+            assert_eq!(meta.range, Some((5, u8::MAX as u64)));
+        } else {
+            panic!("invalid variant");
+        }
+    }
+
+    #[test]
     fn value() {
-        let col = Column::from(&[0, 1, 200, 20, -1][..]);
+        // The Scalar variant always represents the logical type of the column.
+        // The `value` method always returns values according to the logical
+        // type, no matter what the underlying physical type might be.
+
+        // physical type of `col` will be `i16` but logical type is `i64`
+        let col = Column::from(&[0_i64, 1, 200, 20, -1][..]);
         assert_eq!(col.value(4), Value::Scalar(Scalar::I64(-1)));
+
+        // physical type of `col` will be `u16` but logical type is `u64`
+        let col = Column::from(&[20_u64, 300][..]);
+        assert_eq!(col.value(1), Value::Scalar(Scalar::U64(300)));
+
+        // physical type of `col` will be `u8` but logical type is `u32`
+        let col = Column::from(&[20_u32, 3][..]);
+        assert_eq!(col.value(0), Value::Scalar(Scalar::U32(20)));
+
+        // physical type of `col` will be `u8` but logical type is `u16`
+        let col = Column::from(&[20_u16, 3][..]);
+        assert_eq!(col.value(1), Value::Scalar(Scalar::U16(3)));
+
+        // physical and logical type of `col` will be `u8`
+        let col = Column::from(&[243_u8, 198][..]);
+        assert_eq!(col.value(0), Value::Scalar(Scalar::U8(243)));
 
         let col = Column::from(&[-19.2, -30.2][..]);
         assert_eq!(col.value(0), Value::Scalar(Scalar::F64(-19.2)));
