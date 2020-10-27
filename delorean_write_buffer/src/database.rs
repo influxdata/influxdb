@@ -871,7 +871,7 @@ impl Visitor for NameVisitor {
         column: &Column,
         filter: &mut PartitionTableFilter,
     ) -> Result<()> {
-        if let Column::Tag(column) = column {
+        if let Column::Tag(column, _) = column {
             if table.column_matches_timestamp_predicate(column, filter.ts_pred.as_ref())? {
                 self.partition_column_ids.insert(column_id);
             }
@@ -1025,7 +1025,7 @@ impl<'a> Visitor for ValueVisitor<'a> {
         }
 
         match column {
-            Column::Tag(column) => {
+            Column::Tag(column, _) => {
                 // if we have a timestamp prediate, find all values
                 // that the timestamp is within range. Otherwise take
                 // all values.

@@ -9,11 +9,12 @@ use tracing::debug;
 use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
 
 use crate::{
+    column,
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
     partition::Partition,
 };
-use delorean_data_types::{data::type_description, TIME_COLUMN_NAME};
+use delorean_data_types::TIME_COLUMN_NAME;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use delorean_arrow::{
@@ -64,6 +65,12 @@ pub enum Error {
         column: String,
         existing_column_type: String,
         inserted_value_type: String,
+    },
+
+    #[snafu(display("Column error on column {}: {}", column, source))]
+    ColumnError {
+        column: String,
+        source: column::Error,
     },
 
     #[snafu(display(
@@ -230,43 +237,24 @@ impl Table {
                 .context(ColumnNameNotInRow { table: self.id })?;
             let column_id = dictionary.lookup_value_or_insert(column_name);
 
-            let mut column = match self.column_id_to_index.get(&column_id) {
+            let column = match self.column_id_to_index.get(&column_id) {
                 Some(idx) => &mut self.columns[*idx],
                 None => {
                     // Add the column and make all values for existing rows None
                     let idx = self.columns.len();
                     self.column_id_to_index.insert(column_id, idx);
                     self.columns.push(
-                        Column::new_from_wal(row_count, value.value_type())
+                        Column::new_from_value(dictionary, row_count, value)
                             .context(CreatingFromWal { column: column_id })?,
                     );
 
-                    &mut self.columns[idx]
+                    continue;
                 }
             };
 
-            if let (Column::Bool(vals), Some(v)) = (&mut column, value.value_as_bool_value()) {
-                vals.push(Some(v.value()));
-            } else if let (Column::I64(vals), Some(v)) = (&mut column, value.value_as_i64value()) {
-                vals.push(Some(v.value()));
-            } else if let (Column::F64(vals), Some(v)) = (&mut column, value.value_as_f64value()) {
-                vals.push(Some(v.value()));
-            } else if let (Column::String(vals), Some(v)) =
-                (&mut column, value.value_as_string_value())
-            {
-                vals.push(Some(v.value().unwrap().to_string()));
-            } else if let (Column::Tag(vals), Some(v)) = (&mut column, value.value_as_tag_value()) {
-                let v_id = dictionary.lookup_value_or_insert(v.value().unwrap());
-
-                vals.push(Some(v_id));
-            } else {
-                return ColumnTypeMismatch {
-                    column: column_name,
-                    existing_column_type: column.type_description(),
-                    inserted_value_type: type_description(value.value_type()),
-                }
-                .fail();
-            }
+            column.push(dictionary, &value).context(ColumnError {
+                column: column_name,
+            })?;
         }
 
         // make sure all the columns are of the same length
@@ -295,7 +283,7 @@ impl Table {
     pub fn column_i64(&self, column_id: u32) -> Result<&[Option<i64>]> {
         let column = self.column(column_id)?;
         match column {
-            Column::I64(vals) => Ok(vals),
+            Column::I64(vals, _) => Ok(vals),
             _ => InternalColumnTypeMismatch {
                 column_id,
                 expected_column_type: "i64",
@@ -367,7 +355,7 @@ impl Table {
             .iter()
             .filter_map(|(&column_id, &column_index)| {
                 // keep tag columns and the timestamp column, if needed
-                let need_column = if let Column::Tag(_) = self.columns[column_index] {
+                let need_column = if let Column::Tag(_, _) = self.columns[column_index] {
                     true
                 } else {
                     Some(column_id) == time_column_id
@@ -683,7 +671,7 @@ impl Table {
                 let column_name = Arc::new(column_name.to_string());
 
                 match self.columns[column_index] {
-                    Column::Tag(_) => tag_columns.push(column_name),
+                    Column::Tag(_, _) => tag_columns.push(column_name),
                     _ => field_columns.push(column_name),
                 }
             }
@@ -708,7 +696,7 @@ impl Table {
             .iter()
             .filter_map(|(&column_id, &column_index)| {
                 match self.columns[column_index] {
-                    Column::Tag(_) => None, // skip tags
+                    Column::Tag(_, _) => None, // skip tags
                     _ => {
                         let column_name = partition
                             .dictionary
@@ -841,7 +829,7 @@ impl Table {
 
         for &(column_name, column_index) in requested_columns_with_index.iter() {
             let arrow_col: ArrayRef = match &self.columns[column_index] {
-                Column::String(vals) => {
+                Column::String(vals, _) => {
                     fields.push(ArrowField::new(column_name, ArrowDataType::Utf8, true));
                     let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
 
@@ -855,7 +843,7 @@ impl Table {
 
                     Arc::new(builder.finish())
                 }
-                Column::Tag(vals) => {
+                Column::Tag(vals, _) => {
                     fields.push(ArrowField::new(column_name, ArrowDataType::Utf8, true));
                     let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
 
@@ -877,7 +865,7 @@ impl Table {
 
                     Arc::new(builder.finish())
                 }
-                Column::F64(vals) => {
+                Column::F64(vals, _) => {
                     fields.push(ArrowField::new(column_name, ArrowDataType::Float64, true));
                     let mut builder = Float64Builder::new(vals.len());
 
@@ -887,7 +875,7 @@ impl Table {
 
                     Arc::new(builder.finish())
                 }
-                Column::I64(vals) => {
+                Column::I64(vals, _) => {
                     fields.push(ArrowField::new(column_name, ArrowDataType::Int64, true));
                     let mut builder = Int64Builder::new(vals.len());
 
@@ -897,7 +885,7 @@ impl Table {
 
                     Arc::new(builder.finish())
                 }
-                Column::Bool(vals) => {
+                Column::Bool(vals, _) => {
                     fields.push(ArrowField::new(column_name, ArrowDataType::Boolean, true));
                     let mut builder = BooleanBuilder::new(vals.len());
 
