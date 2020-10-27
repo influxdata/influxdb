@@ -2,10 +2,7 @@ use delorean_generated_types::wal as wb;
 use snafu::Snafu;
 
 use crate::dictionary::Dictionary;
-use delorean_data_types::{
-    data::type_description,
-    partition_metadata::{update_string, Statistics},
-};
+use delorean_data_types::{data::type_description, partition_metadata::Statistics};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -38,7 +35,7 @@ pub enum Column {
 }
 
 impl Column {
-    pub fn new_from_value(
+    pub fn with_value(
         dictionary: &mut Dictionary,
         capacity: usize,
         value: wb::Value<'_>,
@@ -113,6 +110,10 @@ impl Column {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn type_description(&self) -> &'static str {
         match self {
             Self::F64(_, _) => "f64",
@@ -130,7 +131,7 @@ impl Column {
                     let tag_value = tag.value().expect("tag must have string value");
                     let id = dictionary.lookup_value_or_insert(tag_value);
                     vals.push(Some(id));
-                    update_string(stats, tag_value);
+                    Statistics::update_string(stats, tag_value);
                     true
                 }
                 None => false,
@@ -139,7 +140,7 @@ impl Column {
                 Some(str_val) => {
                     let str_val = str_val.value().expect("string must have value");
                     vals.push(Some(str_val.to_string()));
-                    update_string(stats, str_val);
+                    Statistics::update_string(stats, str_val);
                     true
                 }
                 None => false,

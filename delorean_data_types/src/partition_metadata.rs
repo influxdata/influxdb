@@ -11,8 +11,6 @@ use serde::{Deserialize, Serialize};
 pub struct Partition {
     /// The identifier for the partition, the partition key computed from PartitionRules
     pub key: String,
-    /// The location prefix in object store for the Parquet files in this partition
-    pub location: String,
     /// The tables in this partition
     pub tables: Vec<Table>,
 }
@@ -27,11 +25,11 @@ pub struct Table {
 /// Statistics and type information for a column.
 #[derive(Debug, Deserialize, Serialize)]
 pub enum Column {
-    I64(Box<Statistics<i64>>),
-    U64(Box<Statistics<u64>>),
-    F64(Box<Statistics<f64>>),
-    Bool(Box<Statistics<bool>>),
-    String(Box<Statistics<String>>),
+    I64(Statistics<i64>),
+    U64(Statistics<u64>),
+    F64(Statistics<f64>),
+    Bool(Statistics<bool>),
+    String(Statistics<String>),
 }
 
 /// Summary statistics for a column.
@@ -78,16 +76,18 @@ where
     }
 }
 
-/// Function for string stats to avoid allocating if we're not updating min or max
-pub fn update_string(stats: &mut Statistics<String>, other: &str) {
-    stats.count += 1;
+impl Statistics<String> {
+    /// Function for string stats to avoid allocating if we're not updating min or max
+    pub fn update_string(stats: &mut Self, other: &str) {
+        stats.count += 1;
 
-    if stats.min.as_str() > other {
-        stats.min = other.to_string();
-    }
+        if stats.min.as_str() > other {
+            stats.min = other.to_string();
+        }
 
-    if stats.max.as_str() < other {
-        stats.max = other.to_string();
+        if stats.max.as_str() < other {
+            stats.max = other.to_string();
+        }
     }
 }
 
@@ -119,23 +119,23 @@ mod tests {
     }
 
     #[test]
-    fn updating_string() {
+    fn update_string() {
         let mut stat = Statistics::new("bbb".to_string());
         assert_eq!(stat.min, "bbb".to_string());
         assert_eq!(stat.max, "bbb".to_string());
         assert_eq!(stat.count, 1);
 
-        update_string(&mut stat, "aaa");
+        Statistics::update_string(&mut stat, "aaa");
         assert_eq!(stat.min, "aaa".to_string());
         assert_eq!(stat.max, "bbb".to_string());
         assert_eq!(stat.count, 2);
 
-        update_string(&mut stat, "z");
+        Statistics::update_string(&mut stat, "z");
         assert_eq!(stat.min, "aaa".to_string());
         assert_eq!(stat.max, "z".to_string());
         assert_eq!(stat.count, 3);
 
-        update_string(&mut stat, "p");
+        Statistics::update_string(&mut stat, "p");
         assert_eq!(stat.min, "aaa".to_string());
         assert_eq!(stat.max, "z".to_string());
         assert_eq!(stat.count, 4);

@@ -244,7 +244,7 @@ impl Table {
                     let idx = self.columns.len();
                     self.column_id_to_index.insert(column_id, idx);
                     self.columns.push(
-                        Column::new_from_value(dictionary, row_count, value)
+                        Column::with_value(dictionary, row_count, value)
                             .context(CreatingFromWal { column: column_id })?,
                     );
 
