@@ -8,7 +8,7 @@ use tracing::warn;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
 use std::i64;
-use std::io::{BufRead, Seek};
+use std::io::{Read, Seek};
 use std::iter::Peekable;
 
 /// `TSMMeasurementMapper` takes a TSM reader and produces an iterator that
@@ -21,7 +21,7 @@ use std::iter::Peekable;
 #[derive(Debug)]
 pub struct TSMMeasurementMapper<R>
 where
-    R: BufRead + Seek,
+    R: Read + Seek,
 {
     iter: Peekable<TSMIndexReader<R>>,
     reader_idx: usize,
@@ -29,7 +29,7 @@ where
 
 impl<R> TSMMeasurementMapper<R>
 where
-    R: BufRead + Seek,
+    R: Read + Seek,
 {
     pub fn new(iter: Peekable<TSMIndexReader<R>>, reader_idx: usize) -> Self {
         Self { iter, reader_idx }
@@ -46,7 +46,7 @@ macro_rules! try_or_some {
     };
 }
 
-impl<R: BufRead + Seek> Iterator for TSMMeasurementMapper<R> {
+impl<R: Read + Seek> Iterator for TSMMeasurementMapper<R> {
     type Item = Result<MeasurementTable, TSMError>;
 
     fn next(&mut self) -> Option<Self::Item> {

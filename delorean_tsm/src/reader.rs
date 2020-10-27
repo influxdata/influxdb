@@ -3,7 +3,7 @@
 use super::*;
 use integer_encoding::VarInt;
 use std::collections::BTreeMap;
-use std::io::{BufRead, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom};
 use std::u64;
 
 /// `TSMIndexReader` allows you to read index data within a TSM file.
@@ -48,7 +48,7 @@ use std::u64;
 #[derive(Debug)]
 pub struct TSMIndexReader<R>
 where
-    R: BufRead + Seek,
+    R: Read + Seek,
 {
     r: R,
 
@@ -61,7 +61,7 @@ where
 
 impl<R> TSMIndexReader<R>
 where
-    R: BufRead + Seek,
+    R: Read + Seek,
 {
     pub fn try_new(mut r: R, len: usize) -> Result<Self, TSMError> {
         // determine offset to index, which is held in last 8 bytes of file.
@@ -153,7 +153,7 @@ where
     }
 }
 
-impl<R: BufRead + Seek> Iterator for TSMIndexReader<R> {
+impl<R: Read + Seek> Iterator for TSMIndexReader<R> {
     type Item = Result<IndexEntry, TSMError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -556,14 +556,14 @@ impl ValuePair {
 #[derive(Debug)]
 pub struct TSMBlockReader<R>
 where
-    R: BufRead + Seek,
+    R: Read + Seek,
 {
     readers: Vec<R>,
 }
 
 impl<R> TSMBlockReader<R>
 where
-    R: BufRead + Seek,
+    R: Read + Seek,
 {
     pub fn new(r: R) -> Self {
         Self { readers: vec![r] }
@@ -576,7 +576,7 @@ where
 
 impl<R> BlockDecoder for TSMBlockReader<R>
 where
-    R: BufRead + Seek,
+    R: Read + Seek,
 {
     /// decode a block whose location is described by the provided
     /// `Block`.
