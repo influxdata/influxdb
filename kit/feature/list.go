@@ -58,20 +58,6 @@ func FrontendExample() IntFlag {
 	return frontendExample
 }
 
-var pushDownWindowAggregateMean = MakeBoolFlag(
-	"Push Down Window Aggregate Mean",
-	"pushDownWindowAggregateMean",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownWindowAggregateMean - Enable Mean variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-func PushDownWindowAggregateMean() BoolFlag {
-	return pushDownWindowAggregateMean
-}
-
 var groupWindowAggregateTranspose = MakeBoolFlag(
 	"Group Window Aggregate Transpose",
 	"groupWindowAggregateTranspose",
@@ -156,20 +142,6 @@ func SimpleTaskOptionsExtraction() BoolFlag {
 	return simpleTaskOptionsExtraction
 }
 
-var mergeFiltersRule = MakeBoolFlag(
-	"Merged Filters Rule",
-	"mergeFiltersRule",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// MergedFiltersRule - Create one filter combining multiple single return statements
-func MergedFiltersRule() BoolFlag {
-	return mergeFiltersRule
-}
-
 var bandPlotType = MakeBoolFlag(
 	"Band Plot Type",
 	"bandPlotType",
@@ -212,20 +184,6 @@ func Notebooks() BoolFlag {
 	return notebooks
 }
 
-var pushDownGroupAggregateMinMax = MakeBoolFlag(
-	"Push Down Group Aggregate Min Max",
-	"pushDownGroupAggregateMinMax",
-	"Query Team",
-	false,
-	Temporary,
-	false,
-)
-
-// PushDownGroupAggregateMinMax - Enable the min and max variants of the PushDownGroupAggregate planner rule
-func PushDownGroupAggregateMinMax() BoolFlag {
-	return pushDownGroupAggregateMinMax
-}
-
 var injectLatestSuccessTime = MakeBoolFlag(
 	"Inject Latest Success Time",
 	"injectLatestSuccessTime",
@@ -259,18 +217,15 @@ var all = []Flag{
 	backendExample,
 	communityTemplates,
 	frontendExample,
-	pushDownWindowAggregateMean,
 	groupWindowAggregateTranspose,
 	newLabels,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	queryTracing,
 	simpleTaskOptionsExtraction,
-	mergeFiltersRule,
 	bandPlotType,
 	mosaicGraphType,
 	notebooks,
-	pushDownGroupAggregateMinMax,
 	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
 }
@@ -280,18 +235,15 @@ var byKey = map[string]Flag{
 	"backendExample":                backendExample,
 	"communityTemplates":            communityTemplates,
 	"frontendExample":               frontendExample,
-	"pushDownWindowAggregateMean":   pushDownWindowAggregateMean,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newLabels":                     newLabels,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"queryTracing":                  queryTracing,
 	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
-	"mergeFiltersRule":              mergeFiltersRule,
 	"bandPlotType":                  bandPlotType,
 	"mosaicGraphType":               mosaicGraphType,
 	"notebooks":                     notebooks,
-	"pushDownGroupAggregateMinMax":  pushDownGroupAggregateMinMax,
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 }
