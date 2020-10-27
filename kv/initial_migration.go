@@ -46,7 +46,7 @@ func (m InitialMigration) Up(ctx context.Context, store SchemaStore) error {
 		telegrafBucket,
 		telegrafPluginsBucket,
 		urmBucket,
-		notificationRuleBucket,
+		[]byte("notificationRulev1"),
 		userBucket,
 		userIndex,
 		sourceBucket,

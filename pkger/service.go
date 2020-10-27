@@ -3536,10 +3536,11 @@ func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID, userID influ
 				defer cancel()
 
 				defer func() {
-					if recover() != nil {
+					if err := recover(); err != nil {
 						r.logger.Error(
 							"panic applying "+resource,
 							zap.String("stack_trace", fmt.Sprintf("%+v", stack.Trace())),
+							zap.Reflect("panic", err),
 						)
 						errStr.add(errMsg{
 							resource: resource,
