@@ -1747,9 +1747,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /api/v2/write:
-    servers:
-      - url: /
+  /write:
     post:
       operationId: PostWrite
       tags:
@@ -3367,9 +3365,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /api/v2/query:
-    servers:
-      - url: /
+  /query:
     post:
       operationId: PostQuery
       tags:
@@ -6479,185 +6475,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /write:
-    servers:
-      - url: /
-        description: V1 compatible api endpoints.
-    post: # technically this functions with other methods as well
-      operationId: PostWrite
-      tags:
-        - Write
-      summary: Write time series data into InfluxDB in a V1 compatible format
-      requestBody:
-        description: Line protocol body
-        required: true
-        content:
-          text/plain:
-            schema:
-              type: string
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - $ref: "#/components/parameters/AuthUserV1"
-        - $ref: "#/components/parameters/AuthPassV1"
-        - in: path
-          name: db
-          schema:
-            type: string
-          required: true
-          description: The bucket to write to. If none exist a bucket will be created with a default 3 day retention policy.
-        - in: path
-          name: rp
-          schema:
-            type: string
-          description: The retention policy name.
-        - in: path
-          name: precision
-          schema:
-            type: string
-          description: Write precision.
-        - in: header
-          name: Content-Encoding
-          description: When present, its value indicates to the database that compression is applied to the line-protocol body.
-          schema:
-            type: string
-            description: Specifies that the line protocol in the body is encoded with gzip or not encoded with identity.
-            default: identity
-            enum:
-              - gzip
-              - identity
-      responses:
-        "204":
-          description: Write data is correctly formatted and accepted for writing to the bucket.
-        "400":
-          description: Line protocol poorly formed and no points were written.  Response can be used to determine the first malformed line in the body line-protocol. All data in body was rejected and not written.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LineProtocolError"
-        "401":
-          description: Token does not have sufficient permissions to write to this organization and bucket or the organization and bucket do not exist.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "403":
-          description: No token was sent and they are required.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "413":
-          description: Write has been rejected because the payload is too large. Error message returns max size supported. All data in body was rejected and not written.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LineProtocolLengthError"
-        "429":
-          description: Token is temporarily over quota. The Retry-After header describes when to try the write again.
-          headers:
-            Retry-After:
-              description: A non-negative decimal integer indicating the seconds to delay after the response is received.
-              schema:
-                type: integer
-                format: int32
-        "503":
-          description: Server is temporarily unavailable to accept writes.  The Retry-After header describes when to try the write again.
-          headers:
-            Retry-After:
-              description: A non-negative decimal integer indicating the seconds to delay after the response is received.
-              schema:
-                type: integer
-                format: int32
-        default:
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /query:
-    servers:
-      - url: /
-        description: V1 compatible api endpoints.
-    post: # technically this functions with other methods as well
-      operationId: PostQuery
-      tags:
-        - Query
-      summary: Query InfluxDB in a V1 compatible format
-      requestBody:
-        description: InfluxQL query to execute.
-        content:
-          application/vnd.influxql:
-            schema:
-              type: string
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - $ref: "#/components/parameters/AuthUserV1"
-        - $ref: "#/components/parameters/AuthPassV1"
-        - in: header
-          name: Accept-Encoding
-          description: The Accept-Encoding request HTTP header advertises which content encoding, usually a compression algorithm, the client is able to understand.
-          schema:
-            type: string
-            description: Specifies that the query response in the body should be encoded with gzip or not encoded with identity.
-            default: identity
-            enum:
-              - gzip
-              - identity
-        - in: header
-          name: Content-Type
-          schema:
-            type: string
-            enum:
-              - application/vnd.influxql
-        - in: query
-          name: q
-          description: Defines the influxql query to run.
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Query results
-          headers:
-            Content-Encoding:
-              description: The Content-Encoding entity header is used to compress the media-type.  When present, its value indicates which encodings were applied to the entity-body
-              schema:
-                type: string
-                description: Specifies that the response in the body is encoded with gzip or not encoded with identity.
-                default: identity
-                enum:
-                  - gzip
-                  - identity
-            Trace-Id:
-              description: The Trace-Id header reports the request's trace ID, if one was generated.
-              schema:
-                type: string
-                description: Specifies the request's trace ID.
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  name,tags,time,test_field,test_tag
-                  test_measurement,,1603740794286107366,1,tag_value
-                  test_measurement,,1603740870053205649,2,tag_value
-                  test_measurement,,1603741221085428881,3,tag_value
-            text/plain:
-              schema:
-                $ref: "#/components/schemas/InfluxQLResponse"
-        "429":
-          description: Token is temporarily over quota. The Retry-After header describes when to try the read again.
-          headers:
-            Retry-After:
-              description: A non-negative decimal integer indicating the seconds to delay after the response is received.
-              schema:
-                type: integer
-                format: int32
-        default:
-          description: Error processing query
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
 components:
   parameters:
     Offset:
@@ -6710,20 +6527,6 @@ components:
       description: >
         The last resource ID from which to seek from (but not including).
         This is to be used instead of `offset`.
-    AuthUserV1:
-      in: query
-      name: u
-      required: false
-      schema:
-        type: string
-      description: Username.
-    AuthPassV1:
-      in: query
-      name: p
-      required: false
-      schema:
-        type: string
-      description: User token.
   schemas:
     LanguageRequest:
       description: Flux query to be analyzed.
@@ -11952,31 +11755,6 @@ components:
           type: boolean
         links:
           $ref: "#/components/schemas/Links"
-    InfluxQLResponse:
-      properties:
-        results:
-          type: array
-          items:
-            type: object
-            properties:
-              statement_id:
-                type: integer
-              series:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    name:
-                      type: string
-                    columns:
-                      type: array
-                      items:
-                        type: integer
-                    values:
-                      type: array
-                      items:
-                        type: array
-                        items: {}
   securitySchemes:
     BasicAuth:
       type: http
