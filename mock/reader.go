@@ -8,11 +8,12 @@ import (
 )
 
 type StorageReader struct {
-	ReadFilterFn    func(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error)
-	ReadGroupFn     func(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error)
-	ReadTagKeysFn   func(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error)
-	ReadTagValuesFn func(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error)
-	CloseFn         func()
+	ReadFilterFn          func(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadGroupFn           func(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadTagKeysFn         func(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadTagValuesFn       func(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadWindowAggregateFn func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error)
+	CloseFn               func()
 }
 
 func (s *StorageReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error) {
@@ -40,32 +41,6 @@ func (s *StorageReader) Close() {
 	}
 }
 
-type GroupStoreReader struct {
-	*StorageReader
-	GroupCapabilityFn func(ctx context.Context) query.GroupCapability
-}
-
-func (s *GroupStoreReader) GetGroupCapability(ctx context.Context) query.GroupCapability {
-	if s.GroupCapabilityFn != nil {
-		return s.GroupCapabilityFn(ctx)
-	}
-	return nil
-}
-
-type WindowAggregateStoreReader struct {
-	*StorageReader
-	GetWindowAggregateCapabilityFn func(ctx context.Context) query.WindowAggregateCapability
-	ReadWindowAggregateFn          func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error)
-}
-
-func (s *WindowAggregateStoreReader) GetWindowAggregateCapability(ctx context.Context) query.WindowAggregateCapability {
-	// Use the function if it exists.
-	if s.GetWindowAggregateCapabilityFn != nil {
-		return s.GetWindowAggregateCapabilityFn(ctx)
-	}
-	return nil
-}
-
-func (s *WindowAggregateStoreReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (s *StorageReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return s.ReadWindowAggregateFn(ctx, spec, alloc)
 }

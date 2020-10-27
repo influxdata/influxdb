@@ -78,6 +78,8 @@ type GroupCursor interface {
 type Store interface {
 	ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (ResultSet, error)
 	ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (GroupResultSet, error)
+	// WindowAggregate will invoke a ReadWindowAggregateRequest against the Store.
+	WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (ResultSet, error)
 
 	TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
 	TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)

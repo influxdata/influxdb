@@ -24,7 +24,8 @@ type table struct {
 	tags [][]byte
 	defs [][]byte
 
-	done chan struct{}
+	done  chan struct{}
+	empty bool
 
 	colBufs *colReader
 
@@ -67,6 +68,10 @@ func (t *table) Cancel() {
 
 func (t *table) isCancelled() bool {
 	return atomic.LoadInt32(&t.cancelled) != 0
+}
+
+func (t *table) init(advance func() bool) {
+	t.empty = !advance() && t.err == nil
 }
 
 func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
@@ -229,11 +234,27 @@ func (t *floatTable) toArrowBuffer(vs []float64) *array.Float64 {
 func (t *floatGroupTable) toArrowBuffer(vs []float64) *array.Float64 {
 	return arrow.NewFloat(vs, t.alloc)
 }
+func (t *floatWindowTable) mergeValues(intervals []int64) *array.Float64 {
+	b := arrow.NewFloatBuilder(t.alloc)
+	b.Resize(len(intervals))
+	t.appendValues(intervals, b.Append, b.AppendNull)
+	return b.NewFloat64Array()
+}
 func (t *integerTable) toArrowBuffer(vs []int64) *array.Int64 {
 	return arrow.NewInt(vs, t.alloc)
 }
 func (t *integerGroupTable) toArrowBuffer(vs []int64) *array.Int64 {
 	return arrow.NewInt(vs, t.alloc)
+}
+func (t *integerWindowTable) mergeValues(intervals []int64) *array.Int64 {
+	b := arrow.NewIntBuilder(t.alloc)
+	b.Resize(len(intervals))
+	appendNull := b.AppendNull
+	if t.fillValue != nil {
+		appendNull = func() { b.Append(*t.fillValue) }
+	}
+	t.appendValues(intervals, b.Append, appendNull)
+	return b.NewInt64Array()
 }
 func (t *unsignedTable) toArrowBuffer(vs []uint64) *array.Uint64 {
 	return arrow.NewUint(vs, t.alloc)
@@ -241,15 +262,33 @@ func (t *unsignedTable) toArrowBuffer(vs []uint64) *array.Uint64 {
 func (t *unsignedGroupTable) toArrowBuffer(vs []uint64) *array.Uint64 {
 	return arrow.NewUint(vs, t.alloc)
 }
+func (t *unsignedWindowTable) mergeValues(intervals []int64) *array.Uint64 {
+	b := arrow.NewUintBuilder(t.alloc)
+	b.Resize(len(intervals))
+	t.appendValues(intervals, b.Append, b.AppendNull)
+	return b.NewUint64Array()
+}
 func (t *stringTable) toArrowBuffer(vs []string) *array.Binary {
 	return arrow.NewString(vs, t.alloc)
 }
 func (t *stringGroupTable) toArrowBuffer(vs []string) *array.Binary {
 	return arrow.NewString(vs, t.alloc)
 }
+func (t *stringWindowTable) mergeValues(intervals []int64) *array.Binary {
+	b := arrow.NewStringBuilder(t.alloc)
+	b.Resize(len(intervals))
+	t.appendValues(intervals, b.AppendString, b.AppendNull)
+	return b.NewBinaryArray()
+}
 func (t *booleanTable) toArrowBuffer(vs []bool) *array.Boolean {
 	return arrow.NewBool(vs, t.alloc)
 }
 func (t *booleanGroupTable) toArrowBuffer(vs []bool) *array.Boolean {
 	return arrow.NewBool(vs, t.alloc)
+}
+func (t *booleanWindowTable) mergeValues(intervals []int64) *array.Boolean {
+	b := arrow.NewBoolBuilder(t.alloc)
+	b.Resize(len(intervals))
+	t.appendValues(intervals, b.Append, b.AppendNull)
+	return b.NewBooleanArray()
 }
