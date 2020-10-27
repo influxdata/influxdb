@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
@@ -19,11 +18,11 @@ type resultSet struct {
 	arrayCursors multiShardCursors
 }
 
-func NewFilteredResultSet(ctx context.Context, req *datatypes.ReadFilterRequest, seriesCursor SeriesCursor) ResultSet {
+func NewFilteredResultSet(ctx context.Context, start, end int64, seriesCursor SeriesCursor) ResultSet {
 	return &resultSet{
 		ctx:          ctx,
 		seriesCursor: seriesCursor,
-		arrayCursors: newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true),
+		arrayCursors: newMultiShardArrayCursors(ctx, start, end, true),
 	}
 }
 

@@ -118,11 +118,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	"http": {
 		"http_endpoint": "need ability to test side effects in e2e tests: (https://github.com/influxdata/flux/issues/1723)",
 	},
-	"influxdata/influxdb/schema": {
-		"show_measurements": "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
-		"show_tag_values":   "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
-		"show_tag_keys":     "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
-	},
+	"influxdata/influxdb/schema": {},
 	"influxdata/influxdb/monitor": {
 		"state_changes_big_any_to_any":     "unbounded test",
 		"state_changes_big_info_to_ok":     "unbounded test",
