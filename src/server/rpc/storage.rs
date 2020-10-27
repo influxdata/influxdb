@@ -2,13 +2,6 @@
 //! implemented in terms of the `delorean_storage::Database` and
 //! `delorean_storage::DatabaseStore`
 
-// Something in instrument is causing lint warnings about unused braces
-#![allow(unused_braces)]
-
-// Something about how `tracing::instrument` works triggers a clippy
-// warning about complex types
-#![allow(clippy::type_complexity)]
-
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use delorean_generated_types::{
@@ -41,7 +34,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 
 use tokio::sync::mpsc;
 use tonic::Status;
-use tracing::warn;
+use tracing::{debug, warn};
 
 use super::data::{
     fieldlist_to_measurement_fields_response, grouped_series_set_item_to_read_response,
@@ -229,7 +222,6 @@ where
 {
     type ReadFilterStream = mpsc::Receiver<Result<ReadResponse, Status>>;
 
-    #[tracing::instrument(level = "debug")]
     async fn read_filter(
         &self,
         req: tonic::Request<ReadFilterRequest>,
@@ -245,6 +237,8 @@ where
             range,
             predicate,
         } = read_filter_request;
+
+        debug!("read_filter for database {}, range: {:?}", db_name, range);
 
         read_filter_impl(
             tx.clone(),
@@ -262,7 +256,6 @@ where
 
     type ReadGroupStream = mpsc::Receiver<Result<ReadResponse, Status>>;
 
-    #[tracing::instrument(level = "debug")]
     async fn read_group(
         &self,
         req: tonic::Request<ReadGroupRequest>,
@@ -285,6 +278,11 @@ where
             aggregate: _aggregate,
         } = read_group_request;
 
+        debug!(
+            "read_group for database {}, range: {:?}, group_keys: {:?}",
+            db_name, range, group_keys
+        );
+
         read_group_impl(
             tx.clone(),
             self.db_store.clone(),
@@ -302,7 +300,6 @@ where
 
     type TagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
-    #[tracing::instrument(level = "debug")]
     async fn tag_keys(
         &self,
         req: tonic::Request<TagKeysRequest>,
@@ -318,6 +315,8 @@ where
             range,
             predicate,
         } = tag_keys_request;
+
+        debug!("tag_keys for database {}, range: {:?}", db_name, range);
 
         let measurement = None;
 
@@ -341,7 +340,6 @@ where
 
     type TagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
-    #[tracing::instrument(level = "debug")]
     async fn tag_values(
         &self,
         req: tonic::Request<TagValuesRequest>,
@@ -358,6 +356,11 @@ where
             predicate,
             tag_key,
         } = tag_values_request;
+
+        debug!(
+            "tag_values for database {}, range: {:?}, tag_key: {}",
+            db_name, range, tag_key
+        );
 
         let measurement = None;
 
@@ -380,10 +383,9 @@ where
         Ok(tonic::Response::new(rx))
     }
 
-    #[tracing::instrument(level = "debug")]
     async fn capabilities(
         &self,
-        req: tonic::Request<()>,
+        _req: tonic::Request<()>,
     ) -> Result<tonic::Response<CapabilitiesResponse>, Status> {
         // Full list of go capabilities in
         // idpe/storage/read/capabilities.go (aka window aggregate /
@@ -398,7 +400,6 @@ where
 
     type MeasurementNamesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
-    #[tracing::instrument(level = "debug")]
     async fn measurement_names(
         &self,
         req: tonic::Request<MeasurementNamesRequest>,
@@ -414,6 +415,11 @@ where
             range,
         } = measurement_names_request;
 
+        debug!(
+            "measurement_names for database {}, range: {:?}",
+            db_name, range
+        );
+
         let response =
             measurement_name_impl(self.db_store.clone(), self.executor.clone(), db_name, range)
                 .await
@@ -428,7 +434,6 @@ where
 
     type MeasurementTagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
-    #[tracing::instrument(level = "debug")]
     async fn measurement_tag_keys(
         &self,
         req: tonic::Request<MeasurementTagKeysRequest>,
@@ -445,6 +450,11 @@ where
             range,
             predicate,
         } = measurement_tag_keys_request;
+
+        debug!(
+            "measurement_tag_keys for database {}, range: {:?}, measurement: {}",
+            db_name, range, measurement
+        );
 
         let measurement = Some(measurement);
 
@@ -468,7 +478,6 @@ where
 
     type MeasurementTagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
 
-    #[tracing::instrument(level = "debug")]
     async fn measurement_tag_values(
         &self,
         req: tonic::Request<MeasurementTagValuesRequest>,
@@ -486,6 +495,11 @@ where
             predicate,
             tag_key,
         } = measurement_tag_values_request;
+
+        debug!(
+            "measurement_tag_values for database {}, range: {:?}, measurement: {}, tag_key: {}",
+            db_name, range, measurement, tag_key
+        );
 
         let measurement = Some(measurement);
 
@@ -510,7 +524,6 @@ where
 
     type MeasurementFieldsStream = mpsc::Receiver<Result<MeasurementFieldsResponse, Status>>;
 
-    #[tracing::instrument(level = "debug")]
     async fn measurement_fields(
         &self,
         req: tonic::Request<MeasurementFieldsRequest>,
@@ -527,6 +540,11 @@ where
             range,
             predicate,
         } = measurement_fields_request;
+
+        debug!(
+            "measurement_fields for database {}, range: {:?}",
+            db_name, range
+        );
 
         let measurement = measurement;
 

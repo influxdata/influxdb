@@ -197,7 +197,7 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
 
 /// Default debug level is debug for everything except
 /// some especially noisy low level libraries
-const DEFAULT_DEBUG_LOG_LEVEL: &str = "debug,h2=info";
+const DEFAULT_DEBUG_LOG_LEVEL: &str = "debug,hyper::proto::h1=info,h2=info";
 
 // Default verbose log level is info level for all components
 const DEFAULT_VERBOSE_LOG_LEVEL: &str = "info";
