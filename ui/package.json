@@ -168,7 +168,7 @@
     "monaco-textmate": "^3.0.1",
     "normalizr": "^3.4.1",
     "onigasm": "^2.2.4",
-    "papaparse": "^4.6.3",
+    "papaparse": "^5.2.0",
     "prop-types": "^15.6.1",
     "qs": "^6.5.2",
     "react": "^16.11.0",
