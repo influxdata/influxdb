@@ -14,6 +14,7 @@ spec:
       height: 3
       binCount: 30
       fillColumns: ["a", "b"]
+      legendColorizeRows: true
       legendOpacity: 1.0
       legendOrientationThreshold: 5
       queries:

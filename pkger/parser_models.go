@@ -557,10 +557,18 @@ const (
 	fieldChartMainColumn                 = "mainColumn"
 	fieldChartLowerColumn                = "lowerColumn"
 	fieldChartWidth                      = "width"
+	fieldChartGenerateAxisTicks          = "generateAxisTicks"
 	fieldChartXCol                       = "xCol"
+	fieldChartXTotalTicks                = "xTotalTicks"
+	fieldChartXTickStart                 = "xTickStart"
+	fieldChartXTickStep                  = "xTickStep"
 	fieldChartXPos                       = "xPos"
 	fieldChartYCol                       = "yCol"
+	fieldChartYTotalTicks                = "yTotalTicks"
+	fieldChartYTickStart                 = "yTickStart"
+	fieldChartYTickStep                  = "yTickStep"
 	fieldChartYPos                       = "yPos"
+	fieldChartLegendColorizeRows         = "legendColorizeRows"
 	fieldChartLegendOpacity              = "legendOpacity"
 	fieldChartLegendOrientationThreshold = "legendOrientationThreshold"
 )
@@ -584,7 +592,11 @@ type chart struct {
 	Axes                       axes
 	Geom                       string
 	YSeriesColumns             []string
+	GenerateAxisTicks          bool
 	XCol, YCol                 string
+	XTotalTicks, YTotalTicks   int
+	XTickStart, YTickStart     float64
+	XTickStep, YTickStep       float64
 	UpperColumn                string
 	MainColumn                 string
 	LowerColumn                string
@@ -597,6 +609,7 @@ type chart struct {
 	FillColumns                []string
 	TableOptions               tableOptions
 	TimeFormat                 string
+	LegendColorizeRows         bool
 	LegendOpacity              float64
 	LegendOrientationThreshold int
 }
@@ -625,8 +638,15 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.strings(),
 			BinSize:                    int32(c.BinSize),
+			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			YTotalTicks:                c.YTotalTicks,
+			YTickStart:                 c.YTickStart,
+			YTickStep:                  c.YTickStep,
 			XDomain:                    c.Axes.get("x").Domain,
 			YDomain:                    c.Axes.get("y").Domain,
 			XPrefix:                    c.Axes.get("x").Prefix,
@@ -638,6 +658,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -654,6 +675,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			BinCount:                   c.BinCount,
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -667,7 +689,11 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Type:                       influxdb.ViewPropertyTypeMosaic,
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.strings(),
+			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YSeriesColumns:             c.YSeriesColumns,
 			XDomain:                    c.Axes.get("x").Domain,
 			YDomain:                    c.Axes.get("y").Domain,
@@ -680,6 +706,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -690,8 +717,15 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ViewColors:                 c.Colors.influxViewColors(),
 			Legend:                     c.Legend.influxLegend(),
 			HoverDimension:             c.HoverDimension,
+			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			YTotalTicks:                c.YTotalTicks,
+			YTickStart:                 c.YTickStart,
+			YTickStep:                  c.YTickStep,
 			UpperColumn:                c.UpperColumn,
 			MainColumn:                 c.MainColumn,
 			LowerColumn:                c.LowerColumn,
@@ -700,6 +734,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -708,8 +743,15 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Type:                       influxdb.ViewPropertyTypeScatter,
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.strings(),
+			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			YTotalTicks:                c.YTotalTicks,
+			YTickStart:                 c.YTickStart,
+			YTickStep:                  c.YTickStep,
 			XDomain:                    c.Axes.get("x").Domain,
 			YDomain:                    c.Axes.get("y").Domain,
 			XPrefix:                    c.Axes.get("x").Prefix,
@@ -721,6 +763,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -735,12 +778,10 @@ func (c *chart) properties() influxdb.ViewProperties {
 				IsEnforced: c.EnforceDecimals,
 				Digits:     int32(c.DecimalPlaces),
 			},
-			Note:                       c.Note,
-			ShowNoteWhenEmpty:          c.NoteOnEmpty,
-			Queries:                    c.Queries.influxDashQueries(),
-			ViewColors:                 c.Colors.influxViewColors(),
-			LegendOpacity:              float64(c.LegendOpacity),
-			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.influxViewColors(),
 		}
 	case chartKindSingleStatPlusLine:
 		return influxdb.LinePlusSingleStatProperties{
@@ -753,8 +794,15 @@ func (c *chart) properties() influxdb.ViewProperties {
 			},
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			YTotalTicks:                c.YTotalTicks,
+			YTickStart:                 c.YTickStart,
+			YTickStep:                  c.YTickStep,
 			ShadeBelow:                 c.Shade,
 			HoverDimension:             c.HoverDimension,
 			Legend:                     c.Legend.influxLegend(),
@@ -762,6 +810,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ViewColors:                 c.Colors.influxViewColors(),
 			Axes:                       c.Axes.influxAxes(),
 			Position:                   c.Position,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -801,8 +850,15 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Type:                       influxdb.ViewPropertyTypeXY,
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			YTotalTicks:                c.YTotalTicks,
+			YTickStart:                 c.YTickStart,
+			YTickStep:                  c.YTickStep,
 			ShadeBelow:                 c.Shade,
 			HoverDimension:             c.HoverDimension,
 			Legend:                     c.Legend.influxLegend(),
@@ -812,6 +868,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Geom:                       c.Geom,
 			Position:                   c.Position,
 			TimeFormat:                 c.TimeFormat,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}

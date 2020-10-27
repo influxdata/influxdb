@@ -8976,10 +8976,28 @@ components:
           $ref: "#/components/schemas/Axes"
         legend:
           $ref: "#/components/schemas/Legend"
+        generateAxisTicks:
+          type: boolean
         xColumn:
           type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         shadeBelow:
           type: boolean
         hoverDimension:
@@ -8990,6 +9008,8 @@ components:
           enum: [overlaid, stacked]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9037,10 +9057,28 @@ components:
           $ref: "#/components/schemas/Axes"
         legend:
           $ref: "#/components/schemas/Legend"
+        generateAxisTicks:
+          type: boolean
         xColumn:
           type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         upperColumn:
           type: string
         mainColumn:
@@ -9052,6 +9090,8 @@ components:
           enum: [auto, x, y, xy]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9099,10 +9139,28 @@ components:
           $ref: "#/components/schemas/Axes"
         legend:
           $ref: "#/components/schemas/Legend"
+        generateAxisTicks:
+          type: boolean
         xColumn:
           type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         shadeBelow:
           type: boolean
         hoverDimension:
@@ -9117,6 +9175,8 @@ components:
           type: string
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9165,8 +9225,18 @@ components:
         showNoteWhenEmpty:
           description: If true, will display note when empty
           type: boolean
+        generateAxisTicks:
+          type: boolean
         xColumn:
           type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         ySeriesColumns:
           type: array
           items:
@@ -9197,6 +9267,8 @@ components:
           type: string
         ySuffix:
           type: string
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9246,10 +9318,28 @@ components:
         showNoteWhenEmpty:
           description: If true, will display note when empty
           type: boolean
+        generateAxisTicks:
+          type: boolean
         xColumn:
           type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         fillColumns:
           type: array
           items:
@@ -9280,6 +9370,8 @@ components:
           type: string
         ySuffix:
           type: string
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9328,10 +9420,28 @@ components:
         showNoteWhenEmpty:
           description: If true, will display note when empty
           type: boolean
+        generateAxisTicks:
+          type: boolean
         xColumn:
           type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         xDomain:
           type: array
           items:
@@ -9356,6 +9466,8 @@ components:
           type: string
         binSize:
           type: number
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9409,11 +9521,6 @@ components:
           $ref: "#/components/schemas/Legend"
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
-        legendOpacity:
-          type: number
-          format: float
-        legendOrientationThreshold:
-          type: integer
     HistogramViewProperties:
       type: object
       required:
@@ -9468,6 +9575,8 @@ components:
           enum: [overlaid, stacked]
         binCount:
           type: integer
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9635,6 +9744,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardColor"
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
