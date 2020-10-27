@@ -18,6 +18,7 @@
           "xCol": "_value",
           "position": "stacked",
           "binCount": 30,
+          "legendColorizeRows": true,
           "legendOpacity": 1.0,
           "legendOrientationThreshold": 5,
           "fillColumns": [

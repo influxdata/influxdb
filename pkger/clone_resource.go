@@ -753,8 +753,15 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Kind = chartKindHeatMap
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = stringsToColors(p.ViewColors)
+		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.YTotalTicks = p.YTotalTicks
+		ch.YTickStart = p.YTickStart
+		ch.YTickStep = p.YTickStep
 		ch.Axes = []axis{
 			{Label: p.XAxisLabel, Prefix: p.XPrefix, Suffix: p.XSuffix, Name: "x", Domain: p.XDomain},
 			{Label: p.YAxisLabel, Prefix: p.YPrefix, Suffix: p.YSuffix, Name: "y", Domain: p.YDomain},
@@ -762,6 +769,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 		ch.BinSize = int(p.BinSize)
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.HistogramViewProperties:
@@ -775,6 +783,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 		ch.BinCount = p.BinCount
 		ch.Position = p.Position
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.MarkdownViewProperties:
@@ -787,9 +796,17 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Axes = convertAxes(p.Axes)
 		ch.Shade = p.ShadeBelow
 		ch.HoverDimension = p.HoverDimension
+		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.YTotalTicks = p.YTotalTicks
+		ch.YTickStart = p.YTickStart
+		ch.YTickStep = p.YTickStep
 		ch.Position = p.Position
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.SingleStatViewProperties:
@@ -797,13 +814,15 @@ func convertCellView(cell influxdb.Cell) chart {
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
 		ch.TickPrefix = p.TickPrefix
 		ch.TickSuffix = p.TickSuffix
-		ch.LegendOpacity = float64(p.LegendOpacity)
-		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.MosaicViewProperties:
 		ch.Kind = chartKindMosaic
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = stringsToColors(p.ViewColors)
+		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YSeriesColumns = p.YSeriesColumns
 		ch.Axes = []axis{
 			{Label: p.XAxisLabel, Prefix: p.XPrefix, Suffix: p.XSuffix, Name: "x", Domain: p.XDomain},
@@ -811,20 +830,29 @@ func convertCellView(cell influxdb.Cell) chart {
 		}
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.ScatterViewProperties:
 		ch.Kind = chartKindScatter
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = stringsToColors(p.ViewColors)
+		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.YTotalTicks = p.YTotalTicks
+		ch.YTickStart = p.YTickStart
+		ch.YTickStep = p.YTickStep
 		ch.Axes = []axis{
 			{Label: p.XAxisLabel, Prefix: p.XPrefix, Suffix: p.XSuffix, Name: "x", Domain: p.XDomain},
 			{Label: p.YAxisLabel, Prefix: p.YPrefix, Suffix: p.YSuffix, Name: "y", Domain: p.YDomain},
 		}
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.TableViewProperties:
@@ -851,11 +879,19 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Axes = convertAxes(p.Axes)
 		ch.Geom = p.Geom
 		ch.HoverDimension = p.HoverDimension
+		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.YTotalTicks = p.YTotalTicks
+		ch.YTickStart = p.YTickStart
+		ch.YTickStep = p.YTickStep
 		ch.UpperColumn = p.UpperColumn
 		ch.MainColumn = p.MainColumn
 		ch.LowerColumn = p.LowerColumn
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.XYViewProperties:
@@ -866,9 +902,17 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Geom = p.Geom
 		ch.Shade = p.ShadeBelow
 		ch.HoverDimension = p.HoverDimension
+		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.YTotalTicks = p.YTotalTicks
+		ch.YTickStart = p.YTickStart
+		ch.YTickStep = p.YTickStep
 		ch.Position = p.Position
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	}
@@ -955,8 +999,10 @@ func convertChartToResource(ch chart) Resource {
 	}
 
 	assignNonZeroBools(r, map[string]bool{
-		fieldChartNoteOnEmpty: ch.NoteOnEmpty,
-		fieldChartShade:       ch.Shade,
+		fieldChartNoteOnEmpty:        ch.NoteOnEmpty,
+		fieldChartShade:              ch.Shade,
+		fieldChartGenerateAxisTicks:  ch.GenerateAxisTicks,
+		fieldChartLegendColorizeRows: ch.LegendColorizeRows,
 	})
 
 	assignNonZeroStrings(r, map[string]string{
@@ -975,7 +1021,9 @@ func convertChartToResource(ch chart) Resource {
 
 	assignNonZeroInts(r, map[string]int{
 		fieldChartXPos:                       ch.XPos,
+		fieldChartXTotalTicks:                ch.XTotalTicks,
 		fieldChartYPos:                       ch.YPos,
+		fieldChartYTotalTicks:                ch.YTotalTicks,
 		fieldChartBinCount:                   ch.BinCount,
 		fieldChartBinSize:                    ch.BinSize,
 		fieldChartLegendOrientationThreshold: ch.LegendOrientationThreshold,
@@ -983,6 +1031,10 @@ func convertChartToResource(ch chart) Resource {
 
 	assignNonZeroFloats(r, map[string]float64{
 		fieldChartLegendOpacity: ch.LegendOpacity,
+		fieldChartXTickStart:    ch.XTickStart,
+		fieldChartXTickStep:     ch.XTickStep,
+		fieldChartYTickStart:    ch.YTickStart,
+		fieldChartYTickStep:     ch.YTickStep,
 	})
 
 	return r

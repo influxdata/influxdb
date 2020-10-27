@@ -13,10 +13,18 @@ spec:
       suffix: days
       xPos:  1
       yPos:  2
+      generateAxisTicks: true
       xCol: _time
+      xTotalTicks: 15
+      xTickStart: 0
+      xTickStep: 1000
       yCol: _value
+      yTotalTicks: 10
+      yTickStart: 0
+      yTickStep: 100
       width:  6
       height: 3
+      legendColorizeRows: true
       legendOpacity: 1.0
       legendOrientationThreshold: 5
       queries:
