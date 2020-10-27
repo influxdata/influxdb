@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -150,7 +151,7 @@ func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 	req.Range.Start = start
 	req.Range.End = end
 
-	return reads.NewFilteredResultSet(ctx, req, cur), nil
+	return reads.NewFilteredResultSet(ctx, req.Range.Start, req.Range.End, cur), nil
 }
 
 func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
@@ -264,20 +265,14 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 	return cursors.NewStringSliceIterator(names), nil
 }
 
+type  metaqueryAttributes struct {
+    orgID influxdb.ID
+	db, rp string
+	start, end int64
+    pred influxql.Expr
+}
+
 func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
-	if tagKey, ok := measurementRemap[req.TagKey]; ok {
-		switch tagKey {
-		case "_name":
-			return s.MeasurementNames(ctx, &MeasurementNamesRequest{
-				MeasurementsSource: req.TagsSource,
-				Predicate:          req.Predicate,
-			})
-
-		case "_field":
-			return s.measurementFields(ctx, req)
-		}
-	}
-
 	if req.TagsSource == nil {
 		return nil, errors.New("missing read source")
 	}
@@ -287,12 +282,49 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
+	db, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
 
-	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	mqAttrs := &metaqueryAttributes{
+		orgID: source.GetOrgID(),
+		db: db,
+		rp: rp,
+		start: start,
+		end: end,
+	}
+
+	var influxqlPred influxql.Expr
+	if root := req.Predicate.GetRoot(); root != nil {
+		var err error
+		influxqlPred, err = reads.NodeToExpr(root, measurementRemap)
+		if err != nil {
+			return nil, err
+		}
+
+		if found := reads.HasFieldValueKey(influxqlPred); found {
+			return nil, errors.New("field values unsupported")
+		}
+
+		influxqlPred = influxql.Reduce(influxql.CloneExpr(influxqlPred), nil)
+		if reads.IsTrueBooleanLiteral(influxqlPred) {
+			influxqlPred = nil
+		}
+	}
+	mqAttrs.pred = influxqlPred
+
+	if tagKey, ok := measurementRemap[req.TagKey]; ok {
+		switch tagKey {
+		case "_name":
+			return s.MeasurementNames(ctx, mqAttrs)
+
+		case "_field":
+			return s.measurementFields(ctx, mqAttrs)
+		}
+	}
+
+	shardIDs, err := s.findShardIDs(db, rp, false, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -362,48 +394,19 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	return cursors.NewStringSliceIterator(names), nil
 }
 
-type MeasurementNamesRequest struct {
-	MeasurementsSource *types.Any
-	Predicate          *datatypes.Predicate
-}
-
-func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesRequest) (cursors.StringIterator, error) {
-	if req.MeasurementsSource == nil {
-		return nil, errors.New("missing read source")
-	}
-
-	source, err := getReadSource(*req.MeasurementsSource)
-	if err != nil {
-		return nil, err
-	}
-
-	database, _, _, _, err := s.validateArgs(source.OrganizationID, source.BucketID, -1, -1)
-	if err != nil {
-		return nil, err
-	}
-
-	var expr influxql.Expr
-	if root := req.Predicate.GetRoot(); root != nil {
-		var err error
-		expr, err = reads.NodeToExpr(root, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		if found := reads.HasFieldValueKey(expr); found {
-			return nil, errors.New("field values unsupported")
-		}
-		// this will remove any _field references, which are not indexed
-		//   see https://github.com/influxdata/influxdb/issues/19488
-		expr = influxql.Reduce(RewriteExprRemoveFieldKeyAndValue(influxql.CloneExpr(expr)), nil)
-		if reads.IsTrueBooleanLiteral(expr) {
-			expr = nil
+func (s *Store) MeasurementNames(ctx context.Context, mqAttrs *metaqueryAttributes) (cursors.StringIterator, error) {
+	if mqAttrs.pred != nil {
+		if foundField, _ := HasFieldKeyOrValue(mqAttrs.pred); foundField {
+			// If there is a predicate on _field, we cannot use the index
+			// to filter out unwanted measurement names. Use a slower
+			// block scan instead.
+			return s.measurementNamesSlow(ctx, mqAttrs)
 		}
 	}
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.MeasurementNames(auth, database, expr)
+	values, err := s.TSDBStore.MeasurementNames(auth, mqAttrs.db, mqAttrs.pred)
 	if err != nil {
 		return nil, err
 	}
@@ -421,25 +424,8 @@ func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesReque
 	return cursors.NewStringSliceIterator(names), nil
 }
 
-func (s *Store) GetSource(orgID, bucketID uint64) proto.Message {
-	return &readSource{
-		BucketID:       bucketID,
-		OrganizationID: orgID,
-	}
-}
-
-func (s *Store) measurementFields(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
-	source, err := getReadSource(*req.TagsSource)
-	if err != nil {
-		return nil, err
-	}
-
-	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
-	if err != nil {
-		return nil, err
-	}
-
-	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+func (s *Store) measurementNamesSlow(ctx context.Context, mqAttrs *metaqueryAttributes) (cursors.StringIterator, error) {
+	shardIDs, err := s.findShardIDs(mqAttrs.db, mqAttrs.rp, false, mqAttrs.start, mqAttrs.end)
 	if err != nil {
 		return nil, err
 	}
@@ -447,32 +433,65 @@ func (s *Store) measurementFields(ctx context.Context, req *datatypes.TagValuesR
 		return cursors.EmptyStringIterator, nil
 	}
 
-	var expr influxql.Expr
-	if root := req.Predicate.GetRoot(); root != nil {
-		var err error
-		expr, err = reads.NodeToExpr(root, measurementRemap)
-		if err != nil {
-			return nil, err
+	var cur reads.SeriesCursor
+	if ic, err := newIndexSeriesCursorInfluxQLPred(ctx, mqAttrs.pred, s.TSDBStore.Shards(shardIDs)); err != nil {
+		return nil, err
+	} else if ic == nil {
+		return nil, nil
+	} else {
+		cur = ic
+	}
+
+	// TODO(cwolff): need to create the result set etc here
+
+	m := make(map[string]struct{})
+	for sr := cur.Next(); sr != nil; sr = cur.Next() {
+		m[string(sr.Name)] = struct{}{}
+	}
+
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return cursors.NewStringSliceIterator(names), nil
+}
+
+func (s *Store) GetSource(orgID, bucketID uint64) proto.Message {
+	return &readSource{
+		BucketID:       bucketID,
+		OrganizationID: orgID,
+	}
+}
+
+func (s *Store) measurementFields(ctx context.Context, mqAttrs *metaqueryAttributes) (cursors.StringIterator, error) {
+	if mqAttrs.pred != nil {
+		if foundField, _ := HasFieldKeyOrValue(mqAttrs.pred); foundField {
+			return s.measurementFieldsSlow(ctx, mqAttrs)
 		}
 
-		if found := reads.HasFieldValueKey(expr); found {
-			return nil, errors.New("field values unsupported")
+		if hasTagKey(mqAttrs.pred) {
+			return s.measurementFieldsSlow(ctx, mqAttrs)
 		}
-		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
-		if reads.IsTrueBooleanLiteral(expr) {
-			expr = nil
-		}
+	}
+
+	shardIDs, err := s.findShardIDs(mqAttrs.db, mqAttrs.rp, false, mqAttrs.start, mqAttrs.end)
+	if err != nil {
+		return nil, err
+	}
+	if len(shardIDs) == 0 {
+		return cursors.EmptyStringIterator, nil
 	}
 
 	sg := s.TSDBStore.ShardGroup(shardIDs)
 	ms := &influxql.Measurement{
-		Database:        database,
-		RetentionPolicy: rp,
+		Database:        mqAttrs.db,
+		RetentionPolicy: mqAttrs.rp,
 		SystemIterator:  "_fieldKeys",
 	}
 	opts := query.IteratorOptions{
-		OrgID:      influxdb.ID(source.OrganizationID),
-		Condition:  expr,
+		OrgID:      mqAttrs.orgID,
+		Condition:  mqAttrs.pred,
 		Authorizer: query.OpenAuthorizer,
 	}
 	iter, err := sg.CreateIterator(ctx, ms, opts)
@@ -493,4 +512,69 @@ func (s *Store) measurementFields(ctx context.Context, req *datatypes.TagValuesR
 	fieldNames = slices.MergeSortedStrings(fieldNames)
 
 	return cursors.NewStringSliceIterator(fieldNames), nil
+}
+
+func cursorHasData(c cursors.Cursor) bool {
+	var len int
+	switch typedCur := c.(type) {
+	case cursors.IntegerArrayCursor:
+		ia := typedCur.Next()
+		len = ia.Len()
+	case cursors.FloatArrayCursor:
+		ia := typedCur.Next()
+		len = ia.Len()
+	case cursors.UnsignedArrayCursor:
+		ia := typedCur.Next()
+		len = ia.Len()
+	case cursors.BooleanArrayCursor:
+		ia := typedCur.Next()
+		len = ia.Len()
+	case cursors.StringArrayCursor:
+		ia := typedCur.Next()
+		len = ia.Len()
+	default:
+		panic(fmt.Sprintf("unreachable: %T", typedCur))
+	}
+	return len != 0
+}
+
+func (s *Store) measurementFieldsSlow(ctx context.Context, mqAttrs *metaqueryAttributes) (cursors.StringIterator, error) {
+	shardIDs, err := s.findShardIDs(mqAttrs.db, mqAttrs.rp, false, mqAttrs.start, mqAttrs.end)
+	if err != nil {
+		return nil, err
+	}
+	if len(shardIDs) == 0 {
+		return cursors.EmptyStringIterator, nil
+	}
+
+	var cur reads.SeriesCursor
+	if ic, err := newIndexSeriesCursorInfluxQLPred(ctx, mqAttrs.pred, s.TSDBStore.Shards(shardIDs)); err != nil {
+		return nil, err
+	} else if ic == nil {
+		return nil, nil
+	} else {
+		cur = ic
+	}
+	m := make(map[string]struct{})
+
+	rs := reads.NewFilteredResultSet(ctx, mqAttrs.start, mqAttrs.end, cur)
+	for rs.Next() {
+		c := rs.Cursor()
+		if c == nil {
+			// no data for series key + field combination
+			continue
+		}
+
+		if cursorHasData(c) {
+			f := rs.Tags().Get([]byte("_field"))
+			m[string(f)] = struct{}{}
+		}
+	}
+
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return cursors.NewStringSliceIterator(names), nil
 }

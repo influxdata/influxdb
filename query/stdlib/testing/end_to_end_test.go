@@ -102,9 +102,16 @@ func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
 			}
 		}
 
+		if pkg.Path != "influxdata/influxdb/schema" {
+			continue
+		}
+
 		test(t, func(t *testing.T) {
 			for _, file := range pkg.Files {
 				name := strings.TrimSuffix(file.Name, "_test.flux")
+				if name != "measurement_field_keys" {
+					continue
+				}
 				t.Run(name, func(t *testing.T) {
 					if reason, ok := itesting.FluxEndToEndSkipList[pkg.Path][name]; ok {
 						t.Skip(reason)
