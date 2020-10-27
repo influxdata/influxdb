@@ -115,8 +115,21 @@ impl Column {
     }
 
     // The distinct set of values found at the logical row ids.
-    pub fn distinct_values(&self, row_ids: &[u32]) -> ValuesSet<'_> {
-        todo!()
+    pub fn distinct_values(&self, row_ids: &[u32]) -> ValueSet<'_> {
+        assert!(
+            row_ids.len() as u32 <= self.num_rows(),
+            format!(
+                "too many row ids {:?} provided for column with {:?} rows",
+                row_ids.len(),
+                self.num_rows()
+            )
+        );
+
+        match &self {
+            Column::String(_, data) => data.distinct_values(row_ids),
+            Column::ByteArray(_, _) => todo!(),
+            _ => unimplemented!("distinct values is not implemented for this type"),
+        }
     }
 
     //
@@ -229,10 +242,21 @@ impl StringEncoding {
         }
     }
 
-    /// Returns the logical value found at the provided row id.
+    /// All values present at the provided logical row ids.
+    ///
+    /// TODO(edd): perf - pooling of destination vectors.
     pub fn values(&self, row_ids: &[u32]) -> Values {
         match &self {
             Self::RLE(c) => Values::String(StringArray::from(c.values(row_ids, vec![]))),
+        }
+    }
+
+    /// Returns the distinct set of values found at the provided row ids.
+    ///
+    /// TODO(edd): perf - pooling of destination sets.
+    pub fn distinct_values(&self, row_ids: &[u32]) -> ValueSet<'_> {
+        match &self {
+            Self::RLE(c) => ValueSet::String(c.distinct_values(row_ids, BTreeSet::new())),
         }
     }
 
@@ -568,6 +592,8 @@ impl FloatEncoding {
     }
 
     /// Returns the logical values found at the provided row ids.
+    ///
+    /// TODO(edd): perf - pooling of destination vectors.
     pub fn values(&self, row_ids: &[u32]) -> Values {
         match &self {
             Self::Fixed64(c) => Values::F64(Float64Array::from(c.values::<f64>(row_ids, vec![]))),
@@ -1202,13 +1228,12 @@ pub enum Values {
     ByteArray(arrow::array::UInt8Array),
 }
 
-pub enum ValuesSet<'a> {
+#[derive(PartialEq, Debug)]
+pub enum ValueSet<'a> {
     // UTF-8 valid unicode strings
     String(BTreeSet<Option<&'a String>>),
-    Float64(BTreeSet<Option<f64>>),
-    Integer64(BTreeSet<Option<i64>>),
-    Unsigned64(BTreeSet<Option<u64>>),
-    Bool(BTreeSet<Option<bool>>),
+
+    // Arbitrary collections of bytes
     ByteArray(BTreeSet<Option<&'a [u8]>>),
 }
 
@@ -1699,5 +1724,26 @@ mod test {
             col.values(&[1, 2, 3]),
             Values::String(StringArray::from(vec![Some("b"), None, Some("c")]))
         );
+    }
+
+    #[test]
+    fn distinct_values() {
+        let input = &[
+            Some("hello"),
+            None,
+            Some("world"),
+            Some("hello"),
+            Some("world"),
+        ];
+
+        let hello = "hello".to_string();
+        let world = "world".to_string();
+        let mut exp = BTreeSet::new();
+        exp.insert(Some(&hello));
+        exp.insert(Some(&world));
+        exp.insert(None);
+
+        let col = Column::from(&input[..]);
+        assert_eq!(col.distinct_values(&[0, 1, 2, 3, 4]), ValueSet::String(exp));
     }
 }
