@@ -387,6 +387,15 @@ pub enum IntegerEncoding {
     I64U16(fixed::Fixed<u16>),
     I64I8(fixed::Fixed<i8>),
     I64U8(fixed::Fixed<u8>),
+    I32I32(fixed::Fixed<i32>),
+    I32I16(fixed::Fixed<i16>),
+    I32U16(fixed::Fixed<u16>),
+    I32I8(fixed::Fixed<i8>),
+    I32U8(fixed::Fixed<u8>),
+    I16I16(fixed::Fixed<i16>),
+    I16I8(fixed::Fixed<i8>),
+    I16U8(fixed::Fixed<u8>),
+    I8I8(fixed::Fixed<i8>),
 
     U64U64(fixed::Fixed<u64>),
     U64U32(fixed::Fixed<u32>),
@@ -399,10 +408,9 @@ pub enum IntegerEncoding {
     U16U8(fixed::Fixed<u8>),
     U8U8(fixed::Fixed<u8>),
 
-    I32I32(fixed::Fixed<i32>),
     // TODO - add all the other possible integer combinations.
 
-    // Nullable encodings
+    // Nullable encodings - TODO
     I64I64N(fixed_null::FixedNull<arrow::datatypes::Int64Type>),
 }
 
@@ -412,6 +420,8 @@ impl IntegerEncoding {
         match &self {
             // N.B., The `Scalar` variant determines the physical type `U` that
             // `c.value` should return as the logical type
+
+            // signed 64-bit variants - logical type is i64 for all these
             Self::I64I64(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
             Self::I64I32(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
             Self::I64U32(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
@@ -419,6 +429,21 @@ impl IntegerEncoding {
             Self::I64U16(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
             Self::I64I8(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
             Self::I64U8(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
+
+            // signed 32-bit variants - logical type is i32 for all these
+            Self::I32I32(c) => Value::Scalar(Scalar::I32(c.value(row_id))),
+            Self::I32I16(c) => Value::Scalar(Scalar::I32(c.value(row_id))),
+            Self::I32U16(c) => Value::Scalar(Scalar::I32(c.value(row_id))),
+            Self::I32I8(c) => Value::Scalar(Scalar::I32(c.value(row_id))),
+            Self::I32U8(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
+
+            // signed 16-bit variants - logical type is i16 for all these
+            Self::I16I16(c) => Value::Scalar(Scalar::I16(c.value(row_id))),
+            Self::I16I8(c) => Value::Scalar(Scalar::I16(c.value(row_id))),
+            Self::I16U8(c) => Value::Scalar(Scalar::I16(c.value(row_id))),
+
+            // signed 8-bit variant - logical type is i8
+            Self::I8I8(c) => Value::Scalar(Scalar::I8(c.value(row_id))),
 
             // unsigned 64-bit variants - logical type is u64 for all these
             Self::U64U64(c) => Value::Scalar(Scalar::U64(c.value(row_id))),
@@ -437,9 +462,6 @@ impl IntegerEncoding {
 
             // unsigned 8-bit variant - logical type is u8
             Self::U8U8(c) => Value::Scalar(Scalar::U8(c.value(row_id))),
-
-            // signed 32-bit variants
-            Self::I32I32(c) => Value::Scalar(Scalar::I32(c.value(row_id))),
 
             Self::I64I64N(c) => match c.value(row_id) {
                 Some(v) => Value::Scalar(Scalar::I64(v)),
@@ -666,9 +688,8 @@ impl From<&[u8]> for Column {
     }
 }
 
-/// This method supports converting a slice of signed integers into the most
-/// compact fixed-width physical encoding. The chosen physical encoding is
-/// encapsulated in the returned `Column` variant.
+/// Converts a slice of i64 values into the most compact fixed-width physical
+/// encoding.
 impl From<&[i64]> for Column {
     fn from(arr: &[i64]) -> Self {
         // determine min and max values.
@@ -753,6 +774,145 @@ impl From<&[i64]> for Column {
                 Column::Integer(meta, IntegerEncoding::I64I64(data))
             }
         }
+    }
+}
+
+/// Converts a slice of i32 values into the most compact fixed-width physical
+/// encoding.
+impl From<&[i32]> for Column {
+    fn from(arr: &[i32]) -> Self {
+        // determine min and max values.
+        let mut min = arr[0];
+        let mut max = arr[0];
+        for &v in arr.iter().skip(1) {
+            min = min.min(v);
+            max = max.max(v);
+        }
+
+        // This match is carefully ordered. It prioritises smaller physical
+        // datatypes that can safely represent the provided logical data type.
+        match (min, max) {
+            // encode as u8 values
+            (min, max) if min >= 0 && max <= u8::MAX as i32 => {
+                let data = fixed::Fixed::<u8>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as i64, max as i64)),
+                };
+                Column::Integer(meta, IntegerEncoding::I32U8(data))
+            }
+            // encode as i8 values
+            (min, max) if min >= i8::MIN as i32 && max <= i8::MAX as i32 => {
+                let data = fixed::Fixed::<i8>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as i64, max as i64)),
+                };
+                Column::Integer(meta, IntegerEncoding::I32I8(data))
+            }
+            // encode as u16 values
+            (min, max) if min >= 0 && max <= u16::MAX as i32 => {
+                let data = fixed::Fixed::<u16>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as i64, max as i64)),
+                };
+                Column::Integer(meta, IntegerEncoding::I32U16(data))
+            }
+            // encode as i16 values
+            (min, max) if min >= i16::MIN as i32 && max <= i16::MAX as i32 => {
+                let data = fixed::Fixed::<i16>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as i64, max as i64)),
+                };
+                Column::Integer(meta, IntegerEncoding::I32I16(data))
+            }
+            // otherwise, encode with the same physical type (i32)
+            (_, _) => {
+                let data = fixed::Fixed::<i32>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as i64, max as i64)),
+                };
+                Column::Integer(meta, IntegerEncoding::I32I32(data))
+            }
+        }
+    }
+}
+
+/// Converts a slice of i16 values into the most compact fixed-width physical
+/// encoding.
+impl From<&[i16]> for Column {
+    fn from(arr: &[i16]) -> Self {
+        // determine min and max values.
+        let mut min = arr[0];
+        let mut max = arr[0];
+        for &v in arr.iter().skip(1) {
+            min = min.min(v);
+            max = max.max(v);
+        }
+
+        // This match is carefully ordered. It prioritises smaller physical
+        // datatypes that can safely represent the provided logical data type.
+        match (min, max) {
+            // encode as i8 values
+            (min, max) if min >= i8::MIN as i16 && max <= i8::MAX as i16 => {
+                let data = fixed::Fixed::<i8>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as i64, max as i64)),
+                };
+                Column::Integer(meta, IntegerEncoding::I16I8(data))
+            }
+            // encode as u8 values
+            (min, max) if min >= 0 && max <= u8::MAX as i16 => {
+                let data = fixed::Fixed::<u8>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as i64, max as i64)),
+                };
+                Column::Integer(meta, IntegerEncoding::I16U8(data))
+            }
+            // otherwise, encode with the same physical type (i16)
+            (_, _) => {
+                let data = fixed::Fixed::<i16>::from(arr);
+                let meta = MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range: Some((min as i64, max as i64)),
+                };
+                Column::Integer(meta, IntegerEncoding::I16I16(data))
+            }
+        }
+    }
+}
+
+/// Converts a slice of i8 values
+impl From<&[i8]> for Column {
+    fn from(arr: &[i8]) -> Self {
+        // determine min and max values.
+        let mut min = arr[0];
+        let mut max = arr[0];
+        for &v in arr.iter().skip(1) {
+            min = min.min(v);
+            max = max.max(v);
+        }
+
+        let data = fixed::Fixed::<i8>::from(arr);
+        let meta = MetaData {
+            size: data.size(),
+            rows: data.num_rows(),
+            range: Some((min as i64, max as i64)),
+        };
+        Column::Integer(meta, IntegerEncoding::I8I8(data))
     }
 }
 
@@ -875,6 +1035,8 @@ pub enum Scalar {
     // TODO(edd): flesh out more logical types.
     I64(i64),
     I32(i32),
+    I16(i16),
+    I8(i8),
 
     U64(u64),
     U32(u32),
@@ -1049,28 +1211,16 @@ mod test {
 
     #[test]
     fn from_i64_slice() {
-        let input = &[0, u8::MAX as i64];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64U8(_))
-        ));
-
-        let input = &[0, u16::MAX as i64];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64U16(_))
-        ));
-
-        let input = &[0, u32::MAX as i64];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64U32(_))
-        ));
-
         let input = &[-1, i8::MAX as i64];
         assert!(matches!(
             Column::from(&input[..]),
             Column::Integer(_, IntegerEncoding::I64I8(_))
+        ));
+
+        let input = &[0, u8::MAX as i64];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I64U8(_))
         ));
 
         let input = &[-1, i16::MAX as i64];
@@ -1079,10 +1229,22 @@ mod test {
             Column::Integer(_, IntegerEncoding::I64I16(_))
         ));
 
+        let input = &[0, u16::MAX as i64];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I64U16(_))
+        ));
+
         let input = &[-1, i32::MAX as i64];
         assert!(matches!(
             Column::from(&input[..]),
             Column::Integer(_, IntegerEncoding::I64I32(_))
+        ));
+
+        let input = &[0, u32::MAX as i64];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I64U32(_))
         ));
 
         let input = &[-1, i64::MAX];
@@ -1098,6 +1260,102 @@ mod test {
             assert_eq!(meta.size, 40); // 4 i32s (16b) and a vec (24b)
             assert_eq!(meta.rows, 4);
             assert_eq!(meta.range, Some((-12, u16::MAX as i64)));
+        } else {
+            panic!("invalid variant");
+        }
+    }
+
+    #[test]
+    fn from_i32_slice() {
+        let input = &[-1, i8::MAX as i32];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I32I8(_))
+        ));
+
+        let input = &[0, u8::MAX as i32];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I32U8(_))
+        ));
+
+        let input = &[-1, i16::MAX as i32];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I32I16(_))
+        ));
+
+        let input = &[0, u16::MAX as i32];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I32U16(_))
+        ));
+
+        let input = &[-1, i32::MAX];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I32I32(_))
+        ));
+
+        // validate min/max check
+        let input = &[0, -12, u8::MAX as i32, 5];
+        let col = Column::from(&input[..]);
+        if let Column::Integer(meta, IntegerEncoding::I32I16(_)) = col {
+            assert_eq!(meta.size, 32); // 4 i16s (8b) and a vec (24b)
+            assert_eq!(meta.rows, 4);
+            assert_eq!(meta.range, Some((-12, u8::MAX as i64)));
+        } else {
+            panic!("invalid variant");
+        }
+    }
+
+    #[test]
+    fn from_i16_slice() {
+        let input = &[-1, i8::MAX as i16];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I16I8(_))
+        ));
+
+        let input = &[0, u8::MAX as i16];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I16U8(_))
+        ));
+
+        let input = &[-1, i16::MAX as i16];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I16I16(_))
+        ));
+
+        // validate min/max check
+        let input = &[0, -12, u8::MAX as i16, 5];
+        let col = Column::from(&input[..]);
+        if let Column::Integer(meta, IntegerEncoding::I16I16(_)) = col {
+            assert_eq!(meta.size, 32); // 4 i16s (8b) and a vec (24b)
+            assert_eq!(meta.rows, 4);
+            assert_eq!(meta.range, Some((-12, u8::MAX as i64)));
+        } else {
+            panic!("invalid variant");
+        }
+    }
+
+    #[test]
+    fn from_i8_slice() {
+        let input = &[-1, i8::MAX];
+        assert!(matches!(
+            Column::from(&input[..]),
+            Column::Integer(_, IntegerEncoding::I8I8(_))
+        ));
+
+        // validate min/max check
+        let input = &[0, -12, i8::MAX, 5];
+        let col = Column::from(&input[..]);
+        if let Column::Integer(meta, IntegerEncoding::I8I8(_)) = col {
+            assert_eq!(meta.size, 28); // 4 i8s (4b) and a vec (24b)
+            assert_eq!(meta.rows, 4);
+            assert_eq!(meta.range, Some((-12, i8::MAX as i64)));
         } else {
             panic!("invalid variant");
         }
