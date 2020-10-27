@@ -7,6 +7,10 @@ use std::collections::BTreeSet;
 
 use croaring::Bitmap;
 
+use delorean_arrow::arrow::array::{
+    Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, StringArray,
+    UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+};
 use delorean_arrow::{arrow, arrow::array::Array};
 
 /// The possible logical types that column values can have. All values in a
@@ -91,7 +95,23 @@ impl Column {
 
     /// All values present at the provided logical row ids.
     pub fn values(&self, row_ids: &[u32]) -> Values {
-        todo!()
+        assert!(
+            row_ids.len() as u32 <= self.num_rows(),
+            format!(
+                "too many row ids {:?} provided for column with {:?} rows",
+                row_ids.len(),
+                self.num_rows()
+            )
+        );
+
+        match &self {
+            Column::String(_, data) => data.values(row_ids),
+            Column::Float(_, data) => data.values(row_ids),
+            Column::Integer(_, data) => data.values(row_ids),
+            Column::Unsigned(_, data) => data.values(row_ids),
+            Column::Bool => todo!(),
+            Column::ByteArray(_, _) => todo!(),
+        }
     }
 
     // The distinct set of values found at the logical row ids.
@@ -206,6 +226,13 @@ impl StringEncoding {
                 Some(v) => Value::String(v),
                 None => Value::Null,
             },
+        }
+    }
+
+    /// Returns the logical value found at the provided row id.
+    pub fn values(&self, row_ids: &[u32]) -> Values {
+        match &self {
+            Self::RLE(c) => Values::String(StringArray::from(c.values(row_ids, vec![]))),
         }
     }
 
@@ -469,6 +496,58 @@ impl IntegerEncoding {
             },
         }
     }
+
+    /// Returns the logical values found at the provided row ids.
+    ///
+    /// TODO(edd): perf - provide a pooling mechanism for these destination vectors
+    /// so that they can be re-used.
+    pub fn values(&self, row_ids: &[u32]) -> Values {
+        match &self {
+            // signed 64-bit variants - logical type is i64 for all these
+            Self::I64I64(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
+            Self::I64I32(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
+            Self::I64U32(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
+            Self::I64I16(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
+            Self::I64U16(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
+            Self::I64I8(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
+            Self::I64U8(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
+
+            // signed 32-bit variants - logical type is i32 for all these
+            Self::I32I32(c) => Values::I32(Int32Array::from(c.values::<i32>(row_ids, vec![]))),
+            Self::I32I16(c) => Values::I32(Int32Array::from(c.values::<i32>(row_ids, vec![]))),
+            Self::I32U16(c) => Values::I32(Int32Array::from(c.values::<i32>(row_ids, vec![]))),
+            Self::I32I8(c) => Values::I32(Int32Array::from(c.values::<i32>(row_ids, vec![]))),
+            Self::I32U8(c) => Values::I32(Int32Array::from(c.values::<i32>(row_ids, vec![]))),
+
+            // signed 16-bit variants - logical type is i16 for all these
+            Self::I16I16(c) => Values::I16(Int16Array::from(c.values::<i16>(row_ids, vec![]))),
+            Self::I16I8(c) => Values::I16(Int16Array::from(c.values::<i16>(row_ids, vec![]))),
+            Self::I16U8(c) => Values::I16(Int16Array::from(c.values::<i16>(row_ids, vec![]))),
+
+            // signed 8-bit variant - logical type is i8
+            Self::I8I8(c) => Values::I8(Int8Array::from(c.values::<i8>(row_ids, vec![]))),
+
+            // unsigned 64-bit variants - logical type is u64 for all these
+            Self::U64U64(c) => Values::U64(UInt64Array::from(c.values::<u64>(row_ids, vec![]))),
+            Self::U64U32(c) => Values::U64(UInt64Array::from(c.values::<u64>(row_ids, vec![]))),
+            Self::U64U16(c) => Values::U64(UInt64Array::from(c.values::<u64>(row_ids, vec![]))),
+            Self::U64U8(c) => Values::U64(UInt64Array::from(c.values::<u64>(row_ids, vec![]))),
+
+            // unsigned 32-bit variants - logical type is u32 for all these
+            Self::U32U32(c) => Values::U32(UInt32Array::from(c.values::<u32>(row_ids, vec![]))),
+            Self::U32U16(c) => Values::U32(UInt32Array::from(c.values::<u32>(row_ids, vec![]))),
+            Self::U32U8(c) => Values::U32(UInt32Array::from(c.values::<u32>(row_ids, vec![]))),
+
+            // unsigned 16-bit variants - logical type is u16 for all these
+            Self::U16U16(c) => Values::U16(UInt16Array::from(c.values::<u16>(row_ids, vec![]))),
+            Self::U16U8(c) => Values::U16(UInt16Array::from(c.values::<u16>(row_ids, vec![]))),
+
+            // unsigned 8-bit variant - logical type is u8
+            Self::U8U8(c) => Values::U8(UInt8Array::from(c.values::<u8>(row_ids, vec![]))),
+
+            Self::I64I64N(c) => Values::I64(Int64Array::from(c.values(row_ids, vec![]))),
+        }
+    }
 }
 
 pub enum FloatEncoding {
@@ -485,6 +564,14 @@ impl FloatEncoding {
             // `c.value` should return.
             Self::Fixed64(c) => Value::Scalar(Scalar::F64(c.value(row_id))),
             Self::Fixed32(c) => Value::Scalar(Scalar::F32(c.value(row_id))),
+        }
+    }
+
+    /// Returns the logical values found at the provided row ids.
+    pub fn values(&self, row_ids: &[u32]) -> Values {
+        match &self {
+            Self::Fixed64(c) => Values::F64(Float64Array::from(c.values::<f64>(row_ids, vec![]))),
+            Self::Fixed32(c) => Values::F32(Float32Array::from(c.values::<f32>(row_ids, vec![]))),
         }
     }
 }
@@ -985,6 +1072,28 @@ impl From<&[f64]> for Column {
     }
 }
 
+/// Converts a slice of `f32` values into a fixed-width column encoding.
+impl From<&[f32]> for Column {
+    fn from(arr: &[f32]) -> Self {
+        // determine min and max values.
+        let mut min = arr[0];
+        let mut max = arr[0];
+        for &v in arr.iter().skip(1) {
+            min = min.min(v);
+            max = max.max(v);
+        }
+
+        let data = fixed::Fixed::<f32>::from(arr);
+        let meta = MetaData {
+            size: data.size(),
+            rows: data.num_rows(),
+            range: Some((min as f64, max as f64)),
+        };
+
+        Column::Float(meta, FloatEncoding::Fixed32(data))
+    }
+}
+
 /// These variants describe supported aggregates that can applied to columnar
 /// data.
 pub enum AggregateType {
@@ -1068,18 +1177,23 @@ pub enum Value<'a> {
 
 /// Each variant is a typed vector of materialised values for a column. NULL
 /// values are represented as None
+#[derive(Debug, PartialEq)]
 pub enum Values {
     // UTF-8 valid unicode strings
     String(arrow::array::StringArray),
 
-    // 64-bit floating point values
-    Float(arrow::array::Float64Array),
+    F64(arrow::array::Float64Array),
+    F32(arrow::array::Float32Array),
 
-    // 64-bit signed integer values
-    Integer(arrow::array::Int64Array),
+    I64(arrow::array::Int64Array),
+    I32(arrow::array::Int32Array),
+    I16(arrow::array::Int16Array),
+    I8(arrow::array::Int8Array),
 
-    // 64-bit unsigned integer values
-    Unsigned(arrow::array::UInt64Array),
+    U64(arrow::array::UInt64Array),
+    U32(arrow::array::UInt32Array),
+    U16(arrow::array::UInt16Array),
+    U8(arrow::array::UInt8Array),
 
     // Boolean values
     Bool(arrow::array::BooleanArray),
@@ -1150,7 +1264,10 @@ impl RowIDs {
 #[cfg(test)]
 mod test {
     use super::*;
-    use delorean_arrow::arrow::array::StringArray;
+    use delorean_arrow::arrow::array::{
+        Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, StringArray,
+        UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+    };
 
     #[test]
     fn from_arrow_string_array() {
@@ -1503,5 +1620,84 @@ mod test {
         let col = Column::from(&[Some("a"), Some("b"), None, Some("c")][..]);
         assert_eq!(col.value(1), Value::String("b"));
         assert_eq!(col.value(2), Value::Null);
+    }
+
+    #[test]
+    fn values() {
+        // physical type of `col` will be `i16` but logical type is `i64`
+        let col = Column::from(&[0_i64, 1, 200, 20, -1][..]);
+        assert_eq!(
+            col.values(&[0, 2, 3]),
+            Values::I64(Int64Array::from(vec![0, 200, 20]))
+        );
+
+        // physical type of `col` will be `i16` but logical type is `i32`
+        let col = Column::from(&[0_i32, 1, 200, 20, -1][..]);
+        assert_eq!(
+            col.values(&[0, 2, 3]),
+            Values::I32(Int32Array::from(vec![0, 200, 20]))
+        );
+
+        // physical and logical type of `col` will be `i16`
+        let col = Column::from(&[0_i16, 1, 200, 20, -1][..]);
+        assert_eq!(
+            col.values(&[0, 2, 3]),
+            Values::I16(Int16Array::from(vec![0, 200, 20]))
+        );
+
+        // physical and logical type of `col` will be `i8`
+        let col = Column::from(&[0_i8, 1, 127, 20, -1][..]);
+        assert_eq!(
+            col.values(&[0, 2, 3]),
+            Values::I8(Int8Array::from(vec![0, 127, 20]))
+        );
+
+        // physical type of `col` will be `u8` but logical type is `u64`
+        let col = Column::from(&[0_u64, 1, 200, 20, 100][..]);
+        assert_eq!(
+            col.values(&[3, 4]),
+            Values::U64(UInt64Array::from(vec![20, 100]))
+        );
+
+        // physical type of `col` will be `u8` but logical type is `u32`
+        let col = Column::from(&[0_u32, 1, 200, 20, 100][..]);
+        assert_eq!(
+            col.values(&[3, 4]),
+            Values::U32(UInt32Array::from(vec![20, 100]))
+        );
+
+        // physical type of `col` will be `u8` but logical type is `u16`
+        let col = Column::from(&[0_u16, 1, 200, 20, 100][..]);
+        assert_eq!(
+            col.values(&[3, 4]),
+            Values::U16(UInt16Array::from(vec![20, 100]))
+        );
+
+        // physical and logical type of `col` will be `u8`
+        let col = Column::from(&[0_u8, 1, 200, 20, 100][..]);
+        assert_eq!(
+            col.values(&[3, 4]),
+            Values::U8(UInt8Array::from(vec![20, 100]))
+        );
+
+        // physical and logical type of `col` will be `f64`
+        let col = Column::from(&[0.0, 1.1, 20.2, 22.3, 100.1324][..]);
+        assert_eq!(
+            col.values(&[1, 3]),
+            Values::F64(Float64Array::from(vec![1.1, 22.3]))
+        );
+
+        // physical and logical type of `col` will be `f32`
+        let col = Column::from(&[0.0_f32, 1.1, 20.2, 22.3, 100.1324][..]);
+        assert_eq!(
+            col.values(&[1, 3]),
+            Values::F32(Float32Array::from(vec![1.1, 22.3]))
+        );
+
+        let col = Column::from(&[Some("a"), Some("b"), None, Some("c")][..]);
+        assert_eq!(
+            col.values(&[1, 2, 3]),
+            Values::String(StringArray::from(vec![Some("b"), None, Some("c")]))
+        );
     }
 }
