@@ -240,7 +240,9 @@ func nodeFromMatcher(m *remote.LabelMatcher) (*datatypes.Node, error) {
 		right = &datatypes.Node{
 			NodeType: datatypes.NodeTypeLiteral,
 			Value: &datatypes.Node_RegexValue{
-				RegexValue: m.Value,
+				// To comply with PromQL, see
+				// https://github.com/prometheus/prometheus/blob/daf382e4a9f5ca380b2b662c8e60755a56675f14/pkg/labels/regexp.go#L30
+				RegexValue: "^(?:" + m.Value + ")$",
 			},
 		}
 	} else {
