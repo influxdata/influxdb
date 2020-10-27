@@ -1990,7 +1990,7 @@ paths:
       operationId: PostSources
       tags:
         - Sources
-      summary: Creates a source
+      summary: Create a source
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
       requestBody:
@@ -2814,7 +2814,7 @@ paths:
       operationId: GetDashboardsIDLabels
       tags:
         - Dashboards
-      summary: list all labels for a dashboard
+      summary: List all labels for a dashboard
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
         - in: path
@@ -3305,7 +3305,7 @@ paths:
       operationId: DeleteAuthorizationsID
       tags:
         - Authorizations
-      summary: Delete a authorization
+      summary: Delete an authorization
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
         - in: path
@@ -3681,7 +3681,7 @@ paths:
       operationId: DeleteBucketsIDLabelsID
       tags:
         - Buckets
-      summary: delete a label from a bucket
+      summary: Delete a label from a bucket
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
         - in: path
