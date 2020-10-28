@@ -26,7 +26,6 @@ type NotificationEndpointBackend struct {
 	UserResourceMappingService  influxdb.UserResourceMappingService
 	LabelService                influxdb.LabelService
 	UserService                 influxdb.UserService
-	OrganizationService         influxdb.OrganizationService
 }
 
 // NewNotificationEndpointBackend returns a new instance of NotificationEndpointBackend.
@@ -38,7 +37,6 @@ func NewNotificationEndpointBackend(log *zap.Logger, b *APIBackend) *Notificatio
 		UserResourceMappingService:  b.UserResourceMappingService,
 		LabelService:                b.LabelService,
 		UserService:                 b.UserService,
-		OrganizationService:         b.OrganizationService,
 	}
 }
 
@@ -56,7 +54,6 @@ type NotificationEndpointHandler struct {
 	UserResourceMappingService  influxdb.UserResourceMappingService
 	LabelService                influxdb.LabelService
 	UserService                 influxdb.UserService
-	OrganizationService         influxdb.OrganizationService
 }
 
 const (
@@ -81,7 +78,6 @@ func NewNotificationEndpointHandler(log *zap.Logger, b *NotificationEndpointBack
 		UserResourceMappingService:  b.UserResourceMappingService,
 		LabelService:                b.LabelService,
 		UserService:                 b.UserService,
-		OrganizationService:         b.OrganizationService,
 	}
 	h.HandlerFunc("POST", prefixNotificationEndpoints, h.handlePostNotificationEndpoint)
 	h.HandlerFunc("GET", prefixNotificationEndpoints, h.handleGetNotificationEndpoints)
@@ -551,20 +547,12 @@ func (h *NotificationEndpointHandler) handleDeleteNotificationEndpoint(w http.Re
 // NotificationEndpointService is an http client for the influxdb.NotificationEndpointService server implementation.
 type NotificationEndpointService struct {
 	Client *httpc.Client
-	*UserResourceMappingService
-	*OrganizationService
 }
 
 // NewNotificationEndpointService constructs a new http NotificationEndpointService.
 func NewNotificationEndpointService(client *httpc.Client) *NotificationEndpointService {
 	return &NotificationEndpointService{
 		Client: client,
-		UserResourceMappingService: &UserResourceMappingService{
-			Client: client,
-		},
-		OrganizationService: &OrganizationService{
-			Client: client,
-		},
 	}
 }
 

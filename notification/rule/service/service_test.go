@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
+	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/tenant"
@@ -68,7 +69,12 @@ func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.
 		tenantSvc   = tenant.NewService(tenantStore)
 	)
 
-	svc, err := NewRuleService(logger, s, kvsvc, tenantSvc, kvsvc)
+	endpStore := endpointservice.NewStore(s)
+	endpStore.IDGenerator = f.IDGenerator
+	endpStore.TimeGenerator = f.TimeGenerator
+	endp := endpointservice.New(endpStore, kvsvc)
+
+	svc, err := New(logger, s, kvsvc, tenantSvc, endp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +94,7 @@ func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.
 	}
 
 	for _, e := range f.Endpoints {
-		if err := kvsvc.CreateNotificationEndpoint(ctx, e, 1); err != nil {
+		if err := endp.CreateNotificationEndpoint(ctx, e, 1); err != nil {
 			t.Fatalf("failed to populate notification endpoint: %v", err)
 		}
 	}

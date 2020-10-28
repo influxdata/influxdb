@@ -104,12 +104,6 @@ func (n *NotificationEndpointUpdate) Valid() error {
 
 // NotificationEndpointService represents a service for managing notification endpoints.
 type NotificationEndpointService interface {
-	// UserResourceMappingService must be part of all NotificationEndpointStore service,
-	// for create, delete.
-	UserResourceMappingService
-	// OrganizationService is needed for search filter
-	OrganizationService
-
 	// FindNotificationEndpointByID returns a single notification endpoint by ID.
 	FindNotificationEndpointByID(ctx context.Context, id ID) (NotificationEndpoint, error)
 

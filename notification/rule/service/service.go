@@ -44,8 +44,8 @@ type RuleService struct {
 	timeGenerator influxdb.TimeGenerator
 }
 
-// NewRuleService constructs and configures a notification rule service
-func NewRuleService(logger *zap.Logger, store kv.Store, tasks influxdb.TaskService, orgs influxdb.OrganizationService, endpoints influxdb.NotificationEndpointService) (*RuleService, error) {
+// New constructs and configures a notification rule service
+func New(logger *zap.Logger, store kv.Store, tasks influxdb.TaskService, orgs influxdb.OrganizationService, endpoints influxdb.NotificationEndpointService) (*RuleService, error) {
 	s := &RuleService{
 		log:           logger,
 		kv:            store,
