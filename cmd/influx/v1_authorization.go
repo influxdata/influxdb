@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
+	cinternal "github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/v1/authorization"
 	"github.com/spf13/cobra"
+	"github.com/tcnksm/go-input"
 )
 
 type v1Token struct {
@@ -32,6 +36,7 @@ func cmdV1Auth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		v1AuthDeleteCmd(f),
 		v1AuthFindCmd(f),
 		v1AuthInactiveCmd(f),
+		v1AuthSetPasswordCmd(f, opt),
 	)
 
 	return cmd
@@ -162,6 +167,7 @@ func v1AuthorizationCreateF(cmd *cobra.Command, args []string) error {
 		token: v1Token{
 			ID:          auth.ID,
 			Description: auth.Description,
+			Token:       auth.Token,
 			Status:      string(auth.Status),
 			UserName:    user.Name,
 			UserID:      user.ID,
@@ -328,6 +334,7 @@ func v1AuthorizationDeleteF(cmd *cobra.Command, args []string) error {
 		token: v1Token{
 			ID:          a.ID,
 			Description: a.Description,
+			Token:       a.Token,
 			Status:      string(a.Status),
 			UserName:    user.Name,
 			UserID:      user.ID,
@@ -395,6 +402,7 @@ func v1AuthorizationActiveF(cmd *cobra.Command, args []string) error {
 		token: v1Token{
 			ID:          a.ID,
 			Description: a.Description,
+			Token:       a.Token,
 			Status:      string(a.Status),
 			UserName:    user.Name,
 			UserID:      user.ID,
@@ -462,12 +470,79 @@ func v1AuthorizationInactiveF(cmd *cobra.Command, args []string) error {
 		token: v1Token{
 			ID:          a.ID,
 			Description: a.Description,
+			Token:       a.Token,
 			Status:      string(a.Status),
 			UserName:    user.Name,
 			UserID:      user.ID,
 			Permissions: ps,
 		},
 	})
+}
+
+var v1AuthSetPasswordFlags struct {
+	id   string
+	name string
+}
+
+func v1AuthSetPasswordCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "set-password",
+		Short: "Set a password for an existing authorization",
+		RunE:  checkSetupRunEMiddleware(&flags)(makeV1AuthorizationSetPasswordF(opt)),
+	}
+
+	f.registerFlags(cmd)
+	cmd.Flags().StringVarP(&v1AuthSetPasswordFlags.id, "id", "i", "", "The authorization ID")
+	cmd.Flags().StringVarP(&v1AuthSetPasswordFlags.name, "name", "n", "", "The authorization token (username)")
+
+	return cmd
+}
+
+func makeV1AuthorizationSetPasswordF(opt genericCLIOpts) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		filter := influxdb.AuthorizationFilter{}
+		if v1AuthSetPasswordFlags.name != "" {
+			filter.Token = &v1AuthSetPasswordFlags.name
+		}
+		if v1AuthSetPasswordFlags.id != "" {
+			id, err := influxdb.IDFromString(v1AuthSetPasswordFlags.id)
+			if err != nil {
+				return err
+			}
+			filter.ID = id
+		}
+
+		s, err := newV1AuthorizationService()
+		if err != nil {
+			return err
+		}
+
+		authorizations, _, err := s.FindAuthorizations(context.Background(), filter)
+		if err != nil {
+			return err
+		}
+
+		if len(authorizations) > 1 {
+			return errors.New("multiple authorizations found")
+		}
+
+		if len(authorizations) == 0 {
+			return errors.New("no authorizations found")
+		}
+
+		ui := &input.UI{
+			Writer: opt.w,
+			Reader: opt.in,
+		}
+
+		password := cinternal.GetPassword(ui, false)
+
+		if err := s.SetPassword(context.Background(), authorizations[0].ID, password); err != nil {
+			return fmt.Errorf("error setting password: %w", err)
+		}
+
+		return nil
+	}
 }
 
 type v1TokenPrintOpt struct {
@@ -495,6 +570,7 @@ func v1WriteTokens(w io.Writer, printOpts v1TokenPrintOpt) error {
 	headers := []string{
 		"ID",
 		"Description",
+		"Name / Token",
 		"User Name",
 		"User ID",
 		"Permissions",
@@ -510,11 +586,12 @@ func v1WriteTokens(w io.Writer, printOpts v1TokenPrintOpt) error {
 
 	for _, t := range printOpts.tokens {
 		m := map[string]interface{}{
-			"ID":          t.ID.String(),
-			"Description": t.Description,
-			"User Name":   t.UserName,
-			"User ID":     t.UserID.String(),
-			"Permissions": t.Permissions,
+			"ID":           t.ID.String(),
+			"Description":  t.Description,
+			"Name / Token": t.Token,
+			"User Name":    t.UserName,
+			"User ID":      t.UserID.String(),
+			"Permissions":  t.Permissions,
 		}
 		if printOpts.deleted {
 			m["Deleted"] = true
@@ -525,7 +602,7 @@ func v1WriteTokens(w io.Writer, printOpts v1TokenPrintOpt) error {
 	return nil
 }
 
-func newV1AuthorizationService() (influxdb.AuthorizationService, error) {
+func newV1AuthorizationService() (*authorization.Client, error) {
 	httpClient, err := newHTTPClient()
 	if err != nil {
 		return nil, err
