@@ -53,6 +53,10 @@ func (mockReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpe
 	return &mockTableIterator{}, nil
 }
 
+func (mockReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+	return &mockTableIterator{}, nil
+}
+
 func (mockReader) Close() {
 }
 
@@ -200,7 +204,7 @@ func TestReadWindowAggregateSource(t *testing.T) {
 				ReadRangePhysSpec: influxdb.ReadRangePhysSpec{
 					BucketID: bucketID.String(),
 				},
-				WindowEvery: 10,
+				WindowEvery: flux.ConvertDuration(10 * time.Nanosecond),
 				Aggregates: []plan.ProcedureKind{
 					universe.SumKind,
 				},

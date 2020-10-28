@@ -113,15 +113,15 @@ type ReadWindowAggregatePhysSpec struct {
 	plan.DefaultCost
 	ReadRangePhysSpec
 
-	WindowEvery int64
-	Offset      int64
+	WindowEvery flux.Duration
+	Offset      flux.Duration
 	Aggregates  []plan.ProcedureKind
 	CreateEmpty bool
 	TimeColumn  string
 }
 
 func (s *ReadWindowAggregatePhysSpec) PlanDetails() string {
-	return fmt.Sprintf("every = %d, aggregates = %v, createEmpty = %v, timeColumn = \"%s\"", s.WindowEvery, s.Aggregates, s.CreateEmpty, s.TimeColumn)
+	return fmt.Sprintf("every = %v, aggregates = %v, createEmpty = %v, timeColumn = \"%s\"", s.WindowEvery, s.Aggregates, s.CreateEmpty, s.TimeColumn)
 }
 
 func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {
