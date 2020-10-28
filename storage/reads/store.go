@@ -17,6 +17,9 @@ type ResultSet interface {
 	// Cursor returns the most recent cursor after a call to Next.
 	Cursor() cursors.Cursor
 
+	//// MeasurementName returns the measurement name for the most recent cursor after a call to Next.
+	//MeasurementName() []byte
+	//
 	// Tags returns the tags for the most recent cursor after a call to Next.
 	Tags() models.Tags
 

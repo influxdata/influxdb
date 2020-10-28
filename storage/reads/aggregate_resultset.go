@@ -146,6 +146,10 @@ func (r *windowAggregateResultSet) Stats() cursors.CursorStats {
 	return r.seriesRow.Query.Stats()
 }
 
+func (r *windowAggregateResultSet) MeasurementName() []byte {
+	return r.seriesRow.Name
+}
+
 func (r *windowAggregateResultSet) Tags() models.Tags {
 	return r.seriesRow.Tags
 }

@@ -198,6 +198,13 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 	return rs, nil
 }
 
+type  metaqueryAttributes struct {
+	orgID influxdb.ID
+	db, rp string
+	start, end int64
+	pred influxql.Expr
+}
+
 func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
 	if req.TagsSource == nil {
 		return nil, errors.New("missing read source")
@@ -265,13 +272,6 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 	return cursors.NewStringSliceIterator(names), nil
 }
 
-type  metaqueryAttributes struct {
-    orgID influxdb.ID
-	db, rp string
-	start, end int64
-    pred influxql.Expr
-}
-
 func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
 	if req.TagsSource == nil {
 		return nil, errors.New("missing read source")
@@ -314,14 +314,26 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	}
 	mqAttrs.pred = influxqlPred
 
-	if tagKey, ok := measurementRemap[req.TagKey]; ok {
-		switch tagKey {
-		case "_name":
-			return s.MeasurementNames(ctx, mqAttrs)
+	tagKey, ok := measurementRemap[req.TagKey]
+	if !ok {
+		tagKey = req.TagKey
+	}
 
-		case "_field":
-			return s.measurementFields(ctx, mqAttrs)
-		}
+	// If there are any references to _field, we need to use the slow path
+	// since we cannot rely on the index alone.
+	//if mqAttrs.pred != nil {
+	//	if hasFieldKey, _ := HasFieldKeyOrValue(mqAttrs.pred); hasFieldKey {
+	//		return s.tagValuesSlow(ctx, mqAttrs, tagKey)
+	//	}
+	//}
+
+	// Getting values of _measurement or _field are handled specially
+	switch tagKey {
+	case "_name":
+		return s.MeasurementNames(ctx, mqAttrs)
+
+	case "_field":
+		return s.measurementFields(ctx, mqAttrs)
 	}
 
 	shardIDs, err := s.findShardIDs(db, rp, false, start, end)
@@ -400,7 +412,7 @@ func (s *Store) MeasurementNames(ctx context.Context, mqAttrs *metaqueryAttribut
 			// If there is a predicate on _field, we cannot use the index
 			// to filter out unwanted measurement names. Use a slower
 			// block scan instead.
-			return s.measurementNamesSlow(ctx, mqAttrs)
+			return s.tagValuesSlow(ctx, mqAttrs, measurementKey)
 		}
 	}
 
@@ -424,39 +436,6 @@ func (s *Store) MeasurementNames(ctx context.Context, mqAttrs *metaqueryAttribut
 	return cursors.NewStringSliceIterator(names), nil
 }
 
-func (s *Store) measurementNamesSlow(ctx context.Context, mqAttrs *metaqueryAttributes) (cursors.StringIterator, error) {
-	shardIDs, err := s.findShardIDs(mqAttrs.db, mqAttrs.rp, false, mqAttrs.start, mqAttrs.end)
-	if err != nil {
-		return nil, err
-	}
-	if len(shardIDs) == 0 {
-		return cursors.EmptyStringIterator, nil
-	}
-
-	var cur reads.SeriesCursor
-	if ic, err := newIndexSeriesCursorInfluxQLPred(ctx, mqAttrs.pred, s.TSDBStore.Shards(shardIDs)); err != nil {
-		return nil, err
-	} else if ic == nil {
-		return nil, nil
-	} else {
-		cur = ic
-	}
-
-	// TODO(cwolff): need to create the result set etc here
-
-	m := make(map[string]struct{})
-	for sr := cur.Next(); sr != nil; sr = cur.Next() {
-		m[string(sr.Name)] = struct{}{}
-	}
-
-	names := make([]string, 0, len(m))
-	for name := range m {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return cursors.NewStringSliceIterator(names), nil
-}
-
 func (s *Store) GetSource(orgID, bucketID uint64) proto.Message {
 	return &readSource{
 		BucketID:       bucketID,
@@ -467,11 +446,11 @@ func (s *Store) GetSource(orgID, bucketID uint64) proto.Message {
 func (s *Store) measurementFields(ctx context.Context, mqAttrs *metaqueryAttributes) (cursors.StringIterator, error) {
 	if mqAttrs.pred != nil {
 		if foundField, _ := HasFieldKeyOrValue(mqAttrs.pred); foundField {
-			return s.measurementFieldsSlow(ctx, mqAttrs)
+			return s.tagValuesSlow(ctx, mqAttrs, fieldKey)
 		}
 
 		if hasTagKey(mqAttrs.pred) {
-			return s.measurementFieldsSlow(ctx, mqAttrs)
+			return s.tagValuesSlow(ctx, mqAttrs, fieldKey)
 		}
 	}
 
@@ -538,7 +517,7 @@ func cursorHasData(c cursors.Cursor) bool {
 	return len != 0
 }
 
-func (s *Store) measurementFieldsSlow(ctx context.Context, mqAttrs *metaqueryAttributes) (cursors.StringIterator, error) {
+func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *metaqueryAttributes, tagKey string) (cursors.StringIterator, error) {
 	shardIDs, err := s.findShardIDs(mqAttrs.db, mqAttrs.rp, false, mqAttrs.start, mqAttrs.end)
 	if err != nil {
 		return nil, err
@@ -559,16 +538,19 @@ func (s *Store) measurementFieldsSlow(ctx context.Context, mqAttrs *metaqueryAtt
 
 	rs := reads.NewFilteredResultSet(ctx, mqAttrs.start, mqAttrs.end, cur)
 	for rs.Next() {
-		c := rs.Cursor()
-		if c == nil {
-			// no data for series key + field combination
-			continue
-		}
+		func() {
+			c := rs.Cursor()
+			if c == nil {
+				// no data for series key + field combination
+				return
+			}
+			defer c.Close()
 
-		if cursorHasData(c) {
-			f := rs.Tags().Get([]byte("_field"))
-			m[string(f)] = struct{}{}
-		}
+			if cursorHasData(c) {
+					f := rs.Tags().Get([]byte(tagKey))
+					m[string(f)] = struct{}{}
+			}
+		}()
 	}
 
 	names := make([]string, 0, len(m))

@@ -57,6 +57,10 @@ func (r *resultSet) Cursor() cursors.Cursor {
 	return r.arrayCursors.createCursor(r.seriesRow)
 }
 
+func (r *resultSet) MeasurementName() []byte {
+	return r.seriesRow.Name
+}
+
 func (r *resultSet) Tags() models.Tags {
 	return r.seriesRow.Tags
 }

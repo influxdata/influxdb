@@ -24,7 +24,7 @@ func init() {
 		PushDownFilterRule{},
 		PushDownGroupRule{},
 		// These rules can be re-enabled with https://github.com/influxdata/influxdb/issues/19561 is fixed
-		// PushDownReadTagKeysRule{},
+		PushDownReadTagKeysRule{},
 		PushDownReadTagValuesRule{},
 		SortedPivotRule{},
 		PushDownWindowAggregateRule{},
