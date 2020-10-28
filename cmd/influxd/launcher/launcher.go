@@ -1284,15 +1284,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	var v1AuthHTTPServer *authv1.AuthHandler
 	{
-		var v1AuthSvc platform.AuthorizationService
-		{
-			authStore, err := authv1.NewStore(m.kvStore)
-			if err != nil {
-				m.log.Error("Failed creating new authorization store", zap.Error(err))
-				return err
-			}
-			v1AuthSvc = authv1.NewService(authStore, ts)
+		authStore, err := authv1.NewStore(m.kvStore)
+		if err != nil {
+			m.log.Error("Failed creating new authorization store", zap.Error(err))
+			return err
 		}
+		v1AuthSvc := authv1.NewService(authStore, ts)
 
 		authLogger := m.log.With(zap.String("handler", "v1_authorization"))
 
@@ -1300,7 +1297,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authService = authorization.NewAuthedAuthorizationService(v1AuthSvc, ts)
 		authService = authorization.NewAuthLogger(authLogger, authService)
 
-		v1AuthHTTPServer = authv1.NewHTTPAuthHandler(m.log, authService, ts)
+		passService := authv1.NewAuthedPasswordService(authv1.AuthFinder(v1AuthSvc), authv1.PasswordService(v1AuthSvc))
+
+		v1AuthHTTPServer = authv1.NewHTTPAuthHandler(m.log, authService, passService, ts)
 	}
 
 	var sessionHTTPServer *session.SessionHandler

@@ -27,20 +27,26 @@ type TenantService interface {
 	FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error)
 }
 
+type PasswordService interface {
+	SetPassword(ctx context.Context, id influxdb.ID, password string) error
+}
+
 type AuthHandler struct {
 	chi.Router
 	api           *kithttp.API
 	log           *zap.Logger
 	authSvc       influxdb.AuthorizationService
+	passwordSvc   PasswordService
 	tenantService TenantService
 }
 
 // NewHTTPAuthHandler constructs a new http server.
-func NewHTTPAuthHandler(log *zap.Logger, authService influxdb.AuthorizationService, tenantService TenantService) *AuthHandler {
+func NewHTTPAuthHandler(log *zap.Logger, authService influxdb.AuthorizationService, passwordService PasswordService, tenantService TenantService) *AuthHandler {
 	h := &AuthHandler{
 		api:           kithttp.NewAPI(kithttp.WithLog(log)),
 		log:           log,
 		authSvc:       authService,
+		passwordSvc:   passwordService,
 		tenantService: tenantService,
 	}
 
@@ -59,6 +65,7 @@ func NewHTTPAuthHandler(log *zap.Logger, authService influxdb.AuthorizationServi
 			r.Get("/", h.handleGetAuthorization)
 			r.Patch("/", h.handleUpdateAuthorization)
 			r.Delete("/", h.handleDeleteAuthorization)
+			r.Post("/password", h.handlePostUserPassword)
 		})
 	})
 
@@ -620,6 +627,42 @@ func (h *AuthHandler) handleDeleteAuthorization(w http.ResponseWriter, r *http.R
 	}
 
 	h.log.Debug("Auth deleted", zap.String("authID", fmt.Sprint(id)))
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// password APIs
+
+type passwordSetRequest struct {
+	Password string `json:"password"`
+}
+
+// handlePutPassword is the HTTP handler for the PUT /private/legacy/authorizations/:id/password
+func (h *AuthHandler) handlePostUserPassword(w http.ResponseWriter, r *http.Request) {
+	var body passwordSetRequest
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		h.api.Err(w, r, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		})
+		return
+	}
+
+	param := chi.URLParam(r, "id")
+	authID, err := influxdb.IDFromString(param)
+	if err != nil {
+		h.api.Err(w, r, &influxdb.Error{
+			Msg: "invalid authorization ID provided in route",
+		})
+		return
+	}
+
+	err = h.passwordSvc.SetPassword(r.Context(), *authID, body.Password)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }

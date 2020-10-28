@@ -6,22 +6,22 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
-	"github.com/influxdata/influxdb/v2/rand"
 )
 
-var _ influxdb.AuthorizationService = (*Service)(nil)
+var (
+	_ influxdb.AuthorizationService = (*Service)(nil)
+	_ influxdb.PasswordsService     = (*Service)(nil)
+)
 
 type Service struct {
-	store          *Store
-	tokenGenerator influxdb.TokenGenerator
-	tenantService  TenantService
+	store         *Store
+	tenantService TenantService
 }
 
-func NewService(st *Store, ts TenantService) influxdb.AuthorizationService {
+func NewService(st *Store, ts TenantService) *Service {
 	return &Service{
-		store:          st,
-		tokenGenerator: rand.NewTokenGenerator(64),
-		tenantService:  ts,
+		store:         st,
+		tenantService: ts,
 	}
 }
 
