@@ -9,7 +9,7 @@ use delorean_arrow::arrow::array::{Array, StringArray};
 use crate::column::{cmp, RowIDs};
 
 // The encoded id for a NULL value.
-const NULL_ID: u32 = 0;
+pub const NULL_ID: u32 = 0;
 
 // `RLE` is a run-length encoding for dictionary columns, where all dictionary
 // entries are utf-8 valid strings.
