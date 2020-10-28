@@ -2,12 +2,9 @@ package authorization
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -145,6 +142,7 @@ type postAuthorizationRequest struct {
 
 type authResponse struct {
 	ID          influxdb.ID          `json:"id"`
+	Token       string               `json:"token"`
 	Status      influxdb.Status      `json:"status"`
 	Description string               `json:"description"`
 	OrgID       influxdb.ID          `json:"orgID"`
@@ -173,6 +171,7 @@ func (h *AuthHandler) newAuthResponse(ctx context.Context, a *influxdb.Authoriza
 	}
 	res := &authResponse{
 		ID:          a.ID,
+		Token:       a.Token,
 		Status:      a.Status,
 		Description: a.Description,
 		OrgID:       a.OrgID,
@@ -192,14 +191,9 @@ func (h *AuthHandler) newAuthResponse(ctx context.Context, a *influxdb.Authoriza
 }
 
 func (p *postAuthorizationRequest) toInfluxdb(userID influxdb.ID) *influxdb.Authorization {
-	hash := sha256.New()
-	hash.Write([]byte(p.Token))
-	var buf [sha256.Size]byte
-	token := hash.Sum(buf[:0])
-
 	t := &influxdb.Authorization{
 		OrgID:       p.OrgID,
-		Token:       base64.URLEncoding.EncodeToString(token),
+		Token:       p.Token,
 		Status:      p.Status,
 		Description: p.Description,
 		Permissions: p.Permissions,
@@ -212,6 +206,7 @@ func (p *postAuthorizationRequest) toInfluxdb(userID influxdb.ID) *influxdb.Auth
 func (a *authResponse) toInfluxdb() *influxdb.Authorization {
 	res := &influxdb.Authorization{
 		ID:          a.ID,
+		Token:       a.Token,
 		Status:      a.Status,
 		Description: a.Description,
 		OrgID:       a.OrgID,
@@ -300,14 +295,7 @@ func (p *postAuthorizationRequest) Validate() error {
 
 	if p.Token == "" {
 		return &influxdb.Error{
-			Msg:  "token required for v1_user authorization type",
-			Code: influxdb.EInvalid,
-		}
-	}
-
-	if strings.IndexByte(p.Token, ':') == -1 {
-		return &influxdb.Error{
-			Msg:  "token format invalid for v1_user authorization type: must be username:password",
+			Msg:  "token required for v1 user authorization type",
 			Code: influxdb.EInvalid,
 		}
 	}

@@ -187,39 +187,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				bodyErr: `
 {
 	"code": "invalid",
-	"message": "token required for v1_user authorization type"
-}
-`,
-			},
-		},
-		{
-			name:   "create an authorization with invalid token",
-			fields: defaultFields,
-			args: args{
-				session: defaultSession,
-				authorization: &influxdb.Authorization{
-					ID:          itesting.MustIDBase16("020f755c3c082000"),
-					OrgID:       itesting.MustIDBase16("020f755c3c083000"),
-					Token:       "first",
-					Description: "only read dashboards sucka",
-					Permissions: []influxdb.Permission{
-						{
-							Action: influxdb.ReadAction,
-							Resource: influxdb.Resource{
-								Type:  influxdb.DashboardsResourceType,
-								OrgID: itesting.IDPtr(itesting.MustIDBase16("020f755c3c083000")),
-							},
-						},
-					},
-				},
-			},
-			wants: wants{
-				statusCode:  http.StatusBadRequest,
-				contentType: "application/json; charset=utf-8",
-				bodyErr: `
-{
-	"code": "invalid",
-	"message": "token format invalid for v1_user authorization type: must be username:password"
+	"message": "token required for v1 user authorization type"
 }
 `,
 			},
