@@ -137,8 +137,27 @@ impl Column {
     //
 
     /// The encoded values found at the provided logical row ids.
-    pub fn encoded_values(&self, row_ids: &[u32]) -> Values {
-        todo!()
+    pub fn encoded_values(&self, row_ids: &[u32], dst: EncodedValues) -> EncodedValues {
+        assert!(
+            row_ids.len() as u32 <= self.num_rows(),
+            format!(
+                "too many row ids {:?} provided for column with {:?} rows",
+                row_ids.len(),
+                self.num_rows()
+            )
+        );
+
+        match &self {
+            Self::String(_, data) => match dst {
+                EncodedValues::U32(dst) => EncodedValues::U32(data.encoded_values(row_ids, dst)),
+                _ => unimplemented!("column type does not support encoding"),
+            },
+            Self::Integer(_, data) => data.encoded_values(row_ids, dst),
+            // Right now it only makes sense to expose encoded values on columns
+            // that are being used for grouping operations, which typically is
+            // are Tag Columns; they are `String` columns.
+            _ => unimplemented!("encoded values on other column types not supported"),
+        }
     }
 
     /// All encoded values in the column.
@@ -329,6 +348,15 @@ impl StringEncoding {
         };
 
         Self::RLE(data)
+    }
+
+    /// All values present at the provided logical row ids.
+    ///
+    /// TODO(edd): perf - pooling of destination vectors.
+    pub fn encoded_values(&self, row_ids: &[u32], dst: Vec<u32>) -> Vec<u32> {
+        match &self {
+            Self::RLE(c) => c.encoded_values(row_ids, dst),
+        }
     }
 
     fn from_opt_strs(arr: &[Option<&str>]) -> Self {
@@ -570,6 +598,27 @@ impl IntegerEncoding {
             Self::U8U8(c) => Values::U8(UInt8Array::from(c.values::<u8>(row_ids, vec![]))),
 
             Self::I64I64N(c) => Values::I64(Int64Array::from(c.values(row_ids, vec![]))),
+        }
+    }
+
+    /// Returns the encoded values found at the provided row ids. For an
+    /// `IntegerEncoding` the encoded values are typically just the raw values.
+    pub fn encoded_values(&self, row_ids: &[u32], dst: EncodedValues) -> EncodedValues {
+        // Right now the use-case for encoded values on non-string columns is
+        // that it's used for grouping with timestamp columns, which should be
+        // non-null signed 64-bit integers.
+        match dst {
+            EncodedValues::I64(dst) => match &self {
+                IntegerEncoding::I64I64(data) => EncodedValues::I64(data.values(row_ids, dst)),
+                IntegerEncoding::I64I32(data) => EncodedValues::I64(data.values(row_ids, dst)),
+                IntegerEncoding::I64U32(data) => EncodedValues::I64(data.values(row_ids, dst)),
+                IntegerEncoding::I64I16(data) => EncodedValues::I64(data.values(row_ids, dst)),
+                IntegerEncoding::I64U16(data) => EncodedValues::I64(data.values(row_ids, dst)),
+                IntegerEncoding::I64I8(data) => EncodedValues::I64(data.values(row_ids, dst)),
+                IntegerEncoding::I64U8(data) => EncodedValues::I64(data.values(row_ids, dst)),
+                _ => unreachable!("encoded values on encoding type not supported"),
+            },
+            _ => unreachable!("currently only support encoded values as i64"),
         }
     }
 }
@@ -1237,6 +1286,43 @@ pub enum ValueSet<'a> {
     ByteArray(BTreeSet<Option<&'a [u8]>>),
 }
 
+#[derive(Debug, PartialEq)]
+/// A representation of encoded values for a column.
+pub enum EncodedValues {
+    I64(Vec<i64>),
+    U32(Vec<u32>),
+}
+
+impl EncodedValues {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::I64(v) => v.len(),
+            Self::U32(v) => v.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::I64(v) => v.is_empty(),
+            Self::U32(v) => v.is_empty(),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        match self {
+            Self::I64(v) => v.clear(),
+            Self::U32(v) => v.clear(),
+        }
+    }
+
+    pub fn reserve(&mut self, additional: usize) {
+        match self {
+            Self::I64(v) => v.reserve(additional),
+            Self::U32(v) => v.reserve(additional),
+        }
+    }
+}
+
 /// A specific type of Option for `RowIDs` where the notion of all rows ids is
 /// represented.
 pub enum RowIDsOption {
@@ -1745,5 +1831,43 @@ mod test {
 
         let col = Column::from(&input[..]);
         assert_eq!(col.distinct_values(&[0, 1, 2, 3, 4]), ValueSet::String(exp));
+    }
+
+    #[test]
+    fn encoded_values() {
+        let input = &[
+            Some("hello"),
+            None,
+            Some("world"),
+            Some("hello"),
+            Some("world"),
+        ];
+
+        let col = Column::from(&input[..]);
+        assert_eq!(
+            col.encoded_values(&[0, 1, 2, 3, 4], EncodedValues::U32(vec![])),
+            EncodedValues::U32(vec![1, dictionary::NULL_ID, 2, 1, 2])
+        );
+
+        let res = col.encoded_values(&[2, 3], EncodedValues::U32(Vec::with_capacity(100)));
+        assert_eq!(res, EncodedValues::U32(vec![2, 1]));
+        if let EncodedValues::U32(v) = res {
+            assert_eq!(v.capacity(), 100);
+        } else {
+            panic!("not a EncodedValues::U32")
+        }
+
+        // timestamp column
+        let input = &[
+            1001231231243_i64,
+            1001231231343,
+            1001231231443,
+            1001231231543,
+        ];
+        let col = Column::from(&input[..]);
+        assert_eq!(
+            col.encoded_values(&[0, 2], EncodedValues::I64(vec![])),
+            EncodedValues::I64(vec![1001231231243, 1001231231443])
+        );
     }
 }
