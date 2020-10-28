@@ -23,5 +23,7 @@ var Migrations = [...]migration.Spec{
 	Migration0007_CreateMetaDataBucket,
 	// LegacyAuthBuckets
 	Migration0008_LegacyAuthBuckets,
+	// LegacyAuthPasswordBuckets
+	Migration0009_LegacyAuthPasswordBuckets,
 	// {{ do_not_edit . }}
 }

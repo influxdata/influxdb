@@ -8,7 +8,10 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
 
-var _ influxdb.AuthorizationService = (*Client)(nil)
+var (
+	_ influxdb.AuthorizationService = (*Client)(nil)
+	_ PasswordService               = (*Client)(nil)
+)
 
 // Client connects to Influx via HTTP using tokens to manage authorizations
 type Client struct {
@@ -102,5 +105,14 @@ func (s *Client) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *i
 func (s *Client) DeleteAuthorization(ctx context.Context, id influxdb.ID) error {
 	return s.Client.
 		Delete(prefixAuthorization, id.String()).
+		Do(ctx)
+}
+
+// SetPassword sets the password for the authorization token id.
+func (s *Client) SetPassword(ctx context.Context, id influxdb.ID, password string) error {
+	return s.Client.
+		PostJSON(passwordSetRequest{
+			Password: password,
+		}, prefixAuthorization, id.String(), "password").
 		Do(ctx)
 }

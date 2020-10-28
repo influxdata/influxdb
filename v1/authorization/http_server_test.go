@@ -242,7 +242,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 
 			svc := NewService(storage, tt.fields.TenantService)
 
-			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), svc, tt.fields.TenantService)
+			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), svc, nil, tt.fields.TenantService)
 			router := chi.NewRouter()
 			router.Mount(handler.Prefix(), handler)
 
@@ -447,7 +447,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), tt.fields.AuthorizationService, tt.fields.TenantService)
+			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), tt.fields.AuthorizationService, nil, tt.fields.TenantService)
 			router := chi.NewRouter()
 			router.Mount(handler.Prefix(), handler)
 
@@ -786,7 +786,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 
 			svc := NewService(storage, tt.fields.TenantService)
 
-			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), svc, tt.fields.TenantService)
+			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), svc, nil, tt.fields.TenantService)
 			router := chi.NewRouter()
 			router.Mount(handler.Prefix(), handler)
 
@@ -892,7 +892,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), tt.fields.AuthorizationService, tt.fields.TenantService)
+			handler := NewHTTPAuthHandler(zaptest.NewLogger(t), tt.fields.AuthorizationService, nil, tt.fields.TenantService)
 			router := chi.NewRouter()
 			router.Mount(handler.Prefix(), handler)
 
