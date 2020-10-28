@@ -96,11 +96,11 @@ where
     ///
     /// `value` materialises the returned value according to the logical type
     /// of the column, which is specified by `U`.
-    pub fn value<U>(&self, row_id: usize) -> U
+    pub fn value<U>(&self, row_id: u32) -> U
     where
         U: From<T>,
     {
-        U::from(self.values[row_id])
+        U::from(self.values[row_id as usize])
     }
 
     /// Returns the logical (decoded) values for the provided row IDs.
@@ -109,7 +109,7 @@ where
     /// of the column, which is specified by the type `U`. The container for
     /// returned values must be provided by the caller, though `values` will
     /// ensure it has sufficient capacity.
-    pub fn values<U>(&self, row_ids: &[usize], mut dst: Vec<U>) -> Vec<U>
+    pub fn values<U>(&self, row_ids: &[u32], mut dst: Vec<U>) -> Vec<U>
     where
         U: From<T>,
     {
@@ -118,15 +118,15 @@ where
 
         // TODO(edd): There will likely be a faster unsafe way to do this.
         for chunks in row_ids.chunks_exact(4) {
-            dst.push(U::from(self.values[chunks[0]]));
-            dst.push(U::from(self.values[chunks[1]]));
-            dst.push(U::from(self.values[chunks[2]]));
-            dst.push(U::from(self.values[chunks[3]]));
+            dst.push(U::from(self.values[chunks[0] as usize]));
+            dst.push(U::from(self.values[chunks[1] as usize]));
+            dst.push(U::from(self.values[chunks[2] as usize]));
+            dst.push(U::from(self.values[chunks[3] as usize]));
         }
 
         let rem = row_ids.len() % 4;
         for &i in &row_ids[row_ids.len() - rem..row_ids.len()] {
-            dst.push(U::from(self.values[i]));
+            dst.push(U::from(self.values[i as usize]));
         }
 
         assert_eq!(dst.len(), row_ids.len());
@@ -206,7 +206,7 @@ where
     /// row IDs.
     ///
     /// The desired logical type of the output should be specified via `U`.
-    pub fn first<U>(&self, row_ids: &[usize]) -> U
+    pub fn first<U>(&self, row_ids: &[u32]) -> U
     where
         U: From<T>,
     {
@@ -217,7 +217,7 @@ where
     /// row IDs.
     ///
     /// The desired logical type of the output should be specified via `U`.
-    pub fn last<U>(&self, row_ids: &[usize]) -> U
+    pub fn last<U>(&self, row_ids: &[u32]) -> U
     where
         U: From<T>,
     {
@@ -228,14 +228,14 @@ where
     /// row IDs.
     ///
     /// The desired logical type of the output should be specified via `U`.
-    pub fn min<U>(&self, row_ids: &[usize]) -> U
+    pub fn min<U>(&self, row_ids: &[u32]) -> U
     where
         U: From<T>,
     {
         let mut min: T = self.value(row_ids[0]);
         for &v in row_ids.iter().skip(1) {
-            if self.values[v] < min {
-                min = self.values[v];
+            if self.values[v as usize] < min {
+                min = self.values[v as usize];
             }
         }
         U::from(min)
@@ -245,14 +245,14 @@ where
     /// row IDs.
     ///
     /// The desired logical type of the output should be specified via `U`.
-    pub fn max<U>(&self, row_ids: &[usize]) -> U
+    pub fn max<U>(&self, row_ids: &[u32]) -> U
     where
         U: From<T>,
     {
         let mut max: T = self.value(row_ids[0]);
         for &v in row_ids.iter().skip(1) {
-            if self.values[v] > max {
-                max = self.values[v];
+            if self.values[v as usize] > max {
+                max = self.values[v as usize];
             }
         }
         U::from(max)

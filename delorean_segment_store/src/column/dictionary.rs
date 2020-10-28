@@ -386,8 +386,8 @@ impl RLE {
     pub fn values<'a>(
         &'a self,
         row_ids: &[u32],
-        mut dst: Vec<Option<&'a String>>,
-    ) -> Vec<Option<&'a String>> {
+        mut dst: Vec<Option<&'a str>>,
+    ) -> Vec<Option<&'a str>> {
         dst.clear();
         dst.reserve(row_ids.len());
 
@@ -1076,19 +1076,11 @@ mod test {
         dst = drle.values(&[0, 1, 3, 4], dst);
         assert_eq!(
             dst,
-            vec![
-                Some(&"east".to_string()),
-                Some(&"east".to_string()),
-                Some(&"north".to_string()),
-                Some(&"east".to_string()),
-            ]
+            vec![Some("east"), Some("east"), Some("north"), Some("east"),]
         );
 
         dst = drle.values(&[8, 10, 11], dst);
-        assert_eq!(
-            dst,
-            vec![Some(&"east".to_string()), Some(&"south".to_string()), None]
-        );
+        assert_eq!(dst, vec![Some("east"), Some("south"), None]);
 
         assert_eq!(dst.capacity(), 1000);
 
