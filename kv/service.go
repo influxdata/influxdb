@@ -44,7 +44,6 @@ type Service struct {
 	influxdb.TimeGenerator
 	Hash Crypt
 
-	checkStore    *IndexStore
 	variableStore *IndexStore
 
 	urmByUserIndex *Index
@@ -63,7 +62,6 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		kv:             kv,
 		audit:          noop.ResourceLogger{},
 		TimeGenerator:  influxdb.RealTimeGenerator{},
-		checkStore:     newCheckStore(),
 		variableStore:  newVariableStore(),
 		urmByUserIndex: NewIndex(URMByUserIndexMapping, WithIndexReadPathEnabled),
 	}

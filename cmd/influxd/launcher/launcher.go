@@ -1510,6 +1510,11 @@ func (m *Launcher) TaskControlService() taskbackend.TaskControlService {
 	return m.taskControlService
 }
 
+// CheckService returns the internal check service.
+func (m *Launcher) CheckService() platform.CheckService {
+	return m.apibackend.CheckService
+}
+
 // KeyValueService returns the internal key-value service.
 func (m *Launcher) KeyValueService() *kv.Service {
 	return m.kvService
