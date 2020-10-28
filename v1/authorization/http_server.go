@@ -502,6 +502,11 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 		req.filter.ID = id
 	}
 
+	token := qp.Get("token")
+	if token != "" {
+		req.filter.Token = &token
+	}
+
 	return req, nil
 }
 

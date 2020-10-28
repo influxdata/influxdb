@@ -38,6 +38,9 @@ func (s *Client) FindAuthorizations(ctx context.Context, filter influxdb.Authori
 	if filter.ID != nil {
 		params = append(params, [2]string{"id", filter.ID.String()})
 	}
+	if filter.Token != nil {
+		params = append(params, [2]string{"token", *filter.Token})
+	}
 	if filter.UserID != nil {
 		params = append(params, [2]string{"userID", filter.UserID.String()})
 	}
