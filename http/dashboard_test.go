@@ -465,7 +465,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 			"timeFormat": "",
 			"type": "xy",
 			"xColumn": "",
-			"generateXAxisTicks": false,
+			"generateXAxisTicks": null,
 			"xTotalTicks": 0,
 			"xTickStart": 0,
 			"xTickStep": 0,
