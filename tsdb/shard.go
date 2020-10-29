@@ -1158,7 +1158,7 @@ func (s *Shard) CreateSnapshot() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return engine.CreateSnapshot()
+	return engine.CreateSnapshot(true)
 }
 
 // ForEachMeasurementName iterates over each measurement in the shard.
