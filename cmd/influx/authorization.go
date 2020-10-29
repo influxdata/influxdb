@@ -5,8 +5,8 @@ import (
 	"io"
 
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
-	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
 )
 
@@ -668,7 +668,7 @@ func newAuthorizationService() (platform.AuthorizationService, error) {
 		return nil, err
 	}
 
-	return &http.AuthorizationService{
+	return &authorization.AuthorizationClientService{
 		Client: httpClient,
 	}, nil
 }
