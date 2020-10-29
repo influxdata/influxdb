@@ -198,7 +198,7 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 	return rs, nil
 }
 
-type  metaqueryAttributes struct {
+type metaqueryAttributes struct {
 	orgID      influxdb.ID
 	db, rp     string
 	start, end int64
@@ -275,11 +275,11 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 		if found := reads.ExprHasKey(expr, fieldKey); found {
 			mqAttrs := &metaqueryAttributes{
 				orgID: source.GetOrgID(),
-				db: db,
-				rp: rp,
+				db:    db,
+				rp:    rp,
 				start: start,
-				end: end,
-				pred: expr,
+				end:   end,
+				pred:  expr,
 			}
 			return s.tagKeysWithFieldPredicate(ctx, mqAttrs, shardIDs)
 		}
@@ -333,10 +333,10 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 
 	mqAttrs := &metaqueryAttributes{
 		orgID: source.GetOrgID(),
-		db: db,
-		rp: rp,
+		db:    db,
+		rp:    rp,
 		start: start,
-		end: end,
+		end:   end,
 	}
 
 	var influxqlPred influxql.Expr
@@ -591,8 +591,8 @@ func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *metaqueryAttributes,
 			defer c.Close()
 
 			if cursorHasData(c) {
-					f := rs.Tags().Get([]byte(tagKey))
-					m[string(f)] = struct{}{}
+				f := rs.Tags().Get([]byte(tagKey))
+				m[string(f)] = struct{}{}
 			}
 		}()
 	}

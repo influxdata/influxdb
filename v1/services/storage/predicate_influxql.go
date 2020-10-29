@@ -131,7 +131,6 @@ func (v *hasAnyTagKeys) Visit(node influxql.Node) influxql.Visitor {
 	return v
 }
 
-
 func hasTagKey(expr influxql.Expr) bool {
 	v := &hasAnyTagKeys{}
 	influxql.Walk(v, expr)
