@@ -268,7 +268,7 @@ func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *metaquer
 	}
 
 	arr := make([]string, 0, len(m))
-	for tag, _ := range m {
+	for tag := range m {
 		arr = append(arr, tag)
 	}
 	sort.Strings(arr)
