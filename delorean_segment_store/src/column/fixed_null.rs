@@ -63,6 +63,10 @@ where
         self.arr.is_empty()
     }
 
+    pub fn contains_null(&self) -> bool {
+        self.arr.null_count() == 0
+    }
+
     /// Returns the total size in bytes of the encoded data. Note, this method
     /// is really an "accurate" estimation. It doesn't include for example the
     /// size of the `Plain` struct receiver.

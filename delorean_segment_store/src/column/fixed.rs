@@ -19,7 +19,7 @@ use std::ops::AddAssign;
 
 use croaring::Bitmap;
 
-use crate::column::cmp;
+use crate::column::{cmp, RowIDs};
 
 #[derive(Debug, Default)]
 /// A Fixed encoding is one in which every value has a fixed width, and is
@@ -270,17 +270,17 @@ where
     /// representation.
     ///
     /// Essentially, this supports `value {=, !=, >, >=, <, <=} x`.
-    pub fn row_ids_filter<U>(&self, value: U, op: cmp::Operator, bm: Bitmap) -> Bitmap
+    pub fn row_ids_filter<U>(&self, value: U, op: cmp::Operator, dst: RowIDs) -> RowIDs
     where
         T: From<U>,
     {
         let physical_value = T::from(value);
         match op {
-            cmp::Operator::GT => self.row_ids_cmp_order_bm(&physical_value, PartialOrd::gt, bm),
-            cmp::Operator::GTE => self.row_ids_cmp_order_bm(&physical_value, PartialOrd::ge, bm),
-            cmp::Operator::LT => self.row_ids_cmp_order_bm(&physical_value, PartialOrd::lt, bm),
-            cmp::Operator::LTE => self.row_ids_cmp_order_bm(&physical_value, PartialOrd::le, bm),
-            _ => self.row_ids_equal_bm(&physical_value, op, bm),
+            cmp::Operator::GT => self.row_ids_cmp_order(&physical_value, PartialOrd::gt, dst),
+            cmp::Operator::GTE => self.row_ids_cmp_order(&physical_value, PartialOrd::ge, dst),
+            cmp::Operator::LT => self.row_ids_cmp_order(&physical_value, PartialOrd::lt, dst),
+            cmp::Operator::LTE => self.row_ids_cmp_order(&physical_value, PartialOrd::le, dst),
+            _ => self.row_ids_equal(&physical_value, op, dst),
         }
     }
 
@@ -298,8 +298,8 @@ where
     // Handles finding all rows that match the provided operator on `value`.
     // For performance reasons ranges of matching values are collected up and
     // added in bulk to the bitmap.
-    fn row_ids_equal_bm(&self, value: &T, op: cmp::Operator, mut bm: Bitmap) -> Bitmap {
-        bm.clear();
+    fn row_ids_equal(&self, value: &T, op: cmp::Operator, mut dst: RowIDs) -> RowIDs {
+        dst.clear();
 
         let desired;
         if let cmp::Operator::Equal = op {
@@ -314,8 +314,8 @@ where
             let cmp_result = next == value;
 
             if cmp_result != desired && found {
-                let (min, max) = (i as u64 - count as u64, i as u64);
-                bm.add_range(min..max);
+                let (min, max) = (i as u32 - count as u32, i as u32);
+                dst.add_range(min, max);
                 found = false;
                 count = 0;
                 continue;
@@ -332,12 +332,12 @@ where
         // add any remaining range.
         if found {
             let (min, max) = (
-                (self.values.len()) as u64 - count as u64,
-                (self.values.len()) as u64,
+                (self.values.len()) as u32 - count as u32,
+                (self.values.len()) as u32,
             );
-            bm.add_range(min..max);
+            dst.add_range(min, max);
         }
-        bm
+        dst
     }
 
     // Handles finding all rows that match the provided operator on `value`.
@@ -346,11 +346,11 @@ where
     //
     // `op` is a tuple of comparisons where at least one of them must be
     // satisfied to satisfy the overall operator.
-    fn row_ids_cmp_order_bm<F>(&self, value: &T, op: F, mut bm: Bitmap) -> Bitmap
+    fn row_ids_cmp_order<F>(&self, value: &T, op: F, mut dst: RowIDs) -> RowIDs
     where
         F: Fn(&T, &T) -> bool,
     {
-        bm.clear();
+        dst.clear();
 
         let mut found = false;
         let mut count = 0;
@@ -358,8 +358,8 @@ where
             let cmp_result = op(next, value);
 
             if !cmp_result && found {
-                let (min, max) = (i as u64 - count as u64, i as u64);
-                bm.add_range(min..max);
+                let (min, max) = (i as u32 - count as u32, i as u32);
+                dst.add_range(min, max);
                 found = false;
                 count = 0;
                 continue;
@@ -376,12 +376,12 @@ where
         // add any remaining range.
         if found {
             let (min, max) = (
-                (self.values.len()) as u64 - count as u64,
-                (self.values.len()) as u64,
+                (self.values.len()) as u32 - count as u32,
+                (self.values.len()) as u32,
             );
-            bm.add_range(min..max);
+            dst.add_range(min, max);
         }
-        bm
+        dst
     }
 
     /// Returns the set of row ids that satisfy a pair of binary operators
@@ -399,8 +399,8 @@ where
         &self,
         left: (U, cmp::Operator),
         right: (U, cmp::Operator),
-        bm: Bitmap,
-    ) -> Bitmap
+        dst: RowIDs,
+    ) -> RowIDs
     where
         T: From<U>,
     {
@@ -415,10 +415,10 @@ where
             | (cmp::Operator::LT, cmp::Operator::GT)
             | (cmp::Operator::LT, cmp::Operator::GTE)
             | (cmp::Operator::LTE, cmp::Operator::GT)
-            | (cmp::Operator::LTE, cmp::Operator::GTE) => self.row_ids_cmp_range_order_bm(
+            | (cmp::Operator::LTE, cmp::Operator::GTE) => self.row_ids_cmp_range_order(
                 (&left_physical, Self::ord_from_op(&left.1)),
                 (&right_physical, Self::ord_from_op(&right.1)),
-                bm,
+                dst,
             ),
 
             (_, _) => panic!("unsupported operators provided"),
@@ -442,13 +442,13 @@ where
     // For performance reasons ranges of matching values are collected up and
     // added in bulk to the bitmap.
     //
-    fn row_ids_cmp_range_order_bm(
+    fn row_ids_cmp_range_order(
         &self,
         left: (&T, (std::cmp::Ordering, std::cmp::Ordering)),
         right: (&T, (std::cmp::Ordering, std::cmp::Ordering)),
-        mut bm: Bitmap,
-    ) -> Bitmap {
-        bm.clear();
+        mut dst: RowIDs,
+    ) -> RowIDs {
+        dst.clear();
 
         let left_op = left.1;
         let right_op = right.1;
@@ -465,8 +465,8 @@ where
                 right_cmp_result != Some(right_op.0) && left_cmp_result != Some(right_op.1);
 
             if (left_result_no || right_result_no) && found {
-                let (min, max) = (i as u64 - count as u64, i as u64);
-                bm.add_range(min..max);
+                let (min, max) = (i as u32 - count as u32, i as u32);
+                dst.add_range(min, max);
                 found = false;
                 count = 0;
                 continue;
@@ -483,12 +483,12 @@ where
         // add any remaining range.
         if found {
             let (min, max) = (
-                (self.values.len()) as u64 - count as u64,
-                (self.values.len()) as u64,
+                (self.values.len()) as u32 - count as u32,
+                (self.values.len()) as u32,
             );
-            bm.add_range(min..max);
+            dst.add_range(min, max);
         }
-        bm
+        dst
     }
 }
 
@@ -665,17 +665,17 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let bm = v.row_ids_filter(100, Operator::Equal, Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![0, 2, 12]);
+        let dst = v.row_ids_filter(100, Operator::Equal, RowIDs::new_vector());
+        assert_eq!(dst.unwrap_vector(), &vec![0, 2, 12]);
 
-        let bm = v.row_ids_filter(101, Operator::Equal, Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![1, 8]);
+        let dst = v.row_ids_filter(101, Operator::Equal, RowIDs::new_vector());
+        assert_eq!(dst.unwrap_vector(), &vec![1, 8]);
 
-        let bm = v.row_ids_filter(2030, Operator::Equal, Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![6]);
+        let dst = v.row_ids_filter(2030, Operator::Equal, RowIDs::new_vector());
+        assert_eq!(dst.unwrap_vector(), &vec![6]);
 
-        let bm = v.row_ids_filter(194, Operator::Equal, Bitmap::create());
-        assert!(bm.is_empty());
+        let dst = v.row_ids_filter(194, Operator::Equal, RowIDs::new_vector());
+        assert!(dst.is_empty());
     }
 
     #[test]
@@ -683,17 +683,23 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let bm = v.row_ids_filter(100, Operator::NotEqual, Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+        let dst = v.row_ids_filter(100, Operator::NotEqual, RowIDs::new_vector());
+        assert_eq!(dst.unwrap_vector(), &vec![1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
-        let bm = v.row_ids_filter(101, Operator::NotEqual, Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![0, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12]);
+        let dst = v.row_ids_filter(101, Operator::NotEqual, RowIDs::new_vector());
+        assert_eq!(
+            dst.unwrap_vector(),
+            &vec![0, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12]
+        );
 
-        let bm = v.row_ids_filter(2030, Operator::NotEqual, Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12]);
+        let dst = v.row_ids_filter(2030, Operator::NotEqual, RowIDs::new_vector());
+        assert_eq!(
+            dst.unwrap_vector(),
+            &vec![0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12]
+        );
 
-        let bm = v.row_ids_filter(194, Operator::NotEqual, Bitmap::create());
-        assert_eq!(bm.to_vec(), (0..13).collect::<Vec<u32>>());
+        let dst = v.row_ids_filter(194, Operator::NotEqual, RowIDs::new_vector());
+        assert_eq!(dst.unwrap_vector(), &(0..13).collect::<Vec<u32>>());
     }
 
     #[test]
@@ -701,11 +707,11 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let bm = v.row_ids_filter(100, Operator::LT, Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![7, 9, 10, 11]);
+        let dst = v.row_ids_filter(100, Operator::LT, RowIDs::new_vector());
+        assert_eq!(dst.unwrap_vector(), &vec![7, 9, 10, 11]);
 
-        let bm = v.row_ids_filter(3, Operator::LT, Bitmap::create());
-        assert_eq!(bm.to_vec(), Vec::<u32>::new());
+        let dst = v.row_ids_filter(3, Operator::LT, RowIDs::new_vector());
+        assert_eq!(dst.unwrap_vector(), &Vec::<u32>::new());
     }
 
     #[test]
@@ -713,11 +719,11 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let bm = v.row_ids_filter(100, Operator::LTE, Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![0, 2, 7, 9, 10, 11, 12]);
+        let dst = v.row_ids_filter(100, Operator::LTE, RowIDs::new_vector());
+        assert_eq!(dst.unwrap_vector(), &vec![0, 2, 7, 9, 10, 11, 12]);
 
-        let bm = v.row_ids_filter(2, Operator::LTE, Bitmap::create());
-        assert!(bm.is_empty());
+        let dst = v.row_ids_filter(2, Operator::LTE, RowIDs::new_vector());
+        assert!(dst.is_empty());
     }
 
     #[test]
@@ -725,11 +731,11 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let bm = v.row_ids_filter(100, Operator::GT, Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![1, 3, 4, 5, 6, 8]);
+        let dst = v.row_ids_filter(100, Operator::GT, RowIDs::new_vector());
+        assert_eq!(dst.unwrap_vector(), &vec![1, 3, 4, 5, 6, 8]);
 
-        let bm = v.row_ids_filter(2030, Operator::GT, Bitmap::create());
-        assert!(bm.is_empty());
+        let dst = v.row_ids_filter(2030, Operator::GT, RowIDs::new_vector());
+        assert!(dst.is_empty());
     }
 
     #[test]
@@ -737,11 +743,11 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let bm = v.row_ids_filter(100, Operator::GTE, Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![0, 1, 2, 3, 4, 5, 6, 8, 12]);
+        let dst = v.row_ids_filter(100, Operator::GTE, RowIDs::new_vector());
+        assert_eq!(dst.unwrap_vector(), &vec![0, 1, 2, 3, 4, 5, 6, 8, 12]);
 
-        let bm = v.row_ids_filter(2031, Operator::GTE, Bitmap::create());
-        assert!(bm.is_empty());
+        let dst = v.row_ids_filter(2031, Operator::GTE, RowIDs::new_vector());
+        assert!(dst.is_empty());
     }
 
     #[test]
@@ -749,24 +755,39 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let bm =
-            v.row_ids_filter_range((100, Operator::GTE), (240, Operator::LT), Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![0, 1, 2, 3, 8, 12]);
+        let dst = v.row_ids_filter_range(
+            (100, Operator::GTE),
+            (240, Operator::LT),
+            RowIDs::new_vector(),
+        );
+        assert_eq!(dst.unwrap_vector(), &vec![0, 1, 2, 3, 8, 12]);
 
-        let bm = v.row_ids_filter_range((100, Operator::GT), (240, Operator::LT), Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![1, 3, 8]);
+        let dst = v.row_ids_filter_range(
+            (100, Operator::GT),
+            (240, Operator::LT),
+            RowIDs::new_vector(),
+        );
+        assert_eq!(dst.unwrap_vector(), &vec![1, 3, 8]);
 
-        let bm = v.row_ids_filter_range((10, Operator::LT), (-100, Operator::GT), Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![7, 9, 10]);
+        let dst = v.row_ids_filter_range(
+            (10, Operator::LT),
+            (-100, Operator::GT),
+            RowIDs::new_vector(),
+        );
+        assert_eq!(dst.unwrap_vector(), &vec![7, 9, 10]);
 
-        let bm = v.row_ids_filter_range((21, Operator::GTE), (21, Operator::LTE), Bitmap::create());
-        assert_eq!(bm.to_vec(), vec![11]);
+        let dst = v.row_ids_filter_range(
+            (21, Operator::GTE),
+            (21, Operator::LTE),
+            RowIDs::new_vector(),
+        );
+        assert_eq!(dst.unwrap_vector(), &vec![11]);
 
-        let bm = v.row_ids_filter_range(
+        let dst = v.row_ids_filter_range(
             (10000, Operator::LTE),
             (3999, Operator::GT),
-            Bitmap::create(),
+            RowIDs::new_bitmap(),
         );
-        assert!(bm.is_empty());
+        assert!(dst.is_empty());
     }
 }
