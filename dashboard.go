@@ -751,7 +751,7 @@ type XYViewProperties struct {
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
-	GenerateYAxisTicks         bool             `json:"generateYAxisTicks"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
 	YTotalTicks                int              `json:"yTotalTicks"`
 	YTickStart                 float64          `json:"yTickStart"`
 	YTickStep                  float64          `json:"yTickStep"`
@@ -782,7 +782,7 @@ type BandViewProperties struct {
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
-	GenerateYAxisTicks         bool             `json:"generateYAxisTicks"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
 	YTotalTicks                int              `json:"yTotalTicks"`
 	YTickStart                 float64          `json:"yTickStart"`
 	YTickStep                  float64          `json:"yTickStep"`
@@ -849,7 +849,7 @@ type HeatmapViewProperties struct {
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
-	GenerateYAxisTicks         bool             `json:"generateYAxisTicks"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
 	YTotalTicks                int              `json:"yTotalTicks"`
 	YTickStart                 float64          `json:"yTickStart"`
 	YTickStep                  float64          `json:"yTickStep"`
