@@ -974,11 +974,11 @@ func convertChartToResource(ch chart) Resource {
 		r[fieldChartFillColumns] = ch.FillColumns
 	}
 
-	if len(ch.GenerateXAxisTicks) > {
+	if len(ch.GenerateXAxisTicks) > 0 {
 		r[fieldChartGenerateXAxisTicks] = ch.GenerateXAxisTicks
 	}
 
-	if len(ch.GenerateYAxisTicks) > {
+	if len(ch.GenerateYAxisTicks) > 0 {
 		r[fieldChartGenerateYAxisTicks] = ch.GenerateYAxisTicks
 	}
 
