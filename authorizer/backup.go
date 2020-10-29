@@ -23,26 +23,24 @@ func NewBackupService(s influxdb.BackupService) *BackupService {
 	}
 }
 
-func (b BackupService) CreateBackup(ctx context.Context) (int, []string, error) {
+func (b BackupService) BackupKVStore(ctx context.Context, w io.Writer) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if err := IsAllowedAll(ctx, influxdb.ReadAllPermissions()); err != nil {
-		return 0, nil, err
-	}
-	return b.s.CreateBackup(ctx)
-}
-
-func (b BackupService) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
+	// TODO(bbj): Correct permissions.
 	if err := IsAllowedAll(ctx, influxdb.ReadAllPermissions()); err != nil {
 		return err
 	}
-	return b.s.FetchBackupFile(ctx, backupID, backupFile, w)
+	return b.s.BackupKVStore(ctx, w)
 }
 
-func (b BackupService) InternalBackupPath(backupID int) string {
-	return b.s.InternalBackupPath(backupID)
+func (b BackupService) BackupShard(ctx context.Context, w io.Writer, shardID uint64) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	// TODO(bbj): Correct permissions.
+	if err := IsAllowedAll(ctx, influxdb.ReadAllPermissions()); err != nil {
+		return err
+	}
+	return b.s.BackupShard(ctx, w, shardID)
 }

@@ -994,6 +994,21 @@ func (di DatabaseInfo) clone() DatabaseInfo {
 	return other
 }
 
+// MarshalBinary encodes dbi to a binary format.
+func (dbi *DatabaseInfo) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(dbi.marshal())
+}
+
+// UnmarshalBinary decodes dbi from a binary format.
+func (dbi *DatabaseInfo) UnmarshalBinary(data []byte) error {
+	var pb internal.DatabaseInfo
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+	dbi.unmarshal(&pb)
+	return nil
+}
+
 // marshal serializes to a protobuf representation.
 func (di DatabaseInfo) marshal() *internal.DatabaseInfo {
 	pb := &internal.DatabaseInfo{}

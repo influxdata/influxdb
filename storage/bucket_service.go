@@ -33,6 +33,7 @@ func NewBucketService(log *zap.Logger, s influxdb.BucketService, engine EngineSc
 		BucketService: s,
 		log:           log,
 		engine:        engine,
+		log:           logger,
 	}
 }
 

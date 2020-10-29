@@ -58,7 +58,7 @@ type APIBackend struct {
 	PointsWriter                    storage.PointsWriter
 	DeleteService                   influxdb.DeleteService
 	BackupService                   influxdb.BackupService
-	KVBackupService                 influxdb.KVBackupService
+	RestoreService                  influxdb.RestoreService
 	AuthorizationService            influxdb.AuthorizationService
 	AuthorizerV1                    influxdb.AuthorizerV1
 	OnboardingService               influxdb.OnboardingService
@@ -193,6 +193,10 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	backupBackend.BackupService = authorizer.NewBackupService(backupBackend.BackupService)
 	h.Mount(prefixBackup, NewBackupHandler(backupBackend))
 
+	restoreBackend := NewRestoreBackend(b)
+	restoreBackend.RestoreService = authorizer.NewRestoreService(restoreBackend.RestoreService)
+	h.Mount(prefixRestore, NewRestoreHandler(restoreBackend))
+
 	h.Mount(dbrp.PrefixDBRP, dbrp.NewHTTPHandler(b.Logger, b.DBRPService, b.OrganizationService))
 
 	writeBackend := NewWriteBackend(b.Logger.With(zap.String("handler", "write")), b)
@@ -234,6 +238,7 @@ var apiLinks = map[string]interface{}{
 		"analyze":     "/api/v2/query/analyze",
 		"suggestions": "/api/v2/query/suggestions",
 	},
+	"restore":  "/api/v2/restore",
 	"setup":    "/api/v2/setup",
 	"signin":   "/api/v2/signin",
 	"signout":  "/api/v2/signout",

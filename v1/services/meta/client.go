@@ -1036,6 +1036,10 @@ func (c *Client) Load() error {
 	})
 }
 
+func (c *Client) Backup(ctx context.Context, w io.Writer) error {
+	return c.store.Backup(ctx, w)
+}
+
 type uint64Slice []uint64
 
 func (a uint64Slice) Len() int           { return len(a) }

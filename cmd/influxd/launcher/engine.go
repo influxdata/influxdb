@@ -27,6 +27,7 @@ type Engine interface {
 	storage.EngineSchema
 	prom.PrometheusCollector
 	influxdb.BackupService
+	influxdb.RestoreService
 
 	SeriesCardinality(orgID, bucketID influxdb.ID) int64
 
@@ -157,16 +158,20 @@ func (t *TemporaryEngine) Flush(ctx context.Context) {
 	}
 }
 
-func (t *TemporaryEngine) CreateBackup(ctx context.Context) (int, []string, error) {
-	return t.engine.CreateBackup(ctx)
+func (t *TemporaryEngine) BackupKVStore(ctx context.Context, w io.Writer) error {
+	return t.engine.BackupKVStore(ctx, w)
 }
 
-func (t *TemporaryEngine) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
-	return t.engine.FetchBackupFile(ctx, backupID, backupFile, w)
+func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id influxdb.ID, dbi []byte) (map[uint64]uint64, error) {
+	return t.engine.RestoreBucket(ctx, id, dbi)
 }
 
-func (t *TemporaryEngine) InternalBackupPath(backupID int) string {
-	return t.engine.InternalBackupPath(backupID)
+func (t *TemporaryEngine) BackupShard(ctx context.Context, w io.Writer, shardID uint64) error {
+	return t.engine.BackupShard(ctx, w, shardID)
+}
+
+func (t *TemporaryEngine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error {
+	return t.engine.RestoreShard(ctx, shardID, r)
 }
 
 func (t *TemporaryEngine) TSDBStore() storage.TSDBStore {

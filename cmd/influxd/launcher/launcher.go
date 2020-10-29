@@ -854,9 +854,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.engine.PrometheusCollectors()...)
 
 	var (
-		deleteService platform.DeleteService = m.engine
-		pointsWriter  storage.PointsWriter   = m.engine
-		backupService platform.BackupService = m.engine
+		deleteService  platform.DeleteService  = m.engine
+		pointsWriter   storage.PointsWriter    = m.engine
+		backupService  platform.BackupService  = m.engine
+		restoreService platform.RestoreService = m.engine
 	)
 
 	deps, err := influxdb.NewDependencies(
@@ -1208,7 +1209,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		},
 		DeleteService:        deleteService,
 		BackupService:        backupService,
-		KVBackupService:      m.kvService,
+		RestoreService:       restoreService,
 		AuthorizationService: authSvc,
 		AuthorizerV1:         authorizerV1,
 		AlgoWProxy:           &http.NoopProxyHandler{},

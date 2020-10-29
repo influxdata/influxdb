@@ -79,6 +79,9 @@ type MetaClient interface {
 	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
+	Backup(ctx context.Context, w io.Writer) error
+	Data() meta.Data
+	SetData(data *meta.Data) error
 }
 
 type TSDBStore interface {
@@ -306,41 +309,105 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 	return ErrNotImplemented
 }
 
-// CreateBackup creates a "snapshot" of all TSM data in the Engine.
-//   1) Snapshot the cache to ensure the backup includes all data written before now.
-//   2) Create hard links to all TSM files, in a new directory within the engine root directory.
-//   3) Return a unique backup ID (invalid after the process terminates) and list of files.
-//
-// TODO - do we need this?
-//
-func (e *Engine) CreateBackup(ctx context.Context) (int, []string, error) {
+func (e *Engine) BackupKVStore(ctx context.Context, w io.Writer) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if e.closing == nil {
-		return 0, nil, ErrEngineClosed
-	}
-
-	return 0, nil, nil
-}
-
-// FetchBackupFile writes a given backup file to the provided writer.
-// After a successful write, the internal copy is removed.
-func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
-	// TODO - need?
-	return nil
-}
-
-// InternalBackupPath provides the internal, full path directory name of the backup.
-// This should not be exposed via API.
-func (e *Engine) InternalBackupPath(backupID int) string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
+
 	if e.closing == nil {
-		return ""
+		return ErrEngineClosed
 	}
-	// TODO - need?
-	return ""
+
+	return e.metaClient.Backup(ctx, w)
+}
+
+func (e *Engine) BackupShard(ctx context.Context, w io.Writer, shardID uint64) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	if e.closing == nil {
+		return ErrEngineClosed
+	}
+
+	return e.tsdbStore.BackupShard(shardID, time.Time{}, w)
+}
+
+func (e *Engine) RestoreBucket(ctx context.Context, id influxdb.ID, buf []byte) (map[uint64]uint64, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	if e.closing == nil {
+		return nil, ErrEngineClosed
+	}
+
+	var newDBI meta.DatabaseInfo
+	if err := newDBI.UnmarshalBinary(buf); err != nil {
+		return nil, err
+	}
+
+	data := e.metaClient.Data()
+	dbi := data.Database(id.String())
+	if dbi == nil {
+		return nil, fmt.Errorf("bucket dbi for %q not found during restore", newDBI.Name)
+	} else if len(newDBI.RetentionPolicies) != 1 {
+		return nil, fmt.Errorf("bucket must have 1 retention policy; attempting to restore %d retention policies", len(newDBI.RetentionPolicies))
+	}
+
+	dbi.RetentionPolicies = newDBI.RetentionPolicies
+	dbi.ContinuousQueries = newDBI.ContinuousQueries
+
+	// Generate shard ID mapping.
+	shardIDMap := make(map[uint64]uint64)
+	rpi := newDBI.RetentionPolicies[0]
+	for j, sgi := range rpi.ShardGroups {
+		data.MaxShardGroupID++
+		rpi.ShardGroups[j].ID = data.MaxShardGroupID
+
+		for k := range sgi.Shards {
+			data.MaxShardID++
+			shardIDMap[sgi.Shards[k].ID] = data.MaxShardID
+			sgi.Shards[k].ID = data.MaxShardID
+			sgi.Shards[k].Owners = []meta.ShardOwner{}
+		}
+	}
+
+	// Update data.
+	if err := e.metaClient.SetData(&data); err != nil {
+		return nil, err
+	}
+
+	// Create shards.
+	for _, sgi := range rpi.ShardGroups {
+		for _, sh := range sgi.Shards {
+			if err := e.tsdbStore.CreateShard(dbi.Name, rpi.Name, sh.ID, true); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return shardIDMap, nil
+}
+
+func (e *Engine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	if e.closing == nil {
+		return ErrEngineClosed
+	}
+
+	return e.tsdbStore.RestoreShard(shardID, r)
 }
 
 // SeriesCardinality returns the number of series in the engine.
