@@ -908,8 +908,8 @@ type MosaicViewProperties struct {
 	Queries                    []DashboardQuery `json:"queries"`
 	ViewColors                 []string         `json:"colors"`
 	FillColumns                []string         `json:"fillColumns"`
-	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
 	XTotalTicks                int              `json:"xTotalTicks"`
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
