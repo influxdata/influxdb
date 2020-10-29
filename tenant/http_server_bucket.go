@@ -346,6 +346,7 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 	if h.labelSvc != nil { // allow for no label svc
 		labels, _ = h.labelSvc.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID, ResourceType: influxdb.BucketsResourceType})
 	}
+
 	h.api.Respond(w, r, http.StatusOK, NewBucketResponse(b, labels...))
 }
 

@@ -655,7 +655,7 @@ func (s *Service) GetOrganizationOperationLog(ctx context.Context, id influxdb.I
 			return err
 		}
 
-		return s.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
+		return s.ForEachLogEntryTx(ctx, tx, key, opts, func(v []byte, t time.Time) error {
 			e := &influxdb.OperationLogEntry{}
 			if err := json.Unmarshal(v, e); err != nil {
 				return err
@@ -668,7 +668,7 @@ func (s *Service) GetOrganizationOperationLog(ctx context.Context, id influxdb.I
 		})
 	})
 
-	if err != nil && err != errKeyValueLogBoundsNotFound {
+	if err != nil && err != ErrKeyValueLogBoundsNotFound {
 		return nil, 0, err
 	}
 
@@ -714,7 +714,7 @@ func (s *Service) appendOrganizationEventToLog(ctx context.Context, tx Tx, id in
 		return err
 	}
 
-	return s.addLogEntry(ctx, tx, k, v, s.Now())
+	return s.AddLogEntryTx(ctx, tx, k, v, s.Now())
 }
 
 // OrgAlreadyExistsError is used when creating a new organization with

@@ -17,6 +17,10 @@ const (
 	dashOneID   = "020f755c3c082000"
 	dashTwoID   = "020f755c3c082001"
 	dashThreeID = "020f755c3c082002"
+	dashFourID  = "020f755c3c082003"
+
+	ownerOneID = "020f755c3c0820a0"
+	ownerTwoID = "020f755c3c0820a1"
 )
 
 func int32Ptr(i int32) *int32 {
@@ -142,6 +146,7 @@ func CreateDashboard(
 					ID:             MustIDBase16(dashTwoID),
 					OrganizationID: 1,
 					Name:           "dashboard2",
+					OwnerID:        MustIDBase16Ptr("00000000000000aa"),
 				},
 			},
 			wants: wants{
@@ -155,6 +160,7 @@ func CreateDashboard(
 						ID:             MustIDBase16(dashTwoID),
 						OrganizationID: 1,
 						Name:           "dashboard2",
+						OwnerID:        MustIDBase16Ptr("00000000000000aa"),
 						Meta: platform.DashboardMeta{
 							CreatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 							UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
@@ -367,7 +373,7 @@ func AddDashboardCell(
 				},
 			},
 			args: args{
-				dashboardID: MustIDBase16(threeID),
+				dashboardID: MustIDBase16(dashThreeID),
 				cell:        &platform.Cell{},
 			},
 			wants: wants{
@@ -471,7 +477,7 @@ func FindDashboardByID(
 				},
 			},
 			args: args{
-				id: MustIDBase16(threeID),
+				id: MustIDBase16(dashThreeID),
 			},
 			wants: wants{
 				err: &platform.Error{
@@ -507,6 +513,7 @@ func FindDashboards(
 	type args struct {
 		IDs            []*platform.ID
 		organizationID *platform.ID
+		ownerID        *platform.ID
 		findOptions    platform.FindOptions
 	}
 
@@ -915,6 +922,52 @@ func FindDashboards(
 			},
 		},
 		{
+			name: "find multiple dashboards by owner",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
+						OwnerID:        MustIDBase16Ptr(ownerOneID),
+					},
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+						OwnerID:        MustIDBase16Ptr(ownerTwoID),
+					},
+					{
+						ID:             MustIDBase16(dashThreeID),
+						OrganizationID: 1,
+						Name:           "def",
+						OwnerID:        MustIDBase16Ptr(ownerTwoID),
+					},
+					{
+						ID:             MustIDBase16(dashFourID),
+						OrganizationID: 1,
+						Name:           "def",
+						// ownerless dashboard added to similar nil
+						// owner pointer scenario
+					},
+				},
+			},
+			args: args{
+				ownerID:     MustIDBase16Ptr(ownerOneID),
+				findOptions: platform.DefaultDashboardFindOptions,
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
+						OwnerID:        MustIDBase16Ptr(ownerOneID),
+					},
+				},
+			},
+		},
+		{
 			name: "find multiple dashboards by id not exists",
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
@@ -932,7 +985,7 @@ func FindDashboards(
 			},
 			args: args{
 				IDs: []*platform.ID{
-					idPtr(MustIDBase16(threeID)),
+					idPtr(MustIDBase16(dashThreeID)),
 				},
 				findOptions: platform.DefaultDashboardFindOptions,
 			},
@@ -953,13 +1006,10 @@ func FindDashboards(
 				t.Fatal(err)
 			}
 
-			filter := platform.DashboardFilter{}
-			if tt.args.IDs != nil {
-				filter.IDs = tt.args.IDs
-			}
-
-			if tt.args.organizationID != nil {
-				filter.OrganizationID = tt.args.organizationID
+			filter := platform.DashboardFilter{
+				IDs:            tt.args.IDs,
+				OrganizationID: tt.args.organizationID,
+				OwnerID:        tt.args.ownerID,
 			}
 
 			dashboards, _, err := s.FindDashboards(ctx, filter, tt.args.findOptions)
@@ -1283,7 +1333,7 @@ func UpdateDashboard(
 				},
 			},
 			args: args{
-				id:          MustIDBase16(threeID),
+				id:          MustIDBase16(dashThreeID),
 				description: "changed",
 				name:        "changed",
 			},
@@ -1578,7 +1628,7 @@ func UpdateDashboardCell(
 			},
 			args: args{
 				dashboardID: MustIDBase16(dashOneID),
-				cellID:      MustIDBase16(fourID),
+				cellID:      MustIDBase16(dashFourID),
 				cellUpdate: platform.CellUpdate{
 					X: int32Ptr(1),
 				},

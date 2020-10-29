@@ -15,6 +15,13 @@ import (
 var (
 	kvlogBucket = []byte("keyvaluelogv1")
 	kvlogIndex  = []byte("keyvaluelogindexv1")
+
+	// ErrKeyValueLogBoundsNotFound is returned when oplog entries cannot be located
+	// for the provided bounds
+	ErrKeyValueLogBoundsNotFound = &platform.Error{
+		Code: platform.ENotFound,
+		Msg:  "oplog not found",
+	}
 )
 
 var _ platform.KeyValueLog = (*Service)(nil)
@@ -98,11 +105,6 @@ func encodeKeyValueIndexKey(k []byte) []byte {
 	return h.Sum(nil)
 }
 
-var errKeyValueLogBoundsNotFound = &platform.Error{
-	Code: platform.ENotFound,
-	Msg:  "oplog not found",
-}
-
 func (s *Service) getKeyValueLogBounds(ctx context.Context, tx Tx, key []byte) (*keyValueLogBounds, error) {
 	k := encodeKeyValueIndexKey(key)
 
@@ -113,7 +115,7 @@ func (s *Service) getKeyValueLogBounds(ctx context.Context, tx Tx, key []byte) (
 
 	v, err := b.Get(k)
 	if IsNotFound(err) {
-		return nil, errKeyValueLogBoundsNotFound
+		return nil, ErrKeyValueLogBoundsNotFound
 	}
 
 	if err != nil {
@@ -151,11 +153,11 @@ func (s *Service) putKeyValueLogBounds(ctx context.Context, tx Tx, key []byte, b
 func (s *Service) updateKeyValueLogBounds(ctx context.Context, tx Tx, k []byte, t time.Time) error {
 	// retrieve the keyValue log boundaries
 	bounds, err := s.getKeyValueLogBounds(ctx, tx, k)
-	if err != nil && err != errKeyValueLogBoundsNotFound {
+	if err != nil && err != ErrKeyValueLogBoundsNotFound {
 		return err
 	}
 
-	if err == errKeyValueLogBoundsNotFound {
+	if err == ErrKeyValueLogBoundsNotFound {
 		// if the bounds don't exist yet, create them
 		bounds = newKeyValueLogBounds(t)
 	}
@@ -172,11 +174,11 @@ func (s *Service) updateKeyValueLogBounds(ctx context.Context, tx Tx, k []byte, 
 // ForEachLogEntry retrieves the keyValue log for a resource type ID combination. KeyValues may be returned in ascending and descending order.
 func (s *Service) ForEachLogEntry(ctx context.Context, k []byte, opts platform.FindOptions, fn func([]byte, time.Time) error) error {
 	return s.kv.View(ctx, func(tx Tx) error {
-		return s.forEachLogEntry(ctx, tx, k, opts, fn)
+		return s.ForEachLogEntryTx(ctx, tx, k, opts, fn)
 	})
 }
 
-func (s *Service) forEachLogEntry(ctx context.Context, tx Tx, k []byte, opts platform.FindOptions, fn func([]byte, time.Time) error) error {
+func (s *Service) ForEachLogEntryTx(ctx context.Context, tx Tx, k []byte, opts platform.FindOptions, fn func([]byte, time.Time) error) error {
 	b, err := s.getKeyValueLogBounds(ctx, tx, k)
 	if err != nil {
 		return err
@@ -245,11 +247,11 @@ func (s *Service) forEachLogEntry(ctx context.Context, tx Tx, k []byte, opts pla
 // AddLogEntry logs an keyValue for a particular resource type ID pairing.
 func (s *Service) AddLogEntry(ctx context.Context, k, v []byte, t time.Time) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.addLogEntry(ctx, tx, k, v, t)
+		return s.AddLogEntryTx(ctx, tx, k, v, t)
 	})
 }
 
-func (s *Service) addLogEntry(ctx context.Context, tx Tx, k, v []byte, t time.Time) error {
+func (s *Service) AddLogEntryTx(ctx context.Context, tx Tx, k, v []byte, t time.Time) error {
 	if err := s.updateKeyValueLogBounds(ctx, tx, k, t); err != nil {
 		return err
 	}
