@@ -13,7 +13,10 @@ spec:
       suffix: days
       xPos:  1
       yPos:  2
-      generateAxisTicks: true
+      generateXAxisTicks:
+        - xTotalTicks
+        - xTickStart
+        - xTickStep
       xCol: _time
       xTotalTicks: 15
       xTickStart: 0

@@ -19,10 +19,17 @@ spec:
       shade: true
       hoverDimension: "y"
       position: overlaid
-      generateAxisTicks: true
+      generateXAxisTicks:
+        - xTotalTicks
+        - xTickStart
+        - xTickStep
       xTotalTicks: 15
       xTickStart: 0
       xTickStep: 1000
+      generateYAxisTicks:
+        - yTotalTicks
+        - yTickStart
+        - yTickStep
       yTotalTicks: 10
       yTickStart: 0
       yTickStep: 100
