@@ -17,10 +17,17 @@ spec:
       hoverDimension: "y"
       geom: line
       position: stacked
-      generateAxisTicks: true
+      generateXAxisTicks:
+        - xTotalTicks
+        - xTickStart
+        - xTickStep
       xTotalTicks: 15
       xTickStart: 0
       xTickStep: 1000
+      generateYAxisTicks:
+        - yTotalTicks
+        - yTickStart
+        - yTickStep
       yTotalTicks: 10
       yTickStart: 0
       yTickStep: 100

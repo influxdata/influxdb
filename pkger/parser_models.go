@@ -557,13 +557,14 @@ const (
 	fieldChartMainColumn                 = "mainColumn"
 	fieldChartLowerColumn                = "lowerColumn"
 	fieldChartWidth                      = "width"
-	fieldChartGenerateAxisTicks          = "generateAxisTicks"
 	fieldChartXCol                       = "xCol"
+	fieldChartGenerateXAxisTicks         = "generateXAxisTicks"
 	fieldChartXTotalTicks                = "xTotalTicks"
 	fieldChartXTickStart                 = "xTickStart"
 	fieldChartXTickStep                  = "xTickStep"
 	fieldChartXPos                       = "xPos"
 	fieldChartYCol                       = "yCol"
+	fieldChartGenerateYAxisTicks         = "generateYAxisTicks"
 	fieldChartYTotalTicks                = "yTotalTicks"
 	fieldChartYTickStart                 = "yTickStart"
 	fieldChartYTickStep                  = "yTickStep"
@@ -592,8 +593,9 @@ type chart struct {
 	Axes                       axes
 	Geom                       string
 	YSeriesColumns             []string
-	GenerateAxisTicks          bool
 	XCol, YCol                 string
+	GenerateXAxisTicks         []string
+	GenerateYAxisTicks         []string
 	XTotalTicks, YTotalTicks   int
 	XTickStart, YTickStart     float64
 	XTickStep, YTickStep       float64
@@ -638,12 +640,13 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.strings(),
 			BinSize:                    int32(c.BinSize),
-			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
 			XTotalTicks:                c.XTotalTicks,
 			XTickStart:                 c.XTickStart,
 			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			GenerateYAxisTicks:         c.GenerateYAxisTicks,
 			YTotalTicks:                c.YTotalTicks,
 			YTickStart:                 c.YTickStart,
 			YTickStep:                  c.YTickStep,
@@ -689,8 +692,8 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Type:                       influxdb.ViewPropertyTypeMosaic,
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.strings(),
-			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
 			XTotalTicks:                c.XTotalTicks,
 			XTickStart:                 c.XTickStart,
 			XTickStep:                  c.XTickStep,
@@ -717,12 +720,13 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ViewColors:                 c.Colors.influxViewColors(),
 			Legend:                     c.Legend.influxLegend(),
 			HoverDimension:             c.HoverDimension,
-			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
 			XTotalTicks:                c.XTotalTicks,
 			XTickStart:                 c.XTickStart,
 			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			GenerateYAxisTicks:         c.GenerateYAxisTicks,
 			YTotalTicks:                c.YTotalTicks,
 			YTickStart:                 c.YTickStart,
 			YTickStep:                  c.YTickStep,
@@ -743,12 +747,13 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Type:                       influxdb.ViewPropertyTypeScatter,
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.strings(),
-			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
 			XTotalTicks:                c.XTotalTicks,
 			XTickStart:                 c.XTickStart,
 			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			GenerateYAxisTicks:         c.GenerateYAxisTicks,
 			YTotalTicks:                c.YTotalTicks,
 			YTickStart:                 c.YTickStart,
 			YTickStep:                  c.YTickStep,
@@ -794,12 +799,13 @@ func (c *chart) properties() influxdb.ViewProperties {
 			},
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
-			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
 			XTotalTicks:                c.XTotalTicks,
 			XTickStart:                 c.XTickStart,
 			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			GenerateYAxisTicks:         c.GenerateYAxisTicks,
 			YTotalTicks:                c.YTotalTicks,
 			YTickStart:                 c.YTickStart,
 			YTickStep:                  c.YTickStep,
@@ -850,12 +856,13 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Type:                       influxdb.ViewPropertyTypeXY,
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
-			GenerateAxisTicks:          c.GenerateAxisTicks,
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
 			XTotalTicks:                c.XTotalTicks,
 			XTickStart:                 c.XTickStart,
 			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			GenerateYAxisTicks:         c.GenerateYAxisTicks,
 			YTotalTicks:                c.YTotalTicks,
 			YTickStart:                 c.YTickStart,
 			YTickStep:                  c.YTickStep,

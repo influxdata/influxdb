@@ -8976,10 +8976,12 @@ components:
           $ref: "#/components/schemas/Axes"
         legend:
           $ref: "#/components/schemas/Legend"
-        generateAxisTicks:
-          type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
         xTotalTicks:
           type: integer
         xTickStart:
@@ -8990,6 +8992,10 @@ components:
           format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
         yTotalTicks:
           type: integer
         yTickStart:
@@ -9057,10 +9063,12 @@ components:
           $ref: "#/components/schemas/Axes"
         legend:
           $ref: "#/components/schemas/Legend"
-        generateAxisTicks:
-          type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
         xTotalTicks:
           type: integer
         xTickStart:
@@ -9071,6 +9079,10 @@ components:
           format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
         yTotalTicks:
           type: integer
         yTickStart:
@@ -9139,10 +9151,12 @@ components:
           $ref: "#/components/schemas/Axes"
         legend:
           $ref: "#/components/schemas/Legend"
-        generateAxisTicks:
-          type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
         xTotalTicks:
           type: integer
         xTickStart:
@@ -9153,6 +9167,10 @@ components:
           format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
         yTotalTicks:
           type: integer
         yTickStart:
@@ -9225,10 +9243,12 @@ components:
         showNoteWhenEmpty:
           description: If true, will display note when empty
           type: boolean
-        generateAxisTicks:
-          type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
         xTotalTicks:
           type: integer
         xTickStart:
@@ -9318,10 +9338,12 @@ components:
         showNoteWhenEmpty:
           description: If true, will display note when empty
           type: boolean
-        generateAxisTicks:
-          type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
         xTotalTicks:
           type: integer
         xTickStart:
@@ -9332,6 +9354,10 @@ components:
           format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
         yTotalTicks:
           type: integer
         yTickStart:
@@ -9420,10 +9446,12 @@ components:
         showNoteWhenEmpty:
           description: If true, will display note when empty
           type: boolean
-        generateAxisTicks:
-          type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
         xTotalTicks:
           type: integer
         xTickStart:
@@ -9434,6 +9462,10 @@ components:
           format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
         yTotalTicks:
           type: integer
         yTickStart:

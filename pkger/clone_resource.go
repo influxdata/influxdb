@@ -753,12 +753,13 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Kind = chartKindHeatMap
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = stringsToColors(p.ViewColors)
-		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
 		ch.XTotalTicks = p.XTotalTicks
 		ch.XTickStart = p.XTickStart
 		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.GenerateYAxisTicks = p.GenerateYAxisTicks
 		ch.YTotalTicks = p.YTotalTicks
 		ch.YTickStart = p.YTickStart
 		ch.YTickStep = p.YTickStep
@@ -796,12 +797,13 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Axes = convertAxes(p.Axes)
 		ch.Shade = p.ShadeBelow
 		ch.HoverDimension = p.HoverDimension
-		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
 		ch.XTotalTicks = p.XTotalTicks
 		ch.XTickStart = p.XTickStart
 		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.GenerateYAxisTicks = p.GenerateYAxisTicks
 		ch.YTotalTicks = p.YTotalTicks
 		ch.YTickStart = p.YTickStart
 		ch.YTickStep = p.YTickStep
@@ -818,8 +820,8 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Kind = chartKindMosaic
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = stringsToColors(p.ViewColors)
-		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
 		ch.XTotalTicks = p.XTotalTicks
 		ch.XTickStart = p.XTickStart
 		ch.XTickStep = p.XTickStep
@@ -837,12 +839,13 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Kind = chartKindScatter
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = stringsToColors(p.ViewColors)
-		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
 		ch.XTotalTicks = p.XTotalTicks
 		ch.XTickStart = p.XTickStart
 		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.GenerateYAxisTicks = p.GenerateYAxisTicks
 		ch.YTotalTicks = p.YTotalTicks
 		ch.YTickStart = p.YTickStart
 		ch.YTickStep = p.YTickStep
@@ -879,12 +882,13 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Axes = convertAxes(p.Axes)
 		ch.Geom = p.Geom
 		ch.HoverDimension = p.HoverDimension
-		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
 		ch.XTotalTicks = p.XTotalTicks
 		ch.XTickStart = p.XTickStart
 		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.GenerateYAxisTicks = p.GenerateYAxisTicks
 		ch.YTotalTicks = p.YTotalTicks
 		ch.YTickStart = p.YTickStart
 		ch.YTickStep = p.YTickStep
@@ -902,12 +906,13 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Geom = p.Geom
 		ch.Shade = p.ShadeBelow
 		ch.HoverDimension = p.HoverDimension
-		ch.GenerateAxisTicks = p.GenerateAxisTicks
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
 		ch.XTotalTicks = p.XTotalTicks
 		ch.XTickStart = p.XTickStart
 		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.GenerateYAxisTicks = p.GenerateYAxisTicks
 		ch.YTotalTicks = p.YTotalTicks
 		ch.YTickStart = p.YTickStart
 		ch.YTickStep = p.YTickStep
@@ -969,6 +974,14 @@ func convertChartToResource(ch chart) Resource {
 		r[fieldChartFillColumns] = ch.FillColumns
 	}
 
+	if len(ch.GenerateXAxisTicks) > 0 {
+		r[fieldChartGenerateXAxisTicks] = ch.GenerateXAxisTicks
+	}
+
+	if len(ch.GenerateYAxisTicks) > 0 {
+		r[fieldChartGenerateYAxisTicks] = ch.GenerateYAxisTicks
+	}
+
 	if zero := new(tableOptions); ch.TableOptions != *zero {
 		tRes := make(Resource)
 		assignNonZeroBools(tRes, map[string]bool{
@@ -1001,7 +1014,6 @@ func convertChartToResource(ch chart) Resource {
 	assignNonZeroBools(r, map[string]bool{
 		fieldChartNoteOnEmpty:        ch.NoteOnEmpty,
 		fieldChartShade:              ch.Shade,
-		fieldChartGenerateAxisTicks:  ch.GenerateAxisTicks,
 		fieldChartLegendColorizeRows: ch.LegendColorizeRows,
 	})
 

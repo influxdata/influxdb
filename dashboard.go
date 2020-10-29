@@ -716,12 +716,13 @@ type LinePlusSingleStatProperties struct {
 	DecimalPlaces              DecimalPlaces    `json:"decimalPlaces"`
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
-	GenerateAxisTicks          bool             `json:"generateAxisTicks"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
 	XTotalTicks                int              `json:"xTotalTicks"`
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
 	YTotalTicks                int              `json:"yTotalTicks"`
 	YTickStart                 float64          `json:"yTickStart"`
 	YTickStep                  float64          `json:"yTickStep"`
@@ -744,12 +745,13 @@ type XYViewProperties struct {
 	ViewColors                 []ViewColor      `json:"colors"`
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
-	GenerateAxisTicks          bool             `json:"generateAxisTicks"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
 	XTotalTicks                int              `json:"xTotalTicks"`
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
 	YTotalTicks                int              `json:"yTotalTicks"`
 	YTickStart                 float64          `json:"yTickStart"`
 	YTickStep                  float64          `json:"yTickStep"`
@@ -774,12 +776,13 @@ type BandViewProperties struct {
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	TimeFormat                 string           `json:"timeFormat"`
 	HoverDimension             string           `json:"hoverDimension"`
-	GenerateAxisTicks          bool             `json:"generateAxisTicks"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
 	XTotalTicks                int              `json:"xTotalTicks"`
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
 	YTotalTicks                int              `json:"yTotalTicks"`
 	YTickStart                 float64          `json:"yTickStart"`
 	YTickStep                  float64          `json:"yTickStep"`
@@ -797,13 +800,6 @@ type CheckViewProperties struct {
 	CheckID                    string           `json:"checkID"`
 	Queries                    []DashboardQuery `json:"queries"`
 	ViewColors                 []string         `json:"colors"`
-	GenerateAxisTicks          bool             `json:"generateAxisTicks"`
-	XTotalTicks                int              `json:"xTotalTicks"`
-	XTickStart                 float64          `json:"xTickStart"`
-	XTickStep                  float64          `json:"xTickStep"`
-	YTotalTicks                int              `json:"yTotalTicks"`
-	YTickStart                 float64          `json:"yTickStart"`
-	YTickStep                  float64          `json:"yTickStep"`
 	LegendColorizeRows         bool             `json:"legendColorizeRows"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
@@ -847,12 +843,13 @@ type HeatmapViewProperties struct {
 	Queries                    []DashboardQuery `json:"queries"`
 	ViewColors                 []string         `json:"colors"`
 	BinSize                    int32            `json:"binSize"`
-	GenerateAxisTicks          bool             `json:"generateAxisTicks"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
 	XTotalTicks                int              `json:"xTotalTicks"`
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
 	YTotalTicks                int              `json:"yTotalTicks"`
 	YTickStart                 float64          `json:"yTickStart"`
 	YTickStep                  float64          `json:"yTickStep"`
@@ -879,12 +876,13 @@ type ScatterViewProperties struct {
 	ViewColors                 []string         `json:"colors"`
 	FillColumns                []string         `json:"fillColumns"`
 	SymbolColumns              []string         `json:"symbolColumns"`
-	GenerateAxisTicks          bool             `json:"generateAxisTicks"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
 	XTotalTicks                int              `json:"xTotalTicks"`
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
 	YTotalTicks                int              `json:"yTotalTicks"`
 	YTickStart                 float64          `json:"yTickStart"`
 	YTickStep                  float64          `json:"yTickStep"`
@@ -910,8 +908,8 @@ type MosaicViewProperties struct {
 	Queries                    []DashboardQuery `json:"queries"`
 	ViewColors                 []string         `json:"colors"`
 	FillColumns                []string         `json:"fillColumns"`
-	GenerateAxisTicks          bool             `json:"generateAxisTicks"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
 	XTotalTicks                int              `json:"xTotalTicks"`
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
