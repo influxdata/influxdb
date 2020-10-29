@@ -31,7 +31,7 @@ func init() {
 		PushDownWindowAggregateByTimeRule{},
 		PushDownBareAggregateRule{},
 		GroupWindowAggregateTransposeRule{},
-		PushDownGroupAggregateRule{},
+		// PushDownGroupAggregateRule{},
 		SwitchFillImplRule{},
 		SwitchSchemaMutationImplRule{},
 	)
