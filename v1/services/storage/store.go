@@ -199,32 +199,65 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 }
 
 type  metaqueryAttributes struct {
-	orgID influxdb.ID
-	db, rp string
+	orgID      influxdb.ID
+	db, rp     string
 	start, end int64
-	pred influxql.Expr
+	pred       influxql.Expr
+}
+
+func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *metaqueryAttributes, shardIDs []uint64) (cursors.StringIterator, error) {
+	var cur reads.SeriesCursor
+	if ic, err := newIndexSeriesCursorInfluxQLPred(ctx, mqAttrs.pred, s.TSDBStore.Shards(shardIDs)); err != nil {
+		return nil, err
+	} else if ic == nil {
+		return cursors.EmptyStringIterator, nil
+	} else {
+		cur = ic
+	}
+	m := make(map[string]struct{})
+	rs := reads.NewFilteredResultSet(ctx, mqAttrs.start, mqAttrs.end, cur)
+	for rs.Next() {
+		func() {
+			c := rs.Cursor()
+			if c == nil {
+				// no data for series key + field combination
+				return
+			}
+			defer c.Close()
+			if cursorHasData(c) {
+				for _, tag := range rs.Tags() {
+					m[string(tag.Key)] = struct{}{}
+				}
+			}
+		}()
+	}
+
+	arr := make([]string, 0, len(m))
+	for tag, _ := range m {
+		arr = append(arr, tag)
+	}
+	sort.Strings(arr)
+	return cursors.NewStringSliceIterator(arr), nil
 }
 
 func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
 	if req.TagsSource == nil {
 		return nil, errors.New("missing read source")
 	}
-
 	source, err := getReadSource(*req.TagsSource)
 	if err != nil {
 		return nil, err
 	}
-
-	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
+	db, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
 
-	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	shardIDs, err := s.findShardIDs(db, rp, false, start, end)
 	if err != nil {
 		return nil, err
 	}
-	if len(shardIDs) == 0 { // TODO(jeff): this was a typed nil
+	if len(shardIDs) == 0 {
 		return cursors.EmptyStringIterator, nil
 	}
 
@@ -238,6 +271,17 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 
 		if found := reads.HasFieldValueKey(expr); found {
 			return nil, errors.New("field values unsupported")
+		}
+		if found := reads.ExprHasKey(expr, fieldKey); found {
+			mqAttrs := &metaqueryAttributes{
+				orgID: source.GetOrgID(),
+				db: db,
+				rp: rp,
+				start: start,
+				end: end,
+				pred: expr,
+			}
+			return s.tagKeysWithFieldPredicate(ctx, mqAttrs, shardIDs)
 		}
 		// this will remove any _field references, which are not indexed
 		//   see https://github.com/influxdata/influxdb/issues/19488
