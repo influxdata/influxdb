@@ -186,33 +186,17 @@ func new{{$Type}}() *{{$type}} {
 func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *KeyCursor) {
 	c.end = end
 	c.cache.values = cacheValues
-	if len(c.cache.values) > 0 {
-		c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-			return c.cache.values[i].UnixNano() >= seek
-		})
-		if c.cache.pos == len(c.cache.values) {
-			c.cache.pos--
-		} else if c.cache.values[c.cache.pos].UnixNano() != seek {
-			c.cache.pos--
-		}
-	} else {
-		c.cache.pos = -1
-	}
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+	c.cache.pos--
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] >= seek
 	})
-	if c.tsm.values.Len() > 0 {
-		if c.tsm.pos == c.tsm.values.Len() {
-			c.tsm.pos--
-		} else if c.tsm.values.Timestamps[c.tsm.pos] != seek {
-			c.tsm.pos--
-		}
-	} else {
-		c.tsm.pos = -1
-	}
+	c.tsm.pos--
 }
 
 func (c *{{$type}}) Err() error        { return nil }
@@ -288,9 +272,9 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
+		for pos >= 0 && c.res.Timestamps[pos] < c.end {
 			pos--
 		}
 		pos++
