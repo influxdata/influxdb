@@ -260,8 +260,9 @@ func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *metaquer
 			}
 			defer c.Close()
 			if cursorHasData(c) {
-				for _, tag := range rs.Tags() {
-					m[string(tag.Key)] = struct{}{}
+				tags := rs.Tags()
+				for i := range tags {
+					m[string(tags[i].Key)] = struct{}{}
 				}
 			}
 		}()
