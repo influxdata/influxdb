@@ -264,23 +264,17 @@ where
     //
     //
 
-    /// Returns the set of row ids that satisfy a binary operator on a logical
-    /// value. Note, it is the caller's responsibility to ensure the value
-    /// provided can be correctly converted from the logical to physical
-    /// representation.
+    /// Returns the set of row ids that satisfy a binary operator on a physical
+    /// value.
     ///
     /// Essentially, this supports `value {=, !=, >, >=, <, <=} x`.
-    pub fn row_ids_filter<U>(&self, value: U, op: cmp::Operator, dst: RowIDs) -> RowIDs
-    where
-        T: From<U>,
-    {
-        let physical_value = T::from(value);
+    pub fn row_ids_filter(&self, value: T, op: cmp::Operator, dst: RowIDs) -> RowIDs {
         match op {
-            cmp::Operator::GT => self.row_ids_cmp_order(&physical_value, PartialOrd::gt, dst),
-            cmp::Operator::GTE => self.row_ids_cmp_order(&physical_value, PartialOrd::ge, dst),
-            cmp::Operator::LT => self.row_ids_cmp_order(&physical_value, PartialOrd::lt, dst),
-            cmp::Operator::LTE => self.row_ids_cmp_order(&physical_value, PartialOrd::le, dst),
-            _ => self.row_ids_equal(&physical_value, op, dst),
+            cmp::Operator::GT => self.row_ids_cmp_order(&value, PartialOrd::gt, dst),
+            cmp::Operator::GTE => self.row_ids_cmp_order(&value, PartialOrd::ge, dst),
+            cmp::Operator::LT => self.row_ids_cmp_order(&value, PartialOrd::lt, dst),
+            cmp::Operator::LTE => self.row_ids_cmp_order(&value, PartialOrd::le, dst),
+            _ => self.row_ids_equal(&value, op, dst),
         }
     }
 
