@@ -1135,6 +1135,29 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
 	onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
 
+	var (
+		authorizerV1 platform.AuthorizerV1
+		passwordV1   platform.PasswordsService
+		authSvcV1    *authv1.Service
+	)
+	{
+		authStore, err := authv1.NewStore(m.kvStore)
+		if err != nil {
+			m.log.Error("Failed creating new authorization store", zap.Error(err))
+			return err
+		}
+
+		authSvcV1 = authv1.NewService(authStore, ts)
+		passwordV1 = authv1.NewCachingPasswordsService(authSvcV1)
+
+		authorizerV1 = &authv1.Authorizer{
+			AuthV1:   authSvcV1,
+			AuthV2:   authSvc,
+			Comparer: passwordV1,
+			User:     ts,
+		}
+	}
+
 	// orgIDResolver is a deprecated type which combines the lookups
 	// of multiple resources into one type, used to resolve the resources
 	// associated org ID. It is a stop-gap while we move this behaviour
@@ -1170,6 +1193,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		BackupService:        backupService,
 		KVBackupService:      m.kvService,
 		AuthorizationService: authSvc,
+		AuthorizerV1:         authorizerV1,
 		AlgoWProxy:           &http.NoopProxyHandler{},
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
 		BucketService:                   ts.BucketService,
@@ -1284,21 +1308,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	var v1AuthHTTPServer *authv1.AuthHandler
 	{
-		authStore, err := authv1.NewStore(m.kvStore)
-		if err != nil {
-			m.log.Error("Failed creating new authorization store", zap.Error(err))
-			return err
-		}
-		v1AuthSvc := authv1.NewService(authStore, ts)
-
 		authLogger := m.log.With(zap.String("handler", "v1_authorization"))
 
 		var authService platform.AuthorizationService
-		authService = authorization.NewAuthedAuthorizationService(v1AuthSvc, ts)
+		authService = authorization.NewAuthedAuthorizationService(authSvcV1, ts)
 		authService = authorization.NewAuthLogger(authLogger, authService)
 
-		passService := authv1.NewAuthedPasswordService(authv1.AuthFinder(v1AuthSvc), authv1.PasswordService(v1AuthSvc))
-
+		passService := authv1.NewAuthedPasswordService(authv1.AuthFinder(authSvcV1), passwordV1)
 		v1AuthHTTPServer = authv1.NewHTTPAuthHandler(m.log, authService, passService, ts)
 	}
 
