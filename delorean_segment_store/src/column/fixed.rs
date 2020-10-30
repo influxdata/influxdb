@@ -17,8 +17,6 @@ use std::fmt::{Debug, Display};
 use std::mem::size_of;
 use std::ops::AddAssign;
 
-use croaring::Bitmap;
-
 use crate::column::{cmp, RowIDs};
 
 #[derive(Debug, Default)]
