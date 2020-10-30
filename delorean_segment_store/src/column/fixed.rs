@@ -30,7 +30,7 @@ use crate::column::{cmp, RowIDs};
 ///
 pub struct Fixed<T>
 where
-    T: PartialOrd,
+    T: PartialOrd + std::fmt::Debug,
 {
     // backing data
     values: Vec<T>,
@@ -42,7 +42,7 @@ where
 
 impl<T> std::fmt::Display for Fixed<T>
 where
-    T: Display + PartialOrd + Copy,
+    T: std::fmt::Debug + Display + PartialOrd + Copy,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -56,7 +56,7 @@ where
 
 impl<T> Fixed<T>
 where
-    T: PartialOrd + Copy,
+    T: std::fmt::Debug + PartialOrd + Copy,
 {
     pub fn num_rows(&self) -> u32 {
         self.values.len() as u32
@@ -377,28 +377,19 @@ where
     }
 
     /// Returns the set of row ids that satisfy a pair of binary operators
-    /// against two values of the same logical type.
-    ///
-    /// Note, it is the caller's responsibility to provide values that can
-    /// safely be converted from the logical type `U` to the physical type `T`.
+    /// against two values of the same physical type.
     ///
     /// This method is a special case optimisation for common cases where one
     /// wishes to do the equivalent of WHERE x > y AND x <= y` for example.
     ///
     /// Essentially, this supports:
     ///     `x {>, >=, <, <=} value1 AND x {>, >=, <, <=} value2`.
-    pub fn row_ids_filter_range<U>(
+    pub fn row_ids_filter_range(
         &self,
-        left: (U, cmp::Operator),
-        right: (U, cmp::Operator),
+        left: (T, cmp::Operator),
+        right: (T, cmp::Operator),
         dst: RowIDs,
-    ) -> RowIDs
-    where
-        T: From<U>,
-    {
-        let left_physical = T::from(left.0);
-        let right_physical = T::from(right.0);
-
+    ) -> RowIDs {
         match (&left.1, &right.1) {
             (cmp::Operator::GT, cmp::Operator::LT)
             | (cmp::Operator::GT, cmp::Operator::LTE)
@@ -408,8 +399,8 @@ where
             | (cmp::Operator::LT, cmp::Operator::GTE)
             | (cmp::Operator::LTE, cmp::Operator::GT)
             | (cmp::Operator::LTE, cmp::Operator::GTE) => self.row_ids_cmp_range_order(
-                (&left_physical, Self::ord_from_op(&left.1)),
-                (&right_physical, Self::ord_from_op(&right.1)),
+                (&left.0, Self::ord_from_op(&left.1)),
+                (&right.0, Self::ord_from_op(&right.1)),
                 dst,
             ),
 
@@ -454,7 +445,7 @@ where
             let left_result_no =
                 left_cmp_result != Some(left_op.0) && left_cmp_result != Some(left_op.1);
             let right_result_no =
-                right_cmp_result != Some(right_op.0) && left_cmp_result != Some(right_op.1);
+                right_cmp_result != Some(right_op.0) && right_cmp_result != Some(right_op.1);
 
             if (left_result_no || right_result_no) && found {
                 let (min, max) = (i as u32 - count as u32, i as u32);
@@ -653,6 +644,29 @@ mod test {
     }
 
     #[test]
+    fn ord_from_op() {
+        assert_eq!(
+            Fixed::<i64>::ord_from_op(&cmp::Operator::LT),
+            (Ordering::Less, Ordering::Less)
+        );
+
+        assert_eq!(
+            Fixed::<i64>::ord_from_op(&cmp::Operator::GT),
+            (Ordering::Greater, Ordering::Greater)
+        );
+
+        assert_eq!(
+            Fixed::<i64>::ord_from_op(&cmp::Operator::LTE),
+            (Ordering::Less, Ordering::Equal)
+        );
+
+        assert_eq!(
+            Fixed::<i64>::ord_from_op(&cmp::Operator::GTE),
+            (Ordering::Greater, Ordering::Equal)
+        );
+    }
+
+    #[test]
     fn row_ids_filter_eq() {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
@@ -781,5 +795,14 @@ mod test {
             RowIDs::new_bitmap(),
         );
         assert!(dst.is_empty());
+
+        let mut v: Fixed<i64> = Fixed::default();
+        v.values = vec![100, 200, 300, 2, 200, 22, 30];
+        let dst = v.row_ids_filter_range(
+            (200, Operator::GTE),
+            (300, Operator::LTE),
+            RowIDs::new_vector(),
+        );
+        assert_eq!(dst.unwrap_vector(), &vec![1, 2, 4]);
     }
 }
