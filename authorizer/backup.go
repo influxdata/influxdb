@@ -3,6 +3,7 @@ package authorizer
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -34,7 +35,7 @@ func (b BackupService) BackupKVStore(ctx context.Context, w io.Writer) error {
 	return b.s.BackupKVStore(ctx, w)
 }
 
-func (b BackupService) BackupShard(ctx context.Context, w io.Writer, shardID uint64) error {
+func (b BackupService) BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -42,5 +43,5 @@ func (b BackupService) BackupShard(ctx context.Context, w io.Writer, shardID uin
 	if err := IsAllowedAll(ctx, influxdb.ReadAllPermissions()); err != nil {
 		return err
 	}
-	return b.s.BackupShard(ctx, w, shardID)
+	return b.s.BackupShard(ctx, w, shardID, since)
 }

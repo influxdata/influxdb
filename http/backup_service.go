@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
+	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	// "github.com/influxdata/influxdb/v2/bolt"
-	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"
 )
@@ -92,7 +91,15 @@ func (h *BackupHandler) handleBackupShard(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.BackupService.BackupShard(ctx, w, shardID); err != nil {
+	var since time.Time
+	if s := r.URL.Query().Get("since"); s != "" {
+		if since, err = time.ParseInLocation(time.RFC3339, s, time.UTC); err != nil {
+			h.HandleHTTPError(ctx, err, w)
+			return
+		}
+	}
+
+	if err := h.BackupService.BackupShard(ctx, w, shardID, since); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -139,13 +146,16 @@ func (s *BackupService) BackupKVStore(ctx context.Context, w io.Writer) error {
 	return resp.Body.Close()
 }
 
-func (s *BackupService) BackupShard(ctx context.Context, w io.Writer, shardID uint64) error {
+func (s *BackupService) BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	u, err := NewURL(s.Addr, fmt.Sprintf(prefixBackup+"/shards/%d", shardID))
 	if err != nil {
 		return err
+	}
+	if !since.IsZero() {
+		u.RawQuery = (url.Values{"since": {since.UTC().Format(time.RFC3339)}}).Encode()
 	}
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
@@ -171,12 +181,4 @@ func (s *BackupService) BackupShard(ctx context.Context, w io.Writer, shardID ui
 		return err
 	}
 	return resp.Body.Close()
-}
-
-func defaultConfigsPath() (string, error) {
-	dir, err := fs.InfluxDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, fs.DefaultConfigsFile), nil
 }

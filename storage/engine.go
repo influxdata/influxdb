@@ -323,7 +323,7 @@ func (e *Engine) BackupKVStore(ctx context.Context, w io.Writer) error {
 	return e.metaClient.Backup(ctx, w)
 }
 
-func (e *Engine) BackupShard(ctx context.Context, w io.Writer, shardID uint64) error {
+func (e *Engine) BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -334,7 +334,7 @@ func (e *Engine) BackupShard(ctx context.Context, w io.Writer, shardID uint64) e
 		return ErrEngineClosed
 	}
 
-	return e.tsdbStore.BackupShard(shardID, time.Time{}, w)
+	return e.tsdbStore.BackupShard(shardID, since, w)
 }
 
 func (e *Engine) RestoreBucket(ctx context.Context, id influxdb.ID, buf []byte) (map[uint64]uint64, error) {

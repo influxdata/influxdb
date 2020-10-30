@@ -25,8 +25,6 @@ func cmdRestore(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	return newCmdRestoreBuilder(f, opts).cmdRestore()
 }
 
-type restoreSVCsFn func() (influxdb.RestoreService, error)
-
 type cmdRestoreBuilder struct {
 	genericCLIOpts
 	*globalFlags
@@ -36,7 +34,6 @@ type cmdRestoreBuilder struct {
 	newBucketName string
 	newOrgName    string
 	org           organization
-	shardID       uint64
 	path          string
 
 	kvEntry      *influxdb.ManifestKVEntry
@@ -67,7 +64,6 @@ func (b *cmdRestoreBuilder) cmdRestore() *cobra.Command {
 	cmd.Flags().StringVarP(&b.bucketName, "bucket", "b", "", "The name of the bucket to restore")
 	cmd.Flags().StringVar(&b.newBucketName, "new-bucket", "", "The name of the bucket to restore to")
 	cmd.Flags().StringVar(&b.newOrgName, "new-org", "", "The name of the organization to restore to")
-	cmd.Flags().Uint64Var(&b.shardID, "shard-id", 0, "The shard to restore")
 	cmd.Flags().StringVar(&b.path, "input", "", "Local backup data path (required)")
 	cmd.Use = "restore [flags] path"
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
@@ -99,12 +95,18 @@ func (b *cmdRestoreBuilder) restoreRunE(cmd *cobra.Command, args []string) (err 
 		return err
 	}
 
+	// Ensure org/bucket filters are set if a new org/bucket name is specified.
+	if b.newOrgName != "" && b.org.id == "" && b.org.name == "" {
+		return fmt.Errorf("must specify source org id or name when renaming restored org")
+	} else if b.newBucketName != "" && b.bucketID == "" && b.bucketName == "" {
+		return fmt.Errorf("must specify source bucket id or name when renaming restored bucket")
+	}
+
 	// Read in set of KV data & shard data to restore.
 	if err := b.loadIncremental(); err != nil {
 		return fmt.Errorf("restore failed while processing manifest files: %s", err.Error())
 	} else if b.kvEntry == nil {
-		return fmt.Errorf("No manifest files found in: %s\n", b.path)
-
+		return fmt.Errorf("no manifest files found in: %s", b.path)
 	}
 
 	ac := flags.config()
@@ -178,19 +180,25 @@ func (b *cmdRestoreBuilder) restoreOrganizations(ctx context.Context) (err error
 func (b *cmdRestoreBuilder) restoreOrganization(ctx context.Context, org *influxdb.Organization) (err error) {
 	b.logger.Info("Restoring organization", zap.String("id", org.ID.String()), zap.String("name", org.Name))
 
+	newOrg := *org
+	if b.newOrgName != "" {
+		newOrg.Name = b.newOrgName
+	}
+
 	// Create organization on server, if it doesn't already exist.
-	if a, _, err := b.orgService.FindOrganizations(ctx, influxdb.OrganizationFilter{Name: &org.Name}); err != nil {
-		return fmt.Errorf("cannot find existing organization: %w", err)
-	} else if len(a) == 0 {
-		tmp := *org // copy so we don't lose our ID
-		if err := b.orgService.CreateOrganization(ctx, &tmp); err != nil {
+	if o, err := b.orgService.FindOrganization(ctx, influxdb.OrganizationFilter{Name: &newOrg.Name}); influxdb.ErrorCode(err) == influxdb.ENotFound {
+		if err := b.orgService.CreateOrganization(ctx, &newOrg); err != nil {
 			return fmt.Errorf("cannot create organization: %w", err)
 		}
+	} else if err != nil {
+		return fmt.Errorf("cannot find existing organization: %#v", err)
+	} else {
+		newOrg.ID = o.ID
 	}
 
 	// Build a filter if bucket ID or bucket name were specified.
 	var filter influxdb.BucketFilter
-	filter.OrganizationID = &org.ID
+	filter.OrganizationID = &org.ID // match on backup's org ID
 	if b.bucketID != "" {
 		if filter.ID, err = influxdb.IDFromString(b.bucketID); err != nil {
 			return err
@@ -212,14 +220,17 @@ func (b *cmdRestoreBuilder) restoreOrganization(ctx context.Context, org *influx
 			continue
 		}
 
-		if err := b.restoreBucket(ctx, org, bkt); err != nil {
+		bkt = bkt.Clone()
+		bkt.OrgID = newOrg.ID
+
+		if err := b.restoreBucket(ctx, bkt); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (b *cmdRestoreBuilder) restoreBucket(ctx context.Context, org *influxdb.Organization, bkt *influxdb.Bucket) (err error) {
+func (b *cmdRestoreBuilder) restoreBucket(ctx context.Context, bkt *influxdb.Bucket) (err error) {
 	b.logger.Info("Restoring bucket", zap.String("id", bkt.ID.String()), zap.String("name", bkt.Name))
 
 	// Create bucket on server.
@@ -232,6 +243,7 @@ func (b *cmdRestoreBuilder) restoreBucket(ctx context.Context, org *influxdb.Org
 	}
 
 	// Lookup matching database from the meta store.
+	// Search using bucket ID from backup.
 	dbi := b.metaClient.Database(bkt.ID.String())
 	if dbi == nil {
 		return fmt.Errorf("bucket database not found: %s", bkt.ID.String())
@@ -251,8 +263,6 @@ func (b *cmdRestoreBuilder) restoreBucket(ctx context.Context, org *influxdb.Org
 	// Restore each shard for the bucket.
 	for _, file := range b.shardEntries {
 		if bkt.ID.String() != file.BucketID {
-			continue
-		} else if b.shardID != 0 && b.shardID != file.ShardID {
 			continue
 		}
 

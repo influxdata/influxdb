@@ -24,8 +24,6 @@ func cmdBackup(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	return newCmdBackupBuilder(f, opts).cmdBackup()
 }
 
-type backupSVCsFn func() (influxdb.BackupService, error)
-
 type cmdBackupBuilder struct {
 	genericCLIOpts
 	*globalFlags
@@ -33,7 +31,7 @@ type cmdBackupBuilder struct {
 	bucketID   string
 	bucketName string
 	org        organization
-	outputPath string
+	path       string
 
 	manifest influxdb.Manifest
 	baseName string
@@ -65,7 +63,7 @@ func (b *cmdBackupBuilder) cmdBackup() *cobra.Command {
 		} else if len(args) > 1 {
 			return fmt.Errorf("too many args specified")
 		}
-		b.outputPath = args[0]
+		b.path = args[0]
 		return nil
 	}
 	cmd.Short = "Backup database"
@@ -104,7 +102,7 @@ func (b *cmdBackupBuilder) backupRunE(cmd *cobra.Command, args []string) (err er
 	b.baseName = time.Now().UTC().Format(influxdb.BackupFilenamePattern)
 
 	// Ensure directory exsits.
-	if err := os.MkdirAll(b.outputPath, 0777); err != nil {
+	if err := os.MkdirAll(b.path, 0777); err != nil {
 		return err
 	}
 
@@ -121,14 +119,14 @@ func (b *cmdBackupBuilder) backupRunE(cmd *cobra.Command, args []string) (err er
 
 	// Open bolt DB.
 	boltClient := bolt.NewClient(b.logger)
-	boltClient.Path = filepath.Join(b.outputPath, b.kvPath())
+	boltClient.Path = filepath.Join(b.path, b.kvPath())
 	if err := boltClient.Open(ctx); err != nil {
 		return err
 	}
 	defer boltClient.Close()
 
 	// Open meta store so we can iterate over meta data.
-	b.kvStore = bolt.NewKVStore(b.logger, filepath.Join(b.outputPath, b.kvPath()))
+	b.kvStore = bolt.NewKVStore(b.logger, filepath.Join(b.path, b.kvPath()))
 	b.kvStore.WithDB(boltClient.DB())
 	b.kvService = kv.NewService(b.logger, b.kvStore, kv.ServiceConfig{})
 
@@ -153,7 +151,7 @@ func (b *cmdBackupBuilder) backupRunE(cmd *cobra.Command, args []string) (err er
 
 // backupKVStore streams the bolt KV file to a file at path.
 func (b *cmdBackupBuilder) backupKVStore(ctx context.Context) error {
-	path := filepath.Join(b.outputPath, b.kvPath())
+	path := filepath.Join(b.path, b.kvPath())
 	b.logger.Info("Backing up KV store", zap.String("path", b.kvPath()))
 
 	// Open writer to output file.
@@ -263,7 +261,7 @@ func (b *cmdBackupBuilder) backupBucket(ctx context.Context, org *influxdb.Organ
 
 // backupShard streams a tar of TSM data for shard.
 func (b *cmdBackupBuilder) backupShard(ctx context.Context, org *influxdb.Organization, bkt *influxdb.Bucket, policy string, shardID uint64) error {
-	path := filepath.Join(b.outputPath, b.shardPath(shardID))
+	path := filepath.Join(b.path, b.shardPath(shardID))
 	b.logger.Info("Backing up shard", zap.Uint64("id", shardID), zap.String("path", b.shardPath(shardID)))
 
 	// Open writer to output file.
@@ -278,7 +276,7 @@ func (b *cmdBackupBuilder) backupShard(ctx context.Context, org *influxdb.Organi
 	defer gw.Close()
 
 	// Stream file from server, sync, and ensure file closes correctly.
-	if err := b.backupService.BackupShard(ctx, gw, shardID); err != nil {
+	if err := b.backupService.BackupShard(ctx, gw, shardID, time.Time{}); err != nil {
 		return err
 	} else if err := gw.Close(); err != nil {
 		return err
@@ -311,7 +309,7 @@ func (b *cmdBackupBuilder) backupShard(ctx context.Context, org *influxdb.Organi
 
 // writeManifest writes the manifest file out.
 func (b *cmdBackupBuilder) writeManifest(ctx context.Context) error {
-	path := filepath.Join(b.outputPath, b.manifestPath())
+	path := filepath.Join(b.path, b.manifestPath())
 	b.logger.Info("Writing manifest", zap.String("path", b.manifestPath()))
 
 	buf, err := json.MarshalIndent(b.manifest, "", "  ")

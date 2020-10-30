@@ -166,8 +166,8 @@ func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id influxdb.ID, dbi
 	return t.engine.RestoreBucket(ctx, id, dbi)
 }
 
-func (t *TemporaryEngine) BackupShard(ctx context.Context, w io.Writer, shardID uint64) error {
-	return t.engine.BackupShard(ctx, w, shardID)
+func (t *TemporaryEngine) BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error {
+	return t.engine.BackupShard(ctx, w, shardID, since)
 }
 
 func (t *TemporaryEngine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error {

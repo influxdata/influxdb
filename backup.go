@@ -16,7 +16,7 @@ type BackupService interface {
 	BackupKVStore(ctx context.Context, w io.Writer) error
 
 	// BackupShard downloads a backup file for a single shard.
-	BackupShard(ctx context.Context, w io.Writer, shardID uint64) error
+	BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error
 }
 
 // RestoreService represents the data restore functions of InfluxDB.
