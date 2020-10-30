@@ -1,3 +1,9 @@
+## unreleased
+
+### Bug Fixes
+
+1. [19856](https://github.com/influxdata/influxdb/pull/19856): make tagKeys and tagValues work for edge cases involving _field
+
 ## v2.0.0-rc.3 [2020-10-29]
 
 ### Features
@@ -25,7 +31,6 @@
 1. [19834](https://github.com/influxdata/influxdb/pull/19834): Docs: Fix typos in http/swagger.yml
 1. [19836](https://github.com/influxdata/influxdb/pull/19836): UI: import flux-lsp v0.5.21
 1. [19846](https://github.com/influxdata/influxdb/pull/19846): prune some unreferenced packages
-1. [19856](https://github.com/influxdata/influxdb/pull/19856): make tagKeys and tagValues work for edge cases involving _field
 
 ## v2.0.0-rc.2 [2020-10-21]
 
