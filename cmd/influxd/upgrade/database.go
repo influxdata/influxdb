@@ -13,8 +13,8 @@ import (
 )
 
 // upgradeDatabases creates databases, buckets, retention policies and shard info according to 1.x meta and copies data
-func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opts *optionsV1, v2opts *optionsV2, orgID influxdb.ID, log *zap.Logger) (map[string][]string, error) {
-	db2BucketIds := make(map[string][]string)
+func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opts *optionsV1, v2opts *optionsV2, orgID influxdb.ID, log *zap.Logger) (map[string][]influxdb.ID, error) {
+	db2BucketIds := make(map[string][]influxdb.ID)
 
 	targetDataPath := filepath.Join(v2opts.enginePath, "data")
 	targetWalPath := filepath.Join(v2opts.enginePath, "wal")
@@ -72,7 +72,7 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 		}
 
 		// db to buckets IDs mapping
-		db2BucketIds[db.Name] = make([]string, 0, len(db.RetentionPolicies))
+		db2BucketIds[db.Name] = make([]influxdb.ID, 0, len(db.RetentionPolicies))
 
 		for _, rp := range db.RetentionPolicies {
 			sourcePath := filepath.Join(v1opts.dataDir, db.Name, rp.Name)
@@ -95,7 +95,7 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 
 			}
 
-			db2BucketIds[db.Name] = append(db2BucketIds[db.Name], bucket.ID.String())
+			db2BucketIds[db.Name] = append(db2BucketIds[db.Name], bucket.ID)
 			if options.verbose {
 				log.Info("Creating database with retention policy",
 					zap.String("database", bucket.ID.String()))
@@ -176,9 +176,5 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 		}
 	}
 
-	err = v2.close()
-	if err != nil {
-		return nil, fmt.Errorf("error closing v2: %w", err)
-	}
 	return db2BucketIds, nil
 }
