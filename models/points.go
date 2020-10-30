@@ -1034,7 +1034,7 @@ func scanNumber(buf []byte, i int) (int, error) {
 	} else {
 		// Parse the float to check bounds if it's scientific or the number of digits could be larger than the max range
 		if scientific || len(buf[start:i]) >= maxFloat64Digits || len(buf[start:i]) >= minFloat64Digits {
-			if _, err := parseFloatBytes(buf[start:i], 10); err != nil {
+			if _, err := parseFloatBytes(buf[start:i], 64); err != nil {
 				return i, fmt.Errorf("invalid float")
 			}
 		}
