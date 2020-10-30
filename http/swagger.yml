@@ -9792,7 +9792,7 @@ components:
         - $ref: "#/components/schemas/GeoTrackMapViewLayer"
     GeoViewLayerProperties:
       type: object
-      required: [type, field, colors]
+      required: [type]
       properties:
         type:
           type: string
@@ -9801,7 +9801,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/GeoViewLayerProperties"
         - type: object
-          required: [radiusField, radiusDimension,colorField, colorDimension, colors]
+          required: [radiusField, radiusDimension, colorField, colorDimension, colors]
           properties:
             radiusField:
               type: string
@@ -9819,7 +9819,7 @@ components:
               items:
                 $ref: "#/components/schemas/DashboardColor"
             radius:
-              description: Maximum r  adius size in pixels
+              description: Maximum radius size in pixels
               type: integer
             interpolateColors:
               description: Interpolate circle color based on displayed value
