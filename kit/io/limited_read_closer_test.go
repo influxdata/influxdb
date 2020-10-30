@@ -2,10 +2,10 @@ package io
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/ioutil"
 	"testing"
-	"errors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +34,7 @@ func TestLimitedReadCloser_Happy(t *testing.T) {
 func TestLimitedReadCloseWithErrorAndLimitExceeded(t *testing.T) {
 	b := &closer{
 		Reader: bytes.NewBufferString("howdy"),
-		err: errors.New("some error"),
+		err:    errors.New("some error"),
 	}
 	rc := NewLimitedReadCloser(b, 3)
 
@@ -49,7 +49,7 @@ func TestLimitedReadCloseWithError(t *testing.T) {
 	closeErr := errors.New("some error")
 	b := &closer{
 		Reader: bytes.NewBufferString("howdy"),
-		err: closeErr,
+		err:    closeErr,
 	}
 	rc := NewLimitedReadCloser(b, 10)
 
@@ -63,7 +63,7 @@ func TestMultipleCloseOnlyClosesOnce(t *testing.T) {
 	closeErr := errors.New("some error")
 	b := &closer{
 		Reader: bytes.NewBufferString("howdy"),
-		err: closeErr,
+		err:    closeErr,
 	}
 	rc := NewLimitedReadCloser(b, 10)
 
@@ -77,7 +77,7 @@ func TestMultipleCloseOnlyClosesOnce(t *testing.T) {
 
 type closer struct {
 	io.Reader
-	err error
+	err        error
 	closeCount int
 }
 

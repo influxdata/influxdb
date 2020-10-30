@@ -1,3 +1,9 @@
+## unreleased
+
+### Bug Fixes
+
+1. [19856](https://github.com/influxdata/influxdb/pull/19856): make tagKeys and tagValues work for edge cases involving _field
+
 ## v2.0.0-rc.3 [2020-10-29]
 
 ### Features
