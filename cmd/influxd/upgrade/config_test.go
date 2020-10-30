@@ -89,8 +89,7 @@ func TestConfigUpgrade(t *testing.T) {
 	}
 }
 func TestConfigUpgradeFileNotExists(t *testing.T) {
-	targetOtions := optionsV2{
-	}
+	targetOtions := optionsV2{}
 	configFile := "/there/is/no/such/path/influxdb.conf"
 
 	// try upgrade
@@ -314,7 +313,7 @@ bind-address = "127.0.0.1:8088"
   max-version = "tls1.3"
 `
 
-var testConfigV1obsoleteArrays =`
+var testConfigV1obsoleteArrays = `
 reporting-disabled = true
 
 [meta]
@@ -393,7 +392,7 @@ tls-cert = "/etc/ssl/influxdb.pem"
 tls-key = ""
 `
 
-var testConfigV2obsoleteArrays =`reporting-disabled = true
+var testConfigV2obsoleteArrays = `reporting-disabled = true
 bolt-path = "/db/.influxdbv2/influxd.bolt"
 engine-path = "/db/.influxdbv2/engine"
 `

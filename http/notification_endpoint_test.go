@@ -18,7 +18,10 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/endpoint/service"
+	endpointTesting "github.com/influxdata/influxdb/v2/notification/endpoint/service/testing"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
+	"github.com/influxdata/influxdb/v2/tenant"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -32,7 +35,6 @@ func NewMockNotificationEndpointBackend(t *testing.T) *NotificationEndpointBacke
 		UserResourceMappingService:  mock.NewUserResourceMappingService(),
 		LabelService:                mock.NewLabelService(),
 		UserService:                 mock.NewUserService(),
-		OrganizationService:         mock.NewOrganizationService(),
 	}
 }
 
@@ -489,7 +491,6 @@ func TestService_handlePostNotificationEndpoint(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend(t)
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
-			notificationEndpointBackend.OrganizationService = tt.fields.OrganizationService
 
 			testttp.
 				PostJSON(t, prefixNotificationEndpoints, tt.args.endpoint).
@@ -1060,37 +1061,40 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 	}
 }
 
-func initNotificationEndpointService(f influxTesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
+func initNotificationEndpointService(f endpointTesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
 	ctx := context.Background()
 	store := NewTestInmemStore(t)
 	logger := zaptest.NewLogger(t)
-	svc := kv.NewService(logger, store)
-	svc.IDGenerator = f.IDGenerator
-	svc.TimeGenerator = f.TimeGenerator
+	kvSvc := kv.NewService(logger, store)
+	kvSvc.IDGenerator = f.IDGenerator
+	kvSvc.TimeGenerator = f.TimeGenerator
 
-	for _, v := range f.Orgs {
-		if err := svc.PutOrganization(ctx, v); err != nil {
-			t.Fatalf("failed to replace org: %v", err)
-		}
-	}
+	endpointStore := service.NewStore(store)
+	endpointStore.IDGenerator = f.IDGenerator
+	endpointStore.TimeGenerator = f.TimeGenerator
+	endpointService := service.New(endpointStore, kvSvc)
 
-	for _, m := range f.UserResourceMappings {
-		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
-			t.Fatalf("failed to populate user resource mapping: %v", err)
-		}
+	tenantStore := tenant.NewStore(store)
+	tenantService := tenant.NewService(tenantStore)
+
+	for _, o := range f.Orgs {
+		withOrgID(tenantStore, o.ID, func() {
+			if err := tenantService.CreateOrganization(ctx, o); err != nil {
+				t.Fatalf("failed to populate org: %v", err)
+			}
+		})
 	}
 
 	for _, v := range f.NotificationEndpoints {
-		if err := svc.PutNotificationEndpoint(ctx, v); err != nil {
+		if err := endpointStore.PutNotificationEndpoint(ctx, v); err != nil {
 			t.Fatalf("failed to update endpoint: %v", err)
 		}
 	}
 
 	fakeBackend := NewMockNotificationEndpointBackend(t)
-	fakeBackend.NotificationEndpointService = svc
-	fakeBackend.UserService = svc
-	fakeBackend.UserResourceMappingService = svc
-	fakeBackend.OrganizationService = svc
+	fakeBackend.NotificationEndpointService = endpointService
+	fakeBackend.UserResourceMappingService = tenantService
+	fakeBackend.UserService = tenantService
 
 	handler := NewNotificationEndpointHandler(zaptest.NewLogger(t), fakeBackend)
 	auth := func(next http.Handler) http.HandlerFunc {
@@ -1103,7 +1107,7 @@ func initNotificationEndpointService(f influxTesting.NotificationEndpointFields,
 	done := server.Close
 
 	client := mustNewHTTPClient(t, server.URL, "")
-	return NewNotificationEndpointService(client), svc, done
+	return NewNotificationEndpointService(client), kvSvc, done
 }
 
 func TestNotificationEndpointService(t *testing.T) {
@@ -1111,11 +1115,11 @@ func TestNotificationEndpointService(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		testFn func(init func(influxTesting.NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()), t *testing.T)
+		testFn func(init func(endpointTesting.NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()), t *testing.T)
 	}{
 		{
 			name:   "CreateNotificationEndpoint",
-			testFn: influxTesting.CreateNotificationEndpoint,
+			testFn: endpointTesting.CreateNotificationEndpoint,
 		},
 	}
 
@@ -1130,4 +1134,13 @@ func authCtxFn(userID influxdb.ID) func(context.Context) context.Context {
 	return func(ctx context.Context) context.Context {
 		return pcontext.SetAuthorizer(ctx, &influxdb.Session{UserID: userID})
 	}
+}
+
+func withOrgID(store *tenant.Store, orgID influxdb.ID, fn func()) {
+	backup := store.OrgIDGen
+	defer func() { store.OrgIDGen = backup }()
+
+	store.OrgIDGen = mock.NewStaticIDGenerator(orgID)
+
+	fn()
 }

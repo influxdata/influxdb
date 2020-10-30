@@ -284,7 +284,7 @@ func AuthorizeFindChecks(ctx context.Context, rs []influxdb.Check) ([]influxdb.C
 }
 
 // AuthorizeFindUserResourceMappings takes the given items and returns only the ones that the user is authorized to read.
-func AuthorizeFindUserResourceMappings(ctx context.Context, os OrganizationService, rs []*influxdb.UserResourceMapping) ([]*influxdb.UserResourceMapping, int, error) {
+func AuthorizeFindUserResourceMappings(ctx context.Context, os OrgIDResolver, rs []*influxdb.UserResourceMapping) ([]*influxdb.UserResourceMapping, int, error) {
 	// This filters without allocating
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	rrs := rs[:0]

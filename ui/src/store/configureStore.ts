@@ -62,8 +62,12 @@ type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
 import {history} from 'src/store/history'
 
-export const rootReducer = (history: History) =>
-  combineReducers<ReducerState>({
+export const rootReducer = (history: History) => (state, action) => {
+  if (action.type === 'USER_LOGGED_OUT') {
+    state = undefined
+  }
+
+  return combineReducers<ReducerState>({
     router: connectRouter(history),
     ...sharedReducers,
     autoRefresh: autoRefreshReducer,
@@ -115,7 +119,8 @@ export const rootReducer = (history: History) =>
     userSettings: userSettingsReducer,
     variableEditor: variableEditorReducer,
     VERSION: () => '',
-  })
+  })(state, action)
+}
 
 const composeEnhancers =
   (window as any).__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose

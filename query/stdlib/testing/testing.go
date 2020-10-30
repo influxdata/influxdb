@@ -119,9 +119,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"http_endpoint": "need ability to test side effects in e2e tests: (https://github.com/influxdata/flux/issues/1723)",
 	},
 	"influxdata/influxdb/schema": {
-		"show_measurements": "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
-		"show_tag_values":   "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
-		"show_tag_keys":     "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
+		"show_tag_keys": "failing due to bug in test, unskip this after upgrading from Flux v0.91.0",
 	},
 	"influxdata/influxdb/monitor": {
 		"state_changes_big_any_to_any":     "unbounded test",

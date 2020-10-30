@@ -205,7 +205,7 @@ func TestReadWindowAggregateSource(t *testing.T) {
 					universe.SumKind,
 				},
 			}
-			reader := &mock.WindowAggregateStoreReader{
+			reader := &mock.StorageReader{
 				ReadWindowAggregateFn: func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 					if want, got := orgID, spec.OrganizationID; want != got {
 						t.Errorf("unexpected organization id -want/+got:\n\t- %s\n\t+ %s", want, got)

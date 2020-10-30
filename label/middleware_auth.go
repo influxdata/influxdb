@@ -2,7 +2,6 @@ package label
 
 import (
 	"context"
-	"errors"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
@@ -11,15 +10,15 @@ import (
 var _ influxdb.LabelService = (*AuthedLabelService)(nil)
 
 type AuthedLabelService struct {
-	s      influxdb.LabelService
-	orgSvc authorizer.OrganizationService
+	s             influxdb.LabelService
+	orgIDResolver authorizer.OrgIDResolver
 }
 
 // NewAuthedLabelService constructs an instance of an authorizing label serivce.
-func NewAuthedLabelService(s influxdb.LabelService, orgSvc authorizer.OrganizationService) *AuthedLabelService {
+func NewAuthedLabelService(s influxdb.LabelService, orgIDResolver authorizer.OrgIDResolver) *AuthedLabelService {
 	return &AuthedLabelService{
-		s:      s,
-		orgSvc: orgSvc,
+		s:             s,
+		orgIDResolver: orgIDResolver,
 	}
 }
 func (s *AuthedLabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
@@ -59,10 +58,7 @@ func (s *AuthedLabelService) FindResourceLabels(ctx context.Context, filter infl
 		return nil, err
 	}
 
-	if s.orgSvc == nil {
-		return nil, errors.New("failed to find orgSvc")
-	}
-	orgID, err := s.orgSvc.FindResourceOrganizationID(ctx, filter.ResourceType, filter.ResourceID)
+	orgID, err := s.orgIDResolver.FindResourceOrganizationID(ctx, filter.ResourceType, filter.ResourceID)
 	if err != nil {
 		return nil, err
 	}

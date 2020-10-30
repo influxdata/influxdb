@@ -24,13 +24,13 @@ import (
 	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/dbrp"
-	"github.com/influxdata/influxdb/v2/endpoints"
 	"github.com/influxdata/influxdb/v2/gather"
 	"github.com/influxdata/influxdb/v2/http"
 	iqlcontrol "github.com/influxdata/influxdb/v2/influxql/control"
 	iqlquery "github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/internal/resource"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	overrideflagger "github.com/influxdata/influxdb/v2/kit/feature/override"
@@ -45,6 +45,8 @@ import (
 	"github.com/influxdata/influxdb/v2/label"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/nats"
+	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
+	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
 	"github.com/influxdata/influxdb/v2/pkger"
 	infprom "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/query"
@@ -67,6 +69,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tenant"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"  // needed for tsi1
+	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
 	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"
@@ -757,17 +760,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		variableSvc               platform.VariableService                 = m.kvService
-		sourceSvc                 platform.SourceService                   = m.kvService
-		dashboardSvc              platform.DashboardService                = m.kvService
-		dashboardLogSvc           platform.DashboardOperationLogService    = m.kvService
-		userLogSvc                platform.UserOperationLogService         = m.kvService
-		bucketLogSvc              platform.BucketOperationLogService       = m.kvService
-		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
-		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
-		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
-		lookupSvc                 platform.LookupService                   = m.kvService
-		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
+		variableSvc      platform.VariableService                 = m.kvService
+		sourceSvc        platform.SourceService                   = m.kvService
+		dashboardSvc     platform.DashboardService                = m.kvService
+		dashboardLogSvc  platform.DashboardOperationLogService    = m.kvService
+		userLogSvc       platform.UserOperationLogService         = m.kvService
+		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
+		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
+		scraperTargetSvc platform.ScraperTargetStoreService       = m.kvService
+		telegrafSvc      platform.TelegrafConfigStore             = m.kvService
+		lookupSvc        platform.LookupService                   = m.kvService
 	)
 
 	tenantStore := tenant.NewStore(m.kvStore)
@@ -986,10 +988,22 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		checkSvc = middleware.NewCheckService(checkSvc, m.kvService, coordinator)
 	}
 
+	var notificationEndpointSvc platform.NotificationEndpointService
+	{
+		notificationEndpointSvc = endpointservice.New(endpointservice.NewStore(m.kvStore), secretSvc)
+	}
+
 	var notificationRuleSvc platform.NotificationRuleStore
 	{
 		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
-		notificationRuleSvc = middleware.NewNotificationRuleStore(m.kvService, m.kvService, coordinator)
+		notificationRuleSvc, err = ruleservice.New(m.log, m.kvStore, m.kvService, ts.OrganizationService, notificationEndpointSvc)
+		if err != nil {
+			return err
+		}
+
+		// tasks service notification middleware which keeps task service up to date
+		// with persisted changes to notification rules.
+		notificationRuleSvc = middleware.NewNotificationRuleStore(notificationRuleSvc, m.kvService, coordinator)
 	}
 
 	// NATS streaming server
@@ -1121,6 +1135,25 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
 	onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
 
+	// orgIDResolver is a deprecated type which combines the lookups
+	// of multiple resources into one type, used to resolve the resources
+	// associated org ID. It is a stop-gap while we move this behaviour
+	// off of *kv.Service to aid in reducing the coupling on this type.
+	orgIDResolver := &resource.OrgIDResolver{
+		AuthorizationFinder:        authSvc,
+		BucketFinder:               ts.BucketService,
+		OrganizationFinder:         ts.OrganizationService,
+		DashboardFinder:            dashboardSvc,
+		SourceFinder:               sourceSvc,
+		TaskFinder:                 taskSvc,
+		TelegrafConfigFinder:       telegrafSvc,
+		VariableFinder:             variableSvc,
+		TargetFinder:               scraperTargetSvc,
+		CheckFinder:                checkSvc,
+		NotificationEndpointFinder: notificationEndpointSvc,
+		NotificationRuleFinder:     notificationRuleSvc,
+	}
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
@@ -1162,14 +1195,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		NotificationRuleStore:           notificationRuleSvc,
-		NotificationEndpointService:     endpoints.NewService(notificationEndpointStore, secretSvc, ts.UserResourceMappingService, ts.OrganizationService),
+		NotificationEndpointService:     notificationEndpointSvc,
 		CheckService:                    checkSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,
 		ChronografService:               chronografSvc,
 		SecretService:                   secretSvc,
 		LookupService:                   lookupSvc,
 		DocumentService:                 m.kvService,
-		OrgLookupService:                m.kvService,
+		OrgLookupService:                orgIDResolver,
 		WriteEventRecorder:              infprom.NewEventRecorder("write"),
 		QueryEventRecorder:              infprom.NewEventRecorder("query"),
 		Flagger:                         m.flagger,
@@ -1249,6 +1282,26 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authHTTPServer = authorization.NewHTTPAuthHandler(m.log, authService, ts)
 	}
 
+	var v1AuthHTTPServer *authv1.AuthHandler
+	{
+		authStore, err := authv1.NewStore(m.kvStore)
+		if err != nil {
+			m.log.Error("Failed creating new authorization store", zap.Error(err))
+			return err
+		}
+		v1AuthSvc := authv1.NewService(authStore, ts)
+
+		authLogger := m.log.With(zap.String("handler", "v1_authorization"))
+
+		var authService platform.AuthorizationService
+		authService = authorization.NewAuthedAuthorizationService(v1AuthSvc, ts)
+		authService = authorization.NewAuthLogger(authLogger, authService)
+
+		passService := authv1.NewAuthedPasswordService(authv1.AuthFinder(v1AuthSvc), authv1.PasswordService(v1AuthSvc))
+
+		v1AuthHTTPServer = authv1.NewHTTPAuthHandler(m.log, authService, passService, ts)
+	}
+
 	var sessionHTTPServer *session.SessionHandler
 	{
 		sessionHTTPServer = session.NewSessionHandler(m.log.With(zap.String("handler", "session")), sessionSvc, ts.UserService, ts.PasswordsService)
@@ -1271,6 +1324,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
 			http.WithResourceHandler(orgHTTPServer),
 			http.WithResourceHandler(bucketHTTPServer),
+			http.WithResourceHandler(v1AuthHTTPServer),
 		)
 
 		httpLogger := m.log.With(zap.String("service", "http"))
@@ -1476,6 +1530,11 @@ func (m *Launcher) TaskService() platform.TaskService {
 // TaskControlService returns the internal store service.
 func (m *Launcher) TaskControlService() taskbackend.TaskControlService {
 	return m.taskControlService
+}
+
+// CheckService returns the internal check service.
+func (m *Launcher) CheckService() platform.CheckService {
+	return m.apibackend.CheckService
 }
 
 // KeyValueService returns the internal key-value service.

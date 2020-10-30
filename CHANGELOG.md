@@ -1,3 +1,37 @@
+## unreleased
+
+### Bug Fixes
+
+1. [19856](https://github.com/influxdata/influxdb/pull/19856): make tagKeys and tagValues work for edge cases involving _field
+
+## v2.0.0-rc.3 [2020-10-29]
+
+### Features
+
+1. [19807](https://github.com/influxdata/influxdb/pull/19807): Enable window agg mean pushdown
+1. [19813](https://github.com/influxdata/influxdb/pull/19813): Aggregate array cursors
+1. [19815](https://github.com/influxdata/influxdb/pull/19815): Create a v1 authorization service
+1. [19826](https://github.com/influxdata/influxdb/pull/19826): Update FLux to v0.91.0
+1. [19829](https://github.com/influxdata/influxdb/pull/19829): Extend CLI with v1 authorization commands
+1. [19839](https://github.com/influxdata/influxdb/pull/19839): Add tick generation properties and legendColorizeRows
+1. [19840](https://github.com/influxdata/influxdb/pull/19840): Add bcrypt password support to v1 authorizations
+1. [19850](https://github.com/influxdata/influxdb/pull/19850): Update generate ticks into an array of properties for each axis
+
+### Bug Fixes
+
+1. [19784](https://github.com/influxdata/influxdb/pull/19784): UI: bump papaparse from 4.6.3 to 5.2.0
+1. [19802](https://github.com/influxdata/influxdb/pull/19802): Docs: update PostDBRP docs to reflect mutual exclusive requirement of org vs orgID
+1. [19804](https://github.com/influxdata/influxdb/pull/19804): Notifications: move rule service into own package
+1. [19816](https://github.com/influxdata/influxdb/pull/19816): Type-convert fs.Bavail for portability
+1. [19818](https://github.com/influxdata/influxdb/pull/19818): Notifications: isolate endpoint service
+1. [19823](https://github.com/influxdata/influxdb/pull/19823): Clear Logout
+1. [19825](https://github.com/influxdata/influxdb/pull/19825): Docs: Update FUZZ.md
+1. [19828](https://github.com/influxdata/influxdb/pull/19828): Add 1.x compatible endpoints to swagger
+1. [19833](https://github.com/influxdata/influxdb/pull/19833): allow newIndexSeriesCursor() to accept an influxql.Expr
+1. [19834](https://github.com/influxdata/influxdb/pull/19834): Docs: Fix typos in http/swagger.yml
+1. [19836](https://github.com/influxdata/influxdb/pull/19836): UI: import flux-lsp v0.5.21
+1. [19846](https://github.com/influxdata/influxdb/pull/19846): prune some unreferenced packages
+
 ## v2.0.0-rc.2 [2020-10-21]
 
 ### Features

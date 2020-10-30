@@ -1,28 +1,22 @@
-package endpoints
+package service
 
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2"
+	influxdb "github.com/influxdata/influxdb/v2"
 )
 
 // Service provides all the notification endpoint service behavior.
 type Service struct {
 	endpointStore influxdb.NotificationEndpointService
 	secretSVC     influxdb.SecretService
-
-	// TODO(jsteenb2): NUKE THESE 2 embedded services after fixing up the domain!
-	influxdb.UserResourceMappingService
-	influxdb.OrganizationService
 }
 
-// NewService constructs a new Service.
-func NewService(store influxdb.NotificationEndpointService, secretSVC influxdb.SecretService, urmSVC influxdb.UserResourceMappingService, orgSVC influxdb.OrganizationService) *Service {
+// New constructs a new Service.
+func New(store influxdb.NotificationEndpointService, secretSVC influxdb.SecretService) *Service {
 	return &Service{
-		endpointStore:              store,
-		secretSVC:                  secretSVC,
-		UserResourceMappingService: urmSVC,
-		OrganizationService:        orgSVC,
+		endpointStore: store,
+		secretSVC:     secretSVC,
 	}
 }
 
