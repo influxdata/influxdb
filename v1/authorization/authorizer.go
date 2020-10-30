@@ -38,31 +38,8 @@ type Authorizer struct {
 // Authorize returns an influxdb.Authorization if c can be verified; otherwise, an error.
 // influxdb.ErrCredentialsUnauthorized will be returned if the credentials are invalid.
 func (v *Authorizer) Authorize(ctx context.Context, c influxdb.CredentialsV1) (auth *influxdb.Authorization, err error) {
-	// the defer function provides the following guarantees:
-	//    * the authorization token status is active and
-	//    * the user status is active
 	defer func() {
-		if err != nil {
-			return
-		}
-
-		if auth == nil {
-			return
-		}
-
-		if auth.Status != influxdb.Active {
-			auth, err = nil, influxdb.ErrCredentialsUnauthorized
-			return
-		}
-
-		// check the user is still active
-		if user, userErr := v.User.FindUserByID(ctx, auth.UserID); err != nil {
-			auth, err = nil, v.normalizeError(userErr)
-			return
-		} else if user == nil || user.Status != influxdb.Active {
-			auth, err = nil, influxdb.ErrCredentialsUnauthorized
-			return
-		}
+		auth, err = v.checkAuthError(ctx, auth, err)
 	}()
 
 	switch c.Scheme {
@@ -84,6 +61,29 @@ func (v *Authorizer) Authorize(ctx context.Context, c influxdb.CredentialsV1) (a
 		// this represents a programmer error
 		return nil, ErrUnsupportedScheme
 	}
+}
+
+func (v *Authorizer) checkAuthError(ctx context.Context, auth *influxdb.Authorization, err error) (*influxdb.Authorization, error) {
+	if err != nil {
+		return nil, err
+	}
+
+	if auth == nil {
+		return nil, influxdb.ErrCredentialsUnauthorized
+	}
+
+	if auth.Status != influxdb.Active {
+		return nil, influxdb.ErrCredentialsUnauthorized
+	}
+
+	// check the user is still active
+	if user, userErr := v.User.FindUserByID(ctx, auth.UserID); userErr != nil {
+		return nil, v.normalizeError(userErr)
+	} else if user == nil || user.Status != influxdb.Active {
+		return nil, influxdb.ErrCredentialsUnauthorized
+	}
+
+	return auth, nil
 }
 
 func (v *Authorizer) tryV1Authorization(ctx context.Context, c influxdb.CredentialsV1) (auth *influxdb.Authorization, err error) {
