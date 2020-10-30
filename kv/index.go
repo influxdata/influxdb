@@ -222,7 +222,7 @@ func indexWalk(ctx context.Context, indexCursor ForwardCursor, sourceBucket Buck
 
 	for i, value := range values {
 		if value != nil {
-			if err := visit(keys[i], value); err != nil {
+			if cont, err := visit(keys[i], value); !cont || err != nil {
 				return err
 			}
 		}
@@ -390,9 +390,9 @@ func consumeBucket(ctx context.Context, store Store, fn func(tx Tx) (Bucket, err
 			return err
 		}
 
-		return WalkCursor(ctx, cursor, func(k, v []byte) error {
+		return WalkCursor(ctx, cursor, func(k, v []byte) (bool, error) {
 			kvs = append(kvs, [2][]byte{k, v})
-			return nil
+			return true, nil
 		})
 	})
 }

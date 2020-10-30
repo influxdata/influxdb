@@ -54,7 +54,6 @@ type TelegrafConfigStore interface {
 type TelegrafConfigFilter struct {
 	OrgID        *ID
 	Organization *string
-	UserResourceMappingFilter
 }
 
 // TelegrafConfig stores telegraf config for one telegraf instance.
