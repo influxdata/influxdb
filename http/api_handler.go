@@ -60,6 +60,7 @@ type APIBackend struct {
 	BackupService                   influxdb.BackupService
 	KVBackupService                 influxdb.KVBackupService
 	AuthorizationService            influxdb.AuthorizationService
+	AuthorizerV1                    influxdb.AuthorizerV1
 	OnboardingService               influxdb.OnboardingService
 	DBRPService                     influxdb.DBRPMappingServiceV2
 	BucketService                   influxdb.BucketService
