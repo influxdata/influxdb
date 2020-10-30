@@ -23,6 +23,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/tenant"
+	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/services/meta/filestore"
 	"github.com/spf13/cobra"
@@ -69,6 +70,8 @@ type optionsV2 struct {
 	password           string
 	orgName            string
 	bucket             string
+	orgID              influxdb.ID
+	userID             influxdb.ID
 	token              string
 	retention          string
 	influx2CommandPath string
@@ -254,6 +257,7 @@ type influxDBv2 struct {
 	dbrpSvc     influxdb.DBRPMappingServiceV2
 	bucketSvc   influxdb.BucketService
 	onboardSvc  influxdb.OnboardingService
+	authSvc     *authv1.Service
 	kvService   *kv.Service
 	meta        *meta.Client
 }
@@ -343,7 +347,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 
 	defer func() {
 		if err := v2.close(); err != nil {
-			log.Error("Failed to close 2.0 services", zap.Error(err))
+			log.Error("Failed to close 2.0 services.", zap.Error(err))
 		}
 	}()
 
@@ -365,6 +369,8 @@ func runUpgradeE(*cobra.Command, []string) error {
 		return err
 	}
 
+	options.target.orgID = or.Org.ID
+	options.target.userID = or.User.ID
 	options.target.token = or.Auth.Token
 
 	db2BucketIds, err := upgradeDatabases(ctx, v1, v2, &options.source, &options.target, or.Org.ID, log)
@@ -381,7 +387,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 		return err
 	}
 
-	if err = generateSecurityScript(v1, options.target, db2BucketIds, log); err != nil {
+	if err = upgradeUsers(ctx, v1, v2, &options.target, db2BucketIds, log); err != nil {
 		return err
 	}
 
@@ -467,6 +473,13 @@ func newInfluxDBv2(ctx context.Context, opts *optionsV2, log *zap.Logger) (svc *
 	svc.ts.BucketService = storage.NewBucketService(svc.ts.BucketService, engine)
 	// on-boarding service (influx setup)
 	svc.onboardSvc = tenant.NewOnboardService(svc.ts, authSvc)
+
+	// v1 auth service
+	authStore, err := authv1.NewStore(svc.kvStore)
+	if err != nil {
+		return nil, err
+	}
+	svc.authSvc = authv1.NewService(authStore, svc.ts)
 
 	return svc, nil
 }
