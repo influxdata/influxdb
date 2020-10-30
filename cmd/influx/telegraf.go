@@ -96,10 +96,10 @@ func (b *cmdTelegrafBuilder) listRunE(cmd *cobra.Command, args []string) error {
 		return b.writeTelegrafConfig(cfg)
 	}
 
-	cfgs, _, err := svc.FindTelegrafConfigs(context.Background(), influxdb.TelegrafConfigFilter{
-		OrgID:                     &orgID,
-		UserResourceMappingFilter: influxdb.UserResourceMappingFilter{ResourceType: influxdb.TelegrafsResourceType},
-	})
+	cfgs, _, err := svc.FindTelegrafConfigs(context.Background(),
+		influxdb.TelegrafConfigFilter{
+			OrgID: &orgID,
+		})
 	if err != nil {
 		return err
 	}

@@ -234,7 +234,7 @@ func WithCursorLimit(limit int) CursorOption {
 
 // VisitFunc is called for each k, v byte slice pair from the underlying source bucket
 // which are found in the index bucket for a provided foreign key.
-type VisitFunc func(k, v []byte) error
+type VisitFunc func(k, v []byte) (bool, error)
 
 // WalkCursor consumers the forward cursor call visit for each k/v pair found
 func WalkCursor(ctx context.Context, cursor ForwardCursor, visit VisitFunc) (err error) {
@@ -245,7 +245,7 @@ func WalkCursor(ctx context.Context, cursor ForwardCursor, visit VisitFunc) (err
 	}()
 
 	for k, v := cursor.Next(); k != nil; k, v = cursor.Next() {
-		if err := visit(k, v); err != nil {
+		if cont, err := visit(k, v); !cont || err != nil {
 			return err
 		}
 

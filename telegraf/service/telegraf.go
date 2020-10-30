@@ -155,25 +155,40 @@ func (s *Service) findTelegrafConfigByID(ctx context.Context, tx kv.Tx, id influ
 // Additional options provide pagination & sorting.
 func (s *Service) FindTelegrafConfigs(ctx context.Context, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) (tcs []*influxdb.TelegrafConfig, n int, err error) {
 	err = s.kv.View(ctx, func(tx kv.Tx) error {
-		tcs, n, err = s.findTelegrafConfigs(ctx, tx, filter)
+		tcs, n, err = s.findTelegrafConfigs(ctx, tx, filter, opt...)
 		return err
 	})
 	return tcs, n, err
 }
 
 func (s *Service) findTelegrafConfigs(ctx context.Context, tx kv.Tx, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
-	tcs := make([]*influxdb.TelegrafConfig, 0)
+	var (
+		limit  = influxdb.DefaultPageSize
+		offset int
+		count  int
+		tcs    = make([]*influxdb.TelegrafConfig, 0)
+	)
 
-	visit := func(k, v []byte) error {
+	if len(opt) > 0 {
+		limit = opt[0].GetLimit()
+		offset = opt[0].Offset
+	}
+
+	visit := func(k, v []byte) (bool, error) {
 		var tc influxdb.TelegrafConfig
 		if err := json.Unmarshal(v, &tc); err != nil {
-			return err
+			return false, err
 		}
 
-		tcs = append(tcs, &tc)
+		// skip until offset reached
+		if count >= offset {
+			tcs = append(tcs, &tc)
+		}
 
-		return nil
+		count++
 
+		// stop cursing when limit is reached
+		return len(tcs) < limit, nil
 	}
 
 	if filter.OrgID == nil {
@@ -183,8 +198,14 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, tx kv.Tx, filter infl
 			return nil, 0, err
 		}
 
-		// TODO(georgemac): convert find options into cursor options
-		cursor, err := bucket.ForwardCursor(nil)
+		// cursors do not support numeric offset
+		// but we can at least constrain the response
+		// size by the offset + limit since we are
+		// not doing any other filtering
+		// REMOVE this cursor option if you do any
+		// other filtering
+
+		cursor, err := bucket.ForwardCursor(nil, kv.WithCursorLimit(offset+limit))
 		if err != nil {
 			return nil, 0, err
 		}

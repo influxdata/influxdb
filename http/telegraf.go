@@ -278,12 +278,8 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 
 func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*influxdb.TelegrafConfigFilter, error) {
 	f := &influxdb.TelegrafConfigFilter{}
-	urm, err := decodeUserResourceMappingFilter(ctx, r, influxdb.TelegrafsResourceType)
-	if err == nil {
-		f.UserResourceMappingFilter = *urm
-	}
-
 	q := r.URL.Query()
+
 	if orgIDStr := q.Get("orgID"); orgIDStr != "" {
 		orgID, err := influxdb.IDFromString(orgIDStr)
 		if err != nil {
@@ -297,7 +293,8 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*influxdb
 	} else if orgNameStr := q.Get("org"); orgNameStr != "" {
 		f.Organization = &orgNameStr
 	}
-	return f, err
+
+	return f, nil
 }
 
 // handlePostTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
@@ -444,12 +441,6 @@ func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f influxdb.Te
 	}
 	if f.Organization != nil {
 		params = append(params, [2]string{"organization", *f.Organization})
-	}
-	if f.ResourceID != 0 {
-		params = append(params, [2]string{"resourceID", f.ResourceID.String()})
-	}
-	if f.UserID != 0 {
-		params = append(params, [2]string{"userID", f.UserID.String()})
 	}
 
 	var resp struct {

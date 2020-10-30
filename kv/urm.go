@@ -136,17 +136,17 @@ func (s *Service) findUserResourceMappings(ctx context.Context, tx Tx, filter in
 	if filter.UserID.Valid() {
 		// urm by user index lookup
 		userID, _ := filter.UserID.Encode()
-		if err := s.urmByUserIndex.Walk(ctx, tx, userID, func(k, v []byte) error {
+		if err := s.urmByUserIndex.Walk(ctx, tx, userID, func(k, v []byte) (bool, error) {
 			m := &influxdb.UserResourceMapping{}
 			if err := json.Unmarshal(v, m); err != nil {
-				return CorruptURMError(err)
+				return false, CorruptURMError(err)
 			}
 
 			if filterFn(m) {
 				ms = append(ms, m)
 			}
 
-			return nil
+			return true, nil
 		}); err != nil {
 			return nil, err
 		}
