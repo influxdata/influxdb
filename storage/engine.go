@@ -386,6 +386,10 @@ func (e *Engine) RestoreBucket(ctx context.Context, id influxdb.ID, buf []byte) 
 
 	// Create shards.
 	for _, sgi := range rpi.ShardGroups {
+		if sgi.Deleted() {
+			continue
+		}
+
 		for _, sh := range sgi.Shards {
 			if err := e.tsdbStore.CreateShard(dbi.Name, rpi.Name, sh.ID, true); err != nil {
 				return nil, err

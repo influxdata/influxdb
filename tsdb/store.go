@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"

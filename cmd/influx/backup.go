@@ -249,8 +249,15 @@ func (b *cmdBackupBuilder) backupBucket(ctx context.Context, org *influxdb.Organ
 	// Iterate over and backup each shard.
 	for _, rpi := range dbi.RetentionPolicies {
 		for _, sg := range rpi.ShardGroups {
+			if sg.Deleted() {
+				continue
+			}
+
 			for _, sh := range sg.Shards {
-				if err := b.backupShard(ctx, org, bkt, rpi.Name, sh.ID); err != nil {
+				if err := b.backupShard(ctx, org, bkt, rpi.Name, sh.ID); influxdb.ErrorCode(err) == influxdb.ENotFound {
+					b.logger.Warn("Shard removed during backup", zap.Uint64("shard_id", sh.ID))
+					continue
+				} else if err != nil {
 					return err
 				}
 			}
