@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
+	"github.com/influxdata/flux/fluxinit"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/spf13/cobra"
@@ -17,6 +18,7 @@ var v2DumpMetaCommand = &cobra.Command{
 	Use:   "v2-dump-meta",
 	Short: "Dump InfluxDB 2.x influxd.bolt",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		fluxinit.FluxInit()
 		ctx := context.Background()
 		svc, err := newInfluxDBv2(ctx, &v2DumpMetaOptions, zap.NewNop())
 		if err != nil {

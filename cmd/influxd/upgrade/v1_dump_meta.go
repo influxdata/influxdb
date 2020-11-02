@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
+	"github.com/influxdata/flux/fluxinit"
 	"github.com/spf13/cobra"
 )
 
@@ -13,6 +14,7 @@ var v1DumpMetaCommand = &cobra.Command{
 	Use:   "v1-dump-meta",
 	Short: "Dump InfluxDB 1.x meta.db",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		fluxinit.FluxInit()
 		svc, err := newInfluxDBv1(&v1DumpMetaOptions)
 		if err != nil {
 			return fmt.Errorf("error opening 1.x meta.db: %w", err)

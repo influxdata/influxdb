@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/influxdata/flux/fluxinit"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/dbrp"
@@ -278,7 +279,15 @@ func (i *influxDBv2) close() error {
 	return nil
 }
 
+var fluxInitialized bool
+
 func runUpgradeE(*cobra.Command, []string) error {
+	// This command is executed multiple times by test code. Initialization can happen only once.
+	if !fluxInitialized {
+		fluxinit.FluxInit()
+		fluxInitialized = true
+	}
+
 	ctx := context.Background()
 	config := zap.NewProductionConfig()
 	config.OutputPaths = append(config.OutputPaths, options.logPath)

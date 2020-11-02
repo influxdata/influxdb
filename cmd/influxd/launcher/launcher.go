@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/fluxinit"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/authorizer"
@@ -136,6 +137,8 @@ func NewInfluxdCommand(ctx context.Context, subCommands ...*cobra.Command) *cobr
 
 func cmdRunE(ctx context.Context, l *Launcher) func() error {
 	return func() error {
+		fluxinit.FluxInit()
+
 		// exit with SIGINT and SIGTERM
 		ctx = signals.WithStandardSignals(ctx)
 
