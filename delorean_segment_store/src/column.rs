@@ -1028,7 +1028,7 @@ impl IntegerEncoding {
             Self::U16U16(c) => c.row_ids_filter(value.as_u16(), op, dst),
             Self::U16U8(c) => c.row_ids_filter(value.as_u8(), op, dst),
             Self::U8U8(c) => c.row_ids_filter(value.as_u8(), op, dst),
-            Self::I64I64N(c) => todo!(),
+            Self::I64I64N(c) => c.row_ids_filter(value.as_i64(), op, dst),
         }
     }
 
@@ -2767,6 +2767,21 @@ mod test {
 
         row_ids = col.row_ids_filter(cmp::Operator::LT, Value::Scalar(Scalar::I64(i64::MAX)));
         assert!(matches!(row_ids, RowIDsOption::All));
+
+        let input = vec![
+            Some(100_i64),
+            Some(200),
+            None,
+            None,
+            Some(200),
+            Some(22),
+            Some(30),
+        ];
+        let arr = Int64Array::from(input);
+        let col = Column::from(arr);
+        row_ids = col.row_ids_filter(cmp::Operator::GT, Value::Scalar(Scalar::I64(10)));
+        println!("{:?}", row_ids);
+        assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 4, 5, 6]);
     }
 
     #[test]
