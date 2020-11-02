@@ -26,7 +26,9 @@ func TestBucketService(t *testing.T) {
 	engine := mocks.NewMockEngineSchema(ctrl)
 
 	inmemService := newInMemKVSVC(t)
-	service := storage.NewBucketService(inmemService, engine)
+
+	logger := zaptest.NewLogger(t)
+	service := storage.NewBucketService(logger, inmemService, engine)
 
 	if err := service.DeleteBucket(context.TODO(), *i); err == nil {
 		t.Fatal("expected error, got nil")
@@ -45,7 +47,7 @@ func TestBucketService(t *testing.T) {
 	engine.EXPECT().DeleteBucket(gomock.Any(), org.ID, bucket.ID)
 
 	// Test deleting a bucket calls into the deleter.
-	service = storage.NewBucketService(inmemService, engine)
+	service = storage.NewBucketService(logger, inmemService, engine)
 
 	if err := service.DeleteBucket(context.TODO(), bucket.ID); err != nil {
 		t.Fatal(err)
