@@ -64,7 +64,7 @@ func TestAnalyticalStore(t *testing.T) {
 				svcStack = backend.NewAnalyticalRunStorage(logger, svc, ts.BucketService, svc, rr, ab.QueryService())
 			)
 
-			ts.BucketService = storage.NewBucketService(nil, ts.BucketService, ab.storageEngine)
+			ts.BucketService = storage.NewBucketService(logger, ts.BucketService, ab.storageEngine)
 
 			authCtx := icontext.SetAuthorizer(ctx, &influxdb.Authorization{
 				Permissions: influxdb.OperPermissions(),
