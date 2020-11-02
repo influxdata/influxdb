@@ -1192,7 +1192,10 @@ func (s *Store) MeasurementsSketches(database string) (estimator.Sketch, estimat
 func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
 	shard := s.Shard(id)
 	if shard == nil {
-		return fmt.Errorf("shard %d doesn't exist on this server", id)
+		return &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  fmt.Sprintf("shard %d not found", id),
+		}
 	}
 
 	path, err := relativePath(s.path, shard.path)
@@ -1206,7 +1209,10 @@ func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
 func (s *Store) ExportShard(id uint64, start time.Time, end time.Time, w io.Writer) error {
 	shard := s.Shard(id)
 	if shard == nil {
-		return fmt.Errorf("shard %d doesn't exist on this server", id)
+		return &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  fmt.Sprintf("shard %d not found", id),
+		}
 	}
 
 	path, err := relativePath(s.path, shard.path)
