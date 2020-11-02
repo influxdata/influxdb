@@ -16,6 +16,8 @@ import (
 type mwMetrics struct {
 	// RED metrics
 	rec *metric.REDClient
+	// Installed template count metrics
+	templateCounts *prometheus.CounterVec
 
 	next SVC
 }
@@ -25,10 +27,18 @@ var _ SVC = (*mwMetrics)(nil)
 // MWMetrics is a metrics service middleware for the notification endpoint service.
 func MWMetrics(reg *prom.Registry) SVCMiddleware {
 	return func(svc SVC) SVC {
-		return &mwMetrics{
-			rec:  metric.New(reg, "pkger", metric.WithVec(templateVec()), metric.WithVec(exportVec())),
+		m := &mwMetrics{
+			rec: metric.New(reg, "pkger", metric.WithVec(templateVec()), metric.WithVec(exportVec())),
+			templateCounts: prometheus.NewCounterVec(prometheus.CounterOpts{
+				Namespace: "templates",
+				Subsystem: "installed",
+				Name:      "count",
+				Help:      "Total number of templates installed by name.",
+			}, []string{"template"}),
 			next: svc,
 		}
+		reg.MustRegister(m.templateCounts)
+		return m
 	}
 }
 
@@ -95,6 +105,9 @@ func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts 
 func (s *mwMetrics) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	rec := s.rec.Record("apply")
 	impact, err := s.next.Apply(ctx, orgID, userID, opts...)
+	if err == nil {
+		s.templateCounts.WithLabelValues(impact.communityName()).Inc()
+	}
 	return impact, rec(err, applyMetricAdditions(orgID, userID, impact.Sources))
 }
 
