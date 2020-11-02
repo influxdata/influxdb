@@ -2,7 +2,9 @@ package tenant_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -153,4 +155,31 @@ func TestOnboardAuth(t *testing.T) {
 		t.Fatalf("unequal permissions: \n %+v", cmp.Diff(auth.Permissions, expectedPerm))
 	}
 
+}
+
+func TestOnboardService_RetentionPolicy(t *testing.T) {
+	s, _, _ := NewTestInmemStore(t)
+	storage := tenant.NewStore(s)
+	ten := tenant.NewService(storage)
+
+	// we will need an auth service as well
+	svc := tenant.NewOnboardService(ten, kv.NewService(zaptest.NewLogger(t), s))
+
+	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
+		UserID: 123,
+	})
+
+	retention := 72 * time.Hour
+	onboard, err := svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
+		User:   "name",
+		Org:    "name",
+		Bucket: "name",
+		RetentionPeriod: retention,
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, onboard.Bucket.RetentionPeriod, retention, "Retention policy should pass through")
 }
