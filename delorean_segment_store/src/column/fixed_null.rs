@@ -160,14 +160,14 @@ where
 
     /// Returns the count of the non-null values for the provided
     /// row IDs.
-    pub fn count(&self, row_ids: &[usize]) -> u64 {
+    pub fn count(&self, row_ids: &[u32]) -> u32 {
         if self.arr.null_count() == 0 {
-            return row_ids.len() as u64;
+            return row_ids.len() as u32;
         }
 
         let mut count = 0;
         for &i in row_ids {
-            if self.arr.is_null(i) {
+            if self.arr.is_null(i as usize) {
                 continue;
             }
             count += 1;
@@ -183,7 +183,7 @@ where
     /// implementation (about 85% in the `sum` case). We will revisit them in
     /// the future as they do would the implementation of these aggregation
     /// functions.
-    pub fn sum(&self, row_ids: &[usize]) -> Option<T::Native>
+    pub fn sum(&self, row_ids: &[u32]) -> Option<T::Native>
     where
         T::Native: std::ops::Add<Output = T::Native>,
     {
@@ -191,15 +191,15 @@ where
 
         if self.arr.null_count() == 0 {
             for chunks in row_ids.chunks_exact(4) {
-                result = result + self.arr.value(chunks[3]);
-                result = result + self.arr.value(chunks[2]);
-                result = result + self.arr.value(chunks[1]);
-                result = result + self.arr.value(chunks[0]);
+                result = result + self.arr.value(chunks[3] as usize);
+                result = result + self.arr.value(chunks[2] as usize);
+                result = result + self.arr.value(chunks[1] as usize);
+                result = result + self.arr.value(chunks[0] as usize);
             }
 
             let rem = row_ids.len() % 4;
             for &i in &row_ids[row_ids.len() - rem..row_ids.len()] {
-                result = result + self.arr.value(i);
+                result = result + self.arr.value(i as usize);
             }
 
             return Some(result);
@@ -207,11 +207,11 @@ where
 
         let mut is_none = true;
         for &i in row_ids {
-            if self.arr.is_null(i) {
+            if self.arr.is_null(i as usize) {
                 continue;
             }
             is_none = false;
-            result = result + self.arr.value(i);
+            result = result + self.arr.value(i as usize);
         }
 
         if is_none {

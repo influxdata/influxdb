@@ -471,12 +471,28 @@ impl Column {
 
     /// The summation of all non-null values located at the provided rows.
     pub fn sum(&self, row_ids: &[u32]) -> Value<'_> {
-        todo!()
+        assert!(row_ids.len() as u32 <= self.num_rows());
+
+        match &self {
+            Column::Float(_, data) => data.sum(row_ids),
+            Column::Integer(_, data) => data.sum(row_ids),
+            Column::Unsigned(_, data) => data.sum(row_ids),
+            _ => panic!("cannot sum non-numerical column type"),
+        }
     }
 
     /// The count of all non-null values located at the provided rows.
-    pub fn count(&self, row_ids: &[u32]) -> Option<u32> {
-        todo!()
+    pub fn count(&self, row_ids: &[u32]) -> u32 {
+        assert!(row_ids.len() as u32 <= self.num_rows());
+
+        match &self {
+            Column::String(_, data) => data.count(row_ids),
+            Column::Float(_, data) => data.count(row_ids),
+            Column::Integer(_, data) => data.count(row_ids),
+            Column::Unsigned(_, data) => data.count(row_ids),
+            Column::Bool => todo!(),
+            Column::ByteArray(_, _) => todo!(),
+        }
     }
 
     //
@@ -635,6 +651,13 @@ impl StringEncoding {
                 Some(max) => Value::String(max),
                 None => Value::Null,
             },
+        }
+    }
+
+    /// The number of non-null values at the provided row ids.
+    pub fn count(&self, row_ids: &[u32]) -> u32 {
+        match &self {
+            StringEncoding::RLE(c) => c.count(row_ids),
         }
     }
 
@@ -1219,6 +1242,73 @@ impl IntegerEncoding {
             },
         }
     }
+
+    pub fn sum(&self, row_ids: &[u32]) -> Value<'_> {
+        match &self {
+            IntegerEncoding::I64I64(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
+            IntegerEncoding::I64I32(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
+            IntegerEncoding::I64U32(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
+            IntegerEncoding::I64I16(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
+            IntegerEncoding::I64U16(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
+            IntegerEncoding::I64I8(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
+            IntegerEncoding::I64U8(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
+            IntegerEncoding::I32I32(c) => Value::Scalar(Scalar::I32(c.sum(row_ids))),
+            IntegerEncoding::I32I16(c) => Value::Scalar(Scalar::I32(c.sum(row_ids))),
+            IntegerEncoding::I32U16(c) => Value::Scalar(Scalar::I32(c.sum(row_ids))),
+            IntegerEncoding::I32I8(c) => Value::Scalar(Scalar::I32(c.sum(row_ids))),
+            IntegerEncoding::I32U8(c) => Value::Scalar(Scalar::I32(c.sum(row_ids))),
+            IntegerEncoding::I16I16(c) => Value::Scalar(Scalar::I16(c.sum(row_ids))),
+            IntegerEncoding::I16I8(c) => Value::Scalar(Scalar::I16(c.sum(row_ids))),
+            IntegerEncoding::I16U8(c) => Value::Scalar(Scalar::I16(c.sum(row_ids))),
+            IntegerEncoding::I8I8(c) => Value::Scalar(Scalar::I8(c.sum(row_ids))),
+            IntegerEncoding::U64U64(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
+            IntegerEncoding::U64U32(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
+            IntegerEncoding::U64U16(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
+            IntegerEncoding::U64U8(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
+            IntegerEncoding::U32U32(c) => Value::Scalar(Scalar::U32(c.sum(row_ids))),
+            IntegerEncoding::U32U16(c) => Value::Scalar(Scalar::U32(c.sum(row_ids))),
+            IntegerEncoding::U32U8(c) => Value::Scalar(Scalar::U32(c.sum(row_ids))),
+            IntegerEncoding::U16U16(c) => Value::Scalar(Scalar::U16(c.sum(row_ids))),
+            IntegerEncoding::U16U8(c) => Value::Scalar(Scalar::U16(c.sum(row_ids))),
+            IntegerEncoding::U8U8(c) => Value::Scalar(Scalar::U8(c.sum(row_ids))),
+            IntegerEncoding::I64I64N(c) => match c.sum(row_ids) {
+                Some(v) => Value::Scalar(Scalar::I64(v)),
+                None => Value::Null,
+            },
+        }
+    }
+
+    pub fn count(&self, row_ids: &[u32]) -> u32 {
+        match &self {
+            IntegerEncoding::I64I64(c) => c.count(row_ids),
+            IntegerEncoding::I64I32(c) => c.count(row_ids),
+            IntegerEncoding::I64U32(c) => c.count(row_ids),
+            IntegerEncoding::I64I16(c) => c.count(row_ids),
+            IntegerEncoding::I64U16(c) => c.count(row_ids),
+            IntegerEncoding::I64I8(c) => c.count(row_ids),
+            IntegerEncoding::I64U8(c) => c.count(row_ids),
+            IntegerEncoding::I32I32(c) => c.count(row_ids),
+            IntegerEncoding::I32I16(c) => c.count(row_ids),
+            IntegerEncoding::I32U16(c) => c.count(row_ids),
+            IntegerEncoding::I32I8(c) => c.count(row_ids),
+            IntegerEncoding::I32U8(c) => c.count(row_ids),
+            IntegerEncoding::I16I16(c) => c.count(row_ids),
+            IntegerEncoding::I16I8(c) => c.count(row_ids),
+            IntegerEncoding::I16U8(c) => c.count(row_ids),
+            IntegerEncoding::I8I8(c) => c.count(row_ids),
+            IntegerEncoding::U64U64(c) => c.count(row_ids),
+            IntegerEncoding::U64U32(c) => c.count(row_ids),
+            IntegerEncoding::U64U16(c) => c.count(row_ids),
+            IntegerEncoding::U64U8(c) => c.count(row_ids),
+            IntegerEncoding::U32U32(c) => c.count(row_ids),
+            IntegerEncoding::U32U16(c) => c.count(row_ids),
+            IntegerEncoding::U32U8(c) => c.count(row_ids),
+            IntegerEncoding::U16U16(c) => c.count(row_ids),
+            IntegerEncoding::U16U8(c) => c.count(row_ids),
+            IntegerEncoding::U8U8(c) => c.count(row_ids),
+            IntegerEncoding::I64I64N(c) => c.count(row_ids),
+        }
+    }
 }
 
 pub enum FloatEncoding {
@@ -1299,6 +1389,20 @@ impl FloatEncoding {
         match &self {
             FloatEncoding::Fixed64(c) => Value::Scalar(Scalar::F64(c.max(row_ids))),
             FloatEncoding::Fixed32(c) => Value::Scalar(Scalar::F32(c.max(row_ids))),
+        }
+    }
+
+    pub fn sum(&self, row_ids: &[u32]) -> Value<'_> {
+        match &self {
+            FloatEncoding::Fixed64(c) => Value::Scalar(Scalar::F64(c.sum(row_ids))),
+            FloatEncoding::Fixed32(c) => Value::Scalar(Scalar::F32(c.sum(row_ids))),
+        }
+    }
+
+    pub fn count(&self, row_ids: &[u32]) -> u32 {
+        match &self {
+            FloatEncoding::Fixed64(c) => c.count(row_ids),
+            FloatEncoding::Fixed32(c) => c.count(row_ids),
         }
     }
 }
@@ -3117,5 +3221,39 @@ mod test {
         let col = Column::from(&input[..]);
         assert_eq!(col.max(&[0, 1, 2][..]), Value::String(&"world".to_string()));
         assert_eq!(col.max(&[1][..]), Value::Null);
+    }
+
+    #[test]
+    fn sum() {
+        let input = &[100i64, 200, 300, 2, 200, 22, 30];
+        let col = Column::from(&input[..]);
+        assert_eq!(col.sum(&[0, 1, 3][..]), Value::Scalar(Scalar::I64(302)));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Value::Scalar(Scalar::I64(600)));
+
+        let input = &[10.2_f32, -2.43, 200.2];
+        let col = Column::from(&input[..]);
+        assert_eq!(col.sum(&[0, 1, 2][..]), Value::Scalar(Scalar::F32(207.97)));
+
+        let input = vec![None, Some(200), None];
+        let arr = Int64Array::from(input);
+        let col = Column::from(arr);
+        assert_eq!(col.sum(&[0, 1, 2][..]), Value::Scalar(Scalar::I64(200)));
+    }
+
+    #[test]
+    fn count() {
+        let input = &[100i64, 200, 300, 2, 200, 22, 30];
+        let col = Column::from(&input[..]);
+        assert_eq!(col.count(&[0, 1, 3][..]), 3);
+
+        let input = &[10.2_f32, -2.43, 200.2];
+        let col = Column::from(&input[..]);
+        assert_eq!(col.count(&[0, 1][..]), 2);
+
+        let input = vec![None, Some(200), None];
+        let arr = Int64Array::from(input);
+        let col = Column::from(arr);
+        assert_eq!(col.count(&[0, 1, 2][..]), 1);
+        assert_eq!(col.count(&[0, 2][..]), 0);
     }
 }

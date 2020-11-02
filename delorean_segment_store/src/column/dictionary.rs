@@ -532,6 +532,39 @@ impl RLE {
         max
     }
 
+    /// Returns the total number of non-null values found at the provided set of
+    /// row ids.
+    pub fn count(&self, row_ids: &[u32]) -> u32 {
+        let mut curr_logical_row_id = 0;
+        let (mut curr_entry_id, mut curr_entry_rl) = self.run_lengths[0];
+        let mut count = 0;
+
+        let mut i = 1;
+        for row_id in row_ids {
+            while curr_logical_row_id + curr_entry_rl <= *row_id {
+                // this encoded entry does not cover the row we need.
+                // move on to next entry
+                curr_logical_row_id += curr_entry_rl;
+                curr_entry_id = self.run_lengths[i].0;
+                curr_entry_rl = self.run_lengths[i].1;
+
+                i += 1;
+            }
+
+            // this encoded entry covers a candidate row_id
+            match curr_entry_id {
+                NULL_ID => {}
+                _ => {
+                    count += 1;
+                }
+            }
+
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+        count
+    }
+
     /// Returns references to the logical (decoded) values for all the rows in
     /// the column.
     ///
@@ -1301,9 +1334,6 @@ mod test {
         assert_eq!(drle.min(&[3]), None);
         assert_eq!(drle.min(&[3, 4]), None);
 
-        let drle = super::RLE::default();
-        assert_eq!(drle.min(&[0]), None);
-
         let mut drle = super::RLE::default();
         drle.push_additional_none(10);
         assert_eq!(drle.min(&[2, 3, 6, 8]), None);
@@ -1328,5 +1358,23 @@ mod test {
         let mut drle = super::RLE::default();
         drle.push_additional_none(10);
         assert_eq!(drle.max(&[2, 3, 6, 8]), None);
+    }
+
+    #[test]
+    fn count() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3); // 0, 1, 2
+        drle.push_additional_none(2); // 3, 4
+        drle.push_additional(Some("north".to_string()), 2); // 5, 6
+
+        assert_eq!(drle.count(&[0, 1, 2]), 3);
+        assert_eq!(drle.count(&[0, 1, 2, 3, 4, 5, 6]), 5);
+        assert_eq!(drle.count(&[4, 5, 6]), 2);
+        assert_eq!(drle.count(&[3]), 0);
+        assert_eq!(drle.count(&[3, 4]), 0);
+
+        let mut drle = super::RLE::default();
+        drle.push_additional_none(10);
+        assert_eq!(drle.count(&[2, 3, 6, 8]), 0);
     }
 }
