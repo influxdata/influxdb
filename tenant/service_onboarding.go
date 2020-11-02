@@ -3,8 +3,6 @@ package tenant
 import (
 	"context"
 	"fmt"
-	"time"
-
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -122,7 +120,7 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 		OrgID:           org.ID,
 		Name:            req.Bucket,
 		Type:            influxdb.BucketTypeUser,
-		RetentionPeriod: time.Duration(req.RetentionPeriod) * time.Hour,
+		RetentionPeriod: req.RetentionPeriod,
 	}
 
 	if err := s.service.CreateBucket(ctx, ub); err != nil {
