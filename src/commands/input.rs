@@ -1,4 +1,5 @@
-use delorean_parquet::ParquetError;
+use delorean_arrow::parquet::file::serialized_reader::{FileSource, SliceableCursor};
+use delorean_parquet::ChunkReader;
 use delorean_table::Name;
 /// Module to handle input files (and maybe urls?)
 use libflate::gzip;
@@ -9,7 +10,7 @@ use std::{
     fs,
     fs::File,
     io,
-    io::{BufRead, BufReader, Cursor, Read, Seek, SeekFrom},
+    io::{BufReader, Read, Seek, SeekFrom},
     path::{Path, PathBuf},
 };
 
@@ -91,7 +92,7 @@ pub struct MemoryInputReader {
     file_type: FileType,
     file_size: u64,
     path: PathBuf,
-    cursor: Cursor<Vec<u8>>,
+    cursor: SliceableCursor,
 }
 
 impl FileInputReader {
@@ -120,7 +121,7 @@ impl MemoryInputReader {
             file_type,
             file_size: len as u64,
             path,
-            cursor: Cursor::new(buffer),
+            cursor: SliceableCursor::new(buffer),
         }
     }
 }
@@ -152,24 +153,32 @@ impl delorean_parquet::Length for InputReader {
     }
 }
 
-impl delorean_parquet::TryClone for InputReader {
-    fn try_clone(&self) -> std::result::Result<Self, ParquetError> {
-        Err(ParquetError::NYI(String::from("TryClone for input reader")))
+impl ChunkReader for InputReader {
+    type T = InputSlice;
+    fn get_read(
+        &self,
+        start: u64,
+        length: usize,
+    ) -> delorean_arrow::parquet::errors::Result<Self::T> {
+        match self {
+            Self::FileInputType(file_input_reader) => Ok(InputSlice::FileSlice(FileSource::new(
+                file_input_reader.reader.get_ref(),
+                start,
+                length,
+            ))),
+            Self::MemoryInputType(memory_input_reader) => Ok(InputSlice::Memory(
+                memory_input_reader.cursor.get_read(start, length)?,
+            )),
+        }
     }
 }
 
-impl BufRead for InputReader {
-    fn fill_buf(&mut self) -> io::Result<&[u8]> {
-        match self {
-            Self::FileInputType(file_input_reader) => file_input_reader.reader.fill_buf(),
-            Self::MemoryInputType(memory_input_reader) => memory_input_reader.cursor.fill_buf(),
-        }
-    }
-    fn consume(&mut self, amt: usize) {
-        match self {
-            Self::FileInputType(file_input_reader) => file_input_reader.reader.consume(amt),
-            Self::MemoryInputType(memory_input_reader) => memory_input_reader.cursor.consume(amt),
-        }
+impl delorean_parquet::TryClone for InputReader {
+    fn try_clone(&self) -> std::result::Result<Self, std::io::Error> {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "TryClone for input reader not supported",
+        ))
     }
 }
 
@@ -333,5 +342,19 @@ impl InputPath {
             .iter()
             .rev()
             .map(|p| InputReader::new(&p.to_string_lossy()))
+    }
+}
+
+pub enum InputSlice {
+    FileSlice(FileSource<File>),
+    Memory(SliceableCursor),
+}
+
+impl Read for InputSlice {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Self::FileSlice(src) => src.read(buf),
+            Self::Memory(src) => src.read(buf),
+        }
     }
 }

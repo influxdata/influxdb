@@ -10,7 +10,8 @@
 // Export the parts of the parquet crate that are needed to interact with code in this crate
 pub use delorean_arrow::parquet::{
     errors::ParquetError,
-    file::reader::{Length, TryClone},
+    file::reader::{ChunkReader, Length},
+    file::writer::TryClone,
 };
 
 pub mod error;

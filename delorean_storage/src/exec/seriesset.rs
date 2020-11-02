@@ -909,6 +909,7 @@ mod tests {
         let has_header = false;
         let delimiter = Some(b',');
         let batch_size = 1000;
+        let bounds = None;
         let projection = None;
         let mut reader = csv::Reader::new(
             data.as_bytes(),
@@ -916,6 +917,7 @@ mod tests {
             has_header,
             delimiter,
             batch_size,
+            bounds,
             projection,
         );
 

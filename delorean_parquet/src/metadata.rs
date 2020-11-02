@@ -6,9 +6,8 @@ use delorean_arrow::parquet::{
 };
 use delorean_table_schema::DataType;
 use snafu::ResultExt;
-use std::io::{Read, Seek};
 
-use crate::{error::Result, Length, TryClone};
+use crate::{error::Result, ChunkReader};
 
 pub fn parquet_schema_as_string(parquet_schema: &schema::types::Type) -> String {
     let mut parquet_schema_string = Vec::new();
@@ -35,7 +34,7 @@ pub fn data_type_from_parquet_type(parquet_type: parquet::basic::Type) -> DataTy
 /// size of `input_size` byes
 pub fn print_parquet_metadata<R: 'static>(input: R) -> Result<()>
 where
-    R: Read + Seek + TryClone + Length,
+    R: ChunkReader,
 {
     let input_len = input.len();
 

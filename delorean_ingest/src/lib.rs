@@ -23,7 +23,7 @@ use delorean_tsm::{
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    io::{BufRead, Seek},
+    io::{Read, Seek},
 };
 use tracing::debug;
 
@@ -680,7 +680,7 @@ impl TSMFileConverter {
         mut block_readers: Vec<R>,
     ) -> Result<(), Error>
     where
-        R: BufRead + Seek,
+        R: Read + Seek,
     {
         if index_readers.is_empty() {
             return Err(Error::TSMProcessing {

@@ -8,14 +8,10 @@ use delorean_table::{
     Name,
 };
 use snafu::ResultExt;
-use std::{
-    collections::BTreeMap,
-    convert::TryInto,
-    io::{Read, Seek},
-};
+use std::{collections::BTreeMap, convert::TryInto};
 use tracing::debug;
 
-use crate::{error::Result, metadata::data_type_from_parquet_type, Length, TryClone};
+use crate::{error::Result, metadata::data_type_from_parquet_type, ChunkReader};
 
 /// Calculate storage statistics for a particular parquet "file" that can
 /// be read from `input`, with a total size of `input_size` byes
@@ -24,7 +20,7 @@ use crate::{error::Result, metadata::data_type_from_parquet_type, Length, TryClo
 /// columns across all column chunks.
 pub fn file_stats<R: 'static>(input: R) -> Result<FileStats>
 where
-    R: Read + Seek + TryClone + Length + Name,
+    R: ChunkReader + Name,
 {
     let mut file_stats_builder = FileStatsBuilder::new(&input.name(), input.len());
     let reader = SerializedFileReader::new(input).context(crate::error::ParquetLibraryError {

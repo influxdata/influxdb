@@ -5,11 +5,11 @@ use delorean_arrow::parquet::{
     errors::ParquetError,
     file::{
         properties::{WriterProperties, WriterPropertiesBuilder},
-        reader::TryClone,
-        writer::{FileWriter, SerializedFileWriter},
+        writer::{FileWriter, SerializedFileWriter, TryClone},
     },
     schema::types::{ColumnPath, Type},
 };
+use parquet::file::writer::ParquetWriter;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     fmt,
@@ -78,7 +78,7 @@ impl FromStr for CompressionLevel {
 /// represented using the structures in `delorean_table` to parquet files.
 pub struct DeloreanParquetTableWriter<W>
 where
-    W: Write + Seek + TryClone,
+    W: ParquetWriter,
 {
     parquet_schema: Rc<parquet::schema::types::Type>,
     file_writer: SerializedFileWriter<W>,

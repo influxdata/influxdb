@@ -3,7 +3,7 @@ use delorean_ingest::{ConversionSettings, LineProtocolConverter};
 use delorean_line_parser::parse_lines;
 use delorean_parquet::{
     writer::{CompressionLevel, DeloreanParquetTableWriter},
-    ParquetError, TryClone,
+    TryClone,
 };
 use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use delorean_table_schema::Schema;
@@ -32,7 +32,7 @@ impl Seek for IgnoringWriteStream {
 }
 
 impl TryClone for IgnoringWriteStream {
-    fn try_clone(&self) -> std::result::Result<Self, ParquetError> {
+    fn try_clone(&self) -> std::result::Result<Self, std::io::Error> {
         Ok(IgnoringWriteStream {})
     }
 }
