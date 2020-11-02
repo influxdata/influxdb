@@ -69,9 +69,9 @@ fn benchmark_plain_sum(
             for pt in physical_type {
                 // Encoded incrementing values.
 
-                let input: Vec<usize>;
+                let input: Vec<u32>;
                 match chunk {
-                    Chunks::All => input = (0..num_rows).collect(),
+                    Chunks::All => input = (0..num_rows as u32).collect(),
                     Chunks::Even => input = gen_even_chunk(num_rows),
                     Chunks::ManySmall => input = gen_many_small_chunk(num_rows),
                     Chunks::RandomTenPercent => input = gen_random_10_percent(num_rows),
@@ -221,18 +221,18 @@ fn benchmark_plain_sum(
 }
 
 // results in about 50% rows being requested.
-fn gen_even_chunk(rows: usize) -> Vec<usize> {
-    (0..rows).filter(|x| x % 2 == 0).collect::<Vec<_>>()
+fn gen_even_chunk(rows: usize) -> Vec<u32> {
+    (0..rows as u32).filter(|x| x % 2 == 0).collect()
 }
 
 // generate small sequences of 3 rows periodically. This leads to about 34% of
 // rows being requested.
-fn gen_many_small_chunk(rows: usize) -> Vec<usize> {
+fn gen_many_small_chunk(rows: usize) -> Vec<u32> {
     let mut input = vec![];
     let mut emit_chunk = false;
     let mut chunk_size = 0;
 
-    for i in 0..rows {
+    for i in 0..rows as u32 {
         if i % 9 == 0 {
             emit_chunk = true;
         }
@@ -252,11 +252,11 @@ fn gen_many_small_chunk(rows: usize) -> Vec<usize> {
 }
 
 // generate random 10% sequence.
-fn gen_random_10_percent(rows: usize) -> Vec<usize> {
+fn gen_random_10_percent(rows: usize) -> Vec<u32> {
     let mut rnd = thread_rng();
     let mut input = vec![];
 
-    for i in 0..rows {
+    for i in 0..rows as u32 {
         if rnd.gen::<f64>() < 0.1 {
             input.push(i);
         }
