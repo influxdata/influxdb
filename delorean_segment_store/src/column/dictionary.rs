@@ -16,12 +16,12 @@ pub const NULL_ID: u32 = 0;
 pub struct RLE {
     // TODO(edd): revisit choice of storing owned string versus references.
 
-    // The mapping between non-null entries and their assigned ids. The id `0`
-    // is reserved for the NULL entry.
+    // The mapping between non-null entries and their assigned ids. The id
+    // `NULL_ID` is reserved for the NULL entry.
     entry_index: BTreeMap<String, u32>,
 
     // The mapping between an id (as an index) and its entry. The entry at index
-    // is undefined because that id is reserved for the NULL value.
+    // `NULL_ID` is undefined because that id is reserved for the NULL value.
     index_entries: Vec<String>,
 
     // The set of rows that belong to each distinct value in the dictionary.
@@ -428,6 +428,108 @@ impl RLE {
 
         assert_eq!(row_ids.len(), dst.len());
         dst
+    }
+
+    /// Returns the lexicographical minimum value for the provided set of row
+    /// ids. NULL values are not considered the minimum value if any non-null
+    /// value exists at any of the provided row ids.
+    pub fn min<'a>(&'a self, row_ids: &[u32]) -> Option<&'a String> {
+        // exit early if there is only NULL values in the column.
+        let col_min = match self.entry_index.keys().next() {
+            Some(entry) => entry,
+            None => return None,
+        };
+
+        let mut curr_logical_row_id = 0;
+        let (mut curr_entry_id, mut curr_entry_rl) = self.run_lengths[0];
+        let mut min: Option<&String> = None;
+
+        let mut i = 1;
+        for row_id in row_ids {
+            while curr_logical_row_id + curr_entry_rl <= *row_id {
+                // this encoded entry does not cover the row we need.
+                // move on to next entry
+                curr_logical_row_id += curr_entry_rl;
+                curr_entry_id = self.run_lengths[i].0;
+                curr_entry_rl = self.run_lengths[i].1;
+
+                i += 1;
+            }
+
+            // this encoded entry covers a candidate row_id if it's not the NULL
+            // value
+            match curr_entry_id {
+                NULL_ID => {}
+                _ => {
+                    let candidate_min = &self.index_entries[curr_entry_id as usize];
+                    match min {
+                        None => min = Some(candidate_min),
+                        Some(curr_min) => {
+                            if candidate_min < curr_min {
+                                min = Some(candidate_min);
+                            } else if curr_min == col_min {
+                                return min; // we can't find a lower min.
+                            }
+                        }
+                    }
+                }
+            }
+
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+        min
+    }
+
+    /// Returns the lexicographical maximum value for the provided set of row
+    /// ids. NULL values are not considered the maximum value if any non-null
+    /// value exists at any of the provided row ids.
+    pub fn max<'a>(&'a self, row_ids: &[u32]) -> Option<&'a String> {
+        // exit early if there is only NULL values in the column.
+        let col_max = match self.entry_index.keys().rev().next() {
+            Some(entry) => entry,
+            None => return None,
+        };
+
+        let mut curr_logical_row_id = 0;
+        let (mut curr_entry_id, mut curr_entry_rl) = self.run_lengths[0];
+        let mut max: Option<&String> = None;
+
+        let mut i = 1;
+        for row_id in row_ids {
+            while curr_logical_row_id + curr_entry_rl <= *row_id {
+                // this encoded entry does not cover the row we need.
+                // move on to next entry
+                curr_logical_row_id += curr_entry_rl;
+                curr_entry_id = self.run_lengths[i].0;
+                curr_entry_rl = self.run_lengths[i].1;
+
+                i += 1;
+            }
+
+            // this encoded entry covers a candidate row_id if it's not the NULL
+            // value
+            match curr_entry_id {
+                NULL_ID => {}
+                _ => {
+                    let candidate_min = &self.index_entries[curr_entry_id as usize];
+                    match max {
+                        None => max = Some(candidate_min),
+                        Some(curr_min) => {
+                            if candidate_min > curr_min {
+                                max = Some(candidate_min);
+                            } else if curr_min == col_max {
+                                return max; // we can't find a bigger max.
+                            }
+                        }
+                    }
+                }
+            }
+
+            curr_logical_row_id += 1;
+            curr_entry_rl -= 1;
+        }
+        max
     }
 
     /// Returns references to the logical (decoded) values for all the rows in
@@ -1184,5 +1286,47 @@ mod test {
         let dst = drle.all_encoded_values(dst);
         assert_eq!(dst, vec![1, 1, 1, 0, 0, 2, 2]);
         assert_eq!(dst.capacity(), 100);
+    }
+
+    #[test]
+    fn min() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3); // 0, 1, 2
+        drle.push_additional_none(2); // 3, 4
+        drle.push_additional(Some("north".to_string()), 2); // 5, 6
+
+        assert_eq!(drle.min(&[0, 1, 2]), Some(&"east".to_string()));
+        assert_eq!(drle.min(&[0, 1, 2, 3, 4, 5, 6]), Some(&"east".to_string()));
+        assert_eq!(drle.min(&[4, 5, 6]), Some(&"north".to_string()));
+        assert_eq!(drle.min(&[3]), None);
+        assert_eq!(drle.min(&[3, 4]), None);
+
+        let drle = super::RLE::default();
+        assert_eq!(drle.min(&[0]), None);
+
+        let mut drle = super::RLE::default();
+        drle.push_additional_none(10);
+        assert_eq!(drle.min(&[2, 3, 6, 8]), None);
+    }
+
+    #[test]
+    fn max() {
+        let mut drle = super::RLE::default();
+        drle.push_additional(Some("east".to_string()), 3); // 0, 1, 2
+        drle.push_additional_none(2); // 3, 4
+        drle.push_additional(Some("north".to_string()), 2); // 5, 6
+
+        assert_eq!(drle.max(&[0, 1, 2]), Some(&"east".to_string()));
+        assert_eq!(drle.max(&[0, 1, 2, 3, 4, 5, 6]), Some(&"north".to_string()));
+        assert_eq!(drle.max(&[4, 5, 6]), Some(&"north".to_string()));
+        assert_eq!(drle.max(&[3]), None);
+        assert_eq!(drle.max(&[3, 4]), None);
+
+        let drle = super::RLE::default();
+        assert_eq!(drle.max(&[0]), None);
+
+        let mut drle = super::RLE::default();
+        drle.push_additional_none(10);
+        assert_eq!(drle.max(&[2, 3, 6, 8]), None);
     }
 }

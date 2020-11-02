@@ -442,7 +442,7 @@ impl Column {
         assert!(row_ids.len() as u32 <= self.num_rows());
 
         match &self {
-            Column::String(_, data) => todo!(),
+            Column::String(_, data) => data.min(row_ids),
             Column::Float(_, data) => data.min(row_ids),
             Column::Integer(_, data) => data.min(row_ids),
             Column::Unsigned(_, data) => data.min(row_ids),
@@ -456,7 +456,7 @@ impl Column {
         assert!(row_ids.len() as u32 <= self.num_rows());
 
         match &self {
-            Column::String(_, data) => todo!(),
+            Column::String(_, data) => data.max(row_ids),
             Column::Float(_, data) => data.max(row_ids),
             Column::Integer(_, data) => data.max(row_ids),
             Column::Unsigned(_, data) => data.max(row_ids),
@@ -611,6 +611,30 @@ impl StringEncoding {
     pub fn row_ids_filter(&self, op: cmp::Operator, value: &str, dst: RowIDs) -> RowIDs {
         match &self {
             Self::RLE(c) => c.row_ids_filter(value, op, dst),
+        }
+    }
+
+    /// The lexicographic minimum non-null value at the rows specified, or the
+    /// NULL value if the column only contains NULL values at the provided row
+    /// ids.
+    pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
+        match &self {
+            StringEncoding::RLE(c) => match c.min(row_ids) {
+                Some(min) => Value::String(min),
+                None => Value::Null,
+            },
+        }
+    }
+
+    /// The lexicographic maximum non-null value at the rows specified, or the
+    /// NULL value if the column only contains NULL values at the provided row
+    /// ids.
+    pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
+        match &self {
+            StringEncoding::RLE(c) => match c.max(row_ids) {
+                Some(max) => Value::String(max),
+                None => Value::Null,
+            },
         }
     }
 
@@ -3066,6 +3090,11 @@ mod test {
         let input = &[100u8, 200, 245, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
         assert_eq!(col.min(&[4, 6][..]), Value::Scalar(Scalar::U8(30)));
+
+        let input = &[Some("hello"), None, Some("world")];
+        let col = Column::from(&input[..]);
+        assert_eq!(col.min(&[0, 1, 2][..]), Value::String(&"hello".to_string()));
+        assert_eq!(col.min(&[1][..]), Value::Null);
     }
 
     #[test]
@@ -3083,5 +3112,10 @@ mod test {
         let arr = Int64Array::from(input);
         let col = Column::from(arr);
         assert_eq!(col.max(&[0, 1, 2][..]), Value::Scalar(Scalar::I64(200)));
+
+        let input = &[Some("hello"), None, Some("world")];
+        let col = Column::from(&input[..]);
+        assert_eq!(col.max(&[0, 1, 2][..]), Value::String(&"world".to_string()));
+        assert_eq!(col.max(&[1][..]), Value::Null);
     }
 }
