@@ -1793,7 +1793,7 @@ macro_rules! typed_scalar_converters {
 }
 
 impl Scalar {
-    // Implementations of all the accessors for the variants of `Packers`.
+    // Implementations of all the accessors for the variants of `Scalar`.
     typed_scalar_converters! {
         (as_i64, try_as_i64, i64),
         (as_i32, try_as_i32, i32),
