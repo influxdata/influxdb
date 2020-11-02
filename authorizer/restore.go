@@ -28,7 +28,7 @@ func (b RestoreService) RestoreBucket(ctx context.Context, id influxdb.ID, dbi [
 	defer span.Finish()
 
 	// TODO(bbj): Correct permissions.
-	if err := IsAllowedAll(ctx, influxdb.ReadAllPermissions()); err != nil {
+	if err := IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
 		return nil, err
 	}
 	return b.s.RestoreBucket(ctx, id, dbi)
@@ -39,7 +39,7 @@ func (b RestoreService) RestoreShard(ctx context.Context, shardID uint64, r io.R
 	defer span.Finish()
 
 	// TODO(bbj): Correct permissions.
-	if err := IsAllowedAll(ctx, influxdb.ReadAllPermissions()); err != nil {
+	if err := IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
 		return err
 	}
 	return b.s.RestoreShard(ctx, shardID, r)

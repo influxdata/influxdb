@@ -28,8 +28,7 @@ func (b BackupService) BackupKVStore(ctx context.Context, w io.Writer) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// TODO(bbj): Correct permissions.
-	if err := IsAllowedAll(ctx, influxdb.ReadAllPermissions()); err != nil {
+	if err := IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
 		return err
 	}
 	return b.s.BackupKVStore(ctx, w)
@@ -39,8 +38,7 @@ func (b BackupService) BackupShard(ctx context.Context, w io.Writer, shardID uin
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// TODO(bbj): Correct permissions.
-	if err := IsAllowedAll(ctx, influxdb.ReadAllPermissions()); err != nil {
+	if err := IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
 		return err
 	}
 	return b.s.BackupShard(ctx, w, shardID, since)
