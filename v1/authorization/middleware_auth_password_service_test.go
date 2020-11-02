@@ -61,10 +61,10 @@ func TestAuthedPasswordService_SetPassword(t *testing.T) {
 		defer ctrl.Finish()
 		influxdb.OperPermissions()
 		auth := influxdb.Authorization{
-			ID:          authID,
-			OrgID:       orgID,
-			UserID:      userID,
-			Status:      influxdb.Active,
+			ID:     authID,
+			OrgID:  orgID,
+			UserID: userID,
+			Status: influxdb.Active,
 		}
 		ctx := context.Background()
 		ctx = icontext.SetAuthorizer(ctx, &auth)

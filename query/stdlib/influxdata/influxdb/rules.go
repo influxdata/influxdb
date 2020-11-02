@@ -96,7 +96,7 @@ func (rule PushDownGroupRule) Rewrite(ctx context.Context, node plan.Node) (plan
 		}
 	}
 
-	return plan.CreatePhysicalNode("ReadGroup", &ReadGroupPhysSpec{
+	return plan.CreateUniquePhysicalNode(ctx, "ReadGroup", &ReadGroupPhysSpec{
 		ReadRangePhysSpec: *src.Copy().(*ReadRangePhysSpec),
 		GroupMode:         grp.GroupMode,
 		GroupKeys:         grp.GroupKeys,
@@ -120,7 +120,7 @@ func (rule PushDownRangeRule) Rewrite(ctx context.Context, node plan.Node) (plan
 	fromNode := node.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*FromStorageProcedureSpec)
 	rangeSpec := node.ProcedureSpec().(*universe.RangeProcedureSpec)
-	return plan.CreatePhysicalNode("ReadRange", &ReadRangePhysSpec{
+	return plan.CreateUniquePhysicalNode(ctx, "ReadRange", &ReadRangePhysSpec{
 		Bucket:   fromSpec.Bucket.Name,
 		BucketID: fromSpec.Bucket.ID,
 		Bounds:   rangeSpec.Bounds,
@@ -279,7 +279,7 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 
 	// We have passed all of the necessary prerequisites
 	// so construct the procedure spec.
-	return plan.CreatePhysicalNode("ReadTagKeys", &ReadTagKeysPhysSpec{
+	return plan.CreateUniquePhysicalNode(ctx, "ReadTagKeys", &ReadTagKeysPhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 	}), true, nil
 }
@@ -350,7 +350,7 @@ func (rule PushDownReadTagValuesRule) Rewrite(ctx context.Context, pn plan.Node)
 
 	// We have passed all of the necessary prerequisites
 	// so construct the procedure spec.
-	return plan.CreatePhysicalNode("ReadTagValues", &ReadTagValuesPhysSpec{
+	return plan.CreateUniquePhysicalNode(ctx, "ReadTagValues", &ReadTagValuesPhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		TagKey:            tagKey,
 	}), true, nil
@@ -743,7 +743,7 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 	}
 
 	// Rule passes.
-	return plan.CreatePhysicalNode("ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
+	return plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       windowSpec.Window.Every,
@@ -813,7 +813,7 @@ func (PushDownWindowAggregateByTimeRule) Rewrite(ctx context.Context, pn plan.No
 
 	// Rule passes.
 	windowAggregateSpec.TimeColumn = duplicateSpec.Column
-	return plan.CreatePhysicalNode("ReadWindowAggregateByTime", windowAggregateSpec), true, nil
+	return plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregateByTime", windowAggregateSpec), true, nil
 }
 
 // PushDownBareAggregateRule is a rule that allows pushing down of aggregates
@@ -838,7 +838,7 @@ func (p PushDownBareAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 	fromNode := fnNode.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
 
-	return plan.CreatePhysicalNode("ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
+	return plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       flux.ConvertDuration(math.MaxInt64 * time.Nanosecond),
@@ -903,7 +903,7 @@ func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.
 	}
 
 	// Perform the rewrite by replacing each of the nodes.
-	newFromNode := plan.CreatePhysicalNode("ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
+	newFromNode := plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
 		ReadRangePhysSpec: *fromSpec.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       windowSpec.Window.Every,
@@ -920,7 +920,7 @@ func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.
 	if !execute.ContainsStr(groupKeys, execute.DefaultStopColLabel) {
 		groupKeys = append(groupKeys, execute.DefaultStopColLabel)
 	}
-	newGroupNode := plan.CreatePhysicalNode("group", &universe.GroupProcedureSpec{
+	newGroupNode := plan.CreateUniquePhysicalNode(ctx, "group", &universe.GroupProcedureSpec{
 		GroupMode: flux.GroupModeBy,
 		GroupKeys: groupKeys,
 	})
@@ -935,7 +935,7 @@ func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.
 	// Replace the spec for the function if needed.
 	switch spec := fnNode.ProcedureSpec().(type) {
 	case *universe.CountProcedureSpec:
-		newFnNode := plan.CreatePhysicalNode("sum", &universe.SumProcedureSpec{
+		newFnNode := plan.CreateUniquePhysicalNode(ctx, "sum", &universe.SumProcedureSpec{
 			AggregateConfig: spec.AggregateConfig,
 		})
 		plan.ReplaceNode(fnNode, newFnNode)
@@ -984,7 +984,7 @@ func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (pl
 	switch pn.Kind() {
 	case universe.CountKind:
 		// ReadGroup() -> count => ReadGroup(count)
-		node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+		node := plan.CreateUniquePhysicalNode(ctx, "ReadGroupAggregate", &ReadGroupPhysSpec{
 			ReadRangePhysSpec: group.ReadRangePhysSpec,
 			GroupMode:         group.GroupMode,
 			GroupKeys:         group.GroupKeys,
@@ -993,7 +993,7 @@ func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (pl
 		return node, true, nil
 	case universe.SumKind:
 		// ReadGroup() -> sum => ReadGroup(sum)
-		node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+		node := plan.CreateUniquePhysicalNode(ctx, "ReadGroupAggregate", &ReadGroupPhysSpec{
 			ReadRangePhysSpec: group.ReadRangePhysSpec,
 			GroupMode:         group.GroupMode,
 			GroupKeys:         group.GroupKeys,
@@ -1002,7 +1002,7 @@ func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (pl
 		return node, true, nil
 	case universe.FirstKind:
 		// ReadGroup() -> first => ReadGroup(first)
-		node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+		node := plan.CreateUniquePhysicalNode(ctx, "ReadGroupAggregate", &ReadGroupPhysSpec{
 			ReadRangePhysSpec: group.ReadRangePhysSpec,
 			GroupMode:         group.GroupMode,
 			GroupKeys:         group.GroupKeys,
@@ -1011,7 +1011,7 @@ func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (pl
 		return node, true, nil
 	case universe.LastKind:
 		// ReadGroup() -> last => ReadGroup(last)
-		node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+		node := plan.CreateUniquePhysicalNode(ctx, "ReadGroupAggregate", &ReadGroupPhysSpec{
 			ReadRangePhysSpec: group.ReadRangePhysSpec,
 			GroupMode:         group.GroupMode,
 			GroupKeys:         group.GroupKeys,
@@ -1020,7 +1020,7 @@ func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (pl
 		return node, true, nil
 	case universe.MinKind:
 		// ReadGroup() -> min => ReadGroup(min)
-		node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+		node := plan.CreateUniquePhysicalNode(ctx, "ReadGroupAggregate", &ReadGroupPhysSpec{
 			ReadRangePhysSpec: group.ReadRangePhysSpec,
 			GroupMode:         group.GroupMode,
 			GroupKeys:         group.GroupKeys,
@@ -1029,7 +1029,7 @@ func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (pl
 		return node, true, nil
 	case universe.MaxKind:
 		// ReadGroup() -> max => ReadGroup(max)
-		node := plan.CreatePhysicalNode("ReadGroupAggregate", &ReadGroupPhysSpec{
+		node := plan.CreateUniquePhysicalNode(ctx, "ReadGroupAggregate", &ReadGroupPhysSpec{
 			ReadRangePhysSpec: group.ReadRangePhysSpec,
 			GroupMode:         group.GroupMode,
 			GroupKeys:         group.GroupKeys,
