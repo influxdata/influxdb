@@ -1122,7 +1122,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		labelSvc = label.NewLabelController(m.flagger, m.kvService, ls)
 	}
 
-	ts.BucketService = storage.NewBucketService(ts.BucketService, m.engine)
+	ts.BucketService = storage.NewBucketService(m.log, ts.BucketService, m.engine)
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
 
 	var onboardOpts []tenant.OnboardServiceOptionFn

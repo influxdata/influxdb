@@ -470,7 +470,7 @@ func newInfluxDBv2(ctx context.Context, opts *optionsV2, log *zap.Logger) (svc *
 		storage.WithMetaClient(svc.meta),
 	)
 
-	svc.ts.BucketService = storage.NewBucketService(svc.ts.BucketService, engine)
+	svc.ts.BucketService = storage.NewBucketService(log, svc.ts.BucketService, engine)
 	// on-boarding service (influx setup)
 	svc.onboardSvc = tenant.NewOnboardService(svc.ts, authSvc)
 
