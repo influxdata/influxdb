@@ -1,4 +1,5 @@
 /// Possible comparison operators
+#[derive(Debug)]
 pub enum Operator {
     Equal,
     NotEqual,

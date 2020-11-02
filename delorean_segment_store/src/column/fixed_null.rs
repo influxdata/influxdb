@@ -63,6 +63,10 @@ where
         self.arr.is_empty()
     }
 
+    pub fn contains_null(&self) -> bool {
+        self.arr.null_count() == 0
+    }
+
     /// Returns the total size in bytes of the encoded data. Note, this method
     /// is really an "accurate" estimation. It doesn't include for example the
     /// size of the `Plain` struct receiver.
@@ -445,7 +449,7 @@ where
             let left_result_no =
                 left_cmp_result != Some(left_op.0) && left_cmp_result != Some(left_op.1);
             let right_result_no =
-                right_cmp_result != Some(right_op.0) && left_cmp_result != Some(right_op.1);
+                right_cmp_result != Some(right_op.0) && right_cmp_result != Some(right_op.1);
 
             if (self.arr.is_null(i) || left_result_no || right_result_no) && found {
                 let (min, max) = (i as u64 - count as u64, i as u64);
@@ -766,7 +770,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_range() {
-        let v = super::FixedNull::<Int64Type>::from(
+        let v = FixedNull::<Int64Type>::from(
             vec![
                 Some(100),
                 Some(101),
@@ -811,5 +815,21 @@ mod test {
             Bitmap::create(),
         );
         assert_eq!(bm.to_vec(), Vec::<u32>::new());
+
+        let v = FixedNull::<Int64Type>::from(
+            vec![
+                Some(100),
+                Some(200),
+                Some(300),
+                Some(2),
+                Some(200),
+                Some(22),
+                Some(30),
+            ]
+            .as_slice(),
+        );
+        let bm =
+            v.row_ids_filter_range((200, Operator::GTE), (300, Operator::LTE), Bitmap::create());
+        assert_eq!(bm.to_vec(), vec![1, 2, 4]);
     }
 }
