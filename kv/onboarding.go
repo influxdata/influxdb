@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -112,7 +110,7 @@ func (s *Service) OnboardInitialUser(ctx context.Context, req *influxdb.Onboardi
 	o := &influxdb.Organization{Name: req.Org}
 	bucket := &influxdb.Bucket{
 		Name:            req.Bucket,
-		RetentionPeriod: time.Duration(req.RetentionPeriod) * time.Hour,
+		RetentionPeriod: req.RetentionPeriod,
 	}
 	mapping := &influxdb.UserResourceMapping{
 		ResourceType: influxdb.OrgsResourceType,
