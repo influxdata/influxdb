@@ -5,6 +5,7 @@
 1. [19856](https://github.com/influxdata/influxdb/pull/19856): make tagKeys and tagValues work for edge cases involving _field
 1. [19853](https://github.com/influxdata/influxdb/pull/19853): Use updated HTTP client for authorization service
 1. [19886](https://github.com/influxdata/influxdb/pull/19886): Add Logger to constructor function to ensure log field is initialized
+1. [19885](https://github.com/influxdata/influxdb/pull/19885): Remove extra multiplication of retention policies in onboarding
 
 ## v2.0.0-rc.3 [2020-10-29]
 
