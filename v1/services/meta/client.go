@@ -1040,6 +1040,13 @@ func (c *Client) Backup(ctx context.Context, w io.Writer) error {
 	return c.store.Backup(ctx, w)
 }
 
+func (c *Client) Restore(ctx context.Context, r io.Reader) error {
+	if err := c.store.Restore(ctx, r); err != nil {
+		return err
+	}
+	return c.Load()
+}
+
 type uint64Slice []uint64
 
 func (a uint64Slice) Len() int           { return len(a) }

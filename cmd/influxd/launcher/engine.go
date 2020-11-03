@@ -162,6 +162,10 @@ func (t *TemporaryEngine) BackupKVStore(ctx context.Context, w io.Writer) error 
 	return t.engine.BackupKVStore(ctx, w)
 }
 
+func (t *TemporaryEngine) RestoreKVStore(ctx context.Context, r io.Reader) error {
+	return t.engine.RestoreKVStore(ctx, r)
+}
+
 func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id influxdb.ID, dbi []byte) (map[uint64]uint64, error) {
 	return t.engine.RestoreBucket(ctx, id, dbi)
 }

@@ -696,6 +696,16 @@ func (s *Store) SetShardEnabled(shardID uint64, enabled bool) error {
 	return nil
 }
 
+// DeleteShards removes all shards from disk.
+func (s *Store) DeleteShards() error {
+	for _, id := range s.ShardIDs() {
+		if err := s.DeleteShard(id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // DeleteShard removes a shard from disk.
 func (s *Store) DeleteShard(shardID uint64) error {
 	sh := s.Shard(shardID)

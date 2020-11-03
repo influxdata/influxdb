@@ -80,6 +80,7 @@ type MetaClient interface {
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 	Backup(ctx context.Context, w io.Writer) error
+	Restore(ctx context.Context, r io.Reader) error
 	Data() meta.Data
 	SetData(data *meta.Data) error
 }
@@ -335,6 +336,45 @@ func (e *Engine) BackupShard(ctx context.Context, w io.Writer, shardID uint64, s
 	}
 
 	return e.tsdbStore.BackupShard(shardID, since, w)
+}
+
+func (e *Engine) RestoreKVStore(ctx context.Context, r io.Reader) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	if e.closing == nil {
+		return ErrEngineClosed
+	}
+
+	// Replace KV store data and remove all existing shard data.
+	if err := e.metaClient.Restore(ctx, r); err != nil {
+		return err
+	} else if err := e.tsdbStore.DeleteShards(); err != nil {
+		return err
+	}
+
+	// Create new shards based on the restored KV data.
+	data := e.metaClient.Data()
+	for _, dbi := range data.Databases {
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sgi := range rpi.ShardGroups {
+				if sgi.Deleted() {
+					continue
+				}
+
+				for _, sh := range sgi.Shards {
+					if err := e.tsdbStore.CreateShard(dbi.Name, rpi.Name, sh.ID, true); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (e *Engine) RestoreBucket(ctx context.Context, id influxdb.ID, buf []byte) (map[uint64]uint64, error) {

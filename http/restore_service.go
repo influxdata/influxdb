@@ -45,6 +45,7 @@ type RestoreHandler struct {
 
 const (
 	prefixRestore     = "/api/v2/restore"
+	restoreKVPath     = prefixRestore + "/kv"
 	restoreBucketPath = prefixRestore + "/buckets/:bucketID"
 	restoreShardPath  = prefixRestore + "/shards/:shardID"
 )
@@ -58,10 +59,23 @@ func NewRestoreHandler(b *RestoreBackend) *RestoreHandler {
 		RestoreService:   b.RestoreService,
 	}
 
+	h.HandlerFunc(http.MethodPost, restoreKVPath, h.handleRestoreKVStore)
 	h.HandlerFunc(http.MethodPost, restoreBucketPath, h.handleRestoreBucket)
 	h.HandlerFunc(http.MethodPost, restoreShardPath, h.handleRestoreShard)
 
 	return h
+}
+
+func (h *RestoreHandler) handleRestoreKVStore(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "RestoreHandler.handleRestoreKVStore")
+	defer span.Finish()
+
+	ctx := r.Context()
+
+	if err := h.RestoreService.RestoreKVStore(ctx, r.Body); err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
 }
 
 func (h *RestoreHandler) handleRestoreBucket(w http.ResponseWriter, r *http.Request) {
@@ -120,6 +134,37 @@ type RestoreService struct {
 	Addr               string
 	Token              string
 	InsecureSkipVerify bool
+}
+
+func (s *RestoreService) RestoreKVStore(ctx context.Context, r io.Reader) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	u, err := NewURL(s.Addr, restoreKVPath)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, u.String(), r)
+	if err != nil {
+		return err
+	}
+	SetToken(s.Token, req)
+	req = req.WithContext(ctx)
+
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
+	hc.Timeout = httpClientTimeout
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if err := CheckError(resp); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *RestoreService) RestoreBucket(ctx context.Context, id influxdb.ID, dbi []byte) (map[uint64]uint64, error) {

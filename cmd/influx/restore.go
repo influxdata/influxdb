@@ -29,6 +29,7 @@ type cmdRestoreBuilder struct {
 	genericCLIOpts
 	*globalFlags
 
+	full          bool
 	bucketID      string
 	bucketName    string
 	newBucketName string
@@ -60,6 +61,7 @@ func newCmdRestoreBuilder(f *globalFlags, opts genericCLIOpts) *cmdRestoreBuilde
 func (b *cmdRestoreBuilder) cmdRestore() *cobra.Command {
 	cmd := b.newCmd("restore", b.restoreRunE)
 	b.org.register(cmd, true)
+	cmd.Flags().BoolVar(&b.full, "full", false, "Fully restore and replace all data on server")
 	cmd.Flags().StringVar(&b.bucketID, "bucket-id", "", "The ID of the bucket to restore")
 	cmd.Flags().StringVarP(&b.bucketName, "bucket", "b", "", "The name of the bucket to restore")
 	cmd.Flags().StringVar(&b.newBucketName, "new-bucket", "", "The name of the bucket to restore to")
@@ -123,6 +125,46 @@ func (b *cmdRestoreBuilder) restoreRunE(cmd *cobra.Command, args []string) (err 
 	b.orgService = &http.OrganizationService{Client: client}
 	b.bucketService = &http.BucketService{Client: client}
 
+	if !b.full {
+		return b.restorePartial(ctx)
+	}
+	return b.restoreFull(ctx)
+}
+
+// restoreFull completely replaces the bolt metadata file and restores all shard data.
+func (b *cmdRestoreBuilder) restoreFull(ctx context.Context) (err error) {
+	if err := b.restoreKVStore(ctx); err != nil {
+		return err
+	}
+
+	// Restore each shard for the bucket.
+	for _, file := range b.shardEntries {
+		if err := b.restoreShard(ctx, file.ShardID, file); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *cmdRestoreBuilder) restoreKVStore(ctx context.Context) (err error) {
+	f, err := os.Open(filepath.Join(b.path, b.kvEntry.FileName))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err := b.restoreService.RestoreKVStore(ctx, f); err != nil {
+		return err
+	}
+	b.logger.Info("Full metadata restored.")
+
+	return nil
+}
+
+// restorePartial restores shard data to a server without deleting existing data.
+// Organizations & buckets are created as needed. Cannot overwrite an existing bucket.
+func (b *cmdRestoreBuilder) restorePartial(ctx context.Context) (err error) {
 	// Open bolt DB.
 	boltClient := bolt.NewClient(b.logger)
 	boltClient.Path = filepath.Join(b.path, b.kvEntry.FileName)

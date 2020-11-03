@@ -21,6 +21,9 @@ type BackupService interface {
 
 // RestoreService represents the data restore functions of InfluxDB.
 type RestoreService interface {
+	// RestoreKVStore restores & replaces metadata database.
+	RestoreKVStore(ctx context.Context, r io.Reader) error
+
 	// RestoreKVStore restores the metadata database.
 	RestoreBucket(ctx context.Context, id ID, rpiData []byte) (shardIDMap map[uint64]uint64, err error)
 
