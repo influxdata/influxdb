@@ -61,6 +61,38 @@ impl Column {
         todo!()
     }
 
+    pub fn column_range(&self) -> Option<(Value<'_>, Value<'_>)> {
+        match &self {
+            Column::String(meta, _) => match &meta.range {
+                Some(range) => Some((Value::String(&range.0), Value::String(&range.1))),
+                None => None,
+            },
+            Column::Float(meta, _) => match meta.range {
+                Some(range) => Some((
+                    Value::Scalar(Scalar::F64(range.0)),
+                    Value::Scalar(Scalar::F64(range.1)),
+                )),
+                None => None,
+            },
+            Column::Integer(meta, _) => match meta.range {
+                Some(range) => Some((
+                    Value::Scalar(Scalar::I64(range.0)),
+                    Value::Scalar(Scalar::I64(range.1)),
+                )),
+                None => None,
+            },
+            Column::Unsigned(meta, _) => match meta.range {
+                Some(range) => Some((
+                    Value::Scalar(Scalar::U64(range.0)),
+                    Value::Scalar(Scalar::U64(range.1)),
+                )),
+                None => None,
+            },
+            Column::Bool => todo!(),
+            Column::ByteArray(_, _) => todo!(),
+        }
+    }
+
     pub fn column_min(&self) -> Value<'_> {
         todo!()
     }
