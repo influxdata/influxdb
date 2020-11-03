@@ -266,7 +266,7 @@ where
     /// value.
     ///
     /// Essentially, this supports `value {=, !=, >, >=, <, <=} x`.
-    pub fn row_ids_filter(&self, value: T, op: cmp::Operator, dst: RowIDs) -> RowIDs {
+    pub fn row_ids_filter(&self, value: T, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
         match op {
             cmp::Operator::GT => self.row_ids_cmp_order(&value, PartialOrd::gt, dst),
             cmp::Operator::GTE => self.row_ids_cmp_order(&value, PartialOrd::ge, dst),
@@ -290,7 +290,7 @@ where
     // Handles finding all rows that match the provided operator on `value`.
     // For performance reasons ranges of matching values are collected up and
     // added in bulk to the bitmap.
-    fn row_ids_equal(&self, value: &T, op: cmp::Operator, mut dst: RowIDs) -> RowIDs {
+    fn row_ids_equal(&self, value: &T, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
         let desired;
@@ -386,8 +386,8 @@ where
     ///     `x {>, >=, <, <=} value1 AND x {>, >=, <, <=} value2`.
     pub fn row_ids_filter_range(
         &self,
-        left: (T, cmp::Operator),
-        right: (T, cmp::Operator),
+        left: (T, &cmp::Operator),
+        right: (T, &cmp::Operator),
         dst: RowIDs,
     ) -> RowIDs {
         match (&left.1, &right.1) {
@@ -671,16 +671,16 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let dst = v.row_ids_filter(100, Operator::Equal, RowIDs::new_vector());
+        let dst = v.row_ids_filter(100, &Operator::Equal, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![0, 2, 12]);
 
-        let dst = v.row_ids_filter(101, Operator::Equal, RowIDs::new_vector());
+        let dst = v.row_ids_filter(101, &Operator::Equal, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![1, 8]);
 
-        let dst = v.row_ids_filter(2030, Operator::Equal, RowIDs::new_vector());
+        let dst = v.row_ids_filter(2030, &Operator::Equal, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![6]);
 
-        let dst = v.row_ids_filter(194, Operator::Equal, RowIDs::new_vector());
+        let dst = v.row_ids_filter(194, &Operator::Equal, RowIDs::new_vector());
         assert!(dst.is_empty());
     }
 
@@ -689,22 +689,22 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let dst = v.row_ids_filter(100, Operator::NotEqual, RowIDs::new_vector());
+        let dst = v.row_ids_filter(100, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
-        let dst = v.row_ids_filter(101, Operator::NotEqual, RowIDs::new_vector());
+        let dst = v.row_ids_filter(101, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(
             dst.unwrap_vector(),
             &vec![0, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12]
         );
 
-        let dst = v.row_ids_filter(2030, Operator::NotEqual, RowIDs::new_vector());
+        let dst = v.row_ids_filter(2030, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(
             dst.unwrap_vector(),
             &vec![0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12]
         );
 
-        let dst = v.row_ids_filter(194, Operator::NotEqual, RowIDs::new_vector());
+        let dst = v.row_ids_filter(194, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &(0..13).collect::<Vec<u32>>());
     }
 
@@ -713,10 +713,10 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let dst = v.row_ids_filter(100, Operator::LT, RowIDs::new_vector());
+        let dst = v.row_ids_filter(100, &Operator::LT, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![7, 9, 10, 11]);
 
-        let dst = v.row_ids_filter(3, Operator::LT, RowIDs::new_vector());
+        let dst = v.row_ids_filter(3, &Operator::LT, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &Vec::<u32>::new());
     }
 
@@ -725,10 +725,10 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let dst = v.row_ids_filter(100, Operator::LTE, RowIDs::new_vector());
+        let dst = v.row_ids_filter(100, &Operator::LTE, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![0, 2, 7, 9, 10, 11, 12]);
 
-        let dst = v.row_ids_filter(2, Operator::LTE, RowIDs::new_vector());
+        let dst = v.row_ids_filter(2, &Operator::LTE, RowIDs::new_vector());
         assert!(dst.is_empty());
     }
 
@@ -737,10 +737,10 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let dst = v.row_ids_filter(100, Operator::GT, RowIDs::new_vector());
+        let dst = v.row_ids_filter(100, &Operator::GT, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![1, 3, 4, 5, 6, 8]);
 
-        let dst = v.row_ids_filter(2030, Operator::GT, RowIDs::new_vector());
+        let dst = v.row_ids_filter(2030, &Operator::GT, RowIDs::new_vector());
         assert!(dst.is_empty());
     }
 
@@ -749,10 +749,10 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
-        let dst = v.row_ids_filter(100, Operator::GTE, RowIDs::new_vector());
+        let dst = v.row_ids_filter(100, &Operator::GTE, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![0, 1, 2, 3, 4, 5, 6, 8, 12]);
 
-        let dst = v.row_ids_filter(2031, Operator::GTE, RowIDs::new_vector());
+        let dst = v.row_ids_filter(2031, &Operator::GTE, RowIDs::new_vector());
         assert!(dst.is_empty());
     }
 
@@ -762,36 +762,36 @@ mod test {
         v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
 
         let dst = v.row_ids_filter_range(
-            (100, Operator::GTE),
-            (240, Operator::LT),
+            (100, &Operator::GTE),
+            (240, &Operator::LT),
             RowIDs::new_vector(),
         );
         assert_eq!(dst.unwrap_vector(), &vec![0, 1, 2, 3, 8, 12]);
 
         let dst = v.row_ids_filter_range(
-            (100, Operator::GT),
-            (240, Operator::LT),
+            (100, &Operator::GT),
+            (240, &Operator::LT),
             RowIDs::new_vector(),
         );
         assert_eq!(dst.unwrap_vector(), &vec![1, 3, 8]);
 
         let dst = v.row_ids_filter_range(
-            (10, Operator::LT),
-            (-100, Operator::GT),
+            (10, &Operator::LT),
+            (-100, &Operator::GT),
             RowIDs::new_vector(),
         );
         assert_eq!(dst.unwrap_vector(), &vec![7, 9, 10]);
 
         let dst = v.row_ids_filter_range(
-            (21, Operator::GTE),
-            (21, Operator::LTE),
+            (21, &Operator::GTE),
+            (21, &Operator::LTE),
             RowIDs::new_vector(),
         );
         assert_eq!(dst.unwrap_vector(), &vec![11]);
 
         let dst = v.row_ids_filter_range(
-            (10000, Operator::LTE),
-            (3999, Operator::GT),
+            (10000, &Operator::LTE),
+            (3999, &Operator::GT),
             RowIDs::new_bitmap(),
         );
         assert!(dst.is_empty());
@@ -799,8 +799,8 @@ mod test {
         let mut v: Fixed<i64> = Fixed::default();
         v.values = vec![100, 200, 300, 2, 200, 22, 30];
         let dst = v.row_ids_filter_range(
-            (200, Operator::GTE),
-            (300, Operator::LTE),
+            (200, &Operator::GTE),
+            (300, &Operator::LTE),
             RowIDs::new_vector(),
         );
         assert_eq!(dst.unwrap_vector(), &vec![1, 2, 4]);
