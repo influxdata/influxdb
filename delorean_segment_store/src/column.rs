@@ -229,7 +229,7 @@ impl Column {
 
         // Check the column for all rows that satisfy the predicate.
         let row_ids = match &self {
-            Column::String(_, data) => data.row_ids_filter(op, value.string().as_str(), dst),
+            Column::String(_, data) => data.row_ids_filter(op, value.string(), dst),
             Column::Float(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Column::Integer(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Column::Unsigned(_, data) => data.row_ids_filter(op, value.scalar(), dst),
@@ -348,7 +348,7 @@ impl Column {
         match &self {
             Column::String(meta, _) => {
                 if let Value::String(other) = value {
-                    meta.might_contain_value(&other)
+                    meta.might_contain_value(*other)
                 } else {
                     unreachable!("impossible value comparison");
                 }
@@ -365,15 +365,15 @@ impl Column {
             Column::Float(meta, _) => value
                 .scalar()
                 .try_as_f64()
-                .map_or_else(|| false, |v| meta.might_contain_value(&v)),
+                .map_or_else(|| false, |v| meta.might_contain_value(v)),
             Column::Integer(meta, _) => value
                 .scalar()
                 .try_as_i64()
-                .map_or_else(|| false, |v| meta.might_contain_value(&v)),
+                .map_or_else(|| false, |v| meta.might_contain_value(v)),
             Column::Unsigned(meta, _) => value
                 .scalar()
                 .try_as_u64()
-                .map_or_else(|| false, |v| meta.might_contain_value(&v)),
+                .map_or_else(|| false, |v| meta.might_contain_value(v)),
             Column::Bool => todo!(),
             Column::ByteArray(meta, _) => todo!(),
         }
@@ -387,7 +387,7 @@ impl Column {
                 if data.contains_null() {
                     false
                 } else if let Value::String(other) = value {
-                    meta.might_match_all_values(op, other)
+                    meta.might_match_all_values(op, *other)
                 } else {
                     unreachable!("impossible value comparison");
                 }
@@ -412,7 +412,7 @@ impl Column {
                 value
                     .scalar()
                     .try_as_f64()
-                    .map_or_else(|| false, |v| meta.might_match_all_values(op, &v))
+                    .map_or_else(|| false, |v| meta.might_match_all_values(op, v))
             }
             Column::Integer(meta, data) => {
                 if data.contains_null() {
@@ -422,7 +422,7 @@ impl Column {
                 value
                     .scalar()
                     .try_as_i64()
-                    .map_or_else(|| false, |v| meta.might_match_all_values(op, &v))
+                    .map_or_else(|| false, |v| meta.might_match_all_values(op, v))
             }
             Column::Unsigned(meta, data) => {
                 if data.contains_null() {
@@ -432,7 +432,7 @@ impl Column {
                 value
                     .scalar()
                     .try_as_u64()
-                    .map_or_else(|| false, |v| meta.might_match_all_values(op, &v))
+                    .map_or_else(|| false, |v| meta.might_match_all_values(op, v))
             }
             Column::Bool => todo!(),
             Column::ByteArray(meta, _) => todo!(),
@@ -445,7 +445,7 @@ impl Column {
         match &self {
             Column::String(meta, data) => {
                 if let Value::String(other) = value {
-                    meta.match_no_values(op, other)
+                    meta.match_no_values(op, *other)
                 } else {
                     unreachable!("impossible value comparison");
                 }
@@ -457,9 +457,9 @@ impl Column {
             //     on the logical type used for the metadata on the column.
             //   * See if one can prove none of the column can match the predicate.
             //
-            Column::Float(meta, data) => meta.match_no_values(op, &value.scalar().as_f64()),
-            Column::Integer(meta, data) => meta.match_no_values(op, &value.scalar().as_i64()),
-            Column::Unsigned(meta, data) => meta.match_no_values(op, &value.scalar().as_u64()),
+            Column::Float(meta, data) => meta.match_no_values(op, value.scalar().as_f64()),
+            Column::Integer(meta, data) => meta.match_no_values(op, value.scalar().as_i64()),
+            Column::Unsigned(meta, data) => meta.match_no_values(op, value.scalar().as_u64()),
             Column::Bool => todo!(),
             Column::ByteArray(meta, _) => todo!(),
         }
@@ -560,9 +560,13 @@ where
 }
 
 impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
-    fn might_contain_value(&self, v: &T) -> bool {
+    fn might_contain_value<U>(&self, v: U) -> bool
+    where
+        U: Into<T>,
+    {
+        let u = U::into(v);
         match &self.range {
-            Some(range) => &range.0 <= v && v <= &range.1,
+            Some(range) => range.0 <= u && u <= range.1,
             None => false,
         }
     }
@@ -570,21 +574,25 @@ impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
     // Determines if it's possible that predicate would match all rows in the
     // column. It is up to the caller to determine if the column contains null
     // values, which would invalidate a truthful result.
-    fn might_match_all_values(&self, op: &cmp::Operator, v: &T) -> bool {
+    fn might_match_all_values<U>(&self, op: &cmp::Operator, v: U) -> bool
+    where
+        U: Into<T>,
+    {
+        let u = U::into(v);
         match &self.range {
             Some(range) => match op {
                 // all values in column equal to v
-                cmp::Operator::Equal => range.0 == range.1 && &range.1 == v,
+                cmp::Operator::Equal => range.0 == range.1 && range.1 == u,
                 // all values larger or smaller than v so can't contain v
-                cmp::Operator::NotEqual => v < &range.0 || v > &range.1,
+                cmp::Operator::NotEqual => u < range.0 || u > range.1,
                 // all values in column > v
-                cmp::Operator::GT => &range.0 > v,
+                cmp::Operator::GT => range.0 > u,
                 // all values in column >= v
-                cmp::Operator::GTE => &range.0 >= v,
+                cmp::Operator::GTE => range.0 >= u,
                 // all values in column < v
-                cmp::Operator::LT => &range.1 < v,
+                cmp::Operator::LT => range.1 < u,
                 // all values in column <= v
-                cmp::Operator::LTE => &range.1 <= v,
+                cmp::Operator::LTE => range.1 <= u,
             },
             None => false, // only null values in column.
         }
@@ -592,21 +600,25 @@ impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
 
     // Determines if it can be shown that the predicate would not match any rows
     // in the column.
-    fn match_no_values(&self, op: &cmp::Operator, v: &T) -> bool {
+    fn match_no_values<U>(&self, op: &cmp::Operator, v: U) -> bool
+    where
+        U: Into<T>,
+    {
+        let u = U::into(v);
         match &self.range {
             Some(range) => match op {
                 // no values are `v` so no rows will match `== v`
-                cmp::Operator::Equal => range.0 == range.1 && &range.1 != v,
+                cmp::Operator::Equal => range.0 == range.1 && range.1 != u,
                 // all values are `v` so no rows will match `!= v`
-                cmp::Operator::NotEqual => range.0 == range.1 && &range.1 == v,
+                cmp::Operator::NotEqual => range.0 == range.1 && range.1 == u,
                 // max value in column is `<= v` so no values can be `> v`
-                cmp::Operator::GT => &range.1 <= v,
+                cmp::Operator::GT => range.1 <= u,
                 // max value in column is `< v` so no values can be `>= v`
-                cmp::Operator::GTE => &range.1 < v,
+                cmp::Operator::GTE => range.1 < u,
                 // min value in column is `>= v` so no values can be `< v`
-                cmp::Operator::LT => &range.0 >= v,
+                cmp::Operator::LT => range.0 >= u,
                 // min value in column is `> v` so no values can be `<= v`
-                cmp::Operator::LTE => &range.0 > v,
+                cmp::Operator::LTE => range.0 > u,
             },
             None => true, // only null values in column so no values satisfy `v`
         }
@@ -2105,7 +2117,7 @@ pub enum Value<'a> {
     Null,
 
     // A UTF-8 valid string.
-    String(&'a String),
+    String(&'a str),
 
     // An arbitrary byte array.
     ByteArray(&'a [u8]),
@@ -2125,7 +2137,7 @@ impl Value<'_> {
         panic!("cannot unwrap Value to Scalar");
     }
 
-    fn string(&self) -> &String {
+    fn string(&self) -> &str {
         if let Self::String(s) = self {
             return s;
         }
@@ -2157,7 +2169,139 @@ pub enum Values {
     Bool(arrow::array::BooleanArray),
 
     // Arbitrary byte arrays
-    ByteArray(arrow::array::UInt8Array),
+    ByteArray(arrow::array::BinaryArray),
+}
+
+impl Values {
+    pub fn len(&self) -> usize {
+        match &self {
+            Values::String(c) => c.len(),
+            Values::F64(c) => c.len(),
+            Values::F32(c) => c.len(),
+            Values::I64(c) => c.len(),
+            Values::I32(c) => c.len(),
+            Values::I16(c) => c.len(),
+            Values::I8(c) => c.len(),
+            Values::U64(c) => c.len(),
+            Values::U32(c) => c.len(),
+            Values::U16(c) => c.len(),
+            Values::U8(c) => c.len(),
+            Values::Bool(c) => c.len(),
+            Values::ByteArray(c) => c.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn value(&self, i: usize) -> Value<'_> {
+        match &self {
+            Values::String(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::String(c.value(i))
+            }
+            Values::F64(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::F64(c.value(i)))
+            }
+            Values::F32(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::F32(c.value(i)))
+            }
+            Values::I64(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::I64(c.value(i)))
+            }
+            Values::I32(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::I32(c.value(i)))
+            }
+            Values::I16(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::I16(c.value(i)))
+            }
+            Values::I8(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::I8(c.value(i)))
+            }
+            Values::U64(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::U64(c.value(i)))
+            }
+            Values::U32(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::U32(c.value(i)))
+            }
+            Values::U16(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::U16(c.value(i)))
+            }
+            Values::U8(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::U8(c.value(i)))
+            }
+            Values::Bool(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Boolean(c.value(i))
+            }
+            Values::ByteArray(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::ByteArray(c.value(i))
+            }
+        }
+    }
+}
+
+pub struct ValuesIterator<'a> {
+    v: &'a Values,
+    next_i: usize,
+}
+
+impl<'a> ValuesIterator<'a> {
+    pub fn new(v: &'a Values) -> Self {
+        Self { v, next_i: 0 }
+    }
+}
+impl<'a> Iterator for ValuesIterator<'a> {
+    type Item = Value<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let curr_i = self.next_i;
+        self.next_i += 1;
+
+        if curr_i == self.v.len() {
+            return None;
+        }
+
+        Some(self.v.value(curr_i))
+    }
 }
 
 #[derive(PartialEq, Debug)]
