@@ -1,6 +1,28 @@
 use std::collections::BTreeMap;
 
-use crate::column::{Column, Value};
+use delorean_arrow::arrow::datatypes::SchemaRef;
+
+use crate::column::{Column, Scalar, Value};
+
+#[derive(Debug)]
+pub struct Schema {
+    schema_ref: SchemaRef,
+    // TODO(edd): column sort order??
+}
+
+impl Schema {
+    pub fn new(schema: SchemaRef) -> Self {
+        Self { schema_ref: schema }
+    }
+
+    pub fn schema_ref(&self) -> SchemaRef {
+        self.schema_ref.clone()
+    }
+
+    pub fn cols(&self) -> usize {
+        self.schema_ref.fields().len()
+    }
+}
 
 /// A Segment is an immutable horizontal section (segment) of a table. By
 /// definition it has the same schema as all the other segments in the table.
@@ -12,13 +34,79 @@ use crate::column::{Column, Value};
 pub struct Segment<'a> {
     meta: MetaData<'a>,
 
-    columns: Vec<Column>,
+    column_names: Vec<String>,
+
+    tag_columns: Vec<&'a Column>,
+    field_columns: Vec<&'a Column>,
+    time_column: &'a Column,
 }
 
 impl<'a> Segment<'a> {
-    pub fn new(columns: &[Column]) -> Self {
-        // columns must contain a single Column::Time column.
-        todo!()
+    pub fn new(schema: Schema, rows: u32, columns: BTreeMap<String, &'a ColumnType>) -> Self {
+        assert_eq!(schema.cols(), columns.len());
+
+        let mut meta = MetaData::default();
+        meta.rows = rows;
+
+        let mut tag_columns: Vec<&'a Column> = vec![];
+        let mut field_columns: Vec<&'a Column> = vec![];
+        let mut time_column: Option<&'a Column> = None;
+        let mut column_names = Vec::with_capacity(columns.len());
+
+        for (name, ct) in columns {
+            match ct {
+                ColumnType::Tag(c) => {
+                    assert_eq!(c.num_rows(), rows);
+
+                    tag_columns.push(&c);
+
+                    if let Some(range) = tag_columns.last().unwrap().column_range() {
+                        meta.column_ranges.insert(name.clone(), range);
+                    }
+                }
+                ColumnType::Field(c) => {
+                    assert_eq!(c.num_rows(), rows);
+
+                    field_columns.push(&c);
+
+                    if let Some(range) = c.column_range() {
+                        meta.column_ranges.insert(name.clone(), range);
+                    }
+                }
+                ColumnType::Time(c) => {
+                    assert_eq!(c.num_rows(), rows);
+
+                    let range = c.column_range();
+                    meta.time_range = match range {
+                        None => panic!("time column must have non-null value"),
+                        Some((
+                            Value::Scalar(Scalar::I64(min)),
+                            Value::Scalar(Scalar::I64(max)),
+                        )) => (min, max),
+                        Some((_, _)) => unreachable!("unexpected types for time range"),
+                    };
+
+                    meta.column_ranges.insert(name.clone(), range.unwrap());
+                    match time_column {
+                        Some(_) => panic!("multiple time columns unsupported"),
+                        None => {
+                            // probably not a firm requirement....
+                            assert_eq!(name.clone(), "time".to_string());
+                            time_column = Some(&c);
+                        }
+                    }
+                }
+            }
+            column_names.push(name);
+        }
+
+        Self {
+            meta,
+            column_names,
+            tag_columns,
+            field_columns,
+            time_column: time_column.unwrap(),
+        }
     }
 
     /// The total size in bytes of the segment
@@ -75,6 +163,7 @@ pub enum ColumnType {
 //     SortGroup,
 // }
 
+#[derive(Default)]
 struct MetaData<'a> {
     // The total size of the table in bytes.
     size: u64,
@@ -95,5 +184,5 @@ struct MetaData<'a> {
     //
     // This can be used to skip the table entirely if the time range for a query
     // falls outside of this range.
-    time_range: Option<(i64, i64)>,
+    time_range: (i64, i64),
 }
