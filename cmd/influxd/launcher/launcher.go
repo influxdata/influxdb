@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/dbrp"
+	"github.com/influxdata/influxdb/v2/fluxinit"
 	"github.com/influxdata/influxdb/v2/gather"
 	"github.com/influxdata/influxdb/v2/http"
 	iqlcontrol "github.com/influxdata/influxdb/v2/influxql/control"
@@ -136,6 +137,8 @@ func NewInfluxdCommand(ctx context.Context, subCommands ...*cobra.Command) *cobr
 
 func cmdRunE(ctx context.Context, l *Launcher) func() error {
 	return func() error {
+		fluxinit.FluxInit()
+
 		// exit with SIGINT and SIGTERM
 		ctx = signals.WithStandardSignals(ctx)
 
