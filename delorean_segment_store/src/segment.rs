@@ -54,6 +54,8 @@ impl<'a> Segment<'a> {
         let mut column_names = Vec::with_capacity(columns.len());
 
         for (name, ct) in columns {
+            meta.size += ct.size();
+
             match ct {
                 ColumnType::Tag(c) => {
                     assert_eq!(c.num_rows(), rows);
@@ -111,13 +113,13 @@ impl<'a> Segment<'a> {
 
     /// The total size in bytes of the segment
     pub fn size(&self) -> u64 {
-        todo!()
+        self.meta.size
     }
 
     /// The number of rows in the segment (all columns have the same number of
     /// rows).
-    pub fn rows(&self) -> u64 {
-        todo!()
+    pub fn rows(&self) -> u32 {
+        self.meta.rows
     }
 
     /// The ranges on each column in the segment
@@ -126,11 +128,8 @@ impl<'a> Segment<'a> {
     }
 
     /// The time range of the segment (of the time column).
-    ///
-    /// It could be None if the segment only contains NULL values in the time
-    /// column.
-    pub fn time_range(&self) -> Option<(i64, i64)> {
-        todo!()
+    pub fn time_range(&self) -> (i64, i64) {
+        self.meta.time_range
     }
 }
 
@@ -146,6 +145,17 @@ pub enum ColumnType {
     Tag(Column),
     Field(Column),
     Time(Column),
+}
+
+impl ColumnType {
+    // The total size in bytes of the column
+    pub fn size(&self) -> u64 {
+        match &self {
+            ColumnType::Tag(c) => c.size(),
+            ColumnType::Field(c) => c.size(),
+            ColumnType::Time(c) => c.size(),
+        }
+    }
 }
 
 // The GroupingStrategy determines which algorithm is used for calculating
