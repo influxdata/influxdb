@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
-	"github.com/influxdata/flux/fluxinit"
+	"github.com/influxdata/influxdb/v2/fluxinit"
 	"github.com/spf13/cobra"
 )
 

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
-	"github.com/influxdata/flux/fluxinit"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/fluxinit"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
