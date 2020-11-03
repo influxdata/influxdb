@@ -2,6 +2,7 @@ package upgrade
 
 import (
 	"context"
+	"github.com/dustin/go-humanize"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -62,6 +63,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	options.target = *v2opts
 	req, err := nonInteractive()
 	require.Nil(t, err)
+	assert.Equal(t, req.RetentionPeriod, humanize.Week, "Retention policy should pass through")
 
 	resp, err := setupAdmin(ctx, v2, req)
 	require.Nil(t, err)
