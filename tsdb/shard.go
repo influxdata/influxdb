@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/storage/metrics"
 	"io"
 	"io/ioutil"
 	"os"
@@ -146,6 +147,7 @@ type Shard struct {
 
 	baseLogger *zap.Logger
 	logger     *zap.Logger
+	metrics    *metrics.StorageMetrics
 
 	EnableOnOpen bool
 
@@ -198,6 +200,11 @@ func (s *Shard) WithLogger(log *zap.Logger) {
 		s.index.WithLogger(s.baseLogger)
 	}
 	s.logger = s.baseLogger.With(zap.String("service", "shard"))
+}
+
+// SetDefaultMetricLabels sets prometheus labels for the shard. It must be called before Open.
+func (s *Shard) WithMetrics(metrics *metrics.StorageMetrics) {
+	s.metrics = metrics
 }
 
 // SetEnabled enables the shard for queries and write.  When disabled, all
@@ -317,6 +324,7 @@ func (s *Shard) Open() error {
 		}
 
 		idx.WithLogger(s.baseLogger)
+		idx.WithMetrics(s.metrics)
 
 		// Open index.
 		if err := idx.Open(); err != nil {

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/storage/metrics"
 	"io"
 	"path/filepath"
 	"sync"
@@ -52,11 +53,10 @@ type Engine struct {
 	retentionService  *retention.Service
 	precreatorService *precreator.Service
 
-	defaultMetricLabels prometheus.Labels
-
 	writePointsValidationEnabled bool
 
-	logger *zap.Logger
+	logger  *zap.Logger
+	metrics *metrics.StorageMetrics
 }
 
 // Option provides a set
@@ -98,14 +98,16 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	c.Data.WALDir = filepath.Join(path, "wal")
 
 	e := &Engine{
-		config:              c,
-		path:                path,
-		defaultMetricLabels: prometheus.Labels{},
-		tsdbStore:           tsdb.NewStore(c.Data.Dir),
-		logger:              zap.NewNop(),
+		config:    c,
+		path:      path,
+		tsdbStore: tsdb.NewStore(c.Data.Dir),
+		logger:    zap.NewNop(),
+		// TODO: The beta hard-coded this, but should it be config?
+		metrics:   metrics.NewStorageMetrics(&prometheus.Labels{}),
 
 		writePointsValidationEnabled: true,
 	}
+	e.tsdbStore.WithMetrics(e.metrics)
 
 	for _, opt := range options {
 		opt(e)
@@ -155,7 +157,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 // PrometheusCollectors returns all the prometheus collectors associated with
 // the engine and its components.
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
-	return nil
+	return e.metrics.PrometheusCollectors()
 }
 
 // Open opens the store and all underlying resources. It returns an error if

@@ -89,7 +89,7 @@ type Partition struct {
 
 // NewPartition returns a new instance of Partition at a temporary path.
 func NewPartition(sfile *tsdb.SeriesFile) *Partition {
-	return &Partition{Partition: tsi1.NewPartition(sfile, MustTempPartitionDir())}
+	return &Partition{Partition: tsi1.NewPartition(sfile, MustTempPartitionDir(), nil)}
 }
 
 // MustOpenPartition returns a new, open index. Panic on error.
@@ -114,6 +114,6 @@ func (p *Partition) Reopen() error {
 	}
 
 	sfile, path := p.SeriesFile(), p.Path()
-	p.Partition = tsi1.NewPartition(sfile, path)
+	p.Partition = tsi1.NewPartition(sfile, path, nil)
 	return p.Open()
 }

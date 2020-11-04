@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	metrics2 "github.com/influxdata/influxdb/v2/storage/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -48,6 +51,9 @@ type Partition struct {
 	fileSet       *FileSet         // current file set
 	seq           int              // file id sequence
 
+	// Running statistics
+	tracker *partitionTracker
+
 	// Fast series lookup of series IDs in the series file that have been present
 	// in this partition. This set tracks both insertions and deletions of a series.
 	seriesIDSet *tsdb.SeriesIDSet
@@ -88,7 +94,7 @@ type Partition struct {
 }
 
 // NewPartition returns a new instance of Partition.
-func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
+func NewPartition(sfile *tsdb.SeriesFile, path string, tracker *partitionTracker) *Partition {
 	return &Partition{
 		closing:     make(chan struct{}),
 		path:        path,
@@ -102,6 +108,7 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 
 		logger:  zap.NewNop(),
 		version: Version,
+		tracker: tracker,
 	}
 }
 
@@ -114,6 +121,7 @@ func (p *Partition) bytes() int {
 	b += int(unsafe.Sizeof(p.activeLogFile)) + p.activeLogFile.bytes()
 	b += int(unsafe.Sizeof(p.fileSet)) + p.fileSet.bytes()
 	b += int(unsafe.Sizeof(p.seq))
+	b += int(unsafe.Sizeof(p.tracker)) // FIXME: probably not accurate since it's a pointer
 	b += int(unsafe.Sizeof(p.seriesIDSet)) + p.seriesIDSet.Bytes()
 	b += int(unsafe.Sizeof(p.levels))
 	for _, level := range p.levels {
@@ -237,6 +245,10 @@ func (p *Partition) Open() error {
 	if err := p.buildSeriesSet(); err != nil {
 		return err
 	}
+	p.tracker.SetSeries(p.seriesIDSet.Cardinality())
+	p.tracker.SetFiles(uint64(len(p.fileSet.IndexFiles())), "index")
+	p.tracker.SetFiles(uint64(len(p.fileSet.LogFiles())), "log")
+	p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
 
 	// Mark opened.
 	p.opened = true
@@ -480,6 +492,11 @@ func (p *Partition) prependActiveLogFile() error {
 		return err
 	}
 	p.manifestSize = manifestSize
+
+	// Set the file metrics again.
+	p.tracker.SetFiles(uint64(len(p.fileSet.IndexFiles())), "index")
+	p.tracker.SetFiles(uint64(len(p.fileSet.LogFiles())), "log")
+	p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
 	return nil
 }
 
@@ -620,6 +637,7 @@ func (p *Partition) DropMeasurement(name []byte) error {
 	// Delete all series.
 	if itr := fs.MeasurementSeriesIDIterator(name); itr != nil {
 		defer itr.Close()
+		var deletedCount uint64
 		for {
 			elem, err := itr.Next()
 			if err != nil {
@@ -630,11 +648,16 @@ func (p *Partition) DropMeasurement(name []byte) error {
 			if err := func() error {
 				p.mu.RLock()
 				defer p.mu.RUnlock()
+				deletedCount++
 				return p.activeLogFile.DeleteSeriesID(elem.SeriesID)
 			}(); err != nil {
 				return err
 			}
 		}
+
+		p.tracker.AddSeriesDropped(deletedCount)
+		p.tracker.SubSeries(deletedCount)
+
 		if err = itr.Close(); err != nil {
 			return err
 		}
@@ -675,18 +698,37 @@ func (p *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 	defer fs.Release()
 
 	// Ensure fileset cannot change during insert.
+	now := time.Now()
 	p.mu.RLock()
+
 	// Insert series into log file.
 	ids, err := p.activeLogFile.AddSeriesList(p.seriesIDSet, names, tagsSlice)
+
+	p.mu.RUnlock()
 	if err != nil {
-		p.mu.RUnlock()
 		return nil, err
 	}
-	p.mu.RUnlock()
 
 	if err := p.CheckLogFile(); err != nil {
 		return nil, err
 	}
+
+	// NOTE(edd): if this becomes expensive then we can move the count into the
+	// log file.
+	var totalNew uint64
+	for _, id := range ids {
+		if id != 0 {
+			totalNew++
+		}
+	}
+	if totalNew > 0 {
+		p.tracker.AddSeriesCreated(totalNew, time.Since(now))
+		p.tracker.AddSeries(totalNew)
+		p.mu.RLock()
+		p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
+		p.mu.RUnlock()
+	}
+
 	return ids, nil
 }
 
@@ -701,6 +743,9 @@ func (p *Partition) DropSeries(seriesID uint64) error {
 	}
 
 	p.seriesIDSet.Remove(seriesID)
+
+	p.tracker.AddSeriesDropped(1)
+	p.tracker.SubSeries(1)
 
 	// Swap log file, if necessary.
 	return p.CheckLogFile()
@@ -960,8 +1005,28 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	assert(len(files) >= 2, "at least two index files are required for compaction")
 	assert(level > 0, "cannot compact level zero")
 
+	var err error
+	var start time.Time
+
+	p.tracker.IncActiveCompaction(level)
+	// Set the relevant metrics at the end of any compaction.
+	defer func() {
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		p.tracker.SetFiles(uint64(len(p.fileSet.IndexFiles())), "index")
+		p.tracker.SetFiles(uint64(len(p.fileSet.LogFiles())), "log")
+		p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
+		p.tracker.DecActiveCompaction(level)
+
+		success := err == nil
+		p.tracker.CompactionAttempted(level, success, time.Since(start))
+	}()
+
+	span, ctx := tracing.StartSpanFromContext(context.Background())
+	defer span.Finish()
+
 	// Build a logger for this compaction.
-	log, logEnd := logger.NewOperation(context.TODO(), p.logger, "TSI level compaction", "tsi1_compact_to_level", zap.Int("tsi1_level", level))
+	log, logEnd := logger.NewOperation(ctx, p.logger, "TSI level compaction", "tsi1_compact_to_level", zap.Int("tsi1_level", level))
 	defer logEnd()
 
 	// Check for cancellation.
@@ -978,12 +1043,12 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	defer once.Do(func() { IndexFiles(files).Release() })
 
 	// Track time to compact.
-	start := time.Now()
+	start = time.Now()
 
 	// Create new index file.
 	path := filepath.Join(p.path, FormatIndexFileName(p.NextSequence(), level))
-	f, err := os.Create(path)
-	if err != nil {
+	var f *os.File
+	if f, err = os.Create(path); err != nil {
 		log.Error("Cannot create compaction files", zap.Error(err))
 		return
 	}
@@ -996,14 +1061,14 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 
 	// Compact all index files to new index file.
 	lvl := p.levels[level]
-	n, err := IndexFiles(files).CompactTo(f, p.sfile, lvl.M, lvl.K, interrupt)
-	if err != nil {
+	var n int64
+	if n, err = IndexFiles(files).CompactTo(f, p.sfile, lvl.M, lvl.K, interrupt); err != nil {
 		log.Error("Cannot compact index files", zap.Error(err))
 		return
 	}
 
 	// Close file.
-	if err := f.Close(); err != nil {
+	if err = f.Close(); err != nil {
 		log.Error("Error closing index file", zap.Error(err))
 		return
 	}
@@ -1011,13 +1076,13 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	// Reopen as an index file.
 	file := NewIndexFile(p.sfile)
 	file.SetPath(path)
-	if err := file.Open(); err != nil {
+	if err = file.Open(); err != nil {
 		log.Error("Cannot open new index file", zap.Error(err))
 		return
 	}
 
 	// Obtain lock to swap in index file and write manifest.
-	if err := func() error {
+	if err = func() error {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
@@ -1052,10 +1117,10 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	for _, f := range files {
 		log.Info("Removing index file", zap.String("path", f.Path()))
 
-		if err := f.Close(); err != nil {
+		if err = f.Close(); err != nil {
 			log.Error("Cannot close index file", zap.Error(err))
 			return
-		} else if err := os.Remove(f.Path()); err != nil {
+		} else if err = os.Remove(f.Path()); err != nil {
 			log.Error("Cannot remove index file", zap.Error(err))
 			return
 		}
@@ -1085,6 +1150,9 @@ func (p *Partition) checkLogFile() error {
 		return nil
 	}
 
+	span, ctx := tracing.StartSpanFromContext(context.Background())
+	defer span.Finish()
+
 	// Swap current log file.
 	logFile := p.activeLogFile
 
@@ -1096,7 +1164,7 @@ func (p *Partition) checkLogFile() error {
 	// Begin compacting in a background goroutine.
 	p.currentCompactionN++
 	go func() {
-		p.compactLogFile(logFile)
+		p.compactLogFile(ctx, logFile)
 
 		p.mu.Lock()
 		p.currentCompactionN-- // compaction is now complete
@@ -1111,7 +1179,7 @@ func (p *Partition) checkLogFile() error {
 // compactLogFile compacts f into a tsi file. The new file will share the
 // same identifier but will have a ".tsi" extension. Once the log file is
 // compacted then the manifest is updated and the log file is discarded.
-func (p *Partition) compactLogFile(logFile *LogFile) {
+func (p *Partition) compactLogFile(ctx context.Context, logFile *LogFile) {
 	if p.isClosing() {
 		return
 	}
@@ -1120,6 +1188,14 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 	interrupt := p.compactionInterrupt
 	p.mu.Unlock()
 
+	defer func() {
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		p.tracker.SetFiles(uint64(len(p.fileSet.IndexFiles())), "index")
+		p.tracker.SetFiles(uint64(len(p.fileSet.LogFiles())), "log")
+		p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
+	}()
+
 	start := time.Now()
 
 	// Retrieve identifier from current path.
@@ -1127,7 +1203,7 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
 
 	// Build a logger for this compaction.
-	log, logEnd := logger.NewOperation(context.TODO(), p.logger, "TSI log compaction", "tsi1_compact_log_file", zap.Int("tsi1_log_file_id", id))
+	log, logEnd := logger.NewOperation(ctx, p.logger, "TSI log compaction", "tsi1_compact_log_file", zap.Int("tsi1_log_file_id", id))
 	defer logEnd()
 
 	// Create new index file.
@@ -1198,6 +1274,181 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		log.Error("Cannot remove log file", zap.Error(err))
 		return
 	}
+}
+
+type partitionTracker struct {
+	metrics *metrics2.PartitionMetrics
+	labels  prometheus.Labels
+}
+
+func newPartitionTracker(metrics *metrics2.PartitionMetrics, labels prometheus.Labels) *partitionTracker {
+	return &partitionTracker{metrics: metrics, labels: labels}
+}
+
+// Labels returns a copy of labels for use with index partition metrics.
+func (t *partitionTracker) Labels() prometheus.Labels {
+	if t == nil {
+		return prometheus.Labels{}
+	}
+
+	l := make(map[string]string, len(t.labels))
+	for k, v := range t.labels {
+		l[k] = v
+	}
+	return l
+}
+
+// AddSeriesCreated increases the number of series created in the partition by n
+// and sets a sample of the time taken to create a series.
+func (t *partitionTracker) AddSeriesCreated(n uint64, d time.Duration) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	t.metrics.SeriesCreated.With(labels).Add(float64(n))
+
+	if n == 0 {
+		return // Nothing to record
+	}
+
+	perseries := d.Seconds() / float64(n)
+	t.metrics.SeriesCreatedDuration.With(labels).Observe(perseries)
+}
+
+// AddSeriesDropped increases the number of series dropped in the partition by n.
+func (t *partitionTracker) AddSeriesDropped(n uint64) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	t.metrics.SeriesDropped.With(labels).Add(float64(n))
+}
+
+// SetSeries sets the number of series in the partition.
+func (t *partitionTracker) SetSeries(n uint64) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	t.metrics.Series.With(labels).Set(float64(n))
+}
+
+// AddSeries increases the number of series in the partition by n.
+func (t *partitionTracker) AddSeries(n uint64) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	t.metrics.Series.With(labels).Add(float64(n))
+}
+
+// SubSeries decreases the number of series in the partition by n.
+func (t *partitionTracker) SubSeries(n uint64) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	t.metrics.Series.With(labels).Sub(float64(n))
+}
+
+// SetMeasurements sets the number of measurements in the partition.
+func (t *partitionTracker) SetMeasurements(n uint64) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	t.metrics.Measurements.With(labels).Set(float64(n))
+}
+
+// AddMeasurements increases the number of measurements in the partition by n.
+func (t *partitionTracker) AddMeasurements(n uint64) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	t.metrics.Measurements.With(labels).Add(float64(n))
+}
+
+// SubMeasurements decreases the number of measurements in the partition by n.
+func (t *partitionTracker) SubMeasurements(n uint64) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	t.metrics.Measurements.With(labels).Sub(float64(n))
+}
+
+// SetFiles sets the number of files in the partition.
+func (t *partitionTracker) SetFiles(n uint64, typ string) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	labels["type"] = typ
+	t.metrics.FilesTotal.With(labels).Set(float64(n))
+}
+
+// SetDiskSize sets the size of files in the partition.
+func (t *partitionTracker) SetDiskSize(n uint64) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	t.metrics.DiskSize.With(labels).Set(float64(n))
+}
+
+// IncActiveCompaction increments the number of active compactions for the provided level.
+func (t *partitionTracker) IncActiveCompaction(level int) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	labels["level"] = fmt.Sprint(level)
+
+	t.metrics.CompactionsActive.With(labels).Inc()
+}
+
+// DecActiveCompaction decrements the number of active compactions for the provided level.
+func (t *partitionTracker) DecActiveCompaction(level int) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	labels["level"] = fmt.Sprint(level)
+
+	t.metrics.CompactionsActive.With(labels).Dec()
+}
+
+// CompactionAttempted updates the number of compactions attempted for the provided level.
+func (t *partitionTracker) CompactionAttempted(level int, success bool, d time.Duration) {
+	if t == nil {
+		return
+	}
+
+	labels := t.Labels()
+	labels["level"] = fmt.Sprint(level)
+	if success {
+		t.metrics.CompactionDuration.With(labels).Observe(d.Seconds())
+
+		labels["status"] = "ok"
+		t.metrics.Compactions.With(labels).Inc()
+		return
+	}
+
+	labels["status"] = "error"
+	t.metrics.Compactions.With(labels).Inc()
 }
 
 // unionStringSets returns the union of two sets

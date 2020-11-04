@@ -15,7 +15,7 @@ func TestTagValueSeriesIDCache(t *testing.T) {
 	m0k1v2 := tsdb.NewSeriesIDSet()
 	m1k3v0 := tsdb.NewSeriesIDSet(900, 0, 929)
 
-	cache := TestCache{NewTagValueSeriesIDCache(10)}
+	cache := TestCache{NewTagValueSeriesIDCache(10, nil)}
 	cache.Has(t, "m0", "k0", "v0", nil)
 
 	// Putting something in the cache makes it retrievable.
@@ -46,7 +46,7 @@ func TestTagValueSeriesIDCache_eviction(t *testing.T) {
 	m0k1v2 := tsdb.NewSeriesIDSet()
 	m1k3v0 := tsdb.NewSeriesIDSet(900, 0, 929)
 
-	cache := TestCache{NewTagValueSeriesIDCache(4)}
+	cache := TestCache{NewTagValueSeriesIDCache(4, nil)}
 	cache.PutByString("m0", "k0", "v0", m0k0v0)
 	cache.PutByString("m0", "k0", "v1", m0k0v1)
 	cache.PutByString("m0", "k1", "v2", m0k1v2)
@@ -129,7 +129,7 @@ func TestTagValueSeriesIDCache_eviction(t *testing.T) {
 }
 
 func TestTagValueSeriesIDCache_addToSet(t *testing.T) {
-	cache := TestCache{NewTagValueSeriesIDCache(4)}
+	cache := TestCache{NewTagValueSeriesIDCache(4, nil)}
 	cache.PutByString("m0", "k0", "v0", nil) // Puts a nil set in the cache.
 	s2 := tsdb.NewSeriesIDSet(100)
 	cache.PutByString("m0", "k0", "v1", s2)
@@ -157,7 +157,7 @@ func TestTagValueSeriesIDCache_ConcurrentGetPut(t *testing.T) {
 		return []byte(a[rand.Intn(len(a)-1)])
 	}
 
-	cache := TestCache{NewTagValueSeriesIDCache(100)}
+	cache := TestCache{NewTagValueSeriesIDCache(100, nil)}
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 

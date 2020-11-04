@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/storage/metrics"
 	"os"
 	"regexp"
 	"sort"
@@ -31,6 +32,7 @@ type Index interface {
 	Open() error
 	Close() error
 	WithLogger(*zap.Logger)
+	WithMetrics(metrics *metrics.StorageMetrics)
 
 	Database() string
 	MeasurementExists(name []byte) (bool, error)

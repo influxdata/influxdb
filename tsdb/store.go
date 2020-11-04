@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/storage/metrics"
 	"io"
 	"io/ioutil"
 	"os"
@@ -98,6 +99,7 @@ type Store struct {
 
 	baseLogger *zap.Logger
 	Logger     *zap.Logger
+	metrics    *metrics.StorageMetrics
 
 	closing chan struct{}
 	wg      sync.WaitGroup
@@ -127,6 +129,13 @@ func (s *Store) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "store"))
 	for _, sh := range s.shards {
 		sh.WithLogger(s.baseLogger)
+	}
+}
+
+func (s *Store) WithMetrics(metrics *metrics.StorageMetrics) {
+	s.metrics = metrics
+	for _, sh := range s.shards {
+		sh.WithMetrics(s.metrics)
 	}
 }
 
@@ -402,6 +411,7 @@ func (s *Store) loadShards() error {
 					shard.EnableOnOpen = false
 					shard.CompactionDisabled = s.EngineOptions.CompactionDisabled
 					shard.WithLogger(s.baseLogger)
+					shard.WithMetrics(s.metrics)
 
 					err = shard.Open()
 					if err != nil {
@@ -651,6 +661,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	path := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
 	shard := NewShard(shardID, path, walPath, sfile, opt)
 	shard.WithLogger(s.baseLogger)
+	shard.WithMetrics(s.metrics)
 	shard.EnableOnOpen = enabled
 
 	if err := shard.Open(); err != nil {

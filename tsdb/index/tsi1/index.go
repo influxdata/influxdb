@@ -3,6 +3,8 @@ package tsi1
 import (
 	"errors"
 	"fmt"
+	sm "github.com/influxdata/influxdb/v2/storage/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -137,6 +139,7 @@ type Index struct {
 	logfileBufferSize  int         // The size of the buffer used by the LogFile.
 	disableFsync       bool        // Disables flushing buffers and fsyning files. Used when working with indexes offline.
 	logger             *zap.Logger // Index's logger.
+	metrics            *sm.StorageMetrics
 
 	// The following must be set when initializing an Index.
 	sfile    *tsdb.SeriesFile // series lookup file
@@ -163,6 +166,7 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 		tagValueCacheSize: tsdb.DefaultSeriesIDSetCacheSize,
 		maxLogFileSize:    tsdb.DefaultMaxIndexLogFileSize,
 		logger:            zap.NewNop(),
+		metrics:           nil,
 		version:           Version,
 		sfile:             sfile,
 		database:          database,
@@ -177,7 +181,6 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 		option(idx)
 	}
 
-	idx.tagValueCache = NewTagValueSeriesIDCache(idx.tagValueCacheSize)
 	return idx
 }
 
@@ -195,6 +198,7 @@ func (i *Index) Bytes() int {
 	b += int(unsafe.Sizeof(i.disableCompactions))
 	b += int(unsafe.Sizeof(i.maxLogFileSize))
 	b += int(unsafe.Sizeof(i.logger))
+	b += int(unsafe.Sizeof(i.metrics)) // TODO: Is this correct?
 	b += int(unsafe.Sizeof(i.sfile))
 	// Do not count SeriesFile because it belongs to the code that constructed this Index.
 	b += int(unsafe.Sizeof(i.mSketch)) + i.mSketch.Bytes()
@@ -221,6 +225,12 @@ func (i *Index) WithLogger(l *zap.Logger) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.logger = l.With(zap.String("index", "tsi"))
+}
+
+func (i *Index) WithMetrics(metrics *sm.StorageMetrics) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.metrics = metrics
 }
 
 // Type returns the type of Index this is.
@@ -255,14 +265,36 @@ func (i *Index) Open() error {
 		return err
 	}
 
+	// Set the correct shared metrics on the cache
+	var cacheTracker *cacheTracker
+	if i.metrics != nil {
+		cacheTracker = newCacheTracker(i.metrics.Cache, *i.metrics.DefaultLabels)
+	}
+	i.tagValueCache = NewTagValueSeriesIDCache(i.tagValueCacheSize, cacheTracker)
+
 	// Initialize index partitions.
 	i.partitions = make([]*Partition, i.PartitionN)
+
 	for j := 0; j < len(i.partitions); j++ {
-		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
+
+		// Each of the trackers needs to be given slightly different default
+		// labels to ensure the correct partition ids are set as labels.
+		var partitionTracker *partitionTracker
+		partitionLabels := make(prometheus.Labels)
+		if i.metrics != nil {
+			for k, v := range *i.metrics.DefaultLabels {
+				partitionLabels[k] = v
+			}
+			partitionLabels["index_partition"] = fmt.Sprint(j)
+			partitionTracker = newPartitionTracker(i.metrics.Partition, partitionLabels)
+		}
+
+		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)), partitionTracker)
 		p.MaxLogFileSize = i.maxLogFileSize
 		p.nosync = i.disableFsync
 		p.logbufferSize = i.logfileBufferSize
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
+
 		i.partitions[j] = p
 	}
 
