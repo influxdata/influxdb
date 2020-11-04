@@ -16,6 +16,7 @@ use std::{fmt::Debug, sync::Arc};
 
 pub mod exec;
 pub mod id;
+pub mod predicate;
 pub mod util;
 
 /// Specifies a continuous range of nanosecond timestamps. Timestamp

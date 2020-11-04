@@ -2127,7 +2127,7 @@ mod tests {
             value: Some(Value::Comparison(Comparison::Equal as i32)),
             children: vec![
                 Node {
-                    value: Some(Value::TagRefValue("state".to_string())),
+                    value: Some(Value::TagRefValue(b"state".to_vec())),
                     children: vec![],
                 },
                 Node {
