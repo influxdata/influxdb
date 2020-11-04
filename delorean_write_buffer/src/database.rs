@@ -814,7 +814,7 @@ fn check_supported_predicate(predicate: Option<&Predicate>) {
 struct SupportVisitor {}
 
 impl ExpressionVisitor for SupportVisitor {
-    fn visit(&mut self, expr: &Expr) {
+    fn pre_visit(&mut self, expr: &Expr) {
         match expr {
             Expr::Literal(..) => {}
             Expr::Column(..) => {}
