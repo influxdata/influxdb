@@ -25,6 +25,7 @@ fn main() -> Result<()> {
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let proto_file = root.join("proto/delorean/delorean.proto");
 
+    println!("cargo:rerun-if-changed={}", proto_file.display());
     tonic_build::compile_protos(proto_file)?;
 
     Ok(())

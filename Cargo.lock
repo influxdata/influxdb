@@ -77,27 +77,6 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 
 [[package]]
 name = "arrow"
-version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a#aa6889a74c57d6faea0d27ea8013d9b0c7ef809a"
-dependencies = [
- "arrow-flight",
- "chrono",
- "csv",
- "flatbuffers",
- "hex",
- "indexmap",
- "lazy_static",
- "num",
- "prettytable-rs",
- "rand",
- "regex",
- "serde",
- "serde_derive",
- "serde_json",
-]
-
-[[package]]
-name = "arrow"
 version = "3.0.0-SNAPSHOT"
 source = "git+https://github.com/apache/arrow.git?rev=e7ce8cfda3a612cd54fa47d06e26ca07b83a7cd6#e7ce8cfda3a612cd54fa47d06e26ca07b83a7cd6"
 dependencies = [
@@ -115,21 +94,6 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
-]
-
-[[package]]
-name = "arrow-flight"
-version = "2.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=aa6889a74c57d6faea0d27ea8013d9b0c7ef809a#aa6889a74c57d6faea0d27ea8013d9b0c7ef809a"
-dependencies = [
- "bytes",
- "futures",
- "proc-macro2",
- "prost",
- "prost-derive",
- "tokio",
- "tonic 0.2.1",
- "tonic-build 0.2.0",
 ]
 
 [[package]]
@@ -715,7 +679,7 @@ name = "datafusion"
 version = "3.0.0-SNAPSHOT"
 source = "git+https://github.com/apache/arrow.git?rev=e7ce8cfda3a612cd54fa47d06e26ca07b83a7cd6#e7ce8cfda3a612cd54fa47d06e26ca07b83a7cd6"
 dependencies = [
- "arrow 3.0.0-SNAPSHOT",
+ "arrow",
  "async-trait",
  "chrono",
  "clap",
@@ -776,7 +740,7 @@ dependencies = [
  "snafu",
  "tempfile",
  "tokio",
- "tonic 0.3.1",
+ "tonic",
  "tracing",
  "tracing-futures",
 ]
@@ -785,7 +749,7 @@ dependencies = [
 name = "delorean_arrow"
 version = "0.1.0"
 dependencies = [
- "arrow 3.0.0-SNAPSHOT",
+ "arrow",
  "datafusion",
  "parquet",
 ]
@@ -818,15 +782,14 @@ dependencies = [
  "futures",
  "prost",
  "prost-types",
- "tonic 0.3.1",
- "tonic-build 0.3.1",
+ "tonic",
+ "tonic-build",
 ]
 
 [[package]]
 name = "delorean_ingest"
 version = "0.1.0"
 dependencies = [
- "arrow 2.0.0-SNAPSHOT",
  "delorean_line_parser",
  "delorean_table",
  "delorean_table_schema",
@@ -2132,7 +2095,7 @@ name = "parquet"
 version = "3.0.0-SNAPSHOT"
 source = "git+https://github.com/apache/arrow.git?rev=e7ce8cfda3a612cd54fa47d06e26ca07b83a7cd6#e7ce8cfda3a612cd54fa47d06e26ca07b83a7cd6"
 dependencies = [
- "arrow 3.0.0-SNAPSHOT",
+ "arrow",
  "base64 0.11.0",
  "brotli",
  "byteorder",
@@ -3302,36 +3265,6 @@ dependencies = [
 
 [[package]]
 name = "tonic"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4afef9ce97ea39593992cf3fa00ff33b1ad5eb07665b31355df63a690e38c736"
-dependencies = [
- "async-stream",
- "async-trait",
- "base64 0.11.0",
- "bytes",
- "futures-core",
- "futures-util",
- "http",
- "http-body",
- "hyper",
- "percent-encoding",
- "pin-project 0.4.27",
- "prost",
- "prost-derive",
- "tokio",
- "tokio-util",
- "tower",
- "tower-balance",
- "tower-load",
- "tower-make",
- "tower-service",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "tonic"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74a5d6e7439ecf910463667080de772a9c7ddf26bc9fb4f3252ac3862e43337d"
@@ -3358,18 +3291,6 @@ dependencies = [
  "tower-service",
  "tracing",
  "tracing-futures",
-]
-
-[[package]]
-name = "tonic-build"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71d8d21cb568e802d77055ab7fcd43f0992206de5028de95c8d3a41118d32e8e"
-dependencies = [
- "proc-macro2",
- "prost-build",
- "quote",
- "syn",
 ]
 
 [[package]]
