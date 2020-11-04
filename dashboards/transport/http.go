@@ -1,4 +1,4 @@
-package http
+package transport
 
 import (
 	"context"
@@ -7,134 +7,99 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/influxdata/httprouter"
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap"
 )
 
-// DashboardBackend is all services and associated parameters required to construct
-// the DashboardHandler.
-type DashboardBackend struct {
-	influxdb.HTTPErrorHandler
-	log *zap.Logger
-
-	DashboardService             influxdb.DashboardService
-	DashboardOperationLogService influxdb.DashboardOperationLogService
-	UserResourceMappingService   influxdb.UserResourceMappingService
-	LabelService                 influxdb.LabelService
-	UserService                  influxdb.UserService
-	OrganizationService          influxdb.OrganizationService
-}
-
-// NewDashboardBackend creates a backend used by the dashboard handler.
-func NewDashboardBackend(log *zap.Logger, b *APIBackend) *DashboardBackend {
-	return &DashboardBackend{
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		log:              log,
-
-		DashboardService:             b.DashboardService,
-		DashboardOperationLogService: b.DashboardOperationLogService,
-		UserResourceMappingService:   b.UserResourceMappingService,
-		LabelService:                 b.LabelService,
-		UserService:                  b.UserService,
-		OrganizationService:          b.OrganizationService,
-	}
-}
-
 // DashboardHandler is the handler for the dashboard service
 type DashboardHandler struct {
-	*httprouter.Router
+	chi.Router
 
-	influxdb.HTTPErrorHandler
+	api *kithttp.API
 	log *zap.Logger
 
-	DashboardService             influxdb.DashboardService
-	DashboardOperationLogService influxdb.DashboardOperationLogService
-	UserResourceMappingService   influxdb.UserResourceMappingService
-	LabelService                 influxdb.LabelService
-	UserService                  influxdb.UserService
-	OrganizationService          influxdb.OrganizationService
+	dashboardService influxdb.DashboardService
+	labelService     influxdb.LabelService
+	userService      influxdb.UserService
+	orgService       influxdb.OrganizationService
 }
 
 const (
-	prefixDashboards            = "/api/v2/dashboards"
-	dashboardsIDPath            = "/api/v2/dashboards/:id"
-	dashboardsIDCellsPath       = "/api/v2/dashboards/:id/cells"
-	dashboardsIDCellsIDPath     = "/api/v2/dashboards/:id/cells/:cellID"
-	dashboardsIDCellsIDViewPath = "/api/v2/dashboards/:id/cells/:cellID/view"
-	dashboardsIDMembersPath     = "/api/v2/dashboards/:id/members"
-	dashboardsIDMembersIDPath   = "/api/v2/dashboards/:id/members/:userID"
-	dashboardsIDOwnersPath      = "/api/v2/dashboards/:id/owners"
-	dashboardsIDOwnersIDPath    = "/api/v2/dashboards/:id/owners/:userID"
-	dashboardsIDLabelsPath      = "/api/v2/dashboards/:id/labels"
-	dashboardsIDLabelsIDPath    = "/api/v2/dashboards/:id/labels/:lid"
+	prefixDashboards = "/api/v2/dashboards"
 )
 
 // NewDashboardHandler returns a new instance of DashboardHandler.
-func NewDashboardHandler(log *zap.Logger, b *DashboardBackend) *DashboardHandler {
+func NewDashboardHandler(
+	log *zap.Logger,
+	dashboardService influxdb.DashboardService,
+	labelService influxdb.LabelService,
+	userService influxdb.UserService,
+	orgService influxdb.OrganizationService,
+	urmHandler, labelHandler http.Handler,
+) *DashboardHandler {
 	h := &DashboardHandler{
-		Router:           NewRouter(b.HTTPErrorHandler),
-		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              log,
-
-		DashboardService:             b.DashboardService,
-		DashboardOperationLogService: b.DashboardOperationLogService,
-		UserResourceMappingService:   b.UserResourceMappingService,
-		LabelService:                 b.LabelService,
-		UserService:                  b.UserService,
-		OrganizationService:          b.OrganizationService,
+		api:              kithttp.NewAPI(kithttp.WithLog(log)),
+		dashboardService: dashboardService,
+		labelService:     labelService,
+		userService:      userService,
+		orgService:       orgService,
 	}
 
-	h.HandlerFunc("POST", prefixDashboards, h.handlePostDashboard)
-	h.HandlerFunc("GET", prefixDashboards, h.handleGetDashboards)
-	h.HandlerFunc("GET", dashboardsIDPath, h.handleGetDashboard)
-	h.HandlerFunc("DELETE", dashboardsIDPath, h.handleDeleteDashboard)
-	h.HandlerFunc("PATCH", dashboardsIDPath, h.handlePatchDashboard)
+	// setup routing
+	{
+		r := chi.NewRouter()
+		r.Use(
+			middleware.Recoverer,
+			middleware.RequestID,
+			middleware.RealIP,
+		)
 
-	h.HandlerFunc("PUT", dashboardsIDCellsPath, h.handlePutDashboardCells)
-	h.HandlerFunc("POST", dashboardsIDCellsPath, h.handlePostDashboardCell)
-	h.HandlerFunc("DELETE", dashboardsIDCellsIDPath, h.handleDeleteDashboardCell)
-	h.HandlerFunc("PATCH", dashboardsIDCellsIDPath, h.handlePatchDashboardCell)
+		r.Route("/", func(r chi.Router) {
+			r.Post("/", h.handlePostDashboard)
+			r.Get("/", h.handleGetDashboards)
 
-	h.HandlerFunc("GET", dashboardsIDCellsIDViewPath, h.handleGetDashboardCellView)
-	h.HandlerFunc("PATCH", dashboardsIDCellsIDViewPath, h.handlePatchDashboardCellView)
+			r.Route("/{id}", func(r chi.Router) {
+				r.Get("/", h.handleGetDashboard)
+				r.Patch("/", h.handlePatchDashboard)
+				r.Delete("/", h.handleDeleteDashboard)
 
-	memberBackend := MemberBackend{
-		HTTPErrorHandler:           b.HTTPErrorHandler,
-		log:                        b.log.With(zap.String("handler", "member")),
-		ResourceType:               influxdb.DashboardsResourceType,
-		UserType:                   influxdb.Member,
-		UserResourceMappingService: b.UserResourceMappingService,
-		UserService:                b.UserService,
+				r.Route("/cells", func(r chi.Router) {
+					r.Put("/", h.handlePutDashboardCells)
+					r.Post("/", h.handlePostDashboardCell)
+
+					r.Route("/{cellID}", func(r chi.Router) {
+						r.Delete("/", h.handleDeleteDashboardCell)
+						r.Patch("/", h.handlePatchDashboardCell)
+
+						r.Route("/view", func(r chi.Router) {
+							r.Get("/", h.handleGetDashboardCellView)
+							r.Patch("/", h.handlePatchDashboardCellView)
+						})
+					})
+				})
+
+				// mount embedded resources
+				mountableRouter := r.With(kithttp.ValidResource(h.api, h.lookupOrgByDashboardID))
+				mountableRouter.Mount("/members", urmHandler)
+				mountableRouter.Mount("/owners", urmHandler)
+				mountableRouter.Mount("/labels", labelHandler)
+			})
+		})
+
+		h.Router = r
 	}
-	h.HandlerFunc("POST", dashboardsIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", dashboardsIDMembersPath, newGetMembersHandler(memberBackend))
-	h.HandlerFunc("DELETE", dashboardsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
-
-	ownerBackend := MemberBackend{
-		HTTPErrorHandler:           b.HTTPErrorHandler,
-		log:                        b.log.With(zap.String("handler", "member")),
-		ResourceType:               influxdb.DashboardsResourceType,
-		UserType:                   influxdb.Owner,
-		UserResourceMappingService: b.UserResourceMappingService,
-		UserService:                b.UserService,
-	}
-	h.HandlerFunc("POST", dashboardsIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", dashboardsIDOwnersPath, newGetMembersHandler(ownerBackend))
-	h.HandlerFunc("DELETE", dashboardsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
-
-	labelBackend := &LabelBackend{
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		log:              b.log.With(zap.String("handler", "label")),
-		LabelService:     b.LabelService,
-		ResourceType:     influxdb.DashboardsResourceType,
-	}
-	h.HandlerFunc("GET", dashboardsIDLabelsPath, newGetLabelsHandler(labelBackend))
-	h.HandlerFunc("POST", dashboardsIDLabelsPath, newPostLabelHandler(labelBackend))
-	h.HandlerFunc("DELETE", dashboardsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
 
 	return h
+}
+
+// Prefix returns the mounting prefix for the handler
+func (h *DashboardHandler) Prefix() string {
+	return prefixDashboards
 }
 
 type dashboardLinks struct {
@@ -315,62 +280,36 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	req, err := decodeGetDashboardsRequest(ctx, r)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
-	}
-
-	if req.ownerID != nil {
-		filter := influxdb.UserResourceMappingFilter{
-			UserID:       *req.ownerID,
-			UserType:     influxdb.Owner,
-			ResourceType: influxdb.DashboardsResourceType,
-		}
-
-		mappings, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
-		if err != nil {
-			h.HandleHTTPError(ctx, &influxdb.Error{
-				Code: influxdb.EInternal,
-				Msg:  "Error loading dashboard owners",
-				Err:  err,
-			}, w)
-			return
-		}
-
-		for _, mapping := range mappings {
-			req.filter.IDs = append(req.filter.IDs, &mapping.ResourceID)
-		}
 	}
 
 	dashboardFilter := req.filter
 
 	if dashboardFilter.Organization != nil {
 		orgNameFilter := influxdb.OrganizationFilter{Name: dashboardFilter.Organization}
-		o, err := h.OrganizationService.FindOrganization(ctx, orgNameFilter)
+		o, err := h.orgService.FindOrganization(ctx, orgNameFilter)
 		if err != nil {
-			h.HandleHTTPError(ctx, err, w)
+			h.api.Err(w, r, err)
 			return
 		}
 		dashboardFilter.OrganizationID = &o.ID
 	}
 
-	dashboards, _, err := h.DashboardService.FindDashboards(ctx, dashboardFilter, req.opts)
+	dashboards, _, err := h.dashboardService.FindDashboards(ctx, dashboardFilter, req.opts)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	h.log.Debug("Dashboards retrieved", zap.String("dashboards", fmt.Sprint(dashboards)))
+	h.log.Debug("List Dashboards", zap.String("dashboards", fmt.Sprint(dashboards)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newGetDashboardsResponse(ctx, dashboards, req.filter, req.opts, h.LabelService)); err != nil {
-		logEncodingError(h.log, r, err)
-		return
-	}
+	h.api.Respond(w, r, http.StatusOK, newGetDashboardsResponse(ctx, dashboards, req.filter, req.opts, h.labelService))
 }
 
 type getDashboardsRequest struct {
-	filter  influxdb.DashboardFilter
-	opts    influxdb.FindOptions
-	ownerID *influxdb.ID
+	filter influxdb.DashboardFilter
+	opts   influxdb.FindOptions
 }
 
 func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashboardsRequest, error) {
@@ -393,8 +332,8 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 			req.filter.IDs = append(req.filter.IDs, &i)
 		}
 	} else if ownerID := qp.Get("ownerID"); ownerID != "" {
-		req.ownerID = &initialID
-		if err := req.ownerID.DecodeFromString(ownerID); err != nil {
+		req.filter.OwnerID = &initialID
+		if err := req.filter.OwnerID.DecodeFromString(ownerID); err != nil {
 			return nil, err
 		}
 	} else if orgID := qp.Get("orgID"); orgID != "" {
@@ -441,22 +380,22 @@ func newGetDashboardsResponse(ctx context.Context, dashboards []*influxdb.Dashbo
 
 // handlePostDashboard creates a new dashboard.
 func (h *DashboardHandler) handlePostDashboard(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	var d influxdb.Dashboard
-	if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
-		h.HandleHTTPError(ctx, err, w)
+	var (
+		ctx = r.Context()
+		d   influxdb.Dashboard
+	)
+
+	if err := h.api.DecodeJSON(r.Body, &d); err != nil {
+		h.api.Err(w, r, err)
 		return
 	}
 
-	if err := h.DashboardService.CreateDashboard(ctx, &d); err != nil {
-		h.HandleHTTPError(ctx, err, w)
+	if err := h.dashboardService.CreateDashboard(ctx, &d); err != nil {
+		h.api.Err(w, r, err)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardResponse(&d, []*influxdb.Label{})); err != nil {
-		logEncodingError(h.log, r, err)
-		return
-	}
+	h.api.Respond(w, r, http.StatusCreated, newDashboardResponse(&d, []*influxdb.Label{}))
 }
 
 // handleGetDashboard retrieves a dashboard by ID.
@@ -464,21 +403,21 @@ func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	req, err := decodeGetDashboardRequest(ctx, r)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	dashboard, err := h.DashboardService.FindDashboardByID(ctx, req.DashboardID)
+	dashboard, err := h.dashboardService.FindDashboardByID(ctx, req.DashboardID)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	if r.URL.Query().Get("include") == "properties" {
 		for _, c := range dashboard.Cells {
-			view, err := h.DashboardService.GetDashboardCellView(ctx, dashboard.ID, c.ID)
+			view, err := h.dashboardService.GetDashboardCellView(ctx, dashboard.ID, c.ID)
 			if err != nil {
-				h.HandleHTTPError(ctx, err, w)
+				h.api.Err(w, r, err)
 				return
 			}
 
@@ -488,18 +427,15 @@ func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: dashboard.ID, ResourceType: influxdb.DashboardsResourceType})
+	labels, err := h.labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: dashboard.ID, ResourceType: influxdb.DashboardsResourceType})
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	h.log.Debug("Dashboard retrieved", zap.String("dashboard", fmt.Sprint(dashboard)))
+	h.log.Debug("Get Dashboard", zap.String("dashboard", fmt.Sprint(dashboard)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardResponse(dashboard, labels)); err != nil {
-		logEncodingError(h.log, r, err)
-		return
-	}
+	h.api.Respond(w, r, http.StatusOK, newDashboardResponse(dashboard, labels))
 }
 
 type getDashboardRequest struct {
@@ -507,8 +443,7 @@ type getDashboardRequest struct {
 }
 
 func decodeGetDashboardRequest(ctx context.Context, r *http.Request) (*getDashboardRequest, error) {
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -531,12 +466,12 @@ func (h *DashboardHandler) handleDeleteDashboard(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 	req, err := decodeDeleteDashboardRequest(ctx, r)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	if err := h.DashboardService.DeleteDashboard(ctx, req.DashboardID); err != nil {
-		h.HandleHTTPError(ctx, err, w)
+	if err := h.dashboardService.DeleteDashboard(ctx, req.DashboardID); err != nil {
+		h.api.Err(w, r, err)
 		return
 	}
 
@@ -550,8 +485,7 @@ type deleteDashboardRequest struct {
 }
 
 func decodeDeleteDashboardRequest(ctx context.Context, r *http.Request) (*deleteDashboardRequest, error) {
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -574,27 +508,24 @@ func (h *DashboardHandler) handlePatchDashboard(w http.ResponseWriter, r *http.R
 	ctx := r.Context()
 	req, err := decodePatchDashboardRequest(ctx, r)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
-	dashboard, err := h.DashboardService.UpdateDashboard(ctx, req.DashboardID, req.Upd)
+	dashboard, err := h.dashboardService.UpdateDashboard(ctx, req.DashboardID, req.Upd)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: dashboard.ID, ResourceType: influxdb.DashboardsResourceType})
+	labels, err := h.labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: dashboard.ID, ResourceType: influxdb.DashboardsResourceType})
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Dashboard updated", zap.String("dashboard", fmt.Sprint(dashboard)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardResponse(dashboard, labels)); err != nil {
-		logEncodingError(h.log, r, err)
-		return
-	}
+	h.api.Respond(w, r, http.StatusOK, newDashboardResponse(dashboard, labels))
 }
 
 type patchDashboardRequest struct {
@@ -613,8 +544,7 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 	}
 	req.Upd = upd
 
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -662,8 +592,7 @@ type postDashboardCellRequest struct {
 
 func decodePostDashboardCellRequest(ctx context.Context, r *http.Request) (*postDashboardCellRequest, error) {
 	req := &postDashboardCellRequest{}
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -691,7 +620,7 @@ func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	req, err := decodePostDashboardCellRequest(ctx, r)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 	cell := new(influxdb.Cell)
@@ -701,9 +630,9 @@ func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *htt
 		opts.View = new(influxdb.View)
 		if req.UsingView != nil {
 			// load the view
-			opts.View, err = h.DashboardService.GetDashboardCellView(ctx, req.dashboardID, *req.UsingView)
+			opts.View, err = h.dashboardService.GetDashboardCellView(ctx, req.dashboardID, *req.UsingView)
 			if err != nil {
-				h.HandleHTTPError(ctx, err, w)
+				h.api.Err(w, r, err)
 				return
 			}
 		}
@@ -711,10 +640,10 @@ func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *htt
 			opts.View.Name = *req.Name
 		}
 	} else if req.CellProperty == nil {
-		h.HandleHTTPError(ctx, &influxdb.Error{
+		h.api.Err(w, r, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "req body is empty",
-		}, w)
+		})
 		return
 	}
 
@@ -722,17 +651,14 @@ func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *htt
 		cell.CellProperty = *req.CellProperty
 	}
 
-	if err := h.DashboardService.AddDashboardCell(ctx, req.dashboardID, cell, *opts); err != nil {
-		h.HandleHTTPError(ctx, err, w)
+	if err := h.dashboardService.AddDashboardCell(ctx, req.dashboardID, cell, *opts); err != nil {
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Dashboard cell created", zap.String("dashboardID", req.dashboardID.String()), zap.String("cell", fmt.Sprint(cell)))
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardCellResponse(req.dashboardID, cell)); err != nil {
-		logEncodingError(h.log, r, err)
-		return
-	}
+	h.api.Respond(w, r, http.StatusCreated, newDashboardCellResponse(req.dashboardID, cell))
 }
 
 type putDashboardCellRequest struct {
@@ -743,8 +669,7 @@ type putDashboardCellRequest struct {
 func decodePutDashboardCellRequest(ctx context.Context, r *http.Request) (*putDashboardCellRequest, error) {
 	req := &putDashboardCellRequest{}
 
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -768,21 +693,18 @@ func (h *DashboardHandler) handlePutDashboardCells(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	req, err := decodePutDashboardCellRequest(ctx, r)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	if err := h.DashboardService.ReplaceDashboardCells(ctx, req.dashboardID, req.cells); err != nil {
-		h.HandleHTTPError(ctx, err, w)
+	if err := h.dashboardService.ReplaceDashboardCells(ctx, req.dashboardID, req.cells); err != nil {
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Dashboard cell replaced", zap.String("dashboardID", req.dashboardID.String()), zap.String("cells", fmt.Sprint(req.cells)))
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardCellsResponse(req.dashboardID, req.cells)); err != nil {
-		logEncodingError(h.log, r, err)
-		return
-	}
+	h.api.Respond(w, r, http.StatusCreated, newDashboardCellsResponse(req.dashboardID, req.cells))
 }
 
 type deleteDashboardCellRequest struct {
@@ -793,8 +715,7 @@ type deleteDashboardCellRequest struct {
 func decodeDeleteDashboardCellRequest(ctx context.Context, r *http.Request) (*deleteDashboardCellRequest, error) {
 	req := &deleteDashboardCellRequest{}
 
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -805,7 +726,7 @@ func decodeDeleteDashboardCellRequest(ctx context.Context, r *http.Request) (*de
 		return nil, err
 	}
 
-	cellID := params.ByName("cellID")
+	cellID := chi.URLParam(r, "cellID")
 	if cellID == "" {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -827,8 +748,7 @@ type getDashboardCellViewRequest struct {
 func decodeGetDashboardCellViewRequest(ctx context.Context, r *http.Request) (*getDashboardCellViewRequest, error) {
 	req := &getDashboardCellViewRequest{}
 
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		return nil, influxdb.NewError(influxdb.WithErrorMsg("url missing id"), influxdb.WithErrorCode(influxdb.EInvalid))
 	}
@@ -836,7 +756,7 @@ func decodeGetDashboardCellViewRequest(ctx context.Context, r *http.Request) (*g
 		return nil, err
 	}
 
-	cellID := params.ByName("cellID")
+	cellID := chi.URLParam(r, "cellID")
 	if cellID == "" {
 		return nil, influxdb.NewError(influxdb.WithErrorMsg("url missing cellID"), influxdb.WithErrorCode(influxdb.EInvalid))
 	}
@@ -851,22 +771,19 @@ func (h *DashboardHandler) handleGetDashboardCellView(w http.ResponseWriter, r *
 	ctx := r.Context()
 	req, err := decodeGetDashboardCellViewRequest(ctx, r)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	view, err := h.DashboardService.GetDashboardCellView(ctx, req.dashboardID, req.cellID)
+	view, err := h.dashboardService.GetDashboardCellView(ctx, req.dashboardID, req.cellID)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Dashboard cell view retrieved", zap.String("dashboardID", req.dashboardID.String()), zap.String("cellID", req.cellID.String()), zap.String("view", fmt.Sprint(view)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardCellViewResponse(req.dashboardID, req.cellID, view)); err != nil {
-		logEncodingError(h.log, r, err)
-		return
-	}
+	h.api.Respond(w, r, http.StatusOK, newDashboardCellViewResponse(req.dashboardID, req.cellID, view))
 }
 
 type patchDashboardCellViewRequest struct {
@@ -878,8 +795,7 @@ type patchDashboardCellViewRequest struct {
 func decodePatchDashboardCellViewRequest(ctx context.Context, r *http.Request) (*patchDashboardCellViewRequest, error) {
 	req := &patchDashboardCellViewRequest{}
 
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		return nil, influxdb.NewError(influxdb.WithErrorMsg("url missing id"), influxdb.WithErrorCode(influxdb.EInvalid))
 	}
@@ -887,7 +803,7 @@ func decodePatchDashboardCellViewRequest(ctx context.Context, r *http.Request) (
 		return nil, err
 	}
 
-	cellID := params.ByName("cellID")
+	cellID := chi.URLParam(r, "cellID")
 	if cellID == "" {
 		return nil, influxdb.NewError(influxdb.WithErrorMsg("url missing cellID"), influxdb.WithErrorCode(influxdb.EInvalid))
 	}
@@ -906,21 +822,18 @@ func (h *DashboardHandler) handlePatchDashboardCellView(w http.ResponseWriter, r
 	ctx := r.Context()
 	req, err := decodePatchDashboardCellViewRequest(ctx, r)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
-	view, err := h.DashboardService.UpdateDashboardCellView(ctx, req.dashboardID, req.cellID, req.upd)
+	view, err := h.dashboardService.UpdateDashboardCellView(ctx, req.dashboardID, req.cellID, req.upd)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Dashboard cell view updated", zap.String("dashboardID", req.dashboardID.String()), zap.String("cellID", req.cellID.String()), zap.String("view", fmt.Sprint(view)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardCellViewResponse(req.dashboardID, req.cellID, view)); err != nil {
-		logEncodingError(h.log, r, err)
-		return
-	}
+	h.api.Respond(w, r, http.StatusOK, newDashboardCellViewResponse(req.dashboardID, req.cellID, view))
 }
 
 // handleDeleteDashboardCell deletes a dashboard cell.
@@ -928,11 +841,11 @@ func (h *DashboardHandler) handleDeleteDashboardCell(w http.ResponseWriter, r *h
 	ctx := r.Context()
 	req, err := decodeDeleteDashboardCellRequest(ctx, r)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
-	if err := h.DashboardService.RemoveDashboardCell(ctx, req.dashboardID, req.cellID); err != nil {
-		h.HandleHTTPError(ctx, err, w)
+	if err := h.dashboardService.RemoveDashboardCell(ctx, req.dashboardID, req.cellID); err != nil {
+		h.api.Err(w, r, err)
 		return
 	}
 	h.log.Debug("Dashboard cell deleted", zap.String("dashboardID", req.dashboardID.String()), zap.String("cellID", req.cellID.String()))
@@ -949,8 +862,7 @@ type patchDashboardCellRequest struct {
 func decodePatchDashboardCellRequest(ctx context.Context, r *http.Request) (*patchDashboardCellRequest, error) {
 	req := &patchDashboardCellRequest{}
 
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -961,7 +873,7 @@ func decodePatchDashboardCellRequest(ctx context.Context, r *http.Request) (*pat
 		return nil, err
 	}
 
-	cellID := params.ByName("cellID")
+	cellID := chi.URLParam(r, "cellID")
 	if cellID == "" {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -991,21 +903,26 @@ func (h *DashboardHandler) handlePatchDashboardCell(w http.ResponseWriter, r *ht
 	ctx := r.Context()
 	req, err := decodePatchDashboardCellRequest(ctx, r)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
-	cell, err := h.DashboardService.UpdateDashboardCell(ctx, req.dashboardID, req.cellID, req.upd)
+	cell, err := h.dashboardService.UpdateDashboardCell(ctx, req.dashboardID, req.cellID, req.upd)
 	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+		h.api.Err(w, r, err)
 		return
 	}
 
 	h.log.Debug("Dashboard cell updated", zap.String("dashboardID", req.dashboardID.String()), zap.String("cell", fmt.Sprint(cell)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardCellResponse(req.dashboardID, cell)); err != nil {
-		logEncodingError(h.log, r, err)
-		return
+	h.api.Respond(w, r, http.StatusOK, newDashboardCellResponse(req.dashboardID, cell))
+}
+
+func (h *DashboardHandler) lookupOrgByDashboardID(ctx context.Context, id influxdb.ID) (influxdb.ID, error) {
+	d, err := h.dashboardService.FindDashboardByID(ctx, id)
+	if err != nil {
+		return 0, err
 	}
+	return d.OrganizationID, nil
 }
 
 // DashboardService is a dashboard service over HTTP to the influxdb server.

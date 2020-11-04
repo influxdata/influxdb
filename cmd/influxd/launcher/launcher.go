@@ -23,6 +23,8 @@ import (
 	"github.com/influxdata/influxdb/v2/checks"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
+	"github.com/influxdata/influxdb/v2/dashboards"
+	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/fluxinit"
 	"github.com/influxdata/influxdb/v2/gather"
@@ -766,8 +768,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var (
 		variableSvc      platform.VariableService                 = m.kvService
 		sourceSvc        platform.SourceService                   = m.kvService
-		dashboardSvc     platform.DashboardService                = m.kvService
-		dashboardLogSvc  platform.DashboardOperationLogService    = m.kvService
 		userLogSvc       platform.UserOperationLogService         = m.kvService
 		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
 		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
@@ -1165,6 +1165,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 	}
 
+	var (
+		dashboardSvc    platform.DashboardService
+		dashboardLogSvc platform.DashboardOperationLogService
+	)
+	{
+		dashboardService := dashboards.NewService(m.kvStore, m.kvService)
+		dashboardSvc = dashboardService
+		dashboardLogSvc = dashboardService
+	}
+
 	// resourceResolver is a deprecated type which combines the lookups
 	// of multiple resources into one type, used to resolve the resources
 	// associated org ID or name . It is a stop-gap while we move this
@@ -1334,6 +1344,33 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	bucketHTTPServer := ts.NewBucketHTTPHandler(m.log, labelSvc)
 
+	var dashboardServer *dashboardTransport.DashboardHandler
+	{
+		urmHandler := tenant.NewURMHandler(
+			m.log.With(zap.String("handler", "urm")),
+			platform.DashboardsResourceType,
+			"id",
+			ts.UserService,
+			tenant.NewAuthedURMService(ts.OrganizationService, ts.UserResourceMappingService),
+		)
+
+		labelHandler := label.NewHTTPEmbeddedHandler(
+			m.log.With(zap.String("handler", "label")),
+			platform.DashboardsResourceType,
+			labelSvc,
+		)
+
+		dashboardServer = dashboardTransport.NewDashboardHandler(
+			m.log.With(zap.String("handler", "dashboards")),
+			authorizer.NewDashboardService(dashboardSvc),
+			labelSvc,
+			ts.UserService,
+			ts.OrganizationService,
+			urmHandler,
+			labelHandler,
+		)
+	}
+
 	{
 		platformHandler := http.NewPlatformHandler(m.apibackend,
 			http.WithResourceHandler(stacksHTTPServer),
@@ -1348,6 +1385,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithResourceHandler(orgHTTPServer),
 			http.WithResourceHandler(bucketHTTPServer),
 			http.WithResourceHandler(v1AuthHTTPServer),
+			http.WithResourceHandler(dashboardServer),
 		)
 
 		httpLogger := m.log.With(zap.String("service", "http"))

@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -367,9 +368,9 @@ func (tl *TestLauncher) BucketService(tb testing.TB) *http.BucketService {
 	return &http.BucketService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) DashboardService(tb testing.TB) *http.DashboardService {
+func (tl *TestLauncher) DashboardService(tb testing.TB) influxdb.DashboardService {
 	tb.Helper()
-	return &http.DashboardService{Client: tl.HTTPClient(tb)}
+	return &dashboardTransport.DashboardService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) LabelService(tb testing.TB) *http.LabelService {

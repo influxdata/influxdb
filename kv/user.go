@@ -476,7 +476,7 @@ func (s *Service) GetUserOperationLog(ctx context.Context, id influxdb.ID, opts 
 			return err
 		}
 
-		return s.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
+		return s.ForEachLogEntryTx(ctx, tx, key, opts, func(v []byte, t time.Time) error {
 			e := &influxdb.OperationLogEntry{}
 			if err := json.Unmarshal(v, e); err != nil {
 				return err
@@ -489,7 +489,7 @@ func (s *Service) GetUserOperationLog(ctx context.Context, id influxdb.ID, opts 
 		})
 	})
 
-	if err != nil && err != errKeyValueLogBoundsNotFound {
+	if err != nil && err != ErrKeyValueLogBoundsNotFound {
 		return nil, 0, err
 	}
 
@@ -535,7 +535,7 @@ func (s *Service) appendUserEventToLog(ctx context.Context, tx Tx, id influxdb.I
 		return err
 	}
 
-	return s.addLogEntry(ctx, tx, k, v, s.Now())
+	return s.AddLogEntryTx(ctx, tx, k, v, s.Now())
 }
 
 var (

@@ -5,7 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
-	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 )
@@ -147,7 +147,7 @@ func newDashboardSVCs() (influxdb.DashboardService, influxdb.OrganizationService
 	orgSVC := &tenant.OrgClientService{
 		Client: httpClient,
 	}
-	dashSVC := &http.DashboardService{
+	dashSVC := &transport.DashboardService{
 		Client: httpClient,
 	}
 	return dashSVC, orgSVC, nil
