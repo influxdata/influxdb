@@ -6,10 +6,6 @@ builds:
       - darwin
     goarch:
       - amd64
-      - arm64
-      - arm
-    goarm:
-      - 6
 
     main: ./cmd/influx/
     flags:
@@ -30,10 +26,6 @@ builds:
       - darwin
     goarch:
       - amd64
-      - arm64
-      - arm
-    goarm:
-      - 6
 
     main: ./cmd/influxd/
     flags:
@@ -119,7 +111,7 @@ dockers:
       - influxd
       - influx
     image_templates:
-      - "quay.io/influxdb/influxdb:{{ .Env.DOCKER_VERSION }}"
+      - "quay.io/influxdb/influxdb:{{ .Tag }}"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
