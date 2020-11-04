@@ -139,10 +139,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	h.Mount(prefixChronograf, NewChronografHandler(b.ChronografService, b.HTTPErrorHandler))
 
-	dashboardBackend := NewDashboardBackend(b.Logger.With(zap.String("handler", "dashboard")), b)
-	dashboardBackend.DashboardService = authorizer.NewDashboardService(b.DashboardService)
-	h.Mount(prefixDashboards, NewDashboardHandler(b.Logger, dashboardBackend))
-
 	deleteBackend := NewDeleteBackend(b.Logger.With(zap.String("handler", "delete")), b)
 	h.Mount(prefixDelete, NewDeleteHandler(b.Logger, deleteBackend))
 

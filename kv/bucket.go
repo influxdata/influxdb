@@ -833,7 +833,7 @@ func (s *Service) GetBucketOperationLog(ctx context.Context, id influxdb.ID, opt
 			return err
 		}
 
-		return s.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
+		return s.ForEachLogEntryTx(ctx, tx, key, opts, func(v []byte, t time.Time) error {
 			e := &influxdb.OperationLogEntry{}
 			if err := json.Unmarshal(v, e); err != nil {
 				return err
@@ -846,7 +846,7 @@ func (s *Service) GetBucketOperationLog(ctx context.Context, id influxdb.ID, opt
 		})
 	})
 
-	if err != nil && err != errKeyValueLogBoundsNotFound {
+	if err != nil && err != ErrKeyValueLogBoundsNotFound {
 		return nil, 0, err
 	}
 
@@ -882,7 +882,7 @@ func (s *Service) appendBucketEventToLog(ctx context.Context, tx Tx, id influxdb
 		return err
 	}
 
-	return s.addLogEntry(ctx, tx, k, v, s.Now())
+	return s.AddLogEntryTx(ctx, tx, k, v, s.Now())
 }
 
 // UnexpectedBucketError is used when the error comes from an internal system.

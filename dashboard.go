@@ -79,6 +79,7 @@ type Dashboard struct {
 	Description    string        `json:"description"`
 	Cells          []*Cell       `json:"cells"`
 	Meta           DashboardMeta `json:"meta"`
+	OwnerID        *ID           `json:"owner,omitempty"`
 }
 
 // DashboardMeta contains meta information about dashboards
@@ -197,6 +198,7 @@ type DashboardFilter struct {
 	IDs            []*ID
 	OrganizationID *ID
 	Organization   *string
+	OwnerID        *ID
 }
 
 // QueryParams turns a dashboard filter into query params
@@ -216,6 +218,10 @@ func (f DashboardFilter) QueryParams() map[string][]string {
 
 	if f.Organization != nil {
 		qp.Add("org", *f.Organization)
+	}
+
+	if f.OwnerID != nil {
+		qp.Add("owner", f.OwnerID.String())
 	}
 
 	return qp
