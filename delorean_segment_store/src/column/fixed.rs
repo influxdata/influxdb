@@ -170,15 +170,15 @@ where
     ///
     /// Since this encoding cannot have NULL values this is just the number of
     /// rows requested.
-    pub fn count(&self, row_ids: &[usize]) -> u64 {
-        row_ids.len() as u64
+    pub fn count(&self, row_ids: &[u32]) -> u32 {
+        row_ids.len() as u32
     }
 
     /// Returns the summation of the logical (decoded) values for the provided
     /// row IDs.
     ///
     /// The desired logical type of the output should be specified via `U`.
-    pub fn sum<U>(&self, row_ids: &[usize]) -> U
+    pub fn sum<U>(&self, row_ids: &[u32]) -> U
     where
         U: From<T> + AddAssign + Default,
     {
@@ -186,15 +186,15 @@ where
 
         // TODO(edd): There may be a faster unsafe way to do this.
         for chunks in row_ids.chunks_exact(4) {
-            result += U::from(self.values[chunks[3]]);
-            result += U::from(self.values[chunks[2]]);
-            result += U::from(self.values[chunks[1]]);
-            result += U::from(self.values[chunks[0]]);
+            result += U::from(self.values[chunks[3] as usize]);
+            result += U::from(self.values[chunks[2] as usize]);
+            result += U::from(self.values[chunks[1] as usize]);
+            result += U::from(self.values[chunks[0] as usize]);
         }
 
         let rem = row_ids.len() % 4;
         for &i in &row_ids[row_ids.len() - rem..row_ids.len()] {
-            result += U::from(self.values[i]);
+            result += U::from(self.values[i as usize]);
         }
 
         result
