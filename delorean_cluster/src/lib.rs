@@ -71,11 +71,11 @@ use std::{
     },
 };
 
-use delorean_arrow::arrow::record_batch::RecordBatch;
-use delorean_data_types::{
+use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
     database_rules::{DatabaseRules, HostGroup, HostGroupId, MatchTables},
 };
+use delorean_arrow::arrow::record_batch::RecordBatch;
 use delorean_line_parser::ParsedLine;
 use delorean_object_store::ObjectStore;
 use delorean_storage::Database;
@@ -405,8 +405,8 @@ fn config_location(id: u32) -> String {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use data_types::database_rules::{MatchTables, Matcher, Subscription};
     use delorean_arrow::arrow::{csv, util::string_writer::StringWriter};
-    use delorean_data_types::database_rules::{MatchTables, Matcher, Subscription};
     use delorean_line_parser::parse_lines;
     use delorean_object_store::{InMemory, ObjectStoreIntegration};
     use futures::TryStreamExt;

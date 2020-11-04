@@ -698,6 +698,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "data_types"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "crc32fast",
+ "delorean_generated_types",
+ "delorean_line_parser",
+ "flatbuffers",
+ "serde",
+ "snafu",
+]
+
+[[package]]
 name = "datafusion"
 version = "3.0.0-SNAPSHOT"
 source = "git+https://github.com/apache/arrow.git?rev=e7ce8cfda3a612cd54fa47d06e26ca07b83a7cd6#e7ce8cfda3a612cd54fa47d06e26ca07b83a7cd6"
@@ -783,8 +796,8 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bytes",
+ "data_types",
  "delorean_arrow",
- "delorean_data_types",
  "delorean_generated_types",
  "delorean_line_parser",
  "delorean_object_store",
@@ -795,19 +808,6 @@ dependencies = [
  "serde_json",
  "snafu",
  "tokio",
-]
-
-[[package]]
-name = "delorean_data_types"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "crc32fast",
- "delorean_generated_types",
- "delorean_line_parser",
- "flatbuffers",
- "serde",
- "snafu",
 ]
 
 [[package]]
@@ -912,8 +912,8 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "croaring",
+ "data_types",
  "delorean_arrow",
- "delorean_data_types",
  "delorean_line_parser",
  "delorean_test_helpers",
  "serde",
@@ -1005,8 +1005,8 @@ dependencies = [
  "async-trait",
  "chrono",
  "criterion",
+ "data_types",
  "delorean_arrow",
- "delorean_data_types",
  "delorean_generated_types",
  "delorean_line_parser",
  "delorean_storage",

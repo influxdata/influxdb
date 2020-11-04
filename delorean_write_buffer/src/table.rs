@@ -14,7 +14,7 @@ use crate::{
     dictionary::{Dictionary, Error as DictionaryError},
     partition::Partition,
 };
-use delorean_data_types::TIME_COLUMN_NAME;
+use data_types::TIME_COLUMN_NAME;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use delorean_arrow::{
@@ -1074,7 +1074,7 @@ impl IntoExpr for str {
 #[cfg(test)]
 mod tests {
     use arrow::util::pretty::pretty_format_batches;
-    use delorean_data_types::data::split_lines_into_write_entry_partitions;
+    use data_types::data::split_lines_into_write_entry_partitions;
     use delorean_line_parser::{parse_lines, ParsedLine};
     use delorean_storage::exec::Executor;
     use delorean_test_helpers::str_vec_to_arc_vec;

@@ -12,7 +12,7 @@ use crate::{
     Database, DatabaseStore, Predicate, TimestampRange,
 };
 
-use delorean_data_types::data::ReplicatedWrite;
+use data_types::data::ReplicatedWrite;
 use delorean_line_parser::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;

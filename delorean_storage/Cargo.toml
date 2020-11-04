@@ -17,5 +17,5 @@ croaring = "0.4.5"
 
 delorean_arrow = { path = "../delorean_arrow" }
 delorean_line_parser = { path = "../delorean_line_parser" }
-delorean_data_types = { path = "../delorean_data_types" }
+data_types = { path = "../data_types" }
 delorean_test_helpers = { path = "../delorean_test_helpers" }

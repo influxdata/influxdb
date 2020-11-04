@@ -7,8 +7,8 @@
 )]
 
 use async_trait::async_trait;
+use data_types::data::ReplicatedWrite;
 use delorean_arrow::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
-use delorean_data_types::data::ReplicatedWrite;
 use delorean_line_parser::ParsedLine;
 use exec::{FieldListPlan, GroupedSeriesSetPlans, SeriesSetPlans, StringSetPlan};
 

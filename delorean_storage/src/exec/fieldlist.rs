@@ -3,13 +3,13 @@
 //! pull them from RecordBatches
 use std::collections::BTreeMap;
 
+use data_types::TIME_COLUMN_NAME;
 use delorean_arrow::arrow::{
     self,
     array::Int64Array,
     datatypes::{DataType, SchemaRef},
     record_batch::RecordBatch,
 };
-use delorean_data_types::TIME_COLUMN_NAME;
 
 use snafu::{ensure, ResultExt, Snafu};
 

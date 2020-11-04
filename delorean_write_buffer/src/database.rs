@@ -20,6 +20,7 @@ use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use data_types::data::{split_lines_into_write_entry_partitions, ReplicatedWrite};
 use delorean_arrow::{
     arrow,
     arrow::{datatypes::Schema as ArrowSchema, record_batch::RecordBatch},
@@ -32,7 +33,6 @@ use delorean_arrow::{
         datasource::MemTable, error::DataFusionError, execution::context::ExecutionContext,
     },
 };
-use delorean_data_types::data::{split_lines_into_write_entry_partitions, ReplicatedWrite};
 
 use crate::dictionary::Error as DictionaryError;
 use crate::partition::restore_partitions_from_wal;

@@ -2,7 +2,7 @@ use delorean_generated_types::wal as wb;
 use snafu::Snafu;
 
 use crate::dictionary::Dictionary;
-use delorean_data_types::{data::type_description, partition_metadata::Statistics};
+use data_types::{data::type_description, partition_metadata::Statistics};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

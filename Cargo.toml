@@ -9,7 +9,7 @@ default-run = "delorean"
 members = [
     "delorean_arrow",
     "delorean_cluster",
-    "delorean_data_types",
+    "data_types",
     "delorean_generated_types",
     "delorean_ingest",
     "delorean_line_parser",
