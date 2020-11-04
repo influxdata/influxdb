@@ -173,14 +173,17 @@ impl AndExprBuilder {
     pub fn append_expr(self, new_expr: Expr) -> Self {
         let Self { cur_expr } = self;
 
-        let cur_expr = Some(match cur_expr {
-            Some(cur_expr) => Expr::BinaryExpr {
+        let cur_expr = if let Some(cur_expr) = cur_expr {
+            Expr::BinaryExpr {
                 left: Box::new(cur_expr),
                 op: Operator::And,
                 right: Box::new(new_expr),
-            },
-            None => new_expr,
-        });
+            }
+        } else {
+            new_expr
+        };
+
+        let cur_expr = Some(cur_expr);
 
         Self { cur_expr }
     }
