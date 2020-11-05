@@ -51,6 +51,8 @@ type Store interface {
 	Update(context.Context, func(Tx) error) error
 	// Backup copies all K:Vs to a writer, file format determined by implementation.
 	Backup(ctx context.Context, w io.Writer) error
+	// Restore replaces the underlying data file with the data from r.
+	Restore(ctx context.Context, r io.Reader) error
 }
 
 // Tx is a transaction in the store.

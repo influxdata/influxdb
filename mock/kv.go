@@ -11,9 +11,10 @@ var _ (kv.Store) = (*Store)(nil)
 
 // Store is a mock kv.Store
 type Store struct {
-	ViewFn   func(func(kv.Tx) error) error
-	UpdateFn func(func(kv.Tx) error) error
-	BackupFn func(ctx context.Context, w io.Writer) error
+	ViewFn    func(func(kv.Tx) error) error
+	UpdateFn  func(func(kv.Tx) error) error
+	BackupFn  func(ctx context.Context, w io.Writer) error
+	RestoreFn func(ctx context.Context, r io.Reader) error
 }
 
 // View opens up a transaction that will not write to any data. Implementing interfaces
@@ -29,6 +30,10 @@ func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
 
 func (s *Store) Backup(ctx context.Context, w io.Writer) error {
 	return s.BackupFn(ctx, w)
+}
+
+func (s *Store) Restore(ctx context.Context, r io.Reader) error {
+	return s.RestoreFn(ctx, r)
 }
 
 var _ (kv.Tx) = (*Tx)(nil)

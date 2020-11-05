@@ -26,6 +26,10 @@ func (s mockStore) Backup(ctx context.Context, w io.Writer) error {
 	return nil
 }
 
+func (s mockStore) Restore(ctx context.Context, r io.Reader) error {
+	return nil
+}
+
 func TestNewService(t *testing.T) {
 	s := kv.NewService(zaptest.NewLogger(t), mockStore{})
 
