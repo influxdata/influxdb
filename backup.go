@@ -32,14 +32,11 @@ type RestoreService interface {
 }
 
 // Manifest lists the KV and shard file information contained in the backup.
-// If Limited is false, the manifest contains a full backup, otherwise
-// it is a partial backup.
 type Manifest struct {
 	KV    ManifestKVEntry `json:"kv"`
 	Files []ManifestEntry `json:"files"`
 
-	// If limited is true, then one (or all) of the following fields will be set
-
+	// These fields are only set if filtering options are set on the CLI.
 	OrganizationID string `json:"organizationID,omitempty"`
 	BucketID       string `json:"bucketID,omitempty"`
 }
