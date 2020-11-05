@@ -11,8 +11,6 @@ import {templatesReducer as reducer} from 'src/templates/reducers'
 import {
   addTemplateSummary,
   populateTemplateSummaries,
-  removeTemplateSummary,
-  setTemplateSummary,
 } from 'src/templates/actions/creators'
 
 // Types
@@ -47,6 +45,7 @@ const stagedCommunityTemplate: CommunityTemplate = {}
 const initialState = () => ({
   stagedCommunityTemplate,
   stagedTemplateEnvReferences: {},
+  communityTemplateReadmeCollection: {},
   stagedTemplateUrl: '',
   status,
   byID: {
@@ -88,46 +87,5 @@ describe('templates reducer', () => {
     const actual = reducer(state, addTemplateSummary(schema))
 
     expect(actual.allIDs.length).toEqual(Number(id))
-  })
-
-  it('can remove a template', () => {
-    const allIDs = [templateSummary.id]
-    const byID = {[templateSummary.id]: templateSummary}
-
-    const state = initialState()
-    const expected = {
-      status,
-      byID,
-      allIDs,
-      exportTemplate,
-      stagedCommunityTemplate,
-      stagedTemplateEnvReferences: {},
-      stagedTemplateUrl: '',
-      stacks: [],
-    }
-    const actual = reducer(state, removeTemplateSummary(state.allIDs[1]))
-
-    expect(actual).toEqual(expected)
-  })
-
-  it('can set a template', () => {
-    const name = 'updated name'
-    const loadedTemplateSummary = {
-      ...templateSummary,
-      meta: {...templateSummary.meta, name: 'updated name'},
-    }
-    const schema = normalize<TemplateSummary, TemplateSummaryEntities, string>(
-      loadedTemplateSummary,
-      templateSchema
-    )
-
-    const state = initialState()
-
-    const actual = reducer(
-      state,
-      setTemplateSummary(templateSummary.id, RemoteDataState.Done, schema)
-    )
-
-    expect(actual.byID[templateSummary.id].meta.name).toEqual(name)
   })
 })

@@ -4,7 +4,7 @@ import {CommunityTemplateReadme} from 'src/templates/components/CommunityTemplat
 import {Overlay, Button, IconFont, ComponentSize} from '@influxdata/clockface'
 
 interface Props {
-  directory: string
+  url: string
 }
 
 interface State {
@@ -32,7 +32,7 @@ export class CommunityTemplateReadMeOverlay extends PureComponent<
           <Overlay.Container maxWidth={800} testID="template-install-overlay">
             <Overlay.Header title="Read Me" onDismiss={this.onDismiss} />
             <Overlay.Body>
-              <CommunityTemplateReadme directory={this.props.directory} />
+              <CommunityTemplateReadme url={this.props.url} />
             </Overlay.Body>
           </Overlay.Container>
         </Overlay>

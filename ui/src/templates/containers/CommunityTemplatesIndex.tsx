@@ -45,7 +45,6 @@ import {
   getTemplateNameFromUrl,
 } from 'src/templates/utils'
 
-import {reportError} from 'src/shared/utils/errors'
 import {communityTemplateUnsupportedFormatError} from 'src/shared/copy/notifications'
 
 import {
@@ -254,9 +253,6 @@ class UnconnectedCommunityTemplatesIndex extends Component<Props, State> {
       )
     } catch (err) {
       this.props.notify(communityTemplateUnsupportedFormatError())
-      reportError(err, {
-        name: 'The community template getTemplateDetails failed',
-      })
     }
   }
 

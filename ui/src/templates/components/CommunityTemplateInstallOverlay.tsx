@@ -13,7 +13,7 @@ import {
 
 import {notify} from 'src/shared/actions/notifications'
 
-import {createTemplate, fetchAndSetStacks} from 'src/templates/actions/thunks'
+import {fetchAndSetStacks} from 'src/templates/actions/thunks'
 import {getBuckets} from 'src/buckets/actions/thunks'
 
 import {getTotalResourceCount} from 'src/templates/selectors'
@@ -25,7 +25,6 @@ import {ComponentStatus} from '@influxdata/clockface'
 // Utils
 import {getByID} from 'src/resources/selectors'
 import {getTemplateNameFromUrl} from 'src/templates/utils'
-import {reportError} from 'src/shared/utils/errors'
 
 import {
   installTemplate,
@@ -100,9 +99,6 @@ class CommunityTemplateInstallOverlayUnconnected extends PureComponent<Props> {
       return summary
     } catch (err) {
       this.props.notify(communityTemplateInstallFailed(err.message))
-      reportError(err, {
-        name: 'The community template fetch for preview failed',
-      })
     }
   }
 
@@ -125,9 +121,6 @@ class CommunityTemplateInstallOverlayUnconnected extends PureComponent<Props> {
       event('template_install', {templateUrl: this.props.stagedTemplateUrl})
     } catch (err) {
       this.props.notify(communityTemplateInstallFailed(err.message))
-      reportError(err, {
-        name: 'Failed to install community template',
-      })
       return
     }
 
@@ -146,9 +139,6 @@ class CommunityTemplateInstallOverlayUnconnected extends PureComponent<Props> {
       this.props.notify(communityTemplateInstallSucceeded(templateDetails.name))
     } catch (err) {
       this.props.notify(communityTemplateRenameFailed())
-      reportError(err, {
-        name: 'The community template rename failed',
-      })
     } finally {
       this.props.fetchAndSetStacks(this.props.org.id)
       this.onDismiss()
@@ -206,7 +196,6 @@ const mstp = (state: AppState, props: RouterProps) => {
 }
 
 const mdtp = {
-  createTemplate,
   getBuckets,
   fetchAndSetStacks,
   notify,

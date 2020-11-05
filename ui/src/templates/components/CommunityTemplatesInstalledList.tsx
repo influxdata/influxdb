@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import {connect, ConnectedProps} from 'react-redux'
-import {getTemplateNameFromUrl} from 'src/templates/utils'
 
 // Components
 import {
@@ -25,7 +24,9 @@ import {
   communityTemplateDeleteFailed,
   communityTemplateFetchStackFailed,
 } from 'src/shared/copy/notifications'
+
 import {fetchAndSetStacks} from 'src/templates/actions/thunks'
+import {getBuckets} from 'src/buckets/actions/thunks'
 
 // Types
 import {AppState} from 'src/types'
@@ -35,8 +36,6 @@ import {TemplateKind} from 'src/client'
 import {deleteStack} from 'src/templates/api'
 
 //Utils
-import {reportError} from 'src/shared/utils/errors'
-
 import {event} from 'src/cloud/utils/reporting'
 
 interface OwnProps {
@@ -64,17 +63,13 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
       this.props.fetchAndSetStacks(this.props.orgID)
     } catch (err) {
       this.props.notify(communityTemplateFetchStackFailed(err.message))
-      reportError(err, {name: 'The community template fetch stack failed'})
     }
   }
 
   private renderStackSources(sources: string[]) {
     return sources.map(source => {
       if (source.includes('github') && source.includes('influxdata')) {
-        const directory = getTemplateNameFromUrl(source).directory
-        return (
-          <CommunityTemplateReadMeOverlay key={source} directory={directory} />
-        )
+        return <CommunityTemplateReadMeOverlay key={source} url={source} />
       }
 
       return source
@@ -92,9 +87,9 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
         event('template_delete', {templateName: stackName})
 
         this.props.notify(communityTemplateDeleteSucceeded(stackName))
+        this.props.getBuckets()
       } catch (err) {
         this.props.notify(communityTemplateDeleteFailed(err.message))
-        reportError(err, {name: 'The community template delete failed'})
       } finally {
         this.props.fetchAndSetStacks(this.props.orgID)
       }
@@ -122,7 +117,7 @@ class CommunityTemplatesInstalledListUnconnected extends PureComponent<Props> {
                 Install Date
               </Table.HeaderCell>
               <Table.HeaderCell style={{width: '210px'}}>
-                Source
+                Links
               </Table.HeaderCell>
               <Table.HeaderCell style={{width: '60px'}}>
                 &nbsp;
@@ -206,6 +201,7 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
+  getBuckets,
   fetchAndSetStacks,
   notify,
 }

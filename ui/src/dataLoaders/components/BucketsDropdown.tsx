@@ -14,6 +14,7 @@ interface Props {
   selectedBucketID: string
   buckets: Bucket[]
   onSelectBucket: (bucket: Bucket) => void
+  style?: {[key: string]: string}
 }
 
 class BucketsDropdown extends PureComponent<Props> {
@@ -36,6 +37,7 @@ class BucketsDropdown extends PureComponent<Props> {
             {this.dropdownBuckets}
           </Dropdown.Menu>
         )}
+        style={this.props.style}
       />
     )
   }

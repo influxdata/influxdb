@@ -14,8 +14,8 @@ import {
   AlignItems,
   Label,
 } from '@influxdata/clockface'
-import CommunityTemplateListItem from 'src/templates/components/CommunityTemplateListItem'
-import CommunityTemplateListGroup from 'src/templates/components/CommunityTemplateListGroup'
+import {CommunityTemplateListItem} from 'src/templates/components/CommunityTemplateListItem'
+import {CommunityTemplateListGroup} from 'src/templates/components/CommunityTemplateListGroup'
 
 import {CommunityTemplateParameters} from 'src/templates/components/CommunityTemplateParameters'
 
@@ -187,7 +187,7 @@ class CommunityTemplateResourceContentUnconnected extends PureComponent<Props> {
                 >
                   <FlexBox.Child grow={1}>
                     <CommunityTemplateListItem
-                      shouldInstall={true}
+                      shouldInstall={task.shouldInstall}
                       handleToggle={() => {
                         event('template_resource_uncheck', {
                           templateResourceType: 'tasks',

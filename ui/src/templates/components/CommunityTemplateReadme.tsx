@@ -1,43 +1,66 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
+import {connect, ConnectedProps} from 'react-redux'
 import {MarkdownRenderer} from 'src/shared/components/views/MarkdownRenderer'
-import {fetchReadMe} from 'src/templates/api'
-import {reportError} from 'src/shared/utils/errors'
 
-interface Props {
-  directory: string
+import {AppState} from 'src/types'
+import {getTemplateNameFromUrl} from 'src/templates/utils'
+import {fetchAndSetReadme} from 'src/templates/actions/thunks'
+
+interface OwnProps {
+  url: string
 }
 
-const cloudImageRenderer = (): any =>
+type ReduxProps = ConnectedProps<typeof connector>
+type Props = OwnProps & ReduxProps
+
+const cloudImageRenderer =
   "We don't support images in markdown for security purposes"
 
-export class CommunityTemplateReadme extends PureComponent<Props> {
-  state = {readMeData: ''}
-  componentDidMount = async () => {
-    try {
-      const response = await fetchReadMe(this.props.directory)
-      this.setState({readMeData: response})
-    } catch (error) {
-      reportError(error, {
-        name: 'The community template fetch github readme failed',
-      })
-
-      this.setState({
-        readMeData: "## We can't find the readme associated with this template",
-      })
+class CommunityTemplateReadmeUnconnected extends Component<Props> {
+  componentDidMount = () => {
+    if (!this.props.readme) {
+      this.props.fetchAndSetReadme(this.props.name, this.props.directory)
     }
   }
 
   render = () => {
+    const {readme} = this.props
+
+    if (!readme) {
+      return null
+    }
+
     return (
       <MarkdownRenderer
-        text={this.state.readMeData}
-        className="markdown-format"
+        text={readme}
         cloudRenderers={{
           image: cloudImageRenderer,
-          imageReference: cloudImageRenderer,
         }}
+        className="markdown-format community-templates--readme"
       />
     )
   }
 }
+
+const mstp = (state: AppState, props: any) => {
+  const templateDetails = getTemplateNameFromUrl(props.url)
+  return {
+    directory: templateDetails.directory,
+    name: templateDetails.name,
+    readme:
+      state.resources.templates.communityTemplateReadmeCollection[
+        templateDetails.name
+      ],
+  }
+}
+
+const mdtp = {
+  fetchAndSetReadme,
+}
+
+const connector = connect(mstp, mdtp)
+
+export const CommunityTemplateReadme = connector(
+  CommunityTemplateReadmeUnconnected
+)

@@ -3,15 +3,14 @@ import {
   Action,
   ADD_TEMPLATE_SUMMARY,
   POPULATE_TEMPLATE_SUMMARIES,
-  REMOVE_TEMPLATE_SUMMARY,
   SET_EXPORT_TEMPLATE,
   SET_STACKS,
   SET_STAGED_TEMPLATE,
   SET_STAGED_TEMPLATE_URL,
   SET_TEMPLATES_STATUS,
-  SET_TEMPLATE_SUMMARY,
   TOGGLE_TEMPLATE_RESOURCE_INSTALL,
   UPDATE_TEMPLATE_ENV_REF,
+  SET_TEMPLATE_README,
 } from 'src/templates/actions/creators'
 import {
   CommunityTemplate,
@@ -20,12 +19,7 @@ import {
   TemplateSummary,
   TemplatesState,
 } from 'src/types'
-import {
-  addResource,
-  removeResource,
-  setResource,
-  setResourceAtID,
-} from 'src/resources/reducers/helpers'
+import {addResource, setResource} from 'src/resources/reducers/helpers'
 
 const defaultCommunityTemplate = (): CommunityTemplate => {
   return {
@@ -41,6 +35,7 @@ export const defaultState = (): TemplatesState => ({
   stagedCommunityTemplate: defaultCommunityTemplate(),
   stagedTemplateEnvReferences: {},
   stagedTemplateUrl: '',
+  communityTemplateReadmeCollection: {},
   status: RemoteDataState.NotStarted,
   byID: {},
   allIDs: [],
@@ -66,16 +61,6 @@ export const templatesReducer = (
       case SET_TEMPLATES_STATUS: {
         const {status} = action
         draftState.status = status
-        return
-      }
-
-      case SET_TEMPLATE_SUMMARY: {
-        setResourceAtID<TemplateSummary>(
-          draftState,
-          action,
-          ResourceType.Templates
-        )
-
         return
       }
 
@@ -284,12 +269,6 @@ export const templatesReducer = (
         return
       }
 
-      case REMOVE_TEMPLATE_SUMMARY: {
-        removeResource<TemplateSummary>(draftState, action)
-
-        return
-      }
-
       case ADD_TEMPLATE_SUMMARY: {
         addResource<TemplateSummary>(draftState, action, ResourceType.Templates)
 
@@ -337,6 +316,15 @@ export const templatesReducer = (
           value: newValue,
           valueType,
         }
+        return
+      }
+
+      case SET_TEMPLATE_README: {
+        const {templateName, readmeText} = action
+        const readme = {...draftState.communityTemplateReadmeCollection}
+
+        readme[templateName] = readmeText
+        draftState.communityTemplateReadmeCollection = readme
         return
       }
     }

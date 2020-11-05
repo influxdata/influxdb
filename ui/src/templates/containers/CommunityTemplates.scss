@@ -1,11 +1,3 @@
-.community-templates-upload {
-  display: grid;
-  grid-column-gap: $ix-marg-b;
-  grid-row-gap: $ix-marg-b;
-  grid-template-columns: 1fr;
-  margin: $ix-marg-b 0;
-}
-
 /* The two styles below are a bandaid fix until the clockface dependency can be safely updated */
 .cf-panel.community-templates-panel
   .cf-panel--symbol-header.cf-panel--symbol-header__sm {
@@ -24,6 +16,20 @@
 .community-templates-template-url {
   display: inline-block;
   margin-right: 15px;
+}
+
+.community-templates-template-url--feedback {
+  margin-top: $cf-marg-a;
+  font-weight: $cf-font-weight--medium;
+  padding-left: $cf-form-lg-padding;
+}
+
+.community-templates-template-url--feedback__error {
+  color: $c-dreamsicle;
+}
+
+.community-templates-template-url--feedback__valid {
+  color: $c-honeydew;
 }
 
 .community-templates-installer {
@@ -142,4 +148,8 @@
 .community-templates--resources-table-item {
   height: $cf-form-sm-height;
   line-height: $cf-form-sm-height;
+}
+
+.community-templates--readme {
+  padding-top: $cf-marg-d;
 }

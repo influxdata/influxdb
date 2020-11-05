@@ -20,7 +20,11 @@ interface Props {
   children?: ReactNode
 }
 
-const CommunityTemplateListGroup: FC<Props> = ({title, count, children}) => {
+export const CommunityTemplateListGroup: FC<Props> = ({
+  title,
+  count,
+  children,
+}) => {
   const [mode, setMode] = useState<'expanded' | 'collapsed'>('collapsed')
   const groupClassName = classnames('community-templates--list-group', {
     [`community-templates--list-group__${mode}`]: mode,
@@ -69,5 +73,3 @@ const CommunityTemplateListGroup: FC<Props> = ({title, count, children}) => {
     </div>
   )
 }
-
-export default CommunityTemplateListGroup

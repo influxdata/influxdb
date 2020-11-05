@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
@@ -12,9 +11,6 @@ import {
 } from '@influxdata/clockface'
 import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 import CopyButton from 'src/shared/components/CopyButton'
-
-// Actions
-import {createTemplateFromResource} from 'src/templates/actions/thunks'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
@@ -33,10 +29,9 @@ interface OwnProps {
   isVisible: boolean
 }
 
-type ReduxProps = ConnectedProps<typeof connector>
-type Props = OwnProps & ReduxProps
+type Props = OwnProps
 
-class ExportOverlay extends PureComponent<Props> {
+export default class ExportOverlay extends PureComponent<Props> {
   public static defaultProps = {
     isVisible: true,
   }
@@ -62,7 +57,6 @@ class ExportOverlay extends PureComponent<Props> {
             </Overlay.Body>
             <Overlay.Footer>
               {this.downloadButton}
-              {this.toTemplateButton}
               {this.copyButton}
             </Overlay.Footer>
           </Form>
@@ -126,40 +120,10 @@ class ExportOverlay extends PureComponent<Props> {
     )
   }
 
-  private get toTemplateButton(): JSX.Element {
-    return (
-      <Button
-        text="Save as template"
-        onClick={this.handleConvertToTemplate}
-        color={ComponentColor.Primary}
-      />
-    )
-  }
-
   private handleExport = (): void => {
     const {resource, resourceName, onDismissOverlay} = this.props
     const name = get(resource, 'content.data.attributes.name', resourceName)
     downloadTextFile(JSON.stringify(resource, null, 1), name, '.json')
     onDismissOverlay()
   }
-
-  private handleConvertToTemplate = () => {
-    const {
-      resource,
-      onDismissOverlay,
-      resourceName,
-      onCreateTemplateFromResource,
-    } = this.props
-
-    onCreateTemplateFromResource(resource, resourceName)
-    onDismissOverlay()
-  }
 }
-
-const mdtp = {
-  onCreateTemplateFromResource: createTemplateFromResource,
-}
-
-const connector = connect(null, mdtp)
-
-export default connector(ExportOverlay)

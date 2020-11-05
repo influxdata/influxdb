@@ -26,7 +26,7 @@ interface Props {
   shouldDisableToggle?: boolean
 }
 
-const CommunityTemplateListItem: FC<Props> = ({
+export const CommunityTemplateListItem: FC<Props> = ({
   title,
   children,
   description,
@@ -74,5 +74,3 @@ const CommunityTemplateListItem: FC<Props> = ({
     </Panel>
   )
 }
-
-export default CommunityTemplateListItem
