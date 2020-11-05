@@ -11,7 +11,11 @@ use snafu::ResultExt;
 use std::{collections::BTreeMap, convert::TryInto};
 use tracing::debug;
 
-use crate::{error::Result, metadata::data_type_from_parquet_type, ChunkReader};
+use super::{
+    error::{ParquetLibraryError, Result},
+    metadata::data_type_from_parquet_type,
+    ChunkReader,
+};
 
 /// Calculate storage statistics for a particular parquet "file" that can
 /// be read from `input`, with a total size of `input_size` byes
@@ -23,7 +27,7 @@ where
     R: ChunkReader + Name,
 {
     let mut file_stats_builder = FileStatsBuilder::new(&input.name(), input.len());
-    let reader = SerializedFileReader::new(input).context(crate::error::ParquetLibraryError {
+    let reader = SerializedFileReader::new(input).context(ParquetLibraryError {
         message: "Creating parquet reader",
     })?;
 

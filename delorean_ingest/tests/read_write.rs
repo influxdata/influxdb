@@ -1,4 +1,4 @@
-use delorean_parquet::writer::{CompressionLevel, DeloreanParquetTableWriter};
+use delorean_ingest::parquet::writer::{CompressionLevel, DeloreanParquetTableWriter};
 use packers::{DeloreanTableWriter, Packer, Packers};
 
 use delorean_arrow::parquet::data_type::ByteArray;

@@ -1,10 +1,9 @@
 use data_types::table_schema::Schema;
 use delorean_ingest::{
+    parquet::writer::{CompressionLevel, DeloreanParquetTableWriter, Error as ParquetWriterError},
     ConversionSettings, Error as IngestError, LineProtocolConverter, TSMFileConverter,
 };
 use delorean_line_parser::parse_lines;
-use delorean_parquet::writer::Error as ParquetWriterError;
-use delorean_parquet::writer::{CompressionLevel, DeloreanParquetTableWriter};
 use packers::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use snafu::{ResultExt, Snafu};
 use std::{

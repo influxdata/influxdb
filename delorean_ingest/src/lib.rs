@@ -26,6 +26,8 @@ use std::{
 };
 use tracing::debug;
 
+pub mod parquet;
+
 #[derive(Debug, Clone, Copy)]
 pub struct ConversionSettings {
     /// How many `ParsedLine` structures to buffer before determining the schema

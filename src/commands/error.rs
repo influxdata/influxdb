@@ -1,8 +1,12 @@
 use snafu::Snafu;
 
-use delorean_ingest::Error as IngestError;
-use delorean_parquet::error::Error as DeloreanParquetError;
-use delorean_parquet::writer::Error as ParquetWriterError;
+use delorean_ingest::{
+    Error as IngestError,
+    parquet::{
+        error::Error as DeloreanParquetError,
+        writer::Error as ParquetWriterError
+    }
+};
 use delorean_tsm::TSMError;
 
 #[derive(Debug, Snafu)]

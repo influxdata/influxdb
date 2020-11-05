@@ -15,7 +15,6 @@ members = [
     "delorean_line_parser",
     "object_store",
     "delorean_mem_qe",
-    "delorean_parquet",
     "delorean_segment_store",
     "packers",
     "delorean_test_helpers",
@@ -36,7 +35,6 @@ delorean_generated_types = { path = "delorean_generated_types" }
 delorean_ingest = { path = "delorean_ingest" }
 delorean_line_parser = { path = "delorean_line_parser" }
 delorean_mem_qe = { path = "delorean_mem_qe" }
-delorean_parquet = { path = "delorean_parquet" }
 delorean_segment_store = { path = "delorean_segment_store" }
 packers = { path = "packers" }
 delorean_write_buffer = { path = "delorean_write_buffer" }

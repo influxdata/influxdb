@@ -1,5 +1,5 @@
 use delorean_arrow::parquet::file::serialized_reader::{FileSource, SliceableCursor};
-use delorean_parquet::ChunkReader;
+use delorean_ingest::parquet::ChunkReader;
 /// Module to handle input files (and maybe urls?)
 use libflate::gzip;
 use packers::Name;
@@ -144,7 +144,7 @@ impl Read for InputReader {
     }
 }
 
-impl delorean_parquet::Length for InputReader {
+impl delorean_ingest::parquet::Length for InputReader {
     fn len(&self) -> u64 {
         match self {
             Self::FileInputType(file_input_reader) => file_input_reader.file_size,
@@ -173,7 +173,7 @@ impl ChunkReader for InputReader {
     }
 }
 
-impl delorean_parquet::TryClone for InputReader {
+impl delorean_ingest::parquet::TryClone for InputReader {
     fn try_clone(&self) -> std::result::Result<Self, std::io::Error> {
         Err(io::Error::new(
             io::ErrorKind::Other,

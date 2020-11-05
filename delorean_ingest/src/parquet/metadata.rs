@@ -7,7 +7,10 @@ use delorean_arrow::parquet::{
 };
 use snafu::ResultExt;
 
-use crate::{error::Result, ChunkReader};
+use super::{
+    error::{ParquetLibraryError, Result},
+    ChunkReader,
+};
 
 pub fn parquet_schema_as_string(parquet_schema: &schema::types::Type) -> String {
     let mut parquet_schema_string = Vec::new();
@@ -38,7 +41,7 @@ where
 {
     let input_len = input.len();
 
-    let reader = SerializedFileReader::new(input).context(crate::error::ParquetLibraryError {
+    let reader = SerializedFileReader::new(input).context(ParquetLibraryError {
         message: "Creating parquet reader",
     })?;
 

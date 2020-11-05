@@ -10,10 +10,12 @@ edition = "2018"
 snafu = "0.6.2"
 env_logger = "0.7.1"
 tracing = "0.1"
+
 delorean_line_parser = { path = "../delorean_line_parser" }
 packers = { path = "../packers" }
 data_types = { path = "../data_types" }
 delorean_tsm = { path = "../delorean_tsm" }
+delorean_arrow = { path = "../delorean_arrow" }
 
 [dev-dependencies]
 delorean_test_helpers ={ path = "../delorean_test_helpers" }

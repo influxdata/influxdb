@@ -1,4 +1,4 @@
-use delorean_parquet::metadata::print_parquet_metadata;
+use delorean_ingest::parquet::metadata::print_parquet_metadata;
 use delorean_tsm::{reader::IndexEntry, reader::TSMIndexReader, InfluxID, TSMError};
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -151,7 +151,7 @@ pub enum Error {
 
     #[snafu(display("Unable to dump parquet file metadata: {}", source))]
     UnableDumpToParquetMetadata {
-        source: delorean_parquet::error::Error,
+        source: delorean_ingest::parquet::error::Error,
     },
 
     #[snafu(display(r#"Unable to create TSM reader: {}"#, source))]

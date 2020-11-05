@@ -711,7 +711,6 @@ dependencies = [
  "delorean_ingest",
  "delorean_line_parser",
  "delorean_mem_qe",
- "delorean_parquet",
  "delorean_segment_store",
  "delorean_storage",
  "delorean_test_helpers",
@@ -791,6 +790,7 @@ name = "delorean_ingest"
 version = "0.1.0"
 dependencies = [
  "data_types",
+ "delorean_arrow",
  "delorean_line_parser",
  "delorean_test_helpers",
  "delorean_tsm",
@@ -824,18 +824,6 @@ dependencies = [
  "delorean_arrow",
  "env_logger",
  "human_format",
- "packers",
- "snafu",
- "tracing",
-]
-
-[[package]]
-name = "delorean_parquet"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "delorean_arrow",
- "delorean_test_helpers",
  "packers",
  "snafu",
  "tracing",

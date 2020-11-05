@@ -19,7 +19,7 @@ use std::{
 };
 use tracing::debug;
 
-use crate::metadata::parquet_schema_as_string;
+use super::metadata::parquet_schema_as_string;
 use packers::{DeloreanTableWriter, Error as TableError, Packers};
 
 #[derive(Debug, Snafu)]
@@ -97,7 +97,7 @@ where
     /// # use data_types::table_schema::DataType;
     /// # use packers::DeloreanTableWriter;
     /// # use packers::{Packer, Packers};
-    /// # use delorean_parquet::writer::{DeloreanParquetTableWriter, CompressionLevel};
+    /// # use delorean_ingest::parquet::writer::{DeloreanParquetTableWriter, CompressionLevel};
     /// # use delorean_arrow::parquet::data_type::ByteArray;
     ///
     /// let schema = table_schema::SchemaBuilder::new("measurement_name")
