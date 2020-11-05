@@ -21,7 +21,7 @@ fn benchmark_row_ids(
     let mut group = c.benchmark_group(benchmark_group_name);
     for &batch_size in batch_sizes {
         for &cardinality in cardinalities {
-            let mut input = delorean_mem_qe::encoding::DictionaryRLE::new();
+            let mut input = mem_qe::encoding::DictionaryRLE::new();
             let values = batch_size / cardinality;
             for i in 0..cardinality {
                 input.push_additional(Some(i.to_string()), values as u64);
@@ -63,7 +63,7 @@ fn benchmark_row_ids_roaring(
     let mut group = c.benchmark_group(benchmark_group_name);
     for &batch_size in batch_sizes {
         for &cardinality in cardinalities {
-            let mut input = delorean_mem_qe::encoding::DictionaryRLE::new();
+            let mut input = mem_qe::encoding::DictionaryRLE::new();
             let values = batch_size / cardinality;
             for i in 0..cardinality {
                 input.push_additional(Some(i.to_string()), values as u64);

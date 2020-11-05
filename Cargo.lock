@@ -710,7 +710,6 @@ dependencies = [
  "delorean_generated_types",
  "delorean_ingest",
  "delorean_line_parser",
- "delorean_mem_qe",
  "delorean_segment_store",
  "delorean_storage",
  "delorean_test_helpers",
@@ -725,6 +724,7 @@ dependencies = [
  "hyper",
  "influxdb2_client",
  "libflate",
+ "mem_qe",
  "object_store",
  "packers",
  "predicates",
@@ -809,22 +809,6 @@ dependencies = [
  "influxdb2_client",
  "nom",
  "smallvec",
- "snafu",
- "tracing",
-]
-
-[[package]]
-name = "delorean_mem_qe"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "criterion",
- "croaring",
- "crossbeam",
- "delorean_arrow",
- "env_logger",
- "human_format",
- "packers",
  "snafu",
  "tracing",
 ]
@@ -1654,6 +1638,22 @@ name = "md5"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
+
+[[package]]
+name = "mem_qe"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "criterion",
+ "croaring",
+ "crossbeam",
+ "delorean_arrow",
+ "env_logger",
+ "human_format",
+ "packers",
+ "snafu",
+ "tracing",
+]
 
 [[package]]
 name = "memchr"

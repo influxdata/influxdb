@@ -15,11 +15,11 @@ use tracing::debug;
 use delorean_arrow::arrow::record_batch::{RecordBatch, RecordBatchReader};
 use delorean_arrow::arrow::{array, array::Array, datatypes, ipc};
 use delorean_arrow::parquet::arrow::arrow_reader::ArrowReader;
-use delorean_mem_qe::column;
-use delorean_mem_qe::column::{AggregateType, Column};
-use delorean_mem_qe::segment::{ColumnType, GroupingStrategy, Schema, Segment};
-use delorean_mem_qe::Store;
-// use delorean_mem_qe::{adapter::DeloreanQueryEngine, Store};
+use mem_qe::column;
+use mem_qe::column::{AggregateType, Column};
+use mem_qe::segment::{ColumnType, GroupingStrategy, Schema, Segment};
+use mem_qe::Store;
+// use mem_qe::{adapter::DeloreanQueryEngine, Store};
 
 #[derive(Snafu, Debug, Clone, Copy, PartialEq)]
 pub enum Error {}

@@ -1,5 +1,5 @@
 [package]
-name = "delorean_mem_qe"
+name = "mem_qe"
 version = "0.1.0"
 authors = ["Edd Robinson <me@edd.io>"]
 edition = "2018"
