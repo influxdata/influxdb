@@ -11,8 +11,7 @@ data_types = { path = "../data_types" }
 delorean_generated_types = { path = "../delorean_generated_types" }
 delorean_line_parser = { path = "../delorean_line_parser" }
 delorean_storage = { path = "../delorean_storage" }
-delorean_wal = { path = "../delorean_wal" }
-delorean_wal_writer = { path = "../delorean_wal_writer" }
+wal = { path = "../wal" }
 delorean_test_helpers = { path = "../delorean_test_helpers" }
 
 async-trait = "0.1"

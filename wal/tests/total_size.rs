@@ -1,5 +1,5 @@
-use delorean_wal::{WalBuilder, WritePayload};
 use std::fs;
+use wal::{WalBuilder, WritePayload};
 
 #[macro_use]
 mod helpers;
@@ -52,7 +52,7 @@ fn total_size() -> Result {
     assert_eq!(wal.total_size(), total_file_size_before_delete);
 
     // Pretend the process restarts
-    let wal: delorean_wal::Wal = builder.wal()?;
+    let wal = builder.wal()?;
 
     // Total size should be that of all the files, so without the file deleted out-of-band
     assert_eq!(wal.total_size(), helpers::total_size_on_disk(&dir.as_ref()));

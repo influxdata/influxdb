@@ -1,4 +1,4 @@
-use delorean_wal::{WalBuilder, WritePayload};
+use wal::{WalBuilder, WritePayload};
 
 type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T = (), E = TestError> = std::result::Result<T, E>;

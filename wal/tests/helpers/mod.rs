@@ -1,8 +1,8 @@
 #![allow(unused_macros)]
 #![allow(dead_code)]
 
-use delorean_wal::{Entry, WalBuilder};
 use std::{fs, path::PathBuf};
+use wal::{Entry, WalBuilder};
 
 type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T = (), E = TestError> = std::result::Result<T, E>;

@@ -716,8 +716,6 @@ dependencies = [
  "delorean_storage",
  "delorean_test_helpers",
  "delorean_tsm",
- "delorean_wal",
- "delorean_wal_writer",
  "delorean_write_buffer",
  "dirs 3.0.1",
  "dotenv",
@@ -744,6 +742,7 @@ dependencies = [
  "tonic",
  "tracing",
  "tracing-futures",
+ "wal",
 ]
 
 [[package]]
@@ -895,35 +894,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "delorean_wal"
-version = "0.1.0"
-dependencies = [
- "byteorder",
- "crc32fast",
- "delorean_test_helpers",
- "futures",
- "itertools 0.9.0",
- "once_cell",
- "regex",
- "snafu",
- "snap",
- "tokio",
-]
-
-[[package]]
-name = "delorean_wal_writer"
-version = "0.1.0"
-dependencies = [
- "delorean_wal",
- "futures",
- "serde",
- "serde_json",
- "snafu",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "delorean_write_buffer"
 version = "0.1.0"
 dependencies = [
@@ -936,14 +906,13 @@ dependencies = [
  "delorean_line_parser",
  "delorean_storage",
  "delorean_test_helpers",
- "delorean_wal",
- "delorean_wal_writer",
  "flatbuffers",
  "snafu",
  "sqlparser",
  "string-interner",
  "tokio",
  "tracing",
+ "wal",
 ]
 
 [[package]]
@@ -3630,6 +3599,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f200f5b12eb75f8c1ed65abd4b2db8a6e1b138a20de009dacee265a2498f3f6"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "wal"
+version = "0.1.0"
+dependencies = [
+ "byteorder",
+ "crc32fast",
+ "delorean_test_helpers",
+ "futures",
+ "itertools 0.9.0",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "snafu",
+ "snap",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

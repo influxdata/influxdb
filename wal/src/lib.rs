@@ -2,12 +2,11 @@
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
-    missing_docs,
     clippy::explicit_iter_loop,
     clippy::use_self
 )]
 
-//! # delorean_wal
+//! # wal
 //!
 //! This crate provides a WAL tailored for delorean `Partition`s to optionally use.
 //!
@@ -29,6 +28,9 @@ use std::{
     iter, mem, num,
     path::{Path, PathBuf},
 };
+
+/// WAL Writer and related utilties
+pub mod writer;
 
 /// Opaque public `Error` type
 #[derive(Debug, Snafu)]
@@ -209,7 +211,7 @@ impl WalBuilder {
 ///
 /// ```
 /// # fn example(root_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-/// use delorean_wal::{WalBuilder, WritePayload};
+/// use wal::{WalBuilder, WritePayload};
 ///
 /// // This wal should be either protected with a mutex or moved into a single
 /// // worker thread that receives writes from channels.

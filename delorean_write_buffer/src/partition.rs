@@ -4,8 +4,8 @@ use delorean_arrow::{
     datafusion::scalar::ScalarValue,
 };
 use delorean_generated_types::wal as wb;
-use delorean_wal::{Entry as WalEntry, Result as WalResult};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use wal::{Entry as WalEntry, Result as WalResult};
 
 use data_types::TIME_COLUMN_NAME;
 use delorean_storage::{
@@ -21,7 +21,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Could not read WAL entry: {}", source))]
-    WalEntryRead { source: delorean_wal::Error },
+    WalEntryRead { source: wal::Error },
 
     #[snafu(display("Partition {} not found", partition))]
     PartitionNotFound { partition: String },

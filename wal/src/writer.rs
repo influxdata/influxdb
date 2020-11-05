@@ -5,7 +5,7 @@
     clippy::explicit_iter_loop,
     clippy::use_self
 )]
-use delorean_wal::{Error as WalError, SequenceNumber, WalBuilder, WritePayload};
+use crate::{Error as WalError, SequenceNumber, WalBuilder, WritePayload};
 
 use futures::{channel::mpsc, SinkExt, StreamExt};
 use snafu::{ResultExt, Snafu};
@@ -16,6 +16,7 @@ use tracing::{error, info};
 use std::path::PathBuf;
 
 #[derive(Debug, Snafu)]
+/// Error type
 pub enum Error {
     #[snafu(display("Wal Writer error using WAL: {}", source))]
     UnderlyingWalError { source: WalError },
@@ -154,6 +155,6 @@ pub async fn start_wal_sync_task(wal_builder: WalBuilder) -> Result<WalDetails> 
 mod tests {
     #[test]
     fn it_works_but_has_no_tests() {
-        // :thinkin_face:
+        // :thinking_face:
     }
 }

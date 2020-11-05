@@ -1,8 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use delorean_line_parser as line_parser;
 use delorean_storage::Database;
-use delorean_wal::{Entry, WalBuilder};
 use delorean_write_buffer::{restore_partitions_from_wal, Db};
+use wal::{Entry, WalBuilder};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;

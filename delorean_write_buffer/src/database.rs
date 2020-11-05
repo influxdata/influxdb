@@ -8,8 +8,10 @@ use delorean_storage::{
     predicate::Predicate,
     Database,
 };
-use delorean_wal::WalBuilder;
-use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
+use wal::{
+    writer::{start_wal_sync_task, Error as WalWriterError, WalDetails},
+    WalBuilder,
+};
 
 use crate::column::Column;
 use crate::partition::Partition;
@@ -65,7 +67,7 @@ pub enum Error {
     #[snafu(display("Error opening WAL for database {}: {}", database, source))]
     LoadingWal {
         database: String,
-        source: delorean_wal::Error,
+        source: wal::Error,
     },
 
     #[snafu(display("Error recovering WAL for database {}: {}", database, source))]

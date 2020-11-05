@@ -1,4 +1,4 @@
-use delorean_wal::{WalBuilder, WritePayload};
+use wal::{WalBuilder, WritePayload};
 
 #[macro_use]
 mod helpers;

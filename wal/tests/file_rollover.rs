@@ -1,5 +1,5 @@
-use delorean_wal::{WalBuilder, WritePayload};
 use std::fs;
+use wal::{WalBuilder, WritePayload};
 
 #[macro_use]
 mod helpers;
