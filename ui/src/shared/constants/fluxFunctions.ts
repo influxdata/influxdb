@@ -2087,6 +2087,63 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/built-in/transformations/increase/',
   },
   {
+    name: 'influxdb.cardinality',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'Bucket to query cardinality from.',
+        type: 'String',
+      },
+      {
+        name: 'bucketID',
+        desc: 'Bucket ID to query cardinality from.',
+        type: 'String',
+      },
+      {
+        name: 'org',
+        desc: 'InfluxDB organization.',
+        type: 'String',
+      },
+      {
+        name: 'orgID',
+        desc: 'InfluxDB organization ID.',
+        type: 'String',
+      },
+      {
+        name: 'host',
+        desc: 'URL of the InfluxDB instance to query.',
+        type: 'String',
+      },
+      {
+        name: 'token',
+        desc: 'InfluxDB authorization token.',
+        type: 'String',
+      },
+      {
+        name: 'start',
+        desc: 'The earliest time to include when calculating cardinality.',
+        type: 'Duration | Time',
+      },
+      {
+        name: 'stop',
+        desc: 'The latest time to include when calculating cardinality.',
+        type: 'Duration | Time',
+      },
+      {
+        name: 'predicate',
+        desc:
+          'Predicate function that filters records. Default is `(r) => true.`',
+        type: 'Function',
+      },
+    ],
+    package: 'influxdata/influxdb',
+    desc: 'Returns the series cardinality of data in InfluxDB.',
+    example: 'influxdb.cardinality(bucket: "example-bucket", start: -1h)',
+    category: 'Miscellaneous',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb/cardinality/',
+  },
+  {
     name: 'int',
     args: [
       {
