@@ -8,11 +8,11 @@ use std::convert::TryFrom;
 
 use croaring::Bitmap;
 
-use delorean_arrow::arrow::array::{
+use arrow_deps::arrow::array::{
     Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, StringArray,
     UInt16Array, UInt32Array, UInt64Array, UInt8Array,
 };
-use delorean_arrow::{arrow, arrow::array::Array};
+use arrow_deps::{arrow, arrow::array::Array};
 
 /// The possible logical types that column values can have. All values in a
 /// column have the same physical type.
@@ -2275,7 +2275,7 @@ impl RowIDs {
 #[cfg(test)]
 mod test {
     use super::*;
-    use delorean_arrow::arrow::array::{
+    use arrow_deps::arrow::array::{
         Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, StringArray,
         UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     };

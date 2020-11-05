@@ -4,7 +4,7 @@ use std::iter;
 
 use croaring::Bitmap;
 
-use delorean_arrow::arrow::array::{Array, StringArray};
+use arrow_deps::arrow::array::{Array, StringArray};
 
 use crate::column::{cmp, RowIDs};
 

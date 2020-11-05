@@ -1,4 +1,4 @@
-use delorean_line_parser::ParsedLine;
+use influxdb_line_protocol::ParsedLine;
 
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
@@ -175,7 +175,7 @@ pub struct Subscription {
 pub struct Matcher {
     #[serde(flatten)]
     pub tables: MatchTables,
-    // TODO: make this work with delorean_storage::Predicate
+    // TODO: make this work with storage::Predicate
     #[serde(skip_serializing_if = "Option::is_none")]
     pub predicate: Option<String>,
 }
@@ -203,7 +203,7 @@ pub struct HostGroup {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use delorean_line_parser::parse_lines;
+    use influxdb_line_protocol::parse_lines;
 
     #[allow(dead_code)]
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;

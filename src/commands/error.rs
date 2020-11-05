@@ -7,7 +7,7 @@ use delorean_ingest::{
         writer::Error as ParquetWriterError
     }
 };
-use delorean_tsm::TSMError;
+use tsm::TSMError;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -46,7 +46,7 @@ pub enum Error {
 
     #[snafu(context(false))]
     #[snafu(display("Error converting data {}", source))]
-    Conversion { source: delorean_ingest::Error },
+    Conversion { source: ingest::Error },
 
     #[snafu(display("Error creating a parquet table writer {}", source))]
     UnableToCreateParquetTableWriter { source: ParquetWriterError },
@@ -67,7 +67,7 @@ pub enum Error {
     TSM { source: TSMError },
 
     #[snafu(display(r#"Error parsing data: {}"#, source))]
-    Parsing { source: delorean_line_parser::Error },
+    Parsing { source: influxdb_line_protocol::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

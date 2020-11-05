@@ -20,4 +20,4 @@ tokio = { version = "0.2", features = ["full"] }
 
 
 [dev-dependencies]
-delorean_test_helpers = { path = "../delorean_test_helpers" }
+test_helpers = { path = "../test_helpers" }

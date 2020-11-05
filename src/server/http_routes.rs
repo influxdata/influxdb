@@ -17,9 +17,9 @@
 use http::header::CONTENT_ENCODING;
 use tracing::{debug, error, info};
 
-use delorean_arrow::arrow;
-use delorean_line_parser::parse_lines;
-use delorean_storage::{org_and_bucket_to_database, Database, DatabaseStore};
+use arrow_deps::arrow;
+use influxdb_line_protocol::parse_lines;
+use storage::{org_and_bucket_to_database, Database, DatabaseStore};
 
 use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};
@@ -109,7 +109,9 @@ pub enum ApplicationError {
     ReadingBodyAsUtf8 { source: std::str::Utf8Error },
 
     #[snafu(display("Error parsing line protocol: {}", source))]
-    ParsingLineProtocol { source: delorean_line_parser::Error },
+    ParsingLineProtocol {
+        source: influxdb_line_protocol::Error,
+    },
 
     #[snafu(display("Error decompressing body as gzip: {}", source))]
     ReadingBodyAsGzip { source: std::io::Error },
@@ -233,7 +235,7 @@ async fn write<T: DatabaseStore>(
     let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
 
     let lines = parse_lines(body)
-        .collect::<Result<Vec<_>, delorean_line_parser::Error>>()
+        .collect::<Result<Vec<_>, influxdb_line_protocol::Error>>()
         .context(ParsingLineProtocol)?;
 
     debug!(
@@ -356,8 +358,7 @@ mod tests {
     use hyper::service::{make_service_fn, service_fn};
     use hyper::Server;
 
-    use delorean_storage::test::TestDatabaseStore;
-    use delorean_storage::DatabaseStore;
+    use storage::{test::TestDatabaseStore, DatabaseStore};
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;

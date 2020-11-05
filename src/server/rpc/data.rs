@@ -2,17 +2,17 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
-use delorean_arrow::arrow::{
+use arrow_deps::arrow::{
     array::{ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray},
     datatypes::DataType as ArrowDataType,
 };
 
-use delorean_storage::exec::{
+use storage::exec::{
     fieldlist::FieldList,
     seriesset::{GroupDescription, GroupedSeriesSetItem, SeriesSet},
 };
 
-use delorean_generated_types::{
+use generated_types::{
     measurement_fields_response::{FieldType, MessageField},
     read_response::{
         frame::Data, BooleanPointsFrame, DataType, FloatPointsFrame, Frame, GroupFrame,
@@ -316,11 +316,11 @@ fn datatype_to_measurement_field_enum(data_type: &ArrowDataType) -> Result<Field
 
 #[cfg(test)]
 mod tests {
-    use delorean_arrow::arrow::{
+    use arrow_deps::arrow::{
         datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema},
         record_batch::RecordBatch,
     };
-    use delorean_storage::exec::fieldlist::Field;
+    use storage::exec::fieldlist::Field;
 
     use super::*;
 

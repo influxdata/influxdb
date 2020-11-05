@@ -97,6 +97,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrow_deps"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "datafusion",
+ "parquet",
+]
+
+[[package]]
 name = "assert-json-diff"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -405,6 +414,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "cluster"
+version = "0.1.0"
+dependencies = [
+ "arrow_deps",
+ "async-trait",
+ "bytes",
+ "data_types",
+ "futures",
+ "generated_types",
+ "influxdb_line_protocol",
+ "object_store",
+ "serde",
+ "serde_json",
+ "snafu",
+ "storage",
+ "tokio",
+ "write_buffer",
+]
+
+[[package]]
 name = "colored"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -667,9 +696,9 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "crc32fast",
- "delorean_generated_types",
- "delorean_line_parser",
  "flatbuffers",
+ "generated_types",
+ "influxdb_line_protocol",
  "serde",
  "snafu",
  "tracing",
@@ -699,6 +728,7 @@ dependencies = [
 name = "delorean"
 version = "0.1.0"
 dependencies = [
+ "arrow_deps",
  "assert_cmd",
  "byteorder",
  "bytes",
@@ -706,23 +736,18 @@ dependencies = [
  "criterion",
  "csv",
  "data_types",
- "delorean_arrow",
- "delorean_generated_types",
- "delorean_ingest",
- "delorean_line_parser",
  "delorean_segment_store",
- "delorean_storage",
- "delorean_test_helpers",
- "delorean_tsm",
- "delorean_write_buffer",
  "dirs 3.0.1",
  "dotenv",
  "env_logger",
  "futures",
+ "generated_types",
  "hex",
  "http",
  "hyper",
  "influxdb2_client",
+ "influxdb_line_protocol",
+ "ingest",
  "libflate",
  "mem_qe",
  "object_store",
@@ -736,155 +761,27 @@ dependencies = [
  "serde_json",
  "serde_urlencoded 0.7.0",
  "snafu",
+ "storage",
  "tempfile",
+ "test_helpers",
  "tokio",
  "tonic",
  "tracing",
  "tracing-futures",
+ "tsm",
  "wal",
-]
-
-[[package]]
-name = "delorean_arrow"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "datafusion",
- "parquet",
-]
-
-[[package]]
-name = "delorean_cluster"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "data_types",
- "delorean_arrow",
- "delorean_generated_types",
- "delorean_line_parser",
- "delorean_storage",
- "delorean_write_buffer",
- "futures",
- "object_store",
- "serde",
- "serde_json",
- "snafu",
- "tokio",
-]
-
-[[package]]
-name = "delorean_generated_types"
-version = "0.1.0"
-dependencies = [
- "flatbuffers",
- "futures",
- "prost",
- "prost-types",
- "tonic",
- "tonic-build",
-]
-
-[[package]]
-name = "delorean_ingest"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "delorean_arrow",
- "delorean_line_parser",
- "delorean_test_helpers",
- "delorean_tsm",
- "env_logger",
- "libflate",
- "packers",
- "snafu",
- "tracing",
-]
-
-[[package]]
-name = "delorean_line_parser"
-version = "0.1.0"
-dependencies = [
- "delorean_test_helpers",
- "influxdb2_client",
- "nom",
- "smallvec",
- "snafu",
- "tracing",
+ "write_buffer",
 ]
 
 [[package]]
 name = "delorean_segment_store"
 version = "0.1.0"
 dependencies = [
+ "arrow_deps",
  "criterion",
  "croaring",
- "delorean_arrow",
  "packers",
  "rand",
-]
-
-[[package]]
-name = "delorean_storage"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "croaring",
- "data_types",
- "delorean_arrow",
- "delorean_line_parser",
- "delorean_test_helpers",
- "serde",
- "serde_urlencoded 0.6.1",
- "snafu",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "delorean_test_helpers"
-version = "0.1.0"
-dependencies = [
- "dotenv",
- "env_logger",
- "tempfile",
- "tracing",
-]
-
-[[package]]
-name = "delorean_tsm"
-version = "0.1.0"
-dependencies = [
- "delorean_test_helpers",
- "hex",
- "integer-encoding",
- "libflate",
- "rand",
- "snafu",
- "snap",
- "tracing",
-]
-
-[[package]]
-name = "delorean_write_buffer"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "chrono",
- "criterion",
- "data_types",
- "delorean_arrow",
- "delorean_generated_types",
- "delorean_line_parser",
- "delorean_storage",
- "delorean_test_helpers",
- "flatbuffers",
- "snafu",
- "sqlparser",
- "string-interner",
- "tokio",
- "tracing",
- "wal",
 ]
 
 [[package]]
@@ -1219,6 +1116,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "generated_types"
+version = "0.1.0"
+dependencies = [
+ "flatbuffers",
+ "futures",
+ "prost",
+ "prost-types",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1441,6 +1350,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb_line_protocol"
+version = "0.1.0"
+dependencies = [
+ "influxdb2_client",
+ "nom",
+ "smallvec",
+ "snafu",
+ "test_helpers",
+ "tracing",
+]
+
+[[package]]
+name = "ingest"
+version = "0.1.0"
+dependencies = [
+ "arrow_deps",
+ "data_types",
+ "env_logger",
+ "influxdb_line_protocol",
+ "libflate",
+ "packers",
+ "snafu",
+ "test_helpers",
+ "tracing",
+ "tsm",
+]
+
+[[package]]
 name = "integer-encoding"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1643,11 +1580,11 @@ checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 name = "mem_qe"
 version = "0.1.0"
 dependencies = [
+ "arrow_deps",
  "chrono",
  "criterion",
  "croaring",
  "crossbeam",
- "delorean_arrow",
  "env_logger",
  "human_format",
  "packers",
@@ -2030,14 +1967,14 @@ dependencies = [
 name = "packers"
 version = "0.1.0"
 dependencies = [
+ "arrow_deps",
  "data_types",
- "delorean_arrow",
- "delorean_test_helpers",
- "delorean_tsm",
  "human_format",
  "rand",
  "snafu",
+ "test_helpers",
  "tracing",
+ "tsm",
 ]
 
 [[package]]
@@ -2982,6 +2919,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
 
 [[package]]
+name = "storage"
+version = "0.1.0"
+dependencies = [
+ "arrow_deps",
+ "async-trait",
+ "croaring",
+ "data_types",
+ "influxdb_line_protocol",
+ "serde",
+ "serde_urlencoded 0.6.1",
+ "snafu",
+ "test_helpers",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "string-interner"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3047,6 +3001,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb6bfa289a4d7c5766392812c0a1f4c1ba45afa1ad47803c11e1f407d846d75f"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "test_helpers"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "env_logger",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -3489,6 +3453,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 
 [[package]]
+name = "tsm"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "integer-encoding",
+ "libflate",
+ "rand",
+ "snafu",
+ "snap",
+ "test_helpers",
+ "tracing",
+]
+
+[[package]]
 name = "typenum"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3595,7 +3573,6 @@ version = "0.1.0"
 dependencies = [
  "byteorder",
  "crc32fast",
- "delorean_test_helpers",
  "futures",
  "itertools 0.9.0",
  "once_cell",
@@ -3604,6 +3581,7 @@ dependencies = [
  "serde_json",
  "snafu",
  "snap",
+ "test_helpers",
  "tokio",
  "tracing",
 ]
@@ -3778,6 +3756,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0120db82e8a1e0b9fb3345a539c478767c0048d842860994d96113d5b667bd69"
 dependencies = [
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "write_buffer"
+version = "0.1.0"
+dependencies = [
+ "arrow_deps",
+ "async-trait",
+ "chrono",
+ "criterion",
+ "data_types",
+ "flatbuffers",
+ "generated_types",
+ "influxdb_line_protocol",
+ "snafu",
+ "sqlparser",
+ "storage",
+ "string-interner",
+ "test_helpers",
+ "tokio",
+ "tracing",
+ "wal",
 ]
 
 [[package]]

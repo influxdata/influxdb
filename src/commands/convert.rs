@@ -1,9 +1,9 @@
 use data_types::table_schema::Schema;
-use delorean_ingest::{
+use influxdb_line_protocol::parse_lines;
+use ingest::{
     parquet::writer::{CompressionLevel, DeloreanParquetTableWriter, Error as ParquetWriterError},
     ConversionSettings, Error as IngestError, LineProtocolConverter, TSMFileConverter,
 };
-use delorean_line_parser::parse_lines;
 use packers::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use snafu::{ResultExt, Snafu};
 use std::{

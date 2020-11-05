@@ -16,7 +16,8 @@
 // - Stopping the server after all relevant tests are run
 
 use assert_cmd::prelude::*;
-use delorean_generated_types::{
+use futures::prelude::*;
+use generated_types::{
     node::{Comparison, Value},
     read_group_request::Group,
     read_response::{frame::Data, *},
@@ -25,8 +26,6 @@ use delorean_generated_types::{
     MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest, ReadSource,
     Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
-use delorean_test_helpers::*;
-use futures::prelude::*;
 use prost::Message;
 use std::convert::TryInto;
 use std::fs;
@@ -35,6 +34,7 @@ use std::str;
 use std::time::{Duration, SystemTime};
 use std::u32;
 use tempfile::TempDir;
+use test_helpers::*;
 
 const HTTP_BASE: &str = "http://localhost:8080";
 const API_BASE: &str = "http://localhost:8080/api/v2";
@@ -505,7 +505,7 @@ impl TestServer {
     fn new() -> Result<Self> {
         let _ = dotenv::dotenv(); // load .env file if present
 
-        let dir = delorean_test_helpers::tmp_dir()?;
+        let dir = test_helpers::tmp_dir()?;
 
         let server_process = Command::cargo_bin("delorean")?
             // Can enable for debbugging

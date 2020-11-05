@@ -5,7 +5,7 @@ type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
 #[test]
 fn no_concurrency() -> Result {
-    let dir = delorean_test_helpers::tmp_dir()?;
+    let dir = test_helpers::tmp_dir()?;
     let builder = WalBuilder::new(dir.as_ref());
     let mut wal = builder.clone().wal()?;
 

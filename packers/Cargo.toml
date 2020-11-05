@@ -11,9 +11,9 @@ tracing = "0.1"
 rand = "0.7.3"
 human_format = "1.0.3"
 
-delorean_arrow = { path = "../delorean_arrow" }
+arrow_deps = { path = "../arrow_deps" }
 data_types = { path = "../data_types" }
-delorean_tsm = { path = "../delorean_tsm" }
+tsm = { path = "../tsm" }
 
 [dev-dependencies]
-delorean_test_helpers ={ path = "../delorean_test_helpers" }
+test_helpers ={ path = "../test_helpers" }

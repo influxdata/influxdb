@@ -7,21 +7,21 @@ default-run = "delorean"
 
 [workspace]
 members = [
-    "delorean_arrow",
-    "delorean_cluster",
+    "arrow_deps",
+    "cluster",
     "data_types",
-    "delorean_generated_types",
-    "delorean_ingest",
-    "delorean_line_parser",
+    "generated_types",
+    "ingest",
+    "influxdb_line_protocol",
     "object_store",
     "mem_qe",
     "delorean_segment_store",
     "packers",
-    "delorean_test_helpers",
-    "delorean_tsm",
-    "delorean_storage",
+    "test_helpers",
+    "tsm",
+    "storage",
     "wal",
-    "delorean_write_buffer",
+    "write_buffer",
     "influxdb2_client",
 ]
 
@@ -30,17 +30,17 @@ debug = true
 
 [dependencies]
 data_types = { path = "data_types" }
-delorean_arrow = { path = "delorean_arrow" }
-delorean_generated_types = { path = "delorean_generated_types" }
-delorean_ingest = { path = "delorean_ingest" }
-delorean_line_parser = { path = "delorean_line_parser" }
+arrow_deps = { path = "arrow_deps" }
+generated_types = { path = "generated_types" }
+ingest = { path = "ingest" }
+influxdb_line_protocol = { path = "influxdb_line_protocol" }
 mem_qe = { path = "mem_qe" }
 delorean_segment_store = { path = "delorean_segment_store" }
 packers = { path = "packers" }
-delorean_write_buffer = { path = "delorean_write_buffer" }
+write_buffer = { path = "write_buffer" }
 object_store = { path = "object_store" }
-delorean_storage = { path = "delorean_storage" }
-delorean_tsm = { path = "delorean_tsm" }
+storage = { path = "storage" }
+tsm = { path = "tsm" }
 wal = { path = "wal" }
 
 bytes = "0.5.4"
@@ -72,7 +72,7 @@ libflate = "1.0.0"
 [dev-dependencies]
 assert_cmd = "1.0.0"
 criterion = "0.3"
-delorean_test_helpers = { path = "delorean_test_helpers" }
+test_helpers = { path = "test_helpers" }
 hex = "0.4.2"
 influxdb2_client = { path = "influxdb2_client" }
 libflate = "1.0.0"

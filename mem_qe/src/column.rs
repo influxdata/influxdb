@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::convert::From;
 
-use delorean_arrow::arrow;
+use arrow_deps::arrow;
 
 use super::encoding;
 
@@ -1708,7 +1708,7 @@ where
     }
 }
 
-use delorean_arrow::arrow::array::Array;
+use arrow_deps::arrow::array::Array;
 
 impl From<arrow::array::Float64Array> for NumericColumn<f64> {
     fn from(arr: arrow::array::Float64Array) -> Self {

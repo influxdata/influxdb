@@ -4,7 +4,7 @@ use tracing::{debug, error, info};
 
 use super::column;
 use super::column::{AggregateType, Column};
-use delorean_arrow::arrow::datatypes::SchemaRef;
+use arrow_deps::arrow::datatypes::SchemaRef;
 
 // Only used in a couple of specific places for experimentation.
 const THREADS: usize = 16;
@@ -1750,12 +1750,12 @@ pub struct GroupedAggregates {
 #[cfg(test)]
 mod test {
 
-    use delorean_arrow::arrow::datatypes::*;
+    use arrow_deps::arrow::datatypes::*;
 
     #[test]
     fn segment_group_key_sorted() {
         let schema = super::Schema::with_sort_order(
-            delorean_arrow::arrow::datatypes::SchemaRef::new(Schema::new(vec![
+            arrow_deps::arrow::datatypes::SchemaRef::new(Schema::new(vec![
                 Field::new("env", DataType::Utf8, false),
                 Field::new("role", DataType::Utf8, false),
                 Field::new("path", DataType::Utf8, false),

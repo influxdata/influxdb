@@ -1,8 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use delorean_tsm::mapper::*;
-use delorean_tsm::reader::*;
-use delorean_tsm::*;
 use std::collections::BTreeMap;
+use tsm::mapper::*;
+use tsm::reader::*;
+use tsm::*;
 
 fn map_field_columns(c: &mut Criterion) {
     let mut group = c.benchmark_group("mapper");
@@ -18,7 +18,7 @@ fn map_field_columns(c: &mut Criterion) {
                 max_time: 0,
                 offset: 0,
                 size: 0,
-                typ: delorean_tsm::BlockType::Float,
+                typ: tsm::BlockType::Float,
                 reader_idx: 0,
             },
         )
@@ -33,7 +33,7 @@ fn map_field_columns(c: &mut Criterion) {
                 max_time: 0,
                 offset: 0,
                 size: 0,
-                typ: delorean_tsm::BlockType::Float,
+                typ: tsm::BlockType::Float,
                 reader_idx: 0,
             },
         )
@@ -48,7 +48,7 @@ fn map_field_columns(c: &mut Criterion) {
                 max_time: 0,
                 offset: 0,
                 size: 0,
-                typ: delorean_tsm::BlockType::Integer,
+                typ: tsm::BlockType::Integer,
                 reader_idx: 0,
             },
         )

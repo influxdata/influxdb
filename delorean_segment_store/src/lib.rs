@@ -9,7 +9,7 @@ pub(crate) mod table;
 
 use std::collections::BTreeMap;
 
-use delorean_arrow::arrow::record_batch::RecordBatch;
+use arrow_deps::arrow::record_batch::RecordBatch;
 
 use column::AggregateType;
 use partition::Partition;

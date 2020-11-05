@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::slice::Iter;
 
-use delorean_arrow::arrow::record_batch::RecordBatch;
+use arrow_deps::arrow::record_batch::RecordBatch;
 
 use crate::column::{AggregateResult, AggregateType, Scalar, Value, Values};
 use crate::segment::{ColumnName, GroupKey, Segment};

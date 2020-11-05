@@ -9,10 +9,10 @@ use std::sync::Arc;
 use crate::server::http_routes;
 use crate::server::rpc::storage;
 
-use delorean_storage::exec::Executor as StorageExecutor;
-use delorean_write_buffer::{Db, WriteBufferDatabases};
+use ::storage::exec::Executor as StorageExecutor;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
+use write_buffer::{Db, WriteBufferDatabases};
 
 pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenv::dotenv().ok();

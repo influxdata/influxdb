@@ -13,8 +13,8 @@ pub mod stats;
 use snafu::Snafu;
 
 pub use crate::packers::{Packer, Packers};
+pub use arrow_deps::parquet::data_type::ByteArray;
 use data_types::table_schema::Schema;
-pub use delorean_arrow::parquet::data_type::ByteArray;
 
 use std::borrow::Cow;
 

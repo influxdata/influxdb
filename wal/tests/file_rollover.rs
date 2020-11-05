@@ -8,7 +8,7 @@ use crate::helpers::*;
 #[test]
 #[allow(clippy::cognitive_complexity)]
 fn file_rollover() -> Result {
-    let dir = delorean_test_helpers::tmp_dir()?;
+    let dir = test_helpers::tmp_dir()?;
 
     // Set the file rollover size limit low to test rollover
     let builder = WalBuilder::new(dir.as_ref()).file_rollover_size(100);

@@ -1,0 +1,15 @@
+[package]
+name = "influxdb_line_protocol"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2018"
+
+[dependencies]
+tracing = "0.1"
+nom = "5.1.1"
+smallvec = "1.2.0"
+snafu = "0.6.2"
+influxdb2_client = { path = "../influxdb2_client" }
+
+[dev-dependencies]
+test_helpers = { path = "../test_helpers" }

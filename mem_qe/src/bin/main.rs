@@ -12,9 +12,9 @@ use datatypes::TimeUnit;
 use snafu::Snafu;
 use tracing::debug;
 
-use delorean_arrow::arrow::record_batch::{RecordBatch, RecordBatchReader};
-use delorean_arrow::arrow::{array, array::Array, datatypes, ipc};
-use delorean_arrow::parquet::arrow::arrow_reader::ArrowReader;
+use arrow_deps::arrow::record_batch::{RecordBatch, RecordBatchReader};
+use arrow_deps::arrow::{array, array::Array, datatypes, ipc};
+use arrow_deps::parquet::arrow::arrow_reader::ArrowReader;
 use mem_qe::column;
 use mem_qe::column::{AggregateType, Column};
 use mem_qe::segment::{ColumnType, GroupingStrategy, Schema, Segment};
@@ -79,9 +79,8 @@ fn build_parquet_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> 
         path
     );
 
-    let parquet_reader =
-        delorean_arrow::parquet::file::reader::SerializedFileReader::new(r).unwrap();
-    let mut reader = delorean_arrow::parquet::arrow::arrow_reader::ParquetFileArrowReader::new(
+    let parquet_reader = arrow_deps::parquet::file::reader::SerializedFileReader::new(r).unwrap();
+    let mut reader = arrow_deps::parquet::arrow::arrow_reader::ParquetFileArrowReader::new(
         Rc::new(parquet_reader),
     );
     let batch_size = 60000;

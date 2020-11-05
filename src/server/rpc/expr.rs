@@ -1,18 +1,18 @@
-//! This module has logic to translate gRPC `Predicate` nodes into
-//! delorean_storage_interface::Predicates
+//! This module has logic to translate gRPC `Predicate` nodes into the
+//! native storage system predicate form,  `storage::Predicates`
 
 use std::convert::TryFrom;
 
-use delorean_arrow::datafusion::{
+use arrow_deps::datafusion::{
     logical_plan::{Expr, Operator},
     scalar::ScalarValue,
 };
-use delorean_generated_types::{
+use generated_types::{
     node::Comparison as RPCComparison, node::Logical as RPCLogical, node::Value as RPCValue,
     Node as RPCNode, Predicate as RPCPredicate,
 };
-use delorean_storage::predicate::PredicateBuilder;
 use snafu::{ResultExt, Snafu};
+use storage::predicate::PredicateBuilder;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

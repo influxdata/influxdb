@@ -12,7 +12,7 @@ fn line_parser(c: &mut Criterion) {
 
     group.bench_function("all lines", |b| {
         b.iter(|| {
-            let lines = delorean_line_parser::parse_lines(LINES)
+            let lines = influxdb_line_protocol::parse_lines(LINES)
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
 

@@ -8,7 +8,7 @@
 )]
 
 use clap::{crate_authors, crate_version, value_t, App, Arg, ArgMatches, SubCommand};
-use delorean_ingest::parquet::writer::CompressionLevel;
+use ingest::parquet::writer::CompressionLevel;
 use tokio::runtime::Runtime;
 use tracing::{debug, error, info, warn};
 

@@ -15,9 +15,9 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
-use delorean_arrow::arrow;
-use delorean_arrow::arrow::array::{Array, PrimitiveArray};
-use delorean_arrow::arrow::datatypes::ArrowNumericType;
+use arrow_deps::arrow;
+use arrow_deps::arrow::array::{Array, PrimitiveArray};
+use arrow_deps::arrow::datatypes::ArrowNumericType;
 
 use crate::column::{cmp, RowIDs};
 
@@ -479,7 +479,7 @@ where
 //
 // Here is an example implementation:
 //
-//  impl From<&[i64]> for FixedNull<delorean_arrow::arrow::datatypes::Int64Type> {
+//  impl From<&[i64]> for FixedNull<arrow_deps::arrow::datatypes::Int64Type> {
 //      fn from(v: &[i64]) -> Self {
 //          Self{
 //              arr: PrimitiveArray::from(v.to_vec()),
@@ -487,7 +487,7 @@ where
 //      }
 //  }
 //
-//  impl From<&[Option<i64>]> for FixedNull<delorean_arrow::arrow::datatypes::Int64Type> {
+//  impl From<&[Option<i64>]> for FixedNull<arrow_deps::arrow::datatypes::Int64Type> {
 //      fn from(v: &[i64]) -> Self {
 //          Self{
 //              arr: PrimitiveArray::from(v.to_vec()),
@@ -522,33 +522,33 @@ macro_rules! fixed_from_slice_impls {
 //
 // Need to look at possibility of initialising smaller datatypes...
 fixed_from_slice_impls! {
-    (i64, delorean_arrow::arrow::datatypes::Int64Type),
-    //  (i64, delorean_arrow::arrow::datatypes::Int32Type),
-    //  (i64, delorean_arrow::arrow::datatypes::Int16Type),
-    //  (i64, delorean_arrow::arrow::datatypes::Int8Type),
-    //  (i64, delorean_arrow::arrow::datatypes::UInt32Type),
-    //  (i64, delorean_arrow::arrow::datatypes::UInt16Type),
-    //  (i64, delorean_arrow::arrow::datatypes::UInt8Type),
-     (i32, delorean_arrow::arrow::datatypes::Int32Type),
-    //  (i32, delorean_arrow::arrow::datatypes::Int16Type),
-    //  (i32, delorean_arrow::arrow::datatypes::Int8Type),
-    //  (i32, delorean_arrow::arrow::datatypes::UInt16Type),
-    //  (i32, delorean_arrow::arrow::datatypes::UInt8Type),
-     (i16, delorean_arrow::arrow::datatypes::Int16Type),
-    //  (i16, delorean_arrow::arrow::datatypes::Int8Type),
-    //  (i16, delorean_arrow::arrow::datatypes::UInt8Type),
-     (i8, delorean_arrow::arrow::datatypes::Int8Type),
-     (u64, delorean_arrow::arrow::datatypes::UInt64Type),
-    //  (u64, delorean_arrow::arrow::datatypes::UInt32Type),
-    //  (u64, delorean_arrow::arrow::datatypes::UInt16Type),
-    //  (u64, delorean_arrow::arrow::datatypes::UInt8Type),
-     (u32, delorean_arrow::arrow::datatypes::UInt32Type),
-    //  (u32, delorean_arrow::arrow::datatypes::UInt16Type),
-    //  (u32, delorean_arrow::arrow::datatypes::UInt8Type),
-     (u16, delorean_arrow::arrow::datatypes::UInt16Type),
-    //  (u16, delorean_arrow::arrow::datatypes::UInt8Type),
-     (u8, delorean_arrow::arrow::datatypes::UInt8Type),
-     (f64, delorean_arrow::arrow::datatypes::Float64Type),
+    (i64, arrow_deps::arrow::datatypes::Int64Type),
+    //  (i64, arrow_deps::arrow::datatypes::Int32Type),
+    //  (i64, arrow_deps::arrow::datatypes::Int16Type),
+    //  (i64, arrow_deps::arrow::datatypes::Int8Type),
+    //  (i64, arrow_deps::arrow::datatypes::UInt32Type),
+    //  (i64, arrow_deps::arrow::datatypes::UInt16Type),
+    //  (i64, arrow_deps::arrow::datatypes::UInt8Type),
+     (i32, arrow_deps::arrow::datatypes::Int32Type),
+    //  (i32, arrow_deps::arrow::datatypes::Int16Type),
+    //  (i32, arrow_deps::arrow::datatypes::Int8Type),
+    //  (i32, arrow_deps::arrow::datatypes::UInt16Type),
+    //  (i32, arrow_deps::arrow::datatypes::UInt8Type),
+     (i16, arrow_deps::arrow::datatypes::Int16Type),
+    //  (i16, arrow_deps::arrow::datatypes::Int8Type),
+    //  (i16, arrow_deps::arrow::datatypes::UInt8Type),
+     (i8, arrow_deps::arrow::datatypes::Int8Type),
+     (u64, arrow_deps::arrow::datatypes::UInt64Type),
+    //  (u64, arrow_deps::arrow::datatypes::UInt32Type),
+    //  (u64, arrow_deps::arrow::datatypes::UInt16Type),
+    //  (u64, arrow_deps::arrow::datatypes::UInt8Type),
+     (u32, arrow_deps::arrow::datatypes::UInt32Type),
+    //  (u32, arrow_deps::arrow::datatypes::UInt16Type),
+    //  (u32, arrow_deps::arrow::datatypes::UInt8Type),
+     (u16, arrow_deps::arrow::datatypes::UInt16Type),
+    //  (u16, arrow_deps::arrow::datatypes::UInt8Type),
+     (u8, arrow_deps::arrow::datatypes::UInt8Type),
+     (f64, arrow_deps::arrow::datatypes::Float64Type),
 }
 
 macro_rules! fixed_from_arrow_impls {
@@ -567,7 +567,7 @@ macro_rules! fixed_from_arrow_impls {
 //
 // Need to look at possibility of initialising smaller datatypes...
 fixed_from_arrow_impls! {
-    (arrow::array::Int64Array, delorean_arrow::arrow::datatypes::Int64Type),
+    (arrow::array::Int64Array, arrow_deps::arrow::datatypes::Int64Type),
     // TODO(edd): add more datatypes
 }
 
@@ -575,7 +575,7 @@ fixed_from_arrow_impls! {
 mod test {
     use super::cmp::Operator;
     use super::*;
-    use delorean_arrow::arrow::datatypes::*;
+    use arrow_deps::arrow::datatypes::*;
 
     fn some_vec<T: Copy>(v: Vec<T>) -> Vec<Option<T>> {
         v.iter().map(|x| Some(*x)).collect()

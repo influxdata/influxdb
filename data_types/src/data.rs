@@ -3,8 +3,8 @@
 
 use crate::database_rules::DatabaseRules;
 use crate::TIME_COLUMN_NAME;
-use delorean_generated_types::wal as wb;
-use delorean_line_parser::{FieldValue, ParsedLine};
+use generated_types::wal as wb;
+use influxdb_line_protocol::{FieldValue, ParsedLine};
 
 use std::{collections::BTreeMap, fmt};
 

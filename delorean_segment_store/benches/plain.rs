@@ -3,7 +3,7 @@ use std::mem::size_of;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::prelude::*;
 
-use delorean_arrow::arrow::datatypes::*;
+use arrow_deps::arrow::datatypes::*;
 use delorean_segment_store::column::fixed::Fixed;
 use delorean_segment_store::column::fixed_null::FixedNull;
 

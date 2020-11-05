@@ -682,7 +682,7 @@ mod tests {
 
     #[test]
     fn sequence_numbers_are_persisted() -> Result {
-        let dir = delorean_test_helpers::tmp_dir()?;
+        let dir = test_helpers::tmp_dir()?;
         let builder = WalBuilder::new(dir.as_ref());
         let mut wal;
 
@@ -709,7 +709,7 @@ mod tests {
 
     #[test]
     fn sequence_numbers_increase_by_number_of_pending_entries() -> Result {
-        let dir = delorean_test_helpers::tmp_dir()?;
+        let dir = test_helpers::tmp_dir()?;
         let builder = WalBuilder::new(dir.as_ref());
         let mut wal = builder.wal()?;
 

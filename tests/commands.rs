@@ -68,7 +68,7 @@ fn convert_bad_compression_level() {
 fn convert_line_protocol_good_input_filename() {
     let mut cmd = Command::cargo_bin("delorean").unwrap();
 
-    let parquet_path = delorean_test_helpers::tempfile::Builder::new()
+    let parquet_path = test_helpers::tempfile::Builder::new()
         .prefix("convert_e2e")
         .suffix(".parquet")
         .tempfile()
@@ -109,7 +109,7 @@ fn convert_tsm_good_input_filename() {
 
     // let mut cmd = Command::cargo_bin("delorean").unwrap();
 
-    // let tmp_dir = delorean_test_helpers::tmp_dir();
+    // let tmp_dir = test_helpers::tmp_dir();
     // let parquet_path = tmp_dir.unwrap().into_path().to_str().unwrap();
 
     // // ::Builder::new()
@@ -158,7 +158,7 @@ fn convert_multiple_measurements() {
     let mut cmd = Command::cargo_bin("delorean").unwrap();
 
     // Create a directory
-    let parquet_output_path = delorean_test_helpers::tempfile::Builder::new()
+    let parquet_output_path = test_helpers::tempfile::Builder::new()
         .prefix("convert_multiple_e2e")
         .tempdir()
         .expect("error creating temp directory");
@@ -250,13 +250,10 @@ fn meta_bad_input_filename_gz() {
 }
 
 // gunzip's the contents of the file at input_path into a temporary path
-fn uncompress_gz(
-    input_path: &str,
-    output_extension: &str,
-) -> delorean_test_helpers::tempfile::TempPath {
+fn uncompress_gz(input_path: &str, output_extension: &str) -> test_helpers::tempfile::TempPath {
     let gz_file = File::open(input_path).expect("Error opening input");
 
-    let output_path = delorean_test_helpers::tempfile::Builder::new()
+    let output_path = test_helpers::tempfile::Builder::new()
         .prefix("decompressed_e2e")
         .suffix(output_extension)
         .tempfile()
