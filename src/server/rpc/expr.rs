@@ -12,7 +12,6 @@ use delorean_generated_types::{
     Node as RPCNode, Predicate as RPCPredicate,
 };
 use delorean_storage::predicate::PredicateBuilder;
-use delorean_storage::Predicate as StoragePredicate;
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -76,18 +75,6 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// TEMP: shim to keep backwards compatibility while migrating to
-/// new predicate system
-pub fn convert_predicate(predicate: Option<RPCPredicate>) -> Result<Option<StoragePredicate>> {
-    let full_predicate = PredicateBuilder::default()
-        .rpc_predicate(predicate)?
-        .build();
-
-    Ok(full_predicate
-        .combined_expr()
-        .map(|expr| StoragePredicate { expr }))
-}
 
 /// A trait for adding gRPC specific nodes to the generic predicate builder
 pub trait AddRPCNode

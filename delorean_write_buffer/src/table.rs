@@ -2,7 +2,6 @@ use delorean_generated_types::wal as wb;
 use delorean_storage::{
     exec::{make_schema_pivot, GroupedSeriesSetPlan, SeriesSetPlan},
     util::dump_plan,
-    Predicate, TimestampRange,
 };
 use tracing::debug;
 
@@ -12,7 +11,8 @@ use crate::{
     column,
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
-    partition::Partition,
+    partition::PartitionIdSet,
+    partition::{Partition, PartitionPredicate},
 };
 use data_types::TIME_COLUMN_NAME;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -28,8 +28,6 @@ use delorean_arrow::{
     datafusion::logical_plan::Expr,
     datafusion::logical_plan::LogicalPlan,
     datafusion::logical_plan::LogicalPlanBuilder,
-    datafusion::logical_plan::Operator,
-    datafusion::scalar::ScalarValue,
 };
 
 #[derive(Debug, Snafu)]
@@ -170,45 +168,15 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Clone, Copy)]
-pub struct TimestampPredicate {
-    pub time_column_id: u32,
-    pub range: TimestampRange,
-}
-
-#[derive(Debug)]
-/// Describes a list of columns used in a predicate
-pub enum PredicateTableColumns {
-    /// Predicate exists, but has no columns
-    NoColumns,
-
-    /// Predicate exists, has columns, but at least one of those columns are not in the table
-    AtLeastOneMissing,
-
-    /// Predicate exists, has columns, and all columns are in the table
-    Present(BTreeSet<u32>),
-}
-
-#[derive(Debug, Clone, Copy)]
-/// Describes a predicate on the table name
-pub enum PredicateTableName {
-    NoPredicate,
-
-    /// There is a table name predicate, but no such table exists in
-    /// this partition
-    NoTableInPartition,
-
-    /// There is a table name predicate, and the name maps to this id
-    /// in this partition
-    Present(u32),
-}
-
 #[derive(Debug)]
 pub struct Table {
     /// Name of the table as a u32 in the partition dictionary
     pub id: u32,
+
     /// Maps column name (as a u32 in the partition dictionary) to an index in self.columns
     pub column_id_to_index: HashMap<u32, usize>,
+
+    /// Actual column storage
     pub columns: Vec<Column>,
 }
 
@@ -308,25 +276,12 @@ impl Table {
     }
 
     /// Creates and adds a datafuson filtering expression, if any out of the
-    /// combination of predicate and timestamp. Returns None if no
-    /// predicate is needed
+    /// combination of predicate and timestamp. Returns the builder
     fn add_datafusion_predicate(
         plan_builder: LogicalPlanBuilder,
-        predicate: Option<&Predicate>,
-        timestamp_predicate: Option<&TimestampPredicate>,
+        partition_predicate: &PartitionPredicate,
     ) -> Result<LogicalPlanBuilder> {
-        let df_predicate = match (predicate, timestamp_predicate) {
-            (Some(predicate), Some(timestamp_predicate)) => Some(
-                Self::add_timestamp_predicate_expr(predicate.expr.clone(), timestamp_predicate),
-            ),
-            (Some(predicate), None) => Some(predicate.expr.clone()),
-            (None, Some(timestamp_predicate)) => {
-                Some(Self::make_timestamp_predicate_expr(timestamp_predicate))
-            }
-            (None, None) => None,
-        };
-
-        match df_predicate {
+        match partition_predicate.filter_expr() {
             Some(df_predicate) => plan_builder.filter(df_predicate).context(BuildingPlan),
             None => Ok(plan_builder),
         }
@@ -343,22 +298,23 @@ impl Table {
     ///          InMemoryScan
     pub fn tag_column_names_plan(
         &self,
-        predicate: &Predicate,
-        timestamp_predicate: Option<&TimestampPredicate>,
+        partition_predicate: &PartitionPredicate,
         partition: &Partition,
     ) -> Result<LogicalPlan> {
-        let time_column_id = timestamp_predicate.map(|p| p.time_column_id);
+        let need_time_column = partition_predicate.range.is_some();
+
+        let time_column_id = partition_predicate.time_column_id;
 
         // figure out the tag columns
         let requested_columns_with_index = self
             .column_id_to_index
             .iter()
             .filter_map(|(&column_id, &column_index)| {
-                // keep tag columns and the timestamp column, if needed
+                // keep tag columns and the timestamp column, if needed to evaluate a timestamp predicate
                 let need_column = if let Column::Tag(_, _) = self.columns[column_index] {
                     true
                 } else {
-                    Some(column_id) == time_column_id
+                    need_time_column && column_id == time_column_id
                 };
 
                 if need_column {
@@ -386,27 +342,28 @@ impl Table {
             projected_schema,
         });
 
-        let plan_builder =
-            Self::add_datafusion_predicate(plan_builder, Some(predicate), timestamp_predicate)?;
+        // Shouldn't have field selections here (as we are getting the tags...)
+        assert!(!partition_predicate.has_field_restriction());
+
+        let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;
 
         // add optional selection to remove time column
-        let plan_builder = match time_column_id {
-            None => plan_builder,
-            Some(_) => {
-                // Create expressions for all columns except time
-                let select_exprs = requested_columns_with_index
-                    .iter()
-                    .filter_map(|&(column_name, _)| {
-                        if column_name != TIME_COLUMN_NAME {
-                            Some(Expr::Column(column_name.into()))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
+        let plan_builder = if !need_time_column {
+            plan_builder
+        } else {
+            // Create expressions for all columns except time
+            let select_exprs = requested_columns_with_index
+                .iter()
+                .filter_map(|&(column_name, _)| {
+                    if column_name != TIME_COLUMN_NAME {
+                        Some(Expr::Column(column_name.into()))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
-                plan_builder.project(select_exprs).context(BuildingPlan)?
-            }
+            plan_builder.project(select_exprs).context(BuildingPlan)?
         };
 
         let plan = plan_builder.build().context(BuildingPlan)?;
@@ -434,8 +391,7 @@ impl Table {
     pub fn tag_values_plan(
         &self,
         column_name: &str,
-        predicate: &Predicate,
-        timestamp_predicate: Option<&TimestampPredicate>,
+        partition_predicate: &PartitionPredicate,
         partition: &Partition,
     ) -> Result<LogicalPlan> {
         // TODO avoid materializing all the columns here (ideally
@@ -456,8 +412,10 @@ impl Table {
             projected_schema,
         });
 
-        let plan_builder =
-            Self::add_datafusion_predicate(plan_builder, Some(predicate), timestamp_predicate)?;
+        // shouldn't have columns selection (as this is getting tag values...)
+        assert!(!partition_predicate.has_field_restriction());
+
+        let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;
 
         plan_builder
             .project(select_exprs)
@@ -478,11 +436,10 @@ impl Table {
     /// same) occur together in the plan
     pub fn series_set_plan(
         &self,
-        predicate: Option<&Predicate>,
-        timestamp_predicate: Option<&TimestampPredicate>,
+        partition_predicate: &PartitionPredicate,
         partition: &Partition,
     ) -> Result<SeriesSetPlan> {
-        self.series_set_plan_impl(predicate, timestamp_predicate, None, partition)
+        self.series_set_plan_impl(partition_predicate, None, partition)
     }
 
     /// Creates the plans for computing series set, pulling prefix_columns, if any, as a prefix of the ordering
@@ -494,8 +451,7 @@ impl Table {
     ///          InMemoryScan
     pub fn series_set_plan_impl(
         &self,
-        predicate: Option<&Predicate>,
-        timestamp_predicate: Option<&TimestampPredicate>,
+        partition_predicate: &PartitionPredicate,
         prefix_columns: Option<&[String]>,
         partition: &Partition,
     ) -> Result<SeriesSetPlan> {
@@ -507,7 +463,8 @@ impl Table {
             .to_string();
 
         let table_name = Arc::new(table_name);
-        let (mut tag_columns, field_columns) = self.tag_and_field_column_names(partition)?;
+        let (mut tag_columns, field_columns) =
+            self.tag_and_field_column_names(partition_predicate, partition)?;
 
         // reorder tag_columns to have the prefix columns, if requested
         if let Some(prefix_columns) = prefix_columns {
@@ -532,8 +489,7 @@ impl Table {
         });
 
         // Filtering
-        let plan_builder =
-            Self::add_datafusion_predicate(plan_builder, predicate, timestamp_predicate)?;
+        let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;
 
         let mut sort_exprs = Vec::new();
         sort_exprs.extend(tag_columns.iter().map(|c| c.into_sort_expr()));
@@ -580,17 +536,12 @@ impl Table {
     ///          InMemoryScan
     pub fn grouped_series_set_plan(
         &self,
-        predicate: Option<&Predicate>,
-        timestamp_predicate: Option<&TimestampPredicate>,
+        partition_predicate: &PartitionPredicate,
         group_columns: &[String],
         partition: &Partition,
     ) -> Result<GroupedSeriesSetPlan> {
-        let series_set_plan = self.series_set_plan_impl(
-            predicate,
-            timestamp_predicate,
-            Some(&group_columns),
-            partition,
-        )?;
+        let series_set_plan =
+            self.series_set_plan_impl(partition_predicate, Some(&group_columns), partition)?;
         let num_prefix_tag_group_columns = group_columns.len();
 
         Ok(GroupedSeriesSetPlan {
@@ -613,8 +564,7 @@ impl Table {
     ///          InMemoryScan
     pub fn field_names_plan(
         &self,
-        predicate: Option<&Predicate>,
-        timestamp_predicate: Option<&TimestampPredicate>,
+        partition_predicate: &PartitionPredicate,
         partition: &Partition,
     ) -> Result<LogicalPlan> {
         // TODO avoid materializing all the columns here (ideally
@@ -635,12 +585,11 @@ impl Table {
         });
 
         // Filtering
-        let plan_builder =
-            Self::add_datafusion_predicate(plan_builder, predicate, timestamp_predicate)?;
+        let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;
 
         // Selection
         let select_exprs = self
-            .field_and_time_column_names(partition)
+            .field_and_time_column_names(partition_predicate, partition)
             .into_iter()
             .map(|c| c.into_expr())
             .collect::<Vec<_>>();
@@ -656,6 +605,7 @@ impl Table {
     // by name.
     fn tag_and_field_column_names(
         &self,
+        partition_predicate: &PartitionPredicate,
         partition: &Partition,
     ) -> Result<(ArcStringVec, ArcStringVec)> {
         let mut tag_columns = Vec::with_capacity(self.column_id_to_index.len());
@@ -672,7 +622,11 @@ impl Table {
 
                 match self.columns[column_index] {
                     Column::Tag(_, _) => tag_columns.push(column_name),
-                    _ => field_columns.push(column_name),
+                    _ => {
+                        if partition_predicate.should_include_field(column_id) {
+                            field_columns.push(column_name)
+                        }
+                    }
                 }
             }
         }
@@ -690,7 +644,11 @@ impl Table {
     }
 
     // Returns (field_columns and time) in sorted order
-    fn field_and_time_column_names(&self, partition: &Partition) -> ArcStringVec {
+    fn field_and_time_column_names(
+        &self,
+        partition_predicate: &PartitionPredicate,
+        partition: &Partition,
+    ) -> ArcStringVec {
         let mut field_columns = self
             .column_id_to_index
             .iter()
@@ -698,11 +656,17 @@ impl Table {
                 match self.columns[column_index] {
                     Column::Tag(_, _) => None, // skip tags
                     _ => {
-                        let column_name = partition
-                            .dictionary
-                            .lookup_id(column_id)
-                            .expect("Find column name in dictionary");
-                        Some(Arc::new(column_name.to_string()))
+                        if partition_predicate.should_include_field(column_id)
+                            || partition_predicate.is_time_column(column_id)
+                        {
+                            let column_name = partition
+                                .dictionary
+                                .lookup_id(column_id)
+                                .expect("Find column name in dictionary");
+                            Some(Arc::new(column_name.to_string()))
+                        } else {
+                            None
+                        }
                     }
                 }
             })
@@ -713,41 +677,6 @@ impl Table {
         field_columns.sort();
 
         field_columns
-    }
-
-    /// Creates a DataFusion predicate for appliying a timestamp range:
-    ///
-    /// range.start <= time and time < range.end`
-    fn make_timestamp_predicate_expr(timestamp_predicate: &TimestampPredicate) -> Expr {
-        let range = timestamp_predicate.range;
-        let ts_low = Expr::BinaryExpr {
-            left: Box::new(Expr::Literal(ScalarValue::Int64(Some(range.start)))),
-            op: Operator::LtEq,
-            right: Box::new(Expr::Column(TIME_COLUMN_NAME.into())),
-        };
-        let ts_high = Expr::BinaryExpr {
-            left: Box::new(Expr::Column(TIME_COLUMN_NAME.into())),
-            op: Operator::Lt,
-            right: Box::new(Expr::Literal(ScalarValue::Int64(Some(range.end)))),
-        };
-        Expr::BinaryExpr {
-            left: Box::new(ts_low),
-            op: Operator::And,
-            right: Box::new(ts_high),
-        }
-    }
-
-    /// Creates a DataFusion predicate of the form:
-    ///
-    /// `expr AND (range.start <= time and time < range.end)`
-    fn add_timestamp_predicate_expr(expr: Expr, timestamp_predicate: &TimestampPredicate) -> Expr {
-        let ts_pred = Self::make_timestamp_predicate_expr(timestamp_predicate);
-
-        Expr::BinaryExpr {
-            left: Box::new(expr),
-            op: Operator::And,
-            right: Box::new(ts_pred),
-        }
     }
 
     /// Converts this table to an arrow record batch.
@@ -905,78 +834,97 @@ impl Table {
         RecordBatch::try_new(Arc::new(schema), columns).context(ArrowError {})
     }
 
-    /// returns true if this table should be included in a query that
-    /// has an optional table_symbol_predicate. Returns true f the
-    /// table_symbol_predicate is not preset, or the table's id
-    pub fn matches_id_predicate(
-        &self,
-        table_symbol_predicate: Option<&PredicateTableName>,
-    ) -> bool {
-        match table_symbol_predicate {
-            None => true,
-            Some(PredicateTableName::NoPredicate) => true,
-            Some(PredicateTableName::NoTableInPartition) => false,
-            Some(PredicateTableName::Present(table_symbol)) => self.id == *table_symbol,
+    /// returns true if any row in this table could possible match the
+    /// predicate. true does not mean any rows will *actually* match,
+    /// just that the entire table can not be ruled out.
+    ///
+    /// false means that no rows in this table could possibly match
+    pub fn could_match_predicate(&self, partition_predicate: &PartitionPredicate) -> Result<bool> {
+        Ok(
+            self.matches_column_selection(partition_predicate.field_restriction.as_ref())
+                && self.matches_table_name_predicate(
+                    partition_predicate.table_name_predicate.as_ref(),
+                )
+                && self.matches_timestamp_predicate(partition_predicate)?
+                && self.has_columns(partition_predicate.required_columns.as_ref()),
+        )
+    }
+
+    /// Returns true if the table contains at least one of the fields
+    /// requested or there are no specific fields requested.
+    fn matches_column_selection(&self, column_selection: Option<&BTreeSet<u32>>) -> bool {
+        match column_selection {
+            Some(column_selection) => {
+                // figure out if any of the columns exists
+                self.column_id_to_index
+                    .keys()
+                    .any(|column_id| column_selection.contains(column_id))
+            }
+            None => true, // no specific selection
+        }
+    }
+
+    fn matches_table_name_predicate(&self, table_name_predicate: Option<&BTreeSet<u32>>) -> bool {
+        match table_name_predicate {
+            Some(table_name_predicate) => table_name_predicate.contains(&self.id),
+            None => true, // no table predicate
         }
     }
 
     /// returns true if there are any timestamps in this table that
     /// fall within the timestamp range
-    pub fn matches_timestamp_predicate(&self, pred: Option<&TimestampPredicate>) -> Result<bool> {
-        match pred {
+    fn matches_timestamp_predicate(
+        &self,
+        partition_predicate: &PartitionPredicate,
+    ) -> Result<bool> {
+        match &partition_predicate.range {
             None => Ok(true),
-            Some(pred) => {
-                let time_column = self.column(pred.time_column_id)?;
-                time_column
-                    .has_i64_range(pred.range.start, pred.range.end)
-                    .context(ColumnPredicateEvaluation {
-                        column: pred.time_column_id,
-                    })
+            Some(range) => {
+                let time_column_id = partition_predicate.time_column_id;
+                let time_column = self.column(time_column_id)?;
+                time_column.has_i64_range(range.start, range.end).context(
+                    ColumnPredicateEvaluation {
+                        column: time_column_id,
+                    },
+                )
             }
         }
     }
 
-    /// returns true if this table has all columns specified in
-    /// predicate_column_symbols or predicate_column_symbols is empty
-    pub fn has_all_predicate_columns(
-        &self,
-        predicate_table_columns: Option<&PredicateTableColumns>,
-    ) -> bool {
-        if let Some(predicate_table_columns) = predicate_table_columns {
-            use PredicateTableColumns::*;
-
-            match predicate_table_columns {
-                NoColumns => true,
-                AtLeastOneMissing => false,
-                Present(predicate_column_symbols) => {
-                    for symbol in predicate_column_symbols {
+    /// returns true if no columns are specified, or the table has all
+    /// columns specified
+    fn has_columns(&self, columns: Option<&PartitionIdSet>) -> bool {
+        if let Some(columns) = columns {
+            match columns {
+                PartitionIdSet::AtLeastOneMissing => return false,
+                PartitionIdSet::Present(symbols) => {
+                    for symbol in symbols {
                         if !self.column_id_to_index.contains_key(symbol) {
                             return false;
                         }
                     }
-                    true
                 }
             }
-        } else {
-            true
         }
+        true
     }
 
     /// returns true if there are any rows in column that are non-null
     /// and within the timestamp range specified by pred
-    pub fn column_matches_timestamp_predicate<T>(
+    pub fn column_matches_predicate<T>(
         &self,
         column: &[Option<T>],
-        pred: Option<&TimestampPredicate>,
+        partition_predicate: &PartitionPredicate,
     ) -> Result<bool> {
-        match pred {
+        match partition_predicate.range {
             None => Ok(true),
-            Some(pred) => {
-                let time_column = self.column(pred.time_column_id)?;
+            Some(range) => {
+                let time_column_id = partition_predicate.time_column_id;
+                let time_column = self.column(time_column_id)?;
                 time_column
-                    .has_non_null_i64_range(column, pred.range.start, pred.range.end)
+                    .has_non_null_i64_range(column, range.start, range.end)
                     .context(ColumnPredicateEvaluation {
-                        column: pred.time_column_id,
+                        column: time_column_id,
                     })
             }
         }
@@ -1075,31 +1023,15 @@ impl IntoExpr for str {
 mod tests {
     use arrow::util::pretty::pretty_format_batches;
     use data_types::data::split_lines_into_write_entry_partitions;
+    use datafusion::{logical_plan::Operator, scalar::ScalarValue};
     use delorean_line_parser::{parse_lines, ParsedLine};
-    use delorean_storage::exec::Executor;
+    use delorean_storage::{exec::Executor, predicate::PredicateBuilder};
     use delorean_test_helpers::str_vec_to_arc_vec;
 
     use super::*;
 
     #[test]
-    fn test_add_timestamp_predicate_expr() {
-        // Test that the generated predicate is correct
-
-        let expr = Expr::Column(String::from("foo"));
-        let timestamp_predicate = TimestampPredicate {
-            time_column_id: 0,
-            range: TimestampRange::new(101, 202),
-        };
-
-        let ts_predicate_expr = Table::add_timestamp_predicate_expr(expr, &timestamp_predicate);
-        let expected_string = "#foo And Int64(101) LtEq #time And #time Lt Int64(202)";
-        let actual_string = format!("{:?}", ts_predicate_expr);
-
-        assert_eq!(actual_string, expected_string);
-    }
-
-    #[test]
-    fn test_has_all_predicate_columns() {
+    fn test_has_columns() {
         // setup a test table
         let mut partition = Partition::new("dummy_partition_key");
         let dictionary = &mut partition.dictionary;
@@ -1115,37 +1047,34 @@ mod tests {
         let state_symbol = dictionary.id("state").unwrap();
         let new_symbol = dictionary.lookup_value_or_insert("not_a_columns");
 
-        assert!(table.has_all_predicate_columns(None));
+        assert!(table.has_columns(None));
 
-        let pred = PredicateTableColumns::NoColumns;
-        assert!(table.has_all_predicate_columns(Some(&pred)));
-
-        let pred = PredicateTableColumns::AtLeastOneMissing;
-        assert!(!table.has_all_predicate_columns(Some(&pred)));
+        let pred = PartitionIdSet::AtLeastOneMissing;
+        assert!(!table.has_columns(Some(&pred)));
 
         let set = BTreeSet::<u32>::new();
-        let pred = PredicateTableColumns::Present(set);
-        assert!(table.has_all_predicate_columns(Some(&pred)));
+        let pred = PartitionIdSet::Present(set);
+        assert!(table.has_columns(Some(&pred)));
 
         let mut set = BTreeSet::new();
         set.insert(state_symbol);
-        let pred = PredicateTableColumns::Present(set);
-        assert!(table.has_all_predicate_columns(Some(&pred)));
+        let pred = PartitionIdSet::Present(set);
+        assert!(table.has_columns(Some(&pred)));
 
         let mut set = BTreeSet::new();
         set.insert(new_symbol);
-        let pred = PredicateTableColumns::Present(set);
-        assert!(!table.has_all_predicate_columns(Some(&pred)));
+        let pred = PartitionIdSet::Present(set);
+        assert!(!table.has_columns(Some(&pred)));
 
         let mut set = BTreeSet::new();
         set.insert(state_symbol);
         set.insert(new_symbol);
-        let pred = PredicateTableColumns::Present(set);
-        assert!(!table.has_all_predicate_columns(Some(&pred)));
+        let pred = PartitionIdSet::Present(set);
+        assert!(!table.has_columns(Some(&pred)));
     }
 
     #[test]
-    fn test_matches_id_predicate() {
+    fn test_matches_table_name_predicate() {
         // setup a test table
         let mut partition = Partition::new("dummy_partition_key");
         let dictionary = &mut partition.dictionary;
@@ -1159,21 +1088,20 @@ mod tests {
 
         let h2o_symbol = dictionary.id("h2o").unwrap();
 
-        assert!(table.matches_id_predicate(None));
+        assert!(table.matches_table_name_predicate(None));
 
-        let table_symbol_predicate = PredicateTableName::NoPredicate;
-        assert!(table.matches_id_predicate(Some(&table_symbol_predicate)));
+        let set = BTreeSet::new();
+        assert!(!table.matches_table_name_predicate(Some(&set)));
 
-        let table_symbol_predicate = PredicateTableName::NoTableInPartition;
-        assert!(!table.matches_id_predicate(Some(&table_symbol_predicate)));
-
-        let table_symbol_predicate = PredicateTableName::Present(h2o_symbol);
-        assert!(table.matches_id_predicate(Some(&table_symbol_predicate)));
+        let mut set = BTreeSet::new();
+        set.insert(h2o_symbol);
+        assert!(table.matches_table_name_predicate(Some(&set)));
 
         // Some symbol that is not the same as h2o_symbol
         assert_ne!(37377, h2o_symbol);
-        let table_symbol_predicate = PredicateTableName::Present(37377);
-        assert!(!table.matches_id_predicate(Some(&table_symbol_predicate)));
+        let mut set = BTreeSet::new();
+        set.insert(37377);
+        assert!(!table.matches_table_name_predicate(Some(&set)));
     }
 
     #[tokio::test]
@@ -1192,10 +1120,10 @@ mod tests {
 
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
-        let predicate = None;
-        let timestamp_predicate = None;
+        let predicate = PredicateBuilder::default().build();
+        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
         let series_set_plan = table
-            .series_set_plan(predicate, timestamp_predicate, &partition)
+            .series_set_plan(&partition_predicate, &partition)
             .expect("creating the series set plan");
 
         assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
@@ -1243,10 +1171,10 @@ mod tests {
 
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
-        let predicate = None;
-        let timestamp_predicate = None;
+        let predicate = PredicateBuilder::default().build();
+        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
         let series_set_plan = table
-            .series_set_plan(predicate, timestamp_predicate, &partition)
+            .series_set_plan(&partition_predicate, &partition)
             .expect("creating the series set plan");
 
         assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
@@ -1295,20 +1223,19 @@ mod tests {
 
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
-        let expr = Expr::BinaryExpr {
-            left: Box::new(Expr::Column("city".into())),
-            op: Operator::Eq,
-            right: Box::new(Expr::Literal(ScalarValue::Utf8(Some("LA".into())))),
-        };
-        let predicate = Some(Predicate { expr });
+        let predicate = PredicateBuilder::default()
+            .add_expr(Expr::BinaryExpr {
+                left: Box::new(Expr::Column("city".into())),
+                op: Operator::Eq,
+                right: Box::new(Expr::Literal(ScalarValue::Utf8(Some("LA".into())))),
+            })
+            .timestamp_range(190, 210)
+            .build();
 
-        let range = Some(TimestampRange::new(190, 210));
-        let timestamp_predicate = partition
-            .make_timestamp_predicate(range)
-            .expect("Made a timestamp predicate");
+        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
 
         let series_set_plan = table
-            .series_set_plan(predicate.as_ref(), timestamp_predicate.as_ref(), &partition)
+            .series_set_plan(&partition_predicate, &partition)
             .expect("creating the series set plan");
 
         assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
@@ -1353,26 +1280,20 @@ mod tests {
 
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
-        let expr = Expr::BinaryExpr {
-            left: Box::new(Expr::Column("city".into())),
-            op: Operator::Eq,
-            right: Box::new(Expr::Literal(ScalarValue::Utf8(Some("LA".into())))),
-        };
-        let predicate = Some(Predicate { expr });
-
-        let range = Some(TimestampRange::new(190, 210));
-        let timestamp_predicate = partition
-            .make_timestamp_predicate(range)
-            .expect("Made a timestamp predicate");
+        let predicate = PredicateBuilder::default()
+            .add_expr(Expr::BinaryExpr {
+                left: Box::new(Expr::Column("city".into())),
+                op: Operator::Eq,
+                right: Box::new(Expr::Literal(ScalarValue::Utf8(Some("LA".into())))),
+            })
+            .timestamp_range(190, 210)
+            .build();
+        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
 
         let group_columns = vec![String::from("state")];
+
         let grouped_series_set_plan = table
-            .grouped_series_set_plan(
-                predicate.as_ref(),
-                timestamp_predicate.as_ref(),
-                &group_columns,
-                &partition,
-            )
+            .grouped_series_set_plan(&partition_predicate, &group_columns, &partition)
             .expect("creating the grouped_series set plan");
 
         assert_eq!(grouped_series_set_plan.num_prefix_tag_group_columns, 1);
@@ -1409,15 +1330,12 @@ mod tests {
 
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
-        let predicate = None;
+        let predicate = PredicateBuilder::default().timestamp_range(0, 200).build();
 
-        let range = Some(TimestampRange::new(0, 200));
-        let timestamp_predicate = partition
-            .make_timestamp_predicate(range)
-            .expect("Made a timestamp predicate");
+        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
 
         let field_names_set_plan = table
-            .field_names_plan(predicate.as_ref(), timestamp_predicate.as_ref(), &partition)
+            .field_names_plan(&partition_predicate, &partition)
             .expect("creating the field_name plan");
 
         // run the created plan, ensuring the output is as expected

@@ -17,7 +17,9 @@ use delorean_line_parser::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;
 use snafu::{OptionExt, Snafu};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, collections::BTreeSet, sync::Arc};
+
+use std::fmt::Write;
 
 use tokio::sync::Mutex;
 
@@ -63,46 +65,40 @@ pub struct TestDatabase {
 /// Records the parameters passed to a column name request
 #[derive(Debug, PartialEq, Clone)]
 pub struct ColumnNamesRequest {
-    pub table: Option<String>,
-    pub range: Option<TimestampRange>,
     /// Stringified '{:?}' version of the predicate
-    pub predicate: Option<String>,
+    pub predicate: String,
 }
 
 /// Records the parameters passed to a column values request
 #[derive(Debug, PartialEq, Clone)]
 pub struct ColumnValuesRequest {
+    /// The name of the requested column
     pub column_name: String,
-    pub table: Option<String>,
-    pub range: Option<TimestampRange>,
+
     /// Stringified '{:?}' version of the predicate
-    pub predicate: Option<String>,
+    pub predicate: String,
 }
 
 /// Records the parameters passed to a `query_series` request
 #[derive(Debug, PartialEq, Clone)]
 pub struct QuerySeriesRequest {
-    pub range: Option<TimestampRange>,
     /// Stringified '{:?}' version of the predicate
-    pub predicate: Option<String>,
+    pub predicate: String,
 }
 
 /// Records the parameters passed to a `query_groups` request
 #[derive(Debug, PartialEq, Clone)]
 pub struct QueryGroupsRequest {
-    pub range: Option<TimestampRange>,
     /// Stringified '{:?}' version of the predicate
-    pub predicate: Option<String>,
+    pub predicate: String,
     pub group_columns: Vec<String>,
 }
 
 /// Records the parameters passed to a `field_columns` request
 #[derive(Debug, PartialEq, Clone)]
 pub struct FieldColumnsRequest {
-    pub table: String,
-    pub range: Option<TimestampRange>,
     /// Stringified '{:?}' version of the predicate
-    pub predicate: Option<String>,
+    pub predicate: String,
 }
 
 #[derive(Snafu, Debug)]
@@ -199,7 +195,7 @@ impl TestDatabase {
 }
 
 /// returns true if this line is within the range of the timestamp
-fn line_in_range(line: &ParsedLine<'_>, range: &Option<TimestampRange>) -> bool {
+fn line_in_range(line: &ParsedLine<'_>, range: Option<&TimestampRange>) -> bool {
     match range {
         Some(range) => {
             let timestamp = line.timestamp.expect("had a timestamp on line");
@@ -207,6 +203,43 @@ fn line_in_range(line: &ParsedLine<'_>, range: &Option<TimestampRange>) -> bool 
         }
         None => true,
     }
+}
+
+fn set_to_string(s: &BTreeSet<String>) -> String {
+    s.iter().cloned().collect::<Vec<_>>().join(", ")
+}
+
+/// Convert a Predicate instance to a String that is reasonable to
+/// compare directly in tests
+fn predicate_to_test_string(predicate: &Predicate) -> String {
+    let Predicate {
+        table_names,
+        field_columns,
+        exprs,
+        range,
+    } = predicate;
+
+    let mut result = String::new();
+    write!(result, "Predicate {{").unwrap();
+
+    if let Some(table_names) = table_names {
+        write!(result, " table_names: {}", set_to_string(table_names)).unwrap();
+    }
+
+    if let Some(field_columns) = field_columns {
+        write!(result, " field_columns: {}", set_to_string(field_columns)).unwrap();
+    }
+
+    if !exprs.is_empty() {
+        write!(result, " exprs: {:?}", exprs).unwrap();
+    }
+
+    if let Some(range) = range {
+        write!(result, " range: {:?}", range).unwrap();
+    }
+
+    write!(result, "}}").unwrap();
+    result
 }
 
 #[async_trait]
@@ -234,16 +267,13 @@ impl Database for TestDatabase {
     }
 
     /// Return all table names that are saved in this database
-    async fn table_names(
-        &self,
-        range: Option<TimestampRange>,
-    ) -> Result<StringSetPlan, Self::Error> {
+    async fn table_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error> {
         let saved_lines = self.saved_lines.lock().await;
 
         let names = parse_lines(&saved_lines.join("\n"))
             .filter_map(|line| {
                 let line = line.expect("Correctly parsed saved line");
-                if line_in_range(&line, &range) {
+                if line_in_range(&line, predicate.range.as_ref()) {
                     Some(line.series.measurement.to_string())
                 } else {
                     None
@@ -255,20 +285,11 @@ impl Database for TestDatabase {
     }
 
     /// Return the mocked out column names, recording the request
-    async fn tag_column_names(
-        &self,
-        table: Option<String>,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
-    ) -> Result<StringSetPlan, Self::Error> {
+    async fn tag_column_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error> {
         // save the request
-        let predicate = predicate.map(|p| format!("{:?}", p));
+        let predicate = predicate_to_test_string(&predicate);
 
-        let new_column_names_request = Some(ColumnNamesRequest {
-            table,
-            range,
-            predicate,
-        });
+        let new_column_names_request = Some(ColumnNamesRequest { predicate });
 
         *self.column_names_request.clone().lock().await = new_column_names_request;
 
@@ -287,20 +308,11 @@ impl Database for TestDatabase {
         Ok(column_names.into())
     }
 
-    async fn field_columns(
-        &self,
-        table: String,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
-    ) -> Result<FieldListPlan, Self::Error> {
+    async fn field_columns(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error> {
         // save the request
-        let predicate = predicate.map(|p| format!("{:?}", p));
+        let predicate = predicate_to_test_string(&predicate);
 
-        let field_columns_request = Some(FieldColumnsRequest {
-            table,
-            range,
-            predicate,
-        });
+        let field_columns_request = Some(FieldColumnsRequest { predicate });
 
         *self.field_columns_request.clone().lock().await = field_columns_request;
 
@@ -320,17 +332,13 @@ impl Database for TestDatabase {
     async fn column_values(
         &self,
         column_name: &str,
-        table: Option<String>,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
+        predicate: Predicate,
     ) -> Result<StringSetPlan, Self::Error> {
         // save the request
-        let predicate = predicate.map(|p| format!("{:?}", p));
+        let predicate = predicate_to_test_string(&predicate);
 
         let new_column_values_request = Some(ColumnValuesRequest {
-            column_name: column_name.to_string(),
-            table,
-            range,
+            column_name: column_name.into(),
             predicate,
         });
 
@@ -351,14 +359,10 @@ impl Database for TestDatabase {
         Ok(column_values.into())
     }
 
-    async fn query_series(
-        &self,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
-    ) -> Result<SeriesSetPlans, Self::Error> {
-        let predicate = predicate.map(|p| format!("{:?}", p));
+    async fn query_series(&self, predicate: Predicate) -> Result<SeriesSetPlans, Self::Error> {
+        let predicate = predicate_to_test_string(&predicate);
 
-        let new_queries_series_request = Some(QuerySeriesRequest { range, predicate });
+        let new_queries_series_request = Some(QuerySeriesRequest { predicate });
 
         *self.query_series_request.clone().lock().await = new_queries_series_request;
 
@@ -375,14 +379,12 @@ impl Database for TestDatabase {
 
     async fn query_groups(
         &self,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
+        predicate: Predicate,
         group_columns: Vec<String>,
     ) -> Result<GroupedSeriesSetPlans, Self::Error> {
-        let predicate = predicate.map(|p| format!("{:?}", p));
+        let predicate = predicate_to_test_string(&predicate);
 
         let new_queries_groups_request = Some(QueryGroupsRequest {
-            range,
             predicate,
             group_columns,
         });

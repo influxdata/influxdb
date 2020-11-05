@@ -2,8 +2,6 @@ use std::collections::BTreeSet;
 
 use delorean_arrow::datafusion::logical_plan::Expr;
 
-use crate::util::AndExprBuilder;
-
 /// Specifies a continuous range of nanosecond timestamps. Timestamp
 /// predicates are so common and critical to performance of timeseries
 /// databases in general, and delorean in particular, that they are handled specially
@@ -66,17 +64,6 @@ impl Predicate {
     /// Return true if this predicate has any general purpose predicates
     pub fn has_exprs(&self) -> bool {
         !self.exprs.is_empty()
-    }
-
-    /// TEMP: return a single Expr that represents all the
-    /// general purpose predicates AND'd together.
-    pub fn combined_expr(&self) -> Option<Expr> {
-        self.exprs
-            .iter()
-            .fold(AndExprBuilder::default(), |builder, expr| {
-                builder.append_expr(expr.clone())
-            })
-            .build()
     }
 }
 

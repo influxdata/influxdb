@@ -1,13 +1,20 @@
-use delorean_arrow::arrow::record_batch::RecordBatch;
+use delorean_arrow::{
+    arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr,
+    datafusion::logical_plan::Operator, datafusion::optimizer::utils::expr_to_column_names,
+    datafusion::scalar::ScalarValue,
+};
 use delorean_generated_types::wal as wb;
 use delorean_wal::{Entry as WalEntry, Result as WalResult};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use data_types::TIME_COLUMN_NAME;
-use delorean_storage::TimestampRange;
+use delorean_storage::{
+    predicate::{Predicate, TimestampRange},
+    util::{visit_expression, AndExprBuilder, ExpressionVisitor},
+};
 
 use crate::dictionary::Dictionary;
-use crate::table::{Table, TimestampPredicate};
+use crate::table::Table;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -68,14 +75,130 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct Partition {
     pub key: String,
+
     /// `dictionary` maps &str -> u32. The u32s are used in place of String or str to avoid slow
     /// string operations. The same dictionary is used for table names, tag names, tag values, and
-    /// field names.
+    /// column names.
     // TODO: intern string field values too?
     pub dictionary: Dictionary,
-    /// tables is a map of the dictionary ID for the table name to the table
+
+    /// map of the dictionary ID for the table name to the table
     pub tables: HashMap<u32, Table>,
+
     pub is_open: bool,
+}
+
+/// Describes the result of translating a set of strings into
+/// partition specific ids
+#[derive(Debug, PartialEq, Eq)]
+pub enum PartitionIdSet {
+    /// At least one of the strings was not present in the partitions'
+    /// dictionary.
+    ///
+    /// This is important when testing for the presence of all ids in
+    /// a set, as we know they can not all be present
+    AtLeastOneMissing,
+
+    /// All strings existed in this partition's dictionary
+    Present(BTreeSet<u32>),
+}
+
+/// a 'Compiled' set of predicates / filters that can be evaluated on
+/// this partition (where strings have been translated to partition
+/// specific u32 ids)
+#[derive(Debug)]
+pub struct PartitionPredicate {
+    /// If present, restrict the request to just those tables whose
+    /// names are in table_names. If present but empty, means there
+    /// was a predicate but no tables named that way exist in the
+    /// partition (so no table can pass)
+    pub table_name_predicate: Option<BTreeSet<u32>>,
+
+    // Optional field column selection. If present, further restrict
+    // any field columns returnedto only those named
+    pub field_restriction: Option<BTreeSet<u32>>,
+
+    /// General DataFusion expressions (arbitrary predicates) applied
+    /// as a filter using logical conjuction (aka are 'AND'ed
+    /// together). Only rows that evaluate to TRUE for all these
+    /// expressions should be returned.
+    pub partition_exprs: Vec<Expr>,
+
+    /// If Some, then the table must contain all columns specified
+    /// to pass the predicate
+    pub required_columns: Option<PartitionIdSet>,
+
+    /// The id of the "time" column in this partition
+    pub time_column_id: u32,
+
+    /// Timestamp range: only rows within this range should be considered
+    pub range: Option<TimestampRange>,
+}
+
+impl PartitionPredicate {
+    /// Creates and adds a datafuson predicate representing the
+    /// combination of predicate and timestamp.
+    pub fn filter_expr(&self) -> Option<Expr> {
+        // build up a list of expressions
+        let mut builder =
+            AndExprBuilder::default().append_opt(self.make_timestamp_predicate_expr());
+
+        for expr in &self.partition_exprs {
+            builder = builder.append_expr(expr.clone());
+        }
+
+        builder.build()
+    }
+
+    /// Return true if there is a non empty field restriction
+    pub fn has_field_restriction(&self) -> bool {
+        match &self.field_restriction {
+            None => false,
+            Some(field_restiction) => !field_restiction.is_empty(),
+        }
+    }
+
+    /// For plans which select a subset of fields, returns true if
+    /// the field should be included in the results
+    pub fn should_include_field(&self, field_id: u32) -> bool {
+        match &self.field_restriction {
+            None => true,
+            Some(field_restriction) => field_restriction.contains(&field_id),
+        }
+    }
+
+    /// Return true if this column is the time column
+    pub fn is_time_column(&self, id: u32) -> bool {
+        self.time_column_id == id
+    }
+
+    /// Creates a DataFusion predicate for appliying a timestamp range:
+    ///
+    /// range.start <= time and time < range.end`
+    fn make_timestamp_predicate_expr(&self) -> Option<Expr> {
+        self.range.map(|range| make_range_expr(&range))
+    }
+}
+
+/// Creates expression like:
+/// range.low <= time && time < range.high
+fn make_range_expr(range: &TimestampRange) -> Expr {
+    let ts_low = Expr::BinaryExpr {
+        left: Box::new(Expr::Literal(ScalarValue::Int64(Some(range.start)))),
+        op: Operator::LtEq,
+        right: Box::new(Expr::Column(TIME_COLUMN_NAME.into())),
+    };
+    let ts_high = Expr::BinaryExpr {
+        left: Box::new(Expr::Column(TIME_COLUMN_NAME.into())),
+        op: Operator::Lt,
+        right: Box::new(Expr::Literal(ScalarValue::Int64(Some(range.end)))),
+    };
+
+    AndExprBuilder::default()
+        .append_expr(ts_low)
+        .append_expr(ts_high)
+        .build()
+        .unwrap()
 }
 
 impl Partition {
@@ -116,28 +239,101 @@ impl Partition {
         Ok(())
     }
 
-    /// Create a predicate suitable for passing to
-    /// `matches_timestamp_predicate` on a table within this partition
-    /// from the input timestamp range.
-    pub fn make_timestamp_predicate(
-        &self,
-        range: Option<TimestampRange>,
-    ) -> Result<Option<TimestampPredicate>> {
-        match range {
-            None => Ok(None),
-            Some(range) => {
-                let time_column_id = self.dictionary.lookup_value(TIME_COLUMN_NAME).context(
-                    ColumnNameNotFoundInDictionary {
-                        column: TIME_COLUMN_NAME,
-                        partition: &self.key,
-                    },
-                )?;
+    /// Translates `predicate` into per-partition ids that can be
+    /// directly evaluated against tables in this partition
+    pub fn compile_predicate(&self, predicate: &Predicate) -> Result<PartitionPredicate> {
+        let table_name_predicate = self.compile_string_list(predicate.table_names.as_ref());
 
-                Ok(Some(TimestampPredicate {
-                    range,
-                    time_column_id,
-                }))
+        let field_restriction = self.compile_string_list(predicate.field_columns.as_ref());
+
+        let time_column_id = self
+            .dictionary
+            .lookup_value(TIME_COLUMN_NAME)
+            .expect("time is in the partition dictionary");
+
+        let range = predicate.range;
+
+        // it would be nice to avoid cloning all the exprs here.
+        let partition_exprs = predicate.exprs.clone();
+
+        // In order to evaluate expressions in the table, all columns
+        // referenced in the expression must appear (I think, not sure
+        // about NOT, etc so panic if we see one of those);
+        let mut visitor = SupportVisitor {};
+        let mut predicate_columns: HashSet<String> = HashSet::new();
+        for expr in &partition_exprs {
+            visit_expression(expr, &mut visitor);
+            expr_to_column_names(&expr, &mut predicate_columns).unwrap();
+        }
+
+        // if there are any column references in the expression, ensure they appear in any table
+        let required_columns = if predicate_columns.is_empty() {
+            None
+        } else {
+            Some(self.make_partition_ids(predicate_columns.iter()))
+        };
+
+        Ok(PartitionPredicate {
+            table_name_predicate,
+            field_restriction,
+            partition_exprs,
+            required_columns,
+            time_column_id,
+            range,
+        })
+    }
+
+    /// Converts a potential set of strings into a set of ids in terms
+    /// of this dictionary. If there are no matching Strings in the
+    /// partitions dictionary, those strings are ignored and a
+    /// (potentially empty) set is returned.
+    fn compile_string_list(&self, names: Option<&BTreeSet<String>>) -> Option<BTreeSet<u32>> {
+        names.map(|names| {
+            names
+                .iter()
+                .filter_map(|name| self.dictionary.id(name))
+                .collect::<BTreeSet<_>>()
+        })
+    }
+
+    /// Adds the ids of any columns in additional_required_columns to the required columns of predicate
+    pub fn add_required_columns_to_predicate(
+        &self,
+        additional_required_columns: &HashSet<String>,
+        predicate: &mut PartitionPredicate,
+    ) {
+        for column_name in additional_required_columns {
+            // Once know we have missing columns, no need to try
+            // and figure out if these any additional columns are needed
+            if Some(PartitionIdSet::AtLeastOneMissing) == predicate.required_columns {
+                return;
             }
+
+            let column_id = self.dictionary.id(column_name);
+
+            // Update the required colunm list
+            predicate.required_columns = Some(match predicate.required_columns.take() {
+                None => {
+                    if let Some(column_id) = column_id {
+                        let mut symbols = BTreeSet::new();
+                        symbols.insert(column_id);
+                        PartitionIdSet::Present(symbols)
+                    } else {
+                        PartitionIdSet::AtLeastOneMissing
+                    }
+                }
+                Some(PartitionIdSet::Present(mut symbols)) => {
+                    if let Some(column_id) = column_id {
+                        symbols.insert(column_id);
+                        PartitionIdSet::Present(symbols)
+                    } else {
+                        PartitionIdSet::AtLeastOneMissing
+                    }
+                }
+                Some(PartitionIdSet::AtLeastOneMissing) => {
+                    unreachable!("Covered by case above while adding required columns to predicate")
+                }
+            });
         }
     }
 
@@ -167,6 +363,59 @@ impl Partition {
         table
             .to_arrow(&self, columns)
             .context(NamedTableError { table_name })
+    }
+
+    /// Translate a bunch of strings into a set of ids relative to this partition
+    pub fn make_partition_ids<'a, I>(&self, predicate_columns: I) -> PartitionIdSet
+    where
+        I: Iterator<Item = &'a String>,
+    {
+        let mut symbols = BTreeSet::new();
+        for column_name in predicate_columns {
+            if let Some(column_id) = self.dictionary.id(column_name) {
+                symbols.insert(column_id);
+            } else {
+                return PartitionIdSet::AtLeastOneMissing;
+            }
+        }
+
+        PartitionIdSet::Present(symbols)
+    }
+}
+
+/// Used to figure out if we know how to deal with this kind of
+/// predicate in the write buffer
+struct SupportVisitor {}
+
+impl ExpressionVisitor for SupportVisitor {
+    fn pre_visit(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Literal(..) => {}
+            Expr::Column(..) => {}
+            Expr::BinaryExpr { op, .. } => {
+                match op {
+                    Operator::Eq
+                    | Operator::Lt
+                    | Operator::LtEq
+                    | Operator::Gt
+                    | Operator::GtEq
+                    | Operator::Plus
+                    | Operator::Minus
+                    | Operator::Multiply
+                    | Operator::Divide
+                    | Operator::And
+                    | Operator::Or => {}
+                    // Unsupported (need to think about ramifications)
+                    Operator::NotEq | Operator::Modulus | Operator::Like | Operator::NotLike => {
+                        panic!("Unsupported binary operator in expression: {:?}", expr)
+                    }
+                }
+            }
+            _ => panic!(
+                "Unsupported expression in write_buffer database: {:?}",
+                expr
+            ),
+        }
     }
 }
 
@@ -232,4 +481,22 @@ pub fn restore_partitions_from_wal(
     }
 
     Ok((partitions, stats))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_make_range_expr() {
+        // Test that the generated predicate is correct
+
+        let range = TimestampRange::new(101, 202);
+
+        let ts_predicate_expr = make_range_expr(&range);
+        let expected_string = "Int64(101) LtEq #time And #time Lt Int64(202)";
+        let actual_string = format!("{:?}", ts_predicate_expr);
+
+        assert_eq!(actual_string, expected_string);
+    }
 }

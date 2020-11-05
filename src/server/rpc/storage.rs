@@ -19,7 +19,7 @@ use delorean_generated_types::{
 #[allow(unused_imports)]
 use delorean_generated_types::{node, Node};
 
-use crate::server::rpc::expr::convert_predicate;
+use crate::server::rpc::expr::{AddRPCNode, SpecialTagKeys};
 use crate::server::rpc::input::GrpcInputs;
 
 use delorean_storage::{
@@ -27,14 +27,16 @@ use delorean_storage::{
         seriesset::{Error as SeriesSetError, GroupedSeriesSetItem, SeriesSet},
         Executor as StorageExecutor,
     },
-    org_and_bucket_to_database, Database, DatabaseStore, TimestampRange as StorageTimestampRange,
+    org_and_bucket_to_database,
+    predicate::PredicateBuilder,
+    Database, DatabaseStore,
 };
 
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use tokio::sync::mpsc;
 use tonic::Status;
-use tracing::{debug, warn};
+use tracing::{info, warn};
 
 use super::data::{
     fieldlist_to_measurement_fields_response, grouped_series_set_item_to_read_response,
@@ -105,7 +107,7 @@ pub enum Error {
 
     #[snafu(display("Converting Predicate:  {}", source))]
     ConvertingPredicate {
-        predicate_string: String,
+        rpc_predicate_string: String,
         source: crate::server::rpc::expr::Error,
     },
 
@@ -238,7 +240,7 @@ where
             predicate,
         } = read_filter_request;
 
-        debug!("read_filter for database {}, range: {:?}", db_name, range);
+        info!("read_filter for database {}, range: {:?}", db_name, range);
 
         read_filter_impl(
             tx.clone(),
@@ -278,7 +280,7 @@ where
             aggregate: _aggregate,
         } = read_group_request;
 
-        debug!(
+        info!(
             "read_group for database {}, range: {:?}, group_keys: {:?}",
             db_name, range, group_keys
         );
@@ -316,7 +318,7 @@ where
             predicate,
         } = tag_keys_request;
 
-        debug!("tag_keys for database {}, range: {:?}", db_name, range);
+        info!("tag_keys for database {}, range: {:?}", db_name, range);
 
         let measurement = None;
 
@@ -357,24 +359,40 @@ where
             tag_key,
         } = tag_values_request;
 
-        debug!(
-            "tag_values for database {}, range: {:?}, tag_key: {}",
-            db_name, range, tag_key
-        );
-
         let measurement = None;
 
-        let response = tag_values_impl(
-            self.db_store.clone(),
-            self.executor.clone(),
-            db_name,
-            tag_key,
-            measurement,
-            range,
-            predicate,
-        )
-        .await
-        .map_err(|e| e.to_status());
+        // Special case a request for 'tag_key=_measurement" means to list all measurements
+        let response = if tag_key.is_measurement() {
+            info!(
+                "tag_values with tag_key=[x00] for database {}, range: {:?} --> returning measurement_names",
+                db_name, range
+            );
+
+            if predicate.is_some() {
+                unimplemented!("tag_value for a measurement, with general predicate");
+            }
+
+            measurement_name_impl(self.db_store.clone(), self.executor.clone(), db_name, range)
+                .await
+        } else {
+            info!(
+                "tag_values for database {}, range: {:?}, tag_key: {}",
+                db_name, range, tag_key
+            );
+
+            tag_values_impl(
+                self.db_store.clone(),
+                self.executor.clone(),
+                db_name,
+                tag_key,
+                measurement,
+                range,
+                predicate,
+            )
+            .await
+        };
+
+        let response = response.map_err(|e| e.to_status());
 
         tx.send(response)
             .await
@@ -415,7 +433,7 @@ where
             range,
         } = measurement_names_request;
 
-        debug!(
+        info!(
             "measurement_names for database {}, range: {:?}",
             db_name, range
         );
@@ -451,7 +469,7 @@ where
             predicate,
         } = measurement_tag_keys_request;
 
-        debug!(
+        info!(
             "measurement_tag_keys for database {}, range: {:?}, measurement: {}",
             db_name, range, measurement
         );
@@ -496,7 +514,7 @@ where
             tag_key,
         } = measurement_tag_values_request;
 
-        debug!(
+        info!(
             "measurement_tag_values for database {}, range: {:?}, measurement: {}, tag_key: {}",
             db_name, range, measurement, tag_key
         );
@@ -541,7 +559,7 @@ where
             predicate,
         } = measurement_fields_request;
 
-        debug!(
+        info!(
             "measurement_fields for database {}, range: {:?}",
             db_name, range
         );
@@ -567,8 +585,18 @@ where
     }
 }
 
-fn convert_range(range: Option<TimestampRange>) -> Option<StorageTimestampRange> {
-    range.map(|TimestampRange { start, end }| StorageTimestampRange { start, end })
+trait SetRange {
+    /// sets the timestamp range to range, if present
+    fn set_range(self, range: Option<TimestampRange>) -> Self;
+}
+impl SetRange for PredicateBuilder {
+    fn set_range(self, range: Option<TimestampRange>) -> Self {
+        if let Some(range) = range {
+            self.timestamp_range(range.start, range.end)
+        } else {
+            self
+        }
+    }
 }
 
 fn get_database_name(input: &impl GrpcInputs) -> Result<String, Status> {
@@ -594,13 +622,13 @@ async fn measurement_name_impl<T>(
 where
     T: DatabaseStore,
 {
-    let range = convert_range(range);
+    let predicate = PredicateBuilder::default().set_range(range).build();
 
     let plan = db_store
         .db(&db_name)
         .await
         .context(DatabaseNotFound { db_name: &db_name })?
-        .table_names(range)
+        .table_names(predicate)
         .await
         .map_err(|e| Error::ListingTables {
             db_name: db_name.clone(),
@@ -631,23 +659,29 @@ async fn tag_keys_impl<T>(
     db_name: String,
     measurement: Option<String>,
     range: Option<TimestampRange>,
-    predicate: Option<Predicate>,
+    rpc_predicate: Option<Predicate>,
 ) -> Result<StringValuesResponse>
 where
     T: DatabaseStore,
 {
-    let range = convert_range(range);
+    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+
+    let predicate = PredicateBuilder::default()
+        .set_range(range)
+        .table_option(measurement)
+        .rpc_predicate(rpc_predicate)
+        .context(ConvertingPredicate {
+            rpc_predicate_string,
+        })?
+        .build();
+
     let db = db_store
         .db(&db_name)
         .await
         .context(DatabaseNotFound { db_name: &db_name })?;
 
-    let predicate_string = format!("{:?}", predicate);
-    let predicate =
-        convert_predicate(predicate).context(ConvertingPredicate { predicate_string })?;
-
     let tag_key_plan = db
-        .tag_column_names(measurement, range, predicate)
+        .tag_column_names(predicate)
         .await
         .map_err(|e| Error::ListingColumns {
             db_name: db_name.clone(),
@@ -677,29 +711,35 @@ async fn tag_values_impl<T>(
     tag_name: String,
     measurement: Option<String>,
     range: Option<TimestampRange>,
-    predicate: Option<Predicate>,
+    rpc_predicate: Option<Predicate>,
 ) -> Result<StringValuesResponse>
 where
     T: DatabaseStore,
 {
-    let range = convert_range(range);
+    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+
+    let predicate = PredicateBuilder::default()
+        .set_range(range)
+        .table_option(measurement)
+        .rpc_predicate(rpc_predicate)
+        .context(ConvertingPredicate {
+            rpc_predicate_string,
+        })?
+        .build();
+
     let db = db_store
         .db(&db_name)
         .await
         .context(DatabaseNotFound { db_name: &db_name })?;
 
-    let predicate_string = format!("{:?}", predicate);
-    let predicate =
-        convert_predicate(predicate).context(ConvertingPredicate { predicate_string })?;
-
-    let tag_value_plan = db
-        .column_values(&tag_name, measurement, range, predicate)
-        .await
-        .map_err(|e| Error::ListingTagValues {
-            db_name: db_name.clone(),
-            tag_name: tag_name.clone(),
-            source: Box::new(e),
-        })?;
+    let tag_value_plan =
+        db.column_values(&tag_name, predicate)
+            .await
+            .map_err(|e| Error::ListingTagValues {
+                db_name: db_name.clone(),
+                tag_name: tag_name.clone(),
+                source: Box::new(e),
+            })?;
 
     let tag_values =
         executor
@@ -727,23 +767,28 @@ async fn read_filter_impl<T>(
     executor: Arc<StorageExecutor>,
     db_name: String,
     range: Option<TimestampRange>,
-    predicate: Option<Predicate>,
+    rpc_predicate: Option<Predicate>,
 ) -> Result<()>
 where
     T: DatabaseStore,
 {
-    let range = convert_range(range);
+    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+
+    let predicate = PredicateBuilder::default()
+        .set_range(range)
+        .rpc_predicate(rpc_predicate)
+        .context(ConvertingPredicate {
+            rpc_predicate_string,
+        })?
+        .build();
+
     let db = db_store
         .db(&db_name)
         .await
         .context(DatabaseNotFound { db_name: &db_name })?;
 
-    let predicate_string = format!("{:?}", predicate);
-    let predicate =
-        convert_predicate(predicate).context(ConvertingPredicate { predicate_string })?;
-
     let series_plan =
-        db.query_series(range, predicate)
+        db.query_series(predicate)
             .await
             .map_err(|e| Error::PlanningFilteringSeries {
                 db_name: db_name.clone(),
@@ -798,29 +843,33 @@ async fn read_group_impl<T>(
     executor: Arc<StorageExecutor>,
     db_name: String,
     range: Option<TimestampRange>,
-    predicate: Option<Predicate>,
+    rpc_predicate: Option<Predicate>,
     group_keys: Vec<String>,
 ) -> Result<()>
 where
     T: DatabaseStore,
 {
-    let range = convert_range(range);
+    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+
+    let predicate = PredicateBuilder::default()
+        .set_range(range)
+        .rpc_predicate(rpc_predicate)
+        .context(ConvertingPredicate {
+            rpc_predicate_string,
+        })?
+        .build();
+
     let db = db_store
         .db(&db_name)
         .await
         .context(DatabaseNotFound { db_name: &db_name })?;
 
-    let predicate_string = format!("{:?}", predicate);
-    let predicate =
-        convert_predicate(predicate).context(ConvertingPredicate { predicate_string })?;
-
-    let grouped_series_set_plan = db
-        .query_groups(range, predicate, group_keys)
-        .await
-        .map_err(|e| Error::PlanningFilteringSeries {
+    let grouped_series_set_plan = db.query_groups(predicate, group_keys).await.map_err(|e| {
+        Error::PlanningFilteringSeries {
             db_name: db_name.clone(),
             source: Box::new(e),
-        })?;
+        }
+    })?;
 
     // Spawn task to convert between series sets and the gRPC results
     // and to run the actual plans (so we can return a result to the
@@ -871,23 +920,29 @@ async fn measurement_fields_impl<T>(
     db_name: String,
     measurement: String,
     range: Option<TimestampRange>,
-    predicate: Option<Predicate>,
+    rpc_predicate: Option<Predicate>,
 ) -> Result<MeasurementFieldsResponse>
 where
     T: DatabaseStore,
 {
-    let range = convert_range(range);
+    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+
+    let predicate = PredicateBuilder::default()
+        .set_range(range)
+        .table_option(Some(measurement))
+        .rpc_predicate(rpc_predicate)
+        .context(ConvertingPredicate {
+            rpc_predicate_string,
+        })?
+        .build();
+
     let db = db_store
         .db(&db_name)
         .await
         .context(DatabaseNotFound { db_name: &db_name })?;
 
-    let predicate_string = format!("{:?}", predicate);
-    let predicate =
-        convert_predicate(predicate).context(ConvertingPredicate { predicate_string })?;
-
     let fieldlist_plan = db
-        .field_columns(measurement, range, predicate)
+        .field_columns(predicate)
         .await
         .map_err(|e| Error::ListingFields {
             db_name: db_name.clone(),
@@ -1084,107 +1139,32 @@ mod tests {
             partition_id,
         ));
 
-        #[derive(Debug)]
-        struct TestCase<'a> {
-            /// The tag keys to load into the database
-            tag_keys: Vec<&'a str>,
-            request: TagKeysRequest,
-            expected_request: ColumnNamesRequest,
-        }
+        let tag_keys = vec!["k1", "k2", "k3", "k4"];
+        let request = TagKeysRequest {
+            tags_source: source.clone(),
+            range: make_timestamp_range(150, 200),
+            predicate: make_state_ma_predicate(),
+        };
 
-        let test_cases = vec![
-            // ---
-            // No predicates / timestamps
-            // ---
-            TestCase {
-                tag_keys: vec!["k1"],
-                request: TagKeysRequest {
-                    tags_source: source.clone(),
-                    range: None,
-                    predicate: None,
-                },
-                expected_request: ColumnNamesRequest {
-                    table: None,
-                    range: None,
-                    predicate: None,
-                },
-            },
-            // ---
-            // Timestamp range
-            // ---
-            TestCase {
-                tag_keys: vec!["k1", "k2"],
-                request: TagKeysRequest {
-                    tags_source: source.clone(),
-                    range: make_timestamp_range(150, 200),
-                    predicate: None,
-                },
-                expected_request: ColumnNamesRequest {
-                    table: None,
-                    range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: None,
-                },
-            },
-            // ---
-            // Predicate
-            // ---
-            TestCase {
-                tag_keys: vec!["k1", "k2", "k3"],
-                request: TagKeysRequest {
-                    tags_source: source.clone(),
-                    range: None,
-                    predicate: make_state_ma_predicate(),
-                },
-                expected_request: ColumnNamesRequest {
-                    table: None,
-                    range: None,
-                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
-                },
-            },
-            // ---
-            // Timestamp + Predicate
-            // ---
-            TestCase {
-                tag_keys: vec!["k1", "k2", "k3", "k4"],
-                request: TagKeysRequest {
-                    tags_source: source.clone(),
-                    range: make_timestamp_range(150, 200),
-                    predicate: make_state_ma_predicate(),
-                },
-                expected_request: ColumnNamesRequest {
-                    table: None,
-                    range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
-                },
-            },
-        ];
+        let expected_request =  ColumnNamesRequest {
+            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
+        };
 
-        for test_case in test_cases.into_iter() {
-            let test_case_str = format!("{:?}", test_case);
-            let TestCase {
-                tag_keys,
-                request,
-                expected_request,
-            } = test_case;
+        test_db.set_column_names(to_string_vec(&tag_keys)).await;
 
-            test_db.set_column_names(to_string_vec(&tag_keys)).await;
+        let actual_tag_keys = fixture.storage_client.tag_keys(request).await?;
+        let mut expected_tag_keys = vec!["_field", "_measurement"];
+        expected_tag_keys.extend(tag_keys.iter());
 
-            let actual_tag_keys = fixture.storage_client.tag_keys(request).await?;
-            let mut expected_tag_keys = vec!["_field", "_measurement"];
-            expected_tag_keys.extend(tag_keys.iter());
-
-            assert_eq!(
-                actual_tag_keys, expected_tag_keys,
-                "unexpected tag keys while getting column names: {}",
-                test_case_str
-            );
-            assert_eq!(
-                test_db.get_column_names_request().await,
-                Some(expected_request),
-                "unexpected request while getting column names: {}",
-                test_case_str
-            );
-        }
+        assert_eq!(
+            actual_tag_keys, expected_tag_keys,
+            "unexpected tag keys while getting column names"
+        );
+        assert_eq!(
+            test_db.get_column_names_request().await,
+            Some(expected_request),
+            "unexpected request while getting column names"
+        );
 
         // ---
         // test error
@@ -1208,9 +1188,7 @@ mod tests {
         );
 
         let expected_request = Some(ColumnNamesRequest {
-            table: None,
-            range: None,
-            predicate: None,
+            predicate: "Predicate {}".into(),
         });
         assert_eq!(test_db.get_column_names_request().await, expected_request);
 
@@ -1250,105 +1228,38 @@ mod tests {
             expected_request: ColumnNamesRequest,
         }
 
-        let test_cases = vec![
-            // ---
-            // No predicates / timestamps
-            // ---
-            TestCase {
-                tag_keys: vec!["k1"],
-                request: MeasurementTagKeysRequest {
-                    measurement: "m1".into(),
-                    source: source.clone(),
-                    range: None,
-                    predicate: None,
-                },
-                expected_request: ColumnNamesRequest {
-                    table: Some("m1".into()),
-                    range: None,
-                    predicate: None,
-                },
-            },
-            // ---
-            // Timestamp range
-            // ---
-            TestCase {
-                tag_keys: vec!["k1", "k2"],
-                request: MeasurementTagKeysRequest {
-                    measurement: "m2".into(),
-                    source: source.clone(),
-                    range: make_timestamp_range(150, 200),
-                    predicate: None,
-                },
-                expected_request: ColumnNamesRequest {
-                    table: Some("m2".into()),
-                    range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: None,
-                },
-            },
-            // ---
-            // Predicate
-            // ---
-            TestCase {
-                tag_keys: vec!["k1", "k2", "k3"],
-                request: MeasurementTagKeysRequest {
-                    measurement: "m3".into(),
-                    source: source.clone(),
-                    range: None,
-                    predicate: make_state_ma_predicate(),
-                },
-                expected_request: ColumnNamesRequest {
-                    table: Some("m3".into()),
-                    range: None,
-                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
-                },
-            },
-            // ---
-            // Timestamp + Predicate
-            // ---
-            TestCase {
-                tag_keys: vec!["k1", "k2", "k3", "k4"],
-                request: MeasurementTagKeysRequest {
-                    measurement: "m4".into(),
-                    source: source.clone(),
-                    range: make_timestamp_range(150, 200),
-                    predicate: make_state_ma_predicate(),
-                },
-                expected_request: ColumnNamesRequest {
-                    table: Some("m4".into()),
-                    range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
-                },
-            },
-        ];
+        // ---
+        // Timestamp + Predicate
+        // ---
+        let tag_keys = vec!["k1", "k2", "k3", "k4"];
+        let request = MeasurementTagKeysRequest {
+            measurement: "m4".into(),
+            source: source.clone(),
+            range: make_timestamp_range(150, 200),
+            predicate: make_state_ma_predicate(),
+        };
 
-        for test_case in test_cases.into_iter() {
-            let test_case_str = format!("{:?}", test_case);
-            let TestCase {
-                tag_keys,
-                request,
-                expected_request,
-            } = test_case;
+        let expected_request =  ColumnNamesRequest {
+            predicate: "Predicate { table_names: m4 exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
+        };
 
-            test_db.set_column_names(to_string_vec(&tag_keys)).await;
+        test_db.set_column_names(to_string_vec(&tag_keys)).await;
 
-            let actual_tag_keys = fixture.storage_client.measurement_tag_keys(request).await?;
+        let actual_tag_keys = fixture.storage_client.measurement_tag_keys(request).await?;
 
-            let mut expected_tag_keys = vec!["_field", "_measurement"];
-            expected_tag_keys.extend(tag_keys.iter());
+        let mut expected_tag_keys = vec!["_field", "_measurement"];
+        expected_tag_keys.extend(tag_keys.iter());
 
-            assert_eq!(
-                actual_tag_keys, expected_tag_keys,
-                "unexpected tag keys while getting column names: {}",
-                test_case_str
-            );
+        assert_eq!(
+            actual_tag_keys, expected_tag_keys,
+            "unexpected tag keys while getting column names"
+        );
 
-            assert_eq!(
-                test_db.get_column_names_request().await,
-                Some(expected_request),
-                "unexpected request while getting column names: {}",
-                test_case_str
-            );
-        }
+        assert_eq!(
+            test_db.get_column_names_request().await,
+            Some(expected_request),
+            "unexpected request while getting column names"
+        );
 
         // ---
         // test error
@@ -1373,9 +1284,7 @@ mod tests {
         );
 
         let expected_request = Some(ColumnNamesRequest {
-            table: Some("m5".into()),
-            range: None,
-            predicate: None,
+            predicate: "Predicate { table_names: m5}".into(),
         });
         assert_eq!(test_db.get_column_names_request().await, expected_request);
 
@@ -1407,112 +1316,55 @@ mod tests {
             partition_id,
         ));
 
-        #[derive(Debug)]
-        struct TestCase<'a> {
-            /// The tag values to load into the database
-            tag_values: Vec<&'a str>,
-            request: TagValuesRequest,
-            expected_request: ColumnValuesRequest,
-        }
+        let tag_values = vec!["k1", "k2", "k3", "k4"];
+        let request = TagValuesRequest {
+            tags_source: source.clone(),
+            range: make_timestamp_range(150, 200),
+            predicate: make_state_ma_predicate(),
+            tag_key: "the_tag_key".into(),
+        };
 
-        let test_cases = vec![
-            // ---
-            // No predicates / timestamps
-            // ---
-            TestCase {
-                tag_values: vec!["k1"],
-                request: TagValuesRequest {
-                    tags_source: source.clone(),
-                    range: None,
-                    predicate: None,
-                    tag_key: "the_tag_key".into(),
-                },
-                expected_request: ColumnValuesRequest {
-                    table: None,
-                    range: None,
-                    predicate: None,
-                    column_name: "the_tag_key".into(),
-                },
-            },
-            // ---
-            // Timestamp range
-            // ---
-            TestCase {
-                tag_values: vec!["k1", "k2"],
-                request: TagValuesRequest {
-                    tags_source: source.clone(),
-                    range: make_timestamp_range(150, 200),
-                    predicate: None,
-                    tag_key: "the_tag_key".into(),
-                },
-                expected_request: ColumnValuesRequest {
-                    table: None,
-                    range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: None,
-                    column_name: "the_tag_key".into(),
-                },
-            },
-            // ---
-            // Predicate
-            // ---
-            TestCase {
-                tag_values: vec!["k1", "k2", "k3"],
-                request: TagValuesRequest {
-                    tags_source: source.clone(),
-                    range: None,
-                    predicate: make_state_ma_predicate(),
-                    tag_key: "the_tag_key".into(),
-                },
-                expected_request: ColumnValuesRequest {
-                    table: None,
-                    range: None,
-                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
-                    column_name: "the_tag_key".into(),
-                },
-            },
-            // ---
-            // Timestamp + Predicate
-            // ---
-            TestCase {
-                tag_values: vec!["k1", "k2", "k3", "k4"],
-                request: TagValuesRequest {
-                    tags_source: source.clone(),
-                    range: make_timestamp_range(150, 200),
-                    predicate: make_state_ma_predicate(),
-                    tag_key: "the_tag_key".into(),
-                },
-                expected_request: ColumnValuesRequest {
-                    table: None,
-                    range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
-                    column_name: "the_tag_key".into(),
-                },
-            },
-        ];
+        let expected_request = ColumnValuesRequest {
+            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
+            column_name: "the_tag_key".into(),
+        };
 
-        for test_case in test_cases.into_iter() {
-            let test_case_str = format!("{:?}", test_case);
-            let TestCase {
-                tag_values,
-                request,
-                expected_request,
-            } = test_case;
+        test_db.set_column_values(to_string_vec(&tag_values)).await;
 
-            test_db.set_column_values(to_string_vec(&tag_values)).await;
+        let actual_tag_values = fixture.storage_client.tag_values(request).await?;
+        assert_eq!(
+            actual_tag_values, tag_values,
+            "unexpected tag values while getting tag values"
+        );
+        assert_eq!(
+            test_db.get_column_values_request().await,
+            Some(expected_request),
+            "unexpected request while getting tag values"
+        );
 
-            let actual_tag_values = fixture.storage_client.tag_values(request).await?;
-            assert_eq!(
-                actual_tag_values, tag_values,
-                "unexpected tag values while getting tag values: {}",
-                test_case_str
-            );
-            assert_eq!(
-                test_db.get_column_values_request().await,
-                Some(expected_request),
-                "unexpected request while getting tag values: {}",
-                test_case_str
-            );
-        }
+        // ---
+        // test tag_key = _measurement means listing all measurement names
+        // ---
+        let request = TagValuesRequest {
+            tags_source: source.clone(),
+            range: make_timestamp_range(1000, 1500),
+            predicate: None,
+            tag_key: "\x00".into(),
+        };
+
+        let lp_data = "h2o,state=CA temp=50.4 1000\n\
+                       o2,state=MA temp=50.4 2000";
+        fixture
+            .test_storage
+            .add_lp_string(&db_info.db_name, lp_data)
+            .await;
+
+        let tag_values = vec!["h2o"];
+        let actual_tag_values = fixture.storage_client.tag_values(request).await?;
+        assert_eq!(
+            actual_tag_values, tag_values,
+            "unexpected tag values while getting tag values for measurement names"
+        );
 
         // ---
         // test error
@@ -1537,9 +1389,7 @@ mod tests {
         );
 
         let expected_request = Some(ColumnValuesRequest {
-            table: None,
-            range: None,
-            predicate: None,
+            predicate: "Predicate {}".into(),
             column_name: "the_tag_key".into(),
         });
         assert_eq!(test_db.get_column_values_request().await, expected_request);
@@ -1572,119 +1422,36 @@ mod tests {
             partition_id,
         ));
 
-        #[derive(Debug)]
-        struct TestCase<'a> {
-            /// The tag values to load into the database
-            tag_values: Vec<&'a str>,
-            request: MeasurementTagValuesRequest,
-            expected_request: ColumnValuesRequest,
-        }
+        let tag_values = vec!["k1", "k2", "k3", "k4"];
+        let request = MeasurementTagValuesRequest {
+            measurement: "m4".into(),
+            source: source.clone(),
+            range: make_timestamp_range(150, 200),
+            predicate: make_state_ma_predicate(),
+            tag_key: "the_tag_key".into(),
+        };
 
-        let test_cases = vec![
-            // ---
-            // No predicates / timestamps
-            // ---
-            TestCase {
-                tag_values: vec!["k1"],
-                request: MeasurementTagValuesRequest {
-                    measurement: "m1".into(),
-                    source: source.clone(),
-                    range: None,
-                    predicate: None,
-                    tag_key: "the_tag_key".into(),
-                },
-                expected_request: ColumnValuesRequest {
-                    table: Some("m1".into()),
-                    range: None,
-                    predicate: None,
-                    column_name: "the_tag_key".into(),
-                },
-            },
-            // ---
-            // Timestamp range
-            // ---
-            TestCase {
-                tag_values: vec!["k1", "k2"],
-                request: MeasurementTagValuesRequest {
-                    measurement: "m2".into(),
-                    source: source.clone(),
-                    range: make_timestamp_range(150, 200),
-                    predicate: None,
-                    tag_key: "the_tag_key".into(),
-                },
-                expected_request: ColumnValuesRequest {
-                    table: Some("m2".into()),
-                    range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: None,
-                    column_name: "the_tag_key".into(),
-                },
-            },
-            // ---
-            // Predicate
-            // ---
-            TestCase {
-                tag_values: vec!["k1", "k2", "k3"],
-                request: MeasurementTagValuesRequest {
-                    measurement: "m3".into(),
-                    source: source.clone(),
-                    range: None,
-                    predicate: make_state_ma_predicate(),
-                    tag_key: "the_tag_key".into(),
-                },
-                expected_request: ColumnValuesRequest {
-                    table: Some("m3".into()),
-                    range: None,
-                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
-                    column_name: "the_tag_key".into(),
-                },
-            },
-            // ---
-            // Timestamp + Predicate
-            // ---
-            TestCase {
-                tag_values: vec!["k1", "k2", "k3", "k4"],
-                request: MeasurementTagValuesRequest {
-                    measurement: "m4".into(),
-                    source: source.clone(),
-                    range: make_timestamp_range(150, 200),
-                    predicate: make_state_ma_predicate(),
-                    tag_key: "the_tag_key".into(),
-                },
-                expected_request: ColumnValuesRequest {
-                    table: Some("m4".into()),
-                    range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
-                    column_name: "the_tag_key".into(),
-                },
-            },
-        ];
+        let expected_request = ColumnValuesRequest {
+            predicate: "Predicate { table_names: m4 exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
+            column_name: "the_tag_key".into(),
+        };
 
-        for test_case in test_cases.into_iter() {
-            let test_case_str = format!("{:?}", test_case);
-            let TestCase {
-                tag_values,
-                request,
-                expected_request,
-            } = test_case;
+        test_db.set_column_values(to_string_vec(&tag_values)).await;
 
-            test_db.set_column_values(to_string_vec(&tag_values)).await;
+        let actual_tag_values = fixture
+            .storage_client
+            .measurement_tag_values(request)
+            .await?;
+        assert_eq!(
+            actual_tag_values, tag_values,
+            "unexpected tag values while getting tag values",
+        );
 
-            let actual_tag_values = fixture
-                .storage_client
-                .measurement_tag_values(request)
-                .await?;
-            assert_eq!(
-                actual_tag_values, tag_values,
-                "unexpected tag values while getting tag values: {}",
-                test_case_str
-            );
-            assert_eq!(
-                test_db.get_column_values_request().await,
-                Some(expected_request),
-                "unexpected request while getting tag values: {}",
-                test_case_str
-            );
-        }
+        assert_eq!(
+            test_db.get_column_values_request().await,
+            Some(expected_request),
+            "unexpected request while getting tag values",
+        );
 
         // ---
         // test error
@@ -1710,9 +1477,7 @@ mod tests {
         );
 
         let expected_request = Some(ColumnValuesRequest {
-            table: Some("m5".into()),
-            range: None,
-            predicate: None,
+            predicate: "Predicate { table_names: m5}".into(),
             column_name: "the_tag_key".into(),
         });
         assert_eq!(test_db.get_column_values_request().await, expected_request);
@@ -1812,96 +1577,33 @@ mod tests {
             partition_id,
         ));
 
-        #[derive(Debug)]
-        struct TestCase<'a> {
-            description: &'a str,
-            // TODO (when conversion between SeriesSets and Frames is implemented)
-            // series_set:
-            // expected output:
-            request: ReadFilterRequest,
-            expected_request: QuerySeriesRequest,
-        }
+        let request = ReadFilterRequest {
+            read_source: source.clone(),
+            range: make_timestamp_range(150, 200),
+            predicate: make_state_ma_predicate(),
+        };
 
-        let test_cases = vec![
-            TestCase {
-                description: "No predicates / timestamps",
-                request: ReadFilterRequest {
-                    read_source: source.clone(),
-                    range: None,
-                    predicate: None,
-                },
-                expected_request: QuerySeriesRequest {
-                    range: None,
-                    predicate: None,
-                },
-            },
-            TestCase {
-                description: "Only timestamp",
-                request: ReadFilterRequest {
-                    read_source: source.clone(),
-                    range: make_timestamp_range(150, 200),
-                    predicate: None,
-                },
-                expected_request: QuerySeriesRequest {
-                    range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: None,
-                },
-            },
-            TestCase {
-                description: "Only predicate",
-                request: ReadFilterRequest {
-                    read_source: source.clone(),
-                    range: None,
-                    predicate: make_state_ma_predicate(),
-                },
-                expected_request: QuerySeriesRequest {
-                    range: None,
-                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
-                },
-            },
-            TestCase {
-                description: "Both timestamp + predicate",
-                request: ReadFilterRequest {
-                    read_source: source.clone(),
-                    range: make_timestamp_range(150, 200),
-                    predicate: make_state_ma_predicate(),
-                },
-                expected_request: QuerySeriesRequest {
-                    range: Some(StorageTimestampRange::new(150, 200)),
-                    predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
-                },
-            },
-        ];
+        let expected_request = QuerySeriesRequest {
+            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
+        };
 
-        for test_case in test_cases.into_iter() {
-            let test_case_str = format!("{:?}", test_case);
-            let TestCase {
-                request,
-                expected_request,
-                ..
-            } = test_case;
+        let dummy_series_set_plan = SeriesSetPlans::from(vec![]);
+        test_db.set_query_series_values(dummy_series_set_plan).await;
 
-            // TODO setup any expected results
-            let dummy_series_set_plan = SeriesSetPlans::from(vec![]);
-            test_db.set_query_series_values(dummy_series_set_plan).await;
+        let actual_frames = fixture.storage_client.read_filter(request).await?;
 
-            let actual_frames = fixture.storage_client.read_filter(request).await?;
+        // TODO: encode this in the test case or something
+        let expected_frames: Vec<String> = vec!["0 frames".into()];
 
-            // TODO: encode this in the test case or something
-            let expected_frames: Vec<String> = vec!["0 frames".into()];
-
-            assert_eq!(
-                actual_frames, expected_frames,
-                "unexpected frames returned by query_series: {}",
-                test_case_str
-            );
-            assert_eq!(
-                test_db.get_query_series_request().await,
-                Some(expected_request),
-                "unexpected request to query_series: {}",
-                test_case_str
-            );
-        }
+        assert_eq!(
+            actual_frames, expected_frames,
+            "unexpected frames returned by query_series",
+        );
+        assert_eq!(
+            test_db.get_query_series_request().await,
+            Some(expected_request),
+            "unexpected request to query_series",
+        );
 
         // ---
         // test error
@@ -1925,8 +1627,7 @@ mod tests {
         );
 
         let expected_request = Some(QuerySeriesRequest {
-            range: None,
-            predicate: None,
+            predicate: "Predicate {}".into(),
         });
         assert_eq!(test_db.get_query_series_request().await, expected_request);
 
@@ -1967,8 +1668,7 @@ mod tests {
         };
 
         let expected_request = QueryGroupsRequest {
-            range: Some(StorageTimestampRange::new(150, 200)),
-            predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
+            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
             group_columns: vec![String::from("tag1")],
         };
 
@@ -2014,8 +1714,7 @@ mod tests {
         );
 
         let expected_request = Some(QueryGroupsRequest {
-            range: None,
-            predicate: None,
+            predicate: "Predicate {}".into(),
             group_columns: vec![],
         });
         assert_eq!(test_db.get_query_groups_request().await, expected_request);
@@ -2053,9 +1752,7 @@ mod tests {
         };
 
         let expected_request = FieldColumnsRequest {
-            table: String::from("TheMeasurement"),
-            range: Some(StorageTimestampRange::new(150, 200)),
-            predicate: Some("Predicate { expr: #state Eq Utf8(\"MA\") }".into()),
+            predicate: "Predicate { table_names: TheMeasurement exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
         };
 
         let fieldlist = FieldList {
@@ -2105,9 +1802,7 @@ mod tests {
         );
 
         let expected_request = Some(FieldColumnsRequest {
-            table: String::from("TheMeasurement"),
-            range: None,
-            predicate: None,
+            predicate: "Predicate { table_names: TheMeasurement}".into(),
         });
         assert_eq!(test_db.get_field_columns_request().await, expected_request);
 
@@ -2127,7 +1822,7 @@ mod tests {
             value: Some(Value::Comparison(Comparison::Equal as i32)),
             children: vec![
                 Node {
-                    value: Some(Value::TagRefValue(b"state".to_vec())),
+                    value: Some(Value::TagRefValue("state".to_string().into_bytes())),
                     children: vec![],
                 },
                 Node {

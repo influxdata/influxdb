@@ -5,15 +5,15 @@ use delorean_storage::{
         stringset::StringSet, FieldListPlan, GroupedSeriesSetPlan, GroupedSeriesSetPlans,
         SeriesSetPlan, SeriesSetPlans, StringSetPlan,
     },
-    util::{visit_expression, ExpressionVisitor},
-    Database, Predicate, TimestampRange,
+    predicate::Predicate,
+    Database,
 };
 use delorean_wal::WalBuilder;
 use delorean_wal_writer::{start_wal_sync_task, Error as WalWriterError, WalDetails};
 
-use crate::table::{PredicateTableName, Table};
-use crate::{column::Column, table::TimestampPredicate};
-use crate::{partition::Partition, table::PredicateTableColumns};
+use crate::column::Column;
+use crate::partition::Partition;
+use crate::{partition::PartitionPredicate, table::Table};
 
 use std::collections::{BTreeSet, HashSet};
 use std::io::ErrorKind;
@@ -24,10 +24,7 @@ use data_types::data::{split_lines_into_write_entry_partitions, ReplicatedWrite}
 use delorean_arrow::{
     arrow,
     arrow::{datatypes::Schema as ArrowSchema, record_batch::RecordBatch},
-    datafusion::logical_plan::Expr,
     datafusion::logical_plan::LogicalPlan,
-    datafusion::logical_plan::Operator,
-    datafusion::optimizer::utils::expr_to_column_names,
     datafusion::prelude::ExecutionConfig,
     datafusion::{
         datasource::MemTable, error::DataFusionError, execution::context::ExecutionContext,
@@ -384,23 +381,30 @@ impl Database for Db {
         Ok(())
     }
 
-    async fn table_names(
-        &self,
-        range: Option<TimestampRange>,
-    ) -> Result<StringSetPlan, Self::Error> {
+    async fn table_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error> {
         // TODO: Cache this information to avoid creating this each time
         let partitions = self.partitions.read().await;
+
         let mut table_names: BTreeSet<String> = BTreeSet::new();
         for partition in partitions.iter() {
-            let timestamp_predicate = partition.make_timestamp_predicate(range)?;
+            let partition_predicate = partition.compile_predicate(&predicate)?;
+            // this doesn't seem to make any sense
+            assert!(
+                partition_predicate.field_restriction.is_none(),
+                "Column selection for table names not supported"
+            );
+
+            // It might make sense to ask for all table names that
+            // have rows that pass a general purpose predicate. I am
+            // not sure if it is needed now, so panic
+            assert!(
+                partition_predicate.partition_exprs.is_empty(),
+                "General partition exprs on table name list are not supported"
+            );
+
             for (table_name_symbol, table) in &partition.tables {
-                if table.matches_timestamp_predicate(timestamp_predicate.as_ref())? {
-                    let table_name = partition.dictionary.lookup_id(*table_name_symbol).context(
-                        TableIdNotFoundInDictionary {
-                            table: *table_name_symbol,
-                            partition: &partition.key,
-                        },
-                    )?;
+                if table.could_match_predicate(&partition_predicate)? {
+                    let table_name = partition.dictionary.lookup_id(*table_name_symbol).unwrap();
 
                     if !table_names.contains(table_name) {
                         table_names.insert(table_name.to_string());
@@ -412,37 +416,25 @@ impl Database for Db {
     }
 
     // return all column names in this database, while applying optional predicates
-    async fn tag_column_names(
-        &self,
-        table: Option<String>,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
-    ) -> Result<StringSetPlan, Self::Error> {
-        let mut filter = PartitionTableFilter::new(table, range, predicate.as_ref());
+    async fn tag_column_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error> {
+        let has_exprs = predicate.has_exprs();
+        let mut filter = PartitionTableFilter::new(predicate);
 
-        match predicate {
-            None => {
-                let mut visitor = NameVisitor::new();
-                self.visit_tables(&mut filter, &mut visitor).await?;
-                Ok(visitor.column_names.into())
-            }
-            Some(predicate) => {
-                let mut visitor = NamePredVisitor::new(predicate);
-                self.visit_tables(&mut filter, &mut visitor).await?;
-                Ok(visitor.plans.into())
-            }
+        if has_exprs {
+            let mut visitor = NamePredVisitor::new();
+            self.visit_tables(&mut filter, &mut visitor).await?;
+            Ok(visitor.plans.into())
+        } else {
+            let mut visitor = NameVisitor::new();
+            self.visit_tables(&mut filter, &mut visitor).await?;
+            Ok(visitor.column_names.into())
         }
     }
 
     /// return all field names in this database, while applying optional predicates
-    async fn field_columns(
-        &self,
-        table: String,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
-    ) -> Result<FieldListPlan, Self::Error> {
-        let mut filter = PartitionTableFilter::new(Some(table), range, predicate.as_ref());
-        let mut visitor = TableFieldPredVisitor::new(predicate);
+    async fn field_columns(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error> {
+        let mut filter = PartitionTableFilter::new(predicate);
+        let mut visitor = TableFieldPredVisitor::new();
         self.visit_tables(&mut filter, &mut visitor).await?;
         Ok(visitor.into_fieldlist_plan())
     }
@@ -451,48 +443,39 @@ impl Database for Db {
     async fn column_values(
         &self,
         column_name: &str,
-        table: Option<String>,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
+        predicate: Predicate,
     ) -> Result<StringSetPlan, Self::Error> {
-        let mut filter = PartitionTableFilter::new(table, range, predicate.as_ref());
+        let has_exprs = predicate.has_exprs();
+        let mut filter = PartitionTableFilter::new(predicate);
 
-        match predicate {
-            None => {
-                let mut visitor = ValueVisitor::new(column_name);
-                self.visit_tables(&mut filter, &mut visitor).await?;
-                Ok(visitor.column_values.into())
-            }
-            Some(predicate) => {
-                let mut visitor = ValuePredVisitor::new(column_name, predicate);
-                self.visit_tables(&mut filter, &mut visitor).await?;
-                Ok(visitor.plans.into())
-            }
+        if has_exprs {
+            let mut visitor = ValuePredVisitor::new(column_name);
+            self.visit_tables(&mut filter, &mut visitor).await?;
+            Ok(visitor.plans.into())
+        } else {
+            let mut visitor = ValueVisitor::new(column_name);
+            self.visit_tables(&mut filter, &mut visitor).await?;
+            Ok(visitor.column_values.into())
         }
     }
 
-    async fn query_series(
-        &self,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
-    ) -> Result<SeriesSetPlans, Self::Error> {
-        let mut filter = PartitionTableFilter::new(None, range, predicate.as_ref());
-        let mut visitor = SeriesVisitor::new(predicate);
+    async fn query_series(&self, predicate: Predicate) -> Result<SeriesSetPlans, Self::Error> {
+        let mut filter = PartitionTableFilter::new(predicate);
+        let mut visitor = SeriesVisitor::new();
         self.visit_tables(&mut filter, &mut visitor).await?;
         Ok(visitor.plans.into())
     }
 
     async fn query_groups(
         &self,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
+        predicate: Predicate,
         group_columns: Vec<String>,
     ) -> Result<GroupedSeriesSetPlans, Self::Error> {
-        let mut filter = PartitionTableFilter::new(None, range, predicate.as_ref())
+        let mut filter = PartitionTableFilter::new(predicate)
             // Add any specified groups as predicate columns (so we can skip tables without those tags)
-            .add_predicate_columns(&group_columns);
+            .add_required_columns(&group_columns);
 
-        let mut visitor = GroupsVisitor::new(predicate, group_columns);
+        let mut visitor = GroupsVisitor::new(group_columns);
         self.visit_tables(&mut filter, &mut visitor).await?;
         Ok(visitor.plans.into())
     }
@@ -680,7 +663,7 @@ impl Db {
     }
 }
 
-/// Logic to filter out entire logic entire tables
+/// Common logic for processing and filtering tables in the write buffer
 ///
 /// Note that since each partition has its own dictionary, mappings
 /// between Strings --> we cache the String->id mappings per partition
@@ -690,67 +673,43 @@ impl Db {
 /// table's env column has the range ["eu-south", "us-north"].
 #[derive(Debug)]
 struct PartitionTableFilter {
-    /// Per Db timestamp range
-    range: Option<TimestampRange>,
-    /// Per Db specific table name
-    table: Option<String>,
-    /// Per Db specific columns used in predicates
-    predicate_columns: Option<HashSet<String>>,
+    predicate: Predicate,
 
-    /// Per partition predicate
-    ts_pred: Option<TimestampPredicate>,
+    /// If specififed, only tables with all specified columns will be
+    /// visited. Note that just becuase a table has all these columns,
+    /// it might not be visited for other reasons (e.g. it is filted
+    /// out by a table_name predicate)
+    additional_required_columns: Option<HashSet<String>>,
 
-    /// Per partition table name, if it matches table
-    predicate_table_name: Option<PredicateTableName>,
-
-    /// Per partition list of columns which appear in predicates
-    predicate_table_columns: Option<PredicateTableColumns>,
+    /// A 'compiled' version of the predicate to evaluate on tables /
+    /// columns in a particular partition during the walk
+    partition_predicate: Option<PartitionPredicate>,
 }
 
 impl PartitionTableFilter {
-    fn new(
-        table: Option<String>,
-        range: Option<TimestampRange>,
-        predicate: Option<&Predicate>,
-    ) -> Self {
-        check_supported_predicate(predicate);
-
-        let predicate_columns = predicate
-            .map(|predicate| {
-                let mut accum: HashSet<String> = HashSet::new();
-                expr_to_column_names(&predicate.expr, &mut accum).unwrap();
-                accum
-            })
-            // If the predicate had no columns, don't know how to skip
-            // tables / columns based on that yet, so translate predicate
-            // to none
-            .filter(|predicate_columns| !predicate_columns.is_empty());
-
-        let ts_pred = None;
-        let predicate_table_name = None;
-        let predicate_table_columns = None;
-
+    fn new(predicate: Predicate) -> Self {
         Self {
-            range,
-            table,
-            predicate_columns,
-            ts_pred,
-            predicate_table_name,
-            predicate_table_columns,
+            predicate,
+            additional_required_columns: None,
+            partition_predicate: None,
         }
     }
 
-    /// adds the specified columns to the list of columns used in predicates / etc
-    fn add_predicate_columns(mut self, column_names: &[String]) -> Self {
-        let mut predicate_columns = self.predicate_columns.take().unwrap_or_else(HashSet::new);
+    /// adds the specified columns to a list of columns that must be
+    /// present in a table.
+    fn add_required_columns(mut self, column_names: &[String]) -> Self {
+        let mut required_columns = self
+            .additional_required_columns
+            .take()
+            .unwrap_or_else(HashSet::new);
 
         for c in column_names {
-            if !predicate_columns.contains(c) {
-                predicate_columns.insert(c.clone());
+            if !required_columns.contains(c) {
+                required_columns.insert(c.clone());
             }
         }
 
-        self.predicate_columns = Some(predicate_columns);
+        self.additional_required_columns = Some(required_columns);
         self
     }
 
@@ -758,97 +717,35 @@ impl PartitionTableFilter {
     /// specific to each partitition, the predicates much get
     /// translated each time.
     fn pre_visit_partition(&mut self, partition: &Partition) -> Result<()> {
-        // The id of the timestamp column is specific to each partition
-        self.ts_pred = partition.make_timestamp_predicate(self.range)?;
+        let mut partition_predicate = partition.compile_predicate(&self.predicate)?;
 
-        // ids are relative to a specific partition
-        self.predicate_table_name = Some(match self.table.as_ref() {
-            None => PredicateTableName::NoPredicate,
-            Some(table_name) => match partition.dictionary.id(table_name) {
-                None => PredicateTableName::NoTableInPartition,
-                Some(table_id) => PredicateTableName::Present(table_id),
-            },
-        });
+        // add any additional column needs
+        if let Some(additional_required_columns) = &self.additional_required_columns {
+            partition.add_required_columns_to_predicate(
+                additional_required_columns,
+                &mut partition_predicate,
+            );
+        }
 
-        self.predicate_table_columns = self.predicate_columns.as_ref().map(|predicate_columns| {
-            if predicate_columns.is_empty() {
-                return PredicateTableColumns::NoColumns;
-            }
-
-            let mut symbols = BTreeSet::new();
-            for column_name in predicate_columns {
-                if let Some(column_id) = partition.dictionary.id(column_name) {
-                    symbols.insert(column_id);
-                } else {
-                    return PredicateTableColumns::AtLeastOneMissing;
-                }
-            }
-
-            PredicateTableColumns::Present(symbols)
-        });
+        self.partition_predicate = Some(partition_predicate);
 
         Ok(())
     }
 
     /// If returns false, skips visiting _table and all its columns
     fn should_visit_table(&mut self, table: &Table) -> Result<bool> {
-        Ok(
-            table.matches_id_predicate(self.predicate_table_name.as_ref())
-                && table.matches_timestamp_predicate(self.ts_pred.as_ref())?
-                && table.has_all_predicate_columns(self.predicate_table_columns.as_ref()),
-        )
+        Ok(table.could_match_predicate(self.partition_predicate())?)
+    }
+
+    pub fn partition_predicate(&self) -> &PartitionPredicate {
+        self.partition_predicate
+            .as_ref()
+            .expect("Visited partition to compile predicate")
     }
 }
 
-/// fail fast if we have some non supported predicates (we made
-/// assumptions about column names appearing in predicates) above
-///
-/// Panics if such a predicate is there
-fn check_supported_predicate(predicate: Option<&Predicate>) {
-    if let Some(Predicate { expr }) = predicate {
-        let mut visitor = SupportVisitor {};
-        visit_expression(expr, &mut visitor);
-    }
-}
-
-struct SupportVisitor {}
-
-impl ExpressionVisitor for SupportVisitor {
-    fn pre_visit(&mut self, expr: &Expr) {
-        match expr {
-            Expr::Literal(..) => {}
-            Expr::Column(..) => {}
-            Expr::BinaryExpr { op, .. } => {
-                match op {
-                    Operator::Eq
-                    | Operator::Lt
-                    | Operator::LtEq
-                    | Operator::Gt
-                    | Operator::GtEq
-                    | Operator::Plus
-                    | Operator::Minus
-                    | Operator::Multiply
-                    | Operator::Divide
-                    | Operator::And => {}
-                    // Unsupported (need to think about ramifications)
-                    Operator::NotEq
-                    | Operator::Modulus
-                    | Operator::Or
-                    | Operator::Like
-                    | Operator::NotLike => {
-                        panic!("Unsupported binary operator in expression: {:?}", expr)
-                    }
-                }
-            }
-            _ => panic!(
-                "Unsupported expression in write_buffer database: {:?}",
-                expr
-            ),
-        }
-    }
-}
-
-/// return all column names in this database, while applying the timestamp range
+/// return all column names in this database, while applying only the
+/// timestamp range (has no general purpose predicates)
 struct NameVisitor {
     column_names: StringSet,
     partition_column_ids: BTreeSet<u32>,
@@ -872,7 +769,7 @@ impl Visitor for NameVisitor {
         filter: &mut PartitionTableFilter,
     ) -> Result<()> {
         if let Column::Tag(column, _) = column {
-            if table.column_matches_timestamp_predicate(column, filter.ts_pred.as_ref())? {
+            if table.column_matches_predicate(column, filter.partition_predicate())? {
                 self.partition_column_ids.insert(column_id);
             }
         }
@@ -903,18 +800,14 @@ impl Visitor for NameVisitor {
 }
 
 /// Return all column names in this database, while applying a
-/// general purpose predicate
+/// general purpose predicates
 struct NamePredVisitor {
-    predicate: Predicate,
     plans: Vec<LogicalPlan>,
 }
 
 impl NamePredVisitor {
-    fn new(predicate: Predicate) -> Self {
-        Self {
-            predicate,
-            plans: Vec::new(),
-        }
+    fn new() -> Self {
+        Self { plans: Vec::new() }
     }
 }
 
@@ -925,11 +818,8 @@ impl Visitor for NamePredVisitor {
         partition: &Partition,
         filter: &mut PartitionTableFilter,
     ) -> Result<()> {
-        self.plans.push(table.tag_column_names_plan(
-            &self.predicate,
-            filter.ts_pred.as_ref(),
-            partition,
-        )?);
+        self.plans
+            .push(table.tag_column_names_plan(filter.partition_predicate(), partition)?);
         Ok(())
     }
 }
@@ -938,7 +828,6 @@ impl Visitor for NamePredVisitor {
 /// applying timestamp and other predicates
 #[derive(Debug)]
 struct TableFieldPredVisitor {
-    predicate: Option<Predicate>,
     // As Each table can be spread across multiple Partitions, we
     // collect all the relevant plans and Union them together.
     plans: Vec<LogicalPlan>,
@@ -951,19 +840,16 @@ impl Visitor for TableFieldPredVisitor {
         partition: &Partition,
         filter: &mut PartitionTableFilter,
     ) -> Result<()> {
-        self.plans.push(table.field_names_plan(
-            self.predicate.as_ref(),
-            filter.ts_pred.as_ref(),
-            partition,
-        )?);
+        self.plans
+            .push(table.field_names_plan(filter.partition_predicate(), partition)?);
         Ok(())
     }
 }
 
 impl TableFieldPredVisitor {
-    fn new(predicate: Option<Predicate>) -> Self {
+    fn new() -> Self {
         let plans = Vec::new();
-        Self { predicate, plans }
+        Self { plans }
     }
 
     fn into_fieldlist_plan(self) -> FieldListPlan {
@@ -1027,24 +913,25 @@ impl<'a> Visitor for ValueVisitor<'a> {
         match column {
             Column::Tag(column, _) => {
                 // if we have a timestamp prediate, find all values
-                // that the timestamp is within range. Otherwise take
+                // where the timestamp is within range. Otherwise take
                 // all values.
-                match filter.ts_pred {
+                let partition_predicate = filter.partition_predicate();
+                match partition_predicate.range {
                     None => {
                         // take all non-null values
                         column.iter().filter_map(|&s| s).for_each(|value_id| {
                             self.partition_value_ids.insert(value_id);
                         });
                     }
-                    Some(pred) => {
+                    Some(range) => {
                         // filter out all values that don't match the timestmap
-                        let time_column = table.column_i64(pred.time_column_id)?;
+                        let time_column = table.column_i64(partition_predicate.time_column_id)?;
 
                         column
                             .iter()
                             .zip(time_column.iter())
                             .filter_map(|(&column_value_id, &timestamp_value)| {
-                                if pred.range.contains_opt(timestamp_value) {
+                                if range.contains_opt(timestamp_value) {
                                     column_value_id
                                 } else {
                                     None
@@ -1086,15 +973,13 @@ impl<'a> Visitor for ValueVisitor<'a> {
 /// database, while applying the timestamp range and predicate
 struct ValuePredVisitor<'a> {
     column_name: &'a str,
-    predicate: Predicate,
     plans: Vec<LogicalPlan>,
 }
 
 impl<'a> ValuePredVisitor<'a> {
-    fn new(column_name: &'a str, predicate: Predicate) -> Self {
+    fn new(column_name: &'a str) -> Self {
         Self {
             column_name,
-            predicate,
             plans: Vec::new(),
         }
     }
@@ -1110,36 +995,26 @@ impl<'a> Visitor for ValuePredVisitor<'a> {
         filter: &mut PartitionTableFilter,
     ) -> Result<()> {
         // skip table entirely if there are no rows that fall in the timestamp
-        if !table.matches_timestamp_predicate(filter.ts_pred.as_ref())? {
-            return Ok(());
+        if table.could_match_predicate(filter.partition_predicate())? {
+            self.plans.push(table.tag_values_plan(
+                self.column_name,
+                filter.partition_predicate(),
+                partition,
+            )?);
         }
-
-        self.plans.push(table.tag_values_plan(
-            self.column_name,
-            &self.predicate,
-            filter.ts_pred.as_ref(),
-            partition,
-        )?);
         Ok(())
     }
 }
 
 /// Return DataFusion plans to calculate which series pass the
 /// specified predicate.
-///
-/// TODO: Handle _f=<fieldname> and _m=<measurement> predicates
-/// specially (by filtering entire tables and selecting fields)
 struct SeriesVisitor {
-    predicate: Option<Predicate>,
     plans: Vec<SeriesSetPlan>,
 }
 
 impl SeriesVisitor {
-    fn new(predicate: Option<Predicate>) -> Self {
-        Self {
-            predicate,
-            plans: Vec::new(),
-        }
+    fn new() -> Self {
+        Self { plans: Vec::new() }
     }
 }
 
@@ -1150,11 +1025,8 @@ impl Visitor for SeriesVisitor {
         partition: &Partition,
         filter: &mut PartitionTableFilter,
     ) -> Result<()> {
-        self.plans.push(table.series_set_plan(
-            self.predicate.as_ref(),
-            filter.ts_pred.as_ref(),
-            partition,
-        )?);
+        self.plans
+            .push(table.series_set_plan(filter.partition_predicate(), partition)?);
 
         Ok(())
     }
@@ -1162,19 +1034,14 @@ impl Visitor for SeriesVisitor {
 
 /// Return DataFusion plans to calculate series that pass the
 /// specified predicate, grouped according to grouped_columns
-///
-/// TODO: Handle _f=<fieldname> and _m=<measurement> predicates
-/// specially (by filtering entire tables and selecting fields)
 struct GroupsVisitor {
-    predicate: Option<Predicate>,
     group_columns: Vec<String>,
     plans: Vec<GroupedSeriesSetPlan>,
 }
 
 impl GroupsVisitor {
-    fn new(predicate: Option<Predicate>, group_columns: Vec<String>) -> Self {
+    fn new(group_columns: Vec<String>) -> Self {
         Self {
-            predicate,
             group_columns,
             plans: Vec::new(),
         }
@@ -1189,8 +1056,7 @@ impl Visitor for GroupsVisitor {
         filter: &mut PartitionTableFilter,
     ) -> Result<()> {
         self.plans.push(table.grouped_series_set_plan(
-            self.predicate.as_ref(),
-            filter.ts_pred.as_ref(),
+            filter.partition_predicate(),
             &self.group_columns,
             partition,
         )?);
@@ -1223,13 +1089,13 @@ mod tests {
         scalar::ScalarValue,
     };
     use delorean_storage::{
-        exec::fieldlist::Field,
-        exec::fieldlist::FieldList,
+        exec::fieldlist::{Field, FieldList},
         exec::{
             seriesset::{Error as SeriesSetError, SeriesSet},
             Executor,
         },
-        Database, TimestampRange,
+        predicate::PredicateBuilder,
+        Database,
     };
     use logical_plan::{Expr, Operator};
 
@@ -1258,8 +1124,8 @@ mod tests {
     }
 
     // query the table names, with optional range predicate
-    async fn table_names(db: &Db, range: Option<TimestampRange>) -> Result<StringSet> {
-        let plan = db.table_names(range).await?;
+    async fn table_names(db: &Db, predicate: Predicate) -> Result<StringSet> {
+        let plan = db.table_names(predicate).await?;
         let executor = Executor::default();
         let s = executor.to_string_set(plan).await?;
 
@@ -1275,7 +1141,10 @@ mod tests {
         let db = Db::try_with_wal("mydb", &mut dir).await?;
 
         // no tables initially
-        assert_eq!(table_names(&db, None).await?, BTreeSet::new());
+        assert_eq!(
+            table_names(&db, Predicate::default()).await?,
+            BTreeSet::new()
+        );
 
         // write two different tables
         let lines: Vec<_> =
@@ -1285,7 +1154,10 @@ mod tests {
         db.write_lines(&lines).await?;
 
         // Now, we should see the two tables
-        assert_eq!(table_names(&db, None).await?, to_set(&["cpu", "disk"]));
+        assert_eq!(
+            table_names(&db, Predicate::default()).await?,
+            to_set(&["cpu", "disk"])
+        );
 
         Ok(())
     }
@@ -1306,26 +1178,22 @@ mod tests {
         db.write_lines(&lines).await?;
 
         // Cover all times
-        let range = Some(TimestampRange { start: 0, end: 201 });
-        assert_eq!(table_names(&db, range).await?, to_set(&["cpu", "disk"]));
+        let predicate = PredicateBuilder::default().timestamp_range(0, 201).build();
+        assert_eq!(table_names(&db, predicate).await?, to_set(&["cpu", "disk"]));
 
         // Right before disk
-        let range = Some(TimestampRange { start: 0, end: 200 });
-        assert_eq!(table_names(&db, range).await?, to_set(&["cpu"]));
+        let predicate = PredicateBuilder::default().timestamp_range(0, 200).build();
+        assert_eq!(table_names(&db, predicate).await?, to_set(&["cpu"]));
 
         // only one point of cpu
-        let range = Some(TimestampRange {
-            start: 50,
-            end: 101,
-        });
-        assert_eq!(table_names(&db, range).await?, to_set(&["cpu"]));
+        let predicate = PredicateBuilder::default().timestamp_range(50, 101).build();
+        assert_eq!(table_names(&db, predicate).await?, to_set(&["cpu"]));
 
         // no ranges
-        let range = Some(TimestampRange {
-            start: 250,
-            end: 350,
-        });
-        assert_eq!(table_names(&db, range).await?, to_set(&[]));
+        let predicate = PredicateBuilder::default()
+            .timestamp_range(250, 350)
+            .build();
+        assert_eq!(table_names(&db, predicate).await?, to_set(&[]));
 
         Ok(())
     }
@@ -1642,67 +1510,66 @@ disk bytes=23432323i 1600136510000000000",
         #[derive(Debug)]
         struct TestCase<'a> {
             description: &'a str,
-            measurement: Option<String>,
-            range: Option<TimestampRange>,
-            predicate: Option<Predicate>,
+            predicate: Predicate,
             expected_tag_keys: Result<Vec<&'a str>>,
         };
 
         let test_cases = vec![
             TestCase {
                 description: "No predicates",
-                measurement: None,
-                range: None,
-                predicate: None,
+                predicate: PredicateBuilder::default().build(),
                 expected_tag_keys: Ok(vec!["borough", "city", "county", "state"]),
             },
             TestCase {
                 description: "Restrictions: timestamp",
-                measurement: None,
-                range: Some(TimestampRange::new(150, 201)),
-                predicate: None,
+                predicate: PredicateBuilder::default()
+                    .timestamp_range(150, 201)
+                    .build(),
                 expected_tag_keys: Ok(vec!["city", "state"]),
             },
             TestCase {
                 description: "Restrictions: predicate",
-                measurement: None,
-                range: None,
-                predicate: make_column_eq_predicate("state", "MA"), // state=MA
+                predicate: PredicateBuilder::default()
+                    .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+                    .build(),
                 expected_tag_keys: Ok(vec!["city", "county", "state"]),
             },
             TestCase {
                 description: "Restrictions: timestamp and predicate",
-                measurement: None,
-                range: Some(TimestampRange::new(150, 201)),
-                predicate: make_column_eq_predicate("state", "MA"), // state=MA
+                predicate: PredicateBuilder::default()
+                    .timestamp_range(150, 201)
+                    .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+                    .build(),
                 expected_tag_keys: Ok(vec!["city", "state"]),
             },
             TestCase {
                 description: "Restrictions: measurement name",
-                measurement: Some("o2".to_string()),
-                range: None,
-                predicate: None,
+                predicate: PredicateBuilder::default().table("o2").build(),
                 expected_tag_keys: Ok(vec!["borough", "city", "state"]),
             },
             TestCase {
                 description: "Restrictions: measurement name and timestamp",
-                measurement: Some("o2".to_string()),
-                range: Some(TimestampRange::new(150, 201)),
-                predicate: None,
+                predicate: PredicateBuilder::default()
+                    .table("o2")
+                    .timestamp_range(150, 201)
+                    .build(),
                 expected_tag_keys: Ok(vec!["city", "state"]),
             },
             TestCase {
                 description: "Restrictions: measurement name and predicate",
-                measurement: Some("o2".to_string()),
-                range: None,
-                predicate: make_column_eq_predicate("state", "NY"), // state=NY
+                predicate: PredicateBuilder::default()
+                    .table("o2")
+                    .add_expr(make_column_eq_expr("state", "NY")) // state=NY
+                    .build(),
                 expected_tag_keys: Ok(vec!["borough", "city", "state"]),
             },
             TestCase {
                 description: "Restrictions: measurement name, timestamp and predicate",
-                measurement: Some("o2".to_string()),
-                range: Some(TimestampRange::new(1, 550)),
-                predicate: make_column_eq_predicate("state", "NY"), // state=NY
+                predicate: PredicateBuilder::default()
+                    .table("o2")
+                    .timestamp_range(1, 550)
+                    .add_expr(make_column_eq_expr("state", "NY")) // state=NY
+                    .build(),
                 expected_tag_keys: Ok(vec!["city", "state"]),
             },
         ];
@@ -1712,7 +1579,7 @@ disk bytes=23432323i 1600136510000000000",
             println!("Running test case: {:?}", test_case);
 
             let tag_keys_plan = db
-                .tag_column_names(test_case.measurement, test_case.range, test_case.predicate)
+                .tag_column_names(test_case.predicate)
                 .await
                 .expect("Created tag_keys plan successfully");
 
@@ -1751,47 +1618,33 @@ disk bytes=23432323i 1600136510000000000",
     }
 
     // Create a predicate of the form column_name = val
-    fn make_column_eq_predicate(column_name: &str, val: &str) -> Option<Predicate> {
-        make_column_predicate(column_name, Operator::Eq, val)
+    fn make_column_eq_expr(column_name: &str, val: &str) -> Expr {
+        make_column_expr(column_name, Operator::Eq, val)
     }
 
     // Create a predicate of the form column_name != val
-    fn make_column_neq_predicate(column_name: &str, val: &str) -> Option<Predicate> {
-        make_column_predicate(column_name, Operator::NotEq, val)
+    fn make_column_neq_expr(column_name: &str, val: &str) -> Expr {
+        make_column_expr(column_name, Operator::NotEq, val)
     }
 
     // Create a predicate of the form column_name <op> val
-    fn make_column_predicate(column_name: &str, op: Operator, val: &str) -> Option<Predicate> {
-        let expr = Expr::BinaryExpr {
+    fn make_column_expr(column_name: &str, op: Operator, val: &str) -> Expr {
+        Expr::BinaryExpr {
             left: Box::new(Expr::Column(column_name.into())),
             op,
             right: Box::new(Expr::Literal(ScalarValue::Utf8(Some(val.into())))),
-        };
-        Some(Predicate { expr })
+        }
     }
 
     // Create a predicate of the form "foo = "foo" (no column references, but is true)
-    fn make_no_column_predicate() -> Option<Predicate> {
+    fn make_no_column_expr() -> Expr {
         let foo_literal = ScalarValue::Utf8(Some(String::from("foo")));
 
-        let expr = Expr::BinaryExpr {
+        Expr::BinaryExpr {
             left: Box::new(Expr::Literal(foo_literal.clone())),
             op: Operator::Eq,
             right: Box::new(Expr::Literal(foo_literal)),
-        };
-        Some(Predicate { expr })
-    }
-
-    // make p1 AND p2 predicate
-    fn make_and_predicate(p1: Option<Predicate>, p2: Option<Predicate>) -> Option<Predicate> {
-        let Predicate { expr: lhs } = p1.unwrap();
-        let Predicate { expr: rhs } = p2.unwrap();
-        let expr = Expr::BinaryExpr {
-            left: Box::new(lhs),
-            op: Operator::And,
-            right: Box::new(rhs),
-        };
-        Some(Predicate { expr })
+        }
     }
 
     #[tokio::test]
@@ -1810,15 +1663,12 @@ disk bytes=23432323i 1600136510000000000",
         let lines: Vec<_> = parse_lines(lp_data).map(|l| l.unwrap()).collect();
         db.write_lines(&lines).await?;
 
-        let measurement = None;
-        let range = None;
-
         // Predicate: state=MA
         let expr = logical_plan::col("state").eq("MA".lit());
-        let predicate = Some(Predicate { expr });
+        let predicate = PredicateBuilder::default().add_expr(expr).build();
 
         let tag_keys_plan = db
-            .tag_column_names(measurement, range, predicate)
+            .tag_column_names(predicate)
             .await
             .expect("Created plan successfully");
 
@@ -1851,9 +1701,7 @@ disk bytes=23432323i 1600136510000000000",
         struct TestCase<'a> {
             description: &'a str,
             column_name: &'a str,
-            measurement: Option<String>,
-            range: Option<TimestampRange>,
-            predicate: Option<Predicate>,
+            predicate: Predicate,
             expected_column_values: Result<Vec<&'a str>>,
         };
 
@@ -1861,89 +1709,86 @@ disk bytes=23432323i 1600136510000000000",
             TestCase {
                 description: "No predicates, 'state' col",
                 column_name: "state",
-                measurement: None,
-                range: None,
-                predicate: None,
+                predicate: PredicateBuilder::default().build(),
                 expected_column_values: Ok(vec!["CA", "MA", "NY"]),
             },
             TestCase {
                 description: "No predicates, 'city' col",
                 column_name: "city",
-                measurement: None,
-                range: None,
-                predicate: None,
+                predicate: PredicateBuilder::default().build(),
                 expected_column_values: Ok(vec!["Boston", "LA"]),
             },
             TestCase {
                 description: "Restrictions: timestamp",
                 column_name: "state",
-                measurement: None,
-                range: Some(TimestampRange::new(50, 201)),
-                predicate: None,
+                predicate: PredicateBuilder::default().timestamp_range(50, 201).build(),
                 expected_column_values: Ok(vec!["CA", "MA"]),
             },
             TestCase {
                 description: "Restrictions: predicate",
                 column_name: "city",
-                measurement: None,
-                range: None,
-                predicate: make_column_eq_predicate("state", "MA"), // state=MA
+                predicate: PredicateBuilder::default()
+                    .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+                    .build(),
                 expected_column_values: Ok(vec!["Boston"]),
             },
             TestCase {
                 description: "Restrictions: timestamp and predicate",
                 column_name: "state",
-                measurement: None,
-                range: Some(TimestampRange::new(150, 301)),
-                predicate: make_column_eq_predicate("state", "MA"), // state=MA
+                predicate: PredicateBuilder::default()
+                    .timestamp_range(150, 301)
+                    .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+                    .build(),
                 expected_column_values: Ok(vec!["MA"]),
             },
             TestCase {
                 description: "Restrictions: measurement name",
                 column_name: "state",
-                measurement: Some("h2o".to_string()),
-                range: None,
-                predicate: None,
+                predicate: PredicateBuilder::default().table("h2o").build(),
                 expected_column_values: Ok(vec!["CA", "MA"]),
             },
             TestCase {
                 description: "Restrictions: measurement name, with nulls",
                 column_name: "city",
-                measurement: Some("o2".to_string()),
-                range: None,
-                predicate: None,
+                predicate: PredicateBuilder::default().table("o2").build(),
                 expected_column_values: Ok(vec!["Boston"]),
             },
             TestCase {
                 description: "Restrictions: measurement name and timestamp",
                 column_name: "state",
-                measurement: Some("o2".to_string()),
-                range: Some(TimestampRange::new(50, 201)),
-                predicate: None,
+                predicate: PredicateBuilder::default()
+                    .table("o2")
+                    .timestamp_range(50, 201)
+                    .build(),
                 expected_column_values: Ok(vec!["MA"]),
             },
             TestCase {
                 description: "Restrictions: measurement name and predicate",
                 column_name: "state",
-                measurement: Some("o2".to_string()),
-                range: None,
-                predicate: make_column_eq_predicate("state", "NY"), // state=NY
+                predicate: PredicateBuilder::default()
+                    .table("o2")
+                    .add_expr(make_column_eq_expr("state", "NY")) // state=NY
+                    .build(),
                 expected_column_values: Ok(vec!["NY"]),
             },
             TestCase {
                 description: "Restrictions: measurement name, timestamp and predicate",
                 column_name: "state",
-                measurement: Some("o2".to_string()),
-                range: Some(TimestampRange::new(1, 550)),
-                predicate: make_column_eq_predicate("state", "NY"), // state=NY
+                predicate: PredicateBuilder::default()
+                    .table("o2")
+                    .timestamp_range(1, 550)
+                    .add_expr(make_column_eq_expr("state", "NY")) // state=NY
+                    .build(),
                 expected_column_values: Ok(vec!["NY"]),
             },
             TestCase {
                 description: "Restrictions: measurement name, timestamp and predicate: no match",
                 column_name: "state",
-                measurement: Some("o2".to_string()),
-                range: Some(TimestampRange::new(1, 300)), // filters out the NY row
-                predicate: make_column_eq_predicate("state", "NY"), // state=NY
+                predicate: PredicateBuilder::default()
+                    .table("o2")
+                    .timestamp_range(1, 300) // filters out the NY row
+                    .add_expr(make_column_eq_expr("state", "NY")) // state=NY
+                    .build(),
                 expected_column_values: Ok(vec![]),
             },
         ];
@@ -1953,12 +1798,7 @@ disk bytes=23432323i 1600136510000000000",
             println!("Running test case: {:?}", test_case);
 
             let column_values_plan = db
-                .column_values(
-                    test_case.column_name,
-                    test_case.measurement,
-                    test_case.range,
-                    test_case.predicate,
-                )
+                .column_values(test_case.column_name, test_case.predicate)
                 .await
                 .expect("Created tag_values plan successfully");
 
@@ -2022,11 +1862,10 @@ disk bytes=23432323i 1600136510000000000",
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
         db.write_lines(&lines).await?;
 
-        let range = None;
-        let predicate = None;
+        let predicate = Predicate::default();
 
         let plans = db
-            .query_series(range, predicate)
+            .query_series(predicate)
             .await
             .expect("Created tag_values plan successfully");
 
@@ -2091,11 +1930,13 @@ disk bytes=23432323i 1600136510000000000",
         db.write_lines(&lines).await?;
 
         // filter out one row in h20
-        let range = Some(TimestampRange::new(200, 300));
-        let predicate = make_column_eq_predicate("state", "CA"); // state=CA
+        let predicate = PredicateBuilder::default()
+            .timestamp_range(200, 300)
+            .add_expr(make_column_eq_expr("state", "CA")) // state=CA
+            .build();
 
         let plans = db
-            .query_series(range, predicate)
+            .query_series(predicate)
             .await
             .expect("Created tag_values plan successfully");
 
@@ -2132,11 +1973,12 @@ disk bytes=23432323i 1600136510000000000",
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
         db.write_lines(&lines).await?;
 
-        let range = None;
-        let predicate = make_column_eq_predicate("tag_not_in_h20", "foo");
+        let predicate = PredicateBuilder::default()
+            .add_expr(make_column_eq_expr("tag_not_in_h20", "foo"))
+            .build();
 
         let plans = db
-            .query_series(range, predicate)
+            .query_series(predicate)
             .await
             .expect("Created tag_values plan successfully");
 
@@ -2144,10 +1986,12 @@ disk bytes=23432323i 1600136510000000000",
         assert!(results.is_empty());
 
         // predicate with no columns,
-        let predicate = make_no_column_predicate();
+        let predicate = PredicateBuilder::default()
+            .add_expr(make_no_column_expr())
+            .build();
 
         let plans = db
-            .query_series(range, predicate)
+            .query_series(predicate)
             .await
             .expect("Created tag_values plan successfully");
 
@@ -2155,13 +1999,13 @@ disk bytes=23432323i 1600136510000000000",
         assert_eq!(results.len(), 1);
 
         // predicate with both a column that does and does not appear
-        let predicate = make_and_predicate(
-            make_column_eq_predicate("state", "MA"),
-            make_column_eq_predicate("tag_not_in_h20", "foo"),
-        );
+        let predicate = PredicateBuilder::default()
+            .add_expr(make_column_eq_expr("state", "MA"))
+            .add_expr(make_column_eq_expr("tag_not_in_h20", "foo"))
+            .build();
 
         let plans = db
-            .query_series(range, predicate)
+            .query_series(predicate)
             .await
             .expect("Created tag_values plan successfully");
 
@@ -2189,11 +2033,12 @@ disk bytes=23432323i 1600136510000000000",
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
         db.write_lines(&lines).await.unwrap();
 
-        let range = None;
-        let predicate = make_column_neq_predicate("state", "MA");
+        let predicate = PredicateBuilder::default()
+            .add_expr(make_column_neq_expr("state", "MA"))
+            .build();
 
         // Should panic as the neq path isn't implemented yet
-        db.query_series(range, predicate).await.unwrap();
+        db.query_series(predicate).await.unwrap();
     }
 
     #[tokio::test]
@@ -2231,12 +2076,14 @@ disk bytes=23432323i 1600136510000000000",
         // setup to run the execution plan (
         let executor = Executor::default();
 
-        let range = None;
-        let predicate = make_column_eq_predicate("state", "MA"); // state=MA
+        let predicate = PredicateBuilder::default()
+            .table("NoSuchTable")
+            .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+            .build();
 
         // make sure table filtering works (no tables match)
         let plan = db
-            .field_columns("NoSuchTable".into(), range, predicate.clone())
+            .field_columns(predicate)
             .await
             .expect("Created field_columns plan successfully");
 
@@ -2247,8 +2094,13 @@ disk bytes=23432323i 1600136510000000000",
         assert!(fieldlists.fields.is_empty());
 
         // get only fields from h20 (but both partitions)
+        let predicate = PredicateBuilder::default()
+            .table("h2o")
+            .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+            .build();
+
         let plan = db
-            .field_columns("h2o".into(), range, predicate)
+            .field_columns(predicate)
             .await
             .expect("Created field_columns plan successfully");
 
@@ -2306,11 +2158,14 @@ disk bytes=23432323i 1600136510000000000",
         // setup to run the execution plan (
         let executor = Executor::default();
 
-        let range = Some(TimestampRange::new(200, 300));
-        let predicate = make_column_eq_predicate("state", "MA"); // state=MA
+        let predicate = PredicateBuilder::default()
+            .table("h2o")
+            .timestamp_range(200, 300)
+            .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+            .build();
 
         let plan = db
-            .field_columns("h2o".into(), range, predicate)
+            .field_columns(predicate)
             .await
             .expect("Created field_columns plan successfully");
 

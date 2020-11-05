@@ -8,7 +8,7 @@
 
 use async_trait::async_trait;
 use data_types::data::ReplicatedWrite;
-use delorean_arrow::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
+use delorean_arrow::arrow::record_batch::RecordBatch;
 use delorean_line_parser::ParsedLine;
 use exec::{FieldListPlan, GroupedSeriesSetPlans, SeriesSetPlans, StringSetPlan};
 
@@ -19,44 +19,22 @@ pub mod id;
 pub mod predicate;
 pub mod util;
 
-/// Specifies a continuous range of nanosecond timestamps. Timestamp
-/// predicates are so common and critical to performance of timeseries
-/// databases in general, and delorean in particular, they handled specially
-#[derive(Clone, PartialEq, Copy, Debug)]
-pub struct TimestampRange {
-    /// Start defines the inclusive lower bound.
-    pub start: i64,
-    /// End defines the exclusive upper bound.
-    pub end: i64,
-}
-
-impl TimestampRange {
-    pub fn new(start: i64, end: i64) -> Self {
-        Self { start, end }
-    }
-
-    #[inline]
-    /// Returns true if this range contains the value v
-    pub fn contains(&self, v: i64) -> bool {
-        self.start <= v && v < self.end
-    }
-
-    #[inline]
-    /// Returns true if this range contains the value v
-    pub fn contains_opt(&self, v: Option<i64>) -> bool {
-        Some(true) == v.map(|ts| self.contains(ts))
-    }
-}
-
-/// Represents a general purpose predicate for evaluation
-#[derive(Clone, Debug)]
-pub struct Predicate {
-    /// An expresson using the DataFusion expression operations.
-    pub expr: Expr,
-}
+use self::predicate::{Predicate, TimestampRange};
 
 #[async_trait]
+
 /// A `Database` stores data and provides an interface to query that data.
+///
+/// It is like a relational database table where each column has a
+/// datatype as well as being in one of the following categories:
+///
+/// Tag (always string columns)
+/// Field (Float64, Int64, UInt64, String, or Bool)
+/// Time (Float64)
+///
+/// While the underlying storage is the same for all columns and they
+/// can retrieved as Arrow columns, the field type is used to select
+/// certain columns in some query types.
 pub trait Database: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -69,116 +47,52 @@ pub trait Database: Debug + Send + Sync {
     /// Execute the specified query and return arrow record batches with the result
     async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error>;
 
-    /// Returns the list of table names in this database.
-    ///
-    /// If `range` is specified, only tables which have data in the
-    /// specified timestamp range are included.
-    ///
-    /// TODO: change this to return a StringSetPlan
-    async fn table_names(
-        &self,
-        range: Option<TimestampRange>,
-    ) -> Result<StringSetPlan, Self::Error>;
+    /// Returns a plan that lists the names of tables in this
+    /// database that have at least one row that matches the
+    /// conditions listed on `predicate`
+    async fn table_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error>;
 
-    /// Returns the list of column names in this database which store
-    /// tags (as defined in the ParsedLines when written), and which
-    /// have rows that match optional predicates.
-    ///
-    /// If `table` is specified, then only columns from the
-    /// specified database which match other predicates are included.
-    ///
-    /// If `range` is specified, only columns which have data in the
-    /// specified timestamp range which match other predictes are
-    /// included.
-    ///
-    /// If `predicate` is specified, then only columns which have at
-    /// least one non-null value in any row that matches the predicate
-    /// are returned
-    async fn tag_column_names(
-        &self,
-        table: Option<String>,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
-    ) -> Result<StringSetPlan, Self::Error>;
+    /// Returns a plan that produces the names of "tag" columns (as
+    /// defined in the data written via `write_lines`)) names in this
+    /// database, and have more than zero rows which pass the
+    /// conditions specified by `predicate`.
+    async fn tag_column_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error>;
 
-    /// Returns the list of column names in this database which store
-    /// fields (as opposed to Tags), and which have rows that match
-    /// optional predicates. Fields are defined by the ParsedLines
-    /// when written to the database.
-    ///
-    /// If `table` is specified, then only columns from the
-    /// specified database which match other predicates are included.
-    ///
-    /// If `range` is specified, only columns which have data in the
-    /// specified timestamp range which match other predictes are
-    /// included.
-    ///
-    /// If `predicate` is specified, then only columns which have at
-    /// least one non-null value in any row that matches the predicate
-    /// are returned
-    async fn field_columns(
-        &self,
-        table: String,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
-    ) -> Result<FieldListPlan, Self::Error>;
+    /// Returns a plan that produces a list of column names in this
+    /// database which store fields (as defined in the data written
+    /// via `write_lines`), and which have at least one row which
+    /// matches the conditions listed on `predicate`.
+    async fn field_columns(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error>;
 
-    /// Returns a plan which can find the distinct values in the
-    /// `column_name` column of this database for rows that match
-    /// optional predicates.
-    ///
-    /// If `table` is specified, then only values from the
-    /// specified database which match other predictes are included.
-    ///
-    /// If `range` is specified, only values which have data in the
-    /// specified timestamp range which match other predictes are
-    /// included.
-    ///
-    /// If `predicate` is specified, then only values which have at
-    /// least one non-null value in any row that matches the predicate
-    /// are returned
+    /// Returns a plan which finds the distinct values in the
+    /// `column_name` column of this database which pass the
+    /// conditions specified by `predicate`.
     async fn column_values(
         &self,
         column_name: &str,
-        table: Option<String>,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
+        predicate: Predicate,
     ) -> Result<StringSetPlan, Self::Error>;
 
-    /// Returns a plan that finds sets of rows which form logical time
-    /// series. Each series is defined by the unique values in a set
-    /// of "tag_columns" for each field in the "field_columns"
+    /// Returns a plan that finds all rows rows which pass the
+    /// conditions specified by `predicate` in the form of logical
+    /// time series.
     ///
-    /// If `range` is specified, only rows which have data in the
-    /// specified timestamp range which match other predictes are
-    /// included.
-    ///
-    /// If `predicate` is specified, then only rows which have at
-    /// least one non-null value in any row that matches the predicate
-    /// are returned
-    async fn query_series(
-        &self,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
-    ) -> Result<SeriesSetPlans, Self::Error>;
+    /// A time series is defined by the unique values in a set of
+    /// "tag_columns" for each field in the "field_columns", orderd by
+    /// the time column.
+    async fn query_series(&self, predicate: Predicate) -> Result<SeriesSetPlans, Self::Error>;
 
-    /// Returns a plan that finds sets of rows which form groups of
-    /// logical time series. Each series is defined by the unique
-    /// values in a set of "tag_columns" for each field in the
-    /// "field_columns". Each group is is defined by unique
-    /// combinations of the columns described
+    /// Returns a plan that finds sets of rows which pass the
+    /// conditions specified by `predicate` and which form groups of
+    /// logical time series.
     ///
-    /// If `range` is specified, only rows which have data in the
-    /// specified timestamp range which match other predictes are
-    /// included.
-    ///
-    /// If `predicate` is specified, then only rows which have at
-    /// least one non-null value in any row that matches the predicate
-    /// are returned
+    /// Each time series is defined by the unique values in a set of
+    /// "tag_columns" for each field in the "field_columns". Each
+    /// group is is defined by unique combinations of the columns
+    /// in `group_columns`
     async fn query_groups(
         &self,
-        range: Option<TimestampRange>,
-        predicate: Option<Predicate>,
+        predicate: Predicate,
         group_columns: Vec<String>,
     ) -> Result<GroupedSeriesSetPlans, Self::Error>;
 
