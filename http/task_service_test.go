@@ -21,7 +21,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/mock"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap"

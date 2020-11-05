@@ -14,7 +14,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"go.uber.org/zap/zaptest"

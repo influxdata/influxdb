@@ -11,7 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"
 )

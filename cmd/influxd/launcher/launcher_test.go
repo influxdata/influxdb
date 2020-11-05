@@ -10,7 +10,7 @@ import (
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/http"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 )
 
 // Default context.
