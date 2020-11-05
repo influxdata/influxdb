@@ -20,7 +20,7 @@ use std::{
 use tracing::debug;
 
 use crate::metadata::parquet_schema_as_string;
-use delorean_table::{DeloreanTableWriter, Error as TableError, Packers};
+use packers::{DeloreanTableWriter, Error as TableError, Packers};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -75,7 +75,7 @@ impl FromStr for CompressionLevel {
 }
 
 /// A `DeloreanParquetTableWriter` is used for writing batches of rows
-/// represented using the structures in `delorean_table` to parquet files.
+/// parquet files.
 pub struct DeloreanParquetTableWriter<W>
 where
     W: ParquetWriter,
@@ -95,8 +95,8 @@ where
     /// # use std::fs;
     /// # use data_types::table_schema;
     /// # use data_types::table_schema::DataType;
-    /// # use delorean_table::DeloreanTableWriter;
-    /// # use delorean_table::packers::{Packer, Packers};
+    /// # use packers::DeloreanTableWriter;
+    /// # use packers::{Packer, Packers};
     /// # use delorean_parquet::writer::{DeloreanParquetTableWriter, CompressionLevel};
     /// # use delorean_arrow::parquet::data_type::ByteArray;
     ///

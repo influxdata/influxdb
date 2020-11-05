@@ -9,7 +9,7 @@ edition = "2018"
 
 [dependencies]
 delorean_arrow = { path = "../delorean_arrow" }
-delorean_table = { path = "../delorean_table" }
+packers = { path = "../packers" }
 croaring = "0.4.5"
 
 [dev-dependencies]

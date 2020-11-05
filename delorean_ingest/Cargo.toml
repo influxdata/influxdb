@@ -11,7 +11,7 @@ snafu = "0.6.2"
 env_logger = "0.7.1"
 tracing = "0.1"
 delorean_line_parser = { path = "../delorean_line_parser" }
-delorean_table = { path = "../delorean_table" }
+packers = { path = "../packers" }
 data_types = { path = "../data_types" }
 delorean_tsm = { path = "../delorean_tsm" }
 

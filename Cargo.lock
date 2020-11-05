@@ -715,7 +715,6 @@ dependencies = [
  "delorean_parquet",
  "delorean_segment_store",
  "delorean_storage",
- "delorean_table",
  "delorean_test_helpers",
  "delorean_tsm",
  "delorean_wal",
@@ -730,6 +729,7 @@ dependencies = [
  "hyper",
  "influxdb2_client",
  "libflate",
+ "packers",
  "predicates",
  "prost",
  "prost-types",
@@ -793,11 +793,11 @@ version = "0.1.0"
 dependencies = [
  "data_types",
  "delorean_line_parser",
- "delorean_table",
  "delorean_test_helpers",
  "delorean_tsm",
  "env_logger",
  "libflate",
+ "packers",
  "snafu",
  "tracing",
 ]
@@ -823,9 +823,9 @@ dependencies = [
  "croaring",
  "crossbeam",
  "delorean_arrow",
- "delorean_table",
  "env_logger",
  "human_format",
+ "packers",
  "snafu",
  "tracing",
 ]
@@ -853,8 +853,8 @@ version = "0.1.0"
 dependencies = [
  "data_types",
  "delorean_arrow",
- "delorean_table",
  "delorean_test_helpers",
+ "packers",
  "snafu",
  "tracing",
 ]
@@ -866,7 +866,7 @@ dependencies = [
  "criterion",
  "croaring",
  "delorean_arrow",
- "delorean_table",
+ "packers",
  "rand",
 ]
 
@@ -884,20 +884,6 @@ dependencies = [
  "serde_urlencoded 0.6.1",
  "snafu",
  "tokio",
- "tracing",
-]
-
-[[package]]
-name = "delorean_table"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "delorean_arrow",
- "delorean_test_helpers",
- "delorean_tsm",
- "human_format",
- "rand",
- "snafu",
  "tracing",
 ]
 
@@ -2081,6 +2067,20 @@ checksum = "3278e0492f961fd4ae70909f56b2723a7e8d01a228427294e19cdfdebda89a17"
 dependencies = [
  "cfg-if 0.1.10",
  "libm",
+]
+
+[[package]]
+name = "packers"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "delorean_arrow",
+ "delorean_test_helpers",
+ "delorean_tsm",
+ "human_format",
+ "rand",
+ "snafu",
+ "tracing",
 ]
 
 [[package]]

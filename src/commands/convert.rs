@@ -5,7 +5,7 @@ use delorean_ingest::{
 use delorean_line_parser::parse_lines;
 use delorean_parquet::writer::Error as ParquetWriterError;
 use delorean_parquet::writer::{CompressionLevel, DeloreanParquetTableWriter};
-use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
+use packers::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use snafu::{ResultExt, Snafu};
 use std::{
     convert::TryInto,

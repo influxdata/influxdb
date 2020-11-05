@@ -6,7 +6,7 @@ use delorean_parquet::{
     writer::{CompressionLevel, DeloreanParquetTableWriter},
     TryClone,
 };
-use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
+use packers::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
 use std::time::Duration;
 
 use std::io::{Seek, SeekFrom, Write};

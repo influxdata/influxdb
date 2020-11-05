@@ -1,7 +1,7 @@
 //! This module contains code to report compression statistics for storage files
 
 use delorean_parquet::{error::Error as DeloreanParquetError, stats as parquet_stats};
-use delorean_table::{
+use packers::{
     stats::{FileSetStatsBuilder, FileStats},
     Name,
 };

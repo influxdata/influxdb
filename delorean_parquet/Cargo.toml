@@ -11,7 +11,7 @@ snafu = "0.6.2"
 tracing = "0.1"
 
 delorean_arrow = { path = "../delorean_arrow" }
-delorean_table = { path = "../delorean_table" }
+packers = { path = "../packers" }
 data_types = { path = "../data_types" }
 
 

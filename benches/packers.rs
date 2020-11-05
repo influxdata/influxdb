@@ -4,7 +4,7 @@ use rand::Rng;
 use std::convert::TryFrom;
 use std::mem;
 
-use delorean_table::Packer;
+use packers::Packer;
 
 const BATCH_SIZES: [usize; 6] = [10, 100, 1000, 10_000, 100_000, 1_000_000];
 

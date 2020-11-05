@@ -1,5 +1,5 @@
 use delorean_parquet::writer::{CompressionLevel, DeloreanParquetTableWriter};
-use delorean_table::{packers::Packer, DeloreanTableWriter, Packers};
+use packers::{DeloreanTableWriter, Packer, Packers};
 
 use delorean_arrow::parquet::data_type::ByteArray;
 use std::fs;

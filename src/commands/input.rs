@@ -1,8 +1,8 @@
 use delorean_arrow::parquet::file::serialized_reader::{FileSource, SliceableCursor};
 use delorean_parquet::ChunkReader;
-use delorean_table::Name;
 /// Module to handle input files (and maybe urls?)
 use libflate::gzip;
+use packers::Name;
 use snafu::{ResultExt, Snafu};
 use std::{
     borrow::Cow,

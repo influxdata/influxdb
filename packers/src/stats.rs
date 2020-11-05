@@ -69,7 +69,7 @@ impl fmt::Display for ColumnStats {
 /// # Example:
 /// ```
 /// use data_types::table_schema::DataType;
-/// use delorean_table::stats::ColumnStatsBuilder;
+/// use packers::stats::ColumnStatsBuilder;
 ///
 /// let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)
 ///    .compression("GZIP")

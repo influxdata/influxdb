@@ -17,7 +17,7 @@ members = [
     "delorean_mem_qe",
     "delorean_parquet",
     "delorean_segment_store",
-    "delorean_table",
+    "packers",
     "delorean_test_helpers",
     "delorean_tsm",
     "delorean_storage",
@@ -39,7 +39,7 @@ delorean_line_parser = { path = "delorean_line_parser" }
 delorean_mem_qe = { path = "delorean_mem_qe" }
 delorean_parquet = { path = "delorean_parquet" }
 delorean_segment_store = { path = "delorean_segment_store" }
-delorean_table = { path = "delorean_table" }
+packers = { path = "packers" }
 delorean_wal = { path = "delorean_wal" }
 delorean_wal_writer = { path = "delorean_wal_writer" }
 delorean_write_buffer = { path = "delorean_write_buffer" }

@@ -12,9 +12,9 @@ pub mod stats;
 
 use snafu::Snafu;
 
+pub use crate::packers::{Packer, Packers};
 use data_types::table_schema::Schema;
 pub use delorean_arrow::parquet::data_type::ByteArray;
-pub use packers::{Packer, Packers};
 
 use std::borrow::Cow;
 

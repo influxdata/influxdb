@@ -1,5 +1,5 @@
 [package]
-name = "delorean_table"
+name = "packers"
 version = "0.1.0"
 authors = ["Andrew Lamb <alamb@influxdata.com>"]
 edition = "2018"

@@ -11,14 +11,13 @@
 
 use data_types::table_schema::{DataType, Schema, SchemaBuilder};
 use delorean_line_parser::{FieldValue, ParsedLine};
-use delorean_table::{
-    packers::{Packer, Packers},
-    ByteArray, DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError,
-};
 use delorean_tsm::{
     mapper::{ColumnData, MeasurementTable, TSMMeasurementMapper},
     reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
     BlockType, TSMError,
+};
+use packers::{
+    ByteArray, DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError, Packer, Packers,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
@@ -47,7 +46,7 @@ impl Default for ConversionSettings {
     }
 }
 
-/// Converts `ParsedLines` into the delorean_table internal columnar
+/// Converts `ParsedLines` into the packers internal columnar
 /// data format and then passes that converted data to a
 /// `DeloreanTableWriter`
 pub struct LineProtocolConverter<'a> {
@@ -601,7 +600,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 //         // let sort = [0, 7, 6, 12];
 //         // let sort = [8, 4, 9, 0, 1, 7, 10, 6, 5, 2, 3, 12];
 //         let sort = [3, 2, 5, 6, 10, 7, 1, 0, 9, 4, 8, 12];
-//         delorean_table::sorter::sort(&mut chunked_packers, &sort).unwrap();
+//         packers::sorter::sort(&mut chunked_packers, &sort).unwrap();
 
 //         println!(
 //             "Writing {:?} packers with size: {:?}",
@@ -656,7 +655,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 //     w.write(&record_batch).unwrap();
 // }
 
-/// Converts one or more TSM files into the delorean_table internal columnar
+/// Converts one or more TSM files into the packers internal columnar
 /// data format and then passes that converted data to a `DeloreanTableWriter`.
 pub struct TSMFileConverter {
     table_writer_source: Box<dyn DeloreanTableWriterSource>,
@@ -1088,14 +1087,12 @@ impl std::fmt::Debug for TSMFileConverter {
 mod delorean_ingest_tests {
     use super::*;
     use data_types::table_schema::ColumnDefinition;
-    use delorean_table::{
-        DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError, Packers,
-    };
     use delorean_test_helpers::approximately_equal;
     use delorean_tsm::{
         reader::{BlockData, MockBlockDecoder},
         Block,
     };
+    use packers::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError, Packers};
 
     use libflate::gzip;
     use std::fs::File;

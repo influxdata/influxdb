@@ -3,7 +3,7 @@ use delorean_arrow::parquet::{
     basic::{Compression, Encoding},
     file::reader::{FileReader, SerializedFileReader},
 };
-use delorean_table::{
+use packers::{
     stats::{ColumnStatsBuilder, FileStats, FileStatsBuilder},
     Name,
 };

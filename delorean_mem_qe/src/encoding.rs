@@ -1031,13 +1031,13 @@ impl std::convert::From<Vec<&str>> for DictionaryRLE {
 }
 
 // TODO(edd): improve perf here....
-impl std::convert::From<&delorean_table::Packer<delorean_table::ByteArray>> for DictionaryRLE {
-    fn from(p: &delorean_table::Packer<delorean_table::ByteArray>) -> Self {
+impl std::convert::From<&packers::Packer<packers::ByteArray>> for DictionaryRLE {
+    fn from(p: &packers::Packer<packers::ByteArray>) -> Self {
         let mut drle = Self::new();
         for v in p.values() {
             let s = v
                 .clone()
-                .unwrap_or_else(|| delorean_table::ByteArray::from("NULL"));
+                .unwrap_or_else(|| packers::ByteArray::from("NULL"));
             drle.push(s.as_utf8().unwrap());
         }
         drle
