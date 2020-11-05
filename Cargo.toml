@@ -13,7 +13,7 @@ members = [
     "delorean_generated_types",
     "delorean_ingest",
     "delorean_line_parser",
-    "delorean_object_store",
+    "object_store",
     "delorean_mem_qe",
     "delorean_parquet",
     "delorean_segment_store",
@@ -43,7 +43,7 @@ packers = { path = "packers" }
 delorean_wal = { path = "delorean_wal" }
 delorean_wal_writer = { path = "delorean_wal_writer" }
 delorean_write_buffer = { path = "delorean_write_buffer" }
-delorean_object_store = { path = "delorean_object_store" }
+object_store = { path = "object_store" }
 delorean_storage = { path = "delorean_storage" }
 delorean_tsm = { path = "delorean_tsm" }
 

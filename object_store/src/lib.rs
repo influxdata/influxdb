@@ -7,7 +7,7 @@
     clippy::use_self
 )]
 
-//! # delorean_object_store
+//! # object_store
 //!
 //! This crate provides APIs for interacting with object storage services. It currently supports
 //! PUT, GET, DELETE, and list for Google Cloud Storage, Amazon S3, and in-memory storage.

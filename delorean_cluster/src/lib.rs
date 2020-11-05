@@ -77,9 +77,9 @@ use data_types::{
 };
 use delorean_arrow::arrow::record_batch::RecordBatch;
 use delorean_line_parser::ParsedLine;
-use delorean_object_store::ObjectStore;
 use delorean_storage::Database;
 use delorean_write_buffer::Db as WriteBufferDb;
+use object_store::ObjectStore;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -117,9 +117,7 @@ pub enum Error {
     #[snafu(display("error deserializing configuration {}", source))]
     ErrorDeserializing { source: serde_json::Error },
     #[snafu(display("store error: {}", source))]
-    StoreError {
-        source: delorean_object_store::Error,
-    },
+    StoreError { source: object_store::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -408,8 +406,8 @@ mod tests {
     use data_types::database_rules::{MatchTables, Matcher, Subscription};
     use delorean_arrow::arrow::{csv, util::string_writer::StringWriter};
     use delorean_line_parser::parse_lines;
-    use delorean_object_store::{InMemory, ObjectStoreIntegration};
     use futures::TryStreamExt;
+    use object_store::{InMemory, ObjectStoreIntegration};
     use snafu::Snafu;
     use std::sync::Mutex;
 

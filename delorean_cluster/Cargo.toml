@@ -16,7 +16,7 @@ delorean_generated_types = { path = "../delorean_generated_types" }
 delorean_line_parser = { path = "../delorean_line_parser" }
 delorean_storage = { path = "../delorean_storage" }
 delorean_write_buffer = { path = "../delorean_write_buffer" }
-delorean_object_store = { path = "../delorean_object_store" }
+object_store = { path = "../object_store" }
 tokio = { version = "0.2", features = ["full"] }
 delorean_arrow = { path = "../delorean_arrow" }
 futures = "0.3.7"

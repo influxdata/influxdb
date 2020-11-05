@@ -711,7 +711,6 @@ dependencies = [
  "delorean_ingest",
  "delorean_line_parser",
  "delorean_mem_qe",
- "delorean_object_store",
  "delorean_parquet",
  "delorean_segment_store",
  "delorean_storage",
@@ -729,6 +728,7 @@ dependencies = [
  "hyper",
  "influxdb2_client",
  "libflate",
+ "object_store",
  "packers",
  "predicates",
  "prost",
@@ -765,10 +765,10 @@ dependencies = [
  "delorean_arrow",
  "delorean_generated_types",
  "delorean_line_parser",
- "delorean_object_store",
  "delorean_storage",
  "delorean_write_buffer",
  "futures",
+ "object_store",
  "serde",
  "serde_json",
  "snafu",
@@ -828,23 +828,6 @@ dependencies = [
  "packers",
  "snafu",
  "tracing",
-]
-
-[[package]]
-name = "delorean_object_store"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "cloud-storage",
- "dotenv",
- "futures",
- "rusoto_core",
- "rusoto_credential",
- "rusoto_s3",
- "snafu",
- "tempfile",
- "tokio",
- "tokio-util",
 ]
 
 [[package]]
@@ -1997,6 +1980,23 @@ checksum = "05499f3756671c15885fee9034446956fff3f243d6077b91e5767df161f766b3"
 dependencies = [
  "hermit-abi",
  "libc",
+]
+
+[[package]]
+name = "object_store"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "cloud-storage",
+ "dotenv",
+ "futures",
+ "rusoto_core",
+ "rusoto_credential",
+ "rusoto_s3",
+ "snafu",
+ "tempfile",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
