@@ -109,7 +109,7 @@ fn float_encode_sequential(c: &mut Criterion) {
         c,
         "float_encode_sequential",
         &LARGER_BATCH_SIZES,
-        tsm::encoders::float::encode,
+        influxdb_tsm::encoders::float::encode,
     );
 }
 
@@ -136,7 +136,7 @@ fn integer_encode_sequential(c: &mut Criterion) {
         c,
         "integer_encode_sequential",
         &LARGER_BATCH_SIZES,
-        tsm::encoders::integer::encode,
+        influxdb_tsm::encoders::integer::encode,
     );
 }
 
@@ -145,7 +145,7 @@ fn timestamp_encode_sequential(c: &mut Criterion) {
         c,
         "timestamp_encode_sequential",
         &LARGER_BATCH_SIZES,
-        tsm::encoders::timestamp::encode,
+        influxdb_tsm::encoders::timestamp::encode,
     );
 }
 
@@ -177,7 +177,7 @@ fn float_encode_random(c: &mut Criterion) {
                 .take(batch_size)
                 .collect()
         },
-        tsm::encoders::float::encode,
+        influxdb_tsm::encoders::float::encode,
     )
 }
 
@@ -207,7 +207,7 @@ fn integer_encode_random(c: &mut Criterion) {
                 .map(|_| rand::thread_rng().gen_range(0, 100))
                 .collect()
         },
-        tsm::encoders::integer::encode,
+        influxdb_tsm::encoders::integer::encode,
     )
 }
 
@@ -232,7 +232,7 @@ fn float_encode_cpu(c: &mut Criterion) {
         "float_encode_cpu",
         &SMALLER_BATCH_SIZES,
         |batch_size| fixtures::CPU_F64_EXAMPLE_VALUES[..batch_size].to_vec(),
-        tsm::encoders::float::encode,
+        influxdb_tsm::encoders::float::encode,
     )
 }
 
@@ -244,10 +244,10 @@ fn float_decode_cpu(c: &mut Criterion) {
         |batch_size| {
             let decoded: Vec<f64> = fixtures::CPU_F64_EXAMPLE_VALUES[..batch_size].to_vec();
             let mut encoded = vec![];
-            tsm::encoders::float::encode(&decoded, &mut encoded).unwrap();
+            influxdb_tsm::encoders::float::encode(&decoded, &mut encoded).unwrap();
             (decoded.len(), encoded)
         },
-        tsm::encoders::float::decode,
+        influxdb_tsm::encoders::float::decode,
     )
 }
 
@@ -259,10 +259,10 @@ fn float_decode_sequential(c: &mut Criterion) {
         |batch_size| {
             let decoded: Vec<f64> = (1..batch_size).map(convert_from_usize).collect();
             let mut encoded = vec![];
-            tsm::encoders::float::encode(&decoded, &mut encoded).unwrap();
+            influxdb_tsm::encoders::float::encode(&decoded, &mut encoded).unwrap();
             (decoded.len(), encoded)
         },
-        tsm::encoders::float::decode,
+        influxdb_tsm::encoders::float::decode,
     )
 }
 
@@ -274,10 +274,10 @@ fn integer_decode_sequential(c: &mut Criterion) {
         |batch_size| {
             let decoded: Vec<i64> = (1..batch_size).map(convert_from_usize).collect();
             let mut encoded = vec![];
-            tsm::encoders::integer::encode(&decoded, &mut encoded).unwrap();
+            influxdb_tsm::encoders::integer::encode(&decoded, &mut encoded).unwrap();
             (decoded.len(), encoded)
         },
-        tsm::encoders::integer::decode,
+        influxdb_tsm::encoders::integer::decode,
     )
 }
 
@@ -289,10 +289,10 @@ fn timestamp_decode_sequential(c: &mut Criterion) {
         |batch_size| {
             let decoded: Vec<i64> = (1..batch_size).map(convert_from_usize).collect();
             let mut encoded = vec![];
-            tsm::encoders::timestamp::encode(&decoded, &mut encoded).unwrap();
+            influxdb_tsm::encoders::timestamp::encode(&decoded, &mut encoded).unwrap();
             (decoded.len(), encoded)
         },
-        tsm::encoders::timestamp::decode,
+        influxdb_tsm::encoders::timestamp::decode,
     )
 }
 
@@ -309,10 +309,10 @@ fn float_decode_random(c: &mut Criterion) {
                 .collect();
 
             let mut encoded = vec![];
-            tsm::encoders::float::encode(&decoded, &mut encoded).unwrap();
+            influxdb_tsm::encoders::float::encode(&decoded, &mut encoded).unwrap();
             (decoded.len(), encoded)
         },
-        tsm::encoders::float::decode,
+        influxdb_tsm::encoders::float::decode,
     )
 }
 
@@ -326,10 +326,10 @@ fn integer_decode_random(c: &mut Criterion) {
                 .map(|_| rand::thread_rng().gen_range(0, 100))
                 .collect();
             let mut encoded = vec![];
-            tsm::encoders::integer::encode(&decoded, &mut encoded).unwrap();
+            influxdb_tsm::encoders::integer::encode(&decoded, &mut encoded).unwrap();
             (decoded.len(), encoded)
         },
-        tsm::encoders::integer::decode,
+        influxdb_tsm::encoders::integer::decode,
     )
 }
 

@@ -14,7 +14,7 @@ tracing = "0.1"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 packers = { path = "../packers" }
 data_types = { path = "../data_types" }
-tsm = { path = "../tsm" }
+influxdb_tsm = { path = "../influxdb_tsm" }
 arrow_deps = { path = "../arrow_deps" }
 
 [dev-dependencies]

@@ -13,7 +13,7 @@ use std::u64;
 /// Iterating over the TSM index.
 ///
 /// ```
-/// # use tsm::reader::*;
+/// # use influxdb_tsm::reader::*;
 /// # use libflate::gzip;
 /// # use std::fs::File;
 /// # use std::io::BufReader;

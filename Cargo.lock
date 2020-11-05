@@ -1323,6 +1323,7 @@ dependencies = [
  "hyper",
  "influxdb2_client",
  "influxdb_line_protocol",
+ "influxdb_tsm",
  "ingest",
  "libflate",
  "mem_qe",
@@ -1344,7 +1345,6 @@ dependencies = [
  "tonic",
  "tracing",
  "tracing-futures",
- "tsm",
  "wal",
  "write_buffer",
 ]
@@ -1362,6 +1362,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb_tsm"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "integer-encoding",
+ "libflate",
+ "rand",
+ "snafu",
+ "snap",
+ "test_helpers",
+ "tracing",
+]
+
+[[package]]
 name = "ingest"
 version = "0.1.0"
 dependencies = [
@@ -1369,12 +1383,12 @@ dependencies = [
  "data_types",
  "env_logger",
  "influxdb_line_protocol",
+ "influxdb_tsm",
  "libflate",
  "packers",
  "snafu",
  "test_helpers",
  "tracing",
- "tsm",
 ]
 
 [[package]]
@@ -1970,11 +1984,11 @@ dependencies = [
  "arrow_deps",
  "data_types",
  "human_format",
+ "influxdb_tsm",
  "rand",
  "snafu",
  "test_helpers",
  "tracing",
- "tsm",
 ]
 
 [[package]]
@@ -3451,20 +3465,6 @@ name = "try-lock"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
-
-[[package]]
-name = "tsm"
-version = "0.1.0"
-dependencies = [
- "hex",
- "integer-encoding",
- "libflate",
- "rand",
- "snafu",
- "snap",
- "test_helpers",
- "tracing",
-]
 
 [[package]]
 name = "typenum"

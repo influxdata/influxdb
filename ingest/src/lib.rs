@@ -12,6 +12,11 @@
 
 use data_types::table_schema::{DataType, Schema, SchemaBuilder};
 use influxdb_line_protocol::{FieldValue, ParsedLine};
+use influxdb_tsm::{
+    mapper::{ColumnData, MeasurementTable, TSMMeasurementMapper},
+    reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
+    BlockType, TSMError,
+};
 use packers::{
     ByteArray, Error as TableError, IOxTableWriter, IOxTableWriterSource, Packer, Packers,
 };
@@ -21,11 +26,6 @@ use std::{
     io::{Read, Seek},
 };
 use tracing::debug;
-use tsm::{
-    mapper::{ColumnData, MeasurementTable, TSMMeasurementMapper},
-    reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
-    BlockType, TSMError,
-};
 
 pub mod parquet;
 
@@ -857,7 +857,7 @@ impl TSMFileConverter {
         //
         m.process(
             &mut block_reader,
-            |section: tsm::mapper::TableSection| -> Result<(), TSMError> {
+            |section: influxdb_tsm::mapper::TableSection| -> Result<(), TSMError> {
                 // number of rows in each column in this table section.
                 let col_len = section.len();
 
@@ -1090,12 +1090,12 @@ impl std::fmt::Debug for TSMFileConverter {
 mod tests {
     use super::*;
     use data_types::table_schema::ColumnDefinition;
-    use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource, Packers};
-    use test_helpers::approximately_equal;
-    use tsm::{
+    use influxdb_tsm::{
         reader::{BlockData, MockBlockDecoder},
         Block,
     };
+    use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource, Packers};
+    use test_helpers::approximately_equal;
 
     use libflate::gzip;
     use std::fs::File;
