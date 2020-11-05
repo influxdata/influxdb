@@ -6,6 +6,7 @@
 1. [19853](https://github.com/influxdata/influxdb/pull/19853): Use updated HTTP client for authorization service
 1. [19886](https://github.com/influxdata/influxdb/pull/19886): Add Logger to constructor function to ensure log field is initialized
 1. [19885](https://github.com/influxdata/influxdb/pull/19885): Remove extra multiplication of retention policies in onboarding
+1. [19908](https://github.com/influxdata/influxdb/pull/19908): Fix /ready response content type
 
 ## v2.0.0-rc.3 [2020-10-29]
 
