@@ -13,7 +13,7 @@
 
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all SUBDIRS have the `all` and `clean` targets.
-SUBDIRS := http ui chronograf query storage
+SUBDIRS := http chronograf query storage
 GO_TAGS=
 GO_ARGS=-tags '$(GO_TAGS)'
 ifeq ($(OS), Windows_NT)
@@ -47,9 +47,6 @@ SOURCES := $(shell find . -name '*.go' -not -name '*_test.go') go.mod go.sum
 
 # All go source files excluding the vendored sources.
 SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -name '*_test.go' -print)
-
-# All assets for chronograf
-UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -o -path ui/.cache/\* -o -name Makefile -prune \) )
 
 # All precanned dashboards
 PRECANNED := $(shell find chronograf/canned -name '*.json')
@@ -87,28 +84,6 @@ influxd: bin/$(GOOS)/influxd
 influx: bin/$(GOOS)/influx
 
 #
-# Define targets for the web ui
-#
-
-node_modules: ui/node_modules
-
-# phony target to wait for server to be alive
-ping:
-	./etc/pinger.sh
-
-e2e: ping
-	make -C ui e2e
-
-chronograf_lint:
-	make -C ui lint
-
-ui/node_modules:
-	make -C ui node_modules
-
-ui_client:
-	make -C ui client
-
-#
 # Define action only targets
 #
 
@@ -132,9 +107,6 @@ checkcommit:
 	# ./etc/circle-detect-committed-binaries.sh
 
 generate: $(SUBDIRS)
-
-test-js: node_modules
-	make -C ui test
 
 # Download tsdb testdata before running unit tests
 test-go:
@@ -184,25 +156,11 @@ clean:
 	$(RM) -r bin
 	$(RM) -r dist
 
-define CHRONOGIRAFFE
-             ._ o o
-             \_`-)|_
-          ,""      _\_
-        ,"  ## |   0 0.
-      ," ##   ,-\__    `.
-    ,"       /     `--._;) - "HAI, I'm Chronogiraffe. Let's be friends!"
-  ,"     ## /
-,"   ##    /
-endef
-export CHRONOGIRAFFE
-chronogiraffe: $(SUBDIRS) generate $(CMDS)
-	@echo "$$CHRONOGIRAFFE"
+run:
+	./bin/$(GOOS)/influxd --assets-path=ui
 
-run: chronogiraffe
-	./bin/$(GOOS)/influxd --assets-path=ui/build
-
-run-e2e: chronogiraffe
-	./bin/$(GOOS)/influxd --assets-path=ui/build --e2e-testing --store=memory
+run-e2e:
+	./bin/$(GOOS)/influxd --e2e-testing --store=memory
 
 # assume this is running from circleci
 protoc:
@@ -221,13 +179,13 @@ docker-image-influx:
 docker-image-ui:
 	@cp .gitignore .dockerignore
 	@docker image build -t influxui:dev --target ui .
-	
+
 dshell-image:
 	@cp .gitignore .dockerignore
 	@docker image build --build-arg "USERID=$(shell id -u)" -t influxdb:dshell --target dshell .
 
 dshell: dshell-image
-	@docker container run --rm -p 8086:8086 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
+	@docker container run --rm -p 8086:8086 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx goreleaser
+.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-go-race bench clean vet nightly dist protoc run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx goreleaser

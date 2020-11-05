@@ -2,26 +2,18 @@ FROM ubuntu:20.04 AS dbuild
 
 ENV DEBIAN_FRONTEND noninteractive
 
-# Needed for Yarn steps to veryify the keys
-RUN apt update
-RUN apt install --yes curl gnupg2
-RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
-RUN echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
-
-# Now update index with Yarn
 RUN apt update
 RUN apt install --yes \
         cargo \
+        curl \
         git \
         golang \
         libclang-dev \
         llvm-dev \
         make \
-        nodejs \
         protobuf-compiler \
         ragel \
-        rustc \
-        yarn
+        rustc
 
 FROM dbuild AS dshell
 
@@ -56,4 +48,4 @@ FROM nginx:alpine AS ui
 
 EXPOSE 80
 
-COPY --from=dbuild-all /code/ui/build /usr/share/nginx/html
+COPY --from=dbuild-all /code/ui /usr/share/nginx/html
