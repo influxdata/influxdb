@@ -1,11 +1,30 @@
 ## unreleased
 
+## v2.0.0-rc.4 [2020-11-05]
+
+### Features
+
+1. [19854](https://github.com/influxdata/influxdb/pull/19854): Use v1 authorization for users upgrade
+1. [19855](https://github.com/influxdata/influxdb/pull/19855): Enable window pushdowns
+1. [19864](https://github.com/influxdata/influxdb/pull/19864): Implement backup/restore CLI subcommands
+1. [19865](https://github.com/influxdata/influxdb/pull/19865): Implementation of v1 authorization
+1. [19879](https://github.com/influxdata/influxdb/pull/19879): Make sure the query plan nodes have unique ids
+1. [19881](https://github.com/influxdata/influxdb/pull/19881): Update Flux to v0.93.0
+
 ### Bug Fixes
 
-1. [19856](https://github.com/influxdata/influxdb/pull/19856): make tagKeys and tagValues work for edge cases involving _field
+1. [19685](https://github.com/influxdata/influxdb/pull/19685): Cloning tasks makes actions shared in task list view
+1. [19712](https://github.com/influxdata/influxdb/pull/19712): Reduce filesize of influx binary
+1. [19819](https://github.com/influxdata/influxdb/pull/19819): Isolate telegraf config service and remove URM interactions
 1. [19853](https://github.com/influxdata/influxdb/pull/19853): Use updated HTTP client for authorization service
-1. [19886](https://github.com/influxdata/influxdb/pull/19886): Add Logger to constructor function to ensure log field is initialized
+1. [19856](https://github.com/influxdata/influxdb/pull/19856): Make tagKeys and tagValues work for edge cases involving fields
+1. [19870](https://github.com/influxdata/influxdb/pull/19870): Correctly parse float as 64-bits 
+1. [19873](https://github.com/influxdata/influxdb/pull/19873): Add simple metrics related to installed templates
 1. [19885](https://github.com/influxdata/influxdb/pull/19885): Remove extra multiplication of retention policies in onboarding
+1. [19887](https://github.com/influxdata/influxdb/pull/19887): Use fluxinit package to init flux library instead of builtin
+1. [19886](https://github.com/influxdata/influxdb/pull/19886): Add Logger to constructor function to ensure log field is initialized
+1. [19894](https://github.com/influxdata/influxdb/pull/19894): Return empty iterator instead of null in tagValues
+1. [19899](https://github.com/influxdata/influxdb/pull/19899): Docs: flux 0.92 functions
 1. [19908](https://github.com/influxdata/influxdb/pull/19908): Fix /ready response content type
 
 ## v2.0.0-rc.3 [2020-10-29]
