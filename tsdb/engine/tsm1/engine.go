@@ -1942,7 +1942,7 @@ func (e *Engine) WriteSnapshot() (err error) {
 // in-memory cache data when a previous snapshot is in progress
 func (e *Engine) CreateSnapshot(skipCacheOk bool) (string, error) {
 	if err := e.WriteSnapshot(); (err == ErrSnapshotInProgress) && skipCacheOk {
-		e.logger.Warn("Snapshotter busy: Backup or export proceeding without cache snapshot contents.")
+		e.logger.Warn("Snapshotter busy: proceeding without cache contents.")
 	} else if err != nil {
 		return "", err
 	}

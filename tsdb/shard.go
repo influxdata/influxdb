@@ -1153,12 +1153,12 @@ func (s *Shard) Restore(r io.Reader, basePath string) error {
 
 // CreateSnapshot will return a path to a temp directory
 // containing hard links to the underlying shard files.
-func (s *Shard) CreateSnapshot() (string, error) {
+func (s *Shard) CreateSnapshot(skipCacheOk bool) (string, error) {
 	engine, err := s.Engine()
 	if err != nil {
 		return "", err
 	}
-	return engine.CreateSnapshot(true)
+	return engine.CreateSnapshot(skipCacheOk)
 }
 
 // ForEachMeasurementName iterates over each measurement in the shard.

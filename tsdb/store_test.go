@@ -504,7 +504,7 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 			t.Fatalf("expected shard")
 		}
 
-		dir, e := s.CreateShardSnapshot(1)
+		dir, e := s.CreateShardSnapshot(1, false)
 		if e != nil {
 			t.Fatal(e)
 		}
