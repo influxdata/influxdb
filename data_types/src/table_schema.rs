@@ -5,7 +5,9 @@
     clippy::explicit_iter_loop,
     clippy::use_self
 )]
-
+//! Note that this code is (currently) only used in the TSM -> Parquet
+//! converter (not in the delorean storage system itself)
+//!
 //! This module is used to represent the abstract "schema" of a set of line
 //! protocol data records, as defined in the
 //! [documentation](https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial).
@@ -19,7 +21,7 @@
 //! specific type, indexed by 0.
 //!
 //! ```
-//! use delorean_table_schema::{SchemaBuilder, DataType, ColumnDefinition};
+//! use data_types::table_schema::{SchemaBuilder, DataType, ColumnDefinition};
 //! let schema = SchemaBuilder::new(String::from("my_measurement"))
 //!     .tag("tag1")
 //!     .field("field1", DataType::Float)
@@ -35,8 +37,6 @@
 //! assert_eq!(cols[3], ColumnDefinition::new("field2", 3, DataType::Boolean));
 //! assert_eq!(cols[4], ColumnDefinition::new("time", 4, DataType::Timestamp));
 //! ```
-use delorean_tsm::BlockType;
-
 use std::collections::BTreeMap;
 use std::convert::From;
 use tracing::warn;
@@ -73,18 +73,6 @@ pub enum DataType {
     /// 64 bit timestamp "UNIX timestamps" representing nanosecods
     /// since the UNIX epoch (00:00:00 UTC on 1 January 1970).
     Timestamp,
-}
-
-impl From<&BlockType> for DataType {
-    fn from(value: &BlockType) -> Self {
-        match value {
-            BlockType::Float => Self::Float,
-            BlockType::Integer => Self::Integer,
-            BlockType::Bool => Self::Boolean,
-            BlockType::Str => Self::String,
-            BlockType::Unsigned => Self::Integer,
-        }
-    }
 }
 
 /// Represents a specific Line Protocol Field name

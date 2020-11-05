@@ -672,6 +672,7 @@ dependencies = [
  "flatbuffers",
  "serde",
  "snafu",
+ "tracing",
 ]
 
 [[package]]
@@ -704,6 +705,7 @@ dependencies = [
  "clap",
  "criterion",
  "csv",
+ "data_types",
  "delorean_arrow",
  "delorean_generated_types",
  "delorean_ingest",
@@ -714,7 +716,6 @@ dependencies = [
  "delorean_segment_store",
  "delorean_storage",
  "delorean_table",
- "delorean_table_schema",
  "delorean_test_helpers",
  "delorean_tsm",
  "delorean_wal",
@@ -790,9 +791,9 @@ dependencies = [
 name = "delorean_ingest"
 version = "0.1.0"
 dependencies = [
+ "data_types",
  "delorean_line_parser",
  "delorean_table",
- "delorean_table_schema",
  "delorean_test_helpers",
  "delorean_tsm",
  "env_logger",
@@ -850,9 +851,9 @@ dependencies = [
 name = "delorean_parquet"
 version = "0.1.0"
 dependencies = [
+ "data_types",
  "delorean_arrow",
  "delorean_table",
- "delorean_table_schema",
  "delorean_test_helpers",
  "snafu",
  "tracing",
@@ -890,21 +891,13 @@ dependencies = [
 name = "delorean_table"
 version = "0.1.0"
 dependencies = [
+ "data_types",
  "delorean_arrow",
- "delorean_table_schema",
  "delorean_test_helpers",
  "delorean_tsm",
  "human_format",
  "rand",
  "snafu",
- "tracing",
-]
-
-[[package]]
-name = "delorean_table_schema"
-version = "0.1.0"
-dependencies = [
- "delorean_tsm",
  "tracing",
 ]
 

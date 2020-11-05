@@ -6,12 +6,12 @@ use std::fs;
 
 #[test]
 fn test_write_parquet_data() {
-    let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
+    let schema = data_types::table_schema::SchemaBuilder::new("measurement_name")
         .tag("tag1")
-        .field("string_field", delorean_table_schema::DataType::String)
-        .field("float_field", delorean_table_schema::DataType::Float)
-        .field("int_field", delorean_table_schema::DataType::Integer)
-        .field("bool_field", delorean_table_schema::DataType::Boolean)
+        .field("string_field", data_types::table_schema::DataType::String)
+        .field("float_field", data_types::table_schema::DataType::Float)
+        .field("int_field", data_types::table_schema::DataType::Integer)
+        .field("bool_field", data_types::table_schema::DataType::Boolean)
         .build();
 
     assert_eq!(schema.get_col_defs().len(), 6);

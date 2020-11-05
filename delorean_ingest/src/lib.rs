@@ -9,12 +9,12 @@
     clippy::use_self
 )]
 
+use data_types::table_schema::{DataType, Schema, SchemaBuilder};
 use delorean_line_parser::{FieldValue, ParsedLine};
 use delorean_table::{
     packers::{Packer, Packers},
     ByteArray, DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError,
 };
-use delorean_table_schema::{DataType, Schema, SchemaBuilder};
 use delorean_tsm::{
     mapper::{ColumnData, MeasurementTable, TSMMeasurementMapper},
     reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
@@ -821,7 +821,7 @@ impl TSMFileConverter {
 
         let mut fks = Vec::new();
         for (field_key, block_type) in m.field_columns().to_owned() {
-            builder = builder.field(&field_key, DataType::from(&block_type));
+            builder = builder.field(&field_key, to_data_type(&block_type));
             fks.push((field_key.clone(), block_type));
             packed_columns.push(Packers::from(block_type));
         }
@@ -1066,6 +1066,16 @@ impl TSMFileConverter {
     }
 }
 
+fn to_data_type(value: &BlockType) -> DataType {
+    match value {
+        BlockType::Float => DataType::Float,
+        BlockType::Integer => DataType::Integer,
+        BlockType::Bool => DataType::Boolean,
+        BlockType::Str => DataType::String,
+        BlockType::Unsigned => DataType::Integer,
+    }
+}
+
 impl std::fmt::Debug for TSMFileConverter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TSMFileConverter")
@@ -1077,10 +1087,10 @@ impl std::fmt::Debug for TSMFileConverter {
 #[cfg(test)]
 mod delorean_ingest_tests {
     use super::*;
+    use data_types::table_schema::ColumnDefinition;
     use delorean_table::{
         DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError, Packers,
     };
-    use delorean_table_schema::ColumnDefinition;
     use delorean_test_helpers::approximately_equal;
     use delorean_tsm::{
         reader::{BlockData, MockBlockDecoder},

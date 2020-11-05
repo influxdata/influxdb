@@ -177,14 +177,14 @@ impl std::convert::From<Vec<Option<u64>>> for Packers {
     }
 }
 
-impl std::convert::From<delorean_table_schema::DataType> for Packers {
-    fn from(t: delorean_table_schema::DataType) -> Self {
+impl std::convert::From<data_types::table_schema::DataType> for Packers {
+    fn from(t: data_types::table_schema::DataType) -> Self {
         match t {
-            delorean_table_schema::DataType::Float => Self::Float(Packer::<f64>::new()),
-            delorean_table_schema::DataType::Integer => Self::Integer(Packer::<i64>::new()),
-            delorean_table_schema::DataType::String => Self::String(Packer::<ByteArray>::new()),
-            delorean_table_schema::DataType::Boolean => Self::Boolean(Packer::<bool>::new()),
-            delorean_table_schema::DataType::Timestamp => Self::Integer(Packer::<i64>::new()),
+            data_types::table_schema::DataType::Float => Self::Float(Packer::<f64>::new()),
+            data_types::table_schema::DataType::Integer => Self::Integer(Packer::<i64>::new()),
+            data_types::table_schema::DataType::String => Self::String(Packer::<ByteArray>::new()),
+            data_types::table_schema::DataType::Boolean => Self::Boolean(Packer::<bool>::new()),
+            data_types::table_schema::DataType::Timestamp => Self::Integer(Packer::<i64>::new()),
         }
     }
 }

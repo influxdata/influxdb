@@ -1,5 +1,5 @@
 //! Structures for computing and reporting on storage statistics
-use delorean_table_schema::DataType;
+use data_types::table_schema::DataType;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -68,7 +68,7 @@ impl fmt::Display for ColumnStats {
 ///
 /// # Example:
 /// ```
-/// use delorean_table_schema::DataType;
+/// use data_types::table_schema::DataType;
 /// use delorean_table::stats::ColumnStatsBuilder;
 ///
 /// let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)

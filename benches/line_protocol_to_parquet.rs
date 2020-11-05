@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use data_types::table_schema::Schema;
 use delorean_ingest::{ConversionSettings, LineProtocolConverter};
 use delorean_line_parser::parse_lines;
 use delorean_parquet::{
@@ -6,7 +7,6 @@ use delorean_parquet::{
     TryClone,
 };
 use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
-use delorean_table_schema::Schema;
 use std::time::Duration;
 
 use std::io::{Seek, SeekFrom, Write};

@@ -12,7 +12,7 @@ env_logger = "0.7.1"
 tracing = "0.1"
 delorean_line_parser = { path = "../delorean_line_parser" }
 delorean_table = { path = "../delorean_table" }
-delorean_table_schema = { path = "../delorean_table_schema" }
+data_types = { path = "../data_types" }
 delorean_tsm = { path = "../delorean_tsm" }
 
 [dev-dependencies]

@@ -14,3 +14,4 @@ delorean_line_parser = { path = "../delorean_line_parser" }
 chrono = "0.4"
 flatbuffers = "0.6"
 crc32fast = "1.2.0"
+tracing = "0.1"

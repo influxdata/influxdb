@@ -12,7 +12,7 @@ rand = "0.7.3"
 human_format = "1.0.3"
 
 delorean_arrow = { path = "../delorean_arrow" }
-delorean_table_schema = { path = "../delorean_table_schema" }
+data_types = { path = "../data_types" }
 delorean_tsm = { path = "../delorean_tsm" }
 
 [dev-dependencies]

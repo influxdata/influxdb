@@ -1,3 +1,4 @@
+use data_types::table_schema::Schema;
 use delorean_ingest::{
     ConversionSettings, Error as IngestError, LineProtocolConverter, TSMFileConverter,
 };
@@ -5,7 +6,6 @@ use delorean_line_parser::parse_lines;
 use delorean_parquet::writer::Error as ParquetWriterError;
 use delorean_parquet::writer::{CompressionLevel, DeloreanParquetTableWriter};
 use delorean_table::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
-use delorean_table_schema::Schema;
 use snafu::{ResultExt, Snafu};
 use std::{
     convert::TryInto,

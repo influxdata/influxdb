@@ -12,7 +12,7 @@ tracing = "0.1"
 
 delorean_arrow = { path = "../delorean_arrow" }
 delorean_table = { path = "../delorean_table" }
-delorean_table_schema = { path = "../delorean_table_schema" }
+data_types = { path = "../data_types" }
 
 
 [dev-dependencies]

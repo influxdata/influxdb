@@ -93,16 +93,16 @@ where
     ///
     /// ```
     /// # use std::fs;
-    /// # use delorean_table_schema;
-    /// # use delorean_table_schema::DataType;
+    /// # use data_types::table_schema;
+    /// # use data_types::table_schema::DataType;
     /// # use delorean_table::DeloreanTableWriter;
     /// # use delorean_table::packers::{Packer, Packers};
     /// # use delorean_parquet::writer::{DeloreanParquetTableWriter, CompressionLevel};
     /// # use delorean_arrow::parquet::data_type::ByteArray;
     ///
-    /// let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
+    /// let schema = table_schema::SchemaBuilder::new("measurement_name")
     ///      .tag("tag1")
-    ///      .field("field1", delorean_table_schema::DataType::Integer)
+    ///      .field("field1", table_schema::DataType::Integer)
     ///      .build();
     ///
     /// let mut packers: Vec<Packers> = vec![
@@ -135,7 +135,7 @@ where
     /// # std::fs::remove_file(output_file_name);
     /// ```
     pub fn new(
-        schema: &delorean_table_schema::Schema,
+        schema: &data_types::table_schema::Schema,
         compression_level: CompressionLevel,
         writer: W,
     ) -> Result<Self, Error> {
@@ -281,7 +281,7 @@ where
 
 // Converts from line protocol `Schema` to the equivalent parquet schema `Type`.
 fn convert_to_parquet_schema(
-    schema: &delorean_table_schema::Schema,
+    schema: &data_types::table_schema::Schema,
 ) -> Result<Rc<parquet::schema::types::Type>, Error> {
     let mut parquet_columns = Vec::new();
 
@@ -289,15 +289,15 @@ fn convert_to_parquet_schema(
     for col_def in col_defs {
         debug!("Determining parquet schema for column {:?}", col_def);
         let (physical_type, logical_type) = match col_def.data_type {
-            delorean_table_schema::DataType::Boolean => (PhysicalType::BOOLEAN, None),
-            delorean_table_schema::DataType::Float => (PhysicalType::DOUBLE, None),
-            delorean_table_schema::DataType::Integer => {
+            data_types::table_schema::DataType::Boolean => (PhysicalType::BOOLEAN, None),
+            data_types::table_schema::DataType::Float => (PhysicalType::DOUBLE, None),
+            data_types::table_schema::DataType::Integer => {
                 (PhysicalType::INT64, Some(LogicalType::UINT_64))
             }
-            delorean_table_schema::DataType::String => {
+            data_types::table_schema::DataType::String => {
                 (PhysicalType::BYTE_ARRAY, Some(LogicalType::UTF8))
             }
-            delorean_table_schema::DataType::Timestamp => {
+            data_types::table_schema::DataType::Timestamp => {
                 // At the time of writing, the underlying rust parquet
                 // library doesn't support nanosecond timestamp
                 // precisions yet
@@ -348,7 +348,7 @@ fn convert_to_parquet_schema(
 }
 
 fn set_integer_encoding(
-    data_type: delorean_table_schema::DataType,
+    data_type: data_types::table_schema::DataType,
     compression_level: CompressionLevel,
     col_path: ColumnPath,
     builder: WriterPropertiesBuilder,
@@ -378,7 +378,7 @@ fn set_integer_encoding(
 /// Create the parquet writer properties (which defines the encoding
 /// and compression for each column) for a given schema.
 fn create_writer_props(
-    schema: &delorean_table_schema::Schema,
+    schema: &data_types::table_schema::Schema,
     compression_level: CompressionLevel,
 ) -> Rc<WriterProperties> {
     let mut builder = WriterProperties::builder();
@@ -402,7 +402,7 @@ fn create_writer_props(
         let col_path = ColumnPath::from(col_def.name.clone());
 
         match col_def.data_type {
-            data_type @ delorean_table_schema::DataType::Boolean => {
+            data_type @ data_types::table_schema::DataType::Boolean => {
                 debug!(
                     "Setting encoding of {:?} col {} to RLE",
                     data_type, col_path
@@ -411,10 +411,10 @@ fn create_writer_props(
                     .set_column_encoding(col_path.clone(), Encoding::RLE)
                     .set_column_dictionary_enabled(col_path, false);
             }
-            data_type @ delorean_table_schema::DataType::Integer => {
+            data_type @ data_types::table_schema::DataType::Integer => {
                 builder = set_integer_encoding(data_type, compression_level, col_path, builder)
             }
-            data_type @ delorean_table_schema::DataType::Float => {
+            data_type @ data_types::table_schema::DataType::Float => {
                 debug!(
                     "Setting encoding of {:?} col {} to PLAIN",
                     data_type, col_path
@@ -424,14 +424,14 @@ fn create_writer_props(
                     .set_column_dictionary_enabled(col_path, false);
             }
             // tag values are often very much repeated
-            data_type @ delorean_table_schema::DataType::String if schema.is_tag(&col_def) => {
+            data_type @ data_types::table_schema::DataType::String if schema.is_tag(&col_def) => {
                 debug!(
                     "Setting encoding of tag val {:?} col {} to dictionary",
                     data_type, col_path
                 );
                 builder = builder.set_column_dictionary_enabled(col_path, true);
             }
-            data_type @ delorean_table_schema::DataType::String => {
+            data_type @ data_types::table_schema::DataType::String => {
                 debug!(
                     "Setting encoding of non-tag val {:?} col {} to DELTA_LENGTH_BYTE_ARRAY",
                     data_type, col_path
@@ -440,7 +440,7 @@ fn create_writer_props(
                     .set_column_encoding(col_path.clone(), Encoding::DELTA_LENGTH_BYTE_ARRAY)
                     .set_column_dictionary_enabled(col_path, false);
             }
-            data_type @ delorean_table_schema::DataType::Timestamp => {
+            data_type @ data_types::table_schema::DataType::Timestamp => {
                 builder = set_integer_encoding(data_type, compression_level, col_path, builder)
             }
         };
@@ -485,12 +485,12 @@ mod tests {
 
     #[test]
     fn test_convert_to_parquet_schema() {
-        let schema = delorean_table_schema::SchemaBuilder::new("measurement_name")
+        let schema = data_types::table_schema::SchemaBuilder::new("measurement_name")
             .tag("tag1")
-            .field("string_field", delorean_table_schema::DataType::String)
-            .field("float_field", delorean_table_schema::DataType::Float)
-            .field("int_field", delorean_table_schema::DataType::Integer)
-            .field("bool_field", delorean_table_schema::DataType::Boolean)
+            .field("string_field", data_types::table_schema::DataType::String)
+            .field("float_field", data_types::table_schema::DataType::Float)
+            .field("int_field", data_types::table_schema::DataType::Integer)
+            .field("bool_field", data_types::table_schema::DataType::Boolean)
             .build();
 
         let parquet_schema = convert_to_parquet_schema(&schema).expect("conversion successful");
@@ -509,13 +509,13 @@ mod tests {
         assert_eq!(parquet_schema_string, expected_schema_string);
     }
 
-    fn make_test_schema() -> delorean_table_schema::Schema {
-        delorean_table_schema::SchemaBuilder::new("measurement_name")
+    fn make_test_schema() -> data_types::table_schema::Schema {
+        data_types::table_schema::SchemaBuilder::new("measurement_name")
             .tag("tag1")
-            .field("string_field", delorean_table_schema::DataType::String)
-            .field("float_field", delorean_table_schema::DataType::Float)
-            .field("int_field", delorean_table_schema::DataType::Integer)
-            .field("bool_field", delorean_table_schema::DataType::Boolean)
+            .field("string_field", data_types::table_schema::DataType::String)
+            .field("float_field", data_types::table_schema::DataType::Float)
+            .field("int_field", data_types::table_schema::DataType::Integer)
+            .field("bool_field", data_types::table_schema::DataType::Boolean)
             .build()
     }
 
