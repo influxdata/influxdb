@@ -9,13 +9,13 @@ import (
 
 const (
 	// Dir is prefix of the assets in the bindata
-	Dir = "../ui/build"
+	Dir = "../ui"
 	// Default is the default item to load if 404
-	Default = "../ui/build/index.html"
+	Default = "../ui/index.html"
 	// DebugDir is the prefix of the assets in development mode
-	DebugDir = "ui/build"
+	DebugDir = "ui"
 	// DebugDefault is the default item to load if 404
-	DebugDefault = "ui/build/index.html"
+	DebugDefault = "ui/index.html"
 	// DefaultContentType is the content-type to return for the Default file
 	DefaultContentType = "text/html; charset=utf-8"
 )

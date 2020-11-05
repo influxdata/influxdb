@@ -31,7 +31,7 @@ You'll need two terminal tabs to run influxdb from source: one to run the go app
 Tab 1:
 
 ```sh
-go run ./cmd/influxd --assets-path=ui/build
+go run ./cmd/influxd --assets-path=ui
 ```
 
 Tab 2:
@@ -62,7 +62,7 @@ To run Influx locally, you'll need two terminal tabs: one to run the go applicat
 Tab 1:
 
 ```sh
-go run ./cmd/influxd --assets-path=ui/build
+go run ./cmd/influxd --assets-path=ui
 ```
 
 This starts the influxdb application server. It handles API requests and can be reached via `localhost:8086`. Any changes to go code will need to be re-compiled by re-running the `go run` command above.

@@ -1,4 +1,4 @@
-.PHONY: assets dep clean test gotest gotestrace jstest run run-dev ctags continuous
+.PHONY: assets dep clean test gotest gotestrace run run-dev ctags continuous
 
 VERSION ?= $(shell git describe --always --tags)
 COMMIT ?= $(shell git rev-parse --short=8 HEAD)
@@ -6,7 +6,7 @@ GDM := $(shell command -v gdm 2> /dev/null)
 GOBINDATA := $(shell go list -f {{.Root}}  github.com/kevinburke/go-bindata 2> /dev/null)
 
 SOURCES := $(shell find . -name '*.go' ! -name '*_gen.go')
-UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -prune \) )
+UISOURCES := $(shell find ui -type f -not \( -path ui/\* -o -path ui/node_modules/\* -prune \) )
 
 LDFLAGS=-ldflags "-s -X main.version=${VERSION} -X main.commit=${COMMIT}"
 BINARY=chronograf
@@ -29,9 +29,9 @@ docker-${BINARY}: $(SOURCES)
 docker: dep assets docker-${BINARY}
 	docker build -t chronograf .
 
-assets: .jssrc .bindata
+assets: .bindata
 
-dev-assets: .dev-jssrc .bindata
+dev-assets: .bindata
 
 .bindata: server/swagger_gen.go canned/bin_gen.go dist/dist_gen.go
 	@touch .bindata
@@ -45,15 +45,7 @@ server/swagger_gen.go: server/swagger.json
 canned/bin_gen.go: canned/*.json
 	go generate -x ./canned
 
-.jssrc: $(UISOURCES)
-	cd ui && yarn build
-	@touch .jssrc
-
-.dev-jssrc: $(UISOURCES)
-	cd ui && yarn build:dev
-	@touch .dev-jssrc
-
-dep: .jsdep .godep
+dep: .godep
 
 .godep: Godeps
 ifndef GDM
@@ -67,23 +59,16 @@ endif
 	gdm restore
 	@touch .godep
 
-.jsdep: ui/yarn.lock
-	cd ui && yarn install
-	@touch .jsdep
-
 gen: bolt/internal/internal.proto
 	go generate -x ./bolt/internal
 
-test: jstest gotest gotestrace
+test: gotest gotestrace
 
 gotest:
 	go test ./...
 
 gotestrace:
 	go test -race ./...
-
-jstest:
-	cd ui && yarn test
 
 run: ${BINARY}
 	./chronograf
@@ -93,10 +78,8 @@ run-dev: ${BINARY}
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
-	cd ui && yarn clean
-	cd ui && rm -rf node_modules
 	rm -f dist/dist_gen.go canned/bin_gen.go server/swagger_gen.go
-	@rm -f .godep .jsdep .jssrc .dev-jssrc .bindata
+	@rm -f .godep .bindata
 
 continuous:
 	while true; do if fswatch -r --one-event .; then echo "#-> Starting build: `date`"; make dev; pkill chronograf; ./chronograf -d --log-level=debug & echo "#-> Build complete."; fi; sleep 0.5; done
