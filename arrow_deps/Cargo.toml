@@ -3,7 +3,7 @@ name = "arrow_deps"
 version = "0.1.0"
 authors = ["alamb <andrew@nerdnetworks.org>"]
 edition = "2018"
-description = "Apache Arrow / Parquet / DataFusion dependencies for delorean, to ensure consistent versions and unified updates"
+description = "Apache Arrow / Parquet / DataFusion dependencies for InfluxDB IOx, to ensure consistent versions and unified updates"
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

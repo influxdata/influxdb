@@ -59,7 +59,7 @@ message TestErrorResponse {
 }
 
 
-service Delorean {
+service IOx {
     rpc CreateBucket(CreateBucketRequest) returns (CreateBucketResponse) {}
     rpc DeleteBucket(DeleteBucketRequest) returns (DeleteBucketResponse) {}
     rpc GetBuckets(Organization) returns (GetBucketsResponse) {}

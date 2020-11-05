@@ -39,7 +39,7 @@ use test_helpers::*;
 const HTTP_BASE: &str = "http://localhost:8080";
 const API_BASE: &str = "http://localhost:8080/api/v2";
 const GRPC_URL_BASE: &str = "http://localhost:8082/";
-const TOKEN: &str = "delorean doesn't have authentication yet";
+const TOKEN: &str = "InfluxDB IOx doesn't have authentication yet";
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -507,10 +507,10 @@ impl TestServer {
 
         let dir = test_helpers::tmp_dir()?;
 
-        let server_process = Command::cargo_bin("delorean")?
+        let server_process = Command::cargo_bin("influxdb_iox")?
             // Can enable for debbugging
             //.arg("-vv")
-            .env("DELOREAN_DB_DIR", dir.path())
+            .env("INFLUXDB_IOX_DB_DIR", dir.path())
             .spawn()?;
 
         Ok(Self {
@@ -522,10 +522,10 @@ impl TestServer {
     fn restart(&mut self) -> Result<()> {
         self.server_process.kill()?;
         self.server_process.wait()?;
-        self.server_process = Command::cargo_bin("delorean")?
+        self.server_process = Command::cargo_bin("influxdb_iox")?
             // Can enable for debbugging
             //.arg("-vv")
-            .env("DELOREAN_DB_DIR", self.dir.path())
+            .env("INFLUXDB_IOX_DB_DIR", self.dir.path())
             .spawn()?;
         Ok(())
     }

@@ -17,16 +17,16 @@ use write_buffer::{Db, WriteBufferDatabases};
 pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenv::dotenv().ok();
 
-    let db_dir = match std::env::var("DELOREAN_DB_DIR") {
+    let db_dir = match std::env::var("INFLUXDB_IOX_DB_DIR") {
         Ok(val) => val,
         Err(_) => {
-            // default database path is $HOME/.delorean
+            // default database path is $HOME/.influxdb_iox
             let mut path = dirs::home_dir().unwrap();
-            path.push(".delorean/");
+            path.push(".influxdb_iox/");
             path.into_os_string().into_string().unwrap()
         }
     };
-    debug!("Delorean Server using database directory: {:?}", db_dir);
+    debug!("InfluxDB IOx Server using database directory: {:?}", db_dir);
 
     let storage = Arc::new(WriteBufferDatabases::new(&db_dir));
     let dirs = storage.wal_dirs()?;
@@ -42,13 +42,13 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Construct and start up gRPC server
 
-    let grpc_bind_addr: SocketAddr = match std::env::var("DELOREAN_GRPC_BIND_ADDR") {
+    let grpc_bind_addr: SocketAddr = match std::env::var("INFLUXDB_IOX_GRPC_BIND_ADDR") {
         Ok(addr) => addr
             .parse()
-            .expect("DELOREAN_GRPC_BIND_ADDR environment variable not a valid SocketAddr"),
+            .expect("INFLUXDB_IOX_GRPC_BIND_ADDR environment variable not a valid SocketAddr"),
         Err(VarError::NotPresent) => "127.0.0.1:8082".parse().unwrap(),
         Err(VarError::NotUnicode(_)) => {
-            panic!("DELOREAN_GRPC_BIND_ADDR environment variable not a valid unicode string")
+            panic!("INFLUXDB_IOX_GRPC_BIND_ADDR environment variable not a valid unicode string")
         }
     };
 
@@ -58,13 +58,13 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Construct and start up HTTP server
 
-    let bind_addr: SocketAddr = match std::env::var("DELOREAN_BIND_ADDR") {
+    let bind_addr: SocketAddr = match std::env::var("INFLUXDB_IOX_BIND_ADDR") {
         Ok(addr) => addr
             .parse()
-            .expect("DELOREAN_BIND_ADDR environment variable not a valid SocketAddr"),
+            .expect("INFLUXDB_IOX_BIND_ADDR environment variable not a valid SocketAddr"),
         Err(VarError::NotPresent) => "127.0.0.1:8080".parse().unwrap(),
         Err(VarError::NotUnicode(_)) => {
-            panic!("DELOREAN_BIND_ADDR environment variable not a valid unicode string")
+            panic!("INFLUXDB_IOX_BIND_ADDR environment variable not a valid unicode string")
         }
     };
 

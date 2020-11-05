@@ -1,4 +1,4 @@
-//! This module contains plumbing to connect the Delorean extensions to DataFusion
+//! This module contains plumbing to connect InfluxDB IOx extensions to DataFusion
 
 use std::sync::Arc;
 
@@ -29,11 +29,11 @@ pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
 
 use super::counters::ExecutionCounters;
 
-struct DeloreanQueryPlanner {}
+struct IOxQueryPlanner {}
 
-impl QueryPlanner for DeloreanQueryPlanner {
+impl QueryPlanner for IOxQueryPlanner {
     fn rewrite_logical_plan(&self, plan: LogicalPlan) -> Result<LogicalPlan> {
-        // TODO: implement any Delorean specific query rewrites needed
+        // TODO: implement any IOx specific query rewrites needed
         Ok(plan)
     }
 
@@ -46,16 +46,16 @@ impl QueryPlanner for DeloreanQueryPlanner {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // Teach the default physical planner how to plan SchemaPivot nodes.
         let physical_planner =
-            DefaultPhysicalPlanner::with_extension_planner(Arc::new(DeloreanExtensionPlanner {}));
+            DefaultPhysicalPlanner::with_extension_planner(Arc::new(IOxExtensionPlanner {}));
         // Delegate most work of physical planning to the default physical planner
         physical_planner.create_physical_plan(logical_plan, ctx_state)
     }
 }
 
 /// Physical planner for Delorean extension plans
-struct DeloreanExtensionPlanner {}
+struct IOxExtensionPlanner {}
 
-impl ExtensionPlanner for DeloreanExtensionPlanner {
+impl ExtensionPlanner for IOxExtensionPlanner {
     /// Create a physical plan for an extension node
     fn plan_extension(
         &self,
@@ -79,12 +79,12 @@ impl ExtensionPlanner for DeloreanExtensionPlanner {
     }
 }
 
-pub struct DeloreanExecutionContext {
+pub struct IOxExecutionContext {
     counters: Arc<ExecutionCounters>,
     inner: ExecutionContext,
 }
 
-impl DeloreanExecutionContext {
+impl IOxExecutionContext {
     /// Create an ExecutionContext suitable for executing DataFusion plans
     pub fn new(counters: Arc<ExecutionCounters>) -> Self {
         const BATCH_SIZE: usize = 1000;
@@ -92,7 +92,7 @@ impl DeloreanExecutionContext {
         // TBD: Should we be reusing an execution context across all executions?
         let config = ExecutionConfig::new().with_batch_size(BATCH_SIZE);
 
-        let config = config.with_query_planner(Arc::new(DeloreanQueryPlanner {}));
+        let config = config.with_query_planner(Arc::new(IOxQueryPlanner {}));
         let inner = ExecutionContext::with_config(config);
 
         Self { counters, inner }

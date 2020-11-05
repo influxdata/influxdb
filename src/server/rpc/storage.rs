@@ -5,7 +5,7 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use generated_types::{
-    delorean_server::{Delorean, DeloreanServer},
+    i_ox_server::{IOx, IOxServer},
     storage_server::{Storage, StorageServer},
     CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
     DeleteBucketResponse, GetBucketsResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
@@ -180,8 +180,8 @@ where
 }
 
 #[tonic::async_trait]
-/// Implements the protobuf defined Delorean rpc service for a DatabaseStore
-impl<T> Delorean for GrpcService<T>
+/// Implements the protobuf defined IOx rpc service for a DatabaseStore
+impl<T> IOx for GrpcService<T>
 where
     T: DatabaseStore + 'static,
 {
@@ -963,7 +963,7 @@ where
 }
 
 /// Instantiate a server listening on the specified address
-/// implementing the Delorean and Storage gRPC interfaces, the
+/// implementing the IOx and Storage gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
 /// shutdown.
 pub async fn make_server<T>(
@@ -975,7 +975,7 @@ where
     T: DatabaseStore + 'static,
 {
     tonic::transport::Server::builder()
-        .add_service(DeloreanServer::new(GrpcService::new(
+        .add_service(IOxServer::new(GrpcService::new(
             storage.clone(),
             executor.clone(),
         )))
@@ -1015,10 +1015,10 @@ mod tests {
 
     use futures::prelude::*;
 
-    use generated_types::{delorean_client, read_response::frame, storage_client, ReadSource};
+    use generated_types::{i_ox_client, read_response::frame, storage_client, ReadSource};
     use prost::Message;
 
-    type DeloreanClient = delorean_client::DeloreanClient<tonic::transport::Channel>;
+    type IOxClient = i_ox_client::IOxClient<tonic::transport::Channel>;
     type StorageClient = storage_client::StorageClient<tonic::transport::Channel>;
 
     #[tokio::test]
@@ -1034,7 +1034,7 @@ mod tests {
         };
 
         // Test response from delorean server
-        let res = fixture.delorean_client.get_buckets(org).await;
+        let res = fixture.iox_client.get_buckets(org).await;
 
         match res {
             Err(e) => {
@@ -1042,7 +1042,7 @@ mod tests {
                 assert_eq!(e.message(), "get_buckets");
             }
             Ok(buckets) => {
-                assert!(false, "Unexpected delorean_client success: {:?}", buckets);
+                assert!(false, "Unexpected iox_client success: {:?}", buckets);
             }
         };
 
@@ -1503,7 +1503,7 @@ mod tests {
         let request = TestErrorRequest {};
 
         // Test response from storage server
-        let response = fixture.delorean_client.test_error(request).await;
+        let response = fixture.iox_client.test_error(request).await;
 
         match &response {
             Ok(_) => {
@@ -1543,7 +1543,7 @@ mod tests {
             let request = TestErrorRequest {};
 
             // Test response from storage server
-            let response = fixture.delorean_client.test_error(request).await;
+            let response = fixture.iox_client.test_error(request).await;
             assert!(response.is_err(), "Got an error response: {:?}", response);
         }
 
@@ -2115,7 +2115,7 @@ mod tests {
 
     // Wrapper around raw clients and test database
     struct Fixture {
-        delorean_client: DeloreanClient,
+        iox_client: IOxClient,
         storage_client: StorageClientWrapper,
         test_storage: Arc<TestDatabaseStore>,
         _test_executor: Arc<StorageExecutor>,
@@ -2137,12 +2137,12 @@ mod tests {
             let server = make_server(bind_addr, test_storage.clone(), test_executor.clone());
             tokio::task::spawn(server);
 
-            let delorean_client = connect_to_server::<DeloreanClient>(bind_addr).await?;
+            let iox_client = connect_to_server::<IOxClient>(bind_addr).await?;
             let storage_client =
                 StorageClientWrapper::new(connect_to_server::<StorageClient>(bind_addr).await?);
 
             Ok(Self {
-                delorean_client,
+                iox_client,
                 storage_client,
                 test_storage,
                 _test_executor: test_executor,
@@ -2157,7 +2157,7 @@ mod tests {
     }
 
     #[tonic::async_trait]
-    impl NewClient for DeloreanClient {
+    impl NewClient for IOxClient {
         async fn connect(addr: String) -> Result<Self, tonic::transport::Error> {
             Self::connect(addr).await
         }

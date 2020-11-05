@@ -3,7 +3,7 @@ use snafu::Snafu;
 use arrow_deps::parquet::errors::ParquetError;
 
 #[derive(Debug, Snafu)]
-pub enum Error {
+pub enum IOxParquetError {
     #[snafu(display(r#"{}, underlying parquet error {}"#, message, source))]
     #[snafu(visibility(pub(crate)))]
     ParquetLibraryError {
@@ -13,4 +13,4 @@ pub enum Error {
     Unsupported,
 }
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = IOxParquetError> = std::result::Result<T, E>;

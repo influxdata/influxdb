@@ -1,6 +1,7 @@
-//! Library with code for (aspirationally) ingesting various data formats into Delorean
+//! Library with code for (aspirationally) ingesting various data
+//! formats into InfluxDB IOx
+//!
 //! Currently supports converting LineProtocol
-//! TODO move this to delorean/src/ingest/line_protocol.rs?
 #![deny(rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
@@ -12,7 +13,7 @@
 use data_types::table_schema::{DataType, Schema, SchemaBuilder};
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 use packers::{
-    ByteArray, DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError, Packer, Packers,
+    ByteArray, Error as TableError, IOxTableWriter, IOxTableWriterSource, Packer, Packers,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
@@ -50,7 +51,7 @@ impl Default for ConversionSettings {
 
 /// Converts `ParsedLines` into the packers internal columnar
 /// data format and then passes that converted data to a
-/// `DeloreanTableWriter`
+/// `IOxTableWriter`
 pub struct LineProtocolConverter<'a> {
     settings: ConversionSettings,
 
@@ -60,7 +61,7 @@ pub struct LineProtocolConverter<'a> {
     // NB Use owned strings as key so we can look up by str
     converters: BTreeMap<String, MeasurementConverter<'a>>,
 
-    table_writer_source: Box<dyn DeloreanTableWriterSource>,
+    table_writer_source: Box<dyn IOxTableWriterSource>,
 }
 
 #[derive(Snafu, Debug)]
@@ -108,7 +109,7 @@ struct MeasurementWriter<'a> {
     schema: Schema,
 
     /// The sink to which tables are being written
-    table_writer: Box<dyn DeloreanTableWriter>,
+    table_writer: Box<dyn IOxTableWriter>,
 
     /// lines buffered
     write_buffer: Vec<ParsedLine<'a>>,
@@ -151,7 +152,7 @@ impl<'a> MeasurementConverter<'a> {
     /// by specifing `force=true` (e.g. at the end of the input stream).
     fn prepare_for_writing(
         &mut self,
-        table_writer_source: &mut dyn DeloreanTableWriterSource,
+        table_writer_source: &mut dyn IOxTableWriterSource,
         force: bool,
     ) -> Result<(), Error> {
         match self {
@@ -189,11 +190,11 @@ impl<'a> MeasurementConverter<'a> {
 
 impl<'a> LineProtocolConverter<'a> {
     /// Construct a converter. All converted data will be written to
-    /// the respective DeloreanTableWriter returned by
+    /// the respective IOxTableWriter returned by
     /// `table_writer_source`.
     pub fn new(
         settings: ConversionSettings,
-        table_writer_source: Box<dyn DeloreanTableWriterSource>,
+        table_writer_source: Box<dyn IOxTableWriterSource>,
     ) -> Self {
         LineProtocolConverter {
             settings,
@@ -203,7 +204,7 @@ impl<'a> LineProtocolConverter<'a> {
     }
 
     /// Converts `ParesdLine`s from any number of measurements and
-    /// writes them out to `DeloreanTableWriters`. Note that data is
+    /// writes them out to `IOxTableWriters`. Note that data is
     /// internally buffered and may not be written until a call to
     /// `finalize`.
     pub fn convert(
@@ -322,7 +323,7 @@ impl<'a> MeasurementWriter<'a> {
     pub fn new(
         settings: ConversionSettings,
         schema: Schema,
-        table_writer: Box<dyn DeloreanTableWriter>,
+        table_writer: Box<dyn IOxTableWriter>,
     ) -> Self {
         let write_buffer = Vec::with_capacity(settings.measurement_write_buffer_size);
 
@@ -658,13 +659,13 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 // }
 
 /// Converts one or more TSM files into the packers internal columnar
-/// data format and then passes that converted data to a `DeloreanTableWriter`.
+/// data format and then passes that converted data to a `IOxTableWriter`.
 pub struct TSMFileConverter {
-    table_writer_source: Box<dyn DeloreanTableWriterSource>,
+    table_writer_source: Box<dyn IOxTableWriterSource>,
 }
 
 impl TSMFileConverter {
-    pub fn new(table_writer_source: Box<dyn DeloreanTableWriterSource>) -> Self {
+    pub fn new(table_writer_source: Box<dyn IOxTableWriterSource>) -> Self {
         Self {
             table_writer_source,
         }
@@ -1089,7 +1090,7 @@ impl std::fmt::Debug for TSMFileConverter {
 mod tests {
     use super::*;
     use data_types::table_schema::ColumnDefinition;
-    use packers::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError, Packers};
+    use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource, Packers};
     use test_helpers::approximately_equal;
     use tsm::{
         reader::{BlockData, MockBlockDecoder},
@@ -1145,7 +1146,7 @@ mod tests {
         }
     }
 
-    impl DeloreanTableWriter for NoOpWriter {
+    impl IOxTableWriter for NoOpWriter {
         fn write_batch(&mut self, packers: &[Packers]) -> Result<(), TableError> {
             if packers.is_empty() {
                 log_event(
@@ -1197,11 +1198,8 @@ mod tests {
         }
     }
 
-    impl DeloreanTableWriterSource for NoOpWriterSource {
-        fn next_writer(
-            &mut self,
-            schema: &Schema,
-        ) -> Result<Box<dyn DeloreanTableWriter>, TableError> {
+    impl IOxTableWriterSource for NoOpWriterSource {
+        fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn IOxTableWriter>, TableError> {
             let measurement_name = schema.measurement();
             log_event(
                 &self.log,

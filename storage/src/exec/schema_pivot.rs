@@ -1,5 +1,5 @@
-//! This module contains code for the Delorean "SchemaPivot"
-//! DataFusion extension plan node
+//! This module contains code for the "SchemaPivot" DataFusion
+//! extension plan node
 //!
 //! A SchemaPivot node takes an arbitrary input like
 //!

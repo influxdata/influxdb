@@ -1,10 +1,10 @@
 use data_types::table_schema::Schema;
 use influxdb_line_protocol::parse_lines;
 use ingest::{
-    parquet::writer::{CompressionLevel, DeloreanParquetTableWriter, Error as ParquetWriterError},
+    parquet::writer::{CompressionLevel, Error as ParquetWriterError, IOxParquetTableWriter},
     ConversionSettings, Error as IngestError, LineProtocolConverter, TSMFileConverter,
 };
-use packers::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
+use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource};
 use snafu::{ResultExt, Snafu};
 use std::{
     convert::TryInto,
@@ -19,7 +19,7 @@ use crate::commands::input::{FileType, InputReader};
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Creates  `DeloreanParquetTableWriter` suitable for writing to a single file
+/// Creates  `IOxParquetTableWriter` suitable for writing to a single file
 #[derive(Debug)]
 struct ParquetFileWriterSource {
     output_filename: String,
@@ -29,9 +29,9 @@ struct ParquetFileWriterSource {
     made_file: bool,
 }
 
-impl DeloreanTableWriterSource for ParquetFileWriterSource {
-    // Returns a `DeloreanTableWriter suitable for writing data from packers.
-    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, TableError> {
+impl IOxTableWriterSource for ParquetFileWriterSource {
+    // Returns a `IOxTableWriter suitable for writing data from packers.
+    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn IOxTableWriter>, TableError> {
         if self.made_file {
             return MultipleMeasurementsToSingleFile {
                 new_measurement_name: schema.measurement(),
@@ -52,7 +52,7 @@ impl DeloreanTableWriterSource for ParquetFileWriterSource {
             self.output_filename
         );
 
-        let writer = DeloreanParquetTableWriter::new(schema, self.compression_level, output_file)
+        let writer = IOxParquetTableWriter::new(schema, self.compression_level, output_file)
             .context(UnableToCreateParquetTableWriter)
             .map_err(TableError::from_other)?;
         self.made_file = true;
@@ -60,7 +60,7 @@ impl DeloreanTableWriterSource for ParquetFileWriterSource {
     }
 }
 
-/// Creates `DeloreanParquetTableWriter` for each measurement by
+/// Creates `IOxParquetTableWriter` for each measurement by
 /// writing each to a separate file (measurement1.parquet,
 /// measurement2.parquet, etc)
 #[derive(Debug)]
@@ -69,10 +69,10 @@ struct ParquetDirectoryWriterSource {
     output_dir_path: PathBuf,
 }
 
-impl DeloreanTableWriterSource for ParquetDirectoryWriterSource {
-    /// Returns a `DeloreanTableWriter` suitable for writing data from packers.
+impl IOxTableWriterSource for ParquetDirectoryWriterSource {
+    /// Returns a `IOxTableWriter` suitable for writing data from packers.
     /// named in the template of <measurement.parquet>
-    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, TableError> {
+    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn IOxTableWriter>, TableError> {
         let mut output_file_path: PathBuf = self.output_dir_path.clone();
 
         output_file_path.push(schema.measurement());
@@ -90,7 +90,7 @@ impl DeloreanTableWriterSource for ParquetDirectoryWriterSource {
             output_file_path
         );
 
-        let writer = DeloreanParquetTableWriter::new(schema, self.compression_level, output_file)
+        let writer = IOxParquetTableWriter::new(schema, self.compression_level, output_file)
             .context(UnableToCreateParquetTableWriter)
             .map_err(TableError::from_other)?;
         Ok(Box::new(writer))
@@ -139,7 +139,7 @@ pub fn convert(
         }
 
         // setup writing
-        let writer_source: Box<dyn DeloreanTableWriterSource> = if is_directory(&output_path) {
+        let writer_source: Box<dyn IOxTableWriterSource> = if is_directory(&output_path) {
             info!("Writing to output directory {:?}", output_path);
             Box::new(ParquetDirectoryWriterSource {
                 compression_level,
@@ -221,7 +221,7 @@ fn convert_line_protocol_to_parquet(
         }
     });
 
-    let writer_source: Box<dyn DeloreanTableWriterSource> = if is_directory(&output_name) {
+    let writer_source: Box<dyn IOxTableWriterSource> = if is_directory(&output_name) {
         info!("Writing to output directory {:?}", output_name);
         Box::new(ParquetDirectoryWriterSource {
             compression_level,
@@ -254,7 +254,7 @@ fn convert_tsm_to_parquet(
     output_name: &str,
 ) -> Result<()> {
     // setup writing
-    let writer_source: Box<dyn DeloreanTableWriterSource> = if is_directory(&output_name) {
+    let writer_source: Box<dyn IOxTableWriterSource> = if is_directory(&output_name) {
         info!("Writing to output directory {:?}", output_name);
         Box::new(ParquetDirectoryWriterSource {
             compression_level,

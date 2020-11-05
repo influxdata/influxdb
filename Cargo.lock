@@ -725,55 +725,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "delorean"
-version = "0.1.0"
-dependencies = [
- "arrow_deps",
- "assert_cmd",
- "byteorder",
- "bytes",
- "clap",
- "criterion",
- "csv",
- "data_types",
- "delorean_segment_store",
- "dirs 3.0.1",
- "dotenv",
- "env_logger",
- "futures",
- "generated_types",
- "hex",
- "http",
- "hyper",
- "influxdb2_client",
- "influxdb_line_protocol",
- "ingest",
- "libflate",
- "mem_qe",
- "object_store",
- "packers",
- "predicates",
- "prost",
- "prost-types",
- "rand",
- "reqwest",
- "serde",
- "serde_json",
- "serde_urlencoded 0.7.0",
- "snafu",
- "storage",
- "tempfile",
- "test_helpers",
- "tokio",
- "tonic",
- "tracing",
- "tracing-futures",
- "tsm",
- "wal",
- "write_buffer",
-]
-
-[[package]]
 name = "delorean_segment_store"
 version = "0.1.0"
 dependencies = [
@@ -1347,6 +1298,55 @@ dependencies = [
  "serde_json",
  "snafu",
  "tokio",
+]
+
+[[package]]
+name = "influxdb_iox"
+version = "0.1.0"
+dependencies = [
+ "arrow_deps",
+ "assert_cmd",
+ "byteorder",
+ "bytes",
+ "clap",
+ "criterion",
+ "csv",
+ "data_types",
+ "delorean_segment_store",
+ "dirs 3.0.1",
+ "dotenv",
+ "env_logger",
+ "futures",
+ "generated_types",
+ "hex",
+ "http",
+ "hyper",
+ "influxdb2_client",
+ "influxdb_line_protocol",
+ "ingest",
+ "libflate",
+ "mem_qe",
+ "object_store",
+ "packers",
+ "predicates",
+ "prost",
+ "prost-types",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_urlencoded 0.7.0",
+ "snafu",
+ "storage",
+ "tempfile",
+ "test_helpers",
+ "tokio",
+ "tonic",
+ "tracing",
+ "tracing-futures",
+ "tsm",
+ "wal",
+ "write_buffer",
 ]
 
 [[package]]

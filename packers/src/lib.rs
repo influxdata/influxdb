@@ -63,7 +63,7 @@ impl Error {
 }
 
 /// Something that knows how to write a set of columns somewhere
-pub trait DeloreanTableWriter {
+pub trait IOxTableWriter {
     /// Writes a batch of packed data to the underlying output
     fn write_batch(&mut self, packers: &[Packers]) -> Result<(), Error>;
 
@@ -71,18 +71,18 @@ pub trait DeloreanTableWriter {
     fn close(&mut self) -> Result<(), Error>;
 }
 
-/// Something that can  instantiate a `DeloreanTableWriter`
-pub trait DeloreanTableWriterSource {
-    /// Returns a `DeloreanTableWriter suitable for writing data from packers.
-    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, Error>;
+/// Something that can  instantiate a `IOxTableWriter`
+pub trait IOxTableWriterSource {
+    /// Returns a `IOxTableWriter suitable for writing data from packers.
+    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn IOxTableWriter>, Error>;
 }
 
-/// Ergonomics: implement DeloreanTableWriterSource for Box'd values
-impl<S> DeloreanTableWriterSource for Box<S>
+/// Ergonomics: implement IOxTableWriter for Box'd values
+impl<S> IOxTableWriterSource for Box<S>
 where
-    S: DeloreanTableWriterSource + ?Sized,
+    S: IOxTableWriterSource + ?Sized,
 {
-    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, Error> {
+    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn IOxTableWriter>, Error> {
         (**self).next_writer(schema)
     }
 }

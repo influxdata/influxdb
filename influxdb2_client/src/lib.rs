@@ -193,7 +193,7 @@ impl Client {
             #[serde(rename = "retentionRules")]
             // The type of `retentionRules` isn't `String`; this is included and always set to
             // an empty vector to be compatible with the Influx 2.0 API where `retentionRules` is
-            // a required parameter. Delorean ignores this parameter.
+            // a required parameter. InfluxDB IOx ignores this parameter.
             retention_rules: Vec<String>,
         }
 

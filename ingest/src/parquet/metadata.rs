@@ -18,7 +18,7 @@ pub fn parquet_schema_as_string(parquet_schema: &schema::types::Type) -> String 
     String::from_utf8_lossy(&parquet_schema_string).to_string()
 }
 
-/// Maps from parquet types to delorean table schema types
+/// Maps from parquet types to table schema types
 pub fn data_type_from_parquet_type(parquet_type: parquet::basic::Type) -> DataType {
     use parquet::basic::Type::*;
 

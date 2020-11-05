@@ -53,7 +53,7 @@ table Delete {
   stop_time: int64;
 }
 
-// ReplicatedWrite is what gets sent between Delorean servers and potentially
+// ReplicatedWrite is what gets sent between InfluxDB IOx servers and potentially
 // persisted up to object storage from the servers that receive it. The combination
 // of the writer, timestamp and checksum in this table can be used to deduplicate
 // replicated writes from other hosts.

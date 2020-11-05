@@ -1,4 +1,4 @@
-//! This module contains code for writing / reading delorean data to parquet.
+//! This module contains code for writing / reading data to parquet.
 #![deny(rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,

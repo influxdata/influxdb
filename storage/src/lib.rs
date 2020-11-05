@@ -134,11 +134,11 @@ pub fn org_and_bucket_to_database(org: impl Into<String>, bucket: &str) -> Strin
 // Note: I would like to compile this module only in the 'test' cfg,
 // but when I do so then other modules can not find them. For example:
 //
-// error[E0433]: failed to resolve: could not find `test` in `delorean`
+// error[E0433]: failed to resolve: could not find `test` in `storage`
 //   --> src/server/write_buffer_routes.rs:353:19
 //     |
 // 353 |     use storage::test::TestDatabaseStore;
-//     |                  ^^^^ could not find `test` in `delorean_storage`
+//     |                  ^^^^ could not find `test` in `storage`
 
 //
 //#[cfg(test)]

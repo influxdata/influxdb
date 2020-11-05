@@ -5,11 +5,11 @@
 //! will replace the implementation in http_routes.rs
 //!
 //! Note that these routes are designed to be just helpers for now,
-//! and "close enough" to the real /v2 api to be able to test Delorean
+//! and "close enough" to the real /v2 api to be able to test InfluxDB IOx
 //! without needing to create and manage a mapping layer from name -->
 //! id (this is done by other services in the influx cloud)
 //!
-//! Long term, we expect to create delorean specific api in terms of
+//! Long term, we expect to create IOx specific api in terms of
 //! database names and may remove this quasi /v2 API from the Deloren.
 
 #![deny(rust_2018_idioms)]

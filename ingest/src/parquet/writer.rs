@@ -1,4 +1,4 @@
-//! This module contains the code to write delorean table data to parquet
+//! This module contains the code to write table data to parquet
 use arrow_deps::parquet::{
     self,
     basic::{Compression, Encoding, LogicalType, Repetition, Type as PhysicalType},
@@ -20,7 +20,7 @@ use std::{
 use tracing::debug;
 
 use super::metadata::parquet_schema_as_string;
-use packers::{DeloreanTableWriter, Error as TableError, Packers};
+use packers::{Error as TableError, IOxTableWriter, Packers};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -74,9 +74,9 @@ impl FromStr for CompressionLevel {
     }
 }
 
-/// A `DeloreanParquetTableWriter` is used for writing batches of rows
+/// A `IOxParquetTableWriter` is used for writing batches of rows
 /// parquet files.
-pub struct DeloreanParquetTableWriter<W>
+pub struct IOxParquetTableWriter<W>
 where
     W: ParquetWriter,
 {
@@ -84,7 +84,7 @@ where
     file_writer: SerializedFileWriter<W>,
 }
 
-impl<W: 'static> DeloreanParquetTableWriter<W>
+impl<W: 'static> IOxParquetTableWriter<W>
 where
     W: Write + Seek + TryClone,
 {
@@ -95,9 +95,9 @@ where
     /// # use std::fs;
     /// # use data_types::table_schema;
     /// # use data_types::table_schema::DataType;
-    /// # use packers::DeloreanTableWriter;
+    /// # use packers::IOxTableWriter;
     /// # use packers::{Packer, Packers};
-    /// # use ingest::parquet::writer::{DeloreanParquetTableWriter, CompressionLevel};
+    /// # use ingest::parquet::writer::{IOxParquetTableWriter, CompressionLevel};
     /// # use arrow_deps::parquet::data_type::ByteArray;
     ///
     /// let schema = table_schema::SchemaBuilder::new("measurement_name")
@@ -122,7 +122,7 @@ where
     ///
     /// let compression_level = CompressionLevel::Compatibility;
     ///
-    /// let mut parquet_writer = DeloreanParquetTableWriter::new(
+    /// let mut parquet_writer = IOxParquetTableWriter::new(
     ///     &schema, compression_level, output_file)
     ///     .unwrap();
     ///
@@ -158,7 +158,7 @@ where
         Ok(parquet_writer)
     }
 }
-impl<W: 'static> DeloreanTableWriter for DeloreanParquetTableWriter<W>
+impl<W: 'static> IOxTableWriter for IOxParquetTableWriter<W>
 where
     W: Write + Seek + TryClone,
 {
@@ -267,12 +267,12 @@ where
     }
 }
 
-impl<W> fmt::Debug for DeloreanParquetTableWriter<W>
+impl<W> fmt::Debug for IOxParquetTableWriter<W>
 where
     W: Write + Seek + TryClone,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DeloreanParquetTableWriter")
+        f.debug_struct("IOxParquetTableWriter")
             .field("parquet_schema", &self.parquet_schema)
             .field("file_writer", &"SerializedFileWriter")
             .finish()
@@ -453,7 +453,7 @@ fn create_writer_props(
     // library does not support statistics generation at this time.
     let props = builder
         .set_statistics_enabled(true)
-        .set_created_by("Delorean".to_string())
+        .set_created_by("InfluxDB IOx".to_string())
         .build();
     Rc::new(props)
 }

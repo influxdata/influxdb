@@ -6,7 +6,7 @@
     clippy::use_self
 )]
 //! Note that this code is (currently) only used in the TSM -> Parquet
-//! converter (not in the delorean storage system itself)
+//! converter (not in the IOx storage system itself)
 //!
 //! This module is used to represent the abstract "schema" of a set of line
 //! protocol data records, as defined in the

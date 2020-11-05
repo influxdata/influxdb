@@ -1,5 +1,5 @@
-use ingest::parquet::writer::{CompressionLevel, DeloreanParquetTableWriter};
-use packers::{DeloreanTableWriter, Packer, Packers};
+use ingest::parquet::writer::{CompressionLevel, IOxParquetTableWriter};
+use packers::{IOxTableWriter, Packer, Packers};
 
 use arrow_deps::parquet::data_type::ByteArray;
 use std::fs;
@@ -60,7 +60,7 @@ fn test_write_parquet_data() {
 
     // write the data out to the parquet file
     let output_path = test_helpers::tempfile::Builder::new()
-        .prefix("delorean_parquet_e2e")
+        .prefix("iox_parquet_e2e")
         .suffix(".parquet")
         .tempfile()
         .expect("error creating temp file")
@@ -68,7 +68,7 @@ fn test_write_parquet_data() {
     let output_file = fs::File::create(&output_path).expect("can't open temp file for writing");
 
     let mut parquet_writer =
-        DeloreanParquetTableWriter::new(&schema, CompressionLevel::Compatibility, output_file)
+        IOxParquetTableWriter::new(&schema, CompressionLevel::Compatibility, output_file)
             .expect("can't create parquet writer");
     parquet_writer
         .write_batch(&packers)

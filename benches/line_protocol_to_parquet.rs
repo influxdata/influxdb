@@ -3,12 +3,12 @@ use data_types::table_schema::Schema;
 use influxdb_line_protocol::parse_lines;
 use ingest::{
     parquet::{
-        writer::{CompressionLevel, DeloreanParquetTableWriter},
+        writer::{CompressionLevel, IOxParquetTableWriter},
         TryClone,
     },
     ConversionSettings, LineProtocolConverter,
 };
-use packers::{DeloreanTableWriter, DeloreanTableWriterSource, Error as TableError};
+use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource};
 use std::time::Duration;
 
 use std::io::{Seek, SeekFrom, Write};
@@ -43,12 +43,11 @@ impl TryClone for IgnoringWriteStream {
 /// Creates parquet writers that write to /dev/null
 struct IgnoringParquetDirectoryWriterSource {}
 
-impl DeloreanTableWriterSource for IgnoringParquetDirectoryWriterSource {
-    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn DeloreanTableWriter>, TableError> {
+impl IOxTableWriterSource for IgnoringParquetDirectoryWriterSource {
+    fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn IOxTableWriter>, TableError> {
         let dev_null = IgnoringWriteStream {};
-        let writer =
-            DeloreanParquetTableWriter::new(schema, CompressionLevel::Compatibility, dev_null)
-                .expect("Creating table writer");
+        let writer = IOxParquetTableWriter::new(schema, CompressionLevel::Compatibility, dev_null)
+            .expect("Creating table writer");
         Ok(Box::new(writer))
     }
 }

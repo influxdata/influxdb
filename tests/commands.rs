@@ -30,7 +30,7 @@ fn validate_parquet_file(p: &Path) {
 
 #[test]
 fn convert_bad_input_filename() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd
         .arg("-v")
         .arg("convert")
@@ -49,7 +49,7 @@ fn convert_bad_input_filename() {
 
 #[test]
 fn convert_bad_compression_level() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd
         .arg("-v")
         .arg("convert")
@@ -66,7 +66,7 @@ fn convert_bad_compression_level() {
 
 #[test]
 fn convert_line_protocol_good_input_filename() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
 
     let parquet_path = test_helpers::tempfile::Builder::new()
         .prefix("convert_e2e")
@@ -107,7 +107,7 @@ fn convert_tsm_good_input_filename() {
     // TODO: this needs to work for a temp directory...
     //
 
-    // let mut cmd = Command::cargo_bin("delorean").unwrap();
+    // let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
 
     // let tmp_dir = test_helpers::tmp_dir();
     // let parquet_path = tmp_dir.unwrap().into_path().to_str().unwrap();
@@ -155,7 +155,7 @@ fn convert_tsm_good_input_filename() {
 
 #[test]
 fn convert_multiple_measurements() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
 
     // Create a directory
     let parquet_output_path = test_helpers::tempfile::Builder::new()
@@ -209,7 +209,7 @@ fn convert_multiple_measurements() {
 
 #[test]
 fn meta_bad_input_filename() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd.arg("meta").arg("non_existent_input").assert();
 
     assert
@@ -223,7 +223,7 @@ fn meta_bad_input_filename() {
 
 #[test]
 fn meta_non_existent_input_filename() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd.arg("meta").arg("non_existent_input.tsm").assert();
 
     assert
@@ -237,7 +237,7 @@ fn meta_non_existent_input_filename() {
 
 #[test]
 fn meta_bad_input_filename_gz() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd.arg("meta").arg("non_existent_input.gz").assert();
 
     assert
@@ -282,7 +282,7 @@ fn assert_meta_000000000000005_000000002_tsm(assert: Assert) {
 #[test]
 fn meta_000000000000005_000000002_tsm() {
     let input_tsm = uncompress_gz("tests/fixtures/000000000000005-000000002.tsm.gz", ".tsm");
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd
         .arg("meta")
         .arg(input_tsm.to_string_lossy().to_string())
@@ -292,7 +292,7 @@ fn meta_000000000000005_000000002_tsm() {
 
 #[test]
 fn meta_000000000000005_000000002_tsm_gz() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd
         .arg("meta")
         .arg("tests/fixtures/000000000000005-000000002.tsm.gz")
@@ -317,7 +317,7 @@ fn assert_meta_cpu_usage_tsm(assert: Assert) {
 #[test]
 fn meta_cpu_usage_tsm() {
     let input_tsm = uncompress_gz("tests/fixtures/cpu_usage.tsm.gz", ".tsm");
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd
         .arg("meta")
         .arg(input_tsm.to_string_lossy().to_string())
@@ -328,7 +328,7 @@ fn meta_cpu_usage_tsm() {
 
 #[test]
 fn meta_cpu_usage_tsm_gz() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd
         .arg("meta")
         .arg("tests/fixtures/cpu_usage.tsm.gz")
@@ -363,7 +363,7 @@ fn assert_meta_temperature_parquet(assert: Assert) {
 
 #[test]
 fn meta_temperature_parquet() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd
         .arg("meta")
         .arg("tests/fixtures/parquet/temperature.parquet")
@@ -374,7 +374,7 @@ fn meta_temperature_parquet() {
 
 #[test]
 fn stats_temperature_parquet() {
-    let mut cmd = Command::cargo_bin("delorean").unwrap();
+    let mut cmd = Command::cargo_bin("influxdb_iox").unwrap();
     let assert = cmd
         .arg("stats")
         .arg("--per-column")

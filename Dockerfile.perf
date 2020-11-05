@@ -5,11 +5,11 @@ RUN groupadd -g 1500 rust \
 
 USER rust
 
-RUN mkdir ~/.delorean
-RUN ls -la ~/.delorean
+RUN mkdir ~/.influxdb_iox
+RUN ls -la ~/.influxdb_iox
 
-COPY target/release/delorean /usr/bin/delorean
+COPY target/release/influxdb_iox /usr/bin/influxdb_iox
 
 EXPOSE 8080 8082
 
-CMD ["delorean"]
+CMD ["influxdb_iox"]

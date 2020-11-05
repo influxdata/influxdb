@@ -32,7 +32,7 @@ impl TimestampRange {
 }
 
 /// Represents a parsed predicate for evaluation by the
-/// Delorean storage system.
+/// InfluxDB IOx storage system.
 ///
 /// Note that the input data model (e.g. ParsedLine's) distinguishes
 /// between some types of columns (tags and fields), and likewise

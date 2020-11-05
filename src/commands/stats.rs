@@ -1,6 +1,6 @@
 //! This module contains code to report compression statistics for storage files
 
-use ingest::parquet::{error::Error as DeloreanParquetError, stats as parquet_stats};
+use ingest::parquet::{error::IOxParquetError, stats as parquet_stats};
 use packers::{
     stats::{FileSetStatsBuilder, FileStats},
     Name,
@@ -19,7 +19,7 @@ pub enum Error {
     OpenInput { source: super::input::Error },
 
     #[snafu(display("Unable to dump parquet file metadata: {}", source))]
-    UnableDumpToParquetMetadata { source: DeloreanParquetError },
+    UnableDumpToParquetMetadata { source: IOxParquetError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

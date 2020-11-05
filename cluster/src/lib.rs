@@ -1,8 +1,8 @@
-//! This module contains code that defines how Delorean servers talk to each other.
+//! This module contains code that defines how InfluxDB IOx servers talk to each other.
 //! This includes replication, subscriptions, querying, and traits that abstract these
 //! methods away for testing purposes.
 //!
-//! This diagram shows the lifecycle of a write coming into a set of delorean servers
+//! This diagram shows the lifecycle of a write coming into a set of IOx servers
 //! configured in different roles. This doesn't include ensuring that the replicated
 //! writes are durable, or snapshotting partitions in the write buffer. Have a read
 //! through the comments in the source before trying to make sense of this diagram.
@@ -649,7 +649,7 @@ partition_key:
 
     #[derive(Snafu, Debug, Clone)]
     enum TestClusterError {
-        #[snafu(display("Test delorean_cluster error:  {}", message))]
+        #[snafu(display("Test cluster error:  {}", message))]
         General { message: String },
     }
 

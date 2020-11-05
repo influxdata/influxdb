@@ -1,4 +1,5 @@
-//! This module contains code to translate from delorean data formats into the formats needed by gRPC
+//! This module contains code to translate from InfluxDB IOx data
+//! formats into the formats needed by gRPC
 
 use std::{collections::BTreeSet, sync::Arc};
 

@@ -8,7 +8,7 @@
 
 //! # wal
 //!
-//! This crate provides a WAL tailored for delorean `Partition`s to optionally use.
+//! This crate provides a WAL tailored for InfluxDB IOx `Partition`s
 //!
 //! Work remaining:
 //!

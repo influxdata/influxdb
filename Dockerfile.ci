@@ -1,11 +1,11 @@
 ###
-# Dockerfile for the image used in the Delorean CI tests
+# Dockerfile for the image used in the InfluxDB IOx CI tests
 # As of October 202, it is rebuilt each night
 #
-# It expects to be run with the delorean repo checked out locally.
+# It expects to be run with the repo checked out locally.
 # for example:
 #
-# cd delorean
+# cd influxdb_iox
 # docker build -f Dockerfile.ci .
 ##
 

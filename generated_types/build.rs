@@ -24,7 +24,7 @@ fn main() -> Result<()> {
 ///
 /// Creates `influxdata.platform.storage.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
-    let proto_file = root.join("delorean.proto");
+    let proto_file = root.join("influxdb_iox.proto");
 
     println!("cargo:rerun-if-changed={}", proto_file.display());
     tonic_build::compile_protos(proto_file)?;

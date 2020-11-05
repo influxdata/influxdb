@@ -16,7 +16,7 @@ use arrow_deps::{
 };
 use counters::ExecutionCounters;
 
-use planning::DeloreanExecutionContext;
+use planning::IOxExecutionContext;
 use schema_pivot::SchemaPivotNode;
 
 use fieldlist::{FieldList, IntoFieldList};
@@ -292,7 +292,7 @@ impl Executor {
                     let field_columns = Arc::new(field_columns);
 
                     // TODO run these on some executor other than the main tokio pool (maybe?)
-                    let ctx = DeloreanExecutionContext::new(counters);
+                    let ctx = IOxExecutionContext::new(counters);
                     let physical_plan = ctx
                         .make_plan(&plan)
                         .await
@@ -371,7 +371,7 @@ impl Executor {
                     let field_columns = Arc::new(field_columns);
 
                     // TODO run these on some executor other than the main tokio pool (maybe?)
-                    let ctx = DeloreanExecutionContext::new(counters);
+                    let ctx = IOxExecutionContext::new(counters);
                     let physical_plan = ctx
                         .make_plan(&plan)
                         .await
@@ -417,7 +417,7 @@ impl Executor {
                         let counters = self.counters.clone();
 
                         tokio::task::spawn(async move {
-                            let ctx = DeloreanExecutionContext::new(counters);
+                            let ctx = IOxExecutionContext::new(counters);
                             let physical_plan = ctx
                                 .make_plan(&plan)
                                 .await
@@ -487,7 +487,7 @@ async fn run_logical_plans(
             let counters = counters.clone();
             // TODO run these on some executor other than the main tokio pool
             tokio::task::spawn(async move {
-                let ctx = DeloreanExecutionContext::new(counters);
+                let ctx = IOxExecutionContext::new(counters);
                 let physical_plan = ctx.make_plan(&plan).await.expect("making logical plan");
 
                 // TODO: avoid this buffering

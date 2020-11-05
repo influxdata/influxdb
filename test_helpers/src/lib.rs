@@ -27,10 +27,10 @@ pub fn all_approximately_equal(f1: &[f64], f2: &[f64]) -> bool {
 pub fn tmp_dir() -> Result<tempfile::TempDir> {
     let _ = dotenv::dotenv();
 
-    let root = env::var_os("TEST_DELOREAN_DB_DIR").unwrap_or_else(|| env::temp_dir().into());
+    let root = env::var_os("TEST_INFLUXDB_IOX_DB_DIR").unwrap_or_else(|| env::temp_dir().into());
 
     Ok(tempfile::Builder::new()
-        .prefix("delorean")
+        .prefix("influxdb_iox")
         .tempdir_in(root)?)
 }
 

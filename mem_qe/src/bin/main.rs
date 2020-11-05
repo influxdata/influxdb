@@ -19,7 +19,6 @@ use mem_qe::column;
 use mem_qe::column::{AggregateType, Column};
 use mem_qe::segment::{ColumnType, GroupingStrategy, Schema, Segment};
 use mem_qe::Store;
-// use mem_qe::{adapter::DeloreanQueryEngine, Store};
 
 #[derive(Snafu, Debug, Clone, Copy, PartialEq)]
 pub enum Error {}

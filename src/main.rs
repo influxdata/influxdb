@@ -1,4 +1,4 @@
-//! Entrypoint of delorean binary
+//! Entrypoint of InfluxDB IOx binary
 #![deny(rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
@@ -33,32 +33,32 @@ enum ReturnCode {
 }
 
 fn main() -> Result<(), std::io::Error> {
-    let help = r#"Delorean server and command line tools
+    let help = r#"InfluxDB IOx server and command line tools
 
 Examples:
-    # Run the Delorean server:
-    delorean
+    # Run the InfluxDB IOx server:
+    influxdb_iox
 
-    # Run the Delorean server with extra verbose logging
-    delorean -v
+    # Run the InfluxDB IOx server with extra verbose logging
+    influxdb_iox -v
 
-    # Run delorean with full debug logging specified with RUST_LOG
-    RUST_LOG=debug delorean
+    # Run InfluxDB IOx with full debug logging specified with RUST_LOG
+    RUST_LOG=debug influxdb_iox
 
     # converts line protocol formatted data in temperature.lp to out.parquet
-    delorean convert temperature.lp out.parquet
+    influxdb_iox convert temperature.lp out.parquet
 
     # Dumps metadata information about 000000000013.tsm to stdout
-    delorean meta 000000000013.tsm
+    influxdb_iox meta 000000000013.tsm
 
     # Dumps storage statistics about out.parquet to stdout
-    delorean stats out.parquet
+    influxdb_iox stats out.parquet
 "#;
 
     let matches = App::new(help)
         .version(crate_version!())
         .author(crate_authors!())
-        .about("Delorean server and command line tools")
+        .about("InfluxDB IOx server and command line tools")
         .subcommand(
             SubCommand::with_name("convert")
                 .about("Convert one storage format to another")
@@ -138,7 +138,7 @@ Examples:
     let mut tokio_runtime = get_runtime(matches.value_of("num-threads"))?;
     tokio_runtime.block_on(dispatch_args(matches));
 
-    info!("Delorean server shutting down");
+    info!("InfluxDB IOx server shutting down");
     Ok(())
 }
 
@@ -183,7 +183,7 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
             }
         }
         ("server", Some(_)) | (_, _) => {
-            println!("Starting delorean server");
+            println!("Starting InfluxDB IOx server");
             match commands::write_buffer_server::main().await {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {
@@ -233,7 +233,7 @@ fn setup_logging(num_verbose: u64) {
     env_logger::init();
 }
 
-/// Creates the tokio runtime for executing delorean
+/// Creates the tokio runtime for executing IOx
 ///
 /// if nthreads is none, uses the default scheduler
 /// otherwise, creates a scheduler with the number of threads

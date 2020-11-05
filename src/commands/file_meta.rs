@@ -151,7 +151,7 @@ pub enum Error {
 
     #[snafu(display("Unable to dump parquet file metadata: {}", source))]
     UnableDumpToParquetMetadata {
-        source: ingest::parquet::error::Error,
+        source: ingest::parquet::error::IOxParquetError,
     },
 
     #[snafu(display(r#"Unable to create TSM reader: {}"#, source))]
