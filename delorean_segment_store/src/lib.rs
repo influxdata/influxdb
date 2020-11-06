@@ -100,7 +100,7 @@ impl<'a> Store<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         group_columns: Vec<String>,
-        aggregates: Vec<(ColumnName, AggregateType)>,
+        aggregates: Vec<(ColumnName<'_>, AggregateType)>,
     ) -> Option<RecordBatch> {
         if let Some(db) = self.databases.get(database_name) {
             return db.aggregate(
@@ -139,7 +139,7 @@ impl<'a> Store<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         group_columns: Vec<String>,
-        aggregates: Vec<(ColumnName, AggregateType)>,
+        aggregates: Vec<(ColumnName<'_>, AggregateType)>,
         window: i64,
     ) -> Option<RecordBatch> {
         if let Some(db) = self.databases.get(database_name) {
@@ -283,7 +283,7 @@ impl<'a> Database<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         group_columns: Vec<String>,
-        aggregates: Vec<(ColumnName, AggregateType)>,
+        aggregates: Vec<(ColumnName<'_>, AggregateType)>,
     ) -> Option<RecordBatch> {
         // Find all matching partitions using:
         //   - time range
@@ -323,7 +323,7 @@ impl<'a> Database<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         group_columns: Vec<String>,
-        aggregates: Vec<(ColumnName, AggregateType)>,
+        aggregates: Vec<(ColumnName<'_>, AggregateType)>,
         window: i64,
     ) -> Option<RecordBatch> {
         // Find all matching partitions using:
