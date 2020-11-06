@@ -215,7 +215,6 @@ impl Column {
 
     /// Determine the set of row ids that satisfy the predicate.
     ///
-    /// TODO(edd): row ids pooling.
     pub fn row_ids_filter(
         &self,
         op: &cmp::Operator,
