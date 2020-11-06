@@ -58,7 +58,40 @@ impl Column {
     }
 
     pub fn size(&self) -> u64 {
-        todo!()
+        0
+    }
+
+    /// Returns the (min, max)  values stored in this column
+    pub fn column_range(&self) -> Option<(Value<'_>, Value<'_>)> {
+        match &self {
+            Column::String(meta, _) => match &meta.range {
+                Some(range) => Some((Value::String(&range.0), Value::String(&range.1))),
+                None => None,
+            },
+            Column::Float(meta, _) => match meta.range {
+                Some(range) => Some((
+                    Value::Scalar(Scalar::F64(range.0)),
+                    Value::Scalar(Scalar::F64(range.1)),
+                )),
+                None => None,
+            },
+            Column::Integer(meta, _) => match meta.range {
+                Some(range) => Some((
+                    Value::Scalar(Scalar::I64(range.0)),
+                    Value::Scalar(Scalar::I64(range.1)),
+                )),
+                None => None,
+            },
+            Column::Unsigned(meta, _) => match meta.range {
+                Some(range) => Some((
+                    Value::Scalar(Scalar::U64(range.0)),
+                    Value::Scalar(Scalar::U64(range.1)),
+                )),
+                None => None,
+            },
+            Column::Bool => todo!(),
+            Column::ByteArray(_, _) => todo!(),
+        }
     }
 
     pub fn column_min(&self) -> Value<'_> {
@@ -182,22 +215,23 @@ impl Column {
 
     /// Determine the set of row ids that satisfy the predicate.
     ///
-    /// TODO(edd): row ids pooling.
-    pub fn row_ids_filter(&self, op: cmp::Operator, value: Value<'_>) -> RowIDsOption {
+    pub fn row_ids_filter(
+        &self,
+        op: &cmp::Operator,
+        value: &Value<'_>,
+        dst: RowIDs,
+    ) -> RowIDsOption {
         // If we can get an answer using only the meta-data on the column then
         // return that answer.
         match self.evaluate_predicate_on_meta(&op, &value) {
-            PredicateMatch::None => return RowIDsOption::None,
-            PredicateMatch::All => return RowIDsOption::All,
+            PredicateMatch::None => return RowIDsOption::None(dst),
+            PredicateMatch::All => return RowIDsOption::All(dst),
             PredicateMatch::SomeMaybe => {} // have to apply predicate to column
         }
 
-        // TODO(edd): figure out pooling of these
-        let dst = RowIDs::Bitmap(Bitmap::create());
-
         // Check the column for all rows that satisfy the predicate.
         let row_ids = match &self {
-            Column::String(_, data) => data.row_ids_filter(op, value.string().as_str(), dst),
+            Column::String(_, data) => data.row_ids_filter(op, value.string(), dst),
             Column::Float(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Column::Integer(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Column::Unsigned(_, data) => data.row_ids_filter(op, value.scalar(), dst),
@@ -206,7 +240,7 @@ impl Column {
         };
 
         if row_ids.is_empty() {
-            return RowIDsOption::None;
+            return RowIDsOption::None(row_ids);
         }
         RowIDsOption::Some(row_ids)
     }
@@ -217,25 +251,28 @@ impl Column {
     /// that are often found on timestamp columns.
     pub fn row_ids_filter_range(
         &self,
-        low: (cmp::Operator, Value<'_>),
-        high: (cmp::Operator, Value<'_>),
+        low: &(cmp::Operator, Value<'_>),
+        high: &(cmp::Operator, Value<'_>),
+        dst: RowIDs,
     ) -> RowIDsOption {
         let l = self.evaluate_predicate_on_meta(&low.0, &low.1);
         let h = self.evaluate_predicate_on_meta(&high.0, &high.1);
         match (l, h) {
-            (PredicateMatch::All, PredicateMatch::All) => return RowIDsOption::All,
+            (PredicateMatch::All, PredicateMatch::All) => return RowIDsOption::All(dst),
 
             // One of the predicates can't be satisfied, therefore no rows will
             // match both predicates.
-            (PredicateMatch::None, _) | (_, PredicateMatch::None) => return RowIDsOption::None,
+            (PredicateMatch::None, _) | (_, PredicateMatch::None) => {
+                return RowIDsOption::None(dst)
+            }
 
             // One of the predicates matches all rows so reduce the operation
             // to the other side.
             (PredicateMatch::SomeMaybe, PredicateMatch::All) => {
-                return self.row_ids_filter(low.0, low.1);
+                return self.row_ids_filter(&low.0, &low.1, dst);
             }
             (PredicateMatch::All, PredicateMatch::SomeMaybe) => {
-                return self.row_ids_filter(high.0, high.1);
+                return self.row_ids_filter(&high.0, &high.1, dst);
             }
 
             // Have to apply the predicates to the column to identify correct
@@ -246,24 +283,23 @@ impl Column {
         // TODO(edd): figure out pooling of these
         let dst = RowIDs::Bitmap(Bitmap::create());
 
+        let low_scalar = (&low.0, low.1.scalar());
+        let high_scalar = (&high.0, high.1.scalar());
+
         // Check the column for all rows that satisfy the predicate.
         let row_ids = match &self {
             Column::String(_, data) => unimplemented!("not supported on string columns yet"),
-            Column::Float(_, data) => {
-                data.row_ids_filter_range((low.0, low.1.scalar()), (high.0, high.1.scalar()), dst)
-            }
-            Column::Integer(_, data) => {
-                data.row_ids_filter_range((low.0, low.1.scalar()), (high.0, high.1.scalar()), dst)
-            }
+            Column::Float(_, data) => data.row_ids_filter_range(low_scalar, high_scalar, dst),
+            Column::Integer(_, data) => data.row_ids_filter_range(low_scalar, high_scalar, dst),
             Column::Unsigned(_, data) => {
-                data.row_ids_filter_range((low.0, low.1.scalar()), (high.0, high.1.scalar()), dst)
+                data.row_ids_filter_range((&low.0, low.1.scalar()), (&high.0, high.1.scalar()), dst)
             }
             Column::Bool => todo!(),
             Column::ByteArray(_, data) => todo!(),
         };
 
         if row_ids.is_empty() {
-            return RowIDsOption::None;
+            return RowIDsOption::None(row_ids);
         }
         RowIDsOption::Some(row_ids)
     }
@@ -316,7 +352,7 @@ impl Column {
         match &self {
             Column::String(meta, _) => {
                 if let Value::String(other) = value {
-                    meta.might_contain_value(&other)
+                    meta.might_contain_value(*other)
                 } else {
                     unreachable!("impossible value comparison");
                 }
@@ -333,15 +369,15 @@ impl Column {
             Column::Float(meta, _) => value
                 .scalar()
                 .try_as_f64()
-                .map_or_else(|| false, |v| meta.might_contain_value(&v)),
+                .map_or_else(|| false, |v| meta.might_contain_value(v)),
             Column::Integer(meta, _) => value
                 .scalar()
                 .try_as_i64()
-                .map_or_else(|| false, |v| meta.might_contain_value(&v)),
+                .map_or_else(|| false, |v| meta.might_contain_value(v)),
             Column::Unsigned(meta, _) => value
                 .scalar()
                 .try_as_u64()
-                .map_or_else(|| false, |v| meta.might_contain_value(&v)),
+                .map_or_else(|| false, |v| meta.might_contain_value(v)),
             Column::Bool => todo!(),
             Column::ByteArray(meta, _) => todo!(),
         }
@@ -355,7 +391,7 @@ impl Column {
                 if data.contains_null() {
                     false
                 } else if let Value::String(other) = value {
-                    meta.might_match_all_values(op, other)
+                    meta.might_match_all_values(op, *other)
                 } else {
                     unreachable!("impossible value comparison");
                 }
@@ -380,7 +416,7 @@ impl Column {
                 value
                     .scalar()
                     .try_as_f64()
-                    .map_or_else(|| false, |v| meta.might_match_all_values(op, &v))
+                    .map_or_else(|| false, |v| meta.might_match_all_values(op, v))
             }
             Column::Integer(meta, data) => {
                 if data.contains_null() {
@@ -390,7 +426,7 @@ impl Column {
                 value
                     .scalar()
                     .try_as_i64()
-                    .map_or_else(|| false, |v| meta.might_match_all_values(op, &v))
+                    .map_or_else(|| false, |v| meta.might_match_all_values(op, v))
             }
             Column::Unsigned(meta, data) => {
                 if data.contains_null() {
@@ -400,7 +436,7 @@ impl Column {
                 value
                     .scalar()
                     .try_as_u64()
-                    .map_or_else(|| false, |v| meta.might_match_all_values(op, &v))
+                    .map_or_else(|| false, |v| meta.might_match_all_values(op, v))
             }
             Column::Bool => todo!(),
             Column::ByteArray(meta, _) => todo!(),
@@ -413,7 +449,7 @@ impl Column {
         match &self {
             Column::String(meta, data) => {
                 if let Value::String(other) = value {
-                    meta.match_no_values(op, other)
+                    meta.match_no_values(op, *other)
                 } else {
                     unreachable!("impossible value comparison");
                 }
@@ -425,9 +461,9 @@ impl Column {
             //     on the logical type used for the metadata on the column.
             //   * See if one can prove none of the column can match the predicate.
             //
-            Column::Float(meta, data) => meta.match_no_values(op, &value.scalar().as_f64()),
-            Column::Integer(meta, data) => meta.match_no_values(op, &value.scalar().as_i64()),
-            Column::Unsigned(meta, data) => meta.match_no_values(op, &value.scalar().as_u64()),
+            Column::Float(meta, data) => meta.match_no_values(op, value.scalar().as_f64()),
+            Column::Integer(meta, data) => meta.match_no_values(op, value.scalar().as_i64()),
+            Column::Unsigned(meta, data) => meta.match_no_values(op, value.scalar().as_u64()),
             Column::Bool => todo!(),
             Column::ByteArray(meta, _) => todo!(),
         }
@@ -528,9 +564,13 @@ where
 }
 
 impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
-    fn might_contain_value(&self, v: &T) -> bool {
+    fn might_contain_value<U>(&self, v: U) -> bool
+    where
+        U: Into<T>,
+    {
+        let u = U::into(v);
         match &self.range {
-            Some(range) => &range.0 <= v && v <= &range.1,
+            Some(range) => range.0 <= u && u <= range.1,
             None => false,
         }
     }
@@ -538,21 +578,25 @@ impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
     // Determines if it's possible that predicate would match all rows in the
     // column. It is up to the caller to determine if the column contains null
     // values, which would invalidate a truthful result.
-    fn might_match_all_values(&self, op: &cmp::Operator, v: &T) -> bool {
+    fn might_match_all_values<U>(&self, op: &cmp::Operator, v: U) -> bool
+    where
+        U: Into<T>,
+    {
+        let u = U::into(v);
         match &self.range {
             Some(range) => match op {
                 // all values in column equal to v
-                cmp::Operator::Equal => range.0 == range.1 && &range.1 == v,
+                cmp::Operator::Equal => range.0 == range.1 && range.1 == u,
                 // all values larger or smaller than v so can't contain v
-                cmp::Operator::NotEqual => v < &range.0 || v > &range.1,
+                cmp::Operator::NotEqual => u < range.0 || u > range.1,
                 // all values in column > v
-                cmp::Operator::GT => &range.0 > v,
+                cmp::Operator::GT => range.0 > u,
                 // all values in column >= v
-                cmp::Operator::GTE => &range.0 >= v,
+                cmp::Operator::GTE => range.0 >= u,
                 // all values in column < v
-                cmp::Operator::LT => &range.1 < v,
+                cmp::Operator::LT => range.1 < u,
                 // all values in column <= v
-                cmp::Operator::LTE => &range.1 <= v,
+                cmp::Operator::LTE => range.1 <= u,
             },
             None => false, // only null values in column.
         }
@@ -560,21 +604,25 @@ impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
 
     // Determines if it can be shown that the predicate would not match any rows
     // in the column.
-    fn match_no_values(&self, op: &cmp::Operator, v: &T) -> bool {
+    fn match_no_values<U>(&self, op: &cmp::Operator, v: U) -> bool
+    where
+        U: Into<T>,
+    {
+        let u = U::into(v);
         match &self.range {
             Some(range) => match op {
                 // no values are `v` so no rows will match `== v`
-                cmp::Operator::Equal => range.0 == range.1 && &range.1 != v,
+                cmp::Operator::Equal => range.0 == range.1 && range.1 != u,
                 // all values are `v` so no rows will match `!= v`
-                cmp::Operator::NotEqual => range.0 == range.1 && &range.1 == v,
+                cmp::Operator::NotEqual => range.0 == range.1 && range.1 == u,
                 // max value in column is `<= v` so no values can be `> v`
-                cmp::Operator::GT => &range.1 <= v,
+                cmp::Operator::GT => range.1 <= u,
                 // max value in column is `< v` so no values can be `>= v`
-                cmp::Operator::GTE => &range.1 < v,
+                cmp::Operator::GTE => range.1 < u,
                 // min value in column is `>= v` so no values can be `< v`
-                cmp::Operator::LT => &range.0 >= v,
+                cmp::Operator::LT => range.0 >= u,
                 // min value in column is `> v` so no values can be `<= v`
-                cmp::Operator::LTE => &range.0 > v,
+                cmp::Operator::LTE => range.0 > u,
             },
             None => true, // only null values in column so no values satisfy `v`
         }
@@ -624,7 +672,7 @@ impl StringEncoding {
     }
 
     /// Returns the row ids that satisfy the provided predicate.
-    pub fn row_ids_filter(&self, op: cmp::Operator, value: &str, dst: RowIDs) -> RowIDs {
+    pub fn row_ids_filter(&self, op: &cmp::Operator, value: &str, dst: RowIDs) -> RowIDs {
         match &self {
             Self::RLE(c) => c.row_ids_filter(value, op, dst),
         }
@@ -1047,7 +1095,7 @@ impl IntegerEncoding {
     /// Note: it is the caller's responsibility to ensure that the provided
     /// `Scalar` value will fit within the physical type of the encoded column.
     /// `row_ids_filter` will panic if this invariant is broken.
-    pub fn row_ids_filter(&self, op: cmp::Operator, value: &Scalar, dst: RowIDs) -> RowIDs {
+    pub fn row_ids_filter(&self, op: &cmp::Operator, value: &Scalar, dst: RowIDs) -> RowIDs {
         match &self {
             Self::I64I64(c) => c.row_ids_filter(value.as_i64(), op, dst),
             Self::I64I32(c) => c.row_ids_filter(value.as_i32(), op, dst),
@@ -1086,8 +1134,8 @@ impl IntegerEncoding {
     /// `row_ids_filter` will panic if this invariant is broken.
     pub fn row_ids_filter_range(
         &self,
-        low: (cmp::Operator, &Scalar),
-        high: (cmp::Operator, &Scalar),
+        low: (&cmp::Operator, &Scalar),
+        high: (&cmp::Operator, &Scalar),
         dst: RowIDs,
     ) -> RowIDs {
         match &self {
@@ -1350,7 +1398,7 @@ impl FloatEncoding {
     /// Note: it is the caller's responsibility to ensure that the provided
     /// `Scalar` value will fit within the physical type of the encoded column.
     /// `row_ids_filter` will panic if this invariant is broken.
-    pub fn row_ids_filter(&self, op: cmp::Operator, value: &Scalar, dst: RowIDs) -> RowIDs {
+    pub fn row_ids_filter(&self, op: &cmp::Operator, value: &Scalar, dst: RowIDs) -> RowIDs {
         match &self {
             FloatEncoding::Fixed64(c) => c.row_ids_filter(value.as_f64(), op, dst),
             FloatEncoding::Fixed32(c) => c.row_ids_filter(value.as_f32(), op, dst),
@@ -1364,16 +1412,16 @@ impl FloatEncoding {
     /// `row_ids_filter` will panic if this invariant is broken.
     pub fn row_ids_filter_range(
         &self,
-        low: (cmp::Operator, &Scalar),
-        high: (cmp::Operator, &Scalar),
+        low: (&cmp::Operator, &Scalar),
+        high: (&cmp::Operator, &Scalar),
         dst: RowIDs,
     ) -> RowIDs {
         match &self {
             FloatEncoding::Fixed64(c) => {
-                c.row_ids_filter_range((low.1.as_f64(), low.0), (high.1.as_f64(), high.0), dst)
+                c.row_ids_filter_range((low.1.as_f64(), &low.0), (high.1.as_f64(), &high.0), dst)
             }
             FloatEncoding::Fixed32(c) => {
-                c.row_ids_filter_range((low.1.as_f32(), low.0), (high.1.as_f32(), high.0), dst)
+                c.row_ids_filter_range((low.1.as_f32(), &low.0), (high.1.as_f32(), &high.0), dst)
             }
         }
     }
@@ -1969,8 +2017,7 @@ pub enum AggregateResult<'a> {
 }
 
 /// A scalar is a numerical value that can be aggregated.
-#[derive(Debug, PartialEq)]
-
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Scalar {
     I64(i64),
     I32(i32),
@@ -2067,13 +2114,13 @@ impl Scalar {
 }
 
 /// Each variant is a possible value type that can be returned from a column.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Value<'a> {
     // Represents a NULL value in a column row.
     Null,
 
     // A UTF-8 valid string.
-    String(&'a String),
+    String(&'a str),
 
     // An arbitrary byte array.
     ByteArray(&'a [u8]),
@@ -2093,7 +2140,7 @@ impl Value<'_> {
         panic!("cannot unwrap Value to Scalar");
     }
 
-    fn string(&self) -> &String {
+    fn string(&self) -> &str {
         if let Self::String(s) = self {
             return s;
         }
@@ -2101,8 +2148,30 @@ impl Value<'_> {
     }
 }
 
-/// Each variant is a typed vector of materialised values for a column. NULL
-/// values are represented as None
+impl std::fmt::Display for Value<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Null => write!(f, "NULL"),
+            Value::String(s) => write!(f, "{}", s),
+            Value::ByteArray(arr) => write!(f, "{:?}", arr),
+            Value::Boolean(b) => write!(f, "{}", b),
+            Value::Scalar(s) => match s {
+                Scalar::I64(v) => write!(f, "{}", v),
+                Scalar::I32(v) => write!(f, "{}", v),
+                Scalar::I16(v) => write!(f, "{}", v),
+                Scalar::I8(v) => write!(f, "{}", v),
+                Scalar::U64(v) => write!(f, "{}", v),
+                Scalar::U32(v) => write!(f, "{}", v),
+                Scalar::U16(v) => write!(f, "{}", v),
+                Scalar::U8(v) => write!(f, "{}", v),
+                Scalar::F64(v) => write!(f, "{}", v),
+                Scalar::F32(v) => write!(f, "{}", v),
+            },
+        }
+    }
+}
+
+/// Each variant is a typed vector of materialised values for a column.
 #[derive(Debug, PartialEq)]
 pub enum Values {
     // UTF-8 valid unicode strings
@@ -2125,7 +2194,139 @@ pub enum Values {
     Bool(arrow::array::BooleanArray),
 
     // Arbitrary byte arrays
-    ByteArray(arrow::array::UInt8Array),
+    ByteArray(arrow::array::BinaryArray),
+}
+
+impl Values {
+    pub fn len(&self) -> usize {
+        match &self {
+            Values::String(c) => c.len(),
+            Values::F64(c) => c.len(),
+            Values::F32(c) => c.len(),
+            Values::I64(c) => c.len(),
+            Values::I32(c) => c.len(),
+            Values::I16(c) => c.len(),
+            Values::I8(c) => c.len(),
+            Values::U64(c) => c.len(),
+            Values::U32(c) => c.len(),
+            Values::U16(c) => c.len(),
+            Values::U8(c) => c.len(),
+            Values::Bool(c) => c.len(),
+            Values::ByteArray(c) => c.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn value(&self, i: usize) -> Value<'_> {
+        match &self {
+            Values::String(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::String(c.value(i))
+            }
+            Values::F64(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::F64(c.value(i)))
+            }
+            Values::F32(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::F32(c.value(i)))
+            }
+            Values::I64(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::I64(c.value(i)))
+            }
+            Values::I32(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::I32(c.value(i)))
+            }
+            Values::I16(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::I16(c.value(i)))
+            }
+            Values::I8(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::I8(c.value(i)))
+            }
+            Values::U64(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::U64(c.value(i)))
+            }
+            Values::U32(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::U32(c.value(i)))
+            }
+            Values::U16(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::U16(c.value(i)))
+            }
+            Values::U8(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Scalar(Scalar::U8(c.value(i)))
+            }
+            Values::Bool(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::Boolean(c.value(i))
+            }
+            Values::ByteArray(c) => {
+                if c.is_null(i) {
+                    return Value::Null;
+                }
+                Value::ByteArray(c.value(i))
+            }
+        }
+    }
+}
+
+pub struct ValuesIterator<'a> {
+    v: &'a Values,
+    next_i: usize,
+}
+
+impl<'a> ValuesIterator<'a> {
+    pub fn new(v: &'a Values) -> Self {
+        Self { v, next_i: 0 }
+    }
+}
+impl<'a> Iterator for ValuesIterator<'a> {
+    type Item = Value<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let curr_i = self.next_i;
+        self.next_i += 1;
+
+        if curr_i == self.v.len() {
+            return None;
+        }
+
+        Some(self.v.value(curr_i))
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -2185,12 +2386,12 @@ enum PredicateMatch {
 /// represented.
 #[derive(Debug, PartialEq)]
 pub enum RowIDsOption {
-    None,
+    None(RowIDs),
     Some(RowIDs),
 
     // All allows us to indicate to the caller that all possible rows are
     // represented, without having to create a container to store all those ids.
-    All,
+    All(RowIDs),
 }
 
 impl RowIDsOption {
@@ -2243,6 +2444,13 @@ impl RowIDs {
         }
     }
 
+    pub fn as_slice(&self) -> &[u32] {
+        match self {
+            RowIDs::Bitmap(bm) => panic!("not supported yet"),
+            RowIDs::Vector(arr) => arr.as_slice(),
+        }
+    }
+
     pub fn len(&self) -> usize {
         match self {
             RowIDs::Bitmap(ids) => ids.cardinality() as usize,
@@ -2270,6 +2478,20 @@ impl RowIDs {
             RowIDs::Vector(ids) => ids.extend(from..to),
         }
     }
+
+    pub fn intersect(&mut self, other: &RowIDs) {
+        match (self, other) {
+            (RowIDs::Bitmap(_self), RowIDs::Bitmap(ref other)) => _self.and_inplace(other),
+            (_, _) => unimplemented!("currently unsupported"),
+        };
+    }
+
+    pub fn union(&mut self, other: &RowIDs) {
+        match (self, other) {
+            (RowIDs::Bitmap(_self), RowIDs::Bitmap(ref other)) => _self.or_inplace(other),
+            (_, _) => unimplemented!("currently unsupported"),
+        };
+    }
 }
 
 #[cfg(test)]
@@ -2279,6 +2501,18 @@ mod test {
         Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, StringArray,
         UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     };
+
+    #[test]
+    fn row_ids_intersect() {
+        let mut row_ids = RowIDs::new_bitmap();
+        row_ids.add_range(0, 5);
+
+        let mut other = RowIDs::new_bitmap();
+        other.add_range(2, 7);
+
+        row_ids.intersect(&other);
+        assert_eq!(row_ids.to_vec(), vec![2, 3, 4]);
+    }
 
     #[test]
     fn from_arrow_string_array() {
@@ -2818,31 +3052,78 @@ mod test {
             Some("Darkness on the Edge of Town"),
         ];
 
+        // re-use the buffer to ensure it's cleared correctly between calls.
+        let mut dst_buffer = RowIDs::new_bitmap();
+
         let col = Column::from(&input[..]);
-        let mut row_ids =
-            col.row_ids_filter(cmp::Operator::Equal, Value::String(&"Badlands".to_string()));
-        assert_eq!(row_ids.unwrap().to_vec(), vec![0]);
-
-        row_ids = col.row_ids_filter(cmp::Operator::Equal, Value::String(&"Factory".to_string()));
-        assert!(matches!(row_ids, RowIDsOption::None));
+        let mut row_ids = col.row_ids_filter(
+            &cmp::Operator::Equal,
+            &Value::String(&"Badlands".to_string()),
+            dst_buffer,
+        );
+        match row_ids {
+            RowIDsOption::None(_) => panic!("expected some rows"),
+            RowIDsOption::Some(dst) => {
+                assert_eq!(dst.to_vec(), vec![0]);
+                dst_buffer = dst;
+            }
+            RowIDsOption::All(_) => panic!("expected some rows"),
+        }
 
         row_ids = col.row_ids_filter(
-            cmp::Operator::GT,
-            Value::String(&"Adam Raised a Cain".to_string()),
+            &cmp::Operator::Equal,
+            &Value::String(&"Factory".to_string()),
+            dst_buffer,
         );
-        assert_eq!(row_ids.unwrap().to_vec(), vec![0, 2, 3, 6]);
+        match row_ids {
+            RowIDsOption::None(_dst) => {
+                dst_buffer = _dst;
+            }
+            RowIDsOption::Some(_) => panic!("expected no rows"),
+            RowIDsOption::All(_) => panic!("expected no rows"),
+        }
 
         row_ids = col.row_ids_filter(
-            cmp::Operator::LTE,
-            Value::String(&"Streets of Fire".to_string()),
+            &cmp::Operator::GT,
+            &Value::String(&"Adam Raised a Cain".to_string()),
+            dst_buffer,
         );
-        assert_eq!(row_ids.unwrap().to_vec(), vec![0, 2, 3, 6]);
+        match row_ids {
+            RowIDsOption::None(_) => panic!("expected some rows"),
+            RowIDsOption::Some(_dst) => {
+                assert_eq!(_dst.to_vec(), vec![0, 2, 3, 6]);
+                dst_buffer = _dst;
+            }
+            RowIDsOption::All(_) => panic!("expected some rows"),
+        }
 
         row_ids = col.row_ids_filter(
-            cmp::Operator::LT,
-            Value::String(&"Something in the Night".to_string()),
+            &cmp::Operator::LTE,
+            &Value::String(&"Streets of Fire".to_string()),
+            dst_buffer,
         );
-        assert_eq!(row_ids.unwrap().to_vec(), vec![0, 2, 6]);
+        match row_ids {
+            RowIDsOption::None(_) => panic!("expected some rows"),
+            RowIDsOption::Some(_dst) => {
+                assert_eq!(_dst.to_vec(), vec![0, 2, 3, 6]);
+                dst_buffer = _dst;
+            }
+            RowIDsOption::All(_) => panic!("expected some rows"),
+        }
+
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::LT,
+            &Value::String(&"Something in the Night".to_string()),
+            dst_buffer,
+        );
+        match row_ids {
+            RowIDsOption::None(_) => panic!("expected some rows"),
+            RowIDsOption::Some(_dst) => {
+                assert_eq!(_dst.to_vec(), vec![0, 2, 6]);
+                dst_buffer = _dst;
+            }
+            RowIDsOption::All(_) => panic!("expected some rows"),
+        }
 
         // when the column doesn't contain any NULL values the `All` variant
         // might be returned.
@@ -2855,22 +3136,46 @@ mod test {
 
         let col = Column::from(&input[..]);
         row_ids = col.row_ids_filter(
-            cmp::Operator::NotEqual,
-            Value::String(&"Adam Raised a Cain".to_string()),
+            &cmp::Operator::NotEqual,
+            &Value::String(&"Adam Raised a Cain".to_string()),
+            dst_buffer,
         );
-        assert!(matches!(row_ids, RowIDsOption::All));
+        match row_ids {
+            RowIDsOption::None(_dst) => panic!("expected all rows"),
+            RowIDsOption::Some(_) => panic!("expected no rows"),
+            RowIDsOption::All(_dst) => {
+                dst_buffer = _dst;
+            }
+        }
 
         row_ids = col.row_ids_filter(
-            cmp::Operator::GT,
-            Value::String(&"Adam Raised a Cain".to_string()),
+            &cmp::Operator::GT,
+            &Value::String(&"Adam Raised a Cain".to_string()),
+            dst_buffer,
         );
-        assert!(matches!(row_ids, RowIDsOption::All));
+        match row_ids {
+            RowIDsOption::None(_dst) => panic!("expected all rows"),
+            RowIDsOption::Some(_) => panic!("expected no rows"),
+            RowIDsOption::All(_dst) => {
+                dst_buffer = _dst;
+            }
+        }
 
         row_ids = col.row_ids_filter(
-            cmp::Operator::NotEqual,
-            Value::String(&"Thunder Road".to_string()),
+            &cmp::Operator::NotEqual,
+            &Value::String(&"Thunder Road".to_string()),
+            dst_buffer,
         );
-        assert!(matches!(row_ids, RowIDsOption::All));
+        match row_ids {
+            RowIDsOption::None(_dst) => panic!("expected all rows"),
+            RowIDsOption::Some(_) => panic!("expected no rows"),
+            RowIDsOption::All(_dst) => {
+                dst_buffer = _dst;
+            }
+        }
+        // This buffer's contents is from the last time it was populated, which
+        // was the `< "Something in the Night"` predicate above.
+        assert_eq!(dst_buffer.to_vec(), vec![0, 2, 6]);
     }
 
     #[test]
@@ -2878,23 +3183,47 @@ mod test {
         let input = &[100, 200, 300, 2, 200, 22, 30];
 
         let col = Column::from(&input[..]);
-        let mut row_ids = col.row_ids_filter(cmp::Operator::Equal, Value::Scalar(Scalar::I32(200)));
+        let mut row_ids = col.row_ids_filter(
+            &cmp::Operator::Equal,
+            &Value::Scalar(Scalar::I32(200)),
+            RowIDs::new_bitmap(),
+        );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 4]);
 
-        row_ids = col.row_ids_filter(cmp::Operator::Equal, Value::Scalar(Scalar::I32(2000)));
-        assert!(matches!(row_ids, RowIDsOption::None));
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::Equal,
+            &Value::Scalar(Scalar::I32(2000)),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::None(_)));
 
-        row_ids = col.row_ids_filter(cmp::Operator::GT, Value::Scalar(Scalar::I32(2)));
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::GT,
+            &Value::Scalar(Scalar::I32(2)),
+            RowIDs::new_bitmap(),
+        );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 4, 5, 6]);
 
-        row_ids = col.row_ids_filter(cmp::Operator::GTE, Value::Scalar(Scalar::I32(2)));
-        assert!(matches!(row_ids, RowIDsOption::All));
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::GTE,
+            &Value::Scalar(Scalar::I32(2)),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
 
-        row_ids = col.row_ids_filter(cmp::Operator::NotEqual, Value::Scalar(Scalar::I32(-1257)));
-        assert!(matches!(row_ids, RowIDsOption::All));
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::NotEqual,
+            &Value::Scalar(Scalar::I32(-1257)),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
 
-        row_ids = col.row_ids_filter(cmp::Operator::LT, Value::Scalar(Scalar::I64(i64::MAX)));
-        assert!(matches!(row_ids, RowIDsOption::All));
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::LT,
+            &Value::Scalar(Scalar::I64(i64::MAX)),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         let input = vec![
             Some(100_i64),
@@ -2907,9 +3236,12 @@ mod test {
         ];
         let arr = Int64Array::from(input);
         let col = Column::from(arr);
-        row_ids = col.row_ids_filter(cmp::Operator::GT, Value::Scalar(Scalar::I64(10)));
-        println!("{:?}", row_ids);
-        assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 4, 5, 6]);
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::GT,
+            &Value::Scalar(Scalar::I64(10)),
+            RowIDs::new_vector(), // exercise alternative row ids representation
+        );
+        assert_eq!(row_ids.unwrap().as_slice(), &[0, 1, 4, 5, 6]);
     }
 
     #[test]
@@ -2917,20 +3249,40 @@ mod test {
         let input = &[100_u32, 200, 300, 2, 200, 22, 30];
 
         let col = Column::from(&input[..]);
-        let mut row_ids = col.row_ids_filter(cmp::Operator::Equal, Value::Scalar(Scalar::I32(200)));
+        let mut row_ids = col.row_ids_filter(
+            &cmp::Operator::Equal,
+            &Value::Scalar(Scalar::I32(200)),
+            RowIDs::new_bitmap(),
+        );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 4]);
 
-        row_ids = col.row_ids_filter(cmp::Operator::Equal, Value::Scalar(Scalar::U16(2000)));
-        assert!(matches!(row_ids, RowIDsOption::None));
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::Equal,
+            &Value::Scalar(Scalar::U16(2000)),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::None(_)));
 
-        row_ids = col.row_ids_filter(cmp::Operator::GT, Value::Scalar(Scalar::U32(2)));
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::GT,
+            &Value::Scalar(Scalar::U32(2)),
+            RowIDs::new_bitmap(),
+        );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 4, 5, 6]);
 
-        row_ids = col.row_ids_filter(cmp::Operator::GTE, Value::Scalar(Scalar::U64(2)));
-        assert!(matches!(row_ids, RowIDsOption::All));
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::GTE,
+            &Value::Scalar(Scalar::U64(2)),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
 
-        row_ids = col.row_ids_filter(cmp::Operator::NotEqual, Value::Scalar(Scalar::I32(-1257)));
-        assert!(matches!(row_ids, RowIDsOption::All));
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::NotEqual,
+            &Value::Scalar(Scalar::I32(-1257)),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
     }
 
     #[test]
@@ -2938,24 +3290,40 @@ mod test {
         let input = &[100.2, 200.0, 300.1, 2.22, -200.2, 22.2, 30.2];
 
         let col = Column::from(&input[..]);
-        let mut row_ids =
-            col.row_ids_filter(cmp::Operator::Equal, Value::Scalar(Scalar::F32(200.0)));
+        let mut row_ids = col.row_ids_filter(
+            &cmp::Operator::Equal,
+            &Value::Scalar(Scalar::F32(200.0)),
+            RowIDs::new_bitmap(),
+        );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1]);
 
-        row_ids = col.row_ids_filter(cmp::Operator::Equal, Value::Scalar(Scalar::F64(2000.0)));
-        assert!(matches!(row_ids, RowIDsOption::None));
-
-        row_ids = col.row_ids_filter(cmp::Operator::GT, Value::Scalar(Scalar::F64(-200.0)));
-        assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 3, 5, 6]);
-
-        row_ids = col.row_ids_filter(cmp::Operator::GTE, Value::Scalar(Scalar::F64(-200.2)));
-        assert!(matches!(row_ids, RowIDsOption::All));
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::Equal,
+            &Value::Scalar(Scalar::F64(2000.0)),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         row_ids = col.row_ids_filter(
-            cmp::Operator::NotEqual,
-            Value::Scalar(Scalar::F32(-1257.029)),
+            &cmp::Operator::GT,
+            &Value::Scalar(Scalar::F64(-200.0)),
+            RowIDs::new_bitmap(),
         );
-        assert!(matches!(row_ids, RowIDsOption::All));
+        assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 3, 5, 6]);
+
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::GTE,
+            &Value::Scalar(Scalar::F64(-200.2)),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
+
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::NotEqual,
+            &Value::Scalar(Scalar::F32(-1257.029)),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
     }
 
     #[test]
@@ -2964,53 +3332,61 @@ mod test {
 
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter_range(
-            (cmp::Operator::GT, Value::Scalar(Scalar::I32(100))),
-            (cmp::Operator::LT, Value::Scalar(Scalar::I32(300))),
+            &(cmp::Operator::GT, Value::Scalar(Scalar::I32(100))),
+            &(cmp::Operator::LT, Value::Scalar(Scalar::I32(300))),
+            RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 4]);
 
         row_ids = col.row_ids_filter_range(
-            (cmp::Operator::GTE, Value::Scalar(Scalar::I32(200))),
-            (cmp::Operator::LTE, Value::Scalar(Scalar::I32(300))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(200))),
+            &(cmp::Operator::LTE, Value::Scalar(Scalar::I32(300))),
+            RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 2, 4]);
 
         row_ids = col.row_ids_filter_range(
-            (cmp::Operator::GTE, Value::Scalar(Scalar::I32(23333))),
-            (cmp::Operator::LTE, Value::Scalar(Scalar::I32(999999))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(23333))),
+            &(cmp::Operator::LTE, Value::Scalar(Scalar::I32(999999))),
+            RowIDs::new_bitmap(),
         );
-        assert!(matches!(row_ids, RowIDsOption::None));
+        assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         row_ids = col.row_ids_filter_range(
-            (cmp::Operator::GT, Value::Scalar(Scalar::I32(-100))),
-            (cmp::Operator::LT, Value::Scalar(Scalar::I32(301))),
+            &(cmp::Operator::GT, Value::Scalar(Scalar::I32(-100))),
+            &(cmp::Operator::LT, Value::Scalar(Scalar::I32(301))),
+            RowIDs::new_bitmap(),
         );
-        assert!(matches!(row_ids, RowIDsOption::All));
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter_range(
-            (cmp::Operator::GTE, Value::Scalar(Scalar::I32(2))),
-            (cmp::Operator::LTE, Value::Scalar(Scalar::I32(300))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(2))),
+            &(cmp::Operator::LTE, Value::Scalar(Scalar::I32(300))),
+            RowIDs::new_bitmap(),
         );
-        assert!(matches!(row_ids, RowIDsOption::All));
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter_range(
-            (cmp::Operator::GTE, Value::Scalar(Scalar::I32(87))),
-            (cmp::Operator::LTE, Value::Scalar(Scalar::I32(999999))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(87))),
+            &(cmp::Operator::LTE, Value::Scalar(Scalar::I32(999999))),
+            RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 4]);
 
         row_ids = col.row_ids_filter_range(
-            (cmp::Operator::GTE, Value::Scalar(Scalar::I32(0))),
-            (
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(0))),
+            &(
                 cmp::Operator::NotEqual,
                 Value::Scalar(Scalar::I64(i64::MAX)),
             ),
+            RowIDs::new_bitmap(),
         );
-        assert!(matches!(row_ids, RowIDsOption::All));
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter_range(
-            (cmp::Operator::GTE, Value::Scalar(Scalar::I32(0))),
-            (cmp::Operator::NotEqual, Value::Scalar(Scalar::I64(99))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(0))),
+            &(cmp::Operator::NotEqual, Value::Scalar(Scalar::I64(99))),
+            RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 3, 4, 5, 6]);
     }

@@ -206,7 +206,7 @@ impl RLE {
 
     /// Populates the provided destination container with the row ids satisfying
     /// the provided predicate.
-    pub fn row_ids_filter(&self, value: &str, op: cmp::Operator, dst: RowIDs) -> RowIDs {
+    pub fn row_ids_filter(&self, value: &str, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
         match op {
             cmp::Operator::Equal | cmp::Operator::NotEqual => self.row_ids_equal(value, op, dst),
             cmp::Operator::LT | cmp::Operator::LTE | cmp::Operator::GT | cmp::Operator::GTE => {
@@ -216,7 +216,7 @@ impl RLE {
     }
 
     // Finds row ids based on = or != operator.
-    fn row_ids_equal(&self, value: &str, op: cmp::Operator, mut dst: RowIDs) -> RowIDs {
+    fn row_ids_equal(&self, value: &str, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
         let include = match op {
             cmp::Operator::Equal => true,
@@ -254,7 +254,7 @@ impl RLE {
     }
 
     // Finds row ids based on <, <=, > or >= operator.
-    fn row_ids_cmp(&self, value: &str, op: cmp::Operator, mut dst: RowIDs) -> RowIDs {
+    fn row_ids_cmp(&self, value: &str, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
         // happy path - the value exists in the column
@@ -287,7 +287,7 @@ impl RLE {
                 for (other, other_encoded_id) in &self.entry_index {
                     if other.as_str() > value {
                         // change filter from either `x > value` or `x >= value` to `x >= other`
-                        return self.row_ids_cmp(other, cmp::Operator::GTE, dst);
+                        return self.row_ids_cmp(other, &cmp::Operator::GTE, dst);
                     }
                 }
             }
@@ -297,7 +297,7 @@ impl RLE {
                 for (other, other_encoded_id) in self.entry_index.iter().rev() {
                     if other.as_str() < value {
                         // change filter from either `x < value` or `x <= value` to `x <= other`
-                        return self.row_ids_cmp(other, cmp::Operator::LTE, dst);
+                        return self.row_ids_cmp(other, &cmp::Operator::LTE, dst);
                     }
                 }
             }
@@ -998,20 +998,20 @@ mod test {
         drle.push_none(); // 9
         drle.push_additional(Some("south".to_string()), 2); // 10, 11
 
-        let ids = drle.row_ids_filter(&"east", cmp::Operator::Equal, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"east", &cmp::Operator::Equal, RowIDs::Vector(vec![]));
         assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 4, 5, 6, 7, 8]));
 
-        let ids = drle.row_ids_filter(&"south", cmp::Operator::Equal, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"south", &cmp::Operator::Equal, RowIDs::Vector(vec![]));
         assert_eq!(ids, RowIDs::Vector(vec![10, 11]));
 
-        let ids = drle.row_ids_filter(&"foo", cmp::Operator::Equal, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"foo", &cmp::Operator::Equal, RowIDs::Vector(vec![]));
         assert!(ids.is_empty());
 
         // != some value not in the column should exclude the NULL value.
-        let ids = drle.row_ids_filter(&"foo", cmp::Operator::NotEqual, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"foo", &cmp::Operator::NotEqual, RowIDs::Vector(vec![]));
         assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11]));
 
-        let ids = drle.row_ids_filter(&"east", cmp::Operator::NotEqual, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"east", &cmp::Operator::NotEqual, RowIDs::Vector(vec![]));
         assert_eq!(ids, RowIDs::Vector(vec![3, 10, 11]));
     }
 
@@ -1021,7 +1021,7 @@ mod test {
         drle.push_additional(Some("east".to_string()), 2);
         drle.push_additional(Some("west".to_string()), 1);
 
-        let ids = drle.row_ids_filter(&"abba", cmp::Operator::NotEqual, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"abba", &cmp::Operator::NotEqual, RowIDs::Vector(vec![]));
         assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2]));
     }
 
@@ -1037,23 +1037,23 @@ mod test {
         drle.push_none(); // 13
         drle.push_additional(Some("west".to_string()), 5); // 14, 15, 16, 17, 18
 
-        let ids = drle.row_ids_filter(&"east", cmp::Operator::LTE, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"east", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
         assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 4, 5, 6, 7, 8]));
 
-        let ids = drle.row_ids_filter(&"east", cmp::Operator::LT, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"east", &cmp::Operator::LT, RowIDs::Vector(vec![]));
         assert!(ids.is_empty());
 
-        let ids = drle.row_ids_filter(&"north", cmp::Operator::GT, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"north", &cmp::Operator::GT, RowIDs::Vector(vec![]));
         assert_eq!(ids, RowIDs::Vector(vec![9, 10, 11, 14, 15, 16, 17, 18]));
 
-        let ids = drle.row_ids_filter(&"north", cmp::Operator::GTE, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"north", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
         assert_eq!(
             ids,
             RowIDs::Vector(vec![3, 9, 10, 11, 12, 14, 15, 16, 17, 18])
         );
 
         // The encoding also supports comparisons on values that don't directly exist in the column.
-        let ids = drle.row_ids_filter(&"abba", cmp::Operator::GT, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"abba", &cmp::Operator::GT, RowIDs::Vector(vec![]));
         assert_eq!(
             ids,
             RowIDs::Vector(vec![
@@ -1061,25 +1061,25 @@ mod test {
             ])
         );
 
-        let ids = drle.row_ids_filter(&"east1", cmp::Operator::GT, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"east1", &cmp::Operator::GT, RowIDs::Vector(vec![]));
         assert_eq!(
             ids,
             RowIDs::Vector(vec![3, 9, 10, 11, 12, 14, 15, 16, 17, 18])
         );
 
-        let ids = drle.row_ids_filter(&"east1", cmp::Operator::GTE, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"east1", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
         assert_eq!(
             ids,
             RowIDs::Vector(vec![3, 9, 10, 11, 12, 14, 15, 16, 17, 18])
         );
 
-        let ids = drle.row_ids_filter(&"east1", cmp::Operator::LTE, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"east1", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
         assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 4, 5, 6, 7, 8]));
 
-        let ids = drle.row_ids_filter(&"region", cmp::Operator::LT, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"region", &cmp::Operator::LT, RowIDs::Vector(vec![]));
         assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 12]));
 
-        let ids = drle.row_ids_filter(&"zoo", cmp::Operator::LTE, RowIDs::Vector(vec![]));
+        let ids = drle.row_ids_filter(&"zoo", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
         assert_eq!(
             ids,
             RowIDs::Vector(vec![

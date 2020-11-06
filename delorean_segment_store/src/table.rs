@@ -4,7 +4,7 @@ use std::slice::Iter;
 use arrow_deps::arrow::record_batch::RecordBatch;
 
 use crate::column::{AggregateResult, AggregateType, Scalar, Value, Values};
-use crate::segment::{ColumnName, GroupKey, Segment};
+use crate::segment::{ColumnName, GroupKey, Predicate, Segment};
 
 /// A Table represents data for a single measurement.
 ///
@@ -43,8 +43,8 @@ impl<'a> Table<'a> {
     }
 
     /// Add a new segment to this table.
-    pub fn add_segment(&mut self, segment: Segment<'_>) {
-        todo!();
+    pub fn add_segment(&mut self, segment: Segment<'a>) {
+        self.segments.push(segment);
     }
 
     /// Remove the segment at `position` from table.
@@ -92,29 +92,56 @@ impl<'a> Table<'a> {
         todo!()
     }
 
-    //
-    // TODO:(edd) we need to figure out what the predicate object looks like
-    // and then this API can be changed to support arbitrary predicates rather
-    // the the equality predicates it currently supports.
-    //
+    // Identify set of segments that may satisfy the predicates.
+    fn filter_segments(&self, predicates: &[Predicate<'_>]) -> Vec<&Segment<'a>> {
+        let mut segments = Vec::with_capacity(self.segments.len());
+
+        'seg: for segment in &self.segments {
+            // check all provided predicates
+            for (col_name, pred) in predicates {
+                if !segment.column_could_satisfy_predicate(col_name, pred) {
+                    continue 'seg;
+                }
+            }
+
+            // segment could potentially satisfy all predicates
+            segments.push(segment);
+        }
+
+        segments
+    }
 
     /// Returns vectors of columnar data for the specified column
     /// selections.
     ///
-    /// Results may be filtered by (currently only) equality predicates, but can
-    /// be ranged by time, which should be represented as nanoseconds since the
-    /// epoch. Results are included if they satisfy the predicate and fall
-    /// with the [min, max) time range domain.
+    /// Results may be filtered by (currently only) conjunctive (AND) predicates,
+    /// but can be ranged by time, which should be represented as nanoseconds
+    /// since the epoch. Results are included if they satisfy the predicate and
+    /// fall with the [min, max) time range domain.
     pub fn select(
         &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
-        select_columns: Vec<ColumnName>,
-    ) -> BTreeMap<ColumnName, Values> {
+        columns: &[ColumnName<'a>],
+        predicates: &[Predicate<'_>],
+    ) -> Vec<(ColumnName<'a>, Vec<Values>)> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
-        todo!();
+        let segments = self.filter_segments(predicates);
+
+        let mut results = columns.iter().map(|&col_name| (col_name, vec![])).collect();
+        if segments.is_empty() {
+            return results;
+        }
+
+        for segment in segments {
+            let segment_result = segment.read_filter(columns, predicates);
+            for (i, (col_name, values)) in segment_result.into_iter().enumerate() {
+                assert_eq!(results[i].0, col_name);
+                results[i].1.push(values);
+            }
+        }
+
+        results
     }
 
     /// Returns aggregates segmented by grouping keys.
@@ -134,9 +161,9 @@ impl<'a> Table<'a> {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        group_columns: Vec<ColumnName>,
-        aggregates: Vec<(ColumnName, AggregateType)>,
-    ) -> BTreeMap<GroupKey, Vec<(ColumnName, AggregateResult<'_>)>> {
+        group_columns: Vec<ColumnName<'a>>,
+        aggregates: Vec<(ColumnName<'a>, AggregateType)>,
+    ) -> BTreeMap<GroupKey, Vec<(ColumnName<'a>, AggregateResult<'_>)>> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
@@ -165,10 +192,10 @@ impl<'a> Table<'a> {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        group_columns: Vec<ColumnName>,
-        aggregates: Vec<(ColumnName, AggregateType)>,
+        group_columns: Vec<ColumnName<'a>>,
+        aggregates: Vec<(ColumnName<'a>, AggregateType)>,
         window: i64,
-    ) -> BTreeMap<GroupKey, Vec<(ColumnName, AggregateResult<'_>)>> {
+    ) -> BTreeMap<GroupKey, Vec<(ColumnName<'a>, AggregateResult<'_>)>> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
@@ -181,8 +208,8 @@ impl<'a> Table<'a> {
         &self,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        aggregates: Vec<(ColumnName, AggregateType)>,
-    ) -> Vec<(ColumnName, AggregateResult<'_>)> {
+        aggregates: Vec<(ColumnName<'a>, AggregateType)>,
+    ) -> Vec<(ColumnName<'a>, AggregateResult<'_>)> {
         // The fast path where there are no predicates or a time range to apply.
         // We just want the equivalent of column statistics.
         if predicates.is_empty() {
@@ -329,7 +356,7 @@ impl<'a> Table<'a> {
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
         found_columns: &BTreeSet<String>,
-    ) -> BTreeSet<ColumnName> {
+    ) -> BTreeSet<ColumnName<'a>> {
         // Firstly, this should short-circuit early if all of the table's columns
         // are present in `found_columns`.
         //
@@ -351,7 +378,7 @@ impl<'a> Table<'a> {
         predicates: &[(&str, &str)],
         tag_keys: &[String],
         found_tag_values: &BTreeMap<String, BTreeSet<&String>>,
-    ) -> BTreeMap<ColumnName, BTreeSet<&String>> {
+    ) -> BTreeMap<ColumnName<'a>, BTreeSet<&String>> {
         // identify segments where time range, predicates and tag keys match
         // could match using segment meta data, and then execute against those
         // segments and merge results.
@@ -397,24 +424,195 @@ impl<'a> MetaData<'a> {
     pub fn new(segment: &Segment<'a>) -> Self {
         Self {
             size: segment.size(),
-            rows: segment.rows(),
+            rows: u64::from(segment.rows()),
             column_ranges: segment
                 .column_ranges()
-                .into_iter()
-                .collect::<BTreeMap<String, (Value<'a>, Value<'a>)>>(),
-            time_range: segment.time_range(),
+                .iter()
+                .map(|(k, v)| (k.to_string(), (v.0.clone(), v.1.clone())))
+                .collect(),
+            time_range: Some(segment.time_range()),
         }
     }
 
-    pub fn add_segment(&mut self, segment: &Segment<'_>) -> Self {
+    pub fn add_segment(&mut self, segment: &Segment<'a>) {
         // update size, rows, column ranges, time range
-        todo!()
+        self.size += segment.size();
+        self.rows += u64::from(segment.rows());
+
+        assert_eq!(self.column_ranges.len(), segment.column_ranges().len());
+        for (segment_column_name, (segment_column_range_min, segment_column_range_max)) in
+            segment.column_ranges()
+        {
+            let mut curr_range = self
+                .column_ranges
+                .get_mut(&segment_column_name.to_string())
+                .unwrap();
+            if segment_column_range_min < &curr_range.0 {
+                curr_range.0 = segment_column_range_min.clone();
+            }
+
+            if segment_column_range_max > &curr_range.1 {
+                curr_range.1 = segment_column_range_max.clone();
+            }
+        }
     }
 
     // invalidate should be called when a segment is removed that impacts the
     // meta data.
     pub fn invalidate(&mut self) {
-        // Update size, rows, time_range by linearly scanning all tables.
+        // Update size, rows, time_range by inspecting each segment's metadata
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::column::{cmp::Operator, Column, ValuesIterator};
+    use crate::segment::{ColumnType, TIME_COLUMN_NAME};
+
+    fn stringify_select_results(table: Vec<(ColumnName<'_>, Vec<Values>)>) -> String {
+        let mut out = String::new();
+        // header line.
+        for (i, (k, _)) in table.iter().enumerate() {
+            out.push_str(k);
+            if i < table.len() - 1 {
+                out.push(',');
+            }
+        }
+        out.push('\n');
+
+        // TODO: handle empty results?
+        // let expected_rows = results[0].1.iter().map(|v| v.len() as i32).sum();
+
+        let total_segments = table[0].1.len();
+        let mut segment = 0;
+
+        while segment < total_segments {
+            // build an iterator for each column in this segment.
+            let mut col_itrs = table
+                .iter()
+                .map(|(k, v)| (*k, ValuesIterator::new(&v[segment])))
+                .collect::<BTreeMap<&str, _>>();
+
+            // cycle through each column draining one value per iterator until
+            // all the column iterators are drained.
+            let mut drained_column = 0;
+            while drained_column < table.len() {
+                for (i, (column_name, _)) in table.iter().enumerate() {
+                    let itr = col_itrs.get_mut(column_name).unwrap();
+                    if let Some(v) = itr.next() {
+                        out.push_str(&format!("{}", v));
+                        if i < table.len() - 1 {
+                            out.push(',');
+                        }
+                    } else {
+                        drained_column += 1;
+                    }
+                }
+                out.push('\n');
+            }
+
+            segment += 1;
+        }
+
+        out
+    }
+
+    fn build_predicates(
+        from: i64,
+        to: i64,
+        column_predicates: Vec<Predicate<'_>>,
+    ) -> Vec<Predicate<'_>> {
+        let mut arr = vec![
+            (
+                TIME_COLUMN_NAME,
+                (Operator::GTE, Value::Scalar(Scalar::I64(from))),
+            ),
+            (
+                TIME_COLUMN_NAME,
+                (Operator::LT, Value::Scalar(Scalar::I64(to))),
+            ),
+        ];
+
+        arr.extend(column_predicates);
+        arr
+    }
+
+    #[test]
+    fn select() {
+        // Build first segment.
+        let mut columns = BTreeMap::new();
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
+        columns.insert("time", &tc);
+
+        let rc = ColumnType::Tag(Column::from(
+            &["west", "west", "east", "west", "south", "north"][..],
+        ));
+        columns.insert("region", &rc);
+
+        let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
+        columns.insert("count", &fc);
+
+        let segment = Segment::new(6, columns);
+
+        let mut table = Table::new("cpu".to_owned(), segment);
+
+        // Build another segment.
+        let mut columns = BTreeMap::new();
+        let tc = ColumnType::Time(Column::from(&[10_i64, 20, 30][..]));
+        columns.insert("time", &tc);
+        let rc = ColumnType::Tag(Column::from(&["south", "north", "east"][..]));
+        columns.insert("region", &rc);
+        let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
+        columns.insert("count", &fc);
+        let segment = Segment::new(3, columns);
+        table.add_segment(segment);
+
+        // Get all the results
+        let results = table.select(
+            &["time", "count", "region"],
+            &build_predicates(1, 31, vec![]),
+        );
+        assert_eq!(
+            "time,count,region
+1,100,west
+2,101,west
+3,200,east
+4,203,west
+5,203,south
+6,10,north
+
+10,1000,south
+20,1002,north
+30,1200,east
+
+",
+            stringify_select_results(results)
+        );
+
+        // Apply a predicate `WHERE "region" != "south"`
+        let results = table.select(
+            &["time", "region"],
+            &build_predicates(
+                1,
+                25,
+                vec![("region", (Operator::NotEqual, Value::String("south")))],
+            ),
+        );
+
+        assert_eq!(
+            "time,region
+1,west
+2,west
+3,east
+4,west
+6,north
+
+20,north
+
+",
+            stringify_select_results(results)
+        );
     }
 }

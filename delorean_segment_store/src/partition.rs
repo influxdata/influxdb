@@ -50,8 +50,8 @@ impl<'a> Partition<'a> {
         table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        select_columns: Vec<ColumnName>,
-    ) -> BTreeMap<ColumnName, Values> {
+        select_columns: Vec<ColumnName<'_>>,
+    ) -> BTreeMap<ColumnName<'_>, Values> {
         // Find the measurement name on the partition and dispatch query to the
         // table for that measurement if the partition's time range overlaps the
         // requested time range.
@@ -77,9 +77,9 @@ impl<'a> Partition<'a> {
         table_name: &str,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        group_columns: Vec<ColumnName>,
-        aggregates: Vec<(ColumnName, AggregateType)>,
-    ) -> BTreeMap<GroupKey, Vec<(ColumnName, AggregateResult<'_>)>> {
+        group_columns: Vec<ColumnName<'_>>,
+        aggregates: Vec<(ColumnName<'_>, AggregateType)>,
+    ) -> BTreeMap<GroupKey, Vec<(ColumnName<'_>, AggregateResult<'_>)>> {
         // Find the measurement name on the partition and dispatch query to the
         // table for that measurement if the partition's time range overlaps the
         // requested time range.
@@ -111,8 +111,8 @@ impl<'a> Partition<'a> {
         table_name: String,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        found_keys: &BTreeSet<ColumnName>,
-    ) -> BTreeSet<ColumnName> {
+        found_keys: &BTreeSet<ColumnName<'_>>,
+    ) -> BTreeSet<ColumnName<'_>> {
         // Dispatch query to the table for the provided measurement if the
         // partition's time range overlaps the requested time range *and* there
         // exists columns in the table's schema that are *not* already found.
@@ -130,9 +130,9 @@ impl<'a> Partition<'a> {
         table_name: String,
         time_range: (i64, i64),
         predicates: &[(&str, &str)],
-        tag_keys: &[ColumnName],
-        found_tag_values: &BTreeMap<ColumnName, BTreeSet<&String>>,
-    ) -> BTreeMap<ColumnName, BTreeSet<&String>> {
+        tag_keys: &[ColumnName<'_>],
+        found_tag_values: &BTreeMap<ColumnName<'_>, BTreeSet<&String>>,
+    ) -> BTreeMap<ColumnName<'_>, BTreeSet<&String>> {
         // Find the measurement name on the partition and dispatch query to the
         // table for that measurement if the partition's time range overlaps the
         // requested time range.

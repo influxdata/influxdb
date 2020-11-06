@@ -276,7 +276,7 @@ where
     /// Essentially, this supports `value {=, !=, >, >=, <, <=} x`.
     ///
     /// The equivalent of `IS NULL` is not currently supported via this method.
-    pub fn row_ids_filter(&self, value: T::Native, op: cmp::Operator, dst: RowIDs) -> RowIDs {
+    pub fn row_ids_filter(&self, value: T::Native, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
         match op {
             cmp::Operator::GT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
             cmp::Operator::GTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
@@ -300,7 +300,7 @@ where
     // Handles finding all rows that match the provided operator on `value`.
     // For performance reasons ranges of matching values are collected up and
     // added in bulk to the bitmap.
-    fn row_ids_equal(&self, value: T::Native, op: cmp::Operator, mut dst: RowIDs) -> RowIDs {
+    fn row_ids_equal(&self, value: T::Native, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
         let desired;
@@ -683,16 +683,16 @@ mod test {
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
-        let row_ids = v.row_ids_filter(100, Operator::Equal, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(100, &Operator::Equal, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![0, 2, 12]);
 
-        let row_ids = v.row_ids_filter(101, Operator::Equal, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(101, &Operator::Equal, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![1, 8]);
 
-        let row_ids = v.row_ids_filter(2030, Operator::Equal, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(2030, &Operator::Equal, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![6]);
 
-        let row_ids = v.row_ids_filter(194, Operator::Equal, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(194, &Operator::Equal, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
     }
 
@@ -702,19 +702,19 @@ mod test {
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
-        let row_ids = v.row_ids_filter(100, Operator::NotEqual, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(100, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
-        let row_ids = v.row_ids_filter(101, Operator::NotEqual, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(101, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![0, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12]);
 
-        let row_ids = v.row_ids_filter(2030, Operator::NotEqual, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(2030, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(
             row_ids.to_vec(),
             vec![0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12]
         );
 
-        let row_ids = v.row_ids_filter(194, Operator::NotEqual, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(194, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), (0..13).collect::<Vec<u32>>());
     }
 
@@ -724,10 +724,10 @@ mod test {
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
-        let row_ids = v.row_ids_filter(100, Operator::LT, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(100, &Operator::LT, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![7, 9, 10, 11]);
 
-        let row_ids = v.row_ids_filter(3, Operator::LT, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(3, &Operator::LT, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
     }
 
@@ -737,10 +737,10 @@ mod test {
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
-        let row_ids = v.row_ids_filter(100, Operator::LTE, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(100, &Operator::LTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![0, 2, 7, 9, 10, 11, 12]);
 
-        let row_ids = v.row_ids_filter(2, Operator::LTE, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(2, &Operator::LTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
     }
 
@@ -750,10 +750,10 @@ mod test {
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
-        let row_ids = v.row_ids_filter(100, Operator::GT, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(100, &Operator::GT, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![1, 3, 4, 5, 6, 8]);
 
-        let row_ids = v.row_ids_filter(2030, Operator::GT, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(2030, &Operator::GT, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
     }
 
@@ -772,10 +772,10 @@ mod test {
             .as_slice(),
         );
 
-        let row_ids = v.row_ids_filter(10, Operator::GT, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(10, &Operator::GT, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![0, 1, 4, 5, 6]);
 
-        let row_ids = v.row_ids_filter(30, Operator::LTE, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(30, &Operator::LTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![5, 6]);
     }
 
@@ -785,10 +785,10 @@ mod test {
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100].as_slice(),
         );
 
-        let row_ids = v.row_ids_filter(100, Operator::GTE, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(100, &Operator::GTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![0, 1, 2, 3, 4, 5, 6, 8, 12]);
 
-        let row_ids = v.row_ids_filter(2031, Operator::GTE, RowIDs::new_vector());
+        let row_ids = v.row_ids_filter(2031, &Operator::GTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
     }
 
