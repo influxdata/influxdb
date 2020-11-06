@@ -225,7 +225,7 @@ type cacheTracker struct {
 	metrics *tsdb.TSICacheMetrics
 	// labels is the specific combo of labels a cache must use to identify
 	// itself within the global stats
-	labels  prometheus.Labels
+	labels prometheus.Labels
 }
 
 func newCacheTracker(metrics *tsdb.TSICacheMetrics, defaultLabels prometheus.Labels) *cacheTracker {

@@ -1282,7 +1282,7 @@ type partitionTracker struct {
 	metrics *tsdb.TSIPartitionMetrics
 	// labels is the specific combo of labels a partition must use to identify
 	// itself within the global stats
-	labels  prometheus.Labels
+	labels prometheus.Labels
 }
 
 func newPartitionTracker(metrics *tsdb.TSIPartitionMetrics, labels prometheus.Labels) *partitionTracker {
