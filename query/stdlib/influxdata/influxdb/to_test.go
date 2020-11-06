@@ -14,7 +14,7 @@ import (
 	"github.com/influxdata/flux/values/valuestest"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 )
 
