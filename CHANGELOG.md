@@ -3,6 +3,7 @@
 ### Bug Fixes
 
 1. [19924](https://github.com/influxdata/influxdb/pull/19924): Remove unused 'security-script' option from upgrade command
+1. [19928](https://github.com/influxdata/influxdb/pull/19928): Fix parsing of retention policy CLI args in `influx setup` and `influxd upgrade`
 
 ## v2.0.0-rc.4 [2020-11-05]
 
