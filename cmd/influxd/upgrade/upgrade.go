@@ -76,7 +76,6 @@ type optionsV2 struct {
 	token              string
 	retention          string
 	influx2CommandPath string
-	securityScriptPath string
 }
 
 func (o *optionsV2) checkPaths() error {
@@ -122,7 +121,6 @@ func NewCommand() *cobra.Command {
     Upgrades a 1.x version of InfluxDB by performing the following actions:
       1. Reads the 1.x config file and creates a 2.x config file with matching options. Unsupported 1.x options are reported.
       2. Copies 1.x database files.
-      3. Generates a script that will create tokens with permissions equivalent to the 1.x users. This script needs to be revised and run manually after starting 2.x.
 
     If the config file is not available, 1.x db folder (--v1-dir options) is taken as an input.
     Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
@@ -215,12 +213,6 @@ func NewCommand() *cobra.Command {
 			Flag:    "influx-command-path",
 			Default: influxExePathV2(),
 			Desc:    "path to influx command",
-		},
-		{
-			DestP:   &options.target.securityScriptPath,
-			Flag:    "security-script",
-			Default: filepath.Join(homeOrAnyDir(), "influxd-upgrade-security.sh"),
-			Desc:    "optional: generated security upgrade script path",
 		},
 		{
 			DestP:   &options.logPath,
