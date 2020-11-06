@@ -132,7 +132,7 @@ func TestCache_WriteMulti_Stats(t *testing.T) {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
-	// TSICache size decreased correctly.
+	// Cache size decreased correctly.
 	if got, exp := c.Size(), uint64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}

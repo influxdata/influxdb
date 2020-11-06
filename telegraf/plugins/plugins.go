@@ -565,8 +565,8 @@ var availableInputs = `{
     {
       "type": "input",
       "name": "varnish",
-      "description": "A plugin to collect stats from Varnish HTTP TSICache",
-      "config": "# A plugin to collect stats from Varnish HTTP TSICache\n[[inputs.varnish]]\n  # alias=\"varnish\"\n  ## If running as a restricted user you can prepend sudo for additional access:\n  #use_sudo = false\n\n  ## The default location of the varnishstat binary can be overridden with:\n  binary = \"/usr/bin/varnishstat\"\n\n  ## By default, telegraf gather stats for 3 metric points.\n  ## Setting stats will override the defaults shown below.\n  ## Glob matching can be used, ie, stats = [\"MAIN.*\"]\n  ## stats may also be set to [\"*\"], which will collect all stats\n  stats = [\"MAIN.cache_hit\", \"MAIN.cache_miss\", \"MAIN.uptime\"]\n\n  ## Optional name for the varnish instance (or working directory) to query\n  ## Usually appened after -n in varnish cli\n  # instance_name = instanceName\n\n  ## Timeout for varnishstat command\n  # timeout = \"1s\"\n\n"
+      "description": "A plugin to collect stats from Varnish HTTP Cache",
+      "config": "# A plugin to collect stats from Varnish HTTP Cache\n[[inputs.varnish]]\n  # alias=\"varnish\"\n  ## If running as a restricted user you can prepend sudo for additional access:\n  #use_sudo = false\n\n  ## The default location of the varnishstat binary can be overridden with:\n  binary = \"/usr/bin/varnishstat\"\n\n  ## By default, telegraf gather stats for 3 metric points.\n  ## Setting stats will override the defaults shown below.\n  ## Glob matching can be used, ie, stats = [\"MAIN.*\"]\n  ## stats may also be set to [\"*\"], which will collect all stats\n  stats = [\"MAIN.cache_hit\", \"MAIN.cache_miss\", \"MAIN.uptime\"]\n\n  ## Optional name for the varnish instance (or working directory) to query\n  ## Usually appened after -n in varnish cli\n  # instance_name = instanceName\n\n  ## Timeout for varnishstat command\n  # timeout = \"1s\"\n\n"
     },
     {
       "type": "input",

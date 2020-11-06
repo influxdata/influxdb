@@ -201,7 +201,8 @@ func (s *Shard) WithLogger(log *zap.Logger) {
 	s.logger = s.baseLogger.With(zap.String("service", "shard"))
 }
 
-// SetDefaultMetricLabels sets prometheus labels for the shard. It must be called before Open.
+// WithMetrics sets a reference to global metrics collectors for the shard.
+// It must be called before Open.
 func (s *Shard) WithMetrics(metrics *Metrics) {
 	s.metrics = metrics
 }

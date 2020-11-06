@@ -850,7 +850,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 		keys, fieldTypes = keys[:0], fieldTypes[:0]
 	}
 
-	// load metadata from the TSICache
+	// load metadata from the Cache
 	if err := e.Cache.ApplyEntryFn(func(key []byte, entry *entry) error {
 		fieldType, err := entry.values.InfluxQLType()
 		if err != nil {
@@ -1590,7 +1590,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
 		seriesKey, _ := SeriesAndFieldFromCompositeKey([]byte(k))
 
-		// TSICache does not walk keys in sorted order, so search the sorted
+		// Cache does not walk keys in sorted order, so search the sorted
 		// series we need to delete to see if any of the cache keys match.
 		i := bytesutil.SearchBytes(seriesKeys, seriesKey)
 		if i < len(seriesKeys) && bytes.Equal(seriesKey, seriesKeys[i]) {
@@ -1854,7 +1854,7 @@ func (e *Engine) WriteSnapshot() (err error) {
 	// filenames associated with the snapshot
 
 	started := time.Now()
-	log, logEnd := logger.NewOperation(context.TODO(), e.logger, "TSICache snapshot", "tsm1_cache_snapshot")
+	log, logEnd := logger.NewOperation(context.TODO(), e.logger, "Cache snapshot", "tsm1_cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
 		e.Cache.UpdateCompactTime(elapsed)

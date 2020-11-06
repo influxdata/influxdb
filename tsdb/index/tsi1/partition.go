@@ -116,7 +116,7 @@ func (p *Partition) bytes() int {
 	var b int
 	b += 24 // mu RWMutex is 24 bytes
 	b += int(unsafe.Sizeof(p.opened))
-	// Do not count SeriesFile because it belongs to the code that constructed this TSIPartition.
+	// Do not count SeriesFile because it belongs to the code that constructed this Partition.
 	b += int(unsafe.Sizeof(p.activeLogFile)) + p.activeLogFile.bytes()
 	b += int(unsafe.Sizeof(p.fileSet)) + p.fileSet.bytes()
 	b += int(unsafe.Sizeof(p.seq))

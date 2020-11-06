@@ -33,9 +33,9 @@ func (b *BindataAssets) Handler() http.Handler {
 	return b
 }
 
-// addCacheHeaders requests an hour of TSICache-Control and sets an ETag based on file size and modtime
+// addCacheHeaders requests an hour of Cache-Control and sets an ETag based on file size and modtime
 func (b *BindataAssets) addCacheHeaders(filename string, w http.ResponseWriter) error {
-	w.Header().Add("TSICache-Control", "public, max-age=3600")
+	w.Header().Add("Cache-Control", "public, max-age=3600")
 	fi, err := AssetInfo(filename)
 	if err != nil {
 		return err
