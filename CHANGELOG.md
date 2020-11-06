@@ -1,5 +1,9 @@
 ## unreleased
 
+### Bug Fixes
+
+1. [19924](https://github.com/influxdata/influxdb/pull/19924): Remove unused 'security-script' option from upgrade command
+
 ## v2.0.0-rc.4 [2020-11-05]
 
 ### Features

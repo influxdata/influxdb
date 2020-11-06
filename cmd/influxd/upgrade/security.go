@@ -25,7 +25,7 @@ func upgradeUsers(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, targetOpt
 	}
 
 	// get helper instance
-	helper := newSecurityScriptHelper(log)
+	helper := newSecurityUpgradeHelper(log)
 
 	// check if target buckets exists in 2.x
 	proceed := helper.checkDbBuckets(v1meta, dbBuckets)
@@ -104,20 +104,20 @@ func upgradeUsers(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, targetOpt
 	return nil
 }
 
-// securityScriptHelper is a helper used by `generate-security-script` command.
-type securityScriptHelper struct {
+// securityUpgradeHelper is a helper used by `upgrade` command.
+type securityUpgradeHelper struct {
 	log *zap.Logger
 }
 
-// newSecurityScriptHelper returns new security script helper instance for `generate-security-script` command.
-func newSecurityScriptHelper(log *zap.Logger) *securityScriptHelper {
-	helper := &securityScriptHelper{
+// newSecurityUpgradeHelper returns new security script helper instance for `upgrade` command.
+func newSecurityUpgradeHelper(log *zap.Logger) *securityUpgradeHelper {
+	helper := &securityUpgradeHelper{
 		log: log,
 	}
 
 	return helper
 }
-func (h *securityScriptHelper) checkDbBuckets(meta *meta.Client, databases map[string][]platform.ID) bool {
+func (h *securityUpgradeHelper) checkDbBuckets(meta *meta.Client, databases map[string][]platform.ID) bool {
 	ok := true
 	for _, row := range meta.Users() {
 		for database := range row.Privileges {
@@ -135,7 +135,7 @@ func (h *securityScriptHelper) checkDbBuckets(meta *meta.Client, databases map[s
 	return ok
 }
 
-func (h *securityScriptHelper) sortUserInfo(info []meta.UserInfo) []meta.UserInfo {
+func (h *securityUpgradeHelper) sortUserInfo(info []meta.UserInfo) []meta.UserInfo {
 	sort.Slice(info, func(i, j int) bool {
 		return info[i].Name < info[j].Name
 	})
