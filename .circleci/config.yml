@@ -34,7 +34,7 @@ jobs:
   test:
     docker:
       - image: quay.io/influxdb/rust:ci
-    resource_class: large
+    resource_class: xlarge # use of a smaller executor tends crashes on link
     steps:
       - checkout
       - rust_nightly
