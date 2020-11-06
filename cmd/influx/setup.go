@@ -240,7 +240,7 @@ func nonInteractive() (*influxdb.OnboardingRequest, error) {
 		return nil, err
 	}
 	if dur > 0 {
-		req.RetentionPeriod = dur / time.Hour
+		req.RetentionPeriod = dur
 	}
 	return req, nil
 }
@@ -283,7 +283,7 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 	}
 
 	if dur > 0 {
-		req.RetentionPeriod = dur / time.Hour
+		req.RetentionPeriod = dur
 	} else {
 		for {
 			rpStr := internal2.GetInput(ui, "Please type your retention period in hours.\r\nOr press ENTER for infinite.", strconv.Itoa(influxdb.InfiniteRetention))
