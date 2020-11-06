@@ -731,6 +731,7 @@ dependencies = [
  "arrow_deps",
  "criterion",
  "croaring",
+ "data_types",
  "packers",
  "rand",
 ]

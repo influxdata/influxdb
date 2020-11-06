@@ -3063,9 +3063,9 @@ mod test {
         );
         match row_ids {
             RowIDsOption::None(_) => panic!("expected some rows"),
-            RowIDsOption::Some(_dst) => {
-                assert_eq!(_dst.to_vec(), vec![0]);
-                dst_buffer = _dst;
+            RowIDsOption::Some(dst) => {
+                assert_eq!(dst.to_vec(), vec![0]);
+                dst_buffer = dst;
             }
             RowIDsOption::All(_) => panic!("expected some rows"),
         }

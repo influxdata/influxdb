@@ -9,6 +9,7 @@ edition = "2018"
 
 [dependencies]
 arrow_deps = { path = "../arrow_deps" }
+data_types = { path = "../data_types" }
 packers = { path = "../packers" }
 croaring = "0.4.5"
 

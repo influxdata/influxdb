@@ -5,7 +5,8 @@ use arrow_deps::arrow::datatypes::SchemaRef;
 use crate::column::{cmp::Operator, Column, RowIDs, RowIDsOption, Scalar, Value, Values};
 
 /// The name used for a timestamp column.
-pub const TIME_COLUMN_NAME: &str = "time";
+pub const TIME_COLUMN_NAME: &str = data_types::TIME_COLUMN_NAME;
+
 #[derive(Debug)]
 pub struct Schema {
     schema_ref: SchemaRef,
@@ -255,7 +256,9 @@ impl<'a> Segment<'a> {
             let col = self.all_columns.get(*col_name).unwrap();
 
             // Explanation of how this buffer pattern works here. The idea is
-            // that the
+            // that the buffer should be returned to the caller so it can be
+            // re-used on other columns. To do that we need to hand the buffer
+            // back even if we haven't populated it with any results.
             match col.row_ids_filter(op, value, dst) {
                 // No rows will be returned for the segment because this column
                 // doe not match any rows.
