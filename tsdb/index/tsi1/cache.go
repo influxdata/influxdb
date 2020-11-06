@@ -102,13 +102,13 @@ func (c *TagValueSeriesIDCache) measurementContainsSets(name []byte) bool {
 // the cache is at its limit, then the least recently used item is evicted.
 func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSet) {
 	c.Lock()
+	defer c.Unlock()
+
 	// Check under the write lock if the relevant item is now in the cache.
 	if c.exists(name, key, value) {
-		c.Unlock()
 		c.tracker.IncPutHit()
 		return
 	}
-	defer c.Unlock()
 
 	// Ensure our SeriesIDSet is go heap backed.
 	if ss != nil {
@@ -202,12 +202,6 @@ func (c *TagValueSeriesIDCache) checkEviction() {
 		delete(c.cache, string(name))
 	}
 	c.tracker.IncEvictions()
-}
-
-func (c *TagValueSeriesIDCache) PrometheusCollectors() []prometheus.Collector {
-	var collectors []prometheus.Collector
-	collectors = append(collectors, c.tracker.metrics.PrometheusCollectors()...)
-	return collectors
 }
 
 // seriesIDCacheElement is an item stored within a cache.
