@@ -218,8 +218,13 @@ type seriesIDCacheElement struct {
 	SeriesIDSet *tsdb.SeriesIDSet
 }
 
+// cacheTracker is the per-cache interface used to interact with
+// a global cache stats collector
 type cacheTracker struct {
+	// metrics is a reference to the global collector of TSI cache stats
 	metrics *tsdb.TSICacheMetrics
+	// labels is the specific combo of labels a cache must use to identify
+	// itself within the global stats
 	labels  prometheus.Labels
 }
 

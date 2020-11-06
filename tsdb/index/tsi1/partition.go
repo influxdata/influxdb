@@ -1275,8 +1275,13 @@ func (p *Partition) compactLogFile(ctx context.Context, logFile *LogFile) {
 	}
 }
 
+// partitionTracker is the per-partition interface used to interact with
+// a global partition stats collector
 type partitionTracker struct {
+	// metrics is a reference to the global collector of TSI partition stats
 	metrics *tsdb.TSIPartitionMetrics
+	// labels is the specific combo of labels a partition must use to identify
+	// itself within the global stats
 	labels  prometheus.Labels
 }
 
