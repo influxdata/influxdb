@@ -61,6 +61,7 @@ impl Column {
         0
     }
 
+    /// Returns the (min, max)  values stored in this column
     pub fn column_range(&self) -> Option<(Value<'_>, Value<'_>)> {
         match &self {
             Column::String(meta, _) => match &meta.range {
