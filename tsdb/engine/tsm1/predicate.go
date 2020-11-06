@@ -366,7 +366,7 @@ func (p *predicateState) Set(key, value []byte) bool {
 }
 
 //
-// Predicate Cache
+// Predicate TSICache
 //
 
 // predicateCache interacts with the predicateState to keep determined responses

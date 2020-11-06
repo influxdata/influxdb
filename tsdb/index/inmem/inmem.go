@@ -14,8 +14,6 @@ package inmem
 import (
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/storage/metrics"
-	"github.com/prometheus/client_golang/prometheus"
 	"regexp"
 	"sort"
 	"sync"
@@ -119,8 +117,8 @@ func (i *Index) Type() string      { return IndexName }
 func (i *Index) Open() (err error) { return nil }
 func (i *Index) Close() error      { return nil }
 
-func (i *Index) WithLogger(*zap.Logger) {}
-func (i *Index) WithMetrics(*metrics.StorageMetrics) {}
+func (i *Index) WithLogger(*zap.Logger)    {}
+func (i *Index) WithMetrics(*tsdb.Metrics) {}
 
 // Database returns the name of the database the index was initialized with.
 func (i *Index) Database() string {
@@ -1118,8 +1116,6 @@ type ShardIndex struct {
 
 	opt tsdb.EngineOptions
 }
-
-func (idx *ShardIndex) SetDefaultMetricLabels(labels prometheus.Labels) {}
 
 // DropSeries removes the provided series id from the local bitset that tracks
 // series in this shard only.

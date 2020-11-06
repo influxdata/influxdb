@@ -458,7 +458,7 @@ func (c *Cache) ClearSnapshot(success bool) {
 		c.snapshotAttempts = 0
 		c.updateMemSize(-int64(atomic.LoadUint64(&c.snapshotSize))) // decrement the number of bytes in cache
 
-		// Reset the snapshot to a fresh Cache.
+		// Reset the snapshot to a fresh TSICache.
 		c.snapshot = &Cache{
 			store: c.snapshot.store,
 		}

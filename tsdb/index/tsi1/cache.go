@@ -2,7 +2,6 @@ package tsi1
 
 import (
 	"container/list"
-	metrics2 "github.com/influxdata/influxdb/v2/storage/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 
@@ -36,7 +35,7 @@ func NewTagValueSeriesIDCache(c int, tracker *cacheTracker) *TagValueSeriesIDCac
 		cache:    map[string]map[string]map[string]*list.Element{},
 		evictor:  list.New(),
 		capacity: c,
-		tracker: tracker,
+		tracker:  tracker,
 	}
 }
 
@@ -143,7 +142,7 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 
 	// No map for the measurement - first tag key for the measurment.
 	c.cache[string(name)] = map[string]map[string]*list.Element{
-		string(key): map[string]*list.Element{string(value): listElement},
+		string(key): {string(value): listElement},
 	}
 
 EVICT:
@@ -220,11 +219,11 @@ type seriesIDCacheElement struct {
 }
 
 type cacheTracker struct {
-	metrics *metrics2.CacheMetrics
+	metrics *tsdb.TSICacheMetrics
 	labels  prometheus.Labels
 }
 
-func newCacheTracker(metrics *metrics2.CacheMetrics, defaultLabels prometheus.Labels) *cacheTracker {
+func newCacheTracker(metrics *tsdb.TSICacheMetrics, defaultLabels prometheus.Labels) *cacheTracker {
 	return &cacheTracker{metrics: metrics, labels: defaultLabels}
 }
 

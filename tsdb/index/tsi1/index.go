@@ -3,7 +3,6 @@ package tsi1
 import (
 	"errors"
 	"fmt"
-	sm "github.com/influxdata/influxdb/v2/storage/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"io/ioutil"
 	"os"
@@ -139,7 +138,7 @@ type Index struct {
 	logfileBufferSize  int         // The size of the buffer used by the LogFile.
 	disableFsync       bool        // Disables flushing buffers and fsyning files. Used when working with indexes offline.
 	logger             *zap.Logger // Index's logger.
-	metrics            *sm.StorageMetrics
+	metrics            *tsdb.Metrics
 
 	// The following must be set when initializing an Index.
 	sfile    *tsdb.SeriesFile // series lookup file
@@ -227,7 +226,7 @@ func (i *Index) WithLogger(l *zap.Logger) {
 	i.logger = l.With(zap.String("index", "tsi"))
 }
 
-func (i *Index) WithMetrics(metrics *sm.StorageMetrics) {
+func (i *Index) WithMetrics(metrics *tsdb.Metrics) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.metrics = metrics
@@ -268,7 +267,7 @@ func (i *Index) Open() error {
 	// Set the correct shared metrics on the cache
 	var cacheTracker *cacheTracker
 	if i.metrics != nil {
-		cacheTracker = newCacheTracker(i.metrics.Cache, *i.metrics.DefaultLabels)
+		cacheTracker = newCacheTracker(i.metrics.TSICache, *i.metrics.GlobalLabels)
 	}
 	i.tagValueCache = NewTagValueSeriesIDCache(i.tagValueCacheSize, cacheTracker)
 
@@ -282,11 +281,11 @@ func (i *Index) Open() error {
 		var partitionTracker *partitionTracker
 		partitionLabels := make(prometheus.Labels)
 		if i.metrics != nil {
-			for k, v := range *i.metrics.DefaultLabels {
+			for k, v := range *i.metrics.GlobalLabels {
 				partitionLabels[k] = v
 			}
 			partitionLabels["index_partition"] = fmt.Sprint(j)
-			partitionTracker = newPartitionTracker(i.metrics.Partition, partitionLabels)
+			partitionTracker = newPartitionTracker(i.metrics.TSIPartition, partitionLabels)
 		}
 
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)), partitionTracker)
@@ -306,7 +305,7 @@ func (i *Index) Open() error {
 	errC := make(chan error, partitionN)
 
 	// Run fn on each partition using a fixed number of goroutines.
-	var pidx uint32 // Index of maximum Partition being worked on.
+	var pidx uint32 // Index of maximum TSIPartition being worked on.
 	for k := 0; k < n; k++ {
 		go func(k int) {
 			for {
@@ -495,7 +494,7 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 	errC := make(chan error, i.PartitionN)
 
 	// Check each partition for the measurement concurrently.
-	var pidx uint32 // Index of maximum Partition being worked on.
+	var pidx uint32 // Index of maximum TSIPartition being worked on.
 	for k := 0; k < n; k++ {
 		go func() {
 			for {
@@ -555,7 +554,7 @@ func (i *Index) fetchByteValues(fn func(idx int) ([][]byte, error)) ([][]byte, e
 	names := make([][][]byte, i.PartitionN)
 	errC := make(chan error, i.PartitionN)
 
-	var pidx uint32 // Index of maximum Partition being worked on.
+	var pidx uint32 // Index of maximum TSIPartition being worked on.
 	for k := 0; k < n; k++ {
 		go func() {
 			for {
@@ -630,7 +629,7 @@ func (i *Index) DropMeasurement(name []byte) error {
 	// Store results.
 	errC := make(chan error, i.PartitionN)
 
-	var pidx uint32 // Index of maximum Partition being worked on.
+	var pidx uint32 // Index of maximum TSIPartition being worked on.
 	for k := 0; k < n; k++ {
 		go func() {
 			for {
@@ -687,7 +686,7 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 	// Store errors.
 	errC := make(chan error, i.PartitionN)
 
-	var pidx uint32 // Index of maximum Partition being worked on.
+	var pidx uint32 // Index of maximum TSIPartition being worked on.
 	for k := 0; k < n; k++ {
 		go func() {
 			for {
@@ -905,7 +904,7 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 	errC := make(chan error, i.PartitionN)
 
 	// Check each partition for the tag key concurrently.
-	var pidx uint32 // Index of maximum Partition being worked on.
+	var pidx uint32 // Index of maximum TSIPartition being worked on.
 	for k := 0; k < n; k++ {
 		go func() {
 			for {
@@ -950,7 +949,7 @@ func (i *Index) HasTagValue(name, key, value []byte) (bool, error) {
 	errC := make(chan error, i.PartitionN)
 
 	// Check each partition for the tag key concurrently.
-	var pidx uint32 // Index of maximum Partition being worked on.
+	var pidx uint32 // Index of maximum TSIPartition being worked on.
 	for k := 0; k < n; k++ {
 		go func() {
 			for {
@@ -1049,7 +1048,7 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 		return itr, nil
 	}
 
-	// Check if the iterator contains only series id sets. Cache them...
+	// Check if the iterator contains only series id sets. TSICache them...
 	if ssitr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
 		ss := ssitr.SeriesIDSet()
 		i.tagValueCache.Put(name, key, value, ss)
@@ -1065,7 +1064,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	keys := make([]map[string]struct{}, i.PartitionN)
 	errC := make(chan error, i.PartitionN)
 
-	var pidx uint32 // Index of maximum Partition being worked on.
+	var pidx uint32 // Index of maximum TSIPartition being worked on.
 	for k := 0; k < n; k++ {
 		go func() {
 			for {

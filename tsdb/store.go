@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/storage/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"io/ioutil"
 	"os"
@@ -99,7 +99,7 @@ type Store struct {
 
 	baseLogger *zap.Logger
 	Logger     *zap.Logger
-	metrics    *metrics.StorageMetrics
+	metrics    *Metrics
 
 	closing chan struct{}
 	wg      sync.WaitGroup
@@ -120,6 +120,7 @@ func NewStore(path string) *Store {
 		EngineOptions:       NewEngineOptions(),
 		Logger:              logger,
 		baseLogger:          logger,
+		metrics:             NewMetrics(&prometheus.Labels{}),
 	}
 }
 
@@ -129,13 +130,6 @@ func (s *Store) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "store"))
 	for _, sh := range s.shards {
 		sh.WithLogger(s.baseLogger)
-	}
-}
-
-func (s *Store) WithMetrics(metrics *metrics.StorageMetrics) {
-	s.metrics = metrics
-	for _, sh := range s.shards {
-		sh.WithMetrics(s.metrics)
 	}
 }
 
@@ -177,6 +171,12 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 		statistics = append(statistics, shard.Statistics(tags)...)
 	}
 	return statistics
+}
+
+// PrometheusCollectors returns all the prometheus collectors associated with
+// the engine and its components.
+func (s *Store) PrometheusCollectors() []prometheus.Collector {
+	return s.metrics.PrometheusCollectors()
 }
 
 func (s *Store) IndexBytes() int {

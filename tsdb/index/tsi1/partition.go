@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
-	metrics2 "github.com/influxdata/influxdb/v2/storage/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"io/ioutil"
 	"os"
@@ -117,7 +116,7 @@ func (p *Partition) bytes() int {
 	var b int
 	b += 24 // mu RWMutex is 24 bytes
 	b += int(unsafe.Sizeof(p.opened))
-	// Do not count SeriesFile because it belongs to the code that constructed this Partition.
+	// Do not count SeriesFile because it belongs to the code that constructed this TSIPartition.
 	b += int(unsafe.Sizeof(p.activeLogFile)) + p.activeLogFile.bytes()
 	b += int(unsafe.Sizeof(p.fileSet)) + p.fileSet.bytes()
 	b += int(unsafe.Sizeof(p.seq))
@@ -1277,11 +1276,11 @@ func (p *Partition) compactLogFile(ctx context.Context, logFile *LogFile) {
 }
 
 type partitionTracker struct {
-	metrics *metrics2.PartitionMetrics
+	metrics *tsdb.TSIPartitionMetrics
 	labels  prometheus.Labels
 }
 
-func newPartitionTracker(metrics *metrics2.PartitionMetrics, labels prometheus.Labels) *partitionTracker {
+func newPartitionTracker(metrics *tsdb.TSIPartitionMetrics, labels prometheus.Labels) *partitionTracker {
 	return &partitionTracker{metrics: metrics, labels: labels}
 }
 
