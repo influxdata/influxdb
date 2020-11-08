@@ -226,6 +226,11 @@ func (e *Error) MarshalJSON() (result []byte, err error) {
 	return json.Marshal(ee)
 }
 
+// Unwrap returns the wrapped error since golang 1.13
+func (e *Error) Unwrap() error {
+	return e.Err
+}
+
 // UnmarshalJSON recursively unmarshals the error stack.
 func (e *Error) UnmarshalJSON(b []byte) (err error) {
 	ee := new(errEncode)

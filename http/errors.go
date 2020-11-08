@@ -27,38 +27,38 @@ type AuthzError interface {
 }
 
 // RetriableError is an error that contains a duration to wait before the next retry.
-type RetriableError interface {
-	error
+type RetriableError struct {
+	// Wrapped is a wrapped error
+	wrapped error
 	// RetryAfter returns a non-negative duration for the next retry
-	RetryAfter() time.Duration
-}
-
-// retriableErrorImpl is an implementation of RetriableError
-type retriableErrorImpl struct {
-	error      error
 	retryAfter time.Duration
 }
 
 // Error prints out the nested error
-func (e *retriableErrorImpl) Error() string {
-	if e.error == nil {
+func (e *RetriableError) Error() string {
+	if e.wrapped == nil {
 		return ""
 	}
-	return e.error.Error()
+	return e.wrapped.Error()
 }
 
 // RetryAfter returns a non-negative duration for the next retry
-func (e *retriableErrorImpl) RetryAfter() time.Duration {
+func (e *RetriableError) RetryAfter() time.Duration {
 	return e.retryAfter
 }
 
+// Unwrap returns a wrapped error
+func (e *RetriableError) Unwrap() error {
+	return e.wrapped
+}
+
 // NewRetriableError wraps existing error to create RetriableError
-func NewRetriableError(err error, retryAfter time.Duration) RetriableError {
+func NewRetriableError(err error, retryAfter time.Duration) *RetriableError {
 	if retryAfter < 0 {
 		retryAfter = 0
 	}
-	return &retriableErrorImpl{
-		error:      err,
+	return &RetriableError{
+		wrapped:    err,
 		retryAfter: retryAfter,
 	}
 }
@@ -138,9 +138,11 @@ func CheckError(resp *http.Response) (err error) {
 	if retryAfter := resp.Header.Get("Retry-After"); len(retryAfter) > 0 {
 		if seconds, err := strconv.Atoi(retryAfter); err == nil {
 			perr.Err = NewRetriableError(perr.Err, time.Duration(seconds)*time.Second)
+			return perr
 		}
 		if exactTime, err := http.ParseTime(retryAfter); err == nil {
 			perr.Err = NewRetriableError(perr.Err, time.Until(exactTime))
+			return perr
 		}
 	}
 
@@ -168,14 +170,12 @@ func InactiveUserError(ctx context.Context, h platform.HTTPErrorHandler, w http.
 	}, w)
 }
 
-// RetryAfter returns duration for an HTTP request to be retried. A zero value value indicates
+// RetryAfter returns duration for an HTTP request to be retried. A zero value indicates
 // that retry is not possible, a negative value indicates that this information is not known.
-// Use with an error that is returned by CheckedError function.
+// Use with an error that is returned by CheckError function.
 func RetryAfter(err error) time.Duration {
-	if pErr, ok := err.(*platform.Error); ok {
-		return RetryAfter(pErr.Err)
-	}
-	if retryErr, ok := err.(RetriableError); ok {
+	var retryErr *RetriableError
+	if stderrors.As(err, &retryErr) {
 		return retryErr.RetryAfter()
 	}
 	return -1

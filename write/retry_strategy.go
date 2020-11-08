@@ -34,12 +34,12 @@ func DefaultRetryStrategy(err error, retryAttempt int) time.Duration {
 		return 0
 	}
 	if retryAfter > 0 {
-		return retryAfter + time.Duration(rand.Int63n(200))
+		return retryAfter + time.Duration(rand.Int63n(200_000_000))
 	}
 	// retry < 0, an explicit delay is not available
 	if pErr, ok := err.(*platform.Error); ok {
 		if pErr.Code == platform.EUnavailable || pErr.Code == platform.EInternal || pErr.Code == platform.ETooManyRequests {
-			return defaultDelays[retryAttempt] + time.Duration(rand.Int63n(200))
+			return defaultDelays[retryAttempt] + time.Duration(rand.Int63n(200_000_000))
 		}
 	}
 	return 0
@@ -47,15 +47,16 @@ func DefaultRetryStrategy(err error, retryAttempt int) time.Duration {
 
 // Retry calls the supplied fn until it succeeds
 // and can be retried (retryStrategy returns positive value).
-func retry(ctx context.Context, retryStrategy RetryStrategy, fn func() error) (err error) {
+func retry(ctx context.Context, retryStrategy RetryStrategy, fn func() error) error {
 	retryAttempt := 0
+	var err error
 	for {
 		err = fn()
 		// respect the Retry-After value if found in the error
 		retryAfter := retryStrategy(err, retryAttempt)
 		if retryAfter == 0 {
 			// it cannot be retried anymore
-			break
+			return err
 		}
 		retryAttempt++
 		fmt.Printf("WARN: Write to InfluxDB failed (attempts: %d), retrying after %v : %v\n",
@@ -67,5 +68,4 @@ func retry(ctx context.Context, retryStrategy RetryStrategy, fn func() error) (e
 			return ctx.Err()
 		}
 	}
-	return err
 }

@@ -142,8 +142,9 @@ func TestCheckError(t *testing.T) {
 			cmpopt := cmp.Transformer("error", func(e error) string {
 				if e, ok := e.(*influxdb.Error); ok {
 					out, _ := json.Marshal(e)
-					if e2, ok := e.Err.(http.RetriableError); ok {
-						return fmt.Sprintf("%s; Retry-After: %v", string(out), e2.RetryAfter())
+					var retryError *http.RetriableError
+					if stderrors.As(e, &retryError) {
+						return fmt.Sprintf("%s; Retry-After: %v", string(out), retryError.RetryAfter())
 					}
 					return string(out)
 				}
