@@ -67,7 +67,7 @@ func v1AuthCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVar(&v1AuthCreateFlags.username, "username", "", "The username to identify this token")
 	_ = cmd.MarkFlagRequired("username")
 	cmd.Flags().StringVarP(&v1AuthCreateFlags.description, "description", "d", "", "Token description")
-	cmd.Flags().BoolVar(&v1AuthCreateFlags.noPassword, "no-password", false, "Don't set password. You must use v1 auth set-password command before using token.")
+	cmd.Flags().BoolVar(&v1AuthCreateFlags.noPassword, "no-password", false, "Don't prompt for a password. You must use v1 auth set-password command before using the token.")
 	registerPrintOptions(cmd, &v1AuthCreateFlags.hideHeaders, &v1AuthCreateFlags.json)
 
 	cmd.Flags().StringArrayVarP(&v1AuthCreateFlags.writeBucketPermissions, "write-bucket", "", []string{}, "The bucket id")
