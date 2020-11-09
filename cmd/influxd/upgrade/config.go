@@ -17,21 +17,6 @@ import (
 	"golang.org/x/text/transform"
 )
 
-// rewriteInf transforms config values of 0 into MaxInt.
-// It's meant to be used for fields that used to accept 0
-// as a representation of infinity, but now disallow that
-// magic number in 2.x.
-func rewriteInf(v interface{}) (ret interface{}) {
-	ret = v
-	switch i := v.(type) {
-	case int64:
-		if i == 0 {
-			ret = launcher.MaxInt
-		}
-	}
-	return ret
-}
-
 // configMapRules is a map of transformation rules
 var configMapRules = map[string]string{
 	"reporting-disabled":                                   "reporting-disabled",
@@ -63,11 +48,18 @@ var configMapRules = map[string]string{
 
 // configValueTransforms is a map from 2.x config keys to transformation functions
 // that should run on the 1.x values before they're written into the 2.x config.
-//
-// NOTE: This might be overkill for only 1 key, I wrote this before we had fully
-// investigated which config keys needed to be transformed in this way.
 var configValueTransforms = map[string]func(interface{}) interface{}{
-	"query-concurrency": rewriteInf,
+	// Transform config values of 0 into MaxInt.
+	// query-concurrency used to accept 0 as a representation of infinity,
+	// but the 2.x controller now forces a positive value to be chosen
+	// for the parameter. MaxInt is the closest replacement we can provide.
+	"query-concurrency": func(v interface{}) interface{} {
+		ret := v
+		if i, ok := v.(int64); ok && i == 0 {
+			ret = launcher.MaxInt
+		}
+		return ret
+	},
 }
 
 // upgradeConfig upgrades existing 1.x (ie. typically influxdb.conf) configuration file to 2.x influxdb.toml file.
