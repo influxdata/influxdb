@@ -114,7 +114,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	buckets, _, err := v2.ts.FindBuckets(ctx, influxdb.BucketFilter{})
 	require.Nil(t, err)
 
-	bucketNames := []string{"my-bucket", "_tasks", "_monitoring", "mydb-autogen", "mydb-1week", "test-autogen", "empty-autogen"}
+	bucketNames := []string{"my-bucket", "_tasks", "_monitoring", "mydb/autogen", "mydb/1week", "test/autogen", "empty/autogen"}
 	myDbAutogenBucketId := ""
 	myDb1weekBucketId := ""
 	testBucketId := ""

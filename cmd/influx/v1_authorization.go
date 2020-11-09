@@ -31,48 +31,44 @@ func cmdV1Auth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Run = seeHelp
 
 	cmd.AddCommand(
-		v1AuthActiveCmd(f),
-		v1AuthCreateCmd(f),
+		v1AuthCreateCmd(f, opt),
 		v1AuthDeleteCmd(f),
 		v1AuthFindCmd(f),
-		v1AuthInactiveCmd(f),
+		v1AuthSetActiveCmd(f),
+		v1AuthSetInactiveCmd(f),
 		v1AuthSetPasswordCmd(f, opt),
 	)
 
 	return cmd
 }
 
-var v1AuthCRUDFlags struct {
-	id          string
-	json        bool
-	hideHeaders bool
-}
-
 var v1AuthCreateFlags struct {
-	token       string
-	user        string
+	username    string
 	description string
+	noPassword  bool
+	hideHeaders bool
+	json        bool
 	org         organization
 
 	writeBucketPermissions []string
 	readBucketPermissions  []string
 }
 
-func v1AuthCreateCmd(f *globalFlags) *cobra.Command {
+func v1AuthCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create authorization",
-		RunE:  checkSetupRunEMiddleware(&flags)(v1AuthorizationCreateF),
+		RunE:  checkSetupRunEMiddleware(&flags)(makeV1AuthorizationCreateE(opt)),
 	}
 
 	f.registerFlags(cmd)
 	v1AuthCreateFlags.org.register(cmd, false)
 
-	cmd.Flags().StringVar(&v1AuthCreateFlags.token, "auth-token", "", "Token, formatted as username:password")
-	cmd.MarkFlagRequired("auth-token")
+	cmd.Flags().StringVar(&v1AuthCreateFlags.username, "username", "", "The username to identify this token")
+	_ = cmd.MarkFlagRequired("username")
 	cmd.Flags().StringVarP(&v1AuthCreateFlags.description, "description", "d", "", "Token description")
-	cmd.Flags().StringVarP(&v1AuthCreateFlags.user, "user", "u", "", "The user name")
-	registerPrintOptions(cmd, &v1AuthCRUDFlags.hideHeaders, &v1AuthCRUDFlags.json)
+	cmd.Flags().BoolVar(&v1AuthCreateFlags.noPassword, "no-password", false, "Don't set password. You must use v1 auth set-password command before using token.")
+	registerPrintOptions(cmd, &v1AuthCreateFlags.hideHeaders, &v1AuthCreateFlags.json)
 
 	cmd.Flags().StringArrayVarP(&v1AuthCreateFlags.writeBucketPermissions, "write-bucket", "", []string{}, "The bucket id")
 	cmd.Flags().StringArrayVarP(&v1AuthCreateFlags.readBucketPermissions, "read-bucket", "", []string{}, "The bucket id")
@@ -80,106 +76,130 @@ func v1AuthCreateCmd(f *globalFlags) *cobra.Command {
 	return cmd
 }
 
-func v1AuthorizationCreateF(cmd *cobra.Command, args []string) error {
-	if err := v1AuthCreateFlags.org.validOrgFlags(&flags); err != nil {
-		return err
-	}
-
-	userSvc, err := newUserService()
-	if err != nil {
-		return err
-	}
-
-	orgSvc, err := newOrganizationService()
-	if err != nil {
-		return err
-	}
-
-	orgID, err := v1AuthCreateFlags.org.getID(orgSvc)
-	if err != nil {
-		return err
-	}
-
-	bucketPerms := []struct {
-		action influxdb.Action
-		perms  []string
-	}{
-		{action: influxdb.ReadAction, perms: v1AuthCreateFlags.readBucketPermissions},
-		{action: influxdb.WriteAction, perms: v1AuthCreateFlags.writeBucketPermissions},
-	}
-
-	var permissions []influxdb.Permission
-	for _, bp := range bucketPerms {
-		for _, p := range bp.perms {
-			var id influxdb.ID
-			if err := id.DecodeFromString(p); err != nil {
-				return err
-			}
-
-			p, err := influxdb.NewPermissionAtID(id, bp.action, influxdb.BucketsResourceType, orgID)
-			if err != nil {
-				return err
-			}
-
-			permissions = append(permissions, *p)
+func makeV1AuthorizationCreateE(opt genericCLIOpts) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		if err := v1AuthCreateFlags.org.validOrgFlags(&flags); err != nil {
+			return err
 		}
-	}
 
-	auth := &influxdb.Authorization{
-		Token:       v1AuthCreateFlags.token,
-		Description: v1AuthCreateFlags.description,
-		Permissions: permissions,
-		OrgID:       orgID,
-	}
-
-	if userName := v1AuthCreateFlags.user; userName != "" {
-		user, err := userSvc.FindUser(context.Background(), influxdb.UserFilter{
-			Name: &userName,
-		})
+		userSvc, err := newUserService()
 		if err != nil {
 			return err
 		}
-		auth.UserID = user.ID
-	}
 
-	s, err := newV1AuthorizationService()
-	if err != nil {
-		return err
-	}
+		orgSvc, err := newOrganizationService()
+		if err != nil {
+			return err
+		}
 
-	if err := s.CreateAuthorization(context.Background(), auth); err != nil {
-		return err
-	}
+		orgID, err := v1AuthCreateFlags.org.getID(orgSvc)
+		if err != nil {
+			return err
+		}
 
-	user, err := userSvc.FindUserByID(context.Background(), auth.UserID)
-	if err != nil {
-		return err
-	}
+		s, err := newV1AuthorizationService()
+		if err != nil {
+			return err
+		}
 
-	ps := make([]string, 0, len(auth.Permissions))
-	for _, p := range auth.Permissions {
-		ps = append(ps, p.String())
-	}
+		// verify an existing token with the same username doesn't already exist
+		filter := influxdb.AuthorizationFilter{
+			Token: &v1AuthCreateFlags.username,
+		}
+		if auth, err := v1FindOneAuthorization(s, filter); err != nil {
+			if !errors.Is(err, authorization.ErrAuthNotFound) {
+				return err
+			}
+		} else if auth != nil {
+			return fmt.Errorf("authorization with username %q exists", v1AuthCreateFlags.username)
+		}
 
-	return v1WriteTokens(cmd.OutOrStdout(), v1TokenPrintOpt{
-		jsonOut:     v1AuthCRUDFlags.json,
-		hideHeaders: v1AuthCRUDFlags.hideHeaders,
-		token: v1Token{
-			ID:          auth.ID,
-			Description: auth.Description,
-			Token:       auth.Token,
-			Status:      string(auth.Status),
-			UserName:    user.Name,
-			UserID:      user.ID,
-			Permissions: ps,
-		},
-	})
+		var password string
+		if !v1AuthCreateFlags.noPassword {
+			ui := &input.UI{
+				Writer: opt.w,
+				Reader: opt.in,
+			}
+
+			password = cinternal.GetPassword(ui, false)
+		}
+
+		bucketPerms := []struct {
+			action influxdb.Action
+			perms  []string
+		}{
+			{action: influxdb.ReadAction, perms: v1AuthCreateFlags.readBucketPermissions},
+			{action: influxdb.WriteAction, perms: v1AuthCreateFlags.writeBucketPermissions},
+		}
+
+		var permissions []influxdb.Permission
+		for _, bp := range bucketPerms {
+			for _, p := range bp.perms {
+				var id influxdb.ID
+				if err := id.DecodeFromString(p); err != nil {
+					return err
+				}
+
+				p, err := influxdb.NewPermissionAtID(id, bp.action, influxdb.BucketsResourceType, orgID)
+				if err != nil {
+					return err
+				}
+
+				permissions = append(permissions, *p)
+			}
+		}
+
+		auth := &influxdb.Authorization{
+			Token:       v1AuthCreateFlags.username,
+			Description: v1AuthCreateFlags.description,
+			Permissions: permissions,
+			OrgID:       orgID,
+		}
+
+		if err := s.CreateAuthorization(context.Background(), auth); err != nil {
+			return err
+		}
+
+		if !v1AuthCreateFlags.noPassword {
+			if err := s.SetPassword(context.Background(), auth.ID, password); err != nil {
+				_ = s.DeleteAuthorization(context.Background(), auth.ID)
+				return fmt.Errorf("error setting password: %w", err)
+			}
+		}
+
+		user, err := userSvc.FindUserByID(context.Background(), auth.UserID)
+		if err != nil {
+			return err
+		}
+
+		ps := make([]string, 0, len(auth.Permissions))
+		for _, p := range auth.Permissions {
+			ps = append(ps, p.String())
+		}
+
+		return v1WriteTokens(cmd.OutOrStdout(), v1TokenPrintOpt{
+			jsonOut:     v1AuthCreateFlags.json,
+			hideHeaders: v1AuthCreateFlags.hideHeaders,
+			token: v1Token{
+				ID:          auth.ID,
+				Description: auth.Description,
+				Token:       auth.Token,
+				Status:      string(auth.Status),
+				UserName:    user.Name,
+				UserID:      user.ID,
+				Permissions: ps,
+			},
+		})
+	}
 }
 
 var v1AuthorizationFindFlags struct {
-	org    organization
-	user   string
-	userID string
+	org         organization
+	lookup      v1AuthLookupFlags
+	hideHeaders bool
+	json        bool
+	user        string
+	userID      string
 }
 
 func v1AuthFindCmd(f *globalFlags) *cobra.Command {
@@ -192,16 +212,15 @@ func v1AuthFindCmd(f *globalFlags) *cobra.Command {
 
 	f.registerFlags(cmd)
 	v1AuthorizationFindFlags.org.register(cmd, false)
-	registerPrintOptions(cmd, &v1AuthCRUDFlags.hideHeaders, &v1AuthCRUDFlags.json)
+	registerPrintOptions(cmd, &v1AuthorizationFindFlags.hideHeaders, &v1AuthorizationFindFlags.json)
 	cmd.Flags().StringVarP(&v1AuthorizationFindFlags.user, "user", "u", "", "The user")
 	cmd.Flags().StringVarP(&v1AuthorizationFindFlags.userID, "user-id", "", "", "The user ID")
-
-	cmd.Flags().StringVarP(&v1AuthCRUDFlags.id, "id", "i", "", "The authorization ID")
+	v1AuthorizationFindFlags.lookup.register(cmd, false)
 
 	return cmd
 }
 
-func v1AuthorizationFindF(cmd *cobra.Command, args []string) error {
+func v1AuthorizationFindF(cmd *cobra.Command, _ []string) error {
 	s, err := newV1AuthorizationService()
 	if err != nil {
 		return err
@@ -213,13 +232,14 @@ func v1AuthorizationFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	var filter influxdb.AuthorizationFilter
-	if v1AuthCRUDFlags.id != "" {
-		fID, err := influxdb.IDFromString(v1AuthCRUDFlags.id)
-		if err != nil {
+	if v1AuthorizationFindFlags.lookup.isSet() {
+		if err := v1AuthorizationFindFlags.lookup.validate(); err != nil {
 			return err
 		}
-		filter.ID = fID
+
+		filter = v1AuthorizationFindFlags.lookup.makeFilter()
 	}
+
 	if v1AuthorizationFindFlags.user != "" {
 		filter.User = &v1AuthorizationFindFlags.user
 	}
@@ -270,10 +290,16 @@ func v1AuthorizationFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	return v1WriteTokens(cmd.OutOrStdout(), v1TokenPrintOpt{
-		jsonOut:     v1AuthCRUDFlags.json,
-		hideHeaders: v1AuthCRUDFlags.hideHeaders,
+		jsonOut:     v1AuthorizationFindFlags.json,
+		hideHeaders: v1AuthorizationFindFlags.hideHeaders,
 		tokens:      tokens,
 	})
+}
+
+var v1AuthDeleteFlags struct {
+	lookup      v1AuthLookupFlags
+	hideHeaders bool
+	json        bool
 }
 
 func v1AuthDeleteCmd(f *globalFlags) *cobra.Command {
@@ -284,14 +310,18 @@ func v1AuthDeleteCmd(f *globalFlags) *cobra.Command {
 	}
 
 	f.registerFlags(cmd)
-	registerPrintOptions(cmd, &v1AuthCRUDFlags.hideHeaders, &v1AuthCRUDFlags.json)
-	cmd.Flags().StringVarP(&v1AuthCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
-	cmd.MarkFlagRequired("id")
+	registerPrintOptions(cmd, &v1AuthDeleteFlags.hideHeaders, &v1AuthDeleteFlags.json)
+	v1AuthDeleteFlags.lookup.required = true
+	v1AuthDeleteFlags.lookup.register(cmd, false)
 
 	return cmd
 }
 
-func v1AuthorizationDeleteF(cmd *cobra.Command, args []string) error {
+func v1AuthorizationDeleteF(cmd *cobra.Command, _ []string) error {
+	if err := v1AuthDeleteFlags.lookup.validate(); err != nil {
+		return err
+	}
+
 	s, err := newV1AuthorizationService()
 	if err != nil {
 		return err
@@ -302,18 +332,14 @@ func v1AuthorizationDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	id, err := influxdb.IDFromString(v1AuthCRUDFlags.id)
-	if err != nil {
-		return err
-	}
-
 	ctx := context.Background()
-	a, err := s.FindAuthorizationByID(ctx, *id)
+
+	a, err := v1FindOneAuthorization(s, v1AuthDeleteFlags.lookup.makeFilter())
 	if err != nil {
 		return err
 	}
 
-	if err := s.DeleteAuthorization(ctx, *id); err != nil {
+	if err := s.DeleteAuthorization(ctx, a.ID); err != nil {
 		return err
 	}
 
@@ -328,9 +354,9 @@ func v1AuthorizationDeleteF(cmd *cobra.Command, args []string) error {
 	}
 
 	return v1WriteTokens(cmd.OutOrStdout(), v1TokenPrintOpt{
-		jsonOut:     v1AuthCRUDFlags.json,
+		jsonOut:     v1AuthDeleteFlags.json,
 		deleted:     true,
-		hideHeaders: v1AuthCRUDFlags.hideHeaders,
+		hideHeaders: v1AuthDeleteFlags.hideHeaders,
 		token: v1Token{
 			ID:          a.ID,
 			Description: a.Description,
@@ -343,22 +369,32 @@ func v1AuthorizationDeleteF(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func v1AuthActiveCmd(f *globalFlags) *cobra.Command {
+var v1AuthActivateFlags struct {
+	lookup      v1AuthLookupFlags
+	hideHeaders bool
+	json        bool
+}
+
+func v1AuthSetActiveCmd(f *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "active",
-		Short: "Active authorization",
-		RunE:  checkSetupRunEMiddleware(&flags)(v1AuthorizationActiveF),
+		Use:   "set-active",
+		Short: "Change the status of an authorization to active",
+		RunE:  checkSetupRunEMiddleware(&flags)(v1AuthorizationSetActiveF),
 	}
 	f.registerFlags(cmd)
 
-	registerPrintOptions(cmd, &v1AuthCRUDFlags.hideHeaders, &v1AuthCRUDFlags.json)
-	cmd.Flags().StringVarP(&v1AuthCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
-	cmd.MarkFlagRequired("id")
+	registerPrintOptions(cmd, &v1AuthActivateFlags.hideHeaders, &v1AuthActivateFlags.json)
+	v1AuthActivateFlags.lookup.required = true
+	v1AuthActivateFlags.lookup.register(cmd, false)
 
 	return cmd
 }
 
-func v1AuthorizationActiveF(cmd *cobra.Command, args []string) error {
+func v1AuthorizationSetActiveF(cmd *cobra.Command, _ []string) error {
+	if err := v1AuthActivateFlags.lookup.validate(); err != nil {
+		return err
+	}
+
 	s, err := newV1AuthorizationService()
 	if err != nil {
 		return err
@@ -369,17 +405,14 @@ func v1AuthorizationActiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var id influxdb.ID
-	if err := id.DecodeFromString(v1AuthCRUDFlags.id); err != nil {
-		return err
-	}
-
 	ctx := context.Background()
-	if _, err := s.FindAuthorizationByID(ctx, id); err != nil {
+
+	a, err := v1FindOneAuthorization(s, v1AuthActivateFlags.lookup.makeFilter())
+	if err != nil {
 		return err
 	}
 
-	a, err := s.UpdateAuthorization(ctx, id, &influxdb.AuthorizationUpdate{
+	a, err = s.UpdateAuthorization(ctx, a.ID, &influxdb.AuthorizationUpdate{
 		Status: influxdb.Active.Ptr(),
 	})
 	if err != nil {
@@ -397,8 +430,8 @@ func v1AuthorizationActiveF(cmd *cobra.Command, args []string) error {
 	}
 
 	return v1WriteTokens(cmd.OutOrStdout(), v1TokenPrintOpt{
-		jsonOut:     v1AuthCRUDFlags.json,
-		hideHeaders: v1AuthCRUDFlags.hideHeaders,
+		jsonOut:     v1AuthActivateFlags.json,
+		hideHeaders: v1AuthActivateFlags.hideHeaders,
 		token: v1Token{
 			ID:          a.ID,
 			Description: a.Description,
@@ -411,22 +444,32 @@ func v1AuthorizationActiveF(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func v1AuthInactiveCmd(f *globalFlags) *cobra.Command {
+var v1AuthDeactivateFlags struct {
+	lookup      v1AuthLookupFlags
+	hideHeaders bool
+	json        bool
+}
+
+func v1AuthSetInactiveCmd(f *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "inactive",
-		Short: "Inactive authorization",
-		RunE:  checkSetupRunEMiddleware(&flags)(v1AuthorizationInactiveF),
+		Use:   "set-inactive",
+		Short: "Change the status of an authorization to inactive",
+		RunE:  checkSetupRunEMiddleware(&flags)(v1AuthorizationSetInactiveF),
 	}
 
 	f.registerFlags(cmd)
-	registerPrintOptions(cmd, &v1AuthCRUDFlags.hideHeaders, &v1AuthCRUDFlags.json)
-	cmd.Flags().StringVarP(&v1AuthCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
-	cmd.MarkFlagRequired("id")
+	registerPrintOptions(cmd, &v1AuthDeactivateFlags.hideHeaders, &v1AuthDeactivateFlags.json)
+	v1AuthDeactivateFlags.lookup.required = true
+	v1AuthDeactivateFlags.lookup.register(cmd, false)
 
 	return cmd
 }
 
-func v1AuthorizationInactiveF(cmd *cobra.Command, args []string) error {
+func v1AuthorizationSetInactiveF(cmd *cobra.Command, _ []string) error {
+	if err := v1AuthDeactivateFlags.lookup.validate(); err != nil {
+		return err
+	}
+
 	s, err := newV1AuthorizationService()
 	if err != nil {
 		return err
@@ -437,17 +480,14 @@ func v1AuthorizationInactiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var id influxdb.ID
-	if err := id.DecodeFromString(v1AuthCRUDFlags.id); err != nil {
-		return err
-	}
-
 	ctx := context.Background()
-	if _, err = s.FindAuthorizationByID(ctx, id); err != nil {
+
+	a, err := v1FindOneAuthorization(s, v1AuthDeactivateFlags.lookup.makeFilter())
+	if err != nil {
 		return err
 	}
 
-	a, err := s.UpdateAuthorization(ctx, id, &influxdb.AuthorizationUpdate{
+	a, err = s.UpdateAuthorization(ctx, a.ID, &influxdb.AuthorizationUpdate{
 		Status: influxdb.Inactive.Ptr(),
 	})
 	if err != nil {
@@ -465,8 +505,8 @@ func v1AuthorizationInactiveF(cmd *cobra.Command, args []string) error {
 	}
 
 	return v1WriteTokens(cmd.OutOrStdout(), v1TokenPrintOpt{
-		jsonOut:     v1AuthCRUDFlags.json,
-		hideHeaders: v1AuthCRUDFlags.hideHeaders,
+		jsonOut:     v1AuthDeactivateFlags.json,
+		hideHeaders: v1AuthDeactivateFlags.hideHeaders,
 		token: v1Token{
 			ID:          a.ID,
 			Description: a.Description,
@@ -479,9 +519,78 @@ func v1AuthorizationInactiveF(cmd *cobra.Command, args []string) error {
 	})
 }
 
+var (
+	errMultipleMatchingAuthorizations = errors.New("multiple authorizations found")
+)
+
+func v1FindOneAuthorization(s *authorization.Client, filter influxdb.AuthorizationFilter) (*influxdb.Authorization, error) {
+	authorizations, _, err := s.FindAuthorizations(context.Background(), filter)
+	if err != nil {
+		if err.Error() == authorization.ErrAuthNotFound.Msg {
+			return nil, authorization.ErrAuthNotFound
+		}
+
+		return nil, err
+	}
+
+	if len(authorizations) > 1 {
+		return nil, errMultipleMatchingAuthorizations
+	}
+
+	return authorizations[0], nil
+}
+
+type v1AuthLookupFlags struct {
+	id       influxdb.ID
+	username string
+	required bool // required when set to true determines whether validate expects either id or username to be set
+}
+
+func (f *v1AuthLookupFlags) register(cmd *cobra.Command, persistent bool) {
+	opts := flagOpts{
+		{
+			DestP:      &f.id,
+			Flag:       "id",
+			Desc:       "The ID of the authorization",
+			Persistent: persistent,
+		},
+		{
+			DestP:      &f.username,
+			Flag:       "username",
+			Desc:       "The username of the authorization",
+			Persistent: persistent,
+		},
+	}
+	opts.mustRegister(cmd)
+}
+
+func (f *v1AuthLookupFlags) validate() error {
+	switch {
+	case f.id.Valid() && f.username != "":
+		return errors.New("specify id or username, not both")
+	case f.required && (!f.id.Valid() && f.username == ""):
+		return errors.New("id or username required")
+	default:
+		return nil
+	}
+}
+
+func (f *v1AuthLookupFlags) isSet() bool {
+	return f.id.Valid() || f.username != ""
+}
+
+func (f *v1AuthLookupFlags) makeFilter() influxdb.AuthorizationFilter {
+	if f.id.Valid() {
+		return influxdb.AuthorizationFilter{ID: &f.id}
+	}
+	if f.username != "" {
+		return influxdb.AuthorizationFilter{Token: &f.username}
+	}
+	return influxdb.AuthorizationFilter{}
+}
+
 var v1AuthSetPasswordFlags struct {
-	id   string
-	name string
+	lookup v1AuthLookupFlags
 }
 
 func v1AuthSetPasswordCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -492,24 +601,15 @@ func v1AuthSetPasswordCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	}
 
 	f.registerFlags(cmd)
-	cmd.Flags().StringVarP(&v1AuthSetPasswordFlags.id, "id", "i", "", "The authorization ID")
-	cmd.Flags().StringVarP(&v1AuthSetPasswordFlags.name, "name", "n", "", "The authorization token (username)")
+	v1AuthSetPasswordFlags.lookup.register(cmd, false)
 
 	return cmd
 }
 
 func makeV1AuthorizationSetPasswordF(opt genericCLIOpts) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		filter := influxdb.AuthorizationFilter{}
-		if v1AuthSetPasswordFlags.name != "" {
-			filter.Token = &v1AuthSetPasswordFlags.name
-		}
-		if v1AuthSetPasswordFlags.id != "" {
-			id, err := influxdb.IDFromString(v1AuthSetPasswordFlags.id)
-			if err != nil {
-				return err
-			}
-			filter.ID = id
+		if err := v1AuthSetPasswordFlags.lookup.validate(); err != nil {
+			return err
 		}
 
 		s, err := newV1AuthorizationService()
@@ -517,17 +617,9 @@ func makeV1AuthorizationSetPasswordF(opt genericCLIOpts) func(*cobra.Command, []
 			return err
 		}
 
-		authorizations, _, err := s.FindAuthorizations(context.Background(), filter)
+		auth, err := v1FindOneAuthorization(s, v1AuthSetPasswordFlags.lookup.makeFilter())
 		if err != nil {
 			return err
-		}
-
-		if len(authorizations) > 1 {
-			return errors.New("multiple authorizations found")
-		}
-
-		if len(authorizations) == 0 {
-			return errors.New("no authorizations found")
 		}
 
 		ui := &input.UI{
@@ -537,7 +629,7 @@ func makeV1AuthorizationSetPasswordF(opt genericCLIOpts) func(*cobra.Command, []
 
 		password := cinternal.GetPassword(ui, false)
 
-		if err := s.SetPassword(context.Background(), authorizations[0].ID, password); err != nil {
+		if err := s.SetPassword(context.Background(), auth.ID, password); err != nil {
 			return fmt.Errorf("error setting password: %w", err)
 		}
 

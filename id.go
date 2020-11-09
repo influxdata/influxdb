@@ -3,7 +3,6 @@ package influxdb
 import (
 	"encoding/binary"
 	"encoding/hex"
-	"reflect"
 	"strconv"
 	"unsafe"
 )
@@ -83,13 +82,7 @@ func (i *ID) Decode(b []byte) error {
 }
 
 func unsafeBytesToString(in []byte) string {
-	src := *(*reflect.SliceHeader)(unsafe.Pointer(&in))
-	dst := reflect.StringHeader{
-		Data: src.Data,
-		Len:  src.Len,
-	}
-	s := *(*string)(unsafe.Pointer(&dst))
-	return s
+	return *(*string)(unsafe.Pointer(&in))
 }
 
 // DecodeFromString parses s as a hex-encoded string.
