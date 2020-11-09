@@ -8,7 +8,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/go-cmp/cmp"
-
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

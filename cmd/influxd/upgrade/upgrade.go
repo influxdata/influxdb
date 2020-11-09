@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -52,18 +53,18 @@ func (c *configV1) dbURL() string {
 	if address == "" { // fallback to default
 		address = ":8086"
 	}
-	var url string
+	var url url.URL
 	if c.Http.HttpsEnabled {
-		url = "https://"
+		url.Scheme = "https"
 	} else {
-		url = "http://"
+		url.Scheme = "http"
 	}
 	if strings.HasPrefix(address, ":") { // address is just :port
-		url += "localhost" + address
+		url.Host = "localhost" + address
 	} else {
-		url += address
+		url.Host = address
 	}
-	return url
+	return url.String()
 }
 
 type optionsV1 struct {
