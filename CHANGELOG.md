@@ -1,5 +1,9 @@
 ## unreleased
 
+### Features
+
+1. [19935](https://github.com/influxdata/influxdb/pull/19935): Improve the UI for the influx v1 auth commands
+
 ### Bug Fixes
 
 1. [19924](https://github.com/influxdata/influxdb/pull/19924): Remove unused 'security-script' option from upgrade command
