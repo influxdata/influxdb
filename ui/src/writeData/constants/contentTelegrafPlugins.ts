@@ -144,6 +144,7 @@ import proxmoxMarkdown from 'src/writeData/components/telegrafPlugins/proxmox.md
 import puppetagentMarkdown from 'src/writeData/components/telegrafPlugins/puppetagent.md'
 import rabbitmqMarkdown from 'src/writeData/components/telegrafPlugins/rabbitmq.md'
 import raindropsMarkdown from 'src/writeData/components/telegrafPlugins/raindrops.md'
+import rasMarkdown from 'src/writeData/components/telegrafPlugins/ras.md'
 import redfishMarkdown from 'src/writeData/components/telegrafPlugins/redfish.md'
 import redisMarkdown from 'src/writeData/components/telegrafPlugins/redis.md'
 import rethinkdbMarkdown from 'src/writeData/components/telegrafPlugins/rethinkdb.md'
@@ -329,6 +330,7 @@ import proxmoxLogo from 'src/writeData/graphics/proxmox.svg'
 import puppetagentLogo from 'src/writeData/graphics/puppetagent.svg'
 import rabbitmqLogo from 'src/writeData/graphics/rabbitmq.svg'
 import raindropsLogo from 'src/writeData/graphics/raindrops.svg'
+import rasLogo from 'src/writeData/graphics/ras.svg'
 import redfishLogo from 'src/writeData/graphics/redfish.svg'
 import redisLogo from 'src/writeData/graphics/redis.svg'
 import rethinkdbLogo from 'src/writeData/graphics/rethinkdb.svg'
@@ -1347,6 +1349,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     url: `${TELEGRAF_PLUGINS}/raindrops`,
     markdown: raindropsMarkdown,
     image: raindropsLogo,
+  },
+  {
+    id: 'ras',
+    name: 'RAS Daemon',
+    url: `${TELEGRAF_PLUGINS}/ras`,
+    markdown: rasMarkdown,
+    image: rasLogo,
   },
   {
     id: 'redfish',
