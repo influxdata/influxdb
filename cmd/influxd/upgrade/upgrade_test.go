@@ -39,7 +39,7 @@ func TestPathValidations(t *testing.T) {
 	largs = append(largs, "--token", "my-token")
 	largs = append(largs, "--v1-dir", v1Dir)
 	largs = append(largs, "--bolt-path", boltPath)
-	largs = append(largs, "--configs-path", configsPath)
+	largs = append(largs, "--influx-configs-path", configsPath)
 	largs = append(largs, "--engine-path", enginePath)
 	largs = append(largs, "--config-file", "")
 
