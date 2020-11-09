@@ -6,6 +6,7 @@ package upgrade
 import (
 	"bytes"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -45,12 +46,29 @@ var configMapRules = map[string]string{
 	"http.https-private-key":                               "tls-key",
 }
 
+// configValueTransforms is a map from 2.x config keys to transformation functions
+// that should run on the 1.x values before they're written into the 2.x config.
+var configValueTransforms = map[string]func(interface{}) interface{}{
+	// Transform config values of 0 into MaxInt.
+	// query-concurrency used to accept 0 as a representation of infinity,
+	// but the 2.x controller now forces a positive value to be chosen
+	// for the parameter. MaxInt is the closest replacement we can provide.
+	"query-concurrency": func(v interface{}) interface{} {
+		ret := v
+		if i, ok := v.(int64); ok && i == 0 {
+			ret = launcher.MaxInt
+		}
+		return ret
+	},
+}
+
 // upgradeConfig upgrades existing 1.x (ie. typically influxdb.conf) configuration file to 2.x influxdb.toml file.
 func upgradeConfig(configFile string, targetOptions optionsV2, log *zap.Logger) (*configV1, error) {
 	// create and initialize helper
 	cu := &configUpgrader{
-		rules: configMapRules,
-		log:   log,
+		rules:           configMapRules,
+		valueTransforms: configValueTransforms,
+		log:             log,
 	}
 
 	// load 1.x config content into byte array
@@ -98,8 +116,9 @@ func upgradeConfig(configFile string, targetOptions optionsV2, log *zap.Logger) 
 
 // configUpgrader is a helper used by `upgrade-config` command.
 type configUpgrader struct {
-	rules map[string]string
-	log   *zap.Logger
+	rules           map[string]string
+	valueTransforms map[string]func(interface{}) interface{}
+	log             *zap.Logger
 }
 
 func (cu *configUpgrader) updateV2Config(config map[string]interface{}, targetOptions optionsV2) {
@@ -151,6 +170,9 @@ func (cu *configUpgrader) transform(x map[string]interface{}) map[string]interfa
 	for old, new := range cu.rules {
 		val, ok := cu.lookup(x, old)
 		if ok {
+			if transform, ok := cu.valueTransforms[new]; ok {
+				val = transform(val)
+			}
 			res[new] = val
 		}
 	}
