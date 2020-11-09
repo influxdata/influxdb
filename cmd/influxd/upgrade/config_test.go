@@ -19,11 +19,9 @@ func TestConfigUpgrade(t *testing.T) {
 	}
 
 	var typicalRetval, emptyRetval configV1
-	_, err := toml.Decode("[meta]\ndir=\"/var/lib/influxdb/meta\"\n[data]\ndir=\"/var/lib/influxdb/data\"\nwal-dir=\"/var/lib/influxdb/wal\"\n",
+	_, err := toml.Decode("[meta]\ndir=\"/var/lib/influxdb/meta\"\n[data]\ndir=\"/var/lib/influxdb/data\"\nwal-dir=\"/var/lib/influxdb/wal\"\n[http]\nbind-address=\":8086\"\nhttps-enabled=false",
 		&typicalRetval)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	type testCase struct {
 		name     string
@@ -323,6 +321,10 @@ reporting-disabled = true
   dir = "/var/lib/influxdb/data"
   wal-dir = "/var/lib/influxdb/wal"
 
+[http]
+  enabled = true
+  bind-address = ":8086"
+
 [[udp]]
   enabled = false
   bind-address = ":8089"
@@ -395,6 +397,7 @@ tls-key = ""
 var testConfigV2obsoleteArrays = `reporting-disabled = true
 bolt-path = "/db/.influxdbv2/influxd.bolt"
 engine-path = "/db/.influxdbv2/engine"
+http-bind-address = ":8086"
 `
 
 var testConfigV2empty = `

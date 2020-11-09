@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
@@ -40,12 +42,36 @@ type configV1 struct {
 		Dir    string `toml:"dir"`
 		WALDir string `toml:"wal-dir"`
 	} `toml:"data"`
+	Http struct {
+		BindAddress  string `toml:"bind-address"`
+		HttpsEnabled bool   `toml:"https-enabled"`
+	} `toml:"http"`
+}
+
+func (c *configV1) dbURL() string {
+	address := c.Http.BindAddress
+	if address == "" { // fallback to default
+		address = ":8086"
+	}
+	var url url.URL
+	if c.Http.HttpsEnabled {
+		url.Scheme = "https"
+	} else {
+		url.Scheme = "http"
+	}
+	if strings.HasPrefix(address, ":") { // address is just :port
+		url.Host = "localhost" + address
+	} else {
+		url.Host = address
+	}
+	return url.String()
 }
 
 type optionsV1 struct {
 	metaDir string
 	walDir  string
 	dataDir string
+	dbURL   string
 	// cmd option
 	dbDir      string
 	configFile string
@@ -66,6 +92,7 @@ func (o *optionsV1) checkDirs() error {
 
 type optionsV2 struct {
 	boltPath           string
+	configsPath        string
 	enginePath         string
 	userName           string
 	password           string
@@ -121,6 +148,7 @@ func NewCommand() *cobra.Command {
     Upgrades a 1.x version of InfluxDB by performing the following actions:
       1. Reads the 1.x config file and creates a 2.x config file with matching options. Unsupported 1.x options are reported.
       2. Copies 1.x database files.
+      3. Creates influx CLI configurations.
 
     If the config file is not available, 1.x db folder (--v1-dir options) is taken as an input.
     Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
@@ -148,6 +176,13 @@ func NewCommand() *cobra.Command {
 			Default: filepath.Join(v2dir, bolt.DefaultFilename),
 			Desc:    "path for boltdb database",
 			Short:   'm',
+		},
+		{
+			DestP:   &options.target.configsPath,
+			Flag:    "influx-configs-path",
+			Default: filepath.Join(v2dir, "configs"),
+			Desc:    "path for CLI configurations",
+			Short:   'c',
 		},
 		{
 			DestP:   &options.target.enginePath,
@@ -307,6 +342,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 		options.source.metaDir = v1Config.Meta.Dir
 		options.source.dataDir = v1Config.Data.Dir
 		options.source.walDir = v1Config.Data.WALDir
+		options.source.dbURL = v1Config.dbURL()
 	} else {
 		log.Info("No InfluxDB 1.x config file specified, skipping its upgrade")
 	}
@@ -373,6 +409,11 @@ func runUpgradeE(*cobra.Command, []string) error {
 	options.target.orgID = or.Org.ID
 	options.target.userID = or.User.ID
 	options.target.token = or.Auth.Token
+
+	err = saveLocalConfig(&options.source, &options.target, log)
+	if err != nil {
+		return err
+	}
 
 	db2BucketIds, err := upgradeDatabases(ctx, v1, v2, &options.source, &options.target, or.Org.ID, log)
 	if err != nil {

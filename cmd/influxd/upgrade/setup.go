@@ -2,14 +2,18 @@ package upgrade
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/tcnksm/go-input"
+	"go.uber.org/zap"
 )
 
 func setupAdmin(ctx context.Context, v2 *influxDBv2, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
@@ -123,9 +127,30 @@ You have entered:
   Retention Period:  %s
 `, req.User, req.Org, req.Bucket, rp)
 		}); !confirmed {
-			return nil, fmt.Errorf("setup was canceled")
+			return nil, errors.New("setup was canceled")
 		}
 	}
 
 	return req, nil
+}
+
+func saveLocalConfig(sourceOptions *optionsV1, targetOptions *optionsV2, log *zap.Logger) error {
+	dPath, dir := targetOptions.configsPath, filepath.Dir(targetOptions.configsPath)
+	if dPath == "" || dir == "" {
+		return errors.New("a valid configurations path must be provided")
+	}
+	localConfigSVC := config.NewLocalConfigSVC(dPath, dir)
+	p := config.DefaultConfig
+	p.Token = targetOptions.token
+	p.Org = targetOptions.orgName
+	if sourceOptions.dbURL != "" {
+		p.Host = sourceOptions.dbURL
+	}
+	if _, err := localConfigSVC.CreateConfig(p); err != nil {
+		log.Error("failed to save CLI config", zap.String("path", dPath), zap.Error(err))
+		return errors.New("failed to save CLI config")
+	}
+	log.Info("CLI config has been stored.", zap.String("path", dPath))
+
+	return nil
 }
