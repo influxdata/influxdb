@@ -147,6 +147,7 @@ func NewCommand() *cobra.Command {
     Upgrades a 1.x version of InfluxDB by performing the following actions:
       1. Reads the 1.x config file and creates a 2.x config file with matching options. Unsupported 1.x options are reported.
       2. Copies 1.x database files.
+      3. Creates influx CLI configurations.
 
     If the config file is not available, 1.x db folder (--v1-dir options) is taken as an input.
     Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
@@ -177,7 +178,7 @@ func NewCommand() *cobra.Command {
 		},
 		{
 			DestP:   &options.target.configsPath,
-			Flag:    "configs-path",
+			Flag:    "influx-configs-path",
 			Default: filepath.Join(v2dir, "configs"),
 			Desc:    "path for CLI configurations",
 			Short:   'c',
