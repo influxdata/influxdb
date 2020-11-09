@@ -6,7 +6,6 @@ package upgrade
 import (
 	"bytes"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -49,14 +48,14 @@ var configMapRules = map[string]string{
 // configValueTransforms is a map from 2.x config keys to transformation functions
 // that should run on the 1.x values before they're written into the 2.x config.
 var configValueTransforms = map[string]func(interface{}) interface{}{
-	// Transform config values of 0 into MaxInt.
+	// Transform config values of 0 into 10 (the new default).
 	// query-concurrency used to accept 0 as a representation of infinity,
 	// but the 2.x controller now forces a positive value to be chosen
-	// for the parameter. MaxInt is the closest replacement we can provide.
+	// for the parameter.
 	"query-concurrency": func(v interface{}) interface{} {
 		ret := v
 		if i, ok := v.(int64); ok && i == 0 {
-			ret = launcher.MaxInt
+			ret = 10
 		}
 		return ret
 	},
