@@ -80,7 +80,7 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 			bucket := &influxdb.Bucket{
 				OrgID:               orgID,
 				Type:                influxdb.BucketTypeUser,
-				Name:                db.Name + "-" + rp.Name,
+				Name:                db.Name + "/" + rp.Name,
 				Description:         fmt.Sprintf("Upgraded from v1 database %s with retention policy %s", db.Name, rp.Name),
 				RetentionPolicyName: rp.Name,
 				RetentionPeriod:     rp.Duration,
