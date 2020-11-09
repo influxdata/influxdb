@@ -10,6 +10,7 @@
 1. [19928](https://github.com/influxdata/influxdb/pull/19928): Fix parsing of retention policy CLI args in `influx setup` and `influxd upgrade`
 1. [19952](https://github.com/influxdata/influxdb/pull/19952): Use `db`/`rp` naming convention when migrating DBs to buckets
 1. [19925](https://github.com/influxdata/influxdb/pull/19937): Create CLI configs in `influxd upgrade`
+1. [19945](https://github.com/influxdata/influxdb/pull/19945): Allow write-only V1 tokens to find DBRPs
 
 ## v2.0.0-rc.4 [2020-11-05]
 
