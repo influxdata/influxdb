@@ -154,9 +154,6 @@ represents the total number of items less than the `lt` tag.
 When Telegraf is ran with `--debug`, detailed information about the performed
 queries will be logged.
 
-### Example Output
-```
-```
 [stackdriver]: https://cloud.google.com/monitoring/api/v3/
 [auth]: https://cloud.google.com/docs/authentication/getting-started
 [pricing]: https://cloud.google.com/stackdriver/pricing#stackdriver_monitoring_services

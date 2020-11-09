@@ -17,7 +17,7 @@ It has been optimized to support gNMI telemetry as produced by Cisco IOS XR (64-
   username = "cisco"
   password = "cisco"
 
-  ## gNMI encoding requested (one of: "proto", "json", "json_ietf")
+  ## gNMI encoding requested (one of: "proto", "json", "json_ietf", "bytes")
   # encoding = "proto"
 
   ## redial in case of failures after
