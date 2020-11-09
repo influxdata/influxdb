@@ -12,7 +12,12 @@ func AuthorizeFindDBRPs(ctx context.Context, rs []*influxdb.DBRPMappingV2) ([]*i
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	rrs := rs[:0]
 	for _, r := range rs {
+		// N.B. we have to check both read and write permissions here to support the legacy write-path,
+		// which calls AuthorizeFindDBRPs when locating the bucket underlying a DBRP target.
 		_, _, err := AuthorizeRead(ctx, influxdb.BucketsResourceType, r.BucketID, r.OrganizationID)
+		if err != nil {
+			_, _, err = AuthorizeWrite(ctx, influxdb.BucketsResourceType, r.BucketID, r.OrganizationID)
+		}
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
 			return nil, 0, err
 		}

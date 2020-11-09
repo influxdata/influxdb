@@ -954,8 +954,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 	}
 
-	dbrpSvc := dbrp.NewService(ctx, authorizer.NewBucketService(ts.BucketService), m.kvStore)
-	dbrpSvc = dbrp.NewAuthorizedService(dbrpSvc)
+	// N.B. the BucketService used by the DBRP service doesn't perform authentication.
+	dbrpSvc := dbrp.NewAuthorizedService(dbrp.NewService(ctx, ts.BucketService, m.kvStore))
 
 	cm := iqlcontrol.NewControllerMetrics([]string{})
 	m.reg.MustRegister(cm.PrometheusCollectors()...)
