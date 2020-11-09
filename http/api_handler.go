@@ -144,6 +144,10 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	deleteBackend := NewDeleteBackend(b.Logger.With(zap.String("handler", "delete")), b)
 	h.Mount(prefixDelete, NewDeleteHandler(b.Logger, deleteBackend))
 
+	documentBackend := NewDocumentBackend(b.Logger.With(zap.String("handler", "document")), b)
+	documentBackend.DocumentService = authorizer.NewDocumentService(b.DocumentService)
+	h.Mount(prefixDocuments, NewDocumentHandler(documentBackend))
+
 	fluxBackend := NewFluxBackend(b.Logger.With(zap.String("handler", "query")), b)
 	h.Mount(prefixQuery, NewFluxHandler(b.Logger, fluxBackend))
 

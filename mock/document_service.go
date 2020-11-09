@@ -38,13 +38,10 @@ func NewDocumentService() *DocumentService {
 
 // DocumentStore is the mocked document store.
 type DocumentStore struct {
-	TimeGenerator     TimeGenerator
-	CreateDocumentFn  func(ctx context.Context, d *influxdb.Document) error
-	FindDocumentFn    func(ctx context.Context, id influxdb.ID) (*influxdb.Document, error)
-	UpdateDocumentFn  func(ctx context.Context, d *influxdb.Document) error
-	DeleteDocumentFn  func(ctx context.Context, id influxdb.ID) error
-	FindDocumentsFn   func(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error)
-	DeleteDocumentsFn func(ctx context.Context, opts ...influxdb.DocumentFindOptions) error
+	TimeGenerator    TimeGenerator
+	CreateDocumentFn func(ctx context.Context, d *influxdb.Document) error
+	FindDocumentFn   func(ctx context.Context, id influxdb.ID) (*influxdb.Document, error)
+	FindDocumentsFn  func(ctx context.Context, oid influxdb.ID) ([]*influxdb.Document, error)
 }
 
 // NewDocumentStore returns a mock of DocumentStore where its methods will return zero values.
@@ -56,17 +53,8 @@ func NewDocumentStore() *DocumentStore {
 		FindDocumentFn: func(ctx context.Context, id influxdb.ID) (document *influxdb.Document, e error) {
 			return nil, nil
 		},
-		UpdateDocumentFn: func(ctx context.Context, d *influxdb.Document) error {
-			return nil
-		},
-		DeleteDocumentFn: func(ctx context.Context, id influxdb.ID) error {
-			return nil
-		},
-		FindDocumentsFn: func(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
+		FindDocumentsFn: func(ctx context.Context, oid influxdb.ID) ([]*influxdb.Document, error) {
 			return nil, nil
-		},
-		DeleteDocumentsFn: func(ctx context.Context, opts ...influxdb.DocumentFindOptions) error {
-			return nil
 		},
 	}
 }
@@ -81,22 +69,7 @@ func (s *DocumentStore) FindDocument(ctx context.Context, id influxdb.ID) (*infl
 	return s.FindDocumentFn(ctx, id)
 }
 
-// UpdateDocument will call the mocked UpdateDocumentFn.
-func (s *DocumentStore) UpdateDocument(ctx context.Context, d *influxdb.Document) error {
-	return s.UpdateDocumentFn(ctx, d)
-}
-
-// DeleteDocument will call the mocked DeleteDocumentFn.
-func (s *DocumentStore) DeleteDocument(ctx context.Context, id influxdb.ID) error {
-	return s.DeleteDocumentFn(ctx, id)
-}
-
 // FindDocuments will call the mocked FindDocumentsFn.
-func (s *DocumentStore) FindDocuments(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
-	return s.FindDocumentsFn(ctx, opts...)
-}
-
-// DeleteDocuments will call the mocked DeleteDocumentsFn.
-func (s *DocumentStore) DeleteDocuments(ctx context.Context, opts ...influxdb.DocumentFindOptions) error {
-	return s.DeleteDocumentsFn(ctx, opts...)
+func (s *DocumentStore) FindDocuments(ctx context.Context, oid influxdb.ID) ([]*influxdb.Document, error) {
+	return s.FindDocumentsFn(ctx, oid)
 }
