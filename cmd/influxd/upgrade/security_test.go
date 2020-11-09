@@ -98,22 +98,22 @@ func TestUpgradeSecurity(t *testing.T) {
 				{
 					Token:       "boss@hits.org",
 					Status:      "active",
-					Description: "boss@hits.org's Token",
+					Description: "boss@hits.org's Compatibility Token",
 				},
 				{
 					Token:       "hitgirl",
 					Status:      "active",
-					Description: "hitgirl's Token",
+					Description: "hitgirl's Compatibility Token",
 				},
 				{
 					Token:       "viewer",
 					Status:      "active",
-					Description: "viewer's Token",
+					Description: "viewer's Compatibility Token",
 				},
 				{
 					Token:       "weatherman",
 					Status:      "active",
-					Description: "weatherman's Token",
+					Description: "weatherman's Compatibility Token",
 				},
 			},
 		},
