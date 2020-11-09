@@ -11,6 +11,7 @@ var _ influxdb.Authorizer = (*Authorizer)(nil)
 type Authorizer struct {
 	Permissions []influxdb.Permission
 	AllowAll    bool
+	UserID      influxdb.ID
 }
 
 func NewMockAuthorizer(allowAll bool, permissions []influxdb.Permission) *Authorizer {
@@ -38,6 +39,10 @@ func (a *Authorizer) Identifier() influxdb.ID {
 }
 
 func (a *Authorizer) GetUserID() influxdb.ID {
+	if a.UserID.Valid() {
+		return a.UserID
+	}
+
 	return 2
 }
 
