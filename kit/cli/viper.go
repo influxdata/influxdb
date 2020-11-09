@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -208,6 +209,19 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			}
 			mustBindPFlag(o.Flag, flagset)
 			destP.Set(viper.GetString(envVar))
+		case *influxdb.ID:
+			var d influxdb.ID
+			if o.Default != nil {
+				d = o.Default.(influxdb.ID)
+			}
+			if hasShort {
+				IDVarP(flagset, destP, o.Flag, string(o.Short), d, o.Desc)
+			} else {
+				IDVar(flagset, destP, o.Flag, d, o.Desc)
+			}
+			if s := viper.GetString(envVar); s != "" {
+				_ = (*destP).DecodeFromString(viper.GetString(envVar))
+			}
 		default:
 			// if you get a panic here, sorry about that!
 			// anyway, go ahead and make a PR and add another type.
