@@ -520,7 +520,7 @@ func v1AuthorizationSetInactiveF(cmd *cobra.Command, _ []string) error {
 }
 
 var (
-	errMultipleMarchingAuthorizations = errors.New("multiple authorizations found")
+	errMultipleMatchingAuthorizations = errors.New("multiple authorizations found")
 )
 
 func v1FindOneAuthorization(s *authorization.Client, filter influxdb.AuthorizationFilter) (*influxdb.Authorization, error) {
@@ -534,7 +534,7 @@ func v1FindOneAuthorization(s *authorization.Client, filter influxdb.Authorizati
 	}
 
 	if len(authorizations) > 1 {
-		return nil, errMultipleMarchingAuthorizations
+		return nil, errMultipleMatchingAuthorizations
 	}
 
 	return authorizations[0], nil
@@ -567,7 +567,7 @@ func (f *v1AuthLookupFlags) register(cmd *cobra.Command, persistent bool) {
 func (f *v1AuthLookupFlags) validate() error {
 	switch {
 	case f.id.Valid() && f.username != "":
-		return errors.New("specify id or username")
+		return errors.New("specify id or username, not both")
 	case f.required && (!f.id.Valid() && f.username == ""):
 		return errors.New("id or username required")
 	default:
