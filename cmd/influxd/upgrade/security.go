@@ -78,7 +78,7 @@ func upgradeUsers(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, targetOpt
 			}
 			if len(permissions) > 0 {
 				auth := &platform.Authorization{
-					Description: username + "'s Token",
+					Description: username + "'s Legacy Token",
 					Permissions: permissions,
 					Token:       username,
 					OrgID:       targetOptions.orgID,
