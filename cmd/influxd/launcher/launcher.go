@@ -121,7 +121,7 @@ func NewInfluxdCommand(ctx context.Context, subCommands ...*cobra.Command) *cobr
 
 	A config file can be provided via the INFLUXD_CONFIG_PATH env var. If a file is
 	not provided via an env var, influxd will look in the current directory for a
-	config.yaml file. If one does not exist, then it will continue unchanged.`
+	config.{json|toml|yaml|yml} file. If one does not exist, then it will continue unchanged.`
 	}
 
 	cmd := cli.NewCommand(&prog)
