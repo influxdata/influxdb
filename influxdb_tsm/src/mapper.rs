@@ -467,7 +467,7 @@ fn map_field_columns(
     while let Some(min_ts) = map_blocks_to_columns(&mut block_value_buffer, &mut result) {
         //
         // TODO(edd): Convert nanoseconds into microseconds for Parquet support.
-        // Address this in https://github.com/influxdata/delorean/issues/167
+        // Address this in https://github.com/influxdata/influxdb_iox/issues/167
         //
         timestamps.push(min_ts / 1000);
         refill_block_buffer(&mut decoder, field_blocks, &mut input_block_buffer)?;

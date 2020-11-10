@@ -410,7 +410,7 @@ fn time_select_with_pred(store: &Store) {
 // Use the hard coded timestamp values 1590036110000000, 1590040770000000
 
 // fn time_datafusion_select_with_pred(store: Arc<Store>) {
-//     let mut query_engine = DeloreanQueryEngine::new(store);
+//     let mut query_engine = IOxQueryEngine::new(store);
 
 //     let sql_string = r#"SELECT env, method, host, counter, time
 //                FROM measurement

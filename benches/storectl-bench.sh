@@ -34,7 +34,7 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
-# Once delorean can ingest what `storectl generate` creates, this section will be needed.
+# Once IOx can ingest what `storectl generate` creates, this section will be needed.
 # cat > $tmp_dir/data.toml << EOL
 # title = "CLI schema"
 #
@@ -53,10 +53,10 @@ fi
 #
 # $tmp_dir/bin/storectl generate --base-dir $tmp_dir/data --org-id=$org_id --bucket-id=$bucket_id $tmp_dir/data.toml --clean=none
 
-sess=delorean-rpc-bench
+sess=influxdb-iox-rpc-bench
 tmux new-session -t $sess -d
 tmux rename-window -t $sess 'bench'
-tmux send-keys "./target/release/delorean" 'C-m'
+tmux send-keys "./target/release/influxdb_iox" 'C-m'
 tmux split-window -t $sess -v
 tmux send-keys "sleep 5; curl 'http://localhost:8080/api/v2/create_bucket' -d org=$org_id -d bucket=$bucket_id; $tmp_dir/bin/inch -bucket $bucket_id -org $org_id -host http://localhost:8080" 'C-m'
 tmux select-pane -t $sess -R

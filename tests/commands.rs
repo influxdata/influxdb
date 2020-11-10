@@ -342,7 +342,7 @@ fn assert_meta_temperature_parquet(assert: Assert) {
     assert
         .success()
         .stdout(predicate::str::contains("Parquet file metadata:"))
-        .stdout(predicate::str::contains(r#"created by: "Delorean""#))
+        .stdout(predicate::str::contains(r#"created by: "InfluxDB IOx""#))
         .stdout(predicate::str::contains(
             r#"Column Chunk [3]:
     file_offset: 595
