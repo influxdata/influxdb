@@ -31,6 +31,7 @@ import (
 	"github.com/influxdata/influxdb/v2/v1/services/meta/filestore"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Simplified 1.x config.
@@ -122,7 +123,9 @@ var options = struct {
 	// verbose output
 	verbose bool
 
-	logPath string
+	// logging
+	logLevel string
+	logPath  string
 
 	force bool
 }{}
@@ -250,6 +253,12 @@ func NewCommand() *cobra.Command {
 			Desc:    "path to influx command",
 		},
 		{
+			DestP:   &options.logLevel,
+			Flag:    "log-level",
+			Default: zapcore.InfoLevel.String(),
+			Desc:    "supported log levels are debug, info, warn and error",
+		},
+		{
 			DestP:   &options.logPath,
 			Flag:    "log-path",
 			Default: filepath.Join(homeOrAnyDir(), "upgrade.log"),
@@ -315,8 +324,14 @@ func runUpgradeE(*cobra.Command, []string) error {
 		fluxInitialized = true
 	}
 
+	var lvl zapcore.Level
+	if err := lvl.Set(options.logLevel); err != nil {
+		return errors.New("unknown log level; supported levels are debug, info, warn and error")
+	}
+
 	ctx := context.Background()
 	config := zap.NewProductionConfig()
+	config.Level = zap.NewAtomicLevelAt(lvl)
 	config.OutputPaths = append(config.OutputPaths, options.logPath)
 	config.ErrorOutputPaths = append(config.ErrorOutputPaths, options.logPath)
 	log, err := config.Build()
