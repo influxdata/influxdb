@@ -3,6 +3,7 @@
 use tracing::{debug, info};
 
 use std::env::VarError;
+use std::fs;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -26,6 +27,8 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             path.into_os_string().into_string().unwrap()
         }
     };
+    fs::create_dir_all(&db_dir)?;
+
     debug!("InfluxDB IOx Server using database directory: {:?}", db_dir);
 
     let storage = Arc::new(WriteBufferDatabases::new(&db_dir));
