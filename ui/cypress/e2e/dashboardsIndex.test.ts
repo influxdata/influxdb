@@ -36,7 +36,7 @@ describe('Dashboards', () => {
     })
   })
 
-  it('can CRUD dashboards from empty state, header, and a Template', () => {
+  it.skip('can CRUD dashboards from empty state, header, and a Template', () => {
     // Create from empty state
     cy.getByTestID('empty-dashboards-list').within(() => {
       cy.getByTestID('add-resource-dropdown--button').click()
