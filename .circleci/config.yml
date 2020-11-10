@@ -503,7 +503,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - 2.0 
   e2e:
     jobs:
       - e2e
@@ -524,7 +524,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - 2.0 
     jobs:
       - gotest
       - golint
@@ -541,7 +541,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - 2.0 
       - litmus_nightly:
           requires:
             - deploy-nightly

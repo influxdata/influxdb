@@ -1,17 +1,31 @@
-## unreleased
+v2.0.1 [unreleased]
+------------------
+
+v2.0.0 [2020-11-00]
+-------------------
 
 ### Features
 
-1. [19935](https://github.com/influxdata/influxdb/pull/19935): Improve the UI for the influx v1 auth commands
+-	[19935](https://github.com/influxdata/influxdb/pull/19935): Improve the UI for the influx v1 auth commands
+-	[19940](https://github.com/influxdata/influxdb/pull/19940): Update Flux to v0.94.0
+-	[19943](https://github.com/influxdata/influxdb/pull/19943): Upgrade flux-lsp-browser to v0.5.22
+-	[19946](https://github.com/influxdata/influxdb/pull/19946): Adding RAS telegraf input
 
 ### Bug Fixes
 
-1. [19924](https://github.com/influxdata/influxdb/pull/19924): Remove unused 'security-script' option from upgrade command
-1. [19928](https://github.com/influxdata/influxdb/pull/19928): Fix parsing of retention policy CLI args in `influx setup` and `influxd upgrade`
-1. [19952](https://github.com/influxdata/influxdb/pull/19952): Use `db`/`rp` naming convention when migrating DBs to buckets
-1. [19925](https://github.com/influxdata/influxdb/pull/19937): Create CLI configs in `influxd upgrade`
-1. [19945](https://github.com/influxdata/influxdb/pull/19945): Allow write-only V1 tokens to find DBRPs
-1. [19960](https://github.com/influxdata/influxdb/pull/19960): Remove bucket and mapping auto-creation from v1 /write API
+-	[19924](https://github.com/influxdata/influxdb/pull/19924): Remove unused 'security-script' option from upgrade command
+-	[19925](https://github.com/influxdata/influxdb/pull/19937): Create CLI configs in `influxd upgrade`
+-	[19928](https://github.com/influxdata/influxdb/pull/19928): Fix parsing of retention policy CLI args in `influx setup` and `influxd upgrade`
+-	[19930](https://github.com/influxdata/influxdb/pull/19930): Replace 0 with MaxInt when upgrading query-concurrency
+-	[19937](https://github.com/influxdata/influxdb/pull/19937): Create CLI configs
+-	[19939](https://github.com/influxdata/influxdb/pull/19939): Make influxd help more specific
+-	[19945](https://github.com/influxdata/influxdb/pull/19945): Allow write-only V1 tokens to find DBRPs
+-	[19947](https://github.com/influxdata/influxdb/pull/19947): Updating v1 auth description
+-	[19952](https://github.com/influxdata/influxdb/pull/19952): Use `db`/`rp` naming convention when migrating DBs to buckets
+-	[19956](https://github.com/influxdata/influxdb/pull/19956): Improve help for --no-password switch
+-	[19959](https://github.com/influxdata/influxdb/pull/19959): Use 10 instead of MaxInt when rewriting query-concurrency
+-	[19960](https://github.com/influxdata/influxdb/pull/19960): Remove bucket and mapping auto-creation from v1 /write API
+-	[19885](https://github.com/influxdata/influxdb/pull/19875): Misuse of reflect.SliceHeader
 
 ## v2.0.0-rc.4 [2020-11-05]
 
