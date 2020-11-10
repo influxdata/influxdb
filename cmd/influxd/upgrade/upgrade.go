@@ -181,7 +181,7 @@ func NewCommand() *cobra.Command {
 			DestP:   &options.target.configsPath,
 			Flag:    "influx-configs-path",
 			Default: filepath.Join(v2dir, "configs"),
-			Desc:    "path for CLI configurations",
+			Desc:    "path to 2.x CLI configurations file",
 			Short:   'c',
 		},
 		{
