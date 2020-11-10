@@ -139,6 +139,12 @@ func saveLocalConfig(sourceOptions *optionsV1, targetOptions *optionsV2, log *za
 	if dPath == "" || dir == "" {
 		return errors.New("a valid configurations path must be provided")
 	}
+	_, err := os.Stat(dPath)
+	if !os.IsNotExist(err) {
+		log.Error("cannot save CLI config, file already exists", zap.String("path", dPath))
+		return errors.New("CLI configs file already exists")
+	}
+
 	localConfigSVC := config.NewLocalConfigSVC(dPath, dir)
 	p := config.DefaultConfig
 	p.Token = targetOptions.token

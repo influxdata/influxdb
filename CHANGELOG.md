@@ -13,6 +13,7 @@
 1. [19945](https://github.com/influxdata/influxdb/pull/19945): Allow write-only V1 tokens to find DBRPs
 1. [19960](https://github.com/influxdata/influxdb/pull/19960): Remove bucket and mapping auto-creation from v1 /write API
 1. [19972](https://github.com/influxdata/influxdb/pull/19972): Remove unused 'influx-command-path' option from upgrade command
+1. [19969](https://github.com/influxdata/influxdb/pull/19969): Check if CLI configs file already exists during upgrade
 
 ## v2.0.0-rc.4 [2020-11-05]
 
