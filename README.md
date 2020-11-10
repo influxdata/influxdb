@@ -31,9 +31,17 @@ Follow the instructions on the `rustup` site for your operating system.
 
 [`rustup`]: https://rustup.rs/
 
-InfluxDB IOx is currently using a nightly version of Rust to get performance benefits from the
-unstable `simd` feature. The exact nightly version is specified in the `rust-toolchain` file. By
-default, `rustup` will look in this file and automatically install the correct version for you.
+By default, `rustup` will install the latest stable verison of Rust. InfluxDB IOx is currently
+using a nightly version of Rust to get performance benefits from the unstable `simd` feature. The
+exact nightly version is specified in the `rust-toolchain` file. When you're in the directory
+containing this repository's code, `rustup` will look in the `rust-toolchain` file and
+automatically install and use the correct Rust version for you. Test this out with:
+
+```
+$ rustc --version
+```
+
+and you should see a nightly version of Rust!
 
 ### Installing `flatc`
 
