@@ -7,10 +7,8 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/influxdata/influxdb/v2"
@@ -92,25 +90,17 @@ func (o *optionsV1) checkDirs() error {
 }
 
 type optionsV2 struct {
-	boltPath           string
-	configsPath        string
-	enginePath         string
-	userName           string
-	password           string
-	orgName            string
-	bucket             string
-	orgID              influxdb.ID
-	userID             influxdb.ID
-	token              string
-	retention          string
-	influx2CommandPath string
-}
-
-func (o *optionsV2) checkPaths() error {
-	if o.influx2CommandPath == "" {
-		return errors.New("influx command path not specified")
-	}
-	return nil
+	boltPath    string
+	configsPath string
+	enginePath  string
+	userName    string
+	password    string
+	orgName     string
+	bucket      string
+	orgID       influxdb.ID
+	userID      influxdb.ID
+	token       string
+	retention   string
 }
 
 var options = struct {
@@ -184,7 +174,7 @@ func NewCommand() *cobra.Command {
 			DestP:   &options.target.configsPath,
 			Flag:    "influx-configs-path",
 			Default: filepath.Join(v2dir, "configs"),
-			Desc:    "path for CLI configurations",
+			Desc:    "path for 2.x CLI configurations file",
 			Short:   'c',
 		},
 		{
@@ -247,11 +237,6 @@ func NewCommand() *cobra.Command {
 			Desc:    "optional: Custom InfluxDB 1.x config file path, else the default config file",
 		},
 		{
-			DestP:   &options.target.influx2CommandPath,
-			Flag:    "influx-command-path",
-			Default: influxExePathV2(),
-			Desc:    "path to influx command",
-		},
 		{
 			DestP:   &options.logLevel,
 			Flag:    "log-level",
@@ -336,10 +321,6 @@ func runUpgradeE(*cobra.Command, []string) error {
 	config.ErrorOutputPaths = append(config.ErrorOutputPaths, options.logPath)
 	log, err := config.Build()
 	if err != nil {
-		return err
-	}
-
-	if err := options.target.checkPaths(); err != nil {
 		return err
 	}
 
@@ -585,34 +566,6 @@ func influxConfigPathV1() string {
 	} {
 		if _, err := os.Stat(path); err == nil {
 			return path
-		}
-	}
-
-	return ""
-}
-
-func influxExePathV2() string {
-	var exeName string
-	if runtime.GOOS == "win" {
-		exeName = "influx.exe"
-	} else {
-		exeName = "influx"
-	}
-	isV2 := func(path string) bool {
-		return exec.Command(path, "version").Run() == nil
-	}
-
-	exePath, err := exec.LookPath(exeName)
-	if err == nil {
-		if isV2(exePath) {
-			return exePath
-		}
-	}
-	exePath, err = os.Executable()
-	if err == nil {
-		exePath = filepath.Join(filepath.Dir(exePath), exeName)
-		if isV2(exePath) {
-			return exePath
 		}
 	}
 
