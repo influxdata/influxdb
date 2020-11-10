@@ -6477,6 +6477,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 components:
   parameters:
+    $ref: "./swagger/components/parameters/TraceSpan.yml"
     Offset:
       in: query
       name: offset
@@ -6503,18 +6504,6 @@ components:
     SortBy:
       in: query
       name: sortBy
-      required: false
-      schema:
-        type: string
-    TraceSpan:
-      in: header
-      name: Zap-Trace-Span
-      description: OpenTracing span context
-      example:
-        trace_id: "1"
-        span_id: "1"
-        baggage:
-          key: value
       required: false
       schema:
         type: string
@@ -8702,30 +8691,7 @@ components:
         write:
           type: string
           format: uri
-    Error:
-      properties:
-        code:
-          description: Code is the machine-readable error code.
-          readOnly: true
-          type: string
-          # This set of enumerations must remain in sync with the constants defined in errors.go
-          enum:
-            - internal error
-            - not found
-            - conflict
-            - invalid
-            - unprocessable entity
-            - empty value
-            - unavailable
-            - forbidden
-            - too many requests
-            - unauthorized
-            - method not allowed
-        message:
-          readOnly: true
-          description: Message is a human-readable message.
-          type: string
-      required: [code, message]
+    $ref: "./swagger/components/schemas/Error.yml"
     LineProtocolError:
       properties:
         code:
