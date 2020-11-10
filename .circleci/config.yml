@@ -541,7 +541,7 @@ workflows:
           filters:
             branches:
               only:
-                - 2.0 
+                - "2.0"
       - litmus_nightly:
           requires:
             - deploy-nightly
