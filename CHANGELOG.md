@@ -15,6 +15,7 @@
 1. [19972](https://github.com/influxdata/influxdb/pull/19972): Remove unused 'influx-command-path' option from upgrade command
 1. [19969](https://github.com/influxdata/influxdb/pull/19969): Check if CLI configs file already exists during upgrade
 1. [19967](https://github.com/influxdata/influxdb/pull/19967): Add 'log-level' option to upgrade command
+1. [19980](https://github.com/influxdata/influxdb/pull/19980): Fix authorization checks in the V1 /write API
 
 ## v2.0.0-rc.4 [2020-11-05]
 
