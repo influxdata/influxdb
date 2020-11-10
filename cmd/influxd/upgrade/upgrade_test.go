@@ -44,16 +44,6 @@ func TestPathValidations(t *testing.T) {
 
 	cmd := NewCommand()
 	cmd.SetArgs(largs)
-
-	err = cmd.Execute()
-	require.NotNil(t, err, "Must fail")
-	assert.Contains(t, err.Error(), "influx command path not specified")
-
-	influxPath := "/usr/local/bin/influx" // fake
-	largs = append(largs, "--influx-command-path", influxPath)
-	cmd = NewCommand()
-	cmd.SetArgs(largs)
-
 	err = cmd.Execute()
 	require.NotNil(t, err, "Must fail")
 	assert.Contains(t, err.Error(), "1.x metadb error")
