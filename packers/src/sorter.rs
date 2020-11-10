@@ -76,14 +76,9 @@ pub fn sort(packers: &mut [Packers], sort_by: &[usize]) -> Result<(), Error> {
         if sorted {
             return Ok(());
         }
-        // if packers_sorted_asc(packers, n, sort_by) {
-        //     return Ok(());
-        // }
-        // return Ok(());
     }
-    let now = std::time::Instant::now();
+
     quicksort_by(packers, 0..n - 1, sort_by);
-    println!("sorted in {:?}", now.elapsed());
     Ok(())
 }
 
@@ -161,7 +156,14 @@ fn cmp(packers: &[Packers], a: usize, b: usize, sort_by: &[usize]) -> Ordering {
                 }
                 // if cmp equal then try next packer column.
             }
-            _ => continue, // don't compare on non-string / timestamp cols
+            Packers::UtfString(p) => {
+                let cmp = p.get(a).cmp(&p.get(b));
+                if cmp != Ordering::Equal {
+                    return cmp;
+                }
+                // if cmp equal then try next packer column.
+            }
+            _ => continue, // don't compare on other columns...
         }
     }
     Ordering::Equal
@@ -398,6 +400,29 @@ mod test {
             for v in values.iter() {
                 assert!(prev <= *v);
                 prev = *v;
+            }
+        }
+    }
+
+    #[test]
+    fn packers_utf() {
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..250 {
+            let packer: Packer<String> = Packer::from(
+                (0..1000)
+                    .map(|_| format!("{:?}", rng.gen_range(0, 20)))
+                    .collect::<Vec<String>>(),
+            );
+            let mut packers = vec![Packers::UtfString(packer)];
+
+            sort(&mut packers, &[0]).unwrap();
+
+            let values = packers[0].utf_packer_mut().values();
+            let mut prev = &values[0];
+            for v in values.iter() {
+                assert!(prev <= v, "{:?} {:?}", prev, v);
+                prev = v;
             }
         }
     }
