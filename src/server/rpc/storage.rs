@@ -14,9 +14,11 @@ use generated_types::{
     TagKeysRequest, TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
 };
 
+use data_types::error::ErrorLogger;
+
+#[allow(unused_imports)]
 // For some reason rust thinks these imports are unused, but then
 // complains of unresolved imports if they are not imported.
-#[allow(unused_imports)]
 use generated_types::{node, Node};
 
 use crate::server::rpc::expr::{AddRPCNode, SpecialTagKeys};
@@ -127,6 +129,11 @@ pub enum Error {
         source: crate::server::rpc::data::Error,
     },
 
+    #[snafu(display("Error sending results via channel:  {}", source))]
+    SendingResults {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[snafu(display("Operation not yet implemented:  {}", operation))]
     NotYetImplemented { operation: String },
 }
@@ -158,6 +165,7 @@ impl Error {
             Self::ComputingGroupedSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingFieldList { .. } => Status::invalid_argument(self.to_string()),
+            Self::SendingResults { .. } => Status::internal(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
     }
@@ -799,7 +807,11 @@ where
     // and to run the actual plans (so we can return a result to the
     // client before we start sending result)
     let (tx_series, rx_series) = mpsc::channel(4);
-    tokio::spawn(async move { convert_series_set(rx_series, tx).await });
+    tokio::spawn(async move {
+        convert_series_set(rx_series, tx)
+            .await
+            .log_if_error("Converting series set")
+    });
 
     // fire up the plans and start the pipeline flowing
     tokio::spawn(async move {
@@ -810,6 +822,7 @@ where
                 db_name: db_name.clone(),
                 source: Box::new(e),
             })
+            .log_if_error("Running series set plan")
     });
 
     Ok(())
@@ -820,7 +833,7 @@ where
 async fn convert_series_set(
     mut rx: mpsc::Receiver<Result<SeriesSet, SeriesSetError>>,
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
-) {
+) -> Result<()> {
     while let Some(series_set) = rx.recv().await {
         let response = series_set
             .context(ComputingSeriesSet)
@@ -829,11 +842,12 @@ async fn convert_series_set(
             })
             .map_err(|e| Status::internal(e.to_string()));
 
-        // ignore errors sending results there is no one to notice them, return early
-        if tx.send(response).await.is_err() {
-            return;
-        }
+        tx.send(response)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            .context(SendingResults)?
     }
+    Ok(())
 }
 
 /// Launch async tasks that send the result of executing read_group to `tx`
@@ -875,7 +889,11 @@ where
     // and to run the actual plans (so we can return a result to the
     // client before we start sending result)
     let (tx_series, rx_series) = mpsc::channel(4);
-    tokio::spawn(async move { convert_grouped_series_set(rx_series, tx).await });
+    tokio::spawn(async move {
+        convert_grouped_series_set(rx_series, tx)
+            .await
+            .log_if_error("Converting grouped series set")
+    });
 
     // fire up the plans and start the pipeline flowing
     tokio::spawn(async move {
@@ -886,6 +904,7 @@ where
                 db_name: db_name.clone(),
                 source: Box::new(e),
             })
+            .log_if_error("Running Grouped SeriesSet Plan")
     });
 
     Ok(())
@@ -896,7 +915,7 @@ where
 async fn convert_grouped_series_set(
     mut rx: mpsc::Receiver<Result<GroupedSeriesSetItem, SeriesSetError>>,
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
-) {
+) -> Result<()> {
     while let Some(grouped_series_set_item) = rx.recv().await {
         let response = grouped_series_set_item
             .context(ComputingGroupedSeriesSet)
@@ -906,11 +925,12 @@ async fn convert_grouped_series_set(
             })
             .map_err(|e| Status::internal(e.to_string()));
 
-        // ignore errors sending results there is no one to notice them, return early
-        if tx.send(response).await.is_err() {
-            return;
-        }
+        tx.send(response)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            .context(SendingResults)?
     }
+    Ok(())
 }
 
 /// Return fields with optional measurement, timestamp and arbitratry predicates
@@ -986,6 +1006,7 @@ where
         .serve(bind_addr)
         .await
         .context(ServerError {})
+        .log_if_error("Running Tonic Server")
 }
 
 #[cfg(test)]
