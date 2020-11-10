@@ -89,17 +89,17 @@ func (o *optionsV1) checkDirs() error {
 }
 
 type optionsV2 struct {
-	boltPath           string
-	configsPath        string
-	enginePath         string
-	userName           string
-	password           string
-	orgName            string
-	bucket             string
-	orgID              influxdb.ID
-	userID             influxdb.ID
-	token              string
-	retention          string
+	boltPath    string
+	configsPath string
+	enginePath  string
+	userName    string
+	password    string
+	orgName     string
+	bucket      string
+	orgID       influxdb.ID
+	userID      influxdb.ID
+	token       string
+	retention   string
 }
 
 var options = struct {
