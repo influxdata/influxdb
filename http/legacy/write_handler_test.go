@@ -173,13 +173,8 @@ func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
-	assert.Equal(t, http.StatusUnauthorized, w.Code)
-	expectedBody := fmt.Sprintf(
-		"{\"code\":\"unauthorized\",\"message\":\"write:orgs/%s/buckets/%s is unauthorized\"}",
-		orgID.String(),
-		bucket.ID.String(),
-	)
-	assert.Equal(t, expectedBody, w.Body.String())
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, "{\"code\":\"forbidden\",\"message\":\"insufficient permissions for write\"}", w.Body.String())
 }
 
 func TestWriteHandler_MappingNotExists(t *testing.T) {
