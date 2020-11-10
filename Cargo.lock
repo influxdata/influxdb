@@ -725,18 +725,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "delorean_segment_store"
-version = "0.1.0"
-dependencies = [
- "arrow_deps",
- "criterion",
- "croaring",
- "data_types",
- "packers",
- "rand",
-]
-
-[[package]]
 name = "difference"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1313,7 +1301,6 @@ dependencies = [
  "criterion",
  "csv",
  "data_types",
- "delorean_segment_store",
  "dirs 3.0.1",
  "dotenv",
  "env_logger",
@@ -1335,6 +1322,7 @@ dependencies = [
  "prost-types",
  "rand",
  "reqwest",
+ "segment_store",
  "serde",
  "serde_json",
  "serde_urlencoded 0.7.0",
@@ -2673,6 +2661,18 @@ checksum = "17bf11d99252f512695eb468de5516e5cf75455521e69dfe343f3b74e4748405"
 dependencies = [
  "core-foundation-sys",
  "libc",
+]
+
+[[package]]
+name = "segment_store"
+version = "0.1.0"
+dependencies = [
+ "arrow_deps",
+ "criterion",
+ "croaring",
+ "data_types",
+ "packers",
+ "rand",
 ]
 
 [[package]]

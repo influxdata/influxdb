@@ -15,7 +15,7 @@ members = [
     "influxdb_line_protocol",
     "object_store",
     "mem_qe",
-    "delorean_segment_store",
+    "segment_store",
     "packers",
     "test_helpers",
     "influxdb_tsm",
@@ -35,7 +35,7 @@ generated_types = { path = "generated_types" }
 ingest = { path = "ingest" }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
 mem_qe = { path = "mem_qe" }
-delorean_segment_store = { path = "delorean_segment_store" }
+segment_store = { path = "segment_store" }
 packers = { path = "packers" }
 write_buffer = { path = "write_buffer" }
 object_store = { path = "object_store" }
