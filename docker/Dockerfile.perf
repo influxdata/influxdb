@@ -1,3 +1,6 @@
+###
+# Dockerfile for the image used in CI performance tests
+##
 FROM rust:slim-buster
 
 RUN groupadd -g 1500 rust \
