@@ -951,6 +951,21 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
 		return nil, 0, influxdb.ErrOutOfBoundsLimit
 	}
+	parsedFilterAfterTime := time.Time{}
+	parsedFilterBeforeTime := time.Now().UTC()
+	var err error
+	if filter.AfterTime != "" {
+		parsedFilterAfterTime, err = time.Parse(time.RFC3339, filter.AfterTime)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	if filter.BeforeTime != "" {
+		parsedFilterBeforeTime, err = time.Parse(time.RFC3339, filter.BeforeTime)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
 
 	var runs []*influxdb.Run
 	// manual runs
@@ -959,7 +974,9 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 		return nil, 0, err
 	}
 	for _, run := range manualRuns {
-		runs = append(runs, run)
+		if run.ScheduledFor.After(parsedFilterAfterTime) && run.ScheduledFor.Before(parsedFilterBeforeTime) {
+			runs = append(runs, run)
+		}
 		if len(runs) >= filter.Limit {
 			return runs, len(runs), nil
 		}
@@ -971,13 +988,16 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 		return nil, 0, err
 	}
 	for _, run := range currentlyRunning {
-		runs = append(runs, run)
+		if run.ScheduledFor.After(parsedFilterAfterTime) && run.ScheduledFor.Before(parsedFilterBeforeTime) {
+			runs = append(runs, run)
+		}
 		if len(runs) >= filter.Limit {
 			return runs, len(runs), nil
 		}
 	}
 
 	return runs, len(runs), nil
+
 }
 
 // FindRunByID returns a single run.

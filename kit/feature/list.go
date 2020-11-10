@@ -212,6 +212,20 @@ func EnforceOrganizationDashboardLimits() BoolFlag {
 	return enforceOrgDashboardLimits
 }
 
+var timeFilterFlags = MakeBoolFlag(
+	"Time Filter Flags",
+	"timeFilterFlags",
+	"Compute Team",
+	false,
+	Temporary,
+	true,
+)
+
+// TimeFilterFlags - Filter task run list based on before and after flags
+func TimeFilterFlags() BoolFlag {
+	return timeFilterFlags
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -228,6 +242,7 @@ var all = []Flag{
 	notebooks,
 	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
+	timeFilterFlags,
 }
 
 var byKey = map[string]Flag{
@@ -246,4 +261,5 @@ var byKey = map[string]Flag{
 	"notebooks":                     notebooks,
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
+	"timeFilterFlags":               timeFilterFlags,
 }

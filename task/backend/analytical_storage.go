@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage"
 	"go.uber.org/zap"
@@ -152,6 +153,32 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 		filterPart = fmt.Sprintf(`|> filter(fn: (r) => r.runID > %q)`, filter.After.String())
 	}
 
+	parsedAfterTime := time.Time{}
+	parsedBeforeTime := time.Now()
+	constructedTimeFilter := ""
+	if feature.TimeFilterFlags().Enabled(ctx) {
+		if filter.AfterTime != "" {
+			tmpParsedAfter, err := time.Parse(time.RFC3339, filter.AfterTime)
+			if err != nil {
+				return nil, 0, err
+			}
+
+			parsedAfterTime = tmpParsedAfter
+
+		}
+		if filter.BeforeTime != "" {
+			tmpParsedBefore, err := time.Parse(time.RFC3339, filter.BeforeTime)
+			if err != nil {
+				return nil, 0, err
+			}
+			parsedBeforeTime = tmpParsedBefore
+		}
+		constructedTimeFilter = fmt.Sprintf(
+			`|> filter(fn: (r) =>time(v: r["scheduledFor"]) > %s and time(v: r["scheduledFor"]) < %s)`,
+			parsedAfterTime.Format(time.RFC3339),
+			parsedBeforeTime.Format(time.RFC3339))
+	}
+
 	// the data will be stored for 7 days in the system bucket so pulling 14d's is sufficient.
 	runsScript := fmt.Sprintf(`from(bucketID: %q)
 	  |> range(start: -14d)
@@ -159,11 +186,12 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	  |> filter(fn: (r) => r._measurement == "runs" and r.taskID == %q)
 	  %s
 	  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+	  %s
 	  |> group(columns: ["taskID"])
 	  |> sort(columns:["scheduledFor"], desc: true)
 	  |> limit(n:%d)
 
-	  `, sb.ID.String(), filter.Task.String(), filterPart, filter.Limit-len(runs))
+	  `, sb.ID.String(), filter.Task.String(), filterPart, constructedTimeFilter, filter.Limit-len(runs))
 
 	// At this point we are behind authorization
 	// so we are faking a read only permission to the org's system bucket
@@ -205,6 +233,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	runs = as.combineRuns(runs, re.runs)
 
 	return runs, len(runs), err
+
 }
 
 // remove any kv runs that exist in the list of completed runs
