@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	pcontext "github.com/influxdata/influxdb/v2/context"
@@ -230,22 +228,6 @@ func (m pointsMatcher) Matches(x interface{}) bool {
 
 func (m pointsMatcher) String() string {
 	return fmt.Sprintf("%#v", m.points)
-}
-
-type bucketMatcher struct {
-	*influxdb.Bucket
-}
-
-func (m bucketMatcher) Matches(x interface{}) bool {
-	other, ok := x.(*influxdb.Bucket)
-	if !ok {
-		return false
-	}
-	return cmp.Equal(m.Bucket, other, cmpopts.IgnoreFields(influxdb.Bucket{}, "CRUDLog"))
-}
-
-func (m bucketMatcher) String() string {
-	return fmt.Sprintf("%#v", m.Bucket)
 }
 
 func newPermissions(resourceType influxdb.ResourceType, orgID, id *influxdb.ID) []influxdb.Permission {

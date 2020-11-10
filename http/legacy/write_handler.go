@@ -151,11 +151,11 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 // retention policy combination.
 func (h *WriteHandler) findBucket(ctx context.Context, orgID influxdb.ID, db, rp string) (*influxdb.Bucket, error) {
 	mapping, err := h.findMapping(ctx, orgID, db, rp)
-	if err == nil {
-		return h.BucketService.FindBucketByID(ctx, mapping.BucketID)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, err
+	return h.BucketService.FindBucketByID(ctx, mapping.BucketID)
 }
 
 // findMapping finds a DBRPMappingV2 for the database and retention policy
