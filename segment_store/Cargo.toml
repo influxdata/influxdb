@@ -20,3 +20,7 @@ rand = "0.7.3"
 [[bench]]
 name = "fixed"
 harness = false
+
+[[bench]]
+name = "dictionary"
+harness = false
