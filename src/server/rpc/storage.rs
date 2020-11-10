@@ -1022,7 +1022,7 @@ mod tests {
     type StorageClient = storage_client::StorageClient<tonic::transport::Channel>;
 
     #[tokio::test]
-    async fn test_delorean_rpc() -> Result<()> {
+    async fn test_influxdb_iox_rpc() -> Result<()> {
         let mut fixture = Fixture::new(11807)
             .await
             .expect("Connecting to test server");
@@ -1033,7 +1033,7 @@ mod tests {
             buckets: Vec::new(),
         };
 
-        // Test response from delorean server
+        // Test response from influxdb_iox server
         let res = fixture.iox_client.get_buckets(org).await;
 
         match res {
@@ -1837,14 +1837,14 @@ mod tests {
         v.iter().map(|s| s.to_string()).collect()
     }
 
-    /// Delorean deals with database names. The gRPC interface deals
+    /// InfluxDB IOx deals with database names. The gRPC interface deals
     /// with org_id and bucket_id represented as 16 digit hex
     /// values. This struct manages creating the org_id, bucket_id,
     /// and database names to be consistent with the implementation
     struct OrgAndBucket {
         org_id: u64,
         bucket_id: u64,
-        /// The delorean database name corresponding to `org_id` and `bucket_id`
+        /// The influxdb_iox database name corresponding to `org_id` and `bucket_id`
         db_name: String,
     }
 
@@ -2132,7 +2132,7 @@ mod tests {
             // figure out how to get access to the actual addr from tonic)
             let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
 
-            println!("Starting delorean rpc test server on {:?}", bind_addr);
+            println!("Starting InfluxDB IOx rpc test server on {:?}", bind_addr);
 
             let server = make_server(bind_addr, test_storage.clone(), test_executor.clone());
             tokio::task::spawn(server);

@@ -52,7 +52,7 @@ impl QueryPlanner for IOxQueryPlanner {
     }
 }
 
-/// Physical planner for Delorean extension plans
+/// Physical planner for InfluxDB IOx extension plans
 struct IOxExtensionPlanner {}
 
 impl ExtensionPlanner for IOxExtensionPlanner {

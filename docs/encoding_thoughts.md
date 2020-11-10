@@ -1,7 +1,7 @@
 # Overview
 **May 22, 2020**
 
-Delorean will use the same logical data schema ([Line Protocol](https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types)) used by influxdb and will provide compatible query capabilities. This document sketches out how we could use [Apache Parquet](https://parquet.apache.org/documentation/latest/) as an on disk format and [Apache Arrow](https://arrow.apache.org/docs/format/Columnar.html#logical-types) as the in memory format.
+InfluxDB IOx will use the same logical data schema ([Line Protocol](https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types)) used by influxdb and will provide compatible query capabilities. This document sketches out how we could use [Apache Parquet](https://parquet.apache.org/documentation/latest/) as an on disk format and [Apache Arrow](https://arrow.apache.org/docs/format/Columnar.html#logical-types) as the in memory format.
 
 # Goal
 The primary goal of both the on disk and in memory formats is interoperability. Thus, if there is a choice between squeezing every last bit of compression or performance out of this encoding schema or making it easier to use with other tools, we have opted for interoperability convenience.
@@ -119,7 +119,7 @@ The Apache Parquet file format has several [available encodings](https://github.
 Tag value columns would be [Dictionary](https://arrow.apache.org/docs/format/Columnar.html#dictionary-encoded-layout) encoded in general. We may special case high cardinality tag columns (such as request ids) and choose not to dictionary encode them.
 
 # Sorting
-In general, many of these encodings are more efficient if repeated values occur next / near each other, so the delorean server may decide to sort data, for example, so that all repeated tags or fields appear sequentially. However, this may significantly reduce the effectiveness of `DELTA_BINARY_PACKED` encoding for the timestamp.
+In general, many of these encodings are more efficient if repeated values occur next / near each other, so the IOx server may decide to sort data, for example, so that all repeated tags or fields appear sequentially. However, this may significantly reduce the effectiveness of `DELTA_BINARY_PACKED` encoding for the timestamp.
 
 # Query Considerations
 

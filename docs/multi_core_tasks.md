@@ -1,6 +1,6 @@
 # Patterns for CPU usage in the Runtime
 
-As discussed on https://github.com/influxdata/delorean/pull/221 and https://github.com/influxdata/delorean/pull/226, we needed a strategy for handling I/O as well as CPU heavy requests in a flexible manner that will allow making appropriate tradeoffs between resource utilization and availability under load.
+As discussed on https://github.com/influxdata/influxdb_iox/pull/221 and https://github.com/influxdata/influxdb_iox/pull/226, we needed a strategy for handling I/O as well as CPU heavy requests in a flexible manner that will allow making appropriate tradeoffs between resource utilization and availability under load.
 
 ## TLDR;
 
@@ -35,7 +35,7 @@ The above desires, leads us to the following guidelines:
 
 **What**: All socket I/O should be done with `async` functions in tokio. It is ok to use either blocking (e.g. `std::fs::File`) or async APIs (e.g. `tokio::fs::File`) for local File I/O.
 
-**Rationale**: Using async functions in tokio ensures that we do not tie up threads which are servicing I/O requests while blocking on the network. At the time of this writing, our assumption is that on systems where delorean will be deployed, Filesystem I/O bandwidth and IOPS will be sufficient to avoid significant blocking, even under high load.
+**Rationale**: Using async functions in tokio ensures that we do not tie up threads which are servicing I/O requests while blocking on the network. At the time of this writing, our assumption is that on systems where IOx will be deployed, Filesystem I/O bandwidth and IOPS will be sufficient to avoid significant blocking, even under high load.
 
 It is ok to use either blocking (e.g. `std::fs::File`) or  async APIs for local File I/O.
 
@@ -62,7 +62,7 @@ In this section, we show how this design would be applied to a hypothetical 4 co
 
 *Maximum CPU Utilization*: To achieve maximum CPU utilization (all cores are busy if there is work to do), the operator could configure the system with 4 threads in the CPU threadpool and 1 thread in the tokio I/O task pool. Given 5 threads and 4 cores, while there will always be a thread available to handle I/O requests, it will be multiplexed by the operating system with the threads doing CPU heavy work.
 
-**Note**: In this document, we assume a simple implementation where there is a single threadpool used for both high and low priority CPU heavy work. While more sophisticated designs are possible (e.g.  segregated threadpools, task spilling, etc.), this document focuses on the split between I/O and CPU, not priority for CPU heavy tasks which is tracked, along with other resource management needs, [here](https://github.com/influxdata/delorean/issues/241)
+**Note**: In this document, we assume a simple implementation where there is a single threadpool used for both high and low priority CPU heavy work. While more sophisticated designs are possible (e.g.  segregated threadpools, task spilling, etc.), this document focuses on the split between I/O and CPU, not priority for CPU heavy tasks which is tracked, along with other resource management needs, [here](https://github.com/influxdata/influxdb_iox/issues/241)
 
 #### Heavy Query Processing
 

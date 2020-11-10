@@ -53,18 +53,18 @@
 //     }
 // }
 
-// /// Prototype of how a Delorean query engine, built on top of
+// /// Prototype of how a InfluxDB IOx query engine, built on top of
 // /// DataFusion, but using specialized column store operators might
 // /// look like.
 // ///
 // /// Data from the Segments in the `store` are visible in DataFusion
 // /// as a table ("measurement") in this prototype.
-// pub struct DeloreanQueryEngine {
+// pub struct IOxQueryEngine {
 // ctx: ExecutionContext,
 // store: Arc<Store>,
 // }
 
-// impl DeloreanQueryEngine {
+// impl IOxQueryEngine {
 // pub fn new(store: Arc<Store>) -> Self {
 // let start = std::time::Instant::now();
 // let mut ctx = ExecutionContext::new();
@@ -72,7 +72,7 @@
 // let source = Box::new(source);
 // ctx.register_table("measurement", source);
 // println!("Completed setup in {:?}", start.elapsed());
-// DeloreanQueryEngine { ctx, store }
+// IOxQueryEngine { ctx, store }
 // }
 
 //     // Run the specified SQL and return the number of records matched

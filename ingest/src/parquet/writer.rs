@@ -58,7 +58,7 @@ pub enum CompressionLevel {
 
     // Attempt to maximize interoperability with other ecosystem tools.
     //
-    // See https://github.com/influxdata/delorean/issues/184
+    // See https://github.com/influxdata/influxdb_iox/issues/184
     Compatibility,
 }
 
@@ -389,7 +389,7 @@ fn create_writer_props(
     builder = builder.set_compression(Compression::GZIP);
 
     // Setup encoding as defined in
-    // https://github.com/influxdata/delorean/blob/alamb/encoding_thoughts/docs/encoding_thoughts.md
+    // https://github.com/influxdata/influxdb_iox/blob/alamb/encoding_thoughts/docs/encoding_thoughts.md
     //
     // Note: the property writer builder's default is to encode
     // everything with dictionary encoding, and it turns out that
