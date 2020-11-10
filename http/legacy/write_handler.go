@@ -2,6 +2,7 @@ package legacy
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/authorizer"
 	"io"
 	"net/http"
 
@@ -155,7 +156,15 @@ func (h *WriteHandler) findBucket(ctx context.Context, orgID influxdb.ID, db, rp
 		return nil, err
 	}
 
-	return h.BucketService.FindBucketByID(ctx, mapping.BucketID)
+	bucket, err := h.BucketService.FindBucketByID(ctx, mapping.BucketID)
+	if err != nil {
+		return nil, err
+	}
+	_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, bucket.ID, bucket.OrgID)
+	if err != nil {
+		return nil, err
+	}
+	return bucket, nil
 }
 
 // findMapping finds a DBRPMappingV2 for the database and retention policy
