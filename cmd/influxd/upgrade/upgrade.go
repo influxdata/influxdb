@@ -237,7 +237,6 @@ func NewCommand() *cobra.Command {
 			Desc:    "optional: Custom InfluxDB 1.x config file path, else the default config file",
 		},
 		{
-		{
 			DestP:   &options.logLevel,
 			Flag:    "log-level",
 			Default: zapcore.InfoLevel.String(),
