@@ -1873,6 +1873,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /delete:
     post:
+      operationId: PostDelete
       summary: Delete time series data from InfluxDB
       requestBody:
         description: Predicate delete request
