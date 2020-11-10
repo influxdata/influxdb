@@ -230,7 +230,7 @@ where
                     debug!("Wrote {} rows of f64 data", n);
                 }
                 ByteArrayColumnWriter(ref mut w) => {
-                    let p = packer.str_packer();
+                    let p = packer.bytes_packer();
                     let n = w
                         .write_batch(&p.some_values(), Some(&p.def_levels()), None)
                         .context(ParquetLibraryError {

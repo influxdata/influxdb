@@ -19,7 +19,7 @@ use std::default::Default;
 pub enum Packers {
     Float(Packer<f64>),
     Integer(Packer<i64>),
-    String(Packer<ByteArray>),
+    Bytes(Packer<ByteArray>),
     UtfString(Packer<String>),
     Boolean(Packer<bool>),
 }
@@ -51,7 +51,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => PackerChunker::Float(p.values.chunks(chunk_size)),
             Self::Integer(p) => PackerChunker::Integer(p.values.chunks(chunk_size)),
-            Self::String(p) => PackerChunker::String(p.values.chunks(chunk_size)),
+            Self::Bytes(p) => PackerChunker::Bytes(p.values.chunks(chunk_size)),
             Self::UtfString(p) => PackerChunker::UtfString(p.values.chunks(chunk_size)),
             Self::Boolean(p) => PackerChunker::Boolean(p.values.chunks(chunk_size)),
         }
@@ -59,7 +59,7 @@ impl<'a> Packers {
 
     /// Create a String Packers with repeated values.
     pub fn from_elem_str(v: &str, n: usize) -> Self {
-        Self::String(Packer::from(vec![ByteArray::from(v); n]))
+        Self::Bytes(Packer::from(vec![ByteArray::from(v); n]))
     }
 
     /// Reserves the minimum capacity for exactly additional more elements to
@@ -68,7 +68,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => p.reserve_exact(additional),
             Self::Integer(p) => p.reserve_exact(additional),
-            Self::String(p) => p.reserve_exact(additional),
+            Self::Bytes(p) => p.reserve_exact(additional),
             Self::UtfString(p) => p.reserve_exact(additional),
             Self::Boolean(p) => p.reserve_exact(additional),
         }
@@ -78,7 +78,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => p.push_option(None),
             Self::Integer(p) => p.push_option(None),
-            Self::String(p) => p.push_option(None),
+            Self::Bytes(p) => p.push_option(None),
             Self::UtfString(p) => p.push_option(None),
             Self::Boolean(p) => p.push_option(None),
         }
@@ -89,7 +89,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => p.swap(a, b),
             Self::Integer(p) => p.swap(a, b),
-            Self::String(p) => p.swap(a, b),
+            Self::Bytes(p) => p.swap(a, b),
             Self::UtfString(p) => p.swap(a, b),
             Self::Boolean(p) => p.swap(a, b),
         }
@@ -100,7 +100,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => p.num_rows(),
             Self::Integer(p) => p.num_rows(),
-            Self::String(p) => p.num_rows(),
+            Self::Bytes(p) => p.num_rows(),
             Self::UtfString(p) => p.num_rows(),
             Self::Boolean(p) => p.num_rows(),
         }
@@ -113,7 +113,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => p.is_null(row),
             Self::Integer(p) => p.is_null(row),
-            Self::String(p) => p.is_null(row),
+            Self::Bytes(p) => p.is_null(row),
             Self::UtfString(p) => p.is_null(row),
             Self::Boolean(p) => p.is_null(row),
         }
@@ -123,7 +123,7 @@ impl<'a> Packers {
     typed_packer_accessors! {
         (f64_packer, f64_packer_mut, f64, Float),
         (i64_packer, i64_packer_mut, i64, Integer),
-        (str_packer, str_packer_mut, ByteArray, String),
+        (bytes_packer, bytes_packer_mut, ByteArray, Bytes),
         (utf_packer, utf_packer_mut, String, UtfString),
         (bool_packer, bool_packer_mut, bool, Boolean),
     }
@@ -143,7 +143,7 @@ impl std::convert::From<Vec<f64>> for Packers {
 
 impl std::convert::From<Vec<ByteArray>> for Packers {
     fn from(v: Vec<ByteArray>) -> Self {
-        Self::String(Packer::from(v))
+        Self::Bytes(Packer::from(v))
     }
 }
 
@@ -190,7 +190,7 @@ impl std::convert::From<data_types::table_schema::DataType> for Packers {
         match t {
             data_types::table_schema::DataType::Float => Self::Float(Packer::<f64>::new()),
             data_types::table_schema::DataType::Integer => Self::Integer(Packer::<i64>::new()),
-            data_types::table_schema::DataType::String => Self::String(Packer::<ByteArray>::new()),
+            data_types::table_schema::DataType::String => Self::Bytes(Packer::<ByteArray>::new()),
             data_types::table_schema::DataType::Boolean => Self::Boolean(Packer::<bool>::new()),
             data_types::table_schema::DataType::Timestamp => Self::Integer(Packer::<i64>::new()),
         }
@@ -202,7 +202,7 @@ impl std::convert::From<influxdb_tsm::BlockType> for Packers {
         match t {
             influxdb_tsm::BlockType::Float => Self::Float(Packer::<f64>::new()),
             influxdb_tsm::BlockType::Integer => Self::Integer(Packer::<i64>::new()),
-            influxdb_tsm::BlockType::Str => Self::String(Packer::<ByteArray>::new()),
+            influxdb_tsm::BlockType::Str => Self::Bytes(Packer::<ByteArray>::new()),
             influxdb_tsm::BlockType::Bool => Self::Boolean(Packer::<bool>::new()),
             influxdb_tsm::BlockType::Unsigned => Self::Integer(Packer::<i64>::new()),
         }
@@ -219,7 +219,7 @@ impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
                 None => as_byte_array.push(None),
             }
         }
-        Self::String(Packer::from(as_byte_array))
+        Self::Bytes(Packer::from(as_byte_array))
     }
 }
 
@@ -228,7 +228,7 @@ impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
 pub enum PackerChunker<'a> {
     Float(Chunks<'a, Option<f64>>),
     Integer(Chunks<'a, Option<i64>>),
-    String(Chunks<'a, Option<ByteArray>>),
+    Bytes(Chunks<'a, Option<ByteArray>>),
     UtfString(Chunks<'a, Option<String>>),
     Boolean(Chunks<'a, Option<bool>>),
 }
