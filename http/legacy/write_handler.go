@@ -2,6 +2,7 @@ package legacy
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -128,6 +129,11 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 	span.LogKV("bucket_id", bucket.ID)
 
+	if err := checkBucketWritePermissions(auth, bucket.OrgID, bucket.ID); err != nil {
+		h.HandleHTTPError(ctx, err, sw)
+		return
+	}
+
 	parsed, err := points.NewParser(req.Precision).Parse(ctx, auth.OrgID, bucket.ID, req.Body)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, sw)
@@ -156,6 +162,29 @@ func (h *WriteHandler) findBucket(ctx context.Context, orgID influxdb.ID, db, rp
 	}
 
 	return h.BucketService.FindBucketByID(ctx, mapping.BucketID)
+}
+
+// checkBucketWritePermissions checks an Authorizer for write permissions to a
+// specific Bucket.
+func checkBucketWritePermissions(auth influxdb.Authorizer, orgID, bucketID influxdb.ID) error {
+	p, err := influxdb.NewPermissionAtID(bucketID, influxdb.WriteAction, influxdb.BucketsResourceType, orgID)
+	if err != nil {
+		return &influxdb.Error{
+			Code: influxdb.EInternal,
+			Op:   opWriteHandler,
+			Msg:  fmt.Sprintf("unable to create permission for bucket: %v", err),
+			Err:  err,
+		}
+	}
+	if pset, err := auth.PermissionSet(); err != nil || !pset.Allowed(*p) {
+		return &influxdb.Error{
+			Code: influxdb.EForbidden,
+			Op:   opWriteHandler,
+			Msg:  "insufficient permissions for write",
+			Err:  err,
+		}
+	}
+	return nil
 }
 
 // findMapping finds a DBRPMappingV2 for the database and retention policy

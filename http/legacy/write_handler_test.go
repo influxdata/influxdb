@@ -13,7 +13,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/authorizer"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/http/mocks"
@@ -82,7 +81,7 @@ func TestWriteHandler_BucketAndMappingExists(t *testing.T) {
 		recordWriteEvent,
 	)
 
-	perms := newPermissions(influxdb.BucketsResourceType, &orgID, nil)
+	perms := newPermissions(influxdb.WriteAction, influxdb.BucketsResourceType, &orgID, nil)
 	auth := newAuthorization(orgID, perms...)
 	ctx := pcontext.SetAuthorizer(context.Background(), auth)
 	r := newWriteRequest(ctx, lineProtocolBody)
@@ -94,7 +93,7 @@ func TestWriteHandler_BucketAndMappingExists(t *testing.T) {
 	handler := NewWriterHandler(&PointsWriterBackend{
 		HTTPErrorHandler:   DefaultErrorHandler,
 		Logger:             zaptest.NewLogger(t),
-		BucketService:      authorizer.NewBucketService(bucketService),
+		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
 		PointsWriter:       pointsWriter,
 		EventRecorder:      eventRecorder,
@@ -103,6 +102,79 @@ func TestWriteHandler_BucketAndMappingExists(t *testing.T) {
 	handler.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusNoContent, w.Code)
 	assert.Equal(t, "", w.Body.String())
+}
+
+func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		// Mocked Services
+		eventRecorder  = mocks.NewMockEventRecorder(ctrl)
+		dbrpMappingSvc = mocks.NewMockDBRPMappingServiceV2(ctrl)
+		bucketService  = mocks.NewMockBucketService(ctrl)
+		pointsWriter   = mocks.NewMockPointsWriter(ctrl)
+
+		// Found Resources
+		orgID  = generator.ID()
+		bucket = &influxdb.Bucket{
+			ID:                  generator.ID(),
+			OrgID:               orgID,
+			Name:                "mydb/autogen",
+			RetentionPolicyName: "autogen",
+			RetentionPeriod:     72 * time.Hour,
+		}
+		mapping = &influxdb.DBRPMappingV2{
+			OrganizationID:  orgID,
+			BucketID:        bucket.ID,
+			Database:        "mydb",
+			RetentionPolicy: "autogen",
+		}
+
+		lineProtocolBody = "m,t1=v1 f1=2 100"
+	)
+
+	findAutogenMapping := dbrpMappingSvc.
+		EXPECT().
+		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
+			OrgID:    &mapping.OrganizationID,
+			Database: &mapping.Database,
+		}).Return([]*influxdb.DBRPMappingV2{mapping}, 1, nil)
+
+	findBucketByID := bucketService.
+		EXPECT().
+		FindBucketByID(gomock.Any(), bucket.ID).Return(bucket, nil)
+
+	recordWriteEvent := eventRecorder.EXPECT().
+		Record(gomock.Any(), gomock.Any())
+
+	gomock.InOrder(
+		findAutogenMapping,
+		findBucketByID,
+		recordWriteEvent,
+	)
+
+	perms := newPermissions(influxdb.ReadAction, influxdb.BucketsResourceType, &orgID, nil)
+	auth := newAuthorization(orgID, perms...)
+	ctx := pcontext.SetAuthorizer(context.Background(), auth)
+	r := newWriteRequest(ctx, lineProtocolBody)
+	params := r.URL.Query()
+	params.Set("db", "mydb")
+	params.Set("rp", "")
+	r.URL.RawQuery = params.Encode()
+
+	handler := NewWriterHandler(&PointsWriterBackend{
+		HTTPErrorHandler:   DefaultErrorHandler,
+		Logger:             zaptest.NewLogger(t),
+		BucketService:      bucketService,
+		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
+		PointsWriter:       pointsWriter,
+		EventRecorder:      eventRecorder,
+	})
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, "{\"code\":\"forbidden\",\"message\":\"insufficient permissions for write\"}", w.Body.String())
 }
 
 func TestWriteHandler_MappingNotExists(t *testing.T) {
@@ -150,7 +222,7 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 		recordWriteEvent,
 	)
 
-	perms := newPermissions(influxdb.BucketsResourceType, &orgID, nil)
+	perms := newPermissions(influxdb.WriteAction, influxdb.BucketsResourceType, &orgID, nil)
 	auth := newAuthorization(orgID, perms...)
 	ctx := pcontext.SetAuthorizer(context.Background(), auth)
 	r := newWriteRequest(ctx, lineProtocolBody)
@@ -162,7 +234,7 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 	handler := NewWriterHandler(&PointsWriterBackend{
 		HTTPErrorHandler:   DefaultErrorHandler,
 		Logger:             zaptest.NewLogger(t),
-		BucketService:      authorizer.NewBucketService(bucketService),
+		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
 		PointsWriter:       pointsWriter,
 		EventRecorder:      eventRecorder,
@@ -230,18 +302,10 @@ func (m pointsMatcher) String() string {
 	return fmt.Sprintf("%#v", m.points)
 }
 
-func newPermissions(resourceType influxdb.ResourceType, orgID, id *influxdb.ID) []influxdb.Permission {
+func newPermissions(action influxdb.Action, resourceType influxdb.ResourceType, orgID, id *influxdb.ID) []influxdb.Permission {
 	return []influxdb.Permission{
 		{
-			Action: influxdb.WriteAction,
-			Resource: influxdb.Resource{
-				Type:  resourceType,
-				OrgID: orgID,
-				ID:    id,
-			},
-		},
-		{
-			Action: influxdb.ReadAction,
+			Action: action,
 			Resource: influxdb.Resource{
 				Type:  resourceType,
 				OrgID: orgID,
