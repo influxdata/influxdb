@@ -954,7 +954,7 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 	parsedFilterAfterTime := time.Time{}
 	parsedFilterBeforeTime := time.Now().UTC()
 	var err error
-	if filter.AfterTime != "" {
+	if len(filter.AfterTime) > 0 {
 		parsedFilterAfterTime, err = time.Parse(time.RFC3339, filter.AfterTime)
 		if err != nil {
 			return nil, 0, err
@@ -997,7 +997,6 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 	}
 
 	return runs, len(runs), nil
-
 }
 
 // FindRunByID returns a single run.
