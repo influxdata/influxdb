@@ -113,8 +113,9 @@ func (b *cmdRestoreBuilder) restoreRunE(cmd *cobra.Command, args []string) (err 
 
 	ac := flags.config()
 	b.restoreService = &http.RestoreService{
-		Addr:  ac.Host,
-		Token: ac.Token,
+		Addr:               ac.Host,
+		Token:              ac.Token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	client, err := newHTTPClient()
