@@ -123,7 +123,7 @@ func (s *Service) findSourceByID(ctx context.Context, tx Tx, id influxdb.ID) (*i
 	return &sr, nil
 }
 
-// FindSources retrives all sources that match an arbitrary source filter.
+// FindSources retrieves all sources that match an arbitrary source filter.
 // Filters using ID, or OrganizationID and source Name should be efficient.
 // Other filters will do a linear scan across all sources searching for a match.
 func (s *Service) FindSources(ctx context.Context, opt influxdb.FindOptions) ([]*influxdb.Source, int, error) {

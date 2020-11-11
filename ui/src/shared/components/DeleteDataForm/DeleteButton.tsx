@@ -31,7 +31,7 @@ const DeleteButton: FunctionComponent<Props> = ({status, valid, onClick}) => {
     return (
       <div className="delete-data-button delete-data-button--error">
         <Icon glyph={IconFont.Remove} />
-        An error occured and has been reported.
+        An error occurred and has been reported.
       </div>
     )
   }

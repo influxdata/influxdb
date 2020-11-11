@@ -26,7 +26,7 @@ export interface FluxResult {
   source: string // the query that was used to generate the flux
   raw: string // the result from the API
   parsed: FromFluxResult // the parsed result
-  error?: string // any error that might have happend while fetching
+  error?: string // any error that might have happened while fetching
 }
 
 interface DataLookup<T> {

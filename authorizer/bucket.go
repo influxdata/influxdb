@@ -15,7 +15,7 @@ type BucketService struct {
 	s influxdb.BucketService
 }
 
-// NewBucketService constructs an instance of an authorizing bucket serivce.
+// NewBucketService constructs an instance of an authorizing bucket service.
 func NewBucketService(s influxdb.BucketService) *BucketService {
 	return &BucketService{
 		s: s,

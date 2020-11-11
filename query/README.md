@@ -186,7 +186,7 @@ from(bucket: "telegraf/autogen") |> range(start: -5m)
     |> map(fn: (r) => {_value: r._value / 100})
 ```
 
-The function passed into map must return an object. An object is a key/value structure. By default, the `map` function will merge any columns within the grouping key into the new row so you do not have to specify all of the existing columns that you do not want to modify. If you do not want to automtaically merge those columns, you can use `mergeKey: false` as a parameter to `map`.
+The function passed into map must return an object. An object is a key/value structure. By default, the `map` function will merge any columns within the grouping key into the new row so you do not have to specify all of the existing columns that you do not want to modify. If you do not want to automatically merge those columns, you can use `mergeKey: false` as a parameter to `map`.
 
 **Note:** Math support is limited right now and the filter is required because the query engine will throw an error if the value is of different types with different series. So you must filter the results so only fields with a single type are selected at the moment.
 

@@ -49,7 +49,7 @@ type resourceHandler struct {
 // Prefix is necessary to mount the router as a resource handler
 func (r resourceHandler) Prefix() string { return r.prefix }
 
-// SignInResourceHandler allows us to return 2 different rousource handler
+// SignInResourceHandler allows us to return 2 different resource handler
 // for the appropriate mounting location
 func (h SessionHandler) SignInResourceHandler() *resourceHandler {
 	h.Router = chi.NewRouter()
@@ -62,7 +62,7 @@ func (h SessionHandler) SignInResourceHandler() *resourceHandler {
 	return &resourceHandler{prefix: prefixSignIn, SessionHandler: &h}
 }
 
-// SignOutResourceHandler allows us to return 2 different rousource handler
+// SignOutResourceHandler allows us to return 2 different resource handler
 // for the appropriate mounting location
 func (h SessionHandler) SignOutResourceHandler() *resourceHandler {
 	h.Router = chi.NewRouter()

@@ -741,7 +741,7 @@ type OrganizationQuery struct {
 //
 // While not necessary for the app to function correctly, it is
 // expected that Implementors of the OrganizationsStore will take
-// care to guarantee that the Organization.Name is unqiue. Allowing
+// care to guarantee that the Organization.Name is unique. Allowing
 // for duplicate names creates a confusing UX experience for the User.
 type OrganizationsStore interface {
 	// Add creates a new Organization.

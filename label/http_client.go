@@ -111,7 +111,7 @@ func (s *LabelClientService) DeleteLabel(ctx context.Context, id influxdb.ID) er
 
 // ******* Label Mappings ******* //
 
-// CreateLabelMapping will create a labbel mapping
+// CreateLabelMapping will create a label mapping
 func (s *LabelClientService) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	if err := m.Validate(); err != nil {
 		return err

@@ -73,7 +73,7 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
 
   const buttonTitleText = !!endpoints.length
     ? 'Create a Notification Rule'
-    : 'You need at least 1 Notifcation Endpoint to create a Notification Rule'
+    : 'You need at least 1 Notification Endpoint to create a Notification Rule'
 
   const createButton = (
     <Button

@@ -350,7 +350,7 @@ type MeasurementBlockElem struct {
 
 	seriesIDSet *tsdb.SeriesIDSet
 
-	// size in bytes, set after unmarshaling.
+	// size in bytes, set after unmarshalling.
 	size int
 }
 

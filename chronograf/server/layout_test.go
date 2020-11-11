@@ -174,7 +174,7 @@ func Test_Layouts(t *testing.T) {
 			// decode resp into respFrame
 			resp := rr.Result()
 			if err := json.NewDecoder(resp.Body).Decode(&respFrame); err != nil {
-				t.Fatalf("%q - Error unmarshaling JSON: err: %s", test.name, err.Error())
+				t.Fatalf("%q - Error unmarshalling JSON: err: %s", test.name, err.Error())
 			}
 
 			// compare actual and expected

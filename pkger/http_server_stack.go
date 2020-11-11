@@ -62,7 +62,7 @@ type (
 		CreatedAt time.Time        `json:"createdAt"`
 		Events    []RespStackEvent `json:"events"`
 
-		// maintain same interface for backward compatability
+		// maintain same interface for backward compatibility
 		RespStackEvent
 	}
 

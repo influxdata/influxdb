@@ -781,7 +781,7 @@ func (i *Index) InitializeSeries(keys, names [][]byte, tags []models.Tags) error
 }
 
 // DropSeries drops the provided series from the index.  If cascade is true
-// and this is the last series to the measurement, the measurment will also be dropped.
+// and this is the last series to the measurement, the measurement will also be dropped.
 func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	// Remove from partition.
 	if err := i.partition(key).DropSeries(seriesID); err != nil {
@@ -828,7 +828,7 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 func (i *Index) DropSeriesGlobal(key []byte) error { return nil }
 
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
-// series for the measurment.
+// series for the measurement.
 func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
 	// Check if that was the last series for the measurement in the entire index.
 	if ok, err := i.MeasurementHasSeries(name); err != nil {

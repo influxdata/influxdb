@@ -216,7 +216,7 @@ func Test_ConcatAnnotation(t *testing.T) {
 		require.Equal(t, 1, len(table.validators))
 		require.NotNil(t, table.validators[0](table))
 		require.Equal(t,
-			"column 'fN': 'a${y}-${x}z' references an uknown column 'y', available columns are: x",
+			"column 'fN': 'a${y}-${x}z' references an unknown column 'y', available columns are: x",
 			table.validators[0](table).Error())
 		// columns
 		require.Equal(t, 1, len(table.extraColumns))

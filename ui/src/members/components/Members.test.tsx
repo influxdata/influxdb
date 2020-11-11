@@ -6,11 +6,11 @@ import {shallow} from 'enzyme'
 import MemberList from 'src/members/components/MemberList'
 
 // Constants
-import {resouceOwner} from 'src/members/dummyData'
+import {resourceOwner} from 'src/members/dummyData'
 
 const setup = (override?) => {
   const props = {
-    members: resouceOwner,
+    members: resourceOwner,
     emptyState: <></>,
     ...override,
   }
