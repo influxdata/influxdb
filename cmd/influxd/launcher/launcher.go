@@ -22,7 +22,6 @@ import (
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/checks"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/dashboards"
 	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/dbrp"
@@ -101,7 +100,7 @@ const (
 	MaxInt = 1<<uint(strconv.IntSize-1) - 1
 )
 
-func NewInfluxdCommand(ctx context.Context, subCommands ...*cobra.Command) *cobra.Command {
+func NewInfluxdCommand(ctx context.Context) *cobra.Command {
 	l := NewLauncher()
 
 	prog := cli.Program{
@@ -128,12 +127,13 @@ func NewInfluxdCommand(ctx context.Context, subCommands ...*cobra.Command) *cobr
 	runCmd := &cobra.Command{
 		Use:  "run",
 		RunE: cmd.RunE,
+		Args: cobra.NoArgs,
 	}
 	for _, c := range []*cobra.Command{cmd, runCmd} {
 		assignDescs(c)
 		setLauncherCMDOpts(l, c)
 	}
-	cmd.AddCommand(append(subCommands, runCmd)...)
+	cmd.AddCommand(runCmd)
 
 	return cmd
 }
@@ -178,7 +178,6 @@ var vaultConfig vault.Config
 
 func setLauncherCMDOpts(l *Launcher, cmd *cobra.Command) {
 	cli.BindOptions(cmd, launcherOpts(l))
-	cmd.AddCommand(inspect.NewCommand())
 }
 
 func launcherOpts(l *Launcher) []cli.Opt {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	_ "net/http/pprof"
 	"os"
 	"time"
@@ -28,23 +29,25 @@ func main() {
 
 	influxdb.SetBuildInfo(version, commit, date)
 
-	rootCmd := launcher.NewInfluxdCommand(context.Background(),
-		// FIXME
-		//generate.Command,
-		//restore.Command,
-		&cobra.Command{
-			Use:   "version",
-			Short: "Print the influxd server version",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Printf("InfluxDB %s (git: %s) build_date: %s\n", version, commit, date)
-			},
-		},
-	)
-
+	rootCmd := launcher.NewInfluxdCommand(context.Background())
 	// upgrade binds options to env variables, so it must be added after rootCmd is initialized
 	rootCmd.AddCommand(upgrade.NewCommand())
+	rootCmd.AddCommand(inspect.NewCommand())
+	rootCmd.AddCommand(versionCmd())
 
+	rootCmd.SilenceUsage = true
 	if err := rootCmd.Execute(); err != nil {
+		rootCmd.PrintErrf("See '%s -h' for help\n", rootCmd.CommandPath())
 		os.Exit(1)
+	}
+}
+
+func versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the influxd server version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("InfluxDB %s (git: %s) build_date: %s\n", version, commit, date)
+		},
 	}
 }
