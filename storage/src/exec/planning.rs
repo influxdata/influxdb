@@ -20,7 +20,6 @@ use arrow_deps::{
 };
 
 use crate::exec::schema_pivot::{SchemaPivotExec, SchemaPivotNode};
-use crate::util::dump_plan;
 
 use tracing::debug;
 
@@ -99,17 +98,21 @@ impl IOxExecutionContext {
     }
 
     pub async fn make_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
-        debug!("Running plan, input\n----\n{}\n----", dump_plan(plan));
-
-        // TODO the datafusion optimizer was removing filters..
-        //let logical_plan = ctx.optimize(&plan).context(DataFusionOptimization)?;
-        let logical_plan = plan;
         debug!(
-            "Running optimized plan\n----\n{}\n----",
-            dump_plan(logical_plan)
+            "Creating plan: Initial plan\n----\n{}\n{}\n----",
+            plan.display_indent_schema(),
+            plan.display_graphviz(),
         );
 
-        self.inner.create_physical_plan(&logical_plan)
+        let plan = self.inner.optimize(&plan)?;
+
+        debug!(
+            "Creating plan: Optimized plan\n----\n{}\n{}\n----",
+            plan.display_indent_schema(),
+            plan.display_graphviz(),
+        );
+
+        self.inner.create_physical_plan(&plan)
     }
 
     /// Executes the logical plan using DataFusion and produces RecordBatches

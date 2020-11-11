@@ -1,8 +1,5 @@
 use generated_types::wal as wb;
-use storage::{
-    exec::{make_schema_pivot, GroupedSeriesSetPlan, SeriesSetPlan},
-    util::dump_plan,
-};
+use storage::exec::{make_schema_pivot, GroupedSeriesSetPlan, SeriesSetPlan};
 use tracing::debug;
 
 use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
@@ -374,7 +371,7 @@ impl Table {
         debug!(
             "Created column_name plan for table '{}':\n{}",
             partition.dictionary.lookup_id(self.id).unwrap(),
-            dump_plan(&plan)
+            plan.display_indent_schema()
         );
 
         Ok(plan)

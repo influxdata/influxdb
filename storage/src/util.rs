@@ -1,8 +1,5 @@
 //! This module contains DataFusion utility functions and helpers
-use arrow_deps::datafusion::{
-    logical_plan::Expr, logical_plan::LogicalPlan, logical_plan::Operator, optimizer::utils::inputs,
-};
-use std::io::Write;
+use arrow_deps::datafusion::{logical_plan::Expr, logical_plan::Operator};
 
 /// Encode the traversal of an expression tree. When passed to
 /// `visit_expression`, `ExpressionVisitor::visit` is invoked
@@ -125,24 +122,6 @@ pub fn dump_expr(expr: &Expr) -> String {
     visit_expression(expr, &mut visitor);
     let ExprToString { indent: _, output } = visitor;
     output
-}
-
-/// dumps the plan, and schema information to a string
-pub fn dump_plan(p: &LogicalPlan) -> String {
-    let mut buf = Vec::new();
-    dump_plan_impl("", p, &mut buf);
-    String::from_utf8_lossy(&buf).to_string()
-}
-
-fn dump_plan_impl(prefix: &str, p: &LogicalPlan, buf: &mut impl Write) {
-    writeln!(buf, "output schema: {:?}", p.schema()).unwrap();
-    writeln!(buf, "{:?}", p).unwrap();
-
-    let new_prefix = format!("{}    ", prefix);
-    for i in inputs(p) {
-        writeln!(buf).unwrap();
-        dump_plan_impl(&new_prefix, i, buf);
-    }
 }
 
 /// Creates a single expression representing the conjunction (aka
