@@ -391,7 +391,7 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetNotificationEndpoint(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetNotificationEndpoint(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetNotificationEndpoint() = ***%s***", tt.name, diff)
 				}
@@ -501,7 +501,7 @@ func TestService_handlePostNotificationEndpoint(t *testing.T) {
 				ExpectBody(func(body *bytes.Buffer) {
 					if tt.wants.body != "" {
 						if eq, diff, err := jsonEqual(body.String(), tt.wants.body); err != nil {
-							t.Errorf("%q, handlePostNotificationEndpoint(). error unmarshaling json %v", tt.name, err)
+							t.Errorf("%q, handlePostNotificationEndpoint(). error unmarshalling json %v", tt.name, err)
 						} else if !eq {
 							t.Errorf("%q. handlePostNotificationEndpoint() = ***%s***", tt.name, diff)
 						}
@@ -586,7 +586,7 @@ func TestService_handleDeleteNotificationEndpoint(t *testing.T) {
 				ExpectBody(func(buf *bytes.Buffer) {
 					if tt.wants.body != "" {
 						if eq, diff, err := jsonEqual(buf.String(), tt.wants.body); err != nil {
-							t.Errorf("%q, handleDeleteNotificationEndpoint(). error unmarshaling json %v", tt.name, err)
+							t.Errorf("%q, handleDeleteNotificationEndpoint(). error unmarshalling json %v", tt.name, err)
 						} else if !eq {
 							t.Errorf("%q. handleDeleteNotificationEndpoint() = ***%s***", tt.name, diff)
 						}
@@ -740,7 +740,7 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePatchNotificationEndpoint(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePatchNotificationEndpoint(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePatchNotificationEndpoint() = ***%s***", tt.name, diff)
 				}
@@ -859,7 +859,7 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 				ExpectBody(func(body *bytes.Buffer) {
 					if tt.wants.body != "" {
 						if eq, diff, err := jsonEqual(body.String(), tt.wants.body); err != nil {
-							t.Errorf("%q, handlePutNotificationEndpoint(). error unmarshaling json %v", tt.name, err)
+							t.Errorf("%q, handlePutNotificationEndpoint(). error unmarshalling json %v", tt.name, err)
 						} else if !eq {
 							t.Errorf("%q. handlePutNotificationEndpoint() = ***%s***", tt.name, diff)
 						}
@@ -959,7 +959,7 @@ func TestService_handlePostNotificationEndpointMember(t *testing.T) {
 				t.Errorf("%q. handlePostNotificationEndpointMember() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, handlePostNotificationEndpointMember(). error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, handlePostNotificationEndpointMember(). error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handlePostNotificationEndpointMember() = ***%s***", tt.name, diff)
 			}
@@ -1053,7 +1053,7 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 				t.Errorf("%q. handlePostNotificationEndpointOwner() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, handlePostNotificationEndpointOwner(). error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, handlePostNotificationEndpointOwner(). error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handlePostNotificationEndpointOwner() = ***%s***", tt.name, diff)
 			}

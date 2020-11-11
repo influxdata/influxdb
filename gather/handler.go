@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// handler implents nats Handler interface.
+// handler implements nats Handler interface.
 type handler struct {
 	Scraper   Scraper
 	Publisher nats.Publisher

@@ -49,7 +49,7 @@ npm test -- headless=true activeConf=nightly -t "@feature-signin"
 
 **Environment Variable Overrides**
 
-Configuration properties can be overridden by `E2E` environment variables. The basic pattern for exporting an enviornment variable to be picked up for test configuration is the token `E2E` followed by an underscore, then the path to the property to be modified as defined by the configuration tree in `e2e.conf.json`.  Each node in the tree is declared in uppercase and separated by an underscore. 
+Configuration properties can be overridden by `E2E` environment variables. The basic pattern for exporting an environment variable to be picked up for test configuration is the token `E2E` followed by an underscore, then the path to the property to be modified as defined by the configuration tree in `e2e.conf.json`.  Each node in the tree is declared in uppercase and separated by an underscore. 
 
 For example, to declare the `influx_url` property in the `development` configuration export the environment variable `E2E_DEVELOPMENT_INFLUX_URL`.
 
@@ -149,9 +149,9 @@ caps.set('enableVideo', true);
 
 Then rerun the script `selenoid.sh` with the argument `-debug`. 
 
-### Light Weight Perfomance checks
+### Light Weight Performance checks
 
-For tests against the cloud a light weigh perfomance utility has been added. It currently exports only one method for tests: `execTimed( func, maxDelay, failMsg, successMsg)`.  This method will execute the passed function and expect it to resolve by `maxDelay` milliseconds.  Failures are thrown to cucumber and results are stored in a performance log buffer.  This log is then dumped to the console after all tests have been run.  They are also written to a CSV report file: `./report/performance.csv`.
+For tests against the cloud a light weigh performance utility has been added. It currently exports only one method for tests: `execTimed( func, maxDelay, failMsg, successMsg)`.  This method will execute the passed function and expect it to resolve by `maxDelay` milliseconds.  Failures are thrown to cucumber and results are stored in a performance log buffer.  This log is then dumped to the console after all tests have been run.  They are also written to a CSV report file: `./report/performance.csv`.
 
 For example, here is how it is used to check the redirect to the login page. 
 

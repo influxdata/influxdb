@@ -75,7 +75,7 @@ func TestAPIHandler_NotFound(t *testing.T) {
 				t.Errorf("%q. get %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}

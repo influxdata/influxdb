@@ -28,9 +28,9 @@ type DashboardService struct {
 	GetDashboardCellViewCalls    SafeCount
 	UpdateDashboardCellViewF     func(ctx context.Context, dashboardID platform.ID, cellID platform.ID, upd platform.ViewUpdate) (*platform.View, error)
 	UpdateDashboardCellViewCalls SafeCount
-	UpdateDashboardCellF         func(ctx context.Context, dashbaordID platform.ID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error)
+	UpdateDashboardCellF         func(ctx context.Context, dashboardID platform.ID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error)
 	UpdateDashboardCellCalls     SafeCount
-	CopyDashboardCellF           func(ctx context.Context, dashbaordID platform.ID, cellID platform.ID) (*platform.Cell, error)
+	CopyDashboardCellF           func(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*platform.Cell, error)
 	CopyDashboardCellCalls       SafeCount
 	ReplaceDashboardCellsF       func(ctx context.Context, id platform.ID, cs []*platform.Cell) error
 	ReplaceDashboardCellsCalls   SafeCount
@@ -59,10 +59,10 @@ func NewDashboardService() *DashboardService {
 		UpdateDashboardCellViewF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
 			return nil, nil
 		},
-		UpdateDashboardCellF: func(ctx context.Context, dashbaordID platform.ID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+		UpdateDashboardCellF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
 			return nil, nil
 		},
-		CopyDashboardCellF: func(ctx context.Context, dashbaordID platform.ID, cellID platform.ID) (*platform.Cell, error) {
+		CopyDashboardCellF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*platform.Cell, error) {
 			return nil, nil
 		},
 		ReplaceDashboardCellsF: func(ctx context.Context, id platform.ID, cs []*platform.Cell) error { return nil },

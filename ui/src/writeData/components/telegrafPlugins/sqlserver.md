@@ -176,7 +176,7 @@ The new (version 2) metrics provide:
   - *Memory*: PLE, Page reads/sec, Page writes/sec, + more
   - *TempDB*: Free space, Version store usage, Active temp tables, temp table creation rate, + more
   - *Resource Governor*: CPU Usage, Requests/sec, Queued Requests, and Blocked tasks per workload group + more
-- *Server properties*: Number of databases in all possible states (online, offline, suspect, etc.), cpu count, physical memory, SQL Server service uptime, and SQL Server version. In the case of Azure SQL relevent properties such as Tier, #Vcores, Memory etc.
+- *Server properties*: Number of databases in all possible states (online, offline, suspect, etc.), cpu count, physical memory, SQL Server service uptime, and SQL Server version. In the case of Azure SQL relevant properties such as Tier, #Vcores, Memory etc.
 - *Wait stats*: Wait time in ms, number of waiting tasks, resource wait time, signal wait time, max wait time in ms, wait type, and wait category. The waits are categorized using the same categories used in Query Store.
 - *Schedulers* - This captures `sys.dm_os_schedulers`.
 - *SqlRequests* - This captures a snapshot of `sys.dm_exec_requests` and `sys.dm_exec_sessions` that gives you running requests as well as wait types and
@@ -205,7 +205,7 @@ These are metrics for Azure SQL Database (single database) and are very similar 
 - AzureSQLDBMemoryClerks: Memory clerk breakdown from `sys.dm_os_memory_clerks`.
 = AzureSQLDBResourceGovernance: Relevant properties indicatign resource limits from `sys.dm_user_db_resource_governance`
 - AzureSQLDBPerformanceCounters: A select list of performance counters from `sys.dm_os_performance_counters` including cloud specific counters for SQL Hyperscale.
-- AzureSQLDBServerProperties: Relevant Azure SQL relevent properties from  such as Tier, #Vcores, Memory etc, storage, etc.
+- AzureSQLDBServerProperties: Relevant Azure SQL relevant properties from  such as Tier, #Vcores, Memory etc, storage, etc.
 - AzureSQLDBWaitstats: Wait time in ms from `sys.dm_db_wait_stats`, number of waiting tasks, resource wait time, signal wait time, max wait time in ms, wait type, and wait category. The waits are categorized using the same categories used in Query Store. These waits are collected only as of the end of the a statement. and for a specific database only.
 - *AzureSQLOsWaitstats*: Wait time in ms from `sys.dm_os_wait_stats`, number of waiting tasks, resource wait time, signal wait time, max wait time in ms, wait type, and wait category. The waits are categorized using the same categories used in Query Store. These waits are collected as they occur and instance wide
 - *AzureSQLDBRequests: Requests which are blocked or have a wait type from `sys.dm_exec_sessions` and `sys.dm_exec_requests`
@@ -218,7 +218,7 @@ These are metrics for Azure SQL Managed instance, are very similar to version 2 
 - AzureSQLMIMemoryClerks: Memory clerk breakdown from `sys.dm_os_memory_clerks`.
 - AzureSQLMIResourceGovernance: Relevant properties indicatign resource limits from `sys.dm_instance_resource_governance`
 - AzureSQLMIPerformanceCounters: A select list of performance counters from `sys.dm_os_performance_counters` including cloud specific counters for SQL Hyperscale.
-- AzureSQLMIServerProperties: Relevant Azure SQL relevent properties such as Tier, #Vcores, Memory etc, storage, etc.
+- AzureSQLMIServerProperties: Relevant Azure SQL relevant properties such as Tier, #Vcores, Memory etc, storage, etc.
 - AzureSQLMIOsWaitstats: Wait time in ms from `sys.dm_os_wait_stats`, number of waiting tasks, resource wait time, signal wait time, max wait time in ms, wait type, and wait category. The waits are categorized using the same categories used in Query Store. These waits are collected as they occur and instance wide
 - AzureSQLMIRequests: Requests which are blocked or have a wait type from `sys.dm_exec_sessions` and `sys.dm_exec_requests`
 - AzureSQLMISchedulers - This captures `sys.dm_os_schedulers` snapshots.
@@ -233,7 +233,7 @@ These are metrics for Azure SQL Managed instance, are very similar to version 2 
   - *Memory*: PLE, Page reads/sec, Page writes/sec, + more
   - *TempDB*: Free space, Version store usage, Active temp tables, temp table creation rate, + more
   - *Resource Governor*: CPU Usage, Requests/sec, Queued Requests, and Blocked tasks per workload group + more
-- SQLServerProperties: Number of databases in all possible states (online, offline, suspect, etc.), cpu count, physical memory, SQL Server service uptime, and SQL Server version. In the case of Azure SQL relevent properties such as Tier, #Vcores, Memory etc.
+- SQLServerProperties: Number of databases in all possible states (online, offline, suspect, etc.), cpu count, physical memory, SQL Server service uptime, and SQL Server version. In the case of Azure SQL relevant properties such as Tier, #Vcores, Memory etc.
 - SQLServerWaitStatsCategorized: Wait time in ms, number of waiting tasks, resource wait time, signal wait time, max wait time in ms, wait type, and wait category. The waits are categorized using the same categories used in Query Store.
 - SQLServerSchedulers - This captures `sys.dm_os_schedulers`.
 - SQLServerRequests - This captures a snapshot of `sys.dm_exec_requests` and `sys.dm_exec_sessions` that gives you running requests as well as wait types and

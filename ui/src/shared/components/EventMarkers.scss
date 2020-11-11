@@ -12,7 +12,7 @@ $event-marker-z-index: 2;
   opacity: 0.5;
   z-index: $event-marker-z-index;
 
-  // Psuedo elements
+  // Pseudo elements
   &:after,
   &:before {
     content: '';

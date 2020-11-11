@@ -571,7 +571,7 @@ func (o *Options) EffectiveCronString() string {
 	if o.Cron != "" {
 		return o.Cron
 	}
-	every, _ := o.Every.DurationFrom(time.Now()) // we can ignore errors here because we have alreach checked for validity.
+	every, _ := o.Every.DurationFrom(time.Now()) // we can ignore errors here because we have already checked for validity.
 	if every > 0 {
 		return "@every " + o.Every.String()
 	}

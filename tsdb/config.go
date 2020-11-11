@@ -112,7 +112,7 @@ type Config struct {
 	MaxSeriesPerDatabase int `toml:"max-series-per-database"`
 
 	// MaxValuesPerTag is the maximum number of tag values a single tag key can have within
-	// a measurement.  When the limit is execeeded, writes return an error.
+	// a measurement.  When the limit is exceeded, writes return an error.
 	// A value of 0 disables the limit.
 	MaxValuesPerTag int `toml:"max-values-per-tag"`
 
@@ -135,7 +135,7 @@ type Config struct {
 
 	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
 	// that can be running at one time across all series partitions in a database. Snapshots scheduled
-	// to run when the limit is reached are blocked until a running snaphsot completes.  Only snapshot
+	// to run when the limit is reached are blocked until a running snapshot completes.  Only snapshot
 	// compactions are affected by this limit. A value of 0 limits snapshot compactions to the lesser of
 	// 8 (series file partition quantity) and runtime.GOMAXPROCS(0).
 	SeriesFileMaxConcurrentSnapshotCompactions int `toml:"series-file-max-concurrent-snapshot-compactions"`

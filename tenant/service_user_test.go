@@ -129,7 +129,7 @@ func TestFindPermissionsFromUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// pull the permisssions for this user
+	// pull the permissions for this user
 	perms, err := svc.FindPermissionForUser(ctx, u.ID)
 	if err != nil {
 		t.Fatal(err)

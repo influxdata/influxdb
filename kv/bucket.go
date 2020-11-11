@@ -198,7 +198,7 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 	return s.findBucketByID(ctx, tx, id)
 }
 
-// FindBucket retrives a bucket using an arbitrary bucket filter.
+// FindBucket retrieves a bucket using an arbitrary bucket filter.
 // Filters using ID, or OrganizationID and bucket Name should be efficient.
 // Other filters will do a linear scan across buckets until it finds a match.
 func (s *Service) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
@@ -285,7 +285,7 @@ func filterBucketsFn(filter influxdb.BucketFilter) func(b *influxdb.Bucket) bool
 	return func(b *influxdb.Bucket) bool { return true }
 }
 
-// FindBuckets retrives all buckets that match an arbitrary bucket filter.
+// FindBuckets retrieves all buckets that match an arbitrary bucket filter.
 // Filters using ID, or OrganizationID and bucket Name should be efficient.
 // Other filters will do a linear scan across all buckets searching for a match.
 func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {

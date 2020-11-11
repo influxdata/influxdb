@@ -14,7 +14,7 @@ type DashboardService struct {
 	s influxdb.DashboardService
 }
 
-// NewDashboardService constructs an instance of an authorizing dashboard serivce.
+// NewDashboardService constructs an instance of an authorizing dashboard service.
 func NewDashboardService(s influxdb.DashboardService) *DashboardService {
 	return &DashboardService{
 		s: s,

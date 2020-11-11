@@ -599,7 +599,7 @@ func (p *promise) Cancel(ctx context.Context) {
 	}
 }
 
-// Done provides a channel that closes on completion of a rpomise
+// Done provides a channel that closes on completion of a promise
 func (p *promise) Done() <-chan struct{} {
 	return p.done
 }
@@ -620,7 +620,7 @@ func exhaustResultIterators(res flux.Result) error {
 	})
 }
 
-// NewASTCompiler parses a Flux query string into an AST representatation.
+// NewASTCompiler parses a Flux query string into an AST representation.
 func NewASTCompiler(ctx context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
 	pkg, err := runtime.ParseToJSON(query)
 	if err != nil {

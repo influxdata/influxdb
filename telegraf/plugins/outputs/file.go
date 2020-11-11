@@ -13,7 +13,7 @@ type File struct {
 	Files []FileConfig `json:"files"`
 }
 
-// FileConfig is the config settings of outpu file plugin.
+// FileConfig is the config settings of output file plugin.
 type FileConfig struct {
 	Typ  string `json:"type"`
 	Path string `json:"path"`

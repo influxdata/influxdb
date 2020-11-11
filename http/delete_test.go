@@ -372,7 +372,7 @@ func TestDelete(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleDelete(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleDelete(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleDelete() = ***%s***", tt.name, diff)
 				}

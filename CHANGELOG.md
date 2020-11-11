@@ -1,5 +1,9 @@
 ## unreleased
 
+### Bug Fixes
+
+1. [19987](https://github.com/influxdata/influxdb/pull/19987): Fix various typos. Thanks @kumakichi!
+
 ## v2.0.1 [2020-11-10]
 
 ### Bug Fixes

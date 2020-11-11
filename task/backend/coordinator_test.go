@@ -35,7 +35,7 @@ func Test_NotifyCoordinatorOfCreated(t *testing.T) {
 	var (
 		coordinator = &coordinator{}
 		tasks       = &taskService{
-			// paginated reponses
+			// paginated responses
 			pageOne: []*influxdb.Task{taskOne},
 			otherPages: map[influxdb.ID][]*influxdb.Task{
 				one:   []*influxdb.Task{taskTwo, taskThree},

@@ -57,7 +57,7 @@ func (s *OnboardService) IsOnboarding(ctx context.Context) (bool, error) {
 	return allowed, err
 }
 
-// OnboardInitialUser allows us to onboard a new user if is onboarding is allowd
+// OnboardInitialUser allows us to onboard a new user if is onboarding is allowed
 func (s *OnboardService) OnboardInitialUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
 	allowed, err := s.IsOnboarding(ctx)
 	if err != nil {

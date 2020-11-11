@@ -38,7 +38,7 @@ describe('Shared.Reducers.notifications', () => {
   })
 
   describe('adding more than one notification', () => {
-    it('should put the new notification at the beggining of the list', () => {
+    it('should put the new notification at the beginning of the list', () => {
       const newNotification = {
         style: NotificationStyle.Error,
         message: 'new notification',

@@ -207,7 +207,7 @@ func filterAuthorizationsFn(filter influxdb.AuthorizationFilter) func(a *influxd
 	return func(a *influxdb.Authorization) bool { return true }
 }
 
-// FindAuthorizations retrives all authorizations that match an arbitrary authorization filter.
+// FindAuthorizations retrieves all authorizations that match an arbitrary authorization filter.
 // Filters using ID, or Token should be efficient.
 // Other filters will do a linear scan across all authorizations searching for a match.
 func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.AuthorizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Authorization, int, error) {

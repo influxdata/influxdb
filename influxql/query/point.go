@@ -29,7 +29,7 @@ type Point interface {
 	// The value at the given time.
 	value() interface{}
 
-	// Auxillary values passed along with the value.
+	// Auxiliary values passed along with the value.
 	aux() []interface{}
 }
 
@@ -64,7 +64,7 @@ func (a Points) Clone() []Point {
 }
 
 // Tags represent a map of keys and values.
-// It memoizes its key so it can be used efficiently during query execution.
+// It memorizes its key so it can be used efficiently during query execution.
 type Tags struct {
 	id string
 	m  map[string]string

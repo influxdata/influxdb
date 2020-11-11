@@ -13,7 +13,7 @@ class createOrgSteps extends baseSteps {
         await this.createOrgPage.isLoaded();
     }
 
-    //for assrtions
+    //for assertions
     async verifyIsLoaded(){
         this.assertVisible(await this.createOrgPage.getInputOrgName());
         this.assertVisible(await this.createOrgPage.getInputBucketName());

@@ -9,7 +9,7 @@ type AlertNodes struct {
 	Posts              []*Post      `json:"post"`             // HTTPPost  will post the JSON alert data to the specified URLs.
 	TCPs               []*TCP       `json:"tcp"`              // TCP  will send the JSON alert data to the specified endpoint via TCP.
 	Email              []*Email     `json:"email"`            // Email  will send alert data to the specified emails.
-	Exec               []*Exec      `json:"exec"`             // Exec  will run shell commandss when an alert triggers
+	Exec               []*Exec      `json:"exec"`             // Exec  will run shell commands when an alert triggers
 	Log                []*Log       `json:"log"`              // Log  will log JSON alert data to files in JSON lines format.
 	VictorOps          []*VictorOps `json:"victorOps"`        // VictorOps  will send alert to all VictorOps
 	PagerDuty          []*PagerDuty `json:"pagerDuty"`        // PagerDuty  will send alert to all PagerDuty

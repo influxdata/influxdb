@@ -75,7 +75,7 @@ func (g *Google) PrincipalID(provider *http.Client) (string, error) {
 		g.Logger.Error("Unable to retrieve Google email ", err.Error())
 		return "", err
 	}
-	// No domain filtering required, so, the user is autenticated.
+	// No domain filtering required, so, the user is authenticated.
 	if len(g.Domains) == 0 {
 		return info.Email, nil
 	}

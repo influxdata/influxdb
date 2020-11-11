@@ -83,7 +83,7 @@ class basePage{
                 await this.driver.wait(until.elementLocated(By.xpath(selectors[i].selector)), 5000);
                 break;
             default:
-                throw `Unkown selector type ${JSON.stringify(selectors[i])}`;
+                throw `Unknown selector type ${JSON.stringify(selectors[i])}`;
             }
 
             // TODO - implement other selector types
@@ -143,7 +143,7 @@ class basePage{
                     });
                     break;
                 default:
-                    throw `Unkown selector type ${JSON.stringify(selector)}`;
+                    throw `Unknown selector type ${JSON.stringify(selector)}`;
                 }
                 await resultElem.isEnabled();
             } catch (e) {
@@ -171,7 +171,7 @@ class basePage{
                     return elements.length === 0;
                 });
             default:
-                throw `Unkown selector type ${JSON.stringify(selector)}`;
+                throw `Unknown selector type ${JSON.stringify(selector)}`;
             }
         });
     }

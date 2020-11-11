@@ -419,7 +419,7 @@ func TestMetaClient_DefaultRetentionPolicy(t *testing.T) {
 
 	db := c.Database("db0")
 	if db == nil {
-		t.Fatal("datbase not found")
+		t.Fatal("database not found")
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
@@ -635,7 +635,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 		t.Fatalf("failed to authenticate")
 	}
 
-	// Auth for unkonwn user should fail
+	// Auth for unknown user should fail
 	u, err = c.Authenticate("foo", "")
 	if u != nil || err != meta.ErrUserNotFound {
 		t.Fatalf("authentication should fail with %s", meta.ErrUserNotFound)
@@ -907,7 +907,7 @@ func TestMetaClient_Subscriptions_Drop(t *testing.T) {
 		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
 
-	// DROP SUBSCRIPTION drops the subsciption if it can find it.
+	// DROP SUBSCRIPTION drops the subscription if it can find it.
 	err = c.DropSubscription("db0", "autogen", "sub0")
 	if got := err; got != nil {
 		t.Fatalf("got: %s, exp: %v", got, nil)

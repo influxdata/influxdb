@@ -55,7 +55,7 @@ const (
 	prefixDelete = "/api/v2/delete"
 )
 
-// NewDeleteHandler creates a new handler at /api/v2/delete to recieve delete requests.
+// NewDeleteHandler creates a new handler at /api/v2/delete to receive delete requests.
 func NewDeleteHandler(log *zap.Logger, b *DeleteBackend) *DeleteHandler {
 	h := &DeleteHandler{
 		HTTPErrorHandler: b.HTTPErrorHandler,
@@ -122,7 +122,7 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 
 	h.log.Debug("Deleted",
 		zap.String("orgID", fmt.Sprint(dr.Org.ID.String())),
-		zap.String("buketID", fmt.Sprint(dr.Bucket.ID.String())),
+		zap.String("bucketID", fmt.Sprint(dr.Bucket.ID.String())),
 	)
 }
 
