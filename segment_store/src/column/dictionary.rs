@@ -225,17 +225,28 @@ impl RLE {
         };
 
         if let Some(encoded_id) = self.entry_index.get(value) {
-            let mut index: u32 = 0;
-            for (other_encoded_id, other_rl) in &self.run_lengths {
-                let start = index;
-                index += *other_rl;
-                if other_encoded_id == &NULL_ID {
-                    continue; // skip NULL values
-                } else if (other_encoded_id == encoded_id) == include {
-                    // we found a row either matching (include == true) or not
-                    // matching (include == false) `value`.
-                    dst.add_range(start, index)
+            match op {
+                cmp::Operator::Equal => {
+                    let ids = self.index_row_ids.get(encoded_id).unwrap();
+                    dst.add_from_bitmap(ids);
+                    return dst;
                 }
+                cmp::Operator::NotEqual => {
+                    // TODO(edd): perf - invert the bitset we know contains the
+                    // row ids...
+                    let mut index: u32 = 0;
+                    for (other_encoded_id, other_rl) in &self.run_lengths {
+                        let start = index;
+                        index += *other_rl;
+                        if other_encoded_id == &NULL_ID {
+                            continue; // skip NULL values
+                        } else if other_encoded_id != encoded_id {
+                            // we found a row that doesn't match the value
+                            dst.add_range(start, index)
+                        }
+                    }
+                }
+                _ => unreachable!("invalid operator"),
             }
         } else if let cmp::Operator::NotEqual = op {
             // special case - the column does not contain the provided

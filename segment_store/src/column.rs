@@ -2479,6 +2479,14 @@ impl RowIDs {
         }
     }
 
+    // Adds all the values from the provided bitmap into self.
+    pub fn add_from_bitmap(&mut self, other: &croaring::Bitmap) {
+        match self {
+            RowIDs::Bitmap(_self) => _self.or_inplace(other),
+            RowIDs::Vector(_self) => _self.extend_from_slice(other.to_vec().as_slice()),
+        }
+    }
+
     pub fn intersect(&mut self, other: &RowIDs) {
         match (self, other) {
             (RowIDs::Bitmap(_self), RowIDs::Bitmap(ref other)) => _self.and_inplace(other),
