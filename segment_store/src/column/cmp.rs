@@ -1,5 +1,5 @@
 /// Possible comparison operators
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Operator {
     Equal,
     NotEqual,

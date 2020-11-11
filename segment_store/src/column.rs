@@ -2472,6 +2472,13 @@ impl RowIDs {
         }
     }
 
+    pub fn add(&mut self, id: u32) {
+        match self {
+            RowIDs::Bitmap(ids) => ids.add(id),
+            RowIDs::Vector(ids) => ids.push(id),
+        }
+    }
+
     pub fn add_range(&mut self, from: u32, to: u32) {
         match self {
             RowIDs::Bitmap(ids) => ids.add_range(from as u64..to as u64),

@@ -63,7 +63,7 @@ impl Plain {
     /// Adds a NULL value to the encoded data. It is the caller's
     /// responsibility to ensure that the dictionary encoded remains sorted.
     pub fn push_none(&mut self) {
-        self.push_encoded_values(NULL_ID, 1);
+        self.push_additional(None, 1);
     }
 
     /// Adds additional repetitions of the provided value to the encoded data.
@@ -71,11 +71,12 @@ impl Plain {
     /// sorted. `push_additional` will panic if that invariant is broken.
     pub fn push_additional(&mut self, v: Option<String>, additional: u32) {
         if v.is_none() {
+            self.contains_null = true;
             self.push_encoded_values(NULL_ID, additional);
             return;
         }
 
-        match self.encoded_id(&v) {
+        match self.encoded_id(v.as_deref()) {
             Ok(id) => self.push_encoded_values(id, additional),
             Err(idx) => {
                 // check this value can be inserted into the dictionary whilst
@@ -102,8 +103,11 @@ impl Plain {
     //
     // The `Err` variant can be useful when applying predicates directly to the
     // encoded data.
-    fn encoded_id(&self, value: &Option<String>) -> Result<u32, u32> {
-        match self.entries.binary_search(value) {
+    fn encoded_id(&self, value: Option<&str>) -> Result<u32, u32> {
+        match self
+            .entries
+            .binary_search_by(|entry| entry.as_deref().cmp(&value))
+        {
             Ok(id) => Ok(id as u32),
             Err(id) => Err(id as u32),
         }
@@ -116,7 +120,7 @@ impl Plain {
 
     /// The number of logical rows encoded in this column.
     pub fn num_rows(&self) -> u32 {
-        self.entries.len() as u32
+        self.encoded_data.len() as u32
     }
 
     /// Determine if NULL is encoded in the column.
@@ -145,14 +149,153 @@ impl Plain {
     fn row_ids_equal(&self, value: &str, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
+        if let Ok(encoded_id) = self.encoded_id(Some(value)) {
+            // N.B(edd): this is specifically split out like this
+            // (with the duplication on the looping) because the common path
+            // (== predicate) will mean that the loop can easily be
+            // auto-vectorised by LLVM. I have verified the assembly and it does
+            // indeed do that.
+            match op {
+                cmp::Operator::Equal => {
+                    for (i, next) in self.encoded_data.iter().enumerate() {
+                        if next == &encoded_id {
+                            // N.B(edd): adding individual values like this to a bitset
+                            // is expensive if there are many values. In other encodings
+                            // such as the RLE one I instead build up ranges of
+                            // values to add. Here though we expect this encoding to
+                            // have higher cardinality and not many co-located
+                            // matching rows.
+                            dst.add(i as u32);
+                        }
+                    }
+                }
+                cmp::Operator::NotEqual => {
+                    for (i, next) in self.encoded_data.iter().enumerate() {
+                        if next != &NULL_ID && next != &encoded_id {
+                            dst.add(i as u32);
+                        }
+                    }
+                }
+                _ => unreachable!(format!("operator {:?} not supported for row_ids_equal", op)),
+            }
+        } else if let cmp::Operator::NotEqual = op {
+            // special case - the column does not contain the value in the
+            // predicate, but the predicate is != so we must return all non-null
+            // row ids.
+            if !self.contains_null {
+                // this could be optimised to not materialise all the encoded
+                // values. I have a `RowIDsOption` enum that can represent this.
+                dst.add_range(0, self.num_rows());
+                return dst;
+            }
+            dst = self.row_ids_not_null(dst)
+        }
+
         dst
     }
 
     // Finds row ids based on <, <=, > or >= operator.
     fn row_ids_cmp(&self, value: &str, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
+        match self.encoded_id(Some(value)) {
+            // Happy path - the logical value on the predicate exists in the column
+            // apply the predicate to each value in the column and identify all the
+            // row ids that match.
+            Ok(encoded_id) => self.row_ids_encoded_cmp(encoded_id, op, dst),
+
+            // In this case the column does not contain the value on the
+            // predicate. The returned id determines the ordinal relationship
+            // between the encoded form of the value on the predicate and the
+            // existing logical values in the column. With this information we
+            // can work directly on the encoded representation in the column...
+            Err(id) => match op {
+                cmp::Operator::GT | cmp::Operator::GTE => {
+                    if id == self.entries.len() as u32 {
+                        // value is > or >= the maximum logical value in the column
+                        // so no rows will match.
+                        dst.clear();
+                        return dst;
+                    } else if id == NULL_ID + 1 {
+                        // value would be ordered at the beginning of all
+                        // logical values and the predicate is > or >=
+                        // All non-null rows will match.
+                        return self.row_ids_not_null(dst);
+                    }
+
+                    // value would be ordered somewhere in the middle of the
+                    // logical values in the column. By apply the >=
+                    // operator to the encoded value currently at that
+                    // position, all matching rows will be returned.
+                    self.row_ids_encoded_cmp(id, &cmp::Operator::GTE, dst)
+                }
+                cmp::Operator::LT | cmp::Operator::LTE => {
+                    if id == NULL_ID + 1 {
+                        // value is < or <= the minimum logical value in the
+                        // column so no rows will match.
+                        dst.clear();
+                        return dst;
+                    } else if id == self.entries.len() as u32 {
+                        // value would be ordered at the end of all logical
+                        // values and the predicate is < or <=.
+                        // All non-null rows will match.
+                        return self.row_ids_not_null(dst);
+                    }
+
+                    // value would be ordered somewhere in the middle of the
+                    // logical values in the column. By apply the <
+                    // operator to the encoded value currently at that
+                    // position, all matching rows will be returned.
+                    self.row_ids_encoded_cmp(id, &cmp::Operator::LT, dst)
+                }
+                _ => {
+                    unreachable!(format!("operator {:?} not supported for row_ids_cmp", op));
+                }
+            },
+        }
+    }
+
+    // Given an encoded id for a logical column value and a predicate matching
+    // row ids are returned.
+    fn row_ids_encoded_cmp(&self, encoded_id: u32, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
-        todo!()
+        let cmp = match op {
+            cmp::Operator::GT => PartialOrd::gt,
+            cmp::Operator::GTE => PartialOrd::ge,
+            cmp::Operator::LT => PartialOrd::lt,
+            cmp::Operator::LTE => PartialOrd::le,
+            _ => unreachable!("operator not supported"),
+        };
+
+        let mut found = false;
+        let mut count = 0_u32;
+        for (i, next) in self.encoded_data.iter().enumerate() {
+            let cmp_result = cmp(next, &encoded_id);
+
+            if (next == &NULL_ID || !cmp_result) && found {
+                let (min, max) = (i as u32 - count, i as u32);
+                dst.add_range(min, max);
+                found = false;
+                count = 0;
+                continue;
+            } else if next == &NULL_ID || !cmp_result {
+                continue;
+            }
+
+            if !found {
+                found = true;
+            }
+            count += 1;
+        }
+
+        // add any remaining range.
+        if found {
+            let (min, max) = (
+                self.encoded_data.len() as u32 - count,
+                self.encoded_data.len() as u32,
+            );
+            dst.add_range(min, max);
+        }
+        dst
     }
 
     /// Populates the provided destination container with the row ids for rows
@@ -170,7 +313,48 @@ impl Plain {
     // All row ids that have either NULL or not NULL values.
     fn row_ids_is_null(&self, is_null: bool, mut dst: RowIDs) -> RowIDs {
         dst.clear();
-        todo!()
+
+        if !self.contains_null {
+            if is_null {
+                return dst; // no NULL values in column so no rows will match
+            }
+
+            // no NULL values in column so all rows will match
+            dst.add_range(0, self.num_rows());
+            return dst;
+        }
+
+        let mut found = false;
+        let mut count = 0;
+        for (i, &next) in self.encoded_data.iter().enumerate() {
+            let cmp_result = next == NULL_ID;
+
+            if cmp_result != is_null && found {
+                let (min, max) = (i as u32 - count, i as u32);
+                dst.add_range(min, max);
+                found = false;
+                count = 0;
+                continue;
+            } else if cmp_result != is_null {
+                continue;
+            }
+
+            if !found {
+                found = true;
+            }
+            count += 1;
+        }
+
+        // add any remaining range.
+        if found {
+            let (min, max) = (
+                self.encoded_data.len() as u32 - count,
+                self.encoded_data.len() as u32,
+            );
+            dst.add_range(min, max);
+        }
+
+        dst
     }
 
     // The set of row ids for each distinct value in the column.

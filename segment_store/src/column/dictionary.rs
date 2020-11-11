@@ -423,7 +423,18 @@ mod test {
 
     #[test]
     fn row_ids_filter_equal() {
-        let mut enc = Encoding::RLE(RLE::default());
+        let encodings = vec![
+            Encoding::RLE(RLE::default()),
+            Encoding::Plain(Plain::default()),
+        ];
+
+        for enc in encodings {
+            _row_ids_filter_equal(enc);
+        }
+    }
+
+    fn _row_ids_filter_equal(mut enc: Encoding) {
+        let name = enc.debug_name();
         enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
         enc.push_additional(Some("north".to_string()), 1); // 3
         enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
@@ -431,35 +442,68 @@ mod test {
         enc.push_additional(Some("south".to_string()), 2); // 10, 11
 
         let ids = enc.row_ids_filter(&"east", &cmp::Operator::Equal, RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 4, 5, 6, 7, 8]));
+        assert_eq!(
+            ids,
+            RowIDs::Vector(vec![0, 1, 2, 4, 5, 6, 7, 8]),
+            "{}",
+            name
+        );
 
         let ids = enc.row_ids_filter(&"south", &cmp::Operator::Equal, RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![10, 11]));
+        assert_eq!(ids, RowIDs::Vector(vec![10, 11]), "{}", name);
 
         let ids = enc.row_ids_filter(&"foo", &cmp::Operator::Equal, RowIDs::Vector(vec![]));
-        assert!(ids.is_empty());
+        assert!(ids.is_empty(), "{}", name);
 
         // != some value not in the column should exclude the NULL value.
         let ids = enc.row_ids_filter(&"foo", &cmp::Operator::NotEqual, RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11]));
+        assert_eq!(
+            ids,
+            RowIDs::Vector(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11]),
+            "{}",
+            name
+        );
 
         let ids = enc.row_ids_filter(&"east", &cmp::Operator::NotEqual, RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![3, 10, 11]));
+        assert_eq!(ids, RowIDs::Vector(vec![3, 10, 11]), "{}", name);
     }
 
     #[test]
     fn row_ids_filter_equal_no_null() {
-        let mut enc = Encoding::RLE(RLE::default());
+        let encodings = vec![
+            Encoding::RLE(RLE::default()),
+            Encoding::Plain(Plain::default()),
+        ];
+
+        for enc in encodings {
+            _row_ids_filter_equal_no_null(enc);
+        }
+    }
+
+    fn _row_ids_filter_equal_no_null(mut enc: Encoding) {
+        let name = enc.debug_name();
         enc.push_additional(Some("east".to_string()), 2);
         enc.push_additional(Some("west".to_string()), 1);
 
         let ids = enc.row_ids_filter(&"abba", &cmp::Operator::NotEqual, RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2]));
+        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2]), "{}", name);
     }
 
     #[test]
     fn row_ids_filter_cmp() {
-        let mut enc = Encoding::RLE(RLE::default());
+        let encodings = vec![
+            Encoding::RLE(RLE::default()),
+            Encoding::Plain(Plain::default()),
+        ];
+
+        for enc in encodings {
+            _row_ids_filter_cmp(enc);
+        }
+    }
+
+    fn _row_ids_filter_cmp(mut enc: Encoding) {
+        let name = enc.debug_name();
+
         enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
         enc.push_additional(Some("north".to_string()), 1); // 3
         enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
@@ -470,18 +514,44 @@ mod test {
         enc.push_additional(Some("west".to_string()), 5); // 14, 15, 16, 17, 18
 
         let ids = enc.row_ids_filter(&"east", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 4, 5, 6, 7, 8]));
+        assert_eq!(
+            ids,
+            RowIDs::Vector(vec![0, 1, 2, 4, 5, 6, 7, 8]),
+            "{}",
+            name
+        );
 
         let ids = enc.row_ids_filter(&"east", &cmp::Operator::LT, RowIDs::Vector(vec![]));
-        assert!(ids.is_empty());
+        assert!(ids.is_empty(), "{}", name);
+
+        let ids = enc.row_ids_filter(&"abc", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
+        assert!(ids.is_empty(), "{}", name);
+        let ids = enc.row_ids_filter(&"abc", &cmp::Operator::LT, RowIDs::Vector(vec![]));
+        assert!(ids.is_empty(), "{}", name);
+
+        let ids = enc.row_ids_filter(&"zoo", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
+        assert!(ids.is_empty(), "{}", name);
+
+        let ids = enc.row_ids_filter(&"zoo", &cmp::Operator::GT, RowIDs::Vector(vec![]));
+        assert!(ids.is_empty(), "{}", name);
+
+        let ids = enc.row_ids_filter(&"west", &cmp::Operator::GT, RowIDs::Vector(vec![]));
+        assert!(ids.is_empty(), "{}", name);
 
         let ids = enc.row_ids_filter(&"north", &cmp::Operator::GT, RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![9, 10, 11, 14, 15, 16, 17, 18]));
+        assert_eq!(
+            ids,
+            RowIDs::Vector(vec![9, 10, 11, 14, 15, 16, 17, 18]),
+            "{}",
+            name
+        );
 
         let ids = enc.row_ids_filter(&"north", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
         assert_eq!(
             ids,
-            RowIDs::Vector(vec![3, 9, 10, 11, 12, 14, 15, 16, 17, 18])
+            RowIDs::Vector(vec![3, 9, 10, 11, 12, 14, 15, 16, 17, 18]),
+            "{}",
+            name
         );
 
         // The encoding also supports comparisons on values that don't directly exist in the column.
@@ -490,39 +560,179 @@ mod test {
             ids,
             RowIDs::Vector(vec![
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18
-            ])
+            ]),
+            "{}",
+            name
         );
 
         let ids = enc.row_ids_filter(&"east1", &cmp::Operator::GT, RowIDs::Vector(vec![]));
         assert_eq!(
             ids,
-            RowIDs::Vector(vec![3, 9, 10, 11, 12, 14, 15, 16, 17, 18])
+            RowIDs::Vector(vec![3, 9, 10, 11, 12, 14, 15, 16, 17, 18]),
+            "{}",
+            name
         );
 
         let ids = enc.row_ids_filter(&"east1", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
         assert_eq!(
             ids,
-            RowIDs::Vector(vec![3, 9, 10, 11, 12, 14, 15, 16, 17, 18])
+            RowIDs::Vector(vec![3, 9, 10, 11, 12, 14, 15, 16, 17, 18]),
+            "{}",
+            name
         );
 
         let ids = enc.row_ids_filter(&"east1", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 4, 5, 6, 7, 8]));
+        assert_eq!(
+            ids,
+            RowIDs::Vector(vec![0, 1, 2, 4, 5, 6, 7, 8]),
+            "{}",
+            name
+        );
 
         let ids = enc.row_ids_filter(&"region", &cmp::Operator::LT, RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 12]));
+        assert_eq!(
+            ids,
+            RowIDs::Vector(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 12]),
+            "{}",
+            name
+        );
+
+        let ids = enc.row_ids_filter(&"region", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
+        assert_eq!(
+            ids,
+            RowIDs::Vector(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 12]),
+            "{}",
+            name
+        );
+
+        let ids = enc.row_ids_filter(&"zoo", &cmp::Operator::LT, RowIDs::Vector(vec![]));
+        assert_eq!(
+            ids,
+            RowIDs::Vector(vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18
+            ]),
+            "{}",
+            name
+        );
 
         let ids = enc.row_ids_filter(&"zoo", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
         assert_eq!(
             ids,
             RowIDs::Vector(vec![
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18
-            ])
+            ]),
+            "{}",
+            name
         );
     }
 
     #[test]
-    fn row_ids_not_null() {
-        let mut enc = Encoding::RLE(RLE::default());
+    fn row_ids_filter_cmp_single() {
+        let mut encodings = vec![
+            Encoding::RLE(RLE::default()),
+            Encoding::Plain(Plain::default()),
+        ];
+
+        for enc in encodings.iter_mut() {
+            let name = enc.debug_name();
+            enc.push("east".to_string());
+
+            let ids = enc.row_ids_filter(&"east", &cmp::Operator::GT, RowIDs::Vector(vec![]));
+            assert!(ids.is_empty(), "{}", name);
+
+            let ids = enc.row_ids_filter(&"north", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
+            assert!(ids.is_empty(), "{}", name);
+
+            let ids = enc.row_ids_filter(&"east", &cmp::Operator::LT, RowIDs::Vector(vec![]));
+            assert!(ids.is_empty(), "{}", name);
+
+            let ids = enc.row_ids_filter(&"abc", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
+            assert!(ids.is_empty(), "{}", name);
+
+            let ids = enc.row_ids_filter(&"abc", &cmp::Operator::GT, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![0]), "{}", name);
+
+            let ids = enc.row_ids_filter(&"abc", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![0]), "{}", name);
+
+            let ids = enc.row_ids_filter(&"east", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![0]), "{}", name);
+
+            let ids = enc.row_ids_filter(&"east", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![0]), "{}", name);
+
+            let ids = enc.row_ids_filter(&"west", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![0]), "{}", name);
+
+            let ids = enc.row_ids_filter(&"west", &cmp::Operator::LT, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![0]), "{}", name);
+        }
+    }
+
+    #[test]
+    fn row_ids_filter_cmp_with_null() {
+        let dictionary = vec!["east".to_string(), "south".to_string(), "west".to_string()]
+            .into_iter()
+            .collect::<BTreeSet<String>>();
+
+        let mut encodings = vec![
+            Encoding::RLE(RLE::with_dictionary(dictionary.clone())),
+            Encoding::Plain(Plain::with_dictionary(dictionary)),
+        ];
+
+        for enc in encodings.iter_mut() {
+            let name = enc.debug_name();
+            enc.push("south".to_string());
+            enc.push("west".to_string());
+            enc.push_none();
+            enc.push("east".to_string());
+
+            let ids = enc.row_ids_filter(&"west", &cmp::Operator::GT, RowIDs::Vector(vec![]));
+            assert!(ids.is_empty(), "{}", name);
+
+            let ids = enc.row_ids_filter(&"zoo", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
+            assert!(ids.is_empty(), "{}", name);
+
+            let ids = enc.row_ids_filter(&"east", &cmp::Operator::LT, RowIDs::Vector(vec![]));
+            assert!(ids.is_empty(), "{}", name);
+
+            let ids = enc.row_ids_filter(&"abc", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
+            assert!(ids.is_empty(), "{}", name);
+
+            let ids = enc.row_ids_filter(&"abc", &cmp::Operator::GT, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![0, 1, 3]), "{}", name);
+
+            let ids = enc.row_ids_filter(&"abc", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![0, 1, 3]), "{}", name);
+
+            let ids = enc.row_ids_filter(&"west", &cmp::Operator::GTE, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![1]), "{}", name);
+
+            let ids = enc.row_ids_filter(&"east", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![3]), "{}", name);
+
+            let ids = enc.row_ids_filter(&"west", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![0, 1, 3]), "{}", name);
+
+            let ids = enc.row_ids_filter(&"west", &cmp::Operator::LT, RowIDs::Vector(vec![]));
+            assert_eq!(ids, RowIDs::Vector(vec![0, 3]), "{}", name);
+        }
+    }
+
+    #[test]
+    fn row_ids_null() {
+        let encodings = vec![
+            Encoding::RLE(RLE::default()),
+            Encoding::Plain(Plain::default()),
+        ];
+
+        for enc in encodings {
+            _row_ids_null(enc);
+        }
+    }
+
+    fn _row_ids_null(mut enc: Encoding) {
+        let name = enc.debug_name();
         enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
         enc.push_additional(None, 3); // 3, 4, 5
         enc.push_additional(Some("north".to_string()), 1); // 6
@@ -531,11 +741,11 @@ mod test {
 
         // essentially `WHERE value IS NULL`
         let ids = enc.row_ids_null(RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![3, 4, 5, 7, 8]));
+        assert_eq!(ids, RowIDs::Vector(vec![3, 4, 5, 7, 8]), "{}", name);
 
         // essentially `WHERE value IS NOT NULL`
         let ids = enc.row_ids_not_null(RowIDs::Vector(vec![]));
-        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 6, 9, 10]));
+        assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2, 6, 9, 10]), "{}", name);
     }
 
     #[test]
