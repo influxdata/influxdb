@@ -944,4 +944,12 @@ mod test {
             vec![0, 1, 2]
         )
     }
+
+    #[test]
+    #[should_panic]
+    fn push_wrong_order() {
+        let mut enc = RLE::default();
+        enc.push("b".to_string());
+        enc.push("a".to_string());
+    }
 }

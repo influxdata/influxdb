@@ -20,6 +20,13 @@ enum Encoding {
 }
 
 impl Encoding {
+    fn debug_name(&self) -> &'static str {
+        match &self {
+            Encoding::RLE(_) => "RLE encoder",
+            Encoding::Plain(_) => "plain encoder",
+        }
+    }
+
     fn size(&self) -> u64 {
         match &self {
             Encoding::RLE(enc) => enc.size(),
@@ -312,12 +319,23 @@ mod test {
     }
 
     #[test]
-    fn rle_push() {
-        let mut enc = Encoding::RLE(RLE::from(vec!["hello", "hello", "hello", "hello"]));
+    fn push() {
+        let encodings = vec![
+            Encoding::RLE(RLE::from(vec!["hello", "hello", "hello", "hello"])),
+            Encoding::Plain(Plain::from(vec!["hello", "hello", "hello", "hello"])),
+        ];
+
+        for enc in encodings {
+            _push(enc);
+        }
+    }
+
+    fn _push(mut enc: Encoding) {
         enc.push_additional(Some("hello".to_string()), 1);
         enc.push_additional(None, 3);
         enc.push("world".to_string());
 
+        let name = enc.debug_name();
         assert_eq!(
             enc.all_values(vec![]),
             [
@@ -330,7 +348,9 @@ mod test {
                 None,
                 None,
                 Some(&"world".to_string()),
-            ]
+            ],
+            "{}",
+            name
         );
 
         enc.push_additional(Some("zoo".to_string()), 3);
@@ -351,26 +371,42 @@ mod test {
                 Some(&"zoo".to_string()),
                 Some(&"zoo".to_string()),
                 None,
-            ]
+            ],
+            "{}",
+            name
         );
     }
 
     // tests a defect I discovered.
     #[test]
     fn push_additional_first_run_length() {
-        let arr = vec!["world".to_string(), "hello".to_string()];
+        let dictionary = vec!["world".to_string(), "hello".to_string()]
+            .into_iter()
+            .collect::<BTreeSet<String>>();
 
-        let mut enc = Encoding::RLE(RLE::with_dictionary(
-            arr.into_iter().collect::<BTreeSet<String>>(),
-        ));
+        let encodings = vec![
+            Encoding::RLE(RLE::with_dictionary(dictionary.clone())),
+            Encoding::Plain(Plain::with_dictionary(dictionary)),
+        ];
+
+        for enc in encodings {
+            _push_additional_first_run_length(enc);
+        }
+    }
+
+    fn _push_additional_first_run_length(mut enc: Encoding) {
+        let name = enc.debug_name();
+
         enc.push_additional(Some("world".to_string()), 1);
         enc.push_additional(Some("hello".to_string()), 1);
 
         assert_eq!(
             enc.all_values(vec![]),
-            vec![Some(&"world".to_string()), Some(&"hello".to_string())]
+            vec![Some(&"world".to_string()), Some(&"hello".to_string())],
+            "{}",
+            name
         );
-        assert_eq!(enc.all_encoded_values(vec![]), vec![2, 1]);
+        assert_eq!(enc.all_encoded_values(vec![]), vec![2, 1], "{}", name);
 
         enc = Encoding::RLE(RLE::default());
         enc.push_additional(Some("hello".to_string()), 1);
@@ -378,17 +414,11 @@ mod test {
 
         assert_eq!(
             enc.all_values(vec![]),
-            vec![Some(&"hello".to_string()), Some(&"world".to_string())]
+            vec![Some(&"hello".to_string()), Some(&"world".to_string())],
+            "{}",
+            name
         );
-        assert_eq!(enc.all_encoded_values(vec![]), vec![1, 2]);
-    }
-
-    #[test]
-    #[should_panic]
-    fn rle_push_wrong_order() {
-        let mut enc = Encoding::RLE(RLE::default());
-        enc.push("b".to_string());
-        enc.push("a".to_string());
+        assert_eq!(enc.all_encoded_values(vec![]), vec![1, 2], "{}", name);
     }
 
     #[test]
