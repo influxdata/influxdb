@@ -132,7 +132,7 @@ class dashboardsSteps extends influxSteps {
         await this.typeTextAndWait(await this.dbdsPage.getAddLabelsPopoverFilter(), text);
     }
 
-    async verifyDasboardAddLabelsPillCount(count){
+    async verifyDashboardAddLabelsPillCount(count){
         await this.dbdsPage.getAddLabelsLabelPills().then(async pills => {
             expect(pills.length).to.equal(parseInt(count));
         });
@@ -155,7 +155,7 @@ class dashboardsSteps extends influxSteps {
         await this.assertVisible(await this.dbdsPage.getDashboardCardLabelPill(name, label));
     }
 
-    async clickDasboardCardAddLabel(name){
+    async clickDashboardCardAddLabel(name){
         await this.clickAndWait(await this.dbdsPage.getDashboardCardAddLabels(name));
     }
 

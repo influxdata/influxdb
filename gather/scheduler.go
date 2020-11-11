@@ -24,7 +24,7 @@ type Scheduler struct {
 	Targets influxdb.ScraperTargetStoreService
 	// Interval is between each metrics gathering event.
 	Interval time.Duration
-	// Timeout is the maxisium time duration allowed by each TCP request
+	// Timeout is the maximum time duration allowed by each TCP request
 	Timeout time.Duration
 
 	// Publisher will send the gather requests and gathered metrics to the queue.

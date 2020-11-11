@@ -56,7 +56,7 @@ func readLines(reader io.Reader) []string {
 
 func createTempFile(suffix string, contents []byte) string {
 	file, err := ioutil.TempFile("", "influx_writeTest*."+suffix)
-	file.Close() // Close immediatelly, since we need only a file name
+	file.Close() // Close immediately, since we need only a file name
 	if err != nil {
 		log.Fatal(err)
 		return "unknown.file"
@@ -454,7 +454,7 @@ func Test_fluxWriteF(t *testing.T) {
 		require.Contains(t, fmt.Sprintf("%s", err), "org-id")
 	})
 
-	t.Run("validates error when failed to retrive buckets", func(t *testing.T) {
+	t.Run("validates error when failed to retrieve buckets", func(t *testing.T) {
 		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-error-bucket"})
@@ -566,7 +566,7 @@ func Test_ToBytesPerSecond(t *testing.T) {
 		},
 		{
 			in:    "1B0s",
-			error: `invalid rate limit "1B0s": possitive time expected but 0 supplied`,
+			error: `invalid rate limit "1B0s": positive time expected but 0 supplied`,
 		},
 		{
 			in:    "1MB/42949672950s",

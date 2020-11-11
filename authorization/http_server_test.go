@@ -383,7 +383,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 				t.Errorf("%q. handleGetAuthorization() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if diff, err := jsonDiff(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, handleGetAuthorization. error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, handleGetAuthorization. error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && diff != "" {
 				t.Errorf("%q. handleGetAuthorization() = -got/+want %s**", tt.name, diff)
 			}
@@ -829,7 +829,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 
 			if tt.wants.body != "" {
 				if diff, err := jsonDiff(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleDeleteAuthorization(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleDeleteAuthorization(). error unmarshalling json %v", tt.name, err)
 				} else if diff != "" {
 					t.Errorf("%q. handleDeleteAuthorization() = ***%s***", tt.name, diff)
 				}

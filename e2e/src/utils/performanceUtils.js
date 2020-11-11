@@ -111,7 +111,7 @@ const writePerformanceLog = async () => {
   console.log()
 };
 
-const writePerfomanceReport = async (filename = performanceRecFile) => {
+const writePerformanceReport = async (filename = performanceRecFile) => {
 
     let header = [];
 
@@ -145,5 +145,5 @@ module.exports = {
     execTimed,
     performanceLog,
     writePerformanceLog,
-    writePerfomanceReport
+    writePerformanceReport
 };

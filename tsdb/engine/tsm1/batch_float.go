@@ -27,7 +27,7 @@ func FloatArrayEncodeAll(src []float64, b []byte) ([]byte, error) {
 	if len(src) > 0 && math.IsNaN(src[0]) {
 		return nil, fmt.Errorf("unsupported value: NaN")
 	} else if len(src) == 0 {
-		first = math.NaN() // Write sentinal value to terminate batch.
+		first = math.NaN() // Write sentinel value to terminate batch.
 		finished = true
 	} else {
 		first = src[0]
@@ -53,7 +53,7 @@ func FloatArrayEncodeAll(src []float64, b []byte) ([]byte, error) {
 			x = src[i]
 			sum += x
 		} else {
-			// Encode sentinal value to terminate batch
+			// Encode sentinel value to terminate batch
 			x = math.NaN()
 			finished = true
 		}

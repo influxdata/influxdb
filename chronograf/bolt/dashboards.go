@@ -13,7 +13,7 @@ import (
 var _ chronograf.DashboardsStore = &DashboardsStore{}
 
 // DashboardsBucket is the bolt bucket dashboards are stored in
-var DashboardsBucket = []byte("Dashoard")
+var DashboardsBucket = []byte("Dashoard") // N.B. leave the misspelling for backwards-compat!
 
 // DashboardsStore is the bolt implementation of storing dashboards
 type DashboardsStore struct {

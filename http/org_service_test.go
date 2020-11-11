@@ -247,7 +247,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetSecrets(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetSecrets(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetSecrets() = ***%s***", tt.name, diff)
 				}
@@ -329,7 +329,7 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePatchSecrets(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePatchSecrets(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePatchSecrets() = ***%s***", tt.name, diff)
 				}
@@ -415,7 +415,7 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleDeleteSecrets(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleDeleteSecrets(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleDeleteSecrets() = ***%s***", tt.name, diff)
 				}

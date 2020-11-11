@@ -265,7 +265,7 @@ func Test_Service_DashboardCells(t *testing.T) {
 			}
 
 			if err := json.NewDecoder(resp.Body).Decode(&respFrame); err != nil {
-				t.Fatalf("%q - Error unmarshaling response body: err: %s", test.name, err)
+				t.Fatalf("%q - Error unmarshalling response body: err: %s", test.name, err)
 			}
 
 			// extract actual

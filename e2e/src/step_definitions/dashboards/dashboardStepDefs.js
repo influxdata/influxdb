@@ -246,7 +246,7 @@ When(/^move horizontally to "(.*)" of graph cell named "(.*)"$/, async (fraction
 });
 
 When(/^drag horizontally to "(.*)" of graph cell named "(.*)"$/, async (fraction, name) => {
-    await dbdSteps.dragToHorizonatlFractionOfGraphCell(fraction, name);
+    await dbdSteps.dragToHorizontalFractionOfGraphCell(fraction, name);
 });
 
 When(/^move vertically to "(.*)" of graph cell named "(.*)"$/, async (fraction, name) => {

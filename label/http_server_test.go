@@ -215,7 +215,7 @@ func TestService_handleGetLabel(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetLabel(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetLabel(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetLabel() = ***%s***", tt.name, diff)
 				}
@@ -478,7 +478,7 @@ func TestService_handlePatchLabel(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePatchLabel(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePatchLabel(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePatchLabel() = ***%s***", tt.name, diff)
 				}
@@ -574,7 +574,7 @@ func TestService_handleDeleteLabel(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleDeleteLabel(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleDeleteLabel(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleDeleteLabel() = ***%s***", tt.name, diff)
 				}

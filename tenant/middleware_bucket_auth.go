@@ -18,7 +18,7 @@ type AuthedBucketService struct {
 	s influxdb.BucketService
 }
 
-// NewAuthedBucketService constructs an instance of an authorizing bucket serivce.
+// NewAuthedBucketService constructs an instance of an authorizing bucket service.
 func NewAuthedBucketService(s influxdb.BucketService) *AuthedBucketService {
 	return &AuthedBucketService{
 		s: s,

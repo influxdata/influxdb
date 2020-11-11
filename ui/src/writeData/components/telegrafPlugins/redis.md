@@ -63,7 +63,7 @@ Additionally the plugin also calculates the hit/miss ratio (keyspace\_hitrate) a
     - maxmemory_policy(string)
     - mem_fragmentation_ratio(float, number)
 
-    **Persistance**
+    **Persistence**
     - loading(int,flag)
     - rdb_changes_since_last_save(int, number)
     - rdb_bgsave_in_progress(int, flag)

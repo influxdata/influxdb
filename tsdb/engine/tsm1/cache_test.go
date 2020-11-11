@@ -869,7 +869,7 @@ func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 }
 
 // TestStore implements the storer interface and can be used to mock out a
-// Cache's storer implememation.
+// Cache's storer implementation.
 type TestStore struct {
 	entryf       func(key []byte) *entry
 	writef       func(key []byte, values Values) (bool, error)

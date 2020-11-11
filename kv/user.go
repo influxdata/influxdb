@@ -136,7 +136,7 @@ func (s *Service) findUserByName(ctx context.Context, tx Tx, n string) (*influxd
 	return s.findUserByID(ctx, tx, id)
 }
 
-// FindUser retrives a user using an arbitrary user filter.
+// FindUser retrieves a user using an arbitrary user filter.
 // Filters using ID, or Name should be efficient.
 // Other filters will do a linear scan across users until it finds a match.
 func (s *Service) FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
@@ -171,7 +171,7 @@ func filterUsersFn(filter influxdb.UserFilter) func(u *influxdb.User) bool {
 	return func(u *influxdb.User) bool { return true }
 }
 
-// FindUsers retrives all users that match an arbitrary user filter.
+// FindUsers retrieves all users that match an arbitrary user filter.
 // Filters using ID, or Name should be efficient.
 // Other filters will do a linear scan across all users searching for a match.
 func (s *Service) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt ...influxdb.FindOptions) ([]*influxdb.User, int, error) {

@@ -252,7 +252,7 @@ func (t *CsvTable) AddRow(row []string) bool {
 			// expect a header row
 			t.lpColumnsValid = false // line protocol columns change
 			if t.partBits == 0 {
-				// create columns since no column anotations were processed
+				// create columns since no column annotations were processed
 				t.columns = createColumns(len(row))
 			}
 			// assign column labels for the header row

@@ -9,7 +9,7 @@ var options = {
     launchReport: false,
     metadata: {
         'App Version':'2.0.0-alpha',
-        'Test Environment': 'Deveolop',
+        'Test Environment': 'Develop',
         'Browser': 'Chrome  74',
         'Platform': 'Ubuntu 16.04',
         'Parallel': 'Scenarios',

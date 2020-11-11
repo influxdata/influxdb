@@ -28,8 +28,8 @@ var (
 	OpRenewSession = "RenewSession"
 )
 
-// SessionAuthorizionKind defines the type of authorizer
-const SessionAuthorizionKind = "session"
+// SessionAuthorizationKind defines the type of authorizer
+const SessionAuthorizationKind = "session"
 
 // Session is a user session.
 type Session struct {
@@ -67,7 +67,7 @@ func (s *Session) PermissionSet() (PermissionSet, error) {
 }
 
 // Kind returns session and is used for auditing.
-func (s *Session) Kind() string { return SessionAuthorizionKind }
+func (s *Session) Kind() string { return SessionAuthorizationKind }
 
 // Identifier returns the sessions ID and is used for auditing.
 func (s *Session) Identifier() ID { return s.ID }

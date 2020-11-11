@@ -326,7 +326,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 				t.Errorf("%q. handleGetVariables() = %v, want %v", tt.name, contentType, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, handleGetDashboards(). error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, handleGetDashboards(). error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handleGetDashboards() = ***%s***", tt.name, diff)
 			}
@@ -457,7 +457,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
@@ -587,7 +587,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
@@ -690,7 +690,7 @@ func TestVariableService_handlePutVariable(t *testing.T) {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
@@ -799,7 +799,7 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
@@ -983,7 +983,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 				t.Errorf("got %v, want %v", content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}

@@ -68,7 +68,7 @@ func WithEncodeGZIP() APIOptFn {
 	}
 }
 
-// WithUnmarshalErrFn sets the error handler for errors that occur when unmarshaling
+// WithUnmarshalErrFn sets the error handler for errors that occur when unmarshalling
 // the request body.
 func WithUnmarshalErrFn(fn func(encoding string, err error) error) APIOptFn {
 	return func(api *API) {
@@ -232,7 +232,7 @@ func (a *API) Err(w http.ResponseWriter, r *http.Request, err error) {
 		a.logErr("failed to write err to response writer", zap.Error(err))
 		a.Respond(w, r, http.StatusInternalServerError, ErrBody{
 			Code: "internal error",
-			Msg:  "an unexpected error occured",
+			Msg:  "an unexpected error occurred",
 		})
 		return
 	}

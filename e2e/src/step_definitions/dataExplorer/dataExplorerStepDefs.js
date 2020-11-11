@@ -42,7 +42,7 @@ When(/^move horizontally to "(.*)" of the graph$/, async (fraction) => {
 });
 
 When(/^drag horizontally to "(.*)" of the graph$/, async (fraction) => {
-    await deSteps.dragToHorizonatalFractionOfGraph(fraction);
+    await deSteps.dragToHorizontalFractionOfGraph(fraction);
 });
 
 Then(/^the graph has changed$/, async() => {

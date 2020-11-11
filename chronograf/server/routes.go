@@ -38,7 +38,7 @@ type getRoutesResponse struct {
 	Mappings           string                             `json:"mappings"`         // Location of the application mappings endpoint
 	Sources            string                             `json:"sources"`          // Location of the sources endpoint
 	Me                 string                             `json:"me"`               // Location of the me endpoint
-	Environment        string                             `json:"environment"`      // Location of the environement endpoint
+	Environment        string                             `json:"environment"`      // Location of the environment endpoint
 	Dashboards         string                             `json:"dashboards"`       // Location of the dashboards endpoint
 	Config             getConfigLinksResponse             `json:"config"`           // Location of the config endpoint and its various sections
 	Cells              string                             `json:"cells"`            // Location of the v2 cells

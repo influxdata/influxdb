@@ -133,7 +133,7 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 	}{}
 	err = json.Unmarshal(body, &exp)
 	if err != nil {
-		t.Fatalf("unexpected error unmarshaling user: %v", err)
+		t.Fatalf("unexpected error unmarshalling user: %v", err)
 	}
 	if len(exp.Users) != 2 {
 		t.Fatalf("unexpected 2 users: %#+v", exp)
