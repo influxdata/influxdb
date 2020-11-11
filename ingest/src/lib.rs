@@ -451,7 +451,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
                 if let Some(packer_for_row) = packer_map.get_mut(tag_name.as_str()) {
                     packer_for_row
                         .packer()
-                        .str_packer_mut()
+                        .bytes_packer_mut()
                         .push(ByteArray::from(tag_value.as_str()));
                 } else {
                     panic!(
@@ -473,7 +473,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
                         packer.i64_packer_mut().push(i);
                     }
                     FieldValue::String(ref s) => {
-                        packer.str_packer_mut().push(ByteArray::from(s.as_str()));
+                        packer.bytes_packer_mut().push(ByteArray::from(s.as_str()));
                     }
                     FieldValue::Boolean(b) => {
                         packer.bool_packer_mut().push(b);
@@ -818,7 +818,7 @@ impl TSMFileConverter {
         for tag in m.tag_columns() {
             builder = builder.tag(tag);
             tks.push(tag.clone());
-            packed_columns.push(Packers::String(Packer::new()));
+            packed_columns.push(Packers::Bytes(Packer::new()));
         }
 
         let mut fks = Vec::new();
@@ -901,7 +901,7 @@ impl TSMFileConverter {
                         packed_columns[*idx] = Packers::from_elem_str(tag_value, col_len);
                     } else {
                         packed_columns[*idx]
-                            .str_packer_mut()
+                            .bytes_packer_mut()
                             .extend_from_slice(&vec![ByteArray::from(tag_value.as_ref()); col_len]);
                     }
                 }
@@ -934,7 +934,7 @@ impl TSMFileConverter {
                         // pad out column with None values because we don't have a
                         // value for it.
                         packed_columns[*idx]
-                            .str_packer_mut()
+                            .bytes_packer_mut()
                             .fill_with_null(col_len);
                     }
                 }
@@ -967,7 +967,7 @@ impl TSMFileConverter {
                                 .i64_packer_mut()
                                 .extend_from_option_slice(&v),
                             ColumnData::Str(values) => {
-                                let col = packed_columns[*idx].str_packer_mut();
+                                let col = packed_columns[*idx].bytes_packer_mut();
                                 for value in values {
                                     match value {
                                         Some(v) => col.push(ByteArray::from(v)),
@@ -1049,7 +1049,7 @@ impl TSMFileConverter {
                             }
                             BlockType::Str => {
                                 packed_columns[*idx]
-                                    .str_packer_mut()
+                                    .bytes_packer_mut()
                                     .fill_with_null(col_len);
                             }
                             BlockType::Unsigned => {
@@ -1584,7 +1584,7 @@ mod tests {
         }
 
         // Tag values
-        let tag_packer = packers[0].str_packer();
+        let tag_packer = packers[0].bytes_packer();
         assert_eq!(tag_packer.get(0).unwrap(), &ByteArray::from("A"));
         assert_eq!(tag_packer.get(1).unwrap(), &ByteArray::from("B"));
         assert!(packers[0].is_null(2));
@@ -1644,7 +1644,7 @@ mod tests {
         ));
 
         // str_field values
-        let str_field_packer = &packers[3].str_packer();
+        let str_field_packer = &packers[3].bytes_packer();
         assert_eq!(str_field_packer.get(0).unwrap(), &ByteArray::from("foo1"));
         assert_eq!(str_field_packer.get(1).unwrap(), &ByteArray::from("foo2"));
         assert_eq!(str_field_packer.get(2).unwrap(), &ByteArray::from("foo3"));
@@ -1901,7 +1901,7 @@ mod tests {
         // az column
         assert_eq!(
             packers[0],
-            Packers::String(Packer::from(vec![
+            Packers::Bytes(Packer::from(vec![
                 Some(ByteArray::from("b")),
                 Some(ByteArray::from("b")),
                 Some(ByteArray::from("b")),
@@ -1916,7 +1916,7 @@ mod tests {
         // region column
         assert_eq!(
             packers[1],
-            Packers::String(Packer::from(vec![
+            Packers::Bytes(Packer::from(vec![
                 None,
                 None,
                 None,
@@ -1931,7 +1931,7 @@ mod tests {
         // server column
         assert_eq!(
             packers[2],
-            Packers::String(Packer::from(vec![
+            Packers::Bytes(Packer::from(vec![
                 None,
                 None,
                 None,

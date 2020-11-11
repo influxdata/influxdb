@@ -131,7 +131,7 @@ fn partition(packers: &mut [Packers], range: &Range<usize>, sort_by: &[usize]) -
 fn cmp(packers: &[Packers], a: usize, b: usize, sort_by: &[usize]) -> Ordering {
     for &idx in sort_by {
         match &packers[idx] {
-            Packers::String(p) => {
+            Packers::Bytes(p) => {
                 let a_val = p.get(a);
                 let b_val = p.get(b);
 
@@ -156,7 +156,7 @@ fn cmp(packers: &[Packers], a: usize, b: usize, sort_by: &[usize]) -> Ordering {
                 }
                 // if cmp equal then try next packer column.
             }
-            Packers::UtfString(p) => {
+            Packers::String(p) => {
                 let cmp = p.get(a).cmp(&p.get(b));
                 if cmp != Ordering::Equal {
                     return cmp;
@@ -174,7 +174,7 @@ fn packers_sorted_asc(packers: &[Packers], len: usize, sort_by: &[usize]) -> boo
     'row_wise: for i in 1..len {
         for &idx in sort_by {
             match &packers[idx] {
-                Packers::String(p) => {
+                Packers::Bytes(p) => {
                     let vec = p.values();
                     if vec[i - 1] < vec[i] {
                         continue 'row_wise;
@@ -253,8 +253,8 @@ mod test {
 
         let mut packers = vec![
             Packers::Integer(packer_a),
-            Packers::String(packer_b),
-            Packers::String(packer_c),
+            Packers::Bytes(packer_b),
+            Packers::Bytes(packer_c),
             Packers::Float(packer_d),
             Packers::Integer(packer_e),
         ];
@@ -276,7 +276,7 @@ mod test {
             );
         };
 
-        if let Packers::String(p) = &packers[1] {
+        if let Packers::Bytes(p) = &packers[1] {
             assert_eq!(
                 p.values(),
                 vec![
@@ -289,7 +289,7 @@ mod test {
             );
         };
 
-        if let Packers::String(p) = &packers[2] {
+        if let Packers::Bytes(p) = &packers[2] {
             assert_eq!(
                 p.values(),
                 vec![
@@ -405,7 +405,7 @@ mod test {
     }
 
     #[test]
-    fn packers_utf() {
+    fn packers_str() {
         let mut rng = rand::thread_rng();
 
         for _ in 0..250 {
@@ -414,11 +414,11 @@ mod test {
                     .map(|_| format!("{:?}", rng.gen_range(0, 20)))
                     .collect::<Vec<String>>(),
             );
-            let mut packers = vec![Packers::UtfString(packer)];
+            let mut packers = vec![Packers::String(packer)];
 
             sort(&mut packers, &[0]).unwrap();
 
-            let values = packers[0].utf_packer_mut().values();
+            let values = packers[0].str_packer_mut().values();
             let mut prev = &values[0];
             for v in values.iter() {
                 assert!(prev <= v, "{:?} {:?}", prev, v);

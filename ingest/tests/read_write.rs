@@ -16,8 +16,8 @@ fn test_write_parquet_data() {
 
     assert_eq!(schema.get_col_defs().len(), 6);
     let mut packers = vec![
-        Packers::String(Packer::new()),  // 0: tag1
-        Packers::String(Packer::new()),  // 1: string_field
+        Packers::Bytes(Packer::new()),   // 0: tag1
+        Packers::Bytes(Packer::new()),   // 1: string_field
         Packers::Float(Packer::new()),   // 2: float_field
         Packers::Integer(Packer::new()), // 3: int_field
         Packers::Boolean(Packer::new()), // 4: bool_field
@@ -30,10 +30,10 @@ fn test_write_parquet_data() {
     // row 1: null,       null     , null, null, null, null
     // row 2: "tag1_val2", "str_val2", 2.0, 200, false, 9100000000000
     packers[0]
-        .str_packer_mut()
+        .bytes_packer_mut()
         .push(ByteArray::from("tag1_val0"));
     packers[1]
-        .str_packer_mut()
+        .bytes_packer_mut()
         .push(ByteArray::from("str_val0"));
     packers[2].f64_packer_mut().push(1.0);
     packers[3].i64_packer_mut().push(100);
@@ -48,10 +48,10 @@ fn test_write_parquet_data() {
     packers[5].push_none();
 
     packers[0]
-        .str_packer_mut()
+        .bytes_packer_mut()
         .push(ByteArray::from("tag1_val2"));
     packers[1]
-        .str_packer_mut()
+        .bytes_packer_mut()
         .push(ByteArray::from("str_val2"));
     packers[2].f64_packer_mut().push(2.0);
     packers[3].i64_packer_mut().push(200);
