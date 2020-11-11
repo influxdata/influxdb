@@ -183,7 +183,7 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
             }
         }
         ("server", Some(_)) | (_, _) => {
-            println!("Starting InfluxDB IOx server");
+            println!("InfluxDB IOx server starting");
             match commands::write_buffer_server::main().await {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {

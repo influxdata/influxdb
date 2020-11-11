@@ -84,6 +84,8 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let server = Server::bind(&bind_addr).serve(make_svc);
     info!("Listening on http://{}", bind_addr);
 
+    println!("InfluxDB IOx server ready");
+
     // Wait for both the servers to complete
     let (grpc_server, server) = futures::future::join(grpc_server, server).await;
 
