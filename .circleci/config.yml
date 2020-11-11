@@ -109,6 +109,6 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - main
     jobs:
       - ci_image
