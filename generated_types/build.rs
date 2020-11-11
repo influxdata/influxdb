@@ -20,14 +20,22 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Schema used with gRPC requests
+/// Schema used with IOx specific gRPC requests
 ///
 /// Creates `influxdata.platform.storage.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
-    let proto_file = root.join("influxdb_iox.proto");
+    let proto_files = vec![
+        root.join("influxdb_iox.proto"),
+        root.join("predicate.proto"),
+        root.join("service.proto"),
+    ];
 
-    println!("cargo:rerun-if-changed={}", proto_file.display());
-    tonic_build::compile_protos(proto_file)?;
+    // Tell cargo to recompile if any of these proto files are changed
+    for proto_file in &proto_files {
+        println!("cargo:rerun-if-changed={}", proto_file.display());
+    }
+
+    tonic_build::configure().compile(&proto_files, &[root.into()])?;
 
     Ok(())
 }
