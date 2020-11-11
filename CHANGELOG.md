@@ -1,5 +1,17 @@
-v2.0.1 [unreleased]
+v2.0.2 [unreleased]
+-------------------
+
+v2.0.1 [2020-11-10]
 ------------------
+
+### Bug Fixes
+
+-	[19918](https://github.com/influxdata/influxdb/pull/19918): Swagger: add operationId to /delete
+-	[19967](https://github.com/influxdata/influxdb/pull/19967): Upgrade: add log-level option
+-	[19969](https://github.com/influxdata/influxdb/pull/19969): Check for existing 2.x CLI configs file
+-	[19971](https://github.com/influxdata/influxdb/pull/19971): Swagger: remove Invites from swagger
+-	[19972](https://github.com/influxdata/influxdb/pull/19972): Remove obsolete unused option (influx-command-path)
+-	[19980](https://github.com/influxdata/influxdb/pull/19980): check write permission in legacy write path
 
 v2.0.0 [2020-11-09]
 -------------------
