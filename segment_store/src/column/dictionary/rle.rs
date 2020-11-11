@@ -7,10 +7,8 @@ use croaring::Bitmap;
 
 use arrow_deps::arrow::array::{Array, StringArray};
 
+use crate::column::dictionary::NULL_ID;
 use crate::column::{cmp, RowIDs};
-
-// The encoded id for a NULL value.
-pub const NULL_ID: u32 = 0;
 
 // `RLE` is a run-length encoding for dictionary columns, where all dictionary
 // entries are utf-8 valid strings.
@@ -921,13 +919,15 @@ impl std::fmt::Display for RLE {
 mod test {
     use std::collections::BTreeSet;
 
+    use super::*;
+
     #[test]
-    fn rle_with_dictionary() {
+    fn with_dictionary() {
         let mut dictionary = BTreeSet::new();
         dictionary.insert("hello".to_string());
         dictionary.insert("world".to_string());
 
-        let drle = super::RLE::with_dictionary(dictionary);
+        let drle = RLE::with_dictionary(dictionary);
         assert_eq!(
             drle.entry_index.keys().cloned().collect::<Vec<String>>(),
             vec!["hello".to_string(), "world".to_string(),]
