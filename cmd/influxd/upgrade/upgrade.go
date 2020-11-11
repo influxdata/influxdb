@@ -147,6 +147,7 @@ func NewCommand() *cobra.Command {
     Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
 `,
 		RunE: runUpgradeE,
+		Args: cobra.NoArgs,
 	}
 
 	opts := []cli.Opt{
