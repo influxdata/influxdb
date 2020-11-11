@@ -3,6 +3,7 @@
 ### Bug Fixes
 
 1. [19987](https://github.com/influxdata/influxdb/pull/19987): Fix various typos. Thanks @kumakichi!
+2. [19991](https://github.com/influxdata/influxdb/pull/19991): Use --skip-verify flag for backup/restore CLI command.
 
 ## v2.0.1 [2020-11-10]
 
