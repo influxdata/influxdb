@@ -1836,15 +1836,18 @@ mod tests {
     ///
     /// state="MA"
     fn make_state_ma_predicate() -> Option<Predicate> {
-        use node::{Comparison, Value};
+        use node::{Comparison, Type, Value};
         let root = Node {
+            node_type: Type::ComparisonExpression as i32,
             value: Some(Value::Comparison(Comparison::Equal as i32)),
             children: vec![
                 Node {
+                    node_type: Type::TagRef as i32,
                     value: Some(Value::TagRefValue("state".to_string().into_bytes())),
                     children: vec![],
                 },
                 Node {
+                    node_type: Type::Literal as i32,
                     value: Some(Value::StringValue("MA".to_string())),
                     children: vec![],
                 },

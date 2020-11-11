@@ -18,7 +18,7 @@
 use assert_cmd::prelude::*;
 use futures::prelude::*;
 use generated_types::{
-    node::{Comparison, Value},
+    node::{Comparison, Type as NodeType, Value},
     read_group_request::Group,
     read_response::{frame::Data, *},
     storage_client::StorageClient,
@@ -237,12 +237,15 @@ async fn read_and_write_data() -> Result<()> {
 
     let predicate = Predicate {
         root: Some(Node {
+            node_type: NodeType::ComparisonExpression as i32,
             children: vec![
                 Node {
+                    node_type: NodeType::TagRef as i32,
                     children: vec![],
                     value: Some(Value::TagRefValue("host".into())),
                 },
                 Node {
+                    node_type: NodeType::Literal as i32,
                     children: vec![],
                     value: Some(Value::StringValue("server01".into())),
                 },

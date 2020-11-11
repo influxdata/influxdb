@@ -140,7 +140,11 @@ impl AddRPCNode for PredicateBuilder {
 /// ```
 ///
 fn normalize_node(node: RPCNode) -> Result<RPCNode> {
-    let RPCNode { children, value } = node;
+    let RPCNode {
+        node_type,
+        children,
+        value,
+    } = node;
 
     let mut normalized_children = children
         .into_iter()
@@ -156,6 +160,7 @@ fn normalize_node(node: RPCNode) -> Result<RPCNode> {
         (Some(value), _) => {
             // performance any other normalizations needed
             Ok(RPCNode {
+                node_type,
                 children: normalized_children,
                 value: Some(value),
             })
@@ -333,7 +338,11 @@ impl SpecialTagKeys for String {
 
 // converts a Node from the RPC layer into a datafusion logical expr
 fn convert_node_to_expr(node: RPCNode) -> Result<Expr> {
-    let RPCNode { children, value } = node;
+    let RPCNode {
+        children,
+        node_type: _,
+        value,
+    } = node;
     let inputs = children
         .into_iter()
         .map(convert_node_to_expr)
@@ -441,7 +450,7 @@ fn build_binary_expr(op: Operator, inputs: Vec<Expr>) -> Result<Expr> {
 
 #[cfg(test)]
 mod tests {
-
+    use generated_types::node::Type as RPCNodeType;
     use std::collections::BTreeSet;
 
     use super::*;
@@ -503,6 +512,7 @@ mod tests {
     #[test]
     fn test_convert_predicate_no_children() {
         let comparison = RPCNode {
+            node_type: RPCNodeType::ComparisonExpression as i32,
             children: vec![],
             value: Some(RPCValue::Comparison(RPCComparison::Gt as i32)),
         };
@@ -527,11 +537,13 @@ mod tests {
     fn test_convert_predicate_comparison_bad_values() {
         // Send in invalid input to simulate a bad actor
         let iconst = RPCNode {
+            node_type: RPCNodeType::Literal as i32,
             children: vec![],
             value: Some(RPCValue::FloatValue(5.0)),
         };
 
         let comparison = RPCNode {
+            node_type: RPCNodeType::ComparisonExpression as i32,
             children: vec![iconst.clone(), iconst],
             value: Some(RPCValue::Comparison(42)), // 42 is not a valid comparison value
         };
@@ -556,11 +568,13 @@ mod tests {
     fn test_convert_predicate_logical_bad_values() {
         // Send in invalid input to simulate a bad actor
         let iconst = RPCNode {
+            node_type: RPCNodeType::Literal as i32,
             children: vec![],
             value: Some(RPCValue::FloatValue(5.0)),
         };
 
         let comparison = RPCNode {
+            node_type: RPCNodeType::LogicalExpression as i32,
             children: vec![iconst.clone(), iconst],
             value: Some(RPCValue::Logical(42)), // 42 is not a valid logical value
         };
@@ -605,6 +619,7 @@ mod tests {
         // test wrapping the whole predicate in a None value (aka what influxql does for some reason
         let field_selection = make_field_ref_node("field1");
         let wrapped = RPCNode {
+            node_type: RPCNodeType::ParenExpression as i32,
             children: vec![field_selection],
             value: None,
         };
@@ -743,14 +758,17 @@ mod tests {
     fn make_host_comparison() -> (RPCNode, Expr) {
         // host > 5.0
         let field_ref = RPCNode {
+            node_type: RPCNodeType::FieldRef as i32,
             children: vec![],
             value: Some(RPCValue::FieldRefValue(String::from("host"))),
         };
         let iconst = RPCNode {
+            node_type: RPCNodeType::Literal as i32,
             children: vec![],
             value: Some(RPCValue::FloatValue(5.0)),
         };
         let comparison = RPCNode {
+            node_type: RPCNodeType::ComparisonExpression as i32,
             children: vec![field_ref, iconst],
             value: Some(RPCValue::Comparison(RPCComparison::Gt as i32)),
         };
@@ -766,16 +784,19 @@ mod tests {
 
     fn make_tag_ref_node(tag_name: &[u8], field_name: impl Into<String>) -> RPCNode {
         let field_tag_ref_node = RPCNode {
+            node_type: RPCNodeType::TagRef as i32,
             children: vec![],
             value: Some(RPCValue::TagRefValue(tag_name.to_vec())),
         };
 
         let string_node = RPCNode {
+            node_type: RPCNodeType::Literal as i32,
             children: vec![],
             value: Some(RPCValue::StringValue(field_name.into())),
         };
 
         RPCNode {
+            node_type: RPCNodeType::ComparisonExpression as i32,
             children: vec![field_tag_ref_node, string_node],
             value: Some(RPCValue::Comparison(RPCComparison::Equal as i32)),
         }
@@ -784,6 +805,7 @@ mod tests {
     /// make n1 OR n2
     fn make_or_node(n1: RPCNode, n2: RPCNode) -> RPCNode {
         RPCNode {
+            node_type: RPCNodeType::LogicalExpression as i32,
             children: vec![n1, n2],
             value: Some(RPCValue::Logical(RPCLogical::Or as i32)),
         }
@@ -792,6 +814,7 @@ mod tests {
     /// make n1 AND n2
     fn make_and_node(n1: RPCNode, n2: RPCNode) -> RPCNode {
         RPCNode {
+            node_type: RPCNodeType::LogicalExpression as i32,
             children: vec![n1, n2],
             value: Some(RPCValue::Logical(RPCLogical::And as i32)),
         }
