@@ -108,8 +108,9 @@ func (b *cmdBackupBuilder) backupRunE(cmd *cobra.Command, args []string) (err er
 
 	ac := flags.config()
 	b.backupService = &http.BackupService{
-		Addr:  ac.Host,
-		Token: ac.Token,
+		Addr:               ac.Host,
+		Token:              ac.Token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	// Back up Bolt database to file.
