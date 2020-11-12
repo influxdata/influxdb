@@ -7,6 +7,10 @@
 )]
 
 include!(concat!(env!("OUT_DIR"), "/influxdata.platform.storage.rs"));
+include!(concat!(
+    env!("OUT_DIR"),
+    "/com.github.influxdata.idpe.storage.read.rs"
+));
 include!(concat!(env!("OUT_DIR"), "/wal_generated.rs"));
 
 // Can't implement `Default` because `prost::Message` implements `Default`

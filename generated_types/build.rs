@@ -22,12 +22,15 @@ fn main() -> Result<()> {
 
 /// Schema used with IOx specific gRPC requests
 ///
-/// Creates `influxdata.platform.storage.rs`
+/// Creates `influxdata.platform.storage.rs` and `com.github.influxdata.idpe.storage.read.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let proto_files = vec![
         root.join("influxdb_iox.proto"),
         root.join("predicate.proto"),
+        root.join("storage_common.proto"),
+        root.join("storage_common_idpe.proto"),
         root.join("service.proto"),
+        root.join("source.proto"),
     ];
 
     // Tell cargo to recompile if any of these proto files are changed

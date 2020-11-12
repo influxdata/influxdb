@@ -1,0 +1,25 @@
+// This file defines extensions to the InfluxDB storage gRPC common message types
+// that have not yet made it into influxdb.
+
+// It is, effectively, the delta between these two files:
+// https://github.com/influxdata/influxdb/blob/master/storage/reads/datatypes/storage_common.proto
+// https://github.com/influxdata/idpe/blob/master/storage/storageproto/storage_common.proto
+
+
+syntax = "proto3";
+package influxdata.platform.storage;
+
+import "google/protobuf/any.proto";
+import "predicate.proto";
+import "storage_common.proto";
+
+message ReadSeriesCardinalityRequest {
+  google.protobuf.Any read_series_cardinality_source = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+}
+
+// Response message for Storage.SeriesCardinality
+message Int64ValuesResponse {
+  repeated int64 values = 1;
+}

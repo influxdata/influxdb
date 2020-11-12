@@ -333,6 +333,7 @@ async fn read_and_write_data() -> Result<()> {
         group_keys: vec![String::from("region")],
         group: Group::By as _,
         aggregate: None,
+        hints: 0,
     });
     let read_group_response = storage_client.read_group(read_group_request).await?;
 
@@ -369,6 +370,7 @@ async fn read_and_write_data() -> Result<()> {
     let measurement_names_request = tonic::Request::new(MeasurementNamesRequest {
         source: read_source.clone(),
         range: range.clone(),
+        predicate: None,
     });
 
     let measurement_names_response = storage_client

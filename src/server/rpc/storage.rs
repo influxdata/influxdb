@@ -8,9 +8,10 @@ use generated_types::{
     i_ox_server::{IOx, IOxServer},
     storage_server::{Storage, StorageServer},
     CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
-    DeleteBucketResponse, GetBucketsResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
-    MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Organization,
-    Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse, StringValuesResponse,
+    DeleteBucketResponse, GetBucketsResponse, Int64ValuesResponse, MeasurementFieldsRequest,
+    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
+    MeasurementTagValuesRequest, Organization, Predicate, ReadFilterRequest, ReadGroupRequest,
+    ReadResponse, ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse,
     TagKeysRequest, TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
 };
 
@@ -286,6 +287,7 @@ where
             // TODO: handle aggregate values, especially whether None is the same as
             // Some(AggregateType::None) or not
             aggregate: _aggregate,
+            hints: _,
         } = read_group_request;
 
         info!(
@@ -306,6 +308,15 @@ where
         .map_err(|e| e.to_status())?;
 
         Ok(tonic::Response::new(rx))
+    }
+
+    type ReadWindowAggregateStream = mpsc::Receiver<Result<ReadResponse, Status>>;
+
+    async fn read_window_aggregate(
+        &self,
+        _req: tonic::Request<ReadWindowAggregateRequest>,
+    ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
+        unimplemented!("read_window_aggregate not yet implemented");
     }
 
     type TagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
@@ -409,6 +420,15 @@ where
         Ok(tonic::Response::new(rx))
     }
 
+    type ReadSeriesCardinalityStream = mpsc::Receiver<Result<Int64ValuesResponse, Status>>;
+
+    async fn read_series_cardinality(
+        &self,
+        _req: tonic::Request<ReadSeriesCardinalityRequest>,
+    ) -> Result<tonic::Response<Self::ReadSeriesCardinalityStream>, Status> {
+        unimplemented!("read_series_cardinality not yet implemented");
+    }
+
     async fn capabilities(
         &self,
         _req: tonic::Request<()>,
@@ -439,7 +459,19 @@ where
         let MeasurementNamesRequest {
             source: _source,
             range,
+            predicate,
         } = measurement_names_request;
+
+        if let Some(predicate) = predicate {
+            return NotYetImplemented {
+                operation: format!(
+                    "measurement_names request with a predicate: {:?}",
+                    predicate
+                ),
+            }
+            .fail()
+            .map_err(|e| e.to_status());
+        }
 
         info!(
             "measurement_names for database {}, range: {:?}",
@@ -1110,6 +1142,7 @@ mod tests {
         let request = MeasurementNamesRequest {
             source: source.clone(),
             range: None,
+            predicate: None,
         };
 
         let actual_measurements = fixture.storage_client.measurement_names(request).await?;
@@ -1124,6 +1157,7 @@ mod tests {
         let request = MeasurementNamesRequest {
             source,
             range: Some(range),
+            predicate: None,
         };
 
         let actual_measurements = fixture.storage_client.measurement_names(request).await?;
@@ -1684,6 +1718,7 @@ mod tests {
             group_keys: vec![String::from("tag1")],
             group,
             aggregate: None,
+            hints: 0,
         };
 
         let expected_request = QueryGroupsRequest {
@@ -1718,6 +1753,7 @@ mod tests {
             group_keys: vec![],
             group,
             aggregate: None,
+            hints: 0,
         };
 
         // Note we don't set the response on the test database, so we expect an error
@@ -1919,10 +1955,16 @@ mod tests {
         }
 
         /// return the capabilities of the server as a hash map
-        async fn capabilities(&mut self) -> Result<HashMap<String, String>, tonic::Status> {
+        async fn capabilities(&mut self) -> Result<HashMap<String, Vec<String>>, tonic::Status> {
             let response = self.inner.capabilities(()).await?.into_inner();
 
             let CapabilitiesResponse { caps } = response;
+
+            // unwrap the Vec of Strings inside each `Capability`
+            let caps = caps
+                .into_iter()
+                .map(|(name, capability)| (name, capability.features))
+                .collect();
 
             Ok(caps)
         }
