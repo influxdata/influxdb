@@ -629,7 +629,7 @@ impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
     }
 }
 pub enum StringEncoding {
-    RLE(dictionary::RLE),
+    RLEDictionary(dictionary::RLE),
     // TODO - simple array encoding, e.g., via Arrow String array.
 }
 
@@ -639,14 +639,14 @@ impl StringEncoding {
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
         match &self {
-            Self::RLE(c) => c.contains_null(),
+            Self::RLEDictionary(c) => c.contains_null(),
         }
     }
 
     /// Returns the logical value found at the provided row id.
     pub fn value(&self, row_id: u32) -> Value<'_> {
         match &self {
-            Self::RLE(c) => match c.value(row_id) {
+            Self::RLEDictionary(c) => match c.value(row_id) {
                 Some(v) => Value::String(v),
                 None => Value::Null,
             },
@@ -658,7 +658,7 @@ impl StringEncoding {
     /// TODO(edd): perf - pooling of destination vectors.
     pub fn values(&self, row_ids: &[u32]) -> Values {
         match &self {
-            Self::RLE(c) => Values::String(StringArray::from(c.values(row_ids, vec![]))),
+            Self::RLEDictionary(c) => Values::String(StringArray::from(c.values(row_ids, vec![]))),
         }
     }
 
@@ -667,14 +667,14 @@ impl StringEncoding {
     /// TODO(edd): perf - pooling of destination sets.
     pub fn distinct_values(&self, row_ids: &[u32]) -> ValueSet<'_> {
         match &self {
-            Self::RLE(c) => ValueSet::String(c.distinct_values(row_ids, BTreeSet::new())),
+            Self::RLEDictionary(c) => ValueSet::String(c.distinct_values(row_ids, BTreeSet::new())),
         }
     }
 
     /// Returns the row ids that satisfy the provided predicate.
     pub fn row_ids_filter(&self, op: &cmp::Operator, value: &str, dst: RowIDs) -> RowIDs {
         match &self {
-            Self::RLE(c) => c.row_ids_filter(value, op, dst),
+            Self::RLEDictionary(c) => c.row_ids_filter(value, op, dst),
         }
     }
 
@@ -683,7 +683,7 @@ impl StringEncoding {
     /// ids.
     pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
-            StringEncoding::RLE(c) => match c.min(row_ids) {
+            StringEncoding::RLEDictionary(c) => match c.min(row_ids) {
                 Some(min) => Value::String(min),
                 None => Value::Null,
             },
@@ -695,7 +695,7 @@ impl StringEncoding {
     /// ids.
     pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
-            StringEncoding::RLE(c) => match c.max(row_ids) {
+            StringEncoding::RLEDictionary(c) => match c.max(row_ids) {
                 Some(max) => Value::String(max),
                 None => Value::Null,
             },
@@ -705,7 +705,7 @@ impl StringEncoding {
     /// The number of non-null values at the provided row ids.
     pub fn count(&self, row_ids: &[u32]) -> u32 {
         match &self {
-            StringEncoding::RLE(c) => c.count(row_ids),
+            StringEncoding::RLEDictionary(c) => c.count(row_ids),
         }
     }
 
@@ -777,7 +777,7 @@ impl StringEncoding {
             range,
         };
 
-        Self::RLE(data)
+        Self::RLEDictionary(data)
     }
 
     /// All encoded values for the provided logical row ids.
@@ -785,7 +785,7 @@ impl StringEncoding {
     /// TODO(edd): perf - pooling of destination vectors.
     pub fn encoded_values(&self, row_ids: &[u32], dst: Vec<u32>) -> Vec<u32> {
         match &self {
-            Self::RLE(c) => c.encoded_values(row_ids, dst),
+            Self::RLEDictionary(c) => c.encoded_values(row_ids, dst),
         }
     }
 
@@ -794,7 +794,7 @@ impl StringEncoding {
     /// TODO(edd): perf - pooling of destination vectors.
     pub fn all_encoded_values(&self, dst: Vec<u32>) -> Vec<u32> {
         match &self {
-            Self::RLE(c) => c.all_encoded_values(dst),
+            Self::RLEDictionary(c) => c.all_encoded_values(dst),
         }
     }
 
@@ -840,7 +840,7 @@ impl StringEncoding {
             None => data.push_additional(None, count),
         };
 
-        Self::RLE(data)
+        Self::RLEDictionary(data)
     }
 
     fn from_strs(arr: &[&str]) -> Self {
@@ -871,13 +871,13 @@ impl StringEncoding {
         // Add final batch to column if any
         data.push_additional(Some(prev.to_string()), count);
 
-        Self::RLE(data)
+        Self::RLEDictionary(data)
     }
 
     // generates metadata for an encoded column.
     fn meta(data: &Self) -> MetaData<String> {
         match data {
-            StringEncoding::RLE(data) => {
+            StringEncoding::RLEDictionary(data) => {
                 let dictionary = data.dictionary();
                 let range = if !dictionary.is_empty() {
                     let min = data.dictionary()[0].clone();
@@ -893,6 +893,14 @@ impl StringEncoding {
                     range,
                 }
             }
+        }
+    }
+}
+
+impl std::fmt::Display for StringEncoding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StringEncoding::RLEDictionary(data) => write!(f, "{}", data),
         }
     }
 }
@@ -2535,7 +2543,7 @@ mod test {
         let arr = StringArray::from(input);
 
         let col = Column::from(arr);
-        if let Column::String(meta, StringEncoding::RLE(mut enc)) = col {
+        if let Column::String(meta, StringEncoding::RLEDictionary(mut enc)) = col {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
@@ -2565,7 +2573,7 @@ mod test {
     fn from_strs() {
         let arr = vec!["world", "hello"];
         let col = Column::from(arr.as_slice());
-        if let Column::String(meta, StringEncoding::RLE(mut enc)) = col {
+        if let Column::String(meta, StringEncoding::RLEDictionary(mut enc)) = col {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
