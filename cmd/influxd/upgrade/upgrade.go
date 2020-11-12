@@ -77,31 +77,25 @@ type optionsV1 struct {
 	configFile string
 }
 
-func (o *optionsV1) checkDirs() error {
-	if o.metaDir == "" || o.dataDir == "" || o.walDir == "" {
-		if o.dbDir == "" {
-			return errors.New("source directory not specified")
-		} else {
-			o.metaDir = filepath.Join(o.dbDir, "meta")
-			o.dataDir = filepath.Join(o.dbDir, "data")
-			o.walDir = filepath.Join(o.dbDir, "wal")
-		}
-	}
-	return nil
+// populateDirs sets values for expected sub-directories of o.dbDir
+func (o *optionsV1) populateDirs() {
+	o.metaDir = filepath.Join(o.dbDir, "meta")
+	o.dataDir = filepath.Join(o.dbDir, "data")
+	o.walDir = filepath.Join(o.dbDir, "wal")
 }
 
 type optionsV2 struct {
-	boltPath    string
-	configsPath string
-	enginePath  string
-	userName    string
-	password    string
-	orgName     string
-	bucket      string
-	orgID       influxdb.ID
-	userID      influxdb.ID
-	token       string
-	retention   string
+	boltPath       string
+	cliConfigsPath string
+	enginePath     string
+	userName       string
+	password       string
+	orgName        string
+	bucket         string
+	orgID          influxdb.ID
+	userID         influxdb.ID
+	token          string
+	retention      string
 }
 
 var options = struct {
@@ -173,7 +167,7 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Short:   'm',
 		},
 		{
-			DestP:   &options.target.configsPath,
+			DestP:   &options.target.cliConfigsPath,
 			Flag:    "influx-configs-path",
 			Default: filepath.Join(v2dir, "configs"),
 			Desc:    "path for 2.x CLI configurations file",
@@ -325,13 +319,15 @@ func runUpgradeE(*cobra.Command, []string) error {
 		return err
 	}
 
+	err = validatePaths(&options.source, &options.target)
+	if err != nil {
+		return err
+	}
+
 	log.Info("Starting InfluxDB 1.x upgrade")
 
 	if options.source.configFile != "" {
 		log.Info("Upgrading config file", zap.String("file", options.source.configFile))
-		if _, err := os.Stat(options.source.configFile); err != nil {
-			return err
-		}
 		v1Config, err := upgradeConfig(options.source.configFile, options.target, log)
 		if err != nil {
 			return err
@@ -344,30 +340,8 @@ func runUpgradeE(*cobra.Command, []string) error {
 		log.Info("No InfluxDB 1.x config file specified, skipping its upgrade")
 	}
 
-	if err := options.source.checkDirs(); err != nil {
-		return err
-	}
-
-	metaDBPath := filepath.Join(options.source.metaDir, "meta.db")
-	if _, err := os.Stat(metaDBPath); err != nil {
-		return fmt.Errorf("1.x metadb error: %w", err)
-	}
-
 	log.Info("Upgrade source paths", zap.String("meta", options.source.metaDir), zap.String("data", options.source.dataDir))
 	log.Info("Upgrade target paths", zap.String("bolt", options.target.boltPath), zap.String("engine", options.target.enginePath))
-
-	if fi, err := os.Stat(options.target.enginePath); err == nil {
-		if !fi.IsDir() {
-			return fmt.Errorf("engine path '%s' is not directory", options.target.enginePath)
-		}
-		entries, err := ioutil.ReadDir(options.target.enginePath)
-		if err != nil {
-			return err
-		}
-		if len(entries) > 0 {
-			return fmt.Errorf("target engine path '%s' must be empty", options.target.enginePath)
-		}
-	}
 
 	v1, err := newInfluxDBv1(&options.source)
 	if err != nil {
@@ -431,6 +405,59 @@ func runUpgradeE(*cobra.Command, []string) error {
 	}
 
 	log.Info("Upgrade successfully completed. Start service now")
+
+	return nil
+}
+
+// validatePaths ensures that all filesystem paths provided as input
+// are usable by the upgrade command
+func validatePaths(sourceOpts *optionsV1, targetOpts *optionsV2) error {
+	fi, err := os.Stat(sourceOpts.dbDir)
+	if err != nil {
+		return fmt.Errorf("1.x DB dir '%s' does not exist", sourceOpts.dbDir)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("1.x DB dir '%s' is not a directory", sourceOpts.dbDir)
+	}
+	sourceOpts.populateDirs()
+
+	metaDb := filepath.Join(sourceOpts.metaDir, "meta.db")
+	_, err = os.Stat(metaDb)
+	if err != nil {
+		return fmt.Errorf("1.x meta.db '%s' does not exist", metaDb)
+	}
+
+	if sourceOpts.configFile != "" {
+		_, err = os.Stat(sourceOpts.configFile)
+		if err != nil {
+			return fmt.Errorf("1.x config file '%s' does not exist", sourceOpts.configFile)
+		}
+		v2Config := translateV1ConfigPath(sourceOpts.configFile)
+		if _, err := os.Stat(v2Config); err == nil {
+			return fmt.Errorf("file present at target path for upgraded 2.x config file '%s'", v2Config)
+		}
+	}
+
+	if _, err = os.Stat(targetOpts.boltPath); err == nil {
+		return fmt.Errorf("file present at target path for upgraded 2.x bolt DB: '%s'", targetOpts.boltPath)
+	}
+
+	if fi, err = os.Stat(targetOpts.enginePath); err == nil {
+		if !fi.IsDir() {
+			return fmt.Errorf("upgraded 2.x engine path '%s' is not a directory", targetOpts.enginePath)
+		}
+		entries, err := ioutil.ReadDir(targetOpts.enginePath)
+		if err != nil {
+			return err
+		}
+		if len(entries) > 0 {
+			return fmt.Errorf("upgraded 2.x engine directory '%s' must be empty", targetOpts.enginePath)
+		}
+	}
+
+	if _, err = os.Stat(targetOpts.cliConfigsPath); err == nil {
+		return fmt.Errorf("file present at target path for 2.x CLI configs '%s'", targetOpts.cliConfigsPath)
+	}
 
 	return nil
 }
@@ -556,7 +583,7 @@ func influxDirV1() (string, error) {
 	return dir, nil
 }
 
-// influxConfigFileV1 returns default 1.x config file path or empty path if not found.
+// influxConfigPathV1 returns default 1.x config file path or empty path if not found.
 func influxConfigPathV1() string {
 	if envVar := os.Getenv("INFLUXDB_CONFIG_PATH"); envVar != "" {
 		return envVar
