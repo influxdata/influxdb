@@ -58,7 +58,7 @@ func (b *cmdDeleteBuilder) cmd() *cobra.Command {
 			Persistent: true,
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(b.viper, cmd)
 
 	cmd.PersistentFlags().StringVar(&b.flags.Start, "start", "", "the start time in RFC3339Nano format, exp 2009-01-02T23:00:00Z")
 	cmd.PersistentFlags().StringVar(&b.flags.Stop, "stop", "", "the stop time in RFC3339Nano format, exp 2009-01-02T23:00:00Z")
@@ -102,6 +102,6 @@ func (b *cmdDeleteBuilder) fluxDeleteF(cmd *cobra.Command, args []string) error 
 
 func (b *cmdDeleteBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }

@@ -54,7 +54,7 @@ type Program struct {
 // to all environment variables.
 //
 // This is to simplify the viper/cobra boilerplate.
-func NewCommand(p *Program) *cobra.Command {
+func NewCommand(v *viper.Viper, p *Program) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:  p.Name,
 		Args: cobra.NoArgs,
@@ -63,23 +63,23 @@ func NewCommand(p *Program) *cobra.Command {
 		},
 	}
 
-	viper.SetEnvPrefix(strings.ToUpper(p.Name))
-	viper.AutomaticEnv()
+	v.SetEnvPrefix(strings.ToUpper(p.Name))
+	v.AutomaticEnv()
 	// This normalizes "-" to an underscore in env names.
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
-	if configPath := viper.GetString("CONFIG_PATH"); configPath != "" {
+	if configPath := v.GetString("CONFIG_PATH"); configPath != "" {
 		switch path.Ext(configPath) {
 		case ".json", ".toml", ".yaml", "yml":
-			viper.SetConfigFile(configPath)
+			v.SetConfigFile(configPath)
 		case "":
-			viper.AddConfigPath(configPath)
+			v.AddConfigPath(configPath)
 		}
 	} else {
 		// defaults to looking in same directory as program running for
 		// a file with base `config` and extensions .json|.toml|.yaml|.yml
-		viper.SetConfigName("config")
-		viper.AddConfigPath(".")
+		v.SetConfigName("config")
+		v.AddConfigPath(".")
 	}
 
 	// done before we bind flags to viper keys.
@@ -87,16 +87,16 @@ func NewCommand(p *Program) *cobra.Command {
 	//	1. flags
 	//  2. env vars
 	//	3. config file
-	if err := initializeConfig(); err != nil {
+	if err := initializeConfig(v); err != nil {
 		panic("invalid config file caused panic: " + err.Error())
 	}
-	BindOptions(cmd, p.Opts)
+	BindOptions(v, cmd, p.Opts)
 
 	return cmd
 }
 
-func initializeConfig() error {
-	err := viper.ReadInConfig()
+func initializeConfig(v *viper.Viper) error {
+	err := v.ReadInConfig()
 	if err != nil && !os.IsNotExist(err) {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return err
@@ -107,7 +107,7 @@ func initializeConfig() error {
 
 // BindOptions adds opts to the specified command and automatically
 // registers those options with viper.
-func BindOptions(cmd *cobra.Command, opts []Opt) {
+func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 	for _, o := range opts {
 		flagset := cmd.Flags()
 		if o.Persistent {
@@ -136,8 +136,8 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.StringVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(o.Flag, flagset)
-			*destP = viper.GetString(envVar)
+			mustBindPFlag(v, o.Flag, flagset)
+			*destP = v.GetString(envVar)
 		case *int:
 			var d int
 			if o.Default != nil {
@@ -148,8 +148,8 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.IntVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(o.Flag, flagset)
-			*destP = viper.GetInt(envVar)
+			mustBindPFlag(v, o.Flag, flagset)
+			*destP = v.GetInt(envVar)
 		case *bool:
 			var d bool
 			if o.Default != nil {
@@ -160,8 +160,8 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.BoolVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(o.Flag, flagset)
-			*destP = viper.GetBool(envVar)
+			mustBindPFlag(v, o.Flag, flagset)
+			*destP = v.GetBool(envVar)
 		case *time.Duration:
 			var d time.Duration
 			if o.Default != nil {
@@ -172,8 +172,8 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.DurationVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(o.Flag, flagset)
-			*destP = viper.GetDuration(envVar)
+			mustBindPFlag(v, o.Flag, flagset)
+			*destP = v.GetDuration(envVar)
 		case *[]string:
 			var d []string
 			if o.Default != nil {
@@ -184,8 +184,8 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.StringSliceVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(o.Flag, flagset)
-			*destP = viper.GetStringSlice(envVar)
+			mustBindPFlag(v, o.Flag, flagset)
+			*destP = v.GetStringSlice(envVar)
 		case *map[string]string:
 			var d map[string]string
 			if o.Default != nil {
@@ -196,8 +196,8 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.StringToStringVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(o.Flag, flagset)
-			*destP = viper.GetStringMapString(envVar)
+			mustBindPFlag(v, o.Flag, flagset)
+			*destP = v.GetStringMapString(envVar)
 		case pflag.Value:
 			if hasShort {
 				flagset.VarP(destP, o.Flag, string(o.Short), o.Desc)
@@ -207,8 +207,8 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			if o.Default != nil {
 				destP.Set(o.Default.(string))
 			}
-			mustBindPFlag(o.Flag, flagset)
-			destP.Set(viper.GetString(envVar))
+			mustBindPFlag(v, o.Flag, flagset)
+			destP.Set(v.GetString(envVar))
 		case *influxdb.ID:
 			var d influxdb.ID
 			if o.Default != nil {
@@ -219,8 +219,8 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 			} else {
 				IDVar(flagset, destP, o.Flag, d, o.Desc)
 			}
-			if s := viper.GetString(envVar); s != "" {
-				_ = (*destP).DecodeFromString(viper.GetString(envVar))
+			if s := v.GetString(envVar); s != "" {
+				_ = (*destP).DecodeFromString(v.GetString(envVar))
 			}
 		default:
 			// if you get a panic here, sorry about that!
@@ -236,8 +236,8 @@ func BindOptions(cmd *cobra.Command, opts []Opt) {
 	}
 }
 
-func mustBindPFlag(key string, flagset *pflag.FlagSet) {
-	if err := viper.BindPFlag(key, flagset.Lookup(key)); err != nil {
+func mustBindPFlag(v *viper.Viper, key string, flagset *pflag.FlagSet) {
+	if err := v.BindPFlag(key, flagset.Lookup(key)); err != nil {
 		panic(err)
 	}
 }

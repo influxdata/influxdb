@@ -36,7 +36,7 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.RunE = setupF
 	cmd.Short = "Setup instance with initial user, org, bucket"
 
-	f.registerFlags(cmd, "token")
+	f.registerFlags(opt.viper, cmd, "token")
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
 	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
 	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
@@ -45,7 +45,7 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
 	cmd.Flags().StringVarP(&setupFlags.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
-	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
+	registerPrintOptions(opt.viper, cmd, &setupFlags.hideHeaders, &setupFlags.json)
 
 	cmd.AddCommand(
 		cmdSetupUser(f, opt),
@@ -58,7 +58,7 @@ func cmdSetupUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.RunE = setupUserF
 	cmd.Short = "Setup instance with user, org, bucket"
 
-	f.registerFlags(cmd, "token")
+	f.registerFlags(opt.viper, cmd, "token")
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
 	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
 	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
@@ -67,7 +67,7 @@ func cmdSetupUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
 	cmd.Flags().StringVarP(&setupFlags.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
-	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
+	registerPrintOptions(opt.viper, cmd, &setupFlags.hideHeaders, &setupFlags.json)
 
 	return cmd
 }

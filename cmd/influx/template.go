@@ -172,7 +172,7 @@ func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
 	https://github.com/influxdata/community-templates.
 `
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerTemplateFileFlags(cmd)
 	b.registerTemplatePrintOpts(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
@@ -480,7 +480,7 @@ func (b *cmdTemplateBuilder) cmdExportAll() *cobra.Command {
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringArrayVar(&b.filters, "filter", nil, "Filter exported resources by labelName or resourceKind (format: --filter=labelName=example)")
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -547,7 +547,7 @@ func (b *cmdTemplateBuilder) cmdExportStack() *cobra.Command {
 	cmd.Args = cobra.ExactValidArgs(1)
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -612,9 +612,9 @@ func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
 	cmd := b.newCmd("stacks [flags]", b.stackListRunEFn)
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
 	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	cmd.Short = "List stack(s) and associated templates. Subcommands manage stacks."
 	cmd.Long = `
@@ -675,9 +675,9 @@ func (b *cmdTemplateBuilder) cmdStackInit() *cobra.Command {
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
 	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with new stack")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -756,9 +756,9 @@ func (b *cmdTemplateBuilder) cmdStackRemove() *cobra.Command {
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to be removed")
 	cmd.Flags().BoolVar(&b.force, "force", false, "Remove stack without confirmation prompt")
 	cmd.MarkFlagRequired("stack-id")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -872,7 +872,7 @@ func (b *cmdTemplateBuilder) cmdStackUpdate() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with stack")
 	cmd.Flags().StringArrayVar(&b.updateStackOpts.addResources, "addResource", nil, "Additional resources to associate with stack")
 	cmd.Flags().StringVarP(&b.file, "export-file", "f", "", "Destination for exported template")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
 	return cmd
 }
@@ -968,14 +968,14 @@ func (b *cmdTemplateBuilder) writeStack(stack pkger.Stack) error {
 
 func (b *cmdTemplateBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }
 
 func (b *cmdTemplateBuilder) registerTemplatePrintOpts(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&b.disableColor, "disable-color", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
-	registerPrintOptions(cmd, nil, &b.json)
+	registerPrintOptions(b.viper, cmd, nil, &b.json)
 }
 
 func (b *cmdTemplateBuilder) registerTemplateFileFlags(cmd *cobra.Command) {

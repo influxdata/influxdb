@@ -99,7 +99,7 @@ func (b *cmdOrgBuilder) cmdDelete() *cobra.Command {
 			Desc:   "The organization ID",
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(b.viper, cmd)
 	b.registerPrintFlags(cmd)
 
 	return cmd
@@ -153,7 +153,7 @@ func (b *cmdOrgBuilder) cmdFind() *cobra.Command {
 			Desc:   "The organization ID",
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(b.viper, cmd)
 	b.registerPrintFlags(cmd)
 
 	return cmd
@@ -214,7 +214,7 @@ func (b *cmdOrgBuilder) cmdUpdate() *cobra.Command {
 			Desc:   "The organization name",
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(b.viper, cmd)
 	b.registerPrintFlags(cmd)
 
 	return cmd
@@ -320,7 +320,7 @@ func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
 			Desc:   "The organization ID",
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(b.viper, cmd)
 	b.registerPrintFlags(cmd)
 	return cmd
 }
@@ -385,7 +385,7 @@ func (b *cmdOrgBuilder) cmdMemberAdd() *cobra.Command {
 			Desc:   "The organization ID",
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(b.viper, cmd)
 
 	return cmd
 }
@@ -458,7 +458,7 @@ func (b *cmdOrgBuilder) cmdMemberRemove() *cobra.Command {
 			Desc:   "The organization ID",
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(b.viper, cmd)
 
 	cmd.Flags().StringVarP(&b.memberID, "member", "m", "", "The member ID")
 	cmd.MarkFlagRequired("member")
@@ -511,12 +511,12 @@ func (b *cmdOrgBuilder) membersRemoveRunEFn(cmd *cobra.Command, args []string) e
 
 func (b *cmdOrgBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }
 
 func (b *cmdOrgBuilder) registerPrintFlags(cmd *cobra.Command) {
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 }
 
 func newOrgServices() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error) {

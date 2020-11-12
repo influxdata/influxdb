@@ -55,8 +55,8 @@ type TestLauncher struct {
 }
 
 // NewTestLauncher returns a new instance of TestLauncher.
-func NewTestLauncher(flagger feature.Flagger) *TestLauncher {
-	l := &TestLauncher{Launcher: NewLauncher()}
+func NewTestLauncher(flagger feature.Flagger, opts ...Option) *TestLauncher {
+	l := &TestLauncher{Launcher: NewLauncher(opts...)}
 	l.Launcher.Stdin = &l.Stdin
 	l.Launcher.Stdout = &l.Stdout
 	l.Launcher.Stderr = &l.Stderr

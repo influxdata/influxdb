@@ -3,17 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	_ "net/http/pprof"
 	"os"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/upgrade"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -29,10 +30,11 @@ func main() {
 
 	influxdb.SetBuildInfo(version, commit, date)
 
-	rootCmd := launcher.NewInfluxdCommand(context.Background())
+	v := viper.New()
+	rootCmd := launcher.NewInfluxdCommand(context.Background(), v)
 	// upgrade binds options to env variables, so it must be added after rootCmd is initialized
-	rootCmd.AddCommand(upgrade.NewCommand())
-	rootCmd.AddCommand(inspect.NewCommand())
+	rootCmd.AddCommand(upgrade.NewCommand(v))
+	rootCmd.AddCommand(inspect.NewCommand(v))
 	rootCmd.AddCommand(versionCmd())
 
 	rootCmd.SilenceUsage = true

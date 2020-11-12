@@ -11,6 +11,7 @@ import (
 	cinternal "github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/v1/authorization"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/tcnksm/go-input"
 )
 
@@ -32,10 +33,10 @@ func cmdV1Auth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 
 	cmd.AddCommand(
 		v1AuthCreateCmd(f, opt),
-		v1AuthDeleteCmd(f),
-		v1AuthFindCmd(f),
-		v1AuthSetActiveCmd(f),
-		v1AuthSetInactiveCmd(f),
+		v1AuthDeleteCmd(f, opt),
+		v1AuthFindCmd(f, opt),
+		v1AuthSetActiveCmd(f, opt),
+		v1AuthSetInactiveCmd(f, opt),
 		v1AuthSetPasswordCmd(f, opt),
 	)
 
@@ -61,14 +62,14 @@ func v1AuthCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		RunE:  checkSetupRunEMiddleware(&flags)(makeV1AuthorizationCreateE(opt)),
 	}
 
-	f.registerFlags(cmd)
-	v1AuthCreateFlags.org.register(cmd, false)
+	f.registerFlags(opt.viper, cmd)
+	v1AuthCreateFlags.org.register(opt.viper, cmd, false)
 
 	cmd.Flags().StringVar(&v1AuthCreateFlags.username, "username", "", "The username to identify this token")
 	_ = cmd.MarkFlagRequired("username")
 	cmd.Flags().StringVarP(&v1AuthCreateFlags.description, "description", "d", "", "Token description")
 	cmd.Flags().BoolVar(&v1AuthCreateFlags.noPassword, "no-password", false, "Don't prompt for a password. You must use v1 auth set-password command before using the token.")
-	registerPrintOptions(cmd, &v1AuthCreateFlags.hideHeaders, &v1AuthCreateFlags.json)
+	registerPrintOptions(opt.viper, cmd, &v1AuthCreateFlags.hideHeaders, &v1AuthCreateFlags.json)
 
 	cmd.Flags().StringArrayVarP(&v1AuthCreateFlags.writeBucketPermissions, "write-bucket", "", []string{}, "The bucket id")
 	cmd.Flags().StringArrayVarP(&v1AuthCreateFlags.readBucketPermissions, "read-bucket", "", []string{}, "The bucket id")
@@ -202,7 +203,7 @@ var v1AuthorizationFindFlags struct {
 	userID      string
 }
 
-func v1AuthFindCmd(f *globalFlags) *cobra.Command {
+func v1AuthFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List authorizations",
@@ -210,12 +211,12 @@ func v1AuthFindCmd(f *globalFlags) *cobra.Command {
 		RunE:    checkSetupRunEMiddleware(&flags)(v1AuthorizationFindF),
 	}
 
-	f.registerFlags(cmd)
-	v1AuthorizationFindFlags.org.register(cmd, false)
-	registerPrintOptions(cmd, &v1AuthorizationFindFlags.hideHeaders, &v1AuthorizationFindFlags.json)
+	f.registerFlags(opt.viper, cmd)
+	v1AuthorizationFindFlags.org.register(opt.viper, cmd, false)
+	registerPrintOptions(opt.viper, cmd, &v1AuthorizationFindFlags.hideHeaders, &v1AuthorizationFindFlags.json)
 	cmd.Flags().StringVarP(&v1AuthorizationFindFlags.user, "user", "u", "", "The user")
 	cmd.Flags().StringVarP(&v1AuthorizationFindFlags.userID, "user-id", "", "", "The user ID")
-	v1AuthorizationFindFlags.lookup.register(cmd, false)
+	v1AuthorizationFindFlags.lookup.register(opt.viper, cmd, false)
 
 	return cmd
 }
@@ -302,17 +303,17 @@ var v1AuthDeleteFlags struct {
 	json        bool
 }
 
-func v1AuthDeleteCmd(f *globalFlags) *cobra.Command {
+func v1AuthDeleteCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete authorization",
 		RunE:  checkSetupRunEMiddleware(&flags)(v1AuthorizationDeleteF),
 	}
 
-	f.registerFlags(cmd)
-	registerPrintOptions(cmd, &v1AuthDeleteFlags.hideHeaders, &v1AuthDeleteFlags.json)
+	f.registerFlags(opt.viper, cmd)
+	registerPrintOptions(opt.viper, cmd, &v1AuthDeleteFlags.hideHeaders, &v1AuthDeleteFlags.json)
 	v1AuthDeleteFlags.lookup.required = true
-	v1AuthDeleteFlags.lookup.register(cmd, false)
+	v1AuthDeleteFlags.lookup.register(opt.viper, cmd, false)
 
 	return cmd
 }
@@ -375,17 +376,17 @@ var v1AuthActivateFlags struct {
 	json        bool
 }
 
-func v1AuthSetActiveCmd(f *globalFlags) *cobra.Command {
+func v1AuthSetActiveCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set-active",
 		Short: "Change the status of an authorization to active",
 		RunE:  checkSetupRunEMiddleware(&flags)(v1AuthorizationSetActiveF),
 	}
-	f.registerFlags(cmd)
+	f.registerFlags(opt.viper, cmd)
 
-	registerPrintOptions(cmd, &v1AuthActivateFlags.hideHeaders, &v1AuthActivateFlags.json)
+	registerPrintOptions(opt.viper, cmd, &v1AuthActivateFlags.hideHeaders, &v1AuthActivateFlags.json)
 	v1AuthActivateFlags.lookup.required = true
-	v1AuthActivateFlags.lookup.register(cmd, false)
+	v1AuthActivateFlags.lookup.register(opt.viper, cmd, false)
 
 	return cmd
 }
@@ -450,17 +451,17 @@ var v1AuthDeactivateFlags struct {
 	json        bool
 }
 
-func v1AuthSetInactiveCmd(f *globalFlags) *cobra.Command {
+func v1AuthSetInactiveCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set-inactive",
 		Short: "Change the status of an authorization to inactive",
 		RunE:  checkSetupRunEMiddleware(&flags)(v1AuthorizationSetInactiveF),
 	}
 
-	f.registerFlags(cmd)
-	registerPrintOptions(cmd, &v1AuthDeactivateFlags.hideHeaders, &v1AuthDeactivateFlags.json)
+	f.registerFlags(opt.viper, cmd)
+	registerPrintOptions(opt.viper, cmd, &v1AuthDeactivateFlags.hideHeaders, &v1AuthDeactivateFlags.json)
 	v1AuthDeactivateFlags.lookup.required = true
-	v1AuthDeactivateFlags.lookup.register(cmd, false)
+	v1AuthDeactivateFlags.lookup.register(opt.viper, cmd, false)
 
 	return cmd
 }
@@ -546,7 +547,7 @@ type v1AuthLookupFlags struct {
 	required bool // required when set to true determines whether validate expects either id or username to be set
 }
 
-func (f *v1AuthLookupFlags) register(cmd *cobra.Command, persistent bool) {
+func (f *v1AuthLookupFlags) register(v *viper.Viper, cmd *cobra.Command, persistent bool) {
 	opts := flagOpts{
 		{
 			DestP:      &f.id,
@@ -561,7 +562,7 @@ func (f *v1AuthLookupFlags) register(cmd *cobra.Command, persistent bool) {
 			Persistent: persistent,
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(v, cmd)
 }
 
 func (f *v1AuthLookupFlags) validate() error {
@@ -600,8 +601,8 @@ func v1AuthSetPasswordCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		RunE:  checkSetupRunEMiddleware(&flags)(makeV1AuthorizationSetPasswordF(opt)),
 	}
 
-	f.registerFlags(cmd)
-	v1AuthSetPasswordFlags.lookup.register(cmd, false)
+	f.registerFlags(opt.viper, cmd)
+	v1AuthSetPasswordFlags.lookup.register(opt.viper, cmd, false)
 
 	return cmd
 }
