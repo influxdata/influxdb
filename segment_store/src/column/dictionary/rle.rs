@@ -390,20 +390,25 @@ impl RLE {
     /// N.B right now this doesn't discern between an invalid row id and a NULL
     /// value at a valid location.
     pub fn value(&self, row_id: u32) -> Option<&String> {
-        if row_id < self.num_rows {
-            let mut total = 0;
-            for (encoded_id, rl) in &self.run_lengths {
-                if total + rl > row_id {
-                    // this run-length overlaps desired row id
-                    match *encoded_id {
-                        NULL_ID => return None,
-                        _ => return Some(&self.index_entries[*encoded_id as usize]),
-                    };
-                }
-                total += rl;
+        assert!(
+            row_id < self.num_rows(),
+            "row_id {:?} out of bounds for {:?} rows",
+            row_id,
+            self.num_rows()
+        );
+
+        let mut total = 0;
+        for (encoded_id, rl) in &self.run_lengths {
+            if total + rl > row_id {
+                // this run-length overlaps desired row id
+                match *encoded_id {
+                    NULL_ID => return None,
+                    _ => return Some(&self.index_entries[*encoded_id as usize]),
+                };
             }
+            total += rl;
         }
-        None
+        unreachable!()
     }
 
     /// Materialises the decoded value belonging to the provided encoded id.

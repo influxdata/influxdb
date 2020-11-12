@@ -368,23 +368,43 @@ impl Plain {
     //
     //
 
-    pub fn dictionary(&self) -> &[String] {
-        todo!()
+    // The dictionary of all non-null entries.
+    //
+    // TODO(edd): rethink returning `Vec<String>` by looking at if we can store
+    // entries in a `Vec<String>` rather than a `Vec<Option<String>>`. It would
+    // then allow us to return a `&[String]` here.
+    pub fn dictionary(&self) -> Vec<String> {
+        if self.entries.len() == 1 {
+            // no non-null entries.
+            return vec![];
+        }
+
+        self.entries
+            .iter()
+            .skip(1)
+            .filter_map(|v| v.clone())
+            .collect::<Vec<String>>()
     }
 
-    /// Returns the logical value present at the provided row id.
-    ///
-    /// N.B right now this doesn't discern between an invalid row id and a NULL
-    /// value at a valid location.
+    /// Returns the logical value present at the provided row id. Panics if the
+    /// encoding doesn't have a logical row at the id.
     pub fn value(&self, row_id: u32) -> Option<&String> {
-        todo!()
+        assert!(
+            row_id < self.num_rows(),
+            "row_id {:?} out of bounds for {:?} rows",
+            row_id,
+            self.num_rows()
+        );
+
+        let encoded_id = self.encoded_data[row_id as usize];
+        self.entries[encoded_id as usize].as_ref()
     }
 
     /// Materialises the decoded value belonging to the provided encoded id.
     ///
     /// Panics if there is no decoded value for the provided id
     pub fn decode_id(&self, encoded_id: u32) -> Option<String> {
-        todo!()
+        self.entries[encoded_id as usize].clone()
     }
 
     /// Materialises a vector of references to the decoded values in the
@@ -400,7 +420,19 @@ impl Plain {
         dst.clear();
         dst.reserve(row_ids.len());
 
-        todo!()
+        // TODO - not sure at all about this deref...
+        for chunks in row_ids.chunks_exact(4) {
+            dst.push(self.entries[self.encoded_data[chunks[0] as usize] as usize].as_deref());
+            dst.push(self.entries[self.encoded_data[chunks[1] as usize] as usize].as_deref());
+            dst.push(self.entries[self.encoded_data[chunks[2] as usize] as usize].as_deref());
+            dst.push(self.entries[self.encoded_data[chunks[3] as usize] as usize].as_deref());
+        }
+
+        for &v in &row_ids[dst.len()..row_ids.len()] {
+            dst.push(self.entries[self.encoded_data[v as usize] as usize].as_deref());
+        }
+
+        dst
     }
 
     /// Returns the lexicographical minimum value for the provided set of row
