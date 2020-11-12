@@ -26,6 +26,24 @@ func WithViper(v *viper.Viper) Option {
 	}
 }
 
+// WithInfluxQLMaxSelectSeriesN configures the maximum number of series returned by a select statement.
+func WithInfluxQLMaxSelectSeriesN(n int) Option {
+	return &launcherOption{
+		applyConfigFn: func(l *Launcher) {
+			l.CoordinatorConfig.MaxSelectSeriesN = n
+		},
+	}
+}
+
+// WithInfluxQLMaxSelectBucketsN configures the maximum number of buckets returned by a select statement.
+func WithInfluxQLMaxSelectBucketsN(n int) Option {
+	return &launcherOption{
+		applyConfigFn: func(l *Launcher) {
+			l.CoordinatorConfig.MaxSelectBucketsN = n
+		},
+	}
+}
+
 type launcherOption struct {
 	applyInitFn   func(*Launcher)
 	applyConfigFn func(*Launcher)
