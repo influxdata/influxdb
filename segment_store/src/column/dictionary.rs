@@ -302,30 +302,6 @@ mod test {
     use super::*;
 
     #[test]
-    fn size() {
-        let mut enc = Encoding::RLE(RLE::default());
-        enc.push_additional(Some("east".to_string()), 3);
-        enc.push_additional(Some("north".to_string()), 1);
-        enc.push_additional(Some("east".to_string()), 5);
-        enc.push_additional(Some("south".to_string()), 2);
-        enc.push_none();
-        enc.push_none();
-        enc.push_none();
-        enc.push_none();
-
-        // keys - 18 bytes.
-        // entry_index is 24 + ((24+4) * 3) + 14 == 122
-        // index_entry is 24 + (24*4) + 14 == 134
-        // index_row_ids is 24 + (4 + 0?? * 4) == 40 ??????
-        // run lengths is 24 + (8*5) == 64
-        // 360
-
-        // TODO(edd): there some mystery bytes in the bitmap implementation.
-        // need to figure out how to measure these
-        assert_eq!(enc.size(), 397);
-    }
-
-    #[test]
     fn push() {
         let encodings = vec![
             Encoding::RLE(RLE::from(vec!["hello", "hello", "hello", "hello"])),

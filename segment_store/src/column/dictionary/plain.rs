@@ -69,6 +69,15 @@ impl Plain {
         (entries_size + encoded_ids_size + 1) as u64
     }
 
+    /// The number of distinct logical values in this column encoding.
+    pub fn cardinality(&self) -> u32 {
+        if self.contains_null {
+            self.entries.len() as u32
+        } else {
+            self.entries.len() as u32 - 1
+        }
+    }
+
     /// Adds the provided string value to the encoded data. It is the caller's
     /// responsibility to ensure that the dictionary encoded remains sorted.
     pub fn push(&mut self, v: String) {
@@ -648,7 +657,13 @@ impl<'a> From<StringArray> for Plain {
 
 impl std::fmt::Display for Plain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(
+            f,
+            "[Dictionary] size: {:?} rows: {:?} cardinality: {}",
+            self.size(),
+            self.num_rows(),
+            self.cardinality(),
+        )
     }
 }
 

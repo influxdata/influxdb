@@ -98,6 +98,15 @@ impl RLE {
         (entry_index_size + index_entry_size + index_row_ids_size + run_lengths_size + 1 + 4) as u64
     }
 
+    /// The number of distinct logical values in this column encoding.
+    pub fn cardinality(&self) -> u32 {
+        if self.contains_null {
+            self.index_entries.len() as u32
+        } else {
+            self.index_entries.len() as u32 - 1
+        }
+    }
+
     /// Adds the provided string value to the encoded data. It is the caller's
     /// responsibility to ensure that the dictionary encoded remains sorted.
     pub fn push(&mut self, v: String) {
@@ -911,10 +920,10 @@ impl std::fmt::Display for RLE {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[RLE] size: {:?} rows: {:?} dict entries: {}, runs: {} ",
+            "[RLE Dictionary] size: {:?} rows: {:?} cardinality: {}, runs: {} ",
             self.size(),
             self.num_rows,
-            self.index_entries.len(),
+            self.cardinality(),
             self.run_lengths.len()
         )
     }
