@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::From;
+use std::mem::size_of;
 
 use croaring::Bitmap;
 
@@ -51,7 +52,21 @@ impl Plain {
 
     /// A reasonable estimation of the on-heap size this encoding takes up.
     pub fn size(&self) -> u64 {
-        todo!()
+        // the total size of all decoded values in the column.
+        let decoded_keys_size = self
+            .entries
+            .iter()
+            .map(|k| match k {
+                Some(v) => size_of::<String>() + v.len(),
+                None => 0,
+            })
+            .sum::<usize>();
+
+        let entries_size = size_of::<Vec<Option<String>>>() + decoded_keys_size;
+        let encoded_ids_size = size_of::<Vec<u32>>() + (size_of::<u32>() * self.encoded_data.len());
+
+        // + 1 for contains_null field
+        (entries_size + encoded_ids_size + 1) as u64
     }
 
     /// Adds the provided string value to the encoded data. It is the caller's
@@ -81,7 +96,12 @@ impl Plain {
             Err(idx) => {
                 // check this value can be inserted into the dictionary whilst
                 // maintaining order.
-                assert_eq!(idx, self.entries.len() as u32);
+                assert_eq!(
+                    idx,
+                    self.entries.len() as u32,
+                    "out of order insertion for {:?}",
+                    v
+                );
 
                 self.entries.push(v);
                 self.push_encoded_values(idx, additional);
@@ -647,6 +667,31 @@ mod test {
             enc.entries,
             vec![None, Some("hello".to_string()), Some("world".to_string()),]
         );
+    }
+
+    #[test]
+    fn size() {
+        let mut enc = Plain::default();
+        enc.push_additional(Some("east".to_string()), 3);
+        enc.push_additional(Some("north".to_string()), 1);
+        enc.push_additional(Some("east".to_string()), 5);
+        enc.push_additional(Some("south".to_string()), 2);
+        enc.push_none();
+        enc.push_none();
+        enc.push_none();
+        enc.push_none();
+
+        // keys - 14 bytes.
+
+        // 3 string entries in dictionary
+        // entries is 24 + (24*3) + 14 == 110
+
+        // 15 rows.
+        // encoded ids is 24 + (4 * 15) == 84
+
+        // 38 + 84 + 1 == 195
+
+        assert_eq!(enc.size(), 195);
     }
 
     #[test]
