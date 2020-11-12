@@ -53,7 +53,7 @@ func newCmdBackupBuilder(f *globalFlags, opts genericCLIOpts) *cmdBackupBuilder 
 
 func (b *cmdBackupBuilder) cmdBackup() *cobra.Command {
 	cmd := b.newCmd("backup", b.backupRunE)
-	b.org.register(cmd, true)
+	b.org.register(b.viper, cmd, true)
 	cmd.Flags().StringVar(&b.bucketID, "bucket-id", "", "The ID of the bucket to backup")
 	cmd.Flags().StringVarP(&b.bucketName, "bucket", "b", "", "The name of the bucket to backup")
 	cmd.Use = "backup [flags] path"
@@ -331,6 +331,6 @@ func (b *cmdBackupBuilder) writeManifest(ctx context.Context) error {
 func (b *cmdBackupBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
 	b.genericCLIOpts.registerPrintOptions(cmd)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +44,7 @@ func ExampleNewCommand() {
 	var duration time.Duration
 	var stringSlice []string
 	var fancyBool customFlag
-	cmd := NewCommand(&Program{
+	cmd := NewCommand(viper.New(), &Program{
 		Run: func() error {
 			fmt.Println(monitorHost)
 			for i := 0; i < number; i++ {
@@ -170,7 +171,7 @@ func Test_NewProgram(t *testing.T) {
 				Run: func() error { return nil },
 			}
 
-			cmd := NewCommand(program)
+			cmd := NewCommand(viper.New(), program)
 			cmd.SetArgs(append([]string{}, tt.args...))
 			require.NoError(t, cmd.Execute())
 
