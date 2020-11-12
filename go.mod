@@ -125,3 +125,5 @@ require (
 // if that version does not include PR 8112. In that event, someone (perhaps Mark R again)
 // will need to apply the change in 8112 on top of the newer version of Arrow.
 replace github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db => github.com/influxdata/arrow/go/arrow v0.0.0-20200917142114-986e413c1705
+
+replace github.com/nats-io/nats-streaming-server v0.11.2 => github.com/influxdata/nats-streaming-server v0.11.3-0.20201112040610-c277f7560803
