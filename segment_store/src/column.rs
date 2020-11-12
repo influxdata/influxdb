@@ -22,7 +22,7 @@ use arrow_deps::{arrow, arrow::array::Array};
 // FWIW it's not the cardinality of the column that should drive the decision
 // it's how many run-lengths would be produced in an RLE column and whether that
 // compression is worth the memory and compute costs to work on it.
-pub const TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT: usize = 1_000_000;
+pub const TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT: usize = 100_000;
 /// The possible logical types that column values can have. All values in a
 /// column have the same physical type.
 pub enum Column {

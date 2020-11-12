@@ -24,10 +24,12 @@ pub struct Plain {
     contains_null: bool,
 }
 
-// The default initialisation of an Plain involves reserving the first id/index 0
-// for the NULL value.
+// The default initialisation of an Plain involves reserving the first id/index
+// `0`, which is the encoded representation of the NULL value.
 impl Default for Plain {
     fn default() -> Self {
+        // for this to make sense NULL_ID must be `0`.
+        assert_eq!(NULL_ID, 0);
         Self {
             entries: vec![None],
             encoded_data: vec![],
@@ -118,8 +120,8 @@ impl Plain {
         }
     }
 
-    // Preferred to add values to the column. `id` is the encoded
-    // representation of a logical string value.
+    // Preferred method to add values to the column. `id` is the encoded
+    // representation of a logical value.
     fn push_encoded_values(&mut self, id: u32, additional: u32) {
         self.encoded_data
             .extend(std::iter::repeat(id).take(additional as usize));
@@ -140,11 +142,6 @@ impl Plain {
             Ok(id) => Ok(id as u32),
             Err(id) => Err(id as u32),
         }
-    }
-
-    // correct way to determine next encoded id for a new value.
-    fn next_encoded_id(&self) -> u32 {
-        todo!()
     }
 
     /// The number of logical rows encoded in this column.
@@ -449,7 +446,8 @@ impl Plain {
         dst.clear();
         dst.reserve(row_ids.len());
 
-        // TODO - not sure at all about this deref...
+        // The `as_deref` is needed to convert an `&Option<String>` into an
+        // `Option<&str>`.
         for chunks in row_ids.chunks_exact(4) {
             dst.push(self.entries[self.encoded_data[chunks[0] as usize] as usize].as_deref());
             dst.push(self.entries[self.encoded_data[chunks[1] as usize] as usize].as_deref());

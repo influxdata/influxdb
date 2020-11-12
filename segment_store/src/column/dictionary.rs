@@ -20,7 +20,7 @@ pub enum Encoding {
 }
 
 impl Encoding {
-    fn debug_name(&self) -> &'static str {
+    pub fn debug_name(&self) -> &'static str {
         match &self {
             Encoding::RLE(_) => "RLE encoder",
             Encoding::Plain(_) => "plain encoder",
@@ -81,7 +81,7 @@ impl Encoding {
 
     /// Populates the provided destination container with the row ids satisfying
     /// the provided predicate.
-    fn row_ids_filter(&self, value: &str, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
+    pub fn row_ids_filter(&self, value: &str, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
         match self {
             Encoding::RLE(enc) => enc.row_ids_filter(value, op, dst),
             Encoding::Plain(enc) => enc.row_ids_filter(value, op, dst),
@@ -161,7 +161,11 @@ impl Encoding {
     ///
     /// NULL values are represented by None. It is the caller's responsibility
     /// to ensure row ids are a monotonically increasing set.
-    fn values<'a>(&'a self, row_ids: &[u32], dst: Vec<Option<&'a str>>) -> Vec<Option<&'a str>> {
+    pub fn values<'a>(
+        &'a self,
+        row_ids: &[u32],
+        dst: Vec<Option<&'a str>>,
+    ) -> Vec<Option<&'a str>> {
         match self {
             Encoding::RLE(enc) => enc.values(row_ids, dst),
             Encoding::Plain(enc) => enc.values(row_ids, dst),
