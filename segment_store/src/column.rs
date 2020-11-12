@@ -14,6 +14,15 @@ use arrow_deps::arrow::array::{
 };
 use arrow_deps::{arrow, arrow::array::Array};
 
+// Edd's totally made up magic constant. This determines whether we would use
+// a run-length encoded dictionary encoding or just a plain dictionary encoding.
+// I have ideas about how to build heuristics to do this in a much better way
+// than an arbitrary constant but for now it's this...
+//
+// FWIW it's not the cardinality of the column that should drive the decision
+// it's how many run-lengths would be produced in an RLE column and whether that
+// compression is worth the memory and compute costs to work on it.
+pub const TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT: usize = 1_000_000;
 /// The possible logical types that column values can have. All values in a
 /// column have the same physical type.
 pub enum Column {
@@ -630,6 +639,7 @@ impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
 }
 pub enum StringEncoding {
     RLEDictionary(dictionary::RLE),
+    Dictionary(dictionary::Plain),
     // TODO - simple array encoding, e.g., via Arrow String array.
 }
 
@@ -640,6 +650,7 @@ impl StringEncoding {
     pub fn contains_null(&self) -> bool {
         match &self {
             Self::RLEDictionary(c) => c.contains_null(),
+            Self::Dictionary(c) => c.contains_null(),
         }
     }
 
@@ -647,6 +658,10 @@ impl StringEncoding {
     pub fn value(&self, row_id: u32) -> Value<'_> {
         match &self {
             Self::RLEDictionary(c) => match c.value(row_id) {
+                Some(v) => Value::String(v),
+                None => Value::Null,
+            },
+            Self::Dictionary(c) => match c.value(row_id) {
                 Some(v) => Value::String(v),
                 None => Value::Null,
             },
@@ -659,6 +674,7 @@ impl StringEncoding {
     pub fn values(&self, row_ids: &[u32]) -> Values {
         match &self {
             Self::RLEDictionary(c) => Values::String(StringArray::from(c.values(row_ids, vec![]))),
+            Self::Dictionary(c) => Values::String(StringArray::from(c.values(row_ids, vec![]))),
         }
     }
 
@@ -668,6 +684,7 @@ impl StringEncoding {
     pub fn distinct_values(&self, row_ids: &[u32]) -> ValueSet<'_> {
         match &self {
             Self::RLEDictionary(c) => ValueSet::String(c.distinct_values(row_ids, BTreeSet::new())),
+            Self::Dictionary(c) => ValueSet::String(c.distinct_values(row_ids, BTreeSet::new())),
         }
     }
 
@@ -675,6 +692,7 @@ impl StringEncoding {
     pub fn row_ids_filter(&self, op: &cmp::Operator, value: &str, dst: RowIDs) -> RowIDs {
         match &self {
             Self::RLEDictionary(c) => c.row_ids_filter(value, op, dst),
+            Self::Dictionary(c) => c.row_ids_filter(value, op, dst),
         }
     }
 
@@ -683,7 +701,11 @@ impl StringEncoding {
     /// ids.
     pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
-            StringEncoding::RLEDictionary(c) => match c.min(row_ids) {
+            Self::RLEDictionary(c) => match c.min(row_ids) {
+                Some(min) => Value::String(min),
+                None => Value::Null,
+            },
+            Self::Dictionary(c) => match c.min(row_ids) {
                 Some(min) => Value::String(min),
                 None => Value::Null,
             },
@@ -695,7 +717,11 @@ impl StringEncoding {
     /// ids.
     pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
-            StringEncoding::RLEDictionary(c) => match c.max(row_ids) {
+            Self::RLEDictionary(c) => match c.max(row_ids) {
+                Some(max) => Value::String(max),
+                None => Value::Null,
+            },
+            Self::Dictionary(c) => match c.max(row_ids) {
                 Some(max) => Value::String(max),
                 None => Value::Null,
             },
@@ -705,7 +731,8 @@ impl StringEncoding {
     /// The number of non-null values at the provided row ids.
     pub fn count(&self, row_ids: &[u32]) -> u32 {
         match &self {
-            StringEncoding::RLEDictionary(c) => c.count(row_ids),
+            Self::RLEDictionary(c) => c.count(row_ids),
+            Self::Dictionary(c) => c.count(row_ids),
         }
     }
 
@@ -726,7 +753,12 @@ impl StringEncoding {
             }
         }
 
-        let mut data = dictionary::RLE::with_dictionary(dictionary);
+        let mut data: dictionary::Encoding =
+            if dictionary.len() > TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT {
+                dictionary::Encoding::Plain(dictionary::Plain::with_dictionary(dictionary))
+            } else {
+                dictionary::Encoding::RLE(dictionary::RLE::with_dictionary(dictionary))
+            };
 
         let mut prev = if !arr.is_null(0) {
             Some(arr.value(0))
@@ -777,7 +809,12 @@ impl StringEncoding {
             range,
         };
 
-        Self::RLEDictionary(data)
+        // TODO(edd): consider just storing under the `StringEncoding` a
+        // `Dictionary` variant that would be a `dictionary::Encoding`.
+        match data {
+            dictionary::Encoding::RLE(enc) => Self::RLEDictionary(enc),
+            dictionary::Encoding::Plain(enc) => Self::Dictionary(enc),
+        }
     }
 
     /// All encoded values for the provided logical row ids.
@@ -786,6 +823,7 @@ impl StringEncoding {
     pub fn encoded_values(&self, row_ids: &[u32], dst: Vec<u32>) -> Vec<u32> {
         match &self {
             Self::RLEDictionary(c) => c.encoded_values(row_ids, dst),
+            Self::Dictionary(c) => c.encoded_values(row_ids, dst),
         }
     }
 
@@ -795,6 +833,7 @@ impl StringEncoding {
     pub fn all_encoded_values(&self, dst: Vec<u32>) -> Vec<u32> {
         match &self {
             Self::RLEDictionary(c) => c.all_encoded_values(dst),
+            Self::Dictionary(c) => c.all_encoded_values(dst),
         }
     }
 
@@ -877,7 +916,23 @@ impl StringEncoding {
     // generates metadata for an encoded column.
     fn meta(data: &Self) -> MetaData<String> {
         match data {
-            StringEncoding::RLEDictionary(data) => {
+            Self::RLEDictionary(data) => {
+                let dictionary = data.dictionary();
+                let range = if !dictionary.is_empty() {
+                    let min = data.dictionary()[0].clone();
+                    let max = data.dictionary()[data.dictionary().len() - 1].clone();
+                    Some((min, max))
+                } else {
+                    None
+                };
+
+                MetaData {
+                    size: data.size(),
+                    rows: data.num_rows(),
+                    range,
+                }
+            }
+            Self::Dictionary(data) => {
                 let dictionary = data.dictionary();
                 let range = if !dictionary.is_empty() {
                     let min = data.dictionary()[0].clone();
@@ -900,7 +955,8 @@ impl StringEncoding {
 impl std::fmt::Display for StringEncoding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StringEncoding::RLEDictionary(data) => write!(f, "{}", data),
+            Self::RLEDictionary(data) => write!(f, "{}", data),
+            Self::Dictionary(data) => write!(f, "{}", data),
         }
     }
 }
@@ -2547,7 +2603,7 @@ mod test {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
-                    size: 0,
+                    size: 317,
                     rows: 4,
                     range: Some(("hello".to_string(), "world".to_string())),
                 }
@@ -2577,7 +2633,7 @@ mod test {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
-                    size: 0,
+                    size: 301,
                     rows: 2,
                     range: Some(("hello".to_string(), "world".to_string())),
                 }

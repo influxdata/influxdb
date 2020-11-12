@@ -373,7 +373,7 @@ impl Plain {
     // TODO(edd): rethink returning `Vec<String>` by looking at if we can store
     // entries in a `Vec<String>` rather than a `Vec<Option<String>>`. It would
     // then allow us to return a `&[String]` here.
-    pub fn dictionary(&self) -> Vec<String> {
+    pub fn dictionary(&self) -> Vec<&String> {
         if self.entries.len() == 1 {
             // no non-null entries.
             return vec![];
@@ -382,8 +382,8 @@ impl Plain {
         self.entries
             .iter()
             .skip(1)
-            .filter_map(|v| v.clone())
-            .collect::<Vec<String>>()
+            .filter_map(|v| v.as_ref())
+            .collect()
     }
 
     /// Returns the logical value present at the provided row id. Panics if the

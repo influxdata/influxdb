@@ -14,7 +14,7 @@ use crate::column::{cmp, RowIDs};
 /// The encoded id for a NULL value.
 pub const NULL_ID: u32 = 0;
 
-enum Encoding {
+pub enum Encoding {
     RLE(RLE),
     Plain(Plain),
 }
@@ -27,21 +27,28 @@ impl Encoding {
         }
     }
 
-    fn size(&self) -> u64 {
+    pub fn size(&self) -> u64 {
         match &self {
             Encoding::RLE(enc) => enc.size(),
             Encoding::Plain(enc) => enc.size(),
         }
     }
 
-    fn push(&mut self, v: String) {
+    pub fn num_rows(&self) -> u32 {
+        match &self {
+            Encoding::RLE(enc) => enc.num_rows(),
+            Encoding::Plain(enc) => enc.num_rows(),
+        }
+    }
+
+    pub fn push(&mut self, v: String) {
         match self {
             Encoding::RLE(ref mut enc) => enc.push(v),
             Encoding::Plain(ref mut enc) => enc.push(v),
         }
     }
 
-    fn push_none(&mut self) {
+    pub fn push_none(&mut self) {
         match self {
             Encoding::RLE(ref mut enc) => enc.push_none(),
             Encoding::Plain(ref mut enc) => enc.push_none(),
@@ -51,7 +58,7 @@ impl Encoding {
     /// Adds additional repetitions of the provided value to the encoded data.
     /// It is the caller's responsibility to ensure that the dictionary encoded
     /// remains sorted.
-    fn push_additional(&mut self, v: Option<String>, additional: u32) {
+    pub fn push_additional(&mut self, v: Option<String>, additional: u32) {
         match self {
             Encoding::RLE(ref mut env) => env.push_additional(v, additional),
             Encoding::Plain(ref mut env) => env.push_additional(v, additional),
@@ -121,14 +128,10 @@ impl Encoding {
     //
     //
 
-    fn dictionary(&self) -> &[String] {
+    pub fn dictionary(&self) -> Vec<&String> {
         match self {
             Encoding::RLE(enc) => enc.dictionary(),
-            Encoding::Plain(enc) => {
-                todo!() // figure out storing entries.
-                        // let v = enc.dictionary();
-                        // v.as_slice()
-            }
+            Encoding::Plain(enc) => enc.dictionary(),
         }
     }
 
@@ -775,7 +778,7 @@ mod test {
 
         assert_eq!(
             enc.dictionary(),
-            &["east".to_string(), "west".to_string(), "zoo".to_string()],
+            vec![&"east".to_string(), &"west".to_string(), &"zoo".to_string()],
             "{}",
             name
         );

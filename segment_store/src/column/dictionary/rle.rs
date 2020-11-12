@@ -381,8 +381,8 @@ impl RLE {
     //
     //
 
-    pub fn dictionary(&self) -> &[String] {
-        &self.index_entries[1..]
+    pub fn dictionary(&self) -> Vec<&String> {
+        self.index_entries.iter().skip(1).collect()
     }
 
     /// Returns the logical value present at the provided row id.
