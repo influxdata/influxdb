@@ -10,6 +10,7 @@ import (
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/telemetry"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +32,8 @@ func main() {
 			},
 		},
 	}
-	cmd := cli.NewCommand(prog)
+	v := viper.New()
+	cmd := cli.NewCommand(v, prog)
 
 	var exitCode int
 	if err := cmd.Execute(); err != nil {

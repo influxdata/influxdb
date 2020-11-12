@@ -9,6 +9,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +43,7 @@ func TestPathValidations(t *testing.T) {
 	largs = append(largs, "--engine-path", enginePath)
 	largs = append(largs, "--config-file", "")
 
-	cmd := NewCommand()
+	cmd := NewCommand(viper.New())
 	cmd.SetArgs(largs)
 	err = cmd.Execute()
 	require.NotNil(t, err, "Must fail")
@@ -54,7 +55,7 @@ func TestPathValidations(t *testing.T) {
 	err = ioutil.WriteFile(filepath.Join(v1Dir, "meta", "meta.db"), []byte{1}, 0777)
 	require.Nil(t, err)
 
-	cmd = NewCommand()
+	cmd = NewCommand(viper.New())
 	cmd.SetArgs(largs)
 
 	err = cmd.Execute()

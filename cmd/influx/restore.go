@@ -60,7 +60,7 @@ func newCmdRestoreBuilder(f *globalFlags, opts genericCLIOpts) *cmdRestoreBuilde
 
 func (b *cmdRestoreBuilder) cmdRestore() *cobra.Command {
 	cmd := b.newCmd("restore", b.restoreRunE)
-	b.org.register(cmd, true)
+	b.org.register(b.viper, cmd, true)
 	cmd.Flags().BoolVar(&b.full, "full", false, "Fully restore and replace all data on server")
 	cmd.Flags().StringVar(&b.bucketID, "bucket-id", "", "The ID of the bucket to restore")
 	cmd.Flags().StringVarP(&b.bucketName, "bucket", "b", "", "The name of the bucket to restore")
@@ -395,6 +395,6 @@ func (b *cmdRestoreBuilder) loadIncremental() error {
 func (b *cmdRestoreBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
 	b.genericCLIOpts.registerPrintOptions(cmd)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }

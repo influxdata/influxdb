@@ -34,7 +34,7 @@ The transpiled query will be written for absolute time ranges using the provided
 			Desc:  "An RFC3339Nano formatted time to use as the now() time. Defaults to the current time",
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(opt.viper, cmd)
 
 	return cmd
 }
