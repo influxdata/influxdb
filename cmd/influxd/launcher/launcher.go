@@ -1576,3 +1576,11 @@ func (m *Launcher) CheckService() platform.CheckService {
 func (m *Launcher) KeyValueService() *kv.Service {
 	return m.kvService
 }
+
+func (m *Launcher) DBRPMappingServiceV2() platform.DBRPMappingServiceV2 {
+	return m.apibackend.DBRPService
+}
+
+func (m *Launcher) SessionService() platform.SessionService {
+	return m.apibackend.SessionService
+}
