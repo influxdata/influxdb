@@ -10,6 +10,13 @@ import (
 
 const ServerName = "platform"
 
+const (
+	// RandomPort is the value for port that, when supplied, will cause the
+	// server to listen on a randomly-chosen available port. The resolved port
+	// will be reassigned to the Port field of server.Options.
+	RandomPort = server.RANDOM_PORT
+)
+
 var ErrNoNatsConnection = errors.New("nats connection has not been established. Call Open() first")
 
 // Server wraps a connection to a NATS streaming server
