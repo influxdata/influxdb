@@ -81,6 +81,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -100,8 +101,8 @@ const (
 	MaxInt = 1<<uint(strconv.IntSize-1) - 1
 )
 
-func NewInfluxdCommand(ctx context.Context) *cobra.Command {
-	l := NewLauncher()
+func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
+	l := NewLauncher(WithViper(v))
 
 	prog := cli.Program{
 		Name: "influxd",
@@ -123,7 +124,7 @@ func NewInfluxdCommand(ctx context.Context) *cobra.Command {
 	config.{json|toml|yaml|yml} file. If one does not exist, then it will continue unchanged.`
 	}
 
-	cmd := cli.NewCommand(&prog)
+	cmd := cli.NewCommand(l.Viper, &prog)
 	runCmd := &cobra.Command{
 		Use:  "run",
 		RunE: cmd.RunE,
@@ -177,7 +178,7 @@ func cmdRunE(ctx context.Context, l *Launcher) func() error {
 var vaultConfig vault.Config
 
 func setLauncherCMDOpts(l *Launcher, cmd *cobra.Command) {
-	cli.BindOptions(cmd, launcherOpts(l))
+	cli.BindOptions(l.Viper, cmd, launcherOpts(l))
 }
 
 func launcherOpts(l *Launcher) []cli.Opt {
@@ -541,10 +542,14 @@ type Launcher struct {
 	log                *zap.Logger
 	reg                *prom.Registry
 
+	opts []Option
+
 	Stdin      io.Reader
 	Stdout     io.Writer
 	Stderr     io.Writer
 	apibackend *http.APIBackend
+
+	Viper *viper.Viper
 }
 
 type stoppingScheduler interface {
@@ -553,13 +558,24 @@ type stoppingScheduler interface {
 }
 
 // NewLauncher returns a new instance of Launcher connected to standard in/out/err.
-func NewLauncher() *Launcher {
-	return &Launcher{
+func NewLauncher(opts ...Option) *Launcher {
+	l := &Launcher{
+		opts:          opts,
 		Stdin:         os.Stdin,
 		Stdout:        os.Stdout,
 		Stderr:        os.Stderr,
 		StorageConfig: storage.NewConfig(),
 	}
+
+	for _, opt := range opts {
+		opt.applyInit(l)
+	}
+
+	if l.Viper == nil {
+		l.Viper = viper.New()
+	}
+
+	return l
 }
 
 // Running returns true if the main Launcher has started running.
@@ -661,19 +677,25 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.running = true
 	ctx, m.cancel = context.WithCancel(ctx)
 
-	var lvl zapcore.Level
-	if err := lvl.Set(m.logLevel); err != nil {
+	for _, opt := range m.opts {
+		opt.applyConfig(m)
+	}
+
+	var logLevel zapcore.Level
+	if err := logLevel.Set(m.logLevel); err != nil {
 		return fmt.Errorf("unknown log level; supported levels are debug, info, and error")
 	}
 
-	// Create top level logger
-	logconf := &influxlogger.Config{
-		Format: "auto",
-		Level:  lvl,
-	}
-	m.log, err = logconf.New(m.Stdout)
-	if err != nil {
-		return err
+	if m.log == nil {
+		// Create top level logger
+		logconf := &influxlogger.Config{
+			Format: "auto",
+			Level:  logLevel,
+		}
+		m.log, err = logconf.New(m.Stdout)
+		if err != nil {
+			return err
+		}
 	}
 
 	info := platform.GetBuildInfo()
@@ -1395,7 +1417,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			http.WithAPIHandler(platformHandler),
 		)
 
-		if logconf.Level == zap.DebugLevel {
+		if logLevel == zap.DebugLevel {
 			m.httpServer.Handler = http.LoggingMW(httpLogger)(m.httpServer.Handler)
 		}
 		// If we are in testing mode we allow all data to be flushed and removed.

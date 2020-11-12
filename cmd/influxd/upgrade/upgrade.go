@@ -28,6 +28,7 @@ import (
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/services/meta/filestore"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -120,7 +121,7 @@ var options = struct {
 	force bool
 }{}
 
-func NewCommand() *cobra.Command {
+func NewCommand(v *viper.Viper) *cobra.Command {
 
 	// source flags
 	v1dir, err := influxDirV1()
@@ -258,7 +259,7 @@ func NewCommand() *cobra.Command {
 		},
 	}
 
-	cli.BindOptions(cmd, opts)
+	cli.BindOptions(v, cmd, opts)
 	// add sub commands
 	cmd.AddCommand(v1DumpMetaCommand)
 	cmd.AddCommand(v2DumpMetaCommand)

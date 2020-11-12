@@ -57,7 +57,7 @@ func (b *cmdTelegrafBuilder) cmdTelegrafs() *cobra.Command {
 		influx telegrafs -i $ID
 `
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "Telegraf configuration ID to retrieve.")
 
 	cmd.AddCommand(
@@ -123,7 +123,7 @@ func (b *cmdTelegrafBuilder) cmdCreate() *cobra.Command {
 		cat $CONFIG_FILE | influx telegrafs create -n $CFG_NAME -d $CFG_DESC
 `
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerTelegrafCfgFlags(cmd)
 
 	return cmd
@@ -223,7 +223,7 @@ func (b *cmdTelegrafBuilder) cmdUpdate() *cobra.Command {
 		cat $CONFIG_FILE | influx telegrafs update -i $ID  -n $CFG_NAME -d $CFG_DESC
 `
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerTelegrafCfgFlags(cmd)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "Telegraf configuration id to update")
 	cmd.MarkFlagRequired("id")
@@ -326,7 +326,7 @@ func (b *cmdTelegrafBuilder) readConfig(file string) (string, error) {
 func (b *cmdTelegrafBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
 	b.genericCLIOpts.registerPrintOptions(cmd)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }
 

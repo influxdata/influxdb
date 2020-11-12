@@ -86,9 +86,10 @@ type (
 )
 
 type genericCLIOpts struct {
-	in   io.Reader
-	w    io.Writer
-	errW io.Writer
+	in    io.Reader
+	w     io.Writer
+	errW  io.Writer
+	viper *viper.Viper
 
 	json        bool
 	hideHeaders bool
@@ -127,7 +128,7 @@ func (o genericCLIOpts) newTabWriter() *internal.TabWriter {
 }
 
 func (o *genericCLIOpts) registerPrintOptions(cmd *cobra.Command) {
-	registerPrintOptions(cmd, &o.hideHeaders, &o.json)
+	registerPrintOptions(o.viper, cmd, &o.hideHeaders, &o.json)
 }
 
 func in(r io.Reader) genericCLIOptFn {
@@ -171,7 +172,7 @@ func (g *globalFlags) config() config.Config {
 	return g.configs.Active()
 }
 
-func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
+func (g *globalFlags) registerFlags(v *viper.Viper, cmd *cobra.Command, skipFlags ...string) {
 	if g == nil {
 		panic("global flags are not set: <nil>")
 	}
@@ -220,7 +221,7 @@ func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
 		filtered = append(filtered, o)
 	}
 
-	filtered.mustRegister(cmd)
+	filtered.mustRegister(v, cmd)
 
 	if skips["skip-verify"] {
 		return
@@ -244,6 +245,7 @@ func newInfluxCmdBuilder(optFns ...genericCLIOptFn) *cmdInfluxBuilder {
 		w:          os.Stdout,
 		errW:       os.Stderr,
 		runEWrapFn: checkSetupRunEMiddleware(&flags),
+		viper:      viper.New(),
 	}
 	for _, optFn := range optFns {
 		optFn(&opt)
@@ -256,7 +258,7 @@ func newInfluxCmdBuilder(optFns ...genericCLIOptFn) *cmdInfluxBuilder {
 func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCLIOpts) *cobra.Command) *cobra.Command {
 	b.once.Do(func() {
 		// enforce that viper options only ever get set once
-		setViperOptions()
+		setViperOptions(b.viper)
 	})
 
 	cmd := b.newCmd("influx", nil, false)
@@ -487,7 +489,7 @@ type organization struct {
 	id, name string
 }
 
-func (o *organization) register(cmd *cobra.Command, persistent bool) {
+func (o *organization) register(v *viper.Viper, cmd *cobra.Command, persistent bool) {
 	opts := flagOpts{
 		{
 			DestP:      &o.id,
@@ -503,7 +505,7 @@ func (o *organization) register(cmd *cobra.Command, persistent bool) {
 			Persistent: persistent,
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(v, cmd)
 }
 
 func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, error) {
@@ -549,7 +551,7 @@ func (o *organization) validOrgFlags(f *globalFlags) error {
 
 type flagOpts []cli.Opt
 
-func (f flagOpts) mustRegister(cmd *cobra.Command) {
+func (f flagOpts) mustRegister(v *viper.Viper, cmd *cobra.Command) {
 	if len(f) == 0 {
 		return
 	}
@@ -566,10 +568,10 @@ func (f flagOpts) mustRegister(cmd *cobra.Command) {
 			strings.ToUpper(strings.Replace(envVar, "-", "_", -1)),
 		)
 	}
-	cli.BindOptions(cmd, f)
+	cli.BindOptions(v, cmd, f)
 }
 
-func registerPrintOptions(cmd *cobra.Command, headersP, jsonOutP *bool) {
+func registerPrintOptions(v *viper.Viper, cmd *cobra.Command, headersP, jsonOutP *bool) {
 	var opts flagOpts
 	if headersP != nil {
 		opts = append(opts, cli.Opt{
@@ -589,13 +591,13 @@ func registerPrintOptions(cmd *cobra.Command, headersP, jsonOutP *bool) {
 			Default: false,
 		})
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(v, cmd)
 }
 
-func setViperOptions() {
-	viper.SetEnvPrefix("INFLUX")
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+func setViperOptions(v *viper.Viper) {
+	v.SetEnvPrefix("INFLUX")
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 }
 
 func writeJSON(w io.Writer, v interface{}) error {
