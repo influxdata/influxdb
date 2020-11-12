@@ -65,7 +65,7 @@ ENV PATH /home/rust/.local/bin:/home/rust/bin:${PATH}
 ADD . /home/rust/project
 RUN sudo chown -R rust:rust /home/rust/project
 RUN sudo chmod u+rwx  /home/rust/project
-RUN cd /home/rust/project && git checkout master && git reset --hard
+RUN cd /home/rust/project && git checkout main && git reset --hard
 
 # Compile the code and bake the results into the image, so actual CI
 # builds are just incremental builds from the last time the image was
