@@ -1036,48 +1036,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	// NATS streaming server
 	natsOpts := nats.NewDefaultServerOptions()
-
-	// Welcome to ghetto land. It doesn't seem possible to tell NATS to initialise
-	// a random port. In some integration-style tests, this launcher gets initialised
-	// multiple times, and sometimes the port from the previous instantiation is
-	// still open.
-	//
-	// This atrocity checks if the port is free, and if it's not, moves on to the
-	// next one. This best-effort approach may still fail occasionally when, for example,
-	// two tests race on isAddressPortAvailable.
-	var total int
-	for {
-		portAvailable, err := isAddressPortAvailable(natsOpts.Host, natsOpts.Port)
-		if err != nil {
-			return err
-		}
-		if portAvailable && natsOpts.Host == "" {
-			// Double-check localhost to accommodate tests
-			time.Sleep(100 * time.Millisecond)
-			portAvailable, err = isAddressPortAvailable("localhost", natsOpts.Port)
-			if err != nil {
-				return err
-			}
-		}
-		if portAvailable {
-			break
-		}
-
-		time.Sleep(100 * time.Millisecond)
-		natsOpts.Port++
-		total++
-		if total > 50 {
-			return errors.New("unable to find free port for Nats server")
-		}
-	}
+	natsOpts.Port = nats.RandomPort
 	m.natsServer = nats.NewServer(&natsOpts)
-	m.natsPort = natsOpts.Port
-
 	if err := m.natsServer.Open(); err != nil {
 		m.log.Error("Failed to start nats streaming server", zap.Error(err))
 		return err
 	}
-
+	m.natsPort = natsOpts.Port // updated with random port
 	publisher := nats.NewAsyncPublisher(m.log, fmt.Sprintf("nats-publisher-%d", m.natsPort), m.NatsURL())
 	if err := publisher.Open(); err != nil {
 		m.log.Error("Failed to connect to streaming server", zap.Error(err))
@@ -1555,18 +1520,6 @@ func checkForPriorVersion(ctx context.Context, log *zap.Logger, boltPath string,
 	}
 
 	return nil
-}
-
-// isAddressPortAvailable checks whether the address:port is available to listen,
-// by using net.Listen to verify that the port opens successfully, then closes the listener.
-func isAddressPortAvailable(address string, port int) (bool, error) {
-	if l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", address, port)); err == nil {
-		if err := l.Close(); err != nil {
-			return false, err
-		}
-		return true, nil
-	}
-	return false, nil
 }
 
 // OrganizationService returns the internal organization service.
