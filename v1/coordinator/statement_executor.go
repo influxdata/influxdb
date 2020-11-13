@@ -317,14 +317,19 @@ func (e *StatementExecutor) createIterators(ctx context.Context, stmt *influxql.
 
 func (e *StatementExecutor) executeShowDatabasesStatement(ctx context.Context, q *influxql.ShowDatabasesStatement, ectx *query.ExecutionContext) (models.Rows, error) {
 	row := &models.Row{Name: "databases", Columns: []string{"name"}}
-	// TODO(gianarb): How pagination works here?
 	dbrps, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilterV2{
 		OrgID: &ectx.OrgID,
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	seenDbs := make(map[string]struct{}, len(dbrps))
 	for _, dbrp := range dbrps {
+		if _, ok := seenDbs[dbrp.Database]; ok {
+			continue
+		}
+
 		perm, err := influxdb.NewPermissionAtID(dbrp.BucketID, influxdb.ReadAction, influxdb.BucketsResourceType, dbrp.OrganizationID)
 		if err != nil {
 			return nil, err
@@ -336,6 +341,7 @@ func (e *StatementExecutor) executeShowDatabasesStatement(ctx context.Context, q
 			}
 			return nil, err
 		}
+		seenDbs[dbrp.Database] = struct{}{}
 		row.Values = append(row.Values, []interface{}{dbrp.Database})
 	}
 	return []*models.Row{row}, nil
