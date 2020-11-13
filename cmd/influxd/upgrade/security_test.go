@@ -3,6 +3,7 @@ package upgrade
 import (
 	"context"
 	"errors"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"reflect"
 	"sort"
 	"testing"
@@ -235,7 +236,8 @@ func TestUpgradeSecurity(t *testing.T) {
 			}
 
 			// command execution
-			err = upgradeUsers(ctx, v1, v2, &targetOptions, tc.db2ids, log)
+			n, err := upgradeUsers(ctx, v1, v2, &targetOptions, tc.db2ids, log)
+			assert.Equal(t, len(tc.want), n, "Upgraded count must match")
 			if err != nil {
 				if tc.wantErr != nil {
 					if diff := cmp.Diff(tc.wantErr.Error(), err.Error()); diff != "" {

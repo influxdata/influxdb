@@ -16,12 +16,19 @@ import (
 )
 
 // upgradeUsers creates tokens representing v1 users.
-func upgradeUsers(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, targetOptions *optionsV2, dbBuckets map[string][]platform.ID, log *zap.Logger) error {
+func upgradeUsers(
+	ctx context.Context,
+	v1 *influxDBv1,
+	v2 *influxDBv2,
+	targetOptions *optionsV2,
+	dbBuckets map[string][]platform.ID,
+	log *zap.Logger,
+) (int, error) {
 	// check if there any 1.x users at all
 	v1meta := v1.meta
 	if len(v1meta.Users()) == 0 {
 		log.Info("There are no users in 1.x, nothing to upgrade.")
-		return nil
+		return 0, nil
 	}
 
 	// get helper instance
@@ -30,10 +37,11 @@ func upgradeUsers(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, targetOpt
 	// check if target buckets exists in 2.x
 	proceed := helper.checkDbBuckets(v1meta, dbBuckets)
 	if !proceed {
-		return errors.New("upgrade: there were errors/warnings, please fix them and run the command again")
+		return 0, errors.New("upgrade: there were errors/warnings, please fix them and run the command again")
 	}
 
 	// upgrade users
+	numUpgraded := 0
 	for _, row := range helper.sortUserInfo(v1meta.Users()) {
 		username := row.Name
 		if row.Admin {
@@ -53,24 +61,24 @@ func upgradeUsers(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, targetOpt
 					case influxql.ReadPrivilege:
 						p, err := platform.NewPermissionAtID(id, platform.ReadAction, platform.BucketsResourceType, targetOptions.orgID)
 						if err != nil {
-							return err
+							return numUpgraded, err
 						}
 						permissions = append(permissions, *p)
 					case influxql.WritePrivilege:
 						p, err := platform.NewPermissionAtID(id, platform.WriteAction, platform.BucketsResourceType, targetOptions.orgID)
 						if err != nil {
-							return err
+							return numUpgraded, err
 						}
 						permissions = append(permissions, *p)
 					case influxql.AllPrivileges:
 						p, err := platform.NewPermissionAtID(id, platform.ReadAction, platform.BucketsResourceType, targetOptions.orgID)
 						if err != nil {
-							return err
+							return numUpgraded, err
 						}
 						permissions = append(permissions, *p)
 						p, err = platform.NewPermissionAtID(id, platform.WriteAction, platform.BucketsResourceType, targetOptions.orgID)
 						if err != nil {
-							return err
+							return numUpgraded, err
 						}
 						permissions = append(permissions, *p)
 					}
@@ -95,13 +103,14 @@ func upgradeUsers(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, targetOpt
 					continue
 				}
 				log.Info("User upgraded.", zap.String("username", username))
+				numUpgraded++
 			} else {
 				log.Info("User has no privileges and will not be upgraded.", zap.String("username", username))
 			}
 		}
 	}
 
-	return nil
+	return numUpgraded, nil
 }
 
 // securityUpgradeHelper is a helper used by `upgrade` command.
