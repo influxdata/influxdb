@@ -7,6 +7,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/tests"
+	"github.com/stretchr/testify/require"
 )
 
 // Ensure parameterized queries can be executed
@@ -81,4 +86,61 @@ func TestServer_Query_Chunked(t *testing.T) {
 
 	ctx := context.Background()
 	test.Run(ctx, t, s)
+}
+
+func TestServer_Query_ShowDatabases(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(t)
+	defer s.MustClose()
+
+	ctx := context.Background()
+	ctx = icontext.SetAuthorizer(ctx, tests.MakeAuthorization(s.DefaultOrgID, s.DefaultUserID, influxdb.OperPermissions()))
+
+	// create some buckets and mappings
+	buckets := []struct {
+		name string
+		db   string
+		rp   string
+	}{
+		{"my-bucket", "my-bucket", "autogen"},
+		{"telegraf/autogen", "telegraf", "autogen"},
+		{"telegraf/1_week", "telegraf", "1_week"},
+		{"telegraf/1_month", "telegraf", "1_month"},
+	}
+
+	for _, bi := range buckets {
+		b := influxdb.Bucket{
+			OrgID:           s.DefaultOrgID,
+			Type:            influxdb.BucketTypeUser,
+			Name:            bi.name,
+			RetentionPeriod: 0,
+		}
+		err := s.Launcher.
+			Launcher.
+			BucketService().
+			CreateBucket(ctx, &b)
+		require.NoError(t, err)
+
+		err = s.Launcher.
+			DBRPMappingServiceV2().
+			Create(ctx, &influxdb.DBRPMappingV2{
+				Database:        bi.db,
+				RetentionPolicy: bi.rp,
+				Default:         true,
+				OrganizationID:  s.DefaultOrgID,
+				BucketID:        b.ID,
+			})
+		require.NoError(t, err)
+	}
+
+	test := NewEmptyTest()
+	test.addQueries(
+		&Query{
+			name:    "show databases does not return duplicates",
+			command: "SHOW DATABASES",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["my-bucket"],["telegraf"]]}]}]}`,
+		},
+	)
+
+	test.Run(context.Background(), t, s)
 }
