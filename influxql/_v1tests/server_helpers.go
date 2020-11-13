@@ -88,12 +88,14 @@ type Write struct {
 type Writes []*Write
 
 type Test struct {
-	orgID    influxdb.ID
-	bucketID influxdb.ID
-	db       string
-	rp       string
-	writes   Writes
-	queries  []*Query
+	orgID            influxdb.ID
+	bucketID         influxdb.ID
+	db               string
+	rp               string
+	writes           Writes
+	queries          []*Query
+	noDefaultMapping bool
+	noWrites         bool
 }
 
 func NewTest(db, rp string) Test {
@@ -101,6 +103,12 @@ func NewTest(db, rp string) Test {
 		db: db,
 		rp: rp,
 	}
+}
+
+// NewEmptyTest creates an empty test without a default database and retention policy mapping or
+// any expected writes.
+func NewEmptyTest() Test {
+	return Test{noDefaultMapping: true, noWrites: true}
 }
 
 func (qt *Test) Run(ctx context.Context, t *testing.T, p *tests.DefaultPipeline) {
@@ -146,37 +154,32 @@ func (qt *Test) addQueries(q ...*Query) {
 func (qt *Test) init(ctx context.Context, t *testing.T, p *tests.DefaultPipeline) (fx pipeline.BaseFixture, auth *influxdb.Authorization) {
 	t.Helper()
 
-	require.Greater(t, len(qt.writes), 0)
-
 	qt.orgID = p.DefaultOrgID
 	qt.bucketID = p.DefaultBucketID
 
 	fx = pipeline.NewBaseFixture(t, p.Pipeline, qt.orgID, qt.bucketID)
 
-	qt.writeTestData(ctx, t, fx.Admin)
-	p.Flush()
+	if !qt.noWrites {
+		require.GreaterOrEqual(t, len(qt.writes), 0)
+		qt.writeTestData(ctx, t, fx.Admin)
+		p.Flush()
+	}
 
-	writeOrg, err := influxdb.NewPermissionAtID(qt.orgID, influxdb.WriteAction, influxdb.OrgsResourceType, qt.orgID)
-	require.NoError(t, err)
+	auth = tests.MakeAuthorization(qt.orgID, p.DefaultUserID, influxdb.OperPermissions())
 
-	bucketWritePerm, err := influxdb.NewPermissionAtID(qt.bucketID, influxdb.WriteAction, influxdb.BucketsResourceType, qt.orgID)
-	require.NoError(t, err)
-
-	bucketReadPerm, err := influxdb.NewPermissionAtID(qt.bucketID, influxdb.ReadAction, influxdb.BucketsResourceType, qt.orgID)
-	require.NoError(t, err)
-
-	auth = tests.MakeAuthorization(qt.orgID, p.DefaultUserID, []influxdb.Permission{*writeOrg, *bucketWritePerm, *bucketReadPerm})
-	ctx = icontext.SetAuthorizer(ctx, auth)
-	err = p.Launcher.
-		DBRPMappingServiceV2().
-		Create(ctx, &influxdb.DBRPMappingV2{
-			Database:        qt.db,
-			RetentionPolicy: qt.rp,
-			Default:         true,
-			OrganizationID:  qt.orgID,
-			BucketID:        qt.bucketID,
-		})
-	require.NoError(t, err)
+	if !qt.noDefaultMapping {
+		ctx = icontext.SetAuthorizer(ctx, auth)
+		err := p.Launcher.
+			DBRPMappingServiceV2().
+			Create(ctx, &influxdb.DBRPMappingV2{
+				Database:        qt.db,
+				RetentionPolicy: qt.rp,
+				Default:         true,
+				OrganizationID:  qt.orgID,
+				BucketID:        qt.bucketID,
+			})
+		require.NoError(t, err)
+	}
 
 	return
 }
