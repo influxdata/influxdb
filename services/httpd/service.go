@@ -66,6 +66,8 @@ type Service struct {
 	Handler *Handler
 
 	Logger *zap.Logger
+
+	ReadTimeout time.Duration
 }
 
 // NewService returns a new instance of Service.
@@ -83,6 +85,7 @@ func NewService(c Config) *Service {
 		bindSocket:     c.BindSocket,
 		Handler:        NewHandler(c),
 		Logger:         zap.NewNop(),
+		ReadTimeout:    c.ReadTimeout,
 	}
 	if s.tlsConfig == nil {
 		s.tlsConfig = new(tls.Config)
@@ -247,7 +250,7 @@ func (s *Service) serveUnixSocket() {
 func (s *Service) serve(listener net.Listener) {
 	// The listener was closed so exit
 	// See https://github.com/golang/go/issues/4373
-	err := http.Serve(listener, s.Handler)
+	err := (&http.Server{Handler: s.Handler, ReadTimeout: s.ReadTimeout}).Serve(listener)
 	if err != nil && !strings.Contains(err.Error(), "closed") {
 		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
 	}
