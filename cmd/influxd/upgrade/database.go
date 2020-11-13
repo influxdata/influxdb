@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/dustin/go-humanize"
+	"os"
 	"path/filepath"
 
 	"github.com/influxdata/influxdb/v2"
@@ -55,10 +56,22 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 	if size > diskInfo.Free {
 		return nil, fmt.Errorf("not enough space on target disk of %s: need %d, available %d ", v2dir, size, diskInfo.Free)
 	}
+
+	cqFile, err := os.OpenFile(v2opts.cqPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file for CQ export %s: %w", v2opts.cqPath, err)
+	}
+	defer cqFile.Close()
+	_, err = cqFile.WriteString("database\tname\tquery\n")
+	if err != nil {
+		return nil, fmt.Errorf("error writing CQ export header: %w", err)
+	}
+
 	log.Info("Upgrading databases")
 	// read each database / retention policy from v1.meta and create bucket db-name/rp-name
 	// create database in v2.meta
 	// copy shard info from v1.meta
+	// export any continuous queries
 	for _, db := range v1.meta.Databases() {
 		if db.Name == "_internal" {
 			if options.verbose {
@@ -172,6 +185,16 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 				}
 			} else {
 				log.Warn("Empty retention policy")
+			}
+		}
+
+		for _, cq := range db.ContinuousQueries {
+			if options.verbose {
+				log.Info("Exporting CQ", zap.String("db", db.Name), zap.String("cq_name", cq.Name))
+			}
+			_, err := cqFile.WriteString(fmt.Sprintf("%s\t%s\t%s\n", db.Name, cq.Name, cq.Query))
+			if err != nil {
+				return nil, fmt.Errorf("error exporting continuous query %s from DB %s: %w", cq.Name, db.Name, err)
 			}
 		}
 	}

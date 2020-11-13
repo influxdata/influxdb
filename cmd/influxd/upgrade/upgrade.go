@@ -90,6 +90,7 @@ type optionsV2 struct {
 	boltPath       string
 	cliConfigsPath string
 	enginePath     string
+	cqPath         string
 	userName       string
 	password       string
 	orgName        string
@@ -139,6 +140,7 @@ func NewCommand(v *viper.Viper) *cobra.Command {
       1. Reads the 1.x config file and creates a 2.x config file with matching options. Unsupported 1.x options are reported.
       2. Copies 1.x database files.
       3. Creates influx CLI configurations.
+      4. Exports any 1.x continuous queries to disk.
 
     If the config file is not available, 1.x db folder (--v1-dir options) is taken as an input.
     Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
@@ -181,6 +183,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Default: filepath.Join(v2dir, "engine"),
 			Desc:    "path for persistent engine files",
 			Short:   'e',
+		},
+		{
+			DestP:   &options.target.cqPath,
+			Flag:    "continuous-query-export-path",
+			Default: filepath.Join(homeOrAnyDir(), "continuous_queries.txt"),
+			Desc:    "path for exported 1.x continuous queries",
 		},
 		{
 			DestP:    &options.target.userName,
@@ -467,6 +475,10 @@ func validatePaths(sourceOpts *optionsV1, targetOpts *optionsV2) error {
 
 	if _, err = os.Stat(targetOpts.cliConfigsPath); err == nil {
 		return fmt.Errorf("file present at target path for 2.x CLI configs '%s'", targetOpts.cliConfigsPath)
+	}
+
+	if _, err = os.Stat(targetOpts.cqPath); err == nil {
+		return fmt.Errorf("file present at target path for exported continuous queries '%s'", targetOpts.cqPath)
 	}
 
 	return nil

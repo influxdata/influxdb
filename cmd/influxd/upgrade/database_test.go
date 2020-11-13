@@ -38,6 +38,7 @@ func TestUpgradeRealDB(t *testing.T) {
 
 	boltPath := filepath.Join(tl.Path, bolt.DefaultFilename)
 	enginePath := filepath.Join(tl.Path, "engine")
+	cqPath := filepath.Join(tl.Path, "cq.txt")
 
 	v1opts := &optionsV1{dbDir: tmpdir + "/v1db"}
 	v1opts.populateDirs()
@@ -48,6 +49,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	v2opts := &optionsV2{
 		boltPath:   boltPath,
 		enginePath: enginePath,
+		cqPath:     cqPath,
 		userName:   "my-user",
 		password:   "my-password",
 		orgName:    "my-org",
