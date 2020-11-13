@@ -11,6 +11,7 @@
 1. [19991](https://github.com/influxdata/influxdb/pull/19991): Use --skip-verify flag for backup/restore CLI command.
 1. [19995](https://github.com/influxdata/influxdb/pull/19995): Don't auto-print help on influxd errors
 1. [20012](https://github.com/influxdata/influxdb/pull/20012): Validate input paths to `influxd upgrade` up-front
+1. [20017](https://github.com/influxdata/influxdb/pull/20017): Don't include duplicates for SHOW DATABASES
 
 ## v2.0.1 [2020-11-10]
 
