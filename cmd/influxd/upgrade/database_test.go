@@ -39,9 +39,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	enginePath := filepath.Join(tl.Path, "engine")
 
 	v1opts := &optionsV1{dbDir: tmpdir + "/v1db"}
-
-	err = v1opts.checkDirs()
-	require.Nil(t, err)
+	v1opts.populateDirs()
 
 	v1, err := newInfluxDBv1(v1opts)
 	require.Nil(t, err)
