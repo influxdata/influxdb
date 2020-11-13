@@ -61,6 +61,10 @@ var configValueTransforms = map[string]func(interface{}) interface{}{
 	},
 }
 
+func translateV1ConfigPath(configFile string) string {
+	return filepath.Join(filepath.Dir(configFile), "config.toml")
+}
+
 // upgradeConfig upgrades existing 1.x (ie. typically influxdb.conf) configuration file to 2.x influxdb.toml file.
 func upgradeConfig(configFile string, targetOptions optionsV2, log *zap.Logger) (*configV1, error) {
 	// create and initialize helper
@@ -100,7 +104,7 @@ func upgradeConfig(configFile string, targetOptions optionsV2, log *zap.Logger) 
 	cu.updateV2Config(cTransformed, targetOptions)
 
 	// save new config
-	configFileV2 := filepath.Join(filepath.Dir(configFile), "config.toml")
+	configFileV2 := translateV1ConfigPath(configFile)
 	configFileV2, err = cu.save(cTransformed, configFileV2)
 	if err != nil {
 		return nil, err

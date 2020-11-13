@@ -29,37 +29,43 @@ func TestPathValidations(t *testing.T) {
 	err = os.MkdirAll(filepath.Join(enginePath, "db"), 0777)
 	require.Nil(t, err)
 
-	largs := make([]string, 0)
-	largs = append(largs, "--username", "my-user")
-	largs = append(largs, "--password", "my-password")
-	largs = append(largs, "--org", "my-org")
-	largs = append(largs, "--bucket", "my-bucket")
-	largs = append(largs, "--retention", "7d")
-	largs = append(largs, "--token", "my-token")
-	largs = append(largs, "--v1-dir", v1Dir)
-	largs = append(largs, "--bolt-path", boltPath)
-	largs = append(largs, "--influx-configs-path", configsPath)
-	largs = append(largs, "--engine-path", enginePath)
-	largs = append(largs, "--config-file", "")
+	sourceOpts := &optionsV1{
+		dbDir:      v1Dir,
+		configFile: "",
+	}
+	targetOpts := &optionsV2{
+		boltPath:       boltPath,
+		cliConfigsPath: configsPath,
+		enginePath:     enginePath,
+	}
 
-	cmd := NewCommand()
-	cmd.SetArgs(largs)
-	err = cmd.Execute()
+	err = validatePaths(sourceOpts, targetOpts)
 	require.NotNil(t, err, "Must fail")
-	assert.Contains(t, err.Error(), "1.x metadb error")
+	assert.Contains(t, err.Error(), "1.x DB dir")
 
 	err = os.MkdirAll(filepath.Join(v1Dir, "meta"), 0777)
 	require.Nil(t, err)
 
+	err = validatePaths(sourceOpts, targetOpts)
+	require.NotNil(t, err, "Must fail")
+	assert.Contains(t, err.Error(), "1.x meta.db")
+
 	err = ioutil.WriteFile(filepath.Join(v1Dir, "meta", "meta.db"), []byte{1}, 0777)
 	require.Nil(t, err)
 
-	cmd = NewCommand()
-	cmd.SetArgs(largs)
-
-	err = cmd.Execute()
+	err = validatePaths(sourceOpts, targetOpts)
 	require.NotNil(t, err, "Must fail")
-	assert.Contains(t, err.Error(), "target engine path")
+	assert.Contains(t, err.Error(), "2.x engine")
+
+	err = os.Remove(filepath.Join(enginePath, "db"))
+	assert.Nil(t, err)
+
+	err = ioutil.WriteFile(configsPath, []byte{1}, 0777)
+	require.Nil(t, err)
+
+	err = validatePaths(sourceOpts, targetOpts)
+	require.NotNil(t, err, "Must fail")
+	assert.Contains(t, err.Error(), "2.x CLI configs")
 }
 
 func TestDbURL(t *testing.T) {
