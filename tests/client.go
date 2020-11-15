@@ -3,8 +3,6 @@ package tests
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -29,7 +27,7 @@ type ClientConfig struct {
 }
 
 // Client provides an API for writing, querying, and interacting with
-// gateway's resources like authorizations, buckets, and organizations.
+// resources like authorizations, buckets, and organizations.
 type Client struct {
 	Client *httpc.Client
 	*influxhttp.Service
@@ -37,19 +35,19 @@ type Client struct {
 	ClientConfig
 }
 
-// NewClient initialises a new Client which is ready to write points to the Gateway write endpoint.
-func NewClient(gatewayURL string, config ClientConfig) (*Client, error) {
+// NewClient initialises a new Client which is ready to write points to the HTTP write endpoint.
+func NewClient(endpoint string, config ClientConfig) (*Client, error) {
 	opts := make([]httpc.ClientOptFn, 0)
 	if config.Session != nil {
 		config.Token = ""
 		opts = append(opts, httpc.WithSessionCookie(config.Session.Key))
 	}
-	hc, err := influxhttp.NewHTTPClient(gatewayURL, config.Token, false, opts...)
+	hc, err := influxhttp.NewHTTPClient(endpoint, config.Token, false, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	svc, err := influxhttp.NewService(hc, gatewayURL, config.Token)
+	svc, err := influxhttp.NewService(hc, endpoint, config.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -73,28 +71,12 @@ func (c *Client) MustWriteBatch(points string) {
 	}
 }
 
-// WriteBatch writes the current batch of points to the Gateway HTTP endpoint.
+// WriteBatch writes the current batch of points to the HTTP endpoint.
 func (c *Client) WriteBatch(points string) error {
 	return c.WriteService.Write(context.Background(), c.OrgID, c.BucketID, strings.NewReader(points))
 }
 
-// WriteLegacyBatch writes the current batch of points to the legacy influx 1.x
-// /write endpoint.  Used to mimic our cloud 1 to cloud 2 go replay forwarding.
-func (c *Client) WriteLegacyBatch(org, db, rp, points string) error {
-	writeFn := func(w io.Writer) (string, string, error) {
-		_, err := fmt.Fprint(w, points)
-		return "", "", err
-	}
-	req := c.Client.Post(writeFn, WritePathLegacy).
-		QueryParams([2]string{"db", db}).
-		QueryParams([2]string{"rp", rp}).
-		QueryParams([2]string{"org", org}).
-		StatusFn(httpc.StatusIn(http.StatusNoContent))
-
-	return req.Do(context.Background())
-}
-
-// Query returns the CSV response from a flux query to gateway.
+// Query returns the CSV response from a flux query to the HTTP API.
 //
 // This also remove all the \r to make it easier to write tests.
 func (c *Client) QueryFlux(org, query string) (string, error) {
