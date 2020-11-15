@@ -1,3 +1,12 @@
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    target_feature = "avx2"
+))]
+#[cfg(target_arch = "x86")]
+use std::arch::x86::*;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+use std::arch::x86_64::*;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::From;
 use std::mem::size_of;
@@ -177,19 +186,28 @@ impl Plain {
 
         if let Ok(encoded_id) = self.encoded_id(Some(value)) {
             // N.B(edd): this is specifically split out like this
-            // (with the duplication on the looping) because the common path
-            // (== predicate) will mean that the loop can easily be
-            // auto-vectorised by LLVM. I have verified the assembly and it does
-            // indeed do that.
+            // (with the duplication on the looping) so that a specialised
+            // function with some SIMD intrinsics can be used for the more
+            // common == case.
             match op {
                 cmp::Operator::Equal => {
+                    #[cfg(all(
+                        any(target_arch = "x86", target_arch = "x86_64"),
+                        target_feature = "avx2"
+                    ))]
+                    return self.row_ids_equal_simd(encoded_id, op, dst);
+
+                    #[cfg(any(
+                        not(any(target_arch = "x86", target_arch = "x86_64")),
+                        not(target_feature = "avx2")
+                    ))]
                     for (i, next) in self.encoded_data.iter().enumerate() {
                         if next == &encoded_id {
                             // N.B(edd): adding individual values like this to a bitset
-                            // is expensive if there are many values. In other encodings
+                            // can be expensive if there are many values. In other encodings
                             // such as the RLE one I instead build up ranges of
                             // values to add. Here though we expect this encoding to
-                            // have higher cardinality and not many co-located
+                            // have higher cardinality and not many ranges of
                             // matching rows.
                             dst.add(i as u32);
                         }
@@ -216,7 +234,72 @@ impl Plain {
             }
             dst = self.row_ids_not_null(dst)
         }
+        dst
+    }
 
+    #[cfg(all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        target_feature = "avx2"
+    ))]
+    // An optimised method for finding all row ids within the column encoding
+    // where the row contains the provided encoded id.
+    //
+    // This approach uses SIMD intrinsics to compare two registers with eight
+    // lanes in parallel using a single CPU instruction. One register is packed
+    // with the `encoded_id` we are looking for. The other register contains
+    // eight consecutive values from the column we're searching. The comparioson
+    // produces an 8 lane register (256 bits) where every 32 bit lane will be
+    // `0` if the comparison was not equal.
+    //
+    // The fast path for this type of column encoding would be that most rows
+    // will not match the provided encoded_id so it is efficient to check that
+    // this 256-bit register is all zero and move onto the next eight rows in the
+    // column.
+    //
+    // For cases where one or more of the eight values does match the encoded
+    // id the exact matching row(s) is/are determined by examining the register.
+    #[allow(clippy::cast_ptr_alignment)]
+    fn row_ids_equal_simd(&self, encoded_id: u32, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
+        unsafe {
+            // Pack an 8-lane register containing the encoded id we want to find.
+            let id_register = _mm256_set1_epi32(encoded_id as i32);
+
+            let mut i = 0_u32; // Track the total index.
+            self.encoded_data.chunks_exact(8).for_each(|chunk| {
+                // Load the entries we want to compare against into a SIMD register.
+                let entries = _mm256_loadu_si256(chunk.as_ptr() as *const __m256i);
+
+                // Compares the 32-bit packed values and returns a register
+                // with the comparison results.
+                let res = _mm256_cmpeq_epi32(entries, id_register);
+
+                // Since we only care about determining if every result is 0
+                // we can just unpack into two 128-bit integers and check they're
+                // both zero.
+                let (a, b) = std::mem::transmute::<_, (u128, u128)>(res);
+                if a != 0 || b != 0 {
+                    // slow path
+                    // One or more of the rows checked contains the encoded id.
+                    for (j, v) in chunk.iter().enumerate() {
+                        if v == &encoded_id {
+                            dst.add(i + j as u32);
+                        }
+                    }
+                }
+
+                i += 8;
+            });
+
+            // If encoded_data.len() % 8 != 0 then there will be remaining rows
+            // to check.
+            let rem = self.encoded_data.len() % 8;
+            let all_rows = self.num_rows() as usize;
+            for i in (all_rows - rem)..all_rows {
+                if self.encoded_data[i] == encoded_id {
+                    dst.add(i as u32);
+                }
+            }
+        }
         dst
     }
 
@@ -281,6 +364,9 @@ impl Plain {
 
     // Given an encoded id for a logical column value and a predicate matching
     // row ids are returned.
+    //
+    // TODO(edd): add an alternative SIMD equivalent to `row_ids_equal_simd`
+    // here.
     fn row_ids_encoded_cmp(&self, encoded_id: u32, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
