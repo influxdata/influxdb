@@ -160,7 +160,7 @@ func (qt *Test) init(ctx context.Context, t *testing.T, p *tests.DefaultPipeline
 	fx = pipeline.NewBaseFixture(t, p.Pipeline, qt.orgID, qt.bucketID)
 
 	if !qt.noWrites {
-		require.GreaterOrEqual(t, len(qt.writes), 0)
+		require.Greater(t, len(qt.writes), 0)
 		qt.writeTestData(ctx, t, fx.Admin)
 		p.Flush()
 	}
