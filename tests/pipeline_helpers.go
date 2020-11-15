@@ -11,42 +11,34 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-// A Pipeline is a collection of node types that act as a pipeline for writing
-// and reading data.
+// A Pipeline is responsible for configuring launcher.TestLauncher
+// with default values so it may be used for end-to-end integration
+// tests.
 type Pipeline struct {
 	Launcher *launcher.TestLauncher
 
 	DefaultOrgID    influxdb.ID
 	DefaultBucketID influxdb.ID
 	DefaultUserID   influxdb.ID
-
-	openClosers OpenClosers
 }
 
 // pipelineConfig tracks the pre-configuration for a pipeline.
-// Because this struct is relatively complex, you should not instantiate it directly,
-// but rather pass PipelineOption values to NewPipeline.
 type pipelineConfig struct {
 	logger *zap.Logger
 }
 
-// NewDefaultPipeline creates a Pipeline with one storage node, one query node
-// and one gateway node.
+// NewDefaultPipeline creates a Pipeline with default
+// values.
 //
-// Further, a single user, org, bucket and token are created. See
-// NewDefaultGatewayNode for more details.
+// It is retained for compatibility with cloud tests.
 func NewDefaultPipeline(t *testing.T, opts ...PipelineOption) *DefaultPipeline {
 	opts = append(WithDefaults(), opts...)
 	return &DefaultPipeline{Pipeline: NewPipeline(t, opts...)}
 }
 
 // NewPipeline returns a pipeline with the given options applied to the configuration as appropriate.
-// Each query node will be connected to the read service of all storage nodes.
 //
-// Each storage and query node share the same configs.
-//
-// A single user, org, bucket and token are created. See NewDefaultGatewayNode
-// for more details.
+// A single user, org, bucket and token are created.
 func NewPipeline(tb testing.TB, opts ...PipelineOption) *Pipeline {
 	tb.Helper()
 
@@ -104,10 +96,6 @@ func NewPipeline(tb testing.TB, opts ...PipelineOption) *Pipeline {
 
 // Open opens all the components of the pipeline.
 func (p *Pipeline) Open() error {
-	if err := p.openClosers.OpenAll(); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -120,8 +108,7 @@ func (p *Pipeline) MustOpen() {
 
 // Close closes all the components of the pipeline.
 func (p *Pipeline) Close() error {
-	_ = p.Launcher.Shutdown(context.Background())
-	return p.openClosers.CloseAll()
+	return p.Launcher.Shutdown(context.Background())
 }
 
 // MustClose closes the pipeline, panicking if any error is encountered.
@@ -131,14 +118,14 @@ func (p *Pipeline) MustClose() {
 	}
 }
 
-// MustNewAdminClient returns a default client pointed at the gateway.
+// MustNewAdminClient returns a default client that will direct requests to Launcher.
 //
-// operator token is authorized to do anything in the system.
+// The operator token is authorized to do anything in the system.
 func (p *Pipeline) MustNewAdminClient() *Client {
 	return p.MustNewClient(p.DefaultOrgID, p.DefaultBucketID, OperToken)
 }
 
-// MustNewClient returns a client pointed at the gateway.
+// MustNewClient returns a client that will direct requests to Launcher.
 func (p *Pipeline) MustNewClient(org, bucket influxdb.ID, token string) *Client {
 	config := ClientConfig{
 		UserID:             p.DefaultUserID,
@@ -154,7 +141,7 @@ func (p *Pipeline) MustNewClient(org, bucket influxdb.ID, token string) *Client 
 	return svc
 }
 
-// NewBrowserClient returns a client pointed at the gateway with a cookie session.
+// NewBrowserClient returns a client with a cookie session that will direct requests to Launcher.
 func (p *Pipeline) NewBrowserClient(org, bucket influxdb.ID, session *influxdb.Session) (*Client, error) {
 	config := ClientConfig{
 		UserID:             p.DefaultUserID,
@@ -169,7 +156,7 @@ func (p *Pipeline) NewBrowserClient(org, bucket influxdb.ID, session *influxdb.S
 // BrowserFor will create a user, session, and browser client.
 // The generated browser points to the given org and bucket.
 //
-// The user and session are inserted directly into the gateway backing store.
+// The user and session are inserted directly into the backing store.
 func (p *Pipeline) BrowserFor(org, bucket influxdb.ID, username string) (*Client, influxdb.ID, error) {
 	ctx := context.Background()
 	user := &influxdb.User{
@@ -189,14 +176,12 @@ func (p *Pipeline) BrowserFor(org, bucket influxdb.ID, username string) (*Client
 	return client, user.ID, err
 }
 
-// Flush makes sure the PointsWriter has flushed all of the writes to kafka and the
-// storage nodes have observed the writes.
+// Flush is a no-op and retained for compatibility with tests from cloud.
 func (p *Pipeline) Flush() {
-
 }
 
-// DefaultPipeline simplifies some of Pipeline method calls.
+// DefaultPipeline is a wrapper for Pipeline and is retained
+// for compatibility with cloud tests.
 type DefaultPipeline struct {
 	*Pipeline
-	Writer *Client
 }
