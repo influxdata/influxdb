@@ -128,6 +128,7 @@ func TestConfigLoadFile(t *testing.T) {
 			err := ioutil.WriteFile(configFile, []byte(tc.config1x), 0444)
 			require.NoError(t, err)
 			retval, _, err := loadV1Config(configFile)
+			require.NoError(t, err)
 
 			if diff := cmp.Diff(tc.retval, retval); diff != "" {
 				t.Fatal(diff)
