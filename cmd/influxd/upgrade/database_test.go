@@ -188,6 +188,14 @@ func TestUpgradeRealDB(t *testing.T) {
 
 	respBody = mustRunQuery(t, tl, "mydb", `select count(line) from mydb."1week".log`)
 	assert.Contains(t, respBody, `["1970-01-01T00:00:00Z",1]`)
+
+	cqBytes, err := ioutil.ReadFile(cqPath)
+	require.NoError(t, err)
+	cqs := string(cqBytes)
+
+	assert.Contains(t, cqs, "CREATE CONTINUOUS QUERY other_cq ON test BEGIN SELECT mean(foo) INTO test.autogen.foo FROM empty.autogen.foo GROUP BY time(1h) END")
+	assert.Contains(t, cqs, "CREATE CONTINUOUS QUERY cq_3 ON test BEGIN SELECT mean(bar) INTO test.autogen.bar FROM test.autogen.foo GROUP BY time(1m) END")
+	assert.Contains(t, cqs, "CREATE CONTINUOUS QUERY cq ON empty BEGIN SELECT mean(example) INTO empty.autogen.mean FROM empty.autogen.raw GROUP BY time(1h) END")
 }
 
 func mustRunQuery(t *testing.T, tl *launcher.TestLauncher, db, rawQ string) string {
