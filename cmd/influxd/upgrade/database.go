@@ -198,11 +198,10 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 		}
 
 		headerPadding := maxNameLen - 4 + 1
-		_, err = cqFile.WriteString(fmt.Sprintf("name%squery\n", strings.Repeat(" ", headerPadding)))
+		_, err = cqFile.WriteString(fmt.Sprintf("name%[1]squery\n----%[1]s-----\n", strings.Repeat(" ", headerPadding)))
 		if err != nil {
 			return nil, err
 		}
-		_, err = cqFile.WriteString(fmt.Sprintf("----%s-----\n", strings.Repeat(" ", headerPadding)))
 
 		for _, cq := range db.ContinuousQueries {
 			if options.verbose {
