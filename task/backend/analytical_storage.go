@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/errors"
 	"time"
 
 	"github.com/influxdata/flux"
@@ -154,23 +155,26 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 
 	// creates flux script to filter based on time, if given
 	constructedTimeFilter := ""
-	parsedAfterTime := time.Time{}
-	parsedBeforeTime := time.Now()
-	if len(filter.AfterTime) > 0 {
-		parsedAfterTime, err = time.Parse(time.RFC3339, filter.AfterTime)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed parsing after time: %s", err.Error())
+	if len(filter.AfterTime) > 0 || len(filter.BeforeTime) > 0 {
+		parsedAfterTime := time.Time{}
+		parsedBeforeTime := time.Now()
+		if len(filter.AfterTime) > 0 {
+			parsedAfterTime, err = time.Parse(time.RFC3339, filter.AfterTime)
+			if err != nil {
+				return nil, 0, fmt.Errorf("failed parsing after time: %s", err.Error())
+			}
 		}
-	}
-	if len(filter.BeforeTime) > 0 {
-		parsedBeforeTime, err = time.Parse(time.RFC3339, filter.BeforeTime)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed parsing before time: %s", err.Error())
+		if len(filter.BeforeTime) > 0 {
+			parsedBeforeTime, err = time.Parse(time.RFC3339, filter.BeforeTime)
+			if err != nil {
+				return nil, 0, fmt.Errorf("failed parsing before time: %s", err.Error())
+			}
+
+		}
+		if !parsedBeforeTime.After(parsedAfterTime) {
+			return nil, 0, errors.New("Given after time must be prior to before time")
 		}
 
-	}
-
-	if parsedAfterTime.IsZero() || len(filter.BeforeTime) > 0 {
 		constructedTimeFilter = fmt.Sprintf(
 			`|> filter(fn: (r) =>time(v: r["scheduledFor"]) > %s and time(v: r["scheduledFor"]) < %s)`,
 			parsedAfterTime.Format(time.RFC3339),
