@@ -313,7 +313,7 @@ impl Executor {
             })
             .collect::<Vec<_>>();
 
-        // transfer data from the rx steams in order
+        // transfer data from the rx streams in order
         for mut rx in rx_channels {
             while let Some(r) = rx.recv().await {
                 tx.send(r)
@@ -326,7 +326,7 @@ impl Executor {
 
         // now, wait for all the values to resolve so we can report
         // any errors
-        for join_handle in handles.into_iter() {
+        for join_handle in handles {
             join_handle.await.context(JoinError)??;
         }
         Ok(())
@@ -399,7 +399,7 @@ impl Executor {
             .collect::<Vec<_>>();
 
         // now, wait for all the values to resolve and reprot any errors
-        for join_handle in handles.into_iter() {
+        for join_handle in handles {
             join_handle.await.context(JoinError)??;
         }
         Ok(())
@@ -438,7 +438,7 @@ impl Executor {
 
                 // collect them all up and combine them
                 let mut results = Vec::new();
-                for join_handle in handles.into_iter() {
+                for join_handle in handles {
                     let fieldlist = join_handle.await.context(JoinError)???;
 
                     results.push(fieldlist);
@@ -500,7 +500,7 @@ async fn run_logical_plans(
 
     // now, wait for all the values to resolve and collect them together
     let mut results = Vec::new();
-    for join_handle in value_futures.into_iter() {
+    for join_handle in value_futures {
         let mut plan_result = join_handle.await.context(JoinError)??;
         results.append(&mut plan_result);
     }

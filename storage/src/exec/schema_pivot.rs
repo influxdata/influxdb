@@ -258,12 +258,11 @@ impl ExecutionPlan for SchemaPivotExec {
                     None
                 }
             })
-            .map(|field_name| {
+            .try_for_each(|field_name| {
                 column_name_builder
                     .append_value(field_name)
                     .map_err(Error::ArrowError)
-            })
-            .collect::<Result<_>>()?;
+            })?;
 
         let batch =
             RecordBatch::try_new(self.schema(), vec![Arc::new(column_name_builder.finish())])?;

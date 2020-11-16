@@ -125,7 +125,7 @@ pub fn convert(
 
         // Sort files by their TSM generation to ensure any duplicate block
         // data is appropriately de-duplicated.
-        files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+        files.sort_by_key(|a| a.file_name());
 
         let mut index_readers = Vec::with_capacity(files.len());
         let mut block_readers = Vec::with_capacity(files.len());

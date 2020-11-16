@@ -1,5 +1,3 @@
-#![deny(rust_2018_idioms)]
-
 use tracing::{debug, info};
 
 use std::env::VarError;

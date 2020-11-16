@@ -19,6 +19,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8fd72866655d1904d6b0997d0b07ba561047d070fbe29de039031c641b61217"
 
 [[package]]
+name = "ahash"
+version = "0.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4eb6ec8807cd25b59e6b8100815afc73f54e294f1a425a2e555971969889a8f8"
+dependencies = [
+ "getrandom 0.2.0",
+ "lazy_static",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.7.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -78,7 +88,7 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=8e4d9ebef30857bab7a35003af0c663e776909aa#8e4d9ebef30857bab7a35003af0c663e776909aa"
+source = "git+https://github.com/apache/arrow.git?rev=ceb9471be3d4500cefceaf673f2266a37e845331#ceb9471be3d4500cefceaf673f2266a37e845331"
 dependencies = [
  "chrono",
  "csv",
@@ -707,18 +717,19 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=8e4d9ebef30857bab7a35003af0c663e776909aa#8e4d9ebef30857bab7a35003af0c663e776909aa"
+source = "git+https://github.com/apache/arrow.git?rev=ceb9471be3d4500cefceaf673f2266a37e845331#ceb9471be3d4500cefceaf673f2266a37e845331"
 dependencies = [
+ "ahash 0.5.8",
  "arrow",
  "async-trait",
  "chrono",
  "clap",
  "crossbeam",
- "fnv",
  "futures",
  "num_cpus",
  "parquet",
  "paste",
+ "pin-project-lite",
  "rustyline",
  "sqlparser",
  "tokio",
@@ -1088,6 +1099,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "getrandom"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee8025cf36f917e6a52cce185b7c7177689b838b7ec138364e50cc2277a56cf4"
+dependencies = [
+ "cfg-if 0.1.10",
+ "libc",
+ "wasi 0.9.0+wasi-snapshot-preview1",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1125,7 +1147,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e91b62f79061a0bc2e046024cb7ba44b08419ed238ecbd9adbd787434b9e8c25"
 dependencies = [
- "ahash",
+ "ahash 0.3.8",
  "autocfg",
 ]
 
@@ -1983,7 +2005,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=8e4d9ebef30857bab7a35003af0c663e776909aa#8e4d9ebef30857bab7a35003af0c663e776909aa"
+source = "git+https://github.com/apache/arrow.git?rev=ceb9471be3d4500cefceaf673f2266a37e845331#ceb9471be3d4500cefceaf673f2266a37e845331"
 dependencies = [
  "arrow",
  "base64 0.11.0",
@@ -2296,7 +2318,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a6b1679d49b24bbfe0c803429aa1874472f50d9b363131f0e89fc356b544d03"
 dependencies = [
- "getrandom",
+ "getrandom 0.1.15",
  "libc",
  "rand_chacha",
  "rand_core",
@@ -2320,7 +2342,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19"
 dependencies = [
- "getrandom",
+ "getrandom 0.1.15",
 ]
 
 [[package]]
@@ -2378,7 +2400,7 @@ version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de0737333e7a9502c789a36d7c7fa6092a49895d4faa31ca5df163857ded2e9d"
 dependencies = [
- "getrandom",
+ "getrandom 0.1.15",
  "redox_syscall",
  "rust-argon2",
 ]

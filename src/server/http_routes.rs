@@ -12,8 +12,6 @@
 //! Long term, we expect to create IOx specific api in terms of
 //! database names and may remove this quasi /v2 API from the Deloren.
 
-#![deny(rust_2018_idioms)]
-
 use http::header::CONTENT_ENCODING;
 use tracing::{debug, error, info};
 

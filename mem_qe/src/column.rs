@@ -1400,9 +1400,10 @@ impl String {
     pub fn with_dictionary(
         dictionary: std::collections::BTreeSet<Option<std::string::String>>,
     ) -> Self {
-        let mut c = Self::default();
-        c.data = encoding::DictionaryRLE::with_dictionary(dictionary);
-        c
+        Self {
+            data: encoding::DictionaryRLE::with_dictionary(dictionary),
+            ..Default::default()
+        }
     }
 
     pub fn add(&mut self, s: &str) {

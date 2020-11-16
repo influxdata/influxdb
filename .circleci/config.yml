@@ -3,14 +3,14 @@ version: 2.1
 commands:
 
   rust_nightly:
-    description: Install nightly tools
+    description: Install nightly Rust toolchain
     steps:
       - run:
-          name: Install rust nightly-2020-04-22
-          command: rustup toolchain install nightly-2020-04-22
+          name: Install rust nightly-2020-11-14
+          command: rustup toolchain install nightly-2020-11-14
       - run:
-          name: Install rustfmt and clippy for nightly-2020-04-22
-          command: rustup component add rustfmt clippy --toolchain nightly-2020-04-22
+          name: Install rustfmt and clippy for nightly-2020-11-14
+          command: rustup component add rustfmt clippy --toolchain nightly-2020-11-14
 
 jobs:
   fmt:

@@ -545,8 +545,9 @@ mod test {
 
     #[test]
     fn first_row_id_eq_value() {
-        let mut v: Fixed<i64> = Fixed::default();
-        v.values = vec![22, 33, 18];
+        let v: Fixed<i64> = Fixed {
+            values: vec![22, 33, 18],
+        };
 
         assert_eq!(v.first_row_id_eq_value(33), Some(1));
         assert_eq!(v.first_row_id_eq_value(100), None);
@@ -554,16 +555,18 @@ mod test {
 
     #[test]
     fn value() {
-        let mut v: Fixed<i8> = Fixed::default();
-        v.values = vec![22, 33, 18];
+        let v: Fixed<i8> = Fixed {
+            values: vec![22, 33, 18],
+        };
 
         assert_eq!(v.value::<i64>(2), 18_i64);
     }
 
     #[test]
     fn values() {
-        let mut v: Fixed<i8> = Fixed::default();
-        v.values = (0..10).collect();
+        let v: Fixed<i8> = Fixed {
+            values: (0..10).collect(),
+        };
 
         assert_eq!(v.values::<i64>(&[0, 1, 2, 3], vec![]), vec![0, 1, 2, 3]);
         assert_eq!(
@@ -583,8 +586,9 @@ mod test {
 
     #[test]
     fn all_values() {
-        let mut v: Fixed<i8> = Fixed::default();
-        v.values = (0..10).collect();
+        let v: Fixed<i8> = Fixed {
+            values: (0..10).collect(),
+        };
 
         assert_eq!(v.all_values::<i64>(vec![]), (0..10).collect::<Vec<i64>>());
 
@@ -596,8 +600,9 @@ mod test {
 
     #[test]
     fn sum() {
-        let mut v: Fixed<i8> = Fixed::default();
-        v.values = (0..10).collect();
+        let v: Fixed<i8> = Fixed {
+            values: (0..10).collect(),
+        };
 
         assert_eq!(v.sum::<i32>(&[3, 5, 6, 7]), 21_i32);
         assert_eq!(v.sum::<i32>(&[1, 2, 4, 7, 9]), 23_i32);
@@ -605,24 +610,27 @@ mod test {
 
     #[test]
     fn first() {
-        let mut v: Fixed<i16> = Fixed::default();
-        v.values = (10..20).collect();
+        let v: Fixed<i16> = Fixed {
+            values: (10..20).collect(),
+        };
 
         assert_eq!(v.first::<i64>(&[3, 5, 6, 7]), 13);
     }
 
     #[test]
     fn last() {
-        let mut v: Fixed<i16> = Fixed::default();
-        v.values = (10..20).collect();
+        let v: Fixed<i16> = Fixed {
+            values: (10..20).collect(),
+        };
 
         assert_eq!(v.last::<i64>(&[3, 5, 6, 7]), 17);
     }
 
     #[test]
     fn min() {
-        let mut v: Fixed<i16> = Fixed::default();
-        v.values = vec![100, 110, 20, 1, 110];
+        let v: Fixed<i16> = Fixed {
+            values: vec![100, 110, 20, 1, 110],
+        };
 
         assert_eq!(v.min::<i64>(&[0, 1, 2, 3, 4]), 1);
 
@@ -633,8 +641,9 @@ mod test {
 
     #[test]
     fn max() {
-        let mut v: Fixed<i16> = Fixed::default();
-        v.values = vec![100, 110, 20, 1, 109];
+        let v: Fixed<i16> = Fixed {
+            values: vec![100, 110, 20, 1, 109],
+        };
 
         assert_eq!(v.max::<i64>(&[0, 1, 2, 3, 4]), 110);
 
@@ -668,8 +677,9 @@ mod test {
 
     #[test]
     fn row_ids_filter_eq() {
-        let mut v: Fixed<i64> = Fixed::default();
-        v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
+        let v: Fixed<i64> = Fixed {
+            values: vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100],
+        };
 
         let dst = v.row_ids_filter(100, &Operator::Equal, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![0, 2, 12]);
@@ -686,8 +696,9 @@ mod test {
 
     #[test]
     fn row_ids_filter_neq() {
-        let mut v: Fixed<i64> = Fixed::default();
-        v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
+        let v: Fixed<i64> = Fixed {
+            values: vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100],
+        };
 
         let dst = v.row_ids_filter(100, &Operator::NotEqual, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
@@ -710,8 +721,9 @@ mod test {
 
     #[test]
     fn row_ids_filter_lt() {
-        let mut v: Fixed<i64> = Fixed::default();
-        v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
+        let v: Fixed<i64> = Fixed {
+            values: vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100],
+        };
 
         let dst = v.row_ids_filter(100, &Operator::LT, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![7, 9, 10, 11]);
@@ -722,8 +734,9 @@ mod test {
 
     #[test]
     fn row_ids_filter_lte() {
-        let mut v: Fixed<i64> = Fixed::default();
-        v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
+        let v: Fixed<i64> = Fixed {
+            values: vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100],
+        };
 
         let dst = v.row_ids_filter(100, &Operator::LTE, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![0, 2, 7, 9, 10, 11, 12]);
@@ -734,8 +747,9 @@ mod test {
 
     #[test]
     fn row_ids_filter_gt() {
-        let mut v: Fixed<i64> = Fixed::default();
-        v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
+        let v: Fixed<i64> = Fixed {
+            values: vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100],
+        };
 
         let dst = v.row_ids_filter(100, &Operator::GT, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![1, 3, 4, 5, 6, 8]);
@@ -746,8 +760,9 @@ mod test {
 
     #[test]
     fn row_ids_filter_gte() {
-        let mut v: Fixed<i64> = Fixed::default();
-        v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
+        let v: Fixed<i64> = Fixed {
+            values: vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100],
+        };
 
         let dst = v.row_ids_filter(100, &Operator::GTE, RowIDs::new_vector());
         assert_eq!(dst.unwrap_vector(), &vec![0, 1, 2, 3, 4, 5, 6, 8, 12]);
@@ -758,8 +773,9 @@ mod test {
 
     #[test]
     fn row_ids_filter_range() {
-        let mut v: Fixed<i64> = Fixed::default();
-        v.values = vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100];
+        let v: Fixed<i64> = Fixed {
+            values: vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100],
+        };
 
         let dst = v.row_ids_filter_range(
             (100, &Operator::GTE),
@@ -796,8 +812,10 @@ mod test {
         );
         assert!(dst.is_empty());
 
-        let mut v: Fixed<i64> = Fixed::default();
-        v.values = vec![100, 200, 300, 2, 200, 22, 30];
+        let v: Fixed<i64> = Fixed {
+            values: vec![100, 200, 300, 2, 200, 22, 30],
+        };
+
         let dst = v.row_ids_filter_range(
             (200, &Operator::GTE),
             (300, &Operator::LTE),

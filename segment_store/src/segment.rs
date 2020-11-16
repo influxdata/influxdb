@@ -46,8 +46,10 @@ pub struct Segment<'a> {
 
 impl<'a> Segment<'a> {
     pub fn new(rows: u32, columns: BTreeMap<ColumnName<'a>, &'a ColumnType>) -> Self {
-        let mut meta = MetaData::default();
-        meta.rows = rows;
+        let mut meta = MetaData {
+            rows,
+            ..MetaData::default()
+        };
 
         let mut tag_columns: Vec<&'a Column> = vec![];
         let mut field_columns: Vec<&'a Column> = vec![];

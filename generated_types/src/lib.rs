@@ -3,7 +3,8 @@
 #![allow(
     unused_imports,
     clippy::redundant_static_lifetimes,
-    clippy::redundant_closure
+    clippy::redundant_closure,
+    clippy::redundant_field_names
 )]
 
 include!(concat!(env!("OUT_DIR"), "/influxdata.platform.storage.rs"));

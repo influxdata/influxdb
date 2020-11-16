@@ -367,10 +367,7 @@ fn make_tag_name(tag_name: Vec<u8>) -> Result<String> {
 // Builds an Expr given the Value and the converted children
 fn build_node(value: RPCValue, inputs: Vec<Expr>) -> Result<Expr> {
     // Only logical / comparison ops can have inputs.
-    let can_have_children = match &value {
-        RPCValue::Logical(_) | RPCValue::Comparison(_) => true,
-        _ => false,
-    };
+    let can_have_children = matches!(&value,  RPCValue::Logical(_) | RPCValue::Comparison(_));
 
     if !can_have_children && !inputs.is_empty() {
         return UnexpectedChildren { value }.fail();
