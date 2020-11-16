@@ -172,7 +172,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 
 		}
 		if !parsedBeforeTime.After(parsedAfterTime) {
-			return nil, 0, errors.New("Given after time must be prior to before time")
+			return nil, 0, errors.New("given after time must be prior to before time")
 		}
 
 		constructedTimeFilter = fmt.Sprintf(
