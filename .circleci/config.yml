@@ -331,17 +331,6 @@ jobs:
       - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
           path: /tmp/test-results
 
-  lint-feature-flags:
-    docker:
-      - image: circleci/golang:1.15
-    environment:
-      GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
-    working_directory: /go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      - run: ./scripts/ci/lint/flags.bash
-
   golint:
     docker:
       - image: circleci/golang:1.15
@@ -487,7 +476,6 @@ workflows:
     jobs:
       - gotest
       - golint
-      - lint-feature-flags
       - jstest
       - jslint
       - build
@@ -528,14 +516,12 @@ workflows:
     jobs:
       - gotest
       - golint
-      - lint-feature-flags
       - jstest
       - jslint
       - deploy-nightly:
           requires:
             - gotest
             - golint
-            - lint-feature-flags
             - jstest
             - jslint
           filters:
@@ -565,12 +551,6 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - lint-feature-flags:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
       - jstest:
           filters:
             branches:
@@ -587,7 +567,6 @@ workflows:
           requires:
             - gotest
             - golint
-            - lint-feature-flags
             - jstest
             - jslint
           filters:
