@@ -1,5 +1,9 @@
 ## v2.0.2 [unreleased]
 
+### Features
+
+1. [20036](https://github.com/influxdata/influxdb/pull/): warn if V1 users are upgraded, but V1 auth wasn't enabled
+
 ### Bug Fixes
 
 1. [19987](https://github.com/influxdata/influxdb/pull/19987): Fix various typos. Thanks @kumakichi!

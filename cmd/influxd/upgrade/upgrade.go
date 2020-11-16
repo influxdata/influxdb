@@ -44,6 +44,7 @@ type configV1 struct {
 	Http struct {
 		BindAddress  string `toml:"bind-address"`
 		HttpsEnabled bool   `toml:"https-enabled"`
+		AuthEnabled  bool   `toml:"auth-enabled"`
 	} `toml:"http"`
 }
 
@@ -325,6 +326,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 
 	log.Info("Starting InfluxDB 1.x upgrade")
 
+	var authEnabled bool
 	if options.source.configFile != "" {
 		log.Info("Upgrading config file", zap.String("file", options.source.configFile))
 		v1Config, err := upgradeConfig(options.source.configFile, options.target, log)
@@ -335,6 +337,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 		options.source.dataDir = v1Config.Data.Dir
 		options.source.walDir = v1Config.Data.WALDir
 		options.source.dbURL = v1Config.dbURL()
+		authEnabled = v1Config.Http.AuthEnabled
 	} else {
 		log.Info("No InfluxDB 1.x config file specified, skipping its upgrade")
 	}
@@ -399,8 +402,14 @@ func runUpgradeE(*cobra.Command, []string) error {
 		return err
 	}
 
-	if err = upgradeUsers(ctx, v1, v2, &options.target, db2BucketIds, log); err != nil {
+	usersUpgraded, err := upgradeUsers(ctx, v1, v2, &options.target, db2BucketIds, log)
+	if err != nil {
 		return err
+	}
+	if usersUpgraded > 0 && !authEnabled {
+		log.Warn(
+			"V1 users were upgraded, but V1 auth was not enabled. Existing clients will fail authentication against V2 if using invalid credentials.",
+		)
 	}
 
 	log.Info("Upgrade successfully completed. Start service now")
