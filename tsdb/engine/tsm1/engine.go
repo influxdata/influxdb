@@ -1941,7 +1941,13 @@ func (e *Engine) WriteSnapshot() (err error) {
 // skipCacheOk controls whether it is permissible to fail writing out
 // in-memory cache data when a previous snapshot is in progress
 func (e *Engine) CreateSnapshot(skipCacheOk bool) (string, error) {
-	if err := e.WriteSnapshot(); (err == ErrSnapshotInProgress) && skipCacheOk {
+	err := e.WriteSnapshot()
+	for i := 0; (i < 3) && (err == ErrSnapshotInProgress) ; i += 1 {
+		backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
+		time.Sleep(backoff)
+		err = e.WriteSnapshot()
+	}
+	if (err == ErrSnapshotInProgress) && skipCacheOk {
 		e.logger.Warn("Snapshotter busy: proceeding without cache contents.")
 	} else if err != nil {
 		return "", err
