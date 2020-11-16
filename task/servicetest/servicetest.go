@@ -19,8 +19,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/feature"
+	influxdbmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/options"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // BackendComponentFactory is supplied by consumers of the adaptertest package,
@@ -175,6 +179,9 @@ type System struct {
 	// the caller should set this value and return valid IDs and a valid token.
 	// It is safe if this returns the same values every time it is called.
 	CredsFunc func(*testing.T) (TestCreds, error)
+
+	// Toggles behavior between KV and archive storage because FinishRun() deletes runs after completion
+	CallFinishRun bool
 }
 
 func testTaskCRUD(t *testing.T, sys *System) {
@@ -902,7 +909,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
 		}
 
-		requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make two runs.
+		requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make two runs.
 
 		rc0, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 		if err != nil {
@@ -994,6 +1001,78 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 	})
 
+	t.Run("FindRunsByTime", func(t *testing.T) {
+
+		t.Parallel()
+		ctx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
+		ctx, err := feature.Annotate(ctx, influxdbmock.NewFlagger(map[feature.Flag]interface{}{
+			feature.TimeFilterFlags(): true,
+		}))
+		require.NoError(t, err)
+
+		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
+		// which makes timing of runs somewhat difficult.
+		ct := influxdb.TaskCreate{
+			OrganizationID: cr.OrgID,
+			Flux:           fmt.Sprintf(scriptFmt, 0),
+			OwnerID:        cr.UserID,
+		}
+		task, err := sys.TaskService.CreateTask(ctx, ct)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// set to one hour before now because of bucket retention policy
+		scheduledFor := time.Now().Add(time.Hour * -1).UTC()
+		runs := make([]*influxdb.Run, 0, 5)
+		// create runs to put into Context
+		for i := 5; i > 0; i-- {
+			run, err := sys.TaskControlService.CreateRun(ctx, task.ID, scheduledFor.Add(time.Second*time.Duration(i)), scheduledFor.Add(time.Second*time.Duration(i)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = sys.TaskControlService.UpdateRunState(ctx, task.ID, run.ID, scheduledFor.Add(time.Second*time.Duration(i+1)), influxdb.RunStarted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = sys.TaskControlService.UpdateRunState(ctx, task.ID, run.ID, scheduledFor.Add(time.Second*time.Duration(i+2)), influxdb.RunSuccess)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// setting run in memory to match the fields in Context
+			run.StartedAt = scheduledFor.Add(time.Second * time.Duration(i+1))
+			run.FinishedAt = scheduledFor.Add(time.Second * time.Duration(i+2))
+			run.RunAt = scheduledFor.Add(time.Second * time.Duration(i))
+			run.Status = influxdb.RunSuccess.String()
+			run.Log = nil
+
+			if sys.CallFinishRun {
+				run, err = sys.TaskControlService.FinishRun(ctx, task.ID, run.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Analytical storage does not store run at
+				run.RunAt = time.Time{}
+			}
+
+			runs = append(runs, run)
+		}
+
+		found, _, err := sys.TaskService.FindRuns(ctx,
+			influxdb.RunFilter{
+				Task:       task.ID,
+				Limit:      2,
+				AfterTime:  scheduledFor.Add(time.Second * time.Duration(1)).Format(time.RFC3339),
+				BeforeTime: scheduledFor.Add(time.Second * time.Duration(4)).Format(time.RFC3339),
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assert.Equal(t, runs[2:4], found)
+
+	})
+
 	t.Run("ForceRun", func(t *testing.T) {
 		t.Parallel()
 
@@ -1036,7 +1115,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatal(err)
 		}
 
-		requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make a run.
+		requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make a run.
 
 		// Create two runs.
 		rc1, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
@@ -1345,7 +1424,7 @@ func testRunStorage(t *testing.T, sys *System) {
 		t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
 	}
 
-	requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make two runs.
+	requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make two runs.
 
 	rc0, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
@@ -1519,7 +1598,7 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 		t.Errorf("expected retrying run that doesn't exist to return %v, got %v", influxdb.ErrRunNotFound, err)
 	}
 
-	requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make a run.
+	requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make a run.
 
 	rc, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
@@ -1581,7 +1660,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make two runs.
+	requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make two runs.
 
 	rc0, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {

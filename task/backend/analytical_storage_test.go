@@ -12,12 +12,12 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
-	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	stdlib "github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
@@ -78,6 +78,7 @@ func TestAnalyticalStore(t *testing.T) {
 					UserResourceMappingService: ts.UserResourceMappingService,
 					AuthorizationService:       authSvc,
 					Ctx:                        authCtx,
+					CallFinishRun:              true,
 				}, func() {
 					cancelFunc()
 					ab.Close(t)
