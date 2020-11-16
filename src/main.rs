@@ -187,7 +187,7 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
             match commands::write_buffer_server::main().await {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {
-                    error!("Server shutdown with error: {:?}", e);
+                    error!("Server shutdown with error: {}", e);
                     std::process::exit(ReturnCode::ServerExitedAbnormally as _);
                 }
             }

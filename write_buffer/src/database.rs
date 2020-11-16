@@ -17,10 +17,13 @@ use crate::column::Column;
 use crate::partition::Partition;
 use crate::{partition::PartitionPredicate, table::Table};
 
-use std::collections::{BTreeSet, HashSet};
 use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::{
+    collections::{BTreeSet, HashSet},
+    path::Path,
+};
 
 use arrow_deps::{
     arrow,
@@ -273,7 +276,7 @@ impl Db {
 
     /// Create a new DB and initially restore pre-existing data in the
     /// Write Ahead Log (WAL) directory `wal_dir`
-    pub async fn restore_from_wal(wal_dir: PathBuf) -> Result<Self> {
+    pub async fn restore_from_wal(wal_dir: &Path) -> Result<Self> {
         let now = std::time::Instant::now();
         let name = wal_dir
             .iter()
@@ -283,7 +286,7 @@ impl Db {
             .with_context(|| OpenDb { dir: &wal_dir })?
             .to_string();
 
-        let wal_builder = WalBuilder::new(wal_dir.clone());
+        let wal_builder = WalBuilder::new(wal_dir);
         let wal_details = start_wal_sync_task(wal_builder.clone())
             .await
             .context(OpeningWal { database: &name })?;
@@ -1322,7 +1325,7 @@ mod tests {
 
         // check that it recovers from the wal
         {
-            let db = Db::restore_from_wal(dir).await?;
+            let db = Db::restore_from_wal(&dir).await?;
 
             let partitions = db.table_to_arrow("cpu", cpu_columns).await?;
             assert_table_eq(expected_cpu_table, &partitions);
