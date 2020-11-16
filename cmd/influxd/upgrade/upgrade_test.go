@@ -33,6 +33,8 @@ func TestPathValidations(t *testing.T) {
 		dbDir:      v1Dir,
 		configFile: "",
 	}
+	sourceOpts.populateDirs()
+
 	targetOpts := &optionsV2{
 		boltPath:       boltPath,
 		cliConfigsPath: configsPath,

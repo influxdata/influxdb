@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -61,12 +62,54 @@ var configValueTransforms = map[string]func(interface{}) interface{}{
 	},
 }
 
-func translateV1ConfigPath(configFile string) string {
-	return filepath.Join(filepath.Dir(configFile), "config.toml")
+func loadV1Config(configFile string) (*configV1, *map[string]interface{}, error) {
+	_, err := os.Stat(configFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("1.x config file '%s' does not exist", configFile)
+	}
+
+	// load 1.x config content into byte array
+	bs, err := load(configFile)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// parse it into simplified v1 config used as return value
+	var configV1 configV1
+	_, err = toml.Decode(string(bs), &configV1)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// parse into a generic config map
+	var cAny map[string]interface{}
+	_, err = toml.Decode(string(bs), &cAny)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &configV1, &cAny, nil
 }
 
-// upgradeConfig upgrades existing 1.x (ie. typically influxdb.conf) configuration file to 2.x influxdb.toml file.
-func upgradeConfig(configFile string, targetOptions optionsV2, log *zap.Logger) (*configV1, error) {
+func load(path string) ([]byte, error) {
+	bs, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// From master-1.x/cmd/influxd/run/config.go:
+	// Handle any potential Byte-Order-Marks that may be in the config file.
+	// This is for Windows compatibility only.
+	// See https://github.com/influxdata/telegraf/issues/1378 and
+	// https://github.com/influxdata/influxdb/issues/8965.
+	bom := unicode.BOMOverride(transform.Nop)
+	bs, _, err = transform.Bytes(bom, bs)
+
+	return bs, err
+}
+
+// upgradeConfig upgrades existing 1.x configuration file to 2.x influxdb.toml file.
+func upgradeConfig(v1Config map[string]interface{}, targetOptions optionsV2, log *zap.Logger) (string, error) {
 	// create and initialize helper
 	cu := &configUpgrader{
 		rules:           configMapRules,
@@ -74,47 +117,17 @@ func upgradeConfig(configFile string, targetOptions optionsV2, log *zap.Logger) 
 		log:             log,
 	}
 
-	// load 1.x config content into byte array
-	bs, err := cu.load(configFile)
-	if err != nil {
-		return nil, err
-	}
-
-	// parse it into simplified v1 config used as return value
-	var configV1 configV1
-	_, err = toml.Decode(string(bs), &configV1)
-	if err != nil {
-		return nil, err
-	}
-
-	// parse into a generic config map
-	var cAny map[string]interface{}
-	_, err = toml.Decode(string(bs), &cAny)
-	if err != nil {
-		return nil, err
-	}
-
-	// transform the config according to rules
-	cTransformed := cu.transform(cAny)
-	if err != nil {
-		return nil, err
-	}
+	cTransformed := cu.transform(v1Config)
 
 	// update new config with upgrade command options
 	cu.updateV2Config(cTransformed, targetOptions)
 
-	// save new config
-	configFileV2 := translateV1ConfigPath(configFile)
-	configFileV2, err = cu.save(cTransformed, configFileV2)
+	configFileV2, err := cu.save(cTransformed, targetOptions.configPath)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	log.Info("Config file upgraded.",
-		zap.String("1.x config", configFile),
-		zap.String("2.x config", configFileV2))
-
-	return &configV1, nil
+	return configFileV2, nil
 }
 
 // configUpgrader is a helper used by `upgrade-config` command.
@@ -131,23 +144,6 @@ func (cu *configUpgrader) updateV2Config(config map[string]interface{}, targetOp
 	if targetOptions.boltPath != "" {
 		config["bolt-path"] = targetOptions.boltPath
 	}
-}
-
-func (cu *configUpgrader) load(path string) ([]byte, error) {
-	bs, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	// From master-1.x/cmd/influxd/run/config.go:
-	// Handle any potential Byte-Order-Marks that may be in the config file.
-	// This is for Windows compatibility only.
-	// See https://github.com/influxdata/telegraf/issues/1378 and
-	// https://github.com/influxdata/influxdb/issues/8965.
-	bom := unicode.BOMOverride(transform.Nop)
-	bs, _, err = transform.Bytes(bom, bs)
-
-	return bs, err
 }
 
 func (cu *configUpgrader) save(config map[string]interface{}, path string) (string, error) {
