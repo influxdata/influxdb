@@ -11,8 +11,10 @@ import (
 
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	influxhttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/tenant"
 )
 
 type ClientConfig struct {
@@ -31,6 +33,11 @@ type ClientConfig struct {
 type Client struct {
 	Client *httpc.Client
 	*influxhttp.Service
+
+	*authorization.AuthorizationClientService
+	*tenant.BucketClientService
+	*tenant.OrgClientService
+	*tenant.UserClientService
 
 	ClientConfig
 }
@@ -52,9 +59,13 @@ func NewClient(endpoint string, config ClientConfig) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		Client:       hc,
-		Service:      svc,
-		ClientConfig: config,
+		Client:                     hc,
+		Service:                    svc,
+		AuthorizationClientService: &authorization.AuthorizationClientService{Client: hc},
+		BucketClientService:        &tenant.BucketClientService{Client: hc},
+		OrgClientService:           &tenant.OrgClientService{Client: hc},
+		UserClientService:          &tenant.UserClientService{Client: hc},
+		ClientConfig:               config,
 	}, nil
 }
 
@@ -184,27 +195,6 @@ func (c *Client) MustCreateLabel(t *testing.T) influxdb.ID {
 		t.Fatalf("unable to create label: %v", err)
 	}
 	return l.ID
-}
-
-// MustCreateDocument creates a document or is a fatal error.
-// Used in tests where the content of the document does not matter.
-func (c *Client) MustCreateDocument(t *testing.T) influxdb.ID {
-	t.Helper()
-
-	d := &influxdb.Document{
-		ID: influxdb.ID(12123434),
-		Meta: influxdb.DocumentMeta{
-			Name: "n1",
-			Type: "t1",
-		},
-		Content: "howdy",
-	}
-
-	err := c.CreateDocument(context.Background(), c.DocumentsNamespace, c.OrgID, d)
-	if err != nil {
-		t.Fatalf("unable to create document: %v", err)
-	}
-	return d.ID
 }
 
 // MustCreateCheck creates a check or is a fatal error.
@@ -372,8 +362,6 @@ func (c *Client) MustCreateResource(t *testing.T, r influxdb.ResourceType) influ
 		return c.MustCreateLabel(t)
 	case influxdb.ViewsResourceType: // 12
 		t.Skip("Are views still a thing?")
-	case influxdb.DocumentsResourceType: // 13
-		return c.MustCreateDocument(t)
 	case influxdb.NotificationRuleResourceType: // 14
 		return c.MustCreateNotificationRule(t)
 	case influxdb.NotificationEndpointResourceType: // 15
@@ -416,8 +404,6 @@ func (c *Client) DeleteResource(t *testing.T, r influxdb.ResourceType, id influx
 		return c.DeleteLabel(ctx, id)
 	case influxdb.ViewsResourceType: // 12
 		t.Skip("Are views still a thing?")
-	case influxdb.DocumentsResourceType: // 13
-		return c.DeleteDocument(ctx, c.DocumentsNamespace, id)
 	case influxdb.NotificationRuleResourceType: // 14
 		return c.DeleteNotificationRule(ctx, id)
 	case influxdb.NotificationEndpointResourceType: // 15
@@ -514,14 +500,6 @@ func (c *Client) FindAll(t *testing.T, r influxdb.ResourceType) ([]influxdb.ID, 
 		}
 	case influxdb.ViewsResourceType: // 12
 		t.Skip("Are views still a thing?")
-	case influxdb.DocumentsResourceType: // 13
-		rs, err := c.GetDocuments(ctx, c.DocumentsNamespace, c.OrgID)
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range rs {
-			ids = append(ids, r.ID)
-		}
 	case influxdb.NotificationRuleResourceType: // 14
 		rs, _, err := c.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{OrgID: &c.OrgID})
 		if err != nil {
