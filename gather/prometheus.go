@@ -2,6 +2,7 @@ package gather
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"math"
@@ -21,7 +22,11 @@ type prometheusScraper struct{}
 
 // Gather parse metrics from a scraper target url.
 func (p *prometheusScraper) Gather(ctx context.Context, target influxdb.ScraperTarget) (collected MetricsCollection, err error) {
-	resp, err := http.Get(target.URL)
+	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: target.AllowInsecure}
+	client := &http.Client{Transport: customTransport}
+
+	resp, err := client.Get(target.URL)
 	if err != nil {
 		return collected, err
 	}
