@@ -195,7 +195,7 @@ impl Plain {
                         any(target_arch = "x86", target_arch = "x86_64"),
                         target_feature = "avx2"
                     ))]
-                    return self.row_ids_equal_simd(encoded_id, op, dst);
+                    return self.row_ids_equal_simd(encoded_id, dst);
 
                     #[cfg(any(
                         not(any(target_arch = "x86", target_arch = "x86_64")),
@@ -258,8 +258,7 @@ impl Plain {
     //
     // For cases where one or more of the eight values does match the encoded
     // id the exact matching row(s) is/are determined by examining the register.
-    #[allow(clippy::cast_ptr_alignment)]
-    fn row_ids_equal_simd(&self, encoded_id: u32, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
+    fn row_ids_equal_simd(&self, encoded_id: u32, mut dst: RowIDs) -> RowIDs {
         unsafe {
             // Pack an 8-lane register containing the encoded id we want to find.
             let id_register = _mm256_set1_epi32(encoded_id as i32);
