@@ -6,6 +6,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
@@ -62,10 +63,6 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 		return nil, fmt.Errorf("error opening file for CQ export %s: %w", v2opts.cqPath, err)
 	}
 	defer cqFile.Close()
-	_, err = cqFile.WriteString("database\tname\tquery\n")
-	if err != nil {
-		return nil, fmt.Errorf("error writing CQ export header: %w", err)
-	}
 
 	log.Info("Upgrading databases")
 	// read each database / retention policy from v1.meta and create bucket db-name/rp-name
@@ -188,14 +185,39 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 			}
 		}
 
+		// Output CQs in the same format as SHOW CONTINUOUS QUERIES
+		_, err := cqFile.WriteString(fmt.Sprintf("name: %s\n", db.Name))
+		if err != nil {
+			return nil, err
+		}
+		maxNameLen := 4 // 4 == len("name"), the column header
+		for _, cq := range db.ContinuousQueries {
+			if len(cq.Name) > maxNameLen {
+				maxNameLen = len(cq.Name)
+			}
+		}
+
+		headerPadding := maxNameLen - 4 + 1
+		_, err = cqFile.WriteString(fmt.Sprintf("name%squery\n", strings.Repeat(" ", headerPadding)))
+		if err != nil {
+			return nil, err
+		}
+		_, err = cqFile.WriteString(fmt.Sprintf("----%s-----\n", strings.Repeat(" ", headerPadding)))
+
 		for _, cq := range db.ContinuousQueries {
 			if options.verbose {
 				log.Info("Exporting CQ", zap.String("db", db.Name), zap.String("cq_name", cq.Name))
 			}
-			_, err := cqFile.WriteString(fmt.Sprintf("%s\t%s\t%s\n", db.Name, cq.Name, cq.Query))
+			padding := maxNameLen - len(cq.Name) + 1
+
+			_, err := cqFile.WriteString(fmt.Sprintf("%s%s%s\n", cq.Name, strings.Repeat(" ", padding), cq.Query))
 			if err != nil {
 				return nil, fmt.Errorf("error exporting continuous query %s from DB %s: %w", cq.Name, db.Name, err)
 			}
+		}
+		_, err = cqFile.WriteString("\n")
+		if err != nil {
+			return nil, err
 		}
 	}
 
