@@ -1953,7 +1953,7 @@ func (e *Engine) WriteSnapshot() (err error) {
 // in-memory cache data when a previous snapshot is in progress
 func (e *Engine) CreateSnapshot(skipCacheOk bool) (string, error) {
 	err := e.WriteSnapshot()
-	for i := 0; (i < 3) && (err == ErrSnapshotInProgress) ; i += 1 {
+	for i := 0; (i < 3) && (err == ErrSnapshotInProgress); i += 1 {
 		backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
 		time.Sleep(backoff)
 		err = e.WriteSnapshot()
