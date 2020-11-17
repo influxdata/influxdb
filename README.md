@@ -7,7 +7,7 @@ InfluxDB IOx aims to be:
 
 * The future core of InfluxDB; supporting industry standard SQL, InfluxQL, and Flux
 * An in-memory columnar store using object storage for persistence
-* An fast analytic database for structured and semi-structured events (like logs and tracing data)
+* A fast analytic database for structured and semi-structured events (like logs and tracing data)
 * A system for defining replication (synchronous, asynchronous, push and pull) and partitioning rules for InfluxDB time series data and tabular analytics data
 * A system supporting real-time subscriptions
 * A processor that can transform and do arbitrary computation on time series and event data as it arrives
