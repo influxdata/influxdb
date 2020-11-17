@@ -18,12 +18,13 @@ const (
 
 // ScraperTarget is a target to scrape
 type ScraperTarget struct {
-	ID       ID          `json:"id,omitempty"`
-	Name     string      `json:"name"`
-	Type     ScraperType `json:"type"`
-	URL      string      `json:"url"`
-	OrgID    ID          `json:"orgID,omitempty"`
-	BucketID ID          `json:"bucketID,omitempty"`
+	ID            ID          `json:"id,omitempty"`
+	Name          string      `json:"name"`
+	Type          ScraperType `json:"type"`
+	URL           string      `json:"url"`
+	OrgID         ID          `json:"orgID,omitempty"`
+	BucketID      ID          `json:"bucketID,omitempty"`
+	AllowInsecure bool        `json:"allowInsecure,omitempty"`
 }
 
 // ScraperTargetStoreService defines the crud service for ScraperTarget.
