@@ -68,9 +68,9 @@ impl Plain {
             .entries
             .iter()
             .map(|k| match k {
-                Some(v) => size_of::<String>() + v.len(),
+                Some(v) =>  v.len(),
                 None => 0,
-            })
+            } + size_of::<Option<String>>())
             .sum::<usize>();
 
         let entries_size = size_of::<Vec<Option<String>>>() + decoded_keys_size;
@@ -692,9 +692,9 @@ impl<'a> From<Vec<String>> for Plain {
     fn from(vec: Vec<String>) -> Self {
         let mut enc = Self::default();
         for v in vec {
-            drle.push(v);
+            enc.push(v);
         }
-        drle
+        enc
     }
 }
 
@@ -782,14 +782,29 @@ mod test {
         // keys - 14 bytes.
 
         // 3 string entries in dictionary
-        // entries is 24 + (24*3) + 14 == 110
+        // entries is 24 + (24*4) + 14 == 134
 
         // 15 rows.
         // encoded ids is 24 + (4 * 15) == 84
 
-        // 38 + 84 + 1 == 195
+        // 134 + 84 + 1 == 219
 
-        assert_eq!(enc.size(), 195);
+        assert_eq!(enc.size(), 219);
+
+        // check dictionary
+        assert_eq!(
+            enc.entries,
+            vec![
+                None,
+                Some("east".to_string()),
+                Some("north".to_string()),
+                Some("south".to_string())
+            ]
+        );
+        assert_eq!(
+            enc.encoded_data,
+            vec![1, 1, 1, 2, 1, 1, 1, 1, 1, 3, 3, NULL_ID, NULL_ID, NULL_ID, NULL_ID]
+        );
     }
 
     #[test]
