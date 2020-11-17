@@ -4,16 +4,19 @@
 
 1. [20036](https://github.com/influxdata/influxdb/pull/20036): Warn if V1 users are upgraded, but V1 auth wasn't enabled
 1. [20039](https://github.com/influxdata/influxdb/pull/20039): Export 1.x CQs as part of `influxd upgrade`
+1. [20053](https://github.com/influxdata/influxdb/pull/20053): Upgrade Flux to v0.95.0
 
 ### Bug Fixes
 
+1. [19964](https://github.com/influxdata/influxdb/pull/19964): Add locking during TSI iteration creation
 1. [19987](https://github.com/influxdata/influxdb/pull/19987): Fix various typos. Thanks @kumakichi!
 1. [19991](https://github.com/influxdata/influxdb/pull/19991): Use --skip-verify flag for backup/restore CLI command.
 1. [19995](https://github.com/influxdata/influxdb/pull/19995): Don't auto-print help on influxd errors
 1. [20012](https://github.com/influxdata/influxdb/pull/20012): Validate input paths to `influxd upgrade` up-front
+1. [20015](https://github.com/influxdata/influxdb/pull/20015): Add SameSite=Strict flag to session cookie
 1. [20017](https://github.com/influxdata/influxdb/pull/20017): Don't include duplicates for SHOW DATABASES
-1. [20064](https://github.com/influxdata/influxdb/pull/20064): Ensure Flux reads across all shards.
 1. [20047](https://github.com/influxdata/influxdb/pull/20047): Allow scraper to ignore insecure certificates on a target. Thanks @cmackenzie1!
+1. [20064](https://github.com/influxdata/influxdb/pull/20064): Ensure Flux reads across all shards.
 
 ## v2.0.1 [2020-11-10]
 
