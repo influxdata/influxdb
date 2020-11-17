@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	DefaultPageSize = 20
-	MaxPageSize     = 100
+	// TODO(docmerlin): change this when pagination is fixed
+	DefaultPageSize = 2000
+	MaxPageSize     = 2000
 )
 
 // PagingFilter represents a filter containing url query params.
