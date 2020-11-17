@@ -55,6 +55,8 @@ type ReadTagValuesSpec struct {
 	TagKey string
 }
 
+// Window and the WindowEvery/Offset should be mutually exclusive. If you set either the WindowEvery or Offset with
+// nanosecond values, then the Window will be ignored
 type ReadWindowAggregateSpec struct {
 	ReadFilterSpec
 	WindowEvery int64
