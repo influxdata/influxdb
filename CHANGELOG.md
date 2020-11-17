@@ -2,10 +2,11 @@
 
 ### Features
 
-1. [20036](https://github.com/influxdata/influxdb/pull/20036): Warn if V1 users are upgraded, but V1 auth wasn't enabled
-1. [20039](https://github.com/influxdata/influxdb/pull/20039): Export 1.x CQs as part of `influxd upgrade`
-1. [20053](https://github.com/influxdata/influxdb/pull/20053): Upgrade Flux to v0.95.0
-1. [20067](https://github.com/influxdata/influxdb/pull/20067): Add DBRP CLI commands as `influx v1 dbrp`
+1. [20036](https://github.com/influxdata/influxdb/pull/20036): Warn if V1 users are upgraded, but V1 auth wasn't enabled.
+1. [20039](https://github.com/influxdata/influxdb/pull/20039): Export 1.x CQs as part of `influxd upgrade`.
+1. [20053](https://github.com/influxdata/influxdb/pull/20053): Upgrade Flux to v0.95.0.
+1. [20067](https://github.com/influxdata/influxdb/pull/20067): Add DBRP CLI commands as `influx v1 dbrp`.
+1. [20083](https://github.com/influxdata/influxdb/pull/20083): Increased the API DefaultPageSize and MaxPageSize to 2000.
 
 ### Bug Fixes
 
