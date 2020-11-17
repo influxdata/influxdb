@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/influxdata/influxdb/v2"
@@ -35,7 +36,7 @@ var v1DBRPCRUDFlags struct {
 var v1DBRPFindFlags struct {
 	BucketID string       // Specifies the bucket ID to filter on
 	DB       string       // Specifies the database to filter on
-	Default  bool         // Specifies filtering on default
+	Default  *bool        // Specifies filtering on default
 	ID       string       // Specifies the mapping ID to filter on
 	Org      organization // required  // Specifies the organization ID to filter on
 	RP       string       // Specifies the retention policy to filter on
@@ -53,16 +54,25 @@ func v1DBRPFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	v1DBRPFindFlags.Org.register(opt.viper, cmd, false)
 	cmd.Flags().StringVarP(&v1DBRPCreateFlags.BucketID, "bucket-id", "b", "", "the bucket ID to filter on")
 	cmd.Flags().StringVarP(&v1DBRPCreateFlags.DB, "db", "d", "", "the v1 database to map from")
-	cmd.Flags().BoolVar(&v1DBRPCreateFlags.Default, "default", false, "Specify if this mapping represents the default retention policy for the database specificed")
 	cmd.Flags().StringVarP(&v1DBRPCreateFlags.RP, "rp", "r", "", "InfluxDB v1 retention policy")
+	cmd.Flags().Bool("default", false, "Specify if this mapping represents the default retention policy for the database specificed (only set if explicitly specified)")
 
 	return cmd
 }
 
 func v1DBRPFindF(cmd *cobra.Command, args []string) error {
+
 	if err := v1DBRPFindFlags.Org.validOrgFlags(&flags); err != nil {
 		return err
 	}
+	if defaultFlg := cmd.Flags().Lookup("default"); defaultFlg.Changed {
+		defaultBool, err := cmd.Flags().GetBool("default")
+		if err != nil {
+			return err
+		}
+		v1DBRPFindFlags.Default = &defaultBool
+	}
+
 	orgSvc, err := newOrganizationService()
 	if err != nil {
 		return err
@@ -107,6 +117,10 @@ func v1DBRPFindF(cmd *cobra.Command, args []string) error {
 		filter.RetentionPolicy = &v1DBRPFindFlags.RP
 	}
 
+	if v1DBRPFindFlags.Default != nil {
+		fmt.Println("here")
+		filter.Default = v1DBRPFindFlags.Default
+	}
 	dbrps, _, err := s.FindMany(context.Background(), filter, influxdb.FindOptions{})
 	if err != nil {
 		return err
@@ -323,7 +337,10 @@ func v1DBRPUpdateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if defaultFlg := cmd.Flags().Lookup("default"); defaultFlg.Changed {
-		defaultBool, _ := cmd.Flags().GetBool("default")
+		defaultBool, err := cmd.Flags().GetBool("default")
+		if err != nil {
+			return err
+		}
 		v1DBRPUpdateFlags.Default = &defaultBool
 	}
 
