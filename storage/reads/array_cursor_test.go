@@ -1,14 +1,19 @@
 package reads
 
 import (
+	"context"
 	"math"
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIntegerFilterArrayCursor(t *testing.T) {
@@ -2150,6 +2155,81 @@ func TestWindowMeanArrayCursor(t *testing.T) {
 		}
 		tc.run(t)
 	}
+}
+
+// This test replicates GitHub issue
+// https://github.com/influxdata/influxdb/issues/20035
+func TestMultiShardArrayCursor(t *testing.T) {
+	t.Run("should drain all CursorIterators", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		var (
+			emptyArray      = cursors.NewIntegerArrayLen(0)
+			oneElementArray = cursors.NewIntegerArrayLen(1)
+			iter            cursors.CursorIterators
+		)
+
+		{
+			mc := mock.NewMockIntegerArrayCursor(ctrl)
+			mc.EXPECT().
+				Next().
+				Return(oneElementArray)
+			mc.EXPECT().
+				Next().
+				Return(emptyArray)
+			mc.EXPECT().
+				Close()
+
+			ci := mock.NewMockCursorIterator(ctrl)
+			ci.EXPECT().
+				Next(gomock.Any(), gomock.Any()).
+				Return(mc, nil)
+			iter = append(iter, ci)
+		}
+
+		// return an empty cursor, which should be skipped
+		{
+			ci := mock.NewMockCursorIterator(ctrl)
+			ci.EXPECT().
+				Next(gomock.Any(), gomock.Any()).
+				Return(nil, nil)
+			iter = append(iter, ci)
+		}
+		{
+			mc := mock.NewMockIntegerArrayCursor(ctrl)
+			mc.EXPECT().
+				Next().
+				Return(oneElementArray)
+			mc.EXPECT().
+				Next().
+				Return(emptyArray)
+
+			ci := mock.NewMockCursorIterator(ctrl)
+			ci.EXPECT().
+				Next(gomock.Any(), gomock.Any()).
+				Return(mc, nil)
+			iter = append(iter, ci)
+		}
+
+		row := SeriesRow{Query: iter}
+		ctx := context.Background()
+		msac := newMultiShardArrayCursors(ctx, models.MinNanoTime, models.MaxNanoTime, true)
+		cur, ok := msac.createCursor(row).(cursors.IntegerArrayCursor)
+		require.Truef(t, ok, "Expected IntegerArrayCursor")
+
+		ia := cur.Next()
+		require.NotNil(t, ia)
+		require.Equal(t, 1, ia.Len())
+
+		ia = cur.Next()
+		require.NotNil(t, ia)
+		require.Equal(t, 1, ia.Len())
+
+		ia = cur.Next()
+		require.NotNil(t, ia)
+		require.Equal(t, 0, ia.Len())
+	})
 }
 
 type MockExpression struct {
