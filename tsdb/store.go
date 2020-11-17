@@ -675,13 +675,13 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 
 // CreateShardSnapShot will create a hard link to the underlying shard and return a path.
 // The caller is responsible for cleaning up (removing) the file path returned.
-func (s *Store) CreateShardSnapshot(id uint64) (string, error) {
+func (s *Store) CreateShardSnapshot(id uint64, skipCacheOk bool) (string, error) {
 	sh := s.Shard(id)
 	if sh == nil {
 		return "", ErrShardNotFound
 	}
 
-	return sh.CreateSnapshot()
+	return sh.CreateSnapshot(skipCacheOk)
 }
 
 // SetShardEnabled enables or disables a shard for read and writes.
