@@ -12,6 +12,7 @@
 1. [19995](https://github.com/influxdata/influxdb/pull/19995): Don't auto-print help on influxd errors
 1. [20012](https://github.com/influxdata/influxdb/pull/20012): Validate input paths to `influxd upgrade` up-front
 1. [20017](https://github.com/influxdata/influxdb/pull/20017): Don't include duplicates for SHOW DATABASES
+1. [20064](https://github.com/influxdata/influxdb/pull/20064): Ensure Flux reads across all shards.
 
 ## v2.0.1 [2020-11-10]
 
