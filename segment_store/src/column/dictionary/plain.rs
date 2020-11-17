@@ -690,7 +690,7 @@ impl<'a> From<Vec<&str>> for Plain {
 
 impl<'a> From<Vec<String>> for Plain {
     fn from(vec: Vec<String>) -> Self {
-        let mut drle = Self::default();
+        let mut enc = Self::default();
         for v in vec {
             drle.push(v);
         }
