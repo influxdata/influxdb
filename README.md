@@ -1,6 +1,28 @@
 # InfluxDB IOx
 
-TODO: Blog post summary here
+InfluxDB IOx (short for Iron Oxide, pronounced InfluxDB "eye-ox") is the future core of InfluxDB. 
+The name is in homage to Rust, the language this project is written in. 
+It is built using [Apache Arrow](https://arrow.apache.org/) and [DataFusion](https://arrow.apache.org/blog/2019/02/04/datafusion-donation/) among other things. 
+InfluxDB IOx aims to be:
+
+* The future core of InfluxDB; supporting industry standard SQL, InfluxQL, and Flux
+* An in-memory columnar store using object storage for persistence
+* An fast analytic database for structured and semi-structured events (like logs and tracing data)
+* A system for defining replication (synchronous, asynchronous, push and pull) and partitioning rules for InfluxDB time series data and tabular analytics data
+* A system supporting real-time subscriptions
+* A processor that can transform and do arbitrary computation on time series and event data as it arrives
+* An analytic database built for data science, supporting Apache Arrow Flight for fast data transfer
+
+Persistence is through Parquet files in object storage. 
+It is a design goal to support integration with other big data systems through object storage and Parquet specifically. 
+For more details on the motivation behind the project and some of our goals, read through the [InfluxDB IOx announcement blog post](https://www.influxdata.com/blog/announcing-influxdb-iox/). 
+For more details on the motivation behind the selection of [Apache Arrow, Flight and Parquet, read this](https://www.influxdata.com/blog/apache-arrow-parquet-flight-and-their-ecosystem-are-a-game-changer-for-olap/).
+
+## Project Status
+
+This project is very early and in active development. It isn't yet ready for testing, which is why we're not producing builds or documentation yet. If you're interested in following along with the project, drop into our community Slack channel #influxdb_iox. You can find [links to join here](https://community.influxdata.com/).
+
+We're also hosting monthly tech talks and community office hours on the project on the 2nd Wednesday of the month at 8:30 AM Pacific Time. The first [InfluxDB IOx Tech Talk is on December 9th and you can find details here](https://www.influxdata.com/community-showcase/influxdb-tech-talks/).
 
 ## Quick Start
 
