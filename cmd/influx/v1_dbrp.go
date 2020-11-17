@@ -118,7 +118,6 @@ func v1DBRPFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	if v1DBRPFindFlags.Default != nil {
-		fmt.Println("here")
 		filter.Default = v1DBRPFindFlags.Default
 	}
 	dbrps, _, err := s.FindMany(context.Background(), filter, influxdb.FindOptions{})
