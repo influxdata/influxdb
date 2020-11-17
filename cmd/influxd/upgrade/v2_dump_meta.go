@@ -15,9 +15,10 @@ import (
 )
 
 var v2DumpMetaCommand = &cobra.Command{
-	Use:   "v2-dump-meta",
-	Short: "Dump InfluxDB 2.x influxd.bolt",
-	Args:  cobra.NoArgs,
+	Use:    "v2-dump-meta",
+	Short:  "Dump InfluxDB 2.x influxd.bolt",
+	Args:   cobra.NoArgs,
+	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fluxinit.FluxInit()
 		ctx := context.Background()

@@ -11,9 +11,10 @@ import (
 )
 
 var v1DumpMetaCommand = &cobra.Command{
-	Use:   "v1-dump-meta",
-	Short: "Dump InfluxDB 1.x meta.db",
-	Args:  cobra.NoArgs,
+	Use:    "v1-dump-meta",
+	Short:  "Dump InfluxDB 1.x meta.db",
+	Args:   cobra.NoArgs,
+	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fluxinit.FluxInit()
 		svc, err := newInfluxDBv1(&v1DumpMetaOptions)
