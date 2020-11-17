@@ -25,7 +25,7 @@ import (
 
 var generator = snowflake.NewDefaultIDGenerator()
 
-func TestWriteHandler_BucketAndMappingExists(t *testing.T) {
+func TestWriteHandler_BucketAndMappingExistsDefaultRP(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -50,6 +50,7 @@ func TestWriteHandler_BucketAndMappingExists(t *testing.T) {
 			BucketID:        bucket.ID,
 			Database:        "mydb",
 			RetentionPolicy: "autogen",
+			Default:         true,
 		}
 
 		lineProtocolBody = "m,t1=v1 f1=2 100"
@@ -60,6 +61,7 @@ func TestWriteHandler_BucketAndMappingExists(t *testing.T) {
 		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
 			OrgID:    &mapping.OrganizationID,
 			Database: &mapping.Database,
+			Default:  &mapping.Default,
 		}).Return([]*influxdb.DBRPMappingV2{mapping}, 1, nil)
 
 	findBucketByID := bucketService.
@@ -104,6 +106,87 @@ func TestWriteHandler_BucketAndMappingExists(t *testing.T) {
 	assert.Equal(t, "", w.Body.String())
 }
 
+func TestWriteHandler_BucketAndMappingExistsSpecificRP(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		// Mocked Services
+		eventRecorder  = mocks.NewMockEventRecorder(ctrl)
+		dbrpMappingSvc = mocks.NewMockDBRPMappingServiceV2(ctrl)
+		bucketService  = mocks.NewMockBucketService(ctrl)
+		pointsWriter   = mocks.NewMockPointsWriter(ctrl)
+
+		// Found Resources
+		orgID  = generator.ID()
+		bucket = &influxdb.Bucket{
+			ID:                  generator.ID(),
+			OrgID:               orgID,
+			Name:                "mydb/autogen",
+			RetentionPolicyName: "autogen",
+			RetentionPeriod:     72 * time.Hour,
+		}
+		mapping = &influxdb.DBRPMappingV2{
+			OrganizationID:  orgID,
+			BucketID:        bucket.ID,
+			Database:        "mydb",
+			RetentionPolicy: "autogen",
+			Default:         true,
+		}
+
+		lineProtocolBody = "m,t1=v1 f1=2 100"
+	)
+
+	findAutogenMapping := dbrpMappingSvc.
+		EXPECT().
+		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
+			OrgID:           &mapping.OrganizationID,
+			Database:        &mapping.Database,
+			RetentionPolicy: &mapping.RetentionPolicy,
+		}).Return([]*influxdb.DBRPMappingV2{mapping}, 1, nil)
+
+	findBucketByID := bucketService.
+		EXPECT().
+		FindBucketByID(gomock.Any(), bucket.ID).Return(bucket, nil)
+
+	points := parseLineProtocol(t, lineProtocolBody)
+	writePoints := pointsWriter.
+		EXPECT().
+		WritePoints(gomock.Any(), orgID, bucket.ID, pointsMatcher{points}).Return(nil)
+
+	recordWriteEvent := eventRecorder.EXPECT().
+		Record(gomock.Any(), gomock.Any())
+
+	gomock.InOrder(
+		findAutogenMapping,
+		findBucketByID,
+		writePoints,
+		recordWriteEvent,
+	)
+
+	perms := newPermissions(influxdb.WriteAction, influxdb.BucketsResourceType, &orgID, nil)
+	auth := newAuthorization(orgID, perms...)
+	ctx := pcontext.SetAuthorizer(context.Background(), auth)
+	r := newWriteRequest(ctx, lineProtocolBody)
+	params := r.URL.Query()
+	params.Set("db", "mydb")
+	params.Set("rp", "autogen")
+	r.URL.RawQuery = params.Encode()
+
+	handler := NewWriterHandler(&PointsWriterBackend{
+		HTTPErrorHandler:   DefaultErrorHandler,
+		Logger:             zaptest.NewLogger(t),
+		BucketService:      bucketService,
+		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
+		PointsWriter:       pointsWriter,
+		EventRecorder:      eventRecorder,
+	})
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Equal(t, "", w.Body.String())
+}
+
 func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -129,6 +212,7 @@ func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {
 			BucketID:        bucket.ID,
 			Database:        "mydb",
 			RetentionPolicy: "autogen",
+			Default:         true,
 		}
 
 		lineProtocolBody = "m,t1=v1 f1=2 100"
@@ -139,6 +223,7 @@ func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {
 		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
 			OrgID:    &mapping.OrganizationID,
 			Database: &mapping.Database,
+			Default:  &mapping.Default,
 		}).Return([]*influxdb.DBRPMappingV2{mapping}, 1, nil)
 
 	findBucketByID := bucketService.
@@ -205,13 +290,15 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 		}
 
 		lineProtocolBody = "m,t1=v1 f1=2 100"
+		badRp            = "foo"
 	)
 
 	findAutogenMapping := dbrpMappingSvc.
 		EXPECT().
 		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
-			OrgID:    &mapping.OrganizationID,
-			Database: &mapping.Database,
+			OrgID:           &mapping.OrganizationID,
+			Database:        &mapping.Database,
+			RetentionPolicy: &badRp,
 		}).Return(nil, 0, dbrp.ErrDBRPNotFound)
 
 	recordWriteEvent := eventRecorder.EXPECT().
@@ -228,7 +315,7 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 	r := newWriteRequest(ctx, lineProtocolBody)
 	params := r.URL.Query()
 	params.Set("db", "mydb")
-	params.Set("rp", "")
+	params.Set("rp", badRp)
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
