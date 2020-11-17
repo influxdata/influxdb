@@ -79,10 +79,6 @@ func v1DBRPFindF(cmd *cobra.Command, args []string) error {
 	}
 	filter := influxdb.DBRPMappingFilterV2{OrgID: &orgID}
 
-	if err := filter.OrgID.DecodeFromString(orgID.String()); err != nil {
-		return err
-	}
-
 	if v1DBRPFindFlags.ID != "" {
 		fID, err := influxdb.IDFromString(v1DBRPFindFlags.ID)
 		if err != nil {
@@ -97,6 +93,18 @@ func v1DBRPFindF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		filter.BucketID = fID
+	}
+
+	if v1DBRPFindFlags.DB != "" {
+		fID, err := influxdb.IDFromString(v1DBRPFindFlags.BucketID)
+		if err != nil {
+			return err
+		}
+		filter.BucketID = fID
+	}
+
+	if v1DBRPFindFlags.RP != "" {
+		filter.RetentionPolicy = &v1DBRPFindFlags.RP
 	}
 
 	dbrps, _, err := s.FindMany(context.Background(), filter, influxdb.FindOptions{})
@@ -290,9 +298,8 @@ func v1DBRPDeleteF(cmd *cobra.Command, args []string) error {
 var v1DBRPUpdateFlags struct {
 	ID      string       // Specifies the mapping ID to filter on
 	Org     organization // required  // Specifies the organization ID to filter on
-	DB      string       //InfluxDB v1 database
-	Default *bool
-	RP      string // InfluxDB v1 retention policy
+	Default *bool        // pointer nil means that Default is unset in the Flags
+	RP      string       // InfluxDB v1 retention policy
 }
 
 func v1DBRPUpdateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -317,7 +324,6 @@ func v1DBRPUpdateF(cmd *cobra.Command, args []string) error {
 	}
 	if defaultFlg := cmd.Flags().Lookup("default"); defaultFlg.Changed {
 		defaultBool, _ := cmd.Flags().GetBool("default")
-		defaultBool = false
 		v1DBRPUpdateFlags.Default = &defaultBool
 	}
 

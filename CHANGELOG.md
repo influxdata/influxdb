@@ -4,6 +4,7 @@
 
 1. [20036](https://github.com/influxdata/influxdb/pull/20036): Warn if V1 users are upgraded, but V1 auth wasn't enabled
 1. [20039](https://github.com/influxdata/influxdb/pull/20039): Export 1.x CQs as part of `influxd upgrade`
+1. [20067](https://github.com/influxdata/influxdb/pull/20067): Add DBRP cli commands as `influxd v1 dbrp`
 
 ### Bug Fixes
 
