@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strconv"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -65,6 +66,9 @@ func (c *Client) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilter
 	}
 	if filter.RetentionPolicy != nil {
 		params = append(params, [2]string{"rp", *filter.RetentionPolicy})
+	}
+	if filter.Default != nil {
+		params = append(params, [2]string{"default", strconv.FormatBool(*filter.Default)})
 	}
 
 	var resp getDBRPsResponse
