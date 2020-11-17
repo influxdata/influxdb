@@ -5,7 +5,7 @@
 1. [19987](https://github.com/influxdata/influxdb/pull/19987): Fix various typos. Thanks @kumakichi!
 1. [19991](https://github.com/influxdata/influxdb/pull/19991): Use --skip-verify flag for backup/restore CLI command.
 1. [19995](https://github.com/influxdata/influxdb/pull/19995): Don't auto-print help on influxd errors
-1. [20047](https://github.com/influxdata/influxdb/pull/20047): Allow InsecureSkipVerify to be specified on ScraperTarget's
+1. [20047](https://github.com/influxdata/influxdb/pull/20047): Allow scraper to ignore insecure certificates on a target 
 
 ## v2.0.1 [2020-11-10]
 

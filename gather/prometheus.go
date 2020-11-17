@@ -18,15 +18,31 @@ import (
 
 // prometheusScraper handles parsing prometheus metrics.
 // implements Scraper interfaces.
-type prometheusScraper struct{}
+type prometheusScraper struct {
+	insecureHttp *http.Client
+}
+
+// newPrometheusScraper create a new prometheusScraper.
+func newPrometheusScraper() *prometheusScraper {
+	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	client := &http.Client{Transport: customTransport}
+
+	return &prometheusScraper{insecureHttp: client}
+}
 
 // Gather parse metrics from a scraper target url.
 func (p *prometheusScraper) Gather(ctx context.Context, target influxdb.ScraperTarget) (collected MetricsCollection, err error) {
-	customTransport := http.DefaultTransport.(*http.Transport).Clone()
-	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: target.AllowInsecure}
-	client := &http.Client{Transport: customTransport}
+	var (
+		resp *http.Response
+	)
 
-	resp, err := client.Get(target.URL)
+	if target.AllowInsecure {
+		resp, err = p.insecureHttp.Get(target.URL)
+	} else {
+		resp, err = http.Get(target.URL)
+	}
+
 	if err != nil {
 		return collected, err
 	}
