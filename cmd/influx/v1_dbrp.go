@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/influxdata/influxdb/v2"
