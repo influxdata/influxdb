@@ -16,6 +16,7 @@
 1. [20064](https://github.com/influxdata/influxdb/pull/20064): Ensure Flux reads across all shards.
 1. [20047](https://github.com/influxdata/influxdb/pull/20047): Allow scraper to ignore insecure certificates on a target. Thanks @cmackenzie1!
 1. [20076](https://github.com/influxdata/influxdb/pull/20076): Remove internal `influxd upgrade` subcommands from help text.
+1. [20074](https://github.com/influxdata/influxdb/pull/20074): Use default DBRP mapping on V1 write when no RP is specified.
 
 ## v2.0.1 [2020-11-10]
 
