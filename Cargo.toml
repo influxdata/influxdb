@@ -81,6 +81,12 @@ reqwest = "0.10.1"
 predicates = "1.0.4"
 tempfile = "3.1.0"
 
+
+[[bin]]
+name = "cpu_feature_check"
+path = "src/cpu_feature_check/main.rs"
+
+
 [[bench]]
 name = "encoders"
 harness = false
