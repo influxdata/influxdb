@@ -196,6 +196,9 @@ func (h *WriteHandler) findMapping(ctx context.Context, orgID influxdb.ID, db, r
 	}
 	if rp != "" {
 		filter.RetentionPolicy = &rp
+	} else {
+		b := true // Can't get a direct pointer to `true`...
+		filter.Default = &b
 	}
 
 	mappings, count, err := h.DBRPMappingService.FindMany(ctx, filter)
