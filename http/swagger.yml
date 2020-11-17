@@ -10264,10 +10264,6 @@ components:
         bucketID:
           type: string
           description: The ID of the bucket to write to.
-        allowInsecure:
-          type: boolean
-          description: Skip TLS verification on endpoint.
-          default: false
     ScraperTargetResponse:
       type: object
       allOf:

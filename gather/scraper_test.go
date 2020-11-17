@@ -123,7 +123,7 @@ func TestPrometheusScraper(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		scraper := newPrometheusScraper()
+		scraper := new(prometheusScraper)
 		var url string
 		if c.handler != nil {
 			ts := httptest.NewServer(c.handler)
