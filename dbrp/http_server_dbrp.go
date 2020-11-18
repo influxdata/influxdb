@@ -59,9 +59,9 @@ type createDBRPRequest struct {
 	Database        string      `json:"database"`
 	RetentionPolicy string      `json:"retention_policy"`
 	Default         bool        `json:"default"`
-	Org             string      `json:"organization"`
-	OrganizationID  influxdb.ID `json:"organization_id"`
-	BucketID        influxdb.ID `json:"bucket_id"`
+	Org             string      `json:"org"`
+	OrganizationID  influxdb.ID `json:"orgID"`
+	BucketID        influxdb.ID `json:"bucketID"`
 }
 
 func (h *Handler) handlePostDBRP(w http.ResponseWriter, r *http.Request) {
