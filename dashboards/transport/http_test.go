@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -144,7 +145,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/dashboards?descending=false&limit=20&offset=0"
+    "self": "/api/v2/dashboards?descending=false&limit=` + strconv.Itoa(influxdb.DefaultPageSize) + `&offset=0"
   },
   "dashboards": [
     {
@@ -241,7 +242,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/dashboards?descending=false&limit=20&offset=0"
+    "self": "/api/v2/dashboards?descending=false&limit=` + strconv.Itoa(influxdb.DefaultPageSize) + `&offset=0"
   },
   "dashboards": []
 }`,
@@ -303,7 +304,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/dashboards?descending=false&limit=20&offset=0&orgID=0000000000000001"
+    "self": "/api/v2/dashboards?descending=false&limit=` + strconv.Itoa(influxdb.DefaultPageSize) + `&offset=0&orgID=0000000000000001"
   },
   "dashboards": [
     {
