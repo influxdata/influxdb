@@ -33,8 +33,8 @@ type DBRPMappingV2 struct {
 	// Default indicates if this mapping is the default for the cluster and database.
 	Default bool `json:"default"`
 
-	OrganizationID ID `json:"organization_id"`
-	BucketID       ID `json:"bucket_id"`
+	OrganizationID ID `json:"orgID"`
+	BucketID       ID `json:"bucketID"`
 }
 
 // Validate reports any validation errors for the mapping.
