@@ -14,6 +14,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_urlencoded = "0.6.1"
 tracing = "0.1"
 croaring = "0.4.5"
+chrono = "0.4"
 
 arrow_deps = { path = "../arrow_deps" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }

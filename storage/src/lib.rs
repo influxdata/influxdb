@@ -18,6 +18,7 @@ pub mod exec;
 pub mod id;
 pub mod predicate;
 pub mod util;
+pub mod window;
 
 use self::predicate::{Predicate, TimestampRange};
 

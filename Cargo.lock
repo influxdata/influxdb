@@ -2961,6 +2961,7 @@ version = "0.1.0"
 dependencies = [
  "arrow_deps",
  "async-trait",
+ "chrono",
  "croaring",
  "data_types",
  "influxdb_line_protocol",
