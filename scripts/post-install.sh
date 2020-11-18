@@ -80,15 +80,15 @@ cat << EOF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 Thank you for installing InfluxDB v2.  Due to significant changes between
-the v1 and v2 versions, upgrading to v2 requires additional steps.  If
-upgrading to v2 was not intended, please simply re-install the v1 package now.
+the v1 and v2 versions, additional steps are required to complete the upgrade.
 
-Please review the complete upgrade procedure:
+Please review the complete upgrade procedure at the following URL:
 
 https://docs.influxdata.com/influxdb/v2.0/upgrade/v1-to-v2/
 
 Minimally, the following steps will be necessary:
 
+<<<<<<< HEAD
 * Make a copy of all underlying v1 data (typically under /var/lib/influxdb)
 * Run the 'influxd upgrade' command
 * Follow the prompts to complete the upgrade process
