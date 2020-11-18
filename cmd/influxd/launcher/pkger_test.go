@@ -27,6 +27,8 @@ import (
 var ctx = context.Background()
 
 func TestLauncher_Pkger(t *testing.T) {
+	t.Skip("FLAKY TEST: See issue #20014 for tracking a fix")
+
 	l := RunTestLauncherOrFail(t, ctx, nil, "--log-level", "error")
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
