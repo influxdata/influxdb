@@ -61,7 +61,8 @@ signs:
 
 nfpms:
   -
-    id: "influxdata"
+    id: "influxdb2"
+
     builds: ["influx", "influxd"]
     formats:
       - deb
@@ -75,6 +76,9 @@ nfpms:
       preinstall:  "scripts/pre-install.sh"
       postinstall: "scripts/post-install.sh"
       postremove: "scripts/post-uninstall.sh"
+
+    conflicts:
+      - influxdb
     overrides:
       rpm:
         replacements:
