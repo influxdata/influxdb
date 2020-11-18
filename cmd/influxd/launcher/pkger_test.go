@@ -27,6 +27,7 @@ import (
 var ctx = context.Background()
 
 func TestLauncher_Pkger(t *testing.T) {
+	//lint:file-ignore U1000 Ignore all unused code, it's actually used by the skipped test.
 	t.Skip("FLAKY TEST: See issue #20014 for tracking a fix")
 
 	l := RunTestLauncherOrFail(t, ctx, nil, "--log-level", "error")
