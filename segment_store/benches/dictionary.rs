@@ -3,7 +3,7 @@ use rand::distributions::Alphanumeric;
 use rand::prelude::*;
 use rand::Rng;
 
-use segment_store::{column::cmp::Operator, column::dictionary::RLE, column::RowIDs};
+use segment_store::{column::cmp::Operator, column::dictionary, column::RowIDs};
 
 const ROWS: [usize; 3] = [100_000, 1_000_000, 10_000_000];
 const LOCATIONS: [Location; 3] = [Location::Start, Location::Middle, Location::End];
@@ -17,7 +17,8 @@ enum Location {
 }
 
 enum EncType {
-    RLE,
+    RLEDictionary,
+    Dictionary,
 }
 
 fn select(c: &mut Criterion) {
@@ -25,7 +26,17 @@ fn select(c: &mut Criterion) {
     benchmark_select(
         c,
         "encoding_rle_select",
-        EncType::RLE,
+        EncType::RLEDictionary,
+        &ROWS,
+        &LOCATIONS,
+        &ROWS_MATCHING_VALUE,
+        &mut rng,
+    );
+
+    benchmark_select(
+        c,
+        "encoding_dict_select",
+        EncType::Dictionary,
         &ROWS,
         &LOCATIONS,
         &ROWS_MATCHING_VALUE,
@@ -71,39 +82,51 @@ fn benchmark_select(
                 };
 
                 group.throughput(Throughput::Elements(num_rows as u64));
-                match enc_type {
-                    EncType::RLE => {
-                        let mut encoding = RLE::with_dictionary(col_dict);
+                let encoding: dictionary::Encoding = match enc_type {
+                    EncType::RLEDictionary => {
+                        let mut encoding = dictionary::RLE::with_dictionary(col_dict);
                         // Could be faster but it's just the bench setup...
                         for v in &col_data {
                             encoding.push(v.to_owned());
                         }
-
-                        let input = (RowIDs::new_bitmap(), value);
-
-                        group.bench_with_input(
-                            BenchmarkId::from_parameter(format!(
-                                "rows_{:?}/loc_{:?}/card_{:?}",
-                                num_rows, location, cardinality
-                            )),
-                            &input,
-                            |b, _| {
-                                b.iter(|| {
-                                    // do work
-                                    let row_ids = encoding.row_ids_filter(
-                                        value.as_str(),
-                                        &Operator::Equal,
-                                        RowIDs::new_bitmap(),
-                                    );
-
-                                    let as_vec = row_ids.to_vec();
-                                    let values = encoding.values(as_vec.as_slice(), vec![]);
-                                    assert_eq!(values.len(), rows_select);
-                                });
-                            },
-                        );
+                        dictionary::Encoding::RLE(encoding)
                     }
-                }
+                    EncType::Dictionary => {
+                        let mut encoding = dictionary::Plain::with_dictionary(col_dict);
+                        // Could be faster but it's just the bench setup...
+                        for v in &col_data {
+                            encoding.push(v.to_owned());
+                        }
+                        dictionary::Encoding::Plain(encoding)
+                    }
+                };
+
+                let input = (RowIDs::new_bitmap(), value);
+
+                group.bench_with_input(
+                    BenchmarkId::from_parameter(format!(
+                        "enc_{:?}/rows_{:?}/loc_{:?}/card_{:?}",
+                        encoding.debug_name(),
+                        num_rows,
+                        location,
+                        cardinality
+                    )),
+                    &input,
+                    |b, _| {
+                        b.iter(|| {
+                            // do work
+                            let row_ids = encoding.row_ids_filter(
+                                value.as_str(),
+                                &Operator::Equal,
+                                RowIDs::new_bitmap(),
+                            );
+
+                            let as_vec = row_ids.to_vec();
+                            let values = encoding.values(as_vec.as_slice(), vec![]);
+                            assert_eq!(values.len(), rows_select);
+                        });
+                    },
+                );
             }
         }
     }
