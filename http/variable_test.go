@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -110,7 +111,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `{
 					"links":{
-					   "self":"/api/v2/variables?descending=false&limit=20&offset=0"
+					   "self":"/api/v2/variables?descending=false&limit=` + strconv.Itoa(platform.DefaultPageSize) + `&offset=0"
 					},
 					"variables":[
 					   {
@@ -254,7 +255,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `{
 					"links": {
-					  "self": "/api/v2/variables?descending=false&limit=20&offset=0&orgID=0000000000000001"
+					  "self": "/api/v2/variables?descending=false&limit=` + strconv.Itoa(platform.DefaultPageSize) + `&offset=0&orgID=0000000000000001"
 					},
 					"variables": [
 					  {
