@@ -7,13 +7,13 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	"github.com/influxdata/influxdb/v2/dbrp"
+	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/spf13/cobra"
 )
 
 func cmdV1DBRP(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("dbrp", nil, false)
-	cmd.Aliases = []string{"dbrp"}
-	cmd.Short = "Database retention policy mappings for v1 APIs"
+	cmd.Short = "Commands to manage database and retention policy mappings for v1 APIs"
 	cmd.Run = seeHelp
 
 	cmd.AddCommand(
@@ -33,10 +33,10 @@ var v1DBRPCRUDFlags struct {
 }
 
 var v1DBRPFindFlags struct {
-	BucketID string       // Specifies the bucket ID to filter on
+	BucketID influxdb.ID  // Specifies the bucket ID to filter on
 	DB       string       // Specifies the database to filter on
 	Default  *bool        // Specifies filtering on default
-	ID       string       // Specifies the mapping ID to filter on
+	ID       influxdb.ID  // Specifies the mapping ID to filter on
 	Org      organization // required  // Specifies the organization ID to filter on
 	RP       string       // Specifies the retention policy to filter on
 }
@@ -44,23 +44,23 @@ var v1DBRPFindFlags struct {
 func v1DBRPFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List DBRP",
+		Short: "List database and retention policy mappings",
 		RunE:  checkSetupRunEMiddleware(&flags)(v1DBRPFindF),
 	}
 
 	f.registerFlags(opt.viper, cmd)
 	registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json)
 	v1DBRPFindFlags.Org.register(opt.viper, cmd, false)
-	cmd.Flags().StringVarP(&v1DBRPCreateFlags.BucketID, "bucket-id", "b", "", "the bucket ID to filter on")
-	cmd.Flags().StringVarP(&v1DBRPCreateFlags.DB, "db", "d", "", "the v1 database to map from")
-	cmd.Flags().StringVarP(&v1DBRPCreateFlags.RP, "rp", "r", "", "InfluxDB v1 retention policy")
-	cmd.Flags().Bool("default", false, "Specify if this mapping represents the default retention policy for the database specificed (only set if explicitly specified)")
+	cli.IDVar(cmd.Flags(), &v1DBRPFindFlags.BucketID, "bucket-id", 0, "Limit results to the matching bucket id")
+	cli.IDVar(cmd.Flags(), &v1DBRPFindFlags.ID, "id", 0, "Limit results to a single mapping")
+	cmd.Flags().StringVar(&v1DBRPFindFlags.DB, "db", "", "Limit results to the matching database name")
+	cmd.Flags().StringVar(&v1DBRPFindFlags.RP, "rp", "", "Limit results to the matching retention policy name")
+	cmd.Flags().Bool("default", false, "Limit results to default mappings")
 
 	return cmd
 }
 
-func v1DBRPFindF(cmd *cobra.Command, args []string) error {
-
+func v1DBRPFindF(cmd *cobra.Command, _ []string) error {
 	if err := v1DBRPFindFlags.Org.validOrgFlags(&flags); err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func v1DBRPFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	orgID, err := v1DBRPCreateFlags.Org.getID(orgSvc)
+	orgID, err := v1DBRPFindFlags.Org.getID(orgSvc)
 	if err != nil {
 		return err
 	}
@@ -88,28 +88,16 @@ func v1DBRPFindF(cmd *cobra.Command, args []string) error {
 	}
 	filter := influxdb.DBRPMappingFilterV2{OrgID: &orgID}
 
-	if v1DBRPFindFlags.ID != "" {
-		fID, err := influxdb.IDFromString(v1DBRPFindFlags.ID)
-		if err != nil {
-			return err
-		}
-		filter.ID = fID
+	if v1DBRPFindFlags.ID.Valid() {
+		filter.ID = &v1DBRPFindFlags.ID
 	}
 
-	if v1DBRPFindFlags.BucketID != "" {
-		fID, err := influxdb.IDFromString(v1DBRPFindFlags.ID)
-		if err != nil {
-			return err
-		}
-		filter.BucketID = fID
+	if v1DBRPFindFlags.BucketID.Valid() {
+		filter.BucketID = &v1DBRPFindFlags.BucketID
 	}
 
 	if v1DBRPFindFlags.DB != "" {
-		fID, err := influxdb.IDFromString(v1DBRPFindFlags.BucketID)
-		if err != nil {
-			return err
-		}
-		filter.BucketID = fID
+		filter.Database = &v1DBRPFindFlags.DB
 	}
 
 	if v1DBRPFindFlags.RP != "" {
@@ -132,8 +120,8 @@ func v1DBRPFindF(cmd *cobra.Command, args []string) error {
 }
 
 var v1DBRPCreateFlags struct {
-	BucketID string       // Specifies the bucket ID to filter on
-	DB       string       // Specifies the database to filter on
+	BucketID influxdb.ID  // Specifies the bucket ID to associate with the mapping
+	DB       string       // Specifies the database of the database
 	Default  bool         // Specifies filtering on default
 	Org      organization // Specifies the organization ID to filter on
 	RP       string       // Specifies the retention policy to filter on
@@ -142,24 +130,25 @@ var v1DBRPCreateFlags struct {
 func v1DBRPCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create DBRP",
+		Short: "Create a database and retention policy mapping to an existing bucket",
 		RunE:  checkSetupRunEMiddleware(&flags)(v1DBRPCreateF),
+		Args:  cobra.NoArgs,
 	}
 
 	f.registerFlags(opt.viper, cmd)
 	registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json)
 	v1DBRPCreateFlags.Org.register(opt.viper, cmd, false)
-	cmd.Flags().StringVarP(&v1DBRPCreateFlags.BucketID, "bucket-id", "b", "", "the bucket ID to filter on")
+	cli.IDVar(cmd.Flags(), &v1DBRPCreateFlags.BucketID, "bucket-id", 0, "The ID of the bucket to be mapped")
 	_ = cmd.MarkFlagRequired("bucket-id")
-	cmd.Flags().StringVarP(&v1DBRPCreateFlags.DB, "db", "d", "", "the v1 database to map from")
+	cmd.Flags().StringVar(&v1DBRPCreateFlags.DB, "db", "", "The name of the database")
 	_ = cmd.MarkFlagRequired("db")
-	cmd.Flags().BoolVar(&v1DBRPCreateFlags.Default, "default", false, "Specify if this mapping represents the default retention policy for the database specificed")
-	cmd.Flags().StringVarP(&v1DBRPCreateFlags.RP, "rp", "r", "", "InfluxDB v1 retention policy")
+	cmd.Flags().BoolVar(&v1DBRPCreateFlags.Default, "default", false, "Identify this mapping as the default retention policy")
+	cmd.Flags().StringVar(&v1DBRPCreateFlags.RP, "rp", "", "Name of the retention policy")
 	_ = cmd.MarkFlagRequired("rp")
 	return cmd
 }
 
-func v1DBRPCreateF(cmd *cobra.Command, args []string) error {
+func v1DBRPCreateF(cmd *cobra.Command, _ []string) error {
 	if err := v1DBRPCreateFlags.Org.validOrgFlags(&flags); err != nil {
 		return err
 	}
@@ -173,27 +162,25 @@ func v1DBRPCreateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	dbrp := &influxdb.DBRPMappingV2{
+	mapping := &influxdb.DBRPMappingV2{
+		BucketID:        v1DBRPCreateFlags.BucketID,
 		Database:        v1DBRPCreateFlags.DB,
 		Default:         v1DBRPCreateFlags.Default,
 		OrganizationID:  orgID,
 		RetentionPolicy: v1DBRPCreateFlags.RP,
-	}
-	if err := dbrp.BucketID.DecodeFromString(v1DBRPCreateFlags.BucketID); err != nil {
-		return err
 	}
 
 	s, err := newV1DBRPService()
 	if err != nil {
 		return err
 	}
-	if err := s.Create(context.Background(), dbrp); err != nil {
+	if err := s.Create(context.Background(), mapping); err != nil {
 		return err
 	}
 	return v1WriteDBRPs(cmd.OutOrStdout(), v1DBRPPrintOpt{
 		jsonOut:     v1DBRPCRUDFlags.json,
 		hideHeaders: v1DBRPCRUDFlags.hideHeaders,
-		mapping:     dbrp,
+		mapping:     mapping,
 	})
 }
 
@@ -249,27 +236,28 @@ func v1WriteDBRPs(w io.Writer, printOpts v1DBRPPrintOpt) error {
 }
 
 var v1DBRPDeleteFlags struct {
-	ID  string       // Specifies the mapping ID to filter on
-	Org organization // required  // Specifies the organization ID to filter on
+	ID  influxdb.ID
+	Org organization
 }
 
 func v1DBRPDeleteCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
-		Short: "Delete DBRP",
+		Short: "Delete a database and retention policy mapping",
 		RunE:  checkSetupRunEMiddleware(&flags)(v1DBRPDeleteF),
+		Args:  cobra.NoArgs,
 	}
 
 	f.registerFlags(opt.viper, cmd)
 	registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json)
-	v1DBRPCreateFlags.Org.register(opt.viper, cmd, false)
-	cmd.Flags().StringVarP(&v1DBRPDeleteFlags.ID, "id", "i", "", "The dbrp ID (required)")
+	v1DBRPDeleteFlags.Org.register(opt.viper, cmd, false)
+	cli.IDVar(cmd.Flags(), &v1DBRPDeleteFlags.ID, "id", 0, "The ID of the mapping to delete")
 	_ = cmd.MarkFlagRequired("id")
 	return cmd
 }
 
-func v1DBRPDeleteF(cmd *cobra.Command, args []string) error {
-	if err := v1DBRPCreateFlags.Org.validOrgFlags(&flags); err != nil {
+func v1DBRPDeleteF(cmd *cobra.Command, _ []string) error {
+	if err := v1DBRPDeleteFlags.Org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 	orgSvc, err := newOrganizationService()
@@ -287,17 +275,12 @@ func v1DBRPDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	id, err := influxdb.IDFromString(v1DBRPDeleteFlags.ID)
+	dbrpToDelete, err := s.FindByID(context.Background(), orgID, v1DBRPDeleteFlags.ID)
 	if err != nil {
 		return err
 	}
 
-	dbrpToDelete, err := s.FindByID(context.Background(), orgID, *id)
-	if err != nil {
-		return err
-	}
-
-	if err := s.Delete(context.Background(), orgID, *id); err != nil {
+	if err := s.Delete(context.Background(), orgID, v1DBRPDeleteFlags.ID); err != nil {
 		return err
 	}
 	return v1WriteDBRPs(cmd.OutOrStdout(), v1DBRPPrintOpt{
@@ -308,30 +291,30 @@ func v1DBRPDeleteF(cmd *cobra.Command, args []string) error {
 }
 
 var v1DBRPUpdateFlags struct {
-	ID      string       // Specifies the mapping ID to filter on
-	Org     organization // required  // Specifies the organization ID to filter on
-	Default *bool        // pointer nil means that Default is unset in the Flags
-	RP      string       // InfluxDB v1 retention policy
+	ID      influxdb.ID  // Specifies the mapping ID to update
+	Org     organization // Specifies the organization ID
+	Default *bool        // A nil value means that Default is unset in the Flags
+	RP      string       // Updated name of the retention policy
 }
 
 func v1DBRPUpdateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update",
-		Short: "Update DBRP",
+		Short: "Update a database and retention policy mapping",
 		RunE:  checkSetupRunEMiddleware(&flags)(v1DBRPUpdateF),
 	}
 	f.registerFlags(opt.viper, cmd)
 	registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json)
-	v1DBRPCreateFlags.Org.register(opt.viper, cmd, false)
-	cmd.Flags().StringVarP(&v1DBRPUpdateFlags.ID, "id", "i", "", "The dbrp ID (required)")
+	v1DBRPUpdateFlags.Org.register(opt.viper, cmd, false)
+	cli.IDVar(cmd.Flags(), &v1DBRPUpdateFlags.ID, "id", 0, "The ID of the mapping to be updated")
 	_ = cmd.MarkFlagRequired("id")
-	cmd.Flags().StringVarP(&v1DBRPUpdateFlags.RP, "rp", "r", "", "The dbrp InfluxDB v1 retention policy")
-	cmd.Flags().Bool("default", false, "If dbrp InfluxDB v1 retention policy is default, (only changes when explicitly set)") // note for update we only care about update flags that the user set
+	cmd.Flags().StringVar(&v1DBRPUpdateFlags.RP, "rp", "", "The updated name of the retention policy")
+	cmd.Flags().Bool("default", false, "Set this as the default mapping for the associated database name") // note for update we only care about update flags that the user set
 	return cmd
 }
 
-func v1DBRPUpdateF(cmd *cobra.Command, args []string) error {
-	if err := v1DBRPCreateFlags.Org.validOrgFlags(&flags); err != nil {
+func v1DBRPUpdateF(cmd *cobra.Command, _ []string) error {
+	if err := v1DBRPUpdateFlags.Org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 	if defaultFlg := cmd.Flags().Lookup("default"); defaultFlg.Changed {
@@ -352,14 +335,9 @@ func v1DBRPUpdateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var id influxdb.ID
-	if err := id.DecodeFromString(v1DBRPUpdateFlags.ID); err != nil {
-		return err
-	}
-
 	dbrpUpdate := influxdb.DBRPMappingV2{
 		OrganizationID: orgID,
-		ID:             id,
+		ID:             v1DBRPUpdateFlags.ID,
 	}
 
 	s, err := newV1DBRPService()
@@ -374,7 +352,6 @@ func v1DBRPUpdateF(cmd *cobra.Command, args []string) error {
 
 	if v1DBRPUpdateFlags.RP != "" {
 		oldDBRP.RetentionPolicy = v1DBRPUpdateFlags.RP
-
 	}
 
 	if v1DBRPUpdateFlags.Default != nil {
