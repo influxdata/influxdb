@@ -4,9 +4,7 @@
 
 ### Bug Fixes
 
-### Refactoring & Build
-
-## v2.0.2 [2020-11-18]
+## v2.0.2 [2020-11-19]
 
 ### Features
 
@@ -31,14 +29,6 @@
 1. [20076](https://github.com/influxdata/influxdb/pull/20076): Remove internal `influxd upgrade` subcommands from help text.
 1. [20074](https://github.com/influxdata/influxdb/pull/20074): Use default DBRP mapping on V1 write when no RP is specified.
 1. [20091](https://github.com/influxdata/influxdb/pull/20091): Make the DBRP http API match the swagger spec.
-
-### Refactoring & Build
-
-1. [19878](https://github.com/influxdata/influxdb/pull/19878): Delete deprecated kv service code.
-1. [20002](https://github.com/influxdata/influxdb/pull/20002): Do not use global viper APIs, which breaks testing.
-1. [20003](https://github.com/influxdata/influxdb/pull/20003): Remove fragile NATS port assignment loop.
-1. [20004](https://github.com/influxdata/influxdb/pull/20004): Port pipeline test framework and InfluxQL tests from cloud.
-1. [20061](https://github.com/influxdata/influxdb/pull/20061): Build: Remove lint-feature-flag job from OSS.
 
 ## v2.0.1 [2020-11-10]
 
