@@ -7,42 +7,36 @@
 ### Features
 
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Warn if V1 users are upgraded, but V1 auth wasn't enabled.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Export 1.x CQs as part of `influxd upgrade`.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): CLI: Export 1.x CQs as part of `influxd upgrade`.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Upgrade Flux to v0.95.0.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Add DBRP CLI commands as `influx v1 dbrp`.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): CLI: Add DBRP CLI commands as `influx v1 dbrp`.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): UI: Upgrade flux-lsp-browser to v0.5.23.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Added functionality to filter runns by time.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Tests: Port pipeline tests package from Cloud.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Tests: Port InfluxQL test packages from Cloud.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Tests: Empty `Test` that elides writes or a default db / rp.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Tests: Test to validate expected behavior of SHOW DATABASES.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Added functionality to filter task runs by time.
 
 ### Bug Fixes
 
 1. [19992](https://github.com/influxdata/influxdb/pull/19992): Fix various typos. Thanks @kumakichi!
 1. [19999](https://github.com/influxdata/influxdb/pull/19999): Use --skip-verify flag for backup/restore CLI command.
-1. [19999](https://github.com/influxdata/influxdb/pull/19999): Suggest running with -h on error instead of printing usage. 
-1. [20047](https://github.com/influxdata/influxdb/pull/20072): Allow self signed certificates to ScraperTarget. Thanks @cmackenzie1!
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Remove feature flag.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Add locking during tsi iterator creation.
+1. [19999](https://github.com/influxdata/influxdb/pull/19999): Suggest running with -h on error instead of printing usage when launching `influxd`. 
+1. [20047](https://github.com/influxdata/influxdb/pull/20072): Allow self signed certificates for scraper targets. Thanks @cmackenzie1!
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Add locking during TSI iterator creation.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Do not use global viper APIs, which breaks testing.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Remove fragile nats port assignment loop.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Remove fragile NATS port assignment loop.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Add same site strict flag to session cookie.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Validate all input paths to `upgrade` up-front.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): CLI: Validate all input paths to `upgrade` up-front.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Delete deprecated kv service code.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Reinstate minimal read-only document store for dashboard template.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): UI: Skip dashboard index CRUD case.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed logic checking time filter exists.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed error message semantic. 
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Track seen databases in map and skip duplicates.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Tests: Update tests.Client to use new HTTP client APIs.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Build: Remove lint-feature-flag job from OSS.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): CMD: Don't validate unused paths in `upgrade`.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): CLI: Don't validate unused paths in `upgrade`.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Continue reading until itrs is empty, even for nil cursors.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Remove internal `influxd upgrade` subcommands from help text.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): CLI: Remove internal `influxd upgrade` subcommands from help text.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Use default DBRP mapping on V1 write when no RP is specified.
 1. [20072](https://github.com/influxdata/influxdb/pull/20077): UI: Bump version in package.json so it displays correctly.
-1. [20089](https://github.com/influxdata/influxdb/pull/20089): UX improvements and bug fixes to dbrp commands.
+1. [20089](https://github.com/influxdata/influxdb/pull/20089): UI: UX improvements and bug fixes to dbrp commands.
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): API: Make the dbrp api match the swagger spec.
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): Revert changes to API page-sizes.
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): Exclude pkger\_test.go from linting 
