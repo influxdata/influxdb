@@ -81,9 +81,8 @@ cat << EOF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 Thank you for installing InfluxDB v2.  Due to significant changes between
-the v1 and v2 versions, if you are upgrading from v1 then additional steps are
-required to complete the upgrade.  If upgrading to v2 was not intended, please
-simply re-install the v1 InfluxDB package now.
+the v1 and v2 versions, upgrading to v2 requires additional steps.  If
+upgrading to v2 was not intended, please simply re-install the v1 package now.
 
 Please review the complete upgrade procedure:
 
