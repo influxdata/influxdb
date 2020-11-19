@@ -1,28 +1,55 @@
-## v2.0.2 [unreleased]
+## v2.0.3 [unreleased]
+----------------------
+
+## v2.0.2 [2020-11-18]
+----------------------
 
 ### Features
 
-1. [20036](https://github.com/influxdata/influxdb/pull/20036): Warn if V1 users are upgraded, but V1 auth wasn't enabled.
-1. [20039](https://github.com/influxdata/influxdb/pull/20039): Export 1.x CQs as part of `influxd upgrade`.
-1. [20053](https://github.com/influxdata/influxdb/pull/20053): Upgrade Flux to v0.95.0.
-1. [20067](https://github.com/influxdata/influxdb/pull/20067): Add DBRP CLI commands as `influx v1 dbrp`.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Warn if V1 users are upgraded, but V1 auth wasn't enabled.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Export 1.x CQs as part of `influxd upgrade`.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Upgrade Flux to v0.95.0.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Add DBRP CLI commands as `influx v1 dbrp`.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): UI: Upgrade flux-lsp-browser to v0.5.23.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Added functionality to filter runns by time.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Tests: Port pipeline tests package from Cloud.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Tests: Port InfluxQL test packages from Cloud.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Tests: Empty `Test` that elides writes or a default db / rp.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Tests: Test to validate expected behavior of SHOW DATABASES.
 
 ### Bug Fixes
 
-1. [19964](https://github.com/influxdata/influxdb/pull/19964): Add locking during TSI iteration creation
-1. [19987](https://github.com/influxdata/influxdb/pull/19987): Fix various typos. Thanks @kumakichi!
-1. [19991](https://github.com/influxdata/influxdb/pull/19991): Use --skip-verify flag for backup/restore CLI command.
-1. [19995](https://github.com/influxdata/influxdb/pull/19995): Don't auto-print help on influxd errors
-1. [20012](https://github.com/influxdata/influxdb/pull/20012): Validate input paths to `influxd upgrade` up-front
-1. [20015](https://github.com/influxdata/influxdb/pull/20015): Add SameSite=Strict flag to session cookie
-1. [20017](https://github.com/influxdata/influxdb/pull/20017): Don't include duplicates for SHOW DATABASES
-1. [20047](https://github.com/influxdata/influxdb/pull/20047): Allow scraper to ignore insecure certificates on a target. Thanks @cmackenzie1!
-1. [20064](https://github.com/influxdata/influxdb/pull/20064): Ensure Flux reads across all shards.
-1. [20076](https://github.com/influxdata/influxdb/pull/20076): Remove internal `influxd upgrade` subcommands from help text.
-1. [20074](https://github.com/influxdata/influxdb/pull/20074): Use default DBRP mapping on V1 write when no RP is specified.
+1. [19992](https://github.com/influxdata/influxdb/pull/19992): Fix various typos. Thanks @kumakichi!
+1. [19999](https://github.com/influxdata/influxdb/pull/19999): Use --skip-verify flag for backup/restore CLI command.
+1. [19999](https://github.com/influxdata/influxdb/pull/19999): Suggest running with -h on error instead of printing usage. 
+1. [20047](https://github.com/influxdata/influxdb/pull/20072): Allow self signed certificates to ScraperTarget. Thanks @cmackenzie1!
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Remove feature flag.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Add locking during tsi iterator creation.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Do not use global viper APIs, which breaks testing.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Remove fragile nats port assignment loop.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Add same site strict flag to session cookie.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Validate all input paths to `upgrade` up-front.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Delete deprecated kv service code.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Reinstate minimal read-only document store for dashboard template.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): UI: Skip dashboard index CRUD case.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed logic checking time filter exists.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed error message semantic. 
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Track seen databases in map and skip duplicates.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Tests: Update tests.Client to use new HTTP client APIs.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Build: Remove lint-feature-flag job from OSS.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): CMD: Don't validate unused paths in `upgrade`.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Continue reading until itrs is empty, even for nil cursors.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Remove internal `influxd upgrade` subcommands from help text.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Use default DBRP mapping on V1 write when no RP is specified.
+1. [20072](https://github.com/influxdata/influxdb/pull/20077): UI: Bump version in package.json so it displays correctly.
+1. [20089](https://github.com/influxdata/influxdb/pull/20089): UX improvements and bug fixes to dbrp commands.
+1. [20089](https://github.com/influxdata/influxdb/pull/20089): API: Make the dbrp api match the swagger spec.
+1. [20089](https://github.com/influxdata/influxdb/pull/20089): Revert changes to API page-sizes.
+1. [20089](https://github.com/influxdata/influxdb/pull/20089): Exclude pkger\_test.go from linting 
 1. [20091](https://github.com/influxdata/influxdb/pull/20091): Make the DBRP http API match the swagger spec.
 
 ## v2.0.1 [2020-11-10]
+----------------------
 
 ### Bug Fixes
 
@@ -34,6 +61,7 @@
 1. [19980](https://github.com/influxdata/influxdb/pull/19980): check write permission in legacy write path
 
 ## v2.0.0 [2020-11-09]
+----------------------
 
 ### Features
 
