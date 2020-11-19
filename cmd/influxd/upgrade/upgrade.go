@@ -239,6 +239,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Desc:  "optional: Custom InfluxDB 1.x config file path, else the default config file",
 		},
 		{
+			DestP:   &options.target.configPath,
+			Flag:    "v2-config-path",
+			Default: filepath.Join(v2dir, "config.toml"),
+			Desc:    "optional: Custom path where upgraded 2.x config should be written",
+		},
+		{
 			DestP:   &options.logLevel,
 			Flag:    "log-level",
 			Default: zapcore.InfoLevel.String(),
@@ -355,8 +361,6 @@ func runUpgradeE(*cobra.Command, []string) error {
 		options.source.dataDir = v1Config.Data.Dir
 		options.source.walDir = v1Config.Data.WALDir
 		options.source.dbURL = v1Config.dbURL()
-
-		options.target.configPath = filepath.Join(filepath.Dir(options.source.configFile), "config.toml")
 	} else {
 		// Otherwise, assume a standard directory layout.
 		options.source.populateDirs()

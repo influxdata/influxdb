@@ -152,7 +152,13 @@ func (cu *configUpgrader) save(config map[string]interface{}, path string) (stri
 		return "", err
 	}
 
-	err := ioutil.WriteFile(path, buf.Bytes(), 0666)
+	// Try writing config to the requested location.
+	var err error
+	err = os.MkdirAll(filepath.Dir(path), 0755)
+	if err == nil {
+		err = ioutil.WriteFile(path, buf.Bytes(), 0666)
+	}
+
 	if err != nil { // permission issue possible - try to save the file to home or current dir
 		cu.log.Warn(fmt.Sprintf("Could not save upgraded config to %s, trying to save it to user's home.", path), zap.Error(err))
 		path = filepath.Join(homeOrAnyDir(), filepath.Base(path))
