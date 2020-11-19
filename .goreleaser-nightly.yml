@@ -1,4 +1,4 @@
-project_name: platform
+project_name: influxdb2
 builds:
   - id: influx
     goos:
@@ -41,13 +41,44 @@ builds:
     hooks:
       pre: make generate
 
+nfpms:
+  -
+    id: "influxdb2"
+    builds: ["influx", "influxd"]
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    files:
+      "scripts/init.sh": "/usr/lib/influxdb/scripts/init.sh"
+      "scripts/influxdb.service": "/usr/lib/influxdb/scripts/influxdb.service"
+      "scripts/logrotate": "/etc/logrotate.d/influxdb"
+    scripts:
+      preinstall:  "scripts/pre-install.sh"
+      postinstall: "scripts/post-install.sh"
+      postremove: "scripts/post-uninstall.sh"
+    conflicts:
+      - influxdb
+    overrides:
+      rpm:
+        replacements:
+          amd64: x86_64
+        file_name_template: "influxdb2-nightly.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+      deb:
+        file_name_template: "influxdb2_nightly_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+    vendor: InfluxData
+    homepage: https://influxdata.com
+    maintainer: support@influxdb.com
+    description: Distributed time-series database.
+    license: MIT
+
 archives:
   - format: tar.gz
     wrap_in_directory: true
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "{{ .Binary }}_nightly_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    name_template: "influxdb2_nightly_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
     files:
       - LICENSE
       - README.md
@@ -57,6 +88,10 @@ blobs:
     bucket: "dl.influxdata.com"
     region: "us-east-1"
     folder: "platform/nightlies/"
+
+checksum:
+  name_template: "influxdb2_nightly.sha256"
+  algorithm: sha256
 
 dockers:
   - goos: linux

@@ -1,4 +1,4 @@
-project_name: influxdb
+project_name: influxdb2
 builds:
   - id: influx
     goos:
@@ -44,7 +44,7 @@ builds:
 
 nfpms:
   -
-    id: "influxdata"
+    id: "influxdb2"
     builds: ["influx", "influxd"]
     formats:
       - deb
@@ -58,38 +58,40 @@ nfpms:
       preinstall:  "scripts/pre-install.sh"
       postinstall: "scripts/post-install.sh"
       postremove: "scripts/post-uninstall.sh"
+    conflicts:
+      - influxdb
     overrides:
       rpm:
         replacements:
           amd64: x86_64
-        file_name_template: "influxdb-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
       deb:
-        file_name_template: "influxdb_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+        file_name_template: "influxdb2_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
     description: Distributed time-series database.
-    license: Proprietary
+    license: MIT
 
 archives:
-  - id: influxdb_client
+  - id: influxdb2_client
     builds: ["influx"]
     format: tar.gz
     wrap_in_directory: true
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+    name_template: "influxdb2_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
     files:
       - LICENSE
       - README.md
-  - id: influxdb_single_binary
+  - id: influxdb2_single_binary
     format: tar.gz
     wrap_in_directory: true
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+    name_template: "influxdb2-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
     files:
       - LICENSE
       - README.md
@@ -101,7 +103,7 @@ blobs:
     folder: "influxdb/releases/"
 
 checksum:
-  name_template: "influxdb_{{ .Version }}.sha256"
+  name_template: "influxdb2_{{ .Version }}.sha256"
   algorithm: sha256
 
 dockers:
