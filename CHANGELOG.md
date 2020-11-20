@@ -49,6 +49,7 @@ v1.8.4 [2021-01-27]
 ### Bugfixes
 
 -	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging
+-	[#20115](https://github.com/influxdata/influxdb/pull/20115): fix: restore portable backup error
 
 v1.8.3 [2020-09-30]
 -------------------
