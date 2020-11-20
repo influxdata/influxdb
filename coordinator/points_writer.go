@@ -447,11 +447,10 @@ func (w *PointsWriter) writeToShardWithContext(ctx context.Context, shard *meta.
 			atomic.AddInt64(&w.stats.WriteErr, 1)
 			return err
 		}
-	} else {
+	} else if err != nil {
 		atomic.AddInt64(&w.stats.WriteErr, 1)
 		return err
 	}
-
 	atomic.AddInt64(&w.stats.WriteOK, 1)
 	return nil
 }
