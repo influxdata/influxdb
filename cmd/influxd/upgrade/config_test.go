@@ -1,13 +1,13 @@
 package upgrade
 
 import (
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -62,11 +62,8 @@ func TestConfigUpgrade(t *testing.T) {
 			if _, err = toml.Decode(tc.config1x, &rawV1Config); err != nil {
 				t.Fatal(err)
 			}
-			retval, err := upgradeConfig(rawV1Config, targetOtions, zaptest.NewLogger(t))
-			if err != nil {
-				t.Fatal(err)
-			}
-			assert.Equal(t, retval, configFileV2)
+			err = upgradeConfig(rawV1Config, targetOtions, zaptest.NewLogger(t))
+			assert.NoError(t, err)
 
 			var actual, expected map[string]interface{}
 			if _, err = toml.Decode(tc.config2x, &expected); err != nil {

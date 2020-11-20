@@ -375,15 +375,15 @@ func runUpgradeE(*cobra.Command, []string) error {
 
 	if genericV1ops != nil {
 		log.Info("Upgrading config file", zap.String("file", options.source.configFile))
-		v2ConfigPath, err := upgradeConfig(*genericV1ops, options.target, log)
-		if err != nil {
+		if err := upgradeConfig(*genericV1ops, options.target, log); err != nil {
 			return err
 		}
 		log.Info(
 			"Config file upgraded.",
 			zap.String("1.x config", options.source.configFile),
-			zap.String("2.x config", v2ConfigPath),
+			zap.String("2.x config", options.target.configPath),
 		)
+
 	} else {
 		log.Info("No InfluxDB 1.x config file specified, skipping its upgrade")
 	}

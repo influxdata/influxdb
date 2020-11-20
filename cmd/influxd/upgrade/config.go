@@ -4,7 +4,6 @@ package upgrade
 // The strategy is to transform only those entries for which rule exists.
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -109,7 +108,7 @@ func load(path string) ([]byte, error) {
 }
 
 // upgradeConfig upgrades existing 1.x configuration file to 2.x influxdb.toml file.
-func upgradeConfig(v1Config map[string]interface{}, targetOptions optionsV2, log *zap.Logger) (string, error) {
+func upgradeConfig(v1Config map[string]interface{}, targetOptions optionsV2, log *zap.Logger) error {
 	// create and initialize helper
 	cu := &configUpgrader{
 		rules:           configMapRules,
@@ -117,17 +116,14 @@ func upgradeConfig(v1Config map[string]interface{}, targetOptions optionsV2, log
 		log:             log,
 	}
 
+	// rewrite config options from V1 to V2 paths
 	cTransformed := cu.transform(v1Config)
 
 	// update new config with upgrade command options
 	cu.updateV2Config(cTransformed, targetOptions)
 
-	configFileV2, err := cu.save(cTransformed, targetOptions.configPath)
-	if err != nil {
-		return "", err
-	}
-
-	return configFileV2, nil
+	// write the ugpraded config to disk
+	return cu.save(cTransformed, targetOptions.configPath)
 }
 
 // configUpgrader is a helper used by `upgrade-config` command.
@@ -146,26 +142,19 @@ func (cu *configUpgrader) updateV2Config(config map[string]interface{}, targetOp
 	}
 }
 
-func (cu *configUpgrader) save(config map[string]interface{}, path string) (string, error) {
-	buf := new(bytes.Buffer)
-	if err := toml.NewEncoder(buf).Encode(&config); err != nil {
-		return "", err
+func (cu *configUpgrader) save(config map[string]interface{}, path string) error {
+	// Open the target file, creating parent directories if needed.
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
 	}
-
-	// Try writing config to the requested location.
-	var err error
-	err = os.MkdirAll(filepath.Dir(path), 0755)
-	if err == nil {
-		err = ioutil.WriteFile(path, buf.Bytes(), 0666)
+	outFile, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
 	}
+	defer outFile.Close()
 
-	if err != nil { // permission issue possible - try to save the file to home or current dir
-		cu.log.Warn(fmt.Sprintf("Could not save upgraded config to %s, trying to save it to user's home.", path), zap.Error(err))
-		path = filepath.Join(homeOrAnyDir(), filepath.Base(path))
-		err = ioutil.WriteFile(path, buf.Bytes(), 0666)
-	}
-
-	return path, err
+	// Encode the config directly into the file as TOML.
+	return toml.NewEncoder(outFile).Encode(&config)
 }
 
 // Credits: @rogpeppe (Roger Peppe)
