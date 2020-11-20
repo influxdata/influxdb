@@ -3,6 +3,7 @@ v1.8.4 [unreleased]
 
 ### Bugfixes
 
+-   [#20101](https://github.com/influxdata/influxdb/pull/20101): fix(write): Successful writes increment write error statistics incorrectly
 -	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging
 
 v1.8.3 [2020-09-30]
