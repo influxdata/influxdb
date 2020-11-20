@@ -3,11 +3,11 @@ package upgrade
 import (
 	"context"
 	"fmt"
-	"github.com/dustin/go-humanize"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/dustin/go-humanize"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
@@ -103,6 +103,22 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 			if err != nil {
 				return nil, fmt.Errorf("error creating bucket %s: %w", bucket.Name, err)
 
+			}
+
+			// we had a problem were in some cases bucket.ID wasn't being set by CreateBucket, this is to deal with that edge case
+			if bucket.ID == 0 {
+				// We have to look up the ID because `bucket` doesn't have the ID
+				//clone the objects, before we take the pointers
+				name := bucket.Name
+				orgID := orgID
+				newbucket, err := v2.bucketSvc.FindBucket(ctx, influxdb.BucketFilter{
+					Name:           &name,
+					OrganizationID: &orgID,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("unable to find bucket: %s: %w", bucket.Name, err)
+				}
+				bucket.ID = newbucket.ID
 			}
 
 			db2BucketIds[db.Name] = append(db2BucketIds[db.Name], bucket.ID)
