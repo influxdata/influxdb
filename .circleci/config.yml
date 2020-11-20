@@ -103,27 +103,7 @@ jobs:
       - store_test_results:
           path: ~/project
           destination: daily-junit
-  litmus_nightly:
-    machine: true
-    steps:
-      - attach_workspace:
-          at: ~/project
-      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e DOCKERIMAGE=true --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
-      - run:
-          name: Litmus Nightly Tests Success
-          when: on_success
-          command: bash ~/project/etc/litmus_success_notify.sh Nightly
-      - run:
-          name: Litmus Nightly Tests Fail
-          when: on_fail
-          command: bash ~/project/etc/litmus_fail_notify.sh Nightly
-      - store_artifacts:
-          path: ~/project
-          destination: raw-nightly-output
-      - store_test_results:
-          path: ~/project
-          destination: nightly-junit
+
   e2e:
     docker:
       - image: circleci/golang:1.15-node-browsers
@@ -162,44 +142,8 @@ jobs:
       - store_artifacts:
           path: ui/cypress/screenshots
           destination: screenshots
-  selenium_accept:
-    docker:
-      - image: circleci/node:lts-stretch-browsers
-      - image: quay.io/influxdb/influx:nightly
-        command: [--e2e-testing=true]
-    steps:
-      - checkout
-      - run:
-          name: Environment check
-          command: |
-            git --version
-            node --version && npm --version
-            docker --version
-            google-chrome --version && which google-chrome && chromedriver --version && which chromedriver
-            timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:8086)" != "200" ]]; do sleep 5; done' || false
-      - run:
-          name: Selenium tests
-          command: |
-            set +e
-            cd e2e
-            npm install
-            sed -i "s/\"headless\": false/\"headless\": true/g" e2e.conf.json
-            npm test; TEST_RESULT=$?
-            npm run report:html
-            npm run report:junit
-            mkdir -p ~/e2e/test-results/cucumber
-            mkdir -p ~/e2e/artifacts/html
-            cp ~/project/e2e/report/cucumber_report.html ~/e2e/artifacts/html/cucumber_report.html
-            cp ~/project/e2e/report/cucumber_junit.xml ~/e2e/test-results/cucumber/report.xml
-            cp ~/project/e2e/report/cucumber_junit.xml ~/e2e/artifacts/report.xml
-            cp -r ~/project/e2e/screenshots ~/e2e/artifacts
-            ls -al
-            exit $TEST_RESULT
-      - store_test_results:
-          path: ~/e2e/test-results
-      - store_artifacts:
-          path: ~/e2e/artifacts
-  grace_nightly:
+
+  grace_integration:
     machine: true
     steps:
       - attach_workspace:
@@ -210,6 +154,7 @@ jobs:
           path: ~/project
       - store_test_results:
           path: ~/project
+
   jstest:
     docker:
       - image: circleci/golang:1.15-node-browsers
@@ -246,6 +191,7 @@ jobs:
           name: "Save Yarn Package Cache"
           paths:
             - ~/.cache/yarn
+
   jslint:
     docker:
       - image: circleci/golang:1.15-node-browsers
@@ -276,6 +222,7 @@ jobs:
           name: "Save Yarn Package Cache"
           paths:
             - ~/.cache/yarn
+
   gotest:
     docker:
       - image: circleci/golang:1.15
@@ -365,6 +312,7 @@ jobs:
           destination: raw-test-output
       - store_test_results:
           path: /tmp/test-results
+
   build:
     docker:
       - image: circleci/golang:1.13-node-browsers
@@ -395,41 +343,6 @@ jobs:
             - project
             - bin/linux/influxd
             - bin/linux/influx
-            - etc/litmus_success_notify.sh
-            - etc/litmus_fail_notify.sh
-  deploy-nightly:
-    docker:
-      - image: circleci/golang:1.15-node-browsers
-    environment:
-      GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
-    working_directory: /go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-
-      # Speed up `make nightly` by restoring caches from previous runs.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache- # Just match the most recent Go cache.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
-      - setup_remote_docker
-      - run:
-          name: "Docker Login"
-          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: sudo apt-get update && sudo apt-get install -y bzr
-      - install_rust_compiler
-      - install_release_tools
-      - run: make protoc # installs protoc
-      - run:
-          name: "Build nightly"
-          command: make nightly
-      - persist_to_workspace:
-          root: .
-          paths:
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
 
@@ -485,6 +398,13 @@ workflows:
           filters:
             branches:
               only: /^(?!pull\/).*$/
+      - grace_integration:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - "2.0"
       - litmus_integration:
           requires:
             - litmus_daily
@@ -495,48 +415,7 @@ workflows:
   e2e:
     jobs:
       - e2e
-  hourly-e2e:
-    triggers:
-      - schedule:
-          cron: "0 * * * *"
-          filters:
-            branches:
-              only:
-                - "2.0"
-    jobs:
-      - e2e
-  nightly:
-    triggers:
-      - schedule:
-          cron: "0 5 * * *"
-          filters:
-            branches:
-              only:
-                - "2.0"
-    jobs:
-      - gotest
-      - golint
-      - jstest
-      - jslint
-      - deploy-nightly:
-          requires:
-            - gotest
-            - golint
-            - jstest
-            - jslint
-          filters:
-            branches:
-              only:
-                - "2.0"
-      - litmus_nightly:
-          requires:
-            - deploy-nightly
-      # - selenium_accept:
-      #    requires:
-      #      - deploy-nightly
-      - grace_nightly:
-          requires:
-            - deploy-nightly
+
   release:
     jobs:
       - gotest:
