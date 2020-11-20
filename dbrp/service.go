@@ -265,7 +265,9 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 			if err != nil {
 				return false, ErrInternalService(err)
 			}
-
+			if defID == nil {
+				return true, nil
+			}
 			m.Default = m.ID == *defID
 			if filterFunc(&m, filter) {
 				ms = append(ms, &m)
