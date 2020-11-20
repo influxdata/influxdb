@@ -24,18 +24,26 @@ use self::predicate::{Predicate, TimestampRange};
 
 #[async_trait]
 
-/// A `Database` stores data and provides an interface to query that data.
+/// A `Database` describes something that stores InfluxDB Timeseries
+/// data from Line Protocol (`ParsedLine` structures) and provides an
+/// interface to query that data. The query methods on this trait such
+/// as `tag_columns are specific to this data model.
 ///
-/// It is like a relational database table where each column has a
-/// datatype as well as being in one of the following categories:
+/// The IOx storage engine implements this trait to provide Timeseries
+/// specific queries, but also provides more generic access to the same
+/// underlying data via other interfaces (e.g. SQL).
 ///
-/// Tag (always string columns)
-/// Field (Float64, Int64, UInt64, String, or Bool)
-/// Time (Float64)
+/// The InfluxDB Timeseries data model can can be thought of as a
+/// relational database table where each column has both a type as
+/// well as one of the following categories:
 ///
-/// While the underlying storage is the same for all columns and they
-/// can retrieved as Arrow columns, the field type is used to select
-/// certain columns in some query types.
+/// * Tag (always String type)
+/// * Field (Float64, Int64, UInt64, String, or Bool)
+/// * Time (Int64)
+///
+/// While the underlying storage is the same for columns in different
+/// categories with the same data type, columns of different
+/// categories are treated differently in the different query types.
 pub trait Database: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
