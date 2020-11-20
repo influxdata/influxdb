@@ -22,6 +22,18 @@ pub enum Error {
         segment_count
     ))]
     UnableToDropSegment { size: u64, segment_count: usize },
+
+    #[snafu(display(
+        "Sequence from writer {} out of order. Current: {}, incomming {}",
+        writer,
+        current_sequence,
+        incoming_sequence,
+    ))]
+    SequenceOutOfOrder {
+        writer: WriterId,
+        current_sequence: u64,
+        incoming_sequence: u64,
+    },
 }
 
 #[allow(dead_code)]
@@ -87,7 +99,7 @@ impl Buffer {
         let mut closed_segment = None;
 
         self.current_size += write_size;
-        self.open_segment.append(write);
+        self.open_segment.append(write)?;
         if self.open_segment.size > self.segment_size {
             let next_id = self.open_segment.id + 1;
             let segment = mem::replace(&mut self.open_segment, Segment::new(next_id));
@@ -204,15 +216,35 @@ impl Segment {
 
     // appends the write to the segment, keeping track of the summary information about the writer
     #[allow(dead_code)]
-    fn append(&mut self, write: ReplicatedWrite) {
+    fn append(&mut self, write: ReplicatedWrite) -> Result<()> {
+        let (writer_id, sequence_number) = write.writer_and_sequence();
+        self.validate_and_update_sequence_summary(writer_id, sequence_number)?;
+
         let size = write.data.len();
         let size = u64::try_from(size).expect("appended data must be less than a u64 in length");
         self.size += size;
 
-        let (writer_id, sequence_number) = write.writer_and_sequence();
+        self.writes.push(Arc::new(write));
+        Ok(())
+    }
+
+    // checks that the sequence numbers in this segment are monotonically increasing. Also keeps
+    // track of the starting and ending sequence numbers and if any were missing.
+    fn validate_and_update_sequence_summary(
+        &mut self,
+        writer_id: WriterId,
+        sequence_number: u64,
+    ) -> Result<()> {
         match self.writers.get_mut(&writer_id) {
             Some(summary) => {
-                if summary.end_sequence + 1 != sequence_number {
+                if summary.end_sequence >= sequence_number {
+                    return SequenceOutOfOrder {
+                        writer: writer_id,
+                        current_sequence: summary.end_sequence,
+                        incoming_sequence: sequence_number,
+                    }
+                    .fail();
+                } else if summary.end_sequence + 1 != sequence_number {
                     summary.missing_sequence = true;
                 }
 
@@ -229,7 +261,7 @@ impl Segment {
             }
         }
 
-        self.writes.push(Arc::new(write));
+        Ok(())
     }
 
     /// sets the time this segment was persisted at
@@ -240,7 +272,6 @@ impl Segment {
     }
 
     /// returns the time this segment was persisted at or none if not set
-    #[allow(dead_code)]
     pub async fn persisted_at(&self) -> Option<DateTime<Utc>> {
         let persisted = self.persisted.lock().await;
         *persisted
@@ -524,17 +555,31 @@ mod tests {
         assert!(writes[0].equal_to_writer_and_sequence(2, 2));
     }
 
+    #[tokio::test]
+    async fn returns_error_if_sequence_decreases() {
+        let max = 1 << 63;
+        let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
+        let segment = (write.data.len() + 1) as u64;
+        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError);
+
+        let segment = buf.append(write).await.unwrap();
+        assert!(segment.is_none());
+
+        let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
+        assert!(buf.append(write).await.is_err());
+    }
+
     #[test]
     fn segment_keeps_writer_summaries() {
         let mut segment = Segment::new(1);
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
-        segment.append(write);
+        segment.append(write).unwrap();
         let write = lp_to_replicated_write(2, 1, "cpu val=1 10");
-        segment.append(write);
+        segment.append(write).unwrap();
         let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
-        segment.append(write);
+        segment.append(write).unwrap();
         let write = lp_to_replicated_write(2, 4, "cpu val=1 10");
-        segment.append(write);
+        segment.append(write).unwrap();
 
         let summary = segment.writers.get(&1).unwrap();
         assert_eq!(

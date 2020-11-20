@@ -93,7 +93,7 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     fn require_id(&self) -> Result<u32> {
-        Ok(self.config.id.context(IdNotSet)?)
+        self.config.id.context(IdNotSet)
     }
 
     /// Tells the server the set of rules for a database. Currently, this is not persisted and
@@ -103,6 +103,7 @@ impl<M: ConnectionManager> Server<M> {
         db_name: impl Into<String>,
         rules: DatabaseRules,
     ) -> Result<()> {
+        // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
 
         let db_name = db_name.into();
@@ -130,6 +131,7 @@ impl<M: ConnectionManager> Server<M> {
     /// strings should be something that the connection manager can use to return a remote server
     /// to work with.
     pub async fn create_host_group(&mut self, id: HostGroupId, hosts: Vec<String>) -> Result<()> {
+        // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
 
         self.config
@@ -184,7 +186,7 @@ impl<M: ConnectionManager> Server<M> {
 
     /// `write_lines` takes in raw line protocol and converts it to a `ReplicatedWrite`, which
     /// is then replicated to other servers based on the configuration of the `db`.
-    /// This is step #1 from the above diagram.
+    /// This is step #1 from the crate level documentation.
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
         let id = self.require_id()?;
 
@@ -252,6 +254,9 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
+    // replicates to a single host in the group based on hashing rules. If that host is unavailable
+    // an error will be returned. The request may still succeed if enough of the other host groups
+    // have returned a success.
     async fn replicate_to_host_group(
         &self,
         host_group_id: &str,
@@ -264,6 +269,8 @@ impl<M: ConnectionManager> Server<M> {
             .get(host_group_id)
             .context(HostGroupNotFound { id: host_group_id })?;
 
+        // TODO: handle hashing rules to determine which host in the group should get the write.
+        //       for now, just write to the first one.
         let host = group
             .hosts
             .get(0)
