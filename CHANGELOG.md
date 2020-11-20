@@ -3,8 +3,8 @@
 
 ### Features
 
-1. [20123](https://github.com/influxdata/influxdb/pull/20123): Allow password to be specified as a CLI option in `influx v1 auth create`.
-1. [20123](https://github.com/influxdata/influxdb/pull/20123): Allow password to be specified as a CLI option in `influx v1 auth set-password`.
+1. [20128](https://github.com/influxdata/influxdb/pull/20128): Allow password to be specified as a CLI option in `influx v1 auth create`.
+1. [20128](https://github.com/influxdata/influxdb/pull/20128): Allow password to be specified as a CLI option in `influx v1 auth set-password`.
 
 ## v2.0.2 [2020-11-18]
 ----------------------
