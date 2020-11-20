@@ -46,6 +46,7 @@ func cmdV1Auth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 var v1AuthCreateFlags struct {
 	username    string
 	description string
+	password    string
 	noPassword  bool
 	hideHeaders bool
 	json        bool
@@ -68,6 +69,7 @@ func v1AuthCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVar(&v1AuthCreateFlags.username, "username", "", "The username to identify this token")
 	_ = cmd.MarkFlagRequired("username")
 	cmd.Flags().StringVarP(&v1AuthCreateFlags.description, "description", "d", "", "Token description")
+	cmd.Flags().StringVar(&v1AuthCreateFlags.password, "password", "", "The password to set on this token")
 	cmd.Flags().BoolVar(&v1AuthCreateFlags.noPassword, "no-password", false, "Don't prompt for a password. You must use v1 auth set-password command before using the token.")
 	registerPrintOptions(opt.viper, cmd, &v1AuthCreateFlags.hideHeaders, &v1AuthCreateFlags.json)
 
@@ -81,6 +83,10 @@ func makeV1AuthorizationCreateE(opt genericCLIOpts) func(*cobra.Command, []strin
 	return func(cmd *cobra.Command, args []string) error {
 		if err := v1AuthCreateFlags.org.validOrgFlags(&flags); err != nil {
 			return err
+		}
+
+		if v1AuthCreateFlags.password != "" && v1AuthCreateFlags.noPassword {
+			return errors.New("only one of --password and --no-password may be specified")
 		}
 
 		userSvc, err := newUserService()
@@ -115,8 +121,8 @@ func makeV1AuthorizationCreateE(opt genericCLIOpts) func(*cobra.Command, []strin
 			return fmt.Errorf("authorization with username %q exists", v1AuthCreateFlags.username)
 		}
 
-		var password string
-		if !v1AuthCreateFlags.noPassword {
+		password := v1AuthCreateFlags.password
+		if password == "" && !v1AuthCreateFlags.noPassword {
 			ui := &input.UI{
 				Writer: opt.w,
 				Reader: opt.in,
@@ -161,7 +167,7 @@ func makeV1AuthorizationCreateE(opt genericCLIOpts) func(*cobra.Command, []strin
 			return err
 		}
 
-		if !v1AuthCreateFlags.noPassword {
+		if password != "" {
 			if err := s.SetPassword(context.Background(), auth.ID, password); err != nil {
 				_ = s.DeleteAuthorization(context.Background(), auth.ID)
 				return fmt.Errorf("error setting password: %w", err)
@@ -591,7 +597,8 @@ func (f *v1AuthLookupFlags) makeFilter() influxdb.AuthorizationFilter {
 }
 
 var v1AuthSetPasswordFlags struct {
-	lookup v1AuthLookupFlags
+	lookup   v1AuthLookupFlags
+	password string
 }
 
 func v1AuthSetPasswordCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -603,6 +610,7 @@ func v1AuthSetPasswordCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 
 	f.registerFlags(opt.viper, cmd)
 	v1AuthSetPasswordFlags.lookup.register(opt.viper, cmd, false)
+	cmd.Flags().StringVar(&v1AuthSetPasswordFlags.password, "password", "", "Password to set on the authorization")
 
 	return cmd
 }
@@ -623,12 +631,14 @@ func makeV1AuthorizationSetPasswordF(opt genericCLIOpts) func(*cobra.Command, []
 			return err
 		}
 
-		ui := &input.UI{
-			Writer: opt.w,
-			Reader: opt.in,
+		password := v1AuthSetPasswordFlags.password
+		if password == "" {
+			ui := &input.UI{
+				Writer: opt.w,
+				Reader: opt.in,
+			}
+			password = cinternal.GetPassword(ui, false)
 		}
-
-		password := cinternal.GetPassword(ui, false)
 
 		if err := s.SetPassword(context.Background(), auth.ID, password); err != nil {
 			return fmt.Errorf("error setting password: %w", err)
