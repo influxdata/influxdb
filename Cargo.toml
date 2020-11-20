@@ -8,7 +8,7 @@ default-run = "influxdb_iox"
 [workspace]
 members = [
     "arrow_deps",
-    "cluster",
+    "server",
     "data_types",
     "generated_types",
     "ingest",
