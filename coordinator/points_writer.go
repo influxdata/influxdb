@@ -234,7 +234,7 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 			continue
 		}
 
-		sh := sg.ShardFor(p.HashID())
+		sh := sg.ShardFor(p)
 		mapping.MapPoint(&sh, p)
 	}
 	return mapping, nil
