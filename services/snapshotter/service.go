@@ -116,8 +116,7 @@ func (s *Service) serve() {
 func (s *Service) handleConn(conn net.Conn) error {
 	var typ [1]byte
 
-	_, err := conn.Read(typ[:])
-	if err != nil {
+	if _, err := io.ReadFull(conn, typ[:]); err != nil {
 		return err
 	}
 
@@ -158,8 +157,7 @@ func (s *Service) handleConn(conn net.Conn) error {
 
 func (s *Service) updateShardsLive(conn net.Conn) error {
 	var sidBytes [8]byte
-	_, err := conn.Read(sidBytes[:])
-	if err != nil {
+	if _, err := io.ReadFull(conn, sidBytes[:]); err != nil {
 		return err
 	}
 	sid := binary.BigEndian.Uint64(sidBytes[:])
@@ -397,7 +395,9 @@ func (s *Service) readRequest(conn net.Conn) (Request, []byte, error) {
 		// it is a bit random but sometimes the Json decoder will consume all the bytes and sometimes
 		// it will leave a few behind.
 		if err != io.EOF && n < int(r.UploadSize+1) {
-			_, err = conn.Read(bits[n:])
+			if _, err := io.ReadFull(conn, bits[n:]); err != nil {
+				return r, bits, err
+			}
 		}
 
 		if err != nil && err != io.EOF {
