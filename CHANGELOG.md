@@ -23,7 +23,6 @@ v1.8.0 [unreleased]
 
 ### Bugfixes
 
--   [#20100](https://github.com/influxdata/influxdb/pull/20100): fix(write): Successful writes increment write error statistics incorrectly
 -	[#10503](https://github.com/influxdata/influxdb/pull/10503): Delete rebuilds series index when series to be deleted are only found in cache.
 -	[#10504](https://github.com/influxdata/influxdb/issue/10504): Delete rebuilds series index when series to be deleted are outside timerange.
 -	[#14485](https://github.com/influxdata/influxdb/pull/14485): Parse Accept header correctly.
