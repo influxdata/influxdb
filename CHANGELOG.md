@@ -3,6 +3,7 @@ v1.8.4 [unreleased]
 
 ### Bugfixes
 
+-   [#20101](https://github.com/influxdata/influxdb/pull/20101): fix(write): Successful writes increment write error statistics incorrectly
 -	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging
 
 v1.8.3 [2020-09-30]
@@ -15,7 +16,6 @@ v1.8.3 [2020-09-30]
 
 ### Bugfixes
 
--   [#20101](https://github.com/influxdata/influxdb/pull/20101): fix(write): Successful writes increment write error statistics incorrectly
 -	[#19409](https://github.com/influxdata/influxdb/pull/19409): chore: update uuid library from satori to gofrs.
 -	[#19439](https://github.com/influxdata/influxdb/pull/19439): fix(storage): ArrayFilterCursor truncation for multi-block data.
 -	[#19460](https://github.com/influxdata/influxdb/pull/19460): chore: Use latest version of influxql package.
