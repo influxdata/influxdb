@@ -26,21 +26,37 @@ pub fn type_description(value: wb::ColumnValue) -> &'static str {
     }
 }
 
-#[derive(Debug, Clone)]
+/// A friendlier wrapper to help deal with the Flatbuffers write data
+#[derive(Debug, Default, Clone)]
 pub struct ReplicatedWrite {
     pub data: Vec<u8>,
 }
 
 impl ReplicatedWrite {
+    /// Returns the Flatbuffers struct represented by the raw bytes.
     pub fn to_fb(&self) -> wb::ReplicatedWrite<'_> {
         flatbuffers::get_root::<wb::ReplicatedWrite<'_>>(&self.data)
     }
 
+    /// Returns the Flatbuffers struct for the WriteBufferBatch in the raw bytes of the
+    /// payload of the ReplicatedWrite.
     pub fn write_buffer_batch(&self) -> Option<wb::WriteBufferBatch<'_>> {
         match self.to_fb().payload() {
             Some(d) => Some(flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&d)),
             None => None,
         }
+    }
+
+    /// Returns true if this replicated write matches the writer and sequence.
+    pub fn equal_to_writer_and_sequence(&self, writer_id: u32, sequence_number: u64) -> bool {
+        let fb = self.to_fb();
+        fb.writer() == writer_id && fb.sequence() == sequence_number
+    }
+
+    /// Returns the writer id and sequence number
+    pub fn writer_and_sequence(&self) -> (u32, u64) {
+        let fb = self.to_fb();
+        (fb.writer(), fb.sequence())
     }
 }
 

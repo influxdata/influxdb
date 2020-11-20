@@ -53,6 +53,24 @@ table Delete {
   stop_time: int64;
 }
 
+// Segment is a colelction of ReplicatedWrites. It is the payload of a WAL
+// segment file.
+table Segment {
+  number: uint64;
+  writer_id: uint32;
+  writes: [ReplicatedWrite];
+  writers: [WriterSummary];
+}
+
+// WriterSummary contains the inormation for a writer that has writes in a Segment
+table WriterSummary {
+  writer_id: uint32;
+  start_sequence: uint64;
+  end_sequence: uint64;
+  // if true, there are sequence numbers between start and end that were missing
+  missing_sequences: bool;
+}
+
 // ReplicatedWrite is what gets sent between InfluxDB IOx servers and potentially
 // persisted up to object storage from the servers that receive it. The combination
 // of the writer, timestamp and checksum in this table can be used to deduplicate

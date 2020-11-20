@@ -68,6 +68,9 @@ pub struct DatabaseRules {
     /// queries by pointing it at a collection of partitions and then telling it to also pull
     /// data from the replication servers (writes that haven't been snapshotted into a partition).
     pub read_only_partitions: Vec<PartitionId>,
+
+    /// When set this will buffer WAL writes in memory based on the configuration.
+    pub wal_buffer_config: Option<WalBufferConfig>,
 }
 
 impl DatabaseRules {
@@ -78,6 +81,43 @@ impl DatabaseRules {
     ) -> Result<String> {
         self.partition_template.partition_key(line, default_time)
     }
+}
+
+/// WalBufferConfig defines the configuration for buffering data from the WAL in memory. This
+/// buffer is used for asynchronous replication and to collect segments before sending them to
+/// object storage.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct WalBufferConfig {
+    /// The size the WAL buffer should be limited to. Once the buffer gets to this size it will
+    /// drop old segments to remain below this size, but still try to hold as much in memory as
+    /// possible while remaining below this threshold
+    pub buffer_size: Option<u64>,
+    /// WAL segments become read only after crossing over this size. Which means that segments will
+    /// always be >= this size. When old segments are dropped from of memory, at least this much
+    /// space will be freed from the buffer.
+    pub segment_size: Option<u64>,
+    /// What should happen if a write comes in that would exceed the WAL buffer size and the
+    /// oldest segment that could be dropped hasn't yet been persisted to object storage. If the
+    /// oldest segment has been persisted, then it will be dropped from the buffer so that new writes
+    /// can be accepted. This option is only for defining the behavior of what happens if that segment
+    /// hasn't been persisted.
+    pub buffer_rollover: WalBufferRollover,
+}
+
+/// WalBufferRollover defines the behavior of what should happen if a write comes in that would
+/// cause the buffer to exceed its max size AND the oldest segment can't be dropped because it
+/// has not yet been persisted.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum WalBufferRollover {
+    /// Drop the old segment even though it hasn't been persisted. This part of the WAl will
+    /// be lost on this server.
+    DropOldSegment,
+    /// Drop the incoming write and fail silently. This favors making sure that older WAL data
+    /// will be backed up.
+    DropIncoming,
+    /// Reject the incoming write and return an error. The client may retry the request, which
+    /// will succeed once the oldest segment has been persisted to object storage.
+    ReturnError,
 }
 
 /// `PartitionTemplate` is used to compute the partition key of each row that gets written. It
@@ -151,7 +191,7 @@ pub struct StrftimeColumn {
 /// path that can be used against an object store to locate all the files and subdirectories
 /// for a partition. It takes the form of `/<writer ID>/<database>/<partition key>/`.
 pub type PartitionId = String;
-pub type WriterId = String;
+pub type WriterId = u32;
 
 /// `Subscription` represents a group of hosts that want to receive data as it arrives.
 /// The subscription has a matcher that is used to determine what data will match it, and
