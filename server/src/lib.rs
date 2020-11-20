@@ -1,6 +1,6 @@
-//! This crate contains code that defines how InfluxDB IOx servers talk to each other.
-//! This includes replication, subscriptions, querying, and traits that abstract these
-//! methods away for testing purposes.
+//! This crate contains code that defines the logic for a running InfluxDB IOx server. It
+//! also has the logic for how servers talk to each other, which includes replication,
+//! subscriptions, querying, and traits that abstract these methods away for testing purposes.
 //!
 //! This diagram shows the lifecycle of a write coming into a set of IOx servers
 //! configured in different roles. This doesn't include ensuring that the replicated
