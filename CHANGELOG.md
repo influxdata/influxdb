@@ -1,6 +1,10 @@
 v1.8.4 [unreleased]
 -------------------
 
+### Features
+
+-   [#20118](https://github.com/influxdata/influxdb/pull/20118): feat: No need to compute point hash if there is only one shard
+
 ### Bugfixes
 
 -	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging
