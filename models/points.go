@@ -648,6 +648,15 @@ func scanTags(buf []byte, i int, indices []int) (int, int, []int, error) {
 		case tagValueState:
 			state, i, err = scanTagsValue(buf, i)
 		case fieldsState:
+			// Grow our indices slice if we had exactly enough tags to fill it
+			if commas >= len(indices) {
+				// The parser is in `fieldsState`, so there are no more
+				// tags. We only need 1 more entry in the slice to store
+				// the final entry.
+				newIndics := make([]int, cap(indices)+1)
+				copy(newIndics, indices)
+				indices = newIndics
+			}
 			indices[commas] = i + 1
 			return i, commas, indices, nil
 		}
