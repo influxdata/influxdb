@@ -7,9 +7,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -31,6 +36,102 @@ func Test_Bolt_Index(t *testing.T) {
 	defer closeBolt()
 
 	influxdbtesting.TestIndex(t, s)
+}
+
+func TestIndex_Walk(t *testing.T) {
+	t.Run("only selects exact keys", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		type keyValue struct{ key, val []byte }
+		makeIndexKV := func(fk, pk string) keyValue {
+			return keyValue{
+				key: kv.IndexKey([]byte(fk), []byte(pk)),
+				val: []byte(pk),
+			}
+		}
+
+		makeKV := func(key, val string) keyValue {
+			return keyValue{[]byte(key), []byte(val)}
+		}
+
+		var (
+			sourceBucket = []byte("source")
+			indexBucket  = []byte("index")
+			foreignKey   = []byte("jenkins")
+			idxkeyvals   = []keyValue{
+				makeIndexKV("jenkins-aws", "pk1"),
+				makeIndexKV("jenkins-aws", "pk2"),
+				makeIndexKV("jenkins-aws", "pk3"),
+				makeIndexKV("jenkins", "pk4"),
+				makeIndexKV("jenkins", "pk5"),
+			}
+			srckeyvals = []struct{ key, val []byte }{
+				makeKV("pk4", "val4"),
+				makeKV("pk5", "val5"),
+			}
+		)
+
+		mapping := kv.NewIndexMapping(sourceBucket, indexBucket, func(data []byte) ([]byte, error) {
+			return nil, nil
+		})
+
+		tx := mock.NewMockTx(ctrl)
+
+		src := mock.NewMockBucket(ctrl)
+		src.EXPECT().
+			GetBatch(srckeyvals[0].key, srckeyvals[1].key).
+			Return([][]byte{srckeyvals[0].val, srckeyvals[1].val}, nil)
+
+		tx.EXPECT().
+			Bucket(sourceBucket).
+			Return(src, nil)
+
+		idx := mock.NewMockBucket(ctrl)
+		tx.EXPECT().
+			Bucket(indexBucket).
+			Return(idx, nil)
+
+		cur := mock.NewMockForwardCursor(ctrl)
+
+		i := 0
+		cur.EXPECT().
+			Next().
+			DoAndReturn(func() ([]byte, []byte) {
+				var k, v []byte
+				if i < len(idxkeyvals) {
+					elem := idxkeyvals[i]
+					i++
+					k, v = elem.key, elem.val
+				}
+
+				return k, v
+			}).
+			Times(len(idxkeyvals) + 1)
+		cur.EXPECT().
+			Err().
+			Return(nil)
+		cur.EXPECT().
+			Close().
+			Return(nil)
+		idx.EXPECT().
+			ForwardCursor(foreignKey, gomock.Any()).
+			Return(cur, nil)
+
+		ctx := context.Background()
+		index := kv.NewIndex(mapping, kv.WithIndexReadPathEnabled)
+
+		j := 0
+		err := index.Walk(ctx, tx, foreignKey, func(k, v []byte) (bool, error) {
+			require.Less(t, j, len(srckeyvals))
+			assert.Equal(t, srckeyvals[j].key, k)
+			assert.Equal(t, srckeyvals[j].val, v)
+			j++
+			return true, nil
+		})
+
+		assert.NoError(t, err)
+	})
 }
 
 func Benchmark_Inmem_Index_Walk(b *testing.B) {
