@@ -128,7 +128,9 @@ func (i *Index) sourceBucket(tx Tx) (Bucket, error) {
 	return tx.Bucket(i.SourceBucket())
 }
 
-func indexKey(foreignKey, primaryKey []byte) (newKey []byte) {
+// IndexKey returns a value suitable for use as the key component
+// when storing values in the index.
+func IndexKey(foreignKey, primaryKey []byte) (newKey []byte) {
 	newKey = make([]byte, len(primaryKey)+len(foreignKey)+1)
 	copy(newKey, foreignKey)
 	newKey[len(foreignKey)] = '/'
@@ -157,7 +159,7 @@ func (i *Index) Insert(tx Tx, foreignKey, primaryKey []byte) error {
 		return err
 	}
 
-	return bkt.Put(indexKey(foreignKey, primaryKey), primaryKey)
+	return bkt.Put(IndexKey(foreignKey, primaryKey), primaryKey)
 }
 
 // Delete removes the foreignKey and primaryKey mapping from the underlying index.
@@ -167,7 +169,7 @@ func (i *Index) Delete(tx Tx, foreignKey, primaryKey []byte) error {
 		return err
 	}
 
-	return bkt.Delete(indexKey(foreignKey, primaryKey))
+	return bkt.Delete(IndexKey(foreignKey, primaryKey))
 }
 
 // Walk walks the source bucket using keys found in the index using the provided foreign key
@@ -195,16 +197,20 @@ func (i *Index) Walk(ctx context.Context, tx Tx, foreignKey []byte, visitFn Visi
 		return err
 	}
 
-	return indexWalk(ctx, cursor, sourceBucket, visitFn)
+	return indexWalk(ctx, foreignKey, cursor, sourceBucket, visitFn)
 }
 
 // indexWalk consumes the indexKey and primaryKey pairs in the index bucket and looks up their
 // associated primaryKey's value in the provided source bucket.
 // When an item is located in the source, the provided visit function is called with primary key and associated value.
-func indexWalk(ctx context.Context, indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) (err error) {
+func indexWalk(ctx context.Context, foreignKey []byte, indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) (err error) {
 	var keys [][]byte
 	for ik, pk := indexCursor.Next(); ik != nil; ik, pk = indexCursor.Next() {
-		keys = append(keys, pk)
+		if fk, _, err := indexKeyParts(ik); err != nil {
+			return err
+		} else if string(fk) == string(foreignKey) {
+			keys = append(keys, pk)
+		}
 	}
 
 	if err := indexCursor.Err(); err != nil {
