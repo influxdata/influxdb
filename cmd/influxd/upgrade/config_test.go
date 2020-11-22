@@ -1,13 +1,13 @@
 package upgrade
 
 import (
-	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
