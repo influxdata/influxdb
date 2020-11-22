@@ -34,6 +34,7 @@ want to use the default.
 1. [20053](https://github.com/influxdata/influxdb/pull/20053): Upgrade Flux to v0.95.0.
 1. [20058](https://github.com/influxdata/influxdb/pull/20058): UI: Upgrade flux-lsp-browser to v0.5.23.
 1. [20067](https://github.com/influxdata/influxdb/pull/20067): Add DBRP cli commands as `influxd v1 dbrp`.
+1. [20097](https://github.com/influxdata/influxdb/pull/20097): Ensure Index.Walk fetches matching foreign keys only.
 
 ### Bug Fixes
 
