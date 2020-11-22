@@ -35,9 +35,10 @@ import (
 )
 
 var (
-	bucket        = []byte("dbrpv1")
-	indexBucket   = []byte("dbrpbyorganddbindexv1")
-	defaultBucket = []byte("dbrpdefaultv1")
+	bucket             = []byte("dbrpv1")
+	indexBucket        = []byte("dbrpbyorganddbindexv1")
+	byOrgIDIndexBucket = []byte("dbrpbyorgv1")
+	defaultBucket      = []byte("dbrpdefaultv1")
 )
 
 var _ influxdb.DBRPMappingServiceV2 = (*AuthorizedService)(nil)
@@ -48,6 +49,7 @@ type Service struct {
 
 	bucketSvc        influxdb.BucketService
 	byOrgAndDatabase *kv.Index
+	byOrg            *kv.Index
 }
 
 func indexForeignKey(dbrp influxdb.DBRPMappingV2) []byte {
@@ -74,6 +76,7 @@ func NewService(ctx context.Context, bucketSvc influxdb.BucketService, st kv.Sto
 			}
 			return indexForeignKey(dbrp), nil
 		}), kv.WithIndexReadPathEnabled),
+		byOrg: kv.NewIndex(ByOrgIDIndexMapping, kv.WithIndexReadPathEnabled),
 	}
 }
 
@@ -277,17 +280,17 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 		// Optimized path, use index.
 		if orgID := filter.OrgID; orgID != nil {
-			// The index performs a prefix search.
-			// The foreign key is `orgID + db`.
-			// If you want to look by orgID only, just pass orgID as prefix.
-			db := ""
-			if filter.Database != nil {
+			var (
+				db      = ""
+				compKey []byte
+				index   *kv.Index
+			)
+			if filter.Database != nil && len(*filter.Database) > 0 {
 				db = *filter.Database
-			}
-			compKey := composeForeignKey(*orgID, db)
-			if len(db) > 0 {
-				// Even more optimized, looking for the default given an orgID and database.
-				// No walking index needed.
+				compKey = composeForeignKey(*orgID, db)
+				index = s.byOrgAndDatabase
+
+				// Filtering by Org, Database and Default == true
 				if def := filter.Default; def != nil && *def {
 					defID, err := s.getDefault(tx, compKey)
 					if kv.IsNotFound(err) {
@@ -307,8 +310,12 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 					_, err = add(tx)(defID, v)
 					return err
 				}
+			} else {
+				compKey, _ = orgID.Encode()
+				index = s.byOrg
 			}
-			return s.byOrgAndDatabase.Walk(ctx, tx, compKey, add(tx))
+
+			return index.Walk(ctx, tx, compKey, add(tx))
 		}
 		bucket, err := tx.Bucket(bucket)
 		if err != nil {
@@ -359,15 +366,25 @@ func (s *Service) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) erro
 		return ErrInvalidDBRPID
 	}
 
+	// OrganizationID has been validated by Validate
+	orgID, _ := dbrp.OrganizationID.Encode()
+
 	return s.store.Update(ctx, func(tx kv.Tx) error {
 		bucket, err := tx.Bucket(bucket)
 		if err != nil {
 			return ErrInternalService(err)
 		}
+
+		// populate indices
 		compKey := indexForeignKey(*dbrp)
 		if err := s.byOrgAndDatabase.Insert(tx, compKey, encodedID); err != nil {
 			return err
 		}
+
+		if err := s.byOrg.Insert(tx, orgID, encodedID); err != nil {
+			return err
+		}
+
 		defSet, err := s.isDefaultSet(tx, compKey)
 		if err != nil {
 			return err
@@ -463,6 +480,12 @@ func (s *Service) Delete(ctx context.Context, orgID, id influxdb.ID) error {
 	if err != nil {
 		return ErrInternalService(err)
 	}
+
+	encodedOrgID, err := id.Encode()
+	if err != nil {
+		return ErrInternalService(err)
+	}
+
 	return s.store.Update(ctx, func(tx kv.Tx) error {
 		bucket, err := tx.Bucket(bucket)
 		if err != nil {
@@ -473,6 +496,9 @@ func (s *Service) Delete(ctx context.Context, orgID, id influxdb.ID) error {
 			return err
 		}
 		if err := s.byOrgAndDatabase.Delete(tx, compKey, encodedID); err != nil {
+			return ErrInternalService(err)
+		}
+		if err := s.byOrg.Delete(tx, encodedOrgID, encodedID); err != nil {
 			return ErrInternalService(err)
 		}
 		// If this was the default, we need to set a new default.
