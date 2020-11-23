@@ -254,9 +254,12 @@ Further, please don't expect us to accept significant changes without new test c
 
 To open a PR you will need to have a Github account.
 Fork the `influxdb_iox` repo and work on a branch on your fork.
-When you have completed your changes make a Pull Request to InfluxDB IOx [here].
+When you have completed your changes, or you want some incremental feedback make a Pull Request to InfluxDB IOx [here].
 
-Before you submit a PR you should verify the following locally:
+If you want to discuss some work in progress then please prefix `[WIP]` to the
+PR title.
+
+For PRs that you consider ready for review, verify the following locally before you submit it:
 
 * you have a coherent set of logical commits, with messages conforming to the [Conventional Commits] specification;
 * all the tests and/or benchmarks pass, including documentation tests;
