@@ -7,7 +7,7 @@
 
 ### Bug Fixes
 
-1. [20137](https://github.com/influxdata/influxdb/pull/20137): Fix panic when writing a point with 100 tags
+1. [20137](https://github.com/influxdata/influxdb/pull/20137): Fix panic when writing a point with 100 tags. Thanks @foobar!
 
 ## v2.0.2 [2020-11-19]
 
