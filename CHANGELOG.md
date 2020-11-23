@@ -17,11 +17,11 @@ want to use the default.
 
 1. [20128](https://github.com/influxdata/influxdb/pull/20128): Allow password to be specified as a CLI option in `influx v1 auth create`.
 1. [20128](https://github.com/influxdata/influxdb/pull/20128): Allow password to be specified as a CLI option in `influx v1 auth set-password`.
-1. [20110](https://github.com/influxdata/influxdb/pull/20110): Allow for users to specify where V2 config should be written in `influxd upgrade`.
+1. [20146](https://github.com/influxdata/influxdb/pull/20146): Allow for users to specify where V2 config should be written in `influxd upgrade`.
 
 ### Bug Fixes
 
-1. [20110](https://github.com/influxdata/influxdb/pull/20110): Use V2 directory for default V2 config path in `influxd upgrade`.
+1. [20146](https://github.com/influxdata/influxdb/pull/20146): Use V2 directory for default V2 config path in `influxd upgrade`.
 
 ## v2.0.2 [2020-11-18]
 ----------------------
