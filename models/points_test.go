@@ -1255,6 +1255,17 @@ func TestParsePointWithDuplicateTags(t *testing.T) {
 	}
 }
 
+func TestParsePointWithVariousTags(t *testing.T) {
+	line := "m"
+	for i := 0; i < 1000; i++ {
+		line += fmt.Sprintf(",t%d=x", i+1)
+		_, err := models.ParsePointsString(line + " v=0")
+		if err != nil {
+			t.Errorf(`ParsePoints("%s") failed`, line)
+		}
+	}
+}
+
 func TestParsePointWithStringField(t *testing.T) {
 	test(t, `cpu,host=serverA,region=us-east value=1.0,str="foo",str2="bar" 1000000000`,
 		NewTestPoint("cpu",
