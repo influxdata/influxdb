@@ -140,6 +140,7 @@ var blacklistEndpoints = map[string]isValidMethodFn{
 	usersPasswordPath:                ignoreMethod(),
 	"/api/v2/packages/apply":         ignoreMethod(),
 	prefixWrite:                      ignoreMethod("POST"),
+	"/write":                         ignoreMethod("POST"),
 	organizationsIDSecretsPath:       ignoreMethod("PATCH"),
 	organizationsIDSecretsDeletePath: ignoreMethod("POST"),
 	prefixSetup:                      ignoreMethod("POST"),
