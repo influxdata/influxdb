@@ -38,6 +38,48 @@ func Test_Bolt_Index(t *testing.T) {
 	influxdbtesting.TestIndex(t, s)
 }
 
+func TestIndexKey(t *testing.T) {
+	tests := []struct {
+		name   string
+		fk     string
+		pk     string
+		expKey string
+		expErr error
+	}{
+		{
+			name:   "returns key",
+			fk:     "fk_part",
+			pk:     "pk_part",
+			expKey: "fk_part/pk_part",
+		},
+		{
+			name:   "returns error for invalid foreign key",
+			fk:     "fk/part",
+			pk:     "pk_part",
+			expErr: kv.ErrKeyInvalidCharacters,
+		},
+		{
+			name:   "returns error for invalid primary key",
+			fk:     "fk_part",
+			pk:     "pk/part",
+			expErr: kv.ErrKeyInvalidCharacters,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gotKey, gotErr := kv.IndexKey([]byte(test.fk), []byte(test.pk))
+			if test.expErr != nil {
+				require.Error(t, gotErr)
+				assert.EqualError(t, test.expErr, gotErr.Error())
+				assert.Nil(t, gotKey)
+			} else {
+				assert.NoError(t, gotErr)
+				assert.Equal(t, test.expKey, string(gotKey))
+			}
+		})
+	}
+}
+
 func TestIndex_Walk(t *testing.T) {
 	t.Run("only selects exact keys", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -45,8 +87,12 @@ func TestIndex_Walk(t *testing.T) {
 
 		type keyValue struct{ key, val []byte }
 		makeIndexKV := func(fk, pk string) keyValue {
+			key, err := kv.IndexKey([]byte(fk), []byte(pk))
+			if err != nil {
+				panic(err)
+			}
 			return keyValue{
-				key: kv.IndexKey([]byte(fk), []byte(pk)),
+				key: key,
 				val: []byte(pk),
 			}
 		}
