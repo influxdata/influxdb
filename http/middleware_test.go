@@ -233,6 +233,11 @@ func TestLoggingMW(t *testing.T) {
 				path:   "/api/v2/write",
 			},
 			{
+				name:   "legacy write path",
+				method: "POST",
+				path:   "/write",
+			},
+			{
 				name:   "orgs id secrets path",
 				method: "PATCH",
 				path:   "/api/v2/orgs/org-id/secrets",
