@@ -181,7 +181,7 @@ To query stored data, use the `/api/v2/read` endpoint with a SQL query. This exa
 all data in the `company` organization's `sensors` bucket for the `processes` measurement:
 
 ```
-$ curl -v -G -d 'org=company' -d 'bucket=sensors' --data-urlencode 'sql_query=select * from processes' "http://127.0.0.1:8080/api/v2/read"
+curl -v -G -d 'org=company' -d 'bucket=sensors' --data-urlencode 'sql_query=select * from processes' "http://127.0.0.1:8080/api/v2/read"
 ```
 
 ## Contributing
