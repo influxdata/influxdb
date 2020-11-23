@@ -141,17 +141,20 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance at %q has already been setup", activeConfig.Host)
 	}
 
-	existingConfigs := make(config.Configs)
 	if _, err := os.Stat(dPath); err == nil {
-		existingConfigs, _ = localConfigSVC.ListConfigs()
-		// ignore the error if found nothing
-		if setupFlags.name == "" {
-			return errors.New("flag name is required if you already have existing configs")
-		}
-		if _, ok := existingConfigs[setupFlags.name]; ok {
-			return &influxdb.Error{
-				Code: influxdb.EConflict,
-				Msg:  fmt.Sprintf("config name %q already existed", setupFlags.name),
+		existingConfigs, _ := localConfigSVC.ListConfigs()
+		if len(existingConfigs) > 0 {
+			// If there are existing configs then require that a name be
+			// spcified in order to distinguish this new config from what's
+			// there already.
+			if setupFlags.name == "" {
+				return errors.New("flag name is required if you already have existing configs")
+			}
+			if _, ok := existingConfigs[setupFlags.name]; ok {
+				return &influxdb.Error{
+					Code: influxdb.EConflict,
+					Msg:  fmt.Sprintf("config name %q already existed", setupFlags.name),
+				}
 			}
 		}
 	}
@@ -169,7 +172,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 	p := config.DefaultConfig
 	p.Token = result.Auth.Token
 	p.Org = result.Org.Name
-	if len(existingConfigs) > 0 {
+	if setupFlags.name != "" {
 		p.Name = setupFlags.name
 	}
 	if activeConfig.Host != "" {
@@ -277,12 +280,11 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 		req.Bucket = internal2.GetInput(ui, "Please type your primary bucket name", "")
 	}
 
-	dur, err := internal2.RawDurationToTimeDuration(setupFlags.retention)
-	if err != nil {
-		return nil, err
-	}
-
-	if dur > 0 {
+	if setupFlags.retention != "" {
+		dur, err := internal2.RawDurationToTimeDuration(setupFlags.retention)
+		if err != nil {
+			return nil, err
+		}
 		req.RetentionPeriod = dur
 	} else {
 		for {
