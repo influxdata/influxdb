@@ -239,6 +239,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Desc:  "optional: Custom InfluxDB 1.x config file path, else the default config file",
 		},
 		{
+			DestP:   &options.target.configPath,
+			Flag:    "v2-config-path",
+			Default: filepath.Join(v2dir, "config.toml"),
+			Desc:    "optional: Custom path where upgraded 2.x config should be written",
+		},
+		{
 			DestP:   &options.logLevel,
 			Flag:    "log-level",
 			Default: zapcore.InfoLevel.String(),
@@ -355,8 +361,6 @@ func runUpgradeE(*cobra.Command, []string) error {
 		options.source.dataDir = v1Config.Data.Dir
 		options.source.walDir = v1Config.Data.WALDir
 		options.source.dbURL = v1Config.dbURL()
-
-		options.target.configPath = filepath.Join(filepath.Dir(options.source.configFile), "config.toml")
 	} else {
 		// Otherwise, assume a standard directory layout.
 		options.source.populateDirs()
@@ -371,15 +375,15 @@ func runUpgradeE(*cobra.Command, []string) error {
 
 	if genericV1ops != nil {
 		log.Info("Upgrading config file", zap.String("file", options.source.configFile))
-		v2ConfigPath, err := upgradeConfig(*genericV1ops, options.target, log)
-		if err != nil {
+		if err := upgradeConfig(*genericV1ops, options.target, log); err != nil {
 			return err
 		}
 		log.Info(
 			"Config file upgraded.",
 			zap.String("1.x config", options.source.configFile),
-			zap.String("2.x config", v2ConfigPath),
+			zap.String("2.x config", options.target.configPath),
 		)
+
 	} else {
 		log.Info("No InfluxDB 1.x config file specified, skipping its upgrade")
 	}

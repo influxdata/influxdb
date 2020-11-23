@@ -1,12 +1,26 @@
 ## unreleased
 
+### Breaking Changes
+
+Previously, `influxd upgrade` would attempt to write upgraded `config.toml` files into the same directory as the source
+`influxdb.conf` file. If this failed, a warning would be logged and `config.toml` would be written into the `HOME` directory.
+
+This release breaks this behavior in two ways:
+1. By default, `config.toml` is now written into the same directory as the Bolt DB and engine files (`~/.influxdbv2/`)
+2. If writing upgraded config fails, the `upgrade` process exits with an error instead of falling back to the `HOME` directory
+
+Users can use the new `--v2-config-path` option to override the output path for upgraded config if they can't or don't
+want to use the default.
+
 ### Features
 
 1. [20123](https://github.com/influxdata/influxdb/pull/20123): Allow password to be specified as a CLI option in `influx v1 auth create`.
 1. [20123](https://github.com/influxdata/influxdb/pull/20123): Allow password to be specified as a CLI option in `influx v1 auth set-password`.
+1. [20110](https://github.com/influxdata/influxdb/pull/20110): Allow for users to specify where V2 config should be written in `influxd upgrade`.
 
 ### Bug Fixes
 
+1. [20110](https://github.com/influxdata/influxdb/pull/20110): Use V2 directory for default V2 config path in `influxd upgrade`.
 1. [20137](https://github.com/influxdata/influxdb/pull/20137): Fix panic when writing a point with 100 tags. Thanks @foobar!
 
 ## v2.0.2 [2020-11-19]
