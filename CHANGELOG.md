@@ -22,6 +22,7 @@ want to use the default.
 
 1. [20110](https://github.com/influxdata/influxdb/pull/20110): Use V2 directory for default V2 config path in `influxd upgrade`.
 1. [20137](https://github.com/influxdata/influxdb/pull/20137): Fix panic when writing a point with 100 tags. Thanks @foobar!
+1. [20151](https://github.com/influxdata/influxdb/pull/20151): Don't log bodies of V1 write requests.
 
 ## v2.0.2 [2020-11-19]
 
