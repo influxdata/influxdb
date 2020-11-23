@@ -1,8 +1,8 @@
 # InfluxDB IOx
 
-InfluxDB IOx (short for Iron Oxide, pronounced InfluxDB "eye-ox") is the future core of InfluxDB, an open source time series database. 
-The name is in homage to Rust, the language this project is written in. 
-It is built using [Apache Arrow](https://arrow.apache.org/) and [DataFusion](https://arrow.apache.org/blog/2019/02/04/datafusion-donation/) among other things. 
+InfluxDB IOx (short for Iron Oxide, pronounced InfluxDB "eye-ox") is the future core of InfluxDB, an open source time series database.
+The name is in homage to Rust, the language this project is written in.
+It is built using [Apache Arrow](https://arrow.apache.org/) and [DataFusion](https://arrow.apache.org/blog/2019/02/04/datafusion-donation/) among other things.
 InfluxDB IOx aims to be:
 
 * The future core of InfluxDB; supporting industry standard SQL, InfluxQL, and Flux
@@ -13,11 +13,11 @@ InfluxDB IOx aims to be:
 * A processor that can transform and do arbitrary computation on time series and event data as it arrives
 * An analytic database built for data science, supporting Apache Arrow Flight for fast data transfer
 
-Persistence is through Parquet files in object storage. 
-It is a design goal to support integration with other big data systems through object storage and Parquet specifically. 
+Persistence is through Parquet files in object storage.
+It is a design goal to support integration with other big data systems through object storage and Parquet specifically.
 
-For more details on the motivation behind the project and some of our goals, read through the [InfluxDB IOx announcement blog post](https://www.influxdata.com/blog/announcing-influxdb-iox/). 
-If you prefer a video that covers a little bit of InfluxDB history and high level goals for [InfluxDB IOx you can watch Paul Dix's announcement talk from InfluxDays NA 2020](https://www.youtube.com/watch?v=pnwkAAyMp18). 
+For more details on the motivation behind the project and some of our goals, read through the [InfluxDB IOx announcement blog post](https://www.influxdata.com/blog/announcing-influxdb-iox/).
+If you prefer a video that covers a little bit of InfluxDB history and high level goals for [InfluxDB IOx you can watch Paul Dix's announcement talk from InfluxDays NA 2020](https://www.youtube.com/watch?v=pnwkAAyMp18).
 For more details on the motivation behind the selection of [Apache Arrow, Flight and Parquet, read this](https://www.influxdata.com/blog/apache-arrow-parquet-flight-and-their-ecosystem-are-a-game-changer-for-olap/).
 
 ## Project Status
@@ -36,14 +36,14 @@ compiler.
 Using `git`, check out the code by cloning this repository. If you use the `git` command line, this
 looks like:
 
-```
-$ git clone git@github.com:influxdata/influxdb_iox.git
+```shell
+git clone git@github.com:influxdata/influxdb_iox.git
 ```
 
 Then change into the directory containing the code:
 
-```
-$ cd influxdb_iox
+```shell
+cd influxdb_iox
 ```
 
 The rest of the instructions assume you are in this directory.
@@ -61,8 +61,8 @@ exact nightly version is specified in the `rust-toolchain` file. When you're in 
 containing this repository's code, `rustup` will look in the `rust-toolchain` file and
 automatically install and use the correct Rust version for you. Test this out with:
 
-```
-$ rustc --version
+```shell
+rustc --version
 ```
 
 and you should see a nightly version of Rust!
@@ -74,15 +74,15 @@ compiler] reads the schema in `generated_types/wal.fbs` and generates the corres
 
 Install `flatc` >= 1.12.0 with one of these methods as appropriate to your operating system:
 
-- Using a [Windows binary release]
-- Using the [`flatbuffers` package for conda]
-- Using the [`flatbuffers` package for Arch Linux]
-- Using the [`flatbuffers` package for Homebrew]
+* Using a [Windows binary release]
+* Using the [`flatbuffers` package for conda]
+* Using the [`flatbuffers` package for Arch Linux]
+* Using the [`flatbuffers` package for Homebrew]
 
 Once you have installed the packages, you should be able to run:
 
-```
-$ flatc --version
+```shell
+flatc --version
 ```
 
 and see the version displayed.
@@ -103,7 +103,7 @@ compilation process by calling `flatc` for you.
 specifying values for environment variables in a `.env` file. To get an example file to start from,
 run:
 
-```
+```shell
 cp docs/env.example .env
 ```
 
@@ -114,7 +114,7 @@ For development purposes, the most relevant environment variables are the `INFLU
 values are shown in the comments in the example file; to change them, uncomment the relevant lines
 and change the values to the directories in which you'd like to store the files instead:
 
-```
+```shell
 INFLUXDB_IOX_DB_DIR=/some/place/else
 TEST_INFLUXDB_IOX_DB_DIR=/another/place
 ```
@@ -125,38 +125,38 @@ InfluxDB IOx is built using Cargo, Rust's package manager and build tool.
 
 To compile for development, run:
 
-```
-$ cargo build
+```shell
+cargo build
 ```
 
 which will create a binary in `target/debug` that you can run with:
 
-```
-$ ./target/debug/influxdb_iox
+```shell
+./target/debug/influxdb_iox
 ```
 
 You can compile and run with one command by using:
 
-```
-$ cargo run
+```shell
+cargo run
 ```
 
 When compiling for performance testing, build in release mode by using:
 
-```
-$ cargo build --release
+```shell
+cargo build --release
 ```
 
 which will create the corresponding binary in `target/release`:
 
-```
-$ ./target/release/influxdb_iox
+```shell
+./target/release/influxdb_iox
 ```
 
 Similarly, you can do this in one step with:
 
-```
-$ cargo run --release
+```shell
+cargo run --release
 ```
 
 The server will, by default, start an HTTP API server on port `8080` and a gRPC server on port
@@ -170,7 +170,7 @@ the organization name `company` and the bucket name `sensors` that will send the
 `tests/fixtures/lineproto/metrics.lp` file in this repository, assuming that you're running the
 server on the default port:
 
-```
+```shell
 curl -v "http://127.0.0.1:8080/api/v2/write?org=company&bucket=sensors" --data-binary @tests/fixtures/lineproto/metrics.lp
 ```
 
@@ -180,7 +180,7 @@ curl -v "http://127.0.0.1:8080/api/v2/write?org=company&bucket=sensors" --data-b
 To query stored data, use the `/api/v2/read` endpoint with a SQL query. This example will return
 all data in the `company` organization's `sensors` bucket for the `processes` measurement:
 
-```
+```shell
 curl -v -G -d 'org=company' -d 'bucket=sensors' --data-urlencode 'sql_query=select * from processes' "http://127.0.0.1:8080/api/v2/read"
 ```
 
@@ -217,6 +217,7 @@ For features we don't plan to support we will close the feature request ticket (
 [issue]: https://github.com/influxdata/influxdb_iox/issues/new
 [New Issue]: https://github.com/influxdata/influxdb_iox/issues/new
 [How to Report Bugs Effectively]: https://www.chiark.greenend.org.uk/~sgtatham/bugs.html
+
 ### Contributing Changes
 
 InfluxDB IOx is written mostly in idiomatic Rust—please see the [Style Guide] for more details.
@@ -277,8 +278,8 @@ There are some tips on verifying the above in the [next section](#running-tests)
 
 The `cargo` build tool runs tests as well. Run:
 
-```
-$ cargo test --workspace
+```shell
+cargo test --workspace
 ```
 
 ### Running `rustfmt` and `clippy`
@@ -287,26 +288,26 @@ CI will check the code formatting with [`rustfmt`] and Rust best practices with 
 
 To automatically format your code according to `rustfmt` style, first make sure `rustfmt` is installed using `rustup`:
 
-```
-$ rustup component add rustfmt
+```shell
+rustup component add rustfmt
 ```
 
 Then, whenever you make a change and want to reformat, run:
 
-```
-$ cargo fmt --all
+```shell
+cargo fmt --all
 ```
 
 Similarly with `clippy`, install with:
 
-```
-$ rustup component add clippy
+```shell
+rustup component add clippy
 ```
 
 And run with:
 
-```
-$ cargo clippy  --all-targets --workspace
+```shell
+cargo clippy  --all-targets --workspace
 ```
 
 [`rustfmt`]: https://github.com/rust-lang/rustfmt
