@@ -4,6 +4,30 @@ As every Rust programmer knows, the language has many powerful features, and the
 Thus, we choose to use a consistent set of idioms throughout our code so that it is easier to read and understand for both existing and new contributors.
 
 
+## Unsafe and Platform-Dependent conditional compilation
+
+### Avoid `unsafe` Rust
+
+One of the main reasons to use Rust as an implementation language is
+its strong memory safety guarantees; Almost all of these guarantees
+are voided by the use of `unsafe`. Thus, unless there is an excellent
+reason and the use is discussed beforehand, it is unlikely IOx will
+accept patches with `unsafe` code.
+
+We may consider taking unsafe code given:
+
+1. performance benchmarks showing a *very* compelling improvement
+2. a compelling explanation of why the same performance can not be achieved using `safe` code
+2. tests showing how it works safely across threads
+
+### Avoid platform specific conditional compilation `cfg`
+
+We hope that IOx is usable across many different platforms and
+Operating systems, which means we put a high value on standard Rust.
+
+While some performance critical code may require architecture specific
+instructions, (e.g. `AVX512`) most of the code should not.
+
 
 ## Errors
 
@@ -12,7 +36,7 @@ Thus, we choose to use a consistent set of idioms throughout our code so that it
 *Good*:
 
 * Derives `Snafu` and `Debug` functionality
-* Has a useful, end-user-friendly display message 
+* Has a useful, end-user-friendly display message
 
 ```rust
 #[derive(Snafu, Debug)]
