@@ -20,10 +20,10 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/stdlib/universe"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	pmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
-	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/opentracing/opentracing-go"
@@ -119,6 +119,16 @@ func validateUnusedMemory(t testing.TB, reg *prometheus.Registry, c control.Conf
 	want := c.MaxMemoryBytes - (int64(c.ConcurrencyQuota) * c.InitialMemoryBytesQuotaPerQuery)
 	if got != want {
 		t.Errorf("unexpected memory unused bytes: got %d want: %d", got, want)
+	}
+}
+
+func TestConfig_ValidateMaxQueryQueueSize(t *testing.T) {
+	config := config
+	config.QueueSize = control.MaxQueryQueueSize + 1
+	ctrl, err := control.New(config)
+	if err == nil {
+		shutdown(t, ctrl)
+		t.Fatal("unexpected success: controller should fail to start with validation error")
 	}
 }
 

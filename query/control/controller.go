@@ -45,6 +45,12 @@ import (
 // orgLabel is the metric label to use in the controller
 const orgLabel = "org"
 
+// MaxQueryQueueSize is the max allowable value for QueueSize
+// in controller config. The setting was found by trial-and-error,
+// it's the max size that can be passed to `makechan` for a channel
+// of struct pointers (also of int64s) without hitting a panic.
+const MaxQueryQueueSize = 1<<45-12
+
 // Controller provides a central location to manage all incoming queries.
 // The controller is responsible for compiling, queueing, and executing queries.
 type Controller struct {
@@ -137,6 +143,9 @@ func (c *Config) validate(isComplete bool) error {
 	}
 	if c.QueueSize <= 0 {
 		return errors.New("QueueSize must be positive")
+	}
+	if c.QueueSize > MaxQueryQueueSize {
+		return fmt.Errorf("QueueSize must be less than or equal to %d", MaxQueryQueueSize)
 	}
 	return nil
 }
