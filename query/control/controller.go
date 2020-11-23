@@ -49,7 +49,7 @@ const orgLabel = "org"
 // in controller config. The setting was found by trial-and-error,
 // it's the max size that can be passed to `makechan` for a channel
 // of struct pointers (also of int64s) without hitting a panic.
-const MaxQueryQueueSize = 1<<45-12
+const MaxQueryQueueSize = 1<<45 - 12
 
 // Controller provides a central location to manage all incoming queries.
 // The controller is responsible for compiling, queueing, and executing queries.
