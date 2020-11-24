@@ -3,7 +3,7 @@ v1.8.4 [unreleased]
 
 ### Features
 
--   [#20118](https://github.com/influxdata/influxdb/pull/20118): feat: No need to compute point hash if there is only one shard.
+-   [#20118](https://github.com/influxdata/influxdb/pull/20118): feat: Optimize shard lookups in groups containing only one shard. Thanks @StoneYunZhao!
 
 ### Bugfixes
 
