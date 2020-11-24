@@ -165,7 +165,7 @@ func TestSnapshotter_RequestMetastoreBackup(t *testing.T) {
 	}
 	defer l.Close()
 
-	s.MetaClient = &MetaClient{data: data}
+	s.MetaClient = &MetaClient{data: data.Clone()}
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
 	}
@@ -214,7 +214,7 @@ func TestSnapshotter_RequestDatabaseInfo(t *testing.T) {
 		return "", fmt.Errorf("no such shard id: %d", id)
 	}
 
-	s.MetaClient = &MetaClient{data: data}
+	s.MetaClient = &MetaClient{data: data.Clone()}
 	s.TSDBStore = &tsdbStore
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
@@ -269,7 +269,7 @@ func TestSnapshotter_RequestDatabaseInfo_ErrDatabaseNotFound(t *testing.T) {
 	}
 	defer l.Close()
 
-	s.MetaClient = &MetaClient{data: data}
+	s.MetaClient = &MetaClient{data: data.Clone()}
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
 	}
@@ -332,7 +332,7 @@ func TestSnapshotter_RequestRetentionPolicyInfo(t *testing.T) {
 		return "", fmt.Errorf("no such shard id: %d", id)
 	}
 
-	s.MetaClient = &MetaClient{data: data}
+	s.MetaClient = &MetaClient{data: data.Clone()}
 	s.TSDBStore = &tsdbStore
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
@@ -471,7 +471,7 @@ func NewTestService() (*snapshotter.Service, net.Listener, error) {
 
 type MetaClient struct {
 	mu   sync.RWMutex
-	data meta.Data
+	data *meta.Data
 }
 
 func (m *MetaClient) MarshalBinary() ([]byte, error) {
@@ -494,12 +494,12 @@ func (m *MetaClient) Database(name string) *meta.DatabaseInfo {
 func (m *MetaClient) Data() meta.Data {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.data
+	return *m.data.Clone()
 }
 
 func (m *MetaClient) SetData(data *meta.Data) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.data = *data.Clone()
+	m.data = data.Clone()
 	return nil
 }
