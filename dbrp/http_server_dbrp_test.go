@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -91,11 +92,40 @@ func Test_handlePostDBRP(t *testing.T) {
 	"retention_policy": "autogen",
 	"default": false
 }`),
-			ExpectedErr: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "invalid json structure",
-				Err:  influxdb.ErrInvalidID.Err,
-			},
+			ExpectedErr: dbrp.ErrInvalidOrgID,
+		},
+		{
+			Name: "Create with organization_id instead of orgID",
+			Input: strings.NewReader(`{
+	"bucketID": "5555f7ed2a035555",
+	"organization_id": "059af7ed2a034000",
+	"database": "mydb",
+	"retention_policy": "autogen",
+	"default": false
+}`),
+			ExpectedErr: dbrp.ErrMissingOrgID,
+		},
+		{
+			Name: "Create with invalid bucketID",
+			Input: strings.NewReader(`{
+	"bucketID": "invalid",
+	"orgID": "059af7ed2a034000",
+	"database": "mydb",
+	"retention_policy": "autogen",
+	"default": false
+}`),
+			ExpectedErr: dbrp.ErrInvalidBucketID,
+		},
+		{
+			Name: "Create with bucket_id instead of bucketID",
+			Input: strings.NewReader(`{
+	"bucket_id": "5555f7ed2a035555",
+	"orgID": "059af7ed2a034000",
+	"database": "mydb",
+	"retention_policy": "autogen",
+	"default": false
+}`),
+			ExpectedErr: dbrp.ErrMissingBucketID,
 		},
 		{
 			Name: "Create with invalid org name",
@@ -107,6 +137,17 @@ func Test_handlePostDBRP(t *testing.T) {
 	"default": false
 }`),
 			ExpectedErr: influxdb.ErrOrgNotFound,
+		},
+		{
+			Name: "Create with organization instead of org",
+			Input: strings.NewReader(`{
+	"bucketID": "5555f7ed2a035555",
+	"organization": "me.org",
+	"database": "mydb",
+	"retention_policy": "autogen",
+	"default": false
+}`),
+			ExpectedErr: dbrp.ErrMissingOrgID,
 		},
 	}
 
@@ -126,14 +167,11 @@ func Test_handlePostDBRP(t *testing.T) {
 			defer resp.Body.Close()
 
 			if tt.ExpectedErr != nil {
-				b, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
+				var e influxdb.Error
+				if err := json.NewDecoder(resp.Body).Decode(&e); err != nil {
 					t.Fatal(err)
 				}
-
-				if !strings.Contains(string(b), tt.ExpectedErr.Error()) {
-					t.Fatal(string(b))
-				}
+				assert.Equal(t, e, *tt.ExpectedErr)
 				return
 			}
 			dbrp := &influxdb.DBRPMappingV2{}
@@ -180,18 +218,12 @@ func Test_handleGetDBRPs(t *testing.T) {
 		{
 			Name:        "invalid org",
 			QueryParams: "orgID=invalid",
-			ExpectedErr: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "invalid ID",
-			},
+			ExpectedErr: dbrp.ErrInvalidOrgID,
 		},
 		{
 			Name:        "invalid bucket",
 			QueryParams: "orgID=059af7ed2a034000&bucketID=invalid",
-			ExpectedErr: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "invalid ID",
-			},
+			ExpectedErr: dbrp.ErrInvalidBucketID,
 		},
 		{
 			Name:        "invalid default",
@@ -347,10 +379,7 @@ func Test_handlePatchDBRP(t *testing.T) {
 			Input: strings.NewReader(`{
 	"database": "updatedb"
 }`),
-			ExpectedErr: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "invalid ID",
-			},
+			ExpectedErr: dbrp.ErrInvalidOrgID,
 		},
 		{
 			Name:      "no org",
@@ -442,12 +471,9 @@ func Test_handleDeleteDBRP(t *testing.T) {
 			URLSuffix: "/1111111111111111?org=org",
 		},
 		{
-			Name:      "invalid org",
-			URLSuffix: "/1111111111111111?orgID=invalid",
-			ExpectedErr: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "invalid ID",
-			},
+			Name:        "invalid org",
+			URLSuffix:   "/1111111111111111?orgID=invalid",
+			ExpectedErr: dbrp.ErrInvalidOrgID,
 		},
 		{
 			Name:        "invalid org name",

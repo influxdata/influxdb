@@ -16,6 +16,29 @@ const (
 	PrefixDBRP = "/api/v2/dbrps"
 )
 
+var (
+	ErrMissingOrgID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "invalid json structure: either 'orgID' or 'org' must be specified",
+	}
+	ErrMissingBucketID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "invalid json structure: 'bucketID' must be specified",
+	}
+	ErrInvalidOrgID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "invalid orgID",
+	}
+	ErrInvalidBucketID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "invalid bucketID",
+	}
+	ErrInvalidDbrpID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "invalid DBRP id",
+	}
+)
+
 type Handler struct {
 	chi.Router
 	api     *kithttp.API
@@ -56,12 +79,12 @@ func NewHTTPHandler(log *zap.Logger, dbrpSvc influxdb.DBRPMappingServiceV2, orgS
 }
 
 type createDBRPRequest struct {
-	Database        string      `json:"database"`
-	RetentionPolicy string      `json:"retention_policy"`
-	Default         bool        `json:"default"`
-	Org             string      `json:"org"`
-	OrganizationID  influxdb.ID `json:"orgID"`
-	BucketID        influxdb.ID `json:"bucketID"`
+	Database        string `json:"database"`
+	RetentionPolicy string `json:"retention_policy"`
+	Default         bool   `json:"default"`
+	Org             string `json:"org"`
+	OrganizationID  string `json:"orgID"`
+	BucketID        string `json:"bucketID"`
 }
 
 func (h *Handler) handlePostDBRP(w http.ResponseWriter, r *http.Request) {
@@ -76,11 +99,24 @@ func (h *Handler) handlePostDBRP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !req.OrganizationID.Valid() {
-		if req.Org == "" {
-			h.api.Err(w, r, influxdb.ErrInvalidID)
-			return
-		}
+	// Make sure all required IDs were provided.
+	//
+	// N.B. we have special checks for these fields because a previous impl (incorrectly)
+	// expected them to arrive under different keys in the JSON. When we fixed the impl,
+	// existing users of the API started getting confusing 'invalid ID' errors because the
+	// old keys were getting ignored, and the ID fields were populated by empty string.
+	// The checks here allow us to provide more specific error messages.
+	if req.OrganizationID == "" && req.Org == "" {
+		h.api.Err(w, r, ErrMissingOrgID)
+		return
+	}
+	if req.BucketID == "" {
+		h.api.Err(w, r, ErrMissingBucketID)
+		return
+	}
+
+	var orgID influxdb.ID
+	if req.OrganizationID == "" {
 		org, err := h.orgSvc.FindOrganization(r.Context(), influxdb.OrganizationFilter{
 			Name: &req.Org,
 		})
@@ -88,15 +124,24 @@ func (h *Handler) handlePostDBRP(w http.ResponseWriter, r *http.Request) {
 			h.api.Err(w, r, influxdb.ErrOrgNotFound)
 			return
 		}
-		req.OrganizationID = org.ID
+		orgID = org.ID
+	} else if err := orgID.DecodeFromString(req.OrganizationID); err != nil {
+		h.api.Err(w, r, ErrInvalidOrgID)
+		return
+	}
+
+	var bucketID influxdb.ID
+	if err := bucketID.DecodeFromString(req.BucketID); err != nil {
+		h.api.Err(w, r, ErrInvalidBucketID)
+		return
 	}
 
 	dbrp := &influxdb.DBRPMappingV2{
 		Database:        req.Database,
 		RetentionPolicy: req.RetentionPolicy,
 		Default:         req.Default,
-		OrganizationID:  req.OrganizationID,
-		BucketID:        req.BucketID,
+		OrganizationID:  orgID,
+		BucketID:        bucketID,
 	}
 	if err := h.dbrpSvc.Create(ctx, dbrp); err != nil {
 		h.api.Err(w, r, err)
@@ -294,12 +339,12 @@ func (h *Handler) getFilterFromHTTPRequest(r *http.Request) (f influxdb.DBRPMapp
 	return f, nil
 }
 
-func getIDFromHTTPRequest(r *http.Request, key string) (*influxdb.ID, error) {
+func getIDFromHTTPRequest(r *http.Request, key string, retErr error) (*influxdb.ID, error) {
 	var id influxdb.ID
 	raw := r.URL.Query().Get(key)
 	if raw != "" {
 		if err := id.DecodeFromString(raw); err != nil {
-			return nil, influxdb.ErrInvalidID
+			return nil, retErr
 		}
 	} else {
 		return nil, nil
@@ -310,7 +355,7 @@ func getIDFromHTTPRequest(r *http.Request, key string) (*influxdb.ID, error) {
 // mustGetOrgIDFromHTTPRequest returns the org ID parameter from the request, falling
 // back to looking up the org ID by org name if the ID parameter is not present.
 func (h *Handler) mustGetOrgIDFromHTTPRequest(r *http.Request) (*influxdb.ID, error) {
-	orgID, err := getIDFromHTTPRequest(r, "orgID")
+	orgID, err := getIDFromHTTPRequest(r, "orgID", ErrInvalidOrgID)
 	if err != nil {
 		return nil, err
 	}
@@ -331,9 +376,9 @@ func (h *Handler) mustGetOrgIDFromHTTPRequest(r *http.Request) (*influxdb.ID, er
 }
 
 func getDBRPIDFromHTTPRequest(r *http.Request) (*influxdb.ID, error) {
-	return getIDFromHTTPRequest(r, "id")
+	return getIDFromHTTPRequest(r, "id", ErrInvalidDbrpID)
 }
 
 func getBucketIDFromHTTPRequest(r *http.Request) (*influxdb.ID, error) {
-	return getIDFromHTTPRequest(r, "bucketID")
+	return getIDFromHTTPRequest(r, "bucketID", ErrInvalidBucketID)
 }
