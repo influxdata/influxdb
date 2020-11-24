@@ -3,7 +3,7 @@
 //!
 //! Specifically, this thing can produce represents a set of "tables",
 //! and each table is sorted on a set of "tag" columns, meaning the
-//! groups / series will be contiguous.
+//! data for groups / series will be contiguous.
 //!
 //! For example, the output columns of such a plan would be:
 //! (tag col0) (tag col1) ... (tag colN) (field val1) (field val2) ... (field valN) .. (timestamps)
@@ -11,11 +11,12 @@
 //! Note that the data will come out ordered by the tag keys (ORDER BY
 //! (tag col0) (tag col1) ... (tag colN))
 //!
-//! NOTE: We think the influx storage engine returns series sorted by
-//! the tag values, but the order of the columns is also sorted. So
-//! for example, if you have `region`, `host`, and `service` as tags,
-//! the columns would be ordered `host`, `region`, and `service` as
-//! well.
+//! NOTE: The InfluxDB classic storage engine not only returns
+//! series sorted by the tag values, but the order of the tag columns
+//! (and thus the actual sort order) is also lexographically
+//! sorted. So for example, if you have `region`, `host`, and
+//! `service` as tags, the columns would be ordered `host`, `region`,
+//! and `service` as well.
 
 use std::sync::Arc;
 
@@ -86,7 +87,10 @@ pub struct SeriesSet {
     /// timestamp column index
     pub timestamp_index: usize,
 
-    /// the column index each data field
+    /// the column index of each "field" of the time series. For
+    /// example, if there are two field indexes then this series set
+    /// would result in two distinct series being sent back, one for
+    /// each field.
     pub field_indices: Arc<Vec<usize>>,
 
     // The row in the record batch where the data starts (inclusive)

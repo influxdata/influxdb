@@ -1,5 +1,6 @@
 use generated_types::wal as wb;
 use influxdb_line_protocol::ParsedLine;
+use storage::groupby::GroupByAndAggregate;
 use storage::{
     exec::{
         stringset::StringSet, FieldListPlan, GroupedSeriesSetPlan, GroupedSeriesSetPlans,
@@ -474,15 +475,31 @@ impl Database for Db {
     async fn query_groups(
         &self,
         predicate: Predicate,
-        group_columns: Vec<String>,
+        gby_agg: GroupByAndAggregate,
     ) -> Result<GroupedSeriesSetPlans, Self::Error> {
-        let mut filter = PartitionTableFilter::new(predicate)
-            // Add any specified groups as predicate columns (so we can skip tables without those tags)
-            .add_required_columns(&group_columns);
+        let filter = PartitionTableFilter::new(predicate);
 
-        let mut visitor = GroupsVisitor::new(group_columns);
-        self.visit_tables(&mut filter, &mut visitor).await?;
-        Ok(visitor.plans.into())
+        match gby_agg {
+            GroupByAndAggregate::Columns {
+                // TODO use aggregate:  https://github.com/influxdata/influxdb_iox/issues/448
+                agg: _agg,
+                group_columns,
+            } => {
+                // Add any specified groups as predicate columns (so we
+                // can skip tables without those tags)
+                let mut filter = filter.add_required_columns(&group_columns);
+                let mut visitor = GroupsVisitor::new(group_columns);
+                self.visit_tables(&mut filter, &mut visitor).await?;
+                Ok(visitor.plans.into())
+            }
+            GroupByAndAggregate::Window {
+                agg: _agg,
+                every: _every,
+                offset: _offset,
+            } => {
+                unimplemented!("query groups with window aggregates are not yet implemented");
+            }
+        }
     }
 
     async fn table_to_arrow(

@@ -3,6 +3,7 @@
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 
+use crate::groupby::GroupByAndAggregate;
 use crate::{
     exec::FieldListPlan,
     exec::{
@@ -91,7 +92,8 @@ pub struct QuerySeriesRequest {
 pub struct QueryGroupsRequest {
     /// Stringified '{:?}' version of the predicate
     pub predicate: String,
-    pub group_columns: Vec<String>,
+    /// The requested aggregate
+    pub gby_agg: GroupByAndAggregate,
 }
 
 /// Records the parameters passed to a `field_columns` request
@@ -380,14 +382,11 @@ impl Database for TestDatabase {
     async fn query_groups(
         &self,
         predicate: Predicate,
-        group_columns: Vec<String>,
+        gby_agg: GroupByAndAggregate,
     ) -> Result<GroupedSeriesSetPlans, Self::Error> {
         let predicate = predicate_to_test_string(&predicate);
 
-        let new_queries_groups_request = Some(QueryGroupsRequest {
-            predicate,
-            group_columns,
-        });
+        let new_queries_groups_request = Some(QueryGroupsRequest { predicate, gby_agg });
 
         *self.query_groups_request.clone().lock().await = new_queries_groups_request;
 

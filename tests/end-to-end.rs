@@ -18,11 +18,12 @@
 use assert_cmd::prelude::*;
 use futures::prelude::*;
 use generated_types::{
+    aggregate::AggregateType,
     node::{Comparison, Type as NodeType, Value},
     read_group_request::Group,
     read_response::{frame::Data, *},
     storage_client::StorageClient,
-    MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
+    Aggregate, MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
     MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest, ReadSource,
     Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
@@ -213,7 +214,12 @@ async fn read_and_write_data() -> Result<()> {
     // Validate that capabilities rpc endpoint is hooked up
     let capabilities_response = storage_client.capabilities(()).await?;
     let capabilities_response = capabilities_response.into_inner();
-    assert_eq!(capabilities_response.caps, std::collections::HashMap::new());
+    assert_eq!(
+        capabilities_response.caps.len(),
+        1,
+        "Response: {:?}",
+        capabilities_response
+    );
 
     let partition_id = u64::from(u32::MAX);
     let read_source = ReadSource {
@@ -326,13 +332,16 @@ async fn read_and_write_data() -> Result<()> {
 
     assert_eq!(values, vec!["server01"]);
 
+    // Note: it is almost certain that the read group response is incorrect
     let read_group_request = tonic::Request::new(ReadGroupRequest {
         read_source: read_source.clone(),
         range: range.clone(),
         predicate: predicate.clone(),
         group_keys: vec![String::from("region")],
         group: Group::By as _,
-        aggregate: None,
+        aggregate: Some(Aggregate {
+            r#type: AggregateType::Sum as i32,
+        }),
         hints: 0,
     });
     let read_group_response = storage_client.read_group(read_group_request).await?;

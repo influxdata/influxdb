@@ -1,6 +1,5 @@
 #![deny(rust_2018_idioms)]
 #![warn(
-    missing_copy_implementations,
     missing_debug_implementations,
     clippy::explicit_iter_loop,
     clippy::use_self
@@ -15,14 +14,14 @@ use influxdb_line_protocol::ParsedLine;
 use std::{fmt::Debug, sync::Arc};
 
 pub mod exec;
+pub mod groupby;
 pub mod id;
 pub mod predicate;
 pub mod util;
 pub mod window;
 
+use self::groupby::GroupByAndAggregate;
 use self::predicate::{Predicate, TimestampRange};
-
-#[async_trait]
 
 /// A `Database` describes something that stores InfluxDB Timeseries
 /// data from Line Protocol (`ParsedLine` structures) and provides an
@@ -44,6 +43,7 @@ use self::predicate::{Predicate, TimestampRange};
 /// While the underlying storage is the same for columns in different
 /// categories with the same data type, columns of different
 /// categories are treated differently in the different query types.
+#[async_trait]
 pub trait Database: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -91,18 +91,18 @@ pub trait Database: Debug + Send + Sync {
     /// the time column.
     async fn query_series(&self, predicate: Predicate) -> Result<SeriesSetPlans, Self::Error>;
 
-    /// Returns a plan that finds sets of rows which pass the
-    /// conditions specified by `predicate` and which form groups of
-    /// logical time series.
+    /// Returns a plan that finds rows which pass the conditions
+    /// specified by `predicate` and have been logically grouped and
+    /// aggregate according to `gby_agg`.
     ///
     /// Each time series is defined by the unique values in a set of
-    /// "tag_columns" for each field in the "field_columns". Each
+    /// tag columns, and each field in the set of field columns. Each
     /// group is is defined by unique combinations of the columns
-    /// in `group_columns`
+    /// in `group_columns` or an optional time window.
     async fn query_groups(
         &self,
         predicate: Predicate,
-        group_columns: Vec<String>,
+        gby_agg: GroupByAndAggregate,
     ) -> Result<GroupedSeriesSetPlans, Self::Error>;
 
     /// Fetch the specified table names and columns as Arrow

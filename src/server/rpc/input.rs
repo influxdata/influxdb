@@ -2,8 +2,8 @@ use tonic::Status;
 
 use generated_types::{
     MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest, ReadSource, TagKeysRequest,
-    TagValuesRequest,
+    MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest, ReadSource,
+    ReadWindowAggregateRequest, TagKeysRequest, TagValuesRequest,
 };
 use storage::id::Id;
 
@@ -92,5 +92,11 @@ impl GrpcInputs for MeasurementTagValuesRequest {
 impl GrpcInputs for MeasurementFieldsRequest {
     fn read_source_field(&self) -> Option<&prost_types::Any> {
         self.source.as_ref()
+    }
+}
+
+impl GrpcInputs for ReadWindowAggregateRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.read_source.as_ref()
     }
 }

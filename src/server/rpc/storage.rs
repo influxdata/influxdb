@@ -7,12 +7,13 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use generated_types::{
     i_ox_server::{IOx, IOxServer},
     storage_server::{Storage, StorageServer},
-    CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
-    DeleteBucketResponse, GetBucketsResponse, Int64ValuesResponse, MeasurementFieldsRequest,
-    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, Organization, Predicate, ReadFilterRequest, ReadGroupRequest,
-    ReadResponse, ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse,
-    TagKeysRequest, TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
+    CapabilitiesResponse, Capability, CreateBucketRequest, CreateBucketResponse,
+    DeleteBucketRequest, DeleteBucketResponse, GetBucketsResponse, Int64ValuesResponse,
+    MeasurementFieldsRequest, MeasurementFieldsResponse, MeasurementNamesRequest,
+    MeasurementTagKeysRequest, MeasurementTagValuesRequest, Organization, Predicate,
+    ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
+    ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
+    TestErrorRequest, TestErrorResponse, TimestampRange,
 };
 
 use data_types::error::ErrorLogger;
@@ -21,8 +22,9 @@ use data_types::error::ErrorLogger;
 // For some reason rust thinks these imports are unused, but then
 // complains of unresolved imports if they are not imported.
 use generated_types::{node, Node};
+use storage::groupby::GroupByAndAggregate;
 
-use crate::server::rpc::expr::{AddRPCNode, SpecialTagKeys};
+use crate::server::rpc::expr::{self, AddRPCNode, SpecialTagKeys};
 use crate::server::rpc::input::GrpcInputs;
 
 use storage::{
@@ -108,9 +110,35 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display("Converting Predicate:  {}", source))]
+    #[snafu(display("Error converting Predicate '{}: {}", rpc_predicate_string, source))]
     ConvertingPredicate {
         rpc_predicate_string: String,
+        source: crate::server::rpc::expr::Error,
+    },
+
+    #[snafu(display("Error converting group type '{}':  {}", aggregate_string, source))]
+    ConvertingReadGroupType {
+        aggregate_string: String,
+        source: crate::server::rpc::expr::Error,
+    },
+
+    #[snafu(display(
+        "Error converting read_group aggregate '{}':  {}",
+        aggregate_string,
+        source
+    ))]
+    ConvertingReadGroupAggregate {
+        aggregate_string: String,
+        source: crate::server::rpc::expr::Error,
+    },
+
+    #[snafu(display(
+        "Error converting read_aggregate_window aggregate definition '{}':  {}",
+        aggregate_string,
+        source
+    ))]
+    ConvertingWindowAggregate {
+        aggregate_string: String,
         source: crate::server::rpc::expr::Error,
     },
 
@@ -141,6 +169,13 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+impl From<Error> for tonic::Status {
+    /// Converts a result from the business logic into the appropriate tonic status
+    fn from(err: Error) -> Self {
+        err.to_status()
+    }
+}
+
 impl Error {
     /// Converts a result from the business logic into the appropriate tonic status
     fn to_status(&self) -> tonic::Status {
@@ -162,6 +197,9 @@ impl Error {
             Self::GroupingSeries { .. } => Status::invalid_argument(self.to_string()),
             Self::ListingTagValues { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingPredicate { .. } => Status::invalid_argument(self.to_string()),
+            Self::ConvertingReadGroupAggregate { .. } => Status::invalid_argument(self.to_string()),
+            Self::ConvertingReadGroupType { .. } => Status::invalid_argument(self.to_string()),
+            Self::ConvertingWindowAggregate { .. } => Status::invalid_argument(self.to_string()),
             Self::ComputingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ComputingGroupedSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
@@ -282,27 +320,38 @@ where
             range,
             predicate,
             group_keys,
-            // TODO: handle Group::None
-            group: _group,
-            // TODO: handle aggregate values, especially whether None is the same as
-            // Some(AggregateType::None) or not
-            aggregate: _aggregate,
+            group,
+            aggregate,
             hints: _,
         } = read_group_request;
 
         info!(
-            "read_group for database {}, range: {:?}, group_keys: {:?}",
-            db_name, range, group_keys
+            "read_group for database {}, range: {:?}, group_keys: {:?}, group: {:?}, aggregate: {:?}",
+            db_name, range, group_keys, group, aggregate
         );
 
-        read_group_impl(
+        warn!("read_group implementation not yet complete: https://github.com/influxdata/influxdb_iox/issues/448");
+
+        let aggregate_string = format!(
+            "aggregate: {:?}, group: {:?}, group_keys: {:?}",
+            aggregate, group, group_keys
+        );
+
+        let group = expr::convert_group_type(group).context(ConvertingReadGroupType {
+            aggregate_string: &aggregate_string,
+        })?;
+
+        let gby_agg = expr::make_read_group_aggregate(aggregate, group, group_keys)
+            .context(ConvertingReadGroupAggregate { aggregate_string })?;
+
+        query_group_impl(
             tx.clone(),
             self.db_store.clone(),
             self.executor.clone(),
             db_name,
             range,
             predicate,
-            group_keys,
+            gby_agg,
         )
         .await
         .map_err(|e| e.to_status())?;
@@ -314,9 +363,50 @@ where
 
     async fn read_window_aggregate(
         &self,
-        _req: tonic::Request<ReadWindowAggregateRequest>,
+        req: tonic::Request<ReadWindowAggregateRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
-        unimplemented!("read_window_aggregate not yet implemented");
+        let (tx, rx) = mpsc::channel(4);
+
+        let read_window_aggregate_request = req.into_inner();
+
+        let db_name = get_database_name(&read_window_aggregate_request)?;
+
+        let ReadWindowAggregateRequest {
+            read_source: _read_source,
+            range,
+            predicate,
+            window_every,
+            offset,
+            aggregate,
+            window,
+        } = read_window_aggregate_request;
+
+        info!(
+            "read_window_aggregate for database {}, range: {:?}, window_every: {:?}, offset: {:?}, aggregate: {:?}, window: {:?}",
+            db_name, range, window_every, offset, aggregate, window
+        );
+
+        let aggregate_string = format!(
+            "aggregate: {:?}, window_every: {:?}, offset: {:?}, window: {:?}",
+            aggregate, window_every, offset, window
+        );
+
+        let gby_agg = expr::make_read_window_aggregate(aggregate, window_every, offset, window)
+            .context(ConvertingWindowAggregate { aggregate_string })?;
+
+        query_group_impl(
+            tx.clone(),
+            self.db_store.clone(),
+            self.executor.clone(),
+            db_name,
+            range,
+            predicate,
+            gby_agg,
+        )
+        .await
+        .map_err(|e| e.to_status())?;
+
+        Ok(tonic::Response::new(rx))
     }
 
     type TagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
@@ -437,10 +527,28 @@ where
         // idpe/storage/read/capabilities.go (aka window aggregate /
         // pushdown)
         //
-        // For now, do not claim to support any capabilities
-        let caps = CapabilitiesResponse {
-            caps: HashMap::new(),
-        };
+
+        // For now, hard code our list of support
+        let caps = [(
+            "WindowAggregate",
+            vec![
+                "Count", "Sum", // "First"
+                // "Last",
+                "Min", "Max", "Mean",
+                // "Offset"
+            ],
+        )];
+
+        // Turn it into the HashMap -> Capabiltity
+        let caps = caps
+            .iter()
+            .map(|(cap_name, features)| {
+                let features = features.iter().map(|f| f.to_string()).collect::<Vec<_>>();
+                (cap_name.to_string(), Capability { features })
+            })
+            .collect::<HashMap<String, Capability>>();
+
+        let caps = CapabilitiesResponse { caps };
         Ok(tonic::Response::new(caps))
     }
 
@@ -883,14 +991,14 @@ async fn convert_series_set(
 }
 
 /// Launch async tasks that send the result of executing read_group to `tx`
-async fn read_group_impl<T>(
+async fn query_group_impl<T>(
     tx: mpsc::Sender<Result<ReadResponse, Status>>,
     db_store: Arc<T>,
     executor: Arc<StorageExecutor>,
     db_name: String,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-    group_keys: Vec<String>,
+    gby_agg: GroupByAndAggregate,
 ) -> Result<()>
 where
     T: DatabaseStore,
@@ -910,12 +1018,13 @@ where
         .await
         .context(DatabaseNotFound { db_name: &db_name })?;
 
-    let grouped_series_set_plan = db.query_groups(predicate, group_keys).await.map_err(|e| {
-        Error::PlanningFilteringSeries {
-            db_name: db_name.clone(),
-            source: Box::new(e),
-        }
-    })?;
+    let grouped_series_set_plan =
+        db.query_groups(predicate, gby_agg)
+            .await
+            .map_err(|e| Error::PlanningFilteringSeries {
+                db_name: db_name.clone(),
+                source: Box::new(e),
+            })?;
 
     // Spawn task to convert between series sets and the gRPC results
     // and to run the actual plans (so we can return a result to the
@@ -1056,6 +1165,7 @@ mod tests {
         exec::FieldListPlan,
         exec::GroupedSeriesSetPlans,
         exec::SeriesSetPlans,
+        groupby::{Aggregate as StorageAggregate, WindowDuration as StorageWindowDuration},
         id::Id,
         test::ColumnNamesRequest,
         test::FieldColumnsRequest,
@@ -1068,7 +1178,11 @@ mod tests {
 
     use futures::prelude::*;
 
-    use generated_types::{i_ox_client, read_response::frame, storage_client, ReadSource};
+    use generated_types::{
+        aggregate::AggregateType, i_ox_client, read_response::frame, storage_client,
+        Aggregate as RPCAggregate, Duration as RPCDuration, ReadSource, Window as RPCWindow,
+    };
+
     use prost::Message;
 
     type IOxClient = i_ox_client::IOxClient<tonic::transport::Channel>;
@@ -1102,6 +1216,10 @@ mod tests {
         Ok(())
     }
 
+    fn to_str_vec(s: &[&str]) -> Vec<String> {
+        s.iter().map(|s| s.to_string()).collect()
+    }
+
     #[tokio::test]
     async fn test_storage_rpc_capabilities() -> Result<(), tonic::Status> {
         // Note we use a unique port. TODO: let the OS pick the port
@@ -1110,7 +1228,16 @@ mod tests {
             .expect("Connecting to test server");
 
         // Test response from storage server
-        assert_eq!(HashMap::new(), fixture.storage_client.capabilities().await?);
+        let mut expected_capabilities: HashMap<String, Vec<String>> = HashMap::new();
+        expected_capabilities.insert(
+            "WindowAggregate".into(),
+            to_str_vec(&["Count", "Sum", "Min", "Max", "Mean"]),
+        );
+
+        assert_eq!(
+            expected_capabilities,
+            fixture.storage_client.capabilities().await?
+        );
 
         Ok(())
     }
@@ -1603,7 +1730,8 @@ mod tests {
         }
 
         // Ensure there are still threads to answer actual client queries
-        assert_eq!(HashMap::new(), fixture.storage_client.capabilities().await?);
+        let caps = fixture.storage_client.capabilities().await?;
+        assert!(!caps.is_empty(), "Caps: {:?}", caps);
 
         Ok(())
     }
@@ -1717,13 +1845,18 @@ mod tests {
             predicate: make_state_ma_predicate(),
             group_keys: vec![String::from("tag1")],
             group,
-            aggregate: None,
+            aggregate: Some(RPCAggregate {
+                r#type: AggregateType::Sum as i32,
+            }),
             hints: 0,
         };
 
         let expected_request = QueryGroupsRequest {
             predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
-            group_columns: vec![String::from("tag1")],
+            gby_agg: GroupByAndAggregate::Columns {
+                agg: StorageAggregate::Sum,
+                group_columns: vec![String::from("tag1")],
+            }
         };
 
         // TODO setup any expected results
@@ -1752,7 +1885,9 @@ mod tests {
             predicate: None,
             group_keys: vec![],
             group,
-            aggregate: None,
+            aggregate: Some(RPCAggregate {
+                r#type: AggregateType::Sum as i32,
+            }),
             hints: 0,
         };
 
@@ -1770,7 +1905,10 @@ mod tests {
 
         let expected_request = Some(QueryGroupsRequest {
             predicate: "Predicate {}".into(),
-            group_columns: vec![],
+            gby_agg: GroupByAndAggregate::Columns {
+                agg: StorageAggregate::Sum,
+                group_columns: vec![],
+            },
         });
         assert_eq!(test_db.get_query_groups_request().await, expected_request);
 
@@ -1778,9 +1916,170 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_measurement_fields() -> Result<(), tonic::Status> {
+    async fn test_read_window_aggegate() -> Result<(), tonic::Status> {
         // Note we use a unique port. TODO: let the OS pick the port
         let mut fixture = Fixture::new(11903)
+            .await
+            .expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let test_db = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("creating test database");
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
+
+        // -----
+        // Test with window_every/offset setup
+        // -----
+
+        let request_window_every = ReadWindowAggregateRequest {
+            read_source: source.clone(),
+            range: make_timestamp_range(150, 200),
+            predicate: make_state_ma_predicate(),
+            window_every: 1122,
+            offset: 15,
+            aggregate: vec![RPCAggregate {
+                r#type: AggregateType::Sum as i32,
+            }],
+            // old skool window definition
+            window: None,
+        };
+
+        let expected_request_window_every = QueryGroupsRequest {
+            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
+            gby_agg: GroupByAndAggregate::Window {
+                agg: StorageAggregate::Sum,
+                every: StorageWindowDuration::Fixed {
+                    nanoseconds: 1122,
+                },
+                offset: StorageWindowDuration::Fixed {
+                    nanoseconds: 15,
+                }
+            }
+        };
+
+        // setup expected results
+        let dummy_groups_set_plan = GroupedSeriesSetPlans::from(vec![]);
+        test_db.set_query_groups_values(dummy_groups_set_plan).await;
+
+        let actual_frames = fixture
+            .storage_client
+            .read_window_aggregate(request_window_every)
+            .await?;
+        let expected_frames: Vec<String> = vec!["0 aggregate_frames".into()];
+
+        assert_eq!(
+            actual_frames, expected_frames,
+            "unexpected frames returned by query_groups"
+        );
+        assert_eq!(
+            test_db.get_query_groups_request().await,
+            Some(expected_request_window_every),
+            "unexpected request to query_groups"
+        );
+
+        // -----
+        // Test with window.every and window.offset durations specified
+        // -----
+
+        let request_window = ReadWindowAggregateRequest {
+            read_source: source.clone(),
+            range: make_timestamp_range(150, 200),
+            predicate: make_state_ma_predicate(),
+            window_every: 0,
+            offset: 0,
+            aggregate: vec![RPCAggregate {
+                r#type: AggregateType::Sum as i32,
+            }],
+            // old skool window definition
+            window: Some(RPCWindow {
+                every: Some(RPCDuration {
+                    nsecs: 1122,
+                    months: 0,
+                    negative: false,
+                }),
+                offset: Some(RPCDuration {
+                    nsecs: 0,
+                    months: 4,
+                    negative: true,
+                }),
+            }),
+        };
+
+        let expected_request_window = QueryGroupsRequest {
+            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
+            gby_agg : GroupByAndAggregate::Window {
+                agg: StorageAggregate::Sum,
+                every: StorageWindowDuration::Fixed {
+                    nanoseconds: 1122,
+                },
+                offset: StorageWindowDuration::Variable {
+                    months: 4,
+                    negative: true,
+                }
+            }
+        };
+
+        // setup expected results
+        let dummy_groups_set_plan = GroupedSeriesSetPlans::from(vec![]);
+        test_db.set_query_groups_values(dummy_groups_set_plan).await;
+
+        let actual_frames = fixture
+            .storage_client
+            .read_window_aggregate(request_window.clone())
+            .await?;
+        let expected_frames: Vec<String> = vec!["0 aggregate_frames".into()];
+
+        assert_eq!(
+            actual_frames, expected_frames,
+            "unexpected frames returned by query_groups"
+        );
+        assert_eq!(
+            test_db.get_query_groups_request().await,
+            Some(expected_request_window.clone()),
+            "unexpected request to query_groups"
+        );
+
+        // ---
+        // test error
+        // ---
+
+        // Note we don't set the response on the test database, so we expect an error
+        let response = fixture
+            .storage_client
+            .read_window_aggregate(request_window)
+            .await;
+        assert!(response.is_err());
+        let response_string = format!("{:?}", response);
+        let expected_error = "No saved query_groups in TestDatabase";
+        assert!(
+            response_string.contains(expected_error),
+            "'{}' did not contain expected content '{}'",
+            response_string,
+            expected_error
+        );
+
+        assert_eq!(
+            test_db.get_query_groups_request().await,
+            Some(expected_request_window)
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_measurement_fields() -> Result<(), tonic::Status> {
+        // Note we use a unique port. TODO: let the OS pick the port
+        let mut fixture = Fixture::new(11904)
             .await
             .expect("Connecting to test server");
 
@@ -1984,6 +2283,31 @@ mod tests {
                 .await?;
 
             Ok(self.to_string_vec(responses))
+        }
+
+        /// Make a request to Storage::read_window_aggregate and do the
+        /// required async dance to flatten the resulting stream to Strings
+        async fn read_window_aggregate(
+            &mut self,
+            request: ReadWindowAggregateRequest,
+        ) -> Result<Vec<String>, tonic::Status> {
+            let responses: Vec<_> = self
+                .inner
+                .read_window_aggregate(request)
+                .await?
+                .into_inner()
+                .try_collect()
+                .await?;
+
+            let data_frames: Vec<frame::Data> = responses
+                .into_iter()
+                .flat_map(|r| r.frames)
+                .flat_map(|f| f.data)
+                .collect();
+
+            let s = format!("{} aggregate_frames", data_frames.len());
+
+            Ok(vec![s])
         }
 
         /// Make a request to Storage::tag_keys and do the

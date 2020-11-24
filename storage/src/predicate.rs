@@ -1,3 +1,7 @@
+//! This module contains a Timeseries specific Predicate structure for
+//! IOXxthat can select and filter Fields and Tags, designed to be
+//! compatible with InfluxDB
+
 use std::collections::BTreeSet;
 
 use arrow_deps::datafusion::logical_plan::Expr;
