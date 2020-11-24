@@ -37,6 +37,8 @@ type Service struct {
 	MetaClient interface {
 		encoding.BinaryMarshaler
 		Database(name string) *meta.DatabaseInfo
+		Data() meta.Data
+		SetData(data *meta.Data) error
 	}
 
 	TSDBStore interface {
@@ -180,7 +182,7 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 		return fmt.Errorf("failed to decode meta: %s", err)
 	}
 
-	data := s.MetaClient.(*meta.Client).Data()
+	data := s.MetaClient.Data()
 
 	IDMap, newDBs, err := data.ImportData(md, backupDBName, restoreDBName, backupRPName, restoreRPName)
 	if err != nil {
@@ -190,7 +192,7 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 		return err
 	}
 
-	err = s.MetaClient.(*meta.Client).SetData(&data)
+	err = s.MetaClient.SetData(&data)
 	if err != nil {
 		return err
 	}
