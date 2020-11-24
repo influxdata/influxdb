@@ -25,6 +25,8 @@ want to use the default.
 1. [20153](https://github.com/influxdata/influxdb/pull/20153): Don't log bodies of V1 write requests.
 1. [20154](https://github.com/influxdata/influxdb/pull/20154): Fix panic when writing a point with 100 tags. Thanks @foobar!
 1. [20160](https://github.com/influxdata/influxdb/pull/20160): Ensure KV index walks only select exactly-matched keys.
+1. [20166](https://github.com/influxdata/influxdb/pull/20166): Enforce max value of 2147483647 on query concurrency to avoid startup panic.
+1. [20166](https://github.com/influxdata/influxdb/pull/20166): Enforce max value of 2147483647 on query queue size to avoid startup panic.
 
 ## v2.0.2 [2020-11-18]
 ----------------------
