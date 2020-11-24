@@ -11,6 +11,8 @@ use chrono::{DateTime, Utc};
 use snafu::Snafu;
 use tokio::sync::Mutex;
 
+use tracing::warn;
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Max size limit hit {}", size))]
@@ -84,8 +86,20 @@ impl Buffer {
             }
 
             match self.rollover_behavior {
-                WalBufferRollover::DropIncoming => return Ok(None),
-                WalBufferRollover::DropOldSegment => self.remove_oldest_segment(),
+                WalBufferRollover::DropIncoming => {
+                    warn!(
+                        "WAL is full, dropping incoming write for current segment (segment id: {:?})",
+                        self.open_segment.id,
+                    );
+                    return Ok(None);
+                }
+                WalBufferRollover::DropOldSegment => {
+                    let oldest_segment_id = self.remove_oldest_segment();
+                    warn!(
+                        "WAL is full, dropping oldest segment (segment id: {:?})",
+                        oldest_segment_id
+                    );
+                }
                 WalBufferRollover::ReturnError => {
                     return UnableToDropSegment {
                         size: self.current_size,
@@ -185,10 +199,12 @@ impl Buffer {
         writes
     }
 
+    // Removes the oldest segment present in the buffer, returning its id
     #[allow(dead_code)]
-    fn remove_oldest_segment(&mut self) {
+    fn remove_oldest_segment(&mut self) -> u64 {
         let removed_segment = self.closed_segments.remove(0);
         self.current_size -= removed_segment.size;
+        removed_segment.id
     }
 }
 
