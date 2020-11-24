@@ -505,9 +505,9 @@ type Launcher struct {
 
 	// Query options.
 	concurrencyQuota                int32
-	initialMemoryBytesQuotaPerQuery int
-	memoryBytesQuotaPerQuery        int
-	maxMemoryBytes                  int
+	initialMemoryBytesQuotaPerQuery int64
+	memoryBytesQuotaPerQuery        int64
+	maxMemoryBytes                  int64
 	queueSize                       int32
 
 	boltClient *bolt.Client
@@ -900,9 +900,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	m.queryController, err = control.New(control.Config{
 		ConcurrencyQuota:                m.concurrencyQuota,
-		InitialMemoryBytesQuotaPerQuery: int64(m.initialMemoryBytesQuotaPerQuery),
-		MemoryBytesQuotaPerQuery:        int64(m.memoryBytesQuotaPerQuery),
-		MaxMemoryBytes:                  int64(m.maxMemoryBytes),
+		InitialMemoryBytesQuotaPerQuery: m.initialMemoryBytesQuotaPerQuery,
+		MemoryBytesQuotaPerQuery:        m.memoryBytesQuotaPerQuery,
+		MaxMemoryBytes:                  m.maxMemoryBytes,
 		QueueSize:                       m.queueSize,
 		Logger:                          m.log.With(zap.String("service", "storage-reads")),
 		ExecutorDependencies:            []flux.Dependency{deps},
