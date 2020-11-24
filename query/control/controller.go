@@ -70,7 +70,11 @@ type Controller struct {
 
 type Config struct {
 	// ConcurrencyQuota is the number of queries that are allowed to execute concurrently.
-	ConcurrencyQuota int
+	//
+	// This value is limited to an int32 because it's used to set the initial delta on the
+	// controller's WaitGroup, and WG deltas have an effective limit of math.MaxInt32.
+	// See: https://github.com/golang/go/issues/20687
+	ConcurrencyQuota int32
 
 	// InitialMemoryBytesQuotaPerQuery is the initial number of bytes allocated for a query
 	// when it is started. If this is unset, then the MemoryBytesQuotaPerQuery will be used.
@@ -159,7 +163,7 @@ func New(config Config) (*Controller, error) {
 		logger = zap.NewNop()
 	}
 	logger.Info("Starting query controller",
-		zap.Int("concurrency_quota", c.ConcurrencyQuota),
+		zap.Int32("concurrency_quota", c.ConcurrencyQuota),
 		zap.Int64("initial_memory_bytes_quota_per_query", c.InitialMemoryBytesQuotaPerQuery),
 		zap.Int64("memory_bytes_quota_per_query", c.MemoryBytesQuotaPerQuery),
 		zap.Int64("max_memory_bytes", c.MaxMemoryBytes),
@@ -186,8 +190,9 @@ func New(config Config) (*Controller, error) {
 		labelKeys:    c.MetricLabelKeys,
 		dependencies: c.ExecutorDependencies,
 	}
-	ctrl.wg.Add(c.ConcurrencyQuota)
-	for i := 0; i < c.ConcurrencyQuota; i++ {
+	quota := int(c.ConcurrencyQuota)
+	ctrl.wg.Add(quota)
+	for i := 0; i < quota; i++ {
 		go func() {
 			defer ctrl.wg.Done()
 			ctrl.processQueryQueue()

@@ -504,7 +504,7 @@ type Launcher struct {
 	flagger      feature.Flagger
 
 	// Query options.
-	concurrencyQuota                int
+	concurrencyQuota                int32
 	initialMemoryBytesQuotaPerQuery int
 	memoryBytesQuotaPerQuery        int
 	maxMemoryBytes                  int
