@@ -17,7 +17,7 @@ use tracing::{debug, error, info};
 
 use arrow_deps::arrow;
 use influxdb_line_protocol::parse_lines;
-use storage::{org_and_bucket_to_database, Database, DatabaseStore};
+use query::{org_and_bucket_to_database, Database, DatabaseStore};
 
 use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};
@@ -356,7 +356,7 @@ mod tests {
     use hyper::service::{make_service_fn, service_fn};
     use hyper::Server;
 
-    use storage::{test::TestDatabaseStore, DatabaseStore};
+    use query::{test::TestDatabaseStore, DatabaseStore};
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;

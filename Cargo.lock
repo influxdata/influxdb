@@ -430,10 +430,10 @@ dependencies = [
  "generated_types",
  "influxdb_line_protocol",
  "object_store",
+ "query",
  "serde",
  "serde_json",
  "snafu",
- "storage",
  "tokio",
  "write_buffer",
 ]
@@ -1330,6 +1330,7 @@ dependencies = [
  "predicates",
  "prost",
  "prost-types",
+ "query",
  "rand",
  "reqwest",
  "segment_store",
@@ -1337,7 +1338,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded 0.7.0",
  "snafu",
- "storage",
  "tempfile",
  "test_helpers",
  "tokio",
@@ -2286,6 +2286,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "query"
+version = "0.1.0"
+dependencies = [
+ "arrow_deps",
+ "async-trait",
+ "chrono",
+ "croaring",
+ "data_types",
+ "influxdb_line_protocol",
+ "serde",
+ "serde_urlencoded 0.6.1",
+ "snafu",
+ "test_helpers",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2941,24 +2959,6 @@ name = "stdweb-internal-runtime"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
-
-[[package]]
-name = "storage"
-version = "0.1.0"
-dependencies = [
- "arrow_deps",
- "async-trait",
- "chrono",
- "croaring",
- "data_types",
- "influxdb_line_protocol",
- "serde",
- "serde_urlencoded 0.6.1",
- "snafu",
- "test_helpers",
- "tokio",
- "tracing",
-]
 
 [[package]]
 name = "string-interner"
@@ -3791,9 +3791,9 @@ dependencies = [
  "flatbuffers",
  "generated_types",
  "influxdb_line_protocol",
+ "query",
  "snafu",
  "sqlparser",
- "storage",
  "string-interner",
  "test_helpers",
  "tokio",

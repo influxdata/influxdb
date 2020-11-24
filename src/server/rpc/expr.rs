@@ -1,9 +1,9 @@
 //! This module has logic to translate gRPC structures into the native
 //! storage system form by extending the builders for those structures with new traits
 //!
-//! RPCPredicate --> storage::Predicates
+//! RPCPredicate --> query::Predicates
 //!
-//! Aggregates / windows --> storage::GroupByAndAggregate
+//! Aggregates / windows --> query::GroupByAndAggregate
 use std::convert::TryFrom;
 
 use arrow_deps::datafusion::{
@@ -16,10 +16,10 @@ use generated_types::{
     Aggregate as RPCAggregate, Duration as RPCDuration, Node as RPCNode, Predicate as RPCPredicate,
     Window as RPCWindow,
 };
+use query::groupby::WindowDuration;
+use query::groupby::{Aggregate as QueryAggregate, GroupByAndAggregate};
+use query::predicate::PredicateBuilder;
 use snafu::{ResultExt, Snafu};
-use storage::groupby::WindowDuration;
-use storage::groupby::{Aggregate as StorageAggregate, GroupByAndAggregate};
-use storage::predicate::PredicateBuilder;
 use tracing::warn;
 
 #[derive(Debug, Snafu)]
@@ -557,7 +557,7 @@ fn convert_duration(duration: Option<RPCDuration>) -> Result<WindowDuration, &'s
     }
 }
 
-fn convert_aggregate(aggregate: Option<RPCAggregate>) -> Result<StorageAggregate> {
+fn convert_aggregate(aggregate: Option<RPCAggregate>) -> Result<QueryAggregate> {
     let aggregate = match aggregate {
         None => return EmptyAggregate {}.fail(),
         Some(aggregate) => aggregate,
@@ -568,19 +568,19 @@ fn convert_aggregate(aggregate: Option<RPCAggregate>) -> Result<StorageAggregate
     if aggregate_type == RPCAggregateType::None as i32 {
         NoneAggregate {}.fail()
     } else if aggregate_type == RPCAggregateType::Sum as i32 {
-        Ok(StorageAggregate::Sum)
+        Ok(QueryAggregate::Sum)
     } else if aggregate_type == RPCAggregateType::Count as i32 {
-        Ok(StorageAggregate::Count)
+        Ok(QueryAggregate::Count)
     } else if aggregate_type == RPCAggregateType::Min as i32 {
-        Ok(StorageAggregate::Min)
+        Ok(QueryAggregate::Min)
     } else if aggregate_type == RPCAggregateType::Max as i32 {
-        Ok(StorageAggregate::Max)
+        Ok(QueryAggregate::Max)
     } else if aggregate_type == RPCAggregateType::First as i32 {
-        Ok(StorageAggregate::First)
+        Ok(QueryAggregate::First)
     } else if aggregate_type == RPCAggregateType::Last as i32 {
-        Ok(StorageAggregate::Last)
+        Ok(QueryAggregate::Last)
     } else if aggregate_type == RPCAggregateType::Mean as i32 {
-        Ok(StorageAggregate::Mean)
+        Ok(QueryAggregate::Mean)
     } else {
         UnknownAggregate { aggregate_type }.fail()
     }
@@ -1005,7 +1005,7 @@ mod tests {
 
         // correct window + window_every
         let agg = make_read_window_aggregate(vec![make_aggregate(1)], 5, 10, None).unwrap();
-        let expected = make_storage_window(StorageAggregate::Sum, &pos_5_ns, &pos_10_ns);
+        let expected = make_storage_window(QueryAggregate::Sum, &pos_5_ns, &pos_10_ns);
         assert_eq!(agg, expected);
 
         // correct every + offset
@@ -1016,7 +1016,7 @@ mod tests {
             Some(make_rpc_window(5, 0, false, 10, 0, false)),
         )
         .unwrap();
-        let expected = make_storage_window(StorageAggregate::Sum, &pos_5_ns, &pos_10_ns);
+        let expected = make_storage_window(QueryAggregate::Sum, &pos_5_ns, &pos_10_ns);
         assert_eq!(agg, expected);
 
         // correct every + offset in months
@@ -1027,7 +1027,7 @@ mod tests {
             Some(make_rpc_window(0, 3, false, 0, 1, true)),
         )
         .unwrap();
-        let expected = make_storage_window(StorageAggregate::Sum, &pos_3_months, &neg_1_months);
+        let expected = make_storage_window(QueryAggregate::Sum, &pos_3_months, &neg_1_months);
         assert_eq!(agg, expected);
 
         // correct every + offset in months
@@ -1038,7 +1038,7 @@ mod tests {
             Some(make_rpc_window(0, 1, true, 0, 3, false)),
         )
         .unwrap();
-        let expected = make_storage_window(StorageAggregate::Sum, &neg_1_months, &pos_3_months);
+        let expected = make_storage_window(QueryAggregate::Sum, &neg_1_months, &pos_3_months);
         assert_eq!(agg, expected);
 
         // both window + window_every and every + offset -- every + offset overrides
@@ -1050,7 +1050,7 @@ mod tests {
             Some(make_rpc_window(100, 0, false, 200, 0, false)),
         )
         .unwrap();
-        let expected = make_storage_window(StorageAggregate::Sum, &pos_5_ns, &pos_10_ns);
+        let expected = make_storage_window(QueryAggregate::Sum, &pos_5_ns, &pos_10_ns);
         assert_eq!(agg, expected);
 
         // invalid durations
@@ -1106,31 +1106,31 @@ mod tests {
         );
         assert_eq!(
             convert_aggregate(make_aggregate_opt(1)).unwrap(),
-            StorageAggregate::Sum
+            QueryAggregate::Sum
         );
         assert_eq!(
             convert_aggregate(make_aggregate_opt(2)).unwrap(),
-            StorageAggregate::Count
+            QueryAggregate::Count
         );
         assert_eq!(
             convert_aggregate(make_aggregate_opt(3)).unwrap(),
-            StorageAggregate::Min
+            QueryAggregate::Min
         );
         assert_eq!(
             convert_aggregate(make_aggregate_opt(4)).unwrap(),
-            StorageAggregate::Max
+            QueryAggregate::Max
         );
         assert_eq!(
             convert_aggregate(make_aggregate_opt(5)).unwrap(),
-            StorageAggregate::First
+            QueryAggregate::First
         );
         assert_eq!(
             convert_aggregate(make_aggregate_opt(6)).unwrap(),
-            StorageAggregate::Last
+            QueryAggregate::Last
         );
         assert_eq!(
             convert_aggregate(make_aggregate_opt(7)).unwrap(),
-            StorageAggregate::Mean
+            QueryAggregate::Mean
         );
         assert_eq!(
             error_result_to_string(convert_aggregate(make_aggregate_opt(100))),
@@ -1169,7 +1169,7 @@ mod tests {
     }
 
     fn make_storage_window(
-        agg: StorageAggregate,
+        agg: QueryAggregate,
         every: &WindowDuration,
         offset: &WindowDuration,
     ) -> GroupByAndAggregate {

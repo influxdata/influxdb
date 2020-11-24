@@ -1,5 +1,5 @@
 use generated_types::wal as wb;
-use storage::exec::{make_schema_pivot, GroupedSeriesSetPlan, SeriesSetPlan};
+use query::exec::{make_schema_pivot, GroupedSeriesSetPlan, SeriesSetPlan};
 use tracing::debug;
 
 use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
@@ -1022,7 +1022,7 @@ mod tests {
     use data_types::data::split_lines_into_write_entry_partitions;
     use datafusion::{logical_plan::Operator, scalar::ScalarValue};
     use influxdb_line_protocol::{parse_lines, ParsedLine};
-    use storage::{exec::Executor, predicate::PredicateBuilder};
+    use query::{exec::Executor, predicate::PredicateBuilder};
     use test_helpers::str_vec_to_arc_vec;
 
     use super::*;

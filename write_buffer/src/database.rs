@@ -1,7 +1,7 @@
 use generated_types::wal as wb;
 use influxdb_line_protocol::ParsedLine;
-use storage::groupby::GroupByAndAggregate;
-use storage::{
+use query::groupby::GroupByAndAggregate;
+use query::{
     exec::{
         stringset::StringSet, FieldListPlan, GroupedSeriesSetPlan, GroupedSeriesSetPlans,
         SeriesSetPlan, SeriesSetPlans, StringSetPlan,
@@ -1111,7 +1111,7 @@ mod tests {
         scalar::ScalarValue,
     };
     use logical_plan::{Expr, Operator};
-    use storage::{
+    use query::{
         exec::fieldlist::{Field, FieldList},
         exec::{
             seriesset::{Error as SeriesSetError, SeriesSet},

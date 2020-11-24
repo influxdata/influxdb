@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use wal::{Entry as WalEntry, Result as WalResult};
 
 use data_types::TIME_COLUMN_NAME;
-use storage::{
+use query::{
     predicate::{Predicate, TimestampRange},
     util::{visit_expression, AndExprBuilder, ExpressionVisitor},
 };

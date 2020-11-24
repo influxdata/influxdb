@@ -19,7 +19,7 @@ members = [
     "packers",
     "test_helpers",
     "influxdb_tsm",
-    "storage",
+    "query",
     "wal",
     "write_buffer",
     "influxdb2_client",
@@ -39,7 +39,7 @@ segment_store = { path = "segment_store" }
 packers = { path = "packers" }
 write_buffer = { path = "write_buffer" }
 object_store = { path = "object_store" }
-storage = { path = "storage" }
+query = { path = "query" }
 influxdb_tsm = { path = "influxdb_tsm" }
 wal = { path = "wal" }
 

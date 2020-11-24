@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use influxdb_line_protocol as line_parser;
-use storage::Database;
+use query::Database;
 use wal::{Entry, WalBuilder};
 use write_buffer::{restore_partitions_from_wal, Db};
 

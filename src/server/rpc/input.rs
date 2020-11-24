@@ -5,7 +5,7 @@ use generated_types::{
     MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest, ReadSource,
     ReadWindowAggregateRequest, TagKeysRequest, TagValuesRequest,
 };
-use storage::id::Id;
+use query::id::Id;
 
 use std::convert::TryInto;
 

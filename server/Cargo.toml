@@ -14,7 +14,7 @@ async-trait = "0.1"
 data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-storage = { path = "../storage" }
+query = { path = "../query" }
 write_buffer = { path = "../write_buffer" }
 object_store = { path = "../object_store" }
 tokio = { version = "0.2", features = ["full"] }

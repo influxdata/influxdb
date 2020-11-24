@@ -1,6 +1,6 @@
 use async_trait::async_trait;
+use query::DatabaseStore;
 use snafu::{ResultExt, Snafu};
-use storage::DatabaseStore;
 use tokio::sync::RwLock;
 
 use std::{fs, sync::Arc};

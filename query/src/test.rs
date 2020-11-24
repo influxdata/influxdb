@@ -1,5 +1,5 @@
-//! This module provides a reference implementaton of `storage::DatabaseSource` and
-//! `storage::Database` for use in testing.
+//! This module provides a reference implementaton of `query::DatabaseSource` and
+//! `query::Database` for use in testing.
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 

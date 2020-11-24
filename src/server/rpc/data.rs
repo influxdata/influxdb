@@ -8,7 +8,7 @@ use arrow_deps::arrow::{
     datatypes::DataType as ArrowDataType,
 };
 
-use storage::exec::{
+use query::exec::{
     fieldlist::FieldList,
     seriesset::{GroupDescription, GroupedSeriesSetItem, SeriesSet},
 };
@@ -321,7 +321,7 @@ mod tests {
         datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema},
         record_batch::RecordBatch,
     };
-    use storage::exec::fieldlist::Field;
+    use query::exec::fieldlist::Field;
 
     use super::*;
 

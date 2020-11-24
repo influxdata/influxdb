@@ -1,8 +1,10 @@
 [package]
-name = "storage"
+name = "query"
 version = "0.1.0"
-authors = ["alamb <andrew@nerdnetworks.org>"]
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
+description = "IOx Query Interface and Executor"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

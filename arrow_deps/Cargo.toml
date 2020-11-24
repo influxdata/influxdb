@@ -1,7 +1,7 @@
 [package]
 name = "arrow_deps"
 version = "0.1.0"
-authors = ["alamb <andrew@nerdnetworks.org>"]
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 description = "Apache Arrow / Parquet / DataFusion dependencies for InfluxDB IOx, to ensure consistent versions and unified updates"
 

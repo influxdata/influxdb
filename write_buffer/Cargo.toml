@@ -1,7 +1,7 @@
 [package]
 name = "write_buffer"
 version = "0.1.0"
-authors = ["alamb <andrew@nerdnetworks.org>"]
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 
 [dependencies]
@@ -10,7 +10,7 @@ arrow_deps = { path = "../arrow_deps" }
 data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-storage = { path = "../storage" }
+query = { path = "../query" }
 wal = { path = "../wal" }
 test_helpers = { path = "../test_helpers" }
 
