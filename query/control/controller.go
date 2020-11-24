@@ -95,10 +95,20 @@ type Config struct {
 	// This number may be less than the ConcurrencyQuota * MemoryBytesQuotaPerQuery.
 	MaxMemoryBytes int64
 
-	// QueueSize is the number of queries that are allowed to be awaiting execution before new queries are
-	// rejected.
-	QueueSize int
-	Logger    *zap.Logger
+	// QueueSize is the number of queries that are allowed to be awaiting execution before new queries are rejected.
+	//
+	// This value is limited to an int32 because it's used to make(chan *Query, QueueSize) on controller startup.
+	// Through trial-and-error I found that make(chan *Query, N) starts to panic for N > 1<<45 - 12, so not all
+	// ints or int64s are safe to pass here. Using that max value still immediately crashes the program with an OOM,
+	// because it tries to allocate TBs of memory for the channel.
+	// I was able to boot influxd locally using math.MaxInt32 for this parameter.
+	//
+	// Less-scientifically, this was the only Config parameter other than ConcurrencyQuota to be typed as an int
+	// instead of an explicit int64. When ConcurrencyQuota changed to an int32, it felt like a decent idea for
+	// this to follow suit.
+	QueueSize int32
+
+	Logger *zap.Logger
 	// MetricLabelKeys is a list of labels to add to the metrics produced by the controller.
 	// The value for a given key will be read off the context.
 	// The context value must be a string or an implementation of the Stringer interface.
@@ -167,7 +177,7 @@ func New(config Config) (*Controller, error) {
 		zap.Int64("initial_memory_bytes_quota_per_query", c.InitialMemoryBytesQuotaPerQuery),
 		zap.Int64("memory_bytes_quota_per_query", c.MemoryBytesQuotaPerQuery),
 		zap.Int64("max_memory_bytes", c.MaxMemoryBytes),
-		zap.Int("queue_size", c.QueueSize))
+		zap.Int32("queue_size", c.QueueSize))
 
 	mm := &memoryManager{
 		initialBytesQuotaPerQuery: c.InitialMemoryBytesQuotaPerQuery,

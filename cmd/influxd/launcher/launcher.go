@@ -508,7 +508,7 @@ type Launcher struct {
 	initialMemoryBytesQuotaPerQuery int
 	memoryBytesQuotaPerQuery        int
 	maxMemoryBytes                  int
-	queueSize                       int
+	queueSize                       int32
 
 	boltClient *bolt.Client
 	kvStore    kv.SchemaStore
