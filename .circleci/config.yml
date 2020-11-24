@@ -210,7 +210,7 @@ jobs:
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
       - run:
           command: ./bin/linux/influxd --store=memory --log-level=debug
-          background" true
+          background: true
       - run: GRACE_BASE_URL="http://localhost:8086" GRACE_ORG_NAME="your-org" GRACE_BUCKET_NAME="your-bucket" GRACE_USER="you@influxdata.com" GRACE_PASS="1234567890" npm test test/oss 
       - store_artifacts:
           path: ~/project
