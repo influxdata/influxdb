@@ -2,4 +2,5 @@ Closes #
 
 Describe your proposed changes here.
 
-- [ ] Signed [CLA](https://influxdata.com/community/cla/) (if not already signed)
+- [ ] I've read the contributing section of the project [README](https://github.com/influxdata/influxdb_iox/blob/main/README.md).
+- [ ] Signed [CLA](https://influxdata.com/community/cla/) (if not already signed).

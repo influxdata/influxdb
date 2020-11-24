@@ -237,9 +237,7 @@ If you want some clarifications or guidance for working on one of these issues, 
 #### Bigger Changes
 
 If you're planning to submit significant changes, even if it relates to existing tickets **please** talk to the project maintainers first!
-The easiest way to do this is to open up a new ticket, describing the changes you plan to make
-and *why* you plan to make them. Changes that may seem obviously good to you, are not always
-obvious to everyone else 
+The easiest way to do this is to open up a new ticket, describing the changes you plan to make and *why* you plan to make them. Changes that may seem obviously good to you, are not always obvious to everyone else.
 Example of changes where we would encourage up-front communication:
 
 * new IOx features;
