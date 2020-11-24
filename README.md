@@ -186,7 +186,7 @@ curl -v -G -d 'org=company' -d 'bucket=sensors' --data-urlencode 'sql_query=sele
 
 ## Contributing
 
-InfluxData very much welcomes contributions from the community!
+Thank you for thinking of contributing! We very much welcome contributions from the community.
 To make the process easier and more valuable for everyone involved we have a few rules and guidelines to follow.
 
 Anyone with a Github account is free to file issues on the project.
@@ -236,8 +236,10 @@ If you want some clarifications or guidance for working on one of these issues, 
 
 #### Bigger Changes
 
-If you're planning to submit significant changes, which don't relates to existing community tickets **please** talk to the project maintainers first!
-The easiest way to do this is to open up a new ticket, describing the changes you plan to make.
+If you're planning to submit significant changes, even if it relates to existing tickets **please** talk to the project maintainers first!
+The easiest way to do this is to open up a new ticket, describing the changes you plan to make
+and *why* you plan to make them. Changes that may seem obviously good to you, are not always
+obvious to everyone else 
 Example of changes where we would encourage up-front communication:
 
 * new IOx features;
@@ -310,7 +312,7 @@ rustup component add clippy
 And run with:
 
 ```shell
-cargo clippy  --all-targets --workspace
+cargo clippy --all-targets --workspace -- -D warnings
 ```
 
 [`rustfmt`]: https://github.com/rust-lang/rustfmt
