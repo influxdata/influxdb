@@ -24,6 +24,7 @@ want to use the default.
 1. [20146](https://github.com/influxdata/influxdb/pull/20146): Use V2 directory for default V2 config path in `influxd upgrade`.
 1. [20153](https://github.com/influxdata/influxdb/pull/20153): Don't log bodies of V1 write requests.
 1. [20154](https://github.com/influxdata/influxdb/pull/20154): Fix panic when writing a point with 100 tags. Thanks @foobar!
+1. [20160](https://github.com/influxdata/influxdb/pull/20160): Ensure KV index walks only select exactly-matched keys.
 
 ## v2.0.2 [2020-11-18]
 ----------------------
