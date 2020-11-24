@@ -150,6 +150,58 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			}
 			mustBindPFlag(v, o.Flag, flagset)
 			*destP = v.GetInt(envVar)
+		case *int32:
+			var d int32
+			if o.Default != nil {
+				// N.B. since our CLI kit types default values as interface{} and
+				// literal numbers get typed as int by default, it's very easy to
+				// create an int32 CLI flag with an int default value.
+				//
+				// The compiler doesn't know to complain in that case, so you end up
+				// with a runtime panic when trying to bind the CLI options.
+				//
+				// To avoid that headache, we support both int32 and int defaults
+				// for int32 fields. This introduces a new runtime bomb if somebody
+				// specifies an int default > math.MaxInt32, but that's hopefully
+				// less likely.
+				var ok bool
+				d, ok = o.Default.(int32)
+				if !ok {
+					d = int32(o.Default.(int))
+				}
+			}
+			if hasShort {
+				flagset.Int32VarP(destP, o.Flag, string(o.Short), d, o.Desc)
+			} else {
+				flagset.Int32Var(destP, o.Flag, d, o.Desc)
+			}
+			mustBindPFlag(v, o.Flag, flagset)
+			*destP = v.GetInt32(envVar)
+		case *int64:
+			var d int64
+			if o.Default != nil {
+				// N.B. since our CLI kit types default values as interface{} and
+				// literal numbers get typed as int by default, it's very easy to
+				// create an int64 CLI flag with an int default value.
+				//
+				// The compiler doesn't know to complain in that case, so you end up
+				// with a runtime panic when trying to bind the CLI options.
+				//
+				// To avoid that headache, we support both int64 and int defaults
+				// for int64 fields.
+				var ok bool
+				d, ok = o.Default.(int64)
+				if !ok {
+					d = int64(o.Default.(int))
+				}
+			}
+			if hasShort {
+				flagset.Int64VarP(destP, o.Flag, string(o.Short), d, o.Desc)
+			} else {
+				flagset.Int64Var(destP, o.Flag, d, o.Desc)
+			}
+			mustBindPFlag(v, o.Flag, flagset)
+			*destP = v.GetInt64(envVar)
 		case *bool:
 			var d bool
 			if o.Default != nil {
