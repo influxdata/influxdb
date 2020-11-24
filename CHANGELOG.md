@@ -23,6 +23,8 @@ want to use the default.
 1. [20110](https://github.com/influxdata/influxdb/pull/20110): Use V2 directory for default V2 config path in `influxd upgrade`.
 1. [20137](https://github.com/influxdata/influxdb/pull/20137): Fix panic when writing a point with 100 tags. Thanks @foobar!
 1. [20151](https://github.com/influxdata/influxdb/pull/20151): Don't log bodies of V1 write requests.
+1. [20097](https://github.com/influxdata/influxdb/pull/20097): Ensure Index.Walk fetches matching foreign keys only.
+1. [20149](https://github.com/influxdata/influxdb/pull/20149): Enforce max value of 2147483647 on query concurrency to avoid startup panic.
 
 ## v2.0.2 [2020-11-19]
 
@@ -34,7 +36,6 @@ want to use the default.
 1. [20053](https://github.com/influxdata/influxdb/pull/20053): Upgrade Flux to v0.95.0.
 1. [20058](https://github.com/influxdata/influxdb/pull/20058): UI: Upgrade flux-lsp-browser to v0.5.23.
 1. [20067](https://github.com/influxdata/influxdb/pull/20067): Add DBRP cli commands as `influxd v1 dbrp`.
-1. [20097](https://github.com/influxdata/influxdb/pull/20097): Ensure Index.Walk fetches matching foreign keys only.
 
 ### Bug Fixes
 
