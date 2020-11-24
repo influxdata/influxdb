@@ -202,13 +202,16 @@ jobs:
           path: ~/e2e/test-results
       - store_artifacts:
           path: ~/e2e/artifacts
-  grace_nightly:
+  grace_daily:
     machine: true
     steps:
       - attach_workspace:
           at: ~/project
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
-      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -e TEST_RESULTS=~/project quay.io/influxdb/grace:latest
+      - run:
+          command: ./bin/linux/influxd --store=memory --log-level=debug
+          background" true
+      - run: GRACE_BASE_URL="http://localhost:8086" GRACE_ORG_NAME="your-org" GRACE_BUCKET_NAME="your-bucket" GRACE_USER="you@influxdata.com" GRACE_PASS="1234567890" npm test test/oss 
       - store_artifacts:
           path: ~/project
       - store_test_results:
@@ -630,6 +633,6 @@ workflows:
 #            - jslint
           filters:
             branches:
-              only: /^gs-build-test$/
+              only: /^gs-build-test_1$/
  #           tags:
  #             only: /^v9.9.9$/
