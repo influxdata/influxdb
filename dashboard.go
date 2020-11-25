@@ -448,7 +448,6 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 		case ViewPropertyTypeGeo:
 			var gvw GeoViewProperties
 			if err := json.Unmarshal(v.B, &gvw); err != nil {
-				fmt.Printf("Unmarshaling geo view failed. %+v", err)
 				return nil, err
 			}
 			vis = gvw
@@ -976,9 +975,9 @@ type GeoLayer struct {
 	ViewColors         []ViewColor `json:"colors"`
 	Radius             int32       `json:"radius"`
 	Blur               int32       `json:"blur"`
-	RadiusDimension    Axis        `json:"radiusDimension"`
-	ColorDimension     Axis        `json:"colorDimension"`
-	IntensityDimension Axis        `json:"intensityDimension"`
+	RadiusDimension    Axis        `json:"radiusDimension,omitempty"`
+	ColorDimension     Axis        `json:"colorDimension,omitempty"`
+	IntensityDimension Axis        `json:"intensityDimension,omitempty"`
 	InterpolateColors  bool        `json:"interpolateColors"`
 	// track layer properties
 	TrackWidth   int32 `json:"trackWidth"`
