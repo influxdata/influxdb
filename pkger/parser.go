@@ -1434,6 +1434,28 @@ func (p *Template) setRefs(refs ...*references) {
 	}
 }
 
+func parseAxis(ra Resource, domain []float64) *axis {
+	return &axis{
+		Base:   ra.stringShort(fieldAxisBase),
+		Label:  ra.stringShort(fieldAxisLabel),
+		Name:   ra.Name(),
+		Prefix: ra.stringShort(fieldPrefix),
+		Scale:  ra.stringShort(fieldAxisScale),
+		Suffix: ra.stringShort(fieldSuffix),
+		Domain: domain,
+	}
+}
+
+func parseColor(rc Resource) *color {
+	return &color{
+		ID:    rc.stringShort("id"),
+		Name:  rc.Name(),
+		Type:  rc.stringShort(fieldType),
+		Hex:   rc.stringShort(fieldColorHex),
+		Value: flt64Ptr(rc.float64Short(fieldValue)),
+	}
+}
+
 func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*chart, []validationErr) {
 	ck, err := r.chartKind()
 	if err != nil {
@@ -1481,6 +1503,11 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 		LegendColorizeRows:         r.boolShort(fieldChartLegendColorizeRows),
 		LegendOpacity:              r.float64Short(fieldChartLegendOpacity),
 		LegendOrientationThreshold: r.intShort(fieldChartLegendOrientationThreshold),
+		Zoom:                       r.float64Short(fieldChartGeoZoom),
+		Center:                     center{Lat: r.float64Short(fieldChartGeoCenterLat), Lon: r.float64Short(fieldChartGeoCenterLon)},
+		MapStyle:                   r.stringShort(fieldChartGeoMapStyle),
+		AllowPanAndZoom:            r.boolShort(fieldChartGeoAllowPanAndZoom),
+		DetectCoordinateFields:     r.boolShort(fieldChartGeoDetectCoordinateFields),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {
@@ -1515,13 +1542,7 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 		c.Colors = presentColors
 	} else {
 		for _, rc := range r.slcResource(fieldChartColors) {
-			c.Colors = append(c.Colors, &color{
-				ID:    rc.stringShort("id"),
-				Name:  rc.Name(),
-				Type:  rc.stringShort(fieldType),
-				Hex:   rc.stringShort(fieldColorHex),
-				Value: flt64Ptr(rc.float64Short(fieldValue)),
-			})
+			c.Colors = append(c.Colors, parseColor(rc))
 		}
 	}
 
@@ -1544,15 +1565,49 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 				}
 			}
 
-			c.Axes = append(c.Axes, axis{
-				Base:   ra.stringShort(fieldAxisBase),
-				Label:  ra.stringShort(fieldAxisLabel),
-				Name:   ra.Name(),
-				Prefix: ra.stringShort(fieldPrefix),
-				Scale:  ra.stringShort(fieldAxisScale),
-				Suffix: ra.stringShort(fieldSuffix),
-				Domain: domain,
-			})
+			c.Axes = append(c.Axes, *parseAxis(ra, domain))
+		}
+	}
+
+	if presentGeoLayers, ok := r[fieldChartGeoLayers].(geoLayers); ok {
+		c.GeoLayers = presentGeoLayers
+	} else {
+		parseGeoAxis := func(r Resource, field string) *axis {
+			if axis, ok := r[field].(*axis); ok {
+				return axis
+			} else {
+				if leg, ok := ifaceToResource(r[field]); ok {
+					return parseAxis(leg, nil)
+				}
+			}
+			return nil
+		}
+
+		for _, rl := range r.slcResource(fieldChartGeoLayers) {
+			gl := geoLayer{
+				Type:               rl.stringShort(fieldChartGeoLayerType),
+				RadiusField:        rl.stringShort(fieldChartGeoLayerRadiusField),
+				ColorField:         rl.stringShort(fieldChartGeoLayerColorField),
+				IntensityField:     rl.stringShort(fieldChartGeoLayerIntensityField),
+				Radius:             int32(rl.intShort(fieldChartGeoLayerRadius)),
+				Blur:               int32(rl.intShort(fieldChartGeoLayerBlur)),
+				RadiusDimension:    parseGeoAxis(rl, fieldChartGeoLayerRadiusDimension),
+				ColorDimension:     parseGeoAxis(rl, fieldChartGeoLayerColorDimension),
+				IntensityDimension: parseGeoAxis(rl, fieldChartGeoLayerIntensityDimension),
+				InterpolateColors:  rl.boolShort(fieldChartGeoLayerInterpolateColors),
+				TrackWidth:         int32(rl.intShort(fieldChartGeoLayerTrackWidth)),
+				Speed:              int32(rl.intShort(fieldChartGeoLayerSpeed)),
+				RandomColors:       rl.boolShort(fieldChartGeoLayerRandomColors),
+				IsClustered:        rl.boolShort(fieldChartGeoLayerIsClustered),
+			}
+			if presentColors, ok := rl[fieldChartGeoLayerViewColors].(colors); ok {
+				gl.ViewColors = presentColors
+			} else {
+				for _, rc := range rl.slcResource(fieldChartGeoLayerViewColors) {
+					gl.ViewColors = append(gl.ViewColors, parseColor(rc))
+				}
+			}
+			c.GeoLayers = append(c.GeoLayers, &gl)
 		}
 	}
 
