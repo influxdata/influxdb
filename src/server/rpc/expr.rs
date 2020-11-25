@@ -16,8 +16,8 @@ use generated_types::{
     Aggregate as RPCAggregate, Duration as RPCDuration, Node as RPCNode, Predicate as RPCPredicate,
     Window as RPCWindow,
 };
-use query::groupby::WindowDuration;
-use query::groupby::{Aggregate as QueryAggregate, GroupByAndAggregate};
+use query::group_by::{Aggregate as QueryAggregate, GroupByAndAggregate, WindowDuration};
+
 use query::predicate::PredicateBuilder;
 use snafu::{ResultExt, Snafu};
 use tracing::warn;

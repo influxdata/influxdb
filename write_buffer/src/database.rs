@@ -1,6 +1,6 @@
 use generated_types::wal as wb;
 use influxdb_line_protocol::ParsedLine;
-use query::groupby::GroupByAndAggregate;
+use query::group_by::GroupByAndAggregate;
 use query::{
     exec::{
         stringset::StringSet, FieldListPlan, GroupedSeriesSetPlan, GroupedSeriesSetPlans,

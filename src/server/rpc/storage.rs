@@ -22,7 +22,7 @@ use data_types::error::ErrorLogger;
 // For some reason rust thinks these imports are unused, but then
 // complains of unresolved imports if they are not imported.
 use generated_types::{node, Node};
-use query::groupby::GroupByAndAggregate;
+use query::group_by::GroupByAndAggregate;
 
 use crate::server::rpc::expr::{self, AddRPCNode, SpecialTagKeys};
 use crate::server::rpc::input::GrpcInputs;
@@ -1160,7 +1160,7 @@ mod tests {
         exec::FieldListPlan,
         exec::GroupedSeriesSetPlans,
         exec::SeriesSetPlans,
-        groupby::{Aggregate as QueryAggregate, WindowDuration as StorageWindowDuration},
+        group_by::{Aggregate as QueryAggregate, WindowDuration as QueryWindowDuration},
         id::Id,
         test::ColumnNamesRequest,
         test::FieldColumnsRequest,
@@ -1958,10 +1958,10 @@ mod tests {
             predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
             gby_agg: GroupByAndAggregate::Window {
                 agg: QueryAggregate::Sum,
-                every: StorageWindowDuration::Fixed {
+                every: QueryWindowDuration::Fixed {
                     nanoseconds: 1122,
                 },
-                offset: StorageWindowDuration::Fixed {
+                offset: QueryWindowDuration::Fixed {
                     nanoseconds: 15,
                 }
             }
@@ -2019,10 +2019,10 @@ mod tests {
             predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
             gby_agg : GroupByAndAggregate::Window {
                 agg: QueryAggregate::Sum,
-                every: StorageWindowDuration::Fixed {
+                every: QueryWindowDuration::Fixed {
                     nanoseconds: 1122,
                 },
-                offset: StorageWindowDuration::Variable {
+                offset: QueryWindowDuration::Variable {
                     months: 4,
                     negative: true,
                 }

@@ -14,13 +14,13 @@ use influxdb_line_protocol::ParsedLine;
 use std::{fmt::Debug, sync::Arc};
 
 pub mod exec;
-pub mod groupby;
+pub mod group_by;
 pub mod id;
 pub mod predicate;
 pub mod util;
 pub mod window;
 
-use self::groupby::GroupByAndAggregate;
+use self::group_by::GroupByAndAggregate;
 use self::predicate::{Predicate, TimestampRange};
 
 /// A `Database` describes something that stores InfluxDB Timeseries

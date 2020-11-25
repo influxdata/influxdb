@@ -3,7 +3,7 @@
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 
-use crate::groupby::GroupByAndAggregate;
+use crate::group_by::GroupByAndAggregate;
 use crate::{
     exec::FieldListPlan,
     exec::{
