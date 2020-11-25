@@ -19,22 +19,22 @@ use segment::ColumnName;
 ///
 ///
 #[derive(Default)]
-pub struct Store<'a> {
+pub struct Store {
     // A mapping from database name (tenant id, bucket id etc) to a database.
-    databases: BTreeMap<String, Database<'a>>,
+    databases: BTreeMap<String, Database>,
 
     // The current total size of the store, in bytes
     size: u64,
 }
 
-impl<'a> Store<'a> {
+impl Store {
     // TODO(edd): accept a configuration of some sort.
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Add a new database to the store
-    pub fn add_database(&mut self, id: String, database: Database<'a>) {
+    pub fn add_database(&mut self, id: String, database: Database) {
         self.size += database.size();
         self.databases.insert(id, database);
     }
@@ -213,25 +213,25 @@ impl<'a> Store<'a> {
 // tables for measurements. There is a 1:1 mapping between a table and a
 // measurement name.
 #[derive(Default)]
-pub struct Database<'a> {
+pub struct Database {
     // The collection of partitions in the database. Each partition is uniquely
     // identified by a partition key.
-    partitions: BTreeMap<String, Partition<'a>>,
+    partitions: BTreeMap<String, Partition>,
 
     // The current total size of the database.
     size: u64,
 }
 
-impl<'a> Database<'a> {
+impl Database {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn add_partition(&mut self, partition: Partition<'_>) {
+    pub fn add_partition(&mut self, partition: Partition) {
         todo!()
     }
 
-    pub fn remove_partition(&mut self, partition: Partition<'_>) {
+    pub fn remove_partition(&mut self, partition: Partition) {
         todo!()
     }
 

@@ -15,7 +15,7 @@ type MeasurementName = String;
 /// the partition share.
 ///
 /// Each table within a partition can be identified by its measurement name.
-pub struct Partition<'a> {
+pub struct Partition {
     // The partition key uniquely identifies this partition.
     key: String,
 
@@ -24,11 +24,11 @@ pub struct Partition<'a> {
 
     // The set of tables within this partition. Each table is identified by
     // a measurement name.
-    tables: BTreeMap<MeasurementName, Table<'a>>,
+    tables: BTreeMap<MeasurementName, Table>,
 }
 
-impl<'a> Partition<'a> {
-    pub fn new(key: String, table: Table<'a>) -> Self {
+impl Partition {
+    pub fn new(key: String, table: Table) -> Self {
         let mut p = Self {
             key,
             meta: MetaData::new(&table),
@@ -159,7 +159,7 @@ struct MetaData {
 }
 
 impl MetaData {
-    pub fn new(table: &Table<'_>) -> Self {
+    pub fn new(table: &Table) -> Self {
         Self {
             size: table.size(),
             rows: table.rows(),
@@ -167,7 +167,7 @@ impl MetaData {
         }
     }
 
-    pub fn add_table(&mut self, table: &Table<'_>) {
+    pub fn add_table(&mut self, table: &Table) {
         // Update size, rows, time_range
         todo!()
     }
