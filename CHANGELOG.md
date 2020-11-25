@@ -26,6 +26,7 @@ want to use the default.
 1. [20097](https://github.com/influxdata/influxdb/pull/20097): Ensure Index.Walk fetches matching foreign keys only.
 1. [20149](https://github.com/influxdata/influxdb/pull/20149): Enforce max value of 2147483647 on query concurrency to avoid startup panic.
 1. [20149](https://github.com/influxdata/influxdb/pull/20149): Enforce max value of 2147483647 on query queue size to avoid startup panic.
+1. [20168](https://github.com/influxdata/influxdb/pull/20168): Auto-migrate existing DBRP mappings from old schema to avoid panic.
 
 ## v2.0.2 [2020-11-19]
 
