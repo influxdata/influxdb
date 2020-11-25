@@ -316,6 +316,10 @@ func (h *Handler) Open() {
 }
 
 func (h *Handler) Close() {
+
+	// lets gracefully shut down http connections.  we'll give them 10 seconds
+	// before we shut them down "with extreme predjudice".
+
 	if h.accessLog != nil {
 		h.accessLog.Close()
 		h.accessLog = nil
