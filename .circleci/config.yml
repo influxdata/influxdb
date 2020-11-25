@@ -6,11 +6,11 @@ commands:
     description: Install nightly Rust toolchain
     steps:
       - run:
-          name: Install rust nightly-2020-11-14
-          command: rustup toolchain install nightly-2020-11-14
+          name: Install rust nightly-2020-11-19
+          command: rustup toolchain install nightly-2020-11-19
       - run:
-          name: Install rustfmt and clippy for nightly-2020-11-14
-          command: rustup component add rustfmt clippy --toolchain nightly-2020-11-14
+          name: Install rustfmt and clippy for nightly-2020-11-19
+          command: rustup component add rustfmt clippy --toolchain nightly-2020-11-19
 
 jobs:
   fmt:

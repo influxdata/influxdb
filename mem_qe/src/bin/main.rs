@@ -4,7 +4,6 @@ use std::{
     fs,
     fs::File,
     path::{Path, PathBuf},
-    rc::Rc,
     sync::Arc,
 };
 
@@ -80,7 +79,7 @@ fn build_parquet_store(path: &str, store: &mut Store, sort_order: Vec<&str>) -> 
 
     let parquet_reader = arrow_deps::parquet::file::reader::SerializedFileReader::new(r).unwrap();
     let mut reader = arrow_deps::parquet::arrow::arrow_reader::ParquetFileArrowReader::new(
-        Rc::new(parquet_reader),
+        Arc::new(parquet_reader),
     );
     let batch_size = 60000;
     let record_batch_reader = reader.get_record_reader(batch_size).unwrap();

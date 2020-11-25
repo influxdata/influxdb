@@ -14,8 +14,8 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     fmt,
     io::{Seek, Write},
-    rc::Rc,
     str::FromStr,
+    sync::Arc,
 };
 use tracing::debug;
 
@@ -80,7 +80,7 @@ pub struct IOxParquetTableWriter<W>
 where
     W: ParquetWriter,
 {
-    parquet_schema: Rc<parquet::schema::types::Type>,
+    parquet_schema: Arc<parquet::schema::types::Type>,
     file_writer: SerializedFileWriter<W>,
 }
 
@@ -282,7 +282,7 @@ where
 // Converts from line protocol `Schema` to the equivalent parquet schema `Type`.
 fn convert_to_parquet_schema(
     schema: &data_types::table_schema::Schema,
-) -> Result<Rc<parquet::schema::types::Type>, Error> {
+) -> Result<Arc<parquet::schema::types::Type>, Error> {
     let mut parquet_columns = Vec::new();
 
     let col_defs = schema.get_col_defs();
@@ -334,7 +334,7 @@ fn convert_to_parquet_schema(
             col_def
         );
 
-        parquet_columns.push(Rc::new(parquet_column_type));
+        parquet_columns.push(Arc::new(parquet_column_type));
     }
 
     let parquet_schema = Type::group_type_builder(&schema.measurement())
@@ -344,7 +344,7 @@ fn convert_to_parquet_schema(
             message: String::from("Can't create top level parquet schema"),
         })?;
 
-    Ok(Rc::new(parquet_schema))
+    Ok(Arc::new(parquet_schema))
 }
 
 fn set_integer_encoding(
@@ -380,7 +380,7 @@ fn set_integer_encoding(
 fn create_writer_props(
     schema: &data_types::table_schema::Schema,
     compression_level: CompressionLevel,
-) -> Rc<WriterProperties> {
+) -> Arc<WriterProperties> {
     let mut builder = WriterProperties::builder();
 
     // TODO: Maybe tweak more of these settings for maximum performance.
@@ -455,7 +455,7 @@ fn create_writer_props(
         .set_statistics_enabled(true)
         .set_created_by("InfluxDB IOx".to_string())
         .build();
-    Rc::new(props)
+    Arc::new(props)
 }
 
 #[cfg(test)]

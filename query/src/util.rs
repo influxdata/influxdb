@@ -33,6 +33,22 @@ pub fn visit_expression<V: ExpressionVisitor>(expr: &Expr, visitor: &mut V) {
             visit_expression(right, visitor);
         }
         Expr::Cast { expr, .. } => visit_expression(expr, visitor),
+        Expr::Case {
+            expr,
+            when_then_expr,
+            else_expr,
+        } => {
+            if let Some(expr) = expr.as_ref() {
+                visit_expression(expr, visitor);
+            }
+            when_then_expr.iter().for_each(|(when, then)| {
+                visit_expression(when, visitor);
+                visit_expression(then, visitor);
+            });
+            if let Some(else_expr) = else_expr.as_ref() {
+                visit_expression(else_expr, visitor);
+            }
+        }
         Expr::Not(expr) => visit_expression(expr, visitor),
         Expr::IsNull(expr) => visit_expression(expr, visitor),
         Expr::IsNotNull(expr) => visit_expression(expr, visitor),
@@ -56,72 +72,10 @@ pub fn visit_expression<V: ExpressionVisitor>(expr: &Expr, visitor: &mut V) {
                 visit_expression(arg, visitor)
             }
         }
-        Expr::Nested(expr) => visit_expression(expr, visitor),
         Expr::Sort { expr, .. } => visit_expression(expr, visitor),
     }
 
     visitor.post_visit(expr);
-}
-
-// Return a string representation of this expression, without children
-// (for use in indented pretty printing of the expression)
-fn expr_str_without_children(expr: &Expr) -> String {
-    match expr {
-        Expr::Alias(_, name) => format!("Alias(<expr>, {})", name),
-        Expr::Column(name) => format!("Column({})", name),
-        Expr::ScalarVariable(names) => format!("ScalarVariable({:?})", names),
-        Expr::Literal(value) => format!("Literal({})", value),
-        Expr::BinaryExpr { op, .. } => format!("BinaryExpr(lhs=<expr>, op={:?}, rhs=<expr>)", op),
-        Expr::Nested(_) => "Nested(<expr>)".to_string(),
-        Expr::Not(_) => "Not(<expr>)".to_string(),
-        Expr::IsNotNull(_) => "IsNotNull(<expr>)".to_string(),
-        Expr::IsNull(_) => "IsNull(<expr>)".to_string(),
-        Expr::Cast { data_type, .. } => format!("Cast(<expr>, data_type={:?})", data_type),
-        Expr::Sort {
-            asc, nulls_first, ..
-        } => format!("Sort(<expr>, asc={}, nulls_first={})", asc, nulls_first),
-        Expr::ScalarFunction { fun, .. } => format!("ScalarFunction(fun={:?}, args=<exprs>)", fun),
-        Expr::ScalarUDF { fun, .. } => format!("ScalarUDF(fun={:?}, args=<exprs>)", fun),
-        Expr::AggregateFunction { fun, distinct, .. } => format!(
-            "ScalarUDF(fun={:?}, args=<exprs>, distinct={})",
-            fun, distinct
-        ),
-        Expr::AggregateUDF { fun, .. } => format!("AggregateUDF(fun={:?}, args=<exprs>)", fun),
-        Expr::Wildcard => "Wildcard".to_string(),
-    }
-}
-
-/// Creates an indented representation of expr
-pub fn dump_expr(expr: &Expr) -> String {
-    struct ExprToString {
-        indent: usize,
-        output: String,
-    }
-
-    impl ExpressionVisitor for ExprToString {
-        /// Invoked before children of expr are visisted
-        fn pre_visit(&mut self, expr: &Expr) {
-            for _ in 0..self.indent {
-                self.output.push(' ')
-            }
-            self.output.push_str(&expr_str_without_children(expr));
-            self.output.push('\n');
-            self.indent += 1;
-        }
-
-        /// Invoked after children of expr are visited
-        fn post_visit(&mut self, _expr: &Expr) {
-            self.indent -= 1;
-        }
-    }
-
-    let mut visitor = ExprToString {
-        indent: 0,
-        output: String::new(),
-    };
-    visit_expression(expr, &mut visitor);
-    let ExprToString { indent: _, output } = visitor;
-    output
 }
 
 /// Creates a single expression representing the conjunction (aka

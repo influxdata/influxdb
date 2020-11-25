@@ -1209,7 +1209,7 @@ mod tests {
                 assert_eq!(e.message(), "get_buckets");
             }
             Ok(buckets) => {
-                assert!(false, "Unexpected iox_client success: {:?}", buckets);
+                panic!("Unexpected iox_client success: {:?}", buckets);
             }
         };
 
