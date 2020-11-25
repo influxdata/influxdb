@@ -504,7 +504,7 @@ pub fn make_read_window_aggregate(
     if aggregates.len() != 1 {
         return AggregateNotSingleton { aggregates }.fail();
     }
-    let agg = convert_aggregate(Some(aggregates.into_iter().next().unwrap()))?;
+    let agg = convert_aggregate(aggregates.into_iter().next())?;
 
     // Translation from these parameters to window bound
     // is defined in the Go code:
