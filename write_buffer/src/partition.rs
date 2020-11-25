@@ -1,7 +1,9 @@
 use arrow_deps::{
-    arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr,
-    datafusion::logical_plan::Operator, datafusion::optimizer::utils::expr_to_column_names,
-    datafusion::scalar::ScalarValue,
+    arrow::record_batch::RecordBatch,
+    datafusion::{
+        logical_plan::Expr, logical_plan::Operator, optimizer::utils::expr_to_column_names,
+        prelude::*,
+    },
 };
 use generated_types::wal as wb;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -183,22 +185,10 @@ impl PartitionPredicate {
 /// Creates expression like:
 /// range.low <= time && time < range.high
 fn make_range_expr(range: &TimestampRange) -> Expr {
-    let ts_low = Expr::BinaryExpr {
-        left: Box::new(Expr::Literal(ScalarValue::Int64(Some(range.start)))),
-        op: Operator::LtEq,
-        right: Box::new(Expr::Column(TIME_COLUMN_NAME.into())),
-    };
-    let ts_high = Expr::BinaryExpr {
-        left: Box::new(Expr::Column(TIME_COLUMN_NAME.into())),
-        op: Operator::Lt,
-        right: Box::new(Expr::Literal(ScalarValue::Int64(Some(range.end)))),
-    };
+    let ts_low = lit(range.start).lt_eq(col(TIME_COLUMN_NAME));
+    let ts_high = col(TIME_COLUMN_NAME).lt(lit(range.end));
 
-    AndExprBuilder::default()
-        .append_expr(ts_low)
-        .append_expr(ts_high)
-        .build()
-        .unwrap()
+    ts_low.and(ts_high)
 }
 
 impl Partition {

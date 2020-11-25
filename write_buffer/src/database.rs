@@ -1146,11 +1146,7 @@ struct ArrowTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_deps::datafusion::{
-        logical_plan::{self, Literal},
-        scalar::ScalarValue,
-    };
-    use logical_plan::{Expr, Operator};
+    use arrow_deps::datafusion::prelude::*;
     use query::{
         exec::fieldlist::{Field, FieldList},
         exec::{
@@ -1592,7 +1588,7 @@ disk bytes=23432323i 1600136510000000000",
             TestCase {
                 description: "Restrictions: predicate",
                 predicate: PredicateBuilder::default()
-                    .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+                    .add_expr(col("state").eq(lit("MA"))) // state=MA
                     .build(),
                 expected_tag_keys: Ok(vec!["city", "county", "state"]),
             },
@@ -1600,7 +1596,7 @@ disk bytes=23432323i 1600136510000000000",
                 description: "Restrictions: timestamp and predicate",
                 predicate: PredicateBuilder::default()
                     .timestamp_range(150, 201)
-                    .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+                    .add_expr(col("state").eq(lit("MA"))) // state=MA
                     .build(),
                 expected_tag_keys: Ok(vec!["city", "state"]),
             },
@@ -1621,7 +1617,7 @@ disk bytes=23432323i 1600136510000000000",
                 description: "Restrictions: measurement name and predicate",
                 predicate: PredicateBuilder::default()
                     .table("o2")
-                    .add_expr(make_column_eq_expr("state", "NY")) // state=NY
+                    .add_expr(col("state").eq(lit("NY"))) // state=NY
                     .build(),
                 expected_tag_keys: Ok(vec!["borough", "city", "state"]),
             },
@@ -1630,7 +1626,7 @@ disk bytes=23432323i 1600136510000000000",
                 predicate: PredicateBuilder::default()
                     .table("o2")
                     .timestamp_range(1, 550)
-                    .add_expr(make_column_eq_expr("state", "NY")) // state=NY
+                    .add_expr(col("state").eq(lit("NY"))) // state=NY
                     .build(),
                 expected_tag_keys: Ok(vec!["city", "state"]),
             },
@@ -1679,36 +1675,6 @@ disk bytes=23432323i 1600136510000000000",
         Ok(())
     }
 
-    // Create a predicate of the form column_name = val
-    fn make_column_eq_expr(column_name: &str, val: &str) -> Expr {
-        make_column_expr(column_name, Operator::Eq, val)
-    }
-
-    // Create a predicate of the form column_name != val
-    fn make_column_neq_expr(column_name: &str, val: &str) -> Expr {
-        make_column_expr(column_name, Operator::NotEq, val)
-    }
-
-    // Create a predicate of the form column_name <op> val
-    fn make_column_expr(column_name: &str, op: Operator, val: &str) -> Expr {
-        Expr::BinaryExpr {
-            left: Box::new(Expr::Column(column_name.into())),
-            op,
-            right: Box::new(Expr::Literal(ScalarValue::Utf8(Some(val.into())))),
-        }
-    }
-
-    // Create a predicate of the form "foo = "foo" (no column references, but is true)
-    fn make_no_column_expr() -> Expr {
-        let foo_literal = ScalarValue::Utf8(Some(String::from("foo")));
-
-        Expr::BinaryExpr {
-            left: Box::new(Expr::Literal(foo_literal.clone())),
-            op: Operator::Eq,
-            right: Box::new(Expr::Literal(foo_literal)),
-        }
-    }
-
     #[tokio::test]
     async fn list_column_names_predicate() -> Result {
         // Demonstration test to show column names with predicate working
@@ -1726,7 +1692,7 @@ disk bytes=23432323i 1600136510000000000",
         db.write_lines(&lines).await?;
 
         // Predicate: state=MA
-        let expr = logical_plan::col("state").eq("MA".lit());
+        let expr = col("state").eq(lit("MA"));
         let predicate = PredicateBuilder::default().add_expr(expr).build();
 
         let tag_keys_plan = db
@@ -1790,7 +1756,7 @@ disk bytes=23432323i 1600136510000000000",
                 description: "Restrictions: predicate",
                 column_name: "city",
                 predicate: PredicateBuilder::default()
-                    .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+                    .add_expr(col("state").eq(lit("MA"))) // state=MA
                     .build(),
                 expected_column_values: Ok(vec!["Boston"]),
             },
@@ -1799,7 +1765,7 @@ disk bytes=23432323i 1600136510000000000",
                 column_name: "state",
                 predicate: PredicateBuilder::default()
                     .timestamp_range(150, 301)
-                    .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+                    .add_expr(col("state").eq(lit("MA"))) // state=MA
                     .build(),
                 expected_column_values: Ok(vec!["MA"]),
             },
@@ -1829,7 +1795,7 @@ disk bytes=23432323i 1600136510000000000",
                 column_name: "state",
                 predicate: PredicateBuilder::default()
                     .table("o2")
-                    .add_expr(make_column_eq_expr("state", "NY")) // state=NY
+                    .add_expr(col("state").eq(lit("NY"))) // state=NY
                     .build(),
                 expected_column_values: Ok(vec!["NY"]),
             },
@@ -1839,7 +1805,7 @@ disk bytes=23432323i 1600136510000000000",
                 predicate: PredicateBuilder::default()
                     .table("o2")
                     .timestamp_range(1, 550)
-                    .add_expr(make_column_eq_expr("state", "NY")) // state=NY
+                    .add_expr(col("state").eq(lit("NY"))) // state=NY
                     .build(),
                 expected_column_values: Ok(vec!["NY"]),
             },
@@ -1849,7 +1815,7 @@ disk bytes=23432323i 1600136510000000000",
                 predicate: PredicateBuilder::default()
                     .table("o2")
                     .timestamp_range(1, 300) // filters out the NY row
-                    .add_expr(make_column_eq_expr("state", "NY")) // state=NY
+                    .add_expr(col("state").eq(lit("NY"))) // state=NY
                     .build(),
                 expected_column_values: Ok(vec![]),
             },
@@ -1994,7 +1960,7 @@ disk bytes=23432323i 1600136510000000000",
         // filter out one row in h20
         let predicate = PredicateBuilder::default()
             .timestamp_range(200, 300)
-            .add_expr(make_column_eq_expr("state", "CA")) // state=CA
+            .add_expr(col("state").eq(lit("CA"))) // state=CA
             .build();
 
         let plans = db
@@ -2036,7 +2002,7 @@ disk bytes=23432323i 1600136510000000000",
         db.write_lines(&lines).await?;
 
         let predicate = PredicateBuilder::default()
-            .add_expr(make_column_eq_expr("tag_not_in_h20", "foo"))
+            .add_expr(col("tag_not_in_h20").eq(lit("foo")))
             .build();
 
         let plans = db
@@ -2049,7 +2015,7 @@ disk bytes=23432323i 1600136510000000000",
 
         // predicate with no columns,
         let predicate = PredicateBuilder::default()
-            .add_expr(make_no_column_expr())
+            .add_expr(lit("foo").eq(lit("foo")))
             .build();
 
         let plans = db
@@ -2062,8 +2028,8 @@ disk bytes=23432323i 1600136510000000000",
 
         // predicate with both a column that does and does not appear
         let predicate = PredicateBuilder::default()
-            .add_expr(make_column_eq_expr("state", "MA"))
-            .add_expr(make_column_eq_expr("tag_not_in_h20", "foo"))
+            .add_expr(col("state").eq(lit("MA")))
+            .add_expr(col("tag_not_in_h20").eq(lit("foo")))
             .build();
 
         let plans = db
@@ -2096,7 +2062,7 @@ disk bytes=23432323i 1600136510000000000",
         db.write_lines(&lines).await.unwrap();
 
         let predicate = PredicateBuilder::default()
-            .add_expr(make_column_neq_expr("state", "MA"))
+            .add_expr(col("state").not_eq(lit("MA")))
             .build();
 
         // Should panic as the neq path isn't implemented yet
@@ -2140,7 +2106,7 @@ disk bytes=23432323i 1600136510000000000",
 
         let predicate = PredicateBuilder::default()
             .table("NoSuchTable")
-            .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+            .add_expr(col("state").eq(lit("MA"))) // state=MA
             .build();
 
         // make sure table filtering works (no tables match)
@@ -2158,7 +2124,7 @@ disk bytes=23432323i 1600136510000000000",
         // get only fields from h20 (but both partitions)
         let predicate = PredicateBuilder::default()
             .table("h2o")
-            .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+            .add_expr(col("state").eq(lit("MA"))) // state=MA
             .build();
 
         let plan = db
@@ -2223,7 +2189,7 @@ disk bytes=23432323i 1600136510000000000",
         let predicate = PredicateBuilder::default()
             .table("h2o")
             .timestamp_range(200, 300)
-            .add_expr(make_column_eq_expr("state", "MA")) // state=MA
+            .add_expr(col("state").eq(lit("MA"))) // state=MA
             .build();
 
         let plan = db

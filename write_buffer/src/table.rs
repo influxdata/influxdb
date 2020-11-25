@@ -25,7 +25,8 @@ use arrow_deps::{
     },
     datafusion::{
         self,
-        logical_plan::{col, Expr, LogicalPlan, LogicalPlanBuilder},
+        logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
+        prelude::*,
     },
 };
 
@@ -358,7 +359,7 @@ impl Table {
                 .iter()
                 .filter_map(|&(column_name, _)| {
                     if column_name != TIME_COLUMN_NAME {
-                        Some(Expr::Column(column_name.into()))
+                        Some(col(column_name))
                     } else {
                         None
                     }
@@ -404,7 +405,7 @@ impl Table {
 
         let projection = None;
         let projected_schema = schema.clone();
-        let select_exprs = vec![Expr::Column(column_name.into())];
+        let select_exprs = vec![col(column_name)];
 
         // And build the plan!
         let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
@@ -1121,13 +1122,13 @@ trait IntoExpr {
 
 impl IntoExpr for Arc<String> {
     fn into_expr(&self) -> Expr {
-        Expr::Column(self.as_ref().clone())
+        col(self.as_ref())
     }
 }
 
 impl IntoExpr for str {
     fn into_expr(&self) -> Expr {
-        Expr::Column(self.to_string())
+        col(self)
     }
 }
 
@@ -1141,9 +1142,8 @@ impl IntoExpr for Expr {
 mod tests {
 
     use arrow::util::pretty::pretty_format_batches;
-    use arrow_deps::datafusion::logical_plan::{binary_expr, col, lit};
+    use arrow_deps::datafusion::logical_plan::Operator;
     use data_types::data::split_lines_into_write_entry_partitions;
-    use datafusion::{logical_plan::Operator, scalar::ScalarValue};
     use influxdb_line_protocol::{parse_lines, ParsedLine};
     use query::{exec::Executor, predicate::PredicateBuilder};
     use test_helpers::str_vec_to_arc_vec;
@@ -1339,11 +1339,7 @@ mod tests {
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
         let predicate = PredicateBuilder::default()
-            .add_expr(Expr::BinaryExpr {
-                left: Box::new(Expr::Column("city".into())),
-                op: Operator::Eq,
-                right: Box::new(Expr::Literal(ScalarValue::Utf8(Some("LA".into())))),
-            })
+            .add_expr(col("city").eq(lit("LA")))
             .timestamp_range(190, 210)
             .build();
 
@@ -1393,11 +1389,7 @@ mod tests {
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
         let predicate = PredicateBuilder::default()
-            .add_expr(Expr::BinaryExpr {
-                left: Box::new(Expr::Column("city".into())),
-                op: Operator::Eq,
-                right: Box::new(Expr::Literal(ScalarValue::Utf8(Some("LA".into())))),
-            })
+            .add_expr(col("city").eq(lit("LA")))
             .timestamp_range(190, 210)
             .build();
         let partition_predicate = partition.compile_predicate(&predicate).unwrap();
@@ -1451,10 +1443,7 @@ mod tests {
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
         let predicate = PredicateBuilder::default()
-            .add_expr(or(
-                binary_expr(col("city"), Operator::Eq, lit("Boston")),
-                binary_expr(col("city"), Operator::Eq, lit("LA")),
-            ))
+            .add_expr(or(col("city").eq(lit("Boston")), col("city").eq(lit("LA"))))
             .timestamp_range(100, 450)
             .build();
         let partition_predicate = partition.compile_predicate(&predicate).unwrap();
