@@ -60,21 +60,18 @@ func NewPipeline(tb testing.TB, opts ...PipelineOption) *Pipeline {
 		logger = zaptest.NewLogger(tb, logLevel).With(zap.String("test_name", tb.Name()))
 	}
 
-	launcherOptions := []launcher.Option{
-		launcher.WithLogger(logger),
-	}
-	for _, o := range opts {
-		if opt := o.makeLauncherOption(); opt != nil {
-			launcherOptions = append(launcherOptions, opt)
-		}
-	}
+	tl := launcher.NewTestLauncher(nil)
+	tl.SetLogger(logger)
 
-	tl := launcher.NewTestLauncher(nil, launcherOptions...)
 	p := &Pipeline{
 		Launcher: tl,
 	}
 
-	err := tl.Run(context.Background())
+	err := tl.Run(context.Background(), func(o *launcher.InfluxdOpts) {
+		for _, opt := range opts {
+			opt.applyOptSetter(o)
+		}
+	})
 	require.NoError(tb, err)
 
 	// setup default operator
