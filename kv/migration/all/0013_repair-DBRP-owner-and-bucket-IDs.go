@@ -3,6 +3,7 @@ package all
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 )
@@ -15,8 +16,10 @@ var Migration0013_RepairDBRPOwnerAndBucketIDs = UpOnlyMigration(
 			Database        string      `json:"database"`
 			RetentionPolicy string      `json:"retention_policy"`
 			Default         bool        `json:"default"`
-			OrganizationID  influxdb.ID `json:"organization_id"`
-			BucketID        influxdb.ID `json:"bucket_id"`
+
+			// These 2 fields were renamed.
+			OrganizationID influxdb.ID `json:"organization_id"`
+			BucketID       influxdb.ID `json:"bucket_id"`
 		}
 
 		// Collect DBRPs that are using the old schema.
@@ -38,6 +41,9 @@ var Migration0013_RepairDBRPOwnerAndBucketIDs = UpOnlyMigration(
 					return false, err
 				}
 
+				// DBRPs that are already stored in the new schema will end up with
+				// invalid (zero) values for the 2 ID fields when unmarshalled using
+				// the old JSON schema.
 				if mapping.OrganizationID.Valid() && mapping.BucketID.Valid() {
 					mappings = append(mappings, &mapping)
 				}
@@ -53,8 +59,10 @@ var Migration0013_RepairDBRPOwnerAndBucketIDs = UpOnlyMigration(
 			Database        string      `json:"database"`
 			RetentionPolicy string      `json:"retention_policy"`
 			Default         bool        `json:"default"`
-			OrganizationID  influxdb.ID `json:"orgID"`
-			BucketID        influxdb.ID `json:"bucketID"`
+
+			// New names for the 2 renamed fields.
+			OrganizationID influxdb.ID `json:"orgID"`
+			BucketID       influxdb.ID `json:"bucketID"`
 		}
 		batchSize := 100
 		writeBatch := func(batch []*oldStyleMapping) (err error) {
