@@ -2,27 +2,22 @@
 
 use std::sync::Arc;
 
-use arrow_deps::arrow::array::ArrayRef;
-use arrow_deps::arrow::array::Int64Array;
-use arrow_deps::arrow::array::Int64Builder;
-use arrow_deps::arrow::datatypes::DataType;
-use arrow_deps::datafusion::logical_plan::Expr;
-use arrow_deps::datafusion::physical_plan::functions::ScalarFunctionImplementation;
-use arrow_deps::datafusion::prelude::create_udf;
 use arrow_deps::{
-    arrow::record_batch::RecordBatch,
-    datafusion::physical_plan::merge::MergeExec,
-    datafusion::physical_plan::SendableRecordBatchStream,
+    arrow::{
+        array::{ArrayRef, Int64Array, Int64Builder},
+        datatypes::DataType,
+        record_batch::RecordBatch,
+    },
     datafusion::{
-        execution::context::ExecutionContextState,
-        execution::context::QueryPlanner,
-        logical_plan::LogicalPlan,
-        logical_plan::UserDefinedLogicalNode,
+        execution::context::{ExecutionContextState, QueryPlanner},
+        logical_plan::{Expr, LogicalPlan, UserDefinedLogicalNode},
         physical_plan::{
+            functions::ScalarFunctionImplementation,
+            merge::MergeExec,
             planner::{DefaultPhysicalPlanner, ExtensionPlanner},
-            ExecutionPlan, PhysicalPlanner,
+            ExecutionPlan, PhysicalPlanner, SendableRecordBatchStream,
         },
-        prelude::{ExecutionConfig, ExecutionContext},
+        prelude::*,
     },
 };
 
