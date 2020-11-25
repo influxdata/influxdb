@@ -1,6 +1,8 @@
 use generated_types::wal as wb;
 use influxdb_line_protocol::ParsedLine;
+use query::group_by::Aggregate;
 use query::group_by::GroupByAndAggregate;
+use query::group_by::WindowDuration;
 use query::{
     exec::{
         stringset::StringSet, FieldListPlan, GroupedSeriesSetPlan, GroupedSeriesSetPlans,
@@ -346,7 +348,7 @@ impl Db {
 impl Database for Db {
     type Error = Error;
 
-    // TODO: writes lines creates a column named "time" for the timestmap data. If
+    // TODO: writes lines creates a column named "time" for the timestamp data. If
     //       we keep this we need to validate that no tag or field has the same name.
     async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
         let data = split_lines_into_write_entry_partitions(partition_key, lines);
@@ -477,7 +479,7 @@ impl Database for Db {
         predicate: Predicate,
         gby_agg: GroupByAndAggregate,
     ) -> Result<GroupedSeriesSetPlans, Self::Error> {
-        let filter = PartitionTableFilter::new(predicate);
+        let mut filter = PartitionTableFilter::new(predicate);
 
         match gby_agg {
             GroupByAndAggregate::Columns {
@@ -492,12 +494,10 @@ impl Database for Db {
                 self.visit_tables(&mut filter, &mut visitor).await?;
                 Ok(visitor.plans.into())
             }
-            GroupByAndAggregate::Window {
-                agg: _agg,
-                every: _every,
-                offset: _offset,
-            } => {
-                unimplemented!("query groups with window aggregates are not yet implemented");
+            GroupByAndAggregate::Window { agg, every, offset } => {
+                let mut visitor = WindowGroupsVisitor::new(agg, every, offset);
+                self.visit_tables(&mut filter, &mut visitor).await?;
+                Ok(visitor.plans.into())
             }
         }
     }
@@ -1080,6 +1080,46 @@ impl Visitor for GroupsVisitor {
         self.plans.push(table.grouped_series_set_plan(
             filter.partition_predicate(),
             &self.group_columns,
+            partition,
+        )?);
+
+        Ok(())
+    }
+}
+
+/// Return DataFusion plans to calculate series that pass the
+/// specified predicate, grouped using the window definition
+struct WindowGroupsVisitor {
+    agg: Aggregate,
+    every: WindowDuration,
+    offset: WindowDuration,
+
+    plans: Vec<GroupedSeriesSetPlan>,
+}
+
+impl WindowGroupsVisitor {
+    fn new(agg: Aggregate, every: WindowDuration, offset: WindowDuration) -> Self {
+        Self {
+            agg,
+            every,
+            offset,
+            plans: Vec::new(),
+        }
+    }
+}
+
+impl Visitor for WindowGroupsVisitor {
+    fn pre_visit_table(
+        &mut self,
+        table: &Table,
+        partition: &Partition,
+        filter: &mut PartitionTableFilter,
+    ) -> Result<()> {
+        self.plans.push(table.window_grouped_series_set_plan(
+            filter.partition_predicate(),
+            &self.agg,
+            &self.every,
+            &self.offset,
             partition,
         )?);
 

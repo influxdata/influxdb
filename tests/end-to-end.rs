@@ -25,7 +25,7 @@ use generated_types::{
     storage_client::StorageClient,
     Aggregate, MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
     MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest, ReadSource,
-    Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
+    ReadWindowAggregateRequest, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 use prost::Message;
 use std::convert::TryInto;
@@ -241,24 +241,7 @@ async fn read_and_write_data() -> Result<()> {
     };
     let range = Some(range);
 
-    let predicate = Predicate {
-        root: Some(Node {
-            node_type: NodeType::ComparisonExpression as i32,
-            children: vec![
-                Node {
-                    node_type: NodeType::TagRef as i32,
-                    children: vec![],
-                    value: Some(Value::TagRefValue("host".into())),
-                },
-                Node {
-                    node_type: NodeType::Literal as i32,
-                    children: vec![],
-                    value: Some(Value::StringValue("server01".into())),
-                },
-            ],
-            value: Some(Value::Comparison(Comparison::Equal as _)),
-        }),
-    };
+    let predicate = make_tag_predicate("host", "server01");
     let predicate = Some(predicate);
 
     let read_filter_request = tonic::Request::new(ReadFilterRequest {
@@ -464,6 +447,15 @@ async fn read_and_write_data() -> Result<()> {
 
     test_http_error_messages(&client2).await?;
 
+    test_read_window_aggregate(
+        &mut storage_client,
+        &client2,
+        &read_source,
+        org_id_str,
+        bucket_id_str,
+    )
+    .await;
+
     Ok(())
 }
 
@@ -480,6 +472,107 @@ async fn test_http_error_messages(client: &influxdb2_client::Client) -> Result<(
     assert_eq!(result.to_string(), expected_error);
 
     Ok(())
+}
+
+// Standalone test that all the pipes are hooked up for read window aggregate
+async fn test_read_window_aggregate(
+    storage_client: &mut StorageClient<tonic::transport::Channel>,
+    client: &influxdb2_client::Client,
+    read_source: &std::option::Option<prost_types::Any>,
+    org_id: &str,
+    bucket_id: &str,
+) {
+    let line_protocol = vec![
+        "h2o,state=MA,city=Boston temp=70.0 100",
+        "h2o,state=MA,city=Boston temp=71.0 200",
+        "h2o,state=MA,city=Boston temp=72.0 300",
+        "h2o,state=MA,city=Boston temp=73.0 400",
+        "h2o,state=MA,city=Boston temp=74.0 500",
+        "h2o,state=MA,city=Cambridge temp=80.0 100",
+        "h2o,state=MA,city=Cambridge temp=81.0 200",
+        "h2o,state=MA,city=Cambridge temp=82.0 300",
+        "h2o,state=MA,city=Cambridge temp=83.0 400",
+        "h2o,state=MA,city=Cambridge temp=84.0 500",
+        "h2o,state=CA,city=LA temp=90.0 100",
+        "h2o,state=CA,city=LA temp=91.0 200",
+        "h2o,state=CA,city=LA temp=92.0 300",
+        "h2o,state=CA,city=LA temp=93.0 400",
+        "h2o,state=CA,city=LA temp=94.0 500",
+    ]
+    .join("\n");
+
+    client
+        .write_line_protocol(org_id, bucket_id, line_protocol)
+        .await
+        .expect("Wrote h20 line protocol");
+
+    // now, query using read window aggregate
+
+    let request = ReadWindowAggregateRequest {
+        read_source: read_source.clone(),
+        range: Some(TimestampRange {
+            start: 200,
+            end: 1000,
+        }),
+        predicate: Some(make_tag_predicate("state", "MA")),
+        window_every: 200,
+        offset: 0,
+        aggregate: vec![Aggregate {
+            r#type: AggregateType::Sum as i32,
+        }],
+        window: None,
+    };
+
+    let response = storage_client.read_window_aggregate(request).await.unwrap();
+
+    let responses: Vec<_> = response.into_inner().try_collect().await.unwrap();
+
+    let frames: Vec<_> = responses
+        .into_iter()
+        .flat_map(|r| r.frames)
+        .flat_map(|f| f.data)
+        .collect();
+
+    let expected_frames = vec![
+        "GroupFrame, tag_keys: city,state, partition_key_vals: Boston,MA",
+        "SeriesFrame, tags: _field=temp,_measurement=h2o,city=Boston,state=MA, type: 0",
+        "FloatPointsFrame, timestamps: [400, 600], values: \"143,147\"",
+        "GroupFrame, tag_keys: city,state, partition_key_vals: Cambridge,MA",
+        "SeriesFrame, tags: _field=temp,_measurement=h2o,city=Cambridge,state=MA, type: 0",
+        "FloatPointsFrame, timestamps: [400, 600], values: \"163,167\"",
+    ];
+
+    let actual_frames = dump_data_frames(&frames);
+
+    assert_eq!(
+        expected_frames,
+        actual_frames,
+        "Expected:\n{}\nActual:\n{}",
+        expected_frames.join("\n"),
+        actual_frames.join("\n")
+    );
+}
+
+/// Create a predicate representing tag_name=tag_value in the horrible gRPC structs
+fn make_tag_predicate(tag_name: impl Into<String>, tag_value: impl Into<String>) -> Predicate {
+    Predicate {
+        root: Some(Node {
+            node_type: NodeType::ComparisonExpression as i32,
+            children: vec![
+                Node {
+                    node_type: NodeType::TagRef as i32,
+                    children: vec![],
+                    value: Some(Value::TagRefValue(tag_name.into().into())),
+                },
+                Node {
+                    node_type: NodeType::Literal as i32,
+                    children: vec![],
+                    value: Some(Value::StringValue(tag_value.into())),
+                },
+            ],
+            value: Some(Value::Comparison(Comparison::Equal as _)),
+        }),
+    }
 }
 
 /// substitutes "ns" --> ns_since_epoch, ns1-->ns_since_epoch+1, etc

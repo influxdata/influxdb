@@ -1,5 +1,7 @@
 use generated_types::wal as wb;
+use query::exec::make_window_bound_expr;
 use query::exec::{make_schema_pivot, GroupedSeriesSetPlan, SeriesSetPlan};
+use query::group_by::{Aggregate, WindowDuration};
 use tracing::debug;
 
 use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
@@ -21,10 +23,10 @@ use arrow_deps::{
         datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema},
         record_batch::RecordBatch,
     },
-    datafusion,
-    datafusion::logical_plan::Expr,
-    datafusion::logical_plan::LogicalPlan,
-    datafusion::logical_plan::LogicalPlanBuilder,
+    datafusion::{
+        self,
+        logical_plan::{col, Expr, LogicalPlan, LogicalPlanBuilder},
+    },
 };
 
 #[derive(Debug, Snafu)]
@@ -159,6 +161,9 @@ pub enum Error {
         column_name: String,
         all_tag_column_names: String,
     },
+
+    #[snafu(display("Error creating aggregate expression:  {}", source))]
+    CreatingAggregates { source: query::group_by::Error },
 
     #[snafu(display("Duplicate group column '{}'", column_name))]
     DuplicateGroupColumn { column_name: String },
@@ -452,14 +457,6 @@ impl Table {
         prefix_columns: Option<&[String]>,
         partition: &Partition,
     ) -> Result<SeriesSetPlan> {
-        // I wonder if all this string creation will be too slow?
-        let table_name = partition
-            .dictionary
-            .lookup_id(self.id)
-            .expect("looking up table name in dictionary")
-            .to_string();
-
-        let table_name = Arc::new(table_name);
         let (mut tag_columns, field_columns) =
             self.tag_and_field_column_names(partition_predicate, partition)?;
 
@@ -507,11 +504,23 @@ impl Table {
         let plan = plan_builder.build().context(BuildingPlan)?;
 
         Ok(SeriesSetPlan {
-            table_name,
+            table_name: self.table_name(partition),
             plan,
             tag_columns,
             field_columns,
         })
+    }
+
+    /// Look up this table's name as a string
+    fn table_name(&self, partition: &Partition) -> Arc<String> {
+        // I wonder if all this string creation will be too slow?
+        let table_name = partition
+            .dictionary
+            .lookup_id(self.id)
+            .expect("looking up table name in dictionary")
+            .to_string();
+
+        Arc::new(table_name)
     }
 
     /// Creates a GroupedSeriesSet plan that produces an output table with rows that match the predicate
@@ -544,6 +553,112 @@ impl Table {
         Ok(GroupedSeriesSetPlan {
             series_set_plan,
             num_prefix_tag_group_columns,
+        })
+    }
+
+    /// Creates a GroupedSeriesSet plan that produces an output table with rows
+    /// that are grouped by window defintions
+    ///
+    /// The order of the tag_columns
+    ///
+    /// The data is sorted on tag_col1, tag_col2, ...) so that all
+    /// rows for a particular series (groups where all tags are the
+    /// same) occur together in the plan
+    ///
+    /// Equivalent to this SQL query
+    ///
+    /// SELECT tag1, ... tagN,
+    ///   window_bound(time, every, offset) as time,
+    ///   agg_function1(field), as field_name
+    /// FROM measurement
+    /// GROUP BY
+    ///   tag1, ... tagN,
+    ///   window_bound(time, every, offset) as time,
+    /// ORDER BY
+    ///   tag1, ... tagN,
+    ///   window_bound(time, every, offset) as time
+    ///
+    /// The created plan looks like:
+    ///
+    ///  OrderBy(gby: tag columns, window_function; agg: aggregate(field)
+    ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field)
+    ///        Filter(predicate)
+    ///          InMemoryScan
+    ///
+    pub fn window_grouped_series_set_plan(
+        &self,
+        partition_predicate: &PartitionPredicate,
+        agg: &Aggregate,
+        every: &WindowDuration,
+        offset: &WindowDuration,
+        partition: &Partition,
+    ) -> Result<GroupedSeriesSetPlan> {
+        let (tag_columns, field_columns) =
+            self.tag_and_field_column_names(partition_predicate, partition)?;
+
+        // TODO avoid materializing all the columns here (ideally
+        // DataFusion can prune some of them out)
+        let data = self.all_to_arrow(partition)?;
+
+        let schema = data.schema();
+
+        let projection = None;
+        let projected_schema = schema.clone();
+
+        // And build the plan from the bottom up
+        let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
+            data: vec![vec![data]],
+            schema,
+            projection,
+            projected_schema,
+        });
+
+        // Filtering
+        let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;
+
+        // Group by all tag columns and the window bounds
+        let mut group_exprs = tag_columns
+            .iter()
+            .map(|tag_name| col(tag_name.as_ref()))
+            .collect::<Vec<_>>();
+        // add window_bound() call
+        let window_bound =
+            make_window_bound_expr(col(TIME_COLUMN_NAME), every, offset).alias(TIME_COLUMN_NAME);
+        group_exprs.push(window_bound);
+
+        // aggregate each field
+        let agg_exprs = field_columns
+            .iter()
+            .map(|field_name| {
+                agg.to_datafusion_expr(col(field_name.as_ref()))
+                    .context(CreatingAggregates)
+                    .map(|agg| agg.alias(field_name.as_ref()))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // sort by the group by expressions as well
+        let sort_exprs = group_exprs
+            .iter()
+            .map(|expr| expr.into_sort_expr())
+            .collect::<Vec<_>>();
+
+        let plan_builder = plan_builder
+            .aggregate(group_exprs, agg_exprs)
+            .context(BuildingPlan)?
+            .sort(sort_exprs)
+            .context(BuildingPlan)?;
+
+        // and finally create the plan
+        let plan = plan_builder.build().context(BuildingPlan)?;
+
+        Ok(GroupedSeriesSetPlan {
+            num_prefix_tag_group_columns: tag_columns.len(),
+            series_set_plan: SeriesSetPlan {
+                table_name: self.table_name(partition),
+                plan,
+                tag_columns,
+                field_columns,
+            },
         })
     }
 
@@ -598,8 +713,8 @@ impl Table {
     }
 
     // Returns (tag_columns, field_columns) vectors with the names of
-    // all tag and field columns, respectively. The vectors are sorted
-    // by name.
+    // all tag and field columns, respectively, after any predicates
+    // have been applied. The vectors are sorted by lexically by name.
     fn tag_and_field_column_names(
         &self,
         partition_predicate: &PartitionPredicate,
@@ -1016,9 +1131,17 @@ impl IntoExpr for str {
     }
 }
 
+impl IntoExpr for Expr {
+    fn into_expr(&self) -> Expr {
+        self.clone()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+
     use arrow::util::pretty::pretty_format_batches;
+    use arrow_deps::datafusion::logical_plan::{binary_expr, col, lit};
     use data_types::data::split_lines_into_write_entry_partitions;
     use datafusion::{logical_plan::Operator, scalar::ScalarValue};
     use influxdb_line_protocol::{parse_lines, ParsedLine};
@@ -1029,7 +1152,6 @@ mod tests {
 
     #[test]
     fn test_has_columns() {
-        // setup a test table
         let mut partition = Partition::new("dummy_partition_key");
         let dictionary = &mut partition.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
@@ -1072,7 +1194,6 @@ mod tests {
 
     #[test]
     fn test_matches_table_name_predicate() {
-        // setup a test table
         let mut partition = Partition::new("dummy_partition_key");
         let dictionary = &mut partition.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
@@ -1103,7 +1224,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_series_set_plan() {
-        // setup a test table
         let mut partition = Partition::new("dummy_partition_key");
         let dictionary = &mut partition.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
@@ -1153,7 +1273,6 @@ mod tests {
     async fn test_series_set_plan_order() {
         // test that the columns and rows come out in the right order (tags then timestamp)
 
-        // setup a test table
         let mut partition = Partition::new("dummy_partition_key");
         let dictionary = &mut partition.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
@@ -1206,7 +1325,6 @@ mod tests {
     async fn test_series_set_plan_filter() {
         // test that filters are applied reasonably
 
-        // setup a test table
         let mut partition = Partition::new("dummy_partition_key");
         let dictionary = &mut partition.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
@@ -1261,9 +1379,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_grouped_series_set_plan() {
-        // test that filters are applied reasonably
-
-        // setup a test table
         let mut partition = Partition::new("dummy_partition_key");
         let dictionary = &mut partition.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
@@ -1310,8 +1425,130 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_grouped_window_series_set_plan_nanoseconds() {
+        let mut partition = Partition::new("dummy_partition_key");
+        let dictionary = &mut partition.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.0 100",
+            "h2o,state=MA,city=Boston temp=71.0 200",
+            "h2o,state=MA,city=Boston temp=72.0 300",
+            "h2o,state=MA,city=Boston temp=73.0 400",
+            "h2o,state=MA,city=Boston temp=74.0 500",
+            "h2o,state=MA,city=Cambridge temp=80.0 100",
+            "h2o,state=MA,city=Cambridge temp=81.0 200",
+            "h2o,state=MA,city=Cambridge temp=82.0 300",
+            "h2o,state=MA,city=Cambridge temp=83.0 400",
+            "h2o,state=MA,city=Cambridge temp=84.0 500",
+            "h2o,state=CA,city=LA temp=90.0 100",
+            "h2o,state=CA,city=LA temp=91.0 200",
+            "h2o,state=CA,city=LA temp=92.0 300",
+            "h2o,state=CA,city=LA temp=93.0 400",
+            "h2o,state=CA,city=LA temp=94.0 500",
+        ];
+
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+
+        let predicate = PredicateBuilder::default()
+            .add_expr(or(
+                binary_expr(col("city"), Operator::Eq, lit("Boston")),
+                binary_expr(col("city"), Operator::Eq, lit("LA")),
+            ))
+            .timestamp_range(100, 450)
+            .build();
+        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
+
+        let agg = Aggregate::Mean;
+        let every = WindowDuration::from_nanoseconds(200);
+        let offset = WindowDuration::from_nanoseconds(0);
+
+        let plan = table
+            .window_grouped_series_set_plan(&partition_predicate, &agg, &every, &offset, &partition)
+            .expect("creating the grouped_series set plan");
+
+        assert_eq!(
+            plan.series_set_plan.tag_columns,
+            *str_vec_to_arc_vec(&["city", "state"])
+        );
+        assert_eq!(
+            plan.series_set_plan.field_columns,
+            *str_vec_to_arc_vec(&["temp"])
+        );
+
+        // run the created plan, ensuring the output is as expected
+        let results = run_plan(plan.series_set_plan.plan).await;
+
+        // note the name of the field is "temp" even though it is the average
+        let expected = vec![
+            "+--------+-------+------+------+",
+            "| city   | state | time | temp |",
+            "+--------+-------+------+------+",
+            "| Boston | MA    | 200  | 70   |",
+            "| Boston | MA    | 400  | 71.5 |",
+            "| Boston | MA    | 600  | 73   |",
+            "| LA     | CA    | 200  | 90   |",
+            "| LA     | CA    | 400  | 91.5 |",
+            "| LA     | CA    | 600  | 93   |",
+            "+--------+-------+------+------+",
+        ];
+
+        assert_eq!(expected, results, "expected output");
+    }
+
+    #[tokio::test]
+    async fn test_grouped_window_series_set_plan_months() {
+        let mut partition = Partition::new("dummy_partition_key");
+        let dictionary = &mut partition.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.0 1583020800000000000", // 2020-03-01T00:00:00Z
+            "h2o,state=MA,city=Boston temp=71.0 1583107920000000000", // 2020-03-02T00:12:00Z
+            "h2o,state=MA,city=Boston temp=72.0 1585699200000000000", // 2020-04-01T00:00:00Z
+            "h2o,state=MA,city=Boston temp=73.0 1585785600000000000", // 2020-04-02T00:00:00Z
+        ];
+
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+
+        let predicate = PredicateBuilder::default().build();
+        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
+
+        let agg = Aggregate::Mean;
+        let every = WindowDuration::from_months(1, false);
+        let offset = WindowDuration::from_months(0, false);
+
+        let plan = table
+            .window_grouped_series_set_plan(&partition_predicate, &agg, &every, &offset, &partition)
+            .expect("creating the grouped_series set plan");
+
+        assert_eq!(
+            plan.series_set_plan.tag_columns,
+            *str_vec_to_arc_vec(&["city", "state"])
+        );
+        assert_eq!(
+            plan.series_set_plan.field_columns,
+            *str_vec_to_arc_vec(&["temp"])
+        );
+
+        // run the created plan, ensuring the output is as expected
+        let results = run_plan(plan.series_set_plan.plan).await;
+
+        // note the name of the field is "temp" even though it is the average
+        let expected = vec![
+            "+--------+-------+---------------------+------+",
+            "| city   | state | time                | temp |",
+            "+--------+-------+---------------------+------+",
+            "| Boston | MA    | 1585699200000000000 | 70.5 |",
+            "| Boston | MA    | 1588291200000000000 | 72.5 |",
+            "+--------+-------+---------------------+------+",
+        ];
+
+        assert_eq!(expected, results, "expected output");
+    }
+
+    #[tokio::test]
     async fn test_field_name_plan() {
-        // setup a test table
         let mut partition = Partition::new("dummy_partition_key");
         let dictionary = &mut partition.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
@@ -1477,5 +1714,14 @@ mod tests {
 
     fn partition_key_func(_: &ParsedLine<'_>) -> String {
         String::from("the_partition_key")
+    }
+
+    /// return a new expression with a logical OR
+    fn or(left: Expr, right: Expr) -> Expr {
+        Expr::BinaryExpr {
+            left: Box::new(left),
+            op: Operator::Or,
+            right: Box::new(right),
+        }
     }
 }

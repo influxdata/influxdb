@@ -2,7 +2,22 @@
 //! and Aggregate functions in IOx, designed to be compatible with
 //! InfluxDB classic
 
-#[derive(Debug, Clone, PartialEq)]
+use crate::window;
+use arrow_deps::datafusion::logical_plan::Expr;
+use snafu::Snafu;
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display(
+        "Aggregate not yet supported {}. See https://github.com/influxdata/influxdb_iox/issues/480",
+        agg
+    ))]
+    AggregateNotSupported { agg: String },
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum Aggregate {
     Sum,
     Count,
@@ -59,6 +74,22 @@ pub enum WindowDuration {
     Fixed { nanoseconds: i64 },
 }
 
+impl Aggregate {
+    /// Create the appropriate DataFusion expression for this aggregate
+    pub fn to_datafusion_expr(&self, input: Expr) -> Result<Expr> {
+        use arrow_deps::datafusion::logical_plan::{avg, count, max, min, sum};
+        match self {
+            Self::Sum => Ok(sum(input)),
+            Self::Count => Ok(count(input)),
+            Self::Min => Ok(min(input)),
+            Self::Max => Ok(max(input)),
+            Self::First => AggregateNotSupported { agg: "First" }.fail(),
+            Self::Last => AggregateNotSupported { agg: "Last" }.fail(),
+            Self::Mean => Ok(avg(input)),
+        }
+    }
+}
+
 impl WindowDuration {
     pub fn from_nanoseconds(nanoseconds: i64) -> Self {
         Self::Fixed { nanoseconds }
@@ -66,5 +97,18 @@ impl WindowDuration {
 
     pub fn from_months(months: i64, negative: bool) -> Self {
         Self::Variable { months, negative }
+    }
+}
+
+// Translation to the structures for the underlying window
+// implementation
+impl Into<window::Duration> for &WindowDuration {
+    fn into(self) -> window::Duration {
+        match *self {
+            WindowDuration::Variable { months, negative } => {
+                window::Duration::from_months_with_negative(months, negative)
+            }
+            WindowDuration::Fixed { nanoseconds } => window::Duration::from_nsecs(nanoseconds),
+        }
     }
 }

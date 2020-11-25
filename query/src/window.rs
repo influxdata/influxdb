@@ -55,6 +55,16 @@ impl Duration {
         }
     }
 
+    /// create a duration from a non negative value of months and a negative flag
+    pub fn from_months_with_negative(months: i64, negative: bool) -> Self {
+        assert_eq!(months < 0, negative);
+        Self {
+            months,
+            negative,
+            nsecs: 0,
+        }
+    }
+
     /// IsZero returns true if this is a zero duration.
     ///
     /// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/values/time.go#L204
@@ -256,8 +266,8 @@ impl Add<Duration> for i64 {
 /// Original: https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/bounds.go#L19
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Bounds {
-    start: i64,
-    stop: i64,
+    pub start: i64,
+    pub stop: i64,
 }
 
 /// Represents a window in time
@@ -311,6 +321,7 @@ impl Window {
         self.every.truncate(t)
     }
 }
+
 /// truncateByNsecs will truncate the time to the given number
 /// of nanoseconds.
 ///

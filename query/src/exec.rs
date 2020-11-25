@@ -8,6 +8,9 @@ mod schema_pivot;
 pub mod seriesset;
 pub mod stringset;
 
+// Export function to make window bounds without exposing its implementation
+pub use planning::make_window_bound_expr;
+
 use std::sync::Arc;
 
 use arrow_deps::{
@@ -151,9 +154,9 @@ pub struct SeriesSetPlan {
     /// Datafusion plan to execute. The plan must produce
     /// RecordBatches that have:
     ///
-    /// * fields with matching names for each value of `tag_columns` and `field_columns`
-    /// * include the timestamp column
-    /// * each column named in tag_columns must be a String (Utf8)
+    /// * fields for each name in `tag_columns` and `field_columns`
+    /// * a timestamp column called 'time'
+    /// * each column in tag_columns must be a String (Utf8)
     pub plan: LogicalPlan,
 
     /// The names of the columns that define tags.
