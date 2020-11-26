@@ -71,30 +71,33 @@ impl Column {
     }
 
     /// Returns the (min, max)  values stored in this column
-    pub fn column_range(&self) -> Option<(Value<'_>, Value<'_>)> {
+    pub fn column_range(&self) -> Option<(OwnedValue, OwnedValue)> {
         match &self {
             Column::String(meta, _) => match &meta.range {
-                Some(range) => Some((Value::String(&range.0), Value::String(&range.1))),
+                Some(range) => Some((
+                    OwnedValue::String(range.0.clone()),
+                    OwnedValue::String(range.1.clone()),
+                )),
                 None => None,
             },
             Column::Float(meta, _) => match meta.range {
                 Some(range) => Some((
-                    Value::Scalar(Scalar::F64(range.0)),
-                    Value::Scalar(Scalar::F64(range.1)),
+                    OwnedValue::Scalar(Scalar::F64(range.0)),
+                    OwnedValue::Scalar(Scalar::F64(range.1)),
                 )),
                 None => None,
             },
             Column::Integer(meta, _) => match meta.range {
                 Some(range) => Some((
-                    Value::Scalar(Scalar::I64(range.0)),
-                    Value::Scalar(Scalar::I64(range.1)),
+                    OwnedValue::Scalar(Scalar::I64(range.0)),
+                    OwnedValue::Scalar(Scalar::I64(range.1)),
                 )),
                 None => None,
             },
             Column::Unsigned(meta, _) => match meta.range {
                 Some(range) => Some((
-                    Value::Scalar(Scalar::U64(range.0)),
-                    Value::Scalar(Scalar::U64(range.1)),
+                    OwnedValue::Scalar(Scalar::U64(range.0)),
+                    OwnedValue::Scalar(Scalar::U64(range.1)),
                 )),
                 None => None,
             },
@@ -2173,6 +2176,44 @@ impl Scalar {
             Scalar::F64(v) => Some(*v),
             Scalar::F32(v) => Some(f64::from(*v)),
             _ => unimplemented!("converting integer Scalar to f64 unsupported"),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub enum OwnedValue {
+    // Represents a NULL value in a column row.
+    Null,
+
+    // A UTF-8 valid string.
+    String(String),
+
+    // An arbitrary byte array.
+    ByteArray(Vec<u8>),
+
+    // A boolean value.
+    Boolean(bool),
+
+    // A numeric scalar value.
+    Scalar(Scalar),
+}
+
+impl PartialEq<Value<'_>> for OwnedValue {
+    fn eq(&self, other: &Value<'_>) -> bool {
+        match (&self, other) {
+            (OwnedValue::String(a), Value::String(b)) => a == b,
+            (OwnedValue::Scalar(a), Value::Scalar(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd<Value<'_>> for OwnedValue {
+    fn partial_cmp(&self, other: &Value<'_>) -> Option<std::cmp::Ordering> {
+        match (&self, other) {
+            (OwnedValue::String(a), Value::String(b)) => Some(a.as_str().cmp(b)),
+            (OwnedValue::Scalar(a), Value::Scalar(b)) => a.partial_cmp(b),
+            _ => None,
         }
     }
 }
