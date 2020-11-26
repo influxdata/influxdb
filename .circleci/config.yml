@@ -7,16 +7,13 @@
 #   pushed to `quay.io/influxdb/rust:ci`. This build image is then used to run
 #   the CI tasks for the day.
 #
-# Each CI run:
-#
-#   Runs tests, fmt, & lints and then compiles binaries using the default cargo
-#   target ("dev").
-#
 # CI runs for git branches ending in `/perf`:
 #
 #   Runs tests, fmt, & lints and then compiles binaries using the "release"
 #   cargo target and pushes a container with the binary to
 #   `quay.io/influxdb/fusion` (see perf_image below).
+#
+# CI for all other branches is performed by the GitHub actions (see .github dir)
 
 version: 2.1
 
