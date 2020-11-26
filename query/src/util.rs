@@ -1,5 +1,5 @@
 //! This module contains DataFusion utility functions and helpers
-use arrow_deps::datafusion::{logical_plan::Expr, logical_plan::Operator};
+use arrow_deps::datafusion::logical_plan::{binary_expr, Expr, Operator};
 
 /// Encode the traversal of an expression tree. When passed to
 /// `visit_expression`, `ExpressionVisitor::visit` is invoked
@@ -107,11 +107,7 @@ impl AndExprBuilder {
         let Self { cur_expr } = self;
 
         let cur_expr = if let Some(cur_expr) = cur_expr {
-            Expr::BinaryExpr {
-                left: Box::new(cur_expr),
-                op: Operator::And,
-                right: Box::new(new_expr),
-            }
+            binary_expr(cur_expr, Operator::And, new_expr)
         } else {
             new_expr
         };

@@ -7,8 +7,8 @@
 use std::convert::TryFrom;
 
 use arrow_deps::datafusion::{
-    logical_plan::{Expr, Operator},
-    scalar::ScalarValue,
+    logical_plan::{binary_expr, Expr, Operator},
+    prelude::*,
 };
 use generated_types::{
     aggregate::AggregateType as RPCAggregateType, node::Comparison as RPCComparison,
@@ -410,14 +410,14 @@ fn build_node(value: RPCValue, inputs: Vec<Expr>) -> Result<Expr> {
     }
 
     match value {
-        RPCValue::StringValue(s) => Ok(Expr::Literal(ScalarValue::Utf8(Some(s)))),
-        RPCValue::BoolValue(b) => Ok(Expr::Literal(ScalarValue::Boolean(Some(b)))),
-        RPCValue::IntValue(v) => Ok(Expr::Literal(ScalarValue::Int64(Some(v)))),
-        RPCValue::UintValue(v) => Ok(Expr::Literal(ScalarValue::UInt64(Some(v)))),
-        RPCValue::FloatValue(f) => Ok(Expr::Literal(ScalarValue::Float64(Some(f)))),
+        RPCValue::StringValue(s) => Ok(lit(s)),
+        RPCValue::BoolValue(b) => Ok(lit(b)),
+        RPCValue::IntValue(v) => Ok(lit(v)),
+        RPCValue::UintValue(v) => Ok(lit(v)),
+        RPCValue::FloatValue(f) => Ok(lit(f)),
         RPCValue::RegexValue(regexp) => RegExpLiteralNotSupported { regexp }.fail(),
-        RPCValue::TagRefValue(tag_name) => Ok(Expr::Column(make_tag_name(tag_name)?)),
-        RPCValue::FieldRefValue(field_name) => Ok(Expr::Column(field_name)),
+        RPCValue::TagRefValue(tag_name) => Ok(col(&make_tag_name(tag_name)?)),
+        RPCValue::FieldRefValue(field_name) => Ok(col(&field_name)),
         RPCValue::Logical(logical) => build_logical_node(logical, inputs),
         RPCValue::Comparison(comparison) => build_comparison_node(comparison, inputs),
     }
@@ -472,11 +472,11 @@ fn build_binary_expr(op: Operator, inputs: Vec<Expr>) -> Result<Expr> {
 
     let num_children = inputs.len();
     match num_children {
-        2 => Ok(Expr::BinaryExpr {
-            left: Box::new(inputs[0].take().unwrap()),
+        2 => Ok(binary_expr(
+            inputs[0].take().unwrap(),
             op,
-            right: Box::new(inputs[1].take().unwrap()),
-        }),
+            inputs[1].take().unwrap(),
+        )),
         _ => UnsupportedNumberOfChildren { op, num_children }.fail(),
     }
 }
@@ -921,11 +921,7 @@ mod tests {
             value: Some(RPCValue::Comparison(RPCComparison::Gt as i32)),
         };
 
-        let expected_expr = Expr::BinaryExpr {
-            left: Box::new(Expr::Column(String::from("host"))),
-            op: Operator::Gt,
-            right: Box::new(Expr::Literal(ScalarValue::Float64(Some(5.0)))),
-        };
+        let expected_expr = col("host").gt(lit(5.0));
 
         (comparison, expected_expr)
     }
