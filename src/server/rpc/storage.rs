@@ -41,7 +41,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 
 use tokio::{net::TcpListener, sync::mpsc};
 use tonic::Status;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use super::data::{
     fieldlist_to_measurement_fields_response, grouped_series_set_item_to_read_response,
@@ -172,6 +172,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 impl From<Error> for tonic::Status {
     /// Converts a result from the business logic into the appropriate tonic status
     fn from(err: Error) -> Self {
+        error!("Error handling gRPC request: {}", err);
         err.to_status()
     }
 }
