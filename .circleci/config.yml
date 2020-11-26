@@ -1,7 +1,26 @@
+# CI Overview
+# -----------
+#
+# Each night:
+#
+#   A build image is created (ci_image) from `docker/Dockerfile.ci` and is
+#   pushed to `quay.io/influxdb/rust:ci`. This build image is then used to run
+#   the CI tasks for the day.
+#
+# Each CI run:
+#
+#   Runs tests, fmt, & lints and then compiles binaries using the default cargo
+#   target ("dev").
+#
+# CI runs for git branches ending in `/perf`:
+#
+#   Runs tests, fmt, & lints and then compiles binaries using the "release"
+#   cargo target and pushes a container with the binary to
+#   `quay.io/influxdb/fusion` (see perf_image below).
+
 version: 2.1
 
 commands:
-
   rust_nightly:
     description: Install nightly Rust toolchain
     steps:
@@ -41,6 +60,11 @@ jobs:
       - run:
           name: Cargo test
           command: cargo test --workspace
+  
+  # Build a dev binary.
+  #
+  # Compiles a binary with the default ("dev") cargo profile from the iox source
+  # using the latest ci_image.
   build:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -50,20 +74,22 @@ jobs:
       - run:
           name: Cargo build
           command: cargo build --workspace
-
-  ci_image:
-    machine: true
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run: |
-          echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
-      - run: |
-          COMMIT_SHA=$(git rev-parse --short HEAD)
-          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -f docker/Dockerfile.ci .
-          docker tag quay.io/influxdb/rust:$COMMIT_SHA quay.io/influxdb/rust:ci
-          docker push quay.io/influxdb/rust:$COMMIT_SHA
-          docker push quay.io/influxdb/rust:ci
+  
+  # Compile a cargo "release" profile binary for branches that end in `/perf`
+  #
+  # Uses the latest ci_image (influxdb/rust below) to build a release binary and
+  # copies it to a minimal container image based upon `rust:slim-buster`. This
+  # minimal image is then pushed to `quay.io/influxdb/fusion:${BRANCH}` with '/'
+  # repaced by '.' - as an example:
+  #
+  #   git branch: dom/my-awesome-feature/perf 
+  #   container: quay.io/influxdb/fusion:dom.my-awesome-feature.perf
+  #
+  # Subsequent CI runs will overwrite the tag if you push more changes, so watch
+  # out for parallel CI runs!
+  #
+  # To change the contents of the build container, modify docker/Dockerfile.ci
+  # To change the final release container, modify docker/Dockerfile.perf
   perf_image:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -84,6 +110,26 @@ jobs:
           BRANCH=$(git rev-parse --abbrev-ref HEAD | tr '/' '.')
           docker build -t quay.io/influxdb/fusion:$BRANCH -f docker/Dockerfile.perf .
           docker push quay.io/influxdb/fusion:$BRANCH
+
+  # Prepare the CI image used for other tasks.
+  #
+  # A nightly job (scheduled below in the `workflows` section) to build the CI
+  # image (influxdb/rust) used for the rest of the checks.
+  #
+  # To modify the contents of the CI image, update docker/Dockerfile.ci
+  ci_image:
+    machine: true
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run: |
+          echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+      - run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -f docker/Dockerfile.ci .
+          docker tag quay.io/influxdb/rust:$COMMIT_SHA quay.io/influxdb/rust:ci
+          docker push quay.io/influxdb/rust:$COMMIT_SHA
+          docker push quay.io/influxdb/rust:ci
 
 workflows:
   version: 2
