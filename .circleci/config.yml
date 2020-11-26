@@ -130,21 +130,39 @@ jobs:
 
 workflows:
   version: 2
-  build:
+  
+  # Internal pipeline for perf builds.
+  #
+  # Filter ensures this only runs for git branches ending in `/perf`.
+  perf_build:
     jobs:
-      - fmt
-      - lint
-      - test
-      - build
+      - fmt:
+          filters:
+            branches:
+              only: /.*\/perf$/
+      - lint:
+          filters:
+            branches:
+              only: /.*\/perf$/
+      - test:
+          filters:
+            branches:
+              only: /.*\/perf$/
+      - build:
+          filters:
+            branches:
+              only: /.*\/perf$/
       - perf_image:
+          filters:
+            branches:
+              only: /.*\/perf$/
           requires: # Only do a release build if all tests have passed
             - fmt
             - lint
             - test
             - build
-          filters:
-            branches:
-              only: /.*\/perf$/ # Only do a release build if the branch name ends in `/perf`
+  
+  # Nightly rebuild of the build container
   ci_image:
     triggers:
       - schedule:
