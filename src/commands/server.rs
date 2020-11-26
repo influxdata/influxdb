@@ -103,7 +103,11 @@ pub async fn main() -> Result<()> {
         }
     };
 
-    let grpc_server = storage::make_server(grpc_bind_addr, storage.clone(), executor);
+    let socket = tokio::net::TcpListener::bind(grpc_bind_addr)
+        .await
+        .expect("failed to bind server");
+
+    let grpc_server = storage::make_server(socket, storage.clone(), executor);
 
     info!("gRPC server listening on http://{}", grpc_bind_addr);
 
