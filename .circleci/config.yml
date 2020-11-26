@@ -212,7 +212,7 @@ jobs:
           command: ./bin/linux/influxd --store=memory --log-level=debug
           background: true
       - run: pwd
-      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -e TEST_RESULTS=~/project quay.io/influxdb/grace:daily
+      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/grace/test-results/grace-results quay.io/influxdb/grace:daily
       - run: pwd
       - run: ls -lFR
       - run: ls -lrf /
