@@ -557,7 +557,6 @@ workflows:
           filters:
             branches:
               only: /^(?!pull\/).*$/
-  
   release:
     jobs:
       - gotest:
