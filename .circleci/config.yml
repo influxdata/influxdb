@@ -213,7 +213,9 @@ jobs:
           background: true
       - run: pwd
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -e TEST_RESULTS=~/project quay.io/influxdb/grace:daily
-      - run: ls -lF
+      - run: pwd
+      - run: ls -lFR
+      - run: ls -lrf /
       - store_artifacts:
           path: /grace
       - store_artifacts:
