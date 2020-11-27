@@ -519,11 +519,15 @@ pub fn make_read_window_aggregate(
     let (every, offset) = match (window, window_every, offset) {
         (None, 0, 0) => return EmptyWindow {}.fail(),
         (Some(window), 0, 0) => (
-            convert_duration(window.every).map_err(|e| Error::InvalidWindowEveryDuration {
-                description: e.into(),
+            convert_duration(window.every, DurationValidation::ForbidZero).map_err(|e| {
+                Error::InvalidWindowEveryDuration {
+                    description: e.into(),
+                }
             })?,
-            convert_duration(window.offset).map_err(|e| Error::InvalidWindowOffsetDuration {
-                description: e.into(),
+            convert_duration(window.offset, DurationValidation::AllowZero).map_err(|e| {
+                Error::InvalidWindowOffsetDuration {
+                    description: e.into(),
+                }
             })?,
         ),
         (window, window_every, offset) => {
@@ -542,18 +546,33 @@ pub fn make_read_window_aggregate(
     Ok(GroupByAndAggregate::Window { agg, every, offset })
 }
 
-fn convert_duration(duration: Option<RPCDuration>) -> Result<WindowDuration, &'static str> {
+enum DurationValidation {
+    /// Zero windows are allowed
+    AllowZero,
+    /// Zero windows are not allowed
+    ForbidZero,
+}
+
+/// Convert the RPC input to an IOx WindowDuration
+/// structure. `zero_validation` specifies what to do if the window is empty
+fn convert_duration(
+    duration: Option<RPCDuration>,
+    zero_validation: DurationValidation,
+) -> Result<WindowDuration, &'static str> {
     let duration = duration.ok_or("No duration specified in RPC")?;
 
-    match (duration.nsecs, duration.months) {
+    match (duration.nsecs, duration.months, zero_validation) {
         // Same error as Go code: https://github.com/influxdata/flux/blob/master/execute/window.go#L36
-        (0, 0) => Err("duration used as an interval cannot be zero"),
-        (nsecs, 0) => Ok(WindowDuration::from_nanoseconds(nsecs)),
-        (0, _) => Ok(WindowDuration::from_months(
+        (0, 0, DurationValidation::ForbidZero) => {
+            Err("duration used as an interval cannot be zero")
+        }
+        (0, 0, DurationValidation::AllowZero) => Ok(WindowDuration::empty()),
+        (nsecs, 0, _) => Ok(WindowDuration::from_nanoseconds(nsecs)),
+        (0, _, _) => Ok(WindowDuration::from_months(
             duration.months,
             duration.negative,
         )),
-        (_, _) => Err("duration used as an interval cannot mix month and nanosecond units"),
+        (_, _, _) => Err("duration used as an interval cannot mix month and nanosecond units"),
     }
 }
 
@@ -1015,6 +1034,18 @@ mod tests {
         let expected = make_storage_window(QueryAggregate::Sum, &pos_5_ns, &pos_10_ns);
         assert_eq!(agg, expected);
 
+        // correct every + zero offset
+        let agg = make_read_window_aggregate(
+            vec![make_aggregate(1)],
+            0,
+            0,
+            Some(make_rpc_window(5, 0, false, 0, 0, false)),
+        )
+        .unwrap();
+        let expected =
+            make_storage_window(QueryAggregate::Sum, &pos_5_ns, &WindowDuration::empty());
+        assert_eq!(agg, expected);
+
         // correct every + offset in months
         let agg = make_read_window_aggregate(
             vec![make_aggregate(1)],
@@ -1074,9 +1105,9 @@ mod tests {
             vec![make_aggregate(1)],
             0,
             0,
-            Some(make_rpc_window(5, 0, false, 0, 0, false)),
+            Some(make_rpc_window(0, 0, false, 5, 0, false)),
         );
-        let expected = "Error parsing window bounds duration \'window.offset\': duration used as an interval cannot be zero";
+        let expected = "Error parsing window bounds duration \'window.every\': duration used as an interval cannot be zero";
         assert_eq!(error_result_to_string(agg), expected);
     }
 

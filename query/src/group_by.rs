@@ -91,6 +91,10 @@ impl Aggregate {
 }
 
 impl WindowDuration {
+    pub fn empty() -> Self {
+        Self::Fixed { nanoseconds: 0 }
+    }
+
     pub fn from_nanoseconds(nanoseconds: i64) -> Self {
         Self::Fixed { nanoseconds }
     }
