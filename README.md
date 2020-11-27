@@ -97,6 +97,22 @@ compilation process by calling `flatc` for you.
 [`flatbuffers` package for Arch Linux]: https://www.archlinux.org/packages/community/x86_64/flatbuffers/
 [`flatbuffers` package for Homebrew]: https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/flatbuffers.rb
 
+### Installing `clang`
+
+An installation of `clang` is required to build the [`croaring`] dependency - if
+it is not already present, it can typically be installed with the system
+package manager.
+
+```shell
+clang --version
+Apple clang version 12.0.0 (clang-1200.0.32.27)
+Target: x86_64-apple-darwin20.1.0
+Thread model: posix
+InstalledDir: /Library/Developer/CommandLineTools/usr/bin
+```
+
+[`croaring`]: https://github.com/saulius/croaring-rs
+
 ### Specifying Configuration
 
 **OPTIONAL:** There are a number of configuration variables you can choose to customize by
