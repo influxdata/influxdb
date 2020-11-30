@@ -515,7 +515,7 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 	if o.id != "" {
 		influxOrgID, err := influxdb.IDFromString(o.id)
 		if err != nil {
-			return 0, fmt.Errorf("invalid org ID provided: %s", err.Error())
+			return 0, fmt.Errorf("invalid org ID '%s' provided: %w (did you pass an org name instead of an ID?)", o.id, err)
 		}
 		return *influxOrgID, nil
 	}
