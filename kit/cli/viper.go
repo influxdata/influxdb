@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"go.uber.org/zap/zapcore"
 	"os"
 	"path"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"go.uber.org/zap/zapcore"
 )
 
 // Opt is a single command-line option

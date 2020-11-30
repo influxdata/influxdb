@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"github.com/spf13/pflag"
 
+	"github.com/spf13/pflag"
 	"go.uber.org/zap/zapcore"
 )
 
