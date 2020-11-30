@@ -1,5 +1,11 @@
 ## unreleased
 
+### Bug Fixes
+
+1. [20201](https://github.com/influxdata/influxdb/pull/20201): Optimize shard lookup in groups containing only one shard. Thanks @StoneYunZhao!
+
+## v2.0.3 [unreleased]
+
 ### Breaking Changes
 
 Previously, `influxd upgrade` would attempt to write upgraded `config.toml` files into the same directory as the source
