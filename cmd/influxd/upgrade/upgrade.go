@@ -113,7 +113,7 @@ var options = struct {
 	verbose bool
 
 	// logging
-	logLevel string
+	logLevel zapcore.Level
 	logPath  string
 
 	force bool
@@ -247,7 +247,7 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 		{
 			DestP:   &options.logLevel,
 			Flag:    "log-level",
-			Default: zapcore.InfoLevel.String(),
+			Default: zapcore.InfoLevel,
 			Desc:    "supported log levels are debug, info, warn and error",
 		},
 		{
@@ -316,11 +316,6 @@ func runUpgradeE(*cobra.Command, []string) error {
 		fluxInitialized = true
 	}
 
-	var lvl zapcore.Level
-	if err := lvl.Set(options.logLevel); err != nil {
-		return errors.New("unknown log level; supported levels are debug, info, warn and error")
-	}
-
 	if options.source.configFile != "" && options.source.dbDir != "" {
 		return errors.New("only one of --v1-dir or --config-file may be specified")
 	}
@@ -340,7 +335,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 
 	ctx := context.Background()
 	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(lvl)
+	config.Level = zap.NewAtomicLevelAt(options.logLevel)
 	config.OutputPaths = append(config.OutputPaths, options.logPath)
 	config.ErrorOutputPaths = append(config.ErrorOutputPaths, options.logPath)
 	log, err := config.Build()

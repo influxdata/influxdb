@@ -340,7 +340,7 @@ func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\" on OK query")
 
 	l := launcher.RunTestLauncherOrFail(t, ctx, nil, func(o *launcher.InfluxdOpts) {
-		o.LogLevel = zap.ErrorLevel.String()
+		o.LogLevel = zap.ErrorLevel
 		o.ConcurrencyQuota = 1
 		o.InitialMemoryBytesQuotaPerQuery = 100
 		o.MemoryBytesQuotaPerQuery = 50000
@@ -385,7 +385,7 @@ func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\"")
 
 	l := launcher.RunTestLauncherOrFail(t, ctx, nil, func(o *launcher.InfluxdOpts) {
-		o.LogLevel = zap.ErrorLevel.String()
+		o.LogLevel = zap.ErrorLevel
 		o.ConcurrencyQuota = 1
 		o.InitialMemoryBytesQuotaPerQuery = 100
 		o.MemoryBytesQuotaPerQuery = 50000
@@ -429,7 +429,7 @@ func TestLauncher_QueryMemoryManager_ConcurrentQueries(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"dial tcp 127.0.0.1:59654: connect: connection reset by peer\"")
 
 	l := launcher.RunTestLauncherOrFail(t, ctx, nil, func(o *launcher.InfluxdOpts) {
-		o.LogLevel = zap.ErrorLevel.String()
+		o.LogLevel = zap.ErrorLevel
 		o.QueueSize = 1024
 		o.ConcurrencyQuota = 1
 		o.InitialMemoryBytesQuotaPerQuery = 10000
