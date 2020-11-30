@@ -534,10 +534,8 @@ async fn test_read_window_aggregate(
         .collect();
 
     let expected_frames = vec![
-        "GroupFrame, tag_keys: city,state, partition_key_vals: Boston,MA",
         "SeriesFrame, tags: _field=temp,_measurement=h2o,city=Boston,state=MA, type: 0",
         "FloatPointsFrame, timestamps: [400, 600], values: \"143,147\"",
-        "GroupFrame, tag_keys: city,state, partition_key_vals: Cambridge,MA",
         "SeriesFrame, tags: _field=temp,_measurement=h2o,city=Cambridge,state=MA, type: 0",
         "FloatPointsFrame, timestamps: [400, 600], values: \"163,167\"",
     ];

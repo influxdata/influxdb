@@ -186,6 +186,9 @@ pub struct GroupedSeriesSetPlan {
     /// How many of the series_set_plan::tag_columns should be used to
     /// compute the group
     pub num_prefix_tag_group_columns: usize,
+
+    /// HACK: Do not send Group items
+    pub skip_group_items: bool,
 }
 
 /// A container for plans which each produces a logical stream of
@@ -361,6 +364,7 @@ impl Executor {
                     let GroupedSeriesSetPlan {
                         series_set_plan,
                         num_prefix_tag_group_columns,
+                        skip_group_items,
                     } = plan;
 
                     let SeriesSetPlan {
@@ -390,6 +394,7 @@ impl Executor {
                             table_name,
                             tag_columns,
                             num_prefix_tag_group_columns,
+                            skip_group_items,
                             field_columns,
                             it,
                         )

@@ -372,6 +372,8 @@ impl GroupedSeriesSetConverter {
     ///
     /// num_prefix_tag_group_columns: The size of the prefix of tag_columns that defines each group
     ///
+    /// skip_group_items: HACK: Do not send Group items
+    ///
     /// field_columns: The names of the columns which are "fields"
     ///
     /// it: record batch iterator that produces data in the desired order
@@ -380,6 +382,7 @@ impl GroupedSeriesSetConverter {
         table_name: Arc<String>,
         tag_columns: Arc<Vec<Arc<String>>>,
         num_prefix_tag_group_columns: usize,
+        skip_group_items: bool,
         field_columns: Arc<Vec<Arc<String>>>,
         it: SendableRecordBatchStream,
     ) -> Result<()> {
@@ -389,6 +392,7 @@ impl GroupedSeriesSetConverter {
                 table_name,
                 tag_columns,
                 num_prefix_tag_group_columns,
+                skip_group_items,
                 field_columns,
                 it,
             )
@@ -410,6 +414,7 @@ impl GroupedSeriesSetConverter {
         table_name: Arc<String>,
         tag_columns: Arc<Vec<Arc<String>>>,
         num_prefix_tag_group_columns: usize,
+        skip_group_items: bool,
         field_columns: Arc<Vec<Arc<String>>>,
         it: SendableRecordBatchStream,
     ) -> Result<()> {
@@ -437,7 +442,7 @@ impl GroupedSeriesSetConverter {
                     }
                 };
 
-                if need_group_start {
+                if need_group_start && !skip_group_items {
                     let group_tags = series_set.tags[0..num_prefix_tag_group_columns].to_vec();
 
                     let group_desc = GroupDescription {
@@ -893,6 +898,7 @@ mod tests {
                     table_name,
                     tag_columns,
                     num_prefix_tag_group_columns,
+                    false, // skip_group_items
                     field_columns,
                     it,
                 )

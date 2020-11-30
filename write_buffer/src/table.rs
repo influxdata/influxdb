@@ -550,10 +550,12 @@ impl Table {
         let series_set_plan =
             self.series_set_plan_impl(partition_predicate, Some(&group_columns), partition)?;
         let num_prefix_tag_group_columns = group_columns.len();
+        let skip_group_items = false;
 
         Ok(GroupedSeriesSetPlan {
             series_set_plan,
             num_prefix_tag_group_columns,
+            skip_group_items,
         })
     }
 
@@ -654,6 +656,7 @@ impl Table {
 
         Ok(GroupedSeriesSetPlan {
             num_prefix_tag_group_columns: tag_columns.len(),
+            skip_group_items: true,
             series_set_plan: SeriesSetPlan {
                 table_name: self.table_name(partition),
                 plan,
