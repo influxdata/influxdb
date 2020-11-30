@@ -1,6 +1,10 @@
 v1.8.4 [unreleased]
 -------------------
 
+### Features
+
+-   [#20118](https://github.com/influxdata/influxdb/pull/20118): feat: Optimize shard lookups in groups containing only one shard. Thanks @StoneYunZhao!
+
 ### Bugfixes
 
 -	[#20101](https://github.com/influxdata/influxdb/pull/20101): fix(write): Successful writes increment write error statistics incorrectly
