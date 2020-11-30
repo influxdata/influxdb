@@ -1,7 +1,6 @@
 use arrow_deps::parquet::file::serialized_reader::{FileSource, SliceableCursor};
 use ingest::parquet::ChunkReader;
 /// Module to handle input files (and maybe urls?)
-use libflate::gzip;
 use packers::Name;
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -30,12 +29,6 @@ pub enum Error {
 
     #[snafu(display("Error calculating the size of {} ({})", input_name.display(), source))]
     UnableToCalculateSize {
-        input_name: PathBuf,
-        source: io::Error,
-    },
-
-    #[snafu(display("Error creating decompressor for {} ({})", input_name.display(), source))]
-    UnableToCreateDecompressor {
         input_name: PathBuf,
         source: io::Error,
     },
@@ -234,8 +227,7 @@ impl InputReader {
             Some("gz") => {
                 let buffer = || {
                     let file = File::open(input_name).context(UnableToOpenInput { input_name })?;
-                    let mut decoder = gzip::Decoder::new(file)
-                        .context(UnableToCreateDecompressor { input_name })?;
+                    let mut decoder = flate2::read::GzDecoder::new(file);
                     let mut buffer = Vec::new();
                     decoder
                         .read_to_end(&mut buffer)

@@ -116,9 +116,6 @@ pub enum ApplicationError {
 
     #[snafu(display("No handler for {:?} {}", method, path))]
     RouteNotFound { method: Method, path: String },
-
-    #[snafu(display("Internal error creating gzip decoder: {:?}", source))]
-    CreatingGzipDecoder { source: std::io::Error },
 }
 
 impl ApplicationError {
@@ -140,7 +137,6 @@ impl ApplicationError {
             Self::ParsingLineProtocol { .. } => StatusCode::BAD_REQUEST,
             Self::ReadingBodyAsGzip { .. } => StatusCode::BAD_REQUEST,
             Self::RouteNotFound { .. } => StatusCode::NOT_FOUND,
-            Self::CreatingGzipDecoder { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -190,12 +186,8 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
 
     // apply any content encoding needed
     if ungzip {
-        use libflate::gzip::Decoder;
         use std::io::Read;
-        let mut decoder = Decoder::new(&body[..]).context(CreatingGzipDecoder)?;
-        // TODO cap the size of the decoded data (right
-        // now this could decompress some crazy large
-        // request)
+        let decoder = flate2::read::GzDecoder::new(&body[..]);
         let mut decoded_data = Vec::new();
         decoder
             .read_to_end(&mut decoded_data)
@@ -260,7 +252,7 @@ async fn write<T: DatabaseStore>(
 struct ReadInfo {
     org: String,
     bucket: String,
-    // TODL This is currently a "SQL" request -- should be updated to conform
+    // TODO This is currently a "SQL" request -- should be updated to conform
     // to the V2 API for reading (using timestamps, etc).
     sql_query: String,
 }
