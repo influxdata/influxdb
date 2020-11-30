@@ -16,7 +16,7 @@ fn line_parser(c: &mut Criterion) {
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
 
-            assert_eq!(582, lines.len());
+            assert_eq!(554, lines.len());
         })
     });
 
