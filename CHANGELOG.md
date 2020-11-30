@@ -1,5 +1,9 @@
 ## unreleased
 
+### Features
+
+1. [20204](https://github.com/influxdata/influxdb/pull/20204): Improve ID-related error messages for `influx v1 dbrp` commands.
+
 ### Bug Fixes
 
 1. [20201](https://github.com/influxdata/influxdb/pull/20201): Optimize shard lookup in groups containing only one shard. Thanks @StoneYunZhao!
