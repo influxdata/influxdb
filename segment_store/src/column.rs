@@ -1875,17 +1875,8 @@ pub enum AggregateResult<'a> {
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Scalar {
     I64(i64),
-    I32(i32),
-    I16(i16),
-    I8(i8),
-
     U64(u64),
-    U32(u32),
-    U16(u16),
-    U8(u8),
-
     F64(f64),
-    F32(f32),
 }
 
 macro_rules! typed_scalar_converters {
@@ -1894,30 +1885,16 @@ macro_rules! typed_scalar_converters {
             fn $name(&self) -> $type {
                 match &self {
                     Self::I64(v) => $type::try_from(*v).unwrap(),
-                    Self::I32(v) => $type::try_from(*v).unwrap(),
-                    Self::I16(v) => $type::try_from(*v).unwrap(),
-                    Self::I8(v) => $type::try_from(*v).unwrap(),
                     Self::U64(v) => $type::try_from(*v).unwrap(),
-                    Self::U32(v) => $type::try_from(*v).unwrap(),
-                    Self::U16(v) => $type::try_from(*v).unwrap(),
-                    Self::U8(v) => $type::try_from(*v).unwrap(),
                     Self::F64(v) => panic!("cannot convert Self::F64"),
-                    Self::F32(v) => panic!("cannot convert Scalar::F32"),
                 }
             }
 
             fn $try_name(&self) -> Option<$type> {
                 match &self {
                     Self::I64(v) => $type::try_from(*v).ok(),
-                    Self::I32(v) => $type::try_from(*v).ok(),
-                    Self::I16(v) => $type::try_from(*v).ok(),
-                    Self::I8(v) => $type::try_from(*v).ok(),
                     Self::U64(v) => $type::try_from(*v).ok(),
-                    Self::U32(v) => $type::try_from(*v).ok(),
-                    Self::U16(v) => $type::try_from(*v).ok(),
-                    Self::U8(v) => $type::try_from(*v).ok(),
                     Self::F64(v) => panic!("cannot convert Self::F64"),
-                    Self::F32(v) => panic!("cannot convert Scalar::F32"),
                 }
             }
         )*
@@ -1937,24 +1914,9 @@ impl Scalar {
         (as_u8, try_as_u8, u8),
     }
 
-    fn as_f32(&self) -> f32 {
-        if let Scalar::F32(v) = &self {
-            return *v;
-        }
-        panic!("cannot convert Self to f32");
-    }
-
-    fn try_as_f32(&self) -> Option<f32> {
-        if let Scalar::F32(v) = &self {
-            return Some(*v);
-        }
-        None
-    }
-
     fn as_f64(&self) -> f64 {
         match &self {
             Scalar::F64(v) => *v,
-            Scalar::F32(v) => f64::from(*v),
             _ => unimplemented!("converting integer Scalar to f64 unsupported"),
         }
     }
@@ -1962,7 +1924,6 @@ impl Scalar {
     fn try_as_f64(&self) -> Option<f64> {
         match &self {
             Scalar::F64(v) => Some(*v),
-            Scalar::F32(v) => Some(f64::from(*v)),
             _ => unimplemented!("converting integer Scalar to f64 unsupported"),
         }
     }
@@ -2050,15 +2011,8 @@ impl std::fmt::Display for Value<'_> {
             Value::Boolean(b) => write!(f, "{}", b),
             Value::Scalar(s) => match s {
                 Scalar::I64(v) => write!(f, "{}", v),
-                Scalar::I32(v) => write!(f, "{}", v),
-                Scalar::I16(v) => write!(f, "{}", v),
-                Scalar::I8(v) => write!(f, "{}", v),
                 Scalar::U64(v) => write!(f, "{}", v),
-                Scalar::U32(v) => write!(f, "{}", v),
-                Scalar::U16(v) => write!(f, "{}", v),
-                Scalar::U8(v) => write!(f, "{}", v),
                 Scalar::F64(v) => write!(f, "{}", v),
-                Scalar::F32(v) => write!(f, "{}", v),
             },
         }
     }
@@ -2070,18 +2024,9 @@ pub enum Values {
     // UTF-8 valid unicode strings
     String(arrow::array::StringArray),
 
-    F64(arrow::array::Float64Array),
-    F32(arrow::array::Float32Array),
-
     I64(arrow::array::Int64Array),
-    I32(arrow::array::Int32Array),
-    I16(arrow::array::Int16Array),
-    I8(arrow::array::Int8Array),
-
     U64(arrow::array::UInt64Array),
-    U32(arrow::array::UInt32Array),
-    U16(arrow::array::UInt16Array),
-    U8(arrow::array::UInt8Array),
+    F64(arrow::array::Float64Array),
 
     // Boolean values
     Bool(arrow::array::BooleanArray),
@@ -2094,16 +2039,9 @@ impl Values {
     pub fn len(&self) -> usize {
         match &self {
             Values::String(c) => c.len(),
-            Values::F64(c) => c.len(),
-            Values::F32(c) => c.len(),
             Values::I64(c) => c.len(),
-            Values::I32(c) => c.len(),
-            Values::I16(c) => c.len(),
-            Values::I8(c) => c.len(),
             Values::U64(c) => c.len(),
-            Values::U32(c) => c.len(),
-            Values::U16(c) => c.len(),
-            Values::U8(c) => c.len(),
+            Values::F64(c) => c.len(),
             Values::Bool(c) => c.len(),
             Values::ByteArray(c) => c.len(),
         }
@@ -2127,59 +2065,17 @@ impl Values {
                 }
                 Value::Scalar(Scalar::F64(c.value(i)))
             }
-            Values::F32(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Scalar(Scalar::F32(c.value(i)))
-            }
             Values::I64(c) => {
                 if c.is_null(i) {
                     return Value::Null;
                 }
                 Value::Scalar(Scalar::I64(c.value(i)))
             }
-            Values::I32(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Scalar(Scalar::I32(c.value(i)))
-            }
-            Values::I16(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Scalar(Scalar::I16(c.value(i)))
-            }
-            Values::I8(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Scalar(Scalar::I8(c.value(i)))
-            }
             Values::U64(c) => {
                 if c.is_null(i) {
                     return Value::Null;
                 }
                 Value::Scalar(Scalar::U64(c.value(i)))
-            }
-            Values::U32(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Scalar(Scalar::U32(c.value(i)))
-            }
-            Values::U16(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Scalar(Scalar::U16(c.value(i)))
-            }
-            Values::U8(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Scalar(Scalar::U8(c.value(i)))
             }
             Values::Bool(c) => {
                 if c.is_null(i) {
@@ -3083,35 +2979,35 @@ mod test {
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::I32(200)),
+            &Value::Scalar(Scalar::I64(200)),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 4]);
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::I32(2000)),
+            &Value::Scalar(Scalar::I64(2000)),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GT,
-            &Value::Scalar(Scalar::I32(2)),
+            &Value::Scalar(Scalar::I64(2)),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 4, 5, 6]);
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GTE,
-            &Value::Scalar(Scalar::I32(2)),
+            &Value::Scalar(Scalar::I64(2)),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::NotEqual,
-            &Value::Scalar(Scalar::I32(-1257)),
+            &Value::Scalar(Scalar::I64(-1257)),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
@@ -3149,21 +3045,21 @@ mod test {
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::I32(200)),
+            &Value::Scalar(Scalar::I64(200)),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 4]);
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::U16(2000)),
+            &Value::Scalar(Scalar::U64(2000)),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GT,
-            &Value::Scalar(Scalar::U32(2)),
+            &Value::Scalar(Scalar::U64(2)),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 4, 5, 6]);
@@ -3177,7 +3073,7 @@ mod test {
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::NotEqual,
-            &Value::Scalar(Scalar::I32(-1257)),
+            &Value::Scalar(Scalar::I64(-1257)),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
@@ -3190,7 +3086,7 @@ mod test {
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::F32(200.0)),
+            &Value::Scalar(Scalar::F64(200.0)),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1]);
@@ -3218,7 +3114,7 @@ mod test {
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::NotEqual,
-            &Value::Scalar(Scalar::F32(-1257.029)),
+            &Value::Scalar(Scalar::F64(-1257.029)),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
@@ -3230,49 +3126,49 @@ mod test {
 
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GT, Value::Scalar(Scalar::I32(100))),
-            &(cmp::Operator::LT, Value::Scalar(Scalar::I32(300))),
+            &(cmp::Operator::GT, Value::Scalar(Scalar::I64(100))),
+            &(cmp::Operator::LT, Value::Scalar(Scalar::I64(300))),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 4]);
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(200))),
-            &(cmp::Operator::LTE, Value::Scalar(Scalar::I32(300))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(200))),
+            &(cmp::Operator::LTE, Value::Scalar(Scalar::I64(300))),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 2, 4]);
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(23333))),
-            &(cmp::Operator::LTE, Value::Scalar(Scalar::I32(999999))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(23333))),
+            &(cmp::Operator::LTE, Value::Scalar(Scalar::I64(999999))),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GT, Value::Scalar(Scalar::I32(-100))),
-            &(cmp::Operator::LT, Value::Scalar(Scalar::I32(301))),
+            &(cmp::Operator::GT, Value::Scalar(Scalar::I64(-100))),
+            &(cmp::Operator::LT, Value::Scalar(Scalar::I64(301))),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(2))),
-            &(cmp::Operator::LTE, Value::Scalar(Scalar::I32(300))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(2))),
+            &(cmp::Operator::LTE, Value::Scalar(Scalar::I64(300))),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(87))),
-            &(cmp::Operator::LTE, Value::Scalar(Scalar::I32(999999))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(87))),
+            &(cmp::Operator::LTE, Value::Scalar(Scalar::I64(999999))),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 4]);
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(0))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(0))),
             &(
                 cmp::Operator::NotEqual,
                 Value::Scalar(Scalar::I64(i64::MAX)),
@@ -3282,7 +3178,7 @@ mod test {
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I32(0))),
+            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(0))),
             &(cmp::Operator::NotEqual, Value::Scalar(Scalar::I64(99))),
             RowIDs::new_bitmap(),
         );
@@ -3291,69 +3187,62 @@ mod test {
 
     #[test]
     fn might_contain_value() {
-        let input = &[100i64, 200, 300, 2, 200, 22, 30];
+        let input = &[100i64, 200, 300, 2, 200, 22, 30, -1228282828282];
         let col = Column::from(&input[..]);
+        assert!(matches!(
+            col,
+            Column::Integer(_, IntegerEncoding::I64I64(_))
+        ));
 
         let cases: Vec<(Scalar, bool)> = vec![
+            (Scalar::I64(200), true),
             (Scalar::U64(200), true),
-            (Scalar::U32(200), true),
-            (Scalar::U8(200), true),
             (Scalar::I64(100), true),
-            (Scalar::I32(30), true),
-            (Scalar::I8(2), true),
+            (Scalar::I64(30), true),
+            (Scalar::U64(2), true),
             (Scalar::U64(100000000), false),
-            (Scalar::I64(-1), false),
+            (Scalar::I64(-9228282828282), false),
             (Scalar::U64(u64::MAX), false),
         ];
 
-        for (scalar, result) in cases {
+        for (scalar, result) in cases.clone() {
             assert_eq!(col.might_contain_value(&Value::Scalar(scalar)), result);
         }
 
+        // Input stored as different physical size
         let input = &[100i16, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
+        assert!(matches!(
+            col,
+            Column::Integer(_, IntegerEncoding::I64I16(_))
+        ));
 
-        let cases: Vec<(Scalar, bool)> = vec![
-            (Scalar::U64(200), true),
-            (Scalar::U16(200), true),
-            (Scalar::U8(200), true),
-            (Scalar::I64(100), true),
-            (Scalar::I32(30), true),
-            (Scalar::I8(2), true),
-            (Scalar::U64(100000000), false),
-            (Scalar::I64(-1), false),
-            (Scalar::U64(u64::MAX), false),
-        ];
-
-        for (scalar, result) in cases {
+        for (scalar, result) in cases.clone() {
             assert_eq!(col.might_contain_value(&Value::Scalar(scalar)), result);
         }
 
+        // Input stored as unsigned column
         let input = &[100u64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
+        assert!(matches!(
+            col,
+            Column::Unsigned(_, IntegerEncoding::U64U16(_))
+        ));
 
-        let cases: Vec<(Scalar, bool)> = vec![
-            (Scalar::U64(200), true),
-            (Scalar::U32(200), true),
-            (Scalar::U8(200), true),
-            (Scalar::I64(100), true),
-            (Scalar::I32(30), true),
-            (Scalar::I8(2), true),
-            (Scalar::U64(100000000), false),
-            (Scalar::I64(-1), false),
-        ];
-
-        for (scalar, result) in cases {
+        for (scalar, result) in cases.clone() {
             assert_eq!(col.might_contain_value(&Value::Scalar(scalar)), result);
         }
 
         let input = &[100.0, 200.2, 300.2];
         let col = Column::from(&input[..]);
 
-        let cases: Vec<(Scalar, bool)> =
-            vec![(Scalar::F64(100.0), true), (Scalar::F32(100.0), true)];
+        let cases: Vec<(Scalar, bool)> = vec![
+            (Scalar::F64(100.0), true),
+            (Scalar::F64(200.2), true),
+            (Scalar::F64(-100.0), false),
+        ];
 
-        for (scalar, result) in cases {
+        for (scalar, result) in cases.clone() {
             assert_eq!(col.might_contain_value(&Value::Scalar(scalar)), result);
         }
     }
@@ -3366,12 +3255,10 @@ mod test {
         let cases: Vec<(cmp::Operator, Scalar, bool)> = vec![
             (cmp::Operator::GT, Scalar::U64(100), false),
             (cmp::Operator::GT, Scalar::I64(100), false),
-            (cmp::Operator::GT, Scalar::I8(-99), true),
+            (cmp::Operator::GT, Scalar::I64(-99), true),
             (cmp::Operator::GT, Scalar::I64(100), false),
             (cmp::Operator::LT, Scalar::I64(300), false),
-            (cmp::Operator::LTE, Scalar::I32(300), true),
-            (cmp::Operator::Equal, Scalar::I32(2), false),
-            (cmp::Operator::NotEqual, Scalar::I32(2), false),
+            (cmp::Operator::Equal, Scalar::U64(2), false),
             (cmp::Operator::NotEqual, Scalar::I64(1), true),
             (cmp::Operator::NotEqual, Scalar::I64(301), true),
         ];
@@ -3411,7 +3298,7 @@ mod test {
                 Scalar::I64(100),
                 PredicateMatch::SomeMaybe,
             ),
-            (cmp::Operator::GT, Scalar::I8(-99), PredicateMatch::All),
+            (cmp::Operator::GT, Scalar::I64(-99), PredicateMatch::All),
             (
                 cmp::Operator::GT,
                 Scalar::I64(100),
@@ -3422,15 +3309,15 @@ mod test {
                 Scalar::I64(300),
                 PredicateMatch::SomeMaybe,
             ),
-            (cmp::Operator::LTE, Scalar::I32(300), PredicateMatch::All),
+            (cmp::Operator::LTE, Scalar::I64(300), PredicateMatch::All),
             (
                 cmp::Operator::Equal,
-                Scalar::I32(2),
+                Scalar::I64(2),
                 PredicateMatch::SomeMaybe,
             ),
             (
                 cmp::Operator::NotEqual,
-                Scalar::I32(2),
+                Scalar::I64(2),
                 PredicateMatch::SomeMaybe,
             ),
             (cmp::Operator::NotEqual, Scalar::I64(1), PredicateMatch::All),
@@ -3442,7 +3329,7 @@ mod test {
             (cmp::Operator::GT, Scalar::I64(100000), PredicateMatch::None),
             (cmp::Operator::GTE, Scalar::I64(301), PredicateMatch::None),
             (cmp::Operator::LT, Scalar::I64(2), PredicateMatch::None),
-            (cmp::Operator::LTE, Scalar::I8(-100), PredicateMatch::None),
+            (cmp::Operator::LTE, Scalar::I64(-100), PredicateMatch::None),
             (
                 cmp::Operator::Equal,
                 Scalar::I64(100000),
