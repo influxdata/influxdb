@@ -93,7 +93,7 @@ type InfluxdOpts struct {
 	Testing                 bool
 	TestingAlwaysAllowSetup bool
 
-	LogLevel          string
+	LogLevel          zapcore.Level
 	TracingType       string
 	ReportingDisabled bool
 
@@ -142,7 +142,7 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 		StorageConfig:     storage.NewConfig(),
 		CoordinatorConfig: coordinator.NewConfig(),
 
-		LogLevel:          zapcore.InfoLevel.String(),
+		LogLevel:          zapcore.InfoLevel,
 		ReportingDisabled: false,
 
 		BoltPath:   filepath.Join(dir, bolt.DefaultFilename),

@@ -115,7 +115,7 @@ func (tl *TestLauncher) Run(ctx context.Context, setters ...OptSetter) error {
 	opts.BoltPath = filepath.Join(tl.Path, bolt.DefaultFilename)
 	opts.EnginePath = filepath.Join(tl.Path, "engine")
 	opts.HttpBindAddress = "127.0.0.1:0"
-	opts.LogLevel = zap.DebugLevel.String()
+	opts.LogLevel = zap.DebugLevel
 	opts.ReportingDisabled = true
 
 	for _, setter := range setters {

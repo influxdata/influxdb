@@ -77,7 +77,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -212,16 +211,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	ctx, m.cancel = context.WithCancel(ctx)
 
-	var logLevel zapcore.Level
-	if err := logLevel.Set(opts.LogLevel); err != nil {
-		return fmt.Errorf("unknown log level; supported levels are debug, info, and error")
-	}
-
 	if m.log == nil {
 		// Create top level logger
 		logconf := &influxlogger.Config{
 			Format: "auto",
-			Level:  logLevel,
+			Level:  opts.LogLevel,
 		}
 		m.log, err = logconf.New(m.Stdout)
 		if err != nil {
@@ -921,7 +915,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			http.WithAPIHandler(platformHandler),
 		)
 
-		if logLevel == zap.DebugLevel {
+		if opts.LogLevel == zap.DebugLevel {
 			m.httpServer.Handler = http.LoggingMW(httpLogger)(m.httpServer.Handler)
 		}
 		// If we are in testing mode we allow all data to be flushed and removed.
