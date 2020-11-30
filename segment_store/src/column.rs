@@ -2018,6 +2018,25 @@ impl std::fmt::Display for Value<'_> {
     }
 }
 
+// Implementations of From trait for various concrete types.
+macro_rules! scalar_from_impls {
+    ($(($variant:ident, $type:ident),)*) => {
+        $(
+            impl From<$type> for Value<'_> {
+                fn from(v: $type) -> Self {
+                    Self::Scalar(Scalar::$variant(v))
+                }
+            }
+        )*
+    };
+}
+
+scalar_from_impls! {
+    (I64, i64),
+    (U64, u64),
+    (F64,f64),
+}
+
 /// Each variant is a typed vector of materialised values for a column.
 #[derive(Debug, PartialEq)]
 pub enum Values {
@@ -2642,26 +2661,26 @@ mod test {
 
         // physical type of `col` will be `i16` but logical type is `i64`
         let col = Column::from(&[0_i64, 1, 200, 20, -1][..]);
-        assert_eq!(col.value(4), Value::Scalar(Scalar::I64(-1)));
+        assert_eq!(col.value(4), Value::from(-1_i64));
 
         // physical type of `col` will be `u16` but logical type is `u64`
         let col = Column::from(&[20_u64, 300][..]);
-        assert_eq!(col.value(1), Value::Scalar(Scalar::U64(300)));
+        assert_eq!(col.value(1), Value::from(300_u64));
 
         // physical type of `col` will be `u8` but logical type is `u64`
         let col = Column::from(&[20_u32, 3][..]);
-        assert_eq!(col.value(0), Value::Scalar(Scalar::U64(20)));
+        assert_eq!(col.value(0), Value::from(20_u64));
 
         // physical type of `col` will be `u8` but logical type is `u64`
         let col = Column::from(&[20_u16, 3][..]);
-        assert_eq!(col.value(1), Value::Scalar(Scalar::U64(3)));
+        assert_eq!(col.value(1), Value::from(3_u64));
 
         // physical and logical type of `col` will be `u64`
         let col = Column::from(&[243_u8, 198][..]);
-        assert_eq!(col.value(0), Value::Scalar(Scalar::U64(243)));
+        assert_eq!(col.value(0), Value::from(243_u64));
 
         let col = Column::from(&[-19.2, -30.2][..]);
-        assert_eq!(col.value(0), Value::Scalar(Scalar::F64(-19.2)));
+        assert_eq!(col.value(0), Value::from(-19.2));
 
         let col = Column::from(&[Some("a"), Some("b"), None, Some("c")][..]);
         assert_eq!(col.value(1), Value::String(&"b".to_owned()));
@@ -2979,42 +2998,42 @@ mod test {
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::I64(200)),
+            &Value::from(200_i64),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 4]);
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::I64(2000)),
+            &Value::from(2000_i64),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GT,
-            &Value::Scalar(Scalar::I64(2)),
+            &Value::from(2_i64),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 4, 5, 6]);
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GTE,
-            &Value::Scalar(Scalar::I64(2)),
+            &Value::from(2_u64),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::NotEqual,
-            &Value::Scalar(Scalar::I64(-1257)),
+            &Value::from(-1257_i64),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::LT,
-            &Value::Scalar(Scalar::I64(i64::MAX)),
+            &Value::from(i64::MAX),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
@@ -3032,7 +3051,7 @@ mod test {
         let col = Column::from(arr);
         row_ids = col.row_ids_filter(
             &cmp::Operator::GT,
-            &Value::Scalar(Scalar::I64(10)),
+            &Value::from(10_i64),
             RowIDs::new_vector(), // exercise alternative row ids representation
         );
         assert_eq!(row_ids.unwrap().as_slice(), &[0, 1, 4, 5, 6]);
@@ -3045,35 +3064,35 @@ mod test {
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::I64(200)),
+            &Value::from(200_i64),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 4]);
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::U64(2000)),
+            &Value::from(2000_u64),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GT,
-            &Value::Scalar(Scalar::U64(2)),
+            &Value::from(2_i64),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 4, 5, 6]);
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GTE,
-            &Value::Scalar(Scalar::U64(2)),
+            &Value::from(2_i64),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::NotEqual,
-            &Value::Scalar(Scalar::I64(-1257)),
+            &Value::from(-1257_i64),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
@@ -3086,35 +3105,35 @@ mod test {
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::F64(200.0)),
+            &Value::from(200.0),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1]);
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::Equal,
-            &Value::Scalar(Scalar::F64(2000.0)),
+            &Value::from(2000.0),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GT,
-            &Value::Scalar(Scalar::F64(-200.0)),
+            &Value::from(-200.0),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 3, 5, 6]);
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GTE,
-            &Value::Scalar(Scalar::F64(-200.2)),
+            &Value::from(-200.2),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::NotEqual,
-            &Value::Scalar(Scalar::F64(-1257.029)),
+            &Value::from(-1257.029),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
@@ -3126,60 +3145,57 @@ mod test {
 
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GT, Value::Scalar(Scalar::I64(100))),
-            &(cmp::Operator::LT, Value::Scalar(Scalar::I64(300))),
+            &(cmp::Operator::GT, Value::from(100_i64)),
+            &(cmp::Operator::LT, Value::from(300_i64)),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 4]);
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(200))),
-            &(cmp::Operator::LTE, Value::Scalar(Scalar::I64(300))),
+            &(cmp::Operator::GTE, Value::from(200_i64)),
+            &(cmp::Operator::LTE, Value::from(300_i64)),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 2, 4]);
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(23333))),
-            &(cmp::Operator::LTE, Value::Scalar(Scalar::I64(999999))),
+            &(cmp::Operator::GTE, Value::from(23333_u64)),
+            &(cmp::Operator::LTE, Value::from(999999_u64)),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GT, Value::Scalar(Scalar::I64(-100))),
-            &(cmp::Operator::LT, Value::Scalar(Scalar::I64(301))),
+            &(cmp::Operator::GT, Value::from(-100_i64)),
+            &(cmp::Operator::LT, Value::from(301_i64)),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(2))),
-            &(cmp::Operator::LTE, Value::Scalar(Scalar::I64(300))),
+            &(cmp::Operator::GTE, Value::from(2_i64)),
+            &(cmp::Operator::LTE, Value::from(300_i64)),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(87))),
-            &(cmp::Operator::LTE, Value::Scalar(Scalar::I64(999999))),
+            &(cmp::Operator::GTE, Value::from(87_i64)),
+            &(cmp::Operator::LTE, Value::from(999999_i64)),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 4]);
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(0))),
-            &(
-                cmp::Operator::NotEqual,
-                Value::Scalar(Scalar::I64(i64::MAX)),
-            ),
+            &(cmp::Operator::GTE, Value::from(0_i64)),
+            &(cmp::Operator::NotEqual, Value::from(i64::MAX)),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         row_ids = col.row_ids_filter_range(
-            &(cmp::Operator::GTE, Value::Scalar(Scalar::I64(0))),
-            &(cmp::Operator::NotEqual, Value::Scalar(Scalar::I64(99))),
+            &(cmp::Operator::GTE, Value::from(0_i64)),
+            &(cmp::Operator::NotEqual, Value::from(99_i64)),
             RowIDs::new_bitmap(),
         );
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 2, 3, 4, 5, 6]);
@@ -3266,7 +3282,7 @@ mod test {
         for (op, scalar, result) in cases {
             assert_eq!(
                 col.predicate_matches_all_values(&op, &Value::Scalar(scalar)),
-                result
+                result,
             );
         }
 
@@ -3274,10 +3290,7 @@ mod test {
         let input = &[100i8, -20];
         let col = Column::from(&input[..]);
         assert_eq!(
-            col.predicate_matches_all_values(
-                &cmp::Operator::LT,
-                &Value::Scalar(Scalar::U64(u64::MAX))
-            ),
+            col.predicate_matches_all_values(&cmp::Operator::LT, &Value::from(u64::MAX)),
             false
         );
     }
@@ -3349,12 +3362,12 @@ mod test {
     fn min() {
         let input = &[100i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
-        assert_eq!(col.min(&[0, 1, 3][..]), Value::Scalar(Scalar::I64(2)));
-        assert_eq!(col.min(&[0, 1, 2][..]), Value::Scalar(Scalar::I64(100)));
+        assert_eq!(col.min(&[0, 1, 3][..]), Value::from(2_i64));
+        assert_eq!(col.min(&[0, 1, 2][..]), Value::from(100_i64));
 
         let input = &[100u8, 200, 245, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
-        assert_eq!(col.min(&[4, 6][..]), Value::Scalar(Scalar::U64(30)));
+        assert_eq!(col.min(&[4, 6][..]), Value::from(30_u64));
 
         let input = &[Some("hello"), None, Some("world")];
         let col = Column::from(&input[..]);
@@ -3366,17 +3379,17 @@ mod test {
     fn max() {
         let input = &[100i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
-        assert_eq!(col.max(&[0, 1, 3][..]), Value::Scalar(Scalar::I64(200)));
-        assert_eq!(col.max(&[0, 1, 2][..]), Value::Scalar(Scalar::I64(300)));
+        assert_eq!(col.max(&[0, 1, 3][..]), Value::from(200_i64));
+        assert_eq!(col.max(&[0, 1, 2][..]), Value::from(300_i64));
 
         let input = &[10.2_f64, -2.43, 200.2];
         let col = Column::from(&input[..]);
-        assert_eq!(col.max(&[0, 1, 2][..]), Value::Scalar(Scalar::F64(200.2)));
+        assert_eq!(col.max(&[0, 1, 2][..]), Value::from(200.2));
 
         let input = vec![None, Some(200), None];
         let arr = Int64Array::from(input);
         let col = Column::from(arr);
-        assert_eq!(col.max(&[0, 1, 2][..]), Value::Scalar(Scalar::I64(200)));
+        assert_eq!(col.max(&[0, 1, 2][..]), Value::from(200_i64));
 
         let input = &[Some("hello"), None, Some("world")];
         let col = Column::from(&input[..]);
@@ -3388,17 +3401,17 @@ mod test {
     fn sum() {
         let input = &[100i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
-        assert_eq!(col.sum(&[0, 1, 3][..]), Value::Scalar(Scalar::I64(302)));
-        assert_eq!(col.sum(&[0, 1, 2][..]), Value::Scalar(Scalar::I64(600)));
+        assert_eq!(col.sum(&[0, 1, 3][..]), Value::from(302_i64));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Value::from(600_i64));
 
         let input = &[10.2f64, -2.43, 200.2];
         let col = Column::from(&input[..]);
-        assert_eq!(col.sum(&[0, 1, 2][..]), Value::Scalar(Scalar::F64(207.97)));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Value::from(207.97));
 
         let input = vec![None, Some(200), None];
         let arr = Int64Array::from(input);
         let col = Column::from(arr);
-        assert_eq!(col.sum(&[0, 1, 2][..]), Value::Scalar(Scalar::I64(200)));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Value::from(200_i64));
     }
 
     #[test]
