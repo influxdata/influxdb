@@ -406,11 +406,12 @@ mod tests {
         let mut server = Server::new(manager, store);
         server.set_id(1);
 
-        let reject: [&str; 4] = [
+        let reject: [&str; 5] = [
             "bananas!",
             r#""bananas\"are\"great"#,
             "bananas:good",
             "bananas/cavendish",
+            "bananas\n",
         ];
 
         for &name in &reject {
