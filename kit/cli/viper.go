@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"go.uber.org/zap/zapcore"
 	"os"
 	"path"
 	"strings"
@@ -273,6 +274,19 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			}
 			if s := v.GetString(envVar); s != "" {
 				_ = (*destP).DecodeFromString(v.GetString(envVar))
+			}
+		case *zapcore.Level:
+			var l zapcore.Level
+			if o.Default != nil {
+				l = o.Default.(zapcore.Level)
+			}
+			if hasShort {
+				LevelVarP(flagset, destP, o.Flag, string(o.Short), l, o.Desc)
+			} else {
+				LevelVar(flagset, destP, o.Flag, l, o.Desc)
+			}
+			if s := v.GetString(envVar); s != "" {
+				_ = (*destP).Set(v.GetString(envVar))
 			}
 		default:
 			// if you get a panic here, sorry about that!

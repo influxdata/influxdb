@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap/zapcore"
 	"io/ioutil"
 	"math"
 	"os"
@@ -47,6 +48,7 @@ func ExampleNewCommand() {
 	var duration time.Duration
 	var stringSlice []string
 	var fancyBool customFlag
+	var logLevel zapcore.Level
 	cmd := NewCommand(viper.New(), &Program{
 		Run: func() error {
 			fmt.Println(monitorHost)
@@ -58,6 +60,7 @@ func ExampleNewCommand() {
 			fmt.Println(duration)
 			fmt.Println(stringSlice)
 			fmt.Println(fancyBool)
+			fmt.Println(logLevel.String())
 			return nil
 		},
 		Name: "myprogram",
@@ -110,6 +113,11 @@ func ExampleNewCommand() {
 				Default: "on",
 				Desc:    "things that implement pflag.Value",
 			},
+			{
+				DestP:   &logLevel,
+				Flag:    "log-level",
+				Default: zapcore.WarnLevel,
+			},
 		},
 	})
 
@@ -125,6 +133,7 @@ func ExampleNewCommand() {
 	// 1m0s
 	// [foo bar]
 	// on
+	// warn
 }
 
 func Test_NewProgram(t *testing.T) {
@@ -134,6 +143,7 @@ func Test_NewProgram(t *testing.T) {
 		"shoe-fly":    "yadon",
 		"number":      "2147483647",
 		"long-number": "9223372036854775807",
+		"log-level":   "debug",
 	})
 	defer cleanup()
 	defer setEnvVar("TEST_CONFIG_PATH", testFilePath)()
@@ -176,6 +186,7 @@ func Test_NewProgram(t *testing.T) {
 			var testFly string
 			var testNumber int32
 			var testLongNumber int64
+			var logLevel zapcore.Level
 			program := &Program{
 				Name: "test",
 				Opts: []Opt{
@@ -196,6 +207,10 @@ func Test_NewProgram(t *testing.T) {
 						DestP: &testLongNumber,
 						Flag:  "long-number",
 					},
+					{
+						DestP: &logLevel,
+						Flag:  "log-level",
+					},
 				},
 				Run: func() error { return nil },
 			}
@@ -208,6 +223,7 @@ func Test_NewProgram(t *testing.T) {
 			assert.Equal(t, "yadon", testFly)
 			assert.Equal(t, int32(math.MaxInt32), testNumber)
 			assert.Equal(t, int64(math.MaxInt64), testLongNumber)
+			assert.Equal(t, zapcore.DebugLevel, logLevel)
 		}
 
 		t.Run(tt.name, fn)
