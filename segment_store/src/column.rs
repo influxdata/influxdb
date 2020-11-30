@@ -2018,6 +2018,12 @@ impl std::fmt::Display for Value<'_> {
     }
 }
 
+impl<'a> From<&'a str> for Value<'a> {
+    fn from(v: &'a str) -> Self {
+        Self::String(v)
+    }
+}
+
 // Implementations of From trait for various concrete types.
 macro_rules! scalar_from_impls {
     ($(($variant:ident, $type:ident),)*) => {
@@ -2683,7 +2689,7 @@ mod test {
         assert_eq!(col.value(0), Value::from(-19.2));
 
         let col = Column::from(&[Some("a"), Some("b"), None, Some("c")][..]);
-        assert_eq!(col.value(1), Value::String(&"b".to_owned()));
+        assert_eq!(col.value(1), Value::from("b"));
         assert_eq!(col.value(2), Value::Null);
     }
 
@@ -2869,11 +2875,8 @@ mod test {
         let mut dst_buffer = RowIDs::new_bitmap();
 
         let col = Column::from(&input[..]);
-        let mut row_ids = col.row_ids_filter(
-            &cmp::Operator::Equal,
-            &Value::String(&"Badlands".to_string()),
-            dst_buffer,
-        );
+        let mut row_ids =
+            col.row_ids_filter(&cmp::Operator::Equal, &Value::from("Badlands"), dst_buffer);
         match row_ids {
             RowIDsOption::None(_) => panic!("expected some rows"),
             RowIDsOption::Some(dst) => {
@@ -2883,11 +2886,7 @@ mod test {
             RowIDsOption::All(_) => panic!("expected some rows"),
         }
 
-        row_ids = col.row_ids_filter(
-            &cmp::Operator::Equal,
-            &Value::String(&"Factory".to_string()),
-            dst_buffer,
-        );
+        row_ids = col.row_ids_filter(&cmp::Operator::Equal, &Value::from("Factory"), dst_buffer);
         match row_ids {
             RowIDsOption::None(_dst) => {
                 dst_buffer = _dst;
@@ -2898,7 +2897,7 @@ mod test {
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GT,
-            &Value::String(&"Adam Raised a Cain".to_string()),
+            &Value::from("Adam Raised a Cain"),
             dst_buffer,
         );
         match row_ids {
@@ -2912,7 +2911,7 @@ mod test {
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::LTE,
-            &Value::String(&"Streets of Fire".to_string()),
+            &Value::from("Streets of Fire"),
             dst_buffer,
         );
         match row_ids {
@@ -2926,7 +2925,7 @@ mod test {
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::LT,
-            &Value::String(&"Something in the Night".to_string()),
+            &Value::from("Something in the Night"),
             dst_buffer,
         );
         match row_ids {
@@ -2950,7 +2949,7 @@ mod test {
         let col = Column::from(&input[..]);
         row_ids = col.row_ids_filter(
             &cmp::Operator::NotEqual,
-            &Value::String(&"Adam Raised a Cain".to_string()),
+            &Value::from("Adam Raised a Cain"),
             dst_buffer,
         );
         match row_ids {
@@ -2963,7 +2962,7 @@ mod test {
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::GT,
-            &Value::String(&"Adam Raised a Cain".to_string()),
+            &Value::from("Adam Raised a Cain"),
             dst_buffer,
         );
         match row_ids {
@@ -2976,7 +2975,7 @@ mod test {
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::NotEqual,
-            &Value::String(&"Thunder Road".to_string()),
+            &Value::from("Thunder Road"),
             dst_buffer,
         );
         match row_ids {
@@ -3371,7 +3370,7 @@ mod test {
 
         let input = &[Some("hello"), None, Some("world")];
         let col = Column::from(&input[..]);
-        assert_eq!(col.min(&[0, 1, 2][..]), Value::String(&"hello".to_string()));
+        assert_eq!(col.min(&[0, 1, 2][..]), Value::from("hello"));
         assert_eq!(col.min(&[1][..]), Value::Null);
     }
 
@@ -3393,7 +3392,7 @@ mod test {
 
         let input = &[Some("hello"), None, Some("world")];
         let col = Column::from(&input[..]);
-        assert_eq!(col.max(&[0, 1, 2][..]), Value::String(&"world".to_string()));
+        assert_eq!(col.max(&[0, 1, 2][..]), Value::from("world"));
         assert_eq!(col.max(&[1][..]), Value::Null);
     }
 
