@@ -10,7 +10,7 @@ use arrow_deps::arrow::{
 
 use query::exec::{
     fieldlist::FieldList,
-    seriesset::{GroupDescription, GroupedSeriesSetItem, SeriesSet},
+    seriesset::{GroupDescription, SeriesSet, SeriesSetItem},
 };
 
 use generated_types::{
@@ -47,24 +47,6 @@ pub fn tag_keys_to_byte_vecs(tag_keys: Arc<BTreeSet<String>>) -> Vec<Vec<u8>> {
     specials_iter.chain(tag_keys_iter).collect()
 }
 
-/// Convert `SeriesSet` into a form suitable for gRPC transport
-///
-/// Each `SeriesSet` gets converted into this pattern:
-///
-/// ```
-/// (SeriesFrame for field1)
-/// (*Points for field1)
-/// (SeriesFrame for field12)
-/// (*Points for field1)
-/// (....)
-/// ```
-///
-/// The specific type of (*Points) depends on the type of field column.
-pub fn series_set_to_read_response(series_set: SeriesSet) -> Result<ReadResponse> {
-    let frames = series_set_to_frames(series_set)?;
-    Ok(ReadResponse { frames })
-}
-
 fn series_set_to_frames(series_set: SeriesSet) -> Result<Vec<Frame>> {
     let mut data_records = Vec::new();
     for field_index in series_set.field_indices.iter() {
@@ -83,9 +65,9 @@ fn series_set_to_frames(series_set: SeriesSet) -> Result<Vec<Frame>> {
     Ok(frames)
 }
 
-/// Convert `GroupedSeriesSetIem` into a form suitable for gRPC transport
+/// Convert `SeriesSetItem` into a form suitable for gRPC transport
 ///
-/// Each `GroupedSeriesSetItem` gets converted into this pattern:
+/// Each `SeriesSetItem` gets converted into this pattern:
 ///
 /// ```
 /// (GroupFrame)
@@ -103,14 +85,12 @@ fn series_set_to_frames(series_set: SeriesSet) -> Result<Vec<Frame>> {
 /// ```
 ///
 /// The specific type of (*Points) depends on the type of field column.
-pub fn grouped_series_set_item_to_read_response(
-    grouped_series_set_item: GroupedSeriesSetItem,
-) -> Result<ReadResponse> {
-    let frames = match grouped_series_set_item {
-        GroupedSeriesSetItem::GroupStart(group_description) => {
+pub fn series_set_item_to_read_response(series_set_item: SeriesSetItem) -> Result<ReadResponse> {
+    let frames = match series_set_item {
+        SeriesSetItem::GroupStart(group_description) => {
             group_description_to_frames(group_description)?
         }
-        GroupedSeriesSetItem::GroupData(series_set) => series_set_to_frames(series_set)?,
+        SeriesSetItem::Data(series_set) => series_set_to_frames(series_set)?,
     };
     Ok(ReadResponse { frames })
 }
@@ -325,6 +305,11 @@ mod tests {
 
     use super::*;
 
+    fn series_set_to_read_response(series_set: SeriesSet) -> Result<ReadResponse> {
+        let frames = series_set_to_frames(series_set)?;
+        Ok(ReadResponse { frames })
+    }
+
     #[test]
     fn test_series_set_conversion() {
         let series_set = SeriesSet {
@@ -376,9 +361,9 @@ mod tests {
             ],
         };
 
-        let grouped_series_set_item = GroupedSeriesSetItem::GroupStart(group_description);
+        let grouped_series_set_item = SeriesSetItem::GroupStart(group_description);
 
-        let response = grouped_series_set_item_to_read_response(grouped_series_set_item)
+        let response = series_set_item_to_read_response(grouped_series_set_item)
             .expect("Correctly converted grouped_series_set_item");
         println!("Response is: {:#?}", response);
 
@@ -421,10 +406,10 @@ mod tests {
             batch,
         };
 
-        let grouped_series_set_item = GroupedSeriesSetItem::GroupData(series_set);
+        let series_set_item = SeriesSetItem::Data(series_set);
 
-        let response = grouped_series_set_item_to_read_response(grouped_series_set_item)
-            .expect("Correctly converted grouped_series_set_item");
+        let response = series_set_item_to_read_response(series_set_item)
+            .expect("Correctly converted series_set_item");
 
         println!("Response is: {:#?}", response);
 

@@ -23,10 +23,7 @@ use planning::IOxExecutionContext;
 use schema_pivot::SchemaPivotNode;
 
 use fieldlist::{FieldList, IntoFieldList};
-use seriesset::{
-    Error as SeriesSetError, GroupedSeriesSetConverter, GroupedSeriesSetItem, SeriesSet,
-    SeriesSetConverter,
-};
+use seriesset::{Error as SeriesSetError, SeriesSetConverter, SeriesSetItem};
 use stringset::{IntoStringSet, StringSet, StringSetRef};
 use tokio::sync::mpsc::{self, error::SendError};
 
@@ -59,11 +56,6 @@ pub enum Error {
         source: datafusion::error::DataFusionError,
     },
 
-    #[snafu(display("Internal error executing grouped series set set plan: {}", source))]
-    GroupedSeriesSetExecution {
-        source: datafusion::error::DataFusionError,
-    },
-
     #[snafu(display("Internal error executing field set plan: {}", source))]
     FieldListExectuon {
         source: datafusion::error::DataFusionError,
@@ -83,7 +75,7 @@ pub enum Error {
 
     #[snafu(display("Sending series set results during conversion: {:?}", source))]
     SendingDuringConversion {
-        source: Box<SendError<Result<SeriesSet, SeriesSetError>>>,
+        source: Box<SendError<Result<SeriesSetItem, SeriesSetError>>>,
     },
 
     #[snafu(display("Joining execution task: {}", source))]
@@ -144,8 +136,9 @@ impl From<Vec<LogicalPlan>> for StringSetPlan {
     }
 }
 
-/// A plan that can be run to produce a sequence of SeriesSets from a
-/// single DataFusion plan
+/// A plan that can be run to produce a logical stream of time series,
+/// as represented as sequence of SeriesSets from a single DataFusion
+/// plan, optionally grouped in some way.
 #[derive(Debug)]
 pub struct SeriesSetPlan {
     /// The table name this came from
@@ -172,51 +165,48 @@ pub struct SeriesSetPlan {
     /// *each* resulting `SeriesSet` that is produced when this type
     /// of plan is executed.
     pub field_columns: Vec<Arc<String>>,
+
+    /// If present, how many of the series_set_plan::tag_columns
+    /// should be used to compute the group
+    pub num_prefix_tag_group_columns: Option<usize>,
 }
 
-/// A plan to run that can produce a grouped set series.
-///
-/// TODO: this may also need / support computing an aggregation per
-/// group, pending on what is required for the gRPC layer.
-#[derive(Debug)]
-pub struct GroupedSeriesSetPlan {
-    /// The underlying SeriesSet
-    pub series_set_plan: SeriesSetPlan,
+impl SeriesSetPlan {
+    /// Create a SeriesSetPlan that will not produce any Group items
+    pub fn new(
+        table_name: Arc<String>,
+        plan: LogicalPlan,
+        tag_columns: Vec<Arc<String>>,
+        field_columns: Vec<Arc<String>>,
+    ) -> Self {
+        let num_prefix_tag_group_columns = None;
+        Self {
+            table_name,
+            plan,
+            tag_columns,
+            field_columns,
+            num_prefix_tag_group_columns,
+        }
+    }
 
-    /// How many of the series_set_plan::tag_columns should be used to
-    /// compute the group
-    pub num_prefix_tag_group_columns: usize,
-
-    /// HACK: Do not send Group items
-    pub skip_group_items: bool,
+    /// Create a SeriesSetPlan that will produce Group items, according to
+    /// num_prefix_tag_group_columns.
+    pub fn grouped(mut self, num_prefix_tag_group_columns: usize) -> Self {
+        self.num_prefix_tag_group_columns = Some(num_prefix_tag_group_columns);
+        self
+    }
 }
 
-/// A container for plans which each produces a logical stream of
-/// timeseries (from across many potential tables). A `SeriesSetPlans`
-/// can be executed to produce streams of `SeriesSet`s.
+/// A container for plans which each produce a logical stream of
+/// timeseries (from across many potential tables).
 #[derive(Debug, Default)]
 pub struct SeriesSetPlans {
     pub plans: Vec<SeriesSetPlan>,
 }
 
-/// A container for plans which each produces a logical stream of
-/// timeseries (from across many potential tables) grouped in some
-/// way. A `GroupedSeriesSetPlans` can be executed to produce
-/// streams of `GroupedSeriesSet`s.
-#[derive(Debug, Default)]
-pub struct GroupedSeriesSetPlans {
-    pub grouped_plans: Vec<GroupedSeriesSetPlan>,
-}
-
 impl From<Vec<SeriesSetPlan>> for SeriesSetPlans {
     fn from(plans: Vec<SeriesSetPlan>) -> Self {
         Self { plans }
-    }
-}
-
-impl From<Vec<GroupedSeriesSetPlan>> for GroupedSeriesSetPlans {
-    fn from(grouped_plans: Vec<GroupedSeriesSetPlan>) -> Self {
-        Self { grouped_plans }
     }
 }
 
@@ -264,7 +254,7 @@ impl Executor {
     pub async fn to_series_set(
         &self,
         series_set_plans: SeriesSetPlans,
-        mut tx: mpsc::Sender<Result<SeriesSet, SeriesSetError>>,
+        mut tx: mpsc::Sender<Result<SeriesSetItem, SeriesSetError>>,
     ) -> Result<()> {
         let SeriesSetPlans { mut plans } = series_set_plans;
 
@@ -292,6 +282,7 @@ impl Executor {
                         plan,
                         tag_columns,
                         field_columns,
+                        num_prefix_tag_group_columns,
                     } = plan;
 
                     let tag_columns = Arc::new(tag_columns);
@@ -310,7 +301,13 @@ impl Executor {
                         .context(SeriesSetExecution)?;
 
                     SeriesSetConverter::new(plan_tx)
-                        .convert(table_name, tag_columns, field_columns, it)
+                        .convert(
+                            table_name,
+                            tag_columns,
+                            field_columns,
+                            num_prefix_tag_group_columns,
+                            it,
+                        )
                         .await
                         .context(SeriesSetConversion)?;
 
@@ -332,81 +329,6 @@ impl Executor {
 
         // now, wait for all the values to resolve so we can report
         // any errors
-        for join_handle in handles {
-            join_handle.await.context(JoinError)??;
-        }
-        Ok(())
-    }
-
-    /// Executes the the Grouped plans, sending the
-    /// results one by one to the `tx` chanel.
-    ///
-    /// Note that the returned future resolves (e.g. "returns") once
-    /// all plans have been sent to `tx`. This means that the future
-    /// will not resolve if there is nothing hooked up receiving
-    /// results from the other end of the channel and the channel
-    /// can't hold all the resulting series.
-    pub async fn to_grouped_series_set(
-        &self,
-        grouped_series_set_plans: GroupedSeriesSetPlans,
-        tx: mpsc::Sender<Result<GroupedSeriesSetItem, SeriesSetError>>,
-    ) -> Result<()> {
-        let GroupedSeriesSetPlans { grouped_plans } = grouped_series_set_plans;
-
-        // Run the plans in parallel
-        let handles = grouped_plans
-            .into_iter()
-            .map(|plan| {
-                // Clone Arc's for transmission to threads
-                let counters = self.counters.clone();
-                let tx = tx.clone();
-                tokio::task::spawn(async move {
-                    let GroupedSeriesSetPlan {
-                        series_set_plan,
-                        num_prefix_tag_group_columns,
-                        skip_group_items,
-                    } = plan;
-
-                    let SeriesSetPlan {
-                        table_name,
-                        plan,
-                        tag_columns,
-                        field_columns,
-                    } = series_set_plan;
-
-                    let tag_columns = Arc::new(tag_columns);
-                    let field_columns = Arc::new(field_columns);
-
-                    // TODO run these on some executor other than the main tokio pool (maybe?)
-                    let ctx = IOxExecutionContext::new(counters);
-                    let physical_plan = ctx
-                        .make_plan(&plan)
-                        .await
-                        .context(DataFusionPhysicalPlanning)?;
-
-                    let it = ctx
-                        .execute(physical_plan)
-                        .await
-                        .context(GroupedSeriesSetExecution)?;
-
-                    GroupedSeriesSetConverter::new(tx)
-                        .convert(
-                            table_name,
-                            tag_columns,
-                            num_prefix_tag_group_columns,
-                            skip_group_items,
-                            field_columns,
-                            it,
-                        )
-                        .await
-                        .context(SeriesSetConversion)?;
-
-                    Ok(())
-                })
-            })
-            .collect::<Vec<_>>();
-
-        // now, wait for all the values to resolve and reprot any errors
         for join_handle in handles {
             join_handle.await.context(JoinError)??;
         }

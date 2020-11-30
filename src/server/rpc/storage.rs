@@ -29,7 +29,7 @@ use crate::server::rpc::input::GrpcInputs;
 
 use query::{
     exec::{
-        seriesset::{Error as SeriesSetError, GroupedSeriesSetItem, SeriesSet},
+        seriesset::{Error as SeriesSetError, SeriesSetItem},
         Executor as QueryExecutor,
     },
     org_and_bucket_to_database,
@@ -44,8 +44,8 @@ use tonic::Status;
 use tracing::{error, info, warn};
 
 use super::data::{
-    fieldlist_to_measurement_fields_response, grouped_series_set_item_to_read_response,
-    series_set_to_read_response, tag_keys_to_byte_vecs,
+    fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
+    tag_keys_to_byte_vecs,
 };
 
 #[derive(Debug, Snafu)]
@@ -972,14 +972,14 @@ where
 /// Receives SeriesSets from rx, converts them to ReadResponse and
 /// and sends them to tx
 async fn convert_series_set(
-    mut rx: mpsc::Receiver<Result<SeriesSet, SeriesSetError>>,
+    mut rx: mpsc::Receiver<Result<SeriesSetItem, SeriesSetError>>,
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
 ) -> Result<()> {
     while let Some(series_set) = rx.recv().await {
         let response = series_set
             .context(ComputingSeriesSet)
             .and_then(|series_set| {
-                series_set_to_read_response(series_set).context(ConvertingSeriesSet)
+                series_set_item_to_read_response(series_set).context(ConvertingSeriesSet)
             })
             .map_err(|e| Status::internal(e.to_string()));
 
@@ -1032,7 +1032,7 @@ where
     // client before we start sending result)
     let (tx_series, rx_series) = mpsc::channel(4);
     tokio::spawn(async move {
-        convert_grouped_series_set(rx_series, tx)
+        convert_series_set(rx_series, tx)
             .await
             .log_if_error("Converting grouped series set")
     });
@@ -1040,7 +1040,7 @@ where
     // fire up the plans and start the pipeline flowing
     tokio::spawn(async move {
         executor
-            .to_grouped_series_set(grouped_series_set_plan, tx_series)
+            .to_series_set(grouped_series_set_plan, tx_series)
             .await
             .map_err(|e| Error::GroupingSeries {
                 db_name: db_name.clone(),
@@ -1049,29 +1049,6 @@ where
             .log_if_error("Running Grouped SeriesSet Plan")
     });
 
-    Ok(())
-}
-
-/// Receives SeriesSets from rx, converts them to ReadResponse and
-/// and sends them to tx
-async fn convert_grouped_series_set(
-    mut rx: mpsc::Receiver<Result<GroupedSeriesSetItem, SeriesSetError>>,
-    mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
-) -> Result<()> {
-    while let Some(grouped_series_set_item) = rx.recv().await {
-        let response = grouped_series_set_item
-            .context(ComputingGroupedSeriesSet)
-            .and_then(|grouped_series_set_item| {
-                grouped_series_set_item_to_read_response(grouped_series_set_item)
-                    .context(ConvertingSeriesSet)
-            })
-            .map_err(|e| Status::internal(e.to_string()));
-
-        tx.send(response)
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-            .context(SendingResults)?
-    }
     Ok(())
 }
 
@@ -1159,7 +1136,6 @@ mod tests {
     use query::{
         exec::fieldlist::{Field, FieldList},
         exec::FieldListPlan,
-        exec::GroupedSeriesSetPlans,
         exec::SeriesSetPlans,
         group_by::{Aggregate as QueryAggregate, WindowDuration as QueryWindowDuration},
         id::Id,
@@ -1841,7 +1817,7 @@ mod tests {
         };
 
         // TODO setup any expected results
-        let dummy_groups_set_plan = GroupedSeriesSetPlans::from(vec![]);
+        let dummy_groups_set_plan = SeriesSetPlans::from(vec![]);
         test_db.set_query_groups_values(dummy_groups_set_plan).await;
 
         let actual_frames = fixture.storage_client.read_group(request).await?;
@@ -1947,7 +1923,7 @@ mod tests {
         };
 
         // setup expected results
-        let dummy_groups_set_plan = GroupedSeriesSetPlans::from(vec![]);
+        let dummy_groups_set_plan = SeriesSetPlans::from(vec![]);
         test_db.set_query_groups_values(dummy_groups_set_plan).await;
 
         let actual_frames = fixture
@@ -2009,7 +1985,7 @@ mod tests {
         };
 
         // setup expected results
-        let dummy_groups_set_plan = GroupedSeriesSetPlans::from(vec![]);
+        let dummy_groups_set_plan = SeriesSetPlans::from(vec![]);
         test_db.set_query_groups_values(dummy_groups_set_plan).await;
 
         let actual_frames = fixture

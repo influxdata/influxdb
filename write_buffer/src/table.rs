@@ -1,6 +1,6 @@
 use generated_types::wal as wb;
 use query::exec::make_window_bound_expr;
-use query::exec::{make_schema_pivot, GroupedSeriesSetPlan, SeriesSetPlan};
+use query::exec::{make_schema_pivot, SeriesSetPlan};
 use query::group_by::{Aggregate, WindowDuration};
 use tracing::debug;
 
@@ -504,12 +504,12 @@ impl Table {
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
 
-        Ok(SeriesSetPlan {
-            table_name: self.table_name(partition),
+        Ok(SeriesSetPlan::new(
+            self.table_name(partition),
             plan,
             tag_columns,
             field_columns,
-        })
+        ))
     }
 
     /// Look up this table's name as a string
@@ -546,17 +546,12 @@ impl Table {
         partition_predicate: &PartitionPredicate,
         group_columns: &[String],
         partition: &Partition,
-    ) -> Result<GroupedSeriesSetPlan> {
+    ) -> Result<SeriesSetPlan> {
         let series_set_plan =
             self.series_set_plan_impl(partition_predicate, Some(&group_columns), partition)?;
         let num_prefix_tag_group_columns = group_columns.len();
-        let skip_group_items = false;
 
-        Ok(GroupedSeriesSetPlan {
-            series_set_plan,
-            num_prefix_tag_group_columns,
-            skip_group_items,
-        })
+        Ok(series_set_plan.grouped(num_prefix_tag_group_columns))
     }
 
     /// Creates a GroupedSeriesSet plan that produces an output table with rows
@@ -595,7 +590,7 @@ impl Table {
         every: &WindowDuration,
         offset: &WindowDuration,
         partition: &Partition,
-    ) -> Result<GroupedSeriesSetPlan> {
+    ) -> Result<SeriesSetPlan> {
         let (tag_columns, field_columns) =
             self.tag_and_field_column_names(partition_predicate, partition)?;
 
@@ -654,16 +649,12 @@ impl Table {
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
 
-        Ok(GroupedSeriesSetPlan {
-            num_prefix_tag_group_columns: tag_columns.len(),
-            skip_group_items: true,
-            series_set_plan: SeriesSetPlan {
-                table_name: self.table_name(partition),
-                plan,
-                tag_columns,
-                field_columns,
-            },
-        })
+        Ok(SeriesSetPlan::new(
+            self.table_name(partition),
+            plan,
+            tag_columns,
+            field_columns,
+        ))
     }
 
     /// Creates a plan that produces an output table with rows that
@@ -1403,10 +1394,13 @@ mod tests {
             .grouped_series_set_plan(&partition_predicate, &group_columns, &partition)
             .expect("creating the grouped_series set plan");
 
-        assert_eq!(grouped_series_set_plan.num_prefix_tag_group_columns, 1);
+        assert_eq!(
+            grouped_series_set_plan.num_prefix_tag_group_columns,
+            Some(1)
+        );
 
         // run the created plan, ensuring the output is as expected
-        let results = run_plan(grouped_series_set_plan.series_set_plan.plan).await;
+        let results = run_plan(grouped_series_set_plan.plan).await;
 
         let expected = vec![
             "+-------+------+------+------+",
@@ -1459,17 +1453,11 @@ mod tests {
             .window_grouped_series_set_plan(&partition_predicate, &agg, &every, &offset, &partition)
             .expect("creating the grouped_series set plan");
 
-        assert_eq!(
-            plan.series_set_plan.tag_columns,
-            *str_vec_to_arc_vec(&["city", "state"])
-        );
-        assert_eq!(
-            plan.series_set_plan.field_columns,
-            *str_vec_to_arc_vec(&["temp"])
-        );
+        assert_eq!(plan.tag_columns, *str_vec_to_arc_vec(&["city", "state"]));
+        assert_eq!(plan.field_columns, *str_vec_to_arc_vec(&["temp"]));
 
         // run the created plan, ensuring the output is as expected
-        let results = run_plan(plan.series_set_plan.plan).await;
+        let results = run_plan(plan.plan).await;
 
         // note the name of the field is "temp" even though it is the average
         let expected = vec![
@@ -1514,17 +1502,11 @@ mod tests {
             .window_grouped_series_set_plan(&partition_predicate, &agg, &every, &offset, &partition)
             .expect("creating the grouped_series set plan");
 
-        assert_eq!(
-            plan.series_set_plan.tag_columns,
-            *str_vec_to_arc_vec(&["city", "state"])
-        );
-        assert_eq!(
-            plan.series_set_plan.field_columns,
-            *str_vec_to_arc_vec(&["temp"])
-        );
+        assert_eq!(plan.tag_columns, *str_vec_to_arc_vec(&["city", "state"]));
+        assert_eq!(plan.field_columns, *str_vec_to_arc_vec(&["temp"]));
 
         // run the created plan, ensuring the output is as expected
-        let results = run_plan(plan.series_set_plan.plan).await;
+        let results = run_plan(plan.plan).await;
 
         // note the name of the field is "temp" even though it is the average
         let expected = vec![

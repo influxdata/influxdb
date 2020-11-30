@@ -8,7 +8,7 @@
 use arrow_deps::arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::data::ReplicatedWrite;
-use exec::{FieldListPlan, GroupedSeriesSetPlans, SeriesSetPlans, StringSetPlan};
+use exec::{FieldListPlan, SeriesSetPlans, StringSetPlan};
 use influxdb_line_protocol::ParsedLine;
 
 use std::{fmt::Debug, sync::Arc};
@@ -103,7 +103,7 @@ pub trait Database: Debug + Send + Sync {
         &self,
         predicate: Predicate,
         gby_agg: GroupByAndAggregate,
-    ) -> Result<GroupedSeriesSetPlans, Self::Error>;
+    ) -> Result<SeriesSetPlans, Self::Error>;
 
     /// Fetch the specified table names and columns as Arrow
     /// RecordBatches. Columns are returned in the order specified.

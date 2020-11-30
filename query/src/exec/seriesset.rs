@@ -55,12 +55,12 @@ pub enum Error {
 
     #[snafu(display("Sending series set results during conversion: {:?}", source))]
     SendingDuringConversion {
-        source: Box<SendError<Result<SeriesSet>>>,
+        source: Box<SendError<Result<SeriesSetItem>>>,
     },
 
     #[snafu(display("Sending grouped series set results during conversion: {:?}", source))]
     SendingDuringGroupedConversion {
-        source: Box<SendError<Result<GroupedSeriesSetItem>>>,
+        source: Box<SendError<Result<SeriesSetItem>>>,
     },
 
     #[snafu(display("Joining conversion execution task: {}", source))]
@@ -117,25 +117,25 @@ pub struct GroupDescription {
 }
 
 #[derive(Debug)]
-pub enum GroupedSeriesSetItem {
+pub enum SeriesSetItem {
     GroupStart(GroupDescription),
-    GroupData(SeriesSet),
+    Data(SeriesSet),
 }
 
 // Handles converting record batches into SeriesSets, and sending them
 // to tx
 #[derive(Debug)]
 pub struct SeriesSetConverter {
-    tx: mpsc::Sender<Result<SeriesSet>>,
+    tx: mpsc::Sender<Result<SeriesSetItem>>,
 }
 
 impl SeriesSetConverter {
-    pub fn new(tx: mpsc::Sender<Result<SeriesSet>>) -> Self {
+    pub fn new(tx: mpsc::Sender<Result<SeriesSetItem>>) -> Self {
         Self { tx }
     }
 
     /// Convert the results from running a DataFusion plan into the
-    /// appropriate SeriesSets, sending them self.tx
+    /// appropriate SeriesSetItems, sending them self.tx
     ///
     /// The results must be in the logical format described in this
     /// module's documentation (i.e. ordered by tag keys)
@@ -146,17 +146,27 @@ impl SeriesSetConverter {
     ///
     /// field_columns: The names of the columns which are "fields"
     ///
+    /// num_prefix_tag_group_columns: (optional) The size of the prefix
+    ///       of `tag_columns` that defines each group
+    ///
     /// it: record batch iterator that produces data in the desired order
     pub async fn convert(
         &mut self,
         table_name: Arc<String>,
         tag_columns: Arc<Vec<Arc<String>>>,
         field_columns: Arc<Vec<Arc<String>>>,
+        num_prefix_tag_group_columns: Option<usize>,
         it: SendableRecordBatchStream,
     ) -> Result<()> {
         // Make sure that any error that results from processing is sent along
         if let Err(e) = self
-            .convert_impl(table_name, tag_columns, field_columns, it)
+            .convert_impl(
+                table_name,
+                tag_columns,
+                field_columns,
+                num_prefix_tag_group_columns,
+                it,
+            )
             .await
         {
             self.tx
@@ -169,14 +179,17 @@ impl SeriesSetConverter {
         Ok(())
     }
 
-    /// Does the actual conversion logic, but returns any error in processing
+    /// Does the actual conversion, returning any error in processing
     pub async fn convert_impl(
         &mut self,
         table_name: Arc<String>,
         tag_columns: Arc<Vec<Arc<String>>>,
         field_columns: Arc<Vec<Arc<String>>>,
+        num_prefix_tag_group_columns: Option<usize>,
         mut it: SendableRecordBatchStream,
     ) -> Result<()> {
+        let mut group_generator = GroupGenerator::new(num_prefix_tag_group_columns);
+
         // for now, only handle a single record batch
         if let Some(batch) = it.next().await {
             let batch = batch.context(ReadingRecordBatch)?;
@@ -254,8 +267,17 @@ impl SeriesSetConverter {
                 .collect::<Vec<_>>();
 
             for series_set in series_sets {
+                if let Some(group_desc) = group_generator.next_series(&series_set) {
+                    self.tx
+                        .send(Ok(SeriesSetItem::GroupStart(group_desc)))
+                        .await
+                        .map_err(|e| Error::SendingDuringGroupedConversion {
+                            source: Box::new(e),
+                        })?;
+                }
+
                 self.tx
-                    .send(Ok(series_set))
+                    .send(Ok(SeriesSetItem::Data(series_set)))
                     .await
                     .map_err(|e| Error::SendingDuringConversion {
                         source: Box::new(e),
@@ -348,140 +370,47 @@ impl SeriesSetConverter {
     }
 }
 
-// Handles converting record batches into GroupedSeriesSets, and
-// sending them to tx
-#[derive(Debug)]
-pub struct GroupedSeriesSetConverter {
-    tx: mpsc::Sender<Result<GroupedSeriesSetItem>>,
+/// Encapsulates the logic to generate new GroupFrames
+struct GroupGenerator {
+    num_prefix_tag_group_columns: Option<usize>,
+
+    // vec of num_prefix_tag_group_columns, if any
+    last_group_tags: Option<Vec<(Arc<String>, Arc<String>)>>,
 }
 
-impl GroupedSeriesSetConverter {
-    pub fn new(tx: mpsc::Sender<Result<GroupedSeriesSetItem>>) -> Self {
-        Self { tx }
-    }
-
-    /// Convert the results from running a DataFusion plan into the
-    /// appropriate SeriesSets, sending them self.tx
-    ///
-    /// The results must be in the logical format described in this
-    /// module's documentation (i.e. ordered by tag keys)
-    ///
-    /// table_name: The name of the table
-    ///
-    /// tag_columns: The names of the columns that define tags
-    ///
-    /// num_prefix_tag_group_columns: The size of the prefix of tag_columns that defines each group
-    ///
-    /// skip_group_items: HACK: Do not send Group items
-    ///
-    /// field_columns: The names of the columns which are "fields"
-    ///
-    /// it: record batch iterator that produces data in the desired order
-    pub async fn convert(
-        &mut self,
-        table_name: Arc<String>,
-        tag_columns: Arc<Vec<Arc<String>>>,
-        num_prefix_tag_group_columns: usize,
-        skip_group_items: bool,
-        field_columns: Arc<Vec<Arc<String>>>,
-        it: SendableRecordBatchStream,
-    ) -> Result<()> {
-        // Make sure that any error that results from processing is sent along
-        if let Err(e) = self
-            .convert_impl(
-                table_name,
-                tag_columns,
-                num_prefix_tag_group_columns,
-                skip_group_items,
-                field_columns,
-                it,
-            )
-            .await
-        {
-            self.tx
-                .send(Err(e))
-                .await
-                .map_err(|e| Error::SendingDuringGroupedConversion {
-                    source: Box::new(e),
-                })?
+impl GroupGenerator {
+    fn new(num_prefix_tag_group_columns: Option<usize>) -> Self {
+        Self {
+            num_prefix_tag_group_columns,
+            last_group_tags: None,
         }
-        Ok(())
     }
 
-    /// Does the actual conversion logic, but returns any error in processing
-    pub async fn convert_impl(
-        &mut self,
-        table_name: Arc<String>,
-        tag_columns: Arc<Vec<Arc<String>>>,
-        num_prefix_tag_group_columns: usize,
-        skip_group_items: bool,
-        field_columns: Arc<Vec<Arc<String>>>,
-        it: SendableRecordBatchStream,
-    ) -> Result<()> {
-        // Convert the batches into series sets using
-        // SeriesSetConverter, and insert the appropriate GroupStart
-        // frames
+    /// Process the next SeriesSet in the sequence. Return
+    /// `Some(GroupDescription{..})` if this marks the start of a new
+    /// group. Return None otherwise
+    fn next_series(&mut self, series_set: &SeriesSet) -> Option<GroupDescription> {
+        if let Some(num_prefix_tag_group_columns) = self.num_prefix_tag_group_columns {
+            // figure out if we are in a new group
+            let need_group_start = match &self.last_group_tags {
+                None => true,
+                Some(last_group_tags) => {
+                    last_group_tags.as_slice() != &series_set.tags[0..num_prefix_tag_group_columns]
+                }
+            };
 
-        let (tx, mut rx) = mpsc::channel(2);
+            if need_group_start {
+                let group_tags = series_set.tags[0..num_prefix_tag_group_columns].to_vec();
 
-        // task that processes the sets from the series
-        let mut output_tx = self.tx.clone();
-        let task = tokio::task::spawn(async move {
-            // vec of num_prefix_tag_group_columns
-            let mut last_group_tags: Option<Vec<(Arc<String>, Arc<String>)>> = None;
-
-            while let Some(series_set) = rx.recv().await {
-                let series_set: SeriesSet = series_set?;
-
-                // figure out if we are in a new group
-                let need_group_start = match &last_group_tags {
-                    None => true,
-                    Some(last_group_tags) => {
-                        last_group_tags.as_slice()
-                            != &series_set.tags[0..num_prefix_tag_group_columns]
-                    }
+                let group_desc = GroupDescription {
+                    tags: group_tags.clone(),
                 };
 
-                if need_group_start && !skip_group_items {
-                    let group_tags = series_set.tags[0..num_prefix_tag_group_columns].to_vec();
-
-                    let group_desc = GroupDescription {
-                        tags: group_tags.clone(),
-                    };
-
-                    output_tx
-                        .send(Ok(GroupedSeriesSetItem::GroupStart(group_desc)))
-                        .await
-                        .map_err(|e| Error::SendingDuringGroupedConversion {
-                            source: Box::new(e),
-                        })?;
-
-                    last_group_tags = Some(group_tags);
-                }
-
-                output_tx
-                    .send(Ok(GroupedSeriesSetItem::GroupData(series_set)))
-                    .await
-                    .map_err(|e| Error::SendingDuringGroupedConversion {
-                        source: Box::new(e),
-                    })?;
+                self.last_group_tags = Some(group_tags);
+                return Some(group_desc);
             }
-            Ok(()) as Result<()>
-        });
-
-        // Setup the task pipeline and start it running!
-        let mut series_converter = SeriesSetConverter::new(tx);
-        series_converter
-            .convert(table_name, tag_columns, field_columns, it)
-            .await?;
-
-        // tear down series converter manually, to drop the sending
-        // channel so the `task` knows no more results are coming
-        // before waiting for it to resolve.
-        std::mem::drop(series_converter);
-        task.await.context(JoinError)??;
-
-        Ok(())
+        }
+        None
     }
 }
 
@@ -835,16 +764,16 @@ mod tests {
         Ok(())
     }
 
-    fn extract_group(item: &GroupedSeriesSetItem) -> &GroupDescription {
+    fn extract_group(item: &SeriesSetItem) -> &GroupDescription {
         match item {
-            GroupedSeriesSetItem::GroupStart(group) => group,
+            SeriesSetItem::GroupStart(group) => group,
             _ => panic!("Expected group, but got: {:?}", item),
         }
     }
 
-    fn extract_series_set(item: &GroupedSeriesSetItem) -> &SeriesSet {
+    fn extract_series_set(item: &SeriesSetItem) -> &SeriesSet {
         match item {
-            GroupedSeriesSetItem::GroupData(series_set) => series_set,
+            SeriesSetItem::Data(series_set) => series_set,
             _ => panic!("Expected series set, but got: {:?}", item),
         }
     }
@@ -865,14 +794,22 @@ mod tests {
 
         tokio::task::spawn(async move {
             converter
-                .convert(table_name, tag_columns, field_columns, it)
+                .convert(table_name, tag_columns, field_columns, None, it)
                 .await
                 .expect("Conversion happened without error")
         });
 
         let mut results = Vec::new();
         while let Some(r) = rx.recv().await {
-            results.push(r)
+            results.push(r.map(|item| {
+                if let SeriesSetItem::Data(series_set) = item {
+                    series_set
+                }
+                else {
+                    panic!("Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}", item)
+                }
+            })
+            );
         }
         results
     }
@@ -884,9 +821,9 @@ mod tests {
         num_prefix_tag_group_columns: usize,
         field_columns: &'a [&'a str],
         it: SendableRecordBatchStream,
-    ) -> Vec<Result<GroupedSeriesSetItem>> {
+    ) -> Vec<Result<SeriesSetItem>> {
         let (tx, mut rx) = mpsc::channel(1);
-        let mut converter = GroupedSeriesSetConverter::new(tx);
+        let mut converter = SeriesSetConverter::new(tx);
 
         let table_name = Arc::new(table_name.into());
         let tag_columns = str_vec_to_arc_vec(tag_columns);
@@ -897,9 +834,8 @@ mod tests {
                 .convert(
                     table_name,
                     tag_columns,
-                    num_prefix_tag_group_columns,
-                    false, // skip_group_items
                     field_columns,
+                    Some(num_prefix_tag_group_columns),
                     it,
                 )
                 .await

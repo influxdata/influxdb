@@ -8,7 +8,7 @@ use crate::{
     exec::FieldListPlan,
     exec::{
         stringset::{StringSet, StringSetRef},
-        GroupedSeriesSetPlans, SeriesSetPlans, StringSetPlan,
+        SeriesSetPlans, StringSetPlan,
     },
     Database, DatabaseStore, Predicate, TimestampRange,
 };
@@ -51,7 +51,7 @@ pub struct TestDatabase {
     query_series_request: Arc<Mutex<Option<QuerySeriesRequest>>>,
 
     /// Responses to return on the next request to `query_groups`
-    query_groups_values: Arc<Mutex<Option<GroupedSeriesSetPlans>>>,
+    query_groups_values: Arc<Mutex<Option<SeriesSetPlans>>>,
 
     /// The last request for `query_series`
     query_groups_request: Arc<Mutex<Option<QueryGroupsRequest>>>,
@@ -176,7 +176,7 @@ impl TestDatabase {
     }
 
     /// Set the series that will be returned on a call to query_groups
-    pub async fn set_query_groups_values(&self, plan: GroupedSeriesSetPlans) {
+    pub async fn set_query_groups_values(&self, plan: SeriesSetPlans) {
         *(self.query_groups_values.clone().lock().await) = Some(plan);
     }
 
@@ -383,7 +383,7 @@ impl Database for TestDatabase {
         &self,
         predicate: Predicate,
         gby_agg: GroupByAndAggregate,
-    ) -> Result<GroupedSeriesSetPlans, Self::Error> {
+    ) -> Result<SeriesSetPlans, Self::Error> {
         let predicate = predicate_to_test_string(&predicate);
 
         let new_queries_groups_request = Some(QueryGroupsRequest { predicate, gby_agg });

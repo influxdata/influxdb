@@ -4,10 +4,7 @@ use query::group_by::Aggregate;
 use query::group_by::GroupByAndAggregate;
 use query::group_by::WindowDuration;
 use query::{
-    exec::{
-        stringset::StringSet, FieldListPlan, GroupedSeriesSetPlan, GroupedSeriesSetPlans,
-        SeriesSetPlan, SeriesSetPlans, StringSetPlan,
-    },
+    exec::{stringset::StringSet, FieldListPlan, SeriesSetPlan, SeriesSetPlans, StringSetPlan},
     predicate::Predicate,
     Database,
 };
@@ -478,7 +475,7 @@ impl Database for Db {
         &self,
         predicate: Predicate,
         gby_agg: GroupByAndAggregate,
-    ) -> Result<GroupedSeriesSetPlans, Self::Error> {
+    ) -> Result<SeriesSetPlans, Self::Error> {
         let mut filter = PartitionTableFilter::new(predicate);
 
         match gby_agg {
@@ -1058,7 +1055,7 @@ impl Visitor for SeriesVisitor {
 /// specified predicate, grouped according to grouped_columns
 struct GroupsVisitor {
     group_columns: Vec<String>,
-    plans: Vec<GroupedSeriesSetPlan>,
+    plans: Vec<SeriesSetPlan>,
 }
 
 impl GroupsVisitor {
@@ -1094,7 +1091,7 @@ struct WindowGroupsVisitor {
     every: WindowDuration,
     offset: WindowDuration,
 
-    plans: Vec<GroupedSeriesSetPlan>,
+    plans: Vec<SeriesSetPlan>,
 }
 
 impl WindowGroupsVisitor {
@@ -1147,6 +1144,7 @@ struct ArrowTable {
 mod tests {
     use super::*;
     use arrow_deps::datafusion::prelude::*;
+    use query::exec::seriesset::SeriesSetItem;
     use query::{
         exec::fieldlist::{Field, FieldList},
         exec::{
@@ -2237,7 +2235,15 @@ disk bytes=23432323i 1600136510000000000",
         // gather up the sets and compare them
         let mut results = Vec::new();
         while let Some(r) = rx.recv().await {
-            results.push(r)
+            results.push(r.map(|item| {
+                if let SeriesSetItem::Data(series_set) = item {
+                    series_set
+                }
+                else {
+                    panic!("Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}", item)
+                }
+            })
+            );
         }
 
         // sort the results so that we can reliably compare
