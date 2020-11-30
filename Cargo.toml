@@ -67,7 +67,7 @@ tracing-futures="0.2.4"
 
 http = "0.2.0"
 snafu = "0.6.9"
-libflate = "1.0.0"
+flate2 = "1.0"
 
 [dev-dependencies]
 assert_cmd = "1.0.0"
