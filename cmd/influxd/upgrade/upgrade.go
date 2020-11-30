@@ -111,7 +111,7 @@ type options struct {
 	target optionsV2
 
 	// logging
-	logLevel string
+	logLevel zapcore.Level
 	logPath  string
 
 	force bool
@@ -252,7 +252,7 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 		{
 			DestP:   &options.logLevel,
 			Flag:    "log-level",
-			Default: zapcore.InfoLevel.String(),
+			Default: zapcore.InfoLevel,
 			Desc:    "supported log levels are debug, info, warn and error",
 		},
 		{
@@ -318,12 +318,7 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 	ctx := context.Background()
 	config := zap.NewProductionConfig()
 
-	var lvl zapcore.Level
-	if err := lvl.Set(options.logLevel); err != nil {
-		return errors.New("unknown log level; supported levels are debug, info, warn and error")
-	}
-
-	config.Level = zap.NewAtomicLevelAt(lvl)
+	config.Level = zap.NewAtomicLevelAt(options.logLevel)
 	if verbose {
 		config.Level.SetLevel(zap.DebugLevel)
 	}
