@@ -1363,9 +1363,13 @@ func (sgi ShardGroupInfo) clone() ShardGroupInfo {
 	return other
 }
 
-// ShardFor returns the ShardInfo for a Point hash.
-func (sgi *ShardGroupInfo) ShardFor(hash uint64) ShardInfo {
-	return sgi.Shards[hash%uint64(len(sgi.Shards))]
+// ShardFor returns the ShardInfo for a Point.
+func (sgi *ShardGroupInfo) ShardFor(p models.Point) ShardInfo {
+	if len(sgi.Shards) == 1 {
+		return sgi.Shards[0]
+	}
+
+	return sgi.Shards[p.HashID()%uint64(len(sgi.Shards))]
 }
 
 // marshal serializes to a protobuf representation.
