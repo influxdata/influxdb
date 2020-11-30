@@ -11,7 +11,6 @@ import (
 	_ "net/http/pprof" // needed to add pprof to our binary.
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -25,20 +24,16 @@ import (
 	"github.com/influxdata/influxdb/v2/dashboards"
 	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/dbrp"
-	"github.com/influxdata/influxdb/v2/fluxinit"
 	"github.com/influxdata/influxdb/v2/gather"
 	"github.com/influxdata/influxdb/v2/http"
 	iqlcontrol "github.com/influxdata/influxdb/v2/influxql/control"
 	iqlquery "github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/inmem"
-	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/internal/resource"
-	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	overrideflagger "github.com/influxdata/influxdb/v2/kit/feature/override"
 	"github.com/influxdata/influxdb/v2/kit/metric"
 	"github.com/influxdata/influxdb/v2/kit/prom"
-	"github.com/influxdata/influxdb/v2/kit/signals"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -80,8 +75,6 @@ import (
 	pzap "github.com/influxdata/influxdb/v2/zap"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -97,442 +90,31 @@ const (
 	LogTracing = "log"
 	// JaegerTracing enables tracing via the Jaeger client library
 	JaegerTracing = "jaeger"
-	// Max Integer
-	MaxInt = 1<<uint(strconv.IntSize-1) - 1
 )
-
-func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
-	l := NewLauncher(WithViper(v))
-
-	prog := cli.Program{
-		Name: "influxd",
-		Run:  cmdRunE(ctx, l),
-	}
-
-	assignDescs := func(cmd *cobra.Command) {
-		cmd.Short = "Start the influxd server (default)"
-		cmd.Long = `
-	Start up the daemon configured with flags/env vars/config file.
-
-	The order of precedence for config options are as follows (1 highest, 3 lowest):
-		1. flags
-		2. env vars
-		3. config file
-
-	A config file can be provided via the INFLUXD_CONFIG_PATH env var. If a file is
-	not provided via an env var, influxd will look in the current directory for a
-	config.{json|toml|yaml|yml} file. If one does not exist, then it will continue unchanged.`
-	}
-
-	cmd := cli.NewCommand(l.Viper, &prog)
-	runCmd := &cobra.Command{
-		Use:  "run",
-		RunE: cmd.RunE,
-		Args: cobra.NoArgs,
-	}
-	for _, c := range []*cobra.Command{cmd, runCmd} {
-		assignDescs(c)
-		setLauncherCMDOpts(l, c)
-	}
-	cmd.AddCommand(runCmd)
-
-	return cmd
-}
-
-func cmdRunE(ctx context.Context, l *Launcher) func() error {
-	return func() error {
-		fluxinit.FluxInit()
-
-		// Start the launcher and wait for it to exit on SIGINT or SIGTERM.
-		runCtx := signals.WithStandardSignals(ctx)
-		if err := l.run(runCtx); err != nil {
-			return err
-		} else if !l.Running() {
-			return errors.New("the daemon is already running")
-		}
-
-		var wg sync.WaitGroup
-		if !l.ReportingDisabled() {
-			reporter := telemetry.NewReporter(l.Log(), l.Registry())
-			reporter.Interval = 8 * time.Hour
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				reporter.Report(runCtx)
-			}()
-		}
-
-		<-runCtx.Done()
-
-		// Attempt clean shutdown.
-		shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-		l.Shutdown(shutdownCtx)
-		wg.Wait()
-
-		return nil
-	}
-}
-
-var vaultConfig vault.Config
-
-func setLauncherCMDOpts(l *Launcher, cmd *cobra.Command) {
-	cli.BindOptions(l.Viper, cmd, launcherOpts(l))
-}
-
-func launcherOpts(l *Launcher) []cli.Opt {
-	dir, err := fs.InfluxDir()
-	if err != nil {
-		panic(fmt.Errorf("failed to determine influx directory: %v", err))
-	}
-
-	return []cli.Opt{
-		{
-			DestP:   &l.logLevel,
-			Flag:    "log-level",
-			Default: zapcore.InfoLevel.String(),
-			Desc:    "supported log levels are debug, info, and error",
-		},
-		{
-			DestP:   &l.tracingType,
-			Flag:    "tracing-type",
-			Default: "",
-			Desc:    fmt.Sprintf("supported tracing types are %s, %s", LogTracing, JaegerTracing),
-		},
-		{
-			DestP:   &l.httpBindAddress,
-			Flag:    "http-bind-address",
-			Default: ":8086",
-			Desc:    "bind address for the REST HTTP API",
-		},
-		{
-			DestP:   &l.boltPath,
-			Flag:    "bolt-path",
-			Default: filepath.Join(dir, bolt.DefaultFilename),
-			Desc:    "path to boltdb database",
-		},
-		{
-			DestP: &l.assetsPath,
-			Flag:  "assets-path",
-			Desc:  "override default assets by serving from a specific directory (developer mode)",
-		},
-		{
-			DestP:   &l.storeType,
-			Flag:    "store",
-			Default: "bolt",
-			Desc:    "backing store for REST resources (bolt or memory)",
-		},
-		{
-			DestP:   &l.testing,
-			Flag:    "e2e-testing",
-			Default: false,
-			Desc:    "add /debug/flush endpoint to clear stores; used for end-to-end tests",
-		},
-		{
-			DestP:   &l.testingAlwaysAllowSetup,
-			Flag:    "testing-always-allow-setup",
-			Default: false,
-			Desc:    "ensures the /api/v2/setup endpoint always returns true to allow onboarding",
-		},
-		{
-			DestP:   &l.enginePath,
-			Flag:    "engine-path",
-			Default: filepath.Join(dir, "engine"),
-			Desc:    "path to persistent engine files",
-		},
-		{
-			DestP:   &l.secretStore,
-			Flag:    "secret-store",
-			Default: "bolt",
-			Desc:    "data store for secrets (bolt or vault)",
-		},
-		{
-			DestP:   &l.reportingDisabled,
-			Flag:    "reporting-disabled",
-			Default: false,
-			Desc:    "disable sending telemetry data to https://telemetry.influxdata.com every 8 hours",
-		},
-		{
-			DestP:   &l.sessionLength,
-			Flag:    "session-length",
-			Default: 60, // 60 minutes
-			Desc:    "ttl in minutes for newly created sessions",
-		},
-		{
-			DestP:   &l.sessionRenewDisabled,
-			Flag:    "session-renew-disabled",
-			Default: false,
-			Desc:    "disables automatically extending session ttl on request",
-		},
-		{
-			DestP: &vaultConfig.Address,
-			Flag:  "vault-addr",
-			Desc:  "address of the Vault server expressed as a URL and port, for example: https://127.0.0.1:8200/.",
-		},
-		{
-			DestP: &vaultConfig.ClientTimeout,
-			Flag:  "vault-client-timeout",
-			Desc:  "timeout variable. The default value is 60s.",
-		},
-		{
-			DestP: &vaultConfig.MaxRetries,
-			Flag:  "vault-max-retries",
-			Desc:  "maximum number of retries when a 5xx error code is encountered. The default is 2, for three total attempts. Set this to 0 or less to disable retrying.",
-		},
-		{
-			DestP: &vaultConfig.CACert,
-			Flag:  "vault-cacert",
-			Desc:  "path to a PEM-encoded CA certificate file on the local disk. This file is used to verify the Vault server's SSL certificate. This environment variable takes precedence over VAULT_CAPATH.",
-		},
-		{
-			DestP: &vaultConfig.CAPath,
-			Flag:  "vault-capath",
-			Desc:  "path to a directory of PEM-encoded CA certificate files on the local disk. These certificates are used to verify the Vault server's SSL certificate.",
-		},
-		{
-			DestP: &vaultConfig.ClientCert,
-			Flag:  "vault-client-cert",
-			Desc:  "path to a PEM-encoded client certificate on the local disk. This file is used for TLS communication with the Vault server.",
-		},
-		{
-			DestP: &vaultConfig.ClientKey,
-			Flag:  "vault-client-key",
-			Desc:  "path to an unencrypted, PEM-encoded private key on disk which corresponds to the matching client certificate.",
-		},
-		{
-			DestP: &vaultConfig.InsecureSkipVerify,
-			Flag:  "vault-skip-verify",
-			Desc:  "do not verify Vault's presented certificate before communicating with it. Setting this variable is not recommended and voids Vault's security model.",
-		},
-		{
-			DestP: &vaultConfig.TLSServerName,
-			Flag:  "vault-tls-server-name",
-			Desc:  "name to use as the SNI host when connecting via TLS.",
-		},
-		{
-			DestP: &vaultConfig.Token,
-			Flag:  "vault-token",
-			Desc:  "vault authentication token",
-		},
-		{
-			DestP:   &l.httpTLSCert,
-			Flag:    "tls-cert",
-			Default: "",
-			Desc:    "TLS certificate for HTTPs",
-		},
-		{
-			DestP:   &l.httpTLSKey,
-			Flag:    "tls-key",
-			Default: "",
-			Desc:    "TLS key for HTTPs",
-		},
-		{
-			DestP:   &l.httpTLSMinVersion,
-			Flag:    "tls-min-version",
-			Default: "1.2",
-			Desc:    "Minimum accepted TLS version",
-		},
-		{
-			DestP:   &l.httpTLSStrictCiphers,
-			Flag:    "tls-strict-ciphers",
-			Default: false,
-			Desc:    "Restrict accept ciphers to: ECDHE_RSA_WITH_AES_256_GCM_SHA384, ECDHE_RSA_WITH_AES_256_CBC_SHA, RSA_WITH_AES_256_GCM_SHA384, RSA_WITH_AES_256_CBC_SHA",
-		},
-		{
-			DestP:   &l.noTasks,
-			Flag:    "no-tasks",
-			Default: false,
-			Desc:    "disables the task scheduler",
-		},
-		{
-			DestP:   &l.concurrencyQuota,
-			Flag:    "query-concurrency",
-			Default: 10,
-			Desc:    "the number of queries that are allowed to execute concurrently",
-		},
-		{
-			DestP:   &l.initialMemoryBytesQuotaPerQuery,
-			Flag:    "query-initial-memory-bytes",
-			Default: 0,
-			Desc:    "the initial number of bytes allocated for a query when it is started. If this is unset, then query-memory-bytes will be used",
-		},
-		{
-			DestP:   &l.memoryBytesQuotaPerQuery,
-			Flag:    "query-memory-bytes",
-			Default: MaxInt,
-			Desc:    "maximum number of bytes a query is allowed to use at any given time. This must be greater or equal to query-initial-memory-bytes",
-		},
-		{
-			DestP:   &l.maxMemoryBytes,
-			Flag:    "query-max-memory-bytes",
-			Default: 0,
-			Desc:    "the maximum amount of memory used for queries. If this is unset, then this number is query-concurrency * query-memory-bytes",
-		},
-		{
-			DestP:   &l.queueSize,
-			Flag:    "query-queue-size",
-			Default: 10,
-			Desc:    "the number of queries that are allowed to be awaiting execution before new queries are rejected",
-		},
-		{
-			DestP: &l.featureFlags,
-			Flag:  "feature-flags",
-			Desc:  "feature flag overrides",
-		},
-
-		// storage configuration
-		{
-			DestP: &l.StorageConfig.Data.WALFsyncDelay,
-			Flag:  "storage-wal-fsync-delay",
-			Desc:  "The amount of time that a write will wait before fsyncing. A duration greater than 0 can be used to batch up multiple fsync calls. This is useful for slower disks or when WAL write contention is seen.",
-		},
-		{
-			DestP: &l.StorageConfig.Data.ValidateKeys,
-			Flag:  "storage-validate-keys",
-			Desc:  "Validates incoming writes to ensure keys only have valid unicode characters.",
-		},
-		{
-			DestP: &l.StorageConfig.Data.CacheMaxMemorySize,
-			Flag:  "storage-cache-max-memory-size",
-			Desc:  "The maximum size a shard's cache can reach before it starts rejecting writes.",
-		},
-		{
-			DestP: &l.StorageConfig.Data.CacheSnapshotMemorySize,
-			Flag:  "storage-cache-snapshot-memory-size",
-			Desc:  "The size at which the engine will snapshot the cache and write it to a TSM file, freeing up memory.",
-		},
-		{
-			DestP: &l.StorageConfig.Data.CacheSnapshotWriteColdDuration,
-			Flag:  "storage-cache-snapshot-write-cold-duration",
-			Desc:  "The length of time at which the engine will snapshot the cache and write it to a new TSM file if the shard hasn't received writes or deletes.",
-		},
-		{
-			DestP: &l.StorageConfig.Data.CompactFullWriteColdDuration,
-			Flag:  "storage-compact-full-write-cold-duration",
-			Desc:  "The duration at which the engine will compact all TSM files in a shard if it hasn't received a write or delete.",
-		},
-		{
-			DestP: &l.StorageConfig.Data.CompactThroughputBurst,
-			Flag:  "storage-compact-throughput-burst",
-			Desc:  "The rate limit in bytes per second that we will allow TSM compactions to write to disk.",
-		},
-		// limits
-		{
-			DestP: &l.StorageConfig.Data.MaxConcurrentCompactions,
-			Flag:  "storage-max-concurrent-compactions",
-			Desc:  "The maximum number of concurrent full and level compactions that can run at one time.  A value of 0 results in 50% of runtime.GOMAXPROCS(0) used at runtime.  Any number greater than 0 limits compactions to that value.  This setting does not apply to cache snapshotting.",
-		},
-		{
-			DestP: &l.StorageConfig.Data.MaxIndexLogFileSize,
-			Flag:  "storage-max-index-log-file-size",
-			Desc:  "The threshold, in bytes, when an index write-ahead log file will compact into an index file. Lower sizes will cause log files to be compacted more quickly and result in lower heap usage at the expense of write throughput.",
-		},
-		{
-			DestP: &l.StorageConfig.Data.SeriesIDSetCacheSize,
-			Flag:  "storage-series-id-set-cache-size",
-			Desc:  "The size of the internal cache used in the TSI index to store previously calculated series results.",
-		},
-		{
-			DestP: &l.StorageConfig.Data.SeriesFileMaxConcurrentSnapshotCompactions,
-			Flag:  "storage-series-file-max-concurrent-snapshot-compactions",
-			Desc:  "The maximum number of concurrent snapshot compactions that can be running at one time across all series partitions in a database.",
-		},
-		{
-			DestP: &l.StorageConfig.Data.TSMWillNeed,
-			Flag:  "storage-tsm-use-madv-willneed",
-			Desc:  "Controls whether we hint to the kernel that we intend to page in mmap'd sections of TSM files.",
-		},
-		{
-			DestP: &l.StorageConfig.RetentionService.CheckInterval,
-			Flag:  "storage-retention-check-interval",
-			Desc:  "The interval of time when retention policy enforcement checks run.",
-		},
-		{
-			DestP: &l.StorageConfig.PrecreatorConfig.CheckInterval,
-			Flag:  "storage-shard-precreator-check-interval",
-			Desc:  "The interval of time when the check to pre-create new shards runs.",
-		},
-		{
-			DestP: &l.StorageConfig.PrecreatorConfig.AdvancePeriod,
-			Flag:  "storage-shard-precreator-advance-period",
-			Desc:  "The default period ahead of the endtime of a shard group that its successor group is created.",
-		},
-
-		// InfluxQL Coordinator Config
-		{
-			DestP: &l.CoordinatorConfig.MaxSelectPointN,
-			Flag:  "influxql-max-select-point",
-			Desc:  "The maximum number of points a SELECT can process. A value of 0 will make the maximum point count unlimited. This will only be checked every second so queries will not be aborted immediately when hitting the limit.",
-		},
-		{
-			DestP: &l.CoordinatorConfig.MaxSelectSeriesN,
-			Flag:  "influxql-max-select-series",
-			Desc:  "The maximum number of series a SELECT can run. A value of 0 will make the maximum series count unlimited.",
-		},
-		{
-			DestP: &l.CoordinatorConfig.MaxSelectBucketsN,
-			Flag:  "influxql-max-select-buckets",
-			Desc:  "The maximum number of group by time bucket a SELECT can create. A value of zero will max the maximum number of buckets unlimited.",
-		},
-	}
-}
 
 // Launcher represents the main program execution.
 type Launcher struct {
-	wg      sync.WaitGroup
-	cancel  func()
-	running bool
+	wg     sync.WaitGroup
+	cancel func()
 
-	storeType               string
-	assetsPath              string
-	testing                 bool
-	testingAlwaysAllowSetup bool
-	sessionLength           int // in minutes
-	sessionRenewDisabled    bool
-
-	logLevel          string
-	tracingType       string
-	reportingDisabled bool
-
-	httpBindAddress string
-	boltPath        string
-	enginePath      string
-	secretStore     string
-
-	featureFlags map[string]string
-	flagger      feature.Flagger
-
-	// Query options.
-	concurrencyQuota                int32
-	initialMemoryBytesQuotaPerQuery int64
-	memoryBytesQuotaPerQuery        int64
-	maxMemoryBytes                  int64
-	queueSize                       int32
+	flagger feature.Flagger
 
 	boltClient *bolt.Client
 	kvStore    kv.SchemaStore
 	kvService  *kv.Service
 
 	// storage engine
-	engine        Engine
-	StorageConfig storage.Config
+	engine Engine
 
 	// InfluxQL query engine
-	CoordinatorConfig iqlcoordinator.Config
-
 	queryController *control.Controller
 
-	httpPort             int
-	httpServer           *nethttp.Server
-	httpTLSCert          string
-	httpTLSKey           string
-	httpTLSMinVersion    string
-	httpTLSStrictCiphers bool
+	httpPort   int
+	httpServer *nethttp.Server
 
 	natsServer *nats.Server
 	natsPort   int
 
-	noTasks            bool
 	scheduler          stoppingScheduler
 	executor           *executor.Executor
 	taskControlService taskbackend.TaskControlService
@@ -541,14 +123,10 @@ type Launcher struct {
 	log                *zap.Logger
 	reg                *prom.Registry
 
-	opts []Option
-
 	Stdin      io.Reader
 	Stdout     io.Writer
 	Stderr     io.Writer
 	apibackend *http.APIBackend
-
-	Viper *viper.Viper
 }
 
 type stoppingScheduler interface {
@@ -557,44 +135,19 @@ type stoppingScheduler interface {
 }
 
 // NewLauncher returns a new instance of Launcher connected to standard in/out/err.
-func NewLauncher(opts ...Option) *Launcher {
+func NewLauncher() *Launcher {
 	l := &Launcher{
-		opts:          opts,
-		Stdin:         os.Stdin,
-		Stdout:        os.Stdout,
-		Stderr:        os.Stderr,
-		StorageConfig: storage.NewConfig(),
-	}
-
-	for _, opt := range opts {
-		opt.applyInit(l)
-	}
-
-	if l.Viper == nil {
-		l.Viper = viper.New()
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	}
 
 	return l
 }
 
-// Running returns true if the main Launcher has started running.
-func (m *Launcher) Running() bool {
-	return m.running
-}
-
-// ReportingDisabled is true if opted out of usage stats.
-func (m *Launcher) ReportingDisabled() bool {
-	return m.reportingDisabled
-}
-
 // Registry returns the prometheus metrics registry.
 func (m *Launcher) Registry() *prom.Registry {
 	return m.reg
-}
-
-// Log returns the launchers logger.
-func (m *Launcher) Log() *zap.Logger {
-	return m.log
 }
 
 // URL returns the URL to connect to the HTTP server.
@@ -653,35 +206,14 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 // Cancel executes the context cancel on the program. Used for testing.
 func (m *Launcher) Cancel() { m.cancel() }
 
-// Run executes the program with the given CLI arguments.
-func (m *Launcher) Run(ctx context.Context, args ...string) error {
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Start the influxd server (default)",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return m.run(ctx)
-		},
-	}
-
-	setLauncherCMDOpts(m, cmd)
-
-	cmd.SetArgs(args)
-	return cmd.Execute()
-}
-
-func (m *Launcher) run(ctx context.Context) (err error) {
+func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	m.running = true
 	ctx, m.cancel = context.WithCancel(ctx)
 
-	for _, opt := range m.opts {
-		opt.applyConfig(m)
-	}
-
 	var logLevel zapcore.Level
-	if err := logLevel.Set(m.logLevel); err != nil {
+	if err := logLevel.Set(opts.LogLevel); err != nil {
 		return fmt.Errorf("unknown log level; supported levels are debug, info, and error")
 	}
 
@@ -704,7 +236,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		zap.String("build_date", info.Date),
 	)
 
-	switch m.tracingType {
+	switch opts.TracingType {
 	case LogTracing:
 		m.log.Info("Tracing via zap logging")
 		tracer := pzap.NewTracer(m.log, snowflake.NewIDGenerator())
@@ -727,7 +259,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	m.boltClient = bolt.NewClient(m.log.With(zap.String("service", "bolt")))
-	m.boltClient.Path = m.boltPath
+	m.boltClient.Path = opts.BoltPath
 
 	if err := m.boltClient.Open(ctx); err != nil {
 		m.log.Error("Failed opening bolt", zap.Error(err))
@@ -735,24 +267,24 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	var flushers flushers
-	switch m.storeType {
+	switch opts.StoreType {
 	case BoltStore:
-		store := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), m.boltPath)
+		store := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath)
 		store.WithDB(m.boltClient.DB())
 		m.kvStore = store
-		if m.testing {
+		if opts.Testing {
 			flushers = append(flushers, store)
 		}
 
 	case MemoryStore:
 		store := inmem.NewKVStore()
 		m.kvStore = store
-		if m.testing {
+		if opts.Testing {
 			flushers = append(flushers, store)
 		}
 
 	default:
-		err := fmt.Errorf("unknown store type %s; expected bolt or memory", m.storeType)
+		err := fmt.Errorf("unknown store type %s; expected bolt or memory", opts.StoreType)
 		m.log.Error("Failed opening bolt", zap.Error(err))
 		return err
 	}
@@ -819,20 +351,20 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	var secretSvc platform.SecretService = secret.NewMetricService(m.reg, secret.NewLogger(m.log.With(zap.String("service", "secret")), secret.NewService(secretStore)))
 
-	switch m.secretStore {
+	switch opts.SecretStore {
 	case "bolt":
 		// If it is bolt, then we already set it above.
 	case "vault":
 		// The vault secret service is configured using the standard vault environment variables.
 		// https://www.vaultproject.io/docs/commands/index.html#environment-variables
-		svc, err := vault.NewSecretService(vault.WithConfig(vaultConfig))
+		svc, err := vault.NewSecretService(vault.WithConfig(opts.VaultConfig))
 		if err != nil {
 			m.log.Error("Failed initializing vault secret service", zap.Error(err))
 			return err
 		}
 		secretSvc = svc
 	default:
-		err := fmt.Errorf("unknown secret service %q, expected \"bolt\" or \"vault\"", m.secretStore)
+		err := fmt.Errorf("unknown secret service %q, expected \"bolt\" or \"vault\"", opts.SecretStore)
 		m.log.Error("Failed setting secret service", zap.Error(err))
 		return err
 	}
@@ -849,23 +381,23 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if m.testing {
+	if opts.Testing {
 		// the testing engine will write/read into a temporary directory
 		engine := NewTemporaryEngine(
-			m.StorageConfig,
+			opts.StorageConfig,
 			storage.WithMetaClient(metaClient),
 		)
 		flushers = append(flushers, engine)
 		m.engine = engine
 	} else {
 		// check for 2.x data / state from a prior 2.x
-		if err := checkForPriorVersion(ctx, m.log, m.boltPath, m.enginePath, ts.BucketService, metaClient); err != nil {
+		if err := checkForPriorVersion(ctx, m.log, opts.BoltPath, opts.EnginePath, ts.BucketService, metaClient); err != nil {
 			os.Exit(1)
 		}
 
 		m.engine = storage.NewEngine(
-			m.enginePath,
-			m.StorageConfig,
+			opts.EnginePath,
+			opts.StorageConfig,
 			storage.WithMetaClient(metaClient),
 		)
 	}
@@ -898,11 +430,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	m.queryController, err = control.New(control.Config{
-		ConcurrencyQuota:                m.concurrencyQuota,
-		InitialMemoryBytesQuotaPerQuery: m.initialMemoryBytesQuotaPerQuery,
-		MemoryBytesQuotaPerQuery:        m.memoryBytesQuotaPerQuery,
-		MaxMemoryBytes:                  m.maxMemoryBytes,
-		QueueSize:                       m.queueSize,
+		ConcurrencyQuota:                opts.ConcurrencyQuota,
+		InitialMemoryBytesQuotaPerQuery: opts.InitialMemoryBytesQuotaPerQuery,
+		MemoryBytesQuotaPerQuery:        opts.MemoryBytesQuotaPerQuery,
+		MaxMemoryBytes:                  opts.MaxMemoryBytes,
+		QueueSize:                       opts.QueueSize,
 		Logger:                          m.log.With(zap.String("service", "storage-reads")),
 		ExecutorDependencies:            []flux.Dependency{deps},
 	})
@@ -939,7 +471,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		schLogger := m.log.With(zap.String("service", "task-scheduler"))
 
 		var sch stoppingScheduler = &scheduler.NoopScheduler{}
-		if !m.noTasks {
+		if !opts.NoTasks {
 			var (
 				sm  *scheduler.SchedulerMetrics
 				err error
@@ -997,9 +529,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	m.log.Info("Configuring InfluxQL statement executor (zeros indicate unlimited).",
-		zap.Int("max_select_point", m.CoordinatorConfig.MaxSelectPointN),
-		zap.Int("max_select_series", m.CoordinatorConfig.MaxSelectSeriesN),
-		zap.Int("max_select_buckets", m.CoordinatorConfig.MaxSelectBucketsN))
+		zap.Int("max_select_point", opts.CoordinatorConfig.MaxSelectPointN),
+		zap.Int("max_select_series", opts.CoordinatorConfig.MaxSelectSeriesN),
+		zap.Int("max_select_buckets", opts.CoordinatorConfig.MaxSelectBucketsN))
 
 	qe := iqlquery.NewExecutor(m.log, cm)
 	se := &iqlcoordinator.StatementExecutor{
@@ -1007,9 +539,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		TSDBStore:         m.engine.TSDBStore(),
 		ShardMapper:       mapper,
 		DBRP:              dbrpSvc,
-		MaxSelectPointN:   m.CoordinatorConfig.MaxSelectPointN,
-		MaxSelectSeriesN:  m.CoordinatorConfig.MaxSelectSeriesN,
-		MaxSelectBucketsN: m.CoordinatorConfig.MaxSelectBucketsN,
+		MaxSelectPointN:   opts.CoordinatorConfig.MaxSelectPointN,
+		MaxSelectSeriesN:  opts.CoordinatorConfig.MaxSelectSeriesN,
+		MaxSelectBucketsN: opts.CoordinatorConfig.MaxSelectBucketsN,
 	}
 	qe.StatementExecutor = se
 	qe.StatementNormalizer = se
@@ -1084,19 +616,19 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}(m.log)
 
 	m.httpServer = &nethttp.Server{
-		Addr: m.httpBindAddress,
+		Addr: opts.HttpBindAddress,
 	}
 
 	if m.flagger == nil {
 		m.flagger = feature.DefaultFlagger()
-		if len(m.featureFlags) > 0 {
-			f, err := overrideflagger.Make(m.featureFlags, feature.ByKey)
+		if len(opts.FeatureFlags) > 0 {
+			f, err := overrideflagger.Make(opts.FeatureFlags, feature.ByKey)
 			if err != nil {
 				m.log.Error("Failed to configure feature flag overrides",
-					zap.Error(err), zap.Any("overrides", m.featureFlags))
+					zap.Error(err), zap.Any("overrides", opts.FeatureFlags))
 				return err
 			}
-			m.log.Info("Running with feature flag overrides", zap.Any("overrides", m.featureFlags))
+			m.log.Info("Running with feature flag overrides", zap.Any("overrides", opts.FeatureFlags))
 			m.flagger = f
 		}
 	}
@@ -1108,7 +640,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			ts.UserService,
 			ts.UserResourceMappingService,
 			authSvc,
-			session.WithSessionLength(time.Duration(m.sessionLength)*time.Minute),
+			session.WithSessionLength(time.Duration(opts.SessionLength)*time.Minute),
 		)
 		sessionSvc = session.NewSessionMetrics(m.reg, sessionSvc)
 		sessionSvc = session.NewSessionLogger(m.log.With(zap.String("service", "session")), sessionSvc)
@@ -1129,7 +661,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	onboardingLogger := m.log.With(zap.String("handler", "onboard"))
 	onboardOpts := []tenant.OnboardServiceOptionFn{tenant.WithOnboardingLogger(onboardingLogger)}
-	if m.testingAlwaysAllowSetup {
+	if opts.TestingAlwaysAllowSetup {
 		onboardOpts = append(onboardOpts, tenant.WithAlwaysAllowInitialUser())
 	}
 
@@ -1191,10 +723,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	m.apibackend = &http.APIBackend{
-		AssetsPath:           m.assetsPath,
+		AssetsPath:           opts.AssetsPath,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
 		Logger:               m.log,
-		SessionRenewDisabled: m.sessionRenewDisabled,
+		SessionRenewDisabled: opts.SessionRenewDisabled,
 		NewBucketService:     source.NewBucketService,
 		NewQueryService:      source.NewQueryService,
 		PointsWriter: &storage.LoggingPointsWriter{
@@ -1393,12 +925,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			m.httpServer.Handler = http.LoggingMW(httpLogger)(m.httpServer.Handler)
 		}
 		// If we are in testing mode we allow all data to be flushed and removed.
-		if m.testing {
+		if opts.Testing {
 			m.httpServer.Handler = http.DebugFlush(ctx, m.httpServer.Handler, flushers)
 		}
 	}
 
-	ln, err := net.Listen("tcp", m.httpBindAddress)
+	ln, err := net.Listen("tcp", opts.HttpBindAddress)
 	if err != nil {
 		m.log.Error("failed http listener", zap.Error(err))
 		m.log.Info("Stopping")
@@ -1408,9 +940,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var cer tls.Certificate
 	transport := "http"
 
-	if m.httpTLSCert != "" && m.httpTLSKey != "" {
+	if opts.HttpTLSCert != "" && opts.HttpTLSKey != "" {
 		var err error
-		cer, err = tls.LoadX509KeyPair(m.httpTLSCert, m.httpTLSKey)
+		cer, err = tls.LoadX509KeyPair(opts.HttpTLSCert, opts.HttpTLSKey)
 
 		if err != nil {
 			m.log.Error("failed to load x509 key pair", zap.Error(err))
@@ -1422,7 +954,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		// Sensible default
 		var tlsMinVersion uint16 = tls.VersionTLS12
 
-		switch m.httpTLSMinVersion {
+		switch opts.HttpTLSMinVersion {
 		case "1.0":
 			m.log.Warn("Setting the minimum version of TLS to 1.0 - this is discouraged. Please use 1.2 or 1.3")
 			tlsMinVersion = tls.VersionTLS10
@@ -1446,7 +978,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		var cipherConfig []uint16 = nil
 
 		// TLS 1.3 does not support configuring the Cipher suites
-		if tlsMinVersion != tls.VersionTLS13 && m.httpTLSStrictCiphers {
+		if tlsMinVersion != tls.VersionTLS13 && opts.HttpTLSStrictCiphers {
 			cipherConfig = strictCiphers
 		}
 
@@ -1465,10 +997,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.wg.Add(1)
 	go func(log *zap.Logger) {
 		defer m.wg.Done()
-		log.Info("Listening", zap.String("transport", transport), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
+		log.Info("Listening", zap.String("transport", transport), zap.String("addr", opts.HttpBindAddress), zap.Int("port", m.httpPort))
 
 		if cer.Certificate != nil {
-			if err := m.httpServer.ServeTLS(ln, m.httpTLSCert, m.httpTLSKey); err != nethttp.ErrServerClosed {
+			if err := m.httpServer.ServeTLS(ln, opts.HttpTLSCert, opts.HttpTLSKey); err != nethttp.ErrServerClosed {
 				log.Error("Failed https service", zap.Error(err))
 			}
 		} else {
@@ -1479,7 +1011,22 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		log.Info("Stopping")
 	}(m.log)
 
+	if !opts.ReportingDisabled {
+		m.runReporter(ctx)
+	}
+
 	return nil
+}
+
+// runReporter configures and launches a periodic telemetry report for the server.
+func (m *Launcher) runReporter(ctx context.Context) {
+	reporter := telemetry.NewReporter(m.log, m.reg)
+	reporter.Interval = 8 * time.Hour
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		reporter.Report(ctx)
+	}()
 }
 
 func checkForPriorVersion(ctx context.Context, log *zap.Logger, boltPath string, enginePath string, bs platform.BucketService, metaClient *meta.Client) error {
