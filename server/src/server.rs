@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::TryStreamExt;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -33,6 +33,11 @@ pub enum Error {
     ServerError { source: std::io::Error },
     #[snafu(display("database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
+    #[snafu(display(
+        "invalid database name {} can only contain alphanumeric, _ and - characters",
+        db_name
+    ))]
+    InvalidDatabaseName { db_name: String },
     #[snafu(display("database error: {}", source))]
     UnknownDatabaseError { source: DatabaseError },
     #[snafu(display("no local buffer for database: {}", db))]
@@ -107,6 +112,12 @@ impl<M: ConnectionManager> Server<M> {
         self.require_id()?;
 
         let db_name = db_name.into();
+        ensure!(
+            db_name
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '-'),
+            InvalidDatabaseName { db_name }
+        );
 
         let buffer = if rules.store_locally {
             Some(WriteBufferDb::new(&db_name))
@@ -384,6 +395,38 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn database_name_validation() -> Result {
+        let manager = TestConnectionManager::new();
+        let store = ObjectStore::new_in_memory(InMemory::new());
+        let mut server = Server::new(manager, store);
+        server.set_id(1);
+
+        let reject: [&str; 4] = [
+            "bananas!",
+            r#""bananas\"are\"great"#,
+            "bananas:good",
+            "bananas/cavendish",
+        ];
+
+        for &name in &reject {
+            let rules = DatabaseRules {
+                store_locally: true,
+                ..Default::default()
+            };
+            let got = server.create_database(name, rules).await.unwrap_err();
+            if let Error::InvalidDatabaseName { db_name: got } = got {
+                if got != name {
+                    panic!(format!("expected name {} got {}", name, got));
+                }
+            } else {
+                panic!("unexpected error");
+            }
+        }
 
         Ok(())
     }
