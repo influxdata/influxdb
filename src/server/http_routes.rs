@@ -188,6 +188,10 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
     if ungzip {
         use std::io::Read;
         let decoder = flate2::read::GzDecoder::new(&body[..]);
+
+        // Read at most MAX_SIZE bytes to prevent a decompression bomb based
+        // DoS.
+        let mut decoder = decoder.take(MAX_SIZE as u64);
         let mut decoded_data = Vec::new();
         decoder
             .read_to_end(&mut decoded_data)
