@@ -11,7 +11,6 @@ import (
 	"path"
 	"runtime"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -59,8 +58,7 @@ type Service struct {
 	tlsConfig *tls.Config
 	err       chan error
 
-	httpServerMutex sync.Mutex
-	httpServer      []*http.Server
+	httpServer http.Server
 
 	unixSocket         bool
 	unixSocketPerm     uint32
@@ -75,6 +73,7 @@ type Service struct {
 
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
+	handler := NewHandler(c)
 	s := &Service{
 		addr:           c.BindAddress,
 		https:          c.HTTPSEnabled,
@@ -86,8 +85,11 @@ func NewService(c Config) *Service {
 		unixSocket:     c.UnixSocketEnabled,
 		unixSocketPerm: uint32(c.UnixSocketPermissions),
 		bindSocket:     c.BindSocket,
-		Handler:        NewHandler(c),
-		Logger:         zap.NewNop(),
+		Handler:        handler,
+		httpServer: http.Server{
+			Handler: handler,
+		},
+		Logger: zap.NewNop(),
 	}
 	if s.tlsConfig == nil {
 		s.tlsConfig = new(tls.Config)
@@ -200,19 +202,9 @@ func (s *Service) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s.httpServerMutex.Lock()
-	errCh := make(chan error, len(s.httpServer))
-	// shut down all running http servers
-	for _, server := range s.httpServer {
-		server := server
-		go func() { errCh <- server.Shutdown(ctx) }()
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		return err
 	}
-
-	// wait for shutdowns to complete
-	for i := 0; i < len(s.httpServer); i++ {
-		<-errCh
-	}
-	s.httpServerMutex.Unlock()
 
 	if s.ln != nil {
 		if err := s.ln.Close(); err != nil {
@@ -267,16 +259,9 @@ func (s *Service) serveUnixSocket() {
 
 // serve serves the handler from the listener.
 func (s *Service) serve(listener net.Listener) {
-	svr := &http.Server{
-		Handler: s.Handler,
-	}
-	s.httpServerMutex.Lock()
-	s.httpServer = append(s.httpServer, svr)
-	s.httpServerMutex.Unlock()
-
 	// The listener was closed so exit
 	// See https://github.com/golang/go/issues/4373
-	if err := svr.Serve(listener); err != nil && !strings.Contains(err.Error(), "closed") {
+	if err := s.httpServer.Serve(listener); err != nil && !strings.Contains(err.Error(), "closed") {
 		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
 	}
 }
