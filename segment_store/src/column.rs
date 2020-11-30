@@ -8,7 +8,7 @@ use std::convert::TryFrom;
 
 use croaring::Bitmap;
 
-use arrow_deps::arrow::array::{Float32Array, Float64Array, Int64Array, StringArray, UInt64Array};
+use arrow_deps::arrow::array::{Float64Array, Int64Array, StringArray, UInt64Array};
 use arrow_deps::{arrow, arrow::array::Array};
 
 // Edd's totally made up magic constant. This determines whether we would use
@@ -1239,9 +1239,7 @@ impl IntegerEncoding {
 }
 
 pub enum FloatEncoding {
-    Fixed64(fixed::Fixed<f64>),
-    Fixed32(fixed::Fixed<f32>),
-    // TODO(edd): encodings for nullable columns
+    Fixed64(fixed::Fixed<f64>), // TODO(edd): encodings for nullable columns
 }
 
 impl FloatEncoding {
@@ -1255,10 +1253,7 @@ impl FloatEncoding {
     /// Returns the logical value found at the provided row id.
     pub fn value(&self, row_id: u32) -> Value<'_> {
         match &self {
-            // N.B., The `Scalar` variant determines the physical type `U` that
-            // `c.value` should return.
             Self::Fixed64(c) => Value::Scalar(Scalar::F64(c.value(row_id))),
-            Self::Fixed32(c) => Value::Scalar(Scalar::F32(c.value(row_id))),
         }
     }
 
@@ -1268,7 +1263,6 @@ impl FloatEncoding {
     pub fn values(&self, row_ids: &[u32]) -> Values {
         match &self {
             Self::Fixed64(c) => Values::F64(Float64Array::from(c.values::<f64>(row_ids, vec![]))),
-            Self::Fixed32(c) => Values::F32(Float32Array::from(c.values::<f32>(row_ids, vec![]))),
         }
     }
 
@@ -1280,7 +1274,6 @@ impl FloatEncoding {
     pub fn row_ids_filter(&self, op: &cmp::Operator, value: &Scalar, dst: RowIDs) -> RowIDs {
         match &self {
             FloatEncoding::Fixed64(c) => c.row_ids_filter(value.as_f64(), op, dst),
-            FloatEncoding::Fixed32(c) => c.row_ids_filter(value.as_f32(), op, dst),
         }
     }
 
@@ -1299,37 +1292,30 @@ impl FloatEncoding {
             FloatEncoding::Fixed64(c) => {
                 c.row_ids_filter_range((low.1.as_f64(), &low.0), (high.1.as_f64(), &high.0), dst)
             }
-            FloatEncoding::Fixed32(c) => {
-                c.row_ids_filter_range((low.1.as_f32(), &low.0), (high.1.as_f32(), &high.0), dst)
-            }
         }
     }
 
     pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
             FloatEncoding::Fixed64(c) => Value::Scalar(Scalar::F64(c.min(row_ids))),
-            FloatEncoding::Fixed32(c) => Value::Scalar(Scalar::F32(c.min(row_ids))),
         }
     }
 
     pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
             FloatEncoding::Fixed64(c) => Value::Scalar(Scalar::F64(c.max(row_ids))),
-            FloatEncoding::Fixed32(c) => Value::Scalar(Scalar::F32(c.max(row_ids))),
         }
     }
 
     pub fn sum(&self, row_ids: &[u32]) -> Value<'_> {
         match &self {
             FloatEncoding::Fixed64(c) => Value::Scalar(Scalar::F64(c.sum(row_ids))),
-            FloatEncoding::Fixed32(c) => Value::Scalar(Scalar::F32(c.sum(row_ids))),
         }
     }
 
     pub fn count(&self, row_ids: &[u32]) -> u32 {
         match &self {
             FloatEncoding::Fixed64(c) => c.count(row_ids),
-            FloatEncoding::Fixed32(c) => c.count(row_ids),
         }
     }
 }
@@ -1839,28 +1825,6 @@ impl From<&[f64]> for Column {
         };
 
         Column::Float(meta, FloatEncoding::Fixed64(data))
-    }
-}
-
-/// Converts a slice of `f32` values into a fixed-width column encoding.
-impl From<&[f32]> for Column {
-    fn from(arr: &[f32]) -> Self {
-        // determine min and max values.
-        let mut min = arr[0];
-        let mut max = arr[0];
-        for &v in arr.iter().skip(1) {
-            min = min.min(v);
-            max = max.max(v);
-        }
-
-        let data = fixed::Fixed::<f32>::from(arr);
-        let meta = MetaData {
-            size: data.size(),
-            rows: data.num_rows(),
-            range: Some((min as f64, max as f64)),
-        };
-
-        Column::Float(meta, FloatEncoding::Fixed32(data))
     }
 }
 
@@ -2441,9 +2405,7 @@ impl RowIDs {
 #[cfg(test)]
 mod test {
     use super::*;
-    use arrow_deps::arrow::array::{
-        Float32Array, Float64Array, Int64Array, StringArray, UInt64Array,
-    };
+    use arrow_deps::arrow::array::{Float64Array, Int64Array, StringArray, UInt64Array};
 
     #[test]
     fn row_ids_intersect() {
@@ -2873,13 +2835,6 @@ mod test {
         assert_eq!(
             col.values(&[1, 3]),
             Values::F64(Float64Array::from(vec![1.1, 22.3]))
-        );
-
-        // physical and logical type of `col` will be `f32`
-        let col = Column::from(&[0.0_f32, 1.1, 20.2, 22.3, 100.1324][..]);
-        assert_eq!(
-            col.values(&[1, 3]),
-            Values::F32(Float32Array::from(vec![1.1, 22.3]))
         );
 
         let col = Column::from(&[Some("a"), Some("b"), None, Some("c")][..]);
@@ -3527,9 +3482,9 @@ mod test {
         assert_eq!(col.max(&[0, 1, 3][..]), Value::Scalar(Scalar::I64(200)));
         assert_eq!(col.max(&[0, 1, 2][..]), Value::Scalar(Scalar::I64(300)));
 
-        let input = &[10.2_f32, -2.43, 200.2];
+        let input = &[10.2_f64, -2.43, 200.2];
         let col = Column::from(&input[..]);
-        assert_eq!(col.max(&[0, 1, 2][..]), Value::Scalar(Scalar::F32(200.2)));
+        assert_eq!(col.max(&[0, 1, 2][..]), Value::Scalar(Scalar::F64(200.2)));
 
         let input = vec![None, Some(200), None];
         let arr = Int64Array::from(input);
@@ -3549,9 +3504,9 @@ mod test {
         assert_eq!(col.sum(&[0, 1, 3][..]), Value::Scalar(Scalar::I64(302)));
         assert_eq!(col.sum(&[0, 1, 2][..]), Value::Scalar(Scalar::I64(600)));
 
-        let input = &[10.2_f32, -2.43, 200.2];
+        let input = &[10.2f64, -2.43, 200.2];
         let col = Column::from(&input[..]);
-        assert_eq!(col.sum(&[0, 1, 2][..]), Value::Scalar(Scalar::F32(207.97)));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Value::Scalar(Scalar::F64(207.97)));
 
         let input = vec![None, Some(200), None];
         let arr = Int64Array::from(input);
@@ -3565,7 +3520,7 @@ mod test {
         let col = Column::from(&input[..]);
         assert_eq!(col.count(&[0, 1, 3][..]), 3);
 
-        let input = &[10.2_f32, -2.43, 200.2];
+        let input = &[10.2_f64, -2.43, 200.2];
         let col = Column::from(&input[..]);
         assert_eq!(col.count(&[0, 1][..]), 2);
 
