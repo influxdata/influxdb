@@ -31,6 +31,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
+	"go.uber.org/zap"
 )
 
 func TestLauncher_Write_Query_FieldKey(t *testing.T) {
@@ -245,7 +246,7 @@ func queryPoints(ctx context.Context, t *testing.T, l *launcher.TestLauncher, op
 func TestLauncher_QueryMemoryLimits(t *testing.T) {
 	tcs := []struct {
 		name           string
-		args           []string
+		setOpts        launcher.OptSetter
 		err            bool
 		querySizeBytes int
 		// max_memory - per_query_memory * concurrency
@@ -253,10 +254,10 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 	}{
 		{
 			name: "ok - initial memory bytes, memory bytes, and max memory set",
-			args: []string{
-				"--query-concurrency", "1",
-				"--query-initial-memory-bytes", "100",
-				"--query-max-memory-bytes", "1048576", // 1MB
+			setOpts: func(o *launcher.InfluxdOpts) {
+				o.ConcurrencyQuota = 1
+				o.InitialMemoryBytesQuotaPerQuery = 100
+				o.MaxMemoryBytes = 1048576 // 1MB
 			},
 			querySizeBytes:    30000,
 			err:               false,
@@ -264,10 +265,10 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 		},
 		{
 			name: "error - memory bytes and max memory set",
-			args: []string{
-				"--query-concurrency", "1",
-				"--query-memory-bytes", "1",
-				"--query-max-memory-bytes", "100",
+			setOpts: func(o *launcher.InfluxdOpts) {
+				o.ConcurrencyQuota = 1
+				o.MemoryBytesQuotaPerQuery = 1
+				o.MaxMemoryBytes = 100
 			},
 			querySizeBytes:    2,
 			err:               true,
@@ -275,10 +276,10 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 		},
 		{
 			name: "error - initial memory bytes and max memory set",
-			args: []string{
-				"--query-concurrency", "1",
-				"--query-initial-memory-bytes", "1",
-				"--query-max-memory-bytes", "100",
+			setOpts: func(o *launcher.InfluxdOpts) {
+				o.ConcurrencyQuota = 1
+				o.InitialMemoryBytesQuotaPerQuery = 1
+				o.MaxMemoryBytes = 100
 			},
 			querySizeBytes:    101,
 			err:               true,
@@ -286,11 +287,11 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 		},
 		{
 			name: "error - initial memory bytes, memory bytes, and max memory set",
-			args: []string{
-				"--query-concurrency", "1",
-				"--query-initial-memory-bytes", "1",
-				"--query-memory-bytes", "50",
-				"--query-max-memory-bytes", "100",
+			setOpts: func(o *launcher.InfluxdOpts) {
+				o.ConcurrencyQuota = 1
+				o.InitialMemoryBytesQuotaPerQuery = 1
+				o.MemoryBytesQuotaPerQuery = 50
+				o.MaxMemoryBytes = 100
 			},
 			querySizeBytes:    51,
 			err:               true,
@@ -300,7 +301,7 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			l := launcher.RunTestLauncherOrFail(t, ctx, nil, tc.args...)
+			l := launcher.RunTestLauncherOrFail(t, ctx, nil, tc.setOpts)
 			l.SetupOrFail(t)
 			defer l.ShutdownOrFail(t, ctx)
 
@@ -338,13 +339,13 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\" on OK query")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
-		"--log-level", "error",
-		"--query-concurrency", "1",
-		"--query-initial-memory-bytes", "100",
-		"--query-memory-bytes", "50000",
-		"--query-max-memory-bytes", "200000",
-	)
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil, func(o *launcher.InfluxdOpts) {
+		o.LogLevel = zap.ErrorLevel.String()
+		o.ConcurrencyQuota = 1
+		o.InitialMemoryBytesQuotaPerQuery = 100
+		o.MemoryBytesQuotaPerQuery = 50000
+		o.MaxMemoryBytes = 200000
+	})
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -383,13 +384,13 @@ func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\"")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
-		"--log-level", "error",
-		"--query-concurrency", "1",
-		"--query-initial-memory-bytes", "100",
-		"--query-memory-bytes", "50000",
-		"--query-max-memory-bytes", "200000",
-	)
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil, func(o *launcher.InfluxdOpts) {
+		o.LogLevel = zap.ErrorLevel.String()
+		o.ConcurrencyQuota = 1
+		o.InitialMemoryBytesQuotaPerQuery = 100
+		o.MemoryBytesQuotaPerQuery = 50000
+		o.MaxMemoryBytes = 200000
+	})
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
@@ -427,14 +428,14 @@ func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ConcurrentQueries(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"dial tcp 127.0.0.1:59654: connect: connection reset by peer\"")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
-		"--log-level", "error",
-		"--query-queue-size", "1024",
-		"--query-concurrency", "1",
-		"--query-initial-memory-bytes", "10000",
-		"--query-memory-bytes", "50000",
-		"--query-max-memory-bytes", "200000",
-	)
+	l := launcher.RunTestLauncherOrFail(t, ctx, nil, func(o *launcher.InfluxdOpts) {
+		o.LogLevel = zap.ErrorLevel.String()
+		o.QueueSize = 1024
+		o.ConcurrencyQuota = 1
+		o.InitialMemoryBytesQuotaPerQuery = 10000
+		o.MemoryBytesQuotaPerQuery = 50000
+		o.MaxMemoryBytes = 200000
+	})
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
