@@ -8,12 +8,12 @@ import (
 // PipelineOption configures a pipeline.
 type PipelineOption interface {
 	applyConfig(*pipelineConfig)
-	makeLauncherOption() launcher.Option
+	applyOptSetter(*launcher.InfluxdOpts)
 }
 
 type pipelineOption struct {
-	applyConfigFn        func(*pipelineConfig)
-	makeLauncherOptionFn func() launcher.Option
+	applyConfigFn func(*pipelineConfig)
+	optSetter     launcher.OptSetter
 }
 
 var _ PipelineOption = pipelineOption{}
@@ -24,11 +24,10 @@ func (o pipelineOption) applyConfig(pc *pipelineConfig) {
 	}
 }
 
-func (o pipelineOption) makeLauncherOption() launcher.Option {
-	if o.makeLauncherOptionFn != nil {
-		return o.makeLauncherOptionFn()
+func (o pipelineOption) applyOptSetter(opts *launcher.InfluxdOpts) {
+	if o.optSetter != nil {
+		o.optSetter(opts)
 	}
-	return nil
 }
 
 // WithDefaults returns a slice of options for a default pipeline.
@@ -36,11 +35,11 @@ func WithDefaults() []PipelineOption {
 	return []PipelineOption{}
 }
 
-// WithReplicas sets the number of replicas in the pipeline.
+// WithLogger sets the logger for the pipeline itself, and the underlying launcher.
 func WithLogger(logger *zap.Logger) PipelineOption {
 	return pipelineOption{
-		applyConfigFn: func(pc *pipelineConfig) {
-			pc.logger = logger
+		applyConfigFn: func(config *pipelineConfig) {
+			config.logger = logger
 		},
 	}
 }
@@ -48,8 +47,8 @@ func WithLogger(logger *zap.Logger) PipelineOption {
 // WithInfluxQLMaxSelectSeriesN configures the maximum number of series returned by a select statement.
 func WithInfluxQLMaxSelectSeriesN(n int) PipelineOption {
 	return pipelineOption{
-		makeLauncherOptionFn: func() launcher.Option {
-			return launcher.WithInfluxQLMaxSelectSeriesN(n)
+		optSetter: func(o *launcher.InfluxdOpts) {
+			o.CoordinatorConfig.MaxSelectSeriesN = n
 		},
 	}
 }
@@ -57,8 +56,8 @@ func WithInfluxQLMaxSelectSeriesN(n int) PipelineOption {
 // WithInfluxQLMaxSelectBucketsN configures the maximum number of buckets returned by a select statement.
 func WithInfluxQLMaxSelectBucketsN(n int) PipelineOption {
 	return pipelineOption{
-		makeLauncherOptionFn: func() launcher.Option {
-			return launcher.WithInfluxQLMaxSelectBucketsN(n)
+		optSetter: func(o *launcher.InfluxdOpts) {
+			o.CoordinatorConfig.MaxSelectBucketsN = n
 		},
 	}
 }

@@ -27,7 +27,9 @@ import (
 var ctx = context.Background()
 
 func TestLauncher_Pkger(t *testing.T) {
-	l := RunTestLauncherOrFail(t, ctx, nil, "--log-level", "error")
+	l := RunTestLauncherOrFail(t, ctx, nil, func(o *InfluxdOpts) {
+		o.LogLevel = zap.ErrorLevel.String()
+	})
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 	require.NoError(t, l.BucketService(t).DeleteBucket(ctx, l.Bucket.ID))

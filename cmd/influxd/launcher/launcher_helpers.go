@@ -30,6 +30,8 @@ import (
 	"github.com/influxdata/influxdb/v2/tenant"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 // TestLauncher is a test wrapper for launcher.Launcher.
@@ -57,8 +59,8 @@ type TestLauncher struct {
 }
 
 // NewTestLauncher returns a new instance of TestLauncher.
-func NewTestLauncher(flagger feature.Flagger, opts ...Option) *TestLauncher {
-	l := &TestLauncher{Launcher: NewLauncher(opts...)}
+func NewTestLauncher(flagger feature.Flagger) *TestLauncher {
+	l := &TestLauncher{Launcher: NewLauncher()}
 	l.Launcher.Stdin = &l.Stdin
 	l.Launcher.Stdout = &l.Stdout
 	l.Launcher.Stderr = &l.Stderr
@@ -84,39 +86,49 @@ func NewTestLauncherServer(flagger feature.Flagger) *TestLauncher {
 }
 
 // RunTestLauncherOrFail initializes and starts the server.
-func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, flagger feature.Flagger, args ...string) *TestLauncher {
+func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, flagger feature.Flagger, setters ...OptSetter) *TestLauncher {
 	tb.Helper()
 	l := NewTestLauncher(flagger)
 
-	if err := l.Run(ctx, args...); err != nil {
+	if err := l.Run(ctx, setters...); err != nil {
 		tb.Fatal(err)
 	}
 	return l
 }
 
+// SetLogger sets the logger for the underlying program.
+func (tl *TestLauncher) SetLogger(logger *zap.Logger) {
+	tl.Launcher.log = logger
+}
+
+type OptSetter = func(o *InfluxdOpts)
+
 // Run executes the program with additional arguments to set paths and ports.
 // Passed arguments will overwrite/add to the default ones.
-func (tl *TestLauncher) Run(ctx context.Context, args ...string) error {
-	largs := make([]string, 0, len(args)+8)
+func (tl *TestLauncher) Run(ctx context.Context, setters ...OptSetter) error {
+	opts := newOpts(viper.New())
 	if !tl.realServer {
-		largs = append(largs, "--store", "memory")
-		largs = append(largs, "--e2e-testing")
+		opts.StoreType = "memory"
+		opts.Testing = true
 	}
-	largs = append(largs, "--testing-always-allow-setup")
-	largs = append(largs, "--bolt-path", filepath.Join(tl.Path, bolt.DefaultFilename))
-	largs = append(largs, "--engine-path", filepath.Join(tl.Path, "engine"))
-	largs = append(largs, "--http-bind-address", "127.0.0.1:0")
-	largs = append(largs, "--log-level", "debug")
-	largs = append(largs, args...)
-	return tl.Launcher.Run(ctx, largs...)
+	opts.TestingAlwaysAllowSetup = true
+	opts.BoltPath = filepath.Join(tl.Path, bolt.DefaultFilename)
+	opts.EnginePath = filepath.Join(tl.Path, "engine")
+	opts.HttpBindAddress = "127.0.0.1:0"
+	opts.LogLevel = zap.DebugLevel.String()
+	opts.ReportingDisabled = true
+
+	for _, setter := range setters {
+		setter(opts)
+	}
+
+	return tl.Launcher.run(ctx, opts)
 }
 
 // Shutdown stops the program and cleans up temporary paths.
 func (tl *TestLauncher) Shutdown(ctx context.Context) error {
-	if tl.running {
-		tl.Cancel()
-		tl.Launcher.Shutdown(ctx)
-	}
+	tl.Cancel()
+	tl.Launcher.Shutdown(ctx)
 	return os.RemoveAll(tl.Path)
 }
 
