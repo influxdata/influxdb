@@ -481,7 +481,7 @@ func (s *Service) Delete(ctx context.Context, orgID, id influxdb.ID) error {
 		return ErrInternalService(err)
 	}
 
-	encodedOrgID, err := id.Encode()
+	encodedOrgID, err := orgID.Encode()
 	if err != nil {
 		return ErrInternalService(err)
 	}
