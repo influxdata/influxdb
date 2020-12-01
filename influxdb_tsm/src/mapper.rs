@@ -641,7 +641,7 @@ mod tests {
     use super::*;
     use crate::reader::*;
 
-    use libflate::gzip;
+    use flate2::read::GzDecoder;
 
     use std::fs::File;
     use std::io::BufReader;
@@ -653,7 +653,7 @@ mod tests {
     #[test]
     fn map_tsm_index() {
         let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+        let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
@@ -669,7 +669,7 @@ mod tests {
     #[test]
     fn map_field_columns_file() {
         let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+        let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
@@ -712,7 +712,7 @@ mod tests {
     #[test]
     fn measurement_table_columns() {
         let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+        let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
