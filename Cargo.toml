@@ -75,7 +75,7 @@ criterion = "0.3"
 test_helpers = { path = "test_helpers" }
 hex = "0.4.2"
 influxdb2_client = { path = "influxdb2_client" }
-libflate = "1.0.0"
+flate2 = "1.0"
 rand = "0.7.2"
 reqwest = "0.10.1"
 predicates = "1.0.4"
