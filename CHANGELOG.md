@@ -1,15 +1,5 @@
 ## unreleased
 
-### Features
-
-1. [20204](https://github.com/influxdata/influxdb/pull/20204): Improve ID-related error messages for `influx v1 dbrp` commands.
-
-### Bug Fixes
-
-1. [20201](https://github.com/influxdata/influxdb/pull/20201): Optimize shard lookup in groups containing only one shard. Thanks @StoneYunZhao!
-
-## v2.0.3 [unreleased]
-
 ### Breaking Changes
 
 Previously, `influxd upgrade` would attempt to write upgraded `config.toml` files into the same directory as the source
@@ -27,6 +17,7 @@ want to use the default.
 1. [20123](https://github.com/influxdata/influxdb/pull/20123): Allow password to be specified as a CLI option in `influx v1 auth create`.
 1. [20123](https://github.com/influxdata/influxdb/pull/20123): Allow password to be specified as a CLI option in `influx v1 auth set-password`.
 1. [20110](https://github.com/influxdata/influxdb/pull/20110): Allow for users to specify where V2 config should be written in `influxd upgrade`.
+1. [20204](https://github.com/influxdata/influxdb/pull/20204): Improve ID-related error messages for `influx v1 dbrp` commands.
 
 ### Bug Fixes
 
@@ -37,6 +28,7 @@ want to use the default.
 1. [20149](https://github.com/influxdata/influxdb/pull/20149): Enforce max value of 2147483647 on query concurrency to avoid startup panic.
 1. [20149](https://github.com/influxdata/influxdb/pull/20149): Enforce max value of 2147483647 on query queue size to avoid startup panic.
 1. [20168](https://github.com/influxdata/influxdb/pull/20168): Auto-migrate existing DBRP mappings from old schema to avoid panic.
+1. [20201](https://github.com/influxdata/influxdb/pull/20201): Optimize shard lookup in groups containing only one shard. Thanks @StoneYunZhao!
 
 ## v2.0.2 [2020-11-19]
 
