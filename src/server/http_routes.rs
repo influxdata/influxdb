@@ -405,15 +405,11 @@ mod tests {
     }
 
     fn gzip_str(s: &str) -> Vec<u8> {
-        use libflate::gzip::Encoder;
+        use flate2::{write::GzEncoder, Compression};
         use std::io::Write;
-
-        let mut encoder = Encoder::new(Vec::new()).expect("creating gzip encoder");
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
         write!(encoder, "{}", s).expect("writing into encoder");
-        encoder
-            .finish()
-            .into_result()
-            .expect("successfully encoding gzip data")
+        encoder.finish().expect("successfully encoding gzip data")
     }
 
     #[tokio::test]

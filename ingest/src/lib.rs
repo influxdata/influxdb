@@ -1097,7 +1097,7 @@ mod tests {
     use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource, Packers};
     use test_helpers::approximately_equal;
 
-    use libflate::gzip;
+    use flate2::read::GzDecoder;
     use std::fs::File;
     use std::io::BufReader;
     use std::io::Cursor;
@@ -2063,7 +2063,7 @@ mod tests {
     #[test]
     fn conversion_tsm_file_single() -> Result<(), Error> {
         let file = File::open("../tests/fixtures/merge-tsm/merge_a.tsm.gz");
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+        let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
@@ -2107,14 +2107,14 @@ mod tests {
         let mut block_streams = Vec::new();
 
         let file_a = File::open("../tests/fixtures/merge-tsm/merge_a.tsm.gz");
-        let mut decoder_a = gzip::Decoder::new(file_a.unwrap()).unwrap();
+        let mut decoder_a = GzDecoder::new(file_a.unwrap());
         let mut buf_a = Vec::new();
         decoder_a.read_to_end(&mut buf_a).unwrap();
         index_streams.push((BufReader::new(Cursor::new(&buf_a)), 39475));
         block_streams.push(BufReader::new(Cursor::new(&buf_a)));
 
         let file_b = File::open("../tests/fixtures/merge-tsm/merge_b.tsm.gz");
-        let mut decoder_b = gzip::Decoder::new(file_b.unwrap()).unwrap();
+        let mut decoder_b = GzDecoder::new(file_b.unwrap());
         let mut buf_b = Vec::new();
         decoder_b.read_to_end(&mut buf_b).unwrap();
         index_streams.push((BufReader::new(Cursor::new(&buf_b)), 45501));

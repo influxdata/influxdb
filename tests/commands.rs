@@ -5,7 +5,6 @@ use std::path::Path;
 
 use assert_cmd::assert::Assert;
 use assert_cmd::Command;
-use libflate::gzip;
 use predicates::prelude::*;
 
 /// Validates that p is a valid parquet file
@@ -261,7 +260,7 @@ fn uncompress_gz(input_path: &str, output_extension: &str) -> test_helpers::temp
         .into_temp_path();
 
     let mut output_file = File::create(&output_path).expect("error opening output");
-    let mut decoder = gzip::Decoder::new(gz_file).expect("error creating gzip decoder");
+    let mut decoder = flate2::read::GzDecoder::new(gz_file);
     std::io::copy(&mut decoder, &mut output_file).expect("error copying stream");
     output_path
 }

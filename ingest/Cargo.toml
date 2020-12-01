@@ -19,4 +19,4 @@ arrow_deps = { path = "../arrow_deps" }
 
 [dev-dependencies]
 test_helpers ={ path = "../test_helpers" }
-libflate = "1.0.0"
+flate2 = "1.0"

@@ -14,13 +14,13 @@ use std::u64;
 ///
 /// ```
 /// # use influxdb_tsm::reader::*;
-/// # use libflate::gzip;
+/// # use flate2::read::GzDecoder;
 /// # use std::fs::File;
 /// # use std::io::BufReader;
 /// # use std::io::Cursor;
 /// # use std::io::Read;
 /// # let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-/// # let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+/// # let mut decoder = GzDecoder::new(file.unwrap());
 /// # let mut buf = Vec::new();
 /// # decoder.read_to_end(&mut buf).unwrap();
 /// # let data_len = buf.len();
@@ -675,7 +675,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libflate::gzip;
+    use flate2::read::GzDecoder;
     use std::fs::File;
     use std::i64;
     use std::io::BufReader;
@@ -685,7 +685,7 @@ mod tests {
     #[test]
     fn read_tsm_index() {
         let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+        let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
@@ -698,7 +698,7 @@ mod tests {
     #[test]
     fn read_tsm_block() {
         let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+        let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
 
@@ -752,7 +752,7 @@ mod tests {
     #[test]
     fn decode_tsm_blocks() {
         let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+        let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
         let r = Cursor::new(buf);
@@ -803,7 +803,7 @@ mod tests {
     // ensures no errors are returned from the reader.
     fn walk_index_and_check_for_errors(tsm_gz_path: &str) {
         let file = File::open(tsm_gz_path);
-        let mut decoder = gzip::Decoder::new(file.unwrap()).unwrap();
+        let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
         let data_len = buf.len();
