@@ -24,7 +24,7 @@ use data_types::error::ErrorLogger;
 use generated_types::{node, Node};
 use query::group_by::GroupByAndAggregate;
 
-use crate::server::rpc::expr::{self, AddRPCNode, SpecialTagKeys};
+use crate::server::rpc::expr::{self, AddRPCNode, Loggable, SpecialTagKeys};
 use crate::server::rpc::input::GrpcInputs;
 
 use query::{
@@ -288,7 +288,12 @@ where
             predicate,
         } = read_filter_request;
 
-        info!("read_filter for database {}, range: {:?}", db_name, range);
+        info!(
+            "read_filter for database {}, range: {:?}, predicate: {}",
+            db_name,
+            range,
+            predicate.loggable()
+        );
 
         read_filter_impl(
             tx.clone(),
@@ -327,8 +332,9 @@ where
         } = read_group_request;
 
         info!(
-            "read_group for database {}, range: {:?}, group_keys: {:?}, group: {:?}, aggregate: {:?}",
-            db_name, range, group_keys, group, aggregate
+            "read_group for database {}, range: {:?}, group_keys: {:?}, group: {:?}, aggregate: {:?}, predicate: {}",
+            db_name, range, group_keys, group, aggregate,
+              predicate.loggable()
         );
 
         warn!("read_group implementation not yet complete: https://github.com/influxdata/influxdb_iox/issues/448");
@@ -383,8 +389,9 @@ where
         } = read_window_aggregate_request;
 
         info!(
-            "read_window_aggregate for database {}, range: {:?}, window_every: {:?}, offset: {:?}, aggregate: {:?}, window: {:?}",
-            db_name, range, window_every, offset, aggregate, window
+            "read_window_aggregate for database {}, range: {:?}, window_every: {:?}, offset: {:?}, aggregate: {:?}, window: {:?}, predicate: {}",
+            db_name, range, window_every, offset, aggregate, window,
+              predicate.loggable()
         );
 
         let aggregate_string = format!(
@@ -428,7 +435,12 @@ where
             predicate,
         } = tag_keys_request;
 
-        info!("tag_keys for database {}, range: {:?}", db_name, range);
+        info!(
+            "tag_keys for database {}, range: {:?}, predicate: {}",
+            db_name,
+            range,
+            predicate.loggable()
+        );
 
         let measurement = None;
 
@@ -474,8 +486,9 @@ where
         // Special case a request for 'tag_key=_measurement" means to list all measurements
         let response = if tag_key.is_measurement() {
             info!(
-                "tag_values with tag_key=[x00] for database {}, range: {:?} --> returning measurement_names",
-                db_name, range
+                "tag_values with tag_key=[x00] for database {}, range: {:?}, predicate: {} --> returning measurement_names",
+                db_name, range,
+                    predicate.loggable()
             );
 
             if predicate.is_some() {
@@ -486,8 +499,11 @@ where
                 .await
         } else {
             info!(
-                "tag_values for database {}, range: {:?}, tag_key: {}",
-                db_name, range, tag_key
+                "tag_values for database {}, range: {:?}, tag_key: {}, predicate: {}",
+                db_name,
+                range,
+                tag_key,
+                predicate.loggable()
             );
 
             tag_values_impl(
@@ -583,8 +599,10 @@ where
         }
 
         info!(
-            "measurement_names for database {}, range: {:?}",
-            db_name, range
+            "measurement_names for database {}, range: {:?}, predicate: {}",
+            db_name,
+            range,
+            predicate.loggable()
         );
 
         let response =
@@ -619,8 +637,11 @@ where
         } = measurement_tag_keys_request;
 
         info!(
-            "measurement_tag_keys for database {}, range: {:?}, measurement: {}",
-            db_name, range, measurement
+            "measurement_tag_keys for database {}, range: {:?}, measurement: {}, predicate: {}",
+            db_name,
+            range,
+            measurement,
+            predicate.loggable()
         );
 
         let measurement = Some(measurement);
@@ -664,8 +685,9 @@ where
         } = measurement_tag_values_request;
 
         info!(
-            "measurement_tag_values for database {}, range: {:?}, measurement: {}, tag_key: {}",
-            db_name, range, measurement, tag_key
+            "measurement_tag_values for database {}, range: {:?}, measurement: {}, tag_key: {}, predicate: {}",
+            db_name, range, measurement, tag_key,
+                    predicate.loggable()
         );
 
         let measurement = Some(measurement);
@@ -709,8 +731,10 @@ where
         } = measurement_fields_request;
 
         info!(
-            "measurement_fields for database {}, range: {:?}",
-            db_name, range
+            "measurement_fields for database {}, range: {:?}, predicate: {}",
+            db_name,
+            range,
+            predicate.loggable()
         );
 
         let measurement = measurement;

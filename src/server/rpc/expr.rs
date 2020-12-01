@@ -4,7 +4,7 @@
 //! RPCPredicate --> query::Predicates
 //!
 //! Aggregates / windows --> query::GroupByAndAggregate
-use std::convert::TryFrom;
+use std::{convert::TryFrom, fmt};
 
 use arrow_deps::datafusion::{
     logical_plan::{binary_expr, Expr, Operator},
@@ -615,6 +615,151 @@ pub fn convert_group_type(group: i32) -> Result<RPCGroup> {
     }
 }
 
+/// Creates a representation of some struct (in another crate that we
+/// don't control) suitable for logging with `std::fmt::Display`)
+pub trait Loggable<'a> {
+    fn loggable(&'a self) -> Box<dyn fmt::Display + 'a>;
+}
+
+impl<'a> Loggable<'a> for Option<RPCPredicate> {
+    fn loggable(&'a self) -> Box<dyn fmt::Display + 'a> {
+        Box::new(displayable_predicate(self.as_ref()))
+    }
+}
+
+impl<'a> Loggable<'a> for RPCPredicate {
+    fn loggable(&'a self) -> Box<dyn fmt::Display + 'a> {
+        Box::new(displayable_predicate(Some(self)))
+    }
+}
+
+/// Returns a struct that can format gRPC predicate (aka `RPCPredicates`) for Display
+///
+/// For example:
+/// let pred = RPCPredicate (...);
+/// println!("The predicate is {:?}", loggable_predicate(pred));
+///
+pub fn displayable_predicate(pred: Option<&RPCPredicate>) -> impl fmt::Display + '_ {
+    struct Wrapper<'a>(Option<&'a RPCPredicate>);
+
+    impl<'a> fmt::Display for Wrapper<'a> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self.0 {
+                None => write!(f, "<NONE>"),
+                Some(pred) => format_predicate(pred, f),
+            }
+        }
+    }
+    Wrapper(pred)
+}
+
+fn format_predicate<'a>(pred: &'a RPCPredicate, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match &pred.root {
+        Some(r) => format_node(r, f),
+        None => write!(f, "root: <NONE>"),
+    }
+}
+
+fn format_node<'a>(node: &'a RPCNode, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let value = match &node.value {
+        None => {
+            write!(f, "node: NONE")?;
+            return Ok(());
+        }
+        Some(value) => value,
+    };
+
+    match node.children.len() {
+        0 => {
+            format_value(value, f)?;
+        }
+        // print using infix notation
+        // (child0 <op> child1)
+        2 => {
+            write!(f, "(")?;
+            format_node(&node.children[0], f)?;
+            write!(f, " ")?;
+            format_value(value, f)?;
+            write!(f, " ")?;
+            format_node(&node.children[1], f)?;
+            write!(f, ")")?;
+        }
+        // print func notation
+        // <op>(child0, chold1, ...)
+        _ => {
+            format_value(value, f)?;
+            write!(f, "(")?;
+            for (i, child) in node.children.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                format_node(child, f)?;
+            }
+            write!(f, ")")?;
+        }
+    };
+
+    Ok(())
+}
+
+fn format_value<'a>(value: &'a RPCValue, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use RPCValue::*;
+    match value {
+        StringValue(s) => write!(f, "\"{}\"", s),
+        BoolValue(b) => write!(f, "{}", b),
+        IntValue(i) => write!(f, "{}", i),
+        UintValue(u) => write!(f, "{}", u),
+        FloatValue(fval) => write!(f, "{}", fval),
+        RegexValue(r) => write!(f, "RegEx:{}", r),
+        TagRefValue(bytes) => {
+            let temp = String::from_utf8_lossy(bytes);
+            let sval = match *bytes.as_slice() {
+                [0] => "_m[0x00]",
+                [255] => "_f[0xff]",
+                _ => &temp,
+            };
+            write!(f, "TagRef:{}", sval)
+        }
+        FieldRefValue(d) => write!(f, "FieldRef:{}", d),
+        Logical(v) => format_logical(*v, f),
+        Comparison(v) => format_comparison(*v, f),
+    }
+}
+
+fn format_logical(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if v == RPCLogical::And as i32 {
+        write!(f, "AND")
+    } else if v == RPCLogical::Or as i32 {
+        write!(f, "Or")
+    } else {
+        write!(f, "UNKNOWN_LOGICAL:{}", v)
+    }
+}
+
+fn format_comparison(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if v == RPCComparison::Equal as i32 {
+        write!(f, "==")
+    } else if v == RPCComparison::NotEqual as i32 {
+        write!(f, "!=")
+    } else if v == RPCComparison::StartsWith as i32 {
+        write!(f, "StartsWith")
+    } else if v == RPCComparison::Regex as i32 {
+        write!(f, "RegEx")
+    } else if v == RPCComparison::NotRegex as i32 {
+        write!(f, "NotRegex")
+    } else if v == RPCComparison::Lt as i32 {
+        write!(f, "<")
+    } else if v == RPCComparison::Lte as i32 {
+        write!(f, "<=")
+    } else if v == RPCComparison::Gt as i32 {
+        write!(f, ">")
+    } else if v == RPCComparison::Gte as i32 {
+        write!(f, ">=")
+    } else {
+        write!(f, "UNKNOWN_COMPARISON:{}", v)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use generated_types::node::Type as RPCNodeType;
@@ -1205,5 +1350,75 @@ mod tests {
             every: every.clone(),
             offset: offset.clone(),
         }
+    }
+
+    #[test]
+    fn test_displayable_predicate_none() {
+        let rpc_pred = None;
+
+        assert_eq!(
+            "<NONE>",
+            format!("{}", displayable_predicate(rpc_pred.as_ref()))
+        );
+    }
+
+    #[test]
+    fn test_displayable_predicate_root_none() {
+        let rpc_pred = Some(RPCPredicate { root: None });
+
+        assert_eq!(
+            "root: <NONE>",
+            format!("{}", displayable_predicate(rpc_pred.as_ref()))
+        );
+    }
+
+    #[test]
+    fn test_displayable_predicate_two_args() {
+        let (comparison, _) = make_host_comparison();
+        let rpc_pred = Some(RPCPredicate {
+            root: Some(comparison),
+        });
+        assert_eq!(
+            "(FieldRef:host > 5)",
+            format!("{}", displayable_predicate(rpc_pred.as_ref()))
+        );
+    }
+
+    #[test]
+    fn test_displayable_predicate_three_args() {
+        // Make one with more than two children (not sure if this ever happens)
+        let node = RPCNode {
+            node_type: RPCNodeType::LogicalExpression as i32,
+            children: vec![
+                make_tag_ref_node(b"tag1", "val1"),
+                make_tag_ref_node(b"tag2", "val2"),
+                make_tag_ref_node(b"tag3", "val3"),
+            ],
+            value: Some(RPCValue::Logical(RPCLogical::And as i32)),
+        };
+        let rpc_pred = Some(RPCPredicate { root: Some(node) });
+        assert_eq!(
+            "AND((TagRef:tag1 == \"val1\"), (TagRef:tag2 == \"val2\"), (TagRef:tag3 == \"val3\"))",
+            format!("{}", displayable_predicate(rpc_pred.as_ref()))
+        );
+    }
+
+    #[test]
+    fn test_displayable_predicate_mesurement_and_field() {
+        // Make one with more than two children (not sure if this ever happens)
+        let node = RPCNode {
+            node_type: RPCNodeType::LogicalExpression as i32,
+            children: vec![
+                make_tag_ref_node(&[0], "val1"),
+                make_tag_ref_node(b"tag2", "val2"),
+                make_tag_ref_node(&[255], "val3"),
+            ],
+            value: Some(RPCValue::Logical(RPCLogical::And as i32)),
+        };
+        let rpc_pred = Some(RPCPredicate { root: Some(node) });
+        assert_eq!(
+            "AND((TagRef:_m[0x00] == \"val1\"), (TagRef:tag2 == \"val2\"), (TagRef:_f[0xff] == \"val3\"))",
+            format!("{}", displayable_predicate(rpc_pred.as_ref()))
+        );
     }
 }
