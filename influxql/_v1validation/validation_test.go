@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/mock"
 	datagen "github.com/influxdata/influxdb/v2/pkg/data/gen"
@@ -21,7 +22,6 @@ import (
 	"github.com/influxdata/influxdb/v2/tests/pipeline"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest"
 	"gopkg.in/yaml.v2"
 )
 
@@ -91,9 +91,9 @@ func testSuiteFromPath(t *testing.T, path string) *TestSuite {
 func validate(t *testing.T, gf *TestSuite) {
 	t.Helper()
 	ctx := context.Background()
-	p := tests.NewDefaultPipeline(t,
-		tests.WithLogger(zaptest.NewLogger(t, zaptest.Level(zapcore.ErrorLevel))),
-	)
+	p := tests.NewDefaultPipeline(t, func(o *launcher.InfluxdOpts) {
+		o.LogLevel = zapcore.ErrorLevel
+	})
 	p.MustOpen()
 	defer p.MustClose()
 	orgID := p.DefaultOrgID

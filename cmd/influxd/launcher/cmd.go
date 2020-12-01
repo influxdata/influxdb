@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/kit/signals"
+	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/vault"
@@ -74,7 +76,18 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		ctx = signals.WithStandardSignals(ctx)
 
 		l := NewLauncher()
-		if err := l.run(ctx, o); err != nil {
+
+		// Set up logging to STDOUT.
+		logconf := &influxlogger.Config{
+			Format: "auto",
+			Level:  o.LogLevel,
+		}
+		log, err := logconf.New(os.Stdout)
+		if err != nil {
+			return err
+		}
+
+		if err := l.run(ctx, o, log); err != nil {
 			return err
 		}
 		<-ctx.Done()
@@ -82,9 +95,9 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		// Attempt clean shutdown.
 		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		l.Shutdown(ctx)
 
-		return nil
+		l.Shutdown(ctx, log)
+		return log.Sync()
 	}
 }
 

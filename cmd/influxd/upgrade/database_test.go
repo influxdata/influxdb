@@ -33,7 +33,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	err = testutil.Unzip("testdata/v1db.zip", tmpdir)
 	require.Nil(t, err)
 
-	tl := launcher.NewTestLauncherServer(nil)
+	tl := launcher.NewTestLauncherServer()
 	defer tl.ShutdownOrFail(t, ctx)
 
 	boltPath := filepath.Join(tl.Path, bolt.DefaultFilename)
@@ -174,7 +174,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	require.Nil(t, err)
 
 	// start server
-	err = tl.Run(ctx)
+	err = tl.Run(t, ctx)
 	require.Nil(t, err)
 
 	respBody := mustRunQuery(t, tl, "test", "select count(avg) from stat")
