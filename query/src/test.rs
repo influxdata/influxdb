@@ -10,7 +10,7 @@ use crate::{
         stringset::{StringSet, StringSetRef},
         SeriesSetPlans, StringSetPlan,
     },
-    Database, DatabaseStore, Predicate, TimestampRange,
+    DatabaseStore, Predicate, TSDatabase, TimestampRange,
 };
 
 use data_types::data::ReplicatedWrite;
@@ -245,7 +245,7 @@ fn predicate_to_test_string(predicate: &Predicate) -> String {
 }
 
 #[async_trait]
-impl Database for TestDatabase {
+impl TSDatabase for TestDatabase {
     type Error = TestError;
 
     /// Writes parsed lines into this database
@@ -310,7 +310,7 @@ impl Database for TestDatabase {
         Ok(column_names.into())
     }
 
-    async fn field_columns(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error> {
+    async fn field_column_names(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error> {
         // save the request
         let predicate = predicate_to_test_string(&predicate);
 

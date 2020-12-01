@@ -34,7 +34,7 @@ use query::{
     },
     org_and_bucket_to_database,
     predicate::PredicateBuilder,
-    Database, DatabaseStore,
+    DatabaseStore, TSDatabase,
 };
 
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -1104,13 +1104,13 @@ where
         .await
         .context(DatabaseNotFound { db_name: &db_name })?;
 
-    let fieldlist_plan = db
-        .field_columns(predicate)
-        .await
-        .map_err(|e| Error::ListingFields {
-            db_name: db_name.clone(),
-            source: Box::new(e),
-        })?;
+    let fieldlist_plan =
+        db.field_column_names(predicate)
+            .await
+            .map_err(|e| Error::ListingFields {
+                db_name: db_name.clone(),
+                source: Box::new(e),
+            })?;
 
     let fieldlist =
         executor

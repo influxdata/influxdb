@@ -23,10 +23,10 @@ pub mod window;
 use self::group_by::GroupByAndAggregate;
 use self::predicate::{Predicate, TimestampRange};
 
-/// A `Database` describes something that stores InfluxDB Timeseries
-/// data from Line Protocol (`ParsedLine` structures) and provides an
-/// interface to query that data. The query methods on this trait such
-/// as `tag_columns are specific to this data model.
+/// A `TSDatabase` describes something that Timeseries data using the
+/// InfluxDB Line Protocol data model (`ParsedLine` structures) and
+/// provides an interface to query that data. The query methods on
+/// this trait such as `tag_columns are specific to this data model.
 ///
 /// The IOx storage engine implements this trait to provide Timeseries
 /// specific queries, but also provides more generic access to the same
@@ -44,7 +44,7 @@ use self::predicate::{Predicate, TimestampRange};
 /// categories with the same data type, columns of different
 /// categories are treated differently in the different query types.
 #[async_trait]
-pub trait Database: Debug + Send + Sync {
+pub trait TSDatabase: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// writes parsed lines into this database
@@ -71,7 +71,7 @@ pub trait Database: Debug + Send + Sync {
     /// database which store fields (as defined in the data written
     /// via `write_lines`), and which have at least one row which
     /// matches the conditions listed on `predicate`.
-    async fn field_columns(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error>;
+    async fn field_column_names(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error>;
 
     /// Returns a plan which finds the distinct values in the
     /// `column_name` column of this database which pass the
@@ -118,7 +118,7 @@ pub trait Database: Debug + Send + Sync {
 /// Storage for `Databases` which can be retrieved by name
 pub trait DatabaseStore: Debug + Send + Sync {
     /// The type of database that is stored by this DatabaseStore
-    type Database: Database;
+    type Database: TSDatabase;
 
     /// The type of error this DataBase store generates
     type Error: std::error::Error + Send + Sync + 'static;

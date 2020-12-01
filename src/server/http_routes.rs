@@ -17,7 +17,7 @@ use tracing::{debug, error, info};
 
 use arrow_deps::arrow;
 use influxdb_line_protocol::parse_lines;
-use query::{org_and_bucket_to_database, Database, DatabaseStore};
+use query::{org_and_bucket_to_database, DatabaseStore, TSDatabase};
 
 use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};

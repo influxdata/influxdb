@@ -6,7 +6,7 @@ use query::group_by::WindowDuration;
 use query::{
     exec::{stringset::StringSet, FieldListPlan, SeriesSetPlan, SeriesSetPlans, StringSetPlan},
     predicate::Predicate,
-    Database,
+    TSDatabase,
 };
 use wal::{
     writer::{start_wal_sync_task, Error as WalWriterError, WalDetails},
@@ -342,7 +342,7 @@ impl Db {
 }
 
 #[async_trait]
-impl Database for Db {
+impl TSDatabase for Db {
     type Error = Error;
 
     // TODO: writes lines creates a column named "time" for the timestamp data. If
@@ -437,7 +437,7 @@ impl Database for Db {
     }
 
     /// return all field names in this database, while applying optional predicates
-    async fn field_columns(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error> {
+    async fn field_column_names(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error> {
         let mut filter = PartitionTableFilter::new(predicate);
         let mut visitor = TableFieldPredVisitor::new();
         self.visit_tables(&mut filter, &mut visitor).await?;
@@ -1152,7 +1152,7 @@ mod tests {
             Executor,
         },
         predicate::PredicateBuilder,
-        Database,
+        TSDatabase,
     };
 
     use arrow::{
@@ -2109,7 +2109,7 @@ disk bytes=23432323i 1600136510000000000",
 
         // make sure table filtering works (no tables match)
         let plan = db
-            .field_columns(predicate)
+            .field_column_names(predicate)
             .await
             .expect("Created field_columns plan successfully");
 
@@ -2126,7 +2126,7 @@ disk bytes=23432323i 1600136510000000000",
             .build();
 
         let plan = db
-            .field_columns(predicate)
+            .field_column_names(predicate)
             .await
             .expect("Created field_columns plan successfully");
 
@@ -2191,7 +2191,7 @@ disk bytes=23432323i 1600136510000000000",
             .build();
 
         let plan = db
-            .field_columns(predicate)
+            .field_column_names(predicate)
             .await
             .expect("Created field_columns plan successfully");
 
