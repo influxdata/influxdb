@@ -3,8 +3,6 @@ pub mod rle;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use croaring::Bitmap;
-
 // This makes the encoding types available under the dictionary module.
 pub use self::plain::Plain;
 pub use self::rle::RLE;
@@ -115,9 +113,10 @@ impl Encoding {
     }
 
     // The set of row ids for each distinct value in the column.
-    fn group_row_ids(&self) -> &BTreeMap<u32, Bitmap> {
+    fn group_row_ids(&self) -> BTreeMap<u32, RowIDs> {
         match self {
-            Encoding::RLE(enc) => enc.group_row_ids(),
+            // TODO(edd): figure out the API here as one is owned and one is borrowed.
+            Encoding::RLE(enc) => enc.group_row_ids().clone(),
             Encoding::Plain(enc) => enc.group_row_ids(),
         }
     }
@@ -149,7 +148,7 @@ impl Encoding {
     /// Materialises the decoded value belonging to the provided encoded id.
     ///
     /// Panics if there is no decoded value for the provided id
-    fn decode_id(&self, encoded_id: u32) -> Option<String> {
+    fn decode_id(&self, encoded_id: u32) -> Option<&str> {
         match self {
             Encoding::RLE(enc) => enc.decode_id(encoded_id),
             Encoding::Plain(enc) => enc.decode_id(encoded_id),
@@ -206,7 +205,7 @@ impl Encoding {
     ///
     /// NULL values are represented by None.
     ///
-    fn all_values<'a>(&'a mut self, dst: Vec<Option<&'a String>>) -> Vec<Option<&'a String>> {
+    fn all_values<'a>(&'a mut self, dst: Vec<Option<&'a str>>) -> Vec<Option<&'a str>> {
         match self {
             Encoding::RLE(enc) => enc.all_values(dst),
             Encoding::Plain(enc) => enc.all_values(dst),
@@ -326,15 +325,15 @@ mod test {
         assert_eq!(
             enc.all_values(vec![]),
             [
-                Some(&"hello".to_string()),
-                Some(&"hello".to_string()),
-                Some(&"hello".to_string()),
-                Some(&"hello".to_string()),
-                Some(&"hello".to_string()),
+                Some("hello"),
+                Some("hello"),
+                Some("hello"),
+                Some("hello"),
+                Some("hello"),
                 None,
                 None,
                 None,
-                Some(&"world".to_string()),
+                Some("world"),
             ],
             "{}",
             name
@@ -345,18 +344,18 @@ mod test {
         assert_eq!(
             enc.all_values(vec![]),
             [
-                Some(&"hello".to_string()),
-                Some(&"hello".to_string()),
-                Some(&"hello".to_string()),
-                Some(&"hello".to_string()),
-                Some(&"hello".to_string()),
+                Some("hello"),
+                Some("hello"),
+                Some("hello"),
+                Some("hello"),
+                Some("hello"),
                 None,
                 None,
                 None,
-                Some(&"world".to_string()),
-                Some(&"zoo".to_string()),
-                Some(&"zoo".to_string()),
-                Some(&"zoo".to_string()),
+                Some("world"),
+                Some("zoo"),
+                Some("zoo"),
+                Some("zoo"),
                 None,
             ],
             "{}",
@@ -389,7 +388,7 @@ mod test {
 
         assert_eq!(
             enc.all_values(vec![]),
-            vec![Some(&"world".to_string()), Some(&"hello".to_string())],
+            vec![Some("world"), Some("hello")],
             "{}",
             name
         );
@@ -401,7 +400,7 @@ mod test {
 
         assert_eq!(
             enc.all_values(vec![]),
-            vec![Some(&"hello".to_string()), Some(&"world".to_string())],
+            vec![Some("hello"), Some("world")],
             "{}",
             name
         );
@@ -736,10 +735,45 @@ mod test {
     }
 
     #[test]
+    fn group_row_ids() {
+        let encodings = vec![
+            Encoding::RLE(RLE::default()),
+            Encoding::Plain(Plain::default()),
+        ];
+
+        for enc in encodings {
+            _group_row_ids(enc);
+        }
+    }
+
+    fn _group_row_ids(mut enc: Encoding) {
+        let name = enc.debug_name();
+
+        enc.push_additional(Some("east".to_string()), 4); // 0, 1, 2, 3
+        enc.push_additional(Some("west".to_string()), 2); // 4, 5
+        enc.push_none(); // 6
+        enc.push_additional(Some("zoo".to_string()), 1); // 7
+
+        let exp = vec![
+            (0_u32, RowIDs::bitmap_from_slice(&[6])),
+            (1, RowIDs::bitmap_from_slice(&[0, 1, 2, 3])),
+            (2, RowIDs::bitmap_from_slice(&[4, 5])),
+            (3, RowIDs::bitmap_from_slice(&[7])),
+        ];
+
+        let got = enc
+            .group_row_ids()
+            .iter()
+            .map(|(id, row_ids)| (*id, row_ids.clone()))
+            .collect::<Vec<(u32, RowIDs)>>();
+        assert_eq!(got, exp, "{}", name);
+    }
+
+    #[test]
     fn dictionary() {
         let encodings = vec![
             Encoding::RLE(RLE::default()),
-            // Encoding::Plain(Plain::default()),
+            Encoding::Plain(Plain::default()),
         ];
 
         for enc in encodings {
@@ -854,17 +888,68 @@ mod test {
 
         enc.push_none();
 
-        let zoo = "zoo".to_string();
-        let dst = vec![Some(&zoo), Some(&zoo), Some(&zoo), Some(&zoo)];
+        let zoo = Some("zoo");
+        let dst = vec![zoo; 4];
         let got = enc.all_values(dst);
 
-        assert_eq!(
-            got,
-            [Some(&"hello".to_string()), Some(&"zoo".to_string()), None],
-            "{}",
-            name
-        );
+        assert_eq!(got, [Some("hello"), zoo, None], "{}", name);
         assert_eq!(got.capacity(), 4, "{}", name);
+    }
+
+    #[test]
+    fn encoded_values() {
+        let encodings = vec![
+            Encoding::RLE(RLE::default()),
+            Encoding::Plain(Plain::default()),
+        ];
+
+        for enc in encodings {
+            _encoded_values(enc);
+        }
+    }
+
+    fn _encoded_values(mut enc: Encoding) {
+        let name = enc.debug_name();
+
+        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
+        enc.push_additional(Some("north".to_string()), 1); // 3
+        enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
+        enc.push_additional(Some("south".to_string()), 2); // 9, 10
+        enc.push_none(); // 11
+
+        let mut encoded = enc.encoded_values(&[0], vec![]);
+        assert_eq!(encoded, vec![1], "{}", name);
+
+        encoded = enc.encoded_values(&[1, 3, 5, 6], vec![]);
+        assert_eq!(encoded, vec![1, 2, 1, 1], "{}", name);
+
+        encoded = enc.encoded_values(&[9, 10, 11], vec![]);
+        assert_eq!(encoded, vec![3, 3, 0], "{}", name);
+    }
+
+    #[test]
+    fn all_encoded_values() {
+        let encodings = vec![
+            Encoding::RLE(RLE::default()),
+            Encoding::Plain(Plain::default()),
+        ];
+
+        for enc in encodings {
+            _all_encoded_values(enc);
+        }
+    }
+
+    fn _all_encoded_values(mut enc: Encoding) {
+        let name = enc.debug_name();
+
+        enc.push_additional(Some("east".to_string()), 3);
+        enc.push_additional(None, 2);
+        enc.push_additional(Some("north".to_string()), 2);
+
+        let dst = Vec::with_capacity(100);
+        let dst = enc.all_encoded_values(dst);
+        assert_eq!(dst, vec![1, 1, 1, 0, 0, 2, 2], "{}", name);
+        assert_eq!(dst.capacity(), 100, "{}", name);
     }
 
     #[test]
@@ -975,38 +1060,6 @@ mod test {
         enc.push_additional(None, 10);
         assert!(!enc.has_non_null_value(&[0]));
         assert!(!enc.has_non_null_value(&[4, 7]));
-    }
-
-    #[test]
-    fn encoded_values() {
-        let mut enc = Encoding::RLE(RLE::default());
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
-        enc.push_additional(Some("north".to_string()), 1); // 3
-        enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
-        enc.push_additional(Some("south".to_string()), 2); // 9, 10
-        enc.push_none(); // 11
-
-        let mut encoded = enc.encoded_values(&[0], vec![]);
-        assert_eq!(encoded, vec![1]);
-
-        encoded = enc.encoded_values(&[1, 3, 5, 6], vec![]);
-        assert_eq!(encoded, vec![1, 2, 1, 1]);
-
-        encoded = enc.encoded_values(&[9, 10, 11], vec![]);
-        assert_eq!(encoded, vec![3, 3, 0]);
-    }
-
-    #[test]
-    fn all_encoded_values() {
-        let mut enc = Encoding::RLE(RLE::default());
-        enc.push_additional(Some("east".to_string()), 3);
-        enc.push_additional(None, 2);
-        enc.push_additional(Some("north".to_string()), 2);
-
-        let dst = Vec::with_capacity(100);
-        let dst = enc.all_encoded_values(dst);
-        assert_eq!(dst, vec![1, 1, 1, 0, 0, 2, 2]);
-        assert_eq!(dst.capacity(), 100);
     }
 
     #[test]
