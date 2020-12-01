@@ -144,7 +144,7 @@ func makeV1AuthorizationCreateE(opt genericCLIOpts) func(*cobra.Command, []strin
 			for _, p := range bp.perms {
 				var id influxdb.ID
 				if err := id.DecodeFromString(p); err != nil {
-					return err
+					return fmt.Errorf("invalid bucket ID '%s': %w (did you pass a bucket name instead of an ID?)", p, err)
 				}
 
 				p, err := influxdb.NewPermissionAtID(id, bp.action, influxdb.BucketsResourceType, orgID)
@@ -253,7 +253,7 @@ func v1AuthorizationFindF(cmd *cobra.Command, _ []string) error {
 	if v1AuthorizationFindFlags.userID != "" {
 		uID, err := influxdb.IDFromString(v1AuthorizationFindFlags.userID)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid user ID '%s': %w (did you pass a username instead of an ID?)", v1AuthorizationFindFlags.userID, err)
 		}
 		filter.UserID = uID
 	}
@@ -263,7 +263,7 @@ func v1AuthorizationFindF(cmd *cobra.Command, _ []string) error {
 	if v1AuthorizationFindFlags.org.id != "" {
 		oID, err := influxdb.IDFromString(v1AuthorizationFindFlags.org.id)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid org ID '%s': %w (did you pass an org name instead of an ID?)", v1AuthorizationFindFlags.org.id, err)
 		}
 		filter.OrgID = oID
 	}
