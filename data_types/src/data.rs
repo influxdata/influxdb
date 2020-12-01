@@ -174,7 +174,7 @@ pub fn lines_to_replicated_write(
 }
 
 pub fn split_lines_into_write_entry_partitions(
-    partition_key: impl Fn(&ParsedLine<'_>) -> String,
+    partition_key_fn: impl Fn(&ParsedLine<'_>) -> String,
     lines: &[ParsedLine<'_>],
 ) -> Vec<u8> {
     let mut fbb = flatbuffers::FlatBufferBuilder::new_with_capacity(1024);
@@ -183,7 +183,7 @@ pub fn split_lines_into_write_entry_partitions(
     let mut partition_writes = BTreeMap::new();
 
     for line in lines {
-        let key = partition_key(line);
+        let key = partition_key_fn(line);
 
         partition_writes
             .entry(key)

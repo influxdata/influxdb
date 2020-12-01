@@ -143,13 +143,12 @@ pub async fn main() -> Result<()> {
         let app_server = app_server.clone();
         async move {
             Ok::<_, http::Error>(service_fn(move |req| {
-                let state = app_server.clone();
-                http_routes::service(req, state)
+                http_routes::service(req, app_server.clone())
             }))
         }
     });
 
-    let server = Server::try_bind(&bind_addr)
+    let http_server = Server::try_bind(&bind_addr)
         .context(StartListening { bind_addr })?
         .serve(make_svc);
     info!("Listening on http://{}", bind_addr);
@@ -157,7 +156,7 @@ pub async fn main() -> Result<()> {
     println!("InfluxDB IOx server ready");
 
     // Wait for both the servers to complete
-    let (grpc_server, server) = futures::future::join(grpc_server, server).await;
+    let (grpc_server, server) = futures::future::join(grpc_server, http_server).await;
 
     grpc_server.context(ServingRPC)?;
     server.context(ServingHttp)?;
