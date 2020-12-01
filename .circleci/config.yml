@@ -142,19 +142,18 @@ jobs:
       - store_artifacts:
           path: ui/cypress/screenshots
           destination: screenshots
-
-  grace_integration:
+  grace_daily:
     machine: true
     steps:
       - attach_workspace:
           at: ~/project
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
-      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -e TEST_RESULTS=~/project quay.io/influxdb/grace:latest
+      - run:
+          command: ./bin/linux/influxd --store=memory --log-level=debug
+          background: true
+      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/grace/test-results/grace-results quay.io/influxdb/grace:daily
       - store_artifacts:
           path: ~/project
-      - store_test_results:
-          path: ~/project
-
   jstest:
     docker:
       - image: circleci/golang:1.15-node-browsers
@@ -392,19 +391,18 @@ workflows:
       - jstest
       - jslint
       - build
+      - grace_daily:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /^(?!pull\/).*$/
       - litmus_daily:
           requires:
             - build
           filters:
             branches:
               only: /^(?!pull\/).*$/
-      - grace_integration:
-          requires:
-            - build
-          filters:
-            branches:
-              only:
-                - "2.0"
       - litmus_integration:
           requires:
             - litmus_daily
