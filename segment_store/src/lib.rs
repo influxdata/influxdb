@@ -4,7 +4,7 @@
 #![allow(unused_variables)]
 pub mod column;
 pub(crate) mod partition;
-pub(crate) mod segment;
+pub mod segment;
 pub(crate) mod table;
 
 use std::collections::BTreeMap;
@@ -207,6 +207,26 @@ impl Store {
         }
         None
     }
+}
+
+/// Generate a predicate for the time range [from, to).
+pub fn time_range_predicate<'a>(from: i64, to: i64) -> Vec<segment::Predicate<'a>> {
+    vec![
+        (
+            segment::TIME_COLUMN_NAME,
+            (
+                column::cmp::Operator::GTE,
+                column::Value::Scalar(column::Scalar::I64(from)),
+            ),
+        ),
+        (
+            segment::TIME_COLUMN_NAME,
+            (
+                column::cmp::Operator::LT,
+                column::Value::Scalar(column::Scalar::I64(to)),
+            ),
+        ),
+    ]
 }
 
 // A database is scoped to a single tenant. Within a database there exists

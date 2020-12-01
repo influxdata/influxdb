@@ -3,7 +3,8 @@ use std::{borrow::Cow, collections::BTreeMap};
 use arrow_deps::arrow::datatypes::SchemaRef;
 
 use crate::column::{
-    cmp::Operator, Column, OwnedValue, RowIDs, RowIDsOption, Scalar, Value, Values, ValuesIterator,
+    cmp::Operator, AggregateResult, AggregateType, Column, OwnedValue, RowIDs, RowIDsOption,
+    Scalar, Value, Values, ValuesIterator,
 };
 
 /// The name used for a timestamp column.
@@ -129,11 +130,8 @@ impl Segment {
     }
 
     // Returns a reference to a column from the column name.
-    fn column_by_name(&self, name: ColumnName<'_>) -> Option<&Column> {
-        match self.all_columns_by_name.get(name) {
-            Some(&idx) => Some(&self.columns[idx]),
-            None => None,
-        }
+    fn column_by_name(&self, name: ColumnName<'_>) -> &Column {
+        &self.columns[*self.all_columns_by_name.get(name).unwrap()]
     }
 
     // Returns a reference to the timestamp column.
@@ -166,19 +164,19 @@ impl Segment {
     ///
     /// Right now, predicates are conjunctive (AND).
     pub fn read_filter<'a>(
-        &self,
+        &'a self,
         columns: &[ColumnName<'a>],
         predicates: &[Predicate<'_>],
-    ) -> ReadFilterResult<'a> {
+    ) -> ReadFilterResult<'_> {
         let row_ids = self.row_ids_from_predicates(predicates);
         ReadFilterResult(self.materialise_rows(columns, row_ids))
     }
 
     fn materialise_rows<'a>(
-        &self,
+        &'a self,
         columns: &[ColumnName<'a>],
         row_ids: RowIDsOption,
-    ) -> Vec<(ColumnName<'a>, Values)> {
+    ) -> Vec<(ColumnName<'_>, Values<'_>)> {
         let mut results = vec![];
         match row_ids {
             RowIDsOption::None(_) => results, // nothing to materialise
@@ -187,7 +185,7 @@ impl Segment {
                 // buffer to the croaring Bitmap API.
                 let row_ids = row_ids.to_vec();
                 for &col_name in columns {
-                    let col = self.column_by_name(col_name).unwrap();
+                    let col = self.column_by_name(col_name);
                     results.push((col_name, col.values(row_ids.as_slice())));
                 }
                 results
@@ -200,7 +198,7 @@ impl Segment {
                 let row_ids = (0..self.rows()).collect::<Vec<_>>();
 
                 for &col_name in columns {
-                    let col = self.column_by_name(col_name).unwrap();
+                    let col = self.column_by_name(col_name);
                     results.push((col_name, col.values(row_ids.as_slice())));
                 }
                 results
@@ -264,8 +262,8 @@ impl Segment {
 
         for (col_name, (op, value)) in predicates.iter() {
             // N.B column should always exist because validation of
-            // predicates is not the responsibility of the `Segment`.
-            let col = self.column_by_name(col_name).unwrap();
+            // predicates should happen at the `Table` level.
+            let col = self.column_by_name(col_name);
 
             // Explanation of how this buffer pattern works. The idea is
             // that the buffer should be returned to the caller so it can be
@@ -323,13 +321,66 @@ impl Segment {
             dst,
         )
     }
+
+    /// Returns a set of group keys and aggregated column data associated with
+    /// them.
+    ///
+    /// Right now, predicates are conjunctive (AND).
+    pub fn read_group<'a>(
+        &'a self,
+        predicates: &[Predicate<'a>],
+        group_columns: &[ColumnName<'a>],
+        aggregates: &[(ColumnName<'a>, AggregateType)],
+    ) -> ReadGroupResult<'a> {
+        ReadGroupResult::default()
+    }
+
+    // Optimised read group method when there are no predicates and all the group
+    // columns are RLE-encoded.
+    //
+    // In this case all the grouping columns pre-computed bitsets for each
+    // distinct value.
+    fn read_group_all_rows_all_rle<'a>(
+        &'a self,
+        group_columns: &[ColumnName<'a>],
+        aggregates: &[(ColumnName<'a>, AggregateType)],
+    ) -> ReadGroupResult<'a> {
+        todo!()
+    }
+
+    // Optimised read group method where only a single column is being used as
+    // the group key.
+    //
+    // In this case the groups can be represented by a single integer key.
+    fn read_group_single_group_column(
+        &self,
+        predicates: &[Predicate<'_>],
+        group_column: ColumnName<'_>,
+        aggregates: &[(ColumnName<'_>, AggregateType)],
+    ) -> ReadGroupResult<'_> {
+        todo!()
+    }
+
+    // Optimised read group method where all the segment column sort covers all
+    // the columns being grouped such that the required rows are totally ordered.
+    //
+    // In this case the rows are already in "group key order" and the aggregates
+    // can be calculated by reading the rows in order.
+    fn read_group_sorted_stream(
+        &self,
+        predicates: &[Predicate<'_>],
+        group_column: ColumnName<'_>,
+        aggregates: &[(ColumnName<'_>, AggregateType)],
+    ) -> ReadGroupResult<'_> {
+        todo!()
+    }
 }
 
 pub type Predicate<'a> = (ColumnName<'a>, (Operator, Value<'a>));
 
 // A GroupKey is an ordered collection of row values. The order determines which
 // columns the values originated from.
-pub type GroupKey = Vec<String>;
+pub type GroupKey<'a> = Vec<Value<'a>>;
 
 // A representation of a column name.
 pub type ColumnName<'a> = &'a str;
@@ -436,7 +487,7 @@ impl MetaData {
 
 /// Encapsulates results from segments with a structure that makes them easier
 /// to work with and display.
-pub struct ReadFilterResult<'a>(pub Vec<(ColumnName<'a>, Values)>);
+pub struct ReadFilterResult<'a>(pub Vec<(ColumnName<'a>, Values<'a>)>);
 
 impl<'a> ReadFilterResult<'a> {
     pub fn is_empty(&self) -> bool {
@@ -685,6 +736,45 @@ west,4
     }
 
     #[test]
+    #[ignore]
+    fn read_group() {
+        let mut columns = BTreeMap::new();
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
+        columns.insert("time".to_string(), tc);
+
+        let rc = ColumnType::Tag(Column::from(
+            &["west", "west", "east", "west", "south", "north"][..],
+        ));
+        columns.insert("region".to_string(), rc);
+
+        let mc = ColumnType::Tag(Column::from(
+            &["GET", "POST", "POST", "POST", "PUT", "GET"][..],
+        ));
+        columns.insert("method".to_string(), mc);
+
+        let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
+        columns.insert("count".to_string(), fc);
+
+        let segment = Segment::new(6, columns);
+
+        let cases = vec![(
+            build_predicates_with_time(1, 6, vec![]),
+            vec!["region", "method"],
+            vec![("count", AggregateType::Sum)],
+            "region,method,count_sum
+west,GET,100
+west,POST,304
+east,POST,200
+south,PUT,203",
+        )];
+
+        for (predicate, group_cols, aggs, expected) in cases {
+            let results = segment.read_group(&predicate, &group_cols, &aggs);
+            assert_eq!(format!("{}", results), expected);
+        }
+    }
+
+    #[test]
     fn segment_could_satisfy_predicate() {
         let mut columns = BTreeMap::new();
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
@@ -741,5 +831,48 @@ west,4
                 predicate
             );
         }
+    }
+
+    #[test]
+    fn read_group_result_display() {
+        let result = ReadGroupResult {
+            group_keys: vec![
+                vec![Value::String("east"), Value::String("host-a")],
+                vec![Value::String("east"), Value::String("host-b")],
+                vec![Value::String("west"), Value::String("host-a")],
+                vec![Value::String("west"), Value::String("host-c")],
+                vec![Value::String("west"), Value::String("host-d")],
+            ],
+            aggregates: vec![
+                vec![
+                    AggregateResult::Sum(Scalar::I64(10)),
+                    AggregateResult::Count(3),
+                ],
+                vec![
+                    AggregateResult::Sum(Scalar::I64(20)),
+                    AggregateResult::Count(4),
+                ],
+                vec![
+                    AggregateResult::Sum(Scalar::I64(25)),
+                    AggregateResult::Count(3),
+                ],
+                vec![
+                    AggregateResult::Sum(Scalar::I64(21)),
+                    AggregateResult::Count(1),
+                ],
+                vec![
+                    AggregateResult::Sum(Scalar::I64(11)),
+                    AggregateResult::Count(9),
+                ],
+            ],
+        };
+
+        let expected = "east,host-a,10,3
+east,host-b,20,4
+west,host-a,25,3
+west,host-c,21,1
+west,host-d,11,9";
+
+        assert_eq!(format!("{}", result), expected);
     }
 }
