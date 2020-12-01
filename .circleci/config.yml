@@ -211,26 +211,6 @@ jobs:
       - run:
           command: ./bin/linux/influxd --store=memory --log-level=debug
           background: true
-      - run: pwd
-      - run: docker run -v ~/project:/grace/test-results/grace-results quay.io/influxdb/grace:daily
-      - run: pwd
-      - run: ls -lFR
-      - run: ls -lrf /
-      - store_artifacts:
-          path: /grace
-      - store_artifacts:
-          path: ~/project
-      - store_test_results:
-          path: ~/project
-  grace_daily:
-    machine: true
-    steps:
-      - attach_workspace:
-          at: ~/project
-      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
-      - run:
-          command: ./bin/linux/influxd --store=memory --log-level=debug
-          background: true
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/grace/test-results/grace-results quay.io/influxdb/grace:daily
       - store_artifacts:
           path: ~/project
@@ -638,6 +618,6 @@ workflows:
 #            - jslint
           filters:
             branches:
-              only: /^gs-build-test_1$/
+              only: /^gs-build-test$/
  #           tags:
  #             only: /^v9.9.9$/
