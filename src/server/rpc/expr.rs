@@ -16,8 +16,9 @@ use generated_types::{
     Aggregate as RPCAggregate, Duration as RPCDuration, Node as RPCNode, Predicate as RPCPredicate,
     Window as RPCWindow,
 };
-use query::group_by::{Aggregate as QueryAggregate, GroupByAndAggregate, WindowDuration};
 
+use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
+use query::group_by::{Aggregate as QueryAggregate, GroupByAndAggregate, WindowDuration};
 use query::predicate::PredicateBuilder;
 use snafu::{ResultExt, Snafu};
 use tracing::warn;
@@ -350,27 +351,19 @@ pub trait SpecialTagKeys {
 
 impl SpecialTagKeys for Vec<u8> {
     fn is_measurement(&self) -> bool {
-        self.as_slice() == [0]
+        self.as_slice() == TAG_KEY_MEASUREMENT
     }
 
     /// Return true if this tag key actually refers to a field
     /// name (e.g. _field or _f)
     fn is_field(&self) -> bool {
-        self.as_slice() == [255]
+        self.as_slice() == TAG_KEY_FIELD
     }
 }
 
-impl SpecialTagKeys for String {
-    fn is_measurement(&self) -> bool {
-        self.as_bytes() == [0]
-    }
-
-    /// Return true if this tag key actually refers to a field
-    /// name (e.g. _field or _f)
-    fn is_field(&self) -> bool {
-        self.as_bytes() == [255]
-    }
-}
+// Note that is_field can *NEVER* return true for a `String` because 0xff
+// is not a valid UTF-8 character, and thus can not be a valid Rust
+// String.
 
 // converts a Node from the RPC layer into a datafusion logical expr
 fn convert_node_to_expr(node: RPCNode) -> Result<Expr> {
@@ -713,9 +706,9 @@ fn format_value<'a>(value: &'a RPCValue, f: &mut fmt::Formatter<'_>) -> fmt::Res
         RegexValue(r) => write!(f, "RegEx:{}", r),
         TagRefValue(bytes) => {
             let temp = String::from_utf8_lossy(bytes);
-            let sval = match *bytes.as_slice() {
-                [0] => "_m[0x00]",
-                [255] => "_f[0xff]",
+            let sval = match bytes.as_slice() {
+                TAG_KEY_MEASUREMENT => "_m[0x00]",
+                TAG_KEY_FIELD => "_f[0xff]",
                 _ => &temp,
             };
             write!(f, "TagRef:{}", sval)

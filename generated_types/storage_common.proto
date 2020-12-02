@@ -175,7 +175,10 @@ message TagValuesRequest {
   google.protobuf.Any tags_source = 1 ;
   TimestampRange range = 2; // [(gogoproto.nullable) = false];
   Predicate predicate = 3;
-  string tag_key = 4;
+
+  // string tag_key = 4;
+  // AAL changed from string --> bytes to handle \xff literals in Rust which are not valid UTF-8
+  bytes tag_key = 4;
 }
 
 // Response message for Storage.TagKeys, Storage.TagValues Storage.MeasurementNames,

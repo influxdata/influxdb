@@ -293,25 +293,28 @@ async fn read_and_write_data() -> Result<()> {
     let responses: Vec<_> = tag_keys_response.into_inner().try_collect().await?;
 
     let keys = &responses[0].values;
-    let keys: Vec<_> = keys.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+    let keys: Vec<_> = keys
+        .iter()
+        .map(|v| tag_key_bytes_to_strings(v.clone()))
+        .collect();
 
-    assert_eq!(
-        keys,
-        vec!["_field", "_measurement", "host", "name", "region"]
-    );
+    assert_eq!(keys, vec!["_m(0x00)", "host", "name", "region", "_f(0xff)"]);
 
     let tag_values_request = tonic::Request::new(TagValuesRequest {
         tags_source: read_source.clone(),
         range: range.clone(),
         predicate: predicate.clone(),
-        tag_key: String::from("host"),
+        tag_key: b"host".to_vec(),
     });
 
     let tag_values_response = storage_client.tag_values(tag_values_request).await?;
     let responses: Vec<_> = tag_values_response.into_inner().try_collect().await?;
 
     let values = &responses[0].values;
-    let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+    let values: Vec<_> = values
+        .iter()
+        .map(|v| tag_key_bytes_to_strings(v.clone()))
+        .collect();
 
     assert_eq!(values, vec!["server01"]);
 
@@ -397,9 +400,12 @@ async fn read_and_write_data() -> Result<()> {
         .await?;
 
     let values = &responses[0].values;
-    let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+    let values: Vec<_> = values
+        .iter()
+        .map(|v| tag_key_bytes_to_strings(v.clone()))
+        .collect();
 
-    assert_eq!(values, vec!["_field", "_measurement", "host", "region"]);
+    assert_eq!(values, vec!["_m(0x00)", "host", "region", "_f(0xff)"]);
 
     let measurement_tag_values_request = tonic::Request::new(MeasurementTagValuesRequest {
         source: read_source.clone(),
@@ -418,7 +424,10 @@ async fn read_and_write_data() -> Result<()> {
         .await?;
 
     let values = &responses[0].values;
-    let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+    let values: Vec<_> = values
+        .iter()
+        .map(|v| tag_key_bytes_to_strings(v.clone()))
+        .collect();
 
     assert_eq!(values, vec!["server01"]);
 

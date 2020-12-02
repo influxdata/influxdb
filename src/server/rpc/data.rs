@@ -22,6 +22,7 @@ use generated_types::{
     MeasurementFieldsResponse, ReadResponse, Tag,
 };
 
+use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
@@ -35,16 +36,20 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Convert a set of tag_keys into a form suitable for gRPC transport
+/// Convert a set of tag_keys into a form suitable for gRPC transport,
+/// adding the special 0x00 (_m) and 0xff (_f) tag keys
 ///
 /// Namely, a Vec<Vec<u8>>, including the measurement and field names
 pub fn tag_keys_to_byte_vecs(tag_keys: Arc<BTreeSet<String>>) -> Vec<Vec<u8>> {
-    // special case measurement and field
-    let specials_iter = vec![b"_field".to_vec(), b"_measurement".to_vec()].into_iter();
-
-    let tag_keys_iter = tag_keys.iter().map(|name| name.bytes().collect());
-
-    specials_iter.chain(tag_keys_iter).collect()
+    // special case measurement (0x00) and field (0xff)
+    // ensuring they are in the correct sort order (first and last, respectively)
+    let mut byte_vecs = Vec::with_capacity(2 + tag_keys.len());
+    byte_vecs.push(TAG_KEY_MEASUREMENT.to_vec()); // Shown as _m == _measurement
+    tag_keys.iter().for_each(|name| {
+        byte_vecs.push(name.bytes().collect());
+    });
+    byte_vecs.push(TAG_KEY_FIELD.to_vec()); // Shown as _f == _field
+    byte_vecs
 }
 
 fn series_set_to_frames(series_set: SeriesSet) -> Result<Vec<Frame>> {
@@ -304,6 +309,33 @@ mod tests {
     use query::exec::fieldlist::Field;
 
     use super::*;
+
+    #[test]
+    fn test_tag_keys_to_byte_vecs() {
+        fn convert_keys(tag_keys: &[&str]) -> Vec<Vec<u8>> {
+            let tag_keys = tag_keys
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<BTreeSet<_>>();
+
+            tag_keys_to_byte_vecs(Arc::new(tag_keys))
+        }
+
+        assert_eq!(convert_keys(&[]), vec![[0].to_vec(), [255].to_vec()]);
+        assert_eq!(
+            convert_keys(&["key_a"]),
+            vec![[0].to_vec(), b"key_a".to_vec(), [255].to_vec()]
+        );
+        assert_eq!(
+            convert_keys(&["key_a", "key_b"]),
+            vec![
+                [0].to_vec(),
+                b"key_a".to_vec(),
+                b"key_b".to_vec(),
+                [255].to_vec()
+            ]
+        );
+    }
 
     fn series_set_to_read_response(series_set: SeriesSet) -> Result<ReadResponse> {
         let frames = series_set_to_frames(series_set)?;
