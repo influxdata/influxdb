@@ -1,7 +1,10 @@
 pub mod plain;
 pub mod rle;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 // This makes the encoding types available under the dictionary module.
 pub use self::plain::Plain;
@@ -113,11 +116,10 @@ impl Encoding {
     }
 
     // The set of row ids for each distinct value in the column.
-    fn group_row_ids(&self) -> BTreeMap<u32, RowIDs> {
+    fn group_row_ids(&self) -> Cow<'_, BTreeMap<u32, RowIDs>> {
         match self {
-            // TODO(edd): figure out the API here as one is owned and one is borrowed.
-            Encoding::RLE(enc) => enc.group_row_ids().clone(),
-            Encoding::Plain(enc) => enc.group_row_ids(),
+            Encoding::RLE(enc) => Cow::Borrowed(enc.group_row_ids()),
+            Encoding::Plain(enc) => Cow::Owned(enc.group_row_ids()),
         }
     }
 
@@ -759,13 +761,11 @@ mod test {
             (1, RowIDs::bitmap_from_slice(&[0, 1, 2, 3])),
             (2, RowIDs::bitmap_from_slice(&[4, 5])),
             (3, RowIDs::bitmap_from_slice(&[7])),
-        ];
+        ]
+        .into_iter()
+        .collect();
 
-        let got = enc
-            .group_row_ids()
-            .iter()
-            .map(|(id, row_ids)| (*id, row_ids.clone()))
-            .collect::<Vec<(u32, RowIDs)>>();
+        let got = enc.group_row_ids().into_owned();
         assert_eq!(got, exp, "{}", name);
     }
 
