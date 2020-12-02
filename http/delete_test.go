@@ -228,7 +228,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 			wants: wants{
-				statusCode: http.StatusNotImplemented,
+				statusCode: http.StatusNoContent,
 				body:       ``,
 			},
 		},
@@ -333,7 +333,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 			wants: wants{
-				statusCode: http.StatusNotImplemented,
+				statusCode: http.StatusNoContent,
 				body:       ``,
 			},
 		},
