@@ -31,8 +31,8 @@ want to use the default.
 1. [20166](https://github.com/influxdata/influxdb/pull/20166): Enforce max value of 2147483647 on query queue size to avoid startup panic.
 1. [20182](https://github.com/influxdata/influxdb/pull/20182): Auto-migrate existing DBRP mappings from old schema to avoid panic.
 1. [20202](https://github.com/influxdata/influxdb/pull/20202): Optimize shard lookup in groups containing only one shard. Thanks @StoneYunZhao!
-1. [20155](https://github.com/influxdata/influxdb/pull/20155): Respect the `--name` option in `influx setup` whether configs already exist or not.
-1. [20155](https://github.com/influxdata/influxdb/pull/20155): Allow for 0 (infinite) values for `--retention` in `influx setup`.
+1. [20235](https://github.com/influxdata/influxdb/pull/20235): Respect the `--name` option in `influx setup` whether configs already exist or not.
+1. [20235](https://github.com/influxdata/influxdb/pull/20235): Allow for 0 (infinite) values for `--retention` in `influx setup`.
 
 ## v2.0.2 [2020-11-18]
 ----------------------
