@@ -299,15 +299,18 @@ func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) 
 	return e.tsdbStore.DeleteDatabase(bucketID.String())
 }
 
-// DeleteBucketRange deletes an entire range of data from the storage engine.
-func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64) error {
-	return ErrNotImplemented
-}
-
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
 func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
-	return ErrNotImplemented
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closing == nil {
+		return ErrEngineClosed
+	}
+	return e.tsdbStore.DeleteSeriesWithPredicate(bucketID.String(), min, max, pred)
 }
 
 func (e *Engine) BackupKVStore(ctx context.Context, w io.Writer) error {
