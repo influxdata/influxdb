@@ -18,6 +18,7 @@ want to use the default.
 1. [20123](https://github.com/influxdata/influxdb/pull/20123): Allow password to be specified as a CLI option in `influx v1 auth set-password`.
 1. [20110](https://github.com/influxdata/influxdb/pull/20110): Allow for users to specify where V2 config should be written in `influxd upgrade`.
 1. [20204](https://github.com/influxdata/influxdb/pull/20204): Improve ID-related error messages for `influx v1 dbrp` commands.
+1. [20236](https://github.com/influxdata/influxdb/pull/20236): Delete with predicate.
 
 ### Bug Fixes
 
