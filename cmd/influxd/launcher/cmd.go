@@ -95,8 +95,8 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		// Attempt clean shutdown.
 		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-
 		l.Shutdown(ctx, log)
+
 		return log.Sync()
 	}
 }

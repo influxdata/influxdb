@@ -68,7 +68,7 @@ func RunAndSetupNewLauncherOrFail(tb testing.TB, ctx context.Context, setters ..
 	defer func() {
 		// If setup fails, shut down the launcher.
 		if tb.Failed() {
-			_ = l.Shutdown(ctx)
+			l.Shutdown(ctx)
 		}
 	}()
 	l.SetupOrFail(tb)
