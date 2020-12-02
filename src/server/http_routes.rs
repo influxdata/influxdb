@@ -17,8 +17,9 @@ use tracing::{debug, error, info};
 
 use arrow_deps::arrow;
 use influxdb_line_protocol::parse_lines;
-use query::{org_and_bucket_to_database, DatabaseStore, SQLDatabase, TSDatabase};
+use query::{DatabaseStore, SQLDatabase, TSDatabase};
 
+use super::{org_and_bucket_to_database, OrgBucketMappingError};
 use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};
 use hyper::{Body, Method, StatusCode};
@@ -41,6 +42,8 @@ pub enum ApplicationError {
         bucket_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+    #[snafu(display("Internal error mapping org & bucket: {}", source))]
+    BucketMappingError { source: OrgBucketMappingError },
 
     #[snafu(display(
         "Internal error writing points into org {}, bucket {}:  {}",
@@ -122,6 +125,7 @@ impl ApplicationError {
     pub fn status_code(&self) -> StatusCode {
         match self {
             Self::BucketByName { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::BucketMappingError { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             Self::WritingPoints { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Query { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             Self::QueryError { .. } => StatusCode::BAD_REQUEST,
@@ -213,7 +217,8 @@ async fn write<T: DatabaseStore>(
         query_string: String::from(query),
     })?;
 
-    let db_name = org_and_bucket_to_database(&write_info.org, &write_info.bucket);
+    let db_name = org_and_bucket_to_database(&write_info.org, &write_info.bucket)
+        .context(BucketMappingError)?;
 
     let db = storage
         .db_or_create(&db_name)
@@ -273,7 +278,8 @@ async fn read<T: DatabaseStore>(
         query_string: query,
     })?;
 
-    let db_name = org_and_bucket_to_database(&read_info.org, &read_info.bucket);
+    let db_name = org_and_bucket_to_database(&read_info.org, &read_info.bucket)
+        .context(BucketMappingError)?;
 
     let db = storage.db(&db_name).await.context(BucketNotFound {
         org: read_info.org.clone(),

@@ -23,15 +23,16 @@ use generated_types::{node, Node};
 use query::exec::fieldlist::FieldList;
 use query::group_by::GroupByAndAggregate;
 
+use crate::server::org_and_bucket_to_database;
 use crate::server::rpc::expr::{self, AddRPCNode, Loggable, SpecialTagKeys};
 use crate::server::rpc::input::GrpcInputs;
+use data_types::DatabaseName;
 
 use query::{
     exec::{
         seriesset::{Error as SeriesSetError, SeriesSetItem},
         Executor as QueryExecutor,
     },
-    org_and_bucket_to_database,
     predicate::PredicateBuilder,
     DatabaseStore, TSDatabase,
 };
@@ -785,11 +786,9 @@ impl SetRange for PredicateBuilder {
     }
 }
 
-fn get_database_name(input: &impl GrpcInputs) -> Result<String, Status> {
-    Ok(org_and_bucket_to_database(
-        input.org_id()?,
-        &input.bucket_name()?,
-    ))
+fn get_database_name<'a>(input: &impl GrpcInputs) -> Result<DatabaseName<'a>, Status> {
+    org_and_bucket_to_database(input.org_id()?.to_string(), &input.bucket_name()?)
+        .map_err(|e| Status::internal(e.to_string()))
 }
 
 // The following code implements the business logic of the requests as
@@ -802,7 +801,7 @@ fn get_database_name(input: &impl GrpcInputs) -> Result<String, Status> {
 async fn measurement_name_impl<T>(
     db_store: Arc<T>,
     executor: Arc<QueryExecutor>,
-    db_name: String,
+    db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
 ) -> Result<StringValuesResponse>
 where
@@ -813,11 +812,13 @@ where
     let plan = db_store
         .db(&db_name)
         .await
-        .context(DatabaseNotFound { db_name: &db_name })?
+        .context(DatabaseNotFound {
+            db_name: db_name.to_string(),
+        })?
         .table_names(predicate)
         .await
         .map_err(|e| Error::ListingTables {
-            db_name: db_name.clone(),
+            db_name: db_name.to_string(),
             source: Box::new(e),
         })?;
 
@@ -825,7 +826,7 @@ where
         .to_string_set(plan)
         .await
         .map_err(|e| Error::ListingTables {
-            db_name: db_name.clone(),
+            db_name: db_name.to_string(),
             source: Box::new(e),
         })?;
 
@@ -842,7 +843,7 @@ where
 async fn tag_keys_impl<T>(
     db_store: Arc<T>,
     executor: Arc<QueryExecutor>,
-    db_name: String,
+    db_name: DatabaseName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
@@ -861,16 +862,15 @@ where
         })?
         .build();
 
-    let db = db_store
-        .db(&db_name)
-        .await
-        .context(DatabaseNotFound { db_name: &db_name })?;
+    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
+        db_name: db_name.to_string(),
+    })?;
 
     let tag_key_plan = db
         .tag_column_names(predicate)
         .await
         .map_err(|e| Error::ListingColumns {
-            db_name: db_name.clone(),
+            db_name: db_name.to_string(),
             source: Box::new(e),
         })?;
 
@@ -879,7 +879,7 @@ where
             .to_string_set(tag_key_plan)
             .await
             .map_err(|e| Error::ListingColumns {
-                db_name: db_name.clone(),
+                db_name: db_name.to_string(),
                 source: Box::new(e),
             })?;
 
@@ -896,7 +896,7 @@ where
 async fn tag_values_impl<T>(
     db_store: Arc<T>,
     executor: Arc<QueryExecutor>,
-    db_name: String,
+    db_name: DatabaseName<'static>,
     tag_name: String,
     measurement: Option<String>,
     range: Option<TimestampRange>,
@@ -916,16 +916,15 @@ where
         })?
         .build();
 
-    let db = db_store
-        .db(&db_name)
-        .await
-        .context(DatabaseNotFound { db_name: &db_name })?;
+    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
+        db_name: db_name.to_string(),
+    })?;
 
     let tag_value_plan =
         db.column_values(&tag_name, predicate)
             .await
             .map_err(|e| Error::ListingTagValues {
-                db_name: db_name.clone(),
+                db_name: db_name.to_string(),
                 tag_name: tag_name.clone(),
                 source: Box::new(e),
             })?;
@@ -935,7 +934,7 @@ where
             .to_string_set(tag_value_plan)
             .await
             .map_err(|e| Error::ListingTagValues {
-                db_name: db_name.clone(),
+                db_name: db_name.to_string(),
                 tag_name: tag_name.clone(),
                 source: Box::new(e),
             })?;
@@ -954,11 +953,11 @@ where
 }
 
 /// Launch async tasks that send the result of executing read_filter to `tx`
-async fn read_filter_impl<T>(
+async fn read_filter_impl<'a, T>(
     tx: mpsc::Sender<Result<ReadResponse, Status>>,
     db_store: Arc<T>,
     executor: Arc<QueryExecutor>,
-    db_name: String,
+    db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
 ) -> Result<()>
@@ -975,16 +974,15 @@ where
         })?
         .build();
 
-    let db = db_store
-        .db(&db_name)
-        .await
-        .context(DatabaseNotFound { db_name: &db_name })?;
+    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
+        db_name: db_name.to_string(),
+    })?;
 
     let series_plan =
         db.query_series(predicate)
             .await
             .map_err(|e| Error::PlanningFilteringSeries {
-                db_name: db_name.clone(),
+                db_name: db_name.to_string(),
                 source: Box::new(e),
             })?;
 
@@ -1004,7 +1002,7 @@ where
             .to_series_set(series_plan, tx_series)
             .await
             .map_err(|e| Error::FilteringSeries {
-                db_name: db_name.clone(),
+                db_name: db_name.to_string(),
                 source: Box::new(e),
             })
             .log_if_error("Running series set plan")
@@ -1040,7 +1038,7 @@ async fn query_group_impl<T>(
     tx: mpsc::Sender<Result<ReadResponse, Status>>,
     db_store: Arc<T>,
     executor: Arc<QueryExecutor>,
-    db_name: String,
+    db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
     gby_agg: GroupByAndAggregate,
@@ -1058,16 +1056,15 @@ where
         })?
         .build();
 
-    let db = db_store
-        .db(&db_name)
-        .await
-        .context(DatabaseNotFound { db_name: &db_name })?;
+    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
+        db_name: db_name.to_string(),
+    })?;
 
     let grouped_series_set_plan =
         db.query_groups(predicate, gby_agg)
             .await
             .map_err(|e| Error::PlanningFilteringSeries {
-                db_name: db_name.clone(),
+                db_name: db_name.to_string(),
                 source: Box::new(e),
             })?;
 
@@ -1087,7 +1084,7 @@ where
             .to_series_set(grouped_series_set_plan, tx_series)
             .await
             .map_err(|e| Error::GroupingSeries {
-                db_name: db_name.clone(),
+                db_name: db_name.to_string(),
                 source: Box::new(e),
             })
             .log_if_error("Running Grouped SeriesSet Plan")
@@ -1100,7 +1097,7 @@ where
 async fn field_names_impl<T>(
     db_store: Arc<T>,
     executor: Arc<QueryExecutor>,
-    db_name: String,
+    db_name: DatabaseName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
@@ -1119,16 +1116,15 @@ where
         })?
         .build();
 
-    let db = db_store
-        .db(&db_name)
-        .await
-        .context(DatabaseNotFound { db_name: &db_name })?;
+    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
+        db_name: db_name.to_string(),
+    })?;
 
     let fieldlist_plan =
         db.field_column_names(predicate)
             .await
             .map_err(|e| Error::ListingFields {
-                db_name: db_name.clone(),
+                db_name: db_name.to_string(),
                 source: Box::new(e),
             })?;
 
@@ -1137,7 +1133,7 @@ where
             .to_fieldlist(fieldlist_plan)
             .await
             .map_err(|e| Error::ListingFields {
-                db_name: db_name.clone(),
+                db_name: db_name.to_string(),
                 source: Box::new(e),
             })?;
 
@@ -2222,7 +2218,7 @@ mod tests {
         org_id: u64,
         bucket_id: u64,
         /// The influxdb_iox database name corresponding to `org_id` and `bucket_id`
-        db_name: String,
+        db_name: DatabaseName<'static>,
     }
 
     impl OrgAndBucket {
@@ -2233,7 +2229,8 @@ mod tests {
                 .expect("bucket_id was valid")
                 .to_string();
 
-            let db_name = org_and_bucket_to_database(&org_id_str, &bucket_id_str);
+            let db_name = org_and_bucket_to_database(&org_id_str, &bucket_id_str)
+                .expect("mock database name construction failed");
 
             Self {
                 org_id,

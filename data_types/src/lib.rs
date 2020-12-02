@@ -16,3 +16,6 @@ pub mod database_rules;
 pub mod error;
 pub mod partition_metadata;
 pub mod table_schema;
+
+mod database_name;
+pub use database_name::*;
