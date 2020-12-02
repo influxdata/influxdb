@@ -5,15 +5,13 @@
 use std::{collections::HashMap, sync::Arc};
 
 use generated_types::{
-    i_ox_server::{IOx, IOxServer},
+    i_ox_testing_server::{IOxTesting, IOxTestingServer},
     storage_server::{Storage, StorageServer},
-    CapabilitiesResponse, Capability, CreateBucketRequest, CreateBucketResponse,
-    DeleteBucketRequest, DeleteBucketResponse, GetBucketsResponse, Int64ValuesResponse,
-    MeasurementFieldsRequest, MeasurementFieldsResponse, MeasurementNamesRequest,
-    MeasurementTagKeysRequest, MeasurementTagValuesRequest, Organization, Predicate,
-    ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
-    ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
-    TestErrorRequest, TestErrorResponse, TimestampRange,
+    CapabilitiesResponse, Capability, Int64ValuesResponse, MeasurementFieldsRequest,
+    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
+    MeasurementTagValuesRequest, Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse,
+    ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest,
+    TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
 };
 
 use data_types::error::ErrorLogger;
@@ -229,32 +227,10 @@ where
 
 #[tonic::async_trait]
 /// Implements the protobuf defined IOx rpc service for a DatabaseStore
-impl<T> IOx for GrpcService<T>
+impl<T> IOxTesting for GrpcService<T>
 where
     T: DatabaseStore + 'static,
 {
-    // TODO: Do we want to keep this gRPC request?
-    async fn create_bucket(
-        &self,
-        _req: tonic::Request<CreateBucketRequest>,
-    ) -> Result<tonic::Response<CreateBucketResponse>, Status> {
-        Err(Status::unimplemented("create_bucket"))
-    }
-
-    async fn delete_bucket(
-        &self,
-        _req: tonic::Request<DeleteBucketRequest>,
-    ) -> Result<tonic::Response<DeleteBucketResponse>, Status> {
-        Err(Status::unimplemented("delete_bucket"))
-    }
-
-    async fn get_buckets(
-        &self,
-        _req: tonic::Request<Organization>,
-    ) -> Result<tonic::Response<GetBucketsResponse>, Status> {
-        Err(Status::unimplemented("get_buckets"))
-    }
-
     async fn test_error(
         &self,
         _req: tonic::Request<TestErrorRequest>,
@@ -1138,7 +1114,7 @@ where
     T: DatabaseStore + 'static,
 {
     tonic::transport::Server::builder()
-        .add_service(IOxServer::new(GrpcService::new(
+        .add_service(IOxTestingServer::new(GrpcService::new(
             storage.clone(),
             executor.clone(),
         )))
@@ -1180,40 +1156,14 @@ mod tests {
     use futures::prelude::*;
 
     use generated_types::{
-        aggregate::AggregateType, i_ox_client, read_response::frame, storage_client,
+        aggregate::AggregateType, i_ox_testing_client, read_response::frame, storage_client,
         Aggregate as RPCAggregate, Duration as RPCDuration, ReadSource, Window as RPCWindow,
     };
 
     use prost::Message;
 
-    type IOxClient = i_ox_client::IOxClient<tonic::transport::Channel>;
+    type IOxTestingClient = i_ox_testing_client::IOxTestingClient<tonic::transport::Channel>;
     type StorageClient = storage_client::StorageClient<tonic::transport::Channel>;
-
-    #[tokio::test]
-    async fn test_influxdb_iox_rpc() -> Result<()> {
-        let mut fixture = Fixture::new().await.expect("Connecting to test server");
-
-        let org = Organization {
-            id: 1337,
-            name: "my non-existent-org".into(),
-            buckets: Vec::new(),
-        };
-
-        // Test response from influxdb_iox server
-        let res = fixture.iox_client.get_buckets(org).await;
-
-        match res {
-            Err(e) => {
-                assert_eq!(e.code(), Code::Unimplemented);
-                assert_eq!(e.message(), "get_buckets");
-            }
-            Ok(buckets) => {
-                panic!("Unexpected iox_client success: {:?}", buckets);
-            }
-        };
-
-        Ok(())
-    }
 
     fn to_str_vec(s: &[&str]) -> Vec<String> {
         s.iter().map(|s| s.to_string()).collect()
@@ -2491,7 +2441,7 @@ mod tests {
 
     // Wrapper around raw clients and test database
     struct Fixture {
-        iox_client: IOxClient,
+        iox_client: IOxTestingClient,
         storage_client: StorageClientWrapper,
         test_storage: Arc<TestDatabaseStore>,
         _test_executor: Arc<QueryExecutor>,
@@ -2518,7 +2468,7 @@ mod tests {
             let server = make_server(socket, test_storage.clone(), test_executor.clone());
             tokio::task::spawn(server);
 
-            let iox_client = connect_to_server::<IOxClient>(bind_addr)
+            let iox_client = connect_to_server::<IOxTestingClient>(bind_addr)
                 .await
                 .context(Tonic)?;
             let storage_client = StorageClientWrapper::new(
@@ -2543,7 +2493,7 @@ mod tests {
     }
 
     #[tonic::async_trait]
-    impl NewClient for IOxClient {
+    impl NewClient for IOxTestingClient {
         async fn connect(addr: String) -> Result<Self, tonic::transport::Error> {
             Self::connect(addr).await
         }
