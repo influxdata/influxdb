@@ -9,6 +9,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
@@ -156,6 +157,50 @@ func (e *seriesElemAdapter) Name() []byte        { return e.name }
 func (e *seriesElemAdapter) Tags() models.Tags   { return e.tags }
 func (e *seriesElemAdapter) Deleted() bool       { return e.deleted }
 func (e *seriesElemAdapter) Expr() influxql.Expr { return e.expr }
+
+var _ SeriesIDIterator = (*PredicateSeriesIDIterator)(nil)
+
+type PredicateSeriesIDIterator struct {
+	itr   SeriesIDIterator
+	sfile *SeriesFile
+	pred  influxdb.Predicate
+}
+
+func NewPredicateSeriesIDIterator(itr SeriesIDIterator, sfile *SeriesFile, pred influxdb.Predicate) SeriesIDIterator {
+	if pred == nil {
+		return itr
+	}
+	return &PredicateSeriesIDIterator{
+		itr:   itr,
+		sfile: sfile,
+		pred:  pred,
+	}
+}
+
+func (itr *PredicateSeriesIDIterator) Close() error { return itr.itr.Close() }
+
+func (itr *PredicateSeriesIDIterator) Next() (SeriesIDElem, error) {
+	for {
+		elem, err := itr.itr.Next()
+		if elem.SeriesID == 0 || err != nil {
+			return elem, err
+		}
+
+		// Skip if this key has been tombstoned.
+		seriesKey := itr.sfile.SeriesKey(elem.SeriesID)
+		if len(seriesKey) == 0 {
+			continue
+		}
+
+		name, tags := ParseSeriesKey(seriesKey)
+		tags = append(models.Tags{{Key: models.MeasurementTagKeyBytes, Value: name}}, tags...)
+		key := models.MakeKey(name, tags)
+		if !itr.pred.Matches(key) {
+			continue
+		}
+		return elem, nil
+	}
+}
 
 // SeriesIDElem represents a single series and optional expression.
 type SeriesIDElem struct {

@@ -1280,6 +1280,78 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 
 // DeleteSeries loops through the local shards and deletes the series data for
 // the passed in series keys.
+func (s *Store) DeleteSeriesWithPredicate(database string, min, max int64, pred influxdb.Predicate) error {
+	s.mu.RLock()
+	if s.databases[database].hasMultipleIndexTypes() {
+		s.mu.RUnlock()
+		return ErrMultipleIndexTypes
+	}
+	sfile := s.sfiles[database]
+	if sfile == nil {
+		s.mu.RUnlock()
+		// No series file means nothing has been written to this DB and thus nothing to delete.
+		return nil
+	}
+	shards := s.filterShards(byDatabase(database))
+	epochs := s.epochsForShards(shards)
+	s.mu.RUnlock()
+
+	// Limit to 1 delete for each shard since expanding the measurement into the list
+	// of series keys can be very memory intensive if run concurrently.
+	limit := limiter.NewFixed(1)
+
+	return s.walkShards(shards, func(sh *Shard) error {
+		limit.Take()
+		defer limit.Release()
+
+		// install our guard and wait for any prior deletes to finish. the
+		// guard ensures future deletes that could conflict wait for us.
+		waiter := epochs[sh.id].WaitDelete(newGuard(min, max, nil, nil))
+		waiter.Wait()
+		defer waiter.Done()
+
+		index, err := sh.Index()
+		if err != nil {
+			return err
+		}
+
+		// Find matching series keys for each measurement.
+		mitr, err := index.MeasurementIterator()
+		if err != nil {
+			return err
+		}
+		defer mitr.Close()
+
+		for {
+			mm, err := mitr.Next()
+			if err != nil {
+				return err
+			} else if mm == nil {
+				break
+			}
+
+			if err := func() error {
+				sitr, err := index.MeasurementSeriesIDIterator(mm)
+				if err != nil {
+					return err
+				} else if sitr == nil {
+					return nil
+				}
+				defer sitr.Close()
+
+				itr := NewSeriesIteratorAdapter(sfile, NewPredicateSeriesIDIterator(sitr, sfile, pred))
+				return sh.DeleteSeriesRange(itr, min, max)
+			}(); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+// DeleteSeries loops through the local shards and deletes the series data for
+// the passed in series keys.
 func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
 	// Expand regex expressions in the FROM clause.
 	a, err := s.ExpandSources(sources)
