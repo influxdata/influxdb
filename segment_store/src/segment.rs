@@ -232,6 +232,7 @@ impl Segment {
             .iter()
             .filter(|(col, _)| *col == TIME_COLUMN_NAME)
             .count()
+            // Check if we have two predicates on the time column, i.e., a time range.
             == 2
         {
             // Apply optimised filtering to time column
