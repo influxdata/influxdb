@@ -10,7 +10,7 @@ use crate::{
         stringset::{StringSet, StringSetRef},
         SeriesSetPlans, StringSetPlan,
     },
-    DatabaseStore, Predicate, TSDatabase, TimestampRange,
+    DatabaseStore, Predicate, SQLDatabase, TSDatabase, TimestampRange,
 };
 
 use data_types::data::ReplicatedWrite;
@@ -263,11 +263,6 @@ impl TSDatabase for TestDatabase {
         Ok(())
     }
 
-    /// Execute the specified query and return arrow record batches with the result
-    async fn query(&self, _query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
-        unimplemented!("query Not yet implemented");
-    }
-
     /// Return all table names that are saved in this database
     async fn table_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error> {
         let saved_lines = self.saved_lines.lock().await;
@@ -400,14 +395,15 @@ impl TSDatabase for TestDatabase {
                 message: "No saved query_groups in TestDatabase",
             })
     }
+}
 
-    /// Fetch the specified table names and columns as Arrow RecordBatches
-    async fn table_to_arrow(
-        &self,
-        _table_name: &str,
-        _columns: &[&str],
-    ) -> Result<Vec<RecordBatch>, Self::Error> {
-        unimplemented!("table_to_arrow Not yet implemented for test database");
+#[async_trait]
+impl SQLDatabase for TestDatabase {
+    type Error = TestError;
+
+    /// Execute the specified query and return arrow record batches with the result
+    async fn query(&self, _query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
+        unimplemented!("query Not yet implemented");
     }
 }
 

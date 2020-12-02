@@ -6,7 +6,7 @@ use query::group_by::WindowDuration;
 use query::{
     exec::{stringset::StringSet, FieldListPlan, SeriesSetPlan, SeriesSetPlans, StringSetPlan},
     predicate::Predicate,
-    TSDatabase,
+    SQLDatabase, TSDatabase,
 };
 use wal::{
     writer::{start_wal_sync_task, Error as WalWriterError, WalDetails},
@@ -339,6 +339,17 @@ impl Db {
 
         Ok(())
     }
+
+    async fn table_to_arrow(&self, table_name: &str, columns: &[&str]) -> Result<Vec<RecordBatch>> {
+        let partitions = self.partitions.read().await;
+
+        let batches = partitions
+            .iter()
+            .map(|p| p.table_to_arrow(table_name, columns))
+            .collect::<Result<Vec<_>, crate::partition::Error>>()?;
+
+        Ok(batches)
+    }
 }
 
 #[async_trait]
@@ -498,21 +509,11 @@ impl TSDatabase for Db {
             }
         }
     }
+}
 
-    async fn table_to_arrow(
-        &self,
-        table_name: &str,
-        columns: &[&str],
-    ) -> Result<Vec<RecordBatch>, Self::Error> {
-        let partitions = self.partitions.read().await;
-
-        let batches = partitions
-            .iter()
-            .map(|p| p.table_to_arrow(table_name, columns))
-            .collect::<Result<Vec<_>, crate::partition::Error>>()?;
-
-        Ok(batches)
-    }
+#[async_trait]
+impl SQLDatabase for Db {
+    type Error = Error;
 
     async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
         let mut tables = vec![];

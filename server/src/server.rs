@@ -16,7 +16,7 @@ use data_types::{
 };
 use influxdb_line_protocol::ParsedLine;
 use object_store::ObjectStore;
-use query::TSDatabase;
+use query::{SQLDatabase, TSDatabase};
 use write_buffer::Db as WriteBufferDb;
 
 use async_trait::async_trait;

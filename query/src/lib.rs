@@ -53,9 +53,6 @@ pub trait TSDatabase: Debug + Send + Sync {
     /// Stores the replicated write in the write buffer and, if enabled, the write ahead log.
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
 
-    /// Execute the specified query and return arrow record batches with the result
-    async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error>;
-
     /// Returns a plan that lists the names of tables in this
     /// database that have at least one row that matches the
     /// conditions listed on `predicate`
@@ -104,21 +101,21 @@ pub trait TSDatabase: Debug + Send + Sync {
         predicate: Predicate,
         gby_agg: GroupByAndAggregate,
     ) -> Result<SeriesSetPlans, Self::Error>;
+}
 
-    /// Fetch the specified table names and columns as Arrow
-    /// RecordBatches. Columns are returned in the order specified.
-    async fn table_to_arrow(
-        &self,
-        table_name: &str,
-        columns: &[&str],
-    ) -> Result<Vec<RecordBatch>, Self::Error>;
+#[async_trait]
+pub trait SQLDatabase: Debug + Send + Sync {
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Execute the specified query and return arrow record batches with the result
+    async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error>;
 }
 
 #[async_trait]
 /// Storage for `Databases` which can be retrieved by name
 pub trait DatabaseStore: Debug + Send + Sync {
     /// The type of database that is stored by this DatabaseStore
-    type Database: TSDatabase;
+    type Database: TSDatabase + SQLDatabase;
 
     /// The type of error this DataBase store generates
     type Error: std::error::Error + Send + Sync + 'static;
