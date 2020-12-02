@@ -1,5 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
+use itertools::Itertools;
+
 use arrow_deps::arrow::datatypes::SchemaRef;
 
 use crate::column::{
@@ -329,9 +331,21 @@ impl Segment {
     pub fn read_group<'a>(
         &'a self,
         predicates: &[Predicate<'a>],
-        group_columns: &[ColumnName<'a>],
-        aggregates: &[(ColumnName<'a>, AggregateType)],
+        group_columns: &'a [ColumnName<'_>],
+        aggregates: &'a [(ColumnName<'_>, AggregateType)],
     ) -> ReadGroupResult<'a> {
+        // Handle case where there are no predicates and all the columns being
+        // grouped support constant-time expression of the row_ids belonging to
+        // each grouped value.
+        let all_group_cols_pre_computed = group_columns.iter().all(|col_name| {
+            self.column_by_name(col_name)
+                .properties()
+                .has_pre_computed_row_ids
+        });
+        if predicates.is_empty() && all_group_cols_pre_computed {
+            return self.read_group_all_rows_all_rle(group_columns, aggregates);
+        }
+
         ReadGroupResult::default()
     }
 
@@ -342,10 +356,126 @@ impl Segment {
     // distinct value.
     fn read_group_all_rows_all_rle<'a>(
         &'a self,
-        group_columns: &[ColumnName<'a>],
-        aggregates: &[(ColumnName<'a>, AggregateType)],
+        group_column_name: &'a [ColumnName<'_>],
+        aggregates: &'a [(ColumnName<'_>, AggregateType)],
     ) -> ReadGroupResult<'a> {
-        todo!()
+        let group_columns = group_column_name
+            .iter()
+            .map(|col_name| self.column_by_name(col_name))
+            .collect::<Vec<_>>();
+
+        let aggregate_columns = aggregates
+            .iter()
+            .map(|(col_name, typ)| (self.column_by_name(col_name), typ))
+            .collect::<Vec<_>>();
+
+        let encoded_groups = group_columns
+            .iter()
+            .map(|col| col.grouped_row_ids())
+            .collect::<Vec<_>>();
+
+        let mut result = ReadGroupResult {
+            group_columns: group_column_name,
+            aggregate_columns: aggregates,
+            ..ReadGroupResult::default()
+        };
+
+        // multi_cartesian_product will create the cartesian product of all
+        // grouping-column values. This is likely going to be more group keys
+        // than there exists row-data for, so don't materialise them yet...
+        //
+        // For example, we have two columns like:
+        //
+        //    [0, 1, 1, 2, 2, 3, 4] // column encodes the values as integers
+        //    [3, 3, 3, 3, 4, 2, 1] // column encodes the values as integers
+        //
+        // The columns have these distinct values:
+        //
+        //    [0, 1, 2, 3, 4]
+        //    [1, 2, 3, 4]
+        //
+        // We will produce the following "group key" candidates:
+        //
+        //    [0, 1], [0, 2], [0, 3], [0, 4]
+        //    [1, 1], [1, 2], [1, 3], [1, 4]
+        //    [2, 1], [2, 2], [2, 3], [2, 4]
+        //    [3, 1], [3, 2], [3, 3], [3, 4]
+        //    [4, 1], [4, 2], [4, 3], [4, 4]
+        //
+        // Based on the columns we can see that we only have data for the
+        // following group keys:
+        //
+        //    [0, 3], [1, 3], [2, 3], [2, 4],
+        //    [3, 2], [4, 1]
+        //
+        // We figure out which group keys have data and which don't in the loop
+        // below, by intersecting bitsets for each id and checking for
+        // non-empty sets.
+        let group_keys = encoded_groups
+            .iter()
+            .map(|ids| ids.keys().cloned())
+            .multi_cartesian_product();
+
+        // Let's figure out which of the candidate group keys are actually
+        // group keys with data.
+        'outer: for group_key in group_keys {
+            let mut aggregate_row_ids = Cow::Borrowed(
+                encoded_groups[0]
+                    .get(&group_key[0])
+                    .unwrap()
+                    .unwrap_bitmap(),
+            );
+
+            if aggregate_row_ids.is_empty() {
+                continue;
+            }
+
+            for i in 1..group_key.len() {
+                let other = encoded_groups[i]
+                    .get(&group_key[i])
+                    .unwrap()
+                    .unwrap_bitmap();
+                aggregate_row_ids = Cow::Owned(aggregate_row_ids.and(other));
+                if aggregate_row_ids.is_empty() {
+                    continue 'outer;
+                }
+            }
+
+            // This group key has some matching row ids. Materialise the group
+            // key and calculate the aggregates.
+
+            // TODO(edd): given these RLE columns should have low cardinality
+            // there should be a reasonably low group key cardinality. It could
+            // be safe to use `small_vec` here without blowing the stack up.
+            let mut material_key = Vec::with_capacity(group_key.len());
+            for (col_idx, &encoded_id) in group_key.iter().enumerate() {
+                material_key.push(group_columns[col_idx].decode_id(encoded_id));
+            }
+            result.group_keys.push(material_key);
+
+            let mut aggregates = Vec::with_capacity(aggregate_columns.len());
+            for (agg_col, typ) in &aggregate_columns {
+                aggregates.push(match typ {
+                    AggregateType::Count => {
+                        AggregateResult::Count(agg_col.count(&aggregate_row_ids.to_vec()) as u64)
+                    }
+                    AggregateType::First => todo!(),
+                    AggregateType::Last => todo!(),
+                    AggregateType::Min => {
+                        AggregateResult::Min(agg_col.min(&aggregate_row_ids.to_vec()))
+                    }
+                    AggregateType::Max => {
+                        AggregateResult::Max(agg_col.max(&aggregate_row_ids.to_vec()))
+                    }
+                    AggregateType::Sum => {
+                        AggregateResult::Sum(agg_col.sum(&aggregate_row_ids.to_vec()))
+                    }
+                });
+            }
+            result.aggregates.push(aggregates);
+        }
+
+        result
     }
 
     // Optimised read group method where only a single column is being used as
@@ -547,6 +677,84 @@ impl<'a> std::fmt::Display for &ReadFilterResult<'a> {
     }
 }
 
+#[derive(Default)]
+pub struct ReadGroupResult<'a> {
+    // columns that are being grouped on.
+    group_columns: &'a [ColumnName<'a>],
+
+    // columns that are being aggregated
+    aggregate_columns: &'a [(ColumnName<'a>, AggregateType)],
+
+    // row-wise collection of group keys. Each group key contains column-wise
+    // values for each of the groupby_columns.
+    group_keys: Vec<GroupKey<'a>>,
+
+    // row-wise collection of aggregates. Each aggregate contains column-wise
+    // values for each of the aggregate_columns.
+    aggregates: Vec<Vec<AggregateResult<'a>>>,
+}
+
+impl ReadGroupResult<'_> {
+    pub fn is_empty(&self) -> bool {
+        self.group_keys.is_empty()
+    }
+}
+
+impl<'a> std::fmt::Debug for &ReadGroupResult<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // group column names
+        for k in self.group_columns {
+            write!(f, "{},", k)?;
+        }
+
+        // aggregate column names
+        for (i, (k, typ)) in self.aggregate_columns.iter().enumerate() {
+            write!(f, "{}_{}", k, typ)?;
+
+            if i < self.aggregate_columns.len() - 1 {
+                write!(f, ",")?;
+            }
+        }
+        writeln!(f)?;
+
+        // Display the rest of the values.
+        std::fmt::Display::fmt(&self, f)
+    }
+}
+
+impl<'a> std::fmt::Display for &ReadGroupResult<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_empty() {
+            return Ok(());
+        }
+
+        let expected_rows = self.group_keys.len();
+        let mut row = 0;
+        while row < expected_rows {
+            if row > 0 {
+                writeln!(f)?;
+            }
+
+            // write row for group by columns
+            for value in &self.group_keys[row] {
+                write!(f, "{},", value)?;
+            }
+
+            // write row for aggregate columns
+            for (col_i, agg) in self.aggregates[row].iter().enumerate() {
+                write!(f, "{}", agg)?;
+                if col_i < self.aggregates[row].len() - 1 {
+                    write!(f, ",")?;
+                }
+            }
+
+            row += 1;
+        }
+
+        writeln!(f)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -736,7 +944,6 @@ west,4
     }
 
     #[test]
-    #[ignore]
     fn read_group() {
         let mut columns = BTreeMap::new();
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
@@ -752,25 +959,63 @@ west,4
         ));
         columns.insert("method".to_string(), mc);
 
+        let ec = ColumnType::Tag(Column::from(
+            &[
+                Some("prod"),
+                Some("prod"),
+                Some("stag"),
+                Some("prod"),
+                None,
+                None,
+            ][..],
+        ));
+        columns.insert("env".to_string(), ec);
+
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
-        columns.insert("count".to_string(), fc);
+        columns.insert("counter".to_string(), fc);
 
         let segment = Segment::new(6, columns);
 
-        let cases = vec![(
-            build_predicates_with_time(1, 6, vec![]),
-            vec!["region", "method"],
-            vec![("count", AggregateType::Sum)],
-            "region,method,count_sum
+        let cases = vec![
+            (
+                vec![],
+                vec!["region", "method"],
+                vec![("counter", AggregateType::Sum)],
+                "region,method,counter_sum
+east,POST,200
+north,GET,10
+south,PUT,203
 west,GET,100
 west,POST,304
-east,POST,200
-south,PUT,203",
-        )];
+",
+            ),
+            (
+                vec![],
+                vec!["region", "method", "env"],
+                vec![("counter", AggregateType::Sum)],
+                "region,method,env,counter_sum
+east,POST,stag,200
+north,GET,NULL,10
+south,PUT,NULL,203
+west,GET,prod,100
+west,POST,prod,304
+",
+            ),
+            (
+                vec![],
+                vec!["env"],
+                vec![("counter", AggregateType::Count)],
+                "env,counter_count
+NULL,2
+prod,3
+stag,1
+",
+            ),
+        ];
 
         for (predicate, group_cols, aggs, expected) in cases {
             let results = segment.read_group(&predicate, &group_cols, &aggs);
-            assert_eq!(format!("{}", results), expected);
+            assert_eq!(format!("{:?}", &results), expected);
         }
     }
 
@@ -834,8 +1079,16 @@ south,PUT,203",
     }
 
     #[test]
-    fn read_group_result_display() {
+    fn read_group_result() {
+        let group_colums = vec!["region", "host"];
+        let aggregate_columns = vec![
+            ("temp", AggregateType::Sum),
+            ("voltage", AggregateType::Count),
+        ];
+
         let result = ReadGroupResult {
+            group_columns: group_colums.as_slice(),
+            aggregate_columns: aggregate_columns.as_slice(),
             group_keys: vec![
                 vec![Value::String("east"), Value::String("host-a")],
                 vec![Value::String("east"), Value::String("host-b")],
@@ -867,12 +1120,27 @@ south,PUT,203",
             ],
         };
 
-        let expected = "east,host-a,10,3
+        // Debug implementation
+        assert_eq!(
+            format!("{:?}", &result),
+            "region,host,temp_sum,voltage_count
+east,host-a,10,3
 east,host-b,20,4
 west,host-a,25,3
 west,host-c,21,1
-west,host-d,11,9";
+west,host-d,11,9
+"
+        );
 
-        assert_eq!(format!("{}", result), expected);
+        // Display implementation
+        assert_eq!(
+            format!("{}", &result),
+            "east,host-a,10,3
+east,host-b,20,4
+west,host-a,25,3
+west,host-c,21,1
+west,host-d,11,9
+"
+        );
     }
 }
