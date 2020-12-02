@@ -102,6 +102,17 @@ impl Column {
         }
     }
 
+    pub fn properties(&self) -> &ColumnProperties {
+        match &self {
+            Column::String(meta, _) => &meta.properties,
+            Column::Float(meta, _) => &meta.properties,
+            Column::Integer(meta, _) => &meta.properties,
+            Column::Unsigned(meta, _) => &meta.properties,
+            Column::Bool => todo!(),
+            Column::ByteArray(meta, _) => &meta.properties,
+        }
+    }
+
     pub fn column_min(&self) -> Value<'_> {
         todo!()
     }
@@ -577,6 +588,11 @@ impl Column {
 }
 
 #[derive(Default, Debug, PartialEq)]
+pub struct ColumnProperties {
+    pub has_pre_computed_row_ids: bool,
+}
+
+#[derive(Default, Debug, PartialEq)]
 // The meta-data for a column
 pub struct MetaData<T>
 where
@@ -590,6 +606,8 @@ where
 
     // The minimum and maximum value for this column.
     range: Option<(T, T)>,
+
+    properties: ColumnProperties,
 }
 
 impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
@@ -848,9 +866,9 @@ impl StringEncoding {
         };
 
         let meta = MetaData {
-            size: 0,
             rows: data.num_rows(),
             range,
+            ..MetaData::default()
         };
 
         // TODO(edd): consider just storing under the `StringEncoding` a
@@ -974,6 +992,9 @@ impl StringEncoding {
                     size: data.size(),
                     rows: data.num_rows(),
                     range,
+                    properties: ColumnProperties {
+                        has_pre_computed_row_ids: true,
+                    },
                 }
             }
             Self::Dictionary(data) => {
@@ -987,9 +1008,9 @@ impl StringEncoding {
                 };
 
                 MetaData {
-                    size: 0,
                     rows: data.num_rows(),
                     range,
+                    ..MetaData::default()
                 }
             }
         }
@@ -1448,6 +1469,7 @@ impl From<&[u64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U8(data))
             }
@@ -1458,6 +1480,7 @@ impl From<&[u64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U16(data))
             }
@@ -1468,6 +1491,7 @@ impl From<&[u64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U32(data))
             }
@@ -1478,6 +1502,7 @@ impl From<&[u64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U64(data))
             }
@@ -1509,6 +1534,7 @@ impl From<&[u32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as u64, max as u64)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U8(data))
             }
@@ -1519,6 +1545,7 @@ impl From<&[u32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as u64, max as u64)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U16(data))
             }
@@ -1529,6 +1556,7 @@ impl From<&[u32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as u64, max as u64)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U32(data))
             }
@@ -1560,6 +1588,7 @@ impl From<&[u16]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as u64, max as u64)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U8(data))
             }
@@ -1570,6 +1599,7 @@ impl From<&[u16]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as u64, max as u64)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U16(data))
             }
@@ -1598,6 +1628,7 @@ impl From<&[u8]> for Column {
             size: data.size(),
             rows: data.num_rows(),
             range: Some((min as u64, max as u64)),
+            ..MetaData::default()
         };
         Column::Unsigned(meta, IntegerEncoding::U64U8(data))
     }
@@ -1625,6 +1656,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U8(data))
             }
@@ -1635,6 +1667,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I8(data))
             }
@@ -1645,6 +1678,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U16(data))
             }
@@ -1655,6 +1689,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I16(data))
             }
@@ -1665,6 +1700,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U32(data))
             }
@@ -1675,6 +1711,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I32(data))
             }
@@ -1685,6 +1722,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I64(data))
             }
@@ -1716,6 +1754,7 @@ impl From<&[i32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U8(data))
             }
@@ -1726,6 +1765,7 @@ impl From<&[i32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I8(data))
             }
@@ -1736,6 +1776,7 @@ impl From<&[i32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U16(data))
             }
@@ -1746,6 +1787,7 @@ impl From<&[i32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I16(data))
             }
@@ -1756,6 +1798,7 @@ impl From<&[i32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I32(data))
             }
@@ -1787,6 +1830,7 @@ impl From<&[i16]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I8(data))
             }
@@ -1797,6 +1841,7 @@ impl From<&[i16]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U8(data))
             }
@@ -1807,6 +1852,7 @@ impl From<&[i16]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I16(data))
             }
@@ -1832,6 +1878,7 @@ impl From<&[i8]> for Column {
             size: data.size(),
             rows: data.num_rows(),
             range: Some((min as i64, max as i64)),
+            ..MetaData::default()
         };
         Column::Integer(meta, IntegerEncoding::I64I8(data))
     }
@@ -1879,6 +1926,7 @@ impl From<arrow::array::Int64Array> for Column {
             size: data.size(),
             rows: data.num_rows(),
             range,
+            ..MetaData::default()
         };
         Column::Integer(meta, IntegerEncoding::I64I64N(data))
     }
@@ -1900,6 +1948,7 @@ impl From<&[f64]> for Column {
             size: data.size(),
             rows: data.num_rows(),
             range: Some((min, max)),
+            ..MetaData::default()
         };
 
         Column::Float(meta, FloatEncoding::Fixed64(data))
@@ -2687,6 +2736,14 @@ mod test {
     }
 
     #[test]
+    fn column_properties() {
+        let data = StringEncoding::RLEDictionary(dictionary::RLE::default());
+        let meta = StringEncoding::meta_from_data(&data);
+        let col = Column::String(meta, data);
+        assert!(col.properties().has_pre_computed_row_ids);
+    }
+
+    #[test]
     fn from_arrow_string_array() {
         let input = vec![None, Some("world"), None, Some("hello")];
         let arr = StringArray::from(input);
@@ -2699,6 +2756,9 @@ mod test {
                     size: 317,
                     rows: 4,
                     range: Some(("hello".to_string(), "world".to_string())),
+                    properties: ColumnProperties {
+                        has_pre_computed_row_ids: true
+                    }
                 }
             );
 
@@ -2724,6 +2784,9 @@ mod test {
                     size: 301,
                     rows: 2,
                     range: Some(("hello".to_string(), "world".to_string())),
+                    properties: ColumnProperties {
+                        has_pre_computed_row_ids: true
+                    }
                 }
             );
 
