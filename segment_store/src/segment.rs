@@ -216,12 +216,82 @@ impl Segment {
     // eventually we should be able to express the time range as just another
     // one or two predicates.
     fn row_ids_from_predicates(&self, predicates: &[Predicate<'_>]) -> RowIDsOption {
+        // TODO(edd): perf - potentially pool this so we can re-use it once
+        // rows have been materialised and it's no longer needed.
+        // Initialise a bitmap RowIDs because it's like that set operations will
+        // be necessary.
+        let mut result_row_ids = RowIDs::new_bitmap();
+
         // TODO(edd): perf - pool the dst buffer so we can re-use it across
         // subsequent calls to `row_ids_from_predicates`.
         // Right now this buffer will be re-used across all columns in the
-        // segment with predicates.
+        // segment but not re-used for subsequent calls _to_ the segment.
         let mut dst = RowIDs::new_bitmap();
 
+        // If there is a time-range in the predicates (two time predicates), then
+        // execute an optimised version that will use a range based predicate
+        // on the time column.
+        if predicates
+            .iter()
+            .filter(|(col, _)| *col == TIME_COLUMN_NAME)
+            .count()
+            == 2
+        {
+            return self.row_ids_from_predicates_with_time_range(predicates, dst, result_row_ids);
+        }
+
+        for (col_name, (op, value)) in predicates {
+            // N.B column should always exist because validation of
+            // predicates is not the responsibility of the `Segment`.
+            let col = self.column_by_name(col_name).unwrap();
+
+            // Explanation of how this buffer pattern works. The idea is
+            // that the buffer should be returned to the caller so it can be
+            // re-used on other columns. Each call to `row_ids_filter` returns
+            // the buffer back enabling it to be re-used.
+            match col.row_ids_filter(op, value, dst) {
+                // No rows will be returned for the segment because this column
+                // doe not match any rows.
+                RowIDsOption::None(_dst) => return RowIDsOption::None(_dst),
+
+                // Intersect the row ids found at this column with all those
+                // found on other column predicates.
+                RowIDsOption::Some(row_ids) => {
+                    if result_row_ids.is_empty() {
+                        result_row_ids.union(&row_ids)
+                    }
+                    result_row_ids.intersect(&row_ids);
+                    dst = row_ids; // hand buffer back
+                }
+
+                // This is basically a no-op because all rows match the
+                // predicate on this column.
+                RowIDsOption::All(_dst) => {
+                    dst = _dst; // hand buffer back
+                }
+            }
+        }
+
+        if result_row_ids.is_empty() {
+            // All rows matched all predicates - return the empty buffer.
+            return RowIDsOption::All(result_row_ids);
+        }
+        RowIDsOption::Some(result_row_ids)
+    }
+
+    // Determines the set of row ids that satisfy the time range and all of the
+    // optional predicates.
+    //
+    // TODO(edd): right now `time_range` is special cased so we can use the
+    // optimised execution path in the column to filter on a range. However,
+    // eventually we should be able to express the time range as just another
+    // one or two predicates.
+    fn row_ids_from_predicates_with_time_range(
+        &self,
+        predicates: &[Predicate<'_>],
+        mut dst: RowIDs,
+        mut result_row_ids: RowIDs,
+    ) -> RowIDsOption {
         // find the time range predicates and execute a specialised range based
         // row id lookup.
         let time_predicates = predicates
@@ -235,10 +305,6 @@ impl Segment {
             &time_predicates[1].1, // max time
             dst,
         );
-
-        // TODO(edd): potentially pass this in so we can re-use it once we
-        // have materialised any results.
-        let mut result_row_ids = RowIDs::new_bitmap();
 
         match time_row_ids {
             // No matching rows based on time range - return buffer
@@ -454,10 +520,10 @@ mod test {
         out
     }
 
-    fn build_predicates(
+    fn build_predicates_with_time(
         from: i64,
         to: i64,
-        column_predicates: Vec<Predicate<'_>>,
+        others: Vec<Predicate<'_>>,
     ) -> Vec<Predicate<'_>> {
         let mut arr = vec![
             (
@@ -470,8 +536,74 @@ mod test {
             ),
         ];
 
-        arr.extend(column_predicates);
+        arr.extend(others);
         arr
+    }
+
+    #[test]
+    fn row_ids_from_predicates() {
+        let mut columns = BTreeMap::new();
+        let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600, 300, 300][..]));
+        columns.insert("time".to_string(), tc);
+        let rc = ColumnType::Tag(Column::from(
+            &["west", "west", "east", "west", "south", "north"][..],
+        ));
+        columns.insert("region".to_string(), rc);
+        let segment = Segment::new(6, columns);
+
+        // Closed partially covering "time range" predicate
+        let row_ids =
+            segment.row_ids_from_predicates(&build_predicates_with_time(200, 600, vec![]));
+        assert_eq!(row_ids.unwrap().to_vec(), vec![1, 2, 4, 5]);
+
+        // Fully covering "time range" predicate
+        let row_ids = segment.row_ids_from_predicates(&build_predicates_with_time(10, 601, vec![]));
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
+
+        // Open ended "time range" predicate
+        let row_ids = segment.row_ids_from_predicates(&[(
+            TIME_COLUMN_NAME,
+            (Operator::GTE, Value::Scalar(Scalar::I64(300))),
+        )]);
+        assert_eq!(row_ids.unwrap().to_vec(), vec![2, 3, 4, 5]);
+
+        // Closed partially covering "time range" predicate and other column predicate
+        let row_ids = segment.row_ids_from_predicates(&build_predicates_with_time(
+            200,
+            600,
+            vec![("region", (Operator::Equal, Value::String("south")))],
+        ));
+        assert_eq!(row_ids.unwrap().to_vec(), vec![4]);
+
+        // Fully covering "time range" predicate and other column predicate
+        let row_ids = segment.row_ids_from_predicates(&build_predicates_with_time(
+            10,
+            601,
+            vec![("region", (Operator::Equal, Value::String("west")))],
+        ));
+        assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 3]);
+
+        // "time range" predicate and other column predicate that doesn't match
+        let row_ids = segment.row_ids_from_predicates(&build_predicates_with_time(
+            200,
+            600,
+            vec![("region", (Operator::Equal, Value::String("nope")))],
+        ));
+        assert!(matches!(row_ids, RowIDsOption::None(_)));
+
+        // Just a column predicate
+        let row_ids = segment
+            .row_ids_from_predicates(&[("region", (Operator::Equal, Value::String("east")))]);
+        assert_eq!(row_ids.unwrap().to_vec(), vec![2]);
+
+        // Predicate can matches all the rows
+        let row_ids = segment
+            .row_ids_from_predicates(&[("region", (Operator::NotEqual, Value::String("abba")))]);
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
+
+        // No predicates
+        let row_ids = segment.row_ids_from_predicates(&[]);
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
     }
 
     #[test]
@@ -497,7 +629,7 @@ mod test {
 
         let results = segment.read_filter(
             &["count", "region", "time"],
-            &build_predicates(1, 6, vec![]),
+            &build_predicates_with_time(1, 6, vec![]),
         );
         let expected = "count,region,time
 100,west,1
@@ -509,7 +641,7 @@ mod test {
 
         let results = segment.read_filter(
             &["time", "region", "method"],
-            &build_predicates(-19, 2, vec![]),
+            &build_predicates_with_time(-19, 2, vec![]),
         );
         let expected = "time,region,method
 1,west,GET";
@@ -517,18 +649,18 @@ mod test {
 
         let results = segment.read_filter(
             &["method", "region", "time"],
-            &build_predicates(-19, 1, vec![]),
+            &build_predicates_with_time(-19, 1, vec![]),
         );
         let expected = "";
         assert!(results.is_empty());
 
-        let results = segment.read_filter(&["time"], &build_predicates(0, 3, vec![]));
+        let results = segment.read_filter(&["time"], &build_predicates_with_time(0, 3, vec![]));
         let expected = "time
 1
 2";
         assert_eq!(stringify_read_filter_results(results), expected);
 
-        let results = segment.read_filter(&["method"], &build_predicates(0, 3, vec![]));
+        let results = segment.read_filter(&["method"], &build_predicates_with_time(0, 3, vec![]));
         let expected = "method
 GET
 POST";
@@ -536,7 +668,7 @@ POST";
 
         let results = segment.read_filter(
             &["count", "method", "time"],
-            &build_predicates(
+            &build_predicates_with_time(
                 0,
                 6,
                 vec![("method", (Operator::Equal, Value::String("POST")))],
@@ -550,7 +682,7 @@ POST";
 
         let results = segment.read_filter(
             &["region", "time"],
-            &build_predicates(
+            &build_predicates_with_time(
                 0,
                 6,
                 vec![("method", (Operator::Equal, Value::String("POST")))],
