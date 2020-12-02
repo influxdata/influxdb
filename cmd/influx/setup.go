@@ -141,27 +141,13 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance at %q has already been setup", activeConfig.Host)
 	}
 
-	if _, err := os.Stat(dPath); err == nil {
-		existingConfigs, _ := localConfigSVC.ListConfigs()
-		if len(existingConfigs) > 0 {
-			// If there are existing configs then require that a name be
-			// spcified in order to distinguish this new config from what's
-			// there already.
-			if setupFlags.name == "" {
-				return errors.New("flag name is required if you already have existing configs")
-			}
-			if _, ok := existingConfigs[setupFlags.name]; ok {
-				return &influxdb.Error{
-					Code: influxdb.EConflict,
-					Msg:  fmt.Sprintf("config name %q already existed", setupFlags.name),
-				}
-			}
-		}
+	if err := validateNoNameCollision(localConfigSVC, setupFlags.name); err != nil {
+		return err
 	}
 
 	req, err := onboardingRequest()
 	if err != nil {
-		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
+		return fmt.Errorf("failed to setup instance: %v", err)
 	}
 
 	result, err := s.OnboardInitialUser(context.Background(), req)
@@ -205,6 +191,29 @@ func setupF(cmd *cobra.Command, args []string) error {
 		"Organization": result.Org.Name,
 		"Bucket":       result.Bucket.Name,
 	})
+
+	return nil
+}
+
+// validateNoNameCollision asserts that there isn't already a local config with a given name.
+func validateNoNameCollision(localConfigSvc config.Service, configName string) error {
+	existingConfigs, err := localConfigSvc.ListConfigs()
+	if err != nil {
+		return fmt.Errorf("error checking existing configs: %v", err)
+	}
+	if len(existingConfigs) == 0 {
+		return nil
+	}
+
+	// If there are existing configs then require that a name be
+	// specified in order to distinguish this new config from what's
+	// there already.
+	if configName == "" {
+		return errors.New("flag name is required if you already have existing configs")
+	}
+	if _, ok := existingConfigs[configName]; ok {
+		return fmt.Errorf("config name %q already exists", configName)
+	}
 
 	return nil
 }
