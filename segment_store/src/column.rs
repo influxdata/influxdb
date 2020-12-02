@@ -3,8 +3,11 @@ pub mod dictionary;
 pub mod fixed;
 pub mod fixed_null;
 
-use std::collections::BTreeSet;
 use std::convert::TryFrom;
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use croaring::Bitmap;
 
@@ -246,6 +249,13 @@ impl Column {
             // that are being used for grouping operations, which typically is
             // are Tag Columns (Strings) or Time Columns (Integers).
             _ => unimplemented!("encoded values on other column types not currently supported"),
+        }
+    }
+
+    pub fn grouped_row_ids(&self) -> Cow<'_, BTreeMap<u32, RowIDs>> {
+        match &self {
+            Column::String(_, data) => data.group_row_ids(),
+            _ => unimplemented!("grouping not yet implemented"),
         }
     }
 
@@ -546,7 +556,7 @@ impl Column {
     //
 
     /// The summation of all non-null values located at the provided rows.
-    pub fn sum(&self, row_ids: &[u32]) -> Value<'_> {
+    pub fn sum(&self, row_ids: &[u32]) -> Scalar {
         assert!(row_ids.len() as u32 <= self.num_rows());
 
         match &self {
@@ -795,6 +805,14 @@ impl StringEncoding {
         match &self {
             Self::RLEDictionary(c) => c.count(row_ids),
             Self::Dictionary(c) => c.count(row_ids),
+        }
+    }
+
+    /// Calculate all row ids for each distinct value in the column.
+    pub fn group_row_ids(&self) -> Cow<'_, BTreeMap<u32, RowIDs>> {
+        match self {
+            Self::RLEDictionary(enc) => Cow::Borrowed(enc.group_row_ids()),
+            Self::Dictionary(enc) => Cow::Owned(enc.group_row_ids()),
         }
     }
 
@@ -1290,22 +1308,22 @@ impl IntegerEncoding {
         }
     }
 
-    pub fn sum(&self, row_ids: &[u32]) -> Value<'_> {
+    pub fn sum(&self, row_ids: &[u32]) -> Scalar {
         match &self {
-            IntegerEncoding::I64I64(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64I32(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64U32(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64I16(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64U16(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64I8(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64U8(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::U64U64(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
-            IntegerEncoding::U64U32(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
-            IntegerEncoding::U64U16(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
-            IntegerEncoding::U64U8(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
+            IntegerEncoding::I64I64(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64I32(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64U32(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64I16(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64U16(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64I8(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64U8(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::U64U64(c) => Scalar::U64(c.sum(row_ids)),
+            IntegerEncoding::U64U32(c) => Scalar::U64(c.sum(row_ids)),
+            IntegerEncoding::U64U16(c) => Scalar::U64(c.sum(row_ids)),
+            IntegerEncoding::U64U8(c) => Scalar::U64(c.sum(row_ids)),
             IntegerEncoding::I64I64N(c) => match c.sum(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
+                Some(v) => Scalar::I64(v),
+                None => Scalar::Null,
             },
         }
     }
@@ -1406,9 +1424,9 @@ impl FloatEncoding {
         }
     }
 
-    pub fn sum(&self, row_ids: &[u32]) -> Value<'_> {
+    pub fn sum(&self, row_ids: &[u32]) -> Scalar {
         match &self {
-            FloatEncoding::Fixed64(c) => Value::Scalar(Scalar::F64(c.sum(row_ids))),
+            FloatEncoding::Fixed64(c) => Scalar::F64(c.sum(row_ids)),
         }
     }
 
@@ -3774,17 +3792,17 @@ mod test {
     fn sum() {
         let input = &[100i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
-        assert_eq!(col.sum(&[0, 1, 3][..]), Value::from(302_i64));
-        assert_eq!(col.sum(&[0, 1, 2][..]), Value::from(600_i64));
+        assert_eq!(col.sum(&[0, 1, 3][..]), Scalar::I64(302));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Scalar::I64(600));
 
         let input = &[10.2f64, -2.43, 200.2];
         let col = Column::from(&input[..]);
-        assert_eq!(col.sum(&[0, 1, 2][..]), Value::from(207.97));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Scalar::F64(207.97));
 
         let input = vec![None, Some(200), None];
         let arr = Int64Array::from(input);
         let col = Column::from(arr);
-        assert_eq!(col.sum(&[0, 1, 2][..]), Value::from(200_i64));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Scalar::I64(200));
     }
 
     #[test]
