@@ -20,6 +20,7 @@ use data_types::error::ErrorLogger;
 // For some reason rust thinks these imports are unused, but then
 // complains of unresolved imports if they are not imported.
 use generated_types::{node, Node};
+use query::exec::fieldlist::FieldList;
 use query::group_by::GroupByAndAggregate;
 
 use crate::server::rpc::expr::{self, AddRPCNode, Loggable, SpecialTagKeys};
@@ -140,13 +141,16 @@ pub enum Error {
         source: crate::server::rpc::expr::Error,
     },
 
-    #[snafu(display("Computing series: {}", source))]
+    #[snafu(display("Error computing series: {}", source))]
     ComputingSeriesSet { source: SeriesSetError },
 
-    #[snafu(display("Computing groups series: {}", source))]
+    #[snafu(display("Error converting tag_key to UTF-8 in tag_values request, tag_key value '{}': {}", String::from_utf8_lossy(source.as_bytes()), source))]
+    ConvertingTagKeyInTagValues { source: std::string::FromUtf8Error },
+
+    #[snafu(display("Error computing groups series: {}", source))]
     ComputingGroupedSeriesSet { source: SeriesSetError },
 
-    #[snafu(display("Converting time series into gRPC response:  {}", source))]
+    #[snafu(display("Error converting time series into gRPC response:  {}", source))]
     ConvertingSeriesSet {
         source: crate::server::rpc::data::Error,
     },
@@ -200,6 +204,7 @@ impl Error {
             Self::ConvertingReadGroupType { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingWindowAggregate { .. } => Status::invalid_argument(self.to_string()),
             Self::ComputingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
+            Self::ConvertingTagKeyInTagValues { .. } => Status::invalid_argument(self.to_string()),
             Self::ComputingGroupedSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingFieldList { .. } => Status::invalid_argument(self.to_string()),
@@ -462,7 +467,7 @@ where
         // Special case a request for 'tag_key=_measurement" means to list all measurements
         let response = if tag_key.is_measurement() {
             info!(
-                "tag_values with tag_key=[x00] for database {}, range: {:?}, predicate: {} --> returning measurement_names",
+                "tag_values with tag_key=[x00] (measurement name) for database {}, range: {:?}, predicate: {} --> returning measurement_names",
                 db_name, range,
                     predicate.loggable()
             );
@@ -473,7 +478,34 @@ where
 
             measurement_name_impl(self.db_store.clone(), self.executor.clone(), db_name, range)
                 .await
+        } else if tag_key.is_field() {
+            info!(
+                "tag_values with tag_key=[xff] (field name) for database {}, range: {:?}, predicate: {} --> returning fields",
+                db_name, range,
+                predicate.loggable()
+            );
+
+            let fieldlist = field_names_impl(
+                self.db_store.clone(),
+                self.executor.clone(),
+                db_name,
+                None,
+                range,
+                predicate,
+            )
+            .await?;
+
+            // Pick out the field names into a Vec<Vec<u8>>for return
+            let values = fieldlist
+                .fields
+                .into_iter()
+                .map(|f| f.name.bytes().collect())
+                .collect::<Vec<_>>();
+
+            Ok(StringValuesResponse { values })
         } else {
+            let tag_key = String::from_utf8(tag_key).context(ConvertingTagKeyInTagValues)?;
+
             info!(
                 "tag_values for database {}, range: {:?}, tag_key: {}, predicate: {}",
                 db_name,
@@ -713,9 +745,9 @@ where
             predicate.loggable()
         );
 
-        let measurement = measurement;
+        let measurement = Some(measurement);
 
-        let response = measurement_fields_impl(
+        let response = field_names_impl(
             self.db_store.clone(),
             self.executor.clone(),
             db_name,
@@ -724,7 +756,12 @@ where
             predicate,
         )
         .await
-        .map_err(|e| e.to_status());
+        .map(|fieldlist| {
+            fieldlist_to_measurement_fields_response(fieldlist)
+                .context(ConvertingFieldList)
+                .map_err(|e| e.to_status())
+        })
+        .map_err(|e| e.to_status())?;
 
         tx.send(response)
             .await
@@ -793,10 +830,10 @@ where
         })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
-    let values = table_names
+    let values: Vec<Vec<u8>> = table_names
         .iter()
         .map(|name| name.bytes().collect())
-        .collect::<Vec<_>>();
+        .collect();
 
     Ok(StringValuesResponse { values })
 }
@@ -848,6 +885,9 @@ where
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
     let values = tag_keys_to_byte_vecs(tag_keys);
+    // Debugging help: comment this out to see what is coming back
+    // info!("Returning tag keys");
+    // values.iter().for_each(|k| info!("  {}", String::from_utf8_lossy(k)));
 
     Ok(StringValuesResponse { values })
 }
@@ -901,10 +941,14 @@ where
             })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
-    let values = tag_values
+    let values: Vec<Vec<u8>> = tag_values
         .iter()
         .map(|name| name.bytes().collect())
-        .collect::<Vec<_>>();
+        .collect();
+
+    // Debugging help: uncomment to see raw values coming back
+    //info!("Returning tag values");
+    //values.iter().for_each(|k| info!("  {}", String::from_utf8_lossy(k)));
 
     Ok(StringValuesResponse { values })
 }
@@ -1052,15 +1096,15 @@ where
     Ok(())
 }
 
-/// Return fields with optional measurement, timestamp and arbitratry predicates
-async fn measurement_fields_impl<T>(
+/// Return field names, restricted via optional measurement, timestamp and predicate
+async fn field_names_impl<T>(
     db_store: Arc<T>,
     executor: Arc<QueryExecutor>,
     db_name: String,
-    measurement: String,
+    measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-) -> Result<MeasurementFieldsResponse>
+) -> Result<FieldList>
 where
     T: DatabaseStore,
 {
@@ -1068,7 +1112,7 @@ where
 
     let predicate = PredicateBuilder::default()
         .set_range(range)
-        .table_option(Some(measurement))
+        .table_option(measurement)
         .rpc_predicate(rpc_predicate)
         .context(ConvertingPredicate {
             rpc_predicate_string,
@@ -1097,8 +1141,7 @@ where
                 source: Box::new(e),
             })?;
 
-    // And convert the result
-    fieldlist_to_measurement_fields_response(fieldlist).context(ConvertingFieldList)
+    Ok(fieldlist)
 }
 
 /// Instantiate a server listening on the specified address
@@ -1150,7 +1193,8 @@ mod tests {
         net::{IpAddr, Ipv4Addr, SocketAddr},
         time::Duration,
     };
-    use test_helpers::tracing::TracingCapture;
+    use test_helpers::{tag_key_bytes_to_strings, tracing::TracingCapture};
+
     use tonic::Code;
 
     use futures::prelude::*;
@@ -1276,7 +1320,7 @@ mod tests {
         test_db.set_column_names(to_string_vec(&tag_keys)).await;
 
         let actual_tag_keys = fixture.storage_client.tag_keys(request).await?;
-        let mut expected_tag_keys = vec!["_field", "_measurement"];
+        let mut expected_tag_keys = vec!["_f(0xff)", "_m(0x00)"];
         expected_tag_keys.extend(tag_keys.iter());
 
         assert_eq!(
@@ -1368,7 +1412,7 @@ mod tests {
 
         let actual_tag_keys = fixture.storage_client.measurement_tag_keys(request).await?;
 
-        let mut expected_tag_keys = vec!["_field", "_measurement"];
+        let mut expected_tag_keys = vec!["_f(0xff)", "_m(0x00)"];
         expected_tag_keys.extend(tag_keys.iter());
 
         assert_eq!(
@@ -1416,7 +1460,7 @@ mod tests {
     /// the right parameters are passed into the Database interface
     /// and that the returned values are sent back via gRPC.
     #[tokio::test]
-    async fn test_storage_rpc_tag_values() -> Result<(), tonic::Status> {
+    async fn test_storage_rpc_tag_values() {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1450,7 +1494,7 @@ mod tests {
 
         test_db.set_column_values(to_string_vec(&tag_values)).await;
 
-        let actual_tag_values = fixture.storage_client.tag_values(request).await?;
+        let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
         assert_eq!(
             actual_tag_values, tag_values,
             "unexpected tag values while getting tag values"
@@ -1468,7 +1512,7 @@ mod tests {
             tags_source: source.clone(),
             range: make_timestamp_range(1000, 1500),
             predicate: None,
-            tag_key: "\x00".into(),
+            tag_key: [0].into(),
         };
 
         let lp_data = "h2o,state=CA temp=50.4 1000\n\
@@ -1479,10 +1523,38 @@ mod tests {
             .await;
 
         let tag_values = vec!["h2o"];
-        let actual_tag_values = fixture.storage_client.tag_values(request).await?;
+        let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
         assert_eq!(
             actual_tag_values, tag_values,
             "unexpected tag values while getting tag values for measurement names"
+        );
+
+        // ---
+        // test tag_key = _field means listing all field names
+        // ---
+        let request = TagValuesRequest {
+            tags_source: source.clone(),
+            range: make_timestamp_range(1000, 1500),
+            predicate: None,
+            tag_key: [255].into(),
+        };
+
+        // Setup a single field name (Field1)
+        let fieldlist = FieldList {
+            fields: vec![Field {
+                name: "Field1".into(),
+                data_type: DataType::Utf8,
+                last_timestamp: 1000,
+            }],
+        };
+        let fieldlist_plan = FieldListPlan::Known(Ok(fieldlist));
+        test_db.set_field_colum_names_values(fieldlist_plan).await;
+
+        let expected_tag_values = vec!["Field1"];
+        let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
+        assert_eq!(
+            actual_tag_values, expected_tag_values,
+            "unexpected tag values while getting tag values for field names"
         );
 
         // ---
@@ -1513,14 +1585,33 @@ mod tests {
         });
         assert_eq!(test_db.get_column_values_request().await, expected_request);
 
-        Ok(())
+        // ---
+        // test error with non utf8 value
+        // ---
+        let request = TagValuesRequest {
+            tags_source: source.clone(),
+            range: None,
+            predicate: None,
+            tag_key: [0, 255].into(), // this is not a valid UTF-8 string
+        };
+
+        let response = fixture.storage_client.tag_values(request).await;
+        assert!(response.is_err());
+        let response_string = format!("{:?}", response);
+        let expected_error = "Error converting tag_key to UTF-8 in tag_values request";
+        assert!(
+            response_string.contains(expected_error),
+            "'{}' did not contain expected content '{}'",
+            response_string,
+            expected_error
+        );
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_values-- specifically that
     /// the right parameters are passed into the Database interface
     /// and that the returned values are sent back via gRPC.
     #[tokio::test]
-    async fn test_storage_rpc_measurement_tag_values() -> Result<(), tonic::Status> {
+    async fn test_storage_rpc_measurement_tag_values() {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1558,7 +1649,9 @@ mod tests {
         let actual_tag_values = fixture
             .storage_client
             .measurement_tag_values(request)
-            .await?;
+            .await
+            .unwrap();
+
         assert_eq!(
             actual_tag_values, tag_values,
             "unexpected tag values while getting tag values",
@@ -1598,8 +1691,6 @@ mod tests {
             column_name: "the_tag_key".into(),
         });
         assert_eq!(test_db.get_column_values_request().await, expected_request);
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -2387,7 +2478,7 @@ mod tests {
                 .into_iter()
                 .map(|r| r.values.into_iter())
                 .flatten()
-                .map(|v| String::from_utf8(v).expect("string value response was not utf8"))
+                .map(tag_key_bytes_to_strings)
                 .collect::<Vec<_>>();
 
             strings.sort();
