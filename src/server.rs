@@ -43,3 +43,30 @@ pub(crate) fn org_and_bucket_to_database<'a, O: AsRef<str>, B: AsRef<str>>(
 
     DatabaseName::new(db_name).context(InvalidDatabaseName)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_org_bucket_map_db_ok() {
+        let got = org_and_bucket_to_database("org", "bucket").expect("failed on valid DB mapping");
+
+        assert_eq!(got.to_string(), "org_bucket");
+    }
+
+    #[test]
+    fn test_org_bucket_map_db_contains_underscore() {
+        let err = org_and_bucket_to_database("my_org", "bucket").unwrap_err();
+        assert!(matches!(err, OrgBucketMappingError::InvalidBucketOrgName {..}));
+
+        let err = org_and_bucket_to_database("org", "my_bucket").unwrap_err();
+        assert!(matches!(err, OrgBucketMappingError::InvalidBucketOrgName {..}));
+    }
+
+    #[test]
+    fn test_bad_database_name() {
+        let err = org_and_bucket_to_database("org!", "bucket?").unwrap_err();
+        assert!(matches!(err, OrgBucketMappingError::InvalidDatabaseName {..}));
+    }
+}
