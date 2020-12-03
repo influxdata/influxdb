@@ -135,7 +135,7 @@ impl Table {
 
         for segment in segments {
             let segment_result = segment.read_filter(columns, predicates);
-            for (i, (col_name, values)) in segment_result.into_iter().enumerate() {
+            for (i, (col_name, values)) in segment_result.0.into_iter().enumerate() {
                 assert_eq!(results[i].0, col_name);
                 results[i].1.push(values);
             }
