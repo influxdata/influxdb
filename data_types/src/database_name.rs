@@ -1,10 +1,10 @@
 use snafu::Snafu;
-use std::{borrow::Cow, ops::Range};
+use std::{borrow::Cow, ops::RangeInclusive};
 
 /// Length constraints for a database name.
 ///
-/// A `Range` is half open covering [1, 64)
-const LENGTH_CONSTRAINT: Range<usize> = 1..64;
+/// A `Range` is half open covering [1, 64]
+const LENGTH_CONSTRAINT: RangeInclusive<usize> = 1..=64;
 
 /// Database name validation errors.
 #[derive(Debug, Snafu)]
@@ -12,8 +12,8 @@ pub enum DatabaseNameError {
     #[snafu(display(
         "Database name {} length must be between {} and {} characters",
         name,
-        LENGTH_CONSTRAINT.start,
-        LENGTH_CONSTRAINT.end
+        LENGTH_CONSTRAINT.start(),
+        LENGTH_CONSTRAINT.end()
     ))]
     LengthConstraint { name: String },
 
