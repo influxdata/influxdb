@@ -46,10 +46,10 @@ commands:
           name: Install additional rust targets
           command: |
             rustup target add x86_64-unknown-linux-musl \
-                              aarch64-unknown-linux-gnu \
-                              arm-unknown-linux-gnueabihf \
-                              armv7-unknown-linux-gnueabihf \
-                              x86_64-apple-darwin
+                              aarch64-unknown-linux-musl \
+                              arm-unknown-linux-musleabihf \
+                              armv7-unknown-linux-musleabihf \
+                              x86_64-apple-darwin \
             echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=gcc' >> $HOME/.cargo/env
             echo 'export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
             echo 'export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
