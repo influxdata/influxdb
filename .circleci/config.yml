@@ -22,23 +22,23 @@ commands:
       - run:
           name: Install ARM cross compilers
           command: >
-            curl https://zv.io/BE4BF7E6811C5BA41345C11EB1D0B4566FBBDB40.asc | gpg --import - && \
-            curl https://musl.cc/arm-linux-musleabihf-cross.tgz -O && \
-            curl https://musl.cc/arm-linux-musleabihf-cross.tgz.sig -O && \
-            gpg --verify arm-linux-musleabihf-cross.tgz.sig arm-linux-musleabihf-cross.tgz && \
-            tar -xvf arm-linux-musleabihf-cross.tgz && \
-            rm arm-linux-musleabihf-cross.tgz && \
+            curl https://zv.io/BE4BF7E6811C5BA41345C11EB1D0B4566FBBDB40.asc | gpg --import - &&
+            curl https://musl.cc/arm-linux-musleabihf-cross.tgz -O &&
+            curl https://musl.cc/arm-linux-musleabihf-cross.tgz.sig -O &&
+            gpg --verify arm-linux-musleabihf-cross.tgz.sig arm-linux-musleabihf-cross.tgz &&
+            tar -xvf arm-linux-musleabihf-cross.tgz &&
+            rm arm-linux-musleabihf-cross.tgz &&
             echo 'PATH='$(pwd)'/arm-linux-musleabihf-cross/bin:${PATH}' >> $BASH_ENV
 
       - run:
           name: Install ARM64 cross compilers
           command: >
-            curl https://zv.io/BE4BF7E6811C5BA41345C11EB1D0B4566FBBDB40.asc | gpg --import - && \
-            curl https://musl.cc/aarch64-linux-musl-cross.tgz -O && \
-            curl https://musl.cc/aarch64-linux-musl-cross.tgz.sig -O && \
-            gpg --verify aarch64-linux-musl-cross.tgz.sig aarch64-linux-musl-cross.tgz && \
-            tar -xvf aarch64-linux-musl-cross.tgz && \
-            rm aarch64-linux-musl-cross.tgz && \
+            curl https://zv.io/BE4BF7E6811C5BA41345C11EB1D0B4566FBBDB40.asc | gpg --import - &&
+            curl https://musl.cc/aarch64-linux-musl-cross.tgz -O &&
+            curl https://musl.cc/aarch64-linux-musl-cross.tgz.sig -O &&
+            gpg --verify aarch64-linux-musl-cross.tgz.sig aarch64-linux-musl-cross.tgz &&
+            tar -xvf aarch64-linux-musl-cross.tgz &&
+            rm aarch64-linux-musl-cross.tgz &&
             echo 'PATH='$(pwd)'/aarch64-linux-musl-cross/bin:${PATH}' >> $BASH_ENV
 
       - run:
@@ -159,7 +159,6 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get install -y netcat-openbsd
       - run: sudo apt-get install -y bzr
-      - run: sudo apt-get install -y ca-certificates curl
       - install_rust_compiler
       - run: make protoc
       - run: make build
