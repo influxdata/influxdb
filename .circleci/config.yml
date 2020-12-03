@@ -64,6 +64,7 @@ commands:
                               arm-unknown-linux-musleabihf \
                               armv7-unknown-linux-musleabihf \
                               x86_64-apple-darwin
+            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/opt/osxcross/target/bin/o64-clang' >> $HOME/.cargo/env
 
       - run:
           name: Install pkg-config wrapper
