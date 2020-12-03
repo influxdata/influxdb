@@ -698,6 +698,11 @@ impl ReadGroupResult<'_> {
     pub fn is_empty(&self) -> bool {
         self.group_keys.is_empty()
     }
+
+    // The number of distinct group keys in the result.
+    pub fn cardinality(&self) -> usize {
+        self.group_keys.len()
+    }
 }
 
 impl<'a> std::fmt::Debug for &ReadGroupResult<'a> {
