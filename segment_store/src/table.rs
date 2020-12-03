@@ -7,7 +7,7 @@ use arrow_deps::arrow::record_batch::RecordBatch;
 use crate::segment::{ColumnName, GroupKey, Predicate, Segment};
 use crate::{
     column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
-    segment::ReadFilterResult,
+    segment::{ReadFilterResult, ReadGroupResult},
 };
 
 /// A Table represents data for a single measurement.
@@ -176,19 +176,19 @@ impl Table {
     pub fn aggregate<'a>(
         &'a self,
         predicates: &[Predicate<'a>],
-        group_columns: Vec<ColumnName<'a>>,
-        aggregates: Vec<(ColumnName<'a>, AggregateType)>,
-    ) -> ReadGroupResult<'a> {
+        group_columns: &'a [ColumnName<'a>],
+        aggregates: &'a [(ColumnName<'a>, AggregateType)],
+    ) -> ReadGroupResults<'a> {
         if !self.has_all_columns(&group_columns) {
-            return ReadGroupResult::default(); //TODO(edd): return an error here "group key column x not found"
+            return ReadGroupResults::default(); //TODO(edd): return an error here "group key column x not found"
         }
 
         if !self.has_all_columns(&aggregates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
-            return ReadGroupResult::default(); //TODO(edd): return an error here "aggregate column x not found"
+            return ReadGroupResults::default(); //TODO(edd): return an error here "aggregate column x not found"
         }
 
         if !self.has_all_columns(&predicates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
-            return ReadGroupResult::default(); //TODO(edd): return an error here "predicate column x not found"
+            return ReadGroupResults::default(); //TODO(edd): return an error here "predicate column x not found"
         }
 
         // identify segments where time range and predicates match could match
@@ -196,21 +196,19 @@ impl Table {
         // merge results.
         let segments = self.filter_segments(predicates);
         if segments.is_empty() {
-            return ReadGroupResult::default();
+            return ReadGroupResults::default();
         }
 
-        let mut results = Vec::with_capacity(segments.len());
+        let mut results = ReadGroupResults::default();
+        results.values.reserve(segments.len());
         for segment in segments {
             let segment_result = segment.read_group(predicates, &group_columns, &aggregates);
-            results.push(segment_result);
+            results.values.push(segment_result);
         }
 
-        // TODO(edd): merge results across segments
-        ReadGroupResult {
-            groupby_columns: group_columns,
-            aggregate_columns: aggregates,
-            ..ReadGroupResult::default()
-        }
+        results.groupby_columns = group_columns;
+        results.aggregate_columns = aggregates;
+        results
     }
 
     /// Returns aggregates segmented by grouping keys and windowed by time.
@@ -548,24 +546,18 @@ impl<'a> Display for ReadFilterResults<'a> {
 }
 
 #[derive(Default)]
-pub struct ReadGroupResult<'a> {
+pub struct ReadGroupResults<'a> {
     // column-wise collection of columns being grouped by
-    groupby_columns: Vec<ColumnName<'a>>,
+    groupby_columns: &'a [ColumnName<'a>],
 
     // column-wise collection of columns being aggregated on
-    aggregate_columns: Vec<(ColumnName<'a>, AggregateType)>,
+    aggregate_columns: &'a [(ColumnName<'a>, AggregateType)],
 
-    // row-wise collection of group keys. Each group key contains column-wise
-    // values for each of the groupby_columns.
-    group_keys: Vec<GroupKey<'a>>,
-
-    // row-wise collection of aggregates. Each aggregate contains column-wise
-    // values for each of the aggregate_columns.
-    aggregates: Vec<Vec<AggregateResult<'a>>>,
+    // segment-wise result sets containing grouped values and aggregates
+    values: Vec<ReadGroupResult<'a>>,
 }
 
-use std::iter::Iterator;
-impl<'a> std::fmt::Display for ReadGroupResult<'a> {
+impl<'a> std::fmt::Display for ReadGroupResults<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // header line - display group columns first
         for (i, name) in self.groupby_columns.iter().enumerate() {
@@ -582,31 +574,10 @@ impl<'a> std::fmt::Display for ReadGroupResult<'a> {
         }
         writeln!(f)?;
 
-        // TODO: handle empty results?
-        let expected_rows = self.group_keys.len();
-
-        let mut row = 0;
-        while row < expected_rows {
-            if row > 0 {
-                writeln!(f)?;
-            }
-
-            // write row for group by columns
-            for value in &self.group_keys[row] {
-                write!(f, "{},", value)?;
-            }
-
-            // write row for aggregate columns
-            for (col_i, agg) in self.aggregates[row].iter().enumerate() {
-                write!(f, "{}", agg)?;
-                if col_i < self.aggregates[row].len() - 1 {
-                    write!(f, ",")?;
-                }
-            }
-
-            row += 1;
+        // Display all the results of each segment
+        for segment_values in &self.values {
+            segment_values.fmt(f)?;
         }
-
         Ok(())
     }
 }
