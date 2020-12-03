@@ -418,7 +418,7 @@ mod tests {
                 ..Default::default()
             };
             let got = server.create_database(name, rules).await.unwrap_err();
-            if !matches!(got, Error::InvalidDatabaseName { source: _s }) {
+            if !matches!(got, Error::InvalidDatabaseName { .. }) {
                 panic!("expected invalid name error");
             }
         }
