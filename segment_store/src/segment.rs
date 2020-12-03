@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::BTreeMap};
 use arrow_deps::arrow::datatypes::SchemaRef;
 
 use crate::column::{
-    cmp::Operator, Column, OwnedValue, RowIDs, RowIDsOption, Scalar, Value, Values,
+    cmp::Operator, Column, OwnedValue, RowIDs, RowIDsOption, Scalar, Value, Values, ValuesIterator,
 };
 
 /// The name used for a timestamp column.
@@ -169,9 +169,9 @@ impl Segment {
         &self,
         columns: &[ColumnName<'a>],
         predicates: &[Predicate<'_>],
-    ) -> Vec<(ColumnName<'a>, Values)> {
+    ) -> ReadFilterResult<'a> {
         let row_ids = self.row_ids_from_predicates(predicates);
-        self.materialise_rows(columns, row_ids)
+        ReadFilterResult(self.materialise_rows(columns, row_ids))
     }
 
     fn materialise_rows<'a>(
@@ -434,50 +434,71 @@ impl MetaData {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::column::ValuesIterator;
+/// Encapsulates results from segments with a structure that makes them easier
+/// to work with and display.
+pub struct ReadFilterResult<'a>(pub Vec<(ColumnName<'a>, Values)>);
 
-    fn stringify_read_filter_results(results: Vec<(ColumnName<'_>, Values)>) -> String {
-        let mut out = String::new();
+impl<'a> ReadFilterResult<'a> {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl<'a> std::fmt::Debug for &ReadFilterResult<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // header line.
-        for (i, (k, _)) in results.iter().enumerate() {
-            out.push_str(k);
-            if i < results.len() - 1 {
-                out.push(',');
+        for (i, (k, _)) in self.0.iter().enumerate() {
+            write!(f, "{}", k)?;
+
+            if i < self.0.len() - 1 {
+                write!(f, ",")?;
             }
         }
-        out.push('\n');
+        writeln!(f)?;
 
-        // TODO: handle empty results?
-        let expected_rows = results[0].1.len();
+        // Display the rest of the values.
+        std::fmt::Display::fmt(&self, f)
+    }
+}
+
+impl<'a> std::fmt::Display for &ReadFilterResult<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_empty() {
+            return Ok(());
+        }
+
+        let expected_rows = self.0[0].1.len();
         let mut rows = 0;
 
-        let mut iter_map = results
+        let mut iter_map = self
+            .0
             .iter()
             .map(|(k, v)| (*k, ValuesIterator::new(v)))
             .collect::<BTreeMap<&str, ValuesIterator<'_>>>();
 
         while rows < expected_rows {
             if rows > 0 {
-                out.push('\n');
+                writeln!(f)?;
             }
 
-            for (i, (k, _)) in results.iter().enumerate() {
+            for (i, (k, _)) in self.0.iter().enumerate() {
                 if let Some(itr) = iter_map.get_mut(k) {
-                    out.push_str(&format!("{}", itr.next().unwrap()));
-                    if i < results.len() - 1 {
-                        out.push(',');
+                    write!(f, "{}", itr.next().unwrap())?;
+                    if i < self.0.len() - 1 {
+                        write!(f, ",")?;
                     }
                 }
             }
 
             rows += 1;
         }
-
-        out
+        writeln!(f)
     }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
 
     fn build_predicates_with_time(
         from: i64,
@@ -586,72 +607,81 @@ mod test {
 
         let segment = Segment::new(6, columns);
 
-        let results = segment.read_filter(
-            &["count", "region", "time"],
-            &build_predicates_with_time(1, 6, vec![]),
-        );
-        let expected = "count,region,time
+        let cases = vec![
+            (
+                vec!["count", "region", "time"],
+                build_predicates_with_time(1, 6, vec![]),
+                "count,region,time
 100,west,1
 101,west,2
 200,east,3
 203,west,4
-203,south,5";
-        assert_eq!(stringify_read_filter_results(results), expected);
+203,south,5
+",
+            ),
+            (
+                vec!["time", "region", "method"],
+                build_predicates_with_time(-19, 2, vec![]),
+                "time,region,method
+1,west,GET
+",
+            ),
+            (
+                vec!["time"],
+                build_predicates_with_time(0, 3, vec![]),
+                "time
+1
+2
+",
+            ),
+            (
+                vec!["method"],
+                build_predicates_with_time(0, 3, vec![]),
+                "method
+GET
+POST
+",
+            ),
+            (
+                vec!["count", "method", "time"],
+                build_predicates_with_time(
+                    0,
+                    6,
+                    vec![("method", (Operator::Equal, Value::String("POST")))],
+                ),
+                "count,method,time
+101,POST,2
+200,POST,3
+203,POST,4
+",
+            ),
+            (
+                vec!["region", "time"],
+                build_predicates_with_time(
+                    0,
+                    6,
+                    vec![("method", (Operator::Equal, Value::String("POST")))],
+                ),
+                "region,time
+west,2
+east,3
+west,4
+",
+            ),
+        ];
 
-        let results = segment.read_filter(
-            &["time", "region", "method"],
-            &build_predicates_with_time(-19, 2, vec![]),
-        );
-        let expected = "time,region,method
-1,west,GET";
-        assert_eq!(stringify_read_filter_results(results), expected);
+        for (cols, predicates, expected) in cases {
+            let results = segment.read_filter(&cols, &predicates);
+            assert_eq!(format!("{:?}", &results), expected);
+        }
 
+        // test no matching rows
         let results = segment.read_filter(
             &["method", "region", "time"],
             &build_predicates_with_time(-19, 1, vec![]),
         );
         let expected = "";
         assert!(results.is_empty());
-
-        let results = segment.read_filter(&["time"], &build_predicates_with_time(0, 3, vec![]));
-        let expected = "time
-1
-2";
-        assert_eq!(stringify_read_filter_results(results), expected);
-
-        let results = segment.read_filter(&["method"], &build_predicates_with_time(0, 3, vec![]));
-        let expected = "method
-GET
-POST";
-        assert_eq!(stringify_read_filter_results(results), expected);
-
-        let results = segment.read_filter(
-            &["count", "method", "time"],
-            &build_predicates_with_time(
-                0,
-                6,
-                vec![("method", (Operator::Equal, Value::String("POST")))],
-            ),
-        );
-        let expected = "count,method,time
-101,POST,2
-200,POST,3
-203,POST,4";
-        assert_eq!(stringify_read_filter_results(results), expected);
-
-        let results = segment.read_filter(
-            &["region", "time"],
-            &build_predicates_with_time(
-                0,
-                6,
-                vec![("method", (Operator::Equal, Value::String("POST")))],
-            ),
-        );
-        let expected = "region,time
-west,2
-east,3
-west,4";
-        assert_eq!(stringify_read_filter_results(results), expected);
     }
 
     #[test]
