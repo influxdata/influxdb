@@ -786,7 +786,7 @@ impl SetRange for PredicateBuilder {
     }
 }
 
-fn get_database_name<'a>(input: &impl GrpcInputs) -> Result<DatabaseName<'a>, Status> {
+fn get_database_name(input: &impl GrpcInputs) -> Result<DatabaseName<'static>, Status> {
     org_and_bucket_to_database(input.org_id()?.to_string(), &input.bucket_name()?)
         .map_err(|e| Status::internal(e.to_string()))
 }
