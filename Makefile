@@ -188,7 +188,7 @@ release: goreleaser
 	./bin/goreleaser release -p 1 --rm-dist
 
 gershon-release: goreleaser
-	git checkout -- go.sum # avoid dirty git repository caused by go install
+	git checkout -- go.mod go.sum # avoid dirty git repository caused by go install
 	./bin/goreleaser release -p 1 --rm-dist --config=.goreleaser_gershon.yml --snapshot --debug
 
 clean:
