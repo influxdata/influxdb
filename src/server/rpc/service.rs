@@ -885,7 +885,7 @@ where
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
     let values = tag_keys_to_byte_vecs(tag_keys);
-    // Debugging help: comment this out to see what is coming back
+    // Debugging help: uncomment this out to see what is coming back
     // info!("Returning tag keys");
     // values.iter().for_each(|k| info!("  {}", String::from_utf8_lossy(k)));
 

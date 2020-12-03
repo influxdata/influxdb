@@ -406,7 +406,7 @@ impl TSDatabase for Db {
             let partition_predicate = partition.compile_predicate(&predicate)?;
             // this doesn't seem to make any sense
             assert!(
-                partition_predicate.field_restriction.is_none(),
+                partition_predicate.field_name_predicate.is_none(),
                 "Column selection for table names not supported"
             );
 
