@@ -434,6 +434,8 @@ impl MetaData {
     }
 }
 
+/// Encapsulates results from segments with a structure that makes them easier
+/// to work with and display.
 pub struct ReadFilterResult<'a>(pub Vec<(ColumnName<'a>, Values)>);
 
 impl<'a> ReadFilterResult<'a> {

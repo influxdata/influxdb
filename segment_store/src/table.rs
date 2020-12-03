@@ -471,6 +471,8 @@ impl MetaData {
     }
 }
 
+/// Encapsulates results from tables with a structure that makes them easier
+/// to work with and display.
 pub struct ReadFilterResults<'a> {
     pub names: Vec<ColumnName<'a>>,
     pub values: Vec<ReadFilterResult<'a>>,
