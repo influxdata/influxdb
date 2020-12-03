@@ -198,9 +198,7 @@ impl<M: ConnectionManager> Server<M> {
             .config
             .databases
             .get(&db_name)
-            .context(DatabaseNotFound {
-                db_name: &*db_name,
-            })?;
+            .context(DatabaseNotFound { db_name: &*db_name })?;
 
         let sequence = db.next_sequence();
         let write = lines_to_replicated_write(id, sequence, lines, &db.rules);
@@ -218,13 +216,12 @@ impl<M: ConnectionManager> Server<M> {
             .config
             .databases
             .get(&db_name)
-            .context(DatabaseNotFound {
-                db_name: &*db_name,
-            })?;
+            .context(DatabaseNotFound { db_name: &*db_name })?;
 
-        let buff = db.local_store.as_ref().context(NoLocalBuffer {
-            db: &*db_name,
-        })?;
+        let buff = db
+            .local_store
+            .as_ref()
+            .context(NoLocalBuffer { db: &*db_name })?;
         buff.query(query)
             .await
             .map_err(|e| Box::new(e) as DatabaseError)

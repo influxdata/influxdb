@@ -812,9 +812,7 @@ where
     let plan = db_store
         .db(&db_name)
         .await
-        .context(DatabaseNotFound {
-            db_name: &*db_name,
-        })?
+        .context(DatabaseNotFound { db_name: &*db_name })?
         .table_names(predicate)
         .await
         .map_err(|e| Error::ListingTables {
@@ -862,9 +860,10 @@ where
         })?
         .build();
 
-    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
-        db_name: &*db_name,
-    })?;
+    let db = db_store
+        .db(&db_name)
+        .await
+        .context(DatabaseNotFound { db_name: &*db_name })?;
 
     let tag_key_plan = db
         .tag_column_names(predicate)
@@ -916,9 +915,10 @@ where
         })?
         .build();
 
-    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
-        db_name: &*db_name,
-    })?;
+    let db = db_store
+        .db(&db_name)
+        .await
+        .context(DatabaseNotFound { db_name: &*db_name })?;
 
     let tag_value_plan =
         db.column_values(&tag_name, predicate)
@@ -974,9 +974,10 @@ where
         })?
         .build();
 
-    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
-        db_name: &*db_name,
-    })?;
+    let db = db_store
+        .db(&db_name)
+        .await
+        .context(DatabaseNotFound { db_name: &*db_name })?;
 
     let series_plan =
         db.query_series(predicate)
@@ -1056,9 +1057,10 @@ where
         })?
         .build();
 
-    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
-        db_name: &*db_name,
-    })?;
+    let db = db_store
+        .db(&db_name)
+        .await
+        .context(DatabaseNotFound { db_name: &*db_name })?;
 
     let grouped_series_set_plan =
         db.query_groups(predicate, gby_agg)
@@ -1116,9 +1118,10 @@ where
         })?
         .build();
 
-    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
-        db_name: &*db_name,
-    })?;
+    let db = db_store
+        .db(&db_name)
+        .await
+        .context(DatabaseNotFound { db_name: &*db_name })?;
 
     let fieldlist_plan =
         db.field_column_names(predicate)
