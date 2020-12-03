@@ -231,9 +231,9 @@ impl<M: ConnectionManager> Server<M> {
             .context(UnknownDatabaseError {})
     }
 
-    pub async fn handle_replicated_write<'a>(
+    pub async fn handle_replicated_write(
         &self,
-        db_name: &DatabaseName<'a>,
+        db_name: &DatabaseName<'_>,
         db: &Db,
         write: ReplicatedWrite,
     ) -> Result<()> {
@@ -266,10 +266,10 @@ impl<M: ConnectionManager> Server<M> {
     // replicates to a single host in the group based on hashing rules. If that host is unavailable
     // an error will be returned. The request may still succeed if enough of the other host groups
     // have returned a success.
-    async fn replicate_to_host_group<'a>(
+    async fn replicate_to_host_group(
         &self,
         host_group_id: &str,
-        db_name: &DatabaseName<'a>,
+        db_name: &DatabaseName<'_>,
         write: &ReplicatedWrite,
     ) -> Result<()> {
         let group = self
