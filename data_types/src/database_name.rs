@@ -3,7 +3,7 @@ use std::{borrow::Cow, ops::RangeInclusive};
 
 /// Length constraints for a database name.
 ///
-/// A `Range` is half open covering [1, 64]
+/// A `RangeInclusive` is a closed interval, covering [1, 64]
 const LENGTH_CONSTRAINT: RangeInclusive<usize> = 1..=64;
 
 /// Database name validation errors.
