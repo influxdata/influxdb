@@ -20,13 +20,28 @@ commands:
       This will install the cross compilers necessary to build release binaries.
     steps:
       - run:
-          name: Install linux cross compilers
+          name: Install ARM cross compilers
           command: >
-            sudo apt-get update && sudo apt-get install -y --no-install-recommends \
-              gcc-arm-linux-gnueabihf libc6-dev-armhf-cross \
-              gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
-              gcc-i686-linux-gnu \
-              libc-dev-i386-cross
+            sudo curl https://zv.io/BE4BF7E6811C5BA41345C11EB1D0B4566FBBDB40.asc | sudo gpg --import - && \
+            sudo curl https://musl.cc/arm-linux-musleabihf-cross.tgz -O && \
+            sudo curl https://musl.cc/arm-linux-musleabihf-cross.tgz.sig -O && \
+            sudo gpg --verify arm-linux-musleabihf-cross.tgz.sig \
+                              arm-linux-musleabihf-cross.tgz && \
+            sudo tar -xvf arm-linux-musleabihf-cross.tgz && \
+            sudo rm arm-linux-musleabihf-cross.tgz && \
+            echo 'PATH='$(pwd)'/arm-linux-musleabihf-cross/bin:${PATH}' >> $BASH_ENV
+
+      - run:
+          name: Install ARM64 cross compilers
+          command: >
+            sudo curl https://zv.io/BE4BF7E6811C5BA41345C11EB1D0B4566FBBDB40.asc | sudo gpg --import - && \
+            sudo curl https://musl.cc/aarch64-linux-musl-cross.tgz -O && \
+            sudo curl https://musl.cc/aarch64-linux-musl-cross.tgz.sig -O && \
+            sudo gpg --verify aarch64-linux-musl-cross.tgz.sig \
+                              aarch64-linux-musl-cross.tgz && \
+            sudo tar -xvf aarch64-linux-musl-cross.tgz && \
+            sudo rm aarch64-linux-musl-cross.tgz && \
+            echo 'PATH='$(pwd)'/aarch64-linux-musl-cross/bin:${PATH}' >> $BASH_ENV
 
       - run:
           name: Install macOS cross compilers
@@ -42,6 +57,7 @@ commands:
               ./tarballs/MacOSX10.11.sdk.tar.xz \
               https://macos-sdks.s3.amazonaws.com/MacOSX10.11.sdk.tar.xz
             sudo UNATTENDED=1 PORTABLE=true ./build.sh
+
       - run:
           name: Install additional rust targets
           command: |
@@ -50,11 +66,7 @@ commands:
                               arm-unknown-linux-musleabihf \
                               armv7-unknown-linux-musleabihf \
                               x86_64-apple-darwin
-#            echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=gcc' >> $HOME/.cargo/env
-#            echo 'export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
-#            echo 'export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
-#            echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> $HOME/.cargo/env
-#            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/opt/osxcross/target/bin/o64-clang' >> $HOME/.cargo/env
+
       - run:
           name: Install pkg-config wrapper
           command: go build -o /go/bin/pkg-config github.com/influxdata/pkg-config
