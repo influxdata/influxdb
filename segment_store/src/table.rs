@@ -1,10 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Display;
 use std::slice::Iter;
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 
-use crate::column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value, Values};
 use crate::segment::{ColumnName, GroupKey, Predicate, Segment};
+use crate::{
+    column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
+    segment::ReadFilterResult,
+};
 
 /// A Table represents data for a single measurement.
 ///
@@ -122,23 +126,25 @@ impl Table {
         &self,
         columns: &[ColumnName<'a>],
         predicates: &[Predicate<'_>],
-    ) -> Vec<(ColumnName<'a>, Vec<Values>)> {
+    ) -> ReadFilterResults<'a> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
         let segments = self.filter_segments(predicates);
 
-        let mut results = columns.iter().map(|&col_name| (col_name, vec![])).collect();
+        let mut results = ReadFilterResults {
+            names: columns.to_vec(),
+            values: vec![],
+        };
+
         if segments.is_empty() {
             return results;
         }
 
         for segment in segments {
-            let segment_result = segment.read_filter(columns, predicates);
-            for (i, (col_name, values)) in segment_result.into_iter().enumerate() {
-                assert_eq!(results[i].0, col_name);
-                results[i].1.push(values);
-            }
+            results
+                .values
+                .push(segment.read_filter(columns, predicates));
         }
 
         results
@@ -465,59 +471,48 @@ impl MetaData {
     }
 }
 
+/// Encapsulates results from tables with a structure that makes them easier
+/// to work with and display.
+pub struct ReadFilterResults<'a> {
+    pub names: Vec<ColumnName<'a>>,
+    pub values: Vec<ReadFilterResult<'a>>,
+}
+
+impl<'a> ReadFilterResults<'a> {
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+}
+
+impl<'a> Display for ReadFilterResults<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // header line.
+        for (i, k) in self.names.iter().enumerate() {
+            write!(f, "{}", k)?;
+
+            if i < self.names.len() - 1 {
+                write!(f, ",")?;
+            }
+        }
+        writeln!(f)?;
+
+        if self.is_empty() {
+            return Ok(());
+        }
+
+        // Display all the results of each segment
+        for segment_values in &self.values {
+            segment_values.fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::column::{cmp::Operator, Column, ValuesIterator};
+    use crate::column::{cmp::Operator, Column};
     use crate::segment::{ColumnType, TIME_COLUMN_NAME};
-
-    fn stringify_select_results(table: Vec<(ColumnName<'_>, Vec<Values>)>) -> String {
-        let mut out = String::new();
-        // header line.
-        for (i, (k, _)) in table.iter().enumerate() {
-            out.push_str(k);
-            if i < table.len() - 1 {
-                out.push(',');
-            }
-        }
-        out.push('\n');
-
-        // TODO: handle empty results?
-        // let expected_rows = results[0].1.iter().map(|v| v.len() as i32).sum();
-
-        let total_segments = table[0].1.len();
-        let mut segment = 0;
-
-        while segment < total_segments {
-            // build an iterator for each column in this segment.
-            let mut col_itrs = table
-                .iter()
-                .map(|(k, v)| (*k, ValuesIterator::new(&v[segment])))
-                .collect::<BTreeMap<&str, _>>();
-
-            // cycle through each column draining one value per iterator until
-            // all the column iterators are drained.
-            let mut drained_column = 0;
-            while drained_column < table.len() {
-                for (i, (column_name, _)) in table.iter().enumerate() {
-                    let itr = col_itrs.get_mut(column_name).unwrap();
-                    if let Some(v) = itr.next() {
-                        out.push_str(&format!("{}", v));
-                        if i < table.len() - 1 {
-                            out.push(',');
-                        }
-                    } else {
-                        drained_column += 1;
-                    }
-                }
-                out.push('\n');
-            }
-
-            segment += 1;
-        }
-
-        out
-    }
 
     fn build_predicates(
         from: i64,
@@ -575,7 +570,7 @@ mod test {
             &build_predicates(1, 31, vec![]),
         );
         assert_eq!(
-            stringify_select_results(results),
+            format!("{}", &results),
             "time,count,region
 1,100,west
 2,101,west
@@ -583,11 +578,9 @@ mod test {
 4,203,west
 5,203,south
 6,10,north
-
 10,1000,south
 20,1002,north
 30,1200,east
-
 ",
         );
 
@@ -602,17 +595,15 @@ mod test {
         );
 
         assert_eq!(
+            format!("{}", &results),
             "time,region
 1,west
 2,west
 3,east
 4,west
 6,north
-
 20,north
-
 ",
-            stringify_select_results(results)
         );
     }
 }
