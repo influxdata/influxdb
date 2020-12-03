@@ -1736,7 +1736,7 @@ mod tests {
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
-        let expected_error = "panicked at 'This is a test panic', src/server/rpc/storage.rs";
+        let expected_error = "panicked at 'This is a test panic', src/server/rpc/service.rs";
         assert!(
             captured_logs.contains(expected_error),
             "Logs did not contain expected panic message '{}'. They were\n{}",

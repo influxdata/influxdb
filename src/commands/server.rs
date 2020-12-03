@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::{env::VarError, path::PathBuf};
 
 use crate::server::http_routes;
-use crate::server::rpc::storage;
+use crate::server::rpc::service;
 
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
@@ -50,7 +50,7 @@ pub enum Error {
 
     #[snafu(display("Error serving RPC: {}", source))]
     ServingRPC {
-        source: crate::server::rpc::storage::Error,
+        source: crate::server::rpc::service::Error,
     },
 }
 
@@ -107,7 +107,7 @@ pub async fn main() -> Result<()> {
         .await
         .expect("failed to bind server");
 
-    let grpc_server = storage::make_server(socket, storage.clone(), executor);
+    let grpc_server = service::make_server(socket, storage.clone(), executor);
 
     info!("gRPC server listening on http://{}", grpc_bind_addr);
 
