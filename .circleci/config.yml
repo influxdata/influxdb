@@ -159,6 +159,7 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get install -y netcat-openbsd
       - run: sudo apt-get install -y bzr
+      - run: sudo apt-get install -y ca-certificates curl
       - install_rust_compiler
       - run: make protoc
       - run: make build
