@@ -813,7 +813,7 @@ where
         .db(&db_name)
         .await
         .context(DatabaseNotFound {
-            db_name: db_name.to_string(),
+            db_name: &*db_name,
         })?
         .table_names(predicate)
         .await
@@ -863,7 +863,7 @@ where
         .build();
 
     let db = db_store.db(&db_name).await.context(DatabaseNotFound {
-        db_name: db_name.to_string(),
+        db_name: &*db_name,
     })?;
 
     let tag_key_plan = db
@@ -917,7 +917,7 @@ where
         .build();
 
     let db = db_store.db(&db_name).await.context(DatabaseNotFound {
-        db_name: db_name.to_string(),
+        db_name: &*db_name,
     })?;
 
     let tag_value_plan =
@@ -975,7 +975,7 @@ where
         .build();
 
     let db = db_store.db(&db_name).await.context(DatabaseNotFound {
-        db_name: db_name.to_string(),
+        db_name: &*db_name,
     })?;
 
     let series_plan =
@@ -1057,7 +1057,7 @@ where
         .build();
 
     let db = db_store.db(&db_name).await.context(DatabaseNotFound {
-        db_name: db_name.to_string(),
+        db_name: &*db_name,
     })?;
 
     let grouped_series_set_plan =
@@ -1117,7 +1117,7 @@ where
         .build();
 
     let db = db_store.db(&db_name).await.context(DatabaseNotFound {
-        db_name: db_name.to_string(),
+        db_name: &*db_name,
     })?;
 
     let fieldlist_plan =

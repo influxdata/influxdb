@@ -199,7 +199,7 @@ impl<M: ConnectionManager> Server<M> {
             .databases
             .get(&db_name)
             .context(DatabaseNotFound {
-                db_name: db_name.to_string(),
+                db_name: &*db_name,
             })?;
 
         let sequence = db.next_sequence();
@@ -219,11 +219,11 @@ impl<M: ConnectionManager> Server<M> {
             .databases
             .get(&db_name)
             .context(DatabaseNotFound {
-                db_name: db_name.to_string(),
+                db_name: &*db_name,
             })?;
 
         let buff = db.local_store.as_ref().context(NoLocalBuffer {
-            db: db_name.to_string(),
+            db: &*db_name,
         })?;
         buff.query(query)
             .await

@@ -33,8 +33,8 @@ pub(crate) fn org_and_bucket_to_database<'a, O: AsRef<str>, B: AsRef<str>>(
         || bucket.as_ref().chars().any(|c| c == SEPARATOR)
     {
         return InvalidBucketOrgName {
-            bucket_name: bucket.as_ref().to_string(),
-            org: org.as_ref().to_string(),
+            bucket_name: bucket.as_ref(),
+            org: org.as_ref(),
         }
         .fail();
     }
@@ -52,7 +52,7 @@ mod tests {
     fn test_org_bucket_map_db_ok() {
         let got = org_and_bucket_to_database("org", "bucket").expect("failed on valid DB mapping");
 
-        assert_eq!(got.to_string(), "org_bucket");
+        assert_eq!(&*got, "org_bucket");
     }
 
     #[test]
