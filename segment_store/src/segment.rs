@@ -369,10 +369,16 @@ impl Segment {
             .map(|(col_name, typ)| (self.column_by_name(col_name), typ))
             .collect::<Vec<_>>();
 
-        let encoded_groups = group_columns
+        let encoded_groups_map = group_columns
             .iter()
             .map(|col| col.grouped_row_ids())
             .collect::<Vec<_>>();
+        let mut encoded_groups: Vec<Vec<&RowIDs>> = vec![];
+        for id_map in &encoded_groups_map {
+            // N.B - this works because grouped_row_ids returns sequential
+            // encoded ids.
+            encoded_groups.push(id_map.values().collect());
+        }
 
         let mut result = ReadGroupResult {
             group_columns: group_column_name,
@@ -413,28 +419,21 @@ impl Segment {
         // non-empty sets.
         let group_keys = encoded_groups
             .iter()
-            .map(|ids| ids.keys())
+            .map(|ids| (0..ids.len()))
             .multi_cartesian_product();
 
         // Let's figure out which of the candidate group keys are actually
         // group keys with data.
         'outer: for group_key in group_keys {
-            let mut aggregate_row_ids = Cow::Borrowed(
-                encoded_groups[0]
-                    .get(&group_key[0])
-                    .unwrap()
-                    .unwrap_bitmap(),
-            );
+            let mut aggregate_row_ids =
+                Cow::Borrowed(encoded_groups[0][group_key[0]].unwrap_bitmap());
 
             if aggregate_row_ids.is_empty() {
                 continue;
             }
 
             for i in 1..group_key.len() {
-                let other = encoded_groups[i]
-                    .get(&group_key[i])
-                    .unwrap()
-                    .unwrap_bitmap();
+                let other = encoded_groups[i][group_key[i]].unwrap_bitmap();
 
                 if aggregate_row_ids.and_cardinality(other) > 0 {
                     aggregate_row_ids = Cow::Owned(aggregate_row_ids.and(other));
@@ -451,7 +450,7 @@ impl Segment {
             // be safe to use `small_vec` here without blowing the stack up.
             let mut material_key = Vec::with_capacity(group_key.len());
             for (col_idx, &encoded_id) in group_key.iter().enumerate() {
-                material_key.push(group_columns[col_idx].decode_id(*encoded_id));
+                material_key.push(group_columns[col_idx].decode_id(encoded_id as u32));
             }
             result.group_keys.push(material_key);
 
