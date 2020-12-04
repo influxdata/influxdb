@@ -435,8 +435,10 @@ impl Segment {
                     .get(&group_key[i])
                     .unwrap()
                     .unwrap_bitmap();
-                aggregate_row_ids = Cow::Owned(aggregate_row_ids.and(other));
-                if aggregate_row_ids.is_empty() {
+
+                if aggregate_row_ids.and_cardinality(other) > 0 {
+                    aggregate_row_ids = Cow::Owned(aggregate_row_ids.and(other));
+                } else {
                     continue 'outer;
                 }
             }
