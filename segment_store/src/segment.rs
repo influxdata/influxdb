@@ -413,7 +413,7 @@ impl Segment {
         // non-empty sets.
         let group_keys = encoded_groups
             .iter()
-            .map(|ids| ids.keys().cloned())
+            .map(|ids| ids.keys())
             .multi_cartesian_product();
 
         // Let's figure out which of the candidate group keys are actually
@@ -451,7 +451,7 @@ impl Segment {
             // be safe to use `small_vec` here without blowing the stack up.
             let mut material_key = Vec::with_capacity(group_key.len());
             for (col_idx, &encoded_id) in group_key.iter().enumerate() {
-                material_key.push(group_columns[col_idx].decode_id(encoded_id));
+                material_key.push(group_columns[col_idx].decode_id(*encoded_id));
             }
             result.group_keys.push(material_key);
 
