@@ -13,6 +13,7 @@ use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
     database_rules::{DatabaseRules, HostGroup, HostGroupId, MatchTables},
+    {DatabaseName, DatabaseNameError},
 };
 use influxdb_line_protocol::ParsedLine;
 use object_store::ObjectStore;
@@ -23,7 +24,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::TryStreamExt;
 use serde::{Deserialize, Serialize};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -33,11 +34,8 @@ pub enum Error {
     ServerError { source: std::io::Error },
     #[snafu(display("database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
-    #[snafu(display(
-        "invalid database name {} can only contain alphanumeric, _ and - characters",
-        db_name
-    ))]
-    InvalidDatabaseName { db_name: String },
+    #[snafu(display("invalid database: {}", source))]
+    InvalidDatabaseName { source: DatabaseNameError },
     #[snafu(display("database error: {}", source))]
     UnknownDatabaseError { source: DatabaseError },
     #[snafu(display("no local buffer for database: {}", db))]
@@ -79,7 +77,7 @@ pub struct Server<M: ConnectionManager> {
 struct Config {
     // id is optional because this may not be set on startup. It might be set via an API call
     id: Option<u32>,
-    databases: BTreeMap<String, Db>,
+    databases: BTreeMap<DatabaseName<'static>, Db>,
     host_groups: BTreeMap<HostGroupId, HostGroup>,
 }
 
@@ -111,16 +109,10 @@ impl<M: ConnectionManager> Server<M> {
         // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
 
-        let db_name = db_name.into();
-        ensure!(
-            db_name
-                .chars()
-                .all(|c| c.is_alphanumeric() || c == '_' || c == '-'),
-            InvalidDatabaseName { db_name }
-        );
+        let db_name = DatabaseName::new(db_name.into()).context(InvalidDatabaseName)?;
 
         let buffer = if rules.store_locally {
-            Some(WriteBufferDb::new(&db_name))
+            Some(WriteBufferDb::new(db_name.to_string()))
         } else {
             None
         };
@@ -201,32 +193,35 @@ impl<M: ConnectionManager> Server<M> {
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
         let id = self.require_id()?;
 
+        let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
             .config
             .databases
-            .get(db_name)
-            .context(DatabaseNotFound { db_name })?;
+            .get(&db_name)
+            .context(DatabaseNotFound { db_name: &*db_name })?;
 
         let sequence = db.next_sequence();
         let write = lines_to_replicated_write(id, sequence, lines, &db.rules);
 
-        self.handle_replicated_write(db_name, db, write).await?;
+        self.handle_replicated_write(&db_name, db, write).await?;
 
         Ok(())
     }
 
     /// Executes a query against the local write buffer database, if one exists.
     pub async fn query_local(&self, db_name: &str, query: &str) -> Result<Vec<RecordBatch>> {
+        let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
+
         let db = self
             .config
             .databases
-            .get(db_name)
-            .context(DatabaseNotFound { db_name })?;
+            .get(&db_name)
+            .context(DatabaseNotFound { db_name: &*db_name })?;
 
         let buff = db
             .local_store
             .as_ref()
-            .context(NoLocalBuffer { db: db_name })?;
+            .context(NoLocalBuffer { db: &*db_name })?;
         buff.query(query)
             .await
             .map_err(|e| Box::new(e) as DatabaseError)
@@ -235,7 +230,7 @@ impl<M: ConnectionManager> Server<M> {
 
     pub async fn handle_replicated_write(
         &self,
-        db_name: &str,
+        db_name: &DatabaseName<'_>,
         db: &Db,
         write: ReplicatedWrite,
     ) -> Result<()> {
@@ -271,7 +266,7 @@ impl<M: ConnectionManager> Server<M> {
     async fn replicate_to_host_group(
         &self,
         host_group_id: &str,
-        db_name: &str,
+        db_name: &DatabaseName<'_>,
         write: &ReplicatedWrite,
     ) -> Result<()> {
         let group = self
@@ -420,12 +415,8 @@ mod tests {
                 ..Default::default()
             };
             let got = server.create_database(name, rules).await.unwrap_err();
-            if let Error::InvalidDatabaseName { db_name: got } = got {
-                if got != name {
-                    panic!(format!("expected name {} got {}", name, got));
-                }
-            } else {
-                panic!("unexpected error");
+            if !matches!(got, Error::InvalidDatabaseName { .. }) {
+                panic!("expected invalid name error");
             }
         }
 

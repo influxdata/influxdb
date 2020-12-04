@@ -129,14 +129,6 @@ pub trait DatabaseStore: Debug + Send + Sync {
     async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error>;
 }
 
-/// Compatibility: return the database name to use for the specified
-/// org and bucket name.
-///
-/// TODO move to somewhere else / change the traits to take the database name directly
-pub fn org_and_bucket_to_database(org: impl Into<String>, bucket: &str) -> String {
-    org.into() + "_" + bucket
-}
-
 // Note: I would like to compile this module only in the 'test' cfg,
 // but when I do so then other modules can not find them. For example:
 //
