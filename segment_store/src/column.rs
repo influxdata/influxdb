@@ -1458,6 +1458,13 @@ impl From<&[Option<&str>]> for Column {
     }
 }
 
+impl From<&[Option<String>]> for Column {
+    fn from(arr: &[Option<String>]) -> Self {
+        let other = arr.iter().map(|x| x.as_deref()).collect::<Vec<_>>();
+        Self::from(other.as_slice())
+    }
+}
+
 impl From<&[&str]> for Column {
     fn from(arr: &[&str]) -> Self {
         let data = StringEncoding::from_strs(arr);
