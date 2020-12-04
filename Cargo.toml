@@ -28,6 +28,9 @@ members = [
 [profile.release]
 debug = true
 
+[profile.bench]
+debug = true
+
 [dependencies]
 data_types = { path = "data_types" }
 arrow_deps = { path = "arrow_deps" }
