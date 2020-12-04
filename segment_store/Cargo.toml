@@ -13,6 +13,7 @@ data_types = { path = "../data_types" }
 packers = { path = "../packers" }
 croaring = "0.4.5"
 itertools = "0.9.0"
+either = "1.6.1"
 
 [dev-dependencies]
 criterion = "0.3.3"

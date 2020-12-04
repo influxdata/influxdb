@@ -369,16 +369,10 @@ impl Segment {
             .map(|(col_name, typ)| (self.column_by_name(col_name), typ))
             .collect::<Vec<_>>();
 
-        let encoded_groups_map = group_columns
+        let encoded_groups = group_columns
             .iter()
-            .map(|col| col.grouped_row_ids())
+            .map(|col| col.grouped_row_ids().unwrap_left())
             .collect::<Vec<_>>();
-        let mut encoded_groups: Vec<Vec<&RowIDs>> = vec![];
-        for id_map in &encoded_groups_map {
-            // N.B - this works because grouped_row_ids returns sequential
-            // encoded ids.
-            encoded_groups.push(id_map.values().collect());
-        }
 
         let mut result = ReadGroupResult {
             group_columns: group_column_name,

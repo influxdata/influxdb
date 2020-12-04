@@ -7,7 +7,7 @@ use std::arch::x86::*;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 use std::arch::x86_64::*;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::convert::From;
 use std::mem::size_of;
 
@@ -467,14 +467,12 @@ impl Plain {
     }
 
     // The set of row ids for each distinct value in the column.
-    pub fn group_row_ids(&self) -> BTreeMap<u32, RowIDs> {
-        let mut results = BTreeMap::new();
-        for (i, id) in self.encoded_data.iter().enumerate() {
-            if !results.contains_key(id) {
-                results.insert(*id, RowIDs::bitmap_from_slice(&[i as u32]));
-            }
+    pub fn group_row_ids(&self) -> Vec<RowIDs> {
+        let mut results = vec![];
+        results.resize(self.entries.len(), RowIDs::new_bitmap());
 
-            results.get_mut(id).unwrap().add(i as u32);
+        for (i, id) in self.encoded_data.iter().enumerate() {
+            results[*id as usize].add(i as u32);
         }
 
         results

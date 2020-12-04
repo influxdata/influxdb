@@ -1,10 +1,9 @@
 pub mod plain;
 pub mod rle;
 
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, BTreeSet},
-};
+use std::collections::BTreeSet;
+
+use either::Either;
 
 // This makes the encoding types available under the dictionary module.
 pub use self::plain::Plain;
@@ -116,12 +115,20 @@ impl Encoding {
     }
 
     // The set of row ids for each distinct value in the column.
-    fn group_row_ids(&self) -> Cow<'_, BTreeMap<u32, RowIDs>> {
+    fn group_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
         match self {
-            Encoding::RLE(enc) => Cow::Borrowed(enc.group_row_ids()),
-            Encoding::Plain(enc) => Cow::Owned(enc.group_row_ids()),
+            Encoding::RLE(enc) => Either::Left(enc.group_row_ids()),
+            Encoding::Plain(enc) => Either::Right(enc.group_row_ids()),
         }
     }
+
+    // // The set of row ids for each distinct value in the column.
+    // fn group_row_ids(&self) -> Cow<'_, Vec<RowIDs>> {
+    //     match self {
+    //         Encoding::RLE(enc) => Cow::Owned(enc.group_row_ids()),
+    //         Encoding::Plain(enc) => Cow::Borrowed(enc.group_row_ids()),
+    //     }
+    // }
 
     //
     //
@@ -756,17 +763,34 @@ mod test {
         enc.push_none(); // 6
         enc.push_additional(Some("zoo".to_string()), 1); // 7
 
-        let exp = vec![
-            (0_u32, RowIDs::bitmap_from_slice(&[6])),
-            (1, RowIDs::bitmap_from_slice(&[0, 1, 2, 3])),
-            (2, RowIDs::bitmap_from_slice(&[4, 5])),
-            (3, RowIDs::bitmap_from_slice(&[7])),
-        ]
-        .into_iter()
-        .collect();
-
-        let got = enc.group_row_ids().into_owned();
-        assert_eq!(got, exp, "{}", name);
+        match enc {
+            Encoding::RLE(_) => {
+                assert_eq!(
+                    enc.group_row_ids().unwrap_left(),
+                    vec![
+                        &RowIDs::bitmap_from_slice(&[6]),
+                        &RowIDs::bitmap_from_slice(&[0, 1, 2, 3]),
+                        &RowIDs::bitmap_from_slice(&[4, 5]),
+                        &RowIDs::bitmap_from_slice(&[7]),
+                    ],
+                    "{}",
+                    name
+                );
+            }
+            Encoding::Plain(_) => {
+                assert_eq!(
+                    enc.group_row_ids().unwrap_right(),
+                    vec![
+                        RowIDs::bitmap_from_slice(&[6]),
+                        RowIDs::bitmap_from_slice(&[0, 1, 2, 3]),
+                        RowIDs::bitmap_from_slice(&[4, 5]),
+                        RowIDs::bitmap_from_slice(&[7]),
+                    ],
+                    "{}",
+                    name
+                );
+            }
+        }
     }
 
     #[test]

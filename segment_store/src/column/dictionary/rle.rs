@@ -380,8 +380,8 @@ impl RLE {
     }
 
     // The set of row ids for each distinct value in the column.
-    pub fn group_row_ids(&self) -> &BTreeMap<u32, RowIDs> {
-        &self.index_row_ids
+    pub fn group_row_ids(&self) -> Vec<&RowIDs> {
+        self.index_row_ids.values().collect()
     }
 
     //

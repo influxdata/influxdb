@@ -2709,6 +2709,7 @@ dependencies = [
  "criterion",
  "croaring",
  "data_types",
+ "either",
  "itertools 0.9.0",
  "packers",
  "rand",

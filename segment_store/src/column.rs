@@ -3,15 +3,13 @@ pub mod dictionary;
 pub mod fixed;
 pub mod fixed_null;
 
+use std::collections::BTreeSet;
 use std::convert::TryFrom;
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, BTreeSet},
-};
 
 use croaring::Bitmap;
 
 use arrow_deps::{arrow, arrow::array::Array};
+use either::Either;
 
 // Edd's totally made up magic constant. This determines whether we would use
 // a run-length encoded dictionary encoding or just a plain dictionary encoding.
@@ -252,7 +250,7 @@ impl Column {
         }
     }
 
-    pub fn grouped_row_ids(&self) -> Cow<'_, BTreeMap<u32, RowIDs>> {
+    pub fn grouped_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
         match &self {
             Column::String(_, data) => data.group_row_ids(),
             _ => unimplemented!("grouping not yet implemented"),
@@ -809,10 +807,10 @@ impl StringEncoding {
     }
 
     /// Calculate all row ids for each distinct value in the column.
-    pub fn group_row_ids(&self) -> Cow<'_, BTreeMap<u32, RowIDs>> {
+    pub fn group_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
         match self {
-            Self::RLEDictionary(enc) => Cow::Borrowed(enc.group_row_ids()),
-            Self::Dictionary(enc) => Cow::Owned(enc.group_row_ids()),
+            Self::RLEDictionary(enc) => Either::Left(enc.group_row_ids()),
+            Self::Dictionary(enc) => Either::Right(enc.group_row_ids()),
         }
     }
 
