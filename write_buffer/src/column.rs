@@ -232,6 +232,11 @@ impl Column {
         }
     }
 
+    /// Return true of this column's type is a Tag
+    pub fn is_tag(&self) -> bool {
+        matches!(self, Self::Tag(..))
+    }
+
     /// Returns true if there exists at least one row idx where this
     /// self[i] is within the range [min_value, max_value). Inclusive
     /// of `start`, exclusive of `end` and where col[i] is non null

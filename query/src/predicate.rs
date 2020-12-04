@@ -36,20 +36,20 @@ impl TimestampRange {
 }
 
 /// Represents a parsed predicate for evaluation by the
-/// InfluxDB IOx storage system.
+/// TSDatabase InfluxDB IOx query engine.
 ///
-/// Note that the input data model (e.g. ParsedLine's) distinguishes
-/// between some types of columns (tags and fields), and likewise
-/// this structure has some types of restrictions that only apply to
-/// certain types of columns.
+/// Note that the data model of TSDatabase (e.g. ParsedLine's)
+/// distinguishes between some types of columns (tags and fields), and
+/// likewise the semantics of this structure has some types of
+/// restrictions that only apply to certain types of columns.
 #[derive(Clone, Debug, Default)]
 pub struct Predicate {
-    /// Optional filter. If present, restrict the results to only
-    /// those tables whose names are in `table_names`
+    /// Optional table restriction. If present, restricts the results
+    /// to only tables whose names are in `table_names`
     pub table_names: Option<BTreeSet<String>>,
 
-    // Optional field column selection. If present, further restrict any
-    // field columns returned to only those named
+    // Optional field restriction. If present, restricts the results to only
+    // tables which have *at least one* of the fields in field_columns.
     pub field_columns: Option<BTreeSet<String>>,
 
     /// Optional arbitrary predicates, represented as list of
@@ -86,12 +86,24 @@ impl From<Predicate> for PredicateBuilder {
 impl PredicateBuilder {
     /// Sets the timestamp range
     pub fn timestamp_range(mut self, start: i64, end: i64) -> Self {
+        // Without more thought, redefining the timestamp range would
+        // lose the old range. Asser that that cannot happen.
+        assert!(
+            self.inner.range.is_none(),
+            "Unexpected re-definition of timestamp range"
+        );
         self.inner.range = Some(TimestampRange { start, end });
         self
     }
 
     /// sets the optional timestamp range, if any
     pub fn timestamp_range_option(mut self, range: Option<TimestampRange>) -> Self {
+        // Without more thought, redefining the timestamp range would
+        // lose the old range. Asser that that cannot happen.
+        assert!(
+            range.is_none() || self.inner.range.is_none(),
+            "Unexpected re-definition of timestamp range"
+        );
         self.inner.range = range;
         self
     }
@@ -134,10 +146,9 @@ impl PredicateBuilder {
     pub fn field_columns(mut self, columns: Vec<String>) -> Self {
         // We need to distinguish predicates like `column_name In
         // (foo, bar)` and `column_name = foo and column_name = bar` in order to handle this
-        assert!(
-            self.inner.field_columns.is_none(),
-            "Multiple table predicate specification not yet supported"
-        );
+        if self.inner.field_columns.is_some() {
+            unimplemented!("Complex/Multi field predicates are not yet supported");
+        }
 
         let column_names = columns.into_iter().collect::<BTreeSet<_>>();
         self.inner.field_columns = Some(column_names);

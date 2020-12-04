@@ -116,9 +116,11 @@ pub struct PartitionPredicate {
     /// partition (so no table can pass)
     pub table_name_predicate: Option<BTreeSet<u32>>,
 
-    // Optional field column selection. If present, further restrict
-    // any field columns returnedto only those named
-    pub field_restriction: Option<BTreeSet<u32>>,
+    /// Optional column restriction. If present, further
+    /// restrict any field columns returned to only those named, and
+    /// skip tables entirely when querying metadata that do not have
+    /// *any* of the fields
+    pub field_name_predicate: Option<BTreeSet<u32>>,
 
     /// General DataFusion expressions (arbitrary predicates) applied
     /// as a filter using logical conjuction (aka are 'AND'ed
@@ -152,18 +154,10 @@ impl PartitionPredicate {
         builder.build()
     }
 
-    /// Return true if there is a non empty field restriction
-    pub fn has_field_restriction(&self) -> bool {
-        match &self.field_restriction {
-            None => false,
-            Some(field_restiction) => !field_restiction.is_empty(),
-        }
-    }
-
     /// For plans which select a subset of fields, returns true if
     /// the field should be included in the results
     pub fn should_include_field(&self, field_id: u32) -> bool {
-        match &self.field_restriction {
+        match &self.field_name_predicate {
             None => true,
             Some(field_restriction) => field_restriction.contains(&field_id),
         }
@@ -265,7 +259,7 @@ impl Partition {
 
         Ok(PartitionPredicate {
             table_name_predicate,
-            field_restriction,
+            field_name_predicate: field_restriction,
             partition_exprs,
             required_columns,
             time_column_id,
