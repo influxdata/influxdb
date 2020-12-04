@@ -122,14 +122,6 @@ impl Encoding {
         }
     }
 
-    // // The set of row ids for each distinct value in the column.
-    // fn group_row_ids(&self) -> Cow<'_, Vec<RowIDs>> {
-    //     match self {
-    //         Encoding::RLE(enc) => Cow::Owned(enc.group_row_ids()),
-    //         Encoding::Plain(enc) => Cow::Borrowed(enc.group_row_ids()),
-    //     }
-    // }
-
     //
     //
     // ---- Methods for getting materialised values.
