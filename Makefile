@@ -170,24 +170,23 @@ bench:
 
 build: all
 
-goreleaser:
-	curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh
-	sh goreleaser-install v0.142.0
+pkg-config:
+	# FIXME: Use an unofficial release for now, to get the ARM preview out.
+	go get github.com/influxdata/pkg-config@dm-no-modify-cc
 	go build -o $(GOPATH)/bin/pkg-config github.com/influxdata/pkg-config
-	install xcc.sh $(GOPATH)/bin/xcc
+	git checkout -- go.mod go.sum # avoid dirty git repository caused by go install
 
 # Parallelism for goreleaser must be set to 1 so it doesn't
 # attempt to invoke pkg-config, which invokes cargo,
 # for multiple targets at the same time.
-dist: goreleaser
-	./bin/goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
+dist: pkg-config
+	goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
 
-nightly: goreleaser
-	./bin/goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
+nightly: pkg-config
+	goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
 
-release: goreleaser
-	git checkout -- go.sum # avoid dirty git repository caused by go install
-	./bin/goreleaser release -p 1 --rm-dist
+release: pkg-config
+	goreleaser release -p 1 --rm-dist
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
@@ -215,6 +214,7 @@ run-e2e: chronogiraffe
 	./bin/$(GOOS)/influxd --assets-path=ui/build --e2e-testing --store=memory
 
 # assume this is running from circleci
+# TODO: Move this to the CI docker image build?
 protoc:
 	curl -s -L https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip > /tmp/protoc.zip
 	unzip -o -d /go /tmp/protoc.zip
@@ -240,4 +240,4 @@ dshell: dshell-image
 	@docker container run --rm -p 8086:8086 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx goreleaser
+.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx pkg-config

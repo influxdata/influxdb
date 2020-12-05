@@ -1,64 +1,5 @@
 version: "2.1"
 
-commands:
-  install_rust_compiler:
-    description: >
-      This will install the rust compiler with the rust tools.
-    steps:
-      - run:
-          name: Install clang
-          command: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang musl-tools
-      - run:
-          name: Install rust compiler
-          command: |
-            curl https://sh.rustup.rs -sSf | \
-            sh -s -- --default-toolchain stable -y
-            echo 'source $HOME/.cargo/env' >> $BASH_ENV
-
-  install_release_tools:
-    description: >
-      This will install the cross compilers necessary to build release binaries.
-    steps:
-      - run:
-          name: Install linux cross compilers
-          command: >
-            sudo apt-get update && sudo apt-get install -y --no-install-recommends \
-              gcc-arm-linux-gnueabihf libc6-dev-armhf-cross \
-              gcc-aarch64-linux-gnu libc6-dev-arm64-cross
-      - run:
-          name: Install macOS cross compilers
-          command: |
-            sudo apt-get update && sudo apt-get install -y --no-install-recommends \
-              cmake patch libxml2-dev libssl-dev zlib1g-dev
-            sudo mkdir -p /opt/osxcross
-            cd /opt
-            sudo git clone https://github.com/tpoechtrager/osxcross.git
-            cd osxcross
-            sudo git checkout c2ad5e859d12a295c3f686a15bd7181a165bfa82
-            sudo curl -L -o \
-              ./tarballs/MacOSX10.11.sdk.tar.xz \
-              https://macos-sdks.s3.amazonaws.com/MacOSX10.11.sdk.tar.xz
-            sudo UNATTENDED=1 PORTABLE=true ./build.sh
-      - run:
-          name: Install additional rust targets
-          command: |
-            rustup target add x86_64-unknown-linux-musl \
-                              aarch64-unknown-linux-gnu \
-                              arm-unknown-linux-gnueabihf \
-                              armv7-unknown-linux-gnueabihf \
-                              x86_64-apple-darwin
-            echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=gcc' >> $HOME/.cargo/env
-            echo 'export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
-            echo 'export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> $HOME/.cargo/env
-            echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> $HOME/.cargo/env
-            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/opt/osxcross/target/bin/o64-clang' >> $HOME/.cargo/env
-      - run:
-          name: Install pkg-config wrapper
-          command: go build -o /go/bin/pkg-config github.com/influxdata/pkg-config
-      - run:
-          name: Copy xcc wrapper script for cross compilation
-          command: install xcc.sh /go/bin/xcc
-
 jobs:
   litmus_daily:
     machine: true
@@ -126,14 +67,13 @@ jobs:
           destination: nightly-junit
   e2e:
     docker:
-      - image: circleci/golang:1.15-node-browsers
+      - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-
       # Speed up `make build` by restoring caches from previous runs.
       - restore_cache:
           name: Restoring GOCACHE
@@ -143,10 +83,6 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
-      - run: sudo apt-get update
-      - run: sudo apt-get install -y netcat-openbsd
-      - run: sudo apt-get install -y bzr
-      - install_rust_compiler
       - run: make protoc
       - run: make build
       - run:
@@ -224,7 +160,7 @@ jobs:
           path: ~/project
   jstest:
     docker:
-      - image: circleci/golang:1.15-node-browsers
+      - image: quay.io/influxdb/influxdb-circleci:latest
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -260,7 +196,7 @@ jobs:
             - ~/.cache/yarn
   jslint:
     docker:
-      - image: circleci/golang:1.15-node-browsers
+      - image: quay.io/influxdb/influxdb-circleci:latest
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -290,7 +226,7 @@ jobs:
             - ~/.cache/yarn
   gotest:
     docker:
-      - image: circleci/golang:1.15
+      - image: quay.io/influxdb/influxdb-circleci:latest
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -300,7 +236,6 @@ jobs:
     parallelism: 8
     steps:
       - checkout
-
       # Populate GOCACHE.
       - restore_cache:
           name: Restoring GOCACHE
@@ -313,8 +248,6 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
-      - run: sudo apt-get update && sudo apt-get install -y bzr
-      - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
       - run:
@@ -345,7 +278,7 @@ jobs:
 
   golint:
     docker:
-      - image: circleci/golang:1.15
+      - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -353,8 +286,6 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - run: sudo apt-get update && sudo apt-get install -y bzr
-      - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
       - run: |
           # this is not in a seperate bash script because it isn't meant to be run on local.
@@ -379,17 +310,14 @@ jobs:
           path: /tmp/test-results
   build:
     docker:
-      - image: circleci/golang:1.15-node-browsers
+      - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - run: sudo apt-get update && sudo apt-get install -y bzr
-      - install_rust_compiler
       - run: make checkcommit
-
       # Speed up `make build` by restoring caches from previous runs.
       - restore_cache:
           name: Restoring GOCACHE
@@ -411,14 +339,13 @@ jobs:
             - etc/litmus_fail_notify.sh
   deploy-nightly:
     docker:
-      - image: circleci/golang:1.15-node-browsers
+      - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-
       # Speed up `make nightly` by restoring caches from previous runs.
       - restore_cache:
           name: Restoring GOCACHE
@@ -432,9 +359,6 @@ jobs:
       - run:
           name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: sudo apt-get update && sudo apt-get install -y bzr
-      - install_rust_compiler
-      - install_release_tools
       - run: make protoc # installs protoc
       - run:
           name: "Build nightly"
@@ -447,7 +371,7 @@ jobs:
 
   release:
     docker:
-      - image: circleci/golang:1.15-node-browsers
+      - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -455,7 +379,6 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-
       # Speed up `make nightly` by restoring caches from previous runs.
       - restore_cache:
           name: Restoring GOCACHE
@@ -469,9 +392,6 @@ jobs:
       - run:
           name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: sudo apt-get update && sudo apt-get install -y bzr
-      - install_rust_compiler
-      - install_release_tools
       - run: make protoc # installs protoc
       - run:
           name: import GPG key
