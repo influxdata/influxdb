@@ -43,8 +43,13 @@ ENV PATH=/usr/local/musl/bin:${PATH}
 ## Install cross-compilers.
 
 # Linux.
+#
 # TODO: This step alone takes around an hour, we should consider caching the outputs
 # someplace and changing this step to just download & extract the tarballs.
+#
+# FIXME: The armv7 toolchain installed here doesn't actually work with rust.
+# Figure out the right triple to use after the 2.0.3 release when we have more time
+# to burn on rebuilding the universe.
 ENV MUSL_CROSS_MAKE_VERSION=v0.9.9
 RUN git clone https://github.com/richfelker/musl-cross-make.git && \
     cd musl-cross-make && \
@@ -58,6 +63,7 @@ RUN git clone https://github.com/richfelker/musl-cross-make.git && \
 ENV PATH=/usr/local/musl-cross/bin:${PATH}
 
 # macOS.
+#
 # TODO: For some reason, this breaks if I move the output out of the git repo and then delete the git dir.
 # It'd be nice for build time and final image size if we could fix that problem.
 ENV OSX_CROSS_VERSION=c2ad5e859d12a295c3f686a15bd7181a165bfa82
