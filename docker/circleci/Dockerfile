@@ -52,7 +52,7 @@ RUN git clone https://github.com/richfelker/musl-cross-make.git && \
     git checkout ${MUSL_CROSS_MAKE_VERSION} && \
     make DL_CMD='curl -C - -L -k -o' MUSL_VER=${MUSL_VERSION} TARGET=aarch64-unknown-linux-musl install && \
     make DL_CMD='curl -C - -L -k -o' MUSL_VER=${MUSL_VERSION} TARGET=armv6-unknown-linux-musleabihf GCC_CONFIG='--with-arch=armv6+fp' install && \
-    make DL_CMD='curl -C - -L -k -o' MUSL_VER=${MUSL_VERSION} TARGET=armv7-unknown-linux-musleabihf GCC_CONFIG='--with-arch=armv7+fp' install && \
+    make DL_CMD='curl -C - -L -k -o' MUSL_VER=${MUSL_VERSION} TARGET=armv7-unknown-linux-musleabihf GCC_CONFIG='--with-arch=armv7-a+fp' install && \
     sudo mv ./output /usr/local/musl-cross && \
     cd .. && \
     rm -rf musl-cross-make

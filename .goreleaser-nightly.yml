@@ -10,12 +10,16 @@ builds:
       - arm
     goarm:
       - 6
+      #- 7
     ignore:
       - goos: darwin
         goarch: arm64
       - goos: darwin
         goarch: arm
         goarm: 6
+      #- goos: darwin
+      #  goarch: arm
+      #  goarm: 7
     main: ./cmd/influx/
     flags:
       - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{end}}
