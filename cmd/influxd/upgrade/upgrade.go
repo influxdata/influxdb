@@ -357,8 +357,10 @@ func runUpgradeE(*cobra.Command, []string) error {
 		options.source.walDir = v1Config.Data.WALDir
 		options.source.dbURL = v1Config.dbURL()
 	} else {
-		// Otherwise, assume a standard directory layout.
+		// Otherwise, assume a standard directory layout
+		// and the default port on localhost.
 		options.source.populateDirs()
+		options.source.dbURL = (&configV1{}).dbURL()
 	}
 
 	err = validatePaths(&options.source, &options.target)
@@ -453,7 +455,10 @@ func runUpgradeE(*cobra.Command, []string) error {
 		)
 	}
 
-	log.Info("Upgrade successfully completed. Start service now")
+	log.Info(
+		"Upgrade successfully completed. Start service now to log in",
+		zap.String("login_url", options.source.dbURL),
+	)
 
 	return nil
 }
