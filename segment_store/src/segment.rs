@@ -1,12 +1,15 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+};
 
 use itertools::Itertools;
 
 use arrow_deps::arrow::datatypes::SchemaRef;
 
 use crate::column::{
-    cmp::Operator, AggregateResult, AggregateType, Column, OwnedValue, RowIDs, RowIDsOption,
-    Scalar, Value, Values, ValuesIterator,
+    cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, OwnedValue, RowIDs,
+    RowIDsOption, Scalar, Value, Values, ValuesIterator,
 };
 
 /// The name used for a timestamp column.
@@ -373,7 +376,135 @@ impl Segment {
         group_columns: &[ColumnName<'_>],
         aggregates: &[(ColumnName<'_>, AggregateType)],
     ) -> ReadGroupResult<'_> {
-        todo!()
+        let row_ids = self.row_ids_from_predicates(predicates);
+        let filter_row_ids = match row_ids {
+            RowIDsOption::None(_) => {
+                return ReadGroupResult {
+                    group_columns,
+                    aggregate_columns: aggregates,
+                    ..ReadGroupResult::default()
+                }
+            } // no matching rows
+            RowIDsOption::Some(row_ids) => Some(row_ids.to_vec()),
+            RowIDsOption::All(row_ids) => None,
+        };
+
+        // materialise all *encoded* values for each column we are grouping on.
+        // These will not be the logical (typically string) values, but will be
+        // vectors of integers representing the physical values.
+        let mut groupby_encoded_ids = Vec::with_capacity(group_columns.len());
+        for name in group_columns {
+            let col = self.column_by_name(name);
+            let mut dst_buf = EncodedValues::with_capacity_u32(col.num_rows() as usize);
+
+            // do we want some rows for the column or all of them?
+            match &filter_row_ids {
+                Some(row_ids) => {
+                    dst_buf = col.encoded_values(row_ids, dst_buf);
+                }
+                None => {
+                    // None implies "no partial set of row ids" meaning get all of them.
+                    dst_buf = col.all_encoded_values(dst_buf);
+                }
+            }
+            groupby_encoded_ids.push(dst_buf);
+        }
+
+        // Materialise decoded values in aggregate columns.
+        let mut aggregate_columns_data = Vec::with_capacity(aggregates.len());
+        for (name, agg_type) in aggregates {
+            let col = self.column_by_name(name);
+
+            // TODO(edd): this materialises a column per aggregate. If there are
+            // multiple aggregates for the same column then this will over-allocate
+
+            // Do we want some rows for the column or all of them?
+            let column_values = match &filter_row_ids {
+                Some(row_ids) => col.values(row_ids),
+                None => {
+                    // None here means "no partial set of row ids", i.e., get
+                    // all of the row ids because they all satisfy the predicates.
+                    col.all_values()
+                }
+            };
+            aggregate_columns_data.push(column_values);
+        }
+
+        // Now begin building the group keys.
+        let mut groups = BTreeMap::new();
+
+        // key_buf will be used as a temporary buffer for group keys, which are
+        // themselves integers.
+        let mut key_buf = Vec::with_capacity(group_columns.len());
+        key_buf.resize(key_buf.capacity(), 0);
+
+        for row in 0..groupby_encoded_ids[0].len() {
+            // update the group key buffer with the group key for this row
+            for (j, col_ids) in groupby_encoded_ids.iter().enumerate() {
+                match col_ids {
+                    EncodedValues::I64(ids) => {
+                        key_buf[j] = ids[row];
+                    }
+                    EncodedValues::U32(ids) => {
+                        // TODO(edd): hmmmm. This is unfortunate - we only need
+                        // the encoded values to be 64-bit integers if we are grouping
+                        // by time (i64 column).
+                        key_buf[j] = ids[row] as i64;
+                    }
+                }
+            }
+
+            // entry API requires allocating a key, which is too expensive.
+            if !groups.contains_key(&key_buf) {
+                // this vector will hold aggregates for this group key, which
+                // will be updated as the rows in the aggregate columns are
+                // iterated.
+                let mut group_key_aggs = Vec::with_capacity(aggregates.len());
+                for (_, agg_type) in aggregates {
+                    group_key_aggs.push(AggregateResult::from(agg_type));
+                }
+
+                for (i, values) in aggregate_columns_data.iter().enumerate() {
+                    group_key_aggs[i].update(values.value(row));
+                }
+
+                groups.insert(key_buf.clone(), group_key_aggs);
+                continue;
+            }
+
+            // Group key already exists - update all aggregates for that group key
+            let group_key_aggs = groups.get_mut(&key_buf).unwrap();
+            for (i, values) in aggregate_columns_data.iter().enumerate() {
+                group_key_aggs[i].update(values.value(row));
+            }
+        }
+
+        // Finally, build results set. Each encoded group key needs to be
+        // materialised into a logical group key
+        let columns = group_columns
+            .iter()
+            .map(|name| self.column_by_name(name))
+            .collect::<Vec<_>>();
+        let mut group_key_vec = Vec::with_capacity(groups.len());
+        let mut aggregate_vec = Vec::with_capacity(groups.len());
+
+        for (group_key, aggs) in groups.into_iter() {
+            let mut logical_key = Vec::with_capacity(group_key.len());
+            for (col_idx, &encoded_id) in group_key.iter().enumerate() {
+                // TODO(edd): address the cast to u32
+                logical_key.push(columns[col_idx].decode_id(encoded_id as u32));
+            }
+
+            group_key_vec.push(logical_key);
+            aggregate_vec.push(aggs.clone());
+        }
+
+        ReadGroupResult {
+            group_columns,
+            aggregate_columns: aggregates,
+            group_keys: group_key_vec,
+            aggregates: aggregate_vec,
+        }
     }
 
     // Optimised read group method when there are no predicates and all the group
@@ -1004,6 +1135,36 @@ west,4
 
         let segment = Segment::new(6, columns);
 
+        // test queries with no predicates and grouping on low cardinality
+        // columns
+        read_group_all_rows_all_rle(&segment);
+
+        // test general read groups queries that are not special cased.
+        read_group_hash(&segment);
+    }
+
+    // the general read_group path
+    fn read_group_hash(segment: &Segment) {
+        let cases = vec![(
+            build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
+            vec!["region", "method"],
+            vec![("counter", AggregateType::Sum)],
+            "region,method,counter_sum
+east,POST,200
+north,GET,10
+south,PUT,203
+west,GET,100
+west,POST,304
+",
+        )];
+
+        for (predicate, group_cols, aggs, expected) in cases {
+            let results = segment.read_group(&predicate, &group_cols, &aggs);
+            assert_eq!(format!("{:?}", &results), expected);
+        }
+    }
+
+    fn read_group_all_rows_all_rle(segment: &Segment) {
         let cases = vec![
             (
                 vec![],
