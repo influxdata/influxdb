@@ -180,32 +180,31 @@ impl Table {
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
     ) -> ReadGroupResults<'input, '_> {
         if !self.has_all_columns(&group_columns) {
-            return ReadGroupResults::default(); //TODO(edd): return an error
-                                                // here "group key column x not
-                                                // found"
+            todo!() //TODO(edd): return an error here "group key column x not
+                    //found"
         }
 
         if !self.has_all_columns(&aggregates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
-            return ReadGroupResults::default(); //TODO(edd): return an error
-                                                // here "aggregate column x not
-                                                // found"
+            todo!() //TODO(edd): return an error here "aggregate column x not
+                    // found"
         }
 
         if !self.has_all_columns(&predicates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
-            return ReadGroupResults::default(); //TODO(edd): return an error
-                                                // here "predicate column x not
-                                                // found"
+            todo!() //TODO(edd): return an error here "predicate column x not
+                    // found"
         }
 
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
+        let mut results = ReadGroupResults::default();
         let segments = self.filter_segments(predicates);
         if segments.is_empty() {
-            return ReadGroupResults::default();
+            results.groupby_columns = group_columns;
+            results.aggregate_columns = aggregates;
+            return results;
         }
 
-        let mut results = ReadGroupResults::default();
         results.values.reserve(segments.len());
         for segment in segments {
             let segment_result = segment.read_group(predicates, &group_columns, &aggregates);
