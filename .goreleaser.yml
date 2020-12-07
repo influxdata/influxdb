@@ -10,16 +10,16 @@ builds:
       - arm
     goarm:
       - 6
-      #- 7
+      - 7
     ignore:
       - goos: darwin
         goarch: arm64
       - goos: darwin
         goarch: arm
         goarm: 6
-      #- goos: darwin
-      #  goarch: arm
-      #  goarm: 7
+      - goos: darwin
+        goarch: arm
+        goarm: 7
     main: ./cmd/influx/
     flags:
       - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{end}}
@@ -29,6 +29,9 @@ builds:
       - CC=xcc
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
+      {{ if and (eq .OSs "linux") (eq .Arch "arm") (eq .Arm 7) }}
+      - CFLAGS='-mfpu=vfpv3-d16'
+      {{ end }}
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influx
@@ -43,12 +46,16 @@ builds:
       - arm
     goarm:
       - 6
+      - 7
     ignore:
       - goos: darwin
         goarch: arm64
       - goos: darwin
         goarch: arm
         goarm: 6
+      - goos: darwin
+        goarch: arm
+        goarm: 7
     main: ./cmd/influxd/
     flags:
       - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{end}}
@@ -58,6 +65,9 @@ builds:
       - CC=xcc
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
+      {{ if and (eq .OSs "linux") (eq .Arch "arm") (eq .Arm 7) }}
+      - CFLAGS='-mfpu=vfpv3-d16'
+      {{ end }}
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influxd

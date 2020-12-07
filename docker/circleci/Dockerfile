@@ -30,7 +30,7 @@ WORKDIR /tmp
 
 # Install native musl.
 ENV MUSL_VERSION=1.1.24
-RUN curl -O -k https://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz -O && \
+RUN curl https://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz -O && \
     tar xzf musl-${MUSL_VERSION}.tar.gz && \
     cd musl-${MUSL_VERSION} && \
     ./configure && \
@@ -44,15 +44,15 @@ ENV PATH=/usr/local/musl/bin:${PATH}
 
 # Linux.
 #
-# TODO: This step alone takes around an hour, we should consider caching the outputs
+# TODO: This step alone takes over an hour, we should consider caching the outputs
 # someplace and changing this step to just download & extract the tarballs.
 ENV MUSL_CROSS_MAKE_VERSION=v0.9.9
 RUN git clone https://github.com/richfelker/musl-cross-make.git && \
     cd musl-cross-make && \
     git checkout ${MUSL_CROSS_MAKE_VERSION} && \
-    make DL_CMD='curl -C - -L -k -o' MUSL_VER=${MUSL_VERSION} TARGET=aarch64-unknown-linux-musl install && \
-    make DL_CMD='curl -C - -L -k -o' MUSL_VER=${MUSL_VERSION} TARGET=armv6-unknown-linux-musleabihf GCC_CONFIG='--with-arch=armv6+fp' install && \
-    make DL_CMD='curl -C - -L -k -o' MUSL_VER=${MUSL_VERSION} TARGET=armv7-unknown-linux-musleabihf GCC_CONFIG='--with-arch=armv7-a+fp' install && \
+    make MUSL_VER=${MUSL_VERSION} TARGET=aarch64-unknown-linux-musl install && \
+    make MUSL_VER=${MUSL_VERSION} TARGET=armv6-unknown-linux-musleabihf GCC_CONFIG='--with-arch=armv6+fp' install && \
+    make MUSL_VER=${MUSL_VERSION} TARGET=armv7-unknown-linux-musleabihf GCC_CONFIG='--with-arch=armv7-a+fp' install && \
     sudo mv ./output /usr/local/musl-cross && \
     cd .. && \
     rm -rf musl-cross-make
@@ -87,8 +87,11 @@ RUN rustup target add \
 ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl/bin/musl-gcc
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl-cross/bin/aarch64-unknown-linux-musl-gcc
 ENV CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_LINKER=/usr/local/musl-cross/armv6-unknown-linux-musleabihf-gcc
-ENV CARGO_TARGET_ARM7_UNKNOWN_LINUX_MUSLEABIHF_LINKER=/usr/local/musl-cross/armv7-unknown-linux-musleabihf-gcc
+ENV CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER=/usr/local/musl-cross/armv7-unknown-linux-musleabihf-gcc
 ENV CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/local/osxcross/target/bin/x86_64-apple-darwin15-clang
+
+# Set a work-around for a bug in cc-rs that prevents FPU from being set when needed on ARMv7.
+ENV CFLAGS_armv7_unknown_linux_musleabihf='-mfpu=vfpv3-d16'
 
 WORKDIR /go
 
