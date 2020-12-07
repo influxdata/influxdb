@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-};
+use std::{borrow::Cow, collections::BTreeMap};
 
 use itertools::Itertools;
 
@@ -1145,18 +1142,44 @@ west,4
 
     // the general read_group path
     fn read_group_hash(segment: &Segment) {
-        let cases = vec![(
-            build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
-            vec!["region", "method"],
-            vec![("counter", AggregateType::Sum)],
-            "region,method,counter_sum
+        let cases = vec![
+            (
+                build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
+                vec!["region", "method"],
+                vec![("counter", AggregateType::Sum)],
+                "region,method,counter_sum
 east,POST,200
 north,GET,10
 south,PUT,203
 west,GET,100
 west,POST,304
 ",
-        )];
+            ),
+            (
+                build_predicates_with_time(2, 6, vec![]), // all time but with explicit pred
+                vec!["env", "region"],
+                vec![
+                    ("counter", AggregateType::Sum),
+                    ("counter", AggregateType::Count),
+                ],
+                "env,region,counter_sum,counter_count
+NULL,south,203,1
+prod,west,304,2
+stag,east,200,1
+",
+            ),
+            (
+                build_predicates_with_time(-1, 10, vec![]),
+                vec!["region", "env"],
+                vec![("method", AggregateType::Min)], // Yep, you can aggregate any column.
+                "region,env,method_min
+east,stag,POST
+north,NULL,GET
+south,NULL,PUT
+west,prod,GET
+",
+            ),
+        ];
 
         for (predicate, group_cols, aggs, expected) in cases {
             let results = segment.read_group(&predicate, &group_cols, &aggs);
