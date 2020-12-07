@@ -1363,12 +1363,15 @@ func (sgi ShardGroupInfo) clone() ShardGroupInfo {
 	return other
 }
 
-// ShardFor returns the ShardInfo for a Point.
-func (sgi *ShardGroupInfo) ShardFor(p models.Point) ShardInfo {
+type hashIDer interface {
+	HashID() uint64
+}
+
+// ShardFor returns the ShardInfo for a Point or other hashIDer.
+func (sgi *ShardGroupInfo) ShardFor(p hashIDer) ShardInfo {
 	if len(sgi.Shards) == 1 {
 		return sgi.Shards[0]
 	}
-
 	return sgi.Shards[p.HashID()%uint64(len(sgi.Shards))]
 }
 
