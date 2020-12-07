@@ -729,8 +729,7 @@ impl<'a> std::fmt::Display for &ReadGroupResult<'a> {
         }
 
         let expected_rows = self.group_keys.len();
-        let mut row = 0;
-        while row < expected_rows {
+        for row in 0..expected_rows {
             if row > 0 {
                 writeln!(f)?;
             }
@@ -747,8 +746,6 @@ impl<'a> std::fmt::Display for &ReadGroupResult<'a> {
                     write!(f, ",")?;
                 }
             }
-
-            row += 1;
         }
 
         writeln!(f)
