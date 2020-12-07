@@ -1008,6 +1008,22 @@ prod,3
 stag,1
 ",
             ),
+            (
+                vec![],
+                vec!["region", "method"],
+                vec![
+                    ("counter", AggregateType::Sum),
+                    ("counter", AggregateType::Min),
+                    ("counter", AggregateType::Max),
+                ],
+                "region,method,counter_sum,counter_min,counter_max
+east,POST,200,200,200
+north,GET,10,10,10
+south,PUT,203,203,203
+west,GET,100,100,100
+west,POST,304,101,203
+",
+            ),
         ];
 
         for (predicate, group_cols, aggs, expected) in cases {
