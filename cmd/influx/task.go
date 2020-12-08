@@ -29,6 +29,7 @@ func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		taskDeleteCmd(f, opt),
 		taskFindCmd(f, opt),
 		taskUpdateCmd(f, opt),
+		taskRerunFailedCmd(f, opt),
 	)
 
 	return cmd
@@ -200,6 +201,108 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 			tasks:       tasks,
 		},
 	)
+}
+
+var taskRerunFailedFlags struct {
+	taskId string
+	before string
+	after  string
+	org    organization
+}
+
+func taskRerunFailedCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("rerun_failed", taskRerunFailedF, true)
+	cmd.Short = "Find and Rerun failed runs/tasks"
+	cmd.Aliases = []string{"rrf"}
+
+	taskFindFlags.org.register(opt.viper, cmd, false)
+	f.registerFlags(opt.viper, cmd)
+	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
+	cmd.Flags().StringVarP(&taskRerunFailedFlags.taskId, "id", "i", "", "task ID")
+	cmd.Flags().StringVarP(&taskRerunFailedFlags.before, "before", "bf", "", "before interval")
+	cmd.Flags().StringVarP(&taskRerunFailedFlags.after, "after", "af", "", "after interval")
+
+	return cmd
+}
+
+func taskRerunFailedF(command *cobra.Command, strings []string) error {
+	if err := taskFindFlags.org.validOrgFlags(&flags); err != nil {
+		return err
+	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
+	s := &http.TaskService{
+		Client: client,
+	}
+
+	taskIDPresent := taskRerunFailedFlags.taskId == ""
+
+	/*
+		If no TaskID is given, must use TaskFilter to get all Tasks and then search for failed runs then re run
+		If TaskID given, use RunFilter to search for failed runs then re run
+	*/
+	taskFilter := influxdb.TaskFilter{}
+	runFilter := influxdb.RunFilter{}
+	if !taskIDPresent {
+		if taskFindFlags.org.name != "" {
+			taskFilter.Organization = taskFindFlags.org.name
+		}
+		if taskFindFlags.org.id != "" {
+			orgID, err := influxdb.IDFromString(taskFindFlags.org.id)
+			if err != nil {
+				return err
+			}
+			taskFilter.OrganizationID = orgID
+		}
+	} else {
+		id, err := influxdb.IDFromString(taskFindFlags.id)
+		if err != nil {
+			return err
+		}
+		runFilter.Task = *id
+	}
+
+	runFilter.BeforeTime = taskRerunFailedFlags.before
+	runFilter.AfterTime = taskRerunFailedFlags.after
+
+	var allRuns []*influxdb.Run
+	if !taskIDPresent {
+		allTasks, _, err := s.FindTasks(context.Background(), taskFilter)
+		if err != nil {
+			return err
+		}
+
+		for _, t := range allTasks {
+			runFilter.Task = t.ID
+			runsPerTask, _, err := s.FindRuns(context.Background(), runFilter)
+			if err != nil {
+				return err
+			}
+			allRuns = append(allRuns, runsPerTask...)
+		}
+	} else {
+		allRuns, _, err = s.FindRuns(context.Background(), runFilter)
+	}
+	var failedRuns []*influxdb.Run
+	for _, run := range allRuns {
+		if run.Status == "failed" {
+			failedRuns = append(failedRuns, run)
+		}
+	}
+	for _, run := range failedRuns {
+		newRun, err := s.RetryRun(context.Background(), run.TaskID, run.ID)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Retry for task %s's run %s queued as run %s.\n", run.TaskID, run.ID, newRun.ID)
+
+	}
+	return nil
+
 }
 
 var taskUpdateFlags struct {
