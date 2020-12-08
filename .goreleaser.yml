@@ -95,9 +95,9 @@ nfpms:
       rpm:
         replacements:
           amd64: x86_64
-        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}hf{{ end }}"
       deb:
-        file_name_template: "influxdb2_{{ .Version }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+        file_name_template: "influxdb2_{{ .Version }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}hf{{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -112,7 +112,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb2_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+    name_template: "influxdb2_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}hf{{ end }}"
     files:
       - LICENSE
       - README.md
@@ -122,7 +122,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb2-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{if .Arm}}{{ if eq .Arm \"5\" }}el{{end}}{{ end }}{{if .Arm}}{{ if eq .Arm \"6\" }}hf{{end}}{{ end }}"
+    name_template: "influxdb2-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}hf{{ end }}"
     files:
       - LICENSE
       - README.md
