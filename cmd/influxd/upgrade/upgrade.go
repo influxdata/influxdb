@@ -456,7 +456,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 	}
 
 	log.Info(
-		"Upgrade successfully completed. Start service now to log in",
+		"Upgrade successfully completed. Start the influxd service now, then log in",
 		zap.String("login_url", options.source.dbURL),
 	)
 
