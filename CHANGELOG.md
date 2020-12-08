@@ -20,6 +20,8 @@ want to use the default.
 1. [20146](https://github.com/influxdata/influxdb/pull/20146): Allow for users to specify where V2 config should be written in `influxd upgrade`.
 1. [20243](https://github.com/influxdata/influxdb/pull/20243): Implement delete with predicate.
 1. [20204](https://github.com/influxdata/influxdb/pull/20204): Improve ID-related error messages for `influx v1 dbrp` commands.
+1. [20284](https://github.com/influxdata/influxdb/pull/20284): Upgrade Flux to v0.98.0
+1. [20284](https://github.com/influxdata/influxdb/pull/20284): UI: Upgrade flux-lsp-browser to v0.5.25
 
 ### Bug Fixes
 
