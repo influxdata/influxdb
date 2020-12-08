@@ -911,29 +911,31 @@ impl std::fmt::Display for &ReadGroupResult<'_> {
     }
 }
 
+/// helper function useful for tests and benchmarks. Creates a time-range predicate
+/// in the domain `[from, to)`.
+pub fn build_predicates_with_time(
+    from: i64,
+    to: i64,
+    others: Vec<Predicate<'_>>,
+) -> Vec<Predicate<'_>> {
+    let mut arr = vec![
+        (
+            TIME_COLUMN_NAME,
+            (Operator::GTE, Value::Scalar(Scalar::I64(from))),
+        ),
+        (
+            TIME_COLUMN_NAME,
+            (Operator::LT, Value::Scalar(Scalar::I64(to))),
+        ),
+    ];
+
+    arr.extend(others);
+    arr
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-
-    fn build_predicates_with_time(
-        from: i64,
-        to: i64,
-        others: Vec<Predicate<'_>>,
-    ) -> Vec<Predicate<'_>> {
-        let mut arr = vec![
-            (
-                TIME_COLUMN_NAME,
-                (Operator::GTE, Value::Scalar(Scalar::I64(from))),
-            ),
-            (
-                TIME_COLUMN_NAME,
-                (Operator::LT, Value::Scalar(Scalar::I64(to))),
-            ),
-        ];
-
-        arr.extend(others);
-        arr
-    }
 
     #[test]
     fn row_ids_from_predicates() {
