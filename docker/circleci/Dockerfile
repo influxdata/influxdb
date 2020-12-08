@@ -9,7 +9,6 @@ RUN sudo apt-get update && \
         clang \
         cmake \
         curl \
-        file \
         gnupg \
         libgmp-dev \
         libmpc-dev \
@@ -24,11 +23,11 @@ RUN sudo apt-get update && \
         patch \
         xutils-dev \
         zlib1g-dev && \
-    sudo rm -rf rm -rf /var/lib/apt/lists/*
+    sudo rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp
 
-# Install native musl.
+# Install native musl, and cross-compilers.
 ENV MUSL_VERSION=1.1.24
 RUN curl https://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz -O && \
     tar xzf musl-${MUSL_VERSION}.tar.gz && \
@@ -38,36 +37,22 @@ RUN curl https://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz -O && \
     sudo make install && \
     cd .. && \
     rm -rf musl-${MUSL_VERSION}*
-ENV PATH=/usr/local/musl/bin:${PATH}
+# TODO: Convert these to curl calls to download from S3.
+ADD ./musl-cross-${MUSL_VERSION}-aarch64.tar.gz /usr/local
+ADD ./musl-cross-${MUSL_VERSION}-armv6.tar.gz /usr/local
+ADD ./musl-cross-${MUSL_VERSION}-armv7.tar.gz /usr/local
+ENV PATH=/usr/local/musl/bin:/usr/local/musl-cross/bin:${PATH}
 
-## Install cross-compilers.
-
-# Linux.
-#
-# TODO: This step alone takes over an hour, we should consider caching the outputs
-# someplace and changing this step to just download & extract the tarballs.
-ENV MUSL_CROSS_MAKE_VERSION=v0.9.9
-RUN git clone https://github.com/richfelker/musl-cross-make.git && \
-    cd musl-cross-make && \
-    git checkout ${MUSL_CROSS_MAKE_VERSION} && \
-    make MUSL_VER=${MUSL_VERSION} TARGET=aarch64-unknown-linux-musl install && \
-    make MUSL_VER=${MUSL_VERSION} TARGET=armv6-unknown-linux-musleabihf GCC_CONFIG='--with-arch=armv6+fp' install && \
-    make MUSL_VER=${MUSL_VERSION} TARGET=armv7-unknown-linux-musleabihf GCC_CONFIG='--with-arch=armv7-a+fp' install && \
-    sudo mv ./output /usr/local/musl-cross && \
-    cd .. && \
-    rm -rf musl-cross-make
-ENV PATH=/usr/local/musl-cross/bin:${PATH}
-
-# macOS.
-#
-# TODO: For some reason, this breaks if I move the output out of the git repo and then delete the git dir.
-# It'd be nice for build time and final image size if we could fix that problem.
+# Install macOS cross-compiler.
+# TODO: Consider pre-building this and stashing the release archive in S3,
+# especially if we start adding more SDKs for newer macOS versions / archs.
 ENV OSX_CROSS_VERSION=c2ad5e859d12a295c3f686a15bd7181a165bfa82
 RUN sudo git clone https://github.com/tpoechtrager/osxcross.git /usr/local/osxcross && \
     cd /usr/local/osxcross && \
     sudo git checkout ${OSX_CROSS_VERSION} && \
     sudo curl -L -o ./tarballs/MacOSX10.11.sdk.tar.xz https://macos-sdks.s3.amazonaws.com/MacOSX10.11.sdk.tar.xz && \
     sudo UNATTENDED=1 PORTABLE=true OCDEBUG=1 ./build.sh && \
+    sudo rm -rf .git build tarballs && \
     cd /tmp
 ENV PATH=/usr/local/osxcross/target/bin:${PATH}
 
