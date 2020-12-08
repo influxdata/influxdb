@@ -10,7 +10,7 @@ use crate::{
         stringset::{StringSet, StringSetRef},
         SeriesSetPlans, StringSetPlan,
     },
-    DatabaseStore, Predicate, SQLDatabase, TSDatabase, TimestampRange,
+    DatabaseStore, PartitionChunk, Predicate, SQLDatabase, TSDatabase, TimestampRange,
 };
 
 use data_types::data::ReplicatedWrite;
@@ -246,6 +246,7 @@ fn predicate_to_test_string(predicate: &Predicate) -> String {
 
 #[async_trait]
 impl TSDatabase for TestDatabase {
+    type Partition = TestPartition;
     type Error = TestError;
 
     /// Writes parsed lines into this database
@@ -399,11 +400,65 @@ impl TSDatabase for TestDatabase {
 
 #[async_trait]
 impl SQLDatabase for TestDatabase {
+    type Partition = TestPartition;
     type Error = TestError;
 
     /// Execute the specified query and return arrow record batches with the result
     async fn query(&self, _query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
         unimplemented!("query Not yet implemented");
+    }
+
+    /// Return the partition keys for data in this DB
+    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
+        unimplemented!("partition_keys not yet implemented for test database");
+    }
+
+    /// Return the table names that are in a given partition key
+    async fn table_names_for_partition(
+        &self,
+        _partition_key: &str,
+    ) -> Result<Vec<String>, Self::Error> {
+        unimplemented!("table_names_for_partition not yet implemented for test database");
+    }
+
+    async fn remove_partition(
+        &self,
+        _partition_key: &str,
+    ) -> Result<Arc<Self::Partition>, Self::Error> {
+        unimplemented!()
+    }
+
+    /// Fetch the specified table names and columns as Arrow
+    /// RecordBatches. Columns are returned in the order specified.
+    async fn table_to_arrow(
+        &self,
+        _table_name: &str,
+        _columns: &[&str],
+    ) -> Result<Vec<RecordBatch>, Self::Error> {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub struct TestPartition {}
+
+impl PartitionChunk for TestPartition {
+    type Error = TestError;
+
+    fn key(&self) -> &str {
+        unimplemented!()
+    }
+
+    fn table_stats(&self) -> Result<Vec<data_types::partition_metadata::Table>, Self::Error> {
+        unimplemented!()
+    }
+
+    fn table_to_arrow(
+        &self,
+        _table_name: &str,
+        _columns: &[&str],
+    ) -> Result<RecordBatch, Self::Error> {
+        unimplemented!()
     }
 }
 

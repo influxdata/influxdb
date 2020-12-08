@@ -11,7 +11,7 @@
 mod column;
 mod database;
 mod dictionary;
-mod partition;
+pub mod partition;
 mod store;
 mod table;
 

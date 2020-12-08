@@ -202,6 +202,21 @@ pub enum Error {
 
     #[snafu(display("replicated write from writer {} missing payload", writer))]
     MissingPayload { writer: u32 },
+
+    #[snafu(display("partition {} not found", partition_key))]
+    PartitionNotFound { partition_key: String },
+
+    #[snafu(display(
+        "error converting partition table to arrow on partition {} with table {}: {}",
+        partition_key,
+        table_name,
+        source
+    ))]
+    PartitionTableToArrowError {
+        partition_key: String,
+        table_name: String,
+        source: crate::partition::Error,
+    },
 }
 
 impl From<crate::table::Error> for Error {
@@ -350,10 +365,21 @@ impl Db {
 
         Ok(batches)
     }
+
+    pub async fn remove_partition(&self, partition_key: &str) -> Result<Partition> {
+        let mut partitions = self.partitions.write().await;
+        let pos = partitions
+            .iter()
+            .position(|p| p.key == partition_key)
+            .context(PartitionNotFound { partition_key })?;
+
+        Ok(partitions.remove(pos))
+    }
 }
 
 #[async_trait]
 impl TSDatabase for Db {
+    type Partition = crate::partition::Partition;
     type Error = Error;
 
     // TODO: writes lines creates a column named "time" for the timestamp data. If
@@ -513,6 +539,7 @@ impl TSDatabase for Db {
 
 #[async_trait]
 impl SQLDatabase for Db {
+    type Partition = Partition;
     type Error = Error;
 
     async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
@@ -566,6 +593,63 @@ impl SQLDatabase for Db {
             .context(QueryError { query })?;
 
         ctx.collect(plan).await.context(QueryError { query })
+    }
+
+    /// Fetch the specified table names and columns as Arrow
+    /// RecordBatches. Columns are returned in the order specified.
+    async fn table_to_arrow(
+        &self,
+        table_name: &str,
+        columns: &[&str],
+    ) -> Result<Vec<RecordBatch>, Self::Error> {
+        self.table_to_arrow(table_name, columns).await
+    }
+
+    /// Return the partition keys for data in this DB
+    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
+        let partitions = self.partitions.read().await;
+        let keys = partitions.iter().map(|p| p.key.clone()).collect();
+
+        Ok(keys)
+    }
+
+    /// Return the table names that are in a given partition key
+    async fn table_names_for_partition(
+        &self,
+        partition_key: &str,
+    ) -> Result<Vec<String>, Self::Error> {
+        let partitions = self.partitions.read().await;
+        let partition = partitions
+            .iter()
+            .find(|p| p.key == partition_key)
+            .context(PartitionNotFound { partition_key })?;
+
+        let mut tables = Vec::with_capacity(partition.tables.len());
+
+        for id in partition.tables.keys() {
+            let name =
+                partition
+                    .dictionary
+                    .lookup_id(*id)
+                    .context(TableIdNotFoundInDictionary {
+                        table: *id,
+                        partition: &partition.key,
+                    })?;
+
+            tables.push(name.to_string());
+        }
+
+        Ok(tables)
+    }
+
+    async fn remove_partition(&self, partition_key: &str) -> Result<Arc<Partition>> {
+        let mut partitions = self.partitions.write().await;
+        let pos = partitions
+            .iter()
+            .position(|p| p.key == partition_key)
+            .context(PartitionNotFound { partition_key })?;
+
+        Ok(Arc::new(partitions.remove(pos)))
     }
 }
 

@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 bytes = "0.5.4"
 futures = "0.3.5"
-snafu = { version = "0.6.6", features = ["futures"] }
+snafu = { version = "0.6.10", features = ["futures"] }
 
 # Amazon S3 integration
 rusoto_core = "0.44.0"

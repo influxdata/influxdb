@@ -1,5 +1,5 @@
 [package]
-name = "cluster"
+name = "server"
 version = "0.1.0"
 authors = ["pauldix <paul@pauldix.net>"]
 edition = "2018"
@@ -23,3 +23,4 @@ arrow_deps = { path = "../arrow_deps" }
 futures = "0.3.7"
 bytes = "0.5"
 chrono = "0.4"
+uuid = { version = "0.8", features = ["serde", "v4"]}

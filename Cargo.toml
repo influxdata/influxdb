@@ -45,6 +45,7 @@ object_store = { path = "object_store" }
 query = { path = "query" }
 influxdb_tsm = { path = "influxdb_tsm" }
 wal = { path = "wal" }
+server = { path = "server" }
 
 bytes = "0.5.4"
 hyper = "0.13"

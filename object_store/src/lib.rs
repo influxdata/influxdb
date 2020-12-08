@@ -491,9 +491,25 @@ impl File {
         );
 
         let path = self.path(location);
-        let mut file = fs::File::create(&path)
-            .await
-            .context(UnableToCreateFile { path })?;
+
+        let mut file = match fs::File::create(&path).await {
+            Ok(f) => f,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                let parent = path
+                    .parent()
+                    .context(UnableToCreateFile { path: &path, err })?;
+                fs::create_dir_all(&parent)
+                    .await
+                    .context(UnableToCreateDir { path: parent })?;
+
+                match fs::File::create(&path).await {
+                    Ok(f) => f,
+                    Err(err) => return UnableToCreateFile { path, err }.fail(),
+                }
+            }
+            Err(err) => return UnableToCreateFile { path, err }.fail(),
+        };
+
         tokio::io::copy(&mut &content[..], &mut file)
             .await
             .context(UnableToCopyDataToFile)?;
@@ -647,8 +663,13 @@ enum InternalError {
     },
     NoDataInMemory,
 
-    #[snafu(display("Unable to create file {}: {}", path.display(), source))]
+    #[snafu(display("Unable to create file {}: {}", path.display(), err))]
     UnableToCreateFile {
+        err: io::Error,
+        path: PathBuf,
+    },
+    #[snafu(display("Unable to create dir {}: {}", path.display(), source))]
+    UnableToCreateDir {
         source: io::Error,
         path: PathBuf,
     },
@@ -888,6 +909,34 @@ mod tests {
                     actual: 11,
                 },
             );
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn creates_dir_if_not_present() -> Result<()> {
+            let root = TempDir::new()?;
+            let storage = ObjectStore::new_file(File::new(root.path()));
+
+            let data = Bytes::from("arbitrary data");
+            let location = "nested/file/test_file";
+
+            let stream_data = std::io::Result::Ok(data.clone());
+            storage
+                .put(
+                    location,
+                    futures::stream::once(async move { stream_data }),
+                    data.len(),
+                )
+                .await?;
+
+            let read_data = storage
+                .get(location)
+                .await?
+                .map_ok(|b| bytes::BytesMut::from(&b[..]))
+                .try_concat()
+                .await?;
+            assert_eq!(&*read_data, data);
 
             Ok(())
         }

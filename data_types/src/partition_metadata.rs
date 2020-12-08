@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// Describes the schema, summary statistics for each column in each table and the location of
 /// the partition in storage.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Partition {
     /// The identifier for the partition, the partition key computed from PartitionRules
     pub key: String,
@@ -16,14 +16,14 @@ pub struct Partition {
 }
 
 /// Metadata and statistics information for a table.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Table {
     pub name: String,
     pub columns: Vec<Column>,
 }
 
 /// Statistics and type information for a column.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum Column {
     I64(Statistics<i64>),
     U64(Statistics<u64>),
@@ -33,7 +33,7 @@ pub enum Column {
 }
 
 /// Summary statistics for a column.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Statistics<T: PartialEq + PartialOrd + Debug + Display + Clone> {
     pub min: T,
     pub max: T,

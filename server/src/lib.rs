@@ -64,3 +64,4 @@
 
 pub mod buffer;
 pub mod server;
+pub mod snapshot;

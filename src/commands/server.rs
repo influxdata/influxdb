@@ -10,6 +10,7 @@ use crate::server::rpc::service;
 
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
+use object_store::{self, GoogleCloudStorage, ObjectStore};
 use query::exec::Executor as QueryExecutor;
 use write_buffer::{Db, WriteBufferDatabases};
 
@@ -74,6 +75,16 @@ pub async fn main() -> Result<()> {
     debug!("InfluxDB IOx Server using database directory: {:?}", db_dir);
 
     let storage = Arc::new(WriteBufferDatabases::new(&db_dir));
+
+    let object_store = if let Ok(bucket) = std::env::var("INFLUXDB_IOX_GCP_BUCKET") {
+        info!("Using GCP bucket {} for storage", &bucket);
+        ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket))
+    } else {
+        info!("Using local dir {} for storage", &db_dir);
+        ObjectStore::new_file(object_store::File::new(&db_dir))
+    };
+    let object_storage = Arc::new(object_store);
+
     let dirs = storage
         .wal_dirs()
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
@@ -87,6 +98,11 @@ pub async fn main() -> Result<()> {
             .context(RestoringWriteBuffer { dir })?;
         storage.add_db(db).await;
     }
+
+    let app_server = Arc::new(http_routes::AppServer {
+        write_buffer: storage.clone(),
+        object_store: object_storage.clone(),
+    });
 
     // Fire up the query executor
     let executor = Arc::new(QueryExecutor::default());
@@ -124,10 +140,10 @@ pub async fn main() -> Result<()> {
     };
 
     let make_svc = make_service_fn(move |_conn| {
-        let storage = storage.clone();
+        let app_server = app_server.clone();
         async move {
             Ok::<_, http::Error>(service_fn(move |req| {
-                let state = storage.clone();
+                let state = app_server.clone();
                 http_routes::service(req, state)
             }))
         }
