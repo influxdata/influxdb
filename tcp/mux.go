@@ -65,6 +65,7 @@ func NewMux() *Mux {
 
 // Serve handles connections from ln and multiplexes then across registered listeners.
 func (mux *Mux) Serve(ln net.Listener) error {
+	specialerr := errors.New("Special stupid Err")
 	mux.mu.Lock()
 	mux.ln = ln
 	mux.mu.Unlock()
@@ -79,6 +80,7 @@ func (mux *Mux) Serve(ln net.Listener) error {
 			continue
 		}
 		if err != nil {
+			mux.Logger.Printf("tcp.Mux.Serve: call to Accept() at %s failed, closing all listeners - %s", ln.Addr(), err)
 			// Wait for all connections to be demux
 			mux.wg.Wait()
 
@@ -90,7 +92,9 @@ func (mux *Mux) Serve(ln net.Listener) error {
 				wg.Add(1)
 				go func(ln *listener) {
 					defer wg.Done()
-					ln.Close()
+					if err := ln.Close(); err != nil {
+						mux.Logger.Printf("tcp.Mux.Serve: Closing listener at %s failed - %s", ln.Addr().String(), err)
+					}
 				}(ln)
 			}
 			mux.mu.RUnlock()
@@ -100,9 +104,10 @@ func (mux *Mux) Serve(ln net.Listener) error {
 			dl := mux.defaultListener
 			mux.mu.RUnlock()
 			if dl != nil {
-				dl.Close()
+				if closeErr := dl.Close(); closeErr != nil {
+					mux.Logger.Printf("tcp.Mux.Serve: Closing default listener at %s failed - %s", ln.Addr().String(), closeErr)
+				}
 			}
-
 			return err
 		}
 
