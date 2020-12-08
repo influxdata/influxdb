@@ -65,7 +65,6 @@ func NewMux() *Mux {
 
 // Serve handles connections from ln and multiplexes then across registered listeners.
 func (mux *Mux) Serve(ln net.Listener) error {
-	specialerr := errors.New("Special stupid Err")
 	mux.mu.Lock()
 	mux.ln = ln
 	mux.mu.Unlock()
