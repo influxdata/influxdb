@@ -168,20 +168,20 @@ impl Segment {
     /// predicates.
     ///
     /// Right now, predicates are conjunctive (AND).
-    pub fn read_filter<'a>(
-        &'a self,
-        columns: &[ColumnName<'a>],
+    pub fn read_filter<'input>(
+        &self,
+        columns: &'input [ColumnName<'input>],
         predicates: &[Predicate<'_>],
-    ) -> ReadFilterResult<'_> {
+    ) -> ReadFilterResult<'input, '_> {
         let row_ids = self.row_ids_from_predicates(predicates);
         ReadFilterResult(self.materialise_rows(columns, row_ids))
     }
 
-    fn materialise_rows<'a>(
-        &'a self,
-        columns: &[ColumnName<'a>],
+    fn materialise_rows<'input>(
+        &self,
+        columns: &'input [ColumnName<'input>],
         row_ids: RowIDsOption,
-    ) -> Vec<(ColumnName<'_>, Values<'_>)> {
+    ) -> Vec<(ColumnName<'input>, Values<'_>)> {
         let mut results = vec![];
         match row_ids {
             RowIDsOption::None(_) => results, // nothing to materialise
@@ -615,15 +615,15 @@ impl MetaData {
 
 /// Encapsulates results from segments with a structure that makes them easier
 /// to work with and display.
-pub struct ReadFilterResult<'a>(pub Vec<(ColumnName<'a>, Values<'a>)>);
+pub struct ReadFilterResult<'input, 'segment>(pub Vec<(ColumnName<'input>, Values<'segment>)>);
 
-impl<'a> ReadFilterResult<'a> {
+impl<'input, 'segment> ReadFilterResult<'input, 'segment> {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 }
 
-impl<'a> std::fmt::Debug for &ReadFilterResult<'a> {
+impl<'input, 'segment> std::fmt::Debug for &ReadFilterResult<'input, 'segment> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // header line.
         for (i, (k, _)) in self.0.iter().enumerate() {
@@ -640,7 +640,7 @@ impl<'a> std::fmt::Debug for &ReadFilterResult<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for &ReadFilterResult<'a> {
+impl<'input, 'segment> std::fmt::Display for &ReadFilterResult<'input, 'segment> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());

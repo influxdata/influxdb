@@ -132,11 +132,11 @@ impl Table {
     /// but can be ranged by time, which should be represented as nanoseconds
     /// since the epoch. Results are included if they satisfy the predicate and
     /// fall with the [min, max) time range domain.
-    pub fn select<'a>(
-        &'a self,
-        columns: &[ColumnName<'a>],
+    pub fn select<'input>(
+        &self,
+        columns: &'input [ColumnName<'input>],
         predicates: &[Predicate<'_>],
-    ) -> ReadFilterResults<'a> {
+    ) -> ReadFilterResults<'input, '_> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
@@ -510,18 +510,18 @@ impl MetaData {
 
 /// Encapsulates results from tables with a structure that makes them easier
 /// to work with and display.
-pub struct ReadFilterResults<'a> {
-    pub names: Vec<ColumnName<'a>>,
-    pub values: Vec<ReadFilterResult<'a>>,
+pub struct ReadFilterResults<'input, 'segment> {
+    pub names: Vec<ColumnName<'input>>,
+    pub values: Vec<ReadFilterResult<'input, 'segment>>,
 }
 
-impl<'a> ReadFilterResults<'a> {
+impl<'input, 'segment> ReadFilterResults<'input, 'segment> {
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
 }
 
-impl<'a> Display for ReadFilterResults<'a> {
+impl<'input, 'segment> Display for ReadFilterResults<'input, 'segment> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // header line.
         for (i, k) in self.names.iter().enumerate() {
