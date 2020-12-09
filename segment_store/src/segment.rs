@@ -170,7 +170,7 @@ impl Segment {
     /// Right now, predicates are conjunctive (AND).
     pub fn read_filter<'input>(
         &self,
-        columns: &'input [ColumnName<'input>],
+        columns: &[ColumnName<'input>],
         predicates: &[Predicate<'_>],
     ) -> ReadFilterResult<'input, '_> {
         let row_ids = self.row_ids_from_predicates(predicates);
@@ -179,7 +179,7 @@ impl Segment {
 
     fn materialise_rows<'input>(
         &self,
-        columns: &'input [ColumnName<'input>],
+        columns: &[ColumnName<'input>],
         row_ids: RowIDsOption,
     ) -> Vec<(ColumnName<'input>, Values<'_>)> {
         let mut results = vec![];
@@ -484,7 +484,7 @@ impl Segment {
         &self,
         predicates: &[Predicate<'_>],
         group_column: ColumnName<'input>,
-        aggregates: &'input [(ColumnName<'input>, AggregateType)],
+        aggregates: &[(ColumnName<'input>, AggregateType)],
     ) -> ReadGroupResult<'input, '_> {
         todo!()
     }
@@ -498,7 +498,7 @@ impl Segment {
         &self,
         predicates: &[Predicate<'_>],
         group_column: ColumnName<'input>,
-        aggregates: &'input [(ColumnName<'input>, AggregateType)],
+        aggregates: &[(ColumnName<'input>, AggregateType)],
     ) -> ReadGroupResult<'input, '_> {
         todo!()
     }

@@ -134,7 +134,7 @@ impl Table {
     /// fall with the [min, max) time range domain.
     pub fn select<'input>(
         &self,
-        columns: &'input [ColumnName<'input>],
+        columns: &[ColumnName<'input>],
         predicates: &[Predicate<'_>],
     ) -> ReadFilterResults<'input, '_> {
         // identify segments where time range and predicates match could match
