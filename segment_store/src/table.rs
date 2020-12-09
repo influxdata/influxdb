@@ -173,12 +173,12 @@ impl Table {
     /// Required aggregates are specified via a tuple comprising a column name
     /// and the type of aggregation required. Multiple aggregations can be
     /// applied to the same column.
-    pub fn aggregate<'a>(
-        &'a self,
-        predicates: &[Predicate<'a>],
-        group_columns: &'a [ColumnName<'a>],
-        aggregates: &'a [(ColumnName<'a>, AggregateType)],
-    ) -> ReadGroupResults<'a> {
+    pub fn aggregate<'input>(
+        &self,
+        predicates: &[Predicate<'_>],
+        group_columns: &'input [ColumnName<'input>],
+        aggregates: &'input [(ColumnName<'input>, AggregateType)],
+    ) -> ReadGroupResults<'input, '_> {
         if !self.has_all_columns(&group_columns) {
             return ReadGroupResults::default(); //TODO(edd): return an error here "group key column x not found"
         }
@@ -546,18 +546,18 @@ impl<'input, 'segment> Display for ReadFilterResults<'input, 'segment> {
 }
 
 #[derive(Default)]
-pub struct ReadGroupResults<'a> {
+pub struct ReadGroupResults<'input, 'segment> {
     // column-wise collection of columns being grouped by
-    groupby_columns: &'a [ColumnName<'a>],
+    groupby_columns: &'input [ColumnName<'input>],
 
     // column-wise collection of columns being aggregated on
-    aggregate_columns: &'a [(ColumnName<'a>, AggregateType)],
+    aggregate_columns: &'input [(ColumnName<'input>, AggregateType)],
 
     // segment-wise result sets containing grouped values and aggregates
-    values: Vec<ReadGroupResult<'a>>,
+    values: Vec<ReadGroupResult<'input, 'segment>>,
 }
 
-impl<'a> std::fmt::Display for ReadGroupResults<'a> {
+impl std::fmt::Display for ReadGroupResults<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // header line - display group columns first
         for (i, name) in self.groupby_columns.iter().enumerate() {

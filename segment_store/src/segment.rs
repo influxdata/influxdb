@@ -331,12 +331,12 @@ impl Segment {
     /// them.
     ///
     /// Right now, predicates are conjunctive (AND).
-    pub fn read_group<'a>(
-        &'a self,
-        predicates: &[Predicate<'a>],
-        group_columns: &'a [ColumnName<'_>],
-        aggregates: &'a [(ColumnName<'_>, AggregateType)],
-    ) -> ReadGroupResult<'a> {
+    pub fn read_group<'input>(
+        &self,
+        predicates: &[Predicate<'_>],
+        group_columns: &'input [ColumnName<'input>],
+        aggregates: &'input [(ColumnName<'input>, AggregateType)],
+    ) -> ReadGroupResult<'input, '_> {
         // Handle case where there are no predicates and all the columns being
         // grouped support constant-time expression of the row_ids belonging to
         // each grouped value.
@@ -357,11 +357,11 @@ impl Segment {
     //
     // In this case all the grouping columns pre-computed bitsets for each
     // distinct value.
-    fn read_group_all_rows_all_rle<'a>(
-        &'a self,
-        group_column_name: &'a [ColumnName<'_>],
-        aggregates: &'a [(ColumnName<'_>, AggregateType)],
-    ) -> ReadGroupResult<'a> {
+    fn read_group_all_rows_all_rle<'input>(
+        &self,
+        group_column_name: &'input [ColumnName<'input>],
+        aggregates: &'input [(ColumnName<'input>, AggregateType)],
+    ) -> ReadGroupResult<'input, '_> {
         let group_columns = group_column_name
             .iter()
             .map(|col_name| self.column_by_name(col_name))
@@ -480,12 +480,12 @@ impl Segment {
     // the group key.
     //
     // In this case the groups can be represented by a single integer key.
-    fn read_group_single_group_column(
+    fn read_group_single_group_column<'input>(
         &self,
         predicates: &[Predicate<'_>],
-        group_column: ColumnName<'_>,
-        aggregates: &[(ColumnName<'_>, AggregateType)],
-    ) -> ReadGroupResult<'_> {
+        group_column: ColumnName<'input>,
+        aggregates: &'input [(ColumnName<'input>, AggregateType)],
+    ) -> ReadGroupResult<'input, '_> {
         todo!()
     }
 
@@ -494,12 +494,12 @@ impl Segment {
     //
     // In this case the rows are already in "group key order" and the aggregates
     // can be calculated by reading the rows in order.
-    fn read_group_sorted_stream(
+    fn read_group_sorted_stream<'input>(
         &self,
         predicates: &[Predicate<'_>],
-        group_column: ColumnName<'_>,
-        aggregates: &[(ColumnName<'_>, AggregateType)],
-    ) -> ReadGroupResult<'_> {
+        group_column: ColumnName<'input>,
+        aggregates: &'input [(ColumnName<'input>, AggregateType)],
+    ) -> ReadGroupResult<'input, '_> {
         todo!()
     }
 }
@@ -676,23 +676,23 @@ impl<'input, 'segment> std::fmt::Display for &ReadFilterResult<'input, 'segment>
 }
 
 #[derive(Default)]
-pub struct ReadGroupResult<'a> {
+pub struct ReadGroupResult<'input, 'segment> {
     // columns that are being grouped on.
-    group_columns: &'a [ColumnName<'a>],
+    group_columns: &'input [ColumnName<'input>],
 
     // columns that are being aggregated
-    aggregate_columns: &'a [(ColumnName<'a>, AggregateType)],
+    aggregate_columns: &'input [(ColumnName<'input>, AggregateType)],
 
     // row-wise collection of group keys. Each group key contains column-wise
     // values for each of the groupby_columns.
-    group_keys: Vec<GroupKey<'a>>,
+    group_keys: Vec<GroupKey<'segment>>,
 
     // row-wise collection of aggregates. Each aggregate contains column-wise
     // values for each of the aggregate_columns.
-    aggregates: Vec<Vec<AggregateResult<'a>>>,
+    aggregates: Vec<Vec<AggregateResult<'segment>>>,
 }
 
-impl ReadGroupResult<'_> {
+impl ReadGroupResult<'_, '_> {
     pub fn is_empty(&self) -> bool {
         self.group_keys.is_empty()
     }
@@ -703,7 +703,7 @@ impl ReadGroupResult<'_> {
     }
 }
 
-impl<'a> std::fmt::Debug for &ReadGroupResult<'a> {
+impl std::fmt::Debug for &ReadGroupResult<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // group column names
         for k in self.group_columns {
@@ -725,7 +725,7 @@ impl<'a> std::fmt::Debug for &ReadGroupResult<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for &ReadGroupResult<'a> {
+impl std::fmt::Display for &ReadGroupResult<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());
