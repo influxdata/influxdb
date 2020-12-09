@@ -2558,6 +2558,14 @@ impl EncodedValues {
         panic!("cannot borrow &Vec<u32>");
     }
 
+    /// Takes a `Vec<u32>` out of the enum.
+    pub fn take_u32(&mut self) -> Vec<u32> {
+        std::mem::take(match self {
+            Self::I64(a) => panic!("cannot take Vec<u32> out of I64 variant"),
+            Self::U32(arr) => arr,
+        })
+    }
+
     pub fn len(&self) -> usize {
         match self {
             Self::I64(v) => v.len(),
