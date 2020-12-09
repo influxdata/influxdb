@@ -22,16 +22,13 @@ builds:
         goarm: 7
     main: ./cmd/influx/
     flags:
-      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{end}}
+      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64)}},noasm{{end}}{{end}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=1
       - CC=xcc
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
-      {{ if and (eq .OSs "linux") (eq .Arch "arm") (eq .Arm 7) }}
-      - CFLAGS='-mfpu=vfpv3-d16'
-      {{ end }}
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influx
@@ -58,16 +55,13 @@ builds:
         goarm: 7
     main: ./cmd/influxd/
     flags:
-      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{end}}
+      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64)}},noasm{{end}}{{end}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=1
       - CC=xcc
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
-      {{ if and (eq .OSs "linux") (eq .Arch "arm") (eq .Arm 7) }}
-      - CFLAGS='-mfpu=vfpv3-d16'
-      {{ end }}
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influxd
@@ -95,9 +89,11 @@ nfpms:
       rpm:
         replacements:
           amd64: x86_64
-        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}hf{{ end }}"
+        # N.B. it's tempting to include 'v{{ .Arm }}' in the names for all ARM builds, but that breaks
+        # our existing pattern for ARMv6.
+        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}{{ if .Arm }}{{ if eq .Arm \"7\" }}v7{{ end }}hf{{ end }}"
       deb:
-        file_name_template: "influxdb2_{{ .Version }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}hf{{ end }}"
+        file_name_template: "influxdb2_{{ .Version }}_{{ .Arch }}{{ if .Arm }}{{ if eq .Arm \"7\" }}v7{{ end }}hf{{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com

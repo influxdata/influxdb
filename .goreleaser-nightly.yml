@@ -22,7 +22,7 @@ builds:
         goarm: 7
     main: ./cmd/influx/
     flags:
-      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{end}}
+      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64)}},noasm{{end}}{{end}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=1
@@ -55,7 +55,7 @@ builds:
         goarm: 7
     main: ./cmd/influxd/
     flags:
-      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{end}}
+      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64)}},noasm{{end}}{{end}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=1
@@ -90,9 +90,11 @@ nfpms:
       rpm:
         replacements:
           amd64: x86_64
-        file_name_template: "influxdb2-nightly.{{ .Arch }}{{ if .Arm }}v{{ .Arm }}hf{{ end }}"
+        # N.B. it's tempting to include 'v{{ .Arm }}' in the names for all ARM builds, but that breaks
+        # our existing pattern for ARMv6.
+        file_name_template: "influxdb2-nightly.{{ .Arch }}{{ if .Arm }}{{ if eq .Arm \"7\" }}v7{{ end }}hf{{ end }}"
       deb:
-        file_name_template: "influxdb2_nightly_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}hf{{ end }}"
+        file_name_template: "influxdb2_nightly_{{ .Arch }}{{ if .Arm }}{{ if eq .Arm \"7\" }}v7{{ end }}hf{{ end }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
