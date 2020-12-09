@@ -113,7 +113,7 @@ dockers:
       - influxd
       - influx
     image_templates:
-      - "quay.io/influxdb/influxdb:{{ .Tag }}"
+      - "quay.io/influxdb/influxdb2:{{ .Tag }}"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
