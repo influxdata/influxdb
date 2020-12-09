@@ -3,6 +3,7 @@ readTrusted 'Dockerfile_jenkins_ubuntu32'
 pipeline {
   agent none
 
+  
   stages {
     stage('Update changelog') {
       agent any
