@@ -617,13 +617,13 @@ impl MetaData {
 /// to work with and display.
 pub struct ReadFilterResult<'input, 'segment>(pub Vec<(ColumnName<'input>, Values<'segment>)>);
 
-impl<'input, 'segment> ReadFilterResult<'input, 'segment> {
+impl ReadFilterResult<'_, '_> {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 }
 
-impl<'input, 'segment> std::fmt::Debug for &ReadFilterResult<'input, 'segment> {
+impl std::fmt::Debug for &ReadFilterResult<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // header line.
         for (i, (k, _)) in self.0.iter().enumerate() {
@@ -640,7 +640,7 @@ impl<'input, 'segment> std::fmt::Debug for &ReadFilterResult<'input, 'segment> {
     }
 }
 
-impl<'input, 'segment> std::fmt::Display for &ReadFilterResult<'input, 'segment> {
+impl std::fmt::Display for &ReadFilterResult<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());
