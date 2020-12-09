@@ -2233,30 +2233,30 @@ impl Scalar {
     }
 }
 
-impl<'a> std::ops::AddAssign<&Scalar> for Scalar {
-    fn add_assign(&mut self, _rhs: &Scalar) {
-        if _rhs.is_null() {
+impl std::ops::AddAssign<&Scalar> for Scalar {
+    fn add_assign(&mut self, rhs: &Scalar) {
+        if rhs.is_null() {
             // Adding NULL does nothing.
             return;
         }
 
         match self {
             Scalar::F64(v) => {
-                if let Scalar::F64(other) = _rhs {
+                if let Scalar::F64(other) = rhs {
                     *v += *other;
                 } else {
                     panic!("invalid AddAssign types");
                 };
             }
             Scalar::I64(v) => {
-                if let Scalar::I64(other) = _rhs {
+                if let Scalar::I64(other) = rhs {
                     *v += *other;
                 } else {
                     panic!("invalid AddAssign types");
                 };
             }
             Scalar::U64(v) => {
-                if let Scalar::U64(other) = _rhs {
+                if let Scalar::U64(other) = rhs {
                     *v += *other;
                 } else {
                     panic!("invalid AddAssign types");
@@ -2268,24 +2268,24 @@ impl<'a> std::ops::AddAssign<&Scalar> for Scalar {
 }
 
 impl<'a> std::ops::AddAssign<&Scalar> for &mut Scalar {
-    fn add_assign(&mut self, _rhs: &Scalar) {
+    fn add_assign(&mut self, rhs: &Scalar) {
         match self {
             Scalar::F64(v) => {
-                if let Scalar::F64(other) = _rhs {
+                if let Scalar::F64(other) = rhs {
                     *v += *other;
                 } else {
                     panic!("invalid AddAssign types");
                 };
             }
             Scalar::I64(v) => {
-                if let Scalar::I64(other) = _rhs {
+                if let Scalar::I64(other) = rhs {
                     *v += *other;
                 } else {
                     panic!("invalid AddAssign types");
                 };
             }
             Scalar::U64(v) => {
-                if let Scalar::U64(other) = _rhs {
+                if let Scalar::U64(other) = rhs {
                     *v += *other;
                 } else {
                     panic!("invalid AddAssign types");
@@ -2366,10 +2366,7 @@ pub enum Value<'a> {
 
 impl Value<'_> {
     pub fn is_null(&self) -> bool {
-        if let Self::Null = self {
-            return true;
-        }
-        false
+        matches!(self, Self::Null)
     }
 
     pub fn scalar(&self) -> &Scalar {
