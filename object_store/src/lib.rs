@@ -791,6 +791,9 @@ mod tests {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
+    #[cfg(any(test_aws, test_gcs))]
+    const NON_EXISTANT_NAME: &str = "nonexistantname";
+
     macro_rules! assert_error {
         ($res:expr, $error_pat:pat$(,)?) => {
             assert!(
@@ -858,6 +861,25 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(any(test_aws, test_gcs))]
+    async fn get_nonexistant_object(
+        storage: &ObjectStore,
+        location: Option<&str>,
+    ) -> Result<Bytes> {
+        let location = location.unwrap_or("this_file_should_not_exist");
+
+        let content_list = flatten_list_stream(storage, Some(location)).await?;
+        assert!(content_list.is_empty());
+
+        Ok(storage
+            .get(location)
+            .await?
+            .map_ok(|b| bytes::BytesMut::from(&b[..]))
+            .try_concat()
+            .await?
+            .freeze())
+    }
+
     // Tests TODO:
     // GET nonexisting location (in_memory/file)
     // DELETE nonexisting location
@@ -869,32 +891,12 @@ mod tests {
 
         use super::*;
 
-        const NON_EXISTANT_NAME: &str = "nonexistantname";
-
         fn bucket_name() -> Result<String> {
             dotenv::dotenv().ok();
             let bucket_name = env::var("GCS_BUCKET_NAME")
                 .map_err(|_| "The environment variable GCS_BUCKET_NAME must be set")?;
 
             Ok(bucket_name)
-        }
-
-        async fn get_nonexistant_object(
-            storage: &ObjectStore,
-            location: Option<&str>,
-        ) -> Result<Bytes> {
-            let location = location.unwrap_or("this_file_should_not_exist");
-
-            let content_list = flatten_list_stream(storage, Some(location)).await?;
-            assert!(content_list.is_empty());
-
-            Ok(storage
-                .get(location)
-                .await?
-                .map_ok(|b| bytes::BytesMut::from(&b[..]))
-                .try_concat()
-                .await?
-                .freeze())
         }
 
         #[tokio::test]
@@ -1028,8 +1030,6 @@ mod tests {
 
         use super::*;
 
-        const NON_EXISTANT_NAME: &str = "nonexistantname";
-
         fn region_and_bucket_name() -> Result<(rusoto_core::Region, String)> {
             dotenv::dotenv().ok();
 
@@ -1052,24 +1052,6 @@ mod tests {
             }
 
             r
-        }
-
-        async fn get_nonexistant_object(
-            storage: &ObjectStore,
-            location: Option<&str>,
-        ) -> Result<Bytes> {
-            let location = location.unwrap_or("this_file_should_not_exist");
-
-            let content_list = flatten_list_stream(storage, Some(location)).await?;
-            assert!(content_list.is_empty());
-
-            Ok(storage
-                .get(location)
-                .await?
-                .map_ok(|b| bytes::BytesMut::from(&b[..]))
-                .try_concat()
-                .await?
-                .freeze())
         }
 
         #[tokio::test]
