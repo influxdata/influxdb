@@ -640,22 +640,22 @@ impl Error {
         match self.0 {
             UnableToPutDataToS3 {
                 source: RusotoError::Credentials(_),
-                bucket: String(_),
-                location: String(_),
+                bucket: _,
+                location: _,
             } => true,
             UnableToGetDataFromS3 {
                 source: RusotoError::Credentials(_),
-                bucket: String(_),
-                location: String(_),
+                bucket: _,
+                location: _,
             } => true,
             UnableToDeleteDataFromS3 {
                 source: RusotoError::Credentials(_),
-                bucket: String(_),
-                location: String(_),
+                bucket: _,
+                location: _,
             } => true,
             UnableToListDataFromS3 {
                 source: RusotoError::Credentials(_),
-                bucket: String(_),
+                bucket: _,
             } => true,
             _ => false,
         }
