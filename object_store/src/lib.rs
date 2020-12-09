@@ -951,23 +951,19 @@ mod tests {
             let integration =
                 ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
 
-            let result = integration.delete(location_name).await;
+            let err = integration.delete(location_name).await.unwrap_err();
 
-            if let Err(e) = result {
-                if let Error(InternalError::UnableToDeleteDataFromGcs2 {
-                    source,
-                    bucket,
-                    location,
-                }) = e
-                {
-                    assert!(matches!(source, cloud_storage::Error::Google(_)));
-                    assert_eq!(bucket, bucket_name);
-                    assert_eq!(location, location_name);
-                } else {
-                    panic!()
-                }
+            if let Error(InternalError::UnableToDeleteDataFromGcs2 {
+                source,
+                bucket,
+                location,
+            }) = err
+            {
+                assert!(matches!(source, cloud_storage::Error::Google(_)));
+                assert_eq!(bucket, bucket_name);
+                assert_eq!(location, location_name);
             } else {
-                panic!()
+                panic!("unexpected error type")
             }
 
             Ok(())
@@ -980,23 +976,19 @@ mod tests {
             let integration =
                 ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
 
-            let result = integration.delete(location_name).await;
+            let err = integration.delete(location_name).await.unwrap_err();
 
-            if let Err(e) = result {
-                if let Error(InternalError::UnableToDeleteDataFromGcs2 {
-                    source,
-                    bucket,
-                    location,
-                }) = e
-                {
-                    assert!(matches!(source, cloud_storage::Error::Google(_)));
-                    assert_eq!(bucket, bucket_name);
-                    assert_eq!(location, location_name);
-                } else {
-                    panic!()
-                }
+            if let Error(InternalError::UnableToDeleteDataFromGcs2 {
+                source,
+                bucket,
+                location,
+            }) = err
+            {
+                assert!(matches!(source, cloud_storage::Error::Google(_)));
+                assert_eq!(bucket, bucket_name);
+                assert_eq!(location, location_name);
             } else {
-                panic!()
+                panic!("unexpected error type")
             }
 
             Ok(())
@@ -1072,18 +1064,16 @@ mod tests {
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
             let location_name = NON_EXISTANT_NAME;
 
-            let result = get_nonexistant_object(&integration, Some(location_name)).await;
-            if let Err(e) = result {
-                if let Some(Error(InternalError::UnableToListDataFromS3 { source, bucket })) =
-                    e.downcast_ref::<crate::Error>()
-                {
-                    assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-                    assert_eq!(bucket, &bucket_name);
-                } else {
-                    panic!()
-                }
+            let err = get_nonexistant_object(&integration, Some(location_name))
+                .await
+                .unwrap_err();
+            if let Some(Error(InternalError::UnableToListDataFromS3 { source, bucket })) =
+                err.downcast_ref::<crate::Error>()
+            {
+                assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
+                assert_eq!(bucket, &bucket_name);
             } else {
-                panic!()
+                panic!("unexpected error type")
             }
 
             Ok(())
@@ -1095,25 +1085,23 @@ mod tests {
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
             let location_name = NON_EXISTANT_NAME;
 
-            let result = get_nonexistant_object(&integration, Some(location_name)).await;
-            if let Err(e) = result {
-                if let Some(Error(InternalError::UnableToGetDataFromS3 {
+            let err = get_nonexistant_object(&integration, Some(location_name))
+                .await
+                .unwrap_err();
+            if let Some(Error(InternalError::UnableToGetDataFromS3 {
+                source,
+                bucket,
+                location,
+            })) = err.downcast_ref::<crate::Error>()
+            {
+                assert!(matches!(
                     source,
-                    bucket,
-                    location,
-                })) = e.downcast_ref::<crate::Error>()
-                {
-                    assert!(matches!(
-                        source,
-                        rusoto_core::RusotoError::Service(rusoto_s3::GetObjectError::NoSuchKey(_))
-                    ));
-                    assert_eq!(bucket, &bucket_name);
-                    assert_eq!(location, location_name);
-                } else {
-                    panic!()
-                }
+                    rusoto_core::RusotoError::Service(rusoto_s3::GetObjectError::NoSuchKey(_))
+                ));
+                assert_eq!(bucket, &bucket_name);
+                assert_eq!(location, location_name);
             } else {
-                panic!()
+                panic!("unexpected error type")
             }
 
             Ok(())
@@ -1126,23 +1114,21 @@ mod tests {
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
             let location_name = NON_EXISTANT_NAME;
 
-            let result = get_nonexistant_object(&integration, Some(location_name)).await;
-            if let Err(e) = result {
-                if let Some(Error(InternalError::UnableToListDataFromS3 { source, bucket })) =
-                    e.downcast_ref::<crate::Error>()
-                {
-                    assert!(matches!(
-                        source,
-                        rusoto_core::RusotoError::Service(
-                            rusoto_s3::ListObjectsV2Error::NoSuchBucket(_),
-                        )
-                    ));
-                    assert_eq!(bucket, &bucket_name);
-                } else {
-                    panic!()
-                }
+            let err = get_nonexistant_object(&integration, Some(location_name))
+                .await
+                .unwrap_err();
+            if let Some(Error(InternalError::UnableToListDataFromS3 { source, bucket })) =
+                e.downcast_ref::<crate::Error>()
+            {
+                assert!(matches!(
+                    source,
+                    rusoto_core::RusotoError::Service(
+                        rusoto_s3::ListObjectsV2Error::NoSuchBucket(_),
+                    )
+                ));
+                assert_eq!(bucket, &bucket_name);
             } else {
-                panic!()
+                panic!("unexpected error type")
             }
 
             Ok(())
@@ -1158,29 +1144,26 @@ mod tests {
             let data = Bytes::from("arbitrary data");
             let stream_data = std::io::Result::Ok(data.clone());
 
-            let result = integration
+            let err = integration
                 .put(
                     location_name,
                     futures::stream::once(async move { stream_data }),
                     data.len(),
                 )
-                .await;
+                .await
+                .unwrap_err();
 
-            if let Err(e) = result {
-                if let Error(InternalError::UnableToPutDataToS3 {
-                    source,
-                    bucket,
-                    location,
-                }) = e
-                {
-                    assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-                    assert_eq!(bucket, bucket_name);
-                    assert_eq!(location, location_name);
-                } else {
-                    panic!()
-                }
+            if let Error(InternalError::UnableToPutDataToS3 {
+                source,
+                bucket,
+                location,
+            }) = err
+            {
+                assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
+                assert_eq!(bucket, bucket_name);
+                assert_eq!(location, location_name);
             } else {
-                panic!()
+                panic!("unexpected error type")
             }
 
             Ok(())
@@ -1195,29 +1178,26 @@ mod tests {
             let data = Bytes::from("arbitrary data");
             let stream_data = std::io::Result::Ok(data.clone());
 
-            let result = integration
+            let err = integration
                 .put(
                     location_name,
                     futures::stream::once(async move { stream_data }),
                     data.len(),
                 )
-                .await;
+                .await
+                .unwrap_err();
 
-            if let Err(e) = result {
-                if let Error(InternalError::UnableToPutDataToS3 {
-                    source,
-                    bucket,
-                    location,
-                }) = e
-                {
-                    assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-                    assert_eq!(bucket, bucket_name);
-                    assert_eq!(location, location_name);
-                } else {
-                    panic!()
-                }
+            if let Error(InternalError::UnableToPutDataToS3 {
+                source,
+                bucket,
+                location,
+            }) = err
+            {
+                assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
+                assert_eq!(bucket, bucket_name);
+                assert_eq!(location, location_name);
             } else {
-                panic!()
+                panic!("unexpected error type")
             }
 
             Ok(())
@@ -1244,22 +1224,18 @@ mod tests {
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
             let location_name = NON_EXISTANT_NAME;
 
-            let result = integration.delete(location_name).await;
-            if let Err(e) = result {
-                if let Error(InternalError::UnableToDeleteDataFromS3 {
-                    source,
-                    bucket,
-                    location,
-                }) = e
-                {
-                    assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-                    assert_eq!(bucket, bucket_name);
-                    assert_eq!(location, location_name);
-                } else {
-                    panic!()
-                }
+            let err = integration.delete(location_name).await.unwrap_err();
+            if let Error(InternalError::UnableToDeleteDataFromS3 {
+                source,
+                bucket,
+                location,
+            }) = err
+            {
+                assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
+                assert_eq!(bucket, bucket_name);
+                assert_eq!(location, location_name);
             } else {
-                panic!()
+                panic!("unexpected error type")
             }
 
             Ok(())
@@ -1272,22 +1248,18 @@ mod tests {
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
             let location_name = NON_EXISTANT_NAME;
 
-            let result = integration.delete(location_name).await;
-            if let Err(e) = result {
-                if let Error(InternalError::UnableToDeleteDataFromS3 {
-                    source,
-                    bucket,
-                    location,
-                }) = e
-                {
-                    assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-                    assert_eq!(bucket, bucket_name);
-                    assert_eq!(location, location_name);
-                } else {
-                    panic!()
-                }
+            let err = integration.delete(location_name).await.unwrap_err();
+            if let Error(InternalError::UnableToDeleteDataFromS3 {
+                source,
+                bucket,
+                location,
+            }) = err
+            {
+                assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
+                assert_eq!(bucket, bucket_name);
+                assert_eq!(location, location_name);
             } else {
-                panic!()
+                panic!("unexpected error type")
             }
 
             Ok(())
