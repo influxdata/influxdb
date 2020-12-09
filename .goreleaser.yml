@@ -22,7 +22,7 @@ builds:
         goarm: 7
     main: ./cmd/influx/
     flags:
-      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64)}},noasm{{end}}{{end}}
+      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=1
@@ -55,7 +55,7 @@ builds:
         goarm: 7
     main: ./cmd/influxd/
     flags:
-      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64)}},noasm{{end}}{{end}}
+      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=1
