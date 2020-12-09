@@ -24,10 +24,43 @@ function install_chkconfig {
     chkconfig --add influxdb
 }
 
+function upgrade_notice {
+cat << EOF
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Important 1.x to 2.x Upgrade Notice !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+Thank you for installing InfluxDB v2.  Due to significant changes between
+the v1 and v2 versions, upgrading to v2 requires additional steps.  If
+upgrading to v2 was not intended, simply re-install the v1 package now.
+
+An upgrade helper script is available that should be reviewed and executed
+prior to starting the influxdb systemd service.  In order to start the v2
+upgrade, excute the following:
+
+sudo /usr/share/influxdb/influxdb2-upgrade.sh
+
+Please visit our website for complete details on the v1 to v2 upgrade process:
+https://docs.influxdata.com/influxdb/v2.0/upgrade/v1-to-v2/
+
+For new or upgrade installations, please review the getting started guide:
+https://docs.influxdata.com/influxdb/v2.0/get-started/
+
+EOF
+}
+
 # Add defaults file, if it doesn't exist
-if [[ ! -f /etc/default/influxdb ]]; then
-    touch /etc/default/influxdb
+if [[ ! -s /etc/default/influxdb2 ]]; then
+    touch /etc/default/influxdb2
+cat << EOF > /etc/default/influxdb2
+INFLUXD_CONFIG_PATH=/etc/influxdb/config.toml
+INFLUXD_BOLT_PATH=/var/lib/influxdb/influxd.bolt
+INFLUXD_ENGINE_PATH=/var/lib/influxdb/engine
+EOF
 fi
+
+# Add default environment variables if default
 
 # Remove legacy symlink, if it exists
 if [[ -L /etc/init.d/influxdb ]]; then
@@ -73,28 +106,7 @@ elif [[ -f /etc/os-release ]]; then
     fi
 fi
 
-# Upgrade notice
-cat << EOF
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Important 1.x to 2.x Upgrade Notice !
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-Thank you for installing InfluxDB v2.  Due to significant changes between
-the v1 and v2 versions, upgrading to v2 requires additional steps.  If
-upgrading to v2 was not intended, please simply re-install the v1 package now.
-
-Please review the complete upgrade procedure:
-
-https://docs.influxdata.com/influxdb/v2.0/upgrade/v1-to-v2/
-
-Minimally, the following steps will be necessary:
-
-* Make a copy of all underlying v1 data (typically under /var/lib/influxdb)
-* Run the 'influxd upgrade' command
-* Follow the prompts to complete the upgrade process
-
-For new or upgrade installations, please also review the getting started guide:
-
-https://docs.influxdata.com/influxdb/v2.0/get-started/
-EOF
+# Check upgrade status
+if [[ ! -f $(grep bolt-path $CONFIG_FILE | awk -F\" '{print $2}') ]]; then
+  upgrade_notice
+fi
