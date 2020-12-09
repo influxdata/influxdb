@@ -170,7 +170,6 @@ build: all
 goreleaser:
 	curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh
 	sh goreleaser-install v0.142.0
-	go get github.com/influxdata/pkg-config@master # TODO: revert once we have a proper release.
 	go build -o $(GOPATH)/bin/pkg-config github.com/influxdata/pkg-config
 	install xcc.sh $(GOPATH)/bin/xcc
 
@@ -188,7 +187,7 @@ release: goreleaser
 	./bin/goreleaser release -p 1 --rm-dist
 
 gershon-release: goreleaser
-	git checkout -- go.mod go.sum # avoid dirty git repository caused by go install
+	git checkout -- go.sum # avoid dirty git repository caused by go install
 	./bin/goreleaser release -p 1 --rm-dist --config=.goreleaser_gershon.yml --snapshot --debug
 
 clean:
