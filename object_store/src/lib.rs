@@ -166,7 +166,7 @@ impl GoogleCloudStorage {
         })
         .await
         .context(UnableToPutDataToGcs {
-            bucket: self.bucket_name.clone(),
+            bucket: &self.bucket_name,
             location,
         })?;
 
@@ -185,11 +185,11 @@ impl GoogleCloudStorage {
         })
         .await
         .context(UnableToGetDataFromGcs {
-            bucket: self.bucket_name.clone(),
+            bucket: &self.bucket_name,
             location,
         })?
         .context(UnableToGetDataFromGcs2 {
-            bucket: self.bucket_name.clone(),
+            bucket: &self.bucket_name,
             location,
         })?;
 
@@ -206,11 +206,11 @@ impl GoogleCloudStorage {
         })
         .await
         .context(UnableToDeleteDataFromGcs {
-            bucket: self.bucket_name.clone(),
+            bucket: &self.bucket_name,
             location,
         })?
         .context(UnableToDeleteDataFromGcs2 {
-            bucket: self.bucket_name.clone(),
+            bucket: &self.bucket_name,
             location,
         })?;
 
@@ -231,10 +231,10 @@ impl GoogleCloudStorage {
         })
         .await
         .context(UnableToListDataFromGcs {
-            bucket: self.bucket_name.clone(),
+            bucket: &self.bucket_name,
         })?
         .context(UnableToListDataFromGcs2 {
-            bucket: self.bucket_name.clone(),
+            bucket: &self.bucket_name,
         })?;
 
         Ok(futures::stream::once(async move {
@@ -297,7 +297,7 @@ impl AmazonS3 {
             .put_object(put_request)
             .await
             .context(UnableToPutDataToS3 {
-                bucket: self.bucket_name.to_owned(),
+                bucket: &self.bucket_name,
                 location: location.to_string(),
             })?;
         Ok(())
