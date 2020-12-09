@@ -52,15 +52,12 @@ EOF
 
 # Add defaults file, if it doesn't exist
 if [[ ! -s /etc/default/influxdb2 ]]; then
-    touch /etc/default/influxdb2
 cat << EOF > /etc/default/influxdb2
 INFLUXD_CONFIG_PATH=/etc/influxdb/config.toml
 INFLUXD_BOLT_PATH=/var/lib/influxdb/influxd.bolt
 INFLUXD_ENGINE_PATH=/var/lib/influxdb/engine
 EOF
 fi
-
-# Add default environment variables if default
 
 # Remove legacy symlink, if it exists
 if [[ -L /etc/init.d/influxdb ]]; then

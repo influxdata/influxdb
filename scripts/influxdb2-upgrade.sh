@@ -26,7 +26,11 @@ if [[ -d /var/lib/influxdb ]]; then
 fi
 
 # Perform upgrade
-sudo -u influxdb /usr/bin/influxd upgrade
+sudo -u influxdb /usr/bin/influxd upgrade \
+  --config-file=/etc/influxdb/influxdb.conf \
+  --v2-config-path=${INFLUXD_CONFIG_PATH} \
+  -m $INFLUXD_BOLT_PATH -e $INFLUXD_ENGINE_PATH
+
 if [[ $? -eq 0 ]]; then
 cat << EOF
 
