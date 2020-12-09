@@ -1,8 +1,6 @@
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-};
+use std::{borrow::Cow, collections::BTreeMap};
 
+use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 
 use arrow_deps::arrow::datatypes::SchemaRef;
@@ -452,7 +450,7 @@ impl Segment {
         }
 
         // Now begin building the group keys.
-        let mut groups = HashMap::new();
+        let mut groups: HashMap<Vec<i64>, Vec<AggregateResult<'_>>> = HashMap::default();
 
         // key_buf will be used as a temporary buffer for group keys, which are
         // themselves integers.
@@ -474,28 +472,26 @@ impl Segment {
                 }
             }
 
-            // entry API requires allocating a key, which is too expensive.
-            if !groups.contains_key(&key_buf) {
-                // this vector will hold aggregates for this group key, which
-                // will be updated as the rows in the aggregate columns are
-                // iterated.
-                let mut group_key_aggs = Vec::with_capacity(agg_cols_num);
-                for (_, agg_type) in &dst.aggregate_columns {
-                    group_key_aggs.push(AggregateResult::from(agg_type));
+            match groups.raw_entry_mut().from_key(&key_buf) {
+                // aggregates for this group key are already present. Update them
+                hash_map::RawEntryMut::Occupied(mut entry) => {
+                    for (i, values) in aggregate_columns_data.iter().enumerate() {
+                        entry.get_mut()[i].update(values.value(row));
+                    }
                 }
+                // group key does not exist, so create it.
+                hash_map::RawEntryMut::Vacant(entry) => {
+                    let mut group_key_aggs = Vec::with_capacity(agg_cols_num);
+                    for (_, agg_type) in &dst.aggregate_columns {
+                        group_key_aggs.push(AggregateResult::from(agg_type));
+                    }
 
-                for (i, values) in aggregate_columns_data.iter().enumerate() {
-                    group_key_aggs[i].update(values.value(row));
+                    for (i, values) in aggregate_columns_data.iter().enumerate() {
+                        group_key_aggs[i].update(values.value(row));
+                    }
+
+                    entry.insert(key_buf.clone(), group_key_aggs);
                 }
-
-                groups.insert(key_buf.clone(), group_key_aggs);
-                continue;
-            }
-
-            // Group key already exists - update all aggregates for that group key
-            let group_key_aggs = groups.get_mut(&key_buf).unwrap();
-            for (i, values) in aggregate_columns_data.iter().enumerate() {
-                group_key_aggs[i].update(values.value(row));
             }
         }
 
