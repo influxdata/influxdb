@@ -2724,14 +2724,14 @@ impl RowIDs {
 
     pub fn union(&mut self, other: &RowIDs) {
         match (self, other) {
-            (Self::Bitmap(_self), RowIDs::Bitmap(other)) => _self.or_inplace(other),
+            (Self::Bitmap(inner), RowIDs::Bitmap(other)) => inner.or_inplace(other),
             // N.B this seems very inefficient. It should only be used for testing.
-            (Self::Vector(_self), Self::Bitmap(other)) => {
-                let mut bm: Bitmap = _self.iter().cloned().collect();
+            (Self::Vector(inner), Self::Bitmap(other)) => {
+                let mut bm: Bitmap = inner.iter().cloned().collect();
                 bm.or_inplace(other);
 
-                _self.clear();
-                _self.extend(bm.iter());
+                inner.clear();
+                inner.extend(bm.iter());
             }
             (_, _) => unimplemented!("currently unsupported"),
         };

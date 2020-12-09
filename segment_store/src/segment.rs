@@ -132,6 +132,9 @@ impl Segment {
     }
 
     // Returns a reference to a column from the column name.
+    //
+    // It is the caller's responsibility to ensure the column exists in the
+    // segment. Panics if the column doesn't exist.
     fn column_by_name(&self, name: ColumnName<'_>) -> &Column {
         &self.columns[*self.all_columns_by_name.get(name).unwrap()]
     }
