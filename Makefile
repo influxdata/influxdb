@@ -180,13 +180,13 @@ pkg-config:
 # attempt to invoke pkg-config, which invokes cargo,
 # for multiple targets at the same time.
 dist: pkg-config
-	goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
-
-nightly: pkg-config
-	goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
+	goreleaser build -p 1 --skip-validate --rm-dist
 
 release: pkg-config
 	goreleaser release -p 1 --rm-dist
+
+nightly: pkg-config
+	goreleaser release -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
