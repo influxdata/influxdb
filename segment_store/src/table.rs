@@ -554,7 +554,7 @@ pub struct ReadGroupResults<'input, 'segment> {
     aggregate_columns: &'input [(ColumnName<'input>, AggregateType)],
 
     // segment-wise result sets containing grouped values and aggregates
-    values: Vec<ReadGroupResult<'input, 'segment>>,
+    values: Vec<ReadGroupResult<'segment>>,
 }
 
 impl std::fmt::Display for ReadGroupResults<'_, '_> {

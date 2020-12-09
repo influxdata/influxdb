@@ -1980,6 +1980,7 @@ impl From<&[f64]> for Column {
 
 /// These variants describe supported aggregates that can applied to columnar
 /// data.
+#[derive(Copy, Clone)]
 pub enum AggregateType {
     Count,
     First,
