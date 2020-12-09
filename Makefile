@@ -19,12 +19,19 @@ export GOOS=$(shell go env GOOS)
 export GOARCH=$(shell go env GOARCH)
 
 ifeq ($(GOARCH), amd64)
-	GO_TAGS := assets
+	# Including the assets tag requires the UI to be built for compilation to succeed.
+	# Don't force it for running tests.
+	GO_TEST_TAGS :=
+	GO_BUILD_TAGS := assets
 else
 	# noasm needed to avoid a panic in Flux for non-amd64.
-	GO_TAGS := assets,noasm
+	GO_TEST_TAGS := noasm
+	GO_BUILD_TAGS := assets,noasm
 endif
-GO_ARGS := -tags '$(GO_TAGS)'
+
+GO_TEST_ARGS := -tags '$(GO_TEST_TAGS)'
+GO_BUILD_ARGS := -tags '$(GO_BUILD_TAGS)'
+
 ifeq ($(OS), Windows_NT)
 	VERSION := $(shell git describe --exact-match --tags 2>nil)
 else
@@ -40,14 +47,14 @@ endif
 
 # Test vars can be used by all recursive Makefiles
 export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh
-export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS) -ldflags "$(LDFLAGS)"
-export GO_BUILD_SM=env GO111MODULE=on go build $(GO_ARGS) -ldflags "-s -w $(LDFLAGS)"
-export GO_INSTALL=env GO111MODULE=on go install $(GO_ARGS) -ldflags "$(LDFLAGS)"
-export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_ARGS)
+export GO_BUILD=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
+export GO_BUILD_SM=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "-s -w $(LDFLAGS)"
+export GO_INSTALL=env GO111MODULE=on go install $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
+export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_TEST_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
-export GO_GENERATE=go generate $(GO_ARGS)
-export GO_VET=env GO111MODULE=on go vet $(GO_ARGS)
-export GO_RUN=env GO111MODULE=on go run $(GO_ARGS)
+export GO_GENERATE=go generate $(GO_BUILD_ARGS)
+export GO_VET=env GO111MODULE=on go vet $(GO_TEST_ARGS)
+export GO_RUN=env GO111MODULE=on go run $(GO_BUILD_ARGS)
 export PATH := $(PWD)/bin/$(GOOS):$(PATH)
 
 
