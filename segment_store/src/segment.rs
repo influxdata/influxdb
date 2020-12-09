@@ -366,13 +366,13 @@ impl Segment {
     // distinct value.
     fn read_group_all_rows_all_rle<'input>(
         &self,
-        group_column_name: &'input [ColumnName<'input>],
+        group_names: &'input [ColumnName<'input>],
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
     ) -> ReadGroupResult<'input, '_> {
-        let group_columns = group_column_name
+        let (group_column_names, group_columns): (Vec<_>, Vec<_>) = group_names
             .iter()
-            .map(|col_name| self.column_by_name(col_name))
-            .collect::<Vec<_>>();
+            .map(|col_name| self.column_name_and_column(col_name))
+            .unzip();
 
         let aggregate_columns = aggregates
             .iter()
@@ -385,7 +385,7 @@ impl Segment {
             .collect::<Vec<_>>();
 
         let mut result = ReadGroupResult {
-            group_columns: group_column_name,
+            group_columns: group_column_names,
             aggregate_columns: aggregates,
             ..ReadGroupResult::default()
         };
@@ -685,7 +685,7 @@ impl std::fmt::Display for &ReadFilterResult<'_> {
 #[derive(Default)]
 pub struct ReadGroupResult<'input, 'segment> {
     // columns that are being grouped on.
-    group_columns: &'input [ColumnName<'input>],
+    group_columns: Vec<ColumnName<'segment>>,
 
     // columns that are being aggregated
     aggregate_columns: &'input [(ColumnName<'input>, AggregateType)],
@@ -713,7 +713,7 @@ impl ReadGroupResult<'_, '_> {
 impl std::fmt::Debug for &ReadGroupResult<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // group column names
-        for k in self.group_columns {
+        for k in &self.group_columns {
             write!(f, "{},", k)?;
         }
 
@@ -1103,14 +1103,14 @@ west,POST,304,101,203
 
     #[test]
     fn read_group_result() {
-        let group_colums = vec!["region", "host"];
+        let group_columns = vec!["region", "host"];
         let aggregate_columns = vec![
             ("temp", AggregateType::Sum),
             ("voltage", AggregateType::Count),
         ];
 
         let result = ReadGroupResult {
-            group_columns: group_colums.as_slice(),
+            group_columns,
             aggregate_columns: aggregate_columns.as_slice(),
             group_keys: vec![
                 vec![Value::String("east"), Value::String("host-a")],
