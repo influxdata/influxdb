@@ -14,8 +14,16 @@
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all SUBDIRS have the `all` and `clean` targets.
 SUBDIRS := http ui chronograf query storage
-GO_TAGS=
-GO_ARGS=-tags '$(GO_TAGS)'
+
+export GOOS=$(shell go env GOOS)
+export GOARCH=$(shell go env GOARCH)
+
+GO_TAGS :=
+# noasm needed to avoid a panic in Flux for non-amd64.
+ifneq ($(GOARCH), amd64)
+	GO_TAGS += noasm
+endif
+GO_ARGS := -tags '$(GO_TAGS)'
 ifeq ($(OS), Windows_NT)
 	VERSION := $(shell git describe --exact-match --tags 2>nil)
 else
@@ -31,7 +39,6 @@ endif
 
 # Test vars can be used by all recursive Makefiles
 export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh
-export GOOS=$(shell go env GOOS)
 export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS) -ldflags "$(LDFLAGS)"
 export GO_BUILD_SM=env GO111MODULE=on go build $(GO_ARGS) -ldflags "-s -w $(LDFLAGS)"
 export GO_INSTALL=env GO111MODULE=on go install $(GO_ARGS) -ldflags "$(LDFLAGS)"
@@ -60,18 +67,6 @@ CMDS := \
 	bin/$(GOOS)/influx \
 	bin/$(GOOS)/influxd
 
-# Default target to build all go commands.
-#
-# This target sets up the dependencies to correctly build all go commands.
-# Other targets must depend on this target to correctly builds CMDS.
-ifeq ($(GOARCH), arm64)
-    all: GO_ARGS=-tags 'assets noasm $(GO_TAGS)'
-    bin/$(GOOS)/influx: GO_ARGS=-tags 'noasm $(GO_TAGS)'
-else
-    all: GO_ARGS=-tags 'assets $(GO_TAGS)'
-    bin/$(GOOS)/influx:	GO_ARGS=-tags '$(GO_TAGS)'
-
-endif
 all: $(SUBDIRS) generate $(CMDS)
 
 # Target to build subdirs.
@@ -82,7 +77,7 @@ $(SUBDIRS):
 #
 # Define targets for commands
 #
-$(CMDS): $(SOURCES)
+bin/$(GOOS)/influxd: $(SOURCES)
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
 bin/$(GOOS)/influx: $(SOURCES)
