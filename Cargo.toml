@@ -69,6 +69,12 @@ prost-types = "0.6.1"
 tracing = "0.1"
 tracing-futures="0.2.4"
 
+# OpenTelemetry sinks for tracing
+tracing-subscriber = "0.2.15"
+tracing-opentelemetry = "0.9.0"
+opentelemetry = { version = "0.10", default-features = false, features = ["trace", "tokio"] }
+opentelemetry-jaeger = { version = "0.9", features = ["tokio"] }
+
 http = "0.2.0"
 snafu = "0.6.9"
 flate2 = "1.0"
