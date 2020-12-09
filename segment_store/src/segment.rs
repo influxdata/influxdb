@@ -1,4 +1,7 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+};
 
 use itertools::Itertools;
 
@@ -445,7 +448,7 @@ impl Segment {
         }
 
         // Now begin building the group keys.
-        let mut groups = BTreeMap::new();
+        let mut groups = HashMap::new();
 
         // key_buf will be used as a temporary buffer for group keys, which are
         // themselves integers.
