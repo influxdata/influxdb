@@ -800,7 +800,6 @@ mod tests {
             )
         };
     }
-    const NON_EXISTANT_NAME: &str = "nonexistantname";
 
     async fn flatten_list_stream(
         storage: &ObjectStore,
@@ -859,24 +858,6 @@ mod tests {
         Ok(())
     }
 
-    async fn get_nonexistant_object(
-        storage: &ObjectStore,
-        location: Option<&str>,
-    ) -> Result<Bytes> {
-        let location = location.unwrap_or("this_file_should_not_exist");
-
-        let content_list = flatten_list_stream(storage, Some(location)).await?;
-        assert!(content_list.is_empty());
-
-        Ok(storage
-            .get(location)
-            .await?
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await?
-            .freeze())
-    }
-
     // Tests TODO:
     // GET nonexisting location (in_memory/file)
     // DELETE nonexisting location
@@ -888,12 +869,32 @@ mod tests {
 
         use super::*;
 
+        const NON_EXISTANT_NAME: &str = "nonexistantname";
+
         fn bucket_name() -> Result<String> {
             dotenv::dotenv().ok();
             let bucket_name = env::var("GCS_BUCKET_NAME")
                 .map_err(|_| "The environment variable GCS_BUCKET_NAME must be set")?;
 
             Ok(bucket_name)
+        }
+
+        async fn get_nonexistant_object(
+            storage: &ObjectStore,
+            location: Option<&str>,
+        ) -> Result<Bytes> {
+            let location = location.unwrap_or("this_file_should_not_exist");
+
+            let content_list = flatten_list_stream(storage, Some(location)).await?;
+            assert!(content_list.is_empty());
+
+            Ok(storage
+                .get(location)
+                .await?
+                .map_ok(|b| bytes::BytesMut::from(&b[..]))
+                .try_concat()
+                .await?
+                .freeze())
         }
 
         #[tokio::test]
@@ -1026,6 +1027,50 @@ mod tests {
         use std::env;
 
         use super::*;
+
+        const NON_EXISTANT_NAME: &str = "nonexistantname";
+
+        fn region_and_bucket_name() -> Result<(rusoto_core::Region, String)> {
+            dotenv::dotenv().ok();
+
+            let region = env::var("AWS_DEFAULT_REGION")
+                .map_err(|_| "The environment variable AWS_DEFAULT_REGION must be set to a value like `us-east-2`")?;
+            let bucket_name = env::var("AWS_S3_BUCKET_NAME")
+                .map_err(|_| "The environment variable AWS_S3_BUCKET_NAME must be set")?;
+
+            Ok((region.parse()?, bucket_name))
+        }
+
+        fn check_credentials<T>(r: Result<T>) -> Result<T> {
+            if let Err(e) = &r {
+                let e = &**e;
+                if let Some(e) = e.downcast_ref::<crate::Error>() {
+                    if e.s3_error_due_to_credentials() {
+                        eprintln!("Try setting the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables");
+                    }
+                }
+            }
+
+            r
+        }
+
+        async fn get_nonexistant_object(
+            storage: &ObjectStore,
+            location: Option<&str>,
+        ) -> Result<Bytes> {
+            let location = location.unwrap_or("this_file_should_not_exist");
+
+            let content_list = flatten_list_stream(storage, Some(location)).await?;
+            assert!(content_list.is_empty());
+
+            Ok(storage
+                .get(location)
+                .await?
+                .map_ok(|b| bytes::BytesMut::from(&b[..]))
+                .try_concat()
+                .await?
+                .freeze())
+        }
 
         #[tokio::test]
         async fn s3_test() -> Result<()> {
@@ -1264,30 +1309,6 @@ mod tests {
             }
 
             Ok(())
-        }
-
-        fn region_and_bucket_name() -> Result<(rusoto_core::Region, String)> {
-            dotenv::dotenv().ok();
-
-            let region = env::var("AWS_DEFAULT_REGION")
-                .map_err(|_| "The environment variable AWS_DEFAULT_REGION must be set to a value like `us-east-2`")?;
-            let bucket_name = env::var("AWS_S3_BUCKET_NAME")
-                .map_err(|_| "The environment variable AWS_S3_BUCKET_NAME must be set")?;
-
-            Ok((region.parse()?, bucket_name))
-        }
-
-        fn check_credentials<T>(r: Result<T>) -> Result<T> {
-            if let Err(e) = &r {
-                let e = &**e;
-                if let Some(e) = e.downcast_ref::<crate::Error>() {
-                    if e.s3_error_due_to_credentials() {
-                        eprintln!("Try setting the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables");
-                    }
-                }
-            }
-
-            r
         }
     }
 
