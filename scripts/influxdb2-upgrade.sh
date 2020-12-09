@@ -18,15 +18,8 @@ do
   fi
 done
 
-# Backup v1 data
-if [[ -d /var/lib/influxdb ]]; then
-  sudo systemctl stop influxdb
-  sudo cp -pR /var/lib/influxdb /var/lib/influxdbv1_backup
-  echo "A copy of InfluxDB v1 data was made to /var/lib/influxdbv1_backup"
-fi
-
 # Perform upgrade
-sudo -u influxdb /usr/bin/influxd upgrade \
+sudo /usr/bin/influxd upgrade \
   --config-file=/etc/influxdb/influxdb.conf \
   --v2-config-path=${INFLUXD_CONFIG_PATH} \
   -m $INFLUXD_BOLT_PATH -e $INFLUXD_ENGINE_PATH
@@ -39,3 +32,6 @@ The upgrade completed successfully.  Execute the following to start InfluxDB:
 sudo systemctl start influxdb
 EOF
 fi
+
+chown influxdb:influxdb /var/lib/influxdb/influxd.bolt /var/lib/influxdb/configs
+chown -R influxdb:influxdb /var/lib/influxdb/engine
