@@ -18,10 +18,11 @@ SUBDIRS := http ui chronograf query storage
 export GOOS=$(shell go env GOOS)
 export GOARCH=$(shell go env GOARCH)
 
-GO_TAGS :=
-# noasm needed to avoid a panic in Flux for non-amd64.
-ifneq ($(GOARCH), amd64)
-	GO_TAGS += noasm
+ifeq ($(GOARCH), amd64)
+	GO_TAGS := assets
+else
+	# noasm needed to avoid a panic in Flux for non-amd64.
+	GO_TAGS := assets,noasm
 endif
 GO_ARGS := -tags '$(GO_TAGS)'
 ifeq ($(OS), Windows_NT)
