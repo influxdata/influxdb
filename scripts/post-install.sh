@@ -5,6 +5,7 @@ DATA_DIR=/var/lib/influxdb
 LOG_DIR=/var/log/influxdb
 SCRIPT_DIR=/usr/lib/influxdb/scripts
 LOGROTATE_DIR=/etc/logrotate.d
+INFLUXD_CONFIG_PATH=/etc/influxdb/config.toml
 
 function install_init {
     cp -f $SCRIPT_DIR/init.sh /etc/init.d/influxdb
@@ -41,7 +42,7 @@ upgrade, excute the following:
 
 sudo /usr/share/influxdb/influxdb2-upgrade.sh
 
-Please visit our website for complete details on the v1 to v2 upgrade process:
+Visit our website for complete details on the v1 to v2 upgrade process:
 https://docs.influxdata.com/influxdb/v2.0/upgrade/v1-to-v2/
 
 For new or upgrade installations, please review the getting started guide:
@@ -104,6 +105,13 @@ elif [[ -f /etc/os-release ]]; then
 fi
 
 # Check upgrade status
-if [[ ! -f $(grep bolt-path $CONFIG_FILE | awk -F\" '{print $2}') ]]; then
-  upgrade_notice
-fi
+bolt_dir="/root/.influxdbv2 /var/lib/influxdb/.influxdbv2 /var/lib/influxdb"
+for bolt in $bolt_dir
+do
+  if [[ -s ${bolt}/influxd.bolt ]]; then
+    # Found a bolt file, assume previous v2 upgrade
+    exit 0
+  fi
+done
+
+upgrade_notice
