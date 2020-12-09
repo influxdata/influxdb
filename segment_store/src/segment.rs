@@ -139,6 +139,13 @@ impl Segment {
         &self.columns[*self.all_columns_by_name.get(name).unwrap()]
     }
 
+    // Returns a reference to a column's name and a column from the column name. The returned
+    // column name will have the lifetime of `self`, not the lifetime of the input.
+    fn column_name_and_column(&self, name: ColumnName<'_>) -> (&str, &Column) {
+        let (column_name, column_index) = self.all_columns_by_name.get_key_value(name).unwrap();
+        (column_name, &self.columns[*column_index])
+    }
+
     // Returns a reference to the timestamp column.
     fn time_column(&self) -> &Column {
         &self.columns[self.time_column]
@@ -168,20 +175,20 @@ impl Segment {
     /// predicates.
     ///
     /// Right now, predicates are conjunctive (AND).
-    pub fn read_filter<'input>(
+    pub fn read_filter(
         &self,
-        columns: &[ColumnName<'input>],
+        columns: &[ColumnName<'_>],
         predicates: &[Predicate<'_>],
-    ) -> ReadFilterResult<'input, '_> {
+    ) -> ReadFilterResult<'_> {
         let row_ids = self.row_ids_from_predicates(predicates);
         ReadFilterResult(self.materialise_rows(columns, row_ids))
     }
 
-    fn materialise_rows<'input>(
+    fn materialise_rows(
         &self,
-        columns: &[ColumnName<'input>],
+        names: &[ColumnName<'_>],
         row_ids: RowIDsOption,
-    ) -> Vec<(ColumnName<'input>, Values<'_>)> {
+    ) -> Vec<(ColumnName<'_>, Values<'_>)> {
         let mut results = vec![];
         match row_ids {
             RowIDsOption::None(_) => results, // nothing to materialise
@@ -189,8 +196,8 @@ impl Segment {
                 // TODO(edd): causes an allocation. Implement a way to pass a pooled
                 // buffer to the croaring Bitmap API.
                 let row_ids = row_ids.to_vec();
-                for &col_name in columns {
-                    let col = self.column_by_name(col_name);
+                for &name in names {
+                    let (col_name, col) = self.column_name_and_column(name);
                     results.push((col_name, col.values(row_ids.as_slice())));
                 }
                 results
@@ -202,8 +209,8 @@ impl Segment {
                 // materialise a vector of row ids.......
                 let row_ids = (0..self.rows()).collect::<Vec<_>>();
 
-                for &col_name in columns {
-                    let col = self.column_by_name(col_name);
+                for &name in names {
+                    let (col_name, col) = self.column_name_and_column(name);
                     results.push((col_name, col.values(row_ids.as_slice())));
                 }
                 results
@@ -265,10 +272,10 @@ impl Segment {
             predicates = Cow::Owned(filtered_predicates);
         }
 
-        for (col_name, (op, value)) in predicates.iter() {
+        for (name, (op, value)) in predicates.iter() {
             // N.B column should always exist because validation of
             // predicates should happen at the `Table` level.
-            let col = self.column_by_name(col_name);
+            let (col_name, col) = self.column_name_and_column(name);
 
             // Explanation of how this buffer pattern works. The idea is
             // that the buffer should be returned to the caller so it can be
@@ -615,15 +622,15 @@ impl MetaData {
 
 /// Encapsulates results from segments with a structure that makes them easier
 /// to work with and display.
-pub struct ReadFilterResult<'input, 'segment>(pub Vec<(ColumnName<'input>, Values<'segment>)>);
+pub struct ReadFilterResult<'segment>(pub Vec<(ColumnName<'segment>, Values<'segment>)>);
 
-impl ReadFilterResult<'_, '_> {
+impl ReadFilterResult<'_> {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 }
 
-impl std::fmt::Debug for &ReadFilterResult<'_, '_> {
+impl std::fmt::Debug for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // header line.
         for (i, (k, _)) in self.0.iter().enumerate() {
@@ -640,7 +647,7 @@ impl std::fmt::Debug for &ReadFilterResult<'_, '_> {
     }
 }
 
-impl std::fmt::Display for &ReadFilterResult<'_, '_> {
+impl std::fmt::Display for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());

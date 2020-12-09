@@ -512,7 +512,7 @@ impl MetaData {
 /// to work with and display.
 pub struct ReadFilterResults<'input, 'segment> {
     pub names: Vec<ColumnName<'input>>,
-    pub values: Vec<ReadFilterResult<'input, 'segment>>,
+    pub values: Vec<ReadFilterResult<'segment>>,
 }
 
 impl<'input, 'segment> ReadFilterResults<'input, 'segment> {
