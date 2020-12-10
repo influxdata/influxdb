@@ -385,37 +385,24 @@ impl Segment {
             return result;
         }
 
-        // If there is a single group column then we can use an optimised
-        // approach for building group keys
-        if group_columns.len() == 1 {
-            self.read_group_single_group_column(predicates, &mut result);
-            return result;
-        }
-
-        // Perform the group by using a hashmap
-        self.read_group_hash(predicates, &mut result);
-        result
-    }
-
-    // read_group_hash executes a read-group-aggregate operation on the segment
-    // using a hashmap to build up a collection of group keys and aggregates.
-    //
-    // read_group_hash accepts a set of conjunctive predicates.
-    fn read_group_hash<'a>(&'a self, predicates: &[Predicate<'_>], dst: &mut ReadGroupResult<'a>) {
+        // There are predicates. The next stage is apply them and determine the
+        // intermediate set of row ids.
         let row_ids = self.row_ids_from_predicates(predicates);
         let filter_row_ids = match row_ids {
-            RowIDsOption::None(_) => return, // no matching rows
+            RowIDsOption::None(_) => {
+                return result;
+            } // no matching rows
             RowIDsOption::Some(row_ids) => Some(row_ids.to_vec()),
             RowIDsOption::All(row_ids) => None,
         };
 
-        let group_cols_num = dst.group_columns.len();
-        let agg_cols_num = dst.aggregate_columns.len();
+        let group_cols_num = result.group_columns.len();
+        let agg_cols_num = result.aggregate_columns.len();
 
         // materialise all *encoded* values for each column we are grouping on.
         // These will not be the logical (typically string) values, but will be
         // vectors of integers representing the physical values.
-        let groupby_encoded_ids: Vec<_> = dst
+        let groupby_encoded_ids: Vec<_> = result
             .group_columns
             .iter()
             .map(|name| {
@@ -423,13 +410,15 @@ impl Segment {
                 let mut encoded_values_buf =
                     EncodedValues::with_capacity_u32(col.num_rows() as usize);
 
-                // do we want some rows for the column or all of them?
+                // Do we want some rows for the column (predicate filtered some rows)
+                // or all of them (predicates filtered no rows).
                 match &filter_row_ids {
                     Some(row_ids) => {
                         encoded_values_buf = col.encoded_values(row_ids, encoded_values_buf);
                     }
                     None => {
-                        // None implies "no partial set of row ids" meaning get all of them.
+                        // None here means "no partial set of row ids" meaning get
+                        // all of them.
                         encoded_values_buf = col.all_encoded_values(encoded_values_buf);
                     }
                 }
@@ -437,9 +426,9 @@ impl Segment {
             })
             .collect();
 
-        // Materialise decoded values in aggregate columns.
+        // Materialise values in aggregate columns.
         let mut aggregate_columns_data = Vec::with_capacity(agg_cols_num);
-        for (name, agg_type) in &dst.aggregate_columns {
+        for (name, agg_type) in &result.aggregate_columns {
             let col = self.column_by_name(name);
 
             // TODO(edd): this materialises a column per aggregate. If there are
@@ -457,6 +446,28 @@ impl Segment {
             aggregate_columns_data.push(column_values);
         }
 
+        // If there is a single group column then we can use an optimised
+        // approach for building group keys
+        if group_columns.len() == 1 {
+            self.read_group_single_group_column(predicates, &mut result);
+            return result;
+        }
+
+        // Perform the group by using a hashmap
+        self.read_group_with_hashing(&mut result, &groupby_encoded_ids, aggregate_columns_data);
+        result
+    }
+
+    // read_group_hash executes a read-group-aggregate operation on the segment
+    // using a hashmap to build up a collection of group keys and aggregates.
+    //
+    // read_group_hash accepts a set of conjunctive predicates.
+    fn read_group_with_hashing<'a>(
+        &'a self,
+        dst: &mut ReadGroupResult<'a>,
+        groupby_encoded_ids: &[Vec<u32>],
+        aggregate_columns_data: Vec<Values<'a>>,
+    ) {
         // An optimised approach to building the hashmap of group keys using a
         // single 128-bit integer as the group key. If grouping is on more than
         // four columns then a fallback to using an vector as a key will happen.
@@ -465,7 +476,7 @@ impl Segment {
             return;
         }
 
-        self.read_group_hash_with_vec_key(dst, &groupby_encoded_ids, &aggregate_columns_data)
+        self.read_group_hash_with_vec_key(dst, &groupby_encoded_ids, &aggregate_columns_data);
     }
 
     // This function is used with `read_group_hash` when the number of columns
