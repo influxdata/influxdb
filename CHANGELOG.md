@@ -1,5 +1,9 @@
 ## unreleased
 
+### ARM Support
+
+This release includes our initial ARM64 "preview" build.
+
 ### Breaking Changes
 
 Previously, `influxd upgrade` would attempt to write upgraded `config.toml` files into the same directory as the source
