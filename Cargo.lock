@@ -1533,6 +1533,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fc7aa29613bd6a620df431842069224d8bc9011086b1db4c0e0cd47fa03ec9a"
 
 [[package]]
+name = "libm"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7d73b3f436185384286bd8098d17ec07c9a7d2388a6599f824d8502b529702a"
+
+[[package]]
 name = "log"
 version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1876,6 +1882,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
 dependencies = [
  "autocfg",
+ "libm 0.2.1",
 ]
 
 [[package]]
@@ -1972,7 +1979,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3278e0492f961fd4ae70909f56b2723a7e8d01a228427294e19cdfdebda89a17"
 dependencies = [
  "cfg-if 0.1.10",
- "libm",
+ "libm 0.1.4",
 ]
 
 [[package]]
@@ -2344,6 +2351,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_distr"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9e9532ada3929fb8b2e9dbe28d1e06c9b2cc65813f074fcb6bd5fbefeff9d56"
+dependencies = [
+ "num-traits",
+ "rand",
+]
+
+[[package]]
 name = "rand_hc"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2692,8 +2709,11 @@ dependencies = [
  "criterion",
  "croaring",
  "data_types",
+ "either",
+ "itertools 0.9.0",
  "packers",
  "rand",
+ "rand_distr",
 ]
 
 [[package]]

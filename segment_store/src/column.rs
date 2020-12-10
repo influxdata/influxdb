@@ -8,8 +8,8 @@ use std::convert::TryFrom;
 
 use croaring::Bitmap;
 
-use arrow_deps::arrow::array::{Float64Array, Int64Array, StringArray, UInt64Array};
 use arrow_deps::{arrow, arrow::array::Array};
+use either::Either;
 
 // Edd's totally made up magic constant. This determines whether we would use
 // a run-length encoded dictionary encoding or just a plain dictionary encoding.
@@ -103,6 +103,17 @@ impl Column {
         }
     }
 
+    pub fn properties(&self) -> &ColumnProperties {
+        match &self {
+            Column::String(meta, _) => &meta.properties,
+            Column::Float(meta, _) => &meta.properties,
+            Column::Integer(meta, _) => &meta.properties,
+            Column::Unsigned(meta, _) => &meta.properties,
+            Column::Bool => todo!(),
+            Column::ByteArray(meta, _) => &meta.properties,
+        }
+    }
+
     pub fn column_min(&self) -> Value<'_> {
         todo!()
     }
@@ -137,7 +148,7 @@ impl Column {
     }
 
     /// All values present at the provided logical row ids.
-    pub fn values(&self, row_ids: &[u32]) -> Values {
+    pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
         assert!(
             row_ids.len() as u32 <= self.num_rows(),
             format!(
@@ -154,6 +165,27 @@ impl Column {
             Column::Unsigned(_, data) => data.values(row_ids),
             Column::Bool => todo!(),
             Column::ByteArray(_, _) => todo!(),
+        }
+    }
+
+    /// All logical values in the column.
+    pub fn all_values(&self) -> Values<'_> {
+        match &self {
+            Column::String(_, data) => data.all_values(),
+            Column::Float(_, data) => data.all_values(),
+            Column::Integer(_, data) => data.all_values(),
+            Column::Unsigned(_, data) => data.all_values(),
+            Column::Bool => todo!(),
+            Column::ByteArray(_, _) => todo!(),
+        }
+    }
+
+    /// The value present at the provided logical row id.
+    pub fn decode_id(&self, encoded_id: u32) -> Value<'_> {
+        match &self {
+            Column::String(_, data) => data.decode_id(encoded_id),
+            Column::ByteArray(_, _) => todo!(),
+            _ => panic!("unsupported operation"),
         }
     }
 
@@ -193,7 +225,7 @@ impl Column {
         match &self {
             Self::String(_, data) => match dst {
                 EncodedValues::U32(dst) => EncodedValues::U32(data.encoded_values(row_ids, dst)),
-                _ => unimplemented!("column type does not support requested encoding"),
+                typ => unimplemented!("column type String does not support {:?} encoding", typ),
             },
             Self::Integer(_, data) => data.encoded_values(row_ids, dst),
             // Right now it only makes sense to expose encoded values on columns
@@ -213,8 +245,15 @@ impl Column {
             Self::Integer(_, data) => data.all_encoded_values(dst),
             // Right now it only makes sense to expose encoded values on columns
             // that are being used for grouping operations, which typically is
-            // are Tag Columns; they are `String` columns.
-            _ => unimplemented!("encoded values on other column types not supported"),
+            // are Tag Columns (Strings) or Time Columns (Integers).
+            _ => unimplemented!("encoded values on other column types not currently supported"),
+        }
+    }
+
+    pub fn grouped_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
+        match &self {
+            Column::String(_, data) => data.group_row_ids(),
+            _ => unimplemented!("grouping not yet implemented"),
         }
     }
 
@@ -515,7 +554,7 @@ impl Column {
     //
 
     /// The summation of all non-null values located at the provided rows.
-    pub fn sum(&self, row_ids: &[u32]) -> Value<'_> {
+    pub fn sum(&self, row_ids: &[u32]) -> Scalar {
         assert!(row_ids.len() as u32 <= self.num_rows());
 
         match &self {
@@ -557,6 +596,11 @@ impl Column {
 }
 
 #[derive(Default, Debug, PartialEq)]
+pub struct ColumnProperties {
+    pub has_pre_computed_row_ids: bool,
+}
+
+#[derive(Default, Debug, PartialEq)]
 // The meta-data for a column
 pub struct MetaData<T>
 where
@@ -570,6 +614,8 @@ where
 
     // The minimum and maximum value for this column.
     range: Option<(T, T)>,
+
+    properties: ColumnProperties,
 }
 
 impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
@@ -671,10 +717,34 @@ impl StringEncoding {
     /// All values present at the provided logical row ids.
     ///
     /// TODO(edd): perf - pooling of destination vectors.
-    pub fn values(&self, row_ids: &[u32]) -> Values {
+    pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
         match &self {
-            Self::RLEDictionary(c) => Values::String(StringArray::from(c.values(row_ids, vec![]))),
-            Self::Dictionary(c) => Values::String(StringArray::from(c.values(row_ids, vec![]))),
+            Self::RLEDictionary(c) => Values::String(c.values(row_ids, vec![])),
+            Self::Dictionary(c) => Values::String(c.values(row_ids, vec![])),
+        }
+    }
+
+    /// All values in the column.
+    ///
+    /// TODO(edd): perf - pooling of destination vectors.
+    pub fn all_values(&self) -> Values<'_> {
+        match &self {
+            Self::RLEDictionary(c) => Values::String(c.all_values(vec![])),
+            Self::Dictionary(c) => Values::String(c.all_values(vec![])),
+        }
+    }
+
+    /// Returns the logical value for the specified encoded representation.
+    pub fn decode_id(&self, encoded_id: u32) -> Value<'_> {
+        match &self {
+            Self::RLEDictionary(c) => match c.decode_id(encoded_id) {
+                Some(v) => Value::String(v),
+                None => Value::Null,
+            },
+            Self::Dictionary(c) => match c.decode_id(encoded_id) {
+                Some(v) => Value::String(v),
+                None => Value::Null,
+            },
         }
     }
 
@@ -733,6 +803,14 @@ impl StringEncoding {
         match &self {
             Self::RLEDictionary(c) => c.count(row_ids),
             Self::Dictionary(c) => c.count(row_ids),
+        }
+    }
+
+    /// Calculate all row ids for each distinct value in the column.
+    pub fn group_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
+        match self {
+            Self::RLEDictionary(enc) => Either::Left(enc.group_row_ids()),
+            Self::Dictionary(enc) => Either::Right(enc.group_row_ids()),
         }
     }
 
@@ -804,9 +882,9 @@ impl StringEncoding {
         };
 
         let meta = MetaData {
-            size: 0,
             rows: data.num_rows(),
             range,
+            ..MetaData::default()
         };
 
         // TODO(edd): consider just storing under the `StringEncoding` a
@@ -914,7 +992,7 @@ impl StringEncoding {
     }
 
     // generates metadata for an encoded column.
-    fn meta(data: &Self) -> MetaData<String> {
+    pub fn meta_from_data(data: &Self) -> MetaData<String> {
         match data {
             Self::RLEDictionary(data) => {
                 let dictionary = data.dictionary();
@@ -930,6 +1008,9 @@ impl StringEncoding {
                     size: data.size(),
                     rows: data.num_rows(),
                     range,
+                    properties: ColumnProperties {
+                        has_pre_computed_row_ids: true,
+                    },
                 }
             }
             Self::Dictionary(data) => {
@@ -943,9 +1024,9 @@ impl StringEncoding {
                 };
 
                 MetaData {
-                    size: 0,
                     rows: data.num_rows(),
                     range,
+                    ..MetaData::default()
                 }
             }
         }
@@ -1022,24 +1103,49 @@ impl IntegerEncoding {
     ///
     /// TODO(edd): perf - provide a pooling mechanism for these destination vectors
     /// so that they can be re-used.
-    pub fn values(&self, row_ids: &[u32]) -> Values {
+    pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
         match &self {
             // signed 64-bit variants - logical type is i64 for all these
-            Self::I64I64(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
-            Self::I64I32(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
-            Self::I64U32(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
-            Self::I64I16(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
-            Self::I64U16(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
-            Self::I64I8(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
-            Self::I64U8(c) => Values::I64(Int64Array::from(c.values::<i64>(row_ids, vec![]))),
+            Self::I64I64(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
+            Self::I64I32(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
+            Self::I64U32(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
+            Self::I64I16(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
+            Self::I64U16(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
+            Self::I64I8(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
+            Self::I64U8(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
 
             // unsigned 64-bit variants - logical type is u64 for all these
-            Self::U64U64(c) => Values::U64(UInt64Array::from(c.values::<u64>(row_ids, vec![]))),
-            Self::U64U32(c) => Values::U64(UInt64Array::from(c.values::<u64>(row_ids, vec![]))),
-            Self::U64U16(c) => Values::U64(UInt64Array::from(c.values::<u64>(row_ids, vec![]))),
-            Self::U64U8(c) => Values::U64(UInt64Array::from(c.values::<u64>(row_ids, vec![]))),
+            Self::U64U64(c) => Values::U64(c.values::<u64>(row_ids, vec![])),
+            Self::U64U32(c) => Values::U64(c.values::<u64>(row_ids, vec![])),
+            Self::U64U16(c) => Values::U64(c.values::<u64>(row_ids, vec![])),
+            Self::U64U8(c) => Values::U64(c.values::<u64>(row_ids, vec![])),
 
-            Self::I64I64N(c) => Values::I64(Int64Array::from(c.values(row_ids, vec![]))),
+            Self::I64I64N(c) => Values::I64N(c.values(row_ids, vec![])),
+        }
+    }
+
+    /// Returns all logical values in the column.
+    ///
+    /// TODO(edd): perf - provide a pooling mechanism for these destination vectors
+    /// so that they can be re-used.
+    pub fn all_values(&self) -> Values<'_> {
+        match &self {
+            // signed 64-bit variants - logical type is i64 for all these
+            Self::I64I64(c) => Values::I64(c.all_values::<i64>(vec![])),
+            Self::I64I32(c) => Values::I64(c.all_values::<i64>(vec![])),
+            Self::I64U32(c) => Values::I64(c.all_values::<i64>(vec![])),
+            Self::I64I16(c) => Values::I64(c.all_values::<i64>(vec![])),
+            Self::I64U16(c) => Values::I64(c.all_values::<i64>(vec![])),
+            Self::I64I8(c) => Values::I64(c.all_values::<i64>(vec![])),
+            Self::I64U8(c) => Values::I64(c.all_values::<i64>(vec![])),
+
+            // unsigned 64-bit variants - logical type is u64 for all these
+            Self::U64U64(c) => Values::U64(c.all_values::<u64>(vec![])),
+            Self::U64U32(c) => Values::U64(c.all_values::<u64>(vec![])),
+            Self::U64U16(c) => Values::U64(c.all_values::<u64>(vec![])),
+            Self::U64U8(c) => Values::U64(c.all_values::<u64>(vec![])),
+
+            Self::I64I64N(c) => Values::I64N(c.all_values(vec![])),
         }
     }
 
@@ -1200,22 +1306,22 @@ impl IntegerEncoding {
         }
     }
 
-    pub fn sum(&self, row_ids: &[u32]) -> Value<'_> {
+    pub fn sum(&self, row_ids: &[u32]) -> Scalar {
         match &self {
-            IntegerEncoding::I64I64(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64I32(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64U32(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64I16(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64U16(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64I8(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::I64U8(c) => Value::Scalar(Scalar::I64(c.sum(row_ids))),
-            IntegerEncoding::U64U64(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
-            IntegerEncoding::U64U32(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
-            IntegerEncoding::U64U16(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
-            IntegerEncoding::U64U8(c) => Value::Scalar(Scalar::U64(c.sum(row_ids))),
+            IntegerEncoding::I64I64(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64I32(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64U32(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64I16(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64U16(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64I8(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::I64U8(c) => Scalar::I64(c.sum(row_ids)),
+            IntegerEncoding::U64U64(c) => Scalar::U64(c.sum(row_ids)),
+            IntegerEncoding::U64U32(c) => Scalar::U64(c.sum(row_ids)),
+            IntegerEncoding::U64U16(c) => Scalar::U64(c.sum(row_ids)),
+            IntegerEncoding::U64U8(c) => Scalar::U64(c.sum(row_ids)),
             IntegerEncoding::I64I64N(c) => match c.sum(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
+                Some(v) => Scalar::I64(v),
+                None => Scalar::Null,
             },
         }
     }
@@ -1260,9 +1366,18 @@ impl FloatEncoding {
     /// Returns the logical values found at the provided row ids.
     ///
     /// TODO(edd): perf - pooling of destination vectors.
-    pub fn values(&self, row_ids: &[u32]) -> Values {
+    pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
         match &self {
-            Self::Fixed64(c) => Values::F64(Float64Array::from(c.values::<f64>(row_ids, vec![]))),
+            Self::Fixed64(c) => Values::F64(c.values::<f64>(row_ids, vec![])),
+        }
+    }
+
+    /// Returns all logical values in the column.
+    ///
+    /// TODO(edd): perf - pooling of destination vectors.
+    pub fn all_values(&self) -> Values<'_> {
+        match &self {
+            Self::Fixed64(c) => Values::F64(c.all_values::<f64>(vec![])),
         }
     }
 
@@ -1307,9 +1422,9 @@ impl FloatEncoding {
         }
     }
 
-    pub fn sum(&self, row_ids: &[u32]) -> Value<'_> {
+    pub fn sum(&self, row_ids: &[u32]) -> Scalar {
         match &self {
-            FloatEncoding::Fixed64(c) => Value::Scalar(Scalar::F64(c.sum(row_ids))),
+            FloatEncoding::Fixed64(c) => Scalar::F64(c.sum(row_ids)),
         }
     }
 
@@ -1330,21 +1445,28 @@ impl FloatEncoding {
 impl From<arrow::array::StringArray> for Column {
     fn from(arr: arrow::array::StringArray) -> Self {
         let data = StringEncoding::from_arrow_string_array(arr);
-        Column::String(StringEncoding::meta(&data), data)
+        Column::String(StringEncoding::meta_from_data(&data), data)
     }
 }
 
 impl From<&[Option<&str>]> for Column {
     fn from(arr: &[Option<&str>]) -> Self {
         let data = StringEncoding::from_opt_strs(arr);
-        Column::String(StringEncoding::meta(&data), data)
+        Column::String(StringEncoding::meta_from_data(&data), data)
+    }
+}
+
+impl From<&[Option<String>]> for Column {
+    fn from(arr: &[Option<String>]) -> Self {
+        let other = arr.iter().map(|x| x.as_deref()).collect::<Vec<_>>();
+        Self::from(other.as_slice())
     }
 }
 
 impl From<&[&str]> for Column {
     fn from(arr: &[&str]) -> Self {
         let data = StringEncoding::from_strs(arr);
-        Column::String(StringEncoding::meta(&data), data)
+        Column::String(StringEncoding::meta_from_data(&data), data)
     }
 }
 
@@ -1370,6 +1492,7 @@ impl From<&[u64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U8(data))
             }
@@ -1380,6 +1503,7 @@ impl From<&[u64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U16(data))
             }
@@ -1390,6 +1514,7 @@ impl From<&[u64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U32(data))
             }
@@ -1400,6 +1525,7 @@ impl From<&[u64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U64(data))
             }
@@ -1431,6 +1557,7 @@ impl From<&[u32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as u64, max as u64)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U8(data))
             }
@@ -1441,6 +1568,7 @@ impl From<&[u32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as u64, max as u64)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U16(data))
             }
@@ -1451,6 +1579,7 @@ impl From<&[u32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as u64, max as u64)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U32(data))
             }
@@ -1482,6 +1611,7 @@ impl From<&[u16]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as u64, max as u64)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U8(data))
             }
@@ -1492,6 +1622,7 @@ impl From<&[u16]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as u64, max as u64)),
+                    ..MetaData::default()
                 };
                 Column::Unsigned(meta, IntegerEncoding::U64U16(data))
             }
@@ -1520,6 +1651,7 @@ impl From<&[u8]> for Column {
             size: data.size(),
             rows: data.num_rows(),
             range: Some((min as u64, max as u64)),
+            ..MetaData::default()
         };
         Column::Unsigned(meta, IntegerEncoding::U64U8(data))
     }
@@ -1547,6 +1679,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U8(data))
             }
@@ -1557,6 +1690,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I8(data))
             }
@@ -1567,6 +1701,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U16(data))
             }
@@ -1577,6 +1712,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I16(data))
             }
@@ -1587,6 +1723,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U32(data))
             }
@@ -1597,6 +1734,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I32(data))
             }
@@ -1607,6 +1745,7 @@ impl From<&[i64]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min, max)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I64(data))
             }
@@ -1638,6 +1777,7 @@ impl From<&[i32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U8(data))
             }
@@ -1648,6 +1788,7 @@ impl From<&[i32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I8(data))
             }
@@ -1658,6 +1799,7 @@ impl From<&[i32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U16(data))
             }
@@ -1668,6 +1810,7 @@ impl From<&[i32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I16(data))
             }
@@ -1678,6 +1821,7 @@ impl From<&[i32]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I32(data))
             }
@@ -1709,6 +1853,7 @@ impl From<&[i16]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I8(data))
             }
@@ -1719,6 +1864,7 @@ impl From<&[i16]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64U8(data))
             }
@@ -1729,6 +1875,7 @@ impl From<&[i16]> for Column {
                     size: data.size(),
                     rows: data.num_rows(),
                     range: Some((min as i64, max as i64)),
+                    ..MetaData::default()
                 };
                 Column::Integer(meta, IntegerEncoding::I64I16(data))
             }
@@ -1754,6 +1901,7 @@ impl From<&[i8]> for Column {
             size: data.size(),
             rows: data.num_rows(),
             range: Some((min as i64, max as i64)),
+            ..MetaData::default()
         };
         Column::Integer(meta, IntegerEncoding::I64I8(data))
     }
@@ -1801,6 +1949,7 @@ impl From<arrow::array::Int64Array> for Column {
             size: data.size(),
             rows: data.num_rows(),
             range,
+            ..MetaData::default()
         };
         Column::Integer(meta, IntegerEncoding::I64I64N(data))
     }
@@ -1822,6 +1971,7 @@ impl From<&[f64]> for Column {
             size: data.size(),
             rows: data.num_rows(),
             range: Some((min, max)),
+            ..MetaData::default()
         };
 
         Column::Float(meta, FloatEncoding::Fixed64(data))
@@ -1843,8 +1993,26 @@ pub enum AggregateType {
     // Percentile
 }
 
+impl std::fmt::Display for AggregateType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                AggregateType::Count => "count",
+                AggregateType::First => "first",
+                AggregateType::Last => "last",
+                AggregateType::Min => "min",
+                AggregateType::Max => "max",
+                AggregateType::Sum => "sum",
+            }
+        )
+    }
+}
+
 /// These variants hold aggregates, which are the results of applying aggregates
 /// to column data.
+#[derive(Debug, Copy, Clone)]
 pub enum AggregateResult<'a> {
     // Any type of column can have rows counted. NULL values do not contribute
     // to the count. If all rows are NULL then count will be `0`.
@@ -1856,7 +2024,7 @@ pub enum AggregateResult<'a> {
     //
     // TODO(edd): I might explicitly add a Null variant to the Scalar enum like
     // we have with Value...
-    Sum(Option<Scalar>),
+    Sum(Scalar),
 
     // The minimum value in the column data.
     Min(Value<'a>),
@@ -1871,9 +2039,139 @@ pub enum AggregateResult<'a> {
     Last(Option<(i64, Value<'a>)>),
 }
 
+#[allow(unused_assignments)]
+impl<'a> AggregateResult<'a> {
+    pub fn update(&mut self, other: Value<'a>) {
+        if other.is_null() {
+            // a NULL value has no effect on aggregates
+            return;
+        }
+
+        match self {
+            Self::Count(v) => {
+                if !other.is_null() {
+                    *v += 1;
+                }
+            }
+            Self::Min(v) => match (&v, &other) {
+                (Value::Null, _) => {
+                    // something is always smaller than NULL
+                    *v = other;
+                }
+                (Value::String(_), Value::Null) => {} // do nothing
+                (Value::String(a), Value::String(b)) => {
+                    if a.cmp(b) == std::cmp::Ordering::Greater {
+                        *v = other;
+                    }
+                }
+                (Value::String(a), Value::ByteArray(b)) => {
+                    if a.as_bytes().cmp(b) == std::cmp::Ordering::Greater {
+                        *v = other;
+                    }
+                }
+                (Value::ByteArray(_), Value::Null) => {} // do nothing
+                (Value::ByteArray(a), Value::String(b)) => {
+                    if a.cmp(&b.as_bytes()) == std::cmp::Ordering::Greater {
+                        *v = other;
+                    }
+                }
+                (Value::ByteArray(a), Value::ByteArray(b)) => {
+                    if a.cmp(b) == std::cmp::Ordering::Greater {
+                        *v = other;
+                    }
+                }
+                (Value::Scalar(_), Value::Null) => {} // do nothing
+                (Value::Scalar(a), Value::Scalar(b)) => {
+                    if a > b {
+                        *v = other;
+                    }
+                }
+                (_, _) => unreachable!("not a possible variant combination"),
+            },
+            Self::Max(v) => match (&v, &other) {
+                (Value::Null, _) => {
+                    // something is always larger than NULL
+                    *v = other;
+                }
+                (Value::String(_), Value::Null) => {} // do nothing
+                (Value::String(a), Value::String(b)) => {
+                    if a.cmp(b) == std::cmp::Ordering::Less {
+                        *v = other;
+                    }
+                }
+                (Value::String(a), Value::ByteArray(b)) => {
+                    if a.as_bytes().cmp(b) == std::cmp::Ordering::Less {
+                        *v = other;
+                    }
+                }
+                (Value::ByteArray(_), Value::Null) => {} // do nothing
+                (Value::ByteArray(a), Value::String(b)) => {
+                    if a.cmp(&b.as_bytes()) == std::cmp::Ordering::Less {
+                        *v = other;
+                    }
+                }
+                (Value::ByteArray(a), Value::ByteArray(b)) => {
+                    if a.cmp(b) == std::cmp::Ordering::Less {
+                        *v = other;
+                    }
+                }
+                (Value::Scalar(_), Value::Null) => {} // do nothing
+                (Value::Scalar(a), Value::Scalar(b)) => {
+                    if a < b {
+                        *v = other;
+                    }
+                }
+                (_, _) => unreachable!("not a possible variant combination"),
+            },
+            Self::Sum(v) => match (&v, &other) {
+                (Scalar::Null, Value::Scalar(other_scalar)) => {
+                    // NULL + something  == something
+                    *v = *other_scalar;
+                }
+                (_, Value::Scalar(b)) => *v += b,
+                (_, _) => unreachable!("not a possible variant combination"),
+            },
+            _ => unimplemented!("First and Last aggregates not implemented yet"),
+        }
+    }
+}
+
+impl From<&AggregateType> for AggregateResult<'_> {
+    fn from(typ: &AggregateType) -> Self {
+        match typ {
+            AggregateType::Count => Self::Count(0),
+            AggregateType::First => Self::First(None),
+            AggregateType::Last => Self::Last(None),
+            AggregateType::Min => Self::Min(Value::Null),
+            AggregateType::Max => Self::Max(Value::Null),
+            AggregateType::Sum => Self::Sum(Scalar::Null),
+        }
+    }
+}
+
+impl std::fmt::Display for AggregateResult<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AggregateResult::Count(v) => write!(f, "{}", v),
+            AggregateResult::First(v) => match v {
+                Some((_, v)) => write!(f, "{}", v),
+                None => write!(f, "NULL"),
+            },
+            AggregateResult::Last(v) => match v {
+                Some((_, v)) => write!(f, "{}", v),
+                None => write!(f, "NULL"),
+            },
+            AggregateResult::Min(v) => write!(f, "{}", v),
+            AggregateResult::Max(v) => write!(f, "{}", v),
+            AggregateResult::Sum(v) => write!(f, "{}", v),
+        }
+    }
+}
+
 /// A scalar is a numerical value that can be aggregated.
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub enum Scalar {
+    Null,
     I64(i64),
     U64(u64),
     F64(f64),
@@ -1887,6 +2185,7 @@ macro_rules! typed_scalar_converters {
                     Self::I64(v) => $type::try_from(*v).unwrap(),
                     Self::U64(v) => $type::try_from(*v).unwrap(),
                     Self::F64(v) => panic!("cannot convert Self::F64"),
+                    Self::Null => panic!("cannot convert Scalar::Null"),
                 }
             }
 
@@ -1895,6 +2194,7 @@ macro_rules! typed_scalar_converters {
                     Self::I64(v) => $type::try_from(*v).ok(),
                     Self::U64(v) => $type::try_from(*v).ok(),
                     Self::F64(v) => panic!("cannot convert Self::F64"),
+                    Self::Null => panic!("cannot convert Scalar::Null"),
                 }
             }
         )*
@@ -1902,6 +2202,10 @@ macro_rules! typed_scalar_converters {
 }
 
 impl Scalar {
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
+
     // Implementations of all the accessors for the variants of `Scalar`.
     typed_scalar_converters! {
         (as_i64, try_as_i64, i64),
@@ -1925,6 +2229,80 @@ impl Scalar {
         match &self {
             Scalar::F64(v) => Some(*v),
             _ => unimplemented!("converting integer Scalar to f64 unsupported"),
+        }
+    }
+}
+
+impl std::ops::AddAssign<&Scalar> for Scalar {
+    fn add_assign(&mut self, rhs: &Scalar) {
+        if rhs.is_null() {
+            // Adding NULL does nothing.
+            return;
+        }
+
+        match self {
+            Scalar::F64(v) => {
+                if let Scalar::F64(other) = rhs {
+                    *v += *other;
+                } else {
+                    panic!("invalid AddAssign types");
+                };
+            }
+            Scalar::I64(v) => {
+                if let Scalar::I64(other) = rhs {
+                    *v += *other;
+                } else {
+                    panic!("invalid AddAssign types");
+                };
+            }
+            Scalar::U64(v) => {
+                if let Scalar::U64(other) = rhs {
+                    *v += *other;
+                } else {
+                    panic!("invalid AddAssign types");
+                };
+            }
+            _ => unimplemented!("unsupported and to be removed"),
+        }
+    }
+}
+
+impl<'a> std::ops::AddAssign<&Scalar> for &mut Scalar {
+    fn add_assign(&mut self, rhs: &Scalar) {
+        match self {
+            Scalar::F64(v) => {
+                if let Scalar::F64(other) = rhs {
+                    *v += *other;
+                } else {
+                    panic!("invalid AddAssign types");
+                };
+            }
+            Scalar::I64(v) => {
+                if let Scalar::I64(other) = rhs {
+                    *v += *other;
+                } else {
+                    panic!("invalid AddAssign types");
+                };
+            }
+            Scalar::U64(v) => {
+                if let Scalar::U64(other) = rhs {
+                    *v += *other;
+                } else {
+                    panic!("invalid AddAssign types");
+                };
+            }
+            _ => unimplemented!("unsupported and to be removed"),
+        }
+    }
+}
+
+impl std::fmt::Display for Scalar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Scalar::Null => write!(f, "NULL"),
+            Scalar::I64(v) => write!(f, "{}", v),
+            Scalar::U64(v) => write!(f, "{}", v),
+            Scalar::F64(v) => write!(f, "{}", v),
         }
     }
 }
@@ -1968,7 +2346,7 @@ impl PartialOrd<Value<'_>> for OwnedValue {
 }
 
 /// Each variant is a possible value type that can be returned from a column.
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub enum Value<'a> {
     // Represents a NULL value in a column row.
     Null,
@@ -1987,14 +2365,18 @@ pub enum Value<'a> {
 }
 
 impl Value<'_> {
-    fn scalar(&self) -> &Scalar {
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
+
+    pub fn scalar(&self) -> &Scalar {
         if let Self::Scalar(s) = self {
             return s;
         }
         panic!("cannot unwrap Value to Scalar");
     }
 
-    fn string(&self) -> &str {
+    pub fn string(&self) -> &str {
         if let Self::String(s) = self {
             return s;
         }
@@ -2013,6 +2395,7 @@ impl std::fmt::Display for Value<'_> {
                 Scalar::I64(v) => write!(f, "{}", v),
                 Scalar::U64(v) => write!(f, "{}", v),
                 Scalar::F64(v) => write!(f, "{}", v),
+                Scalar::Null => write!(f, "NULL"),
             },
         }
     }
@@ -2045,22 +2428,26 @@ scalar_from_impls! {
 
 /// Each variant is a typed vector of materialised values for a column.
 #[derive(Debug, PartialEq)]
-pub enum Values {
+pub enum Values<'a> {
     // UTF-8 valid unicode strings
-    String(arrow::array::StringArray),
+    String(Vec<Option<&'a str>>),
 
-    I64(arrow::array::Int64Array),
-    U64(arrow::array::UInt64Array),
-    F64(arrow::array::Float64Array),
+    // Scalar types
+    I64(Vec<i64>),
+    U64(Vec<u64>),
+    F64(Vec<f64>),
+    I64N(Vec<Option<i64>>),
+    U64N(Vec<Option<u64>>),
+    F64N(Vec<Option<f64>>),
 
     // Boolean values
-    Bool(arrow::array::BooleanArray),
+    Bool(Vec<Option<bool>>),
 
     // Arbitrary byte arrays
-    ByteArray(arrow::array::BinaryArray),
+    ByteArray(Vec<Option<&'a [u8]>>),
 }
 
-impl Values {
+impl<'a> Values<'a> {
     pub fn len(&self) -> usize {
         match &self {
             Values::String(c) => c.len(),
@@ -2069,6 +2456,9 @@ impl Values {
             Values::F64(c) => c.len(),
             Values::Bool(c) => c.len(),
             Values::ByteArray(c) => c.len(),
+            Values::I64N(c) => c.len(),
+            Values::U64N(c) => c.len(),
+            Values::F64N(c) => c.len(),
         }
     }
 
@@ -2076,55 +2466,46 @@ impl Values {
         self.len() == 0
     }
 
-    pub fn value(&self, i: usize) -> Value<'_> {
+    pub fn value(&self, i: usize) -> Value<'a> {
         match &self {
-            Values::String(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::String(c.value(i))
-            }
-            Values::F64(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Scalar(Scalar::F64(c.value(i)))
-            }
-            Values::I64(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Scalar(Scalar::I64(c.value(i)))
-            }
-            Values::U64(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Scalar(Scalar::U64(c.value(i)))
-            }
-            Values::Bool(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::Boolean(c.value(i))
-            }
-            Values::ByteArray(c) => {
-                if c.is_null(i) {
-                    return Value::Null;
-                }
-                Value::ByteArray(c.value(i))
-            }
+            Values::String(c) => match c[i] {
+                Some(v) => Value::String(v),
+                None => Value::Null,
+            },
+            Values::F64(c) => Value::Scalar(Scalar::F64(c[i])),
+            Values::I64(c) => Value::Scalar(Scalar::I64(c[i])),
+            Values::U64(c) => Value::Scalar(Scalar::U64(c[i])),
+            Values::Bool(c) => match c[i] {
+                Some(v) => Value::Boolean(v),
+                None => Value::Null,
+            },
+            Values::ByteArray(c) => match c[i] {
+                Some(v) => Value::ByteArray(v),
+                None => Value::Null,
+            },
+            Values::I64N(c) => match c[i] {
+                Some(v) => Value::Scalar(Scalar::I64(v)),
+                None => Value::Null,
+            },
+            Values::U64N(c) => match c[i] {
+                Some(v) => Value::Scalar(Scalar::U64(v)),
+                None => Value::Null,
+            },
+            Values::F64N(c) => match c[i] {
+                Some(v) => Value::Scalar(Scalar::F64(v)),
+                None => Value::Null,
+            },
         }
     }
 }
 
 pub struct ValuesIterator<'a> {
-    v: &'a Values,
+    v: &'a Values<'a>,
     next_i: usize,
 }
 
 impl<'a> ValuesIterator<'a> {
-    pub fn new(v: &'a Values) -> Self {
+    pub fn new(v: &'a Values<'a>) -> Self {
         Self { v, next_i: 0 }
     }
 }
@@ -2160,6 +2541,28 @@ pub enum EncodedValues {
 }
 
 impl EncodedValues {
+    pub fn with_capacity_i64(capacity: usize) -> Self {
+        Self::I64(Vec::with_capacity(capacity))
+    }
+
+    pub fn with_capacity_u32(capacity: usize) -> Self {
+        Self::U32(Vec::with_capacity(capacity))
+    }
+
+    pub fn as_i64(&self) -> &Vec<i64> {
+        if let Self::I64(arr) = self {
+            return arr;
+        }
+        panic!("cannot borrow &Vec<i64>");
+    }
+
+    pub fn as_u32(&self) -> &Vec<u32> {
+        if let Self::U32(arr) = self {
+            return arr;
+        }
+        panic!("cannot borrow &Vec<u32>");
+    }
+
     pub fn len(&self) -> usize {
         match self {
             Self::I64(v) => v.len(),
@@ -2220,7 +2623,7 @@ impl RowIDsOption {
 
 /// Represents vectors of row IDs, which are usually used for intermediate
 /// results as a method of late materialisation.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum RowIDs {
     Bitmap(Bitmap),
     Vector(Vec<u32>),
@@ -2229,6 +2632,10 @@ pub enum RowIDs {
 impl RowIDs {
     pub fn new_bitmap() -> Self {
         Self::Bitmap(Bitmap::create())
+    }
+
+    pub fn bitmap_from_slice(arr: &[u32]) -> Self {
+        Self::Bitmap(arr.iter().cloned().collect())
     }
 
     pub fn new_vector() -> Self {
@@ -2253,71 +2660,79 @@ impl RowIDs {
     // used for testing.
     pub fn to_vec(&self) -> Vec<u32> {
         match self {
-            RowIDs::Bitmap(bm) => bm.to_vec(),
-            RowIDs::Vector(arr) => arr.clone(),
+            Self::Bitmap(bm) => bm.to_vec(),
+            Self::Vector(arr) => arr.clone(),
         }
     }
 
     pub fn as_slice(&self) -> &[u32] {
         match self {
-            RowIDs::Bitmap(bm) => panic!("not supported yet"),
-            RowIDs::Vector(arr) => arr.as_slice(),
+            Self::Bitmap(bm) => panic!("not supported yet"),
+            Self::Vector(arr) => arr.as_slice(),
         }
     }
 
     pub fn len(&self) -> usize {
         match self {
-            RowIDs::Bitmap(ids) => ids.cardinality() as usize,
-            RowIDs::Vector(ids) => ids.len(),
+            Self::Bitmap(ids) => ids.cardinality() as usize,
+            Self::Vector(ids) => ids.len(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
         match self {
-            RowIDs::Bitmap(ids) => ids.is_empty(),
-            RowIDs::Vector(ids) => ids.is_empty(),
+            Self::Bitmap(ids) => ids.is_empty(),
+            Self::Vector(ids) => ids.is_empty(),
         }
     }
 
     pub fn clear(&mut self) {
         match self {
-            RowIDs::Bitmap(ids) => ids.clear(),
-            RowIDs::Vector(ids) => ids.clear(),
+            Self::Bitmap(ids) => ids.clear(),
+            Self::Vector(ids) => ids.clear(),
         }
     }
 
     pub fn add(&mut self, id: u32) {
         match self {
-            RowIDs::Bitmap(ids) => ids.add(id),
-            RowIDs::Vector(ids) => ids.push(id),
+            Self::Bitmap(ids) => ids.add(id),
+            Self::Vector(ids) => ids.push(id),
         }
     }
 
     pub fn add_range(&mut self, from: u32, to: u32) {
         match self {
-            RowIDs::Bitmap(ids) => ids.add_range(from as u64..to as u64),
-            RowIDs::Vector(ids) => ids.extend(from..to),
+            Self::Bitmap(ids) => ids.add_range(from as u64..to as u64),
+            Self::Vector(ids) => ids.extend(from..to),
         }
     }
 
     // Adds all the values from the provided bitmap into self.
     pub fn add_from_bitmap(&mut self, other: &croaring::Bitmap) {
         match self {
-            RowIDs::Bitmap(_self) => _self.or_inplace(other),
-            RowIDs::Vector(_self) => _self.extend_from_slice(other.to_vec().as_slice()),
+            Self::Bitmap(_self) => _self.or_inplace(other),
+            Self::Vector(_self) => _self.extend_from_slice(other.to_vec().as_slice()),
         }
     }
 
     pub fn intersect(&mut self, other: &RowIDs) {
         match (self, other) {
-            (RowIDs::Bitmap(_self), RowIDs::Bitmap(ref other)) => _self.and_inplace(other),
+            (Self::Bitmap(_self), RowIDs::Bitmap(ref other)) => _self.and_inplace(other),
             (_, _) => unimplemented!("currently unsupported"),
         };
     }
 
     pub fn union(&mut self, other: &RowIDs) {
         match (self, other) {
-            (RowIDs::Bitmap(_self), RowIDs::Bitmap(ref other)) => _self.or_inplace(other),
+            (Self::Bitmap(inner), RowIDs::Bitmap(other)) => inner.or_inplace(other),
+            // N.B this seems very inefficient. It should only be used for testing.
+            (Self::Vector(inner), Self::Bitmap(other)) => {
+                let mut bm: Bitmap = inner.iter().cloned().collect();
+                bm.or_inplace(other);
+
+                inner.clear();
+                inner.extend(bm.iter());
+            }
             (_, _) => unimplemented!("currently unsupported"),
         };
     }
@@ -2326,7 +2741,7 @@ impl RowIDs {
 #[cfg(test)]
 mod test {
     use super::*;
-    use arrow_deps::arrow::array::{Float64Array, Int64Array, StringArray, UInt64Array};
+    use arrow_deps::arrow::array::{Int64Array, StringArray};
 
     #[test]
     fn row_ids_intersect() {
@@ -2341,29 +2756,35 @@ mod test {
     }
 
     #[test]
+    fn column_properties() {
+        let data = StringEncoding::RLEDictionary(dictionary::RLE::default());
+        let meta = StringEncoding::meta_from_data(&data);
+        let col = Column::String(meta, data);
+        assert!(col.properties().has_pre_computed_row_ids);
+    }
+
+    #[test]
     fn from_arrow_string_array() {
         let input = vec![None, Some("world"), None, Some("hello")];
         let arr = StringArray::from(input);
 
         let col = Column::from(arr);
-        if let Column::String(meta, StringEncoding::RLEDictionary(mut enc)) = col {
+        if let Column::String(meta, StringEncoding::RLEDictionary(enc)) = col {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
                     size: 317,
                     rows: 4,
                     range: Some(("hello".to_string(), "world".to_string())),
+                    properties: ColumnProperties {
+                        has_pre_computed_row_ids: true
+                    }
                 }
             );
 
             assert_eq!(
                 enc.all_values(vec![]),
-                vec![
-                    None,
-                    Some(&"world".to_string()),
-                    None,
-                    Some(&"hello".to_string())
-                ]
+                vec![None, Some("world"), None, Some("hello")]
             );
 
             assert_eq!(enc.all_encoded_values(vec![]), vec![0, 2, 0, 1,]);
@@ -2376,20 +2797,20 @@ mod test {
     fn from_strs() {
         let arr = vec!["world", "hello"];
         let col = Column::from(arr.as_slice());
-        if let Column::String(meta, StringEncoding::RLEDictionary(mut enc)) = col {
+        if let Column::String(meta, StringEncoding::RLEDictionary(enc)) = col {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
                     size: 301,
                     rows: 2,
                     range: Some(("hello".to_string(), "world".to_string())),
+                    properties: ColumnProperties {
+                        has_pre_computed_row_ids: true
+                    }
                 }
             );
 
-            assert_eq!(
-                enc.all_values(vec![]),
-                vec![Some(&"world".to_string()), Some(&"hello".to_string())]
-            );
+            assert_eq!(enc.all_values(vec![]), vec![Some("world"), Some("hello")]);
 
             assert_eq!(enc.all_encoded_values(vec![]), vec![2, 1]);
         } else {
@@ -2697,71 +3118,44 @@ mod test {
     fn values() {
         // physical type of `col` will be `i16` but logical type is `i64`
         let col = Column::from(&[0_i64, 1, 200, 20, -1][..]);
-        assert_eq!(
-            col.values(&[0, 2, 3]),
-            Values::I64(Int64Array::from(vec![0, 200, 20]))
-        );
+        assert_eq!(col.values(&[0, 2, 3]), Values::I64(vec![0, 200, 20]));
 
         // physical type of `col` will be `i16` but logical type is `i64`
         let col = Column::from(&[0_i32, 1, 200, 20, -1][..]);
-        assert_eq!(
-            col.values(&[0, 2, 3]),
-            Values::I64(Int64Array::from(vec![0, 200, 20]))
-        );
+        assert_eq!(col.values(&[0, 2, 3]), Values::I64(vec![0, 200, 20]));
 
         // physical and logical type of `col` will be `i64`
         let col = Column::from(&[0_i16, 1, 200, 20, -1][..]);
-        assert_eq!(
-            col.values(&[0, 2, 3]),
-            Values::I64(Int64Array::from(vec![0, 200, 20]))
-        );
+        assert_eq!(col.values(&[0, 2, 3]), Values::I64(vec![0, 200, 20]));
 
         // physical and logical type of `col` will be `i64`
         let col = Column::from(&[0_i8, 1, 127, 20, -1][..]);
-        assert_eq!(
-            col.values(&[0, 2, 3]),
-            Values::I64(Int64Array::from(vec![0, 127, 20]))
-        );
+        assert_eq!(col.values(&[0, 2, 3]), Values::I64(vec![0, 127, 20]));
 
         // physical type of `col` will be `u8` but logical type is `u64`
         let col = Column::from(&[0_u64, 1, 200, 20, 100][..]);
-        assert_eq!(
-            col.values(&[3, 4]),
-            Values::U64(UInt64Array::from(vec![20, 100]))
-        );
+        assert_eq!(col.values(&[3, 4]), Values::U64(vec![20, 100]));
 
         // physical type of `col` will be `u8` but logical type is `u64`
         let col = Column::from(&[0_u32, 1, 200, 20, 100][..]);
-        assert_eq!(
-            col.values(&[3, 4]),
-            Values::U64(UInt64Array::from(vec![20, 100]))
-        );
+        assert_eq!(col.values(&[3, 4]), Values::U64(vec![20, 100]));
 
         // physical type of `col` will be `u8` but logical type is `u64`
         let col = Column::from(&[0_u16, 1, 200, 20, 100][..]);
-        assert_eq!(
-            col.values(&[3, 4]),
-            Values::U64(UInt64Array::from(vec![20, 100]))
-        );
+        assert_eq!(col.values(&[3, 4]), Values::U64(vec![20, 100]));
 
         // physical and logical type of `col` will be `u64`
         let col = Column::from(&[0_u8, 1, 200, 20, 100][..]);
-        assert_eq!(
-            col.values(&[3, 4]),
-            Values::U64(UInt64Array::from(vec![20, 100]))
-        );
+        assert_eq!(col.values(&[3, 4]), Values::U64(vec![20, 100]));
 
         // physical and logical type of `col` will be `f64`
         let col = Column::from(&[0.0, 1.1, 20.2, 22.3, 100.1324][..]);
-        assert_eq!(
-            col.values(&[1, 3]),
-            Values::F64(Float64Array::from(vec![1.1, 22.3]))
-        );
+        assert_eq!(col.values(&[1, 3]), Values::F64(vec![1.1, 22.3]));
 
         let col = Column::from(&[Some("a"), Some("b"), None, Some("c")][..]);
         assert_eq!(
             col.values(&[1, 2, 3]),
-            Values::String(StringArray::from(vec![Some("b"), None, Some("c")]))
+            Values::String(vec![Some("b"), None, Some("c")])
         );
     }
 
@@ -3400,17 +3794,17 @@ mod test {
     fn sum() {
         let input = &[100i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
-        assert_eq!(col.sum(&[0, 1, 3][..]), Value::from(302_i64));
-        assert_eq!(col.sum(&[0, 1, 2][..]), Value::from(600_i64));
+        assert_eq!(col.sum(&[0, 1, 3][..]), Scalar::I64(302));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Scalar::I64(600));
 
         let input = &[10.2f64, -2.43, 200.2];
         let col = Column::from(&input[..]);
-        assert_eq!(col.sum(&[0, 1, 2][..]), Value::from(207.97));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Scalar::F64(207.97));
 
         let input = vec![None, Some(200), None];
         let arr = Int64Array::from(input);
         let col = Column::from(arr);
-        assert_eq!(col.sum(&[0, 1, 2][..]), Value::from(200_i64));
+        assert_eq!(col.sum(&[0, 1, 2][..]), Scalar::I64(200));
     }
 
     #[test]
@@ -3428,5 +3822,73 @@ mod test {
         let col = Column::from(arr);
         assert_eq!(col.count(&[0, 1, 2][..]), 1);
         assert_eq!(col.count(&[0, 2][..]), 0);
+    }
+
+    #[test]
+    fn aggregate_result() {
+        let mut res = AggregateResult::Count(0);
+        res.update(Value::Null);
+        assert!(matches!(res, AggregateResult::Count(0)));
+        res.update(Value::String("hello"));
+        assert!(matches!(res, AggregateResult::Count(1)));
+
+        let mut res = AggregateResult::Min(Value::Null);
+        res.update(Value::String("Dance Yrself Clean"));
+        assert!(matches!(
+            res,
+            AggregateResult::Min(Value::String("Dance Yrself Clean"))
+        ));
+        res.update(Value::String("All My Friends"));
+        assert!(matches!(
+            res,
+            AggregateResult::Min(Value::String("All My Friends"))
+        ));
+        res.update(Value::String("Dance Yrself Clean"));
+        assert!(matches!(
+            res,
+            AggregateResult::Min(Value::String("All My Friends"))
+        ));
+        res.update(Value::Null);
+        assert!(matches!(
+            res,
+            AggregateResult::Min(Value::String("All My Friends"))
+        ));
+
+        let mut res = AggregateResult::Max(Value::Null);
+        res.update(Value::Scalar(Scalar::I64(20)));
+        assert!(matches!(
+            res,
+            AggregateResult::Max(Value::Scalar(Scalar::I64(20)))
+        ));
+        res.update(Value::Scalar(Scalar::I64(39)));
+        assert!(matches!(
+            res,
+            AggregateResult::Max(Value::Scalar(Scalar::I64(39)))
+        ));
+        res.update(Value::Scalar(Scalar::I64(20)));
+        assert!(matches!(
+            res,
+            AggregateResult::Max(Value::Scalar(Scalar::I64(39)))
+        ));
+        res.update(Value::Null);
+        assert!(matches!(
+            res,
+            AggregateResult::Max(Value::Scalar(Scalar::I64(39)))
+        ));
+
+        let mut res = AggregateResult::Sum(Scalar::Null);
+        res.update(Value::Null);
+        assert!(matches!(res, AggregateResult::Sum(Scalar::Null)));
+        res.update(Value::Scalar(Scalar::Null));
+        assert!(matches!(res, AggregateResult::Sum(Scalar::Null)));
+
+        res.update(Value::Scalar(Scalar::I64(20)));
+        assert!(matches!(res, AggregateResult::Sum(Scalar::I64(20))));
+
+        res.update(Value::Scalar(Scalar::I64(-5)));
+        assert!(matches!(res, AggregateResult::Sum(Scalar::I64(15))));
+
+        res.update(Value::Scalar(Scalar::Null));
+        assert!(matches!(res, AggregateResult::Sum(Scalar::I64(15))));
     }
 }

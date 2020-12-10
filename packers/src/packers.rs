@@ -185,6 +185,12 @@ impl std::convert::From<Vec<Option<u64>>> for Packers {
     }
 }
 
+impl std::convert::From<Vec<Option<String>>> for Packers {
+    fn from(v: Vec<Option<String>>) -> Self {
+        Self::String(Packer::from(v.as_slice()))
+    }
+}
+
 impl std::convert::From<data_types::table_schema::DataType> for Packers {
     fn from(t: data_types::table_schema::DataType) -> Self {
         match t {
