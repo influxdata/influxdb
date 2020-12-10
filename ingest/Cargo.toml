@@ -8,7 +8,6 @@ edition = "2018"
 
 [dependencies]
 snafu = "0.6.2"
-env_logger = "0.7.1"
 tracing = "0.1"
 
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }

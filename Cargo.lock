@@ -1413,7 +1413,6 @@ version = "0.1.0"
 dependencies = [
  "arrow_deps",
  "data_types",
- "env_logger",
  "flate2",
  "influxdb_line_protocol",
  "influxdb_tsm",
