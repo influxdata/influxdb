@@ -38,7 +38,7 @@ upgrading to v2 was not intended, simply re-install the v1 package now.
 
 An upgrade helper script is available that should be reviewed and executed
 prior to starting the influxdb systemd service.  In order to start the v2
-upgrade, excute the following:
+upgrade, execute the following:
 
 sudo /usr/share/influxdb/influxdb2-upgrade.sh
 
