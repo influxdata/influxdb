@@ -7,11 +7,9 @@ use std::arch::x86::*;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 use std::arch::x86_64::*;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::convert::From;
 use std::mem::size_of;
-
-use croaring::Bitmap;
 
 use arrow_deps::arrow::array::{Array, StringArray};
 
@@ -469,8 +467,15 @@ impl Plain {
     }
 
     // The set of row ids for each distinct value in the column.
-    pub fn group_row_ids(&self) -> &BTreeMap<u32, Bitmap> {
-        todo!()
+    pub fn group_row_ids(&self) -> Vec<RowIDs> {
+        let mut results = vec![];
+        results.resize(self.entries.len(), RowIDs::new_bitmap());
+
+        for (i, id) in self.encoded_data.iter().enumerate() {
+            results[*id as usize].add(i as u32);
+        }
+
+        results
     }
 
     //
@@ -514,8 +519,8 @@ impl Plain {
     /// Materialises the decoded value belonging to the provided encoded id.
     ///
     /// Panics if there is no decoded value for the provided id
-    pub fn decode_id(&self, encoded_id: u32) -> Option<String> {
-        self.entries[encoded_id as usize].clone()
+    pub fn decode_id(&self, encoded_id: u32) -> Option<&str> {
+        self.entries[encoded_id as usize].as_deref()
     }
 
     /// Materialises a vector of references to the decoded values in the
@@ -572,22 +577,19 @@ impl Plain {
     ///
     /// NULL values are represented by None.
     ///
-    pub fn all_values<'a>(
-        &'a mut self,
-        mut dst: Vec<Option<&'a String>>,
-    ) -> Vec<Option<&'a String>> {
+    pub fn all_values<'a>(&'a self, mut dst: Vec<Option<&'a str>>) -> Vec<Option<&'a str>> {
         dst.clear();
         dst.reserve(self.entries.len());
 
         for chunks in self.encoded_data.chunks_exact(4) {
-            dst.push(self.entries[chunks[0] as usize].as_ref());
-            dst.push(self.entries[chunks[1] as usize].as_ref());
-            dst.push(self.entries[chunks[2] as usize].as_ref());
-            dst.push(self.entries[chunks[3] as usize].as_ref());
+            dst.push(self.entries[chunks[0] as usize].as_deref());
+            dst.push(self.entries[chunks[1] as usize].as_deref());
+            dst.push(self.entries[chunks[2] as usize].as_deref());
+            dst.push(self.entries[chunks[3] as usize].as_deref());
         }
 
         for &v in &self.encoded_data[dst.len()..self.encoded_data.len()] {
-            dst.push(self.entries[v as usize].as_ref());
+            dst.push(self.entries[v as usize].as_deref());
         }
         dst
     }
@@ -623,7 +625,10 @@ impl Plain {
         dst.clear();
         dst.reserve(row_ids.len());
 
-        todo!()
+        for row_id in row_ids {
+            dst.push(self.encoded_data[*row_id as usize]);
+        }
+        dst
     }
 
     /// Returns all encoded values for the column including the encoded value

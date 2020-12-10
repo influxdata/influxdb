@@ -28,9 +28,6 @@ pub enum Error {
     #[snafu(display("Error creating aggregate: Unexpected empty aggregate"))]
     EmptyAggregate {},
 
-    #[snafu(display("Error creating aggregate: Unsupported none aggregate"))]
-    NoneAggregate {},
-
     #[snafu(display("Error creating aggregate: Exactly one aggregate is supported, but {} were supplied: {:?}",
                     aggregates.len(), aggregates))]
     AggregateNotSingleton { aggregates: Vec<RPCAggregate> },
@@ -578,7 +575,7 @@ fn convert_aggregate(aggregate: Option<RPCAggregate>) -> Result<QueryAggregate> 
     let aggregate_type = aggregate.r#type;
 
     if aggregate_type == RPCAggregateType::None as i32 {
-        NoneAggregate {}.fail()
+        Ok(QueryAggregate::None)
     } else if aggregate_type == RPCAggregateType::Sum as i32 {
         Ok(QueryAggregate::Sum)
     } else if aggregate_type == RPCAggregateType::Count as i32 {
@@ -1266,8 +1263,8 @@ mod tests {
             "Error creating aggregate: Unexpected empty aggregate"
         );
         assert_eq!(
-            error_result_to_string(convert_aggregate(make_aggregate_opt(0))),
-            "Error creating aggregate: Unsupported none aggregate"
+            convert_aggregate(make_aggregate_opt(0)).unwrap(),
+            QueryAggregate::None
         );
         assert_eq!(
             convert_aggregate(make_aggregate_opt(1)).unwrap(),

@@ -18,20 +18,59 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone, PartialEq, Copy)]
+
+/// TimeSeries specific aggregates or selector functions
+///
+/// Aggregates are as in typical databases: they combine a column of
+/// data into a single scalar values by some arithemetic calculation.
+///
+/// Selector_functions are similar to aggregates in that reduce a
+/// column of data into a single row by *selecting* a single row.  In
+/// other words, they can return the timestamp value from the
+/// associated row in addition to its value.
 pub enum Aggregate {
+    /// Aggregate: the sum of all values in the column
     Sum,
+
+    /// Aggregate: the total number of column values
     Count,
+
+    /// Selector: Selects the minimum value of a column and the
+    /// associated timestamp. In the case of multiple rows with the
+    /// same min value, the earliest timestamp is used
     Min,
+
+    /// Selector: Selects the maximum value of a column and the
+    /// associated timestamp. In the case of multiple rows with the
+    /// same max value, the earliest timestamp is used
     Max,
+
+    /// Selector: Selects the value of a column with the minimum
+    /// timestamp and the associated timestamp. In the case of
+    /// multiple rows with the min timestamp, one is abritrarily
+    /// chosen
     First,
+
+    /// Selector: Selects the value of a column with the minimum
+    /// timestamp and the associated timestamp. In the case of
+    /// multiple rows with the min timestamp, one is abritrarily
+    /// chosen
     Last,
+
+    /// Aggregate: Average (geometric mean) column's value
     Mean,
+
+    /// No grouping is applied
+    None,
 }
 
 /// Defines the different ways series can be grouped and aggregated
 #[derive(Debug, Clone, PartialEq)]
 pub enum GroupByAndAggregate {
-    /// group by a set of (Tag) columns, applying agg to each field
+    /// group by a set of (Tag) columns, applying an agg to each field
+    ///
+    /// The resulting data is ordered so that series with the same
+    /// values in `group_columns` appear contiguously.
     Columns {
         agg: Aggregate,
         group_columns: Vec<String>,
@@ -86,6 +125,7 @@ impl Aggregate {
             Self::First => AggregateNotSupported { agg: "First" }.fail(),
             Self::Last => AggregateNotSupported { agg: "Last" }.fail(),
             Self::Mean => Ok(avg(input)),
+            Self::None => AggregateNotSupported { agg: "None" }.fail(),
         }
     }
 }

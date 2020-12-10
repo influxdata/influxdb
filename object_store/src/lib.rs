@@ -10,7 +10,7 @@
 //! # object_store
 //!
 //! This crate provides APIs for interacting with object storage services. It currently supports
-//! PUT, GET, DELETE, and list for Google Cloud Storage, Amazon S3, and in-memory storage.
+//! PUT, GET, DELETE, and list for Google Cloud Storage, Amazon S3, in-memory and local file storage.
 //!
 //! Future compatibility will include Azure Blob Storage, Minio, and Ceph.
 

@@ -7,7 +7,7 @@ use arrow_deps::arrow::record_batch::RecordBatch;
 use crate::segment::{ColumnName, GroupKey, Predicate, Segment};
 use crate::{
     column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
-    segment::ReadFilterResult,
+    segment::{ReadFilterResult, ReadGroupResult},
 };
 
 /// A Table represents data for a single measurement.
@@ -96,6 +96,16 @@ impl Table {
         todo!()
     }
 
+    // Determines if schema contains all the provided column names.
+    fn has_all_columns(&self, names: &[ColumnName<'_>]) -> bool {
+        for &name in names {
+            if !self.meta.column_ranges.contains_key(name) {
+                return false;
+            }
+        }
+        true
+    }
+
     // Identify set of segments that may satisfy the predicates.
     fn filter_segments(&self, predicates: &[Predicate<'_>]) -> Vec<&Segment> {
         let mut segments = Vec::with_capacity(self.segments.len());
@@ -123,7 +133,7 @@ impl Table {
     /// since the epoch. Results are included if they satisfy the predicate and
     /// fall with the [min, max) time range domain.
     pub fn select<'a>(
-        &self,
+        &'a self,
         columns: &[ColumnName<'a>],
         predicates: &[Predicate<'_>],
     ) -> ReadFilterResults<'a> {
@@ -164,16 +174,41 @@ impl Table {
     /// and the type of aggregation required. Multiple aggregations can be
     /// applied to the same column.
     pub fn aggregate<'a>(
-        &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
-        group_columns: Vec<ColumnName<'a>>,
-        aggregates: Vec<(ColumnName<'a>, AggregateType)>,
-    ) -> BTreeMap<GroupKey, Vec<(ColumnName<'a>, AggregateResult<'_>)>> {
+        &'a self,
+        predicates: &[Predicate<'a>],
+        group_columns: &'a [ColumnName<'a>],
+        aggregates: &'a [(ColumnName<'a>, AggregateType)],
+    ) -> ReadGroupResults<'a> {
+        if !self.has_all_columns(&group_columns) {
+            return ReadGroupResults::default(); //TODO(edd): return an error here "group key column x not found"
+        }
+
+        if !self.has_all_columns(&aggregates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
+            return ReadGroupResults::default(); //TODO(edd): return an error here "aggregate column x not found"
+        }
+
+        if !self.has_all_columns(&predicates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
+            return ReadGroupResults::default(); //TODO(edd): return an error here "predicate column x not found"
+        }
+
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
-        self.aggregate_window(time_range, predicates, group_columns, aggregates, 0)
+        let segments = self.filter_segments(predicates);
+        if segments.is_empty() {
+            return ReadGroupResults::default();
+        }
+
+        let mut results = ReadGroupResults::default();
+        results.values.reserve(segments.len());
+        for segment in segments {
+            let segment_result = segment.read_group(predicates, &group_columns, &aggregates);
+            results.values.push(segment_result);
+        }
+
+        results.groupby_columns = group_columns;
+        results.aggregate_columns = aggregates;
+        results
     }
 
     /// Returns aggregates segmented by grouping keys and windowed by time.
@@ -201,7 +236,7 @@ impl Table {
         group_columns: Vec<ColumnName<'a>>,
         aggregates: Vec<(ColumnName<'a>, AggregateType)>,
         window: i64,
-    ) -> BTreeMap<GroupKey, Vec<(ColumnName<'a>, AggregateResult<'_>)>> {
+    ) -> BTreeMap<GroupKey<'_>, Vec<(ColumnName<'a>, AggregateResult<'_>)>> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
@@ -253,10 +288,12 @@ impl Table {
                         ));
                     }
                     AggregateType::Sum => {
-                        results.push((
-                            col_name,
-                            AggregateResult::Sum(self.sum(col_name, time_range)),
-                        ));
+                        let res = match self.sum(col_name, time_range) {
+                            Some(x) => x,
+                            None => Scalar::Null,
+                        };
+
+                        results.push((col_name, AggregateResult::Sum(res)));
                     }
                 }
             }
@@ -499,6 +536,43 @@ impl<'a> Display for ReadFilterResults<'a> {
         if self.is_empty() {
             return Ok(());
         }
+
+        // Display all the results of each segment
+        for segment_values in &self.values {
+            segment_values.fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+pub struct ReadGroupResults<'a> {
+    // column-wise collection of columns being grouped by
+    groupby_columns: &'a [ColumnName<'a>],
+
+    // column-wise collection of columns being aggregated on
+    aggregate_columns: &'a [(ColumnName<'a>, AggregateType)],
+
+    // segment-wise result sets containing grouped values and aggregates
+    values: Vec<ReadGroupResult<'a>>,
+}
+
+impl<'a> std::fmt::Display for ReadGroupResults<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // header line - display group columns first
+        for (i, name) in self.groupby_columns.iter().enumerate() {
+            write!(f, "{},", name)?;
+        }
+
+        // then display aggregate columns
+        for (i, (col_name, col_agg)) in self.aggregate_columns.iter().enumerate() {
+            write!(f, "{}_{}", col_name, col_agg)?;
+
+            if i < self.aggregate_columns.len() - 1 {
+                write!(f, ",")?;
+            }
+        }
+        writeln!(f)?;
 
         // Display all the results of each segment
         for segment_values in &self.values {
