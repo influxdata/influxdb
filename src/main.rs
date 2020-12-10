@@ -131,9 +131,14 @@ Examples:
 
     setup_logging(matches.occurrences_of("verbose"));
 
-    // Install custom panic handler (note can not use `_` otherwise
-    // drop will be called immediately).
-    let _f = SendPanicsToTracing::new();
+    // Install custom panic handler and forget about it.
+    //
+    // This leaks the handler and prevents it from ever being dropped during the
+    // lifetime of the program - this is actually a good thing, as it prevents
+    // the panic handler from being removed while unwinding a panic (which in
+    // turn, causes a panic - see #548)
+    let f = SendPanicsToTracing::new();
+    std::mem::forget(f);
 
     let mut tokio_runtime = get_runtime(matches.value_of("num-threads"))?;
     tokio_runtime.block_on(dispatch_args(matches));
