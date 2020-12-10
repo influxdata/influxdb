@@ -47,7 +47,7 @@ jobs:
 
   e2e:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: quay.io/influxdb/influxdb-circleci:2.0
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -92,7 +92,7 @@ jobs:
           path: ~/project
   jstest:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: quay.io/influxdb/influxdb-circleci:2.0
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -129,7 +129,7 @@ jobs:
 
   jslint:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: quay.io/influxdb/influxdb-circleci:2.0
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -160,7 +160,7 @@ jobs:
 
   gotest:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: quay.io/influxdb/influxdb-circleci:2.0
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -212,7 +212,7 @@ jobs:
 
   golint:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: quay.io/influxdb/influxdb-circleci:2.0
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -245,7 +245,7 @@ jobs:
 
   build:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: quay.io/influxdb/influxdb-circleci:2.0
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -275,7 +275,7 @@ jobs:
 
   release:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: quay.io/influxdb/influxdb-circleci:2.0
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
