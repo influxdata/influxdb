@@ -37,7 +37,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/jwilder/encoding/simple8b"
+	"github.com/influxdata/influxdb/pkg/encoding/simple8b"
 )
 
 const (
