@@ -792,7 +792,7 @@ mod tests {
     type Result<T, E = Error> = std::result::Result<T, E>;
 
     #[cfg(any(test_aws, test_gcs))]
-    const NON_EXISTANT_NAME: &str = "nonexistantname";
+    const NON_EXISTENT_NAME: &str = "nonexistentname";
 
     macro_rules! assert_error {
         ($res:expr, $error_pat:pat$(,)?) => {
@@ -862,7 +862,7 @@ mod tests {
     }
 
     #[cfg(any(test_aws, test_gcs))]
-    async fn get_nonexistant_object(
+    async fn get_nonexistent_object(
         storage: &ObjectStore,
         location: Option<&str>,
     ) -> Result<Bytes> {
@@ -910,15 +910,13 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn gcs_test_get_nonexistant_location() -> Result<()> {
+        async fn gcs_test_get_nonexistent_location() -> Result<()> {
             let bucket_name = bucket_name()?;
-            let location_name = NON_EXISTANT_NAME;
+            let location_name = NON_EXISTENT_NAME;
             let integration =
                 ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
 
-            let result = get_nonexistant_object(&integration, Some(location_name))
-                .await
-                .unwrap();
+            let result = get_nonexistent_object(&integration, Some(location_name)).await?;
 
             assert_eq!(
                 result,
@@ -929,15 +927,13 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn gcs_test_get_nonexistant_bucket() -> Result<()> {
-            let bucket_name = NON_EXISTANT_NAME;
-            let location_name = NON_EXISTANT_NAME;
+        async fn gcs_test_get_nonexistent_bucket() -> Result<()> {
+            let bucket_name = NON_EXISTENT_NAME;
+            let location_name = NON_EXISTENT_NAME;
             let integration =
                 ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
 
-            let result = get_nonexistant_object(&integration, Some(location_name))
-                .await
-                .unwrap();
+            let result = get_nonexistent_object(&integration, Some(location_name)).await?;
 
             assert_eq!(result, Bytes::from("Not Found"));
 
@@ -945,9 +941,9 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn gcs_test_delete_nonexistant_location() -> Result<()> {
+        async fn gcs_test_delete_nonexistent_location() -> Result<()> {
             let bucket_name = bucket_name()?;
-            let location_name = NON_EXISTANT_NAME;
+            let location_name = NON_EXISTENT_NAME;
             let integration =
                 ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
 
@@ -970,9 +966,9 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn gcs_test_delete_nonexistant_bucket() -> Result<()> {
-            let bucket_name = NON_EXISTANT_NAME;
-            let location_name = NON_EXISTANT_NAME;
+        async fn gcs_test_delete_nonexistent_bucket() -> Result<()> {
+            let bucket_name = NON_EXISTENT_NAME;
+            let location_name = NON_EXISTENT_NAME;
             let integration =
                 ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
 
@@ -995,9 +991,9 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn gcs_test_put_nonexistant_bucket() -> Result<()> {
-            let bucket_name = NON_EXISTANT_NAME;
-            let location_name = NON_EXISTANT_NAME;
+        async fn gcs_test_put_nonexistent_bucket() -> Result<()> {
+            let bucket_name = NON_EXISTENT_NAME;
+            let location_name = NON_EXISTENT_NAME;
             let integration =
                 ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
             let data = Bytes::from("arbitrary data");
@@ -1057,14 +1053,14 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn s3_test_get_nonexistant_region() -> Result<()> {
+        async fn s3_test_get_nonexistent_region() -> Result<()> {
             // Assumes environment variables do not provide credentials to AWS US West 1
             let (_, bucket_name) = region_and_bucket_name()?;
             let region = rusoto_core::Region::UsWest1;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            let location_name = NON_EXISTANT_NAME;
+            let location_name = NON_EXISTENT_NAME;
 
-            let err = get_nonexistant_object(&integration, Some(location_name))
+            let err = get_nonexistent_object(&integration, Some(location_name))
                 .await
                 .unwrap_err();
             if let Some(Error(InternalError::UnableToListDataFromS3 { source, bucket })) =
@@ -1080,12 +1076,12 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn s3_test_get_nonexistant_location() -> Result<()> {
+        async fn s3_test_get_nonexistent_location() -> Result<()> {
             let (region, bucket_name) = region_and_bucket_name()?;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            let location_name = NON_EXISTANT_NAME;
+            let location_name = NON_EXISTENT_NAME;
 
-            let err = get_nonexistant_object(&integration, Some(location_name))
+            let err = get_nonexistent_object(&integration, Some(location_name))
                 .await
                 .unwrap_err();
             if let Some(Error(InternalError::UnableToGetDataFromS3 {
@@ -1108,13 +1104,13 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn s3_test_get_nonexistant_bucket() -> Result<()> {
+        async fn s3_test_get_nonexistent_bucket() -> Result<()> {
             let (region, _) = region_and_bucket_name()?;
-            let bucket_name = NON_EXISTANT_NAME;
+            let bucket_name = NON_EXISTENT_NAME;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
-            let location_name = NON_EXISTANT_NAME;
+            let location_name = NON_EXISTENT_NAME;
 
-            let err = get_nonexistant_object(&integration, Some(location_name))
+            let err = get_nonexistent_object(&integration, Some(location_name))
                 .await
                 .unwrap_err();
             if let Some(Error(InternalError::UnableToListDataFromS3 { source, bucket })) =
@@ -1135,12 +1131,12 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn s3_test_put_nonexistant_region() -> Result<()> {
+        async fn s3_test_put_nonexistent_region() -> Result<()> {
             // Assumes environment variables do not provide credentials to AWS US West 1
             let (_, bucket_name) = region_and_bucket_name()?;
             let region = rusoto_core::Region::UsWest1;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            let location_name = NON_EXISTANT_NAME;
+            let location_name = NON_EXISTENT_NAME;
             let data = Bytes::from("arbitrary data");
             let stream_data = std::io::Result::Ok(data.clone());
 
@@ -1170,11 +1166,11 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn s3_test_put_nonexistant_bucket() -> Result<()> {
+        async fn s3_test_put_nonexistent_bucket() -> Result<()> {
             let (region, _) = region_and_bucket_name()?;
-            let bucket_name = NON_EXISTANT_NAME;
+            let bucket_name = NON_EXISTENT_NAME;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
-            let location_name = NON_EXISTANT_NAME;
+            let location_name = NON_EXISTENT_NAME;
             let data = Bytes::from("arbitrary data");
             let stream_data = std::io::Result::Ok(data.clone());
 
@@ -1204,10 +1200,10 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn s3_test_delete_nonexistant_location() -> Result<()> {
+        async fn s3_test_delete_nonexistent_location() -> Result<()> {
             let (region, bucket_name) = region_and_bucket_name()?;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            let location_name = NON_EXISTANT_NAME;
+            let location_name = NON_EXISTENT_NAME;
 
             let result = integration.delete(location_name).await;
 
@@ -1217,12 +1213,12 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn s3_test_delete_nonexistant_region() -> Result<()> {
+        async fn s3_test_delete_nonexistent_region() -> Result<()> {
             // Assumes environment variables do not provide credentials to AWS US West 1
             let (_, bucket_name) = region_and_bucket_name()?;
             let region = rusoto_core::Region::UsWest1;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            let location_name = NON_EXISTANT_NAME;
+            let location_name = NON_EXISTENT_NAME;
 
             let err = integration.delete(location_name).await.unwrap_err();
             if let Error(InternalError::UnableToDeleteDataFromS3 {
@@ -1242,11 +1238,11 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn s3_test_delete_nonexistant_bucket() -> Result<()> {
+        async fn s3_test_delete_nonexistent_bucket() -> Result<()> {
             let (region, _) = region_and_bucket_name()?;
-            let bucket_name = NON_EXISTANT_NAME;
+            let bucket_name = NON_EXISTENT_NAME;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
-            let location_name = NON_EXISTANT_NAME;
+            let location_name = NON_EXISTENT_NAME;
 
             let err = integration.delete(location_name).await.unwrap_err();
             if let Error(InternalError::UnableToDeleteDataFromS3 {
