@@ -40,7 +40,7 @@ func Test_Encode_And_EncodeAll(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	sz := len(all)*8
+	sz := len(all) * 8
 	encodedAll := make([]byte, sz)
 
 	// Write the encoded values
