@@ -153,14 +153,14 @@ impl GoogleCloudStorage {
             }
         );
 
-        let location_string = location.to_string();
+        let location_copy = location.to_string();
         let bucket_name = self.bucket_name.clone();
 
         let _ = tokio::task::spawn_blocking(move || {
             cloud_storage::Object::create(
                 &bucket_name,
                 &temporary_non_streaming,
-                &location_string,
+                &location_copy,
                 "application/octet-stream",
             )
         })
@@ -177,11 +177,11 @@ impl GoogleCloudStorage {
         &self,
         location: &str,
     ) -> InternalResult<impl Stream<Item = InternalResult<Bytes>>> {
-        let location_string = location.to_string();
+        let location_copy = location.to_string();
         let bucket_name = self.bucket_name.clone();
 
         let bytes = tokio::task::spawn_blocking(move || {
-            cloud_storage::Object::download(&bucket_name, &location_string)
+            cloud_storage::Object::download(&bucket_name, &location_copy)
         })
         .await
         .context(UnableToGetDataFromGcs {
@@ -198,11 +198,11 @@ impl GoogleCloudStorage {
 
     /// Delete the object at the specified location.
     async fn delete(&self, location: &str) -> InternalResult<()> {
-        let location_string = location.to_string();
+        let location_copy = location.to_string();
         let bucket_name = self.bucket_name.clone();
 
         tokio::task::spawn_blocking(move || {
-            cloud_storage::Object::delete(&bucket_name, &location_string)
+            cloud_storage::Object::delete(&bucket_name, &location_copy)
         })
         .await
         .context(UnableToDeleteDataFromGcs {
