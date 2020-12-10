@@ -54,7 +54,6 @@ tokio = { version = "0.2", features = ["full"] }
 clap = "2.33.1"
 dotenv = "0.15.0"
 dirs = "3.0.1"
-env_logger = "0.7.1"
 futures = "0.3.1"
 
 serde_json = "1.0.44"

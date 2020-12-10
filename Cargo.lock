@@ -1342,7 +1342,6 @@ dependencies = [
  "data_types",
  "dirs 3.0.1",
  "dotenv",
- "env_logger",
  "flate2",
  "futures",
  "generated_types",
