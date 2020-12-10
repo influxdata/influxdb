@@ -5,6 +5,7 @@ DATA_DIR=/var/lib/influxdb
 LOG_DIR=/var/log/influxdb
 SCRIPT_DIR=/usr/lib/influxdb/scripts
 LOGROTATE_DIR=/etc/logrotate.d
+INFLUXD_CONFIG_PATH=/etc/influxdb/config.toml
 
 function install_init {
     cp -f $SCRIPT_DIR/init.sh /etc/init.d/influxdb
@@ -24,9 +25,39 @@ function install_chkconfig {
     chkconfig --add influxdb
 }
 
+function upgrade_notice {
+cat << EOF
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Important 1.x to 2.x Upgrade Notice !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+Thank you for installing InfluxDB v2.  Due to significant changes between
+the v1 and v2 versions, upgrading to v2 requires additional steps.  If
+upgrading to v2 was not intended, simply re-install the v1 package now.
+
+An upgrade helper script is available that should be reviewed and executed
+prior to starting the influxdb systemd service.  In order to start the v2
+upgrade, execute the following:
+
+sudo /usr/share/influxdb/influxdb2-upgrade.sh
+
+Visit our website for complete details on the v1 to v2 upgrade process:
+https://docs.influxdata.com/influxdb/v2.0/upgrade/v1-to-v2/
+
+For new or upgrade installations, please review the getting started guide:
+https://docs.influxdata.com/influxdb/v2.0/get-started/
+
+EOF
+}
+
 # Add defaults file, if it doesn't exist
-if [[ ! -f /etc/default/influxdb ]]; then
-    touch /etc/default/influxdb
+if [[ ! -s /etc/default/influxdb2 ]]; then
+cat << EOF > /etc/default/influxdb2
+INFLUXD_CONFIG_PATH=/etc/influxdb/config.toml
+INFLUXD_BOLT_PATH=/var/lib/influxdb/influxd.bolt
+INFLUXD_ENGINE_PATH=/var/lib/influxdb/engine
+EOF
 fi
 
 # Remove legacy symlink, if it exists
@@ -73,27 +104,14 @@ elif [[ -f /etc/os-release ]]; then
     fi
 fi
 
-# Upgrade notice
-cat << EOF
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Important 1.x to 2.x Upgrade Notice !
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Check upgrade status
+bolt_dir="/root/.influxdbv2 /var/lib/influxdb/.influxdbv2 /var/lib/influxdb"
+for bolt in $bolt_dir
+do
+  if [[ -s ${bolt}/influxd.bolt ]]; then
+    # Found a bolt file, assume previous v2 upgrade
+    exit 0
+  fi
+done
 
-Thank you for installing InfluxDB v2.  Due to significant changes between
-the v1 and v2 versions, upgrading to v2 requires additional steps.  If
-upgrading to v2 was not intended, please simply re-install the v1 package now.
-
-Please review the complete upgrade procedure:
-
-https://docs.influxdata.com/influxdb/v2.0/upgrade/v1-to-v2/
-
-Minimally, the following steps will be necessary:
-
-* Make a copy of all underlying v1 data (typically under /var/lib/influxdb)
-* Run the 'influxd upgrade' command
-* Follow the prompts to complete the upgrade process
-
-For new or upgrade installations, please also review the getting started guide:
-
-https://docs.influxdata.com/influxdb/v2.0/get-started/
-EOF
+upgrade_notice
