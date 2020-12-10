@@ -33,5 +33,6 @@ sudo systemctl start influxdb
 EOF
 fi
 
-chown influxdb:influxdb /var/lib/influxdb/influxd.bolt /var/lib/influxdb/configs
-chown -R influxdb:influxdb /var/lib/influxdb/engine
+sudo cp /root/.influxdbv2/configs /var/lib/influxdb
+sudo chown influxdb:influxdb /var/lib/influxdb/influxd.bolt /var/lib/influxdb/configs
+sudo chown -R influxdb:influxdb /var/lib/influxdb/engine
