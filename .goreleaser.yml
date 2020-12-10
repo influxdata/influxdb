@@ -7,19 +7,9 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm
-    goarm:
-      - 6
-      - 7
     ignore:
       - goos: darwin
         goarch: arm64
-      - goos: darwin
-        goarch: arm
-        goarm: 6
-      - goos: darwin
-        goarch: arm
-        goarm: 7
     main: ./cmd/influx/
     flags:
       - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
@@ -40,19 +30,9 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm
-    goarm:
-      - 6
-      - 7
     ignore:
       - goos: darwin
         goarch: arm64
-      - goos: darwin
-        goarch: arm
-        goarm: 6
-      - goos: darwin
-        goarch: arm
-        goarm: 7
     main: ./cmd/influxd/
     flags:
       - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
@@ -89,11 +69,9 @@ nfpms:
       rpm:
         replacements:
           amd64: x86_64
-        # N.B. it's tempting to include 'v{{ .Arm }}' in the names for all ARM builds, but that breaks
-        # our existing pattern for ARMv6.
-        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}{{ if .Arm }}{{ if eq .Arm \"7\" }}v7{{ end }}hf{{ end }}"
+        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}"
       deb:
-        file_name_template: "influxdb2_{{ .Version }}_{{ .Arch }}{{ if .Arm }}{{ if eq .Arm \"7\" }}v7{{ end }}hf{{ end }}"
+        file_name_template: "influxdb2_{{ .Version }}_{{ .Arch }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -108,7 +86,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb2_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}hf{{ end }}"
+    name_template: "influxdb2_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
@@ -118,7 +96,7 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    name_template: "influxdb2-{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}hf{{ end }}"
+    name_template: "influxdb2-{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
