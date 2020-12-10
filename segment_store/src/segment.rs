@@ -449,7 +449,11 @@ impl Segment {
         // If there is a single group column then we can use an optimised
         // approach for building group keys
         if group_columns.len() == 1 {
-            self.read_group_single_group_column(predicates, &mut result);
+            self.read_group_single_group_column(
+                &mut result,
+                &groupby_encoded_ids[0],
+                aggregate_columns_data,
+            );
             return result;
         }
 
@@ -747,16 +751,65 @@ impl Segment {
         }
     }
 
-    // Optimised read group method where only a single column is being used as
-    // the group key.
-    //
-    // In this case the groups can be represented by a single integer key.
-    fn read_group_single_group_column(
-        &self,
-        predicates: &[Predicate<'_>],
-        dst: &mut ReadGroupResult<'_>,
+    // Optimised read_group path for queries where only a single column is being
+    // grouped on. In this case building a hash table is not necessary, and
+    // the group keys can be used as indexes into a vector whose values contain
+    // aggregates. As rows are processed these aggregates can be updated in
+    // constant time.
+    fn read_group_single_group_column<'a>(
+        &'a self,
+        dst: &mut ReadGroupResult<'a>,
+        groupby_encoded_ids: &[u32],
+        aggregate_columns_data: Vec<Values<'a>>,
     ) {
-        todo!()
+        let column = self.column_by_name(dst.group_columns[0]);
+        assert_eq!(dst.group_columns.len(), aggregate_columns_data.len());
+        let total_rows = groupby_encoded_ids.len();
+
+        // Allocate a vector to hold aggregates that can be updated as rows are
+        // processed. An extra group is required because encoded ids are 0-indexed.
+        let required_groups = groupby_encoded_ids.iter().max().unwrap() + 1;
+        let mut groups: Vec<Option<Vec<AggregateResult<'_>>>> =
+            vec![None; required_groups as usize];
+
+        for (row, encoded_id) in groupby_encoded_ids.iter().enumerate() {
+            let idx = *encoded_id as usize;
+            match &mut groups[idx] {
+                Some(group_key_aggs) => {
+                    // Update all aggregates for the group key
+                    for (i, values) in aggregate_columns_data.iter().enumerate() {
+                        group_key_aggs[i].update(values.value(row));
+                    }
+                }
+                None => {
+                    let mut group_key_aggs = Vec::with_capacity(dst.aggregate_columns.len());
+                    for (_, agg_type) in &dst.aggregate_columns {
+                        group_key_aggs.push(AggregateResult::from(agg_type));
+                    }
+
+                    for (i, values) in aggregate_columns_data.iter().enumerate() {
+                        group_key_aggs[i].update(values.value(row));
+                    }
+
+                    groups[idx] = Some(group_key_aggs);
+                }
+            }
+        }
+
+        // Finally, build results set. Each encoded group key needs to be
+        // materialised into a logical group key
+        let mut group_key_vec: Vec<GroupKey<'_>> = Vec::with_capacity(groups.len());
+        let mut aggregate_vec = Vec::with_capacity(groups.len());
+
+        for (group_key, aggs) in groups.into_iter().enumerate() {
+            if let Some(aggs) = aggs {
+                group_key_vec.push(GroupKey(vec![column.decode_id(group_key as u32)]));
+                aggregate_vec.push(aggs);
+            }
+        }
+
+        dst.group_keys = group_key_vec;
+        dst.aggregates = aggregate_vec;
     }
 
     // Optimised read group method where all the segment column sort covers all
@@ -1340,6 +1393,9 @@ west,4
 
         // test read group queries that use a vector-based group key.
         read_group_hash_vec_key(&segment);
+
+        // test read group queries that only group on one column.
+        read_group_single_groupby_column(&segment);
     }
 
     // the read_group path where grouping is on fewer than five columns.
@@ -1431,6 +1487,26 @@ south,PUT,NULL,Alpha,one,203
 west,GET,prod,Alpha,one,100
 west,POST,prod,Alpha,two,101
 west,POST,prod,Bravo,two,203
+",
+        )];
+
+        for (predicate, group_cols, aggs, expected) in cases {
+            let mut results = segment.read_group(&predicate, &group_cols, &aggs);
+            results.sort();
+            assert_eq!(format!("{:?}", &results), expected);
+        }
+    }
+
+    // the read_group path where grouping is on a single column.
+    fn read_group_single_groupby_column(segment: &Segment) {
+        let cases = vec![(
+            build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
+            vec!["method"],
+            vec![("counter", AggregateType::Sum)],
+            "method,counter_sum
+GET,110
+POST,504
+PUT,203
 ",
         )];
 
