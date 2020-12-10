@@ -338,6 +338,8 @@ github.com/influxdata/nats-streaming-server v0.11.3-0.20201112040610-c277f756080
 github.com/influxdata/nats-streaming-server v0.11.3-0.20201112040610-c277f7560803/go.mod h1:qgAMR6M9EokX+R5X7jUQfubwBdS1tBIl4yVJ3shhcWk=
 github.com/influxdata/pkg-config v0.2.5 h1:iC19aXlkUPiwxjxeeKk8TT8S5s3pargNPLgZE/rvOzc=
 github.com/influxdata/pkg-config v0.2.5/go.mod h1:EMS7Ll0S4qkzDk53XS3Z72/egBsPInt+BeRxb0WeSwk=
+github.com/influxdata/pkg-config v0.2.6 h1:GQFKw3m3OmmPMze9n75ZVVtNu4LJ2MJolHbxvg4AAvg=
+github.com/influxdata/pkg-config v0.2.6/go.mod h1:EMS7Ll0S4qkzDk53XS3Z72/egBsPInt+BeRxb0WeSwk=
 github.com/influxdata/promql/v2 v2.12.0/go.mod h1:fxOPu+DY0bqCTCECchSRtWfc+0X19ybifQhZoQNF5D8=
 github.com/influxdata/tdigest v0.0.0-20181121200506-bf2b5ad3c0a9 h1:MHTrDWmQpHq/hkq+7cw9oYAt2PqUw52TZazRA0N7PGE=
 github.com/influxdata/tdigest v0.0.0-20181121200506-bf2b5ad3c0a9/go.mod h1:Js0mqiSBE6Ffsg94weZZ2c+v/ciT8QRHFOap7EKDrR0=
