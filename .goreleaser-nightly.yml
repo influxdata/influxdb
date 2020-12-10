@@ -101,7 +101,7 @@ dockers:
       - influxd
       - influx
     image_templates:
-      - "quay.io/influxdb/influxdb:nightly"
+      - "quay.io/influxdb/influxdb2:nightly"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
