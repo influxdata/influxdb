@@ -509,7 +509,7 @@ func canPack(src []uint64, n, bits int) bool {
 
 	// Selector 0,1 are special and use 0 bits to encode runs of 1's
 	if bits == 0 {
-		for _, v := range src {
+		for _, v := range src[:n] {
 			if v != 1 {
 				return false
 			}
