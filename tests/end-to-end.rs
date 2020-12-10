@@ -318,49 +318,10 @@ async fn read_and_write_data() -> Result<()> {
 
     assert_eq!(values, vec!["server01"]);
 
-    // Note: it is almost certain that the read group response is incorrect
-    let read_group_request = tonic::Request::new(ReadGroupRequest {
-        read_source: read_source.clone(),
-        range: range.clone(),
-        predicate: predicate.clone(),
-        group_keys: vec![String::from("region")],
-        group: Group::By as _,
-        aggregate: Some(Aggregate {
-            r#type: AggregateType::Sum as i32,
-        }),
-        hints: 0,
-    });
-    let read_group_response = storage_client.read_group(read_group_request).await?;
-
-    let responses: Vec<_> = read_group_response.into_inner().try_collect().await?;
-
-    let frames: Vec<_> = responses
-        .into_iter()
-        .flat_map(|r| r.frames)
-        .flat_map(|f| f.data)
-        .collect();
-
-    let expected_group_frames = substitute_nanos(ns_since_epoch, &[
-        "GroupFrame, tag_keys: region, partition_key_vals: ",
-        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,region=,host=server01, type: 0",
-        "FloatPointsFrame, timestamps: [ns1], values: \"27.99\"",
-        "GroupFrame, tag_keys: region, partition_key_vals: us-east",
-        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,region=us-east,host=server01, type: 0",
-        "FloatPointsFrame, timestamps: [ns3], values: \"1234567.891011\"",
-        "GroupFrame, tag_keys: region, partition_key_vals: us-west",
-        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,region=us-west,host=server01, type: 0",
-        "FloatPointsFrame, timestamps: [ns0, ns4], values: \"0.64,0.000003\""
-    ]);
-
-    let actual_group_frames = dump_data_frames(&frames);
-
-    assert_eq!(
-        expected_group_frames,
-        actual_group_frames,
-        "Expected:\n{}\nActual:\n{}",
-        expected_group_frames.join("\n"),
-        actual_group_frames.join("\n")
-    );
+    // Begin tests for read_group rpc call
+    load_read_group_data(&client2, org_id_str, bucket_id_str).await;
+    test_read_group_none_agg(&mut storage_client, &read_source).await;
+    test_read_group_none_agg_with_predicate(&mut storage_client, &read_source).await;
 
     let measurement_names_request = tonic::Request::new(MeasurementNamesRequest {
         source: read_source.clone(),
@@ -560,6 +521,155 @@ async fn test_read_window_aggregate(
     );
 }
 
+async fn load_read_group_data(client: &influxdb2_client::Client, org_id: &str, bucket_id: &str) {
+    let line_protocol = vec![
+        "cpu,cpu=cpu1,host=foo  usage_user=71.0,usage_system=10.0 1000",
+        "cpu,cpu=cpu1,host=foo  usage_user=72.0,usage_system=11.0 2000",
+        "cpu,cpu=cpu1,host=bar  usage_user=81.0,usage_system=20.0 1000",
+        "cpu,cpu=cpu1,host=bar  usage_user=82.0,usage_system=21.0 2000",
+        "cpu,cpu=cpu2,host=foo  usage_user=61.0,usage_system=30.0 1000",
+        "cpu,cpu=cpu2,host=foo  usage_user=62.0,usage_system=31.0 2000",
+        "cpu,cpu=cpu2,host=bar  usage_user=51.0,usage_system=40.0 1000",
+        "cpu,cpu=cpu2,host=bar  usage_user=52.0,usage_system=41.0 2000",
+    ]
+    .join("\n");
+
+    client
+        .write_line_protocol(org_id, bucket_id, line_protocol)
+        .await
+        .expect("Wrote cpu line protocol data");
+}
+
+// Standalone test for read_group with group keys and no aggregate
+// assumes that load_read_group_data has been previously run
+async fn test_read_group_none_agg(
+    storage_client: &mut StorageClient<tonic::transport::Channel>,
+    read_source: &std::option::Option<prost_types::Any>,
+) {
+    // read_group(group_keys: region, agg: None)
+    let read_group_request = tonic::Request::new(ReadGroupRequest {
+        read_source: read_source.clone(),
+        range: Some(TimestampRange {
+            start: 0,
+            end: 2001, // include all data
+        }),
+        predicate: None,
+        group_keys: vec![String::from("cpu")],
+        group: Group::By as i32,
+        aggregate: Some(Aggregate {
+            r#type: AggregateType::None as i32,
+        }),
+        hints: 0,
+    });
+    let read_group_response = storage_client
+        .read_group(read_group_request)
+        .await
+        .expect("successful read_group call");
+
+    let responses: Vec<_> = read_group_response
+        .into_inner()
+        .try_collect()
+        .await
+        .unwrap();
+
+    let frames: Vec<_> = responses
+        .into_iter()
+        .flat_map(|r| r.frames)
+        .flat_map(|f| f.data)
+        .collect();
+
+    let expected_group_frames = vec![
+        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu1",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"20,21\"",
+        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"81,82\"",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"10,11\"",
+        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"71,72\"",
+        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu2",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"40,41\"",
+        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"51,52\"",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"30,31\"",
+        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"61,62\"",
+    ];
+
+    let actual_group_frames = dump_data_frames(&frames);
+
+    assert_eq!(
+        expected_group_frames,
+        actual_group_frames,
+        "Expected:\n{}\nActual:\n{}",
+        expected_group_frames.join("\n"),
+        actual_group_frames.join("\n")
+    );
+}
+
+/// Test that predicates make it through
+async fn test_read_group_none_agg_with_predicate(
+    storage_client: &mut StorageClient<tonic::transport::Channel>,
+    read_source: &std::option::Option<prost_types::Any>,
+) {
+    let read_group_request = tonic::Request::new(ReadGroupRequest {
+        read_source: read_source.clone(),
+        range: Some(TimestampRange {
+            start: 0,
+            end: 2000, // do not include data at timestamp 2000
+        }),
+        predicate: Some(make_field_predicate("usage_system")),
+        group_keys: vec![String::from("cpu")],
+        group: Group::By as i32,
+        aggregate: Some(Aggregate {
+            r#type: AggregateType::None as i32,
+        }),
+        hints: 0,
+    });
+    let read_group_response = storage_client
+        .read_group(read_group_request)
+        .await
+        .expect("successful read_group call");
+
+    let responses: Vec<_> = read_group_response
+        .into_inner()
+        .try_collect()
+        .await
+        .unwrap();
+
+    let frames: Vec<_> = responses
+        .into_iter()
+        .flat_map(|r| r.frames)
+        .flat_map(|f| f.data)
+        .collect();
+
+    let expected_group_frames = vec![
+        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu1",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "FloatPointsFrame, timestamps: [1000], values: \"20\"",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
+        "FloatPointsFrame, timestamps: [1000], values: \"10\"",
+        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu2",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "FloatPointsFrame, timestamps: [1000], values: \"40\"",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
+        "FloatPointsFrame, timestamps: [1000], values: \"30\"",
+    ];
+
+    let actual_group_frames = dump_data_frames(&frames);
+
+    assert_eq!(
+        expected_group_frames,
+        actual_group_frames,
+        "Expected:\n{}\nActual:\n{}",
+        expected_group_frames.join("\n"),
+        actual_group_frames.join("\n")
+    );
+}
+
 /// Create a predicate representing tag_name=tag_value in the horrible gRPC structs
 fn make_tag_predicate(tag_name: impl Into<String>, tag_value: impl Into<String>) -> Predicate {
     Predicate {
@@ -575,6 +685,28 @@ fn make_tag_predicate(tag_name: impl Into<String>, tag_value: impl Into<String>)
                     node_type: NodeType::Literal as i32,
                     children: vec![],
                     value: Some(Value::StringValue(tag_value.into())),
+                },
+            ],
+            value: Some(Value::Comparison(Comparison::Equal as _)),
+        }),
+    }
+}
+
+/// Create a predicate representing _f=field_name in the horrible gRPC structs
+fn make_field_predicate(field_name: impl Into<String>) -> Predicate {
+    Predicate {
+        root: Some(Node {
+            node_type: NodeType::ComparisonExpression as i32,
+            children: vec![
+                Node {
+                    node_type: NodeType::TagRef as i32,
+                    children: vec![],
+                    value: Some(Value::TagRefValue([255].to_vec())),
+                },
+                Node {
+                    node_type: NodeType::Literal as i32,
+                    children: vec![],
+                    value: Some(Value::StringValue(field_name.into())),
                 },
             ],
             value: Some(Value::Comparison(Comparison::Equal as _)),
