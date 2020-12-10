@@ -139,8 +139,9 @@ impl Segment {
         &self.columns[*self.all_columns_by_name.get(name).unwrap()]
     }
 
-    // Returns a reference to a column's name and a column from the column name. The returned
-    // column name will have the lifetime of `self`, not the lifetime of the input.
+    // Takes a `ColumnName`, looks up that column in the `Segment`, and returns a reference to
+    // that column's name owned by the `Segment` along with a reference to the column itself.
+    // The returned column name will have the lifetime of `self`, not the lifetime of the input.
     fn column_name_and_column(&self, name: ColumnName<'_>) -> (&str, &Column) {
         let (column_name, column_index) = self.all_columns_by_name.get_key_value(name).unwrap();
         (column_name, &self.columns[*column_index])
