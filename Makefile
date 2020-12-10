@@ -171,10 +171,7 @@ bench:
 build: all
 
 pkg-config:
-	# FIXME: Use an unofficial release for now, to get the ARM preview out.
-	go get github.com/influxdata/pkg-config@dm-no-modify-cc
 	go build -o $(GOPATH)/bin/pkg-config github.com/influxdata/pkg-config
-	git checkout -- go.mod go.sum # avoid dirty git repository caused by go install
 
 # Parallelism for goreleaser must be set to 1 so it doesn't
 # attempt to invoke pkg-config, which invokes cargo,
