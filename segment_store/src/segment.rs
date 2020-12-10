@@ -139,6 +139,14 @@ impl Segment {
         &self.columns[*self.all_columns_by_name.get(name).unwrap()]
     }
 
+    // Takes a `ColumnName`, looks up that column in the `Segment`, and returns a reference to
+    // that column's name owned by the `Segment` along with a reference to the column itself.
+    // The returned column name will have the lifetime of `self`, not the lifetime of the input.
+    fn column_name_and_column(&self, name: ColumnName<'_>) -> (&str, &Column) {
+        let (column_name, column_index) = self.all_columns_by_name.get_key_value(name).unwrap();
+        (column_name, &self.columns[*column_index])
+    }
+
     // Returns a reference to the timestamp column.
     fn time_column(&self) -> &Column {
         &self.columns[self.time_column]
@@ -168,18 +176,18 @@ impl Segment {
     /// predicates.
     ///
     /// Right now, predicates are conjunctive (AND).
-    pub fn read_filter<'a>(
-        &'a self,
-        columns: &[ColumnName<'a>],
+    pub fn read_filter(
+        &self,
+        columns: &[ColumnName<'_>],
         predicates: &[Predicate<'_>],
     ) -> ReadFilterResult<'_> {
         let row_ids = self.row_ids_from_predicates(predicates);
         ReadFilterResult(self.materialise_rows(columns, row_ids))
     }
 
-    fn materialise_rows<'a>(
-        &'a self,
-        columns: &[ColumnName<'a>],
+    fn materialise_rows(
+        &self,
+        names: &[ColumnName<'_>],
         row_ids: RowIDsOption,
     ) -> Vec<(ColumnName<'_>, Values<'_>)> {
         let mut results = vec![];
@@ -189,8 +197,8 @@ impl Segment {
                 // TODO(edd): causes an allocation. Implement a way to pass a pooled
                 // buffer to the croaring Bitmap API.
                 let row_ids = row_ids.to_vec();
-                for &col_name in columns {
-                    let col = self.column_by_name(col_name);
+                for &name in names {
+                    let (col_name, col) = self.column_name_and_column(name);
                     results.push((col_name, col.values(row_ids.as_slice())));
                 }
                 results
@@ -202,8 +210,8 @@ impl Segment {
                 // materialise a vector of row ids.......
                 let row_ids = (0..self.rows()).collect::<Vec<_>>();
 
-                for &col_name in columns {
-                    let col = self.column_by_name(col_name);
+                for &name in names {
+                    let (col_name, col) = self.column_name_and_column(name);
                     results.push((col_name, col.values(row_ids.as_slice())));
                 }
                 results
@@ -265,10 +273,10 @@ impl Segment {
             predicates = Cow::Owned(filtered_predicates);
         }
 
-        for (col_name, (op, value)) in predicates.iter() {
+        for (name, (op, value)) in predicates.iter() {
             // N.B column should always exist because validation of
             // predicates should happen at the `Table` level.
-            let col = self.column_by_name(col_name);
+            let (col_name, col) = self.column_name_and_column(name);
 
             // Explanation of how this buffer pattern works. The idea is
             // that the buffer should be returned to the caller so it can be
@@ -331,12 +339,12 @@ impl Segment {
     /// them.
     ///
     /// Right now, predicates are conjunctive (AND).
-    pub fn read_group<'a>(
-        &'a self,
-        predicates: &[Predicate<'a>],
-        group_columns: &'a [ColumnName<'_>],
-        aggregates: &'a [(ColumnName<'_>, AggregateType)],
-    ) -> ReadGroupResult<'a> {
+    pub fn read_group(
+        &self,
+        predicates: &[Predicate<'_>],
+        group_columns: &[ColumnName<'_>],
+        aggregates: &[(ColumnName<'_>, AggregateType)],
+    ) -> ReadGroupResult<'_> {
         // Handle case where there are no predicates and all the columns being
         // grouped support constant-time expression of the row_ids belonging to
         // each grouped value.
@@ -357,20 +365,24 @@ impl Segment {
     //
     // In this case all the grouping columns pre-computed bitsets for each
     // distinct value.
-    fn read_group_all_rows_all_rle<'a>(
-        &'a self,
-        group_column_name: &'a [ColumnName<'_>],
-        aggregates: &'a [(ColumnName<'_>, AggregateType)],
-    ) -> ReadGroupResult<'a> {
-        let group_columns = group_column_name
+    fn read_group_all_rows_all_rle(
+        &self,
+        group_names: &[ColumnName<'_>],
+        aggregate_names_and_types: &[(ColumnName<'_>, AggregateType)],
+    ) -> ReadGroupResult<'_> {
+        let (group_column_names, group_columns): (Vec<_>, Vec<_>) = group_names
             .iter()
-            .map(|col_name| self.column_by_name(col_name))
-            .collect::<Vec<_>>();
+            .map(|name| self.column_name_and_column(name))
+            .unzip();
 
-        let aggregate_columns = aggregates
-            .iter()
-            .map(|(col_name, typ)| (self.column_by_name(col_name), typ))
-            .collect::<Vec<_>>();
+        let (aggregate_column_names_and_types, aggregate_columns): (Vec<_>, Vec<_>) =
+            aggregate_names_and_types
+                .iter()
+                .map(|(name, typ)| {
+                    let (column_name, col) = self.column_name_and_column(name);
+                    ((column_name, *typ), (col, *typ))
+                })
+                .unzip();
 
         let encoded_groups = group_columns
             .iter()
@@ -378,8 +390,8 @@ impl Segment {
             .collect::<Vec<_>>();
 
         let mut result = ReadGroupResult {
-            group_columns: group_column_name,
-            aggregate_columns: aggregates,
+            group_columns: group_column_names,
+            aggregate_columns: aggregate_column_names_and_types,
             ..ReadGroupResult::default()
         };
 
@@ -615,15 +627,15 @@ impl MetaData {
 
 /// Encapsulates results from segments with a structure that makes them easier
 /// to work with and display.
-pub struct ReadFilterResult<'a>(pub Vec<(ColumnName<'a>, Values<'a>)>);
+pub struct ReadFilterResult<'segment>(pub Vec<(ColumnName<'segment>, Values<'segment>)>);
 
-impl<'a> ReadFilterResult<'a> {
+impl ReadFilterResult<'_> {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 }
 
-impl<'a> std::fmt::Debug for &ReadFilterResult<'a> {
+impl std::fmt::Debug for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // header line.
         for (i, (k, _)) in self.0.iter().enumerate() {
@@ -640,7 +652,7 @@ impl<'a> std::fmt::Debug for &ReadFilterResult<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for &ReadFilterResult<'a> {
+impl std::fmt::Display for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());
@@ -676,20 +688,20 @@ impl<'a> std::fmt::Display for &ReadFilterResult<'a> {
 }
 
 #[derive(Default)]
-pub struct ReadGroupResult<'a> {
+pub struct ReadGroupResult<'segment> {
     // columns that are being grouped on.
-    group_columns: &'a [ColumnName<'a>],
+    group_columns: Vec<ColumnName<'segment>>,
 
     // columns that are being aggregated
-    aggregate_columns: &'a [(ColumnName<'a>, AggregateType)],
+    aggregate_columns: Vec<(ColumnName<'segment>, AggregateType)>,
 
     // row-wise collection of group keys. Each group key contains column-wise
     // values for each of the groupby_columns.
-    group_keys: Vec<GroupKey<'a>>,
+    group_keys: Vec<GroupKey<'segment>>,
 
     // row-wise collection of aggregates. Each aggregate contains column-wise
     // values for each of the aggregate_columns.
-    aggregates: Vec<Vec<AggregateResult<'a>>>,
+    aggregates: Vec<Vec<AggregateResult<'segment>>>,
 }
 
 impl ReadGroupResult<'_> {
@@ -703,10 +715,10 @@ impl ReadGroupResult<'_> {
     }
 }
 
-impl<'a> std::fmt::Debug for &ReadGroupResult<'a> {
+impl std::fmt::Debug for &ReadGroupResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // group column names
-        for k in self.group_columns {
+        for k in &self.group_columns {
             write!(f, "{},", k)?;
         }
 
@@ -725,7 +737,7 @@ impl<'a> std::fmt::Debug for &ReadGroupResult<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for &ReadGroupResult<'a> {
+impl std::fmt::Display for &ReadGroupResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());
@@ -1096,15 +1108,15 @@ west,POST,304,101,203
 
     #[test]
     fn read_group_result() {
-        let group_colums = vec!["region", "host"];
+        let group_columns = vec!["region", "host"];
         let aggregate_columns = vec![
             ("temp", AggregateType::Sum),
             ("voltage", AggregateType::Count),
         ];
 
         let result = ReadGroupResult {
-            group_columns: group_colums.as_slice(),
-            aggregate_columns: aggregate_columns.as_slice(),
+            group_columns,
+            aggregate_columns,
             group_keys: vec![
                 vec![Value::String("east"), Value::String("host-a")],
                 vec![Value::String("east"), Value::String("host-b")],
