@@ -86,6 +86,7 @@ var (
 
 	ErrUnderscoreMeasurement = errors.New("measurement name cannot start with '_'")
 	ErrUnderscoreTagKey      = errors.New("tag key name cannot start with '_'")
+	ErrUnderscoreFieldKey    = errors.New("field key name cannot start with '_'")
 )
 
 const (
@@ -441,10 +442,14 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 		return nil, ErrMissingFields
 	}
 
-	var maxKeyErr error
+	var validationErr error
 	err = walkFields(fields, func(k, v []byte) bool {
+		if k[0] == '_' {
+			validationErr = ErrUnderscoreFieldKey
+			return false
+		}
 		if sz := seriesKeySize(key, k); sz > MaxKeyLength {
-			maxKeyErr = fmt.Errorf("max key length exceeded: %v > %v", sz, MaxKeyLength)
+			validationErr = fmt.Errorf("max key length exceeded: %v > %v", sz, MaxKeyLength)
 			return false
 		}
 		return true
@@ -454,8 +459,8 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 		return nil, err
 	}
 
-	if maxKeyErr != nil {
-		return nil, maxKeyErr
+	if validationErr != nil {
+		return nil, validationErr
 	}
 
 	// scan the last block which is an optional integer timestamp

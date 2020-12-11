@@ -489,6 +489,22 @@ func TestParsePointNoFields(t *testing.T) {
 	}
 }
 
+func TestParsePointUnderscoreField(t *testing.T) {
+	expectedSuffix := models.ErrUnderscoreFieldKey.Error()
+	examples := []string{
+		"cpu _field1=123",
+		"cpu field1=123,_field2=T",
+	}
+	for i, example := range examples {
+		_, err := models.ParsePointsString(example)
+		if err == nil {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got nil, exp error`, i, example)
+		} else if !strings.HasSuffix(err.Error(), expectedSuffix) {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got %q, exp suffix %q`, i, example, err, expectedSuffix)
+		}
+	}
+}
+
 func TestParsePointNoTimestamp(t *testing.T) {
 	test(t, "cpu value=1", NewTestPoint("cpu", nil, models.Fields{"value": 1.0}, time.Unix(0, 0)))
 }
