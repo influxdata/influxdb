@@ -21,9 +21,10 @@ fn read_group(c: &mut Criterion) {
     read_group_pre_computed_groups(c, &segment, &mut rng);
 }
 
-// These benchmarks track the performance of read_group using the general approach
-// of building up a mapping of group keys. To avoid hitting the optimised no
-// predicate implementation we apply a time predicate that covers the segment.
+// These benchmarks track the performance of read_group using the general
+// approach of building up a mapping of group keys. To avoid hitting the
+// optimised no predicate implementation we apply a time predicate that covers
+// the segment.
 fn read_group_predicate_all_time(c: &mut Criterion, segment: &Segment, rng: &mut ThreadRng) {
     // This benchmark fixes the number of rows in the segment (500K), and varies
     // the cardinality of the group keys.

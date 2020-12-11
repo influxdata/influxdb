@@ -338,10 +338,10 @@ impl Segment {
         )
     }
 
-    /// Right now, predicates are treated conjunctive (AND) predicates. `read_group`
-    /// does not guarantee any sort order. Ordering of results should be handled
-    /// high up in the `Table` section of the segment store, where multiple
-    /// segment results may need to be merged.
+    /// Right now, predicates are treated as conjunctive (AND) predicates.
+    /// `read_group` does not guarantee any sort order. Ordering of results
+    /// should be handled high up in the `Table` section of the segment
+    /// store, where multiple segment results may need to be merged.
     pub fn read_group(
         &self,
         predicates: &[Predicate<'_>],
@@ -409,23 +409,27 @@ impl Segment {
         // materialise all *encoded* values for each column we are grouping on.
         // These will not be the logical (typically string) values, but will be
         // vectors of integers representing the physical values.
-        let mut groupby_encoded_ids = Vec::with_capacity(group_cols_num);
-        for name in &dst.group_columns {
-            let col = self.column_by_name(name);
-            let mut encoded_values_buf = EncodedValues::with_capacity_u32(col.num_rows() as usize);
+        let groupby_encoded_ids: Vec<_> = dst
+            .group_columns
+            .iter()
+            .map(|name| {
+                let col = self.column_by_name(name);
+                let mut encoded_values_buf =
+                    EncodedValues::with_capacity_u32(col.num_rows() as usize);
 
-            // do we want some rows for the column or all of them?
-            match &filter_row_ids {
-                Some(row_ids) => {
-                    encoded_values_buf = col.encoded_values(row_ids, encoded_values_buf);
+                // do we want some rows for the column or all of them?
+                match &filter_row_ids {
+                    Some(row_ids) => {
+                        encoded_values_buf = col.encoded_values(row_ids, encoded_values_buf);
+                    }
+                    None => {
+                        // None implies "no partial set of row ids" meaning get all of them.
+                        encoded_values_buf = col.all_encoded_values(encoded_values_buf);
+                    }
                 }
-                None => {
-                    // None implies "no partial set of row ids" meaning get all of them.
-                    encoded_values_buf = col.all_encoded_values(encoded_values_buf);
-                }
-            }
-            groupby_encoded_ids.push(encoded_values_buf);
-        }
+                encoded_values_buf
+            })
+            .collect();
 
         // Materialise decoded values in aggregate columns.
         let mut aggregate_columns_data = Vec::with_capacity(agg_cols_num);
@@ -452,8 +456,7 @@ impl Segment {
 
         // key_buf will be used as a temporary buffer for group keys, which are
         // themselves integers.
-        let mut key_buf = Vec::with_capacity(group_cols_num);
-        key_buf.resize(key_buf.capacity(), 0);
+        let mut key_buf = vec![0; group_cols_num];
 
         for row in 0..groupby_encoded_ids[0].len() {
             // update the group key buffer with the group key for this row
@@ -693,8 +696,8 @@ impl Eq for GroupKey<'_> {}
 //    [foo, zoo, zoo],
 //
 // Be careful sorting group keys in result sets, because other columns
-// associated with the group keys won't be sorted unless the correct `sort` methods
-// are used on the result set implementations.
+// associated with the group keys won't be sorted unless the correct `sort`
+// methods are used on the result set implementations.
 impl Ord for GroupKey<'_> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // two group keys must have same length
@@ -905,7 +908,7 @@ impl ReadGroupResult<'_> {
     }
 
     /// Executes a mutable sort of the rows in the result set based on the
-    /// lexicographic order each group key column. This is useful for testing
+    /// lexicographic order of each group key column. This is useful for testing
     /// because it allows you to compare `read_group` results.
     pub fn sort(&mut self) {
         // The permutation crate lets you execute a sort on anything implements
@@ -969,8 +972,8 @@ impl std::fmt::Display for &ReadGroupResult<'_> {
     }
 }
 
-/// helper function useful for tests and benchmarks. Creates a time-range predicate
-/// in the domain `[from, to)`.
+/// helper function useful for tests and benchmarks. Creates a time-range
+/// predicate in the domain `[from, to)`.
 pub fn build_predicates_with_time(
     from: i64,
     to: i64,
@@ -1204,7 +1207,7 @@ west,4
     fn read_group_hash(segment: &Segment) {
         let cases = vec![
             (
-                build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
+                build_predicates_with_time(0, 7, vec![]), // all time but without explicit pred
                 vec!["region", "method"],
                 vec![("counter", AggregateType::Sum)],
                 "region,method,counter_sum
@@ -1216,7 +1219,7 @@ west,POST,304
 ",
             ),
             (
-                build_predicates_with_time(2, 6, vec![]), // all time but with explicit pred
+                build_predicates_with_time(2, 6, vec![]), // all time but without explicit pred
                 vec!["env", "region"],
                 vec![
                     ("counter", AggregateType::Sum),
