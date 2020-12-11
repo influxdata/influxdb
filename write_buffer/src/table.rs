@@ -1145,7 +1145,6 @@ impl IntoExpr for Expr {
 mod tests {
 
     use arrow::util::pretty::pretty_format_batches;
-    use arrow_deps::datafusion::logical_plan::Operator;
     use data_types::data::split_lines_into_write_entry_partitions;
     use influxdb_line_protocol::{parse_lines, ParsedLine};
     use query::{exec::Executor, predicate::PredicateBuilder};
@@ -1495,7 +1494,8 @@ mod tests {
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
         let predicate = PredicateBuilder::default()
-            .add_expr(or(col("city").eq(lit("Boston")), col("city").eq(lit("LA"))))
+            // city=Boston or city=LA
+            .add_expr(col("city").eq(lit("Boston")).or(col("city").eq(lit("LA"))))
             .timestamp_range(100, 450)
             .build();
         let partition_predicate = partition.compile_predicate(&predicate).unwrap();
@@ -1743,14 +1743,5 @@ mod tests {
 
     fn partition_key_func(_: &ParsedLine<'_>) -> String {
         String::from("the_partition_key")
-    }
-
-    /// return a new expression with a logical OR
-    fn or(left: Expr, right: Expr) -> Expr {
-        Expr::BinaryExpr {
-            left: Box::new(left),
-            op: Operator::Or,
-            right: Box::new(right),
-        }
     }
 }
