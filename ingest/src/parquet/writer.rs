@@ -385,7 +385,8 @@ fn create_writer_props(
 
     // TODO: Maybe tweak more of these settings for maximum performance.
 
-    // start off with GZIP for maximum compression ratio (at expense of CPU performance...)
+    // start off with GZIP for maximum compression ratio (at expense of CPU
+    // performance...)
     builder = builder.set_compression(Compression::GZIP);
 
     // Setup encoding as defined in
@@ -446,8 +447,8 @@ fn create_writer_props(
         };
     }
 
-    // Even though the 'set_statistics_enabled()' method is called here, the resulting
-    // parquet file does not appear to have statistics enabled.
+    // Even though the 'set_statistics_enabled()' method is called here, the
+    // resulting parquet file does not appear to have statistics enabled.
     //
     // This is due to the fact that the underlying rust parquet
     // library does not support statistics generation at this time.
@@ -462,7 +463,8 @@ fn create_writer_props(
 mod tests {
     use super::*;
 
-    // Collapses multiple spaces into a single space, and removes trailing whitespace
+    // Collapses multiple spaces into a single space, and removes trailing
+    // whitespace
     fn normalize_spaces(s: &str) -> String {
         // previous non space, if any
         let mut prev: Option<char> = None;

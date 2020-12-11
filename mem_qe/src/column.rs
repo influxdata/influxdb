@@ -240,29 +240,30 @@ pub enum AggregateType {
 //         match self {
 //             Self::Count(self_count) => match _rhs {
 //                 Some(other_scalar) => match other_scalar {
-//                     Scalar::String(_) => panic!("todo - remove String scalar"),
-//                     Scalar::Float(_) => panic!("cannot add floating point value to a count"),
-//                     Scalar::Integer(v) => Self::Count(self_count + *v as u64),
-//                     Scalar::Unsigned32(v) => Self::Count(self_count + *v as u64),
-//                 },
-//                 None => self,
+//                     Scalar::String(_) => panic!("todo - remove String
+// scalar"),                     Scalar::Float(_) => panic!("cannot add floating
+// point value to a count"),                     Scalar::Integer(v) =>
+// Self::Count(self_count + *v as u64),
+// Scalar::Unsigned32(v) => Self::Count(self_count + *v as u64),
+// },                 None => self,
 //             },
-//             // SUM ignores NULL values. Initially an aggregate sum is `None`, but
-//             // as soon as a non-null value is shown then it becomes `Some`.
-//             Self::Sum(self_sum) => match (self_sum, _rhs) {
+//             // SUM ignores NULL values. Initially an aggregate sum is `None`,
+// but             // as soon as a non-null value is shown then it becomes
+// `Some`.             Self::Sum(self_sum) => match (self_sum, _rhs) {
 //                 (None, None) => Self::Sum(None),
 //                 (None, Some(other_scalar)) => match other_scalar {
-//                     Scalar::String(_) => panic!("todo - remove String scalar"),
-//                     Scalar::Float(_) => Self::Sum(Some(other_scalar.clone())),
-//                     Scalar::Integer(_) => Self::Sum(Some(other_scalar.clone())),
-//                     Scalar::Unsigned32(_) => Self::Sum(Some(other_scalar.clone())),
-//                 },
-//                 (Some(_self), None) => Self::Sum(Some(_self.clone())),
-//                 (Some(self_scalar), Some(other_scalar)) => match other_scalar {
-//                     Scalar::String(_) => panic!("todo - remove String scalar"),
-//                     Scalar::Float(_) => Self::Sum(Some(self_scalar + &other_scalar)),
-//                     Scalar::Integer(_) => Self::Sum(Some(self_scalar + &other_scalar)),
-//                     Scalar::Unsigned32(_) => Self::Sum(Some(self_scalar + &other_scalar)),
+//                     Scalar::String(_) => panic!("todo - remove String
+// scalar"),                     Scalar::Float(_) =>
+// Self::Sum(Some(other_scalar.clone())),                     Scalar::Integer(_)
+// => Self::Sum(Some(other_scalar.clone())),
+// Scalar::Unsigned32(_) => Self::Sum(Some(other_scalar.clone())),
+// },                 (Some(_self), None) => Self::Sum(Some(_self.clone())),
+//                 (Some(self_scalar), Some(other_scalar)) => match other_scalar
+// {                     Scalar::String(_) => panic!("todo - remove String
+// scalar"),                     Scalar::Float(_) => Self::Sum(Some(self_scalar
+// + &other_scalar)),                     Scalar::Integer(_) =>
+// Self::Sum(Some(self_scalar + &other_scalar)),
+// Scalar::Unsigned32(_) => Self::Sum(Some(self_scalar + &other_scalar)),
 //                 },
 //             },
 //         }
@@ -281,9 +282,9 @@ pub enum AggregateType {
 //                     panic!("can't combine count with other aggregate type");
 //                 }
 //             }
-//             // SUM ignores NULL values. Initially an aggregate sum is `None`, but
-//             // as soon as a non-null value is shown then it becomes `Some`.
-//             Self::Sum(self_sum) => {
+//             // SUM ignores NULL values. Initially an aggregate sum is `None`,
+// but             // as soon as a non-null value is shown then it becomes
+// `Some`.             Self::Sum(self_sum) => {
 //                 if let Self::Sum(other) = _rhs {
 //                     match (self_sum, other) {
 //                         (None, None) => Self::Sum(None),
@@ -317,15 +318,15 @@ pub enum Vector {
     Float(Vec<f64>),
     Integer(Vec<i64>),
     Unsigned32(Vec<u32>),
-    // TODO(edd): add types like this:
-    //
-    // Integer16(Vec<i16>),
-    // NullInteger16(Vec<Option<i16>>), // contains one or more NULL values
-    // ...
-    // ...
-    //
-    // We won't need EncodedString then (it can use one of the non-null integer variants)
-    //
+    /* TODO(edd): add types like this:
+     *
+     * Integer16(Vec<i16>),
+     * NullInteger16(Vec<Option<i16>>), // contains one or more NULL values
+     * ...
+     * ...
+     *
+     * We won't need EncodedString then (it can use one of the non-null integer variants)
+     */
 }
 
 impl Vector {
@@ -446,13 +447,16 @@ impl Vector {
                 count as u64
             }
             Self::Float(_) => {
-                (to_row_id - from_row_id) as u64 // fast - no possible NULL values
+                (to_row_id - from_row_id) as u64 // fast - no possible NULL
+                                                 // values
             }
             Self::Integer(_) => {
-                (to_row_id - from_row_id) as u64 // fast - no possible NULL values
+                (to_row_id - from_row_id) as u64 // fast - no possible NULL
+                                                 // values
             }
             Self::Unsigned32(_) => {
-                (to_row_id - from_row_id) as u64 // fast - no possible NULL values
+                (to_row_id - from_row_id) as u64 // fast - no possible NULL
+                                                 // values
             }
         }
     }
@@ -927,8 +931,8 @@ impl Column {
     /// Given an encoded value for a row, materialise and return the decoded
     /// version.
     ///
-    /// This currently just supports decoding integer scalars back into dictionary
-    /// strings.
+    /// This currently just supports decoding integer scalars back into
+    /// dictionary strings.
     pub fn decode_value(&self, encoded_id: i64) -> std::string::String {
         match self {
             Column::String(c) => {
@@ -1032,7 +1036,8 @@ impl Column {
         }
     }
 
-    // TODO(edd): consolodate with max_less_than... Should just be single cmp function
+    // TODO(edd): consolodate with max_less_than... Should just be single cmp
+    // function
     pub fn min_greater_than(&self, value: &Value<'_>) -> bool {
         match self {
             Column::String(c) => {
@@ -1505,12 +1510,12 @@ impl std::fmt::Display for String {
 //         self.data.sum_by_ids(row_ids)
 //     }
 
-//     pub fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> f64 {
-//         self.data.sum_by_id_range(from_row_id, to_row_id)
+//     pub fn sum_by_id_range(&self, from_row_id: usize, to_row_id: usize) ->
+// f64 {         self.data.sum_by_id_range(from_row_id, to_row_id)
 //     }
 
-//     pub fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) -> usize {
-//         self.data.count_by_id_range(from_row_id, to_row_id)
+//     pub fn count_by_id_range(&self, from_row_id: usize, to_row_id: usize) ->
+// usize {         self.data.count_by_id_range(from_row_id, to_row_id)
 //     }
 // }
 
@@ -1540,8 +1545,9 @@ impl std::fmt::Display for String {
 // }
 
 // use arrow::array::Array;
-// impl From<arrow::array::PrimitiveArray<arrow::datatypes::Float64Type>> for Float {
-//     fn from(arr: arrow::array::PrimitiveArray<arrow::datatypes::Float64Type>) -> Self {
+// impl From<arrow::array::PrimitiveArray<arrow::datatypes::Float64Type>> for
+// Float {     fn from(arr:
+// arrow::array::PrimitiveArray<arrow::datatypes::Float64Type>) -> Self {
 //         let len = arr.len();
 //         let mut min = std::f64::MAX;
 //         let mut max = std::f64::MIN;
@@ -1933,7 +1939,8 @@ pub mod metadata {
             size_of::<usize>() + (2 * size_of::<Option<String>>())
 
             //
-            //  TODO: figure out a way to specify that T must be able to describe its runtime size.
+            //  TODO: figure out a way to specify that T must be able to
+            // describe its runtime size.
             //
             // match &self.range {
             //     (None, None) => base_size,
@@ -1970,8 +1977,8 @@ pub mod metadata {
     //         }
     //     }
 
-    //     pub fn add_repeated(&mut self, s: Option<String>, additional: usize) {
-    //         self.num_rows += additional;
+    //     pub fn add_repeated(&mut self, s: Option<String>, additional: usize)
+    // {         self.num_rows += additional;
 
     //         if s < self.range.0 {
     //             self.range.0 = s.clone();
@@ -1996,8 +2003,8 @@ pub mod metadata {
 
     //     pub fn size(&self) -> usize {
     //         // size of types for num_rows and range
-    //         let base_size = size_of::<usize>() + (2 * size_of::<Option<String>>());
-    //         match &self.range {
+    //         let base_size = size_of::<usize>() + (2 *
+    // size_of::<Option<String>>());         match &self.range {
     //             (None, None) => base_size,
     //             (Some(min), None) => base_size + min.len(),
     //             (None, Some(max)) => base_size + max.len(),

@@ -1,5 +1,5 @@
-//! This module contains code for snapshotting a database partition to Parquet files in object
-//! storage.
+//! This module contains code for snapshotting a database partition to Parquet
+//! files in object storage.
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
     parquet::{self, arrow::ArrowWriter, file::writer::TryClone},
@@ -281,7 +281,8 @@ struct MemWriter {
 }
 
 impl MemWriter {
-    /// Returns the inner buffer as long as there are no other references to the Arc.
+    /// Returns the inner buffer as long as there are no other references to the
+    /// Arc.
     pub fn into_inner(self) -> Option<Vec<u8>> {
         Arc::try_unwrap(self.mem)
             .ok()

@@ -20,8 +20,8 @@ pub enum OrgBucketMappingError {
 /// Map an InfluxDB 2.X org & bucket into an IOx DatabaseName.
 ///
 /// This function ensures the mapping is unambiguous by requiring both `org` and
-/// `bucket` to not contain the `_` character in addition to the [`DatabaseName`]
-/// validation.
+/// `bucket` to not contain the `_` character in addition to the
+/// [`DatabaseName`] validation.
 pub(crate) fn org_and_bucket_to_database<'a, O: AsRef<str>, B: AsRef<str>>(
     org: O,
     bucket: B,

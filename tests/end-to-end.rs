@@ -1,12 +1,14 @@
-// The test in this file runs the server in a separate thread and makes HTTP requests as a smoke
-// test for the integration of the whole system.
+// The test in this file runs the server in a separate thread and makes HTTP
+// requests as a smoke test for the integration of the whole system.
 //
-// As written, only one test of this style can run at a time. Add more data to the existing test to
-// test more scenarios rather than adding more tests in the same style.
+// As written, only one test of this style can run at a time. Add more data to
+// the existing test to test more scenarios rather than adding more tests in the
+// same style.
 //
 // Or, change the way this test behaves to create isolated instances by:
 //
-// - Finding an unused port for the server to run on and using that port in the URL
+// - Finding an unused port for the server to run on and using that port in the
+//   URL
 // - Creating a temporary directory for an isolated database path
 //
 // Or, change the tests to use one server and isolate through `org_id` by:
@@ -105,8 +107,8 @@ async fn read_and_write_data() -> Result<()> {
         .try_into()
         .expect("Unable to represent system time");
 
-    // TODO: make a more extensible way to manage data for tests, such as in external fixture
-    // files or with factories.
+    // TODO: make a more extensible way to manage data for tests, such as in
+    // external fixture files or with factories.
     let points = vec![
         influxdb2_client::DataPoint::builder("cpu_load_short")
             .tag("host", "server01")
@@ -189,7 +191,8 @@ async fn read_and_write_data() -> Result<()> {
         text, expected_read_data
     );
 
-    // Make an invalid organization WAL dir to test that the server ignores it instead of crashing
+    // Make an invalid organization WAL dir to test that the server ignores it
+    // instead of crashing
     let invalid_org_dir = server.dir.path().join("not-an-org-id");
     fs::create_dir(invalid_org_dir)?;
 
@@ -670,7 +673,8 @@ async fn test_read_group_none_agg_with_predicate(
     );
 }
 
-/// Create a predicate representing tag_name=tag_value in the horrible gRPC structs
+/// Create a predicate representing tag_name=tag_value in the horrible gRPC
+/// structs
 fn make_tag_predicate(tag_name: impl Into<String>, tag_value: impl Into<String>) -> Predicate {
     Predicate {
         root: Some(Node {

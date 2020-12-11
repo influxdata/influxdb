@@ -10,11 +10,13 @@ use helpers::Result;
 fn total_size() -> Result {
     let dir = test_helpers::tmp_dir()?;
 
-    // Set the file rollover size limit low to test how rollover interacts with total size
+    // Set the file rollover size limit low to test how rollover interacts with
+    // total size
     let builder = WalBuilder::new(dir.as_ref()).file_rollover_size(100);
     let mut wal = builder.clone().wal()?;
 
-    // Should start without existing WAL files; this implies total file size on disk is 0
+    // Should start without existing WAL files; this implies total file size on disk
+    // is 0
     let wal_files = helpers::wal_file_names(&dir.as_ref());
     assert!(wal_files.is_empty());
 
@@ -32,8 +34,8 @@ fn total_size() -> Result {
     // Total size should be that of all the files
     assert_eq!(wal.total_size(), helpers::total_size_on_disk(&dir.as_ref()));
 
-    // Write one WAL entry, and because the existing file is over the size limit, this entry
-    // should end up in a new WAL file
+    // Write one WAL entry, and because the existing file is over the size limit,
+    // this entry should end up in a new WAL file
     create_and_sync_batch!(
         wal,
         ["some more data, this should now be rolled over into the next WAL file"]
@@ -54,7 +56,8 @@ fn total_size() -> Result {
     // Pretend the process restarts
     let wal = builder.wal()?;
 
-    // Total size should be that of all the files, so without the file deleted out-of-band
+    // Total size should be that of all the files, so without the file deleted
+    // out-of-band
     assert_eq!(wal.total_size(), helpers::total_size_on_disk(&dir.as_ref()));
 
     Ok(())

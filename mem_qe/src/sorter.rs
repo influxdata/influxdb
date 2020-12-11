@@ -13,7 +13,6 @@
 //! sorted.
 //!
 //! Secondly, the sort produced using this partitioning scheme is not stable.
-//!
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::ops::Range;

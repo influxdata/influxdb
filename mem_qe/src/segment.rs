@@ -183,8 +183,9 @@ impl Segment {
         column_sizes
     }
 
-    // pub fn scan_column_from(&self, column_name: &str, row_id: usize) -> Option<column::Vector> {
-    //     if let Some(i) = self.column_names().iter().position(|c| c == column_name) {
+    // pub fn scan_column_from(&self, column_name: &str, row_id: usize) ->
+    // Option<column::Vector> {     if let Some(i) =
+    // self.column_names().iter().position(|c| c == column_name) {
     //         return self.columns[i].scan_from(row_id);
     //     }
     //     None
@@ -341,8 +342,9 @@ impl Segment {
             }
         }
 
-        // now we have all the matching rows for each grouping column and each aggregation
-        // column. Materialised values for grouping are in encoded form.
+        // now we have all the matching rows for each grouping column and each
+        // aggregation column. Materialised values for grouping are in encoded
+        // form.
         //
         // Next we iterate all rows in all columns and create a hash entry with
         // running aggregates.
@@ -395,7 +397,8 @@ impl Segment {
                             "something broken with grouping! Either processed None or wrong type"
                         );
                     }
-                // The double Some is ok because encoded values are always non-null
+                // The double Some is ok because encoded values are always
+                // non-null
                 } else if let Some(Some(column::Scalar::Unsigned32(v))) = itr.next() {
                     group_key[i] = v as i64
                 } else {
@@ -719,7 +722,8 @@ impl Segment {
                             "something broken with grouping! Either processed None or wrong type"
                         );
                     }
-                // the double some should be ok as encoded values can never be None
+                // the double some should be ok as encoded values can never be
+                // None
                 } else if let Some(Some(column::Scalar::Unsigned32(v))) = itr.next() {
                     v as i64
                 } else {
@@ -892,8 +896,8 @@ impl Segment {
         Some(bm)
     }
 
-    // in this case the complete time range of segment covered so no need to intersect
-    // on time.
+    // in this case the complete time range of segment covered so no need to
+    // intersect on time.
     //
     // We return an &Option here because we don't want to move the read-only
     // meta row_ids bitmap.
@@ -1179,9 +1183,9 @@ pub struct SegmentMetaData {
 
     column_names: Vec<String>,
     time_range: (i64, i64),
-    // row_ids is a bitmap containing all row ids.
-    // row_ids: croaring::Bitmap,
-    // TODO column sort order
+    /* row_ids is a bitmap containing all row ids.
+     * row_ids: croaring::Bitmap,
+     * TODO column sort order */
 }
 
 impl SegmentMetaData {
@@ -1594,10 +1598,11 @@ impl<'a> Segments<'a> {
 
     /// Returns the first value for a column in a set of segments.
     ///
-    /// The first value is based on the time column, therefore the returned value
-    /// may not be at the end of the column.
+    /// The first value is based on the time column, therefore the returned
+    /// value may not be at the end of the column.
     ///
-    /// If the time column has multiple max time values then the result is abitrary.
+    /// If the time column has multiple max time values then the result is
+    /// abitrary.
     ///
     /// TODO(edd): could return NULL value..
     pub fn first(&self, column_name: &str) -> Option<(i64, column::Value<'_>, usize)> {
@@ -1629,7 +1634,8 @@ impl<'a> Segments<'a> {
     /// The last value is based on the time column, therefore the returned value
     /// may not be at the end of the column.
     ///
-    /// If the time column has multiple max time values then the result is undefined.
+    /// If the time column has multiple max time values then the result is
+    /// undefined.
     ///
     /// TODO(edd): could return NULL value..
     pub fn last(&self, column_name: &str) -> Option<(i64, column::Value<'_>, usize)> {
@@ -1656,8 +1662,8 @@ impl<'a> Segments<'a> {
         }
     }
 
-    /// Returns the distinct set of tag keys (column names) matching the provided
-    /// predicates and time range.
+    /// Returns the distinct set of tag keys (column names) matching the
+    /// provided predicates and time range.
     pub fn tag_keys(
         &self,
         time_range: (i64, i64),
@@ -1779,7 +1785,8 @@ mod test {
             (vec!["env", "role", "foo"], false), // group key contains non-sorted col
             (vec!["env", "role", "time"], false), // time may be out of order due to path column
             (vec!["env", "role", "path", "time"], true),
-            (vec!["env", "role", "path", "time", "foo"], false), // group key contains non-sorted col
+            (vec!["env", "role", "path", "time", "foo"], false), /* group key contains
+                                                                  * non-sorted col */
             (vec!["env", "path", "role"], true), // order of columns in group key does not matter
         ];
 

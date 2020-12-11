@@ -1,16 +1,16 @@
 use integer_encoding::VarInt;
 use std::{convert::TryInto, error::Error};
 
-/// A compressed encoding using Snappy compression. Snappy is the only available string compression
-/// format at this time.
+/// A compressed encoding using Snappy compression. Snappy is the only available
+/// string compression format at this time.
 const STRING_COMPRESSED_SNAPPY: u8 = 1;
 /// The header consists of one byte indicating the compression type.
 const HEADER_LEN: usize = 1;
 /// Store `i32::MAX` as a `usize` for comparing with lengths in assertions
 const MAX_I32: usize = i32::MAX as usize;
 
-/// Encodes a slice of byte slices representing string data into a vector of bytes. Currently uses
-/// Snappy compression.
+/// Encodes a slice of byte slices representing string data into a vector of
+/// bytes. Currently uses Snappy compression.
 pub fn encode(src: &[&[u8]], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.clear(); // reset buffer
     if src.is_empty() {
@@ -69,8 +69,9 @@ pub fn encode(src: &[&[u8]], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Decodes a slice of bytes representing Snappy-compressed data into a vector of vectors of bytes
-/// representing string data, which may or may not be valid UTF-8.
+/// Decodes a slice of bytes representing Snappy-compressed data into a vector
+/// of vectors of bytes representing string data, which may or may not be valid
+/// UTF-8.
 pub fn decode(src: &[u8], dst: &mut Vec<Vec<u8>>) -> Result<(), Box<dyn Error>> {
     if src.is_empty() {
         return Ok(());

@@ -21,16 +21,17 @@ fn delete_up_to() -> Result {
         ]
     );
 
-    // Write one WAL entry, and because the existing file is over the size limit, this entry
-    // should end up in a new WAL file
+    // Write one WAL entry, and because the existing file is over the size limit,
+    // this entry should end up in a new WAL file
     create_and_sync_batch!(
         wal,
         ["some more data, this should now be rolled over into the next WAL file"]
     );
 
-    // Write two WAL entries, one that could fit in the existing file but puts the file over the
-    // limit. Because the two entries are in one sync batch, they both will end up in the existing
-    // file even though it's over the limit after the first entry.
+    // Write two WAL entries, one that could fit in the existing file but puts the
+    // file over the limit. Because the two entries are in one sync batch, they
+    // both will end up in the existing file even though it's over the limit
+    // after the first entry.
     create_and_sync_batch!(
         wal,
         [
@@ -76,8 +77,8 @@ fn delete_up_to() -> Result {
     let wal_entries = all_entries(&builder)?;
     assert_eq!(4, wal_entries.len());
 
-    // 2 is still readable, because we asked to delete it but couldn't because it was in a file
-    // with 3.
+    // 2 is still readable, because we asked to delete it but couldn't because it
+    // was in a file with 3.
     assert_entry!(
         wal_entries[0],
         2,

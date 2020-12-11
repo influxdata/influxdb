@@ -63,9 +63,9 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// `Server` is the container struct for how servers store data internally, as well as how they
-/// communicate with other servers. Each server will have one of these structs, which keeps track
-/// of all replication and query rules.
+/// `Server` is the container struct for how servers store data internally, as
+/// well as how they communicate with other servers. Each server will have one
+/// of these structs, which keeps track of all replication and query rules.
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
     config: Config,
@@ -90,7 +90,8 @@ impl<M: ConnectionManager> Server<M> {
         }
     }
 
-    /// sets the id of the server, which is used for replication and the base path in object storage
+    /// sets the id of the server, which is used for replication and the base
+    /// path in object storage
     pub fn set_id(&mut self, id: u32) {
         self.config.id = Some(id);
     }
@@ -99,8 +100,8 @@ impl<M: ConnectionManager> Server<M> {
         self.config.id.context(IdNotSet)
     }
 
-    /// Tells the server the set of rules for a database. Currently, this is not persisted and
-    /// is for in-memory processing rules only.
+    /// Tells the server the set of rules for a database. Currently, this is not
+    /// persisted and is for in-memory processing rules only.
     pub async fn create_database(
         &mut self,
         db_name: impl Into<String>,
@@ -130,9 +131,9 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    /// Creates a host group with a set of connection strings to hosts. These host connection
-    /// strings should be something that the connection manager can use to return a remote server
-    /// to work with.
+    /// Creates a host group with a set of connection strings to hosts. These
+    /// host connection strings should be something that the connection
+    /// manager can use to return a remote server to work with.
     pub async fn create_host_group(&mut self, id: HostGroupId, hosts: Vec<String>) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
@@ -144,8 +145,9 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    /// Saves the configuration of database rules and host groups to a single JSON file in
-    /// the configured store under a directory /<writer ID/config.json
+    /// Saves the configuration of database rules and host groups to a single
+    /// JSON file in the configured store under a directory /<writer
+    /// ID/config.json
     pub async fn store_configuration(&self) -> Result<()> {
         let id = self.require_id()?;
 
@@ -166,8 +168,8 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    /// Loads the configuration for this server from the configured store. This replaces
-    /// any in-memory configuration that might already be set.
+    /// Loads the configuration for this server from the configured store. This
+    /// replaces any in-memory configuration that might already be set.
     pub async fn load_configuration(&mut self, id: u32) -> Result<()> {
         let location = config_location(id);
 
@@ -187,9 +189,10 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    /// `write_lines` takes in raw line protocol and converts it to a `ReplicatedWrite`, which
-    /// is then replicated to other servers based on the configuration of the `db`.
-    /// This is step #1 from the crate level documentation.
+    /// `write_lines` takes in raw line protocol and converts it to a
+    /// `ReplicatedWrite`, which is then replicated to other servers based
+    /// on the configuration of the `db`. This is step #1 from the crate
+    /// level documentation.
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
         let id = self.require_id()?;
 
@@ -260,9 +263,9 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    // replicates to a single host in the group based on hashing rules. If that host is unavailable
-    // an error will be returned. The request may still succeed if enough of the other host groups
-    // have returned a success.
+    // replicates to a single host in the group based on hashing rules. If that host
+    // is unavailable an error will be returned. The request may still succeed
+    // if enough of the other host groups have returned a success.
     async fn replicate_to_host_group(
         &self,
         host_group_id: &str,
@@ -275,8 +278,8 @@ impl<M: ConnectionManager> Server<M> {
             .get(host_group_id)
             .context(HostGroupNotFound { id: host_group_id })?;
 
-        // TODO: handle hashing rules to determine which host in the group should get the write.
-        //       for now, just write to the first one.
+        // TODO: handle hashing rules to determine which host in the group should get
+        // the write.       for now, just write to the first one.
         let host = group
             .hosts
             .get(0)
@@ -299,9 +302,9 @@ impl<M: ConnectionManager> Server<M> {
     }
 }
 
-/// The `Server` will ask the `ConnectionManager` for connections to a specific remote server.
-/// These connections can be used to communicate with other servers.
-/// This is implemented as a trait for dependency injection in testing.
+/// The `Server` will ask the `ConnectionManager` for connections to a specific
+/// remote server. These connections can be used to communicate with other
+/// servers. This is implemented as a trait for dependency injection in testing.
 #[async_trait]
 pub trait ConnectionManager {
     type Error: std::error::Error + Send + Sync + 'static;
@@ -311,12 +314,14 @@ pub trait ConnectionManager {
     async fn remote_server(&self, connect: &str) -> Result<Arc<Self::RemoteServer>, Self::Error>;
 }
 
-/// The `RemoteServer` represents the API for replicating, subscribing, and querying other servers.
+/// The `RemoteServer` represents the API for replicating, subscribing, and
+/// querying other servers.
 #[async_trait]
 pub trait RemoteServer {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// Sends a replicated write to a remote server. This is step #2 from the diagram.
+    /// Sends a replicated write to a remote server. This is step #2 from the
+    /// diagram.
     async fn replicate(
         &self,
         db: &str,

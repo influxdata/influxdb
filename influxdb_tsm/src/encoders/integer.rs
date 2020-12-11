@@ -97,8 +97,8 @@ fn i64_to_u64_vector(src: &[i64]) -> Vec<u64> {
 // encode_rle encodes the value v, delta and count into dst.
 //
 // v should be the first element of a sequence, delta the difference that each
-// value in the sequence differs by, and count the number of times that the delta
-// is repeated.
+// value in the sequence differs by, and count the number of times that the
+// delta is repeated.
 fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
     use super::MAX_VAR_INT_64;
     dst.push(0); // save a byte for encoding type

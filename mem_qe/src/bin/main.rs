@@ -162,7 +162,8 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
 
                 // TODO(edd): figure out how to get ownership here without
                 // cloning
-                // let arr: array::Float64Array = arrow::array::PrimitiveArray::from(column.data());
+                // let arr: array::Float64Array =
+                // arrow::array::PrimitiveArray::from(column.data());
                 // let column = Column::from(arr);
                 // segment.add_column(rb.schema().field(i).name(), column);
             }
@@ -176,7 +177,8 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
 
                 // TODO(edd): figure out how to get ownership here without
                 // cloning
-                // let arr: array::Int64Array = arrow::array::PrimitiveArray::from(column.data());
+                // let arr: array::Int64Array =
+                // arrow::array::PrimitiveArray::from(column.data());
                 // let column = Column::from(arr);
                 // segment.add_column(rb.schema().field(i).name(), column);
             }
@@ -628,7 +630,8 @@ fn time_tag_keys_with_pred(store: &Store) {
 }
 
 //
-// SHOW TAG VALUES ON "host", "method" WHERE time >= x and time < y AND "env" = 'prod01-us-west-1'
+// SHOW TAG VALUES ON "host", "method" WHERE time >= x and time < y AND "env" =
+// 'prod01-us-west-1'
 fn time_tag_values_with_pred(store: &Store) {
     let repeat = 10;
     let mut total_time: std::time::Duration = std::time::Duration::new(0, 0);

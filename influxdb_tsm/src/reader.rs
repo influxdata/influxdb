@@ -44,7 +44,6 @@ use std::u64;
 ///     }
 /// }
 /// ```
-///
 #[derive(Debug)]
 pub struct TSMIndexReader<R>
 where
@@ -266,8 +265,8 @@ impl BlockDecoder for MockBlockDecoder {
     }
 }
 
-/// `BlockData` describes the various types of block data that can be held within
-/// a TSM file.
+/// `BlockData` describes the various types of block data that can be held
+/// within a TSM file.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockData {
     Float {
@@ -457,9 +456,9 @@ impl BlockData {
     /// Merges multiple blocks of data together.
     ///
     /// For values within the block that have identical timestamps, `merge`
-    /// overwrites previous values. Therefore, in order to have "last write wins"
-    /// semantics it is important that the provided vector of blocks is ordered
-    /// by the wall-clock time the blocks were created.
+    /// overwrites previous values. Therefore, in order to have "last write
+    /// wins" semantics it is important that the provided vector of blocks
+    /// is ordered by the wall-clock time the blocks were created.
     pub fn merge(mut blocks: Vec<Self>) -> Self {
         if blocks.is_empty() {
             panic!("merge called with zero blocks");
@@ -552,7 +551,6 @@ impl ValuePair {
 
 /// `TSMBlockReader` allows you to read and decode TSM blocks from within a TSM
 /// file.
-///
 #[derive(Debug)]
 pub struct TSMBlockReader<R>
 where
@@ -746,7 +744,9 @@ mod tests {
 
         assert_eq!(got_blocks, 2159); // 2,159 blocks in the file
         assert_eq!(got_min_time, 1_590_585_404_546_128_000); // earliest time is 2020-05-27T13:16:44.546128Z
-        assert_eq!(got_max_time, 1_590_597_378_379_824_000); // latest time is 2020-05-27T16:36:18.379824Z
+        assert_eq!(got_max_time, 1_590_597_378_379_824_000); // latest time is
+                                                             // 2020-05-27T16:
+                                                             // 36:18.379824Z
     }
 
     #[test]

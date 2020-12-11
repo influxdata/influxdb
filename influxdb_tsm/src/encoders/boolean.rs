@@ -3,16 +3,16 @@ use std::{cmp, convert::TryInto, error::Error};
 
 /// The header consists of one byte indicating the compression type.
 const HEADER_LEN: usize = 1;
-/// A bit packed format using 1 bit per boolean. This is the only available boolean compression
-/// format at this time.
+/// A bit packed format using 1 bit per boolean. This is the only available
+/// boolean compression format at this time.
 const BOOLEAN_COMPRESSED_BIT_PACKED: u8 = 1;
 
 /// Encodes a slice of booleans into `dst`.
 ///
-/// Boolean encoding uses 1 bit per value. Each compressed byte slice contains a 1 byte header
-/// indicating the compression type, followed by a variable byte encoded length indicating
-/// how many booleans are packed in the slice. The remaining bytes contain 1 byte for every
-/// 8 boolean values encoded.
+/// Boolean encoding uses 1 bit per value. Each compressed byte slice contains a
+/// 1 byte header indicating the compression type, followed by a variable byte
+/// encoded length indicating how many booleans are packed in the slice. The
+/// remaining bytes contain 1 byte for every 8 boolean values encoded.
 pub fn encode(src: &[bool], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.clear();
     if src.is_empty() {
@@ -38,7 +38,8 @@ pub fn encode(src: &[bool], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
         if v {
             dst[index] |= 128 >> (n & 7); // Set current bit on current byte.
         } else {
-            dst[index] &= !(128 >> (n & 7)); // Clear current bit on current byte.
+            dst[index] &= !(128 >> (n & 7)); // Clear current bit on current
+                                             // byte.
         }
         n += 1;
     }
@@ -75,7 +76,8 @@ pub fn decode(src: &[u8], dst: &mut Vec<bool>) -> Result<(), Box<dyn Error>> {
 
     let min = src.len() * 8;
 
-    // Shouldn't happen - TSM file was truncated/corrupted. This is what the Go code does
+    // Shouldn't happen - TSM file was truncated/corrupted. This is what the Go code
+    // does
     count = cmp::min(min, count);
 
     if dst.capacity() < count {

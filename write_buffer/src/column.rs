@@ -25,7 +25,8 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
-/// Stores the actual data for columns in a partition along with summary statistics
+/// Stores the actual data for columns in a partition along with summary
+/// statistics
 pub enum Column {
     F64(Vec<Option<f64>>, Statistics<f64>),
     I64(Vec<Option<i64>>, Statistics<i64>),
@@ -185,8 +186,9 @@ impl Column {
         }
     }
 
-    // push_none_if_len_equal will add a None value to the end of the Vec of values if the
-    // length is equal to the passed in value. This is used to ensure columns are all the same length.
+    // push_none_if_len_equal will add a None value to the end of the Vec of values
+    // if the length is equal to the passed in value. This is used to ensure
+    // columns are all the same length.
     pub fn push_none_if_len_equal(&mut self, len: usize) {
         match self {
             Self::F64(v, _) => {

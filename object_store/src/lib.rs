@@ -9,8 +9,9 @@
 
 //! # object_store
 //!
-//! This crate provides APIs for interacting with object storage services. It currently supports
-//! PUT, GET, DELETE, and list for Google Cloud Storage, Amazon S3, in-memory and local file storage.
+//! This crate provides APIs for interacting with object storage services. It
+//! currently supports PUT, GET, DELETE, and list for Google Cloud Storage,
+//! Amazon S3, in-memory and local file storage.
 //!
 //! Future compatibility will include Azure Blob Storage, Minio, and Ceph.
 
@@ -259,13 +260,15 @@ impl fmt::Debug for AmazonS3 {
 }
 
 impl AmazonS3 {
-    /// Configure a connection to Amazon S3 in the specified Amazon region and bucket. Uses
-    /// [`rusoto_credential::ChainProvider`][cp] to check for credentials in:
+    /// Configure a connection to Amazon S3 in the specified Amazon region and
+    /// bucket. Uses [`rusoto_credential::ChainProvider`][cp] to check for
+    /// credentials in:
     ///
-    /// 1. Environment variables: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
-    /// 2. `credential_process` command in the AWS config file, usually located at `~/.aws/config`.
-    /// 3. AWS credentials file. Usually located at `~/.aws/credentials`.
-    /// 4. IAM instance profile. Will only work if running on an EC2 instance with an instance
+    /// 1. Environment variables: `AWS_ACCESS_KEY_ID` and
+    /// `AWS_SECRET_ACCESS_KEY` 2. `credential_process` command in the AWS
+    /// config file, usually located at `~/.aws/config`. 3. AWS credentials
+    /// file. Usually located at `~/.aws/credentials`. 4. IAM instance
+    /// profile. Will only work if running on an EC2 instance with an instance
     ///    profile/role.
     ///
     /// [cp]: https://docs.rs/rusoto_credential/0.43.0/rusoto_credential/struct.ChainProvider.html
@@ -400,8 +403,9 @@ impl AmazonS3 {
             let names = contents.into_iter().flat_map(|object| object.key).collect();
 
             // The AWS response contains a field named `is_truncated` as well as
-            // `next_continuation_token`, and we're assuming that `next_continuation_token` is only
-            // set when `is_truncated` is true (and therefore not checking `is_truncated`).
+            // `next_continuation_token`, and we're assuming that `next_continuation_token`
+            // is only set when `is_truncated` is true (and therefore not
+            // checking `is_truncated`).
             let next_state = if let Some(next_continuation_token) = resp.next_continuation_token {
                 ListState::HasMore(next_continuation_token)
             } else {
@@ -413,7 +417,8 @@ impl AmazonS3 {
     }
 }
 
-/// In-memory storage suitable for testing or for opting out of using a cloud storage provider.
+/// In-memory storage suitable for testing or for opting out of using a cloud
+/// storage provider.
 #[derive(Debug, Default)]
 pub struct InMemory {
     storage: RwLock<BTreeMap<String, Bytes>>,
@@ -506,7 +511,8 @@ impl InMemory {
     }
 }
 
-/// Local filesystem storage suitable for testing or for opting out of using a cloud storage provider.
+/// Local filesystem storage suitable for testing or for opting out of using a
+/// cloud storage provider.
 #[derive(Debug)]
 pub struct File {
     root: PathBuf,

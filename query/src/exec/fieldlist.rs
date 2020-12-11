@@ -376,7 +376,8 @@ mod tests {
             last_timestamp: 5000,
         };
 
-        // use something that has a later timestamp and expect the later one takes precidence
+        // use something that has a later timestamp and expect the later one takes
+        // precidence
         let l2 = FieldList {
             fields: vec![field1_later.clone()],
         };
@@ -399,7 +400,8 @@ mod tests {
             last_timestamp: 5000,
         };
 
-        // use something that has a later timestamp and expect the later one takes precedence
+        // use something that has a later timestamp and expect the later one takes
+        // precedence
         let l3 = FieldList {
             fields: vec![field1_new_type],
         };

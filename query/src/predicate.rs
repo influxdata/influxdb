@@ -131,7 +131,8 @@ impl PredicateBuilder {
     /// Sets table name restrictions
     pub fn tables(mut self, tables: Vec<String>) -> Self {
         // We need to distinguish predicates like `table_name In
-        // (foo, bar)` and `table_name = foo and table_name = bar` in order to handle this
+        // (foo, bar)` and `table_name = foo and table_name = bar` in order to handle
+        // this
         assert!(
             self.inner.table_names.is_none(),
             "Multiple table predicate specification not yet supported"
@@ -145,7 +146,8 @@ impl PredicateBuilder {
     /// Sets field_column restriction
     pub fn field_columns(mut self, columns: Vec<String>) -> Self {
         // We need to distinguish predicates like `column_name In
-        // (foo, bar)` and `column_name = foo and column_name = bar` in order to handle this
+        // (foo, bar)` and `column_name = foo and column_name = bar` in order to handle
+        // this
         if self.inner.field_columns.is_some() {
             unimplemented!("Complex/Multi field predicates are not yet supported");
         }

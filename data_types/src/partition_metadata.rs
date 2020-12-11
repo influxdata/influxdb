@@ -1,15 +1,16 @@
-//! This module contains structs that describe the metadata for a partition including schema,
-//! summary statistics, and file locations in storage.
+//! This module contains structs that describe the metadata for a partition
+//! including schema, summary statistics, and file locations in storage.
 
 use std::fmt::{Debug, Display};
 
 use serde::{Deserialize, Serialize};
 
-/// Describes the schema, summary statistics for each column in each table and the location of
-/// the partition in storage.
+/// Describes the schema, summary statistics for each column in each table and
+/// the location of the partition in storage.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Partition {
-    /// The identifier for the partition, the partition key computed from PartitionRules
+    /// The identifier for the partition, the partition key computed from
+    /// PartitionRules
     pub key: String,
     /// The tables in this partition
     pub tables: Vec<Table>,
@@ -77,7 +78,8 @@ where
 }
 
 impl Statistics<String> {
-    /// Function for string stats to avoid allocating if we're not updating min or max
+    /// Function for string stats to avoid allocating if we're not updating min
+    /// or max
     pub fn update_string(stats: &mut Self, other: &str) {
         stats.count += 1;
 

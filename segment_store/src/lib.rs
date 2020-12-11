@@ -15,9 +15,8 @@ use column::AggregateType;
 use partition::Partition;
 use segment::ColumnName;
 
-/// The Segment Store is responsible for providing read access to partition data.
-///
-///
+/// The Segment Store is responsible for providing read access to partition
+/// data.
 #[derive(Default)]
 pub struct Store {
     // A mapping from database name (tenant id, bucket id etc) to a database.
@@ -173,8 +172,8 @@ impl Store {
         None
     }
 
-    /// Returns the distinct set of tag keys (column names) matching the provided
-    /// optional predicates and time range.
+    /// Returns the distinct set of tag keys (column names) matching the
+    /// provided optional predicates and time range.
     pub fn tag_keys(
         &self,
         database_name: &str,
@@ -379,8 +378,8 @@ impl Database {
         todo!()
     }
 
-    /// Returns the distinct set of tag keys (column names) matching the provided
-    /// optional predicates and time range.
+    /// Returns the distinct set of tag keys (column names) matching the
+    /// provided optional predicates and time range.
     pub fn tag_keys(
         &self,
         table_name: &str,

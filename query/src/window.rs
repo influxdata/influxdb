@@ -55,7 +55,8 @@ impl Duration {
         }
     }
 
-    /// create a duration from a non negative value of months and a negative flag
+    /// create a duration from a non negative value of months and a negative
+    /// flag
     pub fn from_months_with_negative(months: i64, negative: bool) -> Self {
         assert_eq!(months < 0, negative);
         Self {
@@ -590,11 +591,13 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_timestamp_to_datetime_negative() {
-        // Note while testing to make sure a negative timestamp doesn't overflow, it turns out
-        // that the chrono library itself didn't handle parsing negative timestamps:
+        // Note while testing to make sure a negative timestamp doesn't overflow, it
+        // turns out that the chrono library itself didn't handle parsing
+        // negative timestamps:
         //
-        // thread 'window::tests::test_timestamp_to_datetime' panicked at 'invalid or out-of-range datetime',
-        //src/github.com-1ecc6299db9ec823/chrono-0.4.19/src/naive/datetime.rs:117:18
+        // thread 'window::tests::test_timestamp_to_datetime' panicked at 'invalid or
+        // out-of-range datetime', src/github.com-1ecc6299db9ec823/chrono-0.4.
+        // 19/src/naive/datetime.rs:117:18
         assert_eq!(timestamp_to_datetime(-1568756160).to_rfc3339(), "foo");
     }
 }

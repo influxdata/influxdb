@@ -75,10 +75,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// The format looks roughly like:
 ///
-/// <org_id bucket_id>,\x00=<measurement>,<tag_keys_str>,\xff=<field_key_str>#!~#<field_key_str>
+/// <org_id bucket_id>,\x00=<measurement>,<tag_keys_str>,\xff=<field_key_str>#!
+/// ~#<field_key_str>
 ///
 /// For example:
-/// <org_id bucket_id>,\x00=http_api_request_duration_seconds,status=2XX,\xff=sum#!~#sum
+/// <org_id bucket_id>,\x00=http_api_request_duration_seconds,status=2XX,\
+/// xff=sum#!~#sum
 ///
 ///    measurement = "http_api_request"
 ///    tags = [("status", "2XX")]
@@ -160,7 +162,8 @@ fn parse_tsm_key_internal(key: &[u8]) -> Result<ParsedTSMKey, DataError> {
 ///
 /// Example: sum#!~#sum means 'sum' field key
 ///
-/// It also turns out that the data after the delimiter does not necessairly escape the data.
+/// It also turns out that the data after the delimiter does not necessairly
+/// escape the data.
 ///
 /// So for example, the following is a valid field key value (for the
 /// field named "Code Cache"):
@@ -639,7 +642,8 @@ mod tests {
 
     #[test]
     fn parse_tsm_key_good() {
-        //<org_id bucket_id>,\x00=<measurement>,<tag_keys_str>,\xff=<field_key_str>#!~#<field_key_str>
+        //<org_id bucket_id>,\x00=<measurement>,<tag_keys_str>,\xff=<field_key_str>#!~#
+        //<org_id <field_key_str>
         let mut key = make_tsm_key_prefix("m", "tag1=val1,tag2=val2");
         key = add_field_key(key, "f");
 
@@ -686,7 +690,8 @@ mod tests {
 
     #[test]
     fn parse_tsm_key_two_fields() {
-        //<org_id bucket_id>,\x00=<measurement>,<tag_keys_str>\xff=<field-key_str>#!~#<field_key_str>\xff=<field-key_str>#!~#<field_key_str>
+        //<org_id bucket_id>,\x00=<measurement>,<tag_keys_str>\xff=<field-key_str>#!~#
+        //<org_id <field_key_str>\xff=<field-key_str>#!~#<field_key_str>
         let mut key = make_tsm_key_prefix("m", "tag1=val1,tag2=val2");
         key = add_field_key(key, "f");
         key = add_field_key(key, "f2");
@@ -703,7 +708,9 @@ mod tests {
 
     #[test]
     fn test_parse_tsm_key() {
-        //<org_id bucket_id>,\x00=http_api_request_duration_seconds,handler=platform,method=POST,path=/api/v2/setup,status=2XX,user_agent=Firefox,\xff=sum#!~#sum
+        //<org_id bucket_id>,\x00=http_api_request_duration_seconds,handler=platform,
+        //<org_id method=POST,path=/api/v2/setup,status=2XX,user_agent=Firefox,\xff=sum#
+        //<org_id !~#sum
         let buf = "05C19117091A100005C19117091A10012C003D68747470\
              5F6170695F726571756573745F6475726174696F6E5F73\
              65636F6E64732C68616E646C65723D706C6174666F726D\
@@ -732,7 +739,16 @@ mod tests {
 
     #[test]
     fn parse_tsm_key_escaped() {
-        //<org_id bucket_id>,\x00=query_log,env=prod01-eu-central-1,error=memory\ allocation\ limit\ reached:\ limit\ 740000000\ bytes\,\ allocated:\ 739849088\,\ wanted:\ 6946816;\ memory\ allocation\ limit\ reached:\ limit\ 740000000\ bytes\,\ allocated:\ 739849088\,\ wanted:\ 6946816,errorCode=invalid,errorType=user,host=queryd-algow-rw-76d68d5968-fzgwr,hostname=queryd-algow-rw-76d68d5968-fzgwr,nodename=ip-10-153-10-221.eu-central-1.compute.internal,orgID=0b6e852e272ffdd9,ot_trace_sampled=false,role=queryd-algow-rw,source=hackney,\xff=responseSize#!~#responseSize
+        //<org_id bucket_id>,\x00=query_log,env=prod01-eu-central-1,error=memory\
+        //<org_id allocation\ limit\ reached:\ limit\ 740000000\ bytes\,\ allocated:\
+        //<org_id 739849088\,\ wanted:\ 6946816;\ memory\ allocation\ limit\ reached:\
+        //<org_id limit\ 740000000\ bytes\,\ allocated:\ 739849088\,\ wanted:\
+        //<org_id 6946816,errorCode=invalid,errorType=user,
+        //<org_id host=queryd-algow-rw-76d68d5968-fzgwr,
+        //<org_id hostname=queryd-algow-rw-76d68d5968-fzgwr,nodename=ip-10-153-10-221.
+        //<org_id eu-central-1.compute.internal,orgID=0b6e852e272ffdd9,
+        //<org_id ot_trace_sampled=false,role=queryd-algow-rw,source=hackney,\
+        //<org_id xff=responseSize#!~#responseSize
         let buf = "844910ECE80BE8BC3C0BD4C89186CA892C\
              003D71756572795F6C6F672C656E763D70726F6430312D65752D63656E747261\
              6C2D312C6572726F723D6D656D6F72795C20616C6C6F636174696F6E5C206C69\

@@ -117,7 +117,8 @@ fn convert_tsm_good_input_filename() {
     // //     .tempfile()
     // //     .expect("error creating temp file")
     // //     .into_temp_path();
-    // // let parquet_filename_string = parquet_path.to_string_lossy().to_string();
+    // // let parquet_filename_string =
+    // parquet_path.to_string_lossy().to_string();
 
     // let assert = cmd
     //     .arg("convert")
@@ -125,8 +126,8 @@ fn convert_tsm_good_input_filename() {
     //     .arg(&parquet_path)
     //     .assert();
 
-    // // TODO this should succeed when TSM -> parquet conversion is implemented.
-    // // assert
+    // // TODO this should succeed when TSM -> parquet conversion is
+    // implemented. // assert
     // //     .failure()
     // //     .code(1)
     // //     .stderr(predicate::str::contains("Conversion failed"))

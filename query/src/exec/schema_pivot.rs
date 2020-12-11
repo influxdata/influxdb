@@ -496,7 +496,8 @@ mod tests {
             to_stringset(self.expected_output)
         }
 
-        /// run the input batches through a schema pivot and return the results as a StringSetRef
+        /// run the input batches through a schema pivot and return the results
+        /// as a StringSetRef
         async fn pivot(&self) -> StringSetRef {
             let schema = Self::input_schema();
 

@@ -383,7 +383,8 @@ impl TSDatabase for Db {
     type Error = Error;
 
     // TODO: writes lines creates a column named "time" for the timestamp data. If
-    //       we keep this we need to validate that no tag or field has the same name.
+    //       we keep this we need to validate that no tag or field has the same
+    // name.
     async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
         let data = split_lines_into_write_entry_partitions(partition_key, lines);
         let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&data);
@@ -411,8 +412,9 @@ impl TSDatabase for Db {
         };
 
         if let Some(wal) = &self.wal_details {
-            // TODO(paul): refactor this so we're not cloning. Although replicated writes shouldn't
-            //  be using a WAL and how the WAL is used at all is likely to have a larger refactor soon.
+            // TODO(paul): refactor this so we're not cloning. Although replicated writes
+            // shouldn't  be using a WAL and how the WAL is used at all is
+            // likely to have a larger refactor soon.
             wal.write_and_sync(write.data.clone())
                 .await
                 .context(WritingWal {
@@ -473,7 +475,8 @@ impl TSDatabase for Db {
         }
     }
 
-    /// return all field names in this database, while applying optional predicates
+    /// return all field names in this database, while applying optional
+    /// predicates
     async fn field_column_names(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error> {
         let mut filter = PartitionTableFilter::new(predicate);
         let mut visitor = TableFieldPredVisitor::new();
@@ -481,7 +484,8 @@ impl TSDatabase for Db {
         Ok(visitor.into_fieldlist_plan())
     }
 
-    /// return all column values in this database, while applying optional predicates
+    /// return all column values in this database, while applying optional
+    /// predicates
     async fn column_values(
         &self,
         column_name: &str,
@@ -732,7 +736,8 @@ impl Db {
     /// functions, in order, of `visitor`, as described on the Visitor
     /// trait.
     ///
-    /// Skips visiting any table or columns of `filter.should_visit_table` returns false
+    /// Skips visiting any table or columns of `filter.should_visit_table`
+    /// returns false
     async fn visit_tables<V: Visitor>(
         &self,
         filter: &mut PartitionTableFilter,
@@ -1209,9 +1214,9 @@ impl Visitor for WindowGroupsVisitor {
     }
 }
 
-// partition_key returns the partition key for the given line. The key will be the prefix of a
-// partition name (multiple partitions can exist for each key). It uses the user defined
-// partitioning rules to construct this key
+// partition_key returns the partition key for the given line. The key will be
+// the prefix of a partition name (multiple partitions can exist for each key).
+// It uses the user defined partitioning rules to construct this key
 pub fn partition_key(line: &ParsedLine<'_>) -> String {
     // TODO - wire this up to use partitioning rules, for now just partition by day
     let ts = line.timestamp.unwrap();
@@ -1256,9 +1261,10 @@ mod tests {
         v.iter().map(|s| s.to_string()).collect::<BTreeSet<_>>()
     }
 
-    // Abstract a bit of boilerplate around table assertions and improve the failure output.
-    // The default failure message uses Debug formatting, which prints newlines as `\n`.
-    // This prints the pretty_format_batches using Display so it's easier to read the tables.
+    // Abstract a bit of boilerplate around table assertions and improve the failure
+    // output. The default failure message uses Debug formatting, which prints
+    // newlines as `\n`. This prints the pretty_format_batches using Display so
+    // it's easier to read the tables.
     fn assert_table_eq(table: &str, partitions: &[arrow::record_batch::RecordBatch]) {
         let res = pretty_format_batches(partitions).unwrap();
         assert_eq!(table, res, "\n\nleft:\n\n{}\nright:\n\n{}", table, res);
