@@ -16,7 +16,6 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxdb/v2/tsdb/index/inmem"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 )
@@ -227,59 +226,6 @@ func TestIndexSet_MeasurementNamesByPredicate(t *testing.T) {
 	}
 }
 
-func TestIndexSet_DedupeInmemIndexes(t *testing.T) {
-	testCases := []struct {
-		tsiN    int // Quantity of TSI indexes
-		inmem1N int // Quantity of ShardIndexes proxying the first inmem Index
-		inmem2N int // Quantity of ShardIndexes proxying the second inmem Index
-		uniqueN int // Quantity of total, deduplicated indexes
-	}{
-		{tsiN: 1, inmem1N: 0, uniqueN: 1},
-		{tsiN: 2, inmem1N: 0, uniqueN: 2},
-		{tsiN: 0, inmem1N: 1, uniqueN: 1},
-		{tsiN: 0, inmem1N: 2, uniqueN: 1},
-		{tsiN: 0, inmem1N: 1, inmem2N: 1, uniqueN: 2},
-		{tsiN: 0, inmem1N: 2, inmem2N: 2, uniqueN: 2},
-		{tsiN: 2, inmem1N: 2, inmem2N: 2, uniqueN: 4},
-	}
-
-	for _, testCase := range testCases {
-		name := fmt.Sprintf("%d/%d/%d -> %d", testCase.tsiN, testCase.inmem1N, testCase.inmem2N, testCase.uniqueN)
-		t.Run(name, func(t *testing.T) {
-
-			var indexes []tsdb.Index
-			for i := 0; i < testCase.tsiN; i++ {
-				indexes = append(indexes, MustOpenNewIndex(tsi1.IndexName))
-			}
-			if testCase.inmem1N > 0 {
-				sfile := MustOpenSeriesFile()
-				opts := tsdb.NewEngineOptions()
-				opts.IndexVersion = inmem.IndexName
-				opts.InmemIndex = inmem.NewIndex("db", sfile.SeriesFile)
-
-				for i := 0; i < testCase.inmem1N; i++ {
-					indexes = append(indexes, inmem.NewShardIndex(uint64(i), tsdb.NewSeriesIDSet(), opts))
-				}
-			}
-			if testCase.inmem2N > 0 {
-				sfile := MustOpenSeriesFile()
-				opts := tsdb.NewEngineOptions()
-				opts.IndexVersion = inmem.IndexName
-				opts.InmemIndex = inmem.NewIndex("db", sfile.SeriesFile)
-
-				for i := 0; i < testCase.inmem2N; i++ {
-					indexes = append(indexes, inmem.NewShardIndex(uint64(i), tsdb.NewSeriesIDSet(), opts))
-				}
-			}
-
-			is := tsdb.IndexSet{Indexes: indexes}.DedupeInmemIndexes()
-			if len(is.Indexes) != testCase.uniqueN {
-				t.Errorf("expected %d indexes, got %d", testCase.uniqueN, len(is.Indexes))
-			}
-		})
-	}
-}
-
 func TestIndex_Sketches(t *testing.T) {
 	checkCardinalities := func(t *testing.T, index *Index, state string, series, tseries, measurements, tmeasurements int) {
 		t.Helper()
@@ -436,10 +382,6 @@ func MustNewIndex(index string, eopts ...EngineOption) *Index {
 		panic(err)
 	}
 
-	if index == inmem.IndexName {
-		opts.InmemIndex = inmem.NewIndex("db0", sfile)
-	}
-
 	i, err := tsdb.NewIndex(0, "db0", filepath.Join(rootPath, "index"), tsdb.NewSeriesIDSet(), sfile, opts)
 	if err != nil {
 		panic(err)
@@ -500,9 +442,6 @@ func (i *Index) Reopen() error {
 
 	opts := tsdb.NewEngineOptions()
 	opts.IndexVersion = i.indexType
-	if i.indexType == inmem.IndexName {
-		opts.InmemIndex = inmem.NewIndex("db0", i.sfile)
-	}
 
 	idx, err := tsdb.NewIndex(0, "db0", filepath.Join(i.rootPath, "index"), tsdb.NewSeriesIDSet(), i.sfile, opts)
 	if err != nil {
@@ -532,7 +471,6 @@ func (i *Index) Close() error {
 //
 // Typical results on an i7 laptop.
 //
-// BenchmarkIndexSet_TagSets/1M_series/inmem-8   	     100	  10430732 ns/op	 3556728 B/op	      51 allocs/op
 // BenchmarkIndexSet_TagSets/1M_series/tsi1-8    	     100	  18995530 ns/op	 5221180 B/op	   20379 allocs/op
 func BenchmarkIndexSet_TagSets(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
@@ -609,18 +547,8 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 				Indexes:    []tsdb.Index{idx.Index},
 			} // For TSI implementation
 
-			var ts func() ([]*query.TagSet, error)
-			// TODO(edd): this is somewhat awkward. We should unify this difference somewhere higher
-			// up than the engine. I don't want to open an engine do a benchmark on
-			// different index implementations.
-			if indexType == tsdb.InmemIndexName {
-				ts = func() ([]*query.TagSet, error) {
-					return idx.Index.(indexTagSets).TagSets(name, opt)
-				}
-			} else {
-				ts = func() ([]*query.TagSet, error) {
-					return indexSet.TagSets(idx.sfile, name, opt)
-				}
+			ts := func() ([]*query.TagSet, error) {
+				return indexSet.TagSets(idx.sfile, name, opt)
 			}
 
 			b.Run(indexType, func(b *testing.B) {
@@ -645,8 +573,6 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 //
 // Typical results for an i7 laptop
 //
-// BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000/cache-8   	  1	5963346204 ns/op	2499655768 B/op	 23964183 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000/no_cache-8    1	5314841090 ns/op	2499495280 B/op	 23963322 allocs/op
 // BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000/cache-8        1	1645048376 ns/op	2215402840 B/op	 23048978 allocs/op
 // BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000/no_cache-8     1	22242155616 ns/op	28277544136 B/op 79620463 allocs/op
 func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {

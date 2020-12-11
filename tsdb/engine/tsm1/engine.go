@@ -33,7 +33,6 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/tracing"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index"
-	"github.com/influxdata/influxdb/v2/tsdb/index/inmem"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
@@ -570,10 +569,6 @@ func (e *Engine) ScheduleFullCompaction() error {
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
-func (e *Engine) SetFieldName(measurement []byte, name string) {
-	e.index.SetFieldName(measurement, name)
-}
-
 func (e *Engine) MeasurementExists(name []byte) (bool, error) {
 	return e.index.MeasurementExists(name)
 }
@@ -810,9 +805,8 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	// Save reference to index for iterator creation.
 	e.index = index
 
-	// If we have the cached fields index on disk and we're using TSI, we
-	// can skip scanning all the TSM files.
-	if e.index.Type() != inmem.IndexName && !e.fieldset.IsEmpty() {
+	// If we have the cached fields index on disk, we can skip scanning all the TSM files.
+	if !e.fieldset.IsEmpty() {
 		return nil
 	}
 
@@ -1255,18 +1249,7 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 		tags = append(tags, models.ParseTags(keys[i]))
 	}
 
-	// Build in-memory index, if necessary.
-	if e.index.Type() == inmem.IndexName {
-		if err := e.index.InitializeSeries(keys, names, tags); err != nil {
-			return err
-		}
-	} else {
-		if err := e.index.CreateSeriesListIfNotExists(keys, names, tags); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return e.index.CreateSeriesListIfNotExists(keys, names, tags)
 }
 
 // WritePoints writes metadata and point data into the engine.
@@ -1489,7 +1472,6 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 		}
 	}
 
-	e.index.Rebuild()
 	return nil
 }
 
@@ -1750,19 +1732,9 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		// in any shard.
 		var err error
 		ids.ForEach(func(id uint64) {
-			name, tags := e.sfile.Series(id)
 			if err1 := e.sfile.DeleteSeriesID(id); err1 != nil {
 				err = err1
 				return
-			}
-
-			// In the case of the inmem index the series can be removed across
-			// the global index (all shards).
-			if index, ok := e.index.(*inmem.ShardIndex); ok {
-				key := models.MakeKey(name, tags)
-				if e := index.Index.DropSeriesGlobal(key); e != nil {
-					err = e
-				}
 			}
 		})
 		if err != nil {
@@ -2443,13 +2415,8 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == tsdb.InmemIndexName {
-		ts := e.index.(indexTagSets)
-		tagSets, err = ts.TagSets([]byte(measurement), opt)
-	} else {
-		indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-		tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
-	}
+	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+	tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
 
 	if err != nil {
 		return nil, err
@@ -2523,13 +2490,8 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == tsdb.InmemIndexName {
-		ts := e.index.(indexTagSets)
-		tagSets, err = ts.TagSets([]byte(measurement), opt)
-	} else {
-		indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-		tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
-	}
+	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+	tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
 
 	if err != nil {
 		return nil, err
@@ -3139,4 +3101,76 @@ func varRefSliceRemove(a []influxql.VarRef, v string) []influxql.VarRef {
 		}
 	}
 	return other
+}
+
+const reindexBatchSize = 10000
+
+func (e *Engine) Reindex() error {
+	keys := make([][]byte, reindexBatchSize)
+	seriesKeys := make([][]byte, reindexBatchSize)
+	names := make([][]byte, reindexBatchSize)
+	tags := make([]models.Tags, reindexBatchSize)
+
+	n := 0
+
+	reindexBatch := func() error {
+		if n == 0 {
+			return nil
+		}
+
+		for i, key := range keys[:n] {
+			seriesKeys[i], _ = SeriesAndFieldFromCompositeKey(key)
+			names[i], tags[i] = models.ParseKeyBytesWithTags(seriesKeys[i], tags[i])
+			e.logger.Debug(
+				"Read series during reindexing",
+				zap.String("name", string(names[i])),
+				zap.String("tags", tags[i].String()),
+			)
+		}
+
+		if err := e.index.CreateSeriesListIfNotExists(seriesKeys[:n], names[:n], tags[:n]); err != nil {
+			return err
+		}
+
+		n = 0
+		return nil
+	}
+	reindexKey := func(key []byte) error {
+		keys[n] = key
+		n++
+
+		if n < reindexBatchSize {
+			return nil
+		}
+		return reindexBatch()
+	}
+
+	// Index data stored in TSM files.
+	e.logger.Info("Reindexing TSM data", logger.Shard(e.id))
+	if err := e.FileStore.WalkKeys(nil, func(key []byte, _ byte) error {
+		return reindexKey(key)
+	}); err != nil {
+		return err
+	}
+
+	// Make sure all TSM data is indexed.
+	if err := reindexBatch(); err != nil {
+		return err
+	}
+
+	if !e.WALEnabled {
+		// All done.
+		return nil
+	}
+
+	// Reindex data stored in the WAL cache.
+	e.logger.Info("Reindexing WAL data", logger.Shard(e.id))
+	for _, key := range e.Cache.Keys() {
+		if err := reindexKey(key); err != nil {
+			return err
+		}
+	}
+
+	// Make sure all WAL data is indexed.
+	return reindexBatch()
 }

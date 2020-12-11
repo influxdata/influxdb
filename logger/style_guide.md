@@ -112,11 +112,6 @@ should be emitted only when a support engineer can take some action to
 remedy the situation _and_ the system may not continue operating
 properly in the near future without remedying the situation.**
 
-An example of what may qualify as a warning is the `max-values-per-tag`
-setting. If the server starts to approach the maximum number of values,
-the server may stop being able to function properly when it reaches the
-maximum number.
-
 An example of what does not qualify as a warning is the
 `log-queries-after` setting. While the message is "warning" that a query
 was running for a long period of time, it is not clearly actionable and

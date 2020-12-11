@@ -315,8 +315,14 @@ func (s *Shard) Open() error {
 		if err != nil {
 			return err
 		}
-
 		idx.WithLogger(s.baseLogger)
+
+		// Check if the index needs to be rebuilt before Open() initializes
+		// its file system layout.
+		var shouldReindex bool
+		if _, err := os.Stat(ipath); os.IsNotExist(err) {
+			shouldReindex = true
+		}
 
 		// Open index.
 		if err := idx.Open(); err != nil {
@@ -340,8 +346,12 @@ func (s *Shard) Open() error {
 		if err := e.Open(); err != nil {
 			return err
 		}
+		if shouldReindex {
+			if err := e.Reindex(); err != nil {
+				return err
+			}
+		}
 
-		// Load metadata index for the inmem index only.
 		if err := e.LoadMetadataIndex(s.id, s.index); err != nil {
 			return err
 		}
@@ -704,8 +714,6 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 		if err := mf.CreateFieldIfNotExists([]byte(f.Field.Name), f.Field.Type); err != nil {
 			return err
 		}
-
-		s.index.SetFieldName(f.Measurement, f.Field.Name)
 	}
 
 	if len(fieldsToCreate) > 0 {

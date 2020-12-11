@@ -26,7 +26,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/deep"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
-	"github.com/influxdata/influxdb/v2/tsdb/index/inmem"
+	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 )
 
@@ -174,7 +174,7 @@ func seriesExist(e *Engine, m string, dims []string) (int, error) {
 
 // Ensure that the engine can write & read shard digest files.
 func TestEngine_Digest(t *testing.T) {
-	e := MustOpenEngine(inmem.IndexName)
+	e := MustOpenEngine(tsi1.IndexName)
 	defer e.Close()
 
 	if err := e.Open(); err != nil {
@@ -322,7 +322,7 @@ type span struct {
 
 // Ensure engine handles concurrent calls to Digest().
 func TestEngine_Digest_Concurrent(t *testing.T) {
-	e := MustOpenEngine(inmem.IndexName)
+	e := MustOpenEngine(tsi1.IndexName)
 	defer e.Close()
 
 	if err := e.Open(); err != nil {
@@ -392,7 +392,6 @@ func TestEngine_Backup(t *testing.T) {
 	// Write those points to the engine.
 	db := path.Base(f.Name())
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex(db, sfile.SeriesFile)
 	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
@@ -499,7 +498,6 @@ func TestEngine_Export(t *testing.T) {
 	// Write those points to the engine.
 	db := path.Base(f.Name())
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex(db, sfile.SeriesFile)
 	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
@@ -1046,8 +1044,6 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("X"), influxql.Float)
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("Y"), influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
-			e.SetFieldName([]byte("cpu"), "X")
-			e.SetFieldName([]byte("cpu"), "Y")
 
 			if err := e.WritePointsString(
 				`cpu,host=A value=1.1 1000000000`,
@@ -1842,7 +1838,6 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	// Create a tsm1 engine.
 	db := path.Base(dir)
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex(db, sfile.SeriesFile)
 	idx := tsdb.MustOpenIndex(1, db, filepath.Join(dir, "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
@@ -1870,10 +1865,11 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 func TestEngine_ShouldCompactCache(t *testing.T) {
 	nowTime := time.Now()
 
-	e, err := NewEngine(inmem.IndexName)
+	e, err := NewEngine(tsi1.IndexName)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer e.Close()
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -1881,7 +1877,6 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
-	defer e.Close()
 
 	e.CacheFlushMemorySizeThreshold = 1024
 	e.CacheFlushWriteColdDuration = time.Minute
@@ -2543,9 +2538,6 @@ func NewEngine(index string) (*Engine, error) {
 
 	opt := tsdb.NewEngineOptions()
 	opt.IndexVersion = index
-	if index == tsdb.InmemIndexName {
-		opt.InmemIndex = inmem.NewIndex(db, sfile)
-	}
 	// Initialise series id sets. Need to do this as it's normally done at the
 	// store level.
 	seriesIDs := tsdb.NewSeriesIDSet()
@@ -2616,7 +2608,6 @@ func (e *Engine) Reopen() error {
 
 	db := path.Base(e.root)
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex(db, e.sfile)
 
 	// Re-initialise the series id set
 	seriesIDSet := tsdb.NewSeriesIDSet()

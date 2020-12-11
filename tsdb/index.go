@@ -21,7 +21,6 @@ import (
 
 // Available index types.
 const (
-	InmemIndexName = "inmem"
 	TSI1IndexName  = "tsi1"
 )
 
@@ -39,14 +38,10 @@ type Index interface {
 	DropMeasurement(name []byte) error
 	ForEachMeasurementName(fn func(name []byte) error) error
 
-	InitializeSeries(keys, names [][]byte, tags []models.Tags) error
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
 	DropSeries(seriesID uint64, key []byte, cascade bool) error
 	DropMeasurementIfSeriesNotExist(name []byte) (bool, error)
-
-	// Used to clean up series in inmem index that were dropped with a shard.
-	DropSeriesGlobal(key []byte) error
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
@@ -78,15 +73,10 @@ type Index interface {
 	// Bytes estimates the memory footprint of this Index, in bytes.
 	Bytes() int
 
-	// To be removed w/ tsi1.
-	SetFieldName(measurement []byte, name string)
-
 	Type() string
-	// Returns a unique reference ID to the index instance.
-	// For inmem, returns a reference to the backing Index, not ShardIndex.
-	UniqueReferenceID() uintptr
 
-	Rebuild()
+	// Returns a unique reference ID to the index instance.
+	UniqueReferenceID() uintptr
 }
 
 // SeriesElem represents a generic series element.
@@ -1273,16 +1263,6 @@ type IndexSet struct {
 	fieldSets  []*MeasurementFieldSet // field sets for _all_ indexes in this set's DB.
 }
 
-// HasInmemIndex returns true if any in-memory index is in use.
-func (is IndexSet) HasInmemIndex() bool {
-	for _, idx := range is.Indexes {
-		if idx.Type() == InmemIndexName {
-			return true
-		}
-	}
-	return false
-}
-
 // Database returns the database name of the first index.
 func (is IndexSet) Database() string {
 	if len(is.Indexes) == 0 {
@@ -1312,28 +1292,6 @@ func (is IndexSet) HasField(measurement []byte, field string) bool {
 		}
 	}
 	return false
-}
-
-// DedupeInmemIndexes returns an index set which removes duplicate indexes.
-// Useful because inmem indexes are shared by shards per database.
-func (is IndexSet) DedupeInmemIndexes() IndexSet {
-	other := IndexSet{
-		Indexes:    make([]Index, 0, len(is.Indexes)),
-		SeriesFile: is.SeriesFile,
-		fieldSets:  make([]*MeasurementFieldSet, 0, len(is.Indexes)),
-	}
-
-	uniqueIndexes := make(map[uintptr]Index)
-	for _, idx := range is.Indexes {
-		uniqueIndexes[idx.UniqueReferenceID()] = idx
-	}
-
-	for _, idx := range uniqueIndexes {
-		other.Indexes = append(other.Indexes, idx)
-		other.fieldSets = append(other.fieldSets, idx.FieldSet())
-	}
-
-	return other
 }
 
 // MeasurementNamesByExpr returns a slice of measurement names matching the
@@ -2056,7 +2014,7 @@ func (is IndexSet) tagValueIterator(name, key []byte) (TagValueIterator, error) 
 // TagKeyHasAuthorizedSeries determines if there exists an authorized series for
 // the provided measurement name and tag key.
 func (is IndexSet) TagKeyHasAuthorizedSeries(auth query.Authorizer, name, tagKey []byte) (bool, error) {
-	if !is.HasInmemIndex() && query.AuthorizerIsOpen(auth) {
+	if query.AuthorizerIsOpen(auth) {
 		return true, nil
 	}
 
@@ -3014,17 +2972,6 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 
 	return sortedTagsSets, nil
 }
-
-// IndexFormat represents the format for an index.
-type IndexFormat int
-
-const (
-	// InMemFormat is the format used by the original in-memory shared index.
-	InMemFormat IndexFormat = 1
-
-	// TSI1Format is the format used by the tsi1 index.
-	TSI1Format IndexFormat = 2
-)
 
 // NewIndexFunc creates a new index.
 type NewIndexFunc func(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile *SeriesFile, options EngineOptions) Index
