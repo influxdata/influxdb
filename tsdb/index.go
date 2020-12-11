@@ -21,7 +21,7 @@ import (
 
 // Available index types.
 const (
-	TSI1IndexName  = "tsi1"
+	TSI1IndexName = "tsi1"
 )
 
 // ErrIndexClosing can be returned to from an Index method if the index is currently closing.
