@@ -526,11 +526,6 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 		}
 	}
 
-	// TODO(edd): refactor how we call into tag sets in the tsdb package.
-	type indexTagSets interface {
-		TagSets(name []byte, options query.IteratorOptions) ([]*query.TagSet, error)
-	}
-
 	var errResult error
 
 	// This benchmark will merge eight bitsets each containing ~10,000 series IDs.
