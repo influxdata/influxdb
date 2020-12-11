@@ -11,7 +11,7 @@ func TestMarshalPointNoFields(t *testing.T) {
 	// It's unclear how this can ever happen, but we've observed points that were marshalled without any fields.
 	points[0].(*point).fields = []byte{}
 
-	if _, err := points[0].MarshalBinary(); err != ErrPointMustHaveAField {
-		t.Fatalf("got error %v, exp %v", err, ErrPointMustHaveAField)
+	if _, err := points[0].MarshalBinary(); err != ErrMissingFields {
+		t.Fatalf("got error %v, exp %v", err, ErrMissingFields)
 	}
 }

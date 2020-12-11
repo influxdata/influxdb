@@ -62,18 +62,31 @@ var (
 		{k: [1]byte{'='}, esc: [2]byte{'\\', '='}},
 	}
 
-	// ErrPointMustHaveAField is returned when operating on a point that does not have any fields.
-	ErrPointMustHaveAField = errors.New("point without fields is unsupported")
-
-	// ErrInvalidNumber is returned when a number is expected but not provided.
-	ErrInvalidNumber = errors.New("invalid number")
-
 	// ErrInvalidPoint is returned when a point cannot be parsed correctly.
 	ErrInvalidPoint = errors.New("point is invalid")
+
+	ErrMissingMeasurement = errors.New("missing measurement")
+	ErrMissingTagKey      = errors.New("missing tag key")
+	ErrMissingTagValue    = errors.New("missing tag value")
+	ErrMissingFields      = errors.New("missing fields")
+	ErrMissingFieldKey    = errors.New("missing field key")
+	ErrMissingFieldValue  = errors.New("missing field value")
+
+	ErrInvalidNumber    = errors.New("invalid number")
+	ErrInvalidTimestamp = errors.New("bad timestamp")
+	ErrInvalidFloat     = errors.New("invalid float")
+	ErrInvalidBool      = errors.New("invalid boolean")
 
 	// ErrInvalidKevValuePairs is returned when the number of key, value pairs
 	// is odd, indicating a missing value.
 	ErrInvalidKevValuePairs = errors.New("key/value pairs is an odd length")
+
+	ErrInvalidTagFormat   = errors.New("invalid tag format")
+	ErrInvalidFieldFormat = errors.New("invalid field format")
+
+	ErrDuplicateTags    = errors.New("duplicate tags")
+	ErrEmptyFieldName   = errors.New("all fields must have non-empty names")
+	ErrUnbalancedQuotes = errors.New("unbalanced quotes")
 )
 
 const (
@@ -411,7 +424,7 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 
 	// measurement name is required
 	if len(key) == 0 {
-		return nil, fmt.Errorf("missing measurement")
+		return nil, ErrMissingMeasurement
 	}
 
 	if len(key) > MaxKeyLength {
@@ -426,7 +439,7 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 
 	// at least one field is required
 	if len(fields) == 0 {
-		return nil, fmt.Errorf("missing fields")
+		return nil, ErrMissingFields
 	}
 
 	var maxKeyErr error
@@ -534,7 +547,7 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	}
 
 	// Iterate over tags keys ensure that we do not encounter any
-	// of the reserved tag keys such as _measurement or _field.
+	// of the reserved tag keys.
 	for j := 0; j < commas; j++ {
 		_, key := scanTo(buf[indices[j]:indices[j+1]-1], 0, '=')
 
@@ -562,7 +575,7 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 			sorted = false
 			break
 		} else if cmp == 0 {
-			return i, buf[start:i], fmt.Errorf("duplicate tags")
+			return i, buf[start:i], ErrDuplicateTags
 		}
 	}
 
@@ -598,7 +611,7 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 			// If the tags are not sorted, this pass may not find duplicate tags and we
 			// need to do a more exhaustive search later.
 			if bytes.Equal(left, right) {
-				return i, b, fmt.Errorf("duplicate tags")
+				return i, b, ErrDuplicateTags
 			}
 		}
 
@@ -623,14 +636,14 @@ func scanMeasurement(buf []byte, i int) (int, int, error) {
 	// It can't be a space, since whitespace is stripped prior to this
 	// function call.
 	if i >= len(buf) || buf[i] == ',' {
-		return -1, i, fmt.Errorf("missing measurement")
+		return -1, i, ErrMissingMeasurement
 	}
 
 	for {
 		i++
 		if i >= len(buf) {
 			// cpu
-			return -1, i, fmt.Errorf("missing fields")
+			return -1, i, ErrMissingFields
 		}
 
 		if buf[i-1] == '\\' {
@@ -702,7 +715,7 @@ func scanTagsKey(buf []byte, i int) (int, error) {
 	// First character of the key.
 	if i >= len(buf) || buf[i] == ' ' || buf[i] == ',' || buf[i] == '=' {
 		// cpu,{'', ' ', ',', '='}
-		return i, fmt.Errorf("missing tag key")
+		return i, ErrMissingTagKey
 	}
 
 	// Examine each character in the tag key until we hit an unescaped
@@ -716,7 +729,7 @@ func scanTagsKey(buf []byte, i int) (int, error) {
 		if i >= len(buf) ||
 			((buf[i] == ' ' || buf[i] == ',') && buf[i-1] != '\\') {
 			// cpu,tag{'', ' ', ','}
-			return i, fmt.Errorf("missing tag value")
+			return i, ErrMissingTagValue
 		}
 
 		if buf[i] == '=' && buf[i-1] != '\\' {
@@ -731,7 +744,7 @@ func scanTagsValue(buf []byte, i int) (int, int, error) {
 	// Tag value cannot be empty.
 	if i >= len(buf) || buf[i] == ',' || buf[i] == ' ' {
 		// cpu,tag={',', ' '}
-		return -1, i, fmt.Errorf("missing tag value")
+		return -1, i, ErrMissingTagValue
 	}
 
 	// Examine each character in the tag value until we hit an unescaped
@@ -741,13 +754,13 @@ func scanTagsValue(buf []byte, i int) (int, int, error) {
 		i++
 		if i >= len(buf) {
 			// cpu,tag=value
-			return -1, i, fmt.Errorf("missing fields")
+			return -1, i, ErrMissingFields
 		}
 
 		// An unescaped equals sign is an invalid tag value.
 		if buf[i] == '=' && buf[i-1] != '\\' {
 			// cpu,tag={'=', 'fo=o'}
-			return -1, i, fmt.Errorf("invalid tag format")
+			return -1, i, ErrInvalidTagFormat
 		}
 
 		if buf[i] == ',' && buf[i-1] != '\\' {
@@ -818,22 +831,22 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 
 			// check for "... =123" but allow "a\ =123"
 			if buf[i-1] == ' ' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing field key")
+				return i, buf[start:i], ErrMissingFieldKey
 			}
 
 			// check for "...a=123,=456" but allow "a=123,a\,=456"
 			if buf[i-1] == ',' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing field key")
+				return i, buf[start:i], ErrMissingFieldKey
 			}
 
 			// check for "... value="
 			if i+1 >= len(buf) {
-				return i, buf[start:i], fmt.Errorf("missing field value")
+				return i, buf[start:i], ErrMissingFieldValue
 			}
 
 			// check for "... value=,value2=..."
 			if buf[i+1] == ',' || buf[i+1] == ' ' {
-				return i, buf[start:i], fmt.Errorf("missing field value")
+				return i, buf[start:i], ErrMissingFieldValue
 			}
 
 			if isNumeric(buf[i+1]) || buf[i+1] == '-' || buf[i+1] == 'N' || buf[i+1] == 'n' {
@@ -867,12 +880,12 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 	}
 
 	if quoted {
-		return i, buf[start:i], fmt.Errorf("unbalanced quotes")
+		return i, buf[start:i], ErrUnbalancedQuotes
 	}
 
 	// check that all field sections had key and values (e.g. prevent "a=1,b"
 	if equals == 0 || commas != equals-1 {
-		return i, buf[start:i], fmt.Errorf("invalid field format")
+		return i, buf[start:i], ErrInvalidFieldFormat
 	}
 
 	return i, buf[start:i], nil
@@ -905,7 +918,7 @@ func scanTime(buf []byte, i int) (int, []byte, error) {
 		// Timestamps should be integers, make sure they are so we don't need
 		// to actually  parse the timestamp until needed.
 		if buf[i] < '0' || buf[i] > '9' {
-			return i, buf[start:i], fmt.Errorf("bad timestamp")
+			return i, buf[start:i], ErrInvalidTimestamp
 		}
 		i++
 	}
@@ -1044,7 +1057,7 @@ func scanNumber(buf []byte, i int) (int, error) {
 		// Parse the float to check bounds if it's scientific or the number of digits could be larger than the max range
 		if scientific || len(buf[start:i]) >= maxFloat64Digits || len(buf[start:i]) >= minFloat64Digits {
 			if _, err := parseFloatBytes(buf[start:i], 64); err != nil {
-				return i, fmt.Errorf("invalid float")
+				return i, ErrInvalidFloat
 			}
 		}
 	}
@@ -1060,7 +1073,7 @@ func scanBoolean(buf []byte, i int) (int, []byte, error) {
 	start := i
 
 	if i < len(buf) && (buf[i] != 't' && buf[i] != 'f' && buf[i] != 'T' && buf[i] != 'F') {
-		return i, buf[start:i], fmt.Errorf("invalid boolean")
+		return i, buf[start:i], ErrInvalidBool
 	}
 
 	i++
@@ -1082,12 +1095,12 @@ func scanBoolean(buf []byte, i int) (int, []byte, error) {
 
 	// length must be 4 for true or TRUE
 	if (buf[start] == 't' || buf[start] == 'T') && i-start != 4 {
-		return i, buf[start:i], fmt.Errorf("invalid boolean")
+		return i, buf[start:i], ErrInvalidBool
 	}
 
 	// length must be 5 for false or FALSE
 	if (buf[start] == 'f' || buf[start] == 'F') && i-start != 5 {
-		return i, buf[start:i], fmt.Errorf("invalid boolean")
+		return i, buf[start:i], ErrInvalidBool
 	}
 
 	// Otherwise
@@ -1104,7 +1117,7 @@ func scanBoolean(buf []byte, i int) (int, []byte, error) {
 	}
 
 	if !valid {
-		return i, buf[start:i], fmt.Errorf("invalid boolean")
+		return i, buf[start:i], ErrInvalidBool
 	}
 
 	return i, buf[start:i], nil
@@ -1382,7 +1395,7 @@ func NewPoint(name string, tags Tags, fields Fields, t time.Time) (Point, error)
 // key, along with an possible error.
 func pointKey(measurement string, tags Tags, fields Fields, t time.Time) ([]byte, error) {
 	if len(fields) == 0 {
-		return nil, ErrPointMustHaveAField
+		return nil, ErrMissingFields
 	}
 
 	if !t.IsZero() {
@@ -1411,7 +1424,7 @@ func pointKey(measurement string, tags Tags, fields Fields, t time.Time) ([]byte
 			}
 		}
 		if len(key) == 0 {
-			return nil, fmt.Errorf("all fields must have non-empty names")
+			return nil, ErrEmptyFieldName
 		}
 	}
 
@@ -1475,7 +1488,7 @@ func NewPointFromBytes(b []byte) (Point, error) {
 	}
 
 	if !hasField {
-		return nil, ErrPointMustHaveAField
+		return nil, ErrMissingFields
 	}
 
 	return p, nil
@@ -1758,7 +1771,7 @@ func (p *point) StringSize() int {
 // MarshalBinary returns a binary representation of the point.
 func (p *point) MarshalBinary() ([]byte, error) {
 	if len(p.fields) == 0 {
-		return nil, ErrPointMustHaveAField
+		return nil, ErrMissingFields
 	}
 
 	tb, err := p.time.MarshalBinary()
