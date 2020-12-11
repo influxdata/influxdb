@@ -741,10 +741,6 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		if index == tsdb.TSI1IndexName {
-			t.Skip("Skipping failing test for tsi1")
-		}
-
 		t.Run(index, func(t *testing.T) {
 			test(index)
 		})
