@@ -37,6 +37,10 @@ want to use the default.
 1. [20155](https://github.com/influxdata/influxdb/pull/20155): Respect the `--name` option in `influx setup` whether configs already exist or not.
 1. [20155](https://github.com/influxdata/influxdb/pull/20155): Allow for 0 (infinite) values for `--retention` in `influx setup`.
 
+### Packaging Improvements
+
+1. [20305](https://github.com/influxdata/influxdb/pull/20305): Set sane defaults and provide upgrade helper scripts
+
 ## v2.0.2 [2020-11-19]
 
 ### Features
@@ -117,7 +121,7 @@ want to use the default.
 1. [19819](https://github.com/influxdata/influxdb/pull/19819): Isolate telegraf config service and remove URM interactions
 1. [19853](https://github.com/influxdata/influxdb/pull/19853): Use updated HTTP client for authorization service
 1. [19856](https://github.com/influxdata/influxdb/pull/19856): Make tagKeys and tagValues work for edge cases involving fields
-1. [19870](https://github.com/influxdata/influxdb/pull/19870): Correctly parse float as 64-bits 
+1. [19870](https://github.com/influxdata/influxdb/pull/19870): Correctly parse float as 64-bits
 1. [19873](https://github.com/influxdata/influxdb/pull/19873): Add simple metrics related to installed templates
 1. [19885](https://github.com/influxdata/influxdb/pull/19885): Remove extra multiplication of retention policies in onboarding
 1. [19887](https://github.com/influxdata/influxdb/pull/19887): Use fluxinit package to init flux library instead of builtin
