@@ -38,6 +38,17 @@ pub enum Error {
     #[snafu(display("Error creating aggregate: Unknown group type: {}", group_type))]
     UnknownGroup { group_type: i32 },
 
+    #[snafu(display(
+        "Incompatible read_group request: Group::None had {} group keys (expected 0)",
+        num_group_keys
+    ))]
+    InvalidGroupNone { num_group_keys: usize },
+
+    #[snafu(display(
+        "Incompatible read_group request: Group::By had no group keys (expected at least 1)"
+    ))]
+    InvalidGroupBy {},
+
     #[snafu(display("Error creating predicate: Unexpected empty predicate: Node"))]
     EmptyPredicateNode {},
 
@@ -473,9 +484,21 @@ fn build_binary_expr(op: Operator, inputs: Vec<Expr>) -> Result<Expr> {
 
 pub fn make_read_group_aggregate(
     aggregate: Option<RPCAggregate>,
-    _group: RPCGroup,
+    group: RPCGroup,
     group_keys: Vec<String>,
 ) -> Result<GroupByAndAggregate> {
+    // validate Group setting
+    match group {
+        // Group:None is invalid if grouping keys are specified
+        RPCGroup::None if !group_keys.is_empty() => InvalidGroupNone {
+            num_group_keys: group_keys.len(),
+        }
+        .fail(),
+        // Group:By is invalid if no grouping keys are specified
+        RPCGroup::By if group_keys.is_empty() => InvalidGroupBy {}.fail(),
+        _ => Ok(()),
+    }?;
+
     let gby_agg = GroupByAndAggregate::Columns {
         agg: convert_aggregate(aggregate)?,
         group_columns: group_keys,
@@ -1129,6 +1152,47 @@ mod tests {
             Ok(_) => "UNEXPECTED SUCCESS".into(),
             Err(e) => format!("{}", e),
         }
+    }
+
+    #[test]
+    fn test_make_read_group_aggregate() {
+        assert_eq!(
+            make_read_group_aggregate(Some(make_aggregate(1)), RPCGroup::None, vec![]).unwrap(),
+            GroupByAndAggregate::Columns {
+                agg: QueryAggregate::Sum,
+                group_columns: vec![]
+            }
+        );
+
+        assert_eq!(
+            make_read_group_aggregate(Some(make_aggregate(1)), RPCGroup::By, vec!["gcol".into()])
+                .unwrap(),
+            GroupByAndAggregate::Columns {
+                agg: QueryAggregate::Sum,
+                group_columns: vec!["gcol".into()]
+            }
+        );
+
+        // error cases
+        assert_eq!(
+            make_read_group_aggregate(None, RPCGroup::None, vec![])
+                .unwrap_err()
+                .to_string(),
+            "Error creating aggregate: Unexpected empty aggregate"
+        );
+
+        assert_eq!(
+            make_read_group_aggregate(Some(make_aggregate(1)), RPCGroup::None, vec!["gcol".into()])
+                .unwrap_err()
+                .to_string(),
+            "Incompatible read_group request: Group::None had 1 group keys (expected 0)"
+        );
+        assert_eq!(
+            make_read_group_aggregate(Some(make_aggregate(1)), RPCGroup::By, vec![])
+                .unwrap_err()
+                .to_string(),
+            "Incompatible read_group request: Group::By had no group keys (expected at least 1)"
+        );
     }
 
     #[test]

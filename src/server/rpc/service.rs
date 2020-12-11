@@ -166,6 +166,12 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
+    #[snafu(display(
+        "Unexpected hint value on read_group request. Expected 0, got {}",
+        hints
+    ))]
+    InternalHintsFieldNotSupported { hints: u32 },
+
     #[snafu(display("Operation not yet implemented:  {}", operation))]
     NotYetImplemented { operation: String },
 }
@@ -210,6 +216,7 @@ impl Error {
             Self::ConvertingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingFieldList { .. } => Status::invalid_argument(self.to_string()),
             Self::SendingResults { .. } => Status::internal(self.to_string()),
+            Self::InternalHintsFieldNotSupported { .. } => Status::internal(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
     }
@@ -310,7 +317,7 @@ where
             group_keys,
             group,
             aggregate,
-            hints: _,
+            hints,
         } = read_group_request;
 
         info!(
@@ -318,6 +325,10 @@ where
             db_name, range, group_keys, group, aggregate,
               predicate.loggable()
         );
+
+        if hints != 0 {
+            InternalHintsFieldNotSupported { hints }.fail()?
+        }
 
         warn!("read_group implementation not yet complete: https://github.com/influxdata/influxdb_iox/issues/448");
 
@@ -1858,13 +1869,13 @@ mod tests {
             partition_id,
         ));
 
-        let group = generated_types::read_group_request::Group::None as i32;
+        let group = generated_types::read_group_request::Group::By as i32;
 
         let request = ReadGroupRequest {
             read_source: source.clone(),
             range: make_timestamp_range(150, 200),
             predicate: make_state_ma_predicate(),
-            group_keys: vec![String::from("tag1")],
+            group_keys: vec!["tag1".into()],
             group,
             aggregate: Some(RPCAggregate {
                 r#type: AggregateType::Sum as i32,
@@ -1876,7 +1887,7 @@ mod tests {
             predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
             gby_agg: GroupByAndAggregate::Columns {
                 agg: QueryAggregate::Sum,
-                group_columns: vec![String::from("tag1")],
+                group_columns: vec!["tag1".into()],
             }
         };
 
@@ -1898,13 +1909,43 @@ mod tests {
         );
 
         // ---
-        // test error
+        // test error hit in request processing
         // ---
         let request = ReadGroupRequest {
             read_source: source.clone(),
             range: None,
             predicate: None,
-            group_keys: vec![],
+            group_keys: vec!["tag1".into()],
+            group,
+            aggregate: Some(RPCAggregate {
+                r#type: AggregateType::Sum as i32,
+            }),
+            hints: 42,
+        };
+
+        let response = fixture.storage_client.read_group(request).await;
+        assert!(response.is_err());
+        let response_string = format!("{:?}", response);
+        let expected_error = "Unexpected hint value on read_group request. Expected 0, got 42";
+        assert!(
+            response_string.contains(expected_error),
+            "'{}' did not contain expected content '{}'",
+            response_string,
+            expected_error
+        );
+
+        // Errored out in gRPC and never got to database layer
+        let expected_request: Option<QueryGroupsRequest> = None;
+        assert_eq!(test_db.get_query_groups_request().await, expected_request);
+
+        // ---
+        // test error returned in database processing
+        // ---
+        let request = ReadGroupRequest {
+            read_source: source.clone(),
+            range: None,
+            predicate: None,
+            group_keys: vec!["tag1".into()],
             group,
             aggregate: Some(RPCAggregate {
                 r#type: AggregateType::Sum as i32,
@@ -1928,7 +1969,7 @@ mod tests {
             predicate: "Predicate {}".into(),
             gby_agg: GroupByAndAggregate::Columns {
                 agg: QueryAggregate::Sum,
-                group_columns: vec![],
+                group_columns: vec!["tag1".into()],
             },
         });
         assert_eq!(test_db.get_query_groups_request().await, expected_request);
@@ -2117,7 +2158,7 @@ mod tests {
 
         let request = MeasurementFieldsRequest {
             source: source.clone(),
-            measurement: String::from("TheMeasurement"),
+            measurement: "TheMeasurement".into(),
             range: make_timestamp_range(150, 200),
             predicate: make_state_ma_predicate(),
         };
@@ -2155,7 +2196,7 @@ mod tests {
         // ---
         let request = MeasurementFieldsRequest {
             source: source.clone(),
-            measurement: String::from("TheMeasurement"),
+            measurement: "TheMeasurement".into(),
             range: None,
             predicate: None,
         };
