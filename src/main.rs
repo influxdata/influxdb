@@ -249,21 +249,20 @@ fn setup_logging(num_verbose: u64) -> Option<opentelemetry_jaeger::Uninstall> {
     // - OTEL_EXPORTER_JAEGER_AGENT_HOST: hostname/address of the collector
     // - OTEL_EXPORTER_JAEGER_AGENT_PORT: listening port of the collector
     //
-    let (opentelemetry, drop_handle) = match std::env::var("OTEL_EXPORTER_JAEGER_AGENT_HOST") {
-        Ok(_) => {
-            // Initialise the jaeger event emitter
-            let (tracer, drop_handle) = opentelemetry_jaeger::new_pipeline()
-                .with_service_name("iox")
-                .from_env()
-                .install()
-                .unwrap();
+    let (opentelemetry, drop_handle) = if std::env::var("OTEL_EXPORTER_JAEGER_AGENT_HOST").is_ok() {
+        // Initialise the jaeger event emitter
+        let (tracer, drop_handle) = opentelemetry_jaeger::new_pipeline()
+            .with_service_name("iox")
+            .from_env()
+            .install()
+            .unwrap();
 
-            // Initialise the opentelemetry tracing layer, giving it the jaeger emitter
-            let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+        // Initialise the opentelemetry tracing layer, giving it the jaeger emitter
+        let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
-            (Some(opentelemetry), Some(drop_handle))
-        }
-        Err(_) => (None, None),
+        (Some(opentelemetry), Some(drop_handle))
+    } else {
+        (None, None)
     };
 
     // Configure the logger to write to stderr
