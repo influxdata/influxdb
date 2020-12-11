@@ -446,6 +446,28 @@ func TestParsePointWhitespaceValue(t *testing.T) {
 	}
 }
 
+func TestParsePointNoMeasurement(t *testing.T) {
+	expectedSuffix := models.ErrMissingMeasurement.Error()
+	point := ",region=us-east-1 value=123"
+	_, err := models.ParsePointsString(point)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, point)
+	} else if !strings.HasSuffix(err.Error(), expectedSuffix) {
+		t.Errorf(`ParsePoints("%s") mismatch. got %q, exp suffix %q`, point, err, expectedSuffix)
+	}
+}
+
+func TestParsePointUnderscoreMeasurement(t *testing.T) {
+	expectedSuffix := models.ErrUnderscoreMeasurement.Error()
+	point := "_cpu value=123"
+	_, err := models.ParsePointsString(point)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, point)
+	} else if !strings.HasSuffix(err.Error(), expectedSuffix) {
+		t.Errorf(`ParsePoints("%s") mismatch. got %q, exp suffix %q`, point, err, expectedSuffix)
+	}
+}
+
 func TestParsePointNoFields(t *testing.T) {
 	expectedSuffix := "missing fields"
 	examples := []string{

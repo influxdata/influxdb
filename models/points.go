@@ -87,6 +87,8 @@ var (
 	ErrDuplicateTags    = errors.New("duplicate tags")
 	ErrEmptyFieldName   = errors.New("all fields must have non-empty names")
 	ErrUnbalancedQuotes = errors.New("unbalanced quotes")
+
+	ErrUnderscoreMeasurement = errors.New("measurement name cannot start with '_'")
 )
 
 const (
@@ -632,11 +634,14 @@ const (
 // scanMeasurement examines the measurement part of a Point, returning
 // the next state to move to, and the current location in the buffer.
 func scanMeasurement(buf []byte, i int) (int, int, error) {
-	// Check first byte of measurement, anything except a comma is fine.
+	// Check first byte of measurement, anything except a comma or underscore is fine.
 	// It can't be a space, since whitespace is stripped prior to this
 	// function call.
 	if i >= len(buf) || buf[i] == ',' {
 		return -1, i, ErrMissingMeasurement
+	}
+	if buf[i] == '_' {
+		return -1, i, ErrUnderscoreMeasurement
 	}
 
 	for {
