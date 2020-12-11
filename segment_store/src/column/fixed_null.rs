@@ -3,10 +3,10 @@
 //! This encoding stores a column of fixed-width numerical values potentially
 //! using a smaller physical type in memory than the provided logical type.
 //!
-//! For example, if you have a column with 64-bit integers: [122, 232, 33, 0, -12]
-//! then you can reduce the space needed to store them, by converting them as a
-//! `Vec<i8>` instead of a `Vec<i64>`. In this case, this reduces the size of
-//! the column data by 87.5% and generally should increase throughput of
+//! For example, if you have a column with 64-bit integers: [122, 232, 33, 0,
+//! -12] then you can reduce the space needed to store them, by converting them
+//! as a `Vec<i8>` instead of a `Vec<i64>`. In this case, this reduces the size
+//! of the column data by 87.5% and generally should increase throughput of
 //! operations on the column data.
 //!
 //! The encodings within this module do not concern themselves with choosing the
@@ -179,10 +179,10 @@ where
     /// provided row IDs.
     ///
     /// TODO(edd): I have experimented with using the Arrow kernels for these
-    /// aggregations methods but they're currently significantly slower than this
-    /// implementation (about 85% in the `sum` case). We will revisit them in
-    /// the future as they do would the implementation of these aggregation
-    /// functions.
+    /// aggregations methods but they're currently significantly slower than
+    /// this implementation (about 85% in the `sum` case). We will revisit
+    /// them in the future as they do would the implementation of these
+    /// aggregation functions.
     pub fn sum(&self, row_ids: &[u32]) -> Option<T::Native>
     where
         T::Native: std::ops::Add<Output = T::Native>,
@@ -487,9 +487,9 @@ where
 //      }
 //  }
 //
-//  impl From<&[Option<i64>]> for FixedNull<arrow_deps::arrow::datatypes::Int64Type> {
-//      fn from(v: &[i64]) -> Self {
-//          Self{
+//  impl From<&[Option<i64>]> for
+// FixedNull<arrow_deps::arrow::datatypes::Int64Type> {      fn from(v: &[i64])
+// -> Self {          Self{
 //              arr: PrimitiveArray::from(v.to_vec()),
 //          }
 //      }

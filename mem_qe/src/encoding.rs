@@ -357,8 +357,8 @@ where
         out
     }
 
-    /// Return the raw encoded values for the provided logical row ids. For Plain
-    /// encoding this is just the decoded values.
+    /// Return the raw encoded values for the provided logical row ids. For
+    /// Plain encoding this is just the decoded values.
     fn encoded_values(&self, row_ids: &[usize]) -> Vec<T> {
         let mut out = Vec::with_capacity(row_ids.len());
         for chunks in row_ids.chunks_exact(4) {
@@ -380,7 +380,8 @@ where
     /// Return all encoded values. For this encoding this is just the decoded
     /// values
     fn all_encoded_values(&self) -> Vec<T> {
-        self.values.clone() // TODO(edd):perf probably can return reference to vec.
+        self.values.clone() // TODO(edd):perf probably can return reference to
+                            // vec.
     }
 
     fn scan_from(&self, _: usize) -> &[Option<Self::Item>] {
@@ -683,15 +684,15 @@ impl DictionaryRLE {
     //             index += *other_rl as usize;
 
     //             if other_idx != idx {
-    //                 let iter: Box<dyn Iterator<Item = usize>> = Box::new(iter::empty::<usize>());
-    //                 return iter;
+    //                 let iter: Box<dyn Iterator<Item = usize>> =
+    // Box::new(iter::empty::<usize>());                 return iter;
     //             }
     //             Box::new(start..index)
     //         });
     //     }
 
-    //     // I need to return the same type as flatten_map or box the flatten_map return and this one??
-    //     unreachable!("for now");
+    //     // I need to return the same type as flatten_map or box the flatten_map
+    // return and this one??     unreachable!("for now");
     // }
 
     pub fn dictionary(&self) -> BTreeMap<Option<String>, usize> {
@@ -822,8 +823,8 @@ impl DictionaryRLE {
         results
     }
 
-    /// Returns true if the encoding contains values other than those provided in
-    /// `values`.
+    /// Returns true if the encoding contains values other than those provided
+    /// in `values`.
     pub fn contains_other_values(&self, values: &BTreeSet<&String>) -> bool {
         let mut encoded_values = self.entry_index.len();
         if self.entry_index.contains_key(&None) {
@@ -911,7 +912,6 @@ impl DictionaryRLE {
     /// Return the raw encoded values for the provided logical row ids.
     ///
     /// TODO(edd): return type is wrong but I'm making it fit
-    ///
     pub fn encoded_values(&self, row_ids: &[usize]) -> Vec<u32> {
         let mut out = Vec::with_capacity(row_ids.len());
 

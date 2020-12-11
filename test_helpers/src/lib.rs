@@ -14,8 +14,9 @@ pub mod tracing;
 pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T = (), E = Error> = std::result::Result<T, E>;
 
-/// A test helper function for asserting floating point numbers are within the machine epsilon
-/// because strict comparison of floating point numbers is incorrect
+/// A test helper function for asserting floating point numbers are within the
+/// machine epsilon because strict comparison of floating point numbers is
+/// incorrect
 pub fn approximately_equal(f1: f64, f2: f64) -> bool {
     (f1 - f2).abs() < f64::EPSILON
 }

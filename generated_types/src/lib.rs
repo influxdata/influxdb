@@ -1,5 +1,6 @@
-// This crate deliberately does not use the same linting rules as the other crates because of all
-// the generated code it contains that we don't have much control over.
+// This crate deliberately does not use the same linting rules as the other
+// crates because of all the generated code it contains that we don't have much
+// control over.
 #![allow(
     unused_imports,
     clippy::redundant_static_lifetimes,

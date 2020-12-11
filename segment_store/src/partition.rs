@@ -104,8 +104,8 @@ impl Partition {
         todo!()
     }
 
-    /// Returns the distinct set of tag keys (column names) matching the provided
-    /// optional predicates and time range.
+    /// Returns the distinct set of tag keys (column names) matching the
+    /// provided optional predicates and time range.
     pub fn tag_keys(
         &self,
         table_name: String,

@@ -15,61 +15,75 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// DatabaseRules contains the rules for replicating data, sending data to subscribers, and
-/// querying data for a single database.
+/// DatabaseRules contains the rules for replicating data, sending data to
+/// subscribers, and querying data for a single database.
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq)]
 pub struct DatabaseRules {
-    /// Template that generates a partition key for each row inserted into the db
+    /// Template that generates a partition key for each row inserted into the
+    /// db
     pub partition_template: PartitionTemplate,
-    /// If `store_locally` is set to `true`, this server will store writes and replicated
-    /// writes in a local write buffer database. This is step #4 from the diagram.
+    /// If `store_locally` is set to `true`, this server will store writes and
+    /// replicated writes in a local write buffer database. This is step #4
+    /// from the diagram.
     pub store_locally: bool,
     /// The set of host groups that data should be replicated to. Which host a
-    /// write goes to within a host group is determined by consistent hashing of the partition key.
-    /// We'd use this to create a host group per availability zone, so you might have 5 availability
-    /// zones with 2 hosts in each. Replication will ensure that N of those zones get a write. For
-    /// each zone, only a single host needs to get the write. Replication is for ensuring a write
-    /// exists across multiple hosts before returning success. Its purpose is to ensure write
-    /// durability, rather than write availability for query (this is covered by subscriptions).
+    /// write goes to within a host group is determined by consistent hashing of
+    /// the partition key. We'd use this to create a host group per
+    /// availability zone, so you might have 5 availability zones with 2
+    /// hosts in each. Replication will ensure that N of those zones get a
+    /// write. For each zone, only a single host needs to get the write.
+    /// Replication is for ensuring a write exists across multiple hosts
+    /// before returning success. Its purpose is to ensure write durability,
+    /// rather than write availability for query (this is covered by
+    /// subscriptions).
     pub replication: Vec<HostGroupId>,
-    /// The minimum number of host groups to replicate a write to before success is returned. This
-    /// can be overridden on a per request basis. Replication will continue to write to the other
-    /// host groups in the background.
+    /// The minimum number of host groups to replicate a write to before success
+    /// is returned. This can be overridden on a per request basis.
+    /// Replication will continue to write to the other host groups in the
+    /// background.
     pub replication_count: u8,
-    /// How long the replication queue can get before either rejecting writes or dropping missed
-    /// writes. The queue is kept in memory on a per-database basis. A queue size of zero means it
-    /// will only try to replicate synchronously and drop any failures.
+    /// How long the replication queue can get before either rejecting writes or
+    /// dropping missed writes. The queue is kept in memory on a
+    /// per-database basis. A queue size of zero means it will only try to
+    /// replicate synchronously and drop any failures.
     pub replication_queue_max_size: usize,
-    /// `subscriptions` are used for query servers to get data via either push or pull as it
-    /// arrives. They are separate from replication as they have a different purpose. They're for
-    /// query servers or other clients that want to subscribe to some subset of data being written
-    /// in. This could either be specific partitions, ranges of partitions, tables, or rows matching
-    /// some predicate. This is step #3 from the diagram.
+    /// `subscriptions` are used for query servers to get data via either push
+    /// or pull as it arrives. They are separate from replication as they
+    /// have a different purpose. They're for query servers or other clients
+    /// that want to subscribe to some subset of data being written in. This
+    /// could either be specific partitions, ranges of partitions, tables, or
+    /// rows matching some predicate. This is step #3 from the diagram.
     pub subscriptions: Vec<Subscription>,
 
-    /// If set to `true`, this server should answer queries from one or more of of its local write
-    /// buffer and any read-only partitions that it knows about. In this case, results
-    /// will be merged with any others from the remote goups or read only partitions.
+    /// If set to `true`, this server should answer queries from one or more of
+    /// of its local write buffer and any read-only partitions that it knows
+    /// about. In this case, results will be merged with any others from the
+    /// remote goups or read only partitions.
     pub query_local: bool,
-    /// Set `primary_query_group` to a host group if remote servers should be issued
-    /// queries for this database. All hosts in the group should be queried with this server
-    /// acting as the coordinator that merges results together. If a specific host in the group
-    /// is unavailable, another host in the same position from a secondary group should be
-    /// queried. For example, imagine we've partitioned the data in this DB into 4 partitions and
-    /// we are replicating the data across 3 availability zones. We have 4 hosts in each
-    /// of those AZs, thus they each have 1 partition. We'd set the primary group to be the 4
-    /// hosts in the same AZ as this one, and the secondary groups as the hosts in the other
-    /// 2 AZs.
+    /// Set `primary_query_group` to a host group if remote servers should be
+    /// issued queries for this database. All hosts in the group should be
+    /// queried with this server acting as the coordinator that merges
+    /// results together. If a specific host in the group is unavailable,
+    /// another host in the same position from a secondary group should be
+    /// queried. For example, imagine we've partitioned the data in this DB into
+    /// 4 partitions and we are replicating the data across 3 availability
+    /// zones. We have 4 hosts in each of those AZs, thus they each have 1
+    /// partition. We'd set the primary group to be the 4 hosts in the same
+    /// AZ as this one, and the secondary groups as the hosts in the other 2
+    /// AZs.
     pub primary_query_group: Option<HostGroupId>,
     pub secondary_query_groups: Vec<HostGroupId>,
 
-    /// Use `read_only_partitions` when a server should answer queries for partitions that
-    /// come from object storage. This can be used to start up a new query server to handle
-    /// queries by pointing it at a collection of partitions and then telling it to also pull
-    /// data from the replication servers (writes that haven't been snapshotted into a partition).
+    /// Use `read_only_partitions` when a server should answer queries for
+    /// partitions that come from object storage. This can be used to start
+    /// up a new query server to handle queries by pointing it at a
+    /// collection of partitions and then telling it to also pull
+    /// data from the replication servers (writes that haven't been snapshotted
+    /// into a partition).
     pub read_only_partitions: Vec<PartitionId>,
 
-    /// When set this will buffer WAL writes in memory based on the configuration.
+    /// When set this will buffer WAL writes in memory based on the
+    /// configuration.
     pub wal_buffer_config: Option<WalBufferConfig>,
 }
 
@@ -83,50 +97,54 @@ impl DatabaseRules {
     }
 }
 
-/// WalBufferConfig defines the configuration for buffering data from the WAL in memory. This
-/// buffer is used for asynchronous replication and to collect segments before sending them to
-/// object storage.
+/// WalBufferConfig defines the configuration for buffering data from the WAL in
+/// memory. This buffer is used for asynchronous replication and to collect
+/// segments before sending them to object storage.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct WalBufferConfig {
-    /// The size the WAL buffer should be limited to. Once the buffer gets to this size it will
-    /// drop old segments to remain below this size, but still try to hold as much in memory as
-    /// possible while remaining below this threshold
+    /// The size the WAL buffer should be limited to. Once the buffer gets to
+    /// this size it will drop old segments to remain below this size, but
+    /// still try to hold as much in memory as possible while remaining
+    /// below this threshold
     pub buffer_size: Option<u64>,
-    /// WAL segments become read only after crossing over this size. Which means that segments will
-    /// always be >= this size. When old segments are dropped from of memory, at least this much
-    /// space will be freed from the buffer.
+    /// WAL segments become read only after crossing over this size. Which means
+    /// that segments will always be >= this size. When old segments are
+    /// dropped from of memory, at least this much space will be freed from
+    /// the buffer.
     pub segment_size: Option<u64>,
-    /// What should happen if a write comes in that would exceed the WAL buffer size and the
-    /// oldest segment that could be dropped hasn't yet been persisted to object storage. If the
-    /// oldest segment has been persisted, then it will be dropped from the buffer so that new writes
-    /// can be accepted. This option is only for defining the behavior of what happens if that segment
-    /// hasn't been persisted.
+    /// What should happen if a write comes in that would exceed the WAL buffer
+    /// size and the oldest segment that could be dropped hasn't yet been
+    /// persisted to object storage. If the oldest segment has been
+    /// persisted, then it will be dropped from the buffer so that new writes
+    /// can be accepted. This option is only for defining the behavior of what
+    /// happens if that segment hasn't been persisted.
     pub buffer_rollover: WalBufferRollover,
 }
 
-/// WalBufferRollover defines the behavior of what should happen if a write comes in that would
-/// cause the buffer to exceed its max size AND the oldest segment can't be dropped because it
-/// has not yet been persisted.
+/// WalBufferRollover defines the behavior of what should happen if a write
+/// comes in that would cause the buffer to exceed its max size AND the oldest
+/// segment can't be dropped because it has not yet been persisted.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum WalBufferRollover {
-    /// Drop the old segment even though it hasn't been persisted. This part of the WAl will
-    /// be lost on this server.
+    /// Drop the old segment even though it hasn't been persisted. This part of
+    /// the WAl will be lost on this server.
     DropOldSegment,
-    /// Drop the incoming write and fail silently. This favors making sure that older WAL data
-    /// will be backed up.
+    /// Drop the incoming write and fail silently. This favors making sure that
+    /// older WAL data will be backed up.
     DropIncoming,
-    /// Reject the incoming write and return an error. The client may retry the request, which
-    /// will succeed once the oldest segment has been persisted to object storage.
+    /// Reject the incoming write and return an error. The client may retry the
+    /// request, which will succeed once the oldest segment has been
+    /// persisted to object storage.
     ReturnError,
 }
 
-/// `PartitionTemplate` is used to compute the partition key of each row that gets written. It
-/// can consist of the table name, a column name and its value, a formatted time, or a string
-/// column and regex captures of its value. For columns that do not appear in the input row,
-/// a blank value is output.
+/// `PartitionTemplate` is used to compute the partition key of each row that
+/// gets written. It can consist of the table name, a column name and its value,
+/// a formatted time, or a string column and regex captures of its value. For
+/// columns that do not appear in the input row, a blank value is output.
 ///
-/// The key is constructed in order of the template parts; thus ordering changes what partition
-/// key is generated.
+/// The key is constructed in order of the template parts; thus ordering changes
+/// what partition key is generated.
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq)]
 pub struct PartitionTemplate {
     parts: Vec<TemplatePart>,
@@ -162,7 +180,8 @@ impl PartitionTemplate {
     }
 }
 
-/// `TemplatePart` specifies what part of a row should be used to compute this part of a partition key.
+/// `TemplatePart` specifies what part of a row should be used to compute this
+/// part of a partition key.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum TemplatePart {
     Table,
@@ -172,36 +191,38 @@ pub enum TemplatePart {
     StrftimeColumn(StrftimeColumn),
 }
 
-/// `RegexCapture` is for pulling parts of a string column into the partition key.
+/// `RegexCapture` is for pulling parts of a string column into the partition
+/// key.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct RegexCapture {
     column: String,
     regex: String,
 }
 
-/// `StrftimeColumn` can be used to create a time based partition key off some column other than
-/// the builtin `time` column.
+/// `StrftimeColumn` can be used to create a time based partition key off some
+/// column other than the builtin `time` column.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct StrftimeColumn {
     column: String,
     format: String,
 }
 
-/// `PartitionId` is the object storage identifier for a specific partition. It should be a
-/// path that can be used against an object store to locate all the files and subdirectories
-/// for a partition. It takes the form of `/<writer ID>/<database>/<partition key>/`.
+/// `PartitionId` is the object storage identifier for a specific partition. It
+/// should be a path that can be used against an object store to locate all the
+/// files and subdirectories for a partition. It takes the form of `/<writer
+/// ID>/<database>/<partition key>/`.
 pub type PartitionId = String;
 pub type WriterId = u32;
 
-/// `Subscription` represents a group of hosts that want to receive data as it arrives.
-/// The subscription has a matcher that is used to determine what data will match it, and
-/// an optional queue for storing matched writes. Subscribers that recieve some subeset
-/// of an individual replicated write will get a new replicated write, but with the same
-/// originating writer ID and sequence number for the consuming subscriber's tracking
-/// purposes.
+/// `Subscription` represents a group of hosts that want to receive data as it
+/// arrives. The subscription has a matcher that is used to determine what data
+/// will match it, and an optional queue for storing matched writes. Subscribers
+/// that recieve some subeset of an individual replicated write will get a new
+/// replicated write, but with the same originating writer ID and sequence
+/// number for the consuming subscriber's tracking purposes.
 ///
-/// For pull based subscriptions, the requester will send a matcher, which the receiver
-/// will execute against its in-memory WAL.
+/// For pull based subscriptions, the requester will send a matcher, which the
+/// receiver will execute against its in-memory WAL.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Subscription {
     pub name: String,

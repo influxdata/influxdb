@@ -6,7 +6,8 @@
     clippy::use_self
 )]
 
-// Export the parts of the parquet crate that are needed to interact with code in this crate
+// Export the parts of the parquet crate that are needed to interact with code
+// in this crate
 pub use arrow_deps::parquet::{
     errors::ParquetError,
     file::reader::{ChunkReader, Length},

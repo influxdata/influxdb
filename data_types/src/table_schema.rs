@@ -57,7 +57,8 @@ impl Tag {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-/// Line Protocol Data Types as defined in [the InfluxData documentation][influx]
+/// Line Protocol Data Types as defined in [the InfluxData
+/// documentation][influx]
 ///
 /// [influx]: https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
 pub enum DataType {
@@ -128,7 +129,8 @@ impl Schema {
         &self.measurement
     }
 
-    /// Return true if `col_def` holds values for a Tag (as opposed to Field or Timestamp)
+    /// Return true if `col_def` holds values for a Tag (as opposed to Field or
+    /// Timestamp)
     pub fn is_tag(&self, col_def: &ColumnDefinition) -> bool {
         self.tags.contains_key(&col_def.name)
     }
@@ -218,7 +220,8 @@ impl SchemaBuilder {
         self
     }
 
-    /// Create a new schema from a list of tag names and (field_name, data_type) pairs
+    /// Create a new schema from a list of tag names and (field_name, data_type)
+    /// pairs
     pub fn build(self) -> Schema {
         // assign column indexes to all columns, starting at 0
         let mut indexer = 0..;

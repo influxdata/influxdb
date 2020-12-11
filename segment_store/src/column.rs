@@ -262,7 +262,6 @@ impl Column {
     //
 
     /// Determine the set of row ids that satisfy the predicate.
-    ///
     pub fn row_ids_filter(
         &self,
         op: &cmp::Operator,
@@ -406,14 +405,13 @@ impl Column {
                 }
             }
             // breaking this down:
-            //   * Extract a Scalar variant from `value`, which should panic if
-            //     that's not possible;
-            //   * Try to safely convert that scalar to a primitive value based
-            //     on the logical type used for the metadata on the column.
-            //   * If the value can't be safely converted then there is no way
-            //     that said value could be stored in the column at all -> false.
-            //   * Otherwise if the value falls inside the range of values in
-            //     the column range then it may be in the column -> true.
+            //   * Extract a Scalar variant from `value`, which should panic if that's not possible;
+            //   * Try to safely convert that scalar to a primitive value based on the logical type
+            //     used for the metadata on the column.
+            //   * If the value can't be safely converted then there is no way that said value could
+            //     be stored in the column at all -> false.
+            //   * Otherwise if the value falls inside the range of values in the column range then
+            //     it may be in the column -> true.
             Column::Float(meta, _) => value
                 .scalar()
                 .try_as_f64()
@@ -445,17 +443,14 @@ impl Column {
                 }
             }
             // breaking this down:
-            //   * If the column contains null values then it's not possible for
-            //     all values in the column to match the predicate.
-            //   * Extract a Scalar variant from `value`, which should panic if
-            //     that's not possible;
-            //   * Try to safely convert that scalar to a primitive value based
-            //     on the logical type used for the metadata on the column.
+            //   * If the column contains null values then it's not possible for all values in the
+            //     column to match the predicate.
+            //   * Extract a Scalar variant from `value`, which should panic if that's not possible;
+            //   * Try to safely convert that scalar to a primitive value based on the logical type
+            //     used for the metadata on the column.
             //   * If the value can't be safely converted then -> false.
-            //   * Otherwise if the value falls inside the range of values in
-            //     the column range then check if all values satisfy the
-            //     predicate.
-            //
+            //   * Otherwise if the value falls inside the range of values in the column range then
+            //     check if all values satisfy the predicate.
             Column::Float(meta, data) => {
                 if data.contains_null() {
                     return false;
@@ -503,12 +498,10 @@ impl Column {
                 }
             }
             // breaking this down:
-            //   * Extract a Scalar variant from `value`, which should panic if
-            //     that's not possible;
-            //   * Convert that scalar to a primitive value based
-            //     on the logical type used for the metadata on the column.
+            //   * Extract a Scalar variant from `value`, which should panic if that's not possible;
+            //   * Convert that scalar to a primitive value based on the logical type used for the
+            //     metadata on the column.
             //   * See if one can prove none of the column can match the predicate.
-            //
             Column::Float(meta, data) => meta.match_no_values(op, value.scalar().as_f64()),
             Column::Integer(meta, data) => meta.match_no_values(op, value.scalar().as_i64()),
             Column::Unsigned(meta, data) => meta.match_no_values(op, value.scalar().as_u64()),
@@ -583,7 +576,8 @@ impl Column {
     // Methods for inspecting
     //
 
-    /// Determines if the column has a non-null value at any of the provided rows.
+    /// Determines if the column has a non-null value at any of the provided
+    /// rows.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         todo!()
     }
@@ -1101,8 +1095,8 @@ impl IntegerEncoding {
 
     /// Returns the logical values found at the provided row ids.
     ///
-    /// TODO(edd): perf - provide a pooling mechanism for these destination vectors
-    /// so that they can be re-used.
+    /// TODO(edd): perf - provide a pooling mechanism for these destination
+    /// vectors so that they can be re-used.
     pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
         match &self {
             // signed 64-bit variants - logical type is i64 for all these
@@ -1126,8 +1120,8 @@ impl IntegerEncoding {
 
     /// Returns all logical values in the column.
     ///
-    /// TODO(edd): perf - provide a pooling mechanism for these destination vectors
-    /// so that they can be re-used.
+    /// TODO(edd): perf - provide a pooling mechanism for these destination
+    /// vectors so that they can be re-used.
     pub fn all_values(&self) -> Values<'_> {
         match &self {
             // signed 64-bit variants - logical type is i64 for all these
@@ -1988,10 +1982,10 @@ pub enum AggregateType {
     Min,
     Max,
     Sum,
-    // TODO - support:
-    // Distinct - (edd): not sure this counts as an aggregations. Seems more like a special filter.
-    // CountDistinct
-    // Percentile
+    /* TODO - support:
+     * Distinct - (edd): not sure this counts as an aggregations. Seems more like a special
+     * filter. CountDistinct
+     * Percentile */
 }
 
 impl std::fmt::Display for AggregateType {

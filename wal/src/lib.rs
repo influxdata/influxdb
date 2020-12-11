@@ -12,7 +12,8 @@
 //!
 //! Work remaining:
 //!
-//! - More testing for correctness; the existing tests mostly demonstrate possible usages.
+//! - More testing for correctness; the existing tests mostly demonstrate
+//!   possible usages.
 //! - Error handling
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -154,12 +155,13 @@ impl WalBuilder {
         }
     }
 
-    /// Set the size (in bytes) of each WAL file that should prompt a file rollover when it is
-    /// exceeded.
+    /// Set the size (in bytes) of each WAL file that should prompt a file
+    /// rollover when it is exceeded.
     ///
-    /// File rollover happens per sync batch. If the file is underneath this file size limit at the
-    /// start of a sync operation, the entire sync batch will be written to that file even if
-    /// some of the entries in the batch cause the file to exceed the file size limit.
+    /// File rollover happens per sync batch. If the file is underneath this
+    /// file size limit at the start of a sync operation, the entire sync
+    /// batch will be written to that file even if some of the entries in
+    /// the batch cause the file to exceed the file size limit.
     ///
     /// See [WalBuilder::DEFAULT_FILE_ROLLOVER_SIZE_BYTES]
     pub fn file_rollover_size(mut self, file_rollover_size: u64) -> Self {
@@ -181,8 +183,9 @@ impl WalBuilder {
     /// Consume the builder to get an iterator of all entries in this
     /// WAL that have been persisted to disk.
     ///
-    /// Sequence numbers on the entries will be in increasing order, but if files have been
-    /// modified or deleted since getting this iterator, there may be gaps in the sequence.
+    /// Sequence numbers on the entries will be in increasing order, but if
+    /// files have been modified or deleted since getting this iterator,
+    /// there may be gaps in the sequence.
     ///
     /// # Asynchronous considerations
     ///
@@ -254,17 +257,17 @@ impl Wal {
         })
     }
 
-    /// A path to a file for storing arbitrary metadata about this WAL, guaranteed not to collide
-    /// with the data files.
+    /// A path to a file for storing arbitrary metadata about this WAL,
+    /// guaranteed not to collide with the data files.
     pub fn metadata_path(&self) -> PathBuf {
         self.files.root.join("metadata")
     }
 
-    /// Appends a WritePayload to the active segment file in the WAL and returns its
-    /// assigned sequence number.
+    /// Appends a WritePayload to the active segment file in the WAL and returns
+    /// its assigned sequence number.
     ///
-    /// To ensure the data is written to disk, `sync_all` should be called after a
-    /// single or batch of append operations.
+    /// To ensure the data is written to disk, `sync_all` should be called after
+    /// a single or batch of append operations.
     pub fn append(&mut self, payload: WritePayload) -> Result<SequenceNumber> {
         let sequence_number = self.sequence_number;
 
@@ -289,14 +292,15 @@ impl Wal {
         Ok(sequence_number)
     }
 
-    /// Total size, in bytes, of all the data in all the files in the WAL. If files are deleted
-    /// from disk without deleting them through the WAL, the size won't reflect that deletion
-    /// until the WAL is recreated.
+    /// Total size, in bytes, of all the data in all the files in the WAL. If
+    /// files are deleted from disk without deleting them through the WAL,
+    /// the size won't reflect that deletion until the WAL is recreated.
     pub fn total_size(&self) -> u64 {
         self.total_size
     }
 
-    /// Deletes files up to, but not including, the file that contains the entry number specified
+    /// Deletes files up to, but not including, the file that contains the entry
+    /// number specified
     pub fn delete_up_to_entry(&self, entry_number: u64) -> Result<()> {
         let mut iter = self.files.existing_filenames()?.peekable();
         let hypothetical_filename = self
@@ -315,8 +319,8 @@ impl Wal {
         Ok(())
     }
 
-    /// Flush all pending bytes in the active segment file to disk and closes it if it is over
-    /// the file rollover size.
+    /// Flush all pending bytes in the active segment file to disk and closes it
+    /// if it is over the file rollover size.
     pub fn sync_all(&mut self) -> Result<()> {
         let f = self.active_file.take();
 

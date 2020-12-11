@@ -128,10 +128,10 @@ impl Table {
     /// Returns vectors of columnar data for the specified column
     /// selections.
     ///
-    /// Results may be filtered by (currently only) conjunctive (AND) predicates,
-    /// but can be ranged by time, which should be represented as nanoseconds
-    /// since the epoch. Results are included if they satisfy the predicate and
-    /// fall with the [min, max) time range domain.
+    /// Results may be filtered by (currently only) conjunctive (AND)
+    /// predicates, but can be ranged by time, which should be represented
+    /// as nanoseconds since the epoch. Results are included if they satisfy
+    /// the predicate and fall with the [min, max) time range domain.
     pub fn select<'input>(
         &self,
         columns: &[ColumnName<'input>],
@@ -180,15 +180,21 @@ impl Table {
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
     ) -> ReadGroupResults<'input, '_> {
         if !self.has_all_columns(&group_columns) {
-            return ReadGroupResults::default(); //TODO(edd): return an error here "group key column x not found"
+            return ReadGroupResults::default(); //TODO(edd): return an error
+                                                // here "group key column x not
+                                                // found"
         }
 
         if !self.has_all_columns(&aggregates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
-            return ReadGroupResults::default(); //TODO(edd): return an error here "aggregate column x not found"
+            return ReadGroupResults::default(); //TODO(edd): return an error
+                                                // here "aggregate column x not
+                                                // found"
         }
 
         if !self.has_all_columns(&predicates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
-            return ReadGroupResults::default(); //TODO(edd): return an error here "predicate column x not found"
+            return ReadGroupResults::default(); //TODO(edd): return an error
+                                                // here "predicate column x not
+                                                // found"
         }
 
         // identify segments where time range and predicates match could match
@@ -392,8 +398,8 @@ impl Table {
     // ---- Schema API queries
     //
 
-    /// Returns the distinct set of tag keys (column names) matching the provided
-    /// optional predicates and time range.
+    /// Returns the distinct set of tag keys (column names) matching the
+    /// provided optional predicates and time range.
     pub fn tag_keys<'a>(
         &self,
         time_range: (i64, i64),
@@ -403,9 +409,9 @@ impl Table {
         // Firstly, this should short-circuit early if all of the table's columns
         // are present in `found_columns`.
         //
-        // Otherwise, identify segments where time range and predicates match could match
-        // using segment meta data and then execute against those segments and
-        // merge results.
+        // Otherwise, identify segments where time range and predicates match could
+        // match using segment meta data and then execute against those segments
+        // and merge results.
         todo!();
     }
 

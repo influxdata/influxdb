@@ -40,8 +40,9 @@ impl WriteBufferDatabases {
         }
     }
 
-    /// wal_dirs will traverse the directories from the service base directory and return
-    /// the directories that contain WALs for databases, which can be used to restore those DBs.
+    /// wal_dirs will traverse the directories from the service base directory
+    /// and return the directories that contain WALs for databases, which
+    /// can be used to restore those DBs.
     pub fn wal_dirs(&self) -> Result<Vec<PathBuf>> {
         let entries = fs::read_dir(&self.base_dir).context(ReadError {
             dir: &self.base_dir,
@@ -99,7 +100,8 @@ impl DatabaseStore for WriteBufferDatabases {
         // database doesn't exist yet so acquire the write lock and get or insert
         let mut databases = self.databases.write().await;
 
-        // make sure it didn't get inserted by someone else while we were waiting for the write lock
+        // make sure it didn't get inserted by someone else while we were waiting for
+        // the write lock
         if let Some(db) = databases.get(name) {
             return Ok(db.clone());
         }

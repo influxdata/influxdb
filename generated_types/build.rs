@@ -22,7 +22,8 @@ fn main() -> Result<()> {
 
 /// Schema used with IOx specific gRPC requests
 ///
-/// Creates `influxdata.platform.storage.rs` and `com.github.influxdata.idpe.storage.read.rs`
+/// Creates `influxdata.platform.storage.rs` and
+/// `com.github.influxdata.idpe.storage.read.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let proto_files = vec![
         root.join("test.proto"),

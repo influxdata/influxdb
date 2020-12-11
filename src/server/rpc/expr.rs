@@ -1,5 +1,6 @@
 //! This module has logic to translate gRPC structures into the native
-//! storage system form by extending the builders for those structures with new traits
+//! storage system form by extending the builders for those structures with new
+//! traits
 //!
 //! RPCPredicate --> query::Predicates
 //!
@@ -133,17 +134,21 @@ impl AddRPCNode for PredicateBuilder {
     /// Adds the predicates represented by the Node (predicate tree)
     /// into predicates that can be evaluted by the storage system
     ///
-    /// RPC predicates can have several different types of 'predicate' embedded in them.
+    /// RPC predicates can have several different types of 'predicate' embedded
+    /// in them.
     ///
     /// Predicates on tag value (where a tag is a column)
     ///
     /// Predicates on field value (where field is also a column)
     ///
-    /// Predicates on 'measurement name' (encoded as tag_ref=\x00), aka select from a particular table
+    /// Predicates on 'measurement name' (encoded as tag_ref=\x00), aka select
+    /// from a particular table
     ///
-    /// Predicates on 'field name' (encoded as tag_ref=\xff), aka select only specific fields
+    /// Predicates on 'field name' (encoded as tag_ref=\xff), aka select only
+    /// specific fields
     ///
-    /// This code pulls apart the predicates, if any, into a StoragePredicate that breaks the predicate apart
+    /// This code pulls apart the predicates, if any, into a StoragePredicate
+    /// that breaks the predicate apart
     fn rpc_predicate(self, rpc_predicate: Option<RPCPredicate>) -> Result<Self> {
         match rpc_predicate {
             // no input predicate, is fine
@@ -183,7 +188,6 @@ impl AddRPCNode for PredicateBuilder {
 /// ```
 /// child
 /// ```
-///
 fn normalize_node(node: RPCNode) -> Result<RPCNode> {
     let RPCNode {
         node_type,
@@ -213,7 +217,8 @@ fn normalize_node(node: RPCNode) -> Result<RPCNode> {
     }
 }
 
-/// Converts the node and updates the `StoragePredicate` being built, as appropriate
+/// Converts the node and updates the `StoragePredicate` being built, as
+/// appropriate
 ///
 /// It recognizes special predicate patterns and pulls them into
 /// the fields on `StoragePredicate` for special processing. If no
@@ -257,8 +262,8 @@ fn flatten_ands(node: RPCNode, mut dst: Vec<RPCNode>) -> Result<Vec<RPCNode>> {
 
 // Represents a predicate like <expr> IN (option1, option2, option3, ....)
 //
-// use `try_from_node1 to convert a tree like as ((expr = option1) OR (expr = option2)) or (expr = option3)) ...
-// into such a form
+// use `try_from_node1 to convert a tree like as ((expr = option1) OR (expr =
+// option2)) or (expr = option3)) ... into such a form
 #[derive(Debug)]
 struct InList {
     lhs: RPCNode,
@@ -268,8 +273,8 @@ struct InList {
 impl TryFrom<&RPCNode> for InList {
     type Error = &'static str;
 
-    /// If node represents an OR tree like (expr = option1) OR (expr=option2)... extracts
-    /// an InList like expr IN (option1, option2)
+    /// If node represents an OR tree like (expr = option1) OR (expr=option2)...
+    /// extracts an InList like expr IN (option1, option2)
     fn try_from(node: &RPCNode) -> Result<Self, &'static str> {
         InListBuilder::default().append(node)?.build()
     }
@@ -646,12 +651,12 @@ impl<'a> Loggable<'a> for RPCPredicate {
     }
 }
 
-/// Returns a struct that can format gRPC predicate (aka `RPCPredicates`) for Display
+/// Returns a struct that can format gRPC predicate (aka `RPCPredicates`) for
+/// Display
 ///
 /// For example:
 /// let pred = RPCPredicate (...);
 /// println!("The predicate is {:?}", loggable_predicate(pred));
-///
 pub fn displayable_predicate(pred: Option<&RPCPredicate>) -> impl fmt::Display + '_ {
     struct Wrapper<'a>(Option<&'a RPCPredicate>);
 
@@ -941,7 +946,8 @@ mod tests {
 
     #[test]
     fn test_convert_predicate_field_selection_wrapped() {
-        // test wrapping the whole predicate in a None value (aka what influxql does for some reason
+        // test wrapping the whole predicate in a None value (aka what influxql does for
+        // some reason
         let field_selection = make_field_ref_node("field1");
         let wrapped = RPCNode {
             node_type: RPCNodeType::ParenExpression as i32,

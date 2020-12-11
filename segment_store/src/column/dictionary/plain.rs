@@ -576,7 +576,6 @@ impl Plain {
     /// the column.
     ///
     /// NULL values are represented by None.
-    ///
     pub fn all_values<'a>(&'a self, mut dst: Vec<Option<&'a str>>) -> Vec<Option<&'a str>> {
         dst.clear();
         dst.reserve(self.entries.len());
@@ -620,7 +619,6 @@ impl Plain {
 
     /// Return the raw encoded values for the provided logical row ids.
     /// Encoded values for NULL values are included.
-    ///
     pub fn encoded_values(&self, row_ids: &[u32], mut dst: Vec<u32>) -> Vec<u32> {
         dst.clear();
         dst.reserve(row_ids.len());
@@ -662,7 +660,6 @@ impl Plain {
     /// values. By exposing the current result set to each column (as an
     /// argument to `contains_other_values`) columns can be short-circuited when
     /// they only contain values that have already been discovered.
-    ///
     pub fn contains_other_values(&self, values: &BTreeSet<Option<&String>>) -> bool {
         todo!()
     }

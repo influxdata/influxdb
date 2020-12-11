@@ -62,7 +62,8 @@ pub struct Block {
 impl Block {
     /// Determines if this block overlaps the provided block.
     ///
-    /// Blocks overlap when the time-range of the data within the block can overlap.
+    /// Blocks overlap when the time-range of the data within the block can
+    /// overlap.
     pub fn overlaps(&self, other: &Self) -> bool {
         self.min_time <= other.max_time && other.min_time <= self.max_time
     }

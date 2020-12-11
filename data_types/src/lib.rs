@@ -1,6 +1,6 @@
-//! This crate contains the data types that are shared between InfluxDB IOx servers including
-//! replicated data, rules for how data is split up and queried, and what gets stored
-//! in the write buffer database.
+//! This crate contains the data types that are shared between InfluxDB IOx
+//! servers including replicated data, rules for how data is split up and
+//! queried, and what gets stored in the write buffer database.
 
 #![deny(rust_2018_idioms)]
 #![warn(

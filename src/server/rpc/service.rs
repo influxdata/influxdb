@@ -179,7 +179,8 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl From<Error> for tonic::Status {
-    /// Converts a result from the business logic into the appropriate tonic status
+    /// Converts a result from the business logic into the appropriate tonic
+    /// status
     fn from(err: Error) -> Self {
         error!("Error handling gRPC request: {}", err);
         err.to_status()
@@ -187,7 +188,8 @@ impl From<Error> for tonic::Status {
 }
 
 impl Error {
-    /// Converts a result from the business logic into the appropriate tonic status
+    /// Converts a result from the business logic into the appropriate tonic
+    /// status
     fn to_status(&self) -> tonic::Status {
         match &self {
             Self::ServerError { .. } => Status::internal(self.to_string()),
@@ -476,7 +478,8 @@ where
 
         let measurement = None;
 
-        // Special case a request for 'tag_key=_measurement" means to list all measurements
+        // Special case a request for 'tag_key=_measurement" means to list all
+        // measurements
         let response = if tag_key.is_measurement() {
             info!(
                 "tag_values with tag_key=[x00] (measurement name) for database {}, range: {:?}, predicate: {} --> returning measurement_names",
@@ -848,7 +851,8 @@ where
     Ok(StringValuesResponse { values })
 }
 
-/// Return tag keys with optional measurement, timestamp and arbitratry predicates
+/// Return tag keys with optional measurement, timestamp and arbitratry
+/// predicates
 async fn tag_keys_impl<T>(
     db_store: Arc<T>,
     executor: Arc<QueryExecutor>,
@@ -902,7 +906,8 @@ where
     Ok(StringValuesResponse { values })
 }
 
-/// Return tag values for tag_name, with optional measurement, timestamp and arbitratry predicates
+/// Return tag values for tag_name, with optional measurement, timestamp and
+/// arbitratry predicates
 async fn tag_values_impl<T>(
     db_store: Arc<T>,
     executor: Arc<QueryExecutor>,
@@ -1106,7 +1111,8 @@ where
     Ok(())
 }
 
-/// Return field names, restricted via optional measurement, timestamp and predicate
+/// Return field names, restricted via optional measurement, timestamp and
+/// predicate
 async fn field_names_impl<T>(
     db_store: Arc<T>,
     executor: Arc<QueryExecutor>,
@@ -1352,7 +1358,8 @@ mod tests {
             predicate: None,
         };
 
-        // Note we don't set the column_names on the test database, so we expect an error
+        // Note we don't set the column_names on the test database, so we expect an
+        // error
         let response = fixture.storage_client.tag_keys(request).await;
         assert!(response.is_err());
         let response_string = format!("{:?}", response);
@@ -1372,9 +1379,9 @@ mod tests {
         Ok(())
     }
 
-    /// test the plumbing of the RPC layer for measurement_tag_keys-- specifically that
-    /// the right parameters are passed into the Database interface
-    /// and that the returned values are sent back via gRPC.
+    /// test the plumbing of the RPC layer for measurement_tag_keys--
+    /// specifically that the right parameters are passed into the Database
+    /// interface and that the returned values are sent back via gRPC.
     #[tokio::test]
     async fn test_storage_rpc_measurement_tag_keys() -> Result<(), tonic::Status> {
         // Start a test gRPC server on a randomally allocated port
@@ -1446,7 +1453,8 @@ mod tests {
             predicate: None,
         };
 
-        // Note we don't set the column_names on the test database, so we expect an error
+        // Note we don't set the column_names on the test database, so we expect an
+        // error
         let response = fixture.storage_client.measurement_tag_keys(request).await;
         assert!(response.is_err());
         let response_string = format!("{:?}", response);
@@ -1577,7 +1585,8 @@ mod tests {
             tag_key: "the_tag_key".into(),
         };
 
-        // Note we don't set the column_names on the test database, so we expect an error
+        // Note we don't set the column_names on the test database, so we expect an
+        // error
         let response = fixture.storage_client.tag_values(request).await;
         assert!(response.is_err());
         let response_string = format!("{:?}", response);
@@ -1617,9 +1626,9 @@ mod tests {
         );
     }
 
-    /// test the plumbing of the RPC layer for measurement_tag_values-- specifically that
-    /// the right parameters are passed into the Database interface
-    /// and that the returned values are sent back via gRPC.
+    /// test the plumbing of the RPC layer for measurement_tag_values--
+    /// specifically that the right parameters are passed into the Database
+    /// interface and that the returned values are sent back via gRPC.
     #[tokio::test]
     async fn test_storage_rpc_measurement_tag_values() {
         // Start a test gRPC server on a randomally allocated port
@@ -1684,7 +1693,8 @@ mod tests {
             tag_key: "the_tag_key".into(),
         };
 
-        // Note we don't set the column_names on the test database, so we expect an error
+        // Note we don't set the column_names on the test database, so we expect an
+        // error
         let response = fixture.storage_client.measurement_tag_values(request).await;
         assert!(response.is_err());
         let response_string = format!("{:?}", response);
@@ -2261,7 +2271,8 @@ mod tests {
     struct OrgAndBucket {
         org_id: u64,
         bucket_id: u64,
-        /// The influxdb_iox database name corresponding to `org_id` and `bucket_id`
+        /// The influxdb_iox database name corresponding to `org_id` and
+        /// `bucket_id`
         db_name: DatabaseName<'static>,
     }
 
@@ -2512,8 +2523,8 @@ mod tests {
             Ok(responses)
         }
 
-        /// Convert the StringValueResponses into rust Strings, sorting the values
-        /// to ensure  consistency.
+        /// Convert the StringValueResponses into rust Strings, sorting the
+        /// values to ensure  consistency.
         fn to_string_vec(&self, responses: Vec<StringValuesResponse>) -> Vec<String> {
             let mut strings = responses
                 .into_iter()

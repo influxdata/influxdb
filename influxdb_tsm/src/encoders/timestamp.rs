@@ -12,10 +12,10 @@ enum Encoding {
 /// encode encodes a vector of signed integers into a slice of bytes.
 ///
 /// To maximise compression, the provided vector should be sorted in ascending
-/// order. First deltas between the integers are determined, then further encoding
-/// is potentially carried out. If all the deltas are the same the block can be
-/// encoded using RLE. If not, as long as the deltas are not bigger than simple8b::MAX_VALUE
-/// they can be encoded using simple8b.
+/// order. First deltas between the integers are determined, then further
+/// encoding is potentially carried out. If all the deltas are the same the
+/// block can be encoded using RLE. If not, as long as the deltas are not bigger
+/// than simple8b::MAX_VALUE they can be encoded using simple8b.
 pub fn encode(src: &[i64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.clear(); // reset buffer.
     if src.is_empty() {

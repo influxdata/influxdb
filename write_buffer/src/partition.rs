@@ -89,9 +89,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Partition {
     pub key: String,
 
-    /// `dictionary` maps &str -> u32. The u32s are used in place of String or str to avoid slow
-    /// string operations. The same dictionary is used for table names, tag names, tag values, and
-    /// column names.
+    /// `dictionary` maps &str -> u32. The u32s are used in place of String or
+    /// str to avoid slow string operations. The same dictionary is used for
+    /// table names, tag names, tag values, and column names.
     // TODO: intern string field values too?
     pub dictionary: Dictionary,
 
@@ -261,7 +261,8 @@ impl Partition {
             expr_to_column_names(&expr, &mut predicate_columns).unwrap();
         }
 
-        // if there are any column references in the expression, ensure they appear in any table
+        // if there are any column references in the expression, ensure they appear in
+        // any table
         let required_columns = if predicate_columns.is_empty() {
             None
         } else {
@@ -291,7 +292,8 @@ impl Partition {
         })
     }
 
-    /// Adds the ids of any columns in additional_required_columns to the required columns of predicate
+    /// Adds the ids of any columns in additional_required_columns to the
+    /// required columns of predicate
     pub fn add_required_columns_to_predicate(
         &self,
         additional_required_columns: &HashSet<String>,
@@ -391,7 +393,8 @@ impl Partition {
         Ok(table)
     }
 
-    /// Translate a bunch of strings into a set of ids relative to this partition
+    /// Translate a bunch of strings into a set of ids relative to this
+    /// partition
     pub fn make_partition_ids<'a, I>(&self, predicate_columns: I) -> PartitionIdSet
     where
         I: Iterator<Item = &'a String>,

@@ -1,5 +1,5 @@
-//! This module provides a reference implementaton of `query::DatabaseSource` and
-//! `query::Database` for use in testing.
+//! This module provides a reference implementaton of `query::DatabaseSource`
+//! and `query::Database` for use in testing.
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 
@@ -139,7 +139,8 @@ impl TestDatabase {
             .expect("writing lines");
     }
 
-    /// Set the list of column names that will be returned on a call to column_names
+    /// Set the list of column names that will be returned on a call to
+    /// column_names
     pub async fn set_column_names(&self, column_names: Vec<String>) {
         let column_names = column_names.into_iter().collect::<StringSet>();
         let column_names = Arc::new(column_names);
@@ -152,7 +153,8 @@ impl TestDatabase {
         self.column_names_request.clone().lock().await.take()
     }
 
-    /// Set the list of column values that will be returned on a call to column_values
+    /// Set the list of column values that will be returned on a call to
+    /// column_values
     pub async fn set_column_values(&self, column_values: Vec<String>) {
         let column_values = column_values.into_iter().collect::<StringSet>();
         let column_values = Arc::new(column_values);
@@ -403,7 +405,8 @@ impl SQLDatabase for TestDatabase {
     type Partition = TestPartition;
     type Error = TestError;
 
-    /// Execute the specified query and return arrow record batches with the result
+    /// Execute the specified query and return arrow record batches with the
+    /// result
     async fn query(&self, _query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
         unimplemented!("query Not yet implemented");
     }

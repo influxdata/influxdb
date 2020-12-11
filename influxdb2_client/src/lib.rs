@@ -24,8 +24,9 @@
 //! ## Quick start
 //!
 //! This example creates a client to an InfluxDB server running at `http://localhost:8888`, creates
-//! a bucket with the name "mybucket" in the organization with name "myorg" and ID
-//! "0000111100001111", builds two points, and writes the points to the bucket.
+//! a bucket with the name "mybucket" in the organization with name "myorg" and
+//! ID "0000111100001111", builds two points, and writes the points to the
+//! bucket.
 //!
 //! ```
 //! async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -73,15 +74,15 @@ pub use data_point::{DataPoint, FieldValue, WriteDataPoint};
 /// Errors that occur while making requests to the Influx server.
 #[derive(Debug, Snafu)]
 pub enum RequestError {
-    /// While making a request to the Influx server, the underlying `reqwest` library returned an
-    /// error that was not an HTTP 400 or 500.
+    /// While making a request to the Influx server, the underlying `reqwest`
+    /// library returned an error that was not an HTTP 400 or 500.
     #[snafu(display("Error while processing the HTTP request: {}", source))]
     ReqwestProcessing {
         /// The underlying error object from `reqwest`.
         source: reqwest::Error,
     },
-    /// The underlying `reqwest` library returned an HTTP error with code 400 (meaning a client
-    /// error) or 500 (meaning a server error).
+    /// The underlying `reqwest` library returned an HTTP error with code 400
+    /// (meaning a client error) or 500 (meaning a server error).
     #[snafu(display("HTTP request returned an error: {}, `{}`", status, text))]
     Http {
         /// The `StatusCode` returned from the request
@@ -90,8 +91,8 @@ pub enum RequestError {
         text: String,
     },
 
-    /// While serializing data as JSON to send in a request, the underlying `serde_json` library
-    /// returned an error.
+    /// While serializing data as JSON to send in a request, the underlying
+    /// `serde_json` library returned an error.
     #[snafu(display("Error while serializing to JSON: {}", source))]
     Serializing {
         /// The underlying error object from `serde_json`.
@@ -109,8 +110,9 @@ pub struct Client {
 }
 
 impl Client {
-    /// Create a new client pointing to the URL specified in `protocol://server:port` format and
-    /// using the specified token for authorization.
+    /// Create a new client pointing to the URL specified in
+    /// `protocol://server:port` format and using the specified token for
+    /// authorization.
     ///
     /// # Example
     ///
@@ -159,7 +161,8 @@ impl Client {
         Ok(())
     }
 
-    /// Write a `Stream` of `DataPoint`s to the specified organization and bucket.
+    /// Write a `Stream` of `DataPoint`s to the specified organization and
+    /// bucket.
     pub async fn write(
         &self,
         org: &str,
@@ -180,8 +183,8 @@ impl Client {
         Ok(self.write_line_protocol(org, bucket, body).await?)
     }
 
-    /// Create a new bucket in the organization specified by the 16-digit hexadecimal `org_id` and
-    /// with the bucket name `bucket`.
+    /// Create a new bucket in the organization specified by the 16-digit
+    /// hexadecimal `org_id` and with the bucket name `bucket`.
     pub async fn create_bucket(&self, org_id: &str, bucket: &str) -> Result<(), RequestError> {
         let create_bucket_url = format!("{}/api/v2/buckets", self.url);
 
@@ -262,10 +265,11 @@ cpu,host=server01,region=us-west usage=0.87
                 .build()?,
         ];
 
-        // If the requests made are incorrect, Mockito returns status 501 and `write` will return
-        // an error, which causes the test to fail here instead of when we assert on mock_server.
-        // The error messages that Mockito provides are much clearer for explaining why a test
-        // failed than just that the server returned 501, so don't use `?` here.
+        // If the requests made are incorrect, Mockito returns status 501 and `write`
+        // will return an error, which causes the test to fail here instead of
+        // when we assert on mock_server. The error messages that Mockito
+        // provides are much clearer for explaining why a test failed than just
+        // that the server returned 501, so don't use `?` here.
         let _result = client.write(org, bucket, stream::iter(points)).await;
 
         mock_server.assert();

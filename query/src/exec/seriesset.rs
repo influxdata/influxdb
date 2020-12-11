@@ -1,12 +1,13 @@
-//! This module contains the definition of a "SeriesSet" a plan that when run produces
-//! rows that can be logically divided into "Series"
+//! This module contains the definition of a "SeriesSet" a plan that when run
+//! produces rows that can be logically divided into "Series"
 //!
 //! Specifically, this thing can produce represents a set of "tables",
 //! and each table is sorted on a set of "tag" columns, meaning the
 //! data for groups / series will be contiguous.
 //!
 //! For example, the output columns of such a plan would be:
-//! (tag col0) (tag col1) ... (tag colN) (field val1) (field val2) ... (field valN) .. (timestamps)
+//! (tag col0) (tag col1) ... (tag colN) (field val1) (field val2) ... (field
+//! valN) .. (timestamps)
 //!
 //! Note that the data will come out ordered by the tag keys (ORDER BY
 //! (tag col0) (tag col1) ... (tag colN))
@@ -849,8 +850,8 @@ mod tests {
         results
     }
 
-    /// Test helper: parses the csv content into a single record batch arrow arrays
-    /// columnar ArrayRef according to the schema
+    /// Test helper: parses the csv content into a single record batch arrow
+    /// arrays columnar ArrayRef according to the schema
     fn parse_to_record_batch(schema: SchemaRef, data: &str) -> RecordBatch {
         let has_header = false;
         let delimiter = Some(b',');

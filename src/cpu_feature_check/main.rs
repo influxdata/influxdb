@@ -1,4 +1,5 @@
-//! This program prints what available x86 features are available on this processor
+//! This program prints what available x86 features are available on this
+//! processor
 
 macro_rules! check_feature {
     ($name: tt) => {

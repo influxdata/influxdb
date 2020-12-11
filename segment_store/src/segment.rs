@@ -139,9 +139,10 @@ impl Segment {
         &self.columns[*self.all_columns_by_name.get(name).unwrap()]
     }
 
-    // Takes a `ColumnName`, looks up that column in the `Segment`, and returns a reference to
-    // that column's name owned by the `Segment` along with a reference to the column itself.
-    // The returned column name will have the lifetime of `self`, not the lifetime of the input.
+    // Takes a `ColumnName`, looks up that column in the `Segment`, and returns a
+    // reference to that column's name owned by the `Segment` along with a
+    // reference to the column itself. The returned column name will have the
+    // lifetime of `self`, not the lifetime of the input.
     fn column_name_and_column(&self, name: ColumnName<'_>) -> (&str, &Column) {
         let (column_name, column_index) = self.all_columns_by_name.get_key_value(name).unwrap();
         (column_name, &self.columns[*column_index])
@@ -170,7 +171,6 @@ impl Segment {
 
     ///
     /// Methods for reading the segment.
-    ///
 
     /// Returns a set of materialised column values that satisfy a set of
     /// predicates.
@@ -553,8 +553,8 @@ impl ColumnType {
 //     // HashGroup specifies that groupings should be done using a hashmap.
 //     HashGroup,
 
-//     // SortGroup specifies that groupings should be determined by first sorting
-//     // the data to be grouped by the group-key.
+//     // SortGroup specifies that groupings should be determined by first
+// sorting     // the data to be grouped by the group-key.
 //     SortGroup,
 // }
 
@@ -1067,32 +1067,69 @@ west,POST,304,101,203
 
         let cases = vec![
             ("az", &(Operator::Equal, Value::String("west")), false), // no az column
-            ("region", &(Operator::Equal, Value::String("west")), true), // region column does contain "west"
-            ("region", &(Operator::Equal, Value::String("over")), true), // region column might contain "over"
-            ("region", &(Operator::Equal, Value::String("abc")), false), // region column can't contain "abc"
-            ("region", &(Operator::Equal, Value::String("zoo")), false), // region column can't contain "zoo"
+            ("region", &(Operator::Equal, Value::String("west")), true), /* region column does
+                                                                       * contain "west" */
+            ("region", &(Operator::Equal, Value::String("over")), true), /* region column might
+                                                                          * contain "over" */
+            ("region", &(Operator::Equal, Value::String("abc")), false), /* region column can't
+                                                                          * contain "abc" */
+            ("region", &(Operator::Equal, Value::String("zoo")), false), /* region column can't
+                                                                          * contain "zoo" */
             (
                 "region",
                 &(Operator::NotEqual, Value::String("hello")),
                 true,
             ), // region column might not contain "hello"
-            ("method", &(Operator::NotEqual, Value::String("GET")), false), // method must only contain "GET"
-            ("region", &(Operator::GT, Value::String("abc")), true), // region column might contain something > "abc"
-            ("region", &(Operator::GT, Value::String("north")), true), // region column might contain something > "north"
-            ("region", &(Operator::GT, Value::String("west")), false), // region column can't contain something > "west"
-            ("region", &(Operator::GTE, Value::String("abc")), true), // region column might contain something ≥ "abc"
-            ("region", &(Operator::GTE, Value::String("east")), true), // region column might contain something ≥ "east"
-            ("region", &(Operator::GTE, Value::String("west")), true), // region column might contain something ≥ "west"
-            ("region", &(Operator::GTE, Value::String("zoo")), false), // region column can't contain something ≥ "zoo"
-            ("region", &(Operator::LT, Value::String("foo")), true), // region column might contain something < "foo"
-            ("region", &(Operator::LT, Value::String("north")), true), // region column might contain something < "north"
-            ("region", &(Operator::LT, Value::String("south")), true), // region column might contain something < "south"
-            ("region", &(Operator::LT, Value::String("east")), false), // region column can't contain something < "east"
-            ("region", &(Operator::LT, Value::String("abc")), false), // region column can't contain something < "abc"
-            ("region", &(Operator::LTE, Value::String("east")), true), // region column might contain something ≤ "east"
-            ("region", &(Operator::LTE, Value::String("north")), true), // region column might contain something ≤ "north"
-            ("region", &(Operator::LTE, Value::String("south")), true), // region column might contain something ≤ "south"
-            ("region", &(Operator::LTE, Value::String("abc")), false), // region column can't contain something ≤ "abc"
+            ("method", &(Operator::NotEqual, Value::String("GET")), false), /* method must only
+                                                                             * contain "GET" */
+            ("region", &(Operator::GT, Value::String("abc")), true), /* region column might
+                                                                      * contain something >
+                                                                      * "abc" */
+            ("region", &(Operator::GT, Value::String("north")), true), /* region column might
+                                                                        * contain something >
+                                                                        * "north" */
+            ("region", &(Operator::GT, Value::String("west")), false), /* region column can't
+                                                                        * contain something >
+                                                                        * "west" */
+            ("region", &(Operator::GTE, Value::String("abc")), true), /* region column might
+                                                                       * contain something ≥
+                                                                       * "abc" */
+            ("region", &(Operator::GTE, Value::String("east")), true), /* region column might
+                                                                        * contain something ≥
+                                                                        * "east" */
+            ("region", &(Operator::GTE, Value::String("west")), true), /* region column might
+                                                                        * contain something ≥
+                                                                        * "west" */
+            ("region", &(Operator::GTE, Value::String("zoo")), false), /* region column can't
+                                                                        * contain something ≥
+                                                                        * "zoo" */
+            ("region", &(Operator::LT, Value::String("foo")), true), /* region column might
+                                                                      * contain something <
+                                                                      * "foo" */
+            ("region", &(Operator::LT, Value::String("north")), true), /* region column might
+                                                                        * contain something <
+                                                                        * "north" */
+            ("region", &(Operator::LT, Value::String("south")), true), /* region column might
+                                                                        * contain something <
+                                                                        * "south" */
+            ("region", &(Operator::LT, Value::String("east")), false), /* region column can't
+                                                                        * contain something <
+                                                                        * "east" */
+            ("region", &(Operator::LT, Value::String("abc")), false), /* region column can't
+                                                                       * contain something <
+                                                                       * "abc" */
+            ("region", &(Operator::LTE, Value::String("east")), true), /* region column might
+                                                                        * contain something ≤
+                                                                        * "east" */
+            ("region", &(Operator::LTE, Value::String("north")), true), /* region column might
+                                                                         * contain something ≤
+                                                                         * "north" */
+            ("region", &(Operator::LTE, Value::String("south")), true), /* region column might
+                                                                         * contain something ≤
+                                                                         * "south" */
+            ("region", &(Operator::LTE, Value::String("abc")), false), /* region column can't
+                                                                        * contain something ≤
+                                                                        * "abc" */
         ];
 
         for (column_name, predicate, exp) in cases {

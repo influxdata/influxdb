@@ -278,7 +278,8 @@ struct ReadInfo {
     sql_query: String,
 }
 
-// TODO: figure out how to stream read results out rather than rendering the whole thing in mem
+// TODO: figure out how to stream read results out rather than rendering the
+// whole thing in mem
 #[tracing::instrument(level = "debug")]
 async fn read<T: DatabaseStore>(
     req: hyper::Request<Body>,
@@ -396,7 +397,8 @@ async fn snapshot_partition<T: DatabaseStore>(
     let db_name =
         org_and_bucket_to_database(&snapshot.org, &snapshot.bucket).context(BucketMappingError)?;
 
-    // TODO: refactor the rest of this out of the http route and into the server crate.
+    // TODO: refactor the rest of this out of the http route and into the server
+    // crate.
     let db = server
         .write_buffer
         .db(&db_name)

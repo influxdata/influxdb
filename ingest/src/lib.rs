@@ -91,7 +91,8 @@ pub enum Error {
     CouldNotFindColumn,
 }
 
-/// Handles buffering `ParsedLine` objects and deducing a schema from that sample
+/// Handles buffering `ParsedLine` objects and deducing a schema from that
+/// sample
 #[derive(Debug)]
 struct MeasurementSampler<'a> {
     settings: ConversionSettings,
@@ -116,8 +117,8 @@ struct MeasurementWriter<'a> {
 }
 
 /// Tracks the conversation state for each measurement: either in
-/// "UnknownSchema" mode when the schema is still unknown or "KnownSchema" mode once
-/// the schema is known.
+/// "UnknownSchema" mode when the schema is still unknown or "KnownSchema" mode
+/// once the schema is known.
 #[derive(Debug)]
 enum MeasurementConverter<'a> {
     UnknownSchema(MeasurementSampler<'a>),
@@ -339,7 +340,8 @@ impl<'a> MeasurementWriter<'a> {
         self.write_buffer.len() >= self.settings.measurement_write_buffer_size
     }
 
-    /// Buffers a `ParsedLine`s (which are row-based) in preparation for column packing and writing
+    /// Buffers a `ParsedLine`s (which are row-based) in preparation for column
+    /// packing and writing
     pub fn buffer_line(&mut self, line: ParsedLine<'a>) -> Result<(), Error> {
         if self.buffer_full() {
             self.flush_buffer()?;
@@ -531,8 +533,9 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 //     }
 // }
 
-// fn write_arrow_file(parquet_schema: Schema, packers: Vec<Packers>) -> Result<(), Error> {
-//     let file = File::create("/tmp/http_api_requests_total.arrow").unwrap();
+// fn write_arrow_file(parquet_schema: Schema, packers: Vec<Packers>) ->
+// Result<(), Error> {     let file =
+// File::create("/tmp/http_api_requests_total.arrow").unwrap();
 
 //     let mut record_batch_fields: Vec<datatypes::Field> = vec![];
 //     // no default() on Field...
@@ -570,29 +573,29 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 //     }
 
 //     loop {
-//         let mut chunked_packers: Vec<Packers> = Vec::with_capacity(packers.len());
-//         for chunker in &mut packer_chunkers {
-//             match chunker {
+//         let mut chunked_packers: Vec<Packers> =
+// Vec::with_capacity(packers.len());         for chunker in &mut
+// packer_chunkers {             match chunker {
 //                 PackerChunker::Float(c) => {
 //                     if let Some(chunk) = c.next() {
-//                         chunked_packers.push(Packers::Float(Packer::from(chunk)));
-//                     }
-//                 }
+//
+// chunked_packers.push(Packers::Float(Packer::from(chunk)));
+// }                 }
 //                 PackerChunker::Integer(c) => {
 //                     if let Some(chunk) = c.next() {
-//                         chunked_packers.push(Packers::Integer(Packer::from(chunk)));
-//                     }
-//                 }
+//
+// chunked_packers.push(Packers::Integer(Packer::from(chunk)));
+// }                 }
 //                 PackerChunker::String(c) => {
 //                     if let Some(chunk) = c.next() {
-//                         chunked_packers.push(Packers::String(Packer::from(chunk)));
-//                     }
-//                 }
+//
+// chunked_packers.push(Packers::String(Packer::from(chunk)));
+// }                 }
 //                 PackerChunker::Boolean(c) => {
 //                     if let Some(chunk) = c.next() {
-//                         chunked_packers.push(Packers::Boolean(Packer::from(chunk)));
-//                     }
-//                 }
+//
+// chunked_packers.push(Packers::Boolean(Packer::from(chunk)));
+// }                 }
 //             }
 //         }
 
@@ -610,8 +613,8 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 //             chunked_packers.len(),
 //             chunked_packers[0].num_rows()
 //         );
-//         write_arrow_batch(&mut writer, Arc::new(schema.clone()), chunked_packers);
-//     }
+//         write_arrow_batch(&mut writer, Arc::new(schema.clone()),
+// chunked_packers);     }
 
 //     writer.finish().unwrap();
 //     Ok(())
@@ -627,19 +630,21 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 //     for packer in packers {
 //         match packer {
 //             Packers::Float(p) => {
-//                 record_batch_arrays.push(Arc::new(array::Float64Array::from(p.values().to_vec())));
-//             }
+//
+// record_batch_arrays.push(Arc::new(array::Float64Array::from(p.values().
+// to_vec())));             }
 //             Packers::Integer(p) => {
-//                 record_batch_arrays.push(Arc::new(array::Int64Array::from(p.values().to_vec())));
-//             }
+//
+// record_batch_arrays.push(Arc::new(array::Int64Array::from(p.values().
+// to_vec())));             }
 //             Packers::String(p) => {
 //                 let mut builder = array::StringBuilder::new(p.num_rows());
 //                 for v in p.values() {
 //                     match v {
 //                         Some(v) => {
-//                             builder.append_value(v.as_utf8().unwrap()).unwrap();
-//                         }
-//                         None => {
+//
+// builder.append_value(v.as_utf8().unwrap()).unwrap();
+// }                         None => {
 //                             builder.append_null().unwrap();
 //                         }
 //                     }
@@ -654,8 +659,8 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 //         }
 //     }
 
-//     let record_batch = record_batch::RecordBatch::try_new(schema, record_batch_arrays).unwrap();
-//     w.write(&record_batch).unwrap();
+//     let record_batch = record_batch::RecordBatch::try_new(schema,
+// record_batch_arrays).unwrap();     w.write(&record_batch).unwrap();
 // }
 
 /// Converts one or more TSM files into the packers internal columnar
@@ -845,15 +850,15 @@ impl TSMFileConverter {
         // The processing function we supply to `process` does the following:
         //
         //  - Append the timestamp column to the packer timestamp column
-        //  - Materialise the same tag value for any tag key columns where the
-        //    emitted section has a none-null value for that column.
-        //  - Materialise NULL values for any tag key columns that we don't have
-        //    data for in the emitted section.
-        //  - Append the field columns to the packer field columns. The emitted
-        //    section will already have fully materialised the data for these
-        //    columns, including any NULL entries.
-        //  - Materialise NULL values for any field columns that the emitted
-        //    section does not have any data for.
+        //  - Materialise the same tag value for any tag key columns where the emitted
+        //    section has a none-null value for that column.
+        //  - Materialise NULL values for any tag key columns that we don't have data
+        //    for in the emitted section.
+        //  - Append the field columns to the packer field columns. The emitted section
+        //    will already have fully materialised the data for these columns, including
+        //    any NULL entries.
+        //  - Materialise NULL values for any field columns that the emitted section
+        //    does not have any data for.
         //
         m.process(
             &mut block_reader,
@@ -1405,7 +1410,8 @@ mod tests {
 
     #[test]
     fn measurement_sampler_deduce_schema_multi_line_field_changed() {
-        // given two lines of protocol data that have apparently different data types for the field:
+        // given two lines of protocol data that have apparently different data types
+        // for the field:
         let mut sampler = make_sampler_from_data(
             r#"
             cpu,host=A usage_system=64i 1590488773254420000
@@ -1418,7 +1424,8 @@ mod tests {
             .expect("Successful schema conversion");
         assert_eq!(schema.measurement(), "cpu");
 
-        // Then the first field type appears in the resulting schema (TBD is this what we want??)
+        // Then the first field type appears in the resulting schema (TBD is this what
+        // we want??)
         let cols = schema.get_col_defs();
         println!("Converted to {:#?}", cols);
         assert_eq!(cols.len(), 3);
@@ -1783,12 +1790,14 @@ mod tests {
         // | b    |  NULL  |  NULL  | NULL  |  NULL   |   1000  | 3000 |
         // | b    |  NULL  |  NULL  | NULL  |  NULL   |   2000  | 4000 |
         // | b    |  NULL  |  NULL  | NULL  |  NULL   |   3000  | 5000 |
-        // | NULL |  east  |  NULL  | 1.2   |  10.2   |   NULL  | 0000 |  <-- notice series joined on ts column
-        // | NULL |  east  |  NULL  | 1.2   |  10.2   |   NULL  | 1000 |  <-- notice series joined on ts column
-        // | NULL |  east  |  NULL  | 1.4   |  10.4   |   NULL  | 2000 |  <-- notice series joined on ts column
-        // | NULL |  west  |    a   | 100.2 |  NULL   |   NULL  | 2000 |
-        // | NULL |  west  |    a   | 99.5  |  NULL   |   NULL  | 3000 |
-        // | NULL |  west  |    a   | 100.3 |  NULL   |   NULL  | 4000 |
+        // | NULL |  east  |  NULL  | 1.2   |  10.2   |   NULL  | 0000 |  <-- notice
+        // series joined on ts column | NULL |  east  |  NULL  | 1.2   |  10.2
+        // |   NULL  | 1000 |  <-- notice series joined on ts column
+        // | NULL |  east  |  NULL  | 1.4   |  10.4   |   NULL  | 2000 |  <-- notice
+        // series joined on ts column | NULL |  west  |    a   | 100.2 |  NULL
+        // |   NULL  | 2000 | | NULL |  west  |    a   | 99.5  |  NULL   |
+        // NULL  | 3000 | | NULL |  west  |    a   | 100.3 |  NULL   |   NULL  |
+        // 4000 |
 
         let mut table = MeasurementTable::new("cpu".to_string(), 0);
         // cpu region=east temp=<all the block data for this key>

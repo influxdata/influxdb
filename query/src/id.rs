@@ -22,8 +22,8 @@ pub enum Error {
     InvalidId { source: ParseIntError },
 }
 
-/// ID_LENGTH is the exact length a string (or a byte slice representing it) must have in order to
-/// be decoded into a valid ID.
+/// ID_LENGTH is the exact length a string (or a byte slice representing it)
+/// must have in order to be decoded into a valid ID.
 const ID_LENGTH: usize = 16;
 
 /// Id is a unique identifier.

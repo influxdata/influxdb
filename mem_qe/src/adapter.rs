@@ -11,8 +11,8 @@
 //     datasource::TableProvider,
 //     execution::{
 //         context::ExecutionContextState,
-//         physical_plan::{common::RecordBatchIterator, ExecutionPlan, Partition},
-//     },
+//         physical_plan::{common::RecordBatchIterator, ExecutionPlan,
+// Partition},     },
 //     logicalplan::{make_logical_plan_node, Expr, LogicalPlan},
 //     lp::LogicalPlanNode,
 //     optimizer::utils,
@@ -42,8 +42,8 @@
 //         self.store.schema()
 //     }
 
-//     /// Perform a scan of a table and return a sequence of iterators over the data (one
-//     /// iterator per partition)
+//     /// Perform a scan of a table and return a sequence of iterators over the
+// data (one     /// iterator per partition)
 //     fn scan(
 //         &self,
 //         _projection: &Option<Vec<usize>>,
@@ -114,8 +114,8 @@
 //     ///
 //     /// The following plan would be produced
 //     /// Projection: #env, #method, #host, #counter, #time
-//     ///   SegmentScan: measurement projection=None predicate=: #time GtEq Int64(1590036110000000)
-//     ///
+//     ///   SegmentScan: measurement projection=None predicate=: #time GtEq
+// Int64(1590036110000000)     ///
 //     fn rewrite_to_segment_scan(&self, plan: &LogicalPlan) -> LogicalPlan {
 //         if let LogicalPlan::Filter { predicate, input } = plan {
 //             // see if the input is a TableScan
@@ -133,13 +133,13 @@
 //             .map(|input| self.rewrite_to_segment_scan(input))
 //             .collect();
 
-//         return utils::from_plan(plan, &utils::expressions(plan), &optimized_inputs)
-//             .expect("Created plan");
+//         return utils::from_plan(plan, &utils::expressions(plan),
+// &optimized_inputs)             .expect("Created plan");
 //     }
 // }
 
-// /// LogicalPlan node that serves as a scan of the segment store with optional predicates
-// struct SegmentScan {
+// /// LogicalPlan node that serves as a scan of the segment store with optional
+// predicates struct SegmentScan {
 //     /// The underlying Store
 //     store: Arc<Store>,
 
@@ -172,17 +172,17 @@
 //         self.schema.as_ref()
 //     }
 
-//     /// returns all expressions (non-recursively) in the current logical plan node.
-//     fn expressions(&self) -> Vec<Expr> {
+//     /// returns all expressions (non-recursively) in the current logical plan
+// node.     fn expressions(&self) -> Vec<Expr> {
 //         // The predicate expression gets absorbed by this node As
 //         // there are no inputs, there are no exprs that operate on
 //         // inputs
 //         Vec::new()
 //     }
 
-//     /// Write a single line human readable string to `f` for use in explain plan
-//     fn format_for_explain(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         write!(
+//     /// Write a single line human readable string to `f` for use in explain
+// plan     fn format_for_explain(&self, f: &mut fmt::Formatter<'_>) ->
+// fmt::Result {         write!(
 //             f,
 //             "SegmentScan: {:?} predicate {:?}",
 //             self.store.as_ref() as *const Store,
@@ -196,11 +196,11 @@
 //     /// clone that creates a node with a known Size (i.e. Box)
 //     //
 //     fn dyn_clone(&self) -> Box<dyn LogicalPlanNode> {
-//         Box::new(SegmentScan::new(self.store.clone(), self.predicate.clone()))
-//     }
+//         Box::new(SegmentScan::new(self.store.clone(),
+// self.predicate.clone()))     }
 
-//     /// Create a clone of this LogicalPlanNode with inputs and expressions replaced.
-//     ///
+//     /// Create a clone of this LogicalPlanNode with inputs and expressions
+// replaced.     ///
 //     /// Note that exprs and inputs are in the same order as the result
 //     /// of self.inputs and self.exprs.
 //     ///
@@ -212,8 +212,8 @@
 //     ) -> Box<dyn LogicalPlanNode> {
 //         assert_eq!(exprs.len(), 0, "no exprs expected");
 //         assert_eq!(inputs.len(), 0, "no inputs expected");
-//         Box::new(SegmentScan::new(self.store.clone(), self.predicate.clone()))
-//     }
+//         Box::new(SegmentScan::new(self.store.clone(),
+// self.predicate.clone()))     }
 
 //     /// Create the corresponding physical scheplan for this node
 //     fn create_physical_plan(
@@ -229,8 +229,9 @@
 //         // hard code it here instead
 //         assert_eq!(
 //             format!("{:?}", self.predicate),
-//             "CAST(#time AS Int64) GtEq Int64(1590036110000000) And CAST(#time AS Int64) Lt Int64(1590040770000000) And #env Eq Utf8(\"prod01-eu-central-1\")"
-//         );
+//             "CAST(#time AS Int64) GtEq Int64(1590036110000000) And CAST(#time
+// AS Int64) Lt Int64(1590040770000000) And #env Eq
+// Utf8(\"prod01-eu-central-1\")"         );
 
 //         let time_range = (1590036110000000, 1590040770000000);
 //         let string_predicate = StringPredicate {
@@ -263,8 +264,8 @@
 // }
 
 // impl SegmentScanExec {
-//     fn new(store: Arc<Store>, time_range: (i64, i64), string_predicate: StringPredicate) -> Self {
-//         SegmentScanExec {
+//     fn new(store: Arc<Store>, time_range: (i64, i64), string_predicate:
+// StringPredicate) -> Self {         SegmentScanExec {
 //             store,
 //             time_range,
 //             string_predicate,
@@ -277,8 +278,8 @@
 //         self.store.schema()
 //     }
 
-//     fn partitions(&self) -> arrow_deps::datafusion::error::Result<Vec<Arc<dyn Partitioning>>> {
-//         let store = self.store.clone();
+//     fn partitions(&self) -> arrow_deps::datafusion::error::Result<Vec<Arc<dyn
+// Partitioning>>> {         let store = self.store.clone();
 //         Ok(vec![Arc::new(SegmentPartition {
 //             store,
 //             time_range: self.time_range,
@@ -297,8 +298,8 @@
 // impl Partition for SegmentPartition {
 //     fn execute(
 //         &self,
-//     ) -> arrow_deps::datafusion::error::Result<Arc<Mutex<dyn RecordBatchReader + Send + Sync>>>
-//     {
+//     ) -> arrow_deps::datafusion::error::Result<Arc<Mutex<dyn
+// RecordBatchReader + Send + Sync>>>     {
 //         let combined_results: Vec<Arc<RecordBatch>> = vec![];
 
 //         let segments = self.store.segments();

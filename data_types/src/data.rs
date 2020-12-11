@@ -38,8 +38,8 @@ impl ReplicatedWrite {
         flatbuffers::get_root::<wb::ReplicatedWrite<'_>>(&self.data)
     }
 
-    /// Returns the Flatbuffers struct for the WriteBufferBatch in the raw bytes of the
-    /// payload of the ReplicatedWrite.
+    /// Returns the Flatbuffers struct for the WriteBufferBatch in the raw bytes
+    /// of the payload of the ReplicatedWrite.
     pub fn write_buffer_batch(&self) -> Option<wb::WriteBufferBatch<'_>> {
         match self.to_fb().payload() {
             Some(d) => Some(flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&d)),
@@ -191,7 +191,8 @@ pub fn split_lines_into_write_entry_partitions(
             .push(line);
     }
 
-    // create a WALEntry for each batch of lines going to a partition (one WALEntry per partition)
+    // create a WALEntry for each batch of lines going to a partition (one WALEntry
+    // per partition)
     let entries = partition_writes
         .into_iter()
         .map(|(key, lines)| add_write_entry(&mut fbb, Some(&key), &lines))

@@ -26,7 +26,8 @@ pub fn encode(src: &[f64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
     if dst.capacity() < 9 {
-        dst.reserve_exact(9 - dst.capacity()); // room for encoding type, block size and a value
+        dst.reserve_exact(9 - dst.capacity()); // room for encoding type, block
+                                               // size and a value
     }
 
     // write encoding type

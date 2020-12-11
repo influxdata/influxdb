@@ -9,9 +9,10 @@ use query::id::Id;
 
 use std::convert::TryInto;
 
-/// This trait implements extraction of information from all storage gRPC requests. The only method
-/// required to implement is `read_source_field` because for some requests the field is named
-/// `read_source` and for others it is `tags_source`.
+/// This trait implements extraction of information from all storage gRPC
+/// requests. The only method required to implement is `read_source_field`
+/// because for some requests the field is named `read_source` and for others it
+/// is `tags_source`.
 pub trait GrpcInputs {
     fn read_source_field(&self) -> Option<&prost_types::Any>;
 

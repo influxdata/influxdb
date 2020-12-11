@@ -41,8 +41,8 @@ pub enum Error {
 #[allow(dead_code)]
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// An in-memory buffer of a write ahead log. It is split up into segments, which can be persisted
-/// to object storage.
+/// An in-memory buffer of a write ahead log. It is split up into segments,
+/// which can be persisted to object storage.
 #[derive(Debug)]
 pub struct Buffer {
     max_size: u64,
@@ -66,9 +66,10 @@ impl Buffer {
         }
     }
 
-    /// Appends a replicated write onto the buffer, returning the segment if it has been closed out.
-    /// If the max size of the buffer would be exceeded by accepting the write, the oldest (first)
-    /// of the closed segments will be dropped, if it is persisted. Otherwise, an error is returned.
+    /// Appends a replicated write onto the buffer, returning the segment if it
+    /// has been closed out. If the max size of the buffer would be exceeded
+    /// by accepting the write, the oldest (first) of the closed segments
+    /// will be dropped, if it is persisted. Otherwise, an error is returned.
     #[allow(dead_code)]
     pub async fn append(&mut self, write: ReplicatedWrite) -> Result<Option<Arc<Segment>>> {
         let write_size = u64::try_from(write.data.len())
@@ -132,15 +133,17 @@ impl Buffer {
         self.current_size
     }
 
-    /// Returns any replicated writes from the given writer ID and sequence number onward. This
-    /// will include writes from other writers. The given writer ID and sequence are to identify
-    /// from what point to replay writes. If no write matches the given writer ID and sequence
+    /// Returns any replicated writes from the given writer ID and sequence
+    /// number onward. This will include writes from other writers. The
+    /// given writer ID and sequence are to identify from what point to
+    /// replay writes. If no write matches the given writer ID and sequence
     /// number, all replicated writes within the buffer will be returned.
     #[allow(dead_code)]
     pub fn all_writes_since(&self, since: WriterSequence) -> Vec<Arc<ReplicatedWrite>> {
         let mut writes = Vec::new();
 
-        // start with the newest writes and go back. Hopefully they're asking for something recent.
+        // start with the newest writes and go back. Hopefully they're asking for
+        // something recent.
         for w in self.open_segment.writes.iter().rev() {
             if w.equal_to_writer_and_sequence(since.id, since.sequence) {
                 writes.reverse();
@@ -163,14 +166,16 @@ impl Buffer {
         writes
     }
 
-    /// Returns replicated writes from the given writer ID and sequence number onward. This returns
-    /// only writes from the passed in writer ID. If no write matches the given writer ID and sequence
-    /// number, all replicated writes within the buffer for that writer will be returned.
+    /// Returns replicated writes from the given writer ID and sequence number
+    /// onward. This returns only writes from the passed in writer ID. If no
+    /// write matches the given writer ID and sequence number, all
+    /// replicated writes within the buffer for that writer will be returned.
     #[allow(dead_code)]
     pub fn writes_since(&self, since: WriterSequence) -> Vec<Arc<ReplicatedWrite>> {
         let mut writes = Vec::new();
 
-        // start with the newest writes and go back. Hopefully they're asking for something recent.
+        // start with the newest writes and go back. Hopefully they're asking for
+        // something recent.
         for w in self.open_segment.writes.iter().rev() {
             let (writer, sequence) = w.writer_and_sequence();
             if writer == since.id {
@@ -230,7 +235,8 @@ impl Segment {
         }
     }
 
-    // appends the write to the segment, keeping track of the summary information about the writer
+    // appends the write to the segment, keeping track of the summary information
+    // about the writer
     #[allow(dead_code)]
     fn append(&mut self, write: ReplicatedWrite) -> Result<()> {
         let (writer_id, sequence_number) = write.writer_and_sequence();
@@ -244,8 +250,9 @@ impl Segment {
         Ok(())
     }
 
-    // checks that the sequence numbers in this segment are monotonically increasing. Also keeps
-    // track of the starting and ending sequence numbers and if any were missing.
+    // checks that the sequence numbers in this segment are monotonically
+    // increasing. Also keeps track of the starting and ending sequence numbers
+    // and if any were missing.
     fn validate_and_update_sequence_summary(
         &mut self,
         writer_id: WriterId,

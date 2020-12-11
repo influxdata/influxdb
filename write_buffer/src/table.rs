@@ -176,7 +176,8 @@ pub struct Table {
     /// Name of the table as a u32 in the partition dictionary
     pub id: u32,
 
-    /// Maps column name (as a u32 in the partition dictionary) to an index in self.columns
+    /// Maps column name (as a u32 in the partition dictionary) to an index in
+    /// self.columns
     pub column_id_to_index: HashMap<u32, usize>,
 
     /// Actual column storage
@@ -313,7 +314,8 @@ impl Table {
             .column_id_to_index
             .iter()
             .filter_map(|(&column_id, &column_index)| {
-                // keep tag columns and the timestamp column, if needed to evaluate a timestamp predicate
+                // keep tag columns and the timestamp column, if needed to evaluate a timestamp
+                // predicate
                 let need_column = if let Column::Tag(_, _) = self.columns[column_index] {
                     true
                 } else {
@@ -421,7 +423,8 @@ impl Table {
             .context(BuildingPlan)
     }
 
-    /// Creates a SeriesSet plan that produces an output table with rows that match the predicate
+    /// Creates a SeriesSet plan that produces an output table with rows that
+    /// match the predicate
     ///
     /// The output looks like:
     /// (tag_col1, tag_col2, ... field1, field2, ... timestamp)
@@ -439,8 +442,8 @@ impl Table {
         self.series_set_plan_impl(partition_predicate, None, partition)
     }
 
-    /// Creates the plans for computing series set, pulling prefix_columns, if any, as a prefix of the ordering
-    /// The created plan looks like:
+    /// Creates the plans for computing series set, pulling prefix_columns, if
+    /// any, as a prefix of the ordering The created plan looks like:
     ///
     ///    Projection (select the columns columns needed)
     ///      Order by (tag_columns, timestamp_column)
@@ -518,10 +521,12 @@ impl Table {
         Arc::new(table_name)
     }
 
-    /// Creates a GroupedSeriesSet plan that produces an output table with rows that match the predicate
+    /// Creates a GroupedSeriesSet plan that produces an output table with rows
+    /// that match the predicate
     ///
     /// The output looks like:
-    /// (group_tag_column1, group_tag_column2, ... tag_col1, tag_col2, ... field1, field2, ... timestamp)
+    /// (group_tag_column1, group_tag_column2, ... tag_col1, tag_col2, ...
+    /// field1, field2, ... timestamp)
     ///
     /// The order of the tag_columns is ordered by name.
     ///
@@ -576,7 +581,6 @@ impl Table {
     ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field)
     ///        Filter(predicate)
     ///          InMemoryScan
-    ///
     pub fn window_grouped_series_set_plan(
         &self,
         partition_predicate: &PartitionPredicate,
@@ -1319,7 +1323,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_series_set_plan_order() {
-        // test that the columns and rows come out in the right order (tags then timestamp)
+        // test that the columns and rows come out in the right order (tags then
+        // timestamp)
 
         let mut partition = Partition::new("dummy_partition_key");
         let dictionary = &mut partition.dictionary;
@@ -1684,7 +1689,8 @@ mod tests {
             .collect()
     }
 
-    // returns the error string or panics if `reorder_prefix` doesn't return an error
+    // returns the error string or panics if `reorder_prefix` doesn't return an
+    // error
     fn reorder_prefix_err(prefix: &[&str], table_columns: &[&str]) -> String {
         let prefix = prefix.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         let table_columns =

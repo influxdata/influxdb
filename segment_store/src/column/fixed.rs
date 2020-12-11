@@ -3,10 +3,10 @@
 //! This encoding stores a column of fixed-width numerical values potentially
 //! using a smaller physical type in memory than the provided logical type.
 //!
-//! For example, if you have a column with 64-bit integers: [122, 232, 33, 0, -12]
-//! then you can reduce the space needed to store them, by converting them as a
-//! `Vec<i8>` instead of a `Vec<i64>`. In this case, this reduces the size of
-//! the column data by 87.5% and generally should increase throughput of
+//! For example, if you have a column with 64-bit integers: [122, 232, 33, 0,
+//! -12] then you can reduce the space needed to store them, by converting them
+//! as a `Vec<i8>` instead of a `Vec<i64>`. In this case, this reduces the size
+//! of the column data by 87.5% and generally should increase throughput of
 //! operations on the column data.
 //!
 //! The encodings within this module do not concern themselves with choosing the
@@ -27,17 +27,16 @@ use crate::column::{cmp, RowIDs};
 ///
 /// For a given logical datatype `U`, `Fixed` encodings can store values with
 /// a different datatype `T`, where `size_of::<T>() <= size_of::<U>()`.
-///
 pub struct Fixed<T>
 where
     T: PartialOrd + std::fmt::Debug,
 {
     // backing data
     values: Vec<T>,
-    // TODO(edd): future optimisation to stop filtering early.
-    // total_order can be used as a hint to stop scanning the column early when
-    // applying a comparison predicate to the column.
-    // total_order: bool,
+    /* TODO(edd): future optimisation to stop filtering early.
+     * total_order can be used as a hint to stop scanning the column early when
+     * applying a comparison predicate to the column.
+     * total_order: bool, */
 }
 
 impl<T> std::fmt::Display for Fixed<T>
@@ -133,10 +132,10 @@ where
 
     /// Returns the logical (decoded) values for all the rows in the column.
     ///
-    /// `all_values` materialises the returned values according to the logical type
-    /// of the column, which is specified by the type `U`. The container for
-    /// returned values must be provided by the caller, though `values` will
-    /// ensure it has sufficient capacity.
+    /// `all_values` materialises the returned values according to the logical
+    /// type of the column, which is specified by the type `U`. The
+    /// container for returned values must be provided by the caller, though
+    /// `values` will ensure it has sufficient capacity.
     pub fn all_values<U>(&self, mut dst: Vec<U>) -> Vec<U>
     where
         U: From<T>,
@@ -648,8 +647,9 @@ mod test {
         assert_eq!(v.max::<i64>(&[0, 1, 2, 3, 4]), 110);
 
         // Test behaviour with non-real numbers - NaN should be the maximum.
-        // let v = Fixed::<f64>::from(vec![11.2, 3.32, std::f64::NAN, 34.9].as_slice());
-        // assert!(v.max::<f64>(&[0, 1, 2, 3]).is_nan());
+        // let v = Fixed::<f64>::from(vec![11.2, 3.32, std::f64::NAN,
+        // 34.9].as_slice()); assert!(v.max::<f64>(&[0, 1, 2,
+        // 3]).is_nan());
     }
 
     #[test]

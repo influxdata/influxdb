@@ -205,7 +205,6 @@ impl Encoding {
     /// the column.
     ///
     /// NULL values are represented by None.
-    ///
     fn all_values<'a>(&'a mut self, dst: Vec<Option<&'a str>>) -> Vec<Option<&'a str>> {
         match self {
             Encoding::RLE(enc) => enc.all_values(dst),
@@ -238,7 +237,6 @@ impl Encoding {
 
     /// Return the raw encoded values for the provided logical row ids.
     /// Encoded values for NULL values are included.
-    ///
     fn encoded_values(&self, row_ids: &[u32], dst: Vec<u32>) -> Vec<u32> {
         match self {
             Encoding::RLE(enc) => enc.encoded_values(row_ids, dst),
@@ -276,7 +274,6 @@ impl Encoding {
     /// values. By exposing the current result set to each column (as an
     /// argument to `contains_other_values`) columns can be short-circuited when
     /// they only contain values that have already been discovered.
-    ///
     fn contains_other_values(&self, values: &BTreeSet<Option<&String>>) -> bool {
         match self {
             Encoding::RLE(enc) => enc.contains_other_values(values),
@@ -541,7 +538,8 @@ mod test {
             name
         );
 
-        // The encoding also supports comparisons on values that don't directly exist in the column.
+        // The encoding also supports comparisons on values that don't directly exist in
+        // the column.
         let ids = enc.row_ids_filter(&"abba", &cmp::Operator::GT, RowIDs::Vector(vec![]));
         assert_eq!(
             ids,

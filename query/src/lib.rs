@@ -52,7 +52,8 @@ pub trait TSDatabase: Debug + Send + Sync {
     /// writes parsed lines into this database
     async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error>;
 
-    /// Stores the replicated write in the write buffer and, if enabled, the write ahead log.
+    /// Stores the replicated write in the write buffer and, if enabled, the
+    /// write ahead log.
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
 
     /// Returns a plan that lists the names of tables in this
@@ -111,7 +112,8 @@ pub trait SQLDatabase: Debug + Send + Sync {
     type Partition: Send + Sync + 'static + PartitionChunk;
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// Execute the specified query and return arrow record batches with the result
+    /// Execute the specified query and return arrow record batches with the
+    /// result
     async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error>;
 
     /// Fetch the specified table names and columns as Arrow

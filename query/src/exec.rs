@@ -115,8 +115,8 @@ impl<E> From<Result<StringSetRef, E>> for StringSetPlan
 where
     E: std::error::Error + Send + Sync + 'static,
 {
-    /// Create a StringSetPlan from a Result<StringSetRef> result, wrapping the error type
-    /// appropriately
+    /// Create a StringSetPlan from a Result<StringSetRef> result, wrapping the
+    /// error type appropriately
     fn from(result: Result<StringSetRef, E>) -> Self {
         match result {
             Ok(set) => Self::Known(Ok(set)),

@@ -92,9 +92,9 @@ fn benchmark_read_group_pre_computed_groups_no_predicates_vary_cardinality(
 
 // This benchmark tracks the performance of read_group when it is able to use
 // the per-group bitsets provided by RLE columns. This benchmark seeks to
-// understand the performance of working on these bitsets directly in the segment
-// when the size of these bitsets changes. Therefore the cardinality (groups)
-// is fixed, but the number of rows in the column is varied.
+// understand the performance of working on these bitsets directly in the
+// segment when the size of these bitsets changes. Therefore the cardinality
+// (groups) is fixed, but the number of rows in the column is varied.
 fn benchmark_read_group_pre_computed_groups_no_predicates_vary_rows(
     c: &mut Criterion,
     benchmark_group_name: &str,
@@ -320,7 +320,8 @@ fn generate_trace_for_segment(
     let normal = Normal::new(10.0, 5.0).unwrap();
     let node_id_prefix = format!("{}-{}-{}", env_value, data_centre_value, cluster_value,);
     for _ in 0..spans_per_trace {
-        // these values are not the same for each span so need to be generated separately.
+        // these values are not the same for each span so need to be generated
+        // separately.
         let node_id = rng.gen_range(0, 10); // cardinality is 2 * 10 * 10 * 10 = 2,000
         let node_id = format!("node_id-{}-{}", node_id_prefix, node_id);
 

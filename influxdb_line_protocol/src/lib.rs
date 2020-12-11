@@ -1,5 +1,5 @@
-//! This module contains a pure rust implementation of a parser for InfluxDB Line Protocol
-//! https://v2.docs.influxdata.com/v2.0/reference/syntax/line-protocol/
+//! This module contains a pure rust implementation of a parser for InfluxDB
+//! Line Protocol https://v2.docs.influxdata.com/v2.0/reference/syntax/line-protocol/
 //!
 //! This implementation is intended to be compatible with the Go implementation,
 //! https://github.com/influxdata/influxdb/blob/217eddc87e14a79b01d0c22994fc139f530094a2/models/points_parser.go
@@ -148,8 +148,8 @@ pub struct ParsedLine<'a> {
 }
 
 impl<'a> ParsedLine<'a> {
-    /// Total number of columns on this line, including fields, tags, and timestamp (which is
-    /// always present).
+    /// Total number of columns on this line, including fields, tags, and
+    /// timestamp (which is always present).
     ///
     /// ```
     /// use influxdb_line_protocol::{ParsedLine, FieldValue};
@@ -367,7 +367,6 @@ impl<'a> Display for FieldValue<'a> {
 /// For example the 8 character string `Foo\\Bar` (note the double
 /// `\\`) is parsed into the logical 7 character string `Foo\Bar`
 /// (note the single `\`)
-///
 #[derive(Debug, Clone, Eq)]
 pub enum EscapedStr<'a> {
     SingleSlice(&'a str),
@@ -685,7 +684,8 @@ fn timestamp(i: &str) -> IResult<&str, i64> {
 
 fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
     // https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
-    // For string field values, backslash is only used to escape itself(\) or double quotes.
+    // For string field values, backslash is only used to escape itself(\) or double
+    // quotes.
     let string_data = alt((
         map(tag(r#"\""#), |_| r#"""#), // escaped double quote -> double quote
         map(tag(r#"\\"#), |_| r#"\"#), // escaped backslash --> single backslash
@@ -707,7 +707,8 @@ fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
 
 fn field_bool_value(i: &str) -> IResult<&str, bool> {
     // https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
-    // "specify TRUE with t, T, true, True, or TRUE. Specify FALSE with f, F, false, False, or FALSE
+    // "specify TRUE with t, T, true, True, or TRUE. Specify FALSE with f, F, false,
+    // False, or FALSE
     alt((
         map(tag("true"), |_| true),
         map(tag("True"), |_| true),
@@ -817,7 +818,8 @@ where
                                 result.push(escape_char);
                                 head = after;
 
-                                // The Go parser assumes that *any* unknown escaped character is valid.
+                                // The Go parser assumes that *any* unknown escaped character is
+                                // valid.
                                 match head.chars().next() {
                                     Some(c) => {
                                         let (escaped, remaining) = head.split_at(c.len_utf8());
