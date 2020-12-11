@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"io"
 	"os"
 	"time"
@@ -13,27 +14,92 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	runE := func(cmd *cobra.Command, args []string) error {
-		seeHelp(cmd, args)
-		return nil
+type taskSVCsFn func() (influxdb.TaskService, influxdb.OrganizationService, error)
+
+func newTaskSVCs() (influxdb.TaskService, influxdb.OrganizationService, error) {
+	httpClient, err := newHTTPClient()
+	if err != nil {
+		return nil, nil, err
 	}
 
-	cmd := opt.newCmd("task", runE, false)
-	cmd.Short = "Task management commands"
+	orgSvc := &tenant.OrgClientService{Client: httpClient}
+	return &http.TaskService{Client: httpClient}, orgSvc, nil
+}
 
+func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	builder := newCmdTaskBuilder(newTaskSVCs, f, opt)
+	return builder.cmd()
+}
+
+type cmdTaskBuilder struct {
+	genericCLIOpts
+	*globalFlags
+
+	svcFn taskSVCsFn
+
+	id          string
+	hideHeaders bool
+	json        bool
+	name        string
+	description string
+	org         organization
+	query       string
+}
+
+func newCmdTaskBuilder(svcsFn taskSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdTaskBuilder {
+	return &cmdTaskBuilder{
+		globalFlags:    f,
+		genericCLIOpts: opts,
+		svcFn:          svcsFn,
+	}
+}
+
+func (t *cmdTaskBuilder) cmd() *cobra.Command {
+	cmd := t.newCmd("task", nil)
+	cmd.Short = "Task management commands"
+	// todo: ask what this line does lol
+	cmd.TraverseChildren = true
+	cmd.Run = seeHelp
 	cmd.AddCommand(
-		taskLogCmd(f, opt),
-		taskRunCmd(f, opt),
-		taskCreateCmd(f, opt),
-		taskDeleteCmd(f, opt),
-		taskFindCmd(f, opt),
-		taskUpdateCmd(f, opt),
-		taskRerunFailedCmd(f, opt),
+		t.taskLogCmd(),
+		t.taskRunCmd(),
+		t.taskCreateCmd(),
+		t.taskDeleteCmd(),
+		t.taskFindCmd(),
+		t.taskUpdateCmd(),
+		t.taskRerunFailedCmd(),
 	)
 
+	//todo add commands and return cmd
+}
+
+func (t *cmdTaskBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+	cmd := t.genericCLIOpts.newCmd(use, runE, true)
+	t.globalFlags.registerFlags(t.viper, cmd)
 	return cmd
 }
+
+//func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+//	runE := func(cmd *cobra.Command, args []string) error {
+//		seeHelp(cmd, args)
+//		return nil
+//	}
+//
+//	cmd := opt.newCmd("task", runE, false)
+//	cmd.Short = "Task management commands"
+//
+//	cmd.AddCommand(
+//		taskLogCmd(f, opt),
+//		taskRunCmd(f, opt),
+//		taskCreateCmd(f, opt),
+//		taskDeleteCmd(f, opt),
+//		taskFindCmd(f, opt),
+//		taskUpdateCmd(f, opt),
+//		taskRerunFailedCmd(f, opt),
+//	)
+//
+//	return cmd
+//}
 
 var taskPrintFlags struct {
 	json        bool
@@ -45,8 +111,8 @@ var taskCreateFlags struct {
 	file string
 }
 
-func taskCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("create [script literal or -f /path/to/script.flux]", taskCreateF, true)
+func (t *cmdTaskBuilder) taskCreateCmd() *cobra.Command {
+	cmd := t.newCmd("create [script literal or -f /path/to/script.flux]", t.taskCreateF)
 	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Short = "Create task"
 	cmd.Long = `Create a task with a Flux script provided via the first argument or a file or stdin`
@@ -59,7 +125,7 @@ func taskCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	return cmd
 }
 
-func taskCreateF(cmd *cobra.Command, args []string) error {
+func (t *cmdTaskBuilder) taskCreateF(cmd *cobra.Command, args []string) error {
 	if err := taskCreateFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
@@ -117,7 +183,7 @@ var taskFindFlags struct {
 	org     organization
 }
 
-func taskFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func (t *cmdTaskBuilder) taskFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("list", taskFindF, true)
 	cmd.Short = "List tasks"
 	cmd.Aliases = []string{"find", "ls"}
@@ -133,7 +199,7 @@ func taskFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	return cmd
 }
 
-func taskFindF(cmd *cobra.Command, args []string) error {
+func (t *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 	if err := taskFindFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
@@ -210,7 +276,7 @@ var taskRerunFailedFlags struct {
 	org    organization
 }
 
-func taskRerunFailedCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func (t *cmdTaskBuilder) taskRerunFailedCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("rerun_failed", taskRerunFailedF, true)
 	cmd.Short = "Find and Rerun failed runs/tasks"
 	cmd.Aliases = []string{"rrf"}
@@ -225,7 +291,7 @@ func taskRerunFailedCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	return cmd
 }
 
-func taskRerunFailedF(command *cobra.Command, strings []string) error {
+func (t *cmdTaskBuilder) taskRerunFailedF(command *cobra.Command, strings []string) error {
 	if err := taskFindFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
@@ -240,6 +306,7 @@ func taskRerunFailedF(command *cobra.Command, strings []string) error {
 	}
 
 	taskIDPresent := taskRerunFailedFlags.taskId == ""
+	// func do rerun(client, http.Tservice, taskID)
 
 	/*
 		If no TaskID is given, must use TaskFilter to get all Tasks and then search for failed runs then re run
@@ -311,7 +378,7 @@ var taskUpdateFlags struct {
 	file   string
 }
 
-func taskUpdateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func (t *cmdTaskBuilder) taskUpdateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("update", taskUpdateF, true)
 	cmd.Short = "Update task"
 	cmd.Long = `Update task status or script. Provide a Flux script via the first argument or a file. Use '-' argument to read from stdin.`
@@ -326,7 +393,7 @@ func taskUpdateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	return cmd
 }
 
-func taskUpdateF(cmd *cobra.Command, args []string) error {
+func (t *cmdTaskBuilder) taskUpdateF(cmd *cobra.Command, args []string) error {
 	client, err := newHTTPClient()
 	if err != nil {
 		return err
@@ -374,7 +441,7 @@ var taskDeleteFlags struct {
 	id string
 }
 
-func taskDeleteCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func (t *cmdTaskBuilder) taskDeleteCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("delete", taskDeleteF, true)
 	cmd.Short = "Delete task"
 
@@ -386,7 +453,7 @@ func taskDeleteCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	return cmd
 }
 
-func taskDeleteF(cmd *cobra.Command, args []string) error {
+func (t *cmdTaskBuilder) taskDeleteF(cmd *cobra.Command, args []string) error {
 	client, err := newHTTPClient()
 	if err != nil {
 		return err
@@ -472,13 +539,13 @@ func printTasks(w io.Writer, opts taskPrintOpts) error {
 	return nil
 }
 
-func taskLogCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func (t *cmdTaskBuilder) taskLogCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("log", nil, false)
 	cmd.Run = seeHelp
 	cmd.Short = "Log related commands"
 
 	cmd.AddCommand(
-		taskLogFindCmd(f, opt),
+		t.taskLogFindCmd(f, opt),
 	)
 
 	return cmd
@@ -489,7 +556,7 @@ var taskLogFindFlags struct {
 	runID  string
 }
 
-func taskLogFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func (t *cmdTaskBuilder) taskLogFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("list", taskLogFindF, true)
 	cmd.Short = "List logs for task"
 	cmd.Aliases = []string{"find", "ls"}
@@ -503,7 +570,7 @@ func taskLogFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	return cmd
 }
 
-func taskLogFindF(cmd *cobra.Command, args []string) error {
+func (t *cmdTaskBuilder) taskLogFindF(cmd *cobra.Command, args []string) error {
 	client, err := newHTTPClient()
 	if err != nil {
 		return err
@@ -556,13 +623,13 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func taskRunCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func (t *cmdTaskBuilder) taskRunCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("run", nil, false)
 	cmd.Run = seeHelp
 	cmd.Short = "List runs for a task"
 	cmd.AddCommand(
-		taskRunFindCmd(f, opt),
-		taskRunRetryCmd(f, opt),
+		t.taskRunFindCmd(f, opt),
+		t.taskRunRetryCmd(f, opt),
 	)
 
 	return cmd
@@ -576,7 +643,7 @@ var taskRunFindFlags struct {
 	limit      int
 }
 
-func taskRunFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func (t *cmdTaskBuilder) taskRunFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("list", taskRunFindF, true)
 	cmd.Short = "List runs for a task"
 	cmd.Aliases = []string{"find", "ls"}
@@ -594,7 +661,7 @@ func taskRunFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	return cmd
 }
 
-func taskRunFindF(cmd *cobra.Command, args []string) error {
+func (t *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 	client, err := newHTTPClient()
 	if err != nil {
 		return err
@@ -681,8 +748,8 @@ var runRetryFlags struct {
 	taskID, runID string
 }
 
-func taskRunRetryCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("retry", runRetryF, true)
+func (t *cmdTaskBuilder) taskRunRetryCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("retry", t.runRetryF, true)
 	cmd.Short = "retry a run"
 
 	f.registerFlags(opt.viper, cmd)
@@ -694,7 +761,7 @@ func taskRunRetryCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	return cmd
 }
 
-func runRetryF(cmd *cobra.Command, args []string) error {
+func (t *cmdTaskBuilder) runRetryF(cmd *cobra.Command, args []string) error {
 	client, err := newHTTPClient()
 	if err != nil {
 		return err
