@@ -113,10 +113,12 @@ func TestPoint_Tags(t *testing.T) {
 		{`cpu,ta\ g0=\, value=1`, models.NewTags(map[string]string{"ta g0": ","}), nil},
 		{`cpu,tag0=\,1 value=1`, models.NewTags(map[string]string{"tag0": ",1"}), nil},
 		{`cpu,tag0=1\"\",t=k value=1`, models.NewTags(map[string]string{"tag0": `1\"\"`, "t": "k"}), nil},
-		{"cpu,_measurement=v0,tag0=v0 value=1", nil, errors.New(`unable to parse 'cpu,_measurement=v0,tag0=v0 value=1': cannot use reserved tag key "_measurement"`)},
+		{"cpu,_measurement=v0,tag0=v0 value=1", nil, errors.New(`unable to parse 'cpu,_measurement=v0,tag0=v0 value=1': tag key name cannot start with '_'`)},
+		{"cpu,_start=v0 value=1", nil, errors.New(`unable to parse 'cpu,_start=v0 value=1': tag key name cannot start with '_'`)},
 		// the following are all unsorted tag keys to ensure this works for both cases
-		{"cpu,tag0=v0,_measurement=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,_measurement=v0 value=1': cannot use reserved tag key "_measurement"`)},
-		{"cpu,tag0=v0,_field=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,_field=v0 value=1': cannot use reserved tag key "_field"`)},
+		{"cpu,tag0=v0,_measurement=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,_measurement=v0 value=1': tag key name cannot start with '_'`)},
+		{"cpu,tag0=v0,_field=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,_field=v0 value=1': tag key name cannot start with '_'`)},
+		{"cpu,tag0=v0,_foo=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,_foo=v0 value=1': tag key name cannot start with '_'`)},
 		{"cpu,tag0=v0,time=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,time=v0 value=1': cannot use reserved tag key "time"`)},
 	}
 

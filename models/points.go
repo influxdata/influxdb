@@ -25,9 +25,7 @@ const (
 
 	// reserved tag keys which when present cause the point to be discarded
 	// and an error returned
-	reservedFieldTagKey       = "_field"
-	reservedMeasurementTagKey = "_measurement"
-	reservedTimeTagKey        = "time"
+	reservedTimeTagKey = "time"
 )
 
 var (
@@ -39,8 +37,6 @@ var (
 	reservedTagKeys = [][]byte{
 		FieldKeyTagKeyBytes,
 		MeasurementTagKeyBytes,
-		[]byte(reservedFieldTagKey),
-		[]byte(reservedMeasurementTagKey),
 		[]byte(reservedTimeTagKey),
 	}
 )
@@ -89,6 +85,7 @@ var (
 	ErrUnbalancedQuotes = errors.New("unbalanced quotes")
 
 	ErrUnderscoreMeasurement = errors.New("measurement name cannot start with '_'")
+	ErrUnderscoreTagKey      = errors.New("tag key name cannot start with '_'")
 )
 
 const (
@@ -553,6 +550,9 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	for j := 0; j < commas; j++ {
 		_, key := scanTo(buf[indices[j]:indices[j+1]-1], 0, '=')
 
+		if key[0] == '_' {
+			return i, buf[start:i], ErrUnderscoreTagKey
+		}
 		for _, reserved := range reservedTagKeys {
 			if bytes.Equal(key, reserved) {
 				return i, buf[start:i], fmt.Errorf("cannot use reserved tag key %q", key)
