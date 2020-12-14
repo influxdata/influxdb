@@ -6,6 +6,7 @@ This release includes our initial ARM64 "preview" build.
 
 ### Breaking Changes
 
+#### influxd upgrade
 Previously, `influxd upgrade` would attempt to write upgraded `config.toml` files into the same directory as the source
 `influxdb.conf` file. If this failed, a warning would be logged and `config.toml` would be written into the `HOME` directory.
 
@@ -15,6 +16,11 @@ This release breaks this behavior in two ways:
 
 Users can use the new `--v2-config-path` option to override the output path for upgraded config if they can't or don't
 want to use the default.
+
+#### v2 packaging
+Based on community feedback, the v2 deb and rpm packaging has been improved to avoid confusion between versions.  The package
+name is now influxdb2 and conflicts with any previous influxdb package (including initial 2.0.0, 2.0.1, and 2.0.2 packages).
+Additionally, v2 specific path defaults are now defined and helper scripts are provided for `influxd upgrade` and cleanup cases.
 
 ### Features
 
@@ -36,6 +42,7 @@ want to use the default.
 1. [20201](https://github.com/influxdata/influxdb/pull/20201): Optimize shard lookup in groups containing only one shard. Thanks @StoneYunZhao!
 1. [20155](https://github.com/influxdata/influxdb/pull/20155): Respect the `--name` option in `influx setup` whether configs already exist or not.
 1. [20155](https://github.com/influxdata/influxdb/pull/20155): Allow for 0 (infinite) values for `--retention` in `influx setup`.
+1. [20305](https://github.com/influxdata/influxdb/pull/20305): Set v2 default paths and provide upgrade helper scripts in release packages
 
 ## v2.0.2 [2020-11-19]
 
@@ -117,7 +124,7 @@ want to use the default.
 1. [19819](https://github.com/influxdata/influxdb/pull/19819): Isolate telegraf config service and remove URM interactions
 1. [19853](https://github.com/influxdata/influxdb/pull/19853): Use updated HTTP client for authorization service
 1. [19856](https://github.com/influxdata/influxdb/pull/19856): Make tagKeys and tagValues work for edge cases involving fields
-1. [19870](https://github.com/influxdata/influxdb/pull/19870): Correctly parse float as 64-bits 
+1. [19870](https://github.com/influxdata/influxdb/pull/19870): Correctly parse float as 64-bits
 1. [19873](https://github.com/influxdata/influxdb/pull/19873): Add simple metrics related to installed templates
 1. [19885](https://github.com/influxdata/influxdb/pull/19885): Remove extra multiplication of retention policies in onboarding
 1. [19887](https://github.com/influxdata/influxdb/pull/19887): Use fluxinit package to init flux library instead of builtin
