@@ -19,7 +19,6 @@ import (
 	"github.com/influxdata/influxdb/v2/vault"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -35,7 +34,11 @@ func NewInfluxdCommand(v *viper.Viper) *cobra.Command {
 
 	prog := cli.Program{
 		Name: "influxd",
-		Run:  cmdRunE(o),
+		Run: func() error {
+			fluxinit.FluxInit()
+			ctx := signals.WithStandardSignals(context.Background())
+			return cmdRunE(ctx, o)
+		},
 	}
 	cmd := cli.NewCommand(o.Viper, &prog)
 
@@ -69,45 +72,31 @@ func setCmdDescriptions(cmd *cobra.Command) {
 `
 }
 
-func cmdRunE(o *InfluxdOpts) func() error {
-	return func() error {
-		fluxinit.FluxInit()
-		l := NewLauncher()
+func cmdRunE(ctx context.Context, o *InfluxdOpts) error {
+	l := NewLauncher()
 
-		// Set up logging to STDOUT.
-		logconf := &influxlogger.Config{
-			Format: "auto",
-			Level:  o.LogLevel,
-		}
-		logger, err := logconf.New(os.Stdout)
-		if err != nil {
-			return err
-		}
-
-		if err := l.runUntilCanceled(o, logger); err != nil {
-			return err
-		}
-		l.gracefulShutdown(logger)
-
-		return logger.Sync()
+	// Set up logging to STDOUT.
+	logconf := &influxlogger.Config{
+		Format: "auto",
+		Level:  o.LogLevel,
 	}
-}
+	logger, err := logconf.New(os.Stdout)
+	if err != nil {
+		return err
+	}
 
-// runUntilCanceled runs the given launcher and waits, only exiting when a SIGINT or SIGTERM is received.
-func (l *Launcher) runUntilCanceled(o *InfluxdOpts, log *zap.Logger) error {
-	ctx := signals.WithStandardSignals(context.Background())
-	if err := l.run(ctx, o, log); err != nil {
+	if err := l.run(ctx, o, logger); err != nil {
 		return err
 	}
 	<-ctx.Done()
-	return nil
-}
 
-// gracefulShutdown attempts to cleanly shut down all launcher resources.
-func (l *Launcher) gracefulShutdown(log *zap.Logger) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	// Can't use ctx as the parent context here because WithTimeout returns an
+	// already-completed context if the parent is completed.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	l.Shutdown(ctx, log)
+	l.Shutdown(shutdownCtx, logger)
+
+	return logger.Sync()
 }
 
 // InfluxdOpts captures all arguments for running the InfluxDB server.

@@ -54,7 +54,7 @@ func TestStorage_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_WriteAndQuery(t *testing.T) {
-	l := launcher.RunAndSetupNewLauncherOrFail(t, ctx)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
@@ -91,7 +91,7 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_BucketDelete(t *testing.T) {
-	l := launcher.RunAndSetupNewLauncherOrFail(t, ctx)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
@@ -156,7 +156,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 }
 
 func TestLauncher_DeleteWithPredicate(t *testing.T) {
-	l := launcher.RunAndSetupNewLauncherOrFail(t, ctx)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Write data to server.
@@ -200,7 +200,7 @@ func TestLauncher_DeleteWithPredicate(t *testing.T) {
 }
 
 func TestLauncher_UpdateRetentionPolicy(t *testing.T) {
-	l := launcher.RunAndSetupNewLauncherOrFail(t, ctx)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	bucket, err := l.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{ID: &l.Bucket.ID})

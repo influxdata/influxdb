@@ -27,7 +27,7 @@ import (
 var ctx = context.Background()
 
 func TestLauncher_Pkger(t *testing.T) {
-	l := RunAndSetupNewLauncherOrFail(t, ctx, func(o *InfluxdOpts) {
+	l := RunAndSetupNewLauncherOrFail(ctx, t, func(o *InfluxdOpts) {
 		o.LogLevel = zap.ErrorLevel
 	})
 	defer l.ShutdownOrFail(t, ctx)

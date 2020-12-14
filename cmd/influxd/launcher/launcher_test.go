@@ -49,7 +49,7 @@ func TestLauncher_Setup(t *testing.T) {
 // This is to mimic chronograf using cookies as sessions
 // rather than authorizations
 func TestLauncher_SetupWithUsers(t *testing.T) {
-	l := launcher.RunAndSetupNewLauncherOrFail(t, ctx)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	r, err := nethttp.NewRequest("POST", l.URL()+"/api/v2/signin", nil)

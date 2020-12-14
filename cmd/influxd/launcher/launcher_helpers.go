@@ -60,7 +60,7 @@ type TestLauncher struct {
 
 // RunAndSetupNewLauncherOrFail shorcuts the most common pattern used in testing,
 // building a new TestLauncher, running it, and setting it up with an initial user.
-func RunAndSetupNewLauncherOrFail(tb testing.TB, ctx context.Context, setters ...OptSetter) *TestLauncher {
+func RunAndSetupNewLauncherOrFail(ctx context.Context, tb testing.TB, setters ...OptSetter) *TestLauncher {
 	tb.Helper()
 
 	l := NewTestLauncher()
