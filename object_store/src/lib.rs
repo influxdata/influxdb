@@ -265,11 +265,12 @@ impl AmazonS3 {
     /// credentials in:
     ///
     /// 1. Environment variables: `AWS_ACCESS_KEY_ID` and
-    /// `AWS_SECRET_ACCESS_KEY` 2. `credential_process` command in the AWS
-    /// config file, usually located at `~/.aws/config`. 3. AWS credentials
-    /// file. Usually located at `~/.aws/credentials`. 4. IAM instance
-    /// profile. Will only work if running on an EC2 instance with an instance
-    ///    profile/role.
+    ///    `AWS_SECRET_ACCESS_KEY`
+    /// 2. `credential_process` command in the AWS config file, usually located
+    ///    at `~/.aws/config`.
+    /// 3. AWS credentials file. Usually located at `~/.aws/credentials`.
+    /// 4. IAM instance profile. Will only work if running on an EC2 instance
+    ///    with an instance profile/role.
     ///
     /// [cp]: https://docs.rs/rusoto_credential/0.43.0/rusoto_credential/struct.ChainProvider.html
     pub fn new(region: rusoto_core::Region, bucket_name: impl Into<String>) -> Self {
