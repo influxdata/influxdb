@@ -46,7 +46,7 @@ EOF
 
 cat << EOF > /var/tmp/influxdbv1-remove.sh
 #!/bin/bash
-sudo rm /etc/influxdb/influxdb.conf
+sudo rm -f /etc/influxdb/influxdb.conf
 sudo rm -rf /var/lib/influxdb/data
 sudo rm -rf /var/lib/influxdb/wal
 sudo rm -rf /var/lib/influxdb/meta
