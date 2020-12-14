@@ -22,10 +22,6 @@ const (
 	// Values used to store the field key and measurement name as special internal tags.
 	FieldKeyTagKey    = "\xff"
 	MeasurementTagKey = "\x00"
-
-	// reserved tag keys which when present cause the point to be discarded
-	// and an error returned
-	reservedTimeTagKey = "time"
 )
 
 var (
@@ -37,7 +33,6 @@ var (
 	reservedTagKeys = [][]byte{
 		FieldKeyTagKeyBytes,
 		MeasurementTagKeyBytes,
-		[]byte(reservedTimeTagKey),
 	}
 )
 

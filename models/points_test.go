@@ -119,7 +119,6 @@ func TestPoint_Tags(t *testing.T) {
 		{"cpu,tag0=v0,_measurement=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,_measurement=v0 value=1': tag key name cannot start with '_'`)},
 		{"cpu,tag0=v0,_field=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,_field=v0 value=1': tag key name cannot start with '_'`)},
 		{"cpu,tag0=v0,_foo=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,_foo=v0 value=1': tag key name cannot start with '_'`)},
-		{"cpu,tag0=v0,time=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,time=v0 value=1': cannot use reserved tag key "time"`)},
 	}
 
 	for _, example := range examples {
