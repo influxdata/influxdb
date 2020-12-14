@@ -87,6 +87,16 @@ Instrument your important functions at `info` - these provide a logical request
 call stack rather than a _function_ call stack, so you can construct meaningful
 traces without lots of noise.
 
+The `trace!()` level is useful to instrument areas of code for development or
+testing that should not wind up in the release binary - as such, the `trace`
+level is compiled at when building a "release" binary. As a guideline:
+
+* `trace!()` for debug builds and verbose messaging, used liberally as required.
+  Compiled out in release builds.
+* `debug!()` for events that would help tracking down bugs, but are not useful
+  to the user
+* `info!()` & above for info useful to the user
+
 Emit logs as you normally would, but [include contextual information] in them as
 **fields** rather than interpolated strings:
 
