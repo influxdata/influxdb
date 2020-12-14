@@ -45,7 +45,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 1. [20202](https://github.com/influxdata/influxdb/pull/20202): Optimize shard lookup in groups containing only one shard. Thanks @StoneYunZhao!
 1. [20235](https://github.com/influxdata/influxdb/pull/20235): Respect the `--name` option in `influx setup` whether configs already exist or not.
 1. [20235](https://github.com/influxdata/influxdb/pull/20235): Allow for 0 (infinite) values for `--retention` in `influx setup`.
-1. [20305](https://github.com/influxdata/influxdb/pull/20305): Set v2 default paths and provide upgrade helper scripts in release packages.
+1. [20329](https://github.com/influxdata/influxdb/pull/20329): Set v2 default paths and provide upgrade helper scripts in release packages.
 
 ## v2.0.2 [2020-11-18]
 ----------------------
