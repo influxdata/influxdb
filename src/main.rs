@@ -24,6 +24,7 @@ mod commands {
 }
 
 use panic::SendPanicsToTracing;
+use tracing_subscriber::{prelude::*, EnvFilter};
 
 enum ReturnCode {
     ConversionFailed = 1,
@@ -129,7 +130,15 @@ Examples:
         ))
         .get_matches();
 
-    setup_logging(matches.occurrences_of("verbose"));
+    let mut tokio_runtime = get_runtime(matches.value_of("num-threads"))?;
+    tokio_runtime.block_on(dispatch_args(matches));
+
+    info!("InfluxDB IOx server shutting down");
+    Ok(())
+}
+
+async fn dispatch_args(matches: ArgMatches<'_>) {
+    let _drop_handle = setup_logging(matches.occurrences_of("verbose"));
 
     // Install custom panic handler and forget about it.
     //
@@ -140,14 +149,6 @@ Examples:
     let f = SendPanicsToTracing::new();
     std::mem::forget(f);
 
-    let mut tokio_runtime = get_runtime(matches.value_of("num-threads"))?;
-    tokio_runtime.block_on(dispatch_args(matches));
-
-    info!("InfluxDB IOx server shutting down");
-    Ok(())
-}
-
-async fn dispatch_args(matches: ArgMatches<'_>) {
     match matches.subcommand() {
         ("convert", Some(sub_matches)) => {
             let input_path = sub_matches.value_of("INPUT").unwrap();
@@ -216,7 +217,7 @@ const DEFAULT_LOG_LEVEL: &str = "warn";
 /// 2. if `-vv` (multiple instances of verbose), use DEFAULT_DEBUG_LOG_LEVEL
 /// 2. if `-v` (single instances of verbose), use DEFAULT_VERBOSE_LOG_LEVEL
 /// 3. Otherwise use DEFAULT_LOG_LEVEL
-fn setup_logging(num_verbose: u64) {
+fn setup_logging(num_verbose: u64) -> Option<opentelemetry_jaeger::Uninstall> {
     let rust_log_env = std::env::var("RUST_LOG");
 
     match rust_log_env {
@@ -235,7 +236,51 @@ fn setup_logging(num_verbose: u64) {
         },
     }
 
-    env_logger::init();
+    // Configure the OpenTelemetry tracer, if requested.
+    //
+    // To enable the tracing functionality, set OTEL_EXPORTER_JAEGER_AGENT_HOST
+    // env to some suitable value (see below).
+    //
+    // The Jaeger layer emits traces under the service name of "iox" if not
+    // overwrote by the user by setting the env below. All configuration is
+    // sourced from the environment:
+    //
+    // - OTEL_SERVICE_NAME: emitter service name (iox by default)
+    // - OTEL_EXPORTER_JAEGER_AGENT_HOST: hostname/address of the collector
+    // - OTEL_EXPORTER_JAEGER_AGENT_PORT: listening port of the collector
+    //
+    let (opentelemetry, drop_handle) = if std::env::var("OTEL_EXPORTER_JAEGER_AGENT_HOST").is_ok() {
+        // Initialise the jaeger event emitter
+        let (tracer, drop_handle) = opentelemetry_jaeger::new_pipeline()
+            .with_service_name("iox")
+            .from_env()
+            .install()
+            .expect("failed to initialise the Jaeger tracing sink");
+
+        // Initialise the opentelemetry tracing layer, giving it the jaeger emitter
+        let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+
+        (Some(opentelemetry), Some(drop_handle))
+    } else {
+        (None, None)
+    };
+
+    // Configure the logger to write to stderr
+    let logger = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
+
+    // Register the chain of event subscribers:
+    //
+    //      - Jaeger tracing emitter
+    //      - Env filter (using RUST_LOG as the filter env)
+    //      - A stdout logger
+    //
+    tracing_subscriber::registry()
+        .with(opentelemetry)
+        .with(EnvFilter::from_default_env())
+        .with(logger)
+        .init();
+
+    drop_handle
 }
 
 /// Creates the tokio runtime for executing IOx
@@ -243,12 +288,17 @@ fn setup_logging(num_verbose: u64) {
 /// if nthreads is none, uses the default scheduler
 /// otherwise, creates a scheduler with the number of threads
 fn get_runtime(num_threads: Option<&str>) -> Result<Runtime, std::io::Error> {
+    // NOTE: no log macros will work here!
+    //
+    // That means use eprintln!() instead of error!() and so on. The log emitter
+    // requires a running tokio runtime and is initialised after this function.
+
     use tokio::runtime::Builder;
     let kind = std::io::ErrorKind::Other;
     match num_threads {
         None => Runtime::new(),
         Some(num_threads) => {
-            info!(
+            println!(
                 "Setting number of threads to '{}' per command line request",
                 num_threads
             );
