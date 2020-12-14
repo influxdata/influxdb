@@ -3116,9 +3116,10 @@ func (e *Engine) Reindex() error {
 
 		for i, key := range keys[:n] {
 			seriesKeys[i], _ = SeriesAndFieldFromCompositeKey(key)
-			names[i], tags[i] = models.ParseKeyBytesWithTags(seriesKeys[i], tags[i])
+			names[i], tags[i] = models.ParseKeyBytes(seriesKeys[i])
 		}
 
+		e.logger.Debug("Reindexing data batch", logger.Shard(e.id), zap.Int("batch_size", n))
 		if err := e.index.CreateSeriesListIfNotExists(seriesKeys[:n], names[:n], tags[:n]); err != nil {
 			return err
 		}
