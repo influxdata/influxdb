@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	_ "net/http/pprof"
 	"os"
@@ -30,7 +31,7 @@ func main() {
 	influxdb.SetBuildInfo(version, commit, date)
 
 	v := viper.New()
-	rootCmd := launcher.NewInfluxdCommand(v)
+	rootCmd := launcher.NewInfluxdCommand(context.Background(), v)
 	// upgrade binds options to env variables, so it must be added after rootCmd is initialized
 	rootCmd.AddCommand(upgrade.NewCommand(v))
 	rootCmd.AddCommand(inspect.NewCommand())

@@ -29,14 +29,12 @@ const (
 
 // NewInfluxdCommand constructs the root of the influxd CLI, along with a `run` subcommand.
 // The `run` subcommand is set as the default to execute.
-func NewInfluxdCommand(v *viper.Viper) *cobra.Command {
+func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 	o := newOpts(v)
 
 	prog := cli.Program{
 		Name: "influxd",
 		Run: func() error {
-			fluxinit.FluxInit()
-			ctx := signals.WithStandardSignals(context.Background())
 			return cmdRunE(ctx, o)
 		},
 	}
@@ -73,7 +71,7 @@ func setCmdDescriptions(cmd *cobra.Command) {
 }
 
 func cmdRunE(ctx context.Context, o *InfluxdOpts) error {
-	l := NewLauncher()
+	fluxinit.FluxInit()
 
 	// Set up logging to STDOUT.
 	logconf := &influxlogger.Config{
@@ -85,14 +83,14 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) error {
 		return err
 	}
 
-	if err := l.run(ctx, o, logger); err != nil {
+	runCtx := signals.WithStandardSignals(ctx)
+	l := NewLauncher()
+	if err := l.run(runCtx, o, logger); err != nil {
 		return err
 	}
-	<-ctx.Done()
+	<-runCtx.Done()
 
-	// Can't use ctx as the parent context here because WithTimeout returns an
-	// already-completed context if the parent is completed.
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	l.Shutdown(shutdownCtx, logger)
 
