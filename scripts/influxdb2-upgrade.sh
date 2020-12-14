@@ -73,8 +73,9 @@ EOF
 
 cat << EOF > /var/tmp/influxdbv2-remove.sh
 #!/bin/bash
-sudo rm /etc/influxdb/config.toml /var/lib/influxdb/influxd.bolt
-sudo rm /var/lib/influxdb/configs /root/.influxdbv2/configs
+sudo rm -f /etc/influxdb/config.toml /var/lib/influxdb/influxd.bolt
+sudo rm -f /var/lib/influxdb/configs /root/.influxdbv2/configs
+sudo rm -f /var/lib/influxdb/continuous_queries.txt
 sudo rm -rf /var/lib/influxdb/engine
 EOF
 sudo chmod +x /var/tmp/influxdbv2-remove.sh
