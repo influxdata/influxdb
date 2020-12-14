@@ -1783,6 +1783,7 @@ mod tests {
         //
         // cpu,az=b watts=3000 5000
 
+        #[rustfmt::skip]
         // Expected output table
         //
         // |  az  | region | server |  temp | voltage |  watts  | time |
@@ -1790,14 +1791,12 @@ mod tests {
         // | b    |  NULL  |  NULL  | NULL  |  NULL   |   1000  | 3000 |
         // | b    |  NULL  |  NULL  | NULL  |  NULL   |   2000  | 4000 |
         // | b    |  NULL  |  NULL  | NULL  |  NULL   |   3000  | 5000 |
-        // | NULL |  east  |  NULL  | 1.2   |  10.2   |   NULL  | 0000 |  <-- notice
-        // series joined on ts column | NULL |  east  |  NULL  | 1.2   |  10.2
-        // |   NULL  | 1000 |  <-- notice series joined on ts column
-        // | NULL |  east  |  NULL  | 1.4   |  10.4   |   NULL  | 2000 |  <-- notice
-        // series joined on ts column | NULL |  west  |    a   | 100.2 |  NULL
-        // |   NULL  | 2000 | | NULL |  west  |    a   | 99.5  |  NULL   |
-        // NULL  | 3000 | | NULL |  west  |    a   | 100.3 |  NULL   |   NULL  |
-        // 4000 |
+        // | NULL |  east  |  NULL  | 1.2   |  10.2   |   NULL  | 0000 |  <-- notice series joined on ts column
+        // | NULL |  east  |  NULL  | 1.2   |  10.2   |   NULL  | 1000 |  <-- notice series joined on ts column
+        // | NULL |  east  |  NULL  | 1.4   |  10.4   |   NULL  | 2000 |  <-- notice series joined on ts column
+        // | NULL |  west  |    a   | 100.2 |  NULL   |   NULL  | 2000 |
+        // | NULL |  west  |    a   | 99.5  |  NULL   |   NULL  | 3000 |
+        // | NULL |  west  |    a   | 100.3 |  NULL   |   NULL  | 4000 |
 
         let mut table = MeasurementTable::new("cpu".to_string(), 0);
         // cpu region=east temp=<all the block data for this key>

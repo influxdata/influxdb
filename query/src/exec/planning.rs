@@ -155,20 +155,21 @@ fn window_bounds(
     every: &WindowDuration,
     offset: &WindowDuration,
 ) -> Result<ArrayRef> {
-    // Note:  At the time of writing, DataFusion creates arrays of
-    // constants for constant arguments (which 4 of 5 arguments to
-    // window bounds are). We should eventually contribute someway
-    // back upstream to make DataFusion pass 4 constants rather than 4
-    // arrays of constants.
+    // Note:  At the time of writing, DataFusion creates arrays of constants for
+    // constant arguments (which 4 of 5 arguments to window bounds are). We
+    // should eventually contribute some way back upstream to make DataFusion
+    // pass 4 constants rather than 4 arrays of constants.
 
-    // There are any number of ways this function could also be
-    // further optimized, which we leave as an exercise to our future
-    // selves
+    // There are any number of ways this function could also be further
+    // optimized, which we leave as an exercise to our future selves
 
     // `args` and output are dynamically-typed Arrow arrays, which means that we
-    // need to: 1. cast the values to the type we want
-    // 2. perform the window_bounds calculation for every element in the timestamp
-    // array 3. construct the resulting array
+    // need to:
+    //
+    // 1. cast the values to the type we want
+    // 2. perform the window_bounds calculation for every element in the
+    //     timestamp array
+    // 3. construct the resulting array
 
     // this is guaranteed by DataFusion based on the function's signature.
     assert_eq!(args.len(), 1);
