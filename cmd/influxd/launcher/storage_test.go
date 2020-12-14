@@ -156,8 +156,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 }
 
 func TestLauncher_DeleteWithPredicate(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(t, ctx)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Write data to server.
