@@ -255,7 +255,7 @@ fn setup_logging(num_verbose: u64) -> Option<opentelemetry_jaeger::Uninstall> {
             .with_service_name("iox")
             .from_env()
             .install()
-            .unwrap();
+            .expect("failed to initialise the Jaeger tracing sink");
 
         // Initialise the opentelemetry tracing layer, giving it the jaeger emitter
         let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
