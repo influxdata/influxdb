@@ -4,7 +4,7 @@
 
 ### ARM Support
 
-This release includes our initial ARM64 "preview" build.
+This release includes our initial ARM64 preview build.
 
 ### Breaking Changes
 
