@@ -1,12 +1,11 @@
-TraceSpan:
-  in: header
-  name: Zap-Trace-Span
-  description: OpenTracing span context
-  example:
-    trace_id: "1"
-    span_id: "1"
-    baggage:
-      key: value
-  required: false
-  schema:
-    type: string
+in: header
+name: Zap-Trace-Span
+description: OpenTracing span context
+example:
+  trace_id: "1"
+  span_id: "1"
+  baggage:
+    key: value
+required: false
+schema:
+  type: string

@@ -175,6 +175,8 @@ github.com/fujiwara/shapeio v0.0.0-20170602072123-c073257dd745 h1:+tPNWeI7Uk5JKg
 github.com/fujiwara/shapeio v0.0.0-20170602072123-c073257dd745/go.mod h1:/WpqsrSkjgwEG2Es2qnZXbXwHDVbawpdlXJIjJMmnZs=
 github.com/getkin/kin-openapi v0.2.0 h1:PbHHtYZpjKwZtGlIyELgA2DploRrsaXztoNNx9HjwNY=
 github.com/getkin/kin-openapi v0.2.0/go.mod h1:V1z9xl9oF5Wt7v32ne4FmiF1alpS4dM6mNzoywPOXlk=
+github.com/getkin/kin-openapi v0.26.0 h1:xKIW5Z5wAfutxGBH+rr9qu0Ywfb/E1bPWkYLKRYfEuU=
+github.com/getkin/kin-openapi v0.26.0/go.mod h1:WGRs2ZMM1Q8LR1QBEwUxC6RJEfaBcD0s+pcEVXFuAjw=
 github.com/ghodss/yaml v1.0.0 h1:wQHKEahhL6wmXdzwWG11gIVCkOv05bNOh+Rxn0yngAk=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 h1:Ujru1hufTHVb++eG6OuNDKMxZnGIvF6o/u8q/8h2+I4=
