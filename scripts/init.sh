@@ -10,9 +10,9 @@
 
 # If you modify this, please make sure to also edit influxdb.service
 
-# Command-line options that can be set in /etc/default/influxdb.  These will override
-# any config file values.
-DEFAULT=/etc/default/influxdb
+# Environment variables can be set in /etc/default/influxdb2. These will override
+# any corresponding config file values.
+DEFAULT=/etc/default/influxdb2
 
 # Daemon options
 INFLUXD_OPTS=
