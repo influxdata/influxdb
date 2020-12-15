@@ -522,13 +522,13 @@ impl TSDatabase for Db {
         match gby_agg {
             GroupByAndAggregate::Columns {
                 // TODO use aggregate:  https://github.com/influxdata/influxdb_iox/issues/448
-                agg: _agg,
+                agg,
                 group_columns,
             } => {
                 // Add any specified groups as predicate columns (so we
                 // can skip tables without those tags)
                 let mut filter = filter.add_required_columns(&group_columns);
-                let mut visitor = GroupsVisitor::new(group_columns);
+                let mut visitor = GroupsVisitor::new(agg, group_columns);
                 self.visit_tables(&mut filter, &mut visitor).await?;
                 Ok(visitor.plans.into())
             }
@@ -1144,13 +1144,15 @@ impl Visitor for SeriesVisitor {
 /// Return DataFusion plans to calculate series that pass the
 /// specified predicate, grouped according to grouped_columns
 struct GroupsVisitor {
+    agg: Aggregate,
     group_columns: Vec<String>,
     plans: Vec<SeriesSetPlan>,
 }
 
 impl GroupsVisitor {
-    fn new(group_columns: Vec<String>) -> Self {
+    fn new(agg: Aggregate, group_columns: Vec<String>) -> Self {
         Self {
+            agg,
             group_columns,
             plans: Vec::new(),
         }
@@ -1166,6 +1168,7 @@ impl Visitor for GroupsVisitor {
     ) -> Result<()> {
         self.plans.push(table.grouped_series_set_plan(
             filter.partition_predicate(),
+            self.agg,
             &self.group_columns,
             partition,
         )?);
@@ -1204,7 +1207,7 @@ impl Visitor for WindowGroupsVisitor {
     ) -> Result<()> {
         self.plans.push(table.window_grouped_series_set_plan(
             filter.partition_predicate(),
-            &self.agg,
+            self.agg,
             &self.every,
             &self.offset,
             partition,
