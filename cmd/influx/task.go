@@ -32,32 +32,37 @@ func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 }
 
 type cmdTaskBuilder struct {
-	genericCLIOpts
-	*globalFlags
+	opts        genericCLIOpts
+	globalFlags *globalFlags
 
 	svcFn taskSVCsFn
 
-	id          string
-	hideHeaders bool
-	json        bool
-	name        string
-	description string
-	org         organization
-	query       string
+	taskID         string
+	runID          string
+	taskPrintFlags taskPrintFlags
+	// todo: fields of these flags structs could be pulled out for a more streamlined builder struct
+	taskCreateFlags      taskCreateFlags
+	taskFindFlags        taskFindFlags
+	taskRerunFailedFlags taskRerunFailedFlags
+	taskUpdateFlags      taskUpdateFlags
+	taskRunFindFlags     taskRunFindFlags
+	name                 string
+	description          string
+	org                  organization
+	query                string
 }
 
 func newCmdTaskBuilder(svcsFn taskSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdTaskBuilder {
 	return &cmdTaskBuilder{
-		globalFlags:    f,
-		genericCLIOpts: opts,
-		svcFn:          svcsFn,
+		globalFlags: f,
+		opts:        opts,
+		svcFn:       svcsFn,
 	}
 }
 
 func (t *cmdTaskBuilder) cmd() *cobra.Command {
 	cmd := t.newCmd("task", nil)
 	cmd.Short = "Task management commands"
-	// todo: ask what this line does lol
 	cmd.TraverseChildren = true
 	cmd.Run = seeHelp
 	cmd.AddCommand(
@@ -70,44 +75,21 @@ func (t *cmdTaskBuilder) cmd() *cobra.Command {
 		t.taskRerunFailedCmd(),
 	)
 
-	//todo add commands and return cmd
-}
-
-func (t *cmdTaskBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
-	cmd := t.genericCLIOpts.newCmd(use, runE, true)
-	t.globalFlags.registerFlags(t.viper, cmd)
 	return cmd
 }
 
-//func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-//	runE := func(cmd *cobra.Command, args []string) error {
-//		seeHelp(cmd, args)
-//		return nil
-//	}
-//
-//	cmd := opt.newCmd("task", runE, false)
-//	cmd.Short = "Task management commands"
-//
-//	cmd.AddCommand(
-//		taskLogCmd(f, opt),
-//		taskRunCmd(f, opt),
-//		taskCreateCmd(f, opt),
-//		taskDeleteCmd(f, opt),
-//		taskFindCmd(f, opt),
-//		taskUpdateCmd(f, opt),
-//		taskRerunFailedCmd(f, opt),
-//	)
-//
-//	return cmd
-//}
+func (t *cmdTaskBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+	cmd := t.opts.newCmd(use, runE, true)
+	t.globalFlags.registerFlags(t.opts.viper, cmd)
+	return cmd
+}
 
-var taskPrintFlags struct {
+type taskPrintFlags struct {
 	json        bool
 	hideHeaders bool
 }
 
-var taskCreateFlags struct {
-	org  organization
+type taskCreateFlags struct {
 	file string
 }
 
@@ -117,16 +99,16 @@ func (t *cmdTaskBuilder) taskCreateCmd() *cobra.Command {
 	cmd.Short = "Create task"
 	cmd.Long = `Create a task with a Flux script provided via the first argument or a file or stdin`
 
-	f.registerFlags(opt.viper, cmd)
-	cmd.Flags().StringVarP(&taskCreateFlags.file, "file", "f", "", "Path to Flux script file")
-	taskCreateFlags.org.register(opt.viper, cmd, false)
-	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
+	t.globalFlags.registerFlags(t.opts.viper, cmd)
+	cmd.Flags().StringVarP(&t.taskCreateFlags.file, "file", "f", "", "Path to Flux script file")
+	t.org.register(t.opts.viper, cmd, false)
+	registerPrintOptions(t.opts.viper, cmd, &t.taskPrintFlags.hideHeaders, &t.taskPrintFlags.json)
 
 	return cmd
 }
 
 func (t *cmdTaskBuilder) taskCreateF(cmd *cobra.Command, args []string) error {
-	if err := taskCreateFlags.org.validOrgFlags(&flags); err != nil {
+	if err := t.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
@@ -139,28 +121,28 @@ func (t *cmdTaskBuilder) taskCreateF(cmd *cobra.Command, args []string) error {
 		Client: client,
 	}
 
-	flux, err := readFluxQuery(args, taskCreateFlags.file)
+	flux, err := readFluxQuery(args, t.taskCreateFlags.file)
 	if err != nil {
 		return fmt.Errorf("error parsing flux script: %s", err)
 	}
 
 	tc := influxdb.TaskCreate{
 		Flux:         flux,
-		Organization: taskCreateFlags.org.name,
+		Organization: t.org.name,
 	}
-	if taskCreateFlags.org.id != "" || taskCreateFlags.org.name != "" {
+	if t.org.id != "" || t.org.name != "" {
 		svc, err := newOrganizationService()
 		if err != nil {
 			return nil
 		}
-		oid, err := taskCreateFlags.org.getID(svc)
+		oid, err := t.org.getID(svc)
 		if err != nil {
 			return fmt.Errorf("error parsing organization ID: %s", err)
 		}
 		tc.OrganizationID = oid
 	}
 
-	t, err := s.CreateTask(context.Background(), tc)
+	tsk, err := s.CreateTask(context.Background(), tc)
 	if err != nil {
 		return err
 	}
@@ -168,39 +150,38 @@ func (t *cmdTaskBuilder) taskCreateF(cmd *cobra.Command, args []string) error {
 	return printTasks(
 		cmd.OutOrStdout(),
 		taskPrintOpts{
-			hideHeaders: taskPrintFlags.hideHeaders,
-			json:        taskPrintFlags.json,
-			task:        t,
+			hideHeaders: t.taskPrintFlags.hideHeaders,
+			json:        t.taskPrintFlags.json,
+			task:        tsk,
 		},
 	)
 }
 
-var taskFindFlags struct {
+type taskFindFlags struct {
 	user    string
-	id      string
 	limit   int
 	headers bool
-	org     organization
 }
 
-func (t *cmdTaskBuilder) taskFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("list", taskFindF, true)
+func (t *cmdTaskBuilder) taskFindCmd() *cobra.Command {
+	cmd := t.opts.newCmd("list", t.taskFindF, true)
 	cmd.Short = "List tasks"
 	cmd.Aliases = []string{"find", "ls"}
 
-	taskFindFlags.org.register(opt.viper, cmd, false)
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
-	cmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
-	cmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
-	cmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", influxdb.TaskDefaultPageSize, "the number of tasks to find")
-	cmd.Flags().BoolVar(&taskFindFlags.headers, "headers", true, "To print the table headers; defaults true")
+	t.org.register(t.opts.viper, cmd, false)
+	t.globalFlags.registerFlags(t.opts.viper, cmd)
+	registerPrintOptions(t.opts.viper, cmd, &t.taskPrintFlags.hideHeaders, &t.taskPrintFlags.json)
+	cmd.Flags().StringVarP(&t.taskID, "id", "i", "", "task ID")
+	cmd.Flags().StringVarP(&t.taskFindFlags.user, "user-id", "n", "", "task owner ID")
+	cmd.Flags().IntVarP(&t.taskFindFlags.limit, "limit", "", influxdb.TaskDefaultPageSize, "the number of tasks to find")
+	cmd.Flags().BoolVar(&t.taskFindFlags.headers, "headers", true, "To print the table headers; defaults true")
 
 	return cmd
 }
 
 func (t *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
-	if err := taskFindFlags.org.validOrgFlags(&flags); err != nil {
+
+	if err := t.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
@@ -214,34 +195,34 @@ func (t *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	filter := influxdb.TaskFilter{}
-	if taskFindFlags.user != "" {
-		id, err := influxdb.IDFromString(taskFindFlags.user)
+	if t.taskFindFlags.user != "" {
+		id, err := influxdb.IDFromString(t.taskFindFlags.user)
 		if err != nil {
 			return err
 		}
 		filter.User = id
 	}
 
-	if taskFindFlags.org.name != "" {
-		filter.Organization = taskFindFlags.org.name
+	if t.org.name != "" {
+		filter.Organization = t.org.name
 	}
-	if taskFindFlags.org.id != "" {
-		id, err := influxdb.IDFromString(taskFindFlags.org.id)
+	if t.org.id != "" {
+		id, err := influxdb.IDFromString(t.org.id)
 		if err != nil {
 			return err
 		}
 		filter.OrganizationID = id
 	}
 
-	if taskFindFlags.limit < 1 || taskFindFlags.limit > influxdb.TaskMaxPageSize {
+	if t.taskFindFlags.limit < 1 || t.taskFindFlags.limit > influxdb.TaskMaxPageSize {
 		return fmt.Errorf("limit must be between 1 and %d", influxdb.TaskMaxPageSize)
 	}
-	filter.Limit = taskFindFlags.limit
+	filter.Limit = t.taskFindFlags.limit
 
 	var tasks []*influxdb.Task
 
-	if taskFindFlags.id != "" {
-		id, err := influxdb.IDFromString(taskFindFlags.id)
+	if t.taskID != "" {
+		id, err := influxdb.IDFromString(t.taskID)
 		if err != nil {
 			return err
 		}
@@ -262,37 +243,35 @@ func (t *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 	return printTasks(
 		cmd.OutOrStdout(),
 		taskPrintOpts{
-			hideHeaders: taskPrintFlags.hideHeaders,
-			json:        taskPrintFlags.json,
+			hideHeaders: t.taskPrintFlags.hideHeaders,
+			json:        t.taskPrintFlags.json,
 			tasks:       tasks,
 		},
 	)
 }
 
-var taskRerunFailedFlags struct {
-	taskId string
+type taskRerunFailedFlags struct {
 	before string
 	after  string
-	org    organization
 }
 
-func (t *cmdTaskBuilder) taskRerunFailedCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("rerun_failed", taskRerunFailedF, true)
+func (t *cmdTaskBuilder) taskRerunFailedCmd() *cobra.Command {
+	cmd := t.opts.newCmd("rerun_failed", t.taskRerunFailedF, true)
 	cmd.Short = "Find and Rerun failed runs/tasks"
 	cmd.Aliases = []string{"rrf"}
 
-	taskFindFlags.org.register(opt.viper, cmd, false)
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
-	cmd.Flags().StringVarP(&taskRerunFailedFlags.taskId, "id", "i", "", "task ID")
-	cmd.Flags().StringVarP(&taskRerunFailedFlags.before, "before", "bf", "", "before interval")
-	cmd.Flags().StringVarP(&taskRerunFailedFlags.after, "after", "af", "", "after interval")
+	t.org.register(t.opts.viper, cmd, false)
+	t.globalFlags.registerFlags(t.opts.viper, cmd)
+	registerPrintOptions(t.opts.viper, cmd, &t.taskPrintFlags.hideHeaders, &t.taskPrintFlags.json)
+	cmd.Flags().StringVarP(&t.taskID, "id", "i", "", "task ID")
+	cmd.Flags().StringVarP(&t.taskRerunFailedFlags.before, "before", "bf", "", "before interval")
+	cmd.Flags().StringVarP(&t.taskRerunFailedFlags.after, "after", "af", "", "after interval")
 
 	return cmd
 }
 
-func (t *cmdTaskBuilder) taskRerunFailedF(command *cobra.Command, strings []string) error {
-	if err := taskFindFlags.org.validOrgFlags(&flags); err != nil {
+func (t *cmdTaskBuilder) taskRerunFailedF(*cobra.Command, []string) error {
+	if err := t.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
@@ -305,36 +284,35 @@ func (t *cmdTaskBuilder) taskRerunFailedF(command *cobra.Command, strings []stri
 		Client: client,
 	}
 
-	taskIDPresent := taskRerunFailedFlags.taskId == ""
-	// func do rerun(client, http.Tservice, taskID)
+	taskIDPresent := t.taskID == ""
 
 	/*
-		If no TaskID is given, must use TaskFilter to get all Tasks and then search for failed runs then re run
+		If no TaskID is given, use TaskFilter to get all Tasks, search for failed runs in each, then re run failed
 		If TaskID given, use RunFilter to search for failed runs then re run
 	*/
 	taskFilter := influxdb.TaskFilter{}
 	runFilter := influxdb.RunFilter{}
 	if !taskIDPresent {
-		if taskFindFlags.org.name != "" {
-			taskFilter.Organization = taskFindFlags.org.name
+		if t.org.name != "" {
+			taskFilter.Organization = t.org.name
 		}
-		if taskFindFlags.org.id != "" {
-			orgID, err := influxdb.IDFromString(taskFindFlags.org.id)
+		if t.org.id != "" {
+			orgID, err := influxdb.IDFromString(t.org.id)
 			if err != nil {
 				return err
 			}
 			taskFilter.OrganizationID = orgID
 		}
 	} else {
-		id, err := influxdb.IDFromString(taskFindFlags.id)
+		id, err := influxdb.IDFromString(t.taskID)
 		if err != nil {
 			return err
 		}
 		runFilter.Task = *id
 	}
 
-	runFilter.BeforeTime = taskRerunFailedFlags.before
-	runFilter.AfterTime = taskRerunFailedFlags.after
+	runFilter.BeforeTime = t.taskRerunFailedFlags.before
+	runFilter.AfterTime = t.taskRerunFailedFlags.after
 
 	var allRuns []*influxdb.Run
 	if !taskIDPresent {
@@ -372,22 +350,21 @@ func (t *cmdTaskBuilder) taskRerunFailedF(command *cobra.Command, strings []stri
 
 }
 
-var taskUpdateFlags struct {
-	id     string
+type taskUpdateFlags struct {
 	status string
 	file   string
 }
 
-func (t *cmdTaskBuilder) taskUpdateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("update", taskUpdateF, true)
+func (t *cmdTaskBuilder) taskUpdateCmd() *cobra.Command {
+	cmd := t.opts.newCmd("update", t.taskUpdateF, true)
 	cmd.Short = "Update task"
 	cmd.Long = `Update task status or script. Provide a Flux script via the first argument or a file. Use '-' argument to read from stdin.`
 
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
-	cmd.Flags().StringVarP(&taskUpdateFlags.id, "id", "i", "", "task ID (required)")
-	cmd.Flags().StringVarP(&taskUpdateFlags.status, "status", "", "", "update task status")
-	cmd.Flags().StringVarP(&taskUpdateFlags.file, "file", "f", "", "Path to Flux script file")
+	t.globalFlags.registerFlags(t.opts.viper, cmd)
+	registerPrintOptions(t.opts.viper, cmd, &t.taskPrintFlags.hideHeaders, &t.taskPrintFlags.json)
+	cmd.Flags().StringVarP(&t.taskID, "id", "i", "", "task ID (required)")
+	cmd.Flags().StringVarP(&t.taskUpdateFlags.status, "status", "", "", "update task status")
+	cmd.Flags().StringVarP(&t.taskUpdateFlags.file, "file", "f", "", "Path to Flux script file")
 	cmd.MarkFlagRequired("id")
 
 	return cmd
@@ -404,25 +381,25 @@ func (t *cmdTaskBuilder) taskUpdateF(cmd *cobra.Command, args []string) error {
 	}
 
 	var id influxdb.ID
-	if err := id.DecodeFromString(taskUpdateFlags.id); err != nil {
+	if err := id.DecodeFromString(t.taskID); err != nil {
 		return err
 	}
 
 	var update influxdb.TaskUpdate
-	if taskUpdateFlags.status != "" {
-		update.Status = &taskUpdateFlags.status
+	if t.taskUpdateFlags.status != "" {
+		update.Status = &t.taskUpdateFlags.status
 	}
 
 	// update flux script only if first arg or file is supplied
-	if (len(args) > 0 && len(args[0]) > 0) || len(taskUpdateFlags.file) > 0 {
-		flux, err := readFluxQuery(args, taskUpdateFlags.file)
+	if (len(args) > 0 && len(args[0]) > 0) || len(t.taskUpdateFlags.file) > 0 {
+		flux, err := readFluxQuery(args, t.taskUpdateFlags.file)
 		if err != nil {
 			return fmt.Errorf("error parsing flux script: %s", err)
 		}
 		update.Flux = &flux
 	}
 
-	t, err := s.UpdateTask(context.Background(), id, update)
+	tsk, err := s.UpdateTask(context.Background(), id, update)
 	if err != nil {
 		return err
 	}
@@ -430,24 +407,20 @@ func (t *cmdTaskBuilder) taskUpdateF(cmd *cobra.Command, args []string) error {
 	return printTasks(
 		cmd.OutOrStdout(),
 		taskPrintOpts{
-			hideHeaders: taskPrintFlags.hideHeaders,
-			json:        taskPrintFlags.json,
-			task:        t,
+			hideHeaders: t.taskPrintFlags.hideHeaders,
+			json:        t.taskPrintFlags.json,
+			task:        tsk,
 		},
 	)
 }
 
-var taskDeleteFlags struct {
-	id string
-}
-
-func (t *cmdTaskBuilder) taskDeleteCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("delete", taskDeleteF, true)
+func (t *cmdTaskBuilder) taskDeleteCmd() *cobra.Command {
+	cmd := t.opts.newCmd("delete", t.taskDeleteF, true)
 	cmd.Short = "Delete task"
 
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
-	cmd.Flags().StringVarP(&taskDeleteFlags.id, "id", "i", "", "task id (required)")
+	t.globalFlags.registerFlags(t.opts.viper, cmd)
+	registerPrintOptions(t.opts.viper, cmd, &t.taskPrintFlags.hideHeaders, &t.taskPrintFlags.json)
+	cmd.Flags().StringVarP(&t.taskID, "id", "i", "", "task id (required)")
 	cmd.MarkFlagRequired("id")
 
 	return cmd
@@ -464,13 +437,13 @@ func (t *cmdTaskBuilder) taskDeleteF(cmd *cobra.Command, args []string) error {
 	}
 
 	var id influxdb.ID
-	err = id.DecodeFromString(taskDeleteFlags.id)
+	err = id.DecodeFromString(t.taskID)
 	if err != nil {
 		return err
 	}
 
 	ctx := context.TODO()
-	t, err := s.FindTaskByID(ctx, id)
+	tsk, err := s.FindTaskByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -482,11 +455,12 @@ func (t *cmdTaskBuilder) taskDeleteF(cmd *cobra.Command, args []string) error {
 	return printTasks(
 		cmd.OutOrStdout(),
 		taskPrintOpts{
-			hideHeaders: taskPrintFlags.hideHeaders,
-			json:        taskPrintFlags.json,
-			task:        t,
+			hideHeaders: t.taskPrintFlags.hideHeaders,
+			json:        t.taskPrintFlags.json,
+			task:        tsk,
 		},
 	)
+
 }
 
 type taskPrintOpts struct {
@@ -504,7 +478,6 @@ func printTasks(w io.Writer, opts taskPrintOpts) error {
 		}
 		return writeJSON(w, v)
 	}
-
 	tabW := internal.NewTabWriter(os.Stdout)
 	defer tabW.Flush()
 
@@ -539,32 +512,26 @@ func printTasks(w io.Writer, opts taskPrintOpts) error {
 	return nil
 }
 
-func (t *cmdTaskBuilder) taskLogCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("log", nil, false)
+func (t *cmdTaskBuilder) taskLogCmd() *cobra.Command {
+	cmd := t.opts.newCmd("log", nil, false)
 	cmd.Run = seeHelp
 	cmd.Short = "Log related commands"
-
 	cmd.AddCommand(
-		t.taskLogFindCmd(f, opt),
+		t.taskLogFindCmd(),
 	)
 
 	return cmd
 }
 
-var taskLogFindFlags struct {
-	taskID string
-	runID  string
-}
-
-func (t *cmdTaskBuilder) taskLogFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("list", taskLogFindF, true)
+func (t *cmdTaskBuilder) taskLogFindCmd() *cobra.Command {
+	cmd := t.opts.newCmd("list", t.taskLogFindF, true)
 	cmd.Short = "List logs for task"
 	cmd.Aliases = []string{"find", "ls"}
 
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
-	cmd.Flags().StringVarP(&taskLogFindFlags.taskID, "task-id", "", "", "task id (required)")
-	cmd.Flags().StringVarP(&taskLogFindFlags.runID, "run-id", "", "", "run id")
+	t.globalFlags.registerFlags(t.opts.viper, cmd)
+	registerPrintOptions(t.opts.viper, cmd, &t.taskPrintFlags.hideHeaders, &t.taskPrintFlags.json)
+	cmd.Flags().StringVarP(&t.taskID, "task-id", "", "", "task id (required)")
+	cmd.Flags().StringVarP(&t.runID, "run-id", "", "", "run id")
 	cmd.MarkFlagRequired("task-id")
 
 	return cmd
@@ -581,14 +548,14 @@ func (t *cmdTaskBuilder) taskLogFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	var filter influxdb.LogFilter
-	id, err := influxdb.IDFromString(taskLogFindFlags.taskID)
+	id, err := influxdb.IDFromString(t.taskID)
 	if err != nil {
 		return err
 	}
 	filter.Task = *id
 
-	if taskLogFindFlags.runID != "" {
-		id, err := influxdb.IDFromString(taskLogFindFlags.runID)
+	if t.runID != "" {
+		id, err := influxdb.IDFromString(t.runID)
 		if err != nil {
 			return err
 		}
@@ -602,14 +569,14 @@ func (t *cmdTaskBuilder) taskLogFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	w := cmd.OutOrStdout()
-	if taskPrintFlags.json {
+	if t.taskPrintFlags.json {
 		return writeJSON(w, logs)
 	}
 
 	tabW := internal.NewTabWriter(w)
 	defer tabW.Flush()
 
-	tabW.HideHeaders(taskPrintFlags.hideHeaders)
+	tabW.HideHeaders(t.taskPrintFlags.hideHeaders)
 
 	tabW.WriteHeaders("RunID", "Time", "Message")
 	for _, log := range logs {
@@ -623,38 +590,36 @@ func (t *cmdTaskBuilder) taskLogFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (t *cmdTaskBuilder) taskRunCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("run", nil, false)
+func (t *cmdTaskBuilder) taskRunCmd() *cobra.Command {
+	cmd := t.opts.newCmd("run", nil, false)
 	cmd.Run = seeHelp
 	cmd.Short = "List runs for a task"
 	cmd.AddCommand(
-		t.taskRunFindCmd(f, opt),
-		t.taskRunRetryCmd(f, opt),
+		t.taskRunFindCmd(),
+		t.taskRunRetryCmd(),
 	)
 
 	return cmd
 }
 
-var taskRunFindFlags struct {
-	runID      string
-	taskID     string
+type taskRunFindFlags struct {
 	afterTime  string
 	beforeTime string
 	limit      int
 }
 
-func (t *cmdTaskBuilder) taskRunFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("list", taskRunFindF, true)
+func (t *cmdTaskBuilder) taskRunFindCmd() *cobra.Command {
+	cmd := t.opts.newCmd("list", t.taskRunFindF, true)
 	cmd.Short = "List runs for a task"
 	cmd.Aliases = []string{"find", "ls"}
 
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
-	cmd.Flags().StringVarP(&taskRunFindFlags.taskID, "task-id", "", "", "task id (required)")
-	cmd.Flags().StringVarP(&taskRunFindFlags.runID, "run-id", "", "", "run id")
-	cmd.Flags().StringVarP(&taskRunFindFlags.afterTime, "after", "", "", "after time for filtering")
-	cmd.Flags().StringVarP(&taskRunFindFlags.beforeTime, "before", "", "", "before time for filtering")
-	cmd.Flags().IntVarP(&taskRunFindFlags.limit, "limit", "", 100, "limit the results; default is 100")
+	t.globalFlags.registerFlags(t.opts.viper, cmd)
+	registerPrintOptions(t.opts.viper, cmd, &t.taskPrintFlags.hideHeaders, &t.taskPrintFlags.json)
+	cmd.Flags().StringVarP(&t.taskID, "task-id", "", "", "task id (required)")
+	cmd.Flags().StringVarP(&t.runID, "run-id", "", "", "run id")
+	cmd.Flags().StringVarP(&t.taskRunFindFlags.afterTime, "after", "", "", "after time for filtering")
+	cmd.Flags().StringVarP(&t.taskRunFindFlags.beforeTime, "before", "", "", "before time for filtering")
+	cmd.Flags().IntVarP(&t.taskRunFindFlags.limit, "limit", "", 100, "limit the results; default is 100")
 
 	cmd.MarkFlagRequired("task-id")
 
@@ -672,19 +637,19 @@ func (t *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	filter := influxdb.RunFilter{
-		Limit:      taskRunFindFlags.limit,
-		AfterTime:  taskRunFindFlags.afterTime,
-		BeforeTime: taskRunFindFlags.beforeTime,
+		Limit:      t.taskRunFindFlags.limit,
+		AfterTime:  t.taskRunFindFlags.afterTime,
+		BeforeTime: t.taskRunFindFlags.beforeTime,
 	}
-	taskID, err := influxdb.IDFromString(taskRunFindFlags.taskID)
+	taskID, err := influxdb.IDFromString(t.taskID)
 	if err != nil {
 		return err
 	}
 	filter.Task = *taskID
 
 	var runs []*influxdb.Run
-	if taskRunFindFlags.runID != "" {
-		id, err := influxdb.IDFromString(taskRunFindFlags.runID)
+	if t.runID != "" {
+		id, err := influxdb.IDFromString(t.runID)
 		if err != nil {
 			return err
 		}
@@ -701,7 +666,7 @@ func (t *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	w := cmd.OutOrStdout()
-	if taskPrintFlags.json {
+	if t.taskPrintFlags.json {
 		if runs == nil {
 			// guarantee we never return a null value from CLI
 			runs = make([]*influxdb.Run, 0)
@@ -712,7 +677,7 @@ func (t *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 	tabW := internal.NewTabWriter(w)
 	defer tabW.Flush()
 
-	tabW.HideHeaders(taskPrintFlags.hideHeaders)
+	tabW.HideHeaders(t.taskPrintFlags.hideHeaders)
 
 	tabW.WriteHeaders(
 		"ID",
@@ -748,11 +713,11 @@ var runRetryFlags struct {
 	taskID, runID string
 }
 
-func (t *cmdTaskBuilder) taskRunRetryCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("retry", t.runRetryF, true)
+func (t *cmdTaskBuilder) taskRunRetryCmd() *cobra.Command {
+	cmd := t.opts.newCmd("retry", t.runRetryF, true)
 	cmd.Short = "retry a run"
 
-	f.registerFlags(opt.viper, cmd)
+	t.globalFlags.registerFlags(t.opts.viper, cmd)
 	cmd.Flags().StringVarP(&runRetryFlags.taskID, "task-id", "i", "", "task id (required)")
 	cmd.Flags().StringVarP(&runRetryFlags.runID, "run-id", "r", "", "run id (required)")
 	cmd.MarkFlagRequired("task-id")
@@ -761,7 +726,7 @@ func (t *cmdTaskBuilder) taskRunRetryCmd(f *globalFlags, opt genericCLIOpts) *co
 	return cmd
 }
 
-func (t *cmdTaskBuilder) runRetryF(cmd *cobra.Command, args []string) error {
+func (t *cmdTaskBuilder) runRetryF(*cobra.Command, []string) error {
 	client, err := newHTTPClient()
 	if err != nil {
 		return err
