@@ -105,9 +105,13 @@ elif [[ -f /etc/os-release ]]; then
 fi
 
 # Check upgrade status
+if [[ ! -s /etc/influxdb/influxdb.conf ]]; then
+  # No V1 config present, nothing more to do.
+  exit 0
+fi
+
 bolt_dir="/root/.influxdbv2 /var/lib/influxdb/.influxdbv2 /var/lib/influxdb"
-for bolt in $bolt_dir
-do
+for bolt in $bolt_dir; do
   if [[ -s ${bolt}/influxd.bolt ]]; then
     # Found a bolt file, assume previous v2 upgrade
     exit 0
