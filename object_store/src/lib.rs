@@ -1121,7 +1121,7 @@ mod tests {
                 .await
                 .unwrap_err();
             if let Some(Error(InternalError::UnableToListDataFromS3 { source, bucket })) =
-                e.downcast_ref::<crate::Error>()
+                err.downcast_ref::<crate::Error>()
             {
                 assert!(matches!(
                     source,
@@ -1129,7 +1129,7 @@ mod tests {
                         rusoto_s3::ListObjectsV2Error::NoSuchBucket(_),
                     )
                 ));
-                assert_eq!(bucket, &bucket_name);
+                assert_eq!(bucket, bucket_name);
             } else {
                 panic!("unexpected error type")
             }
