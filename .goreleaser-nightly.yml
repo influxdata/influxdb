@@ -59,6 +59,7 @@ nfpms:
       "scripts/init.sh": "/usr/lib/influxdb/scripts/init.sh"
       "scripts/influxdb.service": "/usr/lib/influxdb/scripts/influxdb.service"
       "scripts/logrotate": "/etc/logrotate.d/influxdb"
+      "scripts/influxdb2-upgrade.sh": "/usr/share/influxdb/influxdb2-upgrade.sh"
     scripts:
       preinstall:  "scripts/pre-install.sh"
       postinstall: "scripts/post-install.sh"
