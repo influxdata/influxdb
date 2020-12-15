@@ -168,6 +168,11 @@ pub enum Error {
 
     #[snafu(display("Duplicate group column '{}'", column_name))]
     DuplicateGroupColumn { column_name: String },
+
+    #[snafu(display("Internal error converting schema to DFSchema: {}", source))]
+    InternalConvertingSchema {
+        source: datafusion::error::DataFusionError,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -338,14 +343,9 @@ impl Table {
         let schema = data.schema();
 
         let projection = None;
-        let projected_schema = schema.clone();
 
-        let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
-            data: vec![vec![data]],
-            schema,
-            projection,
-            projected_schema,
-        });
+        let plan_builder = LogicalPlanBuilder::scan_memory(vec![vec![data]], schema, projection)
+            .context(BuildingPlan)?;
 
         let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;
 
@@ -403,16 +403,11 @@ impl Table {
         let schema = data.schema();
 
         let projection = None;
-        let projected_schema = schema.clone();
         let select_exprs = vec![col(column_name)];
 
         // And build the plan!
-        let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
-            data: vec![vec![data]],
-            schema,
-            projection,
-            projected_schema,
-        });
+        let plan_builder = LogicalPlanBuilder::scan_memory(vec![vec![data]], schema, projection)
+            .context(BuildingPlan)?;
 
         let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;
 
@@ -470,15 +465,10 @@ impl Table {
         let schema = data.schema();
 
         let projection = None;
-        let projected_schema = schema.clone();
 
         // And build the plan from the bottom up
-        let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
-            data: vec![vec![data]],
-            schema,
-            projection,
-            projected_schema,
-        });
+        let plan_builder = LogicalPlanBuilder::scan_memory(vec![vec![data]], schema, projection)
+            .context(BuildingPlan)?;
 
         // Filtering
         let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;
@@ -599,15 +589,10 @@ impl Table {
         let schema = data.schema();
 
         let projection = None;
-        let projected_schema = schema.clone();
 
         // And build the plan from the bottom up
-        let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
-            data: vec![vec![data]],
-            schema,
-            projection,
-            projected_schema,
-        });
+        let plan_builder = LogicalPlanBuilder::scan_memory(vec![vec![data]], schema, projection)
+            .context(BuildingPlan)?;
 
         // Filtering
         let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;
@@ -679,15 +664,10 @@ impl Table {
         let schema = data.schema();
 
         let projection = None;
-        let projected_schema = schema.clone();
 
         // And build the plan from the bottom up
-        let plan_builder = LogicalPlanBuilder::from(&LogicalPlan::InMemoryScan {
-            data: vec![vec![data]],
-            schema,
-            projection,
-            projected_schema,
-        });
+        let plan_builder = LogicalPlanBuilder::scan_memory(vec![vec![data]], schema, projection)
+            .context(BuildingPlan)?;
 
         // Filtering
         let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;

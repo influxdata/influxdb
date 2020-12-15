@@ -50,6 +50,14 @@ pub fn visit_expression<V: ExpressionVisitor>(expr: &Expr, visitor: &mut V) {
             }
         }
         Expr::Not(expr) => visit_expression(expr, visitor),
+        Expr::Negative(expr) => visit_expression(expr, visitor),
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            visit_expression(expr, visitor);
+            visit_expression(low, visitor);
+            visit_expression(high, visitor);
+        }
         Expr::IsNull(expr) => visit_expression(expr, visitor),
         Expr::IsNotNull(expr) => visit_expression(expr, visitor),
         Expr::ScalarFunction { args, .. } => {

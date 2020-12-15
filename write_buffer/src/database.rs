@@ -584,7 +584,7 @@ impl SQLDatabase for Db {
 
         for table in tables {
             let provider =
-                MemTable::new(table.schema, vec![table.data]).context(QueryError { query })?;
+                MemTable::try_new(table.schema, vec![table.data]).context(QueryError { query })?;
             ctx.register_table(&table.name, Box::new(provider));
         }
 

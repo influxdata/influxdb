@@ -439,12 +439,15 @@ async fn run_logical_plans(
 
 #[cfg(test)]
 mod tests {
-    use arrow_deps::arrow::{
-        array::Int64Array,
-        array::StringArray,
-        array::StringBuilder,
-        datatypes::DataType,
-        datatypes::{Field, Schema, SchemaRef},
+    use arrow_deps::{
+        arrow::{
+            array::Int64Array,
+            array::StringArray,
+            array::StringBuilder,
+            datatypes::DataType,
+            datatypes::{Field, Schema, SchemaRef},
+        },
+        datafusion::logical_plan::LogicalPlanBuilder,
     };
     use stringset::StringSet;
 
@@ -666,13 +669,14 @@ mod tests {
 
     // creates a DataFusion plan that reads the RecordBatches into memory
     fn make_plan(schema: SchemaRef, data: Vec<RecordBatch>) -> LogicalPlan {
-        let projected_schema = schema.clone();
-
-        LogicalPlan::InMemoryScan {
-            data: vec![data], // model one partition
+        let projection = None;
+        LogicalPlanBuilder::scan_memory(
+            vec![data], // model one partition,
             schema,
-            projection: None,
-            projected_schema,
-        }
+            projection,
+        )
+        .unwrap()
+        .build()
+        .unwrap()
     }
 }

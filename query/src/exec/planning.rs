@@ -72,7 +72,7 @@ impl ExtensionPlanner for IOxExtensionPlanner {
                 assert_eq!(inputs.len(), 1, "Inconsistent number of inputs");
                 Ok(Arc::new(SchemaPivotExec::new(
                     inputs[0].clone(),
-                    schema_pivot.schema().clone(),
+                    schema_pivot.schema().as_ref().clone().into(),
                 )))
             }
             None => Err(Error::Internal(format!(

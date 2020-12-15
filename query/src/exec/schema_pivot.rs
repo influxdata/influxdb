@@ -28,15 +28,18 @@ use std::{
 use async_trait::async_trait;
 
 use arrow_deps::{
-    arrow::array::StringBuilder,
-    arrow::datatypes::{DataType, Field, Schema, SchemaRef},
-    arrow::record_batch::RecordBatch,
-    datafusion::logical_plan::{self, Expr, LogicalPlan, UserDefinedLogicalNode},
-    datafusion::physical_plan::common::SizedRecordBatchStream,
-    datafusion::physical_plan::SendableRecordBatchStream,
+    arrow::{
+        array::StringBuilder,
+        datatypes::{DataType, Field, Schema, SchemaRef},
+        record_batch::RecordBatch,
+    },
     datafusion::{
         error::DataFusionError,
-        physical_plan::{Distribution, ExecutionPlan, Partitioning},
+        logical_plan::{self, DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
+        physical_plan::{
+            common::SizedRecordBatchStream, Distribution, ExecutionPlan, Partitioning,
+            SendableRecordBatchStream,
+        },
     },
 };
 
@@ -47,7 +50,7 @@ pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
 /// Implementes the SchemaPivot operation described in make_schema_pivot,
 pub struct SchemaPivotNode {
     input: LogicalPlan,
-    schema: SchemaRef,
+    schema: DFSchemaRef,
     // these expressions represent what columns are "used" by this
     // node (in this case all of them) -- columns that are not used
     // are optimzied away by datafusion.
@@ -92,7 +95,7 @@ impl UserDefinedLogicalNode for SchemaPivotNode {
     }
 
     /// Schema for Pivot is a single string
-    fn schema(&self) -> &SchemaRef {
+    fn schema(&self) -> &DFSchemaRef {
         &self.schema
     }
 
@@ -123,14 +126,15 @@ impl UserDefinedLogicalNode for SchemaPivotNode {
 // ------ The implementation of SchemaPivot code follows -----
 
 /// Create the schema describing the output
-pub fn make_schema_pivot_output_schema() -> SchemaRef {
+pub fn make_schema_pivot_output_schema() -> DFSchemaRef {
     let nullable = false;
-    let schema = Schema::new(vec![Field::new(
+    Schema::new(vec![Field::new(
         "non_null_column",
         DataType::Utf8,
         nullable,
-    )]);
-    SchemaRef::new(schema)
+    )])
+    .to_dfschema_ref()
+    .unwrap()
 }
 
 /// Physical operator that implements the SchemaPivot operation aginst
@@ -442,7 +446,7 @@ mod tests {
     /// Create a schema piv
     fn make_schema_pivot(input_schema: SchemaRef, data: Vec<RecordBatch>) -> SchemaPivotExec {
         let input = make_memory_exec(input_schema, data);
-        let output_schema = make_schema_pivot_output_schema();
+        let output_schema = Arc::new(make_schema_pivot_output_schema().as_ref().clone().into());
         SchemaPivotExec::new(input, output_schema)
     }
 
