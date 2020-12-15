@@ -4,12 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/influxdata/influxdb/v2/tenant"
-	"io"
-	"os"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
 )
@@ -147,14 +144,7 @@ func (t *cmdTaskBuilder) taskCreateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return printTasks(
-		cmd.OutOrStdout(),
-		taskPrintOpts{
-			hideHeaders: t.taskPrintFlags.hideHeaders,
-			json:        t.taskPrintFlags.json,
-			task:        tsk,
-		},
-	)
+	return t.printTasks(taskPrintOpts{task: tsk})
 }
 
 type taskFindFlags struct {
@@ -240,14 +230,7 @@ func (t *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return printTasks(
-		cmd.OutOrStdout(),
-		taskPrintOpts{
-			hideHeaders: t.taskPrintFlags.hideHeaders,
-			json:        t.taskPrintFlags.json,
-			tasks:       tasks,
-		},
-	)
+	return t.printTasks(taskPrintOpts{tasks: tasks})
 }
 
 type taskRerunFailedFlags struct {
@@ -404,14 +387,7 @@ func (t *cmdTaskBuilder) taskUpdateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return printTasks(
-		cmd.OutOrStdout(),
-		taskPrintOpts{
-			hideHeaders: t.taskPrintFlags.hideHeaders,
-			json:        t.taskPrintFlags.json,
-			task:        tsk,
-		},
-	)
+	return t.printTasks(taskPrintOpts{task: tsk})
 }
 
 func (t *cmdTaskBuilder) taskDeleteCmd() *cobra.Command {
@@ -452,36 +428,27 @@ func (t *cmdTaskBuilder) taskDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return printTasks(
-		cmd.OutOrStdout(),
-		taskPrintOpts{
-			hideHeaders: t.taskPrintFlags.hideHeaders,
-			json:        t.taskPrintFlags.json,
-			task:        tsk,
-		},
-	)
+	return t.printTasks(taskPrintOpts{task: tsk})
 
 }
 
 type taskPrintOpts struct {
-	hideHeaders bool
-	json        bool
-	task        *influxdb.Task
-	tasks       []*influxdb.Task
+	task  *influxdb.Task
+	tasks []*influxdb.Task
 }
 
-func printTasks(w io.Writer, opts taskPrintOpts) error {
-	if opts.json {
-		var v interface{} = opts.tasks
-		if opts.task != nil {
-			v = opts.task
+func (t *cmdTaskBuilder) printTasks(printOpts taskPrintOpts) error {
+	if t.taskPrintFlags.json {
+		var v interface{} = printOpts.tasks
+		if printOpts.task != nil {
+			v = printOpts.task
 		}
-		return writeJSON(w, v)
+		return t.opts.writeJSON(v)
 	}
-	tabW := internal.NewTabWriter(os.Stdout)
+	tabW := t.opts.newTabWriter()
 	defer tabW.Flush()
 
-	tabW.HideHeaders(opts.hideHeaders)
+	tabW.HideHeaders(t.taskPrintFlags.hideHeaders)
 
 	tabW.WriteHeaders(
 		"ID",
@@ -493,11 +460,11 @@ func printTasks(w io.Writer, opts taskPrintOpts) error {
 		"Cron",
 	)
 
-	if opts.task != nil {
-		opts.tasks = append(opts.tasks, opts.task)
+	if printOpts.task != nil {
+		printOpts.tasks = append(printOpts.tasks, printOpts.task)
 	}
 
-	for _, t := range opts.tasks {
+	for _, t := range printOpts.tasks {
 		tabW.Write(map[string]interface{}{
 			"ID":              t.ID.String(),
 			"Name":            t.Name,
@@ -568,12 +535,11 @@ func (t *cmdTaskBuilder) taskLogFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := cmd.OutOrStdout()
 	if t.taskPrintFlags.json {
-		return writeJSON(w, logs)
+		return t.opts.writeJSON(logs)
 	}
 
-	tabW := internal.NewTabWriter(w)
+	tabW := t.opts.newTabWriter()
 	defer tabW.Flush()
 
 	tabW.HideHeaders(t.taskPrintFlags.hideHeaders)
@@ -665,16 +631,15 @@ func (t *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	w := cmd.OutOrStdout()
 	if t.taskPrintFlags.json {
 		if runs == nil {
 			// guarantee we never return a null value from CLI
 			runs = make([]*influxdb.Run, 0)
 		}
-		return writeJSON(w, runs)
+		return t.opts.writeJSON(runs)
 	}
 
-	tabW := internal.NewTabWriter(w)
+	tabW := t.opts.newTabWriter()
 	defer tabW.Flush()
 
 	tabW.HideHeaders(t.taskPrintFlags.hideHeaders)
