@@ -72,7 +72,10 @@ fi
 
 # Override init script variables with DEFAULT values
 if [ -r $DEFAULT ]; then
+    # set -a causes all variables to be auto-exported.
+    set -a
     source $DEFAULT
+    set +a
 fi
 
 function log_failure_msg() {
