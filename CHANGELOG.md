@@ -3,6 +3,8 @@
 ### Bug Fixes
 
 1. [20339](https://github.com/influxdata/influxdb/pull/20339): Include upgrade helper script in goreleaser manifest.
+1. [20348](https://github.com/influxdata/influxdb/pull/20348): Don't show the upgrade notice on fresh `influxdb2` installs.
+1. [20348](https://github.com/influxdata/influxdb/pull/20348): Ensure `config.toml` is initialized on fresh `influxdb2` installs.
 
 ## v2.0.3 [2020-12-14]
 
