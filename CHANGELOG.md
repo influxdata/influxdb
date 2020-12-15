@@ -1,8 +1,10 @@
 ## unreleased
 
+## v2.0.3 [2020-12-14]
+
 ### ARM Support
 
-This release includes our initial ARM64 "preview" build.
+This release includes our initial ARM64 preview build.
 
 ### Breaking Changes
 
@@ -29,6 +31,8 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 1. [20110](https://github.com/influxdata/influxdb/pull/20110): Allow for users to specify where V2 config should be written in `influxd upgrade`.
 1. [20204](https://github.com/influxdata/influxdb/pull/20204): Improve ID-related error messages for `influx v1 dbrp` commands.
 1. [20236](https://github.com/influxdata/influxdb/pull/20236): Delete with predicate.
+1. [20322](https://github.com/influxdata/influxdb/pull/20322): Upgrade Flux to v0.99.0.
+1. [20327](https://github.com/influxdata/influxdb/pull/20327): Upgrade flux-lsp-browser to v0.5.26.
 
 ### Bug Fixes
 
