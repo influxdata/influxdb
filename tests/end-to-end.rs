@@ -261,8 +261,6 @@ async fn read_and_write_data() -> Result<()> {
         .flat_map(|f| f.data)
         .collect();
 
-    assert_eq!(frames.len(), 10);
-
     let expected_frames = substitute_nanos(ns_since_epoch, &[
         "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=, type: 0",
         "FloatPointsFrame, timestamps: [ns1], values: \"27.99\"",

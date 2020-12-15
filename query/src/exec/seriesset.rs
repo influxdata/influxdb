@@ -458,7 +458,7 @@ mod tests {
         let input = parse_to_iterator(
             schema,
             "one,ten,10.0,1,1000\n\
-                                       one,ten,10.1,2,2000\n",
+             one,ten,10.1,2,2000\n",
         );
 
         let table_name = "foo";
@@ -483,6 +483,59 @@ mod tests {
             "+-------+-------+-------------+-----------+------+",
             "| one   | ten   | 10          | 1         | 1000 |",
             "| one   | ten   | 10.1        | 2         | 2000 |",
+            "+-------+-------+-------------+-----------+------+",
+            "",
+        ];
+
+        let actual_data = pretty_format_batches(&[series_set.batch.clone()])
+            .expect("formatting batch")
+            .split('\n')
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+
+        assert_eq!(expected_data, actual_data);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_convert_single_series_no_tags_nulls() -> Result<()> {
+        // single series
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("tag_a", DataType::Utf8, true),
+            Field::new("tag_b", DataType::Utf8, true),
+            Field::new("float_field", DataType::Float64, true),
+            Field::new("int_field", DataType::Int64, true),
+            Field::new("time", DataType::Int64, false),
+        ]));
+        // send no values in the int_field colum
+        let input = parse_to_iterator(
+            schema,
+            "one,ten,10.0,,1000\n\
+             one,ten,10.1,,2000\n",
+        );
+
+        let table_name = "foo";
+        let tag_columns = [];
+        let field_columns = ["float_field"];
+        let results = convert(table_name, &tag_columns, &field_columns, input).await;
+
+        assert_eq!(results.len(), 1);
+        let series_set = results[0].as_ref().expect("Correctly converted");
+
+        assert_eq!(*series_set.table_name, "foo");
+        assert!(series_set.tags.is_empty());
+        assert_eq!(series_set.timestamp_index, 4);
+        assert_eq!(series_set.field_indices, Arc::new(vec![2]));
+        assert_eq!(series_set.start_row, 0);
+        assert_eq!(series_set.num_rows, 2);
+
+        // Test that the record batch made it through
+        let expected_data = vec![
+            "+-------+-------+-------------+-----------+------+",
+            "| tag_a | tag_b | float_field | int_field | time |",
+            "+-------+-------+-------------+-----------+------+",
+            "| one   | ten   | 10          |           | 1000 |",
+            "| one   | ten   | 10.1        |           | 2000 |",
             "+-------+-------+-------------+-----------+------+",
             "",
         ];

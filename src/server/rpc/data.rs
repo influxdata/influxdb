@@ -131,15 +131,29 @@ fn data_type(array: &ArrayRef) -> Result<DataType> {
     }
 }
 
+/// Returns true if the array is entirely null between start_row and
+/// start_row+num_rows
+fn is_all_null(arr: &ArrayRef, start_row: usize, num_rows: usize) -> bool {
+    let end_row = start_row + num_rows;
+    (start_row..end_row).all(|i| arr.is_null(i))
+}
+
 // Convert and append a single field to a sequence of frames
 fn field_to_data(frames: &mut Vec<Data>, series_set: &SeriesSet, field_index: usize) -> Result<()> {
     let batch = &series_set.batch;
     let schema = batch.schema();
 
+    let field = schema.field(field_index);
     let array = batch.column(field_index);
 
     let start_row = series_set.start_row;
     let num_rows = series_set.num_rows;
+
+    // No values for this field are in the array so it does not
+    // contribute to a series.
+    if field.is_nullable() && is_all_null(array, start_row, num_rows) {
+        return Ok(());
+    }
 
     let series_frame = SeriesFrame {
         tags: convert_tags(
@@ -356,7 +370,6 @@ mod tests {
 
         let response =
             series_set_to_read_response(series_set).expect("Correctly converted series set");
-        println!("Response is: {:#?}", response);
 
         assert_eq!(response.frames.len(), 8); // 2 per field x 4 fields = 8
 
@@ -385,6 +398,67 @@ mod tests {
     }
 
     #[test]
+    fn test_series_set_conversion_with_null_field() {
+        // single series
+        let schema = Arc::new(Schema::new(vec![
+            ArrowField::new("state", ArrowDataType::Utf8, true),
+            ArrowField::new("int_field", ArrowDataType::Int64, true),
+            ArrowField::new("float_field", ArrowDataType::Float64, true),
+            ArrowField::new("time", ArrowDataType::Int64, false),
+        ]));
+
+        let tag_array: ArrayRef = Arc::new(StringArray::from(vec!["MA", "MA", "MA", "MA"]));
+        let int_array: ArrayRef = Arc::new(Int64Array::from(vec![None, None, None, None]));
+        let float_array: ArrayRef = Arc::new(Float64Array::from(vec![
+            Some(10.1),
+            Some(20.1),
+            None,
+            Some(40.1),
+        ]));
+
+        let timestamp_array: ArrayRef = Arc::new(Int64Array::from(vec![1000, 2000, 3000, 4000]));
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![tag_array, int_array, float_array, timestamp_array],
+        )
+        .expect("created new record batch");
+
+        let series_set = SeriesSet {
+            table_name: Arc::new("the_table".into()),
+            tags: vec![(Arc::new("state".into()), Arc::new("MA".into()))],
+            timestamp_index: 3,
+            field_indices: Arc::new(vec![1, 2]),
+            start_row: 0,
+            num_rows: batch.num_rows(),
+            batch,
+        };
+
+        // Expect only a single series (for the data in float_field, int_field is all
+        // nulls)
+
+        let response =
+            series_set_to_read_response(series_set).expect("Correctly converted series set");
+
+        let dumped_frames = response
+            .frames
+            .iter()
+            .map(|f| dump_frame(f))
+            .collect::<Vec<_>>();
+
+        let expected_frames = vec![
+            "SeriesFrame, tags: _field=float_field,_measurement=the_table,state=MA, type: 0",
+            "FloatPointsFrame, timestamps: [1000, 2000, 3000, 4000], values: \"10.1,20.1,0,40.1\"",
+        ];
+
+        assert_eq!(
+            dumped_frames, expected_frames,
+            "Expected:\n{:#?}\nActual:\n{:#?}",
+            expected_frames, dumped_frames
+        );
+    }
+
+    #[test]
     fn test_group_group_conversion() {
         let group_description = GroupDescription {
             tags: vec![
@@ -397,7 +471,6 @@ mod tests {
 
         let response = series_set_item_to_read_response(grouped_series_set_item)
             .expect("Correctly converted grouped_series_set_item");
-        println!("Response is: {:#?}", response);
 
         let dumped_frames = response
             .frames
@@ -442,8 +515,6 @@ mod tests {
 
         let response = series_set_item_to_read_response(series_set_item)
             .expect("Correctly converted series_set_item");
-
-        println!("Response is: {:#?}", response);
 
         let dumped_frames = response
             .frames
