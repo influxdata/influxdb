@@ -70,22 +70,32 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 	return func() error {
 		fluxinit.FluxInit()
 
-		// exit with SIGINT and SIGTERM
-		ctx = signals.WithStandardSignals(ctx)
-
 		l := NewLauncher()
-		if err := l.run(ctx, o); err != nil {
+		if err := l.runUntilDone(ctx, o); err != nil {
 			return err
 		}
-		<-ctx.Done()
-
-		// Attempt clean shutdown.
-		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-		l.Shutdown(ctx)
+		l.gracefulShutdown(ctx)
 
 		return nil
 	}
+}
+
+// runUntilDone starts the launcher and waits for it to exit on SIGINT or SIGTERM.
+func (l *Launcher) runUntilDone(ctx context.Context, o *InfluxdOpts) error {
+	ctx = signals.WithStandardSignals(ctx)
+	if err := l.run(ctx, o); err != nil {
+		return err
+	}
+	<-ctx.Done()
+	return nil
+}
+
+// gracefulShutdown tears down the launcher, allowing it a few seconds to finish
+// any in-progress requests.
+func (l *Launcher) gracefulShutdown(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	l.Shutdown(ctx)
 }
 
 // InfluxdOpts captures all arguments for running the InfluxDB server.
