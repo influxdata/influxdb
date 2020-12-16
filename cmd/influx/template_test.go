@@ -641,9 +641,7 @@ func Test_Template_Commands(t *testing.T) {
 			tests := []struct {
 				name          string
 				args          []string
-				envVars       map[string]string
 				expectedStack pkger.Stack
-				shouldErr     bool
 			}{
 				{
 					name: "when stack name and decription are set",
@@ -738,17 +736,13 @@ func Test_Template_Commands(t *testing.T) {
 					rootCmd.SetArgs(append(baseArgs, tt.args...))
 
 					err := rootCmd.Execute()
-					if tt.shouldErr {
-						require.Error(t, err)
-					} else {
-						require.NoError(t, err)
-						var stack pkger.Stack
-						testDecodeJSONBody(t, outBuf, &stack)
-						if tt.expectedStack.ID == 0 {
-							tt.expectedStack.ID = 9000
-						}
-						assert.Equal(t, tt.expectedStack, stack)
+					require.NoError(t, err)
+					var stack pkger.Stack
+					testDecodeJSONBody(t, outBuf, &stack)
+					if tt.expectedStack.ID == 0 {
+						tt.expectedStack.ID = 9000
 					}
+					assert.Equal(t, tt.expectedStack, stack)
 				}
 
 				t.Run(tt.name, fn)
