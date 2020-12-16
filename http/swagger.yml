@@ -6749,6 +6749,7 @@ components:
     Expression:
       oneOf:
         - $ref: "#/components/schemas/ArrayExpression"
+        - $ref: "#/components/schemas/DictExpression"
         - $ref: "#/components/schemas/FunctionExpression"
         - $ref: "#/components/schemas/BinaryExpression"
         - $ref: "#/components/schemas/CallExpression"
@@ -6781,6 +6782,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Expression"
+    DictExpression:
+      description: Used to create and directly specify the elements of a dictionary
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/NodeType"
+        elements:
+          description: Elements of the dictionary
+          type: array
+          items:
+            $ref: "#/components/schemas/DictItem"
+    DictItem:
+      description: A key/value pair in a dictionary
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/NodeType"
+        key:
+          $ref: "#/components/schemas/Expression"
+        val:
+          $ref: "#/components/schemas/Expression"
     FunctionExpression:
       description: Function expression
       type: object
