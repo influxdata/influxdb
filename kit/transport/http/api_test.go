@@ -85,7 +85,7 @@ func Test_API(t *testing.T) {
 			}
 		})
 
-		t.Run("unmarshal err fn wraps unmarshaling error", func(t *testing.T) {
+		t.Run("unmarshal err fn wraps unmarshalling error", func(t *testing.T) {
 			t.Run("json", func(t *testing.T) {
 				invalidBody := []byte("[}-{]")
 
@@ -290,7 +290,7 @@ func (v *validatFoo) OK() error {
 		errs = append(errs, "foo must be at least 1 char")
 	}
 	if v.Bar < 0 {
-		errs = append(errs, "bar must be a postive real number")
+		errs = append(errs, "bar must be a positive real number")
 	}
 	return errs.toError()
 }

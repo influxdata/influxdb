@@ -177,7 +177,7 @@ func (s *UserSvc) FindPermissionForUser(ctx context.Context, uid influxdb.ID) (i
 
 // SetPassword overrides the password of a known user.
 func (s *UserSvc) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
-	if len(password) < 8 {
+	if len(password) < MinPasswordLen {
 		return EShortPassword
 	}
 	passHash, err := encryptPassword(password)

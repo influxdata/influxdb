@@ -1873,6 +1873,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /delete:
     post:
+      operationId: PostDelete
       summary: Delete time series data from InfluxDB
       requestBody:
         description: Predicate delete request
@@ -1990,7 +1991,7 @@ paths:
       operationId: PostSources
       tags:
         - Sources
-      summary: Creates a source
+      summary: Create a source
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
       requestBody:
@@ -2814,7 +2815,7 @@ paths:
       operationId: GetDashboardsIDLabels
       tags:
         - Dashboards
-      summary: list all labels for a dashboard
+      summary: List all labels for a dashboard
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
         - in: path
@@ -3305,7 +3306,7 @@ paths:
       operationId: DeleteAuthorizationsID
       tags:
         - Authorizations
-      summary: Delete a authorization
+      summary: Delete an authorization
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
         - in: path
@@ -3681,7 +3682,7 @@ paths:
       operationId: DeleteBucketsIDLabelsID
       tags:
         - Buckets
-      summary: delete a label from a bucket
+      summary: Delete a label from a bucket
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
         - in: path
@@ -8479,45 +8480,6 @@ components:
     TaskStatusType:
       type: string
       enum: [active, inactive]
-    Invite:
-      properties:
-        id:
-          description: the idpe id of the invite
-          readOnly: true
-          type: string
-        email:
-          type: string
-        role:
-          type: string
-          enum:
-            - member
-            - owner
-        expiresAt:
-          format: date-time
-          type: string
-        links:
-          type: object
-          readOnly: true
-          example:
-            self: "/api/v2/invites/1"
-          properties:
-            self:
-              type: string
-              format: uri
-      required: [id, email, role]
-    Invites:
-      type: object
-      properties:
-        links:
-          type: object
-          properties:
-            self:
-              type: string
-              format: uri
-        invites:
-          type: array
-          items:
-            $ref: "#/components/schemas/Invite"
     User:
       properties:
         id:
@@ -8978,8 +8940,32 @@ components:
           $ref: "#/components/schemas/Legend"
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         shadeBelow:
           type: boolean
         hoverDimension:
@@ -8990,6 +8976,8 @@ components:
           enum: [overlaid, stacked]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9039,8 +9027,32 @@ components:
           $ref: "#/components/schemas/Legend"
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         upperColumn:
           type: string
         mainColumn:
@@ -9052,6 +9064,8 @@ components:
           enum: [auto, x, y, xy]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9101,8 +9115,32 @@ components:
           $ref: "#/components/schemas/Legend"
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         shadeBelow:
           type: boolean
         hoverDimension:
@@ -9117,6 +9155,8 @@ components:
           type: string
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9167,6 +9207,18 @@ components:
           type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         ySeriesColumns:
           type: array
           items:
@@ -9197,6 +9249,8 @@ components:
           type: string
         ySuffix:
           type: string
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9248,8 +9302,32 @@ components:
           type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         fillColumns:
           type: array
           items:
@@ -9280,6 +9358,8 @@ components:
           type: string
         ySuffix:
           type: string
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9330,8 +9410,32 @@ components:
           type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         xDomain:
           type: array
           items:
@@ -9356,6 +9460,8 @@ components:
           type: string
         binSize:
           type: number
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9409,11 +9515,6 @@ components:
           $ref: "#/components/schemas/Legend"
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
-        legendOpacity:
-          type: number
-          format: float
-        legendOrientationThreshold:
-          type: integer
     HistogramViewProperties:
       type: object
       required:
@@ -9468,6 +9569,8 @@ components:
           enum: [overlaid, stacked]
         binCount:
           type: integer
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -9635,6 +9738,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardColor"
+        legendColorizeRows:
+          type: boolean
         legendOpacity:
           type: number
           format: float
@@ -10159,6 +10264,10 @@ components:
         bucketID:
           type: string
           description: The ID of the bucket to write to.
+        allowInsecure:
+          type: boolean
+          description: Skip TLS verification on endpoint.
+          default: false
     ScraperTargetResponse:
       type: object
       allOf:
@@ -11704,12 +11813,7 @@ components:
       type: string
       enum: ["slack", "pagerduty", "http", "telegram"]
     DBRP:
-      required:
-        - orgID
-        - org
-        - bucketID
-        - database
-        - retention_policy
+      type: object
       properties:
         id:
           type: string
@@ -11735,6 +11839,17 @@ components:
           description: Specify if this mapping represents the default retention policy for the database specificed.
         links:
           $ref: "#/components/schemas/Links"
+      oneOf:
+        - required:
+          - orgID
+          - bucketID
+          - database
+          - retention_policy
+        - required:
+          - org
+          - bucketID
+          - database
+          - retention_policy
     DBRPs:
       properties:
         notificationEndpoints:

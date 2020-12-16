@@ -13,7 +13,7 @@ describe('If not Cloud', () => {
     expect(wrapper.children().exists()).toBe(false)
   })
 
-  it('CloudExclude renders chilren', () => {
+  it('CloudExclude renders children', () => {
     jest.mock('src/shared/constants', () => ({CLOUD: false}))
     const CloudExclude = require('src/shared/components/cloud/CloudExclude.tsx')
       .default

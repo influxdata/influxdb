@@ -6,6 +6,7 @@ import (
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/http/influxdb"
+	"github.com/influxdata/influxdb/v2/tenant"
 )
 
 // NewBucketService creates a bucket service from a source.
@@ -21,7 +22,7 @@ func NewBucketService(s *platform.Source) (platform.BucketService, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &http.BucketService{Client: httpClient}, nil
+		return &tenant.BucketClientService{Client: httpClient}, nil
 	case platform.V1SourceType:
 		return &influxdb.BucketService{Source: s}, nil
 	}

@@ -14,6 +14,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	prefixOrganizations = "/api/v2/orgs"
+	prefixBuckets       = "/api/v2/buckets"
+)
+
 // ScraperBackend is all services and associated parameters required to construct
 // the ScraperHandler.
 type ScraperBackend struct {
@@ -627,4 +632,12 @@ func (h *ScraperHandler) newTargetResponse(ctx context.Context, target influxdb.
 	}
 
 	return res, nil
+}
+
+func organizationIDPath(id influxdb.ID) string {
+	return path.Join(prefixOrganizations, id.String())
+}
+
+func bucketIDPath(id influxdb.ID) string {
+	return path.Join(prefixBuckets, id.String())
 }

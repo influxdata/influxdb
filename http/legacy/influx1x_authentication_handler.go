@@ -2,6 +2,7 @@ package legacy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,21 +12,23 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
+type Authorizer interface {
+	Authorize(ctx context.Context, c influxdb.CredentialsV1) (*influxdb.Authorization, error)
+}
+
 type Influx1xAuthenticationHandler struct {
 	influxdb.HTTPErrorHandler
 	next http.Handler
-	auth influxdb.AuthorizationService
-	user influxdb.UserService
+	auth Authorizer
 }
 
 // NewInflux1xAuthenticationHandler creates an authentication handler to process
 // InfluxDB 1.x authentication requests.
-func NewInflux1xAuthenticationHandler(next http.Handler, auth influxdb.AuthorizationService, user influxdb.UserService, h influxdb.HTTPErrorHandler) *Influx1xAuthenticationHandler {
+func NewInflux1xAuthenticationHandler(next http.Handler, auth Authorizer, h influxdb.HTTPErrorHandler) *Influx1xAuthenticationHandler {
 	return &Influx1xAuthenticationHandler{
 		HTTPErrorHandler: h,
 		next:             next,
 		auth:             auth,
-		user:             user,
 	}
 }
 
@@ -44,37 +47,17 @@ func (h *Influx1xAuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http
 		return
 	}
 
-	auth, err := h.auth.FindAuthorizationByToken(ctx, creds.Token)
+	auth, err := h.auth.Authorize(ctx, creds)
 	if err != nil {
+		var erri *influxdb.Error
+		if errors.As(err, &erri) {
+			switch erri.Code {
+			case influxdb.EForbidden, influxdb.EUnauthorized:
+				h.HandleHTTPError(ctx, erri, w)
+				return
+			}
+		}
 		unauthorizedError(ctx, h, w)
-		return
-	}
-
-	var user *influxdb.User
-	if creds.Username != "" {
-		user, err = h.user.FindUser(ctx, influxdb.UserFilter{Name: &creds.Username})
-		if err != nil {
-			unauthorizedError(ctx, h, w)
-			return
-		}
-
-		if user.ID != auth.UserID {
-			h.HandleHTTPError(ctx, &influxdb.Error{
-				Code: influxdb.EForbidden,
-				Msg:  "Username and Token do not match",
-			}, w)
-			return
-		}
-	} else {
-		user, err = h.user.FindUserByID(ctx, auth.UserID)
-		if err != nil {
-			unauthorizedError(ctx, h, w)
-			return
-		}
-	}
-
-	if err = h.isUserActive(user); err != nil {
-		inactiveUserError(ctx, h, w)
 		return
 	}
 
@@ -85,19 +68,6 @@ func (h *Influx1xAuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http
 	}
 
 	h.next.ServeHTTP(w, r.WithContext(ctx))
-}
-
-func (h *Influx1xAuthenticationHandler) isUserActive(u *influxdb.User) error {
-	if u.Status != "inactive" {
-		return nil
-	}
-
-	return &influxdb.Error{Code: influxdb.EForbidden, Msg: "User is inactive"}
-}
-
-type credentials struct {
-	Username string
-	Token    string
 }
 
 func parseToken(token string) (user, pass string, ok bool) {
@@ -117,12 +87,13 @@ func parseToken(token string) (user, pass string, ok bool) {
 // As params: http://127.0.0.1/query?u=username&p=token
 // As basic auth: http://username:token@127.0.0.1
 // As Token in Authorization header: Token <username:token>
-func (h *Influx1xAuthenticationHandler) parseCredentials(r *http.Request) (*credentials, error) {
+func (h *Influx1xAuthenticationHandler) parseCredentials(r *http.Request) (influxdb.CredentialsV1, error) {
 	q := r.URL.Query()
 
 	// Check for username and password in URL params.
 	if u, p := q.Get("u"), q.Get("p"); u != "" && p != "" {
-		return &credentials{
+		return influxdb.CredentialsV1{
+			Scheme:   influxdb.SchemeV1URL,
 			Username: u,
 			Token:    p,
 		}, nil
@@ -136,7 +107,8 @@ func (h *Influx1xAuthenticationHandler) parseCredentials(r *http.Request) (*cred
 			switch strs[0] {
 			case "Token":
 				if u, p, ok := parseToken(strs[1]); ok {
-					return &credentials{
+					return influxdb.CredentialsV1{
+						Scheme:   influxdb.SchemeV1Token,
 						Username: u,
 						Token:    p,
 					}, nil
@@ -148,14 +120,15 @@ func (h *Influx1xAuthenticationHandler) parseCredentials(r *http.Request) (*cred
 
 		// Check for basic auth.
 		if u, p, ok := r.BasicAuth(); ok {
-			return &credentials{
+			return influxdb.CredentialsV1{
+				Scheme:   influxdb.SchemeV1Basic,
 				Username: u,
 				Token:    p,
 			}, nil
 		}
 	}
 
-	return nil, fmt.Errorf("unable to parse authentication credentials")
+	return influxdb.CredentialsV1{}, fmt.Errorf("unable to parse authentication credentials")
 }
 
 // unauthorizedError encodes a error message and status code for unauthorized access.
@@ -163,13 +136,5 @@ func unauthorizedError(ctx context.Context, h influxdb.HTTPErrorHandler, w http.
 	h.HandleHTTPError(ctx, &influxdb.Error{
 		Code: influxdb.EUnauthorized,
 		Msg:  "unauthorized access",
-	}, w)
-}
-
-// inactiveUserError encode a error message and status code for inactive users.
-func inactiveUserError(ctx context.Context, h influxdb.HTTPErrorHandler, w http.ResponseWriter) {
-	h.HandleHTTPError(ctx, &influxdb.Error{
-		Code: influxdb.EForbidden,
-		Msg:  "User is inactive",
 	}, w)
 }

@@ -244,21 +244,21 @@ func getFields(pkg *ast.Package) []string {
 
 func assignPipelineToData(f *ast.File) error {
 	if len(f.Body) != 1 {
-		return fmt.Errorf("expected there to be a single statement in the flux script body, recieved %d", len(f.Body))
+		return fmt.Errorf("expected there to be a single statement in the flux script body, received %d", len(f.Body))
 	}
 
 	stmt := f.Body[0]
 
 	e, ok := stmt.(*ast.ExpressionStatement)
 	if !ok {
-		return fmt.Errorf("statement is not an *ast.Expression statement, recieved %T", stmt)
+		return fmt.Errorf("statement is not an *ast.Expression statement, received %T", stmt)
 	}
 
 	exp := e.Expression
 
 	pipe, ok := exp.(*ast.PipeExpression)
 	if !ok {
-		return fmt.Errorf("expression is not an *ast.PipeExpression statement, recieved %T", exp)
+		return fmt.Errorf("expression is not an *ast.PipeExpression statement, received %T", exp)
 	}
 
 	if id, ok := pipe.Call.Callee.(*ast.Identifier); ok && id.Name == "yield" {

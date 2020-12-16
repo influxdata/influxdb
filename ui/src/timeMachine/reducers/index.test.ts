@@ -214,7 +214,7 @@ describe('the Time Machine reducer', () => {
 
   // Fix for: https://github.com/influxdata/influxdb/issues/17364
   describe('editing a table view', () => {
-    it('does not overwrite internal TableViewProperites when files is an empty array', () => {
+    it('does not overwrite internal TableViewProperties when files is an empty array', () => {
       const initial = initialState()
 
       const store = createStore(timeMachinesReducer, initial)

@@ -59,7 +59,6 @@ Please be clear about your requirements and goals, help us to understand what yo
 If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
 
 ## Contributing to the source code
-InfluxDB requires Go 1.13 and uses Go modules.
 
 You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/DEVELOPMENT.md), to understand better how to write code for InfluxDB.
 
@@ -86,24 +85,29 @@ InfluxData takes security and our users' trust very seriously.
 If you believe you have found a security issue in any of our open source projects, please responsibly disclose it by contacting security@influxdata.com.
 More details about security vulnerability reporting, including our GPG key, [can be found here](https://www.influxdata.com/how-to-report-security-vulnerabilities/).
 
-
 ## Signing the CLA
 
 If you are going to be contributing back to InfluxDB please take a second to sign our CLA, which can be found [on our website](https://influxdata.com/community/cla/).
 
-## Installing Go
-InfluxDB requires Go 1.13.
+## Building from Source
+
+### Installing Go
+
+InfluxDB requires Go 1.15.
 
 At InfluxData we find `gvm`, a Go version manager, useful for installing Go.
 For instructions on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
 
 After installing gvm you can install and set the default go version by running the following:
 ```bash
-$ gvm install go1.13
-$ gvm use go1.13 --default
+$ gvm install go1.15
+$ gvm use go1.15 --default
 ```
 
-## Revision Control Systems
+InfluxDB requires Go module support. Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed. For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
+
+### Revision Control Systems
+
 Go has the ability to import remote packages via revision control systems with the `go get` command.
 To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
 Currently the project only depends on `git` and `bzr`.
@@ -111,30 +115,96 @@ Currently the project only depends on `git` and `bzr`.
  * [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
  * [Install Bazaar](http://doc.bazaar.canonical.com/latest/en/user-guide/installing_bazaar.html)
 
-## Getting & Building From Source
+### Additional Dependencies
 
-Since we depend on Go modules and use standard Go tooling, you can simply check out and build InfluxDB at your preferred location on your filesystem.
+You need a recent stable version of Rust. We recommend using [rustup](https://rustup.rs/) to install Rust.
 
-```bash
-$ git clone git@github.com:influxdata/influxdb.git
+You also need `protobuf`, `yarn`, and `make` installed.
+
+- OSX: `brew install protobuf yarn make`
+- Linux (Arch): `pacman -S protobuf yarn make`
+- Linux (Ubuntu, RHEL): See below
+
+#### Ubuntu-specific instructions:
+
+For Ubuntu, you need to change the apt repository for `yarn`:
+
+```
+sudo apt remove yarn cmdtest
+wget -qO- https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+sudo apt-add-repository "deb https://dl.yarnpkg.com/debian/ stable main"
+
+sudo apt install protobuf-compiler libprotobuf-dev yarn make
 ```
 
-## Building, Testing, and Installing
+#### Redhat-specific instructions
 
-InfluxDB uses the standard Go tooling so the `build`, `install`, and `test` subcommands work as expected.
-In the root of the InfluxDB git repository, you can simply run the following commands:
+For RedHat, there are some extra steps:
 
-### Building
+1. You must enable the [EPEL](https://fedoraproject.org/wiki/EPEL)
+2. You must add the `yarn` [repository](https://yarnpkg.com/lang/en/docs/install/#centos-stable)
 
-```bash
-$ go build ./...
+### Building with make
+
+A successful `make` run results in two binaries, with platform-dependent paths:
+
+```
+$ make
+...
+env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx ./cmd/influx
+env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd ./cmd/influxd
 ```
 
-### Installing
+`influxd` is the InfluxDB service.
+`influx` is the CLI management tool.
+
+Start the service.
+Logs to stdout by default:
+
+```
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
+```
+
+### Building with the go command
+
+The `Makefile` provides a wrapper around configuring the utilities for building influxdb. For those wanting to use the `go` command directly, one of two things can be done.
+
+First, the `env` script is located in the root of the repository. This script can be used to execute `go` commands with the appropriate environment configuration.
 
 ```bash
-$ go install ./...
+$ ./env go build ./cmd/influxd
 ```
+
+Another method is to configure the `pkg-config` utility. Follow the instructions [here](https://github.com/influxdata/flux#getting-started) to install and configure `pkg-config` and then the normal go commands will work.
+
+The first step is to install the `pkg-config` command.
+
+```bash
+# On Debian/Ubuntu
+$ sudo apt-get install -y clang pkg-config
+# On Mac OS X with Homebrew
+$ brew install pkg-config
+```
+
+Install the `pkg-config` wrapper utility of the same name to a different path that is earlier in the PATH.
+
+```bash
+# Install the pkg-config wrapper utility
+$ go build -o ~/go/bin/ github.com/influxdata/pkg-config
+# Ensure the GOBIN directory is on your PATH
+$ export PATH=$HOME/go/bin:${PATH}
+$ which -a pkg-config
+/home/user/go/bin/pkg-config
+/usr/bin/pkg-config
+```
+
+Then all `go` build commands should work.
+
+```bash
+$ go build ./cmd/influxd
+$ go test ./...
+```
+
 
 ### Testing
 

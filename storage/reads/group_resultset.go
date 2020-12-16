@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/influxdata/influxdb/v2/models"
@@ -55,7 +54,7 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 		o(g)
 	}
 
-	g.arrayCursors = newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true, math.MaxInt64)
+	g.arrayCursors = newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true)
 
 	for i, k := range req.GroupKeys {
 		g.keys[i] = []byte(k)
@@ -267,6 +266,8 @@ type groupNoneCursor struct {
 	cur          SeriesCursor
 	row          SeriesRow
 	keys         [][]byte
+	cursor       cursors.Cursor
+	err          error
 }
 
 func (c *groupNoneCursor) Err() error                 { return nil }
@@ -288,15 +289,20 @@ func (c *groupNoneCursor) Next() bool {
 
 	c.row = *row
 
-	return true
+	c.cursor, c.err = c.createCursor(c.row)
+	return c.err == nil
+}
+
+func (c *groupNoneCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, err error) {
+	cur = c.arrayCursors.createCursor(c.row)
+	if c.agg != nil {
+		cur, err = newAggregateArrayCursor(c.ctx, c.agg, cur)
+	}
+	return cur, err
 }
 
 func (c *groupNoneCursor) Cursor() cursors.Cursor {
-	cur := c.arrayCursors.createCursor(c.row)
-	if c.agg != nil {
-		cur, _ = c.arrayCursors.newAggregateCursor(c.ctx, c.agg, cur)
-	}
-	return cur
+	return c.cursor
 }
 
 type groupByCursor struct {
@@ -307,6 +313,8 @@ type groupByCursor struct {
 	seriesRows   []*SeriesRow
 	keys         [][]byte
 	vals         [][]byte
+	cursor       cursors.Cursor
+	err          error
 }
 
 func (c *groupByCursor) reset(seriesRows []*SeriesRow) {
@@ -327,17 +335,22 @@ func (c *groupByCursor) Aggregate() *datatypes.Aggregate {
 func (c *groupByCursor) Next() bool {
 	if c.i < len(c.seriesRows) {
 		c.i++
-		return true
+		c.cursor, c.err = c.createCursor(*c.seriesRows[c.i-1])
+		return c.err == nil
 	}
 	return false
 }
 
-func (c *groupByCursor) Cursor() cursors.Cursor {
-	cur := c.arrayCursors.createCursor(*c.seriesRows[c.i-1])
+func (c *groupByCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, err error) {
+	cur = c.arrayCursors.createCursor(seriesRow)
 	if c.agg != nil {
-		cur, _ = c.arrayCursors.newAggregateCursor(c.ctx, c.agg, cur)
+		cur, err = newAggregateArrayCursor(c.ctx, c.agg, cur)
 	}
-	return cur
+	return cur, err
+}
+
+func (c *groupByCursor) Cursor() cursors.Cursor {
+	return c.cursor
 }
 
 func (c *groupByCursor) Stats() cursors.CursorStats {

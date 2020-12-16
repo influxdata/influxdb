@@ -1242,7 +1242,7 @@ func skipBinary(dAtA []byte) (n int, err error) {
 }
 
 var (
-	ErrInvalidLengthBinary = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrInvalidLengthBinary = fmt.Errorf("proto: negative length found during unmarshalling")
 	ErrIntOverflowBinary   = fmt.Errorf("proto: integer overflow")
 )
 

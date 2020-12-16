@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/pkg/csv2lp"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,7 +57,7 @@ func readLines(reader io.Reader) []string {
 
 func createTempFile(suffix string, contents []byte) string {
 	file, err := ioutil.TempFile("", "influx_writeTest*."+suffix)
-	file.Close() // Close immediatelly, since we need only a file name
+	file.Close() // Close immediately, since we need only a file name
 	if err != nil {
 		log.Fatal(err)
 		return "unknown.file"
@@ -248,7 +249,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			command := cmdWrite(&globalFlags{}, genericCLIOpts{in: test.stdIn})
+			command := cmdWrite(&globalFlags{}, genericCLIOpts{in: test.stdIn, viper: viper.New()})
 			reader, closer, err := test.flags.createLineReader(context.Background(), command, test.arguments)
 			require.NotNil(t, closer)
 			defer closer.Close()
@@ -327,7 +328,7 @@ func Test_writeFlags_createLineReader_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader("")})
+			command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(""), viper: viper.New()})
 			_, closer, err := test.flags.createLineReader(context.Background(), command, []string{})
 			require.NotNil(t, closer)
 			defer closer.Close()
@@ -342,7 +343,7 @@ func Test_fluxWriteDryrunF(t *testing.T) {
 	t.Run("process and transform csv data without problems to stdout", func(t *testing.T) {
 		stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
 		out := bytes.Buffer{}
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
 		command.SetArgs([]string{"dryrun", "--format", "csv"})
 		err := command.Execute()
 		require.Nil(t, err)
@@ -352,7 +353,7 @@ func Test_fluxWriteDryrunF(t *testing.T) {
 	t.Run("dryrun fails on unsupported data format", func(t *testing.T) {
 		stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
 		out := bytes.Buffer{}
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
 		command.SetArgs([]string{"dryrun", "--format", "csvx"})
 		err := command.Execute()
 		require.NotNil(t, err)
@@ -362,7 +363,7 @@ func Test_fluxWriteDryrunF(t *testing.T) {
 	t.Run("dryrun fails on malformed CSV data while reading them", func(t *testing.T) {
 		stdInContents := "i,j,l,k\nstdin1,stdin2,stdin3,stdin4"
 		out := bytes.Buffer{}
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
 		command.SetArgs([]string{"dryrun", "--format", "csv"})
 		err := command.Execute()
 		require.NotNil(t, err)
@@ -406,7 +407,7 @@ func Test_fluxWriteF(t *testing.T) {
 	t.Run("validates that --org or --org-id must be specified", func(t *testing.T) {
 		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
 		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "org")
@@ -414,7 +415,7 @@ func Test_fluxWriteF(t *testing.T) {
 
 	t.Run("validates that either --bucket or --bucket-id must be specified", func(t *testing.T) {
 		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--bucket-id", "my-bucket"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "bucket") // bucket or bucket-id, but not both
@@ -422,7 +423,7 @@ func Test_fluxWriteF(t *testing.T) {
 
 	t.Run("validates --precision", func(t *testing.T) {
 		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--precision", "pikosec"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "precision") // invalid precision
@@ -432,7 +433,7 @@ func Test_fluxWriteF(t *testing.T) {
 		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
 		useTestServer()
 		flags.host = ""
-		command := cmdWrite(&flags, genericCLIOpts{w: ioutil.Discard})
+		command := cmdWrite(&flags, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "host")
@@ -440,7 +441,7 @@ func Test_fluxWriteF(t *testing.T) {
 
 	t.Run("validates decoding of bucket-id", func(t *testing.T) {
 		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "my-bucket"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "bucket-id")
@@ -448,15 +449,15 @@ func Test_fluxWriteF(t *testing.T) {
 
 	t.Run("validates decoding of org-id", func(t *testing.T) {
 		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org-id", "my-org", "--bucket", "my-bucket"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "org-id")
 	})
 
-	t.Run("validates error when failed to retrive buckets", func(t *testing.T) {
+	t.Run("validates error when failed to retrieve buckets", func(t *testing.T) {
 		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-error-bucket"})
 		require.Nil(t, command.Execute())
 	})
@@ -464,7 +465,7 @@ func Test_fluxWriteF(t *testing.T) {
 	// validation: no such bucket found
 	t.Run("validates no such bucket found", func(t *testing.T) {
 		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-empty-org", "--bucket", "my-bucket"})
 		require.Nil(t, command.Execute())
 	})
@@ -473,7 +474,7 @@ func Test_fluxWriteF(t *testing.T) {
 	t.Run("validates no such bucket-id found", func(t *testing.T) {
 		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
 		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		// note: my-empty-org parameter causes the test server to return no buckets
 		command.SetArgs([]string{"--format", "csv", "--org", "my-empty-org", "--bucket-id", "4f14589c26df8286"})
 		err := command.Execute()
@@ -483,7 +484,7 @@ func Test_fluxWriteF(t *testing.T) {
 	t.Run("validates unsupported line reader format", func(t *testing.T) {
 		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
 		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard})
+		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csvx", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "format")
@@ -493,8 +494,9 @@ func Test_fluxWriteF(t *testing.T) {
 		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
 		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{
-			in: strings.NewReader("a,b\nc,d"),
-			w:  ioutil.Discard})
+			in:    strings.NewReader("a,b\nc,d"),
+			w:     ioutil.Discard,
+			viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "measurement") // no measurement found in CSV data
@@ -505,8 +507,9 @@ func Test_fluxWriteF(t *testing.T) {
 		// read data from CSV transformation, send them to server and validate the created protocol line
 		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{
-			in: strings.NewReader("i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"),
-			w:  ioutil.Discard})
+			in:    strings.NewReader("i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"),
+			w:     ioutil.Discard,
+			viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
 		err := command.Execute()
 		require.Nil(t, err)
@@ -520,7 +523,7 @@ func Test_writeFlags_errorsFile(t *testing.T) {
 	errorsFile := createTempFile("errors", []byte{})
 	stdInContents := "_measurement,a|long:strict\nm,1\nm,1.1"
 	out := bytes.Buffer{}
-	command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out)})
+	command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
 	command.SetArgs([]string{"dryrun", "--format", "csv", "--errors-file", errorsFile})
 	err := command.Execute()
 	require.Nil(t, err)
@@ -566,7 +569,7 @@ func Test_ToBytesPerSecond(t *testing.T) {
 		},
 		{
 			in:    "1B0s",
-			error: `invalid rate limit "1B0s": possitive time expected but 0 supplied`,
+			error: `invalid rate limit "1B0s": positive time expected but 0 supplied`,
 		},
 		{
 			in:    "1MB/42949672950s",

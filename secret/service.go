@@ -11,7 +11,7 @@ type Service struct {
 	s *Storage
 }
 
-// NewService creates a new service implementaiton for secrets
+// NewService creates a new service implementation for secrets
 func NewService(s *Storage) *Service {
 	return &Service{s}
 }

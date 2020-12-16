@@ -128,7 +128,11 @@ func (i *IndexMigration) Populate(ctx context.Context, store Store) (n int, err 
 
 	for fk, fkm := range diff.MissingFromIndex {
 		for pk := range fkm {
-			batch = append(batch, [2][]byte{indexKey([]byte(fk), []byte(pk)), []byte(pk)})
+			key, err := IndexKey([]byte(fk), []byte(pk))
+			if err != nil {
+				return n, err
+			}
+			batch = append(batch, [2][]byte{key, []byte(pk)})
 
 			if len(batch) >= i.operationBatchSize {
 				if err := flush(batch); err != nil {
@@ -183,7 +187,12 @@ func (i *IndexMigration) remove(ctx context.Context, store Store, mappings map[s
 
 	for fk, fkm := range mappings {
 		for pk := range fkm {
-			batch = append(batch, indexKey([]byte(fk), []byte(pk)))
+			key, err := IndexKey([]byte(fk), []byte(pk))
+			if err != nil {
+				return err
+			}
+
+			batch = append(batch, key)
 
 			if len(batch) >= i.operationBatchSize {
 				if err := flush(batch); err != nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/task/options"
 	"go.uber.org/zap"
 )
 
@@ -200,6 +201,54 @@ func NewFrontEndTask(t influxdb.Task) Task {
 	}
 
 	return Task{
+		ID:              t.ID,
+		OrganizationID:  t.OrganizationID,
+		Organization:    t.Organization,
+		OwnerID:         t.OwnerID,
+		Name:            t.Name,
+		Description:     t.Description,
+		Status:          t.Status,
+		Flux:            t.Flux,
+		Every:           t.Every,
+		Cron:            t.Cron,
+		Offset:          offset,
+		LatestCompleted: latestCompleted,
+		LastRunStatus:   t.LastRunStatus,
+		LastRunError:    t.LastRunError,
+		CreatedAt:       createdAt,
+		UpdatedAt:       updatedAt,
+		Metadata:        t.Metadata,
+	}
+}
+
+func convertTask(t Task) *influxdb.Task {
+	var (
+		latestCompleted time.Time
+		createdAt       time.Time
+		updatedAt       time.Time
+		offset          time.Duration
+	)
+
+	if t.LatestCompleted != "" {
+		latestCompleted, _ = time.Parse(time.RFC3339, t.LatestCompleted)
+	}
+
+	if t.CreatedAt != "" {
+		createdAt, _ = time.Parse(time.RFC3339, t.CreatedAt)
+	}
+
+	if t.UpdatedAt != "" {
+		updatedAt, _ = time.Parse(time.RFC3339, t.UpdatedAt)
+	}
+
+	if t.Offset != "" {
+		var duration options.Duration
+		if err := duration.Parse(t.Offset); err == nil {
+			offset, _ = duration.DurationFrom(time.Now())
+		}
+	}
+
+	return &influxdb.Task{
 		ID:              t.ID,
 		OrganizationID:  t.OrganizationID,
 		Organization:    t.Organization,
@@ -442,7 +491,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("Tasks retrived", zap.String("tasks", fmt.Sprint(tasks)))
+	h.log.Debug("Tasks retrieved", zap.String("tasks", fmt.Sprint(tasks)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(ctx, tasks, req.filter, h.LabelService)); err != nil {
 		logEncodingError(h.log, r, err)
 		return
@@ -1414,7 +1463,7 @@ type TaskService struct {
 }
 
 // FindTaskByID returns a single task
-func (t TaskService) FindTaskByID(ctx context.Context, id influxdb.ID) (*Task, error) {
+func (t TaskService) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1424,12 +1473,12 @@ func (t TaskService) FindTaskByID(ctx context.Context, id influxdb.ID) (*Task, e
 		return nil, err
 	}
 
-	return &tr.Task, nil
+	return convertTask(tr.Task), nil
 }
 
 // FindTasks returns a list of tasks that match a filter (limit 100) and the total count
 // of matching tasks.
-func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]Task, int, error) {
+func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1470,15 +1519,15 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 		return nil, 0, err
 	}
 
-	tasks := make([]Task, len(tr.Tasks))
+	tasks := make([]*influxdb.Task, len(tr.Tasks))
 	for i := range tr.Tasks {
-		tasks[i] = tr.Tasks[i].Task
+		tasks[i] = convertTask(tr.Tasks[i].Task)
 	}
 	return tasks, len(tasks), nil
 }
 
 // CreateTask creates a new task.
-func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*Task, error) {
+func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	var tr taskResponse
@@ -1491,11 +1540,11 @@ func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*T
 		return nil, err
 	}
 
-	return &tr.Task, nil
+	return convertTask(tr.Task), nil
 }
 
 // UpdateTask updates a single task with changeset.
-func (t TaskService) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*Task, error) {
+func (t TaskService) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1507,7 +1556,7 @@ func (t TaskService) UpdateTask(ctx context.Context, id influxdb.ID, upd influxd
 		return nil, err
 	}
 
-	return &tr.Task, nil
+	return convertTask(tr.Task), nil
 }
 
 // DeleteTask removes a task by ID and purges all associated data and scheduled runs.

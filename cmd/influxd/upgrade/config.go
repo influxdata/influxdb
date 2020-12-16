@@ -4,9 +4,9 @@ package upgrade
 // The strategy is to transform only those entries for which rule exists.
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -45,73 +45,52 @@ var configMapRules = map[string]string{
 	"http.https-private-key":                               "tls-key",
 }
 
-// upgradeConfig upgrades existing 1.x (ie. typically influxdb.conf) configuration file to 2.x influxdb.toml file.
-func upgradeConfig(configFile string, targetOptions optionsV2, log *zap.Logger) (*configV1, error) {
-	// create and initialize helper
-	cu := &configUpgrader{
-		rules: configMapRules,
-		log:   log,
+// configValueTransforms is a map from 2.x config keys to transformation functions
+// that should run on the 1.x values before they're written into the 2.x config.
+var configValueTransforms = map[string]func(interface{}) interface{}{
+	// Transform config values of 0 into 10 (the new default).
+	// query-concurrency used to accept 0 as a representation of infinity,
+	// but the 2.x controller now forces a positive value to be chosen
+	// for the parameter.
+	"query-concurrency": func(v interface{}) interface{} {
+		ret := v
+		if i, ok := v.(int64); ok && i == 0 {
+			ret = 10
+		}
+		return ret
+	},
+}
+
+func loadV1Config(configFile string) (*configV1, *map[string]interface{}, error) {
+	_, err := os.Stat(configFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("1.x config file '%s' does not exist", configFile)
 	}
 
 	// load 1.x config content into byte array
-	bs, err := cu.load(configFile)
+	bs, err := load(configFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// parse it into simplified v1 config used as return value
 	var configV1 configV1
 	_, err = toml.Decode(string(bs), &configV1)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// parse into a generic config map
 	var cAny map[string]interface{}
 	_, err = toml.Decode(string(bs), &cAny)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// transform the config according to rules
-	cTransformed := cu.transform(cAny)
-	if err != nil {
-		return nil, err
-	}
-
-	// update new config with upgrade command options
-	cu.updateV2Config(cTransformed, targetOptions)
-
-	// save new config
-	configFileV2 := filepath.Join(filepath.Dir(configFile), "config.toml")
-	configFileV2, err = cu.save(cTransformed, configFileV2)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Info("Config file upgraded.",
-		zap.String("1.x config", configFile),
-		zap.String("2.x config", configFileV2))
-
-	return &configV1, nil
+	return &configV1, &cAny, nil
 }
 
-// configUpgrader is a helper used by `upgrade-config` command.
-type configUpgrader struct {
-	rules map[string]string
-	log   *zap.Logger
-}
-
-func (cu *configUpgrader) updateV2Config(config map[string]interface{}, targetOptions optionsV2) {
-	if targetOptions.enginePath != "" {
-		config["engine-path"] = targetOptions.enginePath
-	}
-	if targetOptions.boltPath != "" {
-		config["bolt-path"] = targetOptions.boltPath
-	}
-}
-
-func (cu *configUpgrader) load(path string) ([]byte, error) {
+func load(path string) ([]byte, error) {
 	bs, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -128,20 +107,54 @@ func (cu *configUpgrader) load(path string) ([]byte, error) {
 	return bs, err
 }
 
-func (cu *configUpgrader) save(config map[string]interface{}, path string) (string, error) {
-	buf := new(bytes.Buffer)
-	if err := toml.NewEncoder(buf).Encode(&config); err != nil {
-		return "", err
+// upgradeConfig upgrades existing 1.x configuration file to 2.x influxdb.toml file.
+func upgradeConfig(v1Config map[string]interface{}, targetOptions optionsV2, log *zap.Logger) error {
+	// create and initialize helper
+	cu := &configUpgrader{
+		rules:           configMapRules,
+		valueTransforms: configValueTransforms,
+		log:             log,
 	}
 
-	err := ioutil.WriteFile(path, buf.Bytes(), 0666)
-	if err != nil { // permission issue possible - try to save the file to home or current dir
-		cu.log.Warn(fmt.Sprintf("Could not save upgraded config to %s, trying to save it to user's home.", path), zap.Error(err))
-		path = filepath.Join(homeOrAnyDir(), filepath.Base(path))
-		err = ioutil.WriteFile(path, buf.Bytes(), 0666)
-	}
+	// rewrite config options from V1 to V2 paths
+	cTransformed := cu.transform(v1Config)
 
-	return path, err
+	// update new config with upgrade command options
+	cu.updateV2Config(cTransformed, targetOptions)
+
+	// write the ugpraded config to disk
+	return cu.save(cTransformed, targetOptions.configPath)
+}
+
+// configUpgrader is a helper used by `upgrade-config` command.
+type configUpgrader struct {
+	rules           map[string]string
+	valueTransforms map[string]func(interface{}) interface{}
+	log             *zap.Logger
+}
+
+func (cu *configUpgrader) updateV2Config(config map[string]interface{}, targetOptions optionsV2) {
+	if targetOptions.enginePath != "" {
+		config["engine-path"] = targetOptions.enginePath
+	}
+	if targetOptions.boltPath != "" {
+		config["bolt-path"] = targetOptions.boltPath
+	}
+}
+
+func (cu *configUpgrader) save(config map[string]interface{}, path string) error {
+	// Open the target file, creating parent directories if needed.
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	outFile, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	// Encode the config directly into the file as TOML.
+	return toml.NewEncoder(outFile).Encode(&config)
 }
 
 // Credits: @rogpeppe (Roger Peppe)
@@ -151,6 +164,9 @@ func (cu *configUpgrader) transform(x map[string]interface{}) map[string]interfa
 	for old, new := range cu.rules {
 		val, ok := cu.lookup(x, old)
 		if ok {
+			if transform, ok := cu.valueTransforms[new]; ok {
+				val = transform(val)
+			}
 			res[new] = val
 		}
 	}

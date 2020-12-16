@@ -24,7 +24,7 @@ This is inspired from Ben Johnson's blog post [Failure is Your Domain](https://m
 
 ## Use Case Example
 
-We inplement the following interface
+We implement the following interface
 
 ```go
 

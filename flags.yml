@@ -43,12 +43,6 @@
   contact: Gavin Cabbage
   expose: true
 
-- name: Push Down Window Aggregate Mean
-  description: Enable Mean variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateMean
-  default: false
-  contact: Query Team
-
 - name: Group Window Aggregate Transpose
   description: Enables the GroupWindowAggregateTransposeRule for all enabled window aggregates
   key: groupWindowAggregateTranspose
@@ -90,13 +84,6 @@
   contact: Brett Buddin
   lifetime: temporary
 
-- name: Merged Filters Rule
-  description: Create one filter combining multiple single return statements
-  key: mergeFiltersRule
-  default: false
-  contact: Query Team
-  lifetime: temporary
-
 - name: Band Plot Type
   description: Enables the creation of a band plot in Dashboards
   key: bandPlotType
@@ -121,12 +108,6 @@
   lifetime: temporary
   expose: true
 
-- name: Push Down Group Aggregate Min Max
-  description: Enable the min and max variants of the PushDownGroupAggregate planner rule
-  key: pushDownGroupAggregateMinMax
-  default: false
-  contact: Query Team
-
 - name: Inject Latest Success Time
   description: Inject the latest successful task run timestamp into a Task query extern when executing.
   key: injectLatestSuccessTime
@@ -138,3 +119,10 @@
   key: enforceOrgDashboardLimits
   default: false
   contact: Compute Team
+
+- name: Time Filter Flags
+  description: Filter task run list based on before and after flags
+  key: timeFilterFlags
+  contact: Compute Team
+  default: false
+  expose: true

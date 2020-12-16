@@ -1199,15 +1199,7 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 		return "", nil
 	}
 
-	nativeFileName := filepath.FromSlash(hdr.Name)
-	// Skip file if it does not have a matching prefix.
-	if !strings.HasPrefix(nativeFileName, shardRelativePath) {
-		return "", nil
-	}
-	filename, err := filepath.Rel(shardRelativePath, nativeFileName)
-	if err != nil {
-		return "", err
-	}
+	filename := filepath.Base(filepath.FromSlash(hdr.Name))
 
 	// If this is a directory entry (usually just `index` for tsi), create it an move on.
 	if hdr.Typeflag == tar.TypeDir {
@@ -3053,7 +3045,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 }
 
 // Type returns FieldType for a series.  If the series does not
-// exist, ErrUnkownFieldType is returned.
+// exist, ErrUnknownFieldType is returned.
 func (e *Engine) Type(series []byte) (models.FieldType, error) {
 	if typ, err := e.Cache.Type(series); err == nil {
 		return typ, nil

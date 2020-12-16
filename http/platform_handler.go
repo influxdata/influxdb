@@ -46,7 +46,7 @@ func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler
 		AssetHandler:  assetHandler,
 		DocsHandler:   Redoc("/api/v2/swagger.json"),
 		APIHandler:    wrappedHandler,
-		LegacyHandler: legacy.NewInflux1xAuthenticationHandler(lh, b.AuthorizationService, b.UserService, b.HTTPErrorHandler),
+		LegacyHandler: legacy.NewInflux1xAuthenticationHandler(lh, b.AuthorizerV1, b.HTTPErrorHandler),
 	}
 }
 
@@ -69,7 +69,8 @@ func (h *PlatformHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// of the platform API.
 	if !strings.HasPrefix(r.URL.Path, "/v1") &&
 		!strings.HasPrefix(r.URL.Path, "/api/v2") &&
-		!strings.HasPrefix(r.URL.Path, "/chronograf/") {
+		!strings.HasPrefix(r.URL.Path, "/chronograf/") &&
+		!strings.HasPrefix(r.URL.Path, "/private/") {
 		h.AssetHandler.ServeHTTP(w, r)
 		return
 	}

@@ -34,6 +34,20 @@ type FindOptions struct {
 	Descending bool
 }
 
+// GetLimit returns the resolved limit between then limit boundaries.
+// Given a limit <= 0 it returns the default limit.
+func (f *FindOptions) GetLimit() int {
+	if f == nil || f.Limit <= 0 {
+		return DefaultPageSize
+	}
+
+	if f.Limit > MaxPageSize {
+		return MaxPageSize
+	}
+
+	return f.Limit
+}
+
 // DecodeFindOptions returns a FindOptions decoded from http request.
 func DecodeFindOptions(r *http.Request) (*FindOptions, error) {
 	opts := &FindOptions{}

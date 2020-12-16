@@ -343,7 +343,7 @@ func skipSource(dAtA []byte) (n int, err error) {
 }
 
 var (
-	ErrInvalidLengthSource = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrInvalidLengthSource = fmt.Errorf("proto: negative length found during unmarshalling")
 	ErrIntOverflowSource   = fmt.Errorf("proto: integer overflow")
 )
 

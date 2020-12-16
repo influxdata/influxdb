@@ -152,7 +152,7 @@ func newPermissionsResponse(ctx context.Context, ps []influxdb.Permission, svc i
 		}
 
 		if p.Resource.ID != nil {
-			name, err := svc.Name(ctx, p.Resource.Type, *p.Resource.ID)
+			name, err := svc.FindResourceName(ctx, p.Resource.Type, *p.Resource.ID)
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				continue
 			}
@@ -163,7 +163,7 @@ func newPermissionsResponse(ctx context.Context, ps []influxdb.Permission, svc i
 		}
 
 		if p.Resource.OrgID != nil {
-			name, err := svc.Name(ctx, influxdb.OrgsResourceType, *p.Resource.OrgID)
+			name, err := svc.FindResourceName(ctx, influxdb.OrgsResourceType, *p.Resource.OrgID)
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				continue
 			}

@@ -51,6 +51,8 @@ type Store interface {
 	Update(context.Context, func(Tx) error) error
 	// Backup copies all K:Vs to a writer, file format determined by implementation.
 	Backup(ctx context.Context, w io.Writer) error
+	// Restore replaces the underlying data file with the data from r.
+	Restore(ctx context.Context, r io.Reader) error
 }
 
 // Tx is a transaction in the store.
@@ -234,7 +236,7 @@ func WithCursorLimit(limit int) CursorOption {
 
 // VisitFunc is called for each k, v byte slice pair from the underlying source bucket
 // which are found in the index bucket for a provided foreign key.
-type VisitFunc func(k, v []byte) error
+type VisitFunc func(k, v []byte) (bool, error)
 
 // WalkCursor consumers the forward cursor call visit for each k/v pair found
 func WalkCursor(ctx context.Context, cursor ForwardCursor, visit VisitFunc) (err error) {
@@ -245,7 +247,7 @@ func WalkCursor(ctx context.Context, cursor ForwardCursor, visit VisitFunc) (err
 	}()
 
 	for k, v := cursor.Next(); k != nil; k, v = cursor.Next() {
-		if err := visit(k, v); err != nil {
+		if cont, err := visit(k, v); !cont || err != nil {
 			return err
 		}
 

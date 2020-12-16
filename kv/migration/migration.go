@@ -253,24 +253,24 @@ func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id influxdb
 			return err
 		}
 
-		return kv.WalkCursor(ctx, cursor, func(k, v []byte) error {
+		return kv.WalkCursor(ctx, cursor, func(k, v []byte) (bool, error) {
 			var id influxdb.ID
 			if err := id.Decode(k); err != nil {
-				return fmt.Errorf("decoding migration id: %w", err)
+				return false, fmt.Errorf("decoding migration id: %w", err)
 			}
 
 			var migration Migration
 			if err := json.Unmarshal(v, &migration); err != nil {
-				return err
+				return false, err
 			}
 
 			idx := int(id) - 1
 			if idx >= len(m.Specs) {
-				return fmt.Errorf("migration %q: %w", migration.Name, ErrMigrationSpecNotFound)
+				return false, fmt.Errorf("migration %q: %w", migration.Name, ErrMigrationSpecNotFound)
 			}
 
 			if spec := m.Specs[idx]; spec.MigrationName() != migration.Name {
-				return fmt.Errorf("expected migration %q, found %q", spec.MigrationName(), migration.Name)
+				return false, fmt.Errorf("expected migration %q, found %q", spec.MigrationName(), migration.Name)
 			}
 
 			if migration.FinishedAt != nil {
@@ -279,7 +279,7 @@ func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id influxdb
 
 			fn(id, migration)
 
-			return nil
+			return true, nil
 		})
 	}); err != nil {
 		return fmt.Errorf("reading migrations: %w", err)

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
@@ -28,7 +27,9 @@ import (
 var ctx = context.Background()
 
 func TestLauncher_Pkger(t *testing.T) {
-	l := RunTestLauncherOrFail(t, ctx, nil, "--log-level", "error")
+	l := RunTestLauncherOrFail(t, ctx, nil, func(o *InfluxdOpts) {
+		o.LogLevel = zap.ErrorLevel
+	})
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 	require.NoError(t, l.BucketService(t).DeleteBucket(ctx, l.Bucket.ID))
@@ -828,14 +829,14 @@ func TestLauncher_Pkger(t *testing.T) {
 					pkger.WithLabelSVC(&fakeLabelSVC{
 						// can't use the LabelService HTTP client b/c it doesn't cover the
 						// all the resources pkger supports... :sadpanda:
-						LabelService:    l.kvService,
+						LabelService:    l.LabelService(t),
 						createKillCount: -1,
 						deleteKillCount: 3,
 					}),
 					pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
-					pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
+					pkger.WithNotificationRuleSVC(l.NotificationRuleService(t)),
 					pkger.WithStore(pkger.NewStoreKV(l.Launcher.kvStore)),
-					pkger.WithTaskSVC(l.TaskServiceKV()),
+					pkger.WithTaskSVC(l.TaskServiceKV(t)),
 					pkger.WithTelegrafSVC(l.TelegrafService(t)),
 					pkger.WithVariableSVC(l.VariableService(t)),
 				)
@@ -867,6 +868,7 @@ func TestLauncher_Pkger(t *testing.T) {
 						ResourceType: res.resourceType,
 					})
 					require.NoError(t, err)
+
 					assert.Len(t, mappedLabels, 1, res.resourceType)
 					if len(mappedLabels) == 1 {
 						assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(mappedLabels[0].ID))
@@ -1134,11 +1136,11 @@ func TestLauncher_Pkger(t *testing.T) {
 					pkger.WithLabelSVC(l.LabelService(t)),
 					pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
 					pkger.WithNotificationRuleSVC(&fakeRuleStore{
-						NotificationRuleStore: l.NotificationRuleService(),
+						NotificationRuleStore: l.NotificationRuleService(t),
 						createKillCount:       2,
 					}),
 					pkger.WithStore(pkger.NewStoreKV(l.Launcher.kvStore)),
-					pkger.WithTaskSVC(l.TaskServiceKV()),
+					pkger.WithTaskSVC(l.TaskServiceKV(t)),
 					pkger.WithTelegrafSVC(l.TelegrafService(t)),
 					pkger.WithVariableSVC(l.VariableService(t)),
 				)
@@ -1562,7 +1564,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 						require.Len(t, updateSum.Labels, 1)
 						initial, updated := initialSum.Labels[0], updateSum.Labels[0]
-						assert.NotEqual(t, initial.ID, updated.ID)
+						assert.NotEqual(t, initial.ID, updated.ID, "label ID should be different")
 						initial.ID, updated.ID = 0, 0
 						assert.Equal(t, initial, updated)
 					})
@@ -2247,11 +2249,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					stack, initialSummary, cleanup := newLabelAssociationTestFn(t)
 					defer cleanup()
 
-					// TODO(jsteenb2): cannot figure out the issue with the http.LabelService returning
-					//				   the bad HTTP method error :-(. Revisit this and replace with the
-					//				   the HTTP client when possible. Goal is to remove the kvservice
-					//				   dep here.
-					err := l.kvService.DeleteLabelMapping(ctx, &influxdb.LabelMapping{
+					err := l.LabelService(t).DeleteLabelMapping(ctx, &influxdb.LabelMapping{
 						LabelID:      influxdb.ID(initialSummary.Labels[0].ID),
 						ResourceID:   influxdb.ID(initialSummary.Buckets[0].ID),
 						ResourceType: influxdb.BucketsResourceType,
@@ -2275,14 +2273,10 @@ func TestLauncher_Pkger(t *testing.T) {
 						OrgID: l.Org.ID,
 						Name:  "test-label-2",
 					}
-					require.NoError(t, l.kvService.CreateLabel(ctx, newLabel))
+					require.NoError(t, l.LabelService(t).CreateLabel(ctx, newLabel))
 					defer resourceCheck.mustDeleteLabel(t, newLabel.ID)
 
-					// TODO(jsteenb2): cannot figure out the issue with the http.LabelService returning
-					//				   the bad HTTP method error :-(. Revisit this and replace with the
-					//				   the HTTP client when possible. Goal is to remove the kvservice
-					//				   dep here.
-					err := l.kvService.CreateLabelMapping(ctx, &influxdb.LabelMapping{
+					err := l.LabelService(t).CreateLabelMapping(ctx, &influxdb.LabelMapping{
 						LabelID:      newLabel.ID,
 						ResourceID:   influxdb.ID(initialSummary.Buckets[0].ID),
 						ResourceType: influxdb.BucketsResourceType,
@@ -2319,10 +2313,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				createKillCount: 2, // hits error on 3rd attempt at creating a mapping
 			}),
 			pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
-			pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
+			pkger.WithNotificationRuleSVC(l.NotificationRuleService(t)),
 			pkger.WithOrganizationService(l.OrganizationService()),
 			pkger.WithStore(pkger.NewStoreKV(l.kvStore)),
-			pkger.WithTaskSVC(l.TaskServiceKV()),
+			pkger.WithTaskSVC(l.TaskServiceKV(t)),
 			pkger.WithTelegrafSVC(l.TelegrafService(t)),
 			pkger.WithVariableSVC(l.VariableService(t)),
 		)
@@ -2356,13 +2350,13 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, endpoints)
 
-		rules, _, err := l.NotificationRuleService().FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
+		rules, _, err := l.NotificationRuleService(t).FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
 			OrgID: &l.Org.ID,
 		})
 		require.NoError(t, err)
 		assert.Empty(t, rules)
 
-		tasks, _, err := l.TaskServiceKV().FindTasks(ctx, influxdb.TaskFilter{
+		tasks, _, err := l.TaskServiceKV(t).FindTasks(ctx, influxdb.TaskFilter{
 			OrganizationID: &l.Org.ID,
 		})
 		require.NoError(t, err)
@@ -3445,10 +3439,10 @@ spec:
 				pkger.WithDashboardSVC(l.DashboardService(t)),
 				pkger.WithLabelSVC(l.LabelService(t)),
 				pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
-				pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
+				pkger.WithNotificationRuleSVC(l.NotificationRuleService(t)),
 				pkger.WithOrganizationService(l.OrganizationService()),
 				pkger.WithStore(pkger.NewStoreKV(l.kvStore)),
-				pkger.WithTaskSVC(l.TaskServiceKV()),
+				pkger.WithTaskSVC(l.TaskServiceKV(t)),
 				pkger.WithTelegrafSVC(l.TelegrafService(t)),
 				pkger.WithVariableSVC(l.VariableService(t)),
 			)
@@ -4902,7 +4896,7 @@ func (r resourceChecker) mustDeleteLabel(t *testing.T, id influxdb.ID) {
 func (r resourceChecker) getRule(t *testing.T, getOpt getResourceOptFn) (influxdb.NotificationRule, error) {
 	t.Helper()
 
-	ruleSVC := r.tl.NotificationRuleService()
+	ruleSVC := r.tl.NotificationRuleService(t)
 
 	var (
 		rule influxdb.NotificationRule
@@ -4944,16 +4938,16 @@ func (r resourceChecker) mustGetRule(t *testing.T, getOpt getResourceOptFn) infl
 func (r resourceChecker) mustDeleteRule(t *testing.T, id influxdb.ID) {
 	t.Helper()
 
-	require.NoError(t, r.tl.NotificationRuleService().DeleteNotificationRule(ctx, id))
+	require.NoError(t, r.tl.NotificationRuleService(t).DeleteNotificationRule(ctx, id))
 }
 
-func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (http.Task, error) {
+func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (influxdb.Task, error) {
 	t.Helper()
 
 	taskSVC := r.tl.TaskService(t)
 
 	var (
-		task *http.Task
+		task *influxdb.Task
 		err  error
 	)
 	switch opt := getOpt(); {
@@ -4963,11 +4957,11 @@ func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (http.Ta
 			OrganizationID: &r.tl.Org.ID,
 		})
 		if err != nil {
-			return http.Task{}, err
+			return influxdb.Task{}, err
 		}
 		for _, tt := range tasks {
 			if tt.Name == opt.name {
-				task = &tasks[0]
+				task = tasks[0]
 				break
 			}
 		}
@@ -4977,13 +4971,13 @@ func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (http.Ta
 		require.Fail(t, "did not provide a valid get option")
 	}
 	if task == nil {
-		return http.Task{}, errors.New("did not find expected task by name")
+		return influxdb.Task{}, errors.New("did not find expected task by name")
 	}
 
 	return *task, err
 }
 
-func (r resourceChecker) mustGetTask(t *testing.T, getOpt getResourceOptFn) http.Task {
+func (r resourceChecker) mustGetTask(t *testing.T, getOpt getResourceOptFn) influxdb.Task {
 	t.Helper()
 
 	task, err := r.getTask(t, getOpt)

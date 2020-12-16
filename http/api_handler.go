@@ -1,9 +1,11 @@
 package http
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
@@ -58,8 +60,9 @@ type APIBackend struct {
 	PointsWriter                    storage.PointsWriter
 	DeleteService                   influxdb.DeleteService
 	BackupService                   influxdb.BackupService
-	KVBackupService                 influxdb.KVBackupService
+	RestoreService                  influxdb.RestoreService
 	AuthorizationService            influxdb.AuthorizationService
+	AuthorizerV1                    influxdb.AuthorizerV1
 	OnboardingService               influxdb.OnboardingService
 	DBRPService                     influxdb.DBRPMappingServiceV2
 	BucketService                   influxdb.BucketService
@@ -87,7 +90,7 @@ type APIBackend struct {
 	SecretService                   influxdb.SecretService
 	LookupService                   influxdb.LookupService
 	ChronografService               *server.Service
-	OrgLookupService                authorizer.OrganizationService
+	OrgLookupService                authorizer.OrgIDResolver
 	DocumentService                 influxdb.DocumentService
 	NotificationRuleStore           influxdb.NotificationRuleStore
 	NotificationEndpointService     influxdb.NotificationEndpointService
@@ -137,10 +140,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h.Mount(prefixChecks, NewCheckHandler(b.Logger, checkBackend))
 
 	h.Mount(prefixChronograf, NewChronografHandler(b.ChronografService, b.HTTPErrorHandler))
-
-	dashboardBackend := NewDashboardBackend(b.Logger.With(zap.String("handler", "dashboard")), b)
-	dashboardBackend.DashboardService = authorizer.NewDashboardService(b.DashboardService)
-	h.Mount(prefixDashboards, NewDashboardHandler(b.Logger, dashboardBackend))
 
 	deleteBackend := NewDeleteBackend(b.Logger.With(zap.String("handler", "delete")), b)
 	h.Mount(prefixDelete, NewDeleteHandler(b.Logger, deleteBackend))
@@ -196,6 +195,10 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	backupBackend.BackupService = authorizer.NewBackupService(backupBackend.BackupService)
 	h.Mount(prefixBackup, NewBackupHandler(backupBackend))
 
+	restoreBackend := NewRestoreBackend(b)
+	restoreBackend.RestoreService = authorizer.NewRestoreService(restoreBackend.RestoreService)
+	h.Mount(prefixRestore, NewRestoreHandler(restoreBackend))
+
 	h.Mount(dbrp.PrefixDBRP, dbrp.NewHTTPHandler(b.Logger, b.DBRPService, b.OrganizationService))
 
 	writeBackend := NewWriteBackend(b.Logger.With(zap.String("handler", "write")), b)
@@ -237,6 +240,7 @@ var apiLinks = map[string]interface{}{
 		"analyze":     "/api/v2/query/analyze",
 		"suggestions": "/api/v2/query/suggestions",
 	},
+	"restore":  "/api/v2/restore",
 	"setup":    "/api/v2/setup",
 	"signin":   "/api/v2/signin",
 	"signout":  "/api/v2/signout",
@@ -265,4 +269,26 @@ func serveLinksHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
 		}
 	}
 	return http.HandlerFunc(fn)
+}
+
+func decodeIDFromCtx(ctx context.Context, name string) (influxdb.ID, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	idStr := params.ByName(name)
+
+	if idStr == "" {
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "url missing " + name,
+		}
+	}
+
+	var i influxdb.ID
+	if err := i.DecodeFromString(idStr); err != nil {
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}
+	}
+
+	return i, nil
 }

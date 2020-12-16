@@ -7,9 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 const tokenScheme = "Token " // TODO(goller): I'd like this to be Bearer
@@ -19,12 +21,10 @@ func setToken(token string, req *http.Request) {
 }
 
 func TestInflux1xAuthenticationHandler(t *testing.T) {
-	var one = influxdb.ID(1)
+	var userID = itesting.MustIDBase16("0000000000001010")
 
 	type fields struct {
-		FindAuthorizationByTokenFn func(context.Context, string) (*influxdb.Authorization, error)
-		FindUserFn                 func(context.Context, influxdb.UserFilter) (*influxdb.User, error)
-		FindUserByIDFn             func(context.Context, influxdb.ID) (*influxdb.User, error)
+		AuthorizeFn func(ctx context.Context, c influxdb.CredentialsV1) (*influxdb.Authorization, error)
 	}
 
 	type exp struct {
@@ -103,8 +103,8 @@ func TestInflux1xAuthenticationHandler(t *testing.T) {
 		{
 			name: "token does not exist",
 			fields: fields{
-				FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
-					return nil, fmt.Errorf("authorization not found")
+				AuthorizeFn: func(ctx context.Context, c influxdb.CredentialsV1) (*influxdb.Authorization, error) {
+					return nil, &influxdb.Error{Code: influxdb.EUnauthorized}
 				},
 			},
 			exp: exp{
@@ -112,13 +112,10 @@ func TestInflux1xAuthenticationHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "user is inactive",
+			name: "authorize returns error EForbidden",
 			fields: fields{
-				FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
-					return &influxdb.Authorization{UserID: one}, nil
-				},
-				FindUserFn: func(ctx context.Context, f influxdb.UserFilter) (*influxdb.User, error) {
-					return &influxdb.User{ID: one, Status: "inactive"}, nil
+				AuthorizeFn: func(ctx context.Context, c influxdb.CredentialsV1) (*influxdb.Authorization, error) {
+					return nil, &influxdb.Error{Code: influxdb.EForbidden}
 				},
 			},
 			auth: basic(User, Token),
@@ -127,27 +124,32 @@ func TestInflux1xAuthenticationHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "username and token mismatch",
+			name: "authorize returns error EUnauthorized",
 			fields: fields{
-				FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
-					return &influxdb.Authorization{UserID: one}, nil
-				},
-				FindUserFn: func(ctx context.Context, f influxdb.UserFilter) (*influxdb.User, error) {
-					return &influxdb.User{ID: influxdb.ID(2)}, nil
+				AuthorizeFn: func(ctx context.Context, c influxdb.CredentialsV1) (*influxdb.Authorization, error) {
+					return nil, &influxdb.Error{Code: influxdb.EUnauthorized}
 				},
 			},
 			auth: basic(User, Token),
 			exp: exp{
-				code: http.StatusForbidden,
+				code: http.StatusUnauthorized,
 			},
 		},
 		{
-			name: "no auth provided",
+			name: "authorize returns error other",
 			fields: fields{
-				FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
-					return &influxdb.Authorization{}, nil
+				AuthorizeFn: func(ctx context.Context, c influxdb.CredentialsV1) (*influxdb.Authorization, error) {
+					return nil, &influxdb.Error{Code: influxdb.EInvalid}
 				},
 			},
+			auth: basic(User, Token),
+			exp: exp{
+				code: http.StatusUnauthorized,
+			},
+		},
+		{
+			name:   "no auth provided",
+			fields: fields{},
 			exp: exp{
 				code: http.StatusUnauthorized,
 			},
@@ -156,31 +158,22 @@ func TestInflux1xAuthenticationHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
 			var h *Influx1xAuthenticationHandler
 			{
-				auth := &mock.AuthorizationService{FindAuthorizationByTokenFn: tt.fields.FindAuthorizationByTokenFn}
-				if auth.FindAuthorizationByTokenFn == nil {
-					auth.FindAuthorizationByTokenFn = func(ctx context.Context, token string) (*influxdb.Authorization, error) {
-						return &influxdb.Authorization{UserID: one}, nil
-					}
-				}
-
-				user := &mock.UserService{FindUserFn: tt.fields.FindUserFn, FindUserByIDFn: tt.fields.FindUserByIDFn}
-				if user.FindUserFn == nil {
-					user.FindUserFn = func(context.Context, influxdb.UserFilter) (*influxdb.User, error) {
-						return &influxdb.User{ID: one}, nil
-					}
-				}
-				if user.FindUserByIDFn == nil {
-					user.FindUserByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.User, error) {
-						return &influxdb.User{ID: id}, nil
+				auth := &mock.AuthorizerV1{AuthorizeFn: tt.fields.AuthorizeFn}
+				if auth.AuthorizeFn == nil {
+					auth.AuthorizeFn = func(ctx context.Context, c influxdb.CredentialsV1) (*influxdb.Authorization, error) {
+						return &influxdb.Authorization{UserID: userID}, nil
 					}
 				}
 				next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusOK)
 				})
 
-				h = NewInflux1xAuthenticationHandler(next, auth, user, kithttp.ErrorHandler(0))
+				h = NewInflux1xAuthenticationHandler(next, auth, kithttp.ErrorHandler(0))
 			}
 
 			w := httptest.NewRecorder()

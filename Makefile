@@ -14,8 +14,24 @@
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all SUBDIRS have the `all` and `clean` targets.
 SUBDIRS := http ui chronograf query storage
-GO_TAGS=
-GO_ARGS=-tags '$(GO_TAGS)'
+
+export GOOS=$(shell go env GOOS)
+export GOARCH=$(shell go env GOARCH)
+
+ifeq ($(GOARCH), amd64)
+	# Including the assets tag requires the UI to be built for compilation to succeed.
+	# Don't force it for running tests.
+	GO_TEST_TAGS :=
+	GO_BUILD_TAGS := assets
+else
+	# noasm needed to avoid a panic in Flux for non-amd64.
+	GO_TEST_TAGS := noasm
+	GO_BUILD_TAGS := assets,noasm
+endif
+
+GO_TEST_ARGS := -tags '$(GO_TEST_TAGS)'
+GO_BUILD_ARGS := -tags '$(GO_BUILD_TAGS)'
+
 ifeq ($(OS), Windows_NT)
 	VERSION := $(shell git describe --exact-match --tags 2>nil)
 else
@@ -31,14 +47,14 @@ endif
 
 # Test vars can be used by all recursive Makefiles
 export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh
-export GOOS=$(shell go env GOOS)
-export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS) -ldflags "$(LDFLAGS)"
-export GO_INSTALL=env GO111MODULE=on go install $(GO_ARGS) -ldflags "$(LDFLAGS)"
-export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_ARGS)
+export GO_BUILD=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
+export GO_BUILD_SM=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "-s -w $(LDFLAGS)"
+export GO_INSTALL=env GO111MODULE=on go install $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
+export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_TEST_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
-export GO_GENERATE=go generate $(GO_ARGS)
-export GO_VET=env GO111MODULE=on go vet $(GO_ARGS)
-export GO_RUN=env GO111MODULE=on go run $(GO_ARGS)
+export GO_GENERATE=go generate $(GO_BUILD_ARGS)
+export GO_VET=env GO111MODULE=on go vet $(GO_TEST_ARGS)
+export GO_RUN=env GO111MODULE=on go run $(GO_BUILD_ARGS)
 export PATH := $(PWD)/bin/$(GOOS):$(PATH)
 
 
@@ -59,15 +75,6 @@ CMDS := \
 	bin/$(GOOS)/influx \
 	bin/$(GOOS)/influxd
 
-# Default target to build all go commands.
-#
-# This target sets up the dependencies to correctly build all go commands.
-# Other targets must depend on this target to correctly builds CMDS.
-ifeq ($(GOARCH), arm64)
-    all: GO_ARGS=-tags 'assets noasm $(GO_TAGS)'
-else
-    all: GO_ARGS=-tags 'assets $(GO_TAGS)'
-endif
 all: $(SUBDIRS) generate $(CMDS)
 
 # Target to build subdirs.
@@ -78,8 +85,11 @@ $(SUBDIRS):
 #
 # Define targets for commands
 #
-$(CMDS): $(SOURCES)
+bin/$(GOOS)/influxd: $(SOURCES)
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
+
+bin/$(GOOS)/influx: $(SOURCES)
+	$(GO_BUILD_SM) -o $@ ./cmd/$(shell basename "$@")
 
 # Ease of use build for just the go binary
 influxd: bin/$(GOOS)/influxd
@@ -160,24 +170,20 @@ bench:
 
 build: all
 
-goreleaser:
-	curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh
-	sh goreleaser-install v0.142.0
+pkg-config:
 	go build -o $(GOPATH)/bin/pkg-config github.com/influxdata/pkg-config
-	install xcc.sh $(GOPATH)/bin/xcc
 
 # Parallelism for goreleaser must be set to 1 so it doesn't
 # attempt to invoke pkg-config, which invokes cargo,
 # for multiple targets at the same time.
-dist: goreleaser
-	./bin/goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
+dist: pkg-config
+	goreleaser build -p 1 --skip-validate --rm-dist
 
-nightly: goreleaser
-	./bin/goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
+release: pkg-config
+	goreleaser release -p 1 --rm-dist
 
-release: goreleaser
-	git checkout -- go.sum # avoid dirty git repository caused by go install
-	./bin/goreleaser release -p 1 --rm-dist
+nightly: pkg-config
+	goreleaser release -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
@@ -205,6 +211,7 @@ run-e2e: chronogiraffe
 	./bin/$(GOOS)/influxd --assets-path=ui/build --e2e-testing --store=memory
 
 # assume this is running from circleci
+# TODO: Move this to the CI docker image build?
 protoc:
 	curl -s -L https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip > /tmp/protoc.zip
 	unzip -o -d /go /tmp/protoc.zip
@@ -230,4 +237,4 @@ dshell: dshell-image
 	@docker container run --rm -p 8086:8086 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx goreleaser
+.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx pkg-config

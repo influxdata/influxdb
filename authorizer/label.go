@@ -2,7 +2,6 @@ package authorizer
 
 import (
 	"context"
-	"errors"
 
 	"github.com/influxdata/influxdb/v2"
 )
@@ -12,16 +11,16 @@ var _ influxdb.LabelService = (*LabelService)(nil)
 // LabelService wraps a influxdb.LabelService and authorizes actions
 // against it appropriately.
 type LabelService struct {
-	s      influxdb.LabelService
-	orgSvc OrganizationService
+	s             influxdb.LabelService
+	orgIDResolver OrgIDResolver
 }
 
-// NewLabelServiceWithOrg constructs an instance of an authorizing label serivce.
+// NewLabelServiceWithOrg constructs an instance of an authorizing label service.
 // Replaces NewLabelService.
-func NewLabelServiceWithOrg(s influxdb.LabelService, orgSvc OrganizationService) *LabelService {
+func NewLabelServiceWithOrg(s influxdb.LabelService, orgIDResolver OrgIDResolver) *LabelService {
 	return &LabelService{
-		s:      s,
-		orgSvc: orgSvc,
+		s:             s,
+		orgIDResolver: orgIDResolver,
 	}
 }
 
@@ -55,10 +54,8 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 	if err := filter.ResourceType.Valid(); err != nil {
 		return nil, err
 	}
-	if s.orgSvc == nil {
-		return nil, errors.New("failed to find orgSvc")
-	}
-	orgID, err := s.orgSvc.FindResourceOrganizationID(ctx, filter.ResourceType, filter.ResourceID)
+
+	orgID, err := s.orgIDResolver.FindResourceOrganizationID(ctx, filter.ResourceType, filter.ResourceID)
 	if err != nil {
 		return nil, err
 	}

@@ -16,6 +16,8 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+var user1ID = influxtesting.MustIDBase16("020f755c3c082001")
+
 // NewMockDeleteBackend returns a DeleteBackend with mock services.
 func NewMockDeleteBackend(t *testing.T) *DeleteBackend {
 	return &DeleteBackend{
@@ -226,7 +228,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 			wants: wants{
-				statusCode: http.StatusNotImplemented,
+				statusCode: http.StatusNoContent,
 				body:       ``,
 			},
 		},
@@ -331,7 +333,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 			wants: wants{
-				statusCode: http.StatusNotImplemented,
+				statusCode: http.StatusNoContent,
 				body:       ``,
 			},
 		},
@@ -372,7 +374,7 @@ func TestDelete(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleDelete(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleDelete(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleDelete() = ***%s***", tt.name, diff)
 				}

@@ -112,3 +112,27 @@ func HasFieldKeyOrValue(expr influxql.Expr) (bool, bool) {
 	influxql.Walk(&refs, expr)
 	return refs.found[0], refs.found[1]
 }
+
+type hasAnyTagKeys struct {
+	found bool
+}
+
+func (v *hasAnyTagKeys) Visit(node influxql.Node) influxql.Visitor {
+	if v.found {
+		return nil
+	}
+
+	if n, ok := node.(*influxql.VarRef); ok {
+		if n.Val != fieldKey && n.Val != measurementKey && n.Val != "$" {
+			v.found = true
+			return nil
+		}
+	}
+	return v
+}
+
+func hasTagKey(expr influxql.Expr) bool {
+	v := &hasAnyTagKeys{}
+	influxql.Walk(v, expr)
+	return v.found
+}

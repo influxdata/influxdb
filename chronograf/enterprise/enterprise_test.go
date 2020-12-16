@@ -127,7 +127,7 @@ func Test_Enterprise_NewClientWithURL(t *testing.T) {
 			url:  "http://localhost:8086",
 		},
 		{
-			name: "tls sholuld have no error",
+			name: "tls should have no error",
 			url:  "https://localhost:8086",
 		},
 		{
@@ -192,11 +192,11 @@ func Test_Enterprise_ComplainsIfNotOpened(t *testing.T) {
 		},
 		false, false, chronograf.TimeSeries(m1))
 	if err != nil {
-		t.Error("Expected ErrUnitialized, but was this err:", err)
+		t.Error("Expected nil, but was this err:", err)
 	}
 	_, err = cl.Query(context.Background(), chronograf.Query{Command: "show shards", DB: "_internal", RP: "autogen"})
 	if err != chronograf.ErrUninitialized {
-		t.Error("Expected ErrUnitialized, but was this err:", err)
+		t.Error("Expected ErrUninitialized, but was this err:", err)
 	}
 }
 

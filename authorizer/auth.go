@@ -15,7 +15,7 @@ type AuthorizationService struct {
 	s influxdb.AuthorizationService
 }
 
-// NewAuthorizationService constructs an instance of an authorizing authorization serivce.
+// NewAuthorizationService constructs an instance of an authorizing authorization service.
 func NewAuthorizationService(s influxdb.AuthorizationService) *AuthorizationService {
 	return &AuthorizationService{
 		s: s,

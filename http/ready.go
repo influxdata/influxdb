@@ -13,6 +13,7 @@ import (
 func ReadyHandler() http.Handler {
 	up := time.Now()
 	fn := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 
 		var status = struct {

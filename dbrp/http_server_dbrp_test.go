@@ -59,8 +59,8 @@ func Test_handlePostDBRP(t *testing.T) {
 		{
 			Name: "Create valid dbrp",
 			Input: strings.NewReader(`{
-	"bucket_id": "5555f7ed2a035555",
-	"organization_id": "059af7ed2a034000",
+	"bucketID": "5555f7ed2a035555",
+	"orgID": "059af7ed2a034000",
 	"database": "mydb",
 	"retention_policy": "autogen",
 	"default": false
@@ -72,8 +72,8 @@ func Test_handlePostDBRP(t *testing.T) {
 		{
 			Name: "Create valid dbrp by org name",
 			Input: strings.NewReader(`{
-	"bucket_id": "5555f7ed2a035555",
-	"organization": "org",
+	"bucketID": "5555f7ed2a035555",
+	"org": "org",
 	"database": "mydb",
 	"retention_policy": "autogen",
 	"default": false
@@ -85,8 +85,8 @@ func Test_handlePostDBRP(t *testing.T) {
 		{
 			Name: "Create with invalid orgID",
 			Input: strings.NewReader(`{
-	"bucket_id": "5555f7ed2a035555",
-	"organization_id": "invalid",
+	"bucketID": "5555f7ed2a035555",
+	"orgID": "invalid",
 	"database": "mydb",
 	"retention_policy": "autogen",
 	"default": false
@@ -100,8 +100,8 @@ func Test_handlePostDBRP(t *testing.T) {
 		{
 			Name: "Create with invalid org name",
 			Input: strings.NewReader(`{
-	"bucket_id": "5555f7ed2a035555",
-	"organization": "invalid",
+	"bucketID": "5555f7ed2a035555",
+	"org": "invalid",
 	"database": "mydb",
 	"retention_policy": "autogen",
 	"default": false

@@ -13,7 +13,7 @@ import (
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/mock"
 	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
@@ -249,7 +249,7 @@ func TestService_handleGetLabel(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetLabel(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetLabel(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetLabel() = ***%s***", tt.name, diff)
 				}
@@ -435,7 +435,7 @@ func TestService_handleDeleteLabel(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePostLabel(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePostLabel(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePostLabel() = ***%s***", tt.name, diff)
 				}
@@ -584,7 +584,7 @@ func TestService_handlePatchLabel(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePatchLabel(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePatchLabel(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePatchLabel() = ***%s***", tt.name, diff)
 				}
@@ -595,23 +595,34 @@ func TestService_handlePatchLabel(t *testing.T) {
 
 func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.LabelService, string, func()) {
 	store := NewTestInmemStore(t)
-	svc := kv.NewService(zaptest.NewLogger(t), store)
-	svc.IDGenerator = f.IDGenerator
+
+	labelStore, err := label.NewStore(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if f.IDGenerator != nil {
+		labelStore.IDGenerator = f.IDGenerator
+	}
+
+	labelService := label.NewService(labelStore)
 
 	ctx := context.Background()
 	for _, l := range f.Labels {
-		if err := svc.PutLabel(ctx, l); err != nil {
-			t.Fatalf("failed to populate labels: %v", err)
-		}
+		mock.SetIDForFunc(&labelStore.IDGenerator, l.ID, func() {
+			if err := labelService.CreateLabel(ctx, l); err != nil {
+				t.Fatalf("failed to populate labels: %v", err)
+			}
+		})
 	}
 
 	for _, m := range f.Mappings {
-		if err := svc.PutLabelMapping(ctx, m); err != nil {
+		if err := labelService.CreateLabelMapping(ctx, m); err != nil {
 			t.Fatalf("failed to populate label mappings: %v", err)
 		}
 	}
 
-	handler := NewLabelHandler(zaptest.NewLogger(t), svc, kithttp.ErrorHandler(0))
+	handler := NewLabelHandler(zaptest.NewLogger(t), labelService, kithttp.ErrorHandler(0))
 	server := httptest.NewServer(handler)
 	client := LabelService{
 		Client: mustNewHTTPClient(t, server.URL, ""),

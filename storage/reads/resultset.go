@@ -2,31 +2,27 @@ package reads
 
 import (
 	"context"
-	"math"
 
 	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 type multiShardCursors interface {
 	createCursor(row SeriesRow) cursors.Cursor
-	newAggregateCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) (cursors.Cursor, error)
 }
 
 type resultSet struct {
 	ctx          context.Context
-	agg          *datatypes.Aggregate
 	seriesCursor SeriesCursor
 	seriesRow    SeriesRow
 	arrayCursors multiShardCursors
 }
 
-func NewFilteredResultSet(ctx context.Context, req *datatypes.ReadFilterRequest, seriesCursor SeriesCursor) ResultSet {
+func NewFilteredResultSet(ctx context.Context, start, end int64, seriesCursor SeriesCursor) ResultSet {
 	return &resultSet{
 		ctx:          ctx,
 		seriesCursor: seriesCursor,
-		arrayCursors: newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true, math.MaxInt64),
+		arrayCursors: newMultiShardArrayCursors(ctx, start, end, true),
 	}
 }
 
@@ -58,11 +54,7 @@ func (r *resultSet) Next() bool {
 }
 
 func (r *resultSet) Cursor() cursors.Cursor {
-	cur := r.arrayCursors.createCursor(r.seriesRow)
-	if r.agg != nil {
-		cur, _ = r.arrayCursors.newAggregateCursor(r.ctx, r.agg, cur)
-	}
-	return cur
+	return r.arrayCursors.createCursor(r.seriesRow)
 }
 
 func (r *resultSet) Tags() models.Tags {

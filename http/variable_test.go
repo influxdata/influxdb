@@ -8,13 +8,16 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -108,7 +111,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `{
 					"links":{
-					   "self":"/api/v2/variables?descending=false&limit=20&offset=0"
+					   "self":"/api/v2/variables?descending=false&limit=` + strconv.Itoa(platform.DefaultPageSize) + `&offset=0"
 					},
 					"variables":[
 					   {
@@ -252,7 +255,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `{
 					"links": {
-					  "self": "/api/v2/variables?descending=false&limit=20&offset=0&orgID=0000000000000001"
+					  "self": "/api/v2/variables?descending=false&limit=` + strconv.Itoa(platform.DefaultPageSize) + `&offset=0&orgID=0000000000000001"
 					},
 					"variables": [
 					  {
@@ -326,7 +329,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 				t.Errorf("%q. handleGetVariables() = %v, want %v", tt.name, contentType, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, handleGetDashboards(). error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, handleGetDashboards(). error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handleGetDashboards() = ***%s***", tt.name, diff)
 			}
@@ -457,7 +460,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
@@ -587,7 +590,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
@@ -690,7 +693,7 @@ func TestVariableService_handlePutVariable(t *testing.T) {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
@@ -799,7 +802,7 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
@@ -983,7 +986,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 				t.Errorf("got %v, want %v", content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
@@ -992,7 +995,10 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 }
 
 func initVariableService(f itesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
-	svc := newInMemKVSVC(t)
+	store := NewTestInmemStore(t)
+	tenantService := tenant.NewService(tenant.NewStore(store))
+
+	svc := kv.NewService(zaptest.NewLogger(t), store, tenantService)
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 

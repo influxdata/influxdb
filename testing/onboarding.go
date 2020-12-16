@@ -158,7 +158,7 @@ func OnboardInitialUser(
 					Org:             "org1",
 					Bucket:          "bucket1",
 					Password:        "password1",
-					RetentionPeriod: 24 * 7, // 1 week
+					RetentionPeriod: time.Hour * 24 * 7, // 1 week
 				},
 			},
 			wants: wants{

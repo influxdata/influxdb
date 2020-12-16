@@ -207,7 +207,7 @@ func Test_MarshalDashboard(t *testing.T) {
 	if buf, err := internal.MarshalDashboard(dashboard); err != nil {
 		t.Fatal("Error marshaling dashboard: err", err)
 	} else if err := internal.UnmarshalDashboard(buf, &actual); err != nil {
-		t.Fatal("Error unmarshaling dashboard: err:", err)
+		t.Fatal("Error unmarshalling dashboard: err:", err)
 	} else if !cmp.Equal(dashboard, actual) {
 		t.Fatalf("Dashboard protobuf copy error: diff follows:\n%s", cmp.Diff(dashboard, actual))
 	}
@@ -330,7 +330,7 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 	if buf, err := internal.MarshalDashboard(dashboard); err != nil {
 		t.Fatal("Error marshaling dashboard: err", err)
 	} else if err := internal.UnmarshalDashboard(buf, &actual); err != nil {
-		t.Fatal("Error unmarshaling dashboard: err:", err)
+		t.Fatal("Error unmarshalling dashboard: err:", err)
 	} else if !cmp.Equal(expected, actual) {
 		t.Fatalf("Dashboard protobuf copy error: diff follows:\n%s", cmp.Diff(expected, actual))
 	}
@@ -445,7 +445,7 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 	if buf, err := internal.MarshalDashboard(dashboard); err != nil {
 		t.Fatal("Error marshaling dashboard: err", err)
 	} else if err := internal.UnmarshalDashboard(buf, &actual); err != nil {
-		t.Fatal("Error unmarshaling dashboard: err:", err)
+		t.Fatal("Error unmarshalling dashboard: err:", err)
 	} else if !cmp.Equal(expected, actual) {
 		t.Fatalf("Dashboard protobuf copy error: diff follows:\n%s", cmp.Diff(expected, actual))
 	}
@@ -481,7 +481,7 @@ func Test_MarshalDashboard_WithEmptyCellType(t *testing.T) {
 	if buf, err := internal.MarshalDashboard(dashboard); err != nil {
 		t.Fatal("Error marshaling dashboard: err", err)
 	} else if err := internal.UnmarshalDashboard(buf, &actual); err != nil {
-		t.Fatal("Error unmarshaling dashboard: err:", err)
+		t.Fatal("Error unmarshalling dashboard: err:", err)
 	} else if !cmp.Equal(expected, actual) {
 		t.Fatalf("Dashboard protobuf copy error: diff follows:\n%s", cmp.Diff(expected, actual))
 	}

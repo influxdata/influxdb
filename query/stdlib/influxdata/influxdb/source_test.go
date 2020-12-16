@@ -53,6 +53,10 @@ func (mockReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpe
 	return &mockTableIterator{}, nil
 }
 
+func (mockReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+	return &mockTableIterator{}, nil
+}
+
 func (mockReader) Close() {
 }
 
@@ -200,12 +204,12 @@ func TestReadWindowAggregateSource(t *testing.T) {
 				ReadRangePhysSpec: influxdb.ReadRangePhysSpec{
 					BucketID: bucketID.String(),
 				},
-				WindowEvery: 10,
+				WindowEvery: flux.ConvertDuration(10 * time.Nanosecond),
 				Aggregates: []plan.ProcedureKind{
 					universe.SumKind,
 				},
 			}
-			reader := &mock.WindowAggregateStoreReader{
+			reader := &mock.StorageReader{
 				ReadWindowAggregateFn: func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 					if want, got := orgID, spec.OrganizationID; want != got {
 						t.Errorf("unexpected organization id -want/+got:\n\t- %s\n\t+ %s", want, got)

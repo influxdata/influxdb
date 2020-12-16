@@ -2,14 +2,18 @@ package upgrade
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/tcnksm/go-input"
+	"go.uber.org/zap"
 )
 
 func setupAdmin(ctx context.Context, v2 *influxDBv2, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
@@ -54,7 +58,7 @@ func nonInteractive() (*influxdb.OnboardingRequest, error) {
 		return nil, err
 	}
 	if dur > 0 {
-		req.RetentionPeriod = uint(dur / time.Hour)
+		req.RetentionPeriod = dur
 	}
 	return req, nil
 }
@@ -97,13 +101,13 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 	}
 
 	if dur > 0 {
-		req.RetentionPeriod = uint(dur / time.Hour)
+		req.RetentionPeriod = dur
 	} else {
 		for {
 			rpStr := internal.GetInput(ui, "Please type your retention period in hours.\r\nOr press ENTER for infinite.", strconv.Itoa(influxdb.InfiniteRetention))
 			rp, err := strconv.Atoi(rpStr)
 			if rp >= 0 && err == nil {
-				req.RetentionPeriod = uint(rp) * uint(time.Hour)
+				req.RetentionPeriod = time.Duration(rp) * time.Hour
 				break
 			}
 		}
@@ -113,7 +117,7 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 		if confirmed := internal.GetConfirm(ui, func() string {
 			rp := "infinite"
 			if req.RetentionPeriod > 0 {
-				rp = fmt.Sprintf("%d hrs", time.Duration(req.RetentionPeriod)/time.Hour)
+				rp = fmt.Sprintf("%d hrs", req.RetentionPeriod/time.Hour)
 			}
 			return fmt.Sprintf(`
 You have entered:
@@ -123,9 +127,31 @@ You have entered:
   Retention Period:  %s
 `, req.User, req.Org, req.Bucket, rp)
 		}); !confirmed {
-			return nil, fmt.Errorf("setup was canceled")
+			return nil, errors.New("setup was canceled")
 		}
 	}
 
 	return req, nil
+}
+
+func saveLocalConfig(sourceOptions *optionsV1, targetOptions *optionsV2, log *zap.Logger) error {
+	dPath, dir := targetOptions.cliConfigsPath, filepath.Dir(targetOptions.cliConfigsPath)
+	if dPath == "" || dir == "" {
+		return errors.New("a valid configurations path must be provided")
+	}
+
+	localConfigSVC := config.NewLocalConfigSVC(dPath, dir)
+	p := config.DefaultConfig
+	p.Token = targetOptions.token
+	p.Org = targetOptions.orgName
+	if sourceOptions.dbURL != "" {
+		p.Host = sourceOptions.dbURL
+	}
+	if _, err := localConfigSVC.CreateConfig(p); err != nil {
+		log.Error("failed to save CLI config", zap.String("path", dPath), zap.Error(err))
+		return errors.New("failed to save CLI config")
+	}
+	log.Info("CLI config has been stored.", zap.String("path", dPath))
+
+	return nil
 }

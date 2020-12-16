@@ -17,7 +17,7 @@ type AuthedOnboardSvc struct {
 	s influxdb.OnboardingService
 }
 
-// NewAuthedOnboardSvc constructs an instance of an authorizing org serivce.
+// NewAuthedOnboardSvc constructs an instance of an authorizing org service.
 func NewAuthedOnboardSvc(s influxdb.OnboardingService) *AuthedOnboardSvc {
 	return &AuthedOnboardSvc{
 		s: s,

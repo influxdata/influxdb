@@ -7,10 +7,11 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	ihttp "github.com/influxdata/influxdb/v2/http"
-	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -24,11 +25,13 @@ func initOnboardHttpService(f itesting.OnboardingFields, t *testing.T) (influxdb
 
 	storage := tenant.NewStore(s)
 
-	authsvc := kv.NewService(zaptest.NewLogger(t), s)
-
 	ten := tenant.NewService(storage)
 
-	svc := tenant.NewOnboardService(ten, authsvc)
+	authStore, err := authorization.NewStore(s)
+	require.NoError(t, err)
+	authSvc := authorization.NewService(authStore, ten)
+
+	svc := tenant.NewOnboardService(ten, authSvc)
 
 	ctx := context.Background()
 	if !f.IsOnboarding {

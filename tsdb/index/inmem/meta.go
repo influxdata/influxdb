@@ -32,7 +32,7 @@ type measurement struct {
 	seriesByID          map[uint64]*series      // lookup table for series by their id
 	seriesByTagKeyValue map[string]*tagKeyValue // map from tag key to value to sorted set of series ids
 
-	// lazyily created sorted series IDs
+	// lazily created sorted series IDs
 	sortedSeriesIDs seriesIDs // sorted list of series IDs in this measurement
 
 	// Indicates whether the seriesByTagKeyValueMap needs to be rebuilt as it contains deleted series

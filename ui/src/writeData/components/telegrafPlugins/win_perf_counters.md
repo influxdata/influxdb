@@ -65,7 +65,7 @@ Example:
 
 _Deprecated. Necessary features on Windows Vista and newer are checked dynamically_
 
-Bool, if set to `true`, the plugin will use the localized PerfCounter interface that has been present since before Vista for backwards compatability.
+Bool, if set to `true`, the plugin will use the localized PerfCounter interface that has been present since before Vista for backwards compatibility.
 
 It is recommended NOT to use this on OSes starting with Vista and newer because it requires more configuration to use this than the newer interface present since Vista.
 
