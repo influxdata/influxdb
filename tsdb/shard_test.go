@@ -100,6 +100,74 @@ func TestShardWriteAndIndex(t *testing.T) {
 	}
 }
 
+func TestShardRebuildIndex(t *testing.T) {
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := filepath.Join(tmpDir, "shard")
+	tmpWal := filepath.Join(tmpDir, "wal")
+
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error opening shard: %s", err.Error())
+	}
+
+	pt := models.MustNewPoint(
+		"cpu",
+		models.Tags{{Key: []byte("host"), Value: []byte("server")}},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err := sh.WritePoints([]models.Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	pt.SetTime(time.Unix(2, 3))
+	err = sh.WritePoints([]models.Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	validateIndex := func() {
+		cnt := sh.SeriesN()
+		if got, exp := cnt, int64(1); got != exp {
+			t.Fatalf("got %v series, exp %v series in index", got, exp)
+		}
+	}
+
+	validateIndex()
+
+	// ensure the index gets rebuilt after its directory is deleted and
+	// the shard is reopened.
+	if err := sh.Close(); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if err := os.RemoveAll(filepath.Join(tmpShard, "index")); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	sh = tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error opening shard: %s", err.Error())
+	}
+
+	validateIndex()
+
+	// and ensure that we can still write data
+	pt.SetTime(time.Unix(2, 6))
+	err = sh.WritePoints([]models.Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+}
+
 func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
