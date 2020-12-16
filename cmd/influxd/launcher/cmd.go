@@ -87,7 +87,7 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 
 		return nil
 	}
-}x
+}
 
 // InfluxdOpts captures all arguments for running the InfluxDB server.
 type InfluxdOpts struct {
