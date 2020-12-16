@@ -3,7 +3,7 @@
 
 ### Bug Fixes
 
-1. [20349](https://github.com/influxdata/influxdb/pull/20349): Ensure `influxdb` service sees default env variables when running under `init.d`.
+1. [20351](https://github.com/influxdata/influxdb/pull/20351): Ensure `influxdb` service sees default env variables when running under `init.d`.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
