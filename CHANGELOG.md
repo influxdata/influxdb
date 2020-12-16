@@ -9,6 +9,7 @@
 1. [20347](https://github.com/influxdata/influxdb/pull/20347): Include upgrade helper script in goreleaser manifest.
 1. [20376](https://github.com/influxdata/influxdb/pull/20376): Don't overwrite stack name/description on `influx stack update`.
 1. [20375](https://github.com/influxdata/influxdb/pull/20375): Fix timeout setup for `influxd` graceful shutdown.
+1. [20317](https://github.com/influxdata/influxdb/pull/20317): Don't ignore failures to set password during initial user onboarding.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
