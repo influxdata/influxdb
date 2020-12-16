@@ -37,7 +37,7 @@ func (s *Service) SetPasswordHash(ctx context.Context, authID influxdb.ID, passH
 
 // SetPassword overrides the password of a known user.
 func (s *Service) SetPassword(ctx context.Context, authID influxdb.ID, password string) error {
-	if len(password) < 8 {
+	if len(password) < tenant.MinPasswordLen {
 		return tenant.EShortPassword
 	}
 	passHash, err := encryptPassword(password)

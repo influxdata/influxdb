@@ -6,6 +6,8 @@ import (
 	"github.com/influxdata/influxdb/v2"
 )
 
+const MinPasswordLen int = 8
+
 var (
 	// ErrUserNotFound is used when the user is not found.
 	ErrUserNotFound = &influxdb.Error{
@@ -31,7 +33,7 @@ var (
 	// acceptable password length.
 	EShortPassword = &influxdb.Error{
 		Code: influxdb.EInvalid,
-		Msg:  "passwords must be at least 8 characters long",
+		Msg:  fmt.Sprintf("passwords must be at least %d characters long", MinPasswordLen),
 	}
 )
 
