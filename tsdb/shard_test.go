@@ -135,10 +135,20 @@ func TestShardRebuildIndex(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
+	indexPath := filepath.Join(tmpShard, "index")
 	validateIndex := func() {
 		cnt := sh.SeriesN()
 		if got, exp := cnt, int64(1); got != exp {
 			t.Fatalf("got %v series, exp %v series in index", got, exp)
+		}
+		fi, err := os.Stat(indexPath)
+
+		// Make sure index data is being persisted to disk.
+		if os.IsNotExist(err) {
+			t.Fatalf("index path %q does not exist", indexPath)
+		}
+		if !fi.IsDir() {
+			t.Fatalf("index path %q is not a directory", indexPath)
 		}
 	}
 
@@ -149,7 +159,7 @@ func TestShardRebuildIndex(t *testing.T) {
 	if err := sh.Close(); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := os.RemoveAll(filepath.Join(tmpShard, "index")); err != nil {
+	if err := os.RemoveAll(indexPath); err != nil {
 		t.Fatalf(err.Error())
 	}
 
