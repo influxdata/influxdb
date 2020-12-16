@@ -888,10 +888,19 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 		return ierror.Wrap(err, "required stack id is invalid")
 	}
 
+	var name, description *string
+
+	if cmd.Flags().Lookup("stack-name").Changed {
+		name = &b.name
+	}
+	if cmd.Flags().Lookup("stack-description").Changed {
+		description = &b.description
+	}
+
 	update := pkger.StackUpdate{
 		ID:           *stackID,
-		Name:         &b.name,
-		Description:  &b.description,
+		Name:         name,
+		Description:  description,
 		TemplateURLs: b.urls,
 	}
 
