@@ -71,32 +71,23 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		fluxinit.FluxInit()
 
 		l := NewLauncher()
-		if err := l.runUntilDone(ctx, o); err != nil {
+
+		// Start the launcher and wait for it to exit on SIGINT or SIGTERM.
+		runCtx := signals.WithStandardSignals(ctx)
+		if err := l.run(runCtx, o); err != nil {
 			return err
 		}
-		l.gracefulShutdown(ctx)
+		<-runCtx.Done()
+
+		// Tear down the launcher, allowing it a few seconds to finish any
+		// in-progress requests.
+		shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		l.Shutdown(shutdownCtx)
 
 		return nil
 	}
-}
-
-// runUntilDone starts the launcher and waits for it to exit on SIGINT or SIGTERM.
-func (l *Launcher) runUntilDone(ctx context.Context, o *InfluxdOpts) error {
-	ctx = signals.WithStandardSignals(ctx)
-	if err := l.run(ctx, o); err != nil {
-		return err
-	}
-	<-ctx.Done()
-	return nil
-}
-
-// gracefulShutdown tears down the launcher, allowing it a few seconds to finish
-// any in-progress requests.
-func (l *Launcher) gracefulShutdown(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	l.Shutdown(ctx)
-}
+}x
 
 // InfluxdOpts captures all arguments for running the InfluxDB server.
 type InfluxdOpts struct {
