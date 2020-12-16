@@ -233,15 +233,14 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		planner.SetFileStore(fs)
 	}
 
-	logger := zap.NewNop()
 	stats := &EngineStatistics{}
 	e := &Engine{
 		id:           id,
 		path:         path,
 		index:        idx,
 		sfile:        sfile,
-		logger:       logger,
-		traceLogger:  logger,
+		logger:       zap.NewNop(),
+		traceLogger:  zap.NewNop(),
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
 		WAL:   wal,
@@ -3117,6 +3116,12 @@ func (e *Engine) Reindex() error {
 		for i, key := range keys[:n] {
 			seriesKeys[i], _ = SeriesAndFieldFromCompositeKey(key)
 			names[i], tags[i] = models.ParseKeyBytes(seriesKeys[i])
+			e.traceLogger.Debug(
+				"Read series during reindexing",
+				logger.Shard(e.id),
+				zap.String("name", string(names[i])),
+				zap.String("tags", tags[i].String()),
+			)
 		}
 
 		e.logger.Debug("Reindexing data batch", logger.Shard(e.id), zap.Int("batch_size", n))

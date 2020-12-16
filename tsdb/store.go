@@ -105,7 +105,6 @@ type Store struct {
 // NewStore returns a new store with the given path and a default configuration.
 // The returned store must be initialized by calling Open before using it.
 func NewStore(path string) *Store {
-	logger := zap.NewNop()
 	return &Store{
 		databases:           make(map[string]*databaseState),
 		path:                path,
@@ -113,8 +112,8 @@ func NewStore(path string) *Store {
 		pendingShardDeletes: make(map[uint64]struct{}),
 		epochs:              make(map[uint64]*epochTracker),
 		EngineOptions:       NewEngineOptions(),
-		Logger:              logger,
-		baseLogger:          logger,
+		Logger:              zap.NewNop(),
+		baseLogger:          zap.NewNop(),
 	}
 }
 
