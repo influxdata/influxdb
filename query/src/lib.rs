@@ -14,6 +14,7 @@ use influxdb_line_protocol::ParsedLine;
 use std::{fmt::Debug, sync::Arc};
 
 pub mod exec;
+pub mod func;
 pub mod group_by;
 pub mod id;
 pub mod predicate;
