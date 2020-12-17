@@ -14,6 +14,7 @@ packers = { path = "../packers" }
 croaring = "0.4.5"
 itertools = "0.9.0"
 either = "1.6.1"
+permutation = "0.2.5"
 
 [dev-dependencies]
 criterion = "0.3.3"

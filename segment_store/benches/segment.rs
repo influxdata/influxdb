@@ -9,34 +9,100 @@ use rand_distr::{Distribution, Normal};
 use packers::{sorter, Packers};
 
 use segment_store::column::{AggregateType, Column};
-use segment_store::segment::{ColumnType, Segment};
+use segment_store::segment::{build_predicates_with_time, ColumnType, Predicate, Segment};
 
 const ONE_MS: i64 = 1_000_000;
-
-const ROWS: [usize; 4] = [250_000, 500_000, 750_000, 1_000_000];
 
 fn read_group(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
 
-    let cardinalities = vec![
-        (vec!["env"], 2),
-        (vec!["env", "data_centre"], 20),
-        (vec!["data_centre", "cluster"], 200),
-        (vec!["cluster", "node_id"], 2000),
-    ];
-
     let segment = generate_segment(500_000, &mut rng);
-    benchmark_read_group_pre_computed_groups_no_predicates_vary_cardinality(
+    read_group_predicate_all_time(c, &segment, &mut rng);
+    read_group_pre_computed_groups(c, &segment, &mut rng);
+}
+
+// These benchmarks track the performance of read_group using the general
+// approach of building up a mapping of group keys. To avoid hitting the
+// optimised no predicate implementation we apply a time predicate that covers
+// the segment.
+fn read_group_predicate_all_time(c: &mut Criterion, segment: &Segment, rng: &mut ThreadRng) {
+    // This benchmark fixes the number of rows in the segment (500K), and varies
+    // the cardinality of the group keys.
+    let time_pred = build_predicates_with_time(i64::MIN, i64::MAX, vec![]);
+    benchmark_read_group_vary_cardinality(
         c,
-        "segment_read_group_pre_computed_groups_no_predicates_cardinality",
+        "segment_read_group_all_time_vary_cardinality",
         &segment,
-        cardinalities.as_slice(),
+        &time_pred,
+        // grouping columns and expected cardinality
+        vec![
+            (vec!["env", "data_centre"], 20),
+            (vec!["data_centre", "cluster"], 200),
+            (vec!["cluster", "node_id"], 2000),
+            (vec!["cluster", "node_id", "pod_id"], 20000),
+        ]
+        .as_slice(),
     );
 
-    benchmark_read_group_pre_computed_groups_no_predicates_vary_group_cols(
+    // This benchmark fixes the cardinality of the group keys and varies the
+    // number of columns grouped to produce that group key cardinality.
+    benchmark_read_group_vary_group_cols(
         c,
-        "segment_read_group_pre_computed_groups_no_predicates_group_cols",
+        "segment_read_group_all_time_vary_columns",
         &segment,
+        &time_pred,
+        // number of cols to group on and expected cardinality
+        vec![
+            (vec!["node_id", "pod_id"], 20000),
+            (vec!["cluster", "node_id", "pod_id"], 20000),
+            (vec!["data_centre", "cluster", "node_id", "pod_id"], 20000),
+        ]
+        .as_slice(),
+    );
+
+    // This benchmark fixes the cardinality of the group keys and the number of
+    // columns grouped on. It then varies the number of rows in the segment to
+    // be processed.
+    benchmark_read_group_vary_rows(
+        c,
+        "segment_read_group_all_time_vary_rows",
+        &[250_000, 500_000, 750_000, 1_000_000], // segment row sizes to vary
+        &time_pred,
+        (vec!["node_id", "pod_id"], 20000),
+        rng,
+    );
+}
+
+// These benchmarks track the performance of read_group when it is able to use
+// the per-group bitsets provided by RLE-encoded columns. These code-path are
+// hit due to the encoding of the grouping-columns and the lack of predicates
+// on the query.
+fn read_group_pre_computed_groups(c: &mut Criterion, segment: &Segment, rng: &mut ThreadRng) {
+    // This benchmark fixes the number of rows in the segment (500K), and varies
+    // the cardinality of the group keys.
+    benchmark_read_group_vary_cardinality(
+        c,
+        "segment_read_group_pre_computed_groups_vary_cardinality",
+        &segment,
+        &[],
+        // grouping columns and expected cardinality
+        vec![
+            (vec!["env"], 2),
+            (vec!["env", "data_centre"], 20),
+            (vec!["data_centre", "cluster"], 200),
+            (vec!["cluster", "node_id"], 2000),
+        ]
+        .as_slice(),
+    );
+
+    // This benchmark fixes the cardinality of the group keys and varies the
+    // number of columns grouped to produce that group key cardinality.
+    benchmark_read_group_vary_group_cols(
+        c,
+        "segment_read_group_pre_computed_groups_vary_columns",
+        &segment,
+        &[],
+        // number of cols to group on and expected cardinality
         vec![
             (vec!["cluster"], 200),
             (vec!["data_centre", "cluster"], 200),
@@ -45,23 +111,26 @@ fn read_group(c: &mut Criterion) {
         .as_slice(),
     );
 
-    benchmark_read_group_pre_computed_groups_no_predicates_vary_rows(
+    // This benchmark fixes the cardinality of the group keys and the number of
+    // columns grouped on. It then varies the number of rows in the segment to
+    // be processed.
+    benchmark_read_group_vary_rows(
         c,
-        "segment_read_group_pre_computed_groups_no_predicates_rows",
-        &ROWS,
+        "segment_read_group_pre_computed_groups_vary_rows",
+        &[250_000, 500_000, 750_000, 1_000_000], // segment row sizes to vary
+        &[],
         (vec!["data_centre", "cluster"], 200),
-        &mut rng,
+        rng,
     );
 }
 
-// This benchmark tracks the performance of read_group when it is able to use
-// the per-group bitsets provided by RLE columns. The aim is to understand the
-// expense of working on these bitsets directly in the segment, so the number of
-// rows in the segment is fixed.
-fn benchmark_read_group_pre_computed_groups_no_predicates_vary_cardinality(
+// This benchmarks the impact that the cardinality of group keys has on the
+// performance of read_group.
+fn benchmark_read_group_vary_cardinality(
     c: &mut Criterion,
     benchmark_group_name: &str,
     segment: &Segment,
+    predicates: &[Predicate<'_>],
     cardinalities: &[(Vec<&str>, usize)],
 ) {
     let mut group = c.benchmark_group(benchmark_group_name);
@@ -71,12 +140,17 @@ fn benchmark_read_group_pre_computed_groups_no_predicates_vary_cardinality(
         group.throughput(Throughput::Elements(*expected_cardinality as u64));
 
         group.bench_with_input(
-            BenchmarkId::from_parameter(format!("{:?}", expected_cardinality)),
+            BenchmarkId::from_parameter(format!(
+                "cardinality_{:?}_columns_{:?}_rows_{:?}",
+                expected_cardinality,
+                &group_cols.len(),
+                500_000
+            )),
             &expected_cardinality,
             |b, expected_cardinality| {
                 b.iter(|| {
                     let result = segment.read_group(
-                        &[],
+                        predicates,
                         group_cols.as_slice(),
                         &[("duration", AggregateType::Count)],
                     );
@@ -90,15 +164,13 @@ fn benchmark_read_group_pre_computed_groups_no_predicates_vary_cardinality(
     group.finish();
 }
 
-// This benchmark tracks the performance of read_group when it is able to use
-// the per-group bitsets provided by RLE columns. This benchmark seeks to
-// understand the performance of working on these bitsets directly in the
-// segment when the size of these bitsets changes. Therefore the cardinality
-// (groups) is fixed, but the number of rows in the column is varied.
-fn benchmark_read_group_pre_computed_groups_no_predicates_vary_rows(
+// This benchmarks the impact that the number of rows in a segment has on the
+// performance of read_group.
+fn benchmark_read_group_vary_rows(
     c: &mut Criterion,
     benchmark_group_name: &str,
     row_sizes: &[usize],
+    predicates: &[Predicate<'_>],
     group_columns: (Vec<&str>, usize),
     rng: &mut ThreadRng,
 ) {
@@ -108,14 +180,19 @@ fn benchmark_read_group_pre_computed_groups_no_predicates_vary_rows(
         let segment = generate_segment(*num_rows, rng);
 
         // benchmark measures the throughput of group creation.
-        group.throughput(Throughput::Elements(*num_rows as u64));
+        group.throughput(Throughput::Elements(group_columns.1 as u64));
 
         group.bench_function(
-            BenchmarkId::from_parameter(format!("{:?}", num_rows)),
+            BenchmarkId::from_parameter(format!(
+                "cardinality_{:?}_columns_{:?}_rows_{:?}",
+                group_columns.1,
+                group_columns.0.len(),
+                num_rows
+            )),
             |b| {
                 b.iter(|| {
                     let result = segment.read_group(
-                        &[],
+                        predicates,
                         group_columns.0.as_slice(),
                         &[("duration", AggregateType::Count)],
                     );
@@ -129,15 +206,13 @@ fn benchmark_read_group_pre_computed_groups_no_predicates_vary_rows(
     group.finish();
 }
 
-// This benchmark tracks the performance of read_group when it is able to use
-// the per-group bitsets provided by RLE columns. This benchmark seeks to
-// understand the performance of working varying numbers of these bitset
-// combinations. Therefore the cardinality and number of rows are fixed, but the
-// number of columns grouped on increases.
-fn benchmark_read_group_pre_computed_groups_no_predicates_vary_group_cols(
+// This benchmarks the impact that the number of group columns has on the
+// performance of read_group.
+fn benchmark_read_group_vary_group_cols(
     c: &mut Criterion,
     benchmark_group_name: &str,
     segment: &Segment,
+    predicates: &[Predicate<'_>],
     group_columns: &[(Vec<&str>, usize)],
 ) {
     let mut group = c.benchmark_group(benchmark_group_name);
@@ -145,15 +220,18 @@ fn benchmark_read_group_pre_computed_groups_no_predicates_vary_group_cols(
     for (group_cols, expected_cardinality) in group_columns {
         let num_cols = group_cols.len();
         // benchmark measures the throughput of group creation.
-        group.throughput(Throughput::Elements(num_cols as u64));
+        group.throughput(Throughput::Elements(*expected_cardinality as u64));
 
         group.bench_with_input(
-            BenchmarkId::from_parameter(format!("{:?}", num_cols)),
+            BenchmarkId::from_parameter(format!(
+                "cardinality_{:?}_columns_{:?}_rows_{:?}",
+                *expected_cardinality, num_cols, 500_000
+            )),
             &group_cols,
             |b, group_cols| {
                 b.iter(|| {
                     let result = segment.read_group(
-                        &[],
+                        predicates,
                         group_cols.as_slice(),
                         &[("duration", AggregateType::Count)],
                     );
@@ -323,7 +401,6 @@ fn generate_trace_for_segment(
         // these values are not the same for each span so need to be generated
         // separately.
         let node_id = rng.gen_range(0, 10); // cardinality is 2 * 10 * 10 * 10 = 2,000
-        let node_id = format!("node_id-{}-{}", node_id_prefix, node_id);
 
         column_packers[pod_id_idx].str_packer_mut().push(format!(
             "pod_id-{}-{}-{}",
@@ -331,7 +408,10 @@ fn generate_trace_for_segment(
             node_id,
             rng.gen_range(0, 10) // cardinality is 2 * 10 * 10 * 10 * 10 = 20,000
         ));
-        column_packers[node_id_idx].str_packer_mut().push(node_id);
+
+        column_packers[node_id_idx]
+            .str_packer_mut()
+            .push(format!("node_id-{}-{}", node_id_prefix, node_id));
 
         // randomly generate a span_id
         column_packers[span_id_idx]
