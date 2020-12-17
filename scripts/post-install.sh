@@ -25,6 +25,23 @@ function install_chkconfig {
     chkconfig --add influxdb
 }
 
+function should_upgrade {
+    if [[ ! -s /etc/influxdb/influxdb.conf ]]; then
+        # No V1 config present, no upgrade needed.
+        return 1
+    fi
+
+    bolt_dir="/root/.influxdbv2 /var/lib/influxdb/.influxdbv2 /var/lib/influxdb"
+    for bolt in $bolt_dir; do
+        if [[ -s ${bolt}/influxd.bolt ]]; then
+            # Found a bolt file, assume previous v2 upgrade.
+            return 1
+        fi
+    done
+
+    return 0
+}
+
 function upgrade_notice {
 cat << EOF
 
@@ -51,12 +68,18 @@ https://docs.influxdata.com/influxdb/v2.0/get-started/
 EOF
 }
 
+function init_config {
+    mkdir -p $(dirname ${INFLUXD_CONFIG_PATH})
+    cat << EOF > ${INFLUXD_CONFIG_PATH}
+bolt-path = "/var/lib/influxdb/influxd.bolt"
+engine-path = "/var/lib/influxdb/engine"
+EOF
+}
+
 # Add defaults file, if it doesn't exist
 if [[ ! -s /etc/default/influxdb2 ]]; then
 cat << EOF > /etc/default/influxdb2
-INFLUXD_CONFIG_PATH=/etc/influxdb/config.toml
-INFLUXD_BOLT_PATH=/var/lib/influxdb/influxd.bolt
-INFLUXD_ENGINE_PATH=/var/lib/influxdb/engine
+INFLUXD_CONFIG_PATH=${INFLUXD_CONFIG_PATH}
 EOF
 fi
 
@@ -105,13 +128,8 @@ elif [[ -f /etc/os-release ]]; then
 fi
 
 # Check upgrade status
-bolt_dir="/root/.influxdbv2 /var/lib/influxdb/.influxdbv2 /var/lib/influxdb"
-for bolt in $bolt_dir
-do
-  if [[ -s ${bolt}/influxd.bolt ]]; then
-    # Found a bolt file, assume previous v2 upgrade
-    exit 0
-  fi
-done
-
-upgrade_notice
+if should_upgrade; then
+    upgrade_notice
+else
+    init_config
+fi
