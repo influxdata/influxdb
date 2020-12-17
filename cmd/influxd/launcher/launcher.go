@@ -143,10 +143,9 @@ func cmdRunE(ctx context.Context, l *Launcher) func() error {
 	return func() error {
 		fluxinit.FluxInit()
 
-		// exit with SIGINT and SIGTERM
-		ctx = signals.WithStandardSignals(ctx)
-
-		if err := l.run(ctx); err != nil {
+		// Start the launcher and wait for it to exit on SIGINT or SIGTERM.
+		runCtx := signals.WithStandardSignals(ctx)
+		if err := l.run(runCtx); err != nil {
 			return err
 		} else if !l.Running() {
 			return errors.New("the daemon is already running")
@@ -159,16 +158,16 @@ func cmdRunE(ctx context.Context, l *Launcher) func() error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				reporter.Report(ctx)
+				reporter.Report(runCtx)
 			}()
 		}
 
-		<-ctx.Done()
+		<-runCtx.Done()
 
 		// Attempt clean shutdown.
-		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		l.Shutdown(ctx)
+		l.Shutdown(shutdownCtx)
 		wg.Wait()
 
 		return nil
