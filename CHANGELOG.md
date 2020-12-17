@@ -7,6 +7,7 @@
 1. [20348](https://github.com/influxdata/influxdb/pull/20348): Ensure `config.toml` is initialized on fresh `influxdb2` installs.
 1. [20349](https://github.com/influxdata/influxdb/pull/20349): Ensure `influxdb` service sees default env variables when running under `init.d`.
 1. [20317](https://github.com/influxdata/influxdb/pull/20317): Don't ignore failures to set password during initial user onboarding.
+1. [20362](https://github.com/influxdata/influxdb/pull/20362): Don't overwrite stack name/description on `influx stack update`.
 
 ## v2.0.3 [2020-12-14]
 
