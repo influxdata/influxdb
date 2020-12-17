@@ -167,7 +167,9 @@ func (m *Launcher) Engine() Engine {
 
 // Shutdown shuts down the HTTP server and waits for all services to clean up.
 func (m *Launcher) Shutdown(ctx context.Context) {
-	m.httpServer.Shutdown(ctx)
+	if err := m.httpServer.Shutdown(ctx); err != nil {
+		m.log.Error("Failed to close HTTP server", zap.Error(err))
+	}
 
 	m.log.Info("Stopping", zap.String("service", "task"))
 

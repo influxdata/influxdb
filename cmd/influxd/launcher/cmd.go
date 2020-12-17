@@ -70,19 +70,20 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 	return func() error {
 		fluxinit.FluxInit()
 
-		// exit with SIGINT and SIGTERM
-		ctx = signals.WithStandardSignals(ctx)
-
 		l := NewLauncher()
-		if err := l.run(ctx, o); err != nil {
+
+		// Start the launcher and wait for it to exit on SIGINT or SIGTERM.
+		runCtx := signals.WithStandardSignals(ctx)
+		if err := l.run(runCtx, o); err != nil {
 			return err
 		}
-		<-ctx.Done()
+		<-runCtx.Done()
 
-		// Attempt clean shutdown.
-		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		// Tear down the launcher, allowing it a few seconds to finish any
+		// in-progress requests.
+		shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		l.Shutdown(ctx)
+		l.Shutdown(shutdownCtx)
 
 		return nil
 	}
