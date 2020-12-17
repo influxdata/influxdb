@@ -636,6 +636,118 @@ func Test_Template_Commands(t *testing.T) {
 				t.Run(tt.name, fn)
 			}
 		})
+
+		t.Run("update", func(t *testing.T) {
+			tests := []struct {
+				name          string
+				args          []string
+				expectedStack pkger.Stack
+			}{
+				{
+					name: "when stack name and decription are set",
+					args: []string{"--stack-name=updated_name", "--stack-description=updated_description"},
+					expectedStack: pkger.Stack{
+						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							Name:        "updated_name",
+							Description: "updated_description",
+						}},
+					},
+				},
+				{
+					name: "when only stack name is set",
+					args: []string{"--stack-name=updated_name"},
+					expectedStack: pkger.Stack{
+						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							Name:        "updated_name",
+							Description: "original_description",
+						}},
+					},
+				},
+				{
+					name: "when only stack description is set",
+					args: []string{"--stack-description=updated_description"},
+					expectedStack: pkger.Stack{
+						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							Name:        "original_name",
+							Description: "updated_description",
+						}},
+					},
+				},
+				{
+					name: "when neither stack name/description is set",
+					args: []string{},
+					expectedStack: pkger.Stack{
+						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							Name:        "original_name",
+							Description: "original_description",
+						}},
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					defer addEnvVars(t, envVarsZeroMap)()
+
+					outBuf := new(bytes.Buffer)
+					defer func() {
+						if t.Failed() && outBuf.Len() > 0 {
+							t.Log(outBuf.String())
+						}
+					}()
+
+					builder := newInfluxCmdBuilder(
+						in(new(bytes.Buffer)),
+						out(outBuf),
+					)
+
+					initialStack := pkger.Stack{
+						ID:    9000,
+						OrgID: 1,
+						Events: []pkger.StackEvent{
+							{
+								Name:        "original_name",
+								Description: "original_description",
+							},
+						},
+					}
+					rootCmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+						echoSVC := &fakePkgSVC{
+							updateStackFn: func(ctx context.Context, stUpdate pkger.StackUpdate) (pkger.Stack, error) {
+								returnStack := initialStack
+								if stUpdate.Name != nil {
+									returnStack.Events[0].Name = *stUpdate.Name
+								}
+								if stUpdate.Description != nil {
+									returnStack.Events[0].Description = *stUpdate.Description
+								}
+								return returnStack, nil
+							},
+						}
+						return newCmdPkgerBuilder(fakeSVCFn(echoSVC), f, opt).cmdStacks()
+					})
+
+					baseArgs := []string{"stacks", "update", "--stack-id=" + influxdb.ID(1).String(), "--json"}
+
+					rootCmd.SetArgs(append(baseArgs, tt.args...))
+
+					err := rootCmd.Execute()
+					require.NoError(t, err)
+					var stack pkger.Stack
+					testDecodeJSONBody(t, outBuf, &stack)
+					if tt.expectedStack.ID == 0 {
+						tt.expectedStack.ID = 9000
+					}
+					assert.Equal(t, tt.expectedStack, stack)
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
 	})
 }
 
@@ -776,10 +888,11 @@ func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args templ
 }
 
 type fakePkgSVC struct {
-	initStackFn func(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error)
-	exportFn    func(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Template, error)
-	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
-	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
+	initStackFn   func(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error)
+	updateStackFn func(ctx context.Context, upd pkger.StackUpdate) (pkger.Stack, error)
+	exportFn      func(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Template, error)
+	dryRunFn      func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
+	applyFn       func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
 }
 
 var _ pkger.SVC = (*fakePkgSVC)(nil)
@@ -812,6 +925,9 @@ func (f *fakePkgSVC) ReadStack(ctx context.Context, id influxdb.ID) (pkger.Stack
 }
 
 func (f *fakePkgSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pkger.Stack, error) {
+	if f.updateStackFn != nil {
+		return f.updateStackFn(ctx, upd)
+	}
 	panic("not implemented")
 }
 
