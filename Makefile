@@ -44,13 +44,15 @@ ifdef VERSION
 	LDFLAGS += -X main.version=$(VERSION)
 endif
 
+# Allow for `go test` to be swapped out by other tooling, i.e. `gotestsum`
+GO_TEST_CMD=go test
 
 # Test vars can be used by all recursive Makefiles
 export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh
 export GO_BUILD=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
 export GO_BUILD_SM=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "-s -w $(LDFLAGS)"
 export GO_INSTALL=env GO111MODULE=on go install $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
-export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_TEST_ARGS)
+export GO_TEST=env GOTRACEBACK=all GO111MODULE=on $(GO_TEST_CMD) $(GO_TEST_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
 export GO_GENERATE=go generate $(GO_BUILD_ARGS)
 export GO_VET=env GO111MODULE=on go vet $(GO_TEST_ARGS)
@@ -146,9 +148,14 @@ generate: $(SUBDIRS)
 test-js: node_modules
 	make -C ui test
 
-# Download tsdb testdata before running unit tests
 test-go:
 	$(GO_TEST) ./...
+
+test-influxql-integration:
+	$(GO_TEST) -mod=readonly ./influxql/_v1tests
+
+test-influxql-validation:
+	$(GO_TEST) -mod=readonly ./influxql/_v1validation
 
 test-promql-e2e:
 	cd query/promql/internal/promqltests; go test ./...
