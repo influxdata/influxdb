@@ -157,9 +157,6 @@ test-influxql-integration:
 test-influxql-validation:
 	$(GO_TEST) -mod=readonly ./influxql/_v1validation
 
-test-promql-e2e:
-	cd query/promql/internal/promqltests; go test ./...
-
 test-integration: GO_TAGS=integration
 test-integration:
 	$(GO_TEST) -count=1 ./...
