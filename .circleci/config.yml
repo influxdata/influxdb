@@ -261,6 +261,7 @@ jobs:
           command: |
             set +e
             TESTFILES=$(go list ./... | circleci tests split --split-by=timings)
+            echo $TESTFILES
             GOTRACEBACK=all GO111MODULE=on ./env gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 $TESTFILES
 
   influxql_validation:
