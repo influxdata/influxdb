@@ -17,7 +17,9 @@ import (
 )
 
 func TestStorage_WriteAndQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
+	l := launcher.NewTestLauncher()
+	l.RunOrFail(t, ctx)
+	defer l.ShutdownOrFail(t, ctx)
 
 	org1 := l.OnBoardOrFail(t, &influxdb.OnboardingRequest{
 		User:     "USER-1",
@@ -31,8 +33,6 @@ func TestStorage_WriteAndQuery(t *testing.T) {
 		Org:      "ORG-02",
 		Bucket:   "BUCKET",
 	})
-
-	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
 	l.WriteOrFail(t, org1, `m,k=v1 f=100i 946684800000000000`)
@@ -54,8 +54,7 @@ func TestStorage_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_WriteAndQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
@@ -92,8 +91,7 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_BucketDelete(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
@@ -158,8 +156,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 }
 
 func TestLauncher_DeleteWithPredicate(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Write data to server.
@@ -203,8 +200,7 @@ func TestLauncher_DeleteWithPredicate(t *testing.T) {
 }
 
 func TestLauncher_UpdateRetentionPolicy(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	bucket, err := l.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{ID: &l.Bucket.ID})

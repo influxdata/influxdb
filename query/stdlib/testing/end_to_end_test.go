@@ -88,10 +88,15 @@ func BenchmarkFluxEndToEnd(b *testing.B) {
 }
 
 func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
+	l := launcher.NewTestLauncher()
+
 	flagger := newFlagger(itesting.FluxEndToEndFeatureFlags)
-	l := launcher.RunTestLauncherOrFail(t, ctx, flagger)
-	l.SetupOrFail(t)
+	l.SetFlagger(flagger)
+
+	l.RunOrFail(t, ctx)
 	defer l.ShutdownOrFail(t, ctx)
+	l.SetupOrFail(t)
+
 	for _, pkg := range pkgs {
 		test := func(t *testing.T, f func(t *testing.T)) {
 			t.Run(pkg.Path, f)

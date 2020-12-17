@@ -40,7 +40,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
-	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/nats"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
@@ -122,9 +121,6 @@ type Launcher struct {
 	log                *zap.Logger
 	reg                *prom.Registry
 
-	Stdin      io.Reader
-	Stdout     io.Writer
-	Stderr     io.Writer
 	apibackend *http.APIBackend
 }
 
@@ -135,13 +131,9 @@ type stoppingScheduler interface {
 
 // NewLauncher returns a new instance of Launcher connected to standard in/out/err.
 func NewLauncher() *Launcher {
-	l := &Launcher{
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+	return &Launcher{
+		log: zap.NewNop(),
 	}
-
-	return l
 }
 
 // Registry returns the prometheus metrics registry.
@@ -212,18 +204,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	defer span.Finish()
 
 	ctx, m.cancel = context.WithCancel(ctx)
-
-	if m.log == nil {
-		// Create top level logger
-		logconf := &influxlogger.Config{
-			Format: "auto",
-			Level:  opts.LogLevel,
-		}
-		m.log, err = logconf.New(m.Stdout)
-		if err != nil {
-			return err
-		}
-	}
 
 	info := platform.GetBuildInfo()
 	m.log.Info("Welcome to InfluxDB",

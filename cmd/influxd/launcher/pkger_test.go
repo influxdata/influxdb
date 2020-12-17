@@ -27,11 +27,11 @@ import (
 var ctx = context.Background()
 
 func TestLauncher_Pkger(t *testing.T) {
-	l := RunTestLauncherOrFail(t, ctx, nil, func(o *InfluxdOpts) {
+	l := RunAndSetupNewLauncherOrFail(ctx, t, func(o *InfluxdOpts) {
 		o.LogLevel = zap.ErrorLevel
 	})
-	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
+
 	require.NoError(t, l.BucketService(t).DeleteBucket(ctx, l.Bucket.ID))
 
 	svc := l.PkgerService(t)

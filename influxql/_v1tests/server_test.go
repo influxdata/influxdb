@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/tests"
 )
 
 const (
@@ -635,7 +635,9 @@ func TestServer_Query_Count(t *testing.T) {
 // Ensure the server can limit concurrent series.
 func TestServer_Query_MaxSelectSeriesN(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(t, tests.WithInfluxQLMaxSelectSeriesN(3))
+	s := OpenServer(t, func(o *launcher.InfluxdOpts) {
+		o.CoordinatorConfig.MaxSelectSeriesN = 3
+	})
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -6242,7 +6244,9 @@ func TestServer_Query_With_EmptyTags(t *testing.T) {
 
 func TestServer_Query_ImplicitFill(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(t, tests.WithInfluxQLMaxSelectBucketsN(5))
+	s := OpenServer(t, func(o *launcher.InfluxdOpts) {
+		o.CoordinatorConfig.MaxSelectBucketsN = 5
+	})
 	defer s.Close()
 
 	writes := []string{
