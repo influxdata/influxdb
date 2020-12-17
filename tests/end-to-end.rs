@@ -88,7 +88,7 @@ async fn write_data(
 
 #[tokio::test]
 async fn read_and_write_data() -> Result<()> {
-    let mut server = TestServer::new()?;
+    let server = TestServer::new()?;
     server.wait_until_ready().await;
 
     let org_id_str = "0000111100001111";
@@ -195,22 +195,6 @@ async fn read_and_write_data() -> Result<()> {
     // instead of crashing
     let invalid_org_dir = server.dir.path().join("not-an-org-id");
     fs::create_dir(invalid_org_dir)?;
-
-    // Test the WAL by restarting the server
-    server.restart()?;
-    server.wait_until_ready().await;
-
-    // Then check the entries are restored from the WAL
-
-    let text = read_data_as_sql(
-        &client,
-        "/read",
-        org_id_str,
-        bucket_id_str,
-        "select * from cpu_load_short",
-    )
-    .await?;
-    assert_eq!(text, expected_read_data);
 
     let mut storage_client = StorageClient::connect(GRPC_URL_BASE).await?;
 
@@ -810,6 +794,7 @@ impl TestServer {
             // Can enable for debbugging
             //.arg("-vv")
             .env("INFLUXDB_IOX_DB_DIR", dir.path())
+            .env("INFLUXDB_IOX_ID", "1")
             .spawn()?;
 
         Ok(Self {
@@ -818,6 +803,7 @@ impl TestServer {
         })
     }
 
+    #[allow(dead_code)]
     fn restart(&mut self) -> Result<()> {
         self.server_process.kill()?;
         self.server_process.wait()?;

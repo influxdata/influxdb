@@ -1,4 +1,4 @@
-use tracing::{debug, info};
+use tracing::{info, warn};
 
 use std::fs;
 use std::net::SocketAddr;
@@ -7,12 +7,12 @@ use std::{env::VarError, path::PathBuf};
 
 use crate::server::http_routes;
 use crate::server::rpc::service;
+use server::server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
 use object_store::{self, GoogleCloudStorage, ObjectStore};
 use query::exec::Executor as QueryExecutor;
-use write_buffer::{Db, WriteBufferDatabases};
 
 use snafu::{ResultExt, Snafu};
 
@@ -72,10 +72,6 @@ pub async fn main() -> Result<()> {
 
     fs::create_dir_all(&db_dir).context(CreatingDatabaseDirectory { path: &db_dir })?;
 
-    debug!("InfluxDB IOx Server using database directory: {:?}", db_dir);
-
-    let storage = Arc::new(WriteBufferDatabases::new(&db_dir));
-
     let object_store = if let Ok(bucket) = std::env::var("INFLUXDB_IOX_GCP_BUCKET") {
         info!("Using GCP bucket {} for storage", &bucket);
         ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket))
@@ -85,24 +81,20 @@ pub async fn main() -> Result<()> {
     };
     let object_storage = Arc::new(object_store);
 
-    let dirs = storage
-        .wal_dirs()
-        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-        .context(InitializingWriteBuffer { db_dir })?;
+    let connection_manager = ConnectionManager {};
+    let app_server = Arc::new(AppServer::new(connection_manager, object_storage));
 
-    // TODO: make recovery of multiple databases multi-threaded
-    for dir in dirs {
-        let db = Db::restore_from_wal(&dir)
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-            .context(RestoringWriteBuffer { dir })?;
-        storage.add_db(db).await;
+    // if this ID isn't set the server won't be usable until this is set via an API
+    // call
+    if let Ok(id) = std::env::var("INFLUXDB_IOX_ID") {
+        let id = id
+            .parse::<u32>()
+            .expect("INFLUXDB_IOX_ID must be a u32 integer");
+        info!("setting server ID to {}", id);
+        app_server.set_id(id).await;
+    } else {
+        warn!("server ID not set. This must be set via API before writing or querying data.");
     }
-
-    let app_server = Arc::new(http_routes::AppServer {
-        write_buffer: storage.clone(),
-        object_store: object_storage.clone(),
-    });
 
     // Fire up the query executor
     let executor = Arc::new(QueryExecutor::default());
@@ -123,7 +115,7 @@ pub async fn main() -> Result<()> {
         .await
         .expect("failed to bind server");
 
-    let grpc_server = service::make_server(socket, storage.clone(), executor);
+    let grpc_server = service::make_server(socket, app_server.clone(), executor);
 
     info!("gRPC server listening on http://{}", grpc_bind_addr);
 

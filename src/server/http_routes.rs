@@ -17,10 +17,12 @@ use tracing::{debug, error, info};
 
 use arrow_deps::arrow;
 use influxdb_line_protocol::parse_lines;
-use query::{DatabaseStore, SQLDatabase, TSDatabase};
+use query::SQLDatabase;
+use server::server::{ConnectionManager, Server as AppServer};
 
 use super::{org_and_bucket_to_database, OrgBucketMappingError};
 use bytes::{Bytes, BytesMut};
+use data_types::database_rules::DatabaseRules;
 use futures::{self, StreamExt};
 use hyper::{Body, Method, StatusCode};
 use serde::Deserialize;
@@ -218,9 +220,9 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
 }
 
 #[tracing::instrument(level = "debug")]
-async fn write<T: DatabaseStore>(
+async fn write<M: ConnectionManager + std::fmt::Debug>(
     req: hyper::Request<Body>,
-    server: Arc<AppServer<T>>,
+    server: Arc<AppServer<M>>,
 ) -> Result<Option<Body>, ApplicationError> {
     let query = req.uri().query().context(ExpectedQueryString)?;
 
@@ -230,16 +232,6 @@ async fn write<T: DatabaseStore>(
 
     let db_name = org_and_bucket_to_database(&write_info.org, &write_info.bucket)
         .context(BucketMappingError)?;
-
-    let db = server
-        .write_buffer
-        .db_or_create(&db_name)
-        .await
-        .map_err(|e| Box::new(e) as _)
-        .context(BucketByName {
-            org: &write_info.org.clone(),
-            bucket_name: write_info.bucket.clone(),
-        })?;
 
     let body = parse_body(req).await?;
 
@@ -257,7 +249,24 @@ async fn write<T: DatabaseStore>(
         write_info.bucket
     );
 
-    db.write_lines(&lines)
+    // TODO: remove this once the API is in to create a database
+    if server.db(&db_name).await.is_none() {
+        let rules = DatabaseRules {
+            store_locally: true,
+            ..Default::default()
+        };
+        server
+            .create_database(db_name.to_string(), rules)
+            .await
+            .map_err(|e| Box::new(e) as _)
+            .context(WritingPoints {
+                org: write_info.org.clone(),
+                bucket_name: write_info.bucket.clone(),
+            })?;
+    }
+
+    server
+        .write_lines(&db_name, &lines)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(WritingPoints {
@@ -281,9 +290,9 @@ struct ReadInfo {
 // TODO: figure out how to stream read results out rather than rendering the
 // whole thing in mem
 #[tracing::instrument(level = "debug")]
-async fn read<T: DatabaseStore>(
+async fn read<M: ConnectionManager + std::fmt::Debug>(
     req: hyper::Request<Body>,
-    server: Arc<AppServer<T>>,
+    server: Arc<AppServer<M>>,
 ) -> Result<Option<Body>, ApplicationError> {
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
@@ -294,14 +303,10 @@ async fn read<T: DatabaseStore>(
     let db_name = org_and_bucket_to_database(&read_info.org, &read_info.bucket)
         .context(BucketMappingError)?;
 
-    let db = server
-        .write_buffer
-        .db(&db_name)
-        .await
-        .context(BucketNotFound {
-            org: read_info.org.clone(),
-            bucket: read_info.bucket.clone(),
-        })?;
+    let db = server.db(&db_name).await.context(BucketNotFound {
+        org: read_info.org.clone(),
+        bucket: read_info.bucket.clone(),
+    })?;
 
     let results = db
         .query(&read_info.sql_query)
@@ -325,12 +330,6 @@ fn no_op(name: &str) -> Result<Option<Body>, ApplicationError> {
     Ok(None)
 }
 
-#[derive(Debug)]
-pub struct AppServer<T> {
-    pub write_buffer: Arc<T>,
-    pub object_store: Arc<object_store::ObjectStore>,
-}
-
 #[derive(Deserialize, Debug)]
 /// Arguments in the query string of the request to /partitions
 struct DatabaseInfo {
@@ -339,9 +338,9 @@ struct DatabaseInfo {
 }
 
 #[tracing::instrument(level = "debug")]
-async fn list_partitions<T: DatabaseStore>(
+async fn list_partitions<M: ConnectionManager + std::fmt::Debug>(
     req: hyper::Request<Body>,
-    app_server: Arc<AppServer<T>>,
+    app_server: Arc<AppServer<M>>,
 ) -> Result<Option<Body>, ApplicationError> {
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
@@ -352,14 +351,10 @@ async fn list_partitions<T: DatabaseStore>(
     let db_name =
         org_and_bucket_to_database(&info.org, &info.bucket).context(BucketMappingError)?;
 
-    let db = app_server
-        .write_buffer
-        .db(&db_name)
-        .await
-        .context(BucketNotFound {
-            org: &info.org,
-            bucket: &info.bucket,
-        })?;
+    let db = app_server.db(&db_name).await.context(BucketNotFound {
+        org: &info.org,
+        bucket: &info.bucket,
+    })?;
 
     let partition_keys = db
         .partition_keys()
@@ -384,9 +379,9 @@ struct SnapshotInfo {
 }
 
 #[tracing::instrument(level = "debug")]
-async fn snapshot_partition<T: DatabaseStore>(
+async fn snapshot_partition<M: ConnectionManager + std::fmt::Debug>(
     req: hyper::Request<Body>,
-    server: Arc<AppServer<T>>,
+    server: Arc<AppServer<M>>,
 ) -> Result<Option<Body>, ApplicationError> {
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
@@ -399,14 +394,10 @@ async fn snapshot_partition<T: DatabaseStore>(
 
     // TODO: refactor the rest of this out of the http route and into the server
     // crate.
-    let db = server
-        .write_buffer
-        .db(&db_name)
-        .await
-        .context(BucketNotFound {
-            org: &snapshot.org,
-            bucket: &snapshot.bucket,
-        })?;
+    let db = server.db(&db_name).await.context(BucketNotFound {
+        org: &snapshot.org,
+        bucket: &snapshot.bucket,
+    })?;
 
     let metadata_path = format!("{}/meta", &db_name);
     let data_path = format!("{}/data/{}", &db_name, &snapshot.partition);
@@ -414,8 +405,8 @@ async fn snapshot_partition<T: DatabaseStore>(
     let snapshot = server::snapshot::snapshot_partition(
         metadata_path,
         data_path,
-        server.object_store.clone(),
-        partition,
+        server.store.clone(),
+        Arc::new(partition),
         None,
     )
     .unwrap();
@@ -424,9 +415,9 @@ async fn snapshot_partition<T: DatabaseStore>(
     Ok(Some(ret.into_bytes().into()))
 }
 
-pub async fn service<T: DatabaseStore>(
+pub async fn service<M: ConnectionManager + std::fmt::Debug>(
     req: hyper::Request<Body>,
-    server: Arc<AppServer<T>>,
+    server: Arc<AppServer<M>>,
 ) -> http::Result<hyper::Response<Body>> {
     let method = req.method().clone();
     let uri = req.uri().clone();
@@ -477,18 +468,20 @@ mod tests {
     use hyper::service::{make_service_fn, service_fn};
     use hyper::Server;
 
+    use data_types::database_rules::DatabaseRules;
+    use data_types::DatabaseName;
     use object_store::{InMemory, ObjectStore};
-    use query::{test::TestDatabaseStore, DatabaseStore};
+    use server::server::ConnectionManagerImpl;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
     #[tokio::test]
     async fn test_ping() -> Result<()> {
-        let test_storage = Arc::new(AppServer {
-            write_buffer: Arc::new(TestDatabaseStore::new()),
-            object_store: Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-        });
+        let test_storage = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
         let server_url = test_server(test_storage.clone());
 
         let client = Client::new();
@@ -501,10 +494,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_write() -> Result<()> {
-        let test_storage = Arc::new(AppServer {
-            write_buffer: Arc::new(TestDatabaseStore::new()),
-            object_store: Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-        });
+        let test_storage = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        test_storage.set_id(1).await;
+        let rules = DatabaseRules {
+            store_locally: true,
+            ..Default::default()
+        };
+        test_storage
+            .create_database("MyOrg_MyBucket", rules)
+            .await
+            .unwrap();
         let server_url = test_server(test_storage.clone());
 
         let client = Client::new();
@@ -527,13 +529,27 @@ mod tests {
 
         // Check that the data got into the right bucket
         let test_db = test_storage
-            .write_buffer
-            .db("MyOrg_MyBucket")
+            .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
             .await
             .expect("Database exists");
 
-        // Ensure the same line protocol data gets through
-        assert_eq!(test_db.get_lines().await, vec![lp_data]);
+        let results = test_db
+            .query("select * from h2o_temperature")
+            .await
+            .unwrap();
+        let results_str = arrow::util::pretty::pretty_format_batches(&results).unwrap();
+        let results: Vec<_> = results_str.split('\n').collect();
+
+        let expected = vec![
+            "+----------------+--------------+-------+-----------------+------------+",
+            "| bottom_degrees | location     | state | surface_degrees | time       |",
+            "+----------------+--------------+-------+-----------------+------------+",
+            "| 50.4           | santa_monica | CA    | 65.2            | 1568756160 |",
+            "+----------------+--------------+-------+-----------------+------------+",
+            "",
+        ];
+        assert_eq!(results, expected);
+
         Ok(())
     }
 
@@ -547,10 +563,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_gzip_write() -> Result<()> {
-        let test_storage = Arc::new(AppServer {
-            write_buffer: Arc::new(TestDatabaseStore::new()),
-            object_store: Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-        });
+        let test_storage = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        test_storage.set_id(1).await;
+        let rules = DatabaseRules {
+            store_locally: true,
+            ..Default::default()
+        };
+        test_storage
+            .create_database("MyOrg_MyBucket", rules)
+            .await
+            .unwrap();
         let server_url = test_server(test_storage.clone());
 
         let client = Client::new();
@@ -573,13 +598,27 @@ mod tests {
 
         // Check that the data got into the right bucket
         let test_db = test_storage
-            .write_buffer
-            .db("MyOrg_MyBucket")
+            .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
             .await
             .expect("Database exists");
 
-        // Ensure the same line protocol data gets through
-        assert_eq!(test_db.get_lines().await, vec![lp_data]);
+        let results = test_db
+            .query("select * from h2o_temperature")
+            .await
+            .unwrap();
+        let results_str = arrow::util::pretty::pretty_format_batches(&results).unwrap();
+        let results: Vec<_> = results_str.split('\n').collect();
+
+        let expected = vec![
+            "+----------------+--------------+-------+-----------------+------------+",
+            "| bottom_degrees | location     | state | surface_degrees | time       |",
+            "+----------------+--------------+-------+-----------------+------------+",
+            "| 50.4           | santa_monica | CA    | 65.2            | 1568756160 |",
+            "+----------------+--------------+-------+-----------------+------------+",
+            "",
+        ];
+        assert_eq!(results, expected);
+
         Ok(())
     }
 
@@ -610,7 +649,7 @@ mod tests {
 
     /// creates an instance of the http service backed by a in-memory
     /// testable database.  Returns the url of the server
-    fn test_server(server: Arc<AppServer<TestDatabaseStore>>) -> String {
+    fn test_server(server: Arc<AppServer<ConnectionManagerImpl>>) -> String {
         let make_svc = make_service_fn(move |_conn| {
             let server = server.clone();
             async move {
