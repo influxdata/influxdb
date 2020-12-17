@@ -6,7 +6,7 @@
 1. [20351](https://github.com/influxdata/influxdb/pull/20351): Ensure `influxdb` service sees default env variables when running under `init.d`.
 1. [20350](https://github.com/influxdata/influxdb/pull/20350): Don't show the upgrade notice on fresh `influxdb2` installs.
 1. [20350](https://github.com/influxdata/influxdb/pull/20350): Ensure `config.toml` is initialized on fresh `influxdb2` installs.
-1. [20339](https://github.com/influxdata/influxdb/pull/20339): Include upgrade helper script in goreleaser manifest.
+1. [20347](https://github.com/influxdata/influxdb/pull/20347): Include upgrade helper script in goreleaser manifest.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
