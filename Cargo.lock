@@ -2793,6 +2793,7 @@ dependencies = [
  "croaring",
  "data_types",
  "either",
+ "hashbrown",
  "itertools 0.9.0",
  "packers",
  "permutation",
