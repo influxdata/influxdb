@@ -1242,6 +1242,21 @@ south,NULL,PUT
 west,prod,GET
 ",
             ),
+            // This case is identical to above but has an explicit
+            // `region > "north"` predicate.
+            (
+                build_predicates_with_time(
+                    -1,
+                    10,
+                    vec![("region", (Operator::GT, Value::String("north")))],
+                ),
+                vec!["region", "env"],
+                vec![("method", AggregateType::Min)], // Yep, you can aggregate any column.
+                "region,env,method_min
+south,NULL,PUT
+west,prod,GET
+",
+            ),
         ];
 
         for (predicate, group_cols, aggs, expected) in cases {
