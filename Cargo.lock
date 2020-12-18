@@ -1372,8 +1372,8 @@ dependencies = [
  "prost-types",
  "query",
  "rand",
+ "read_buffer",
  "reqwest",
- "segment_store",
  "serde",
  "serde_json",
  "serde_urlencoded 0.7.0",
@@ -2515,6 +2515,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "read_buffer"
+version = "0.1.0"
+dependencies = [
+ "arrow_deps",
+ "criterion",
+ "croaring",
+ "data_types",
+ "either",
+ "hashbrown",
+ "itertools 0.9.0",
+ "packers",
+ "permutation",
+ "rand",
+ "rand_distr",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2811,23 +2828,6 @@ checksum = "f99b9d5e26d2a71633cc4f2ebae7cc9f874044e0c351a27e17892d76dce5678b"
 dependencies = [
  "core-foundation-sys",
  "libc",
-]
-
-[[package]]
-name = "segment_store"
-version = "0.1.0"
-dependencies = [
- "arrow_deps",
- "criterion",
- "croaring",
- "data_types",
- "either",
- "hashbrown",
- "itertools 0.9.0",
- "packers",
- "permutation",
- "rand",
- "rand_distr",
 ]
 
 [[package]]
