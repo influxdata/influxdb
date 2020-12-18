@@ -36,6 +36,7 @@ fn read_group_predicate_all_time(c: &mut Criterion, segment: &Segment, rng: &mut
         &time_pred,
         // grouping columns and expected cardinality
         vec![
+            (vec!["env"], 20),
             (vec!["env", "data_centre"], 20),
             (vec!["data_centre", "cluster"], 200),
             (vec!["cluster", "node_id"], 2000),
@@ -53,6 +54,7 @@ fn read_group_predicate_all_time(c: &mut Criterion, segment: &Segment, rng: &mut
         &time_pred,
         // number of cols to group on and expected cardinality
         vec![
+            (vec!["pod_id"], 20000),
             (vec!["node_id", "pod_id"], 20000),
             (vec!["cluster", "node_id", "pod_id"], 20000),
             (vec!["data_centre", "cluster", "node_id", "pod_id"], 20000),
