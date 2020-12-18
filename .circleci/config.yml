@@ -263,6 +263,23 @@ jobs:
             TESTFILES=$(go list ./... | circleci tests split --split-by=timings)
             echo $TESTFILES
             GOTRACEBACK=all GO111MODULE=on ./env gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 $TESTFILES
+      - save_cache:
+          name: Saving GOCACHE
+          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+          when: always
+      - save_cache:
+          name: Saving GOPATH/pkg/mod
+          key: influxdb-gomod-{{ checksum "go.sum" }}
+          paths:
+            - /go/pkg/mod
+          when: always
+      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
+          path: /tmp/test-results
 
   influxql_validation:
     docker:
