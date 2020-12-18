@@ -3,8 +3,6 @@ use std::{borrow::Cow, collections::BTreeMap};
 use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 
-use arrow_deps::arrow::datatypes::SchemaRef;
-
 use crate::column::{
     cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, OwnedValue, RowIDs,
     RowIDsOption, Scalar, Value, Values, ValuesIterator,
@@ -13,34 +11,11 @@ use crate::column::{
 /// The name used for a timestamp column.
 pub const TIME_COLUMN_NAME: &str = data_types::TIME_COLUMN_NAME;
 
-#[derive(Debug)]
-pub struct Schema {
-    schema_ref: SchemaRef,
-    // TODO(edd): column sort order??
-}
-
-impl Schema {
-    pub fn new(schema: SchemaRef) -> Self {
-        Self { schema_ref: schema }
-    }
-
-    pub fn schema_ref(&self) -> SchemaRef {
-        self.schema_ref.clone()
-    }
-
-    pub fn cols(&self) -> usize {
-        self.schema_ref.fields().len()
-    }
-}
-
-/// A Segment is an immutable horizontal section (segment) of a table. By
-/// definition it has the same schema as all the other segments in the table.
-/// Further, all the columns within the segment have the same number of logical
+/// A `RowGroup` is an immutable horizontal partition of a single `Table`. By
+/// definition it has the same schema as all the other read groups in the table.
+/// All the columns within the `RowGroup` must have the same number of logical
 /// rows.
-///
-/// This implementation will pull over the bulk of the prototype segment store
-/// crate.
-pub struct Segment {
+pub struct RowGroup {
     meta: MetaData,
 
     columns: Vec<Column>,
@@ -50,14 +25,14 @@ pub struct Segment {
     time_column: usize,
 }
 
-impl Segment {
+impl RowGroup {
     pub fn new(rows: u32, columns: BTreeMap<String, ColumnType>) -> Self {
         let mut meta = MetaData {
             rows,
             ..MetaData::default()
         };
 
-        let mut segment_columns = vec![];
+        let mut all_columns = vec![];
         let mut all_columns_by_name = BTreeMap::new();
         let mut tag_columns_by_name = BTreeMap::new();
         let mut field_columns_by_name = BTreeMap::new();
@@ -71,18 +46,18 @@ impl Segment {
 
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
-                    all_columns_by_name.insert(name.clone(), segment_columns.len());
-                    tag_columns_by_name.insert(name, segment_columns.len());
-                    segment_columns.push(c);
+                    all_columns_by_name.insert(name.clone(), all_columns.len());
+                    tag_columns_by_name.insert(name, all_columns.len());
+                    all_columns.push(c);
                 }
                 ColumnType::Field(c) => {
                     assert_eq!(c.num_rows(), rows);
 
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
-                    all_columns_by_name.insert(name.clone(), segment_columns.len());
-                    field_columns_by_name.insert(name, segment_columns.len());
-                    segment_columns.push(c);
+                    all_columns_by_name.insert(name.clone(), all_columns.len());
+                    field_columns_by_name.insert(name, all_columns.len());
+                    all_columns.push(c);
                 }
                 ColumnType::Time(c) => {
                     assert_eq!(c.num_rows(), rows);
@@ -99,16 +74,16 @@ impl Segment {
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
 
-                    all_columns_by_name.insert(name.clone(), segment_columns.len());
-                    time_column = Some(segment_columns.len());
-                    segment_columns.push(c);
+                    all_columns_by_name.insert(name.clone(), all_columns.len());
+                    time_column = Some(all_columns.len());
+                    all_columns.push(c);
                 }
             }
         }
 
         Self {
             meta,
-            columns: segment_columns,
+            columns: all_columns,
             all_columns_by_name,
             tag_columns_by_name,
             field_columns_by_name,
@@ -116,34 +91,34 @@ impl Segment {
         }
     }
 
-    /// The total size in bytes of the segment
+    /// The total size in bytes of the read group
     pub fn size(&self) -> u64 {
         self.meta.size
     }
 
-    /// The number of rows in the segment (all columns have the same number of
-    /// rows).
+    /// The number of rows in the `RowGroup` (all columns have the same number
+    /// of rows).
     pub fn rows(&self) -> u32 {
         self.meta.rows
     }
 
-    /// The ranges on each column in the segment
+    /// The ranges on each column in the `RowGroup`.
     pub fn column_ranges(&self) -> &BTreeMap<String, (OwnedValue, OwnedValue)> {
         &self.meta.column_ranges
     }
 
     // Returns a reference to a column from the column name.
     //
-    // It is the caller's responsibility to ensure the column exists in the
-    // segment. Panics if the column doesn't exist.
+    // It is the caller's responsibility to ensure the column exists in the read
+    // group. Panics if the column doesn't exist.
     fn column_by_name(&self, name: ColumnName<'_>) -> &Column {
         &self.columns[*self.all_columns_by_name.get(name).unwrap()]
     }
 
-    // Takes a `ColumnName`, looks up that column in the `Segment`, and returns a
-    // reference to that column's name owned by the `Segment` along with a
-    // reference to the column itself. The returned column name will have the
-    // lifetime of `self`, not the lifetime of the input.
+    // Takes a `ColumnName`, looks up that column in the `RowGroup`, and
+    // returns a reference to that column's name owned by the `RowGroup` along
+    // with a reference to the column itself. The returned column name will have
+    // the lifetime of `self`, not the lifetime of the input.
     fn column_name_and_column(&self, name: ColumnName<'_>) -> (&str, &Column) {
         let (column_name, column_index) = self.all_columns_by_name.get_key_value(name).unwrap();
         (column_name, &self.columns[*column_index])
@@ -154,7 +129,7 @@ impl Segment {
         &self.columns[self.time_column]
     }
 
-    /// The time range of the segment (of the time column).
+    /// The time range of the `RowGroup` (of the time column).
     pub fn time_range(&self) -> (i64, i64) {
         self.meta.time_range
     }
@@ -167,11 +142,12 @@ impl Segment {
         predicate: &(Operator, Value<'_>),
     ) -> bool {
         self.meta
-            .segment_could_satisfy_predicate(column_name, predicate)
+            .read_group_could_satisfy_predicate(column_name, predicate)
     }
 
-    ///
-    /// Methods for reading the segment.
+    //
+    // Methods for reading the `RowGroup`
+    //
 
     /// Returns a set of materialised column values that satisfy a set of
     /// predicates.
@@ -195,8 +171,8 @@ impl Segment {
         match row_ids {
             RowIDsOption::None(_) => results, // nothing to materialise
             RowIDsOption::Some(row_ids) => {
-                // TODO(edd): causes an allocation. Implement a way to pass a pooled
-                // buffer to the croaring Bitmap API.
+                // TODO(edd): causes an allocation. Implement a way to pass a
+                // pooled buffer to the croaring Bitmap API.
                 let row_ids = row_ids.to_vec();
                 for &name in names {
                     let (col_name, col) = self.column_name_and_column(name);
@@ -220,31 +196,31 @@ impl Segment {
         }
     }
 
-    // Determines the set of row ids that satisfy the provided predicates.
-    // If `predicates` contains two predicates on the time column they are
+    // Determines the set of row ids that satisfy the provided predicates. If
+    // `predicates` contains two predicates on the time column they are
     // special-cased.
     fn row_ids_from_predicates(&self, predicates: &[Predicate<'_>]) -> RowIDsOption {
-        // TODO(edd): perf - potentially pool this so we can re-use it once
-        // rows have been materialised and it's no longer needed.
-        // Initialise a bitmap RowIDs because it's like that set operations will
-        // be necessary.
+        // TODO(edd): perf - potentially pool this so we can re-use it once rows
+        // have been materialised and it's no longer needed. Initialise a bitmap
+        // RowIDs because it's like that set operations will be necessary.
         let mut result_row_ids = RowIDs::new_bitmap();
 
         // TODO(edd): perf - pool the dst buffer so we can re-use it across
-        // subsequent calls to `row_ids_from_predicates`.
-        // Right now this buffer will be re-used across all columns in the
-        // segment but not re-used for subsequent calls _to_ the segment.
+        // subsequent calls to `row_ids_from_predicates`. Right now this buffer
+        // will be re-used across all columns in the `RowGroup` but not re-used
+        // for subsequent calls _to_ the `RowGroup`.
         let mut dst = RowIDs::new_bitmap();
 
         let mut predicates = Cow::Borrowed(predicates);
-        // If there is a time-range in the predicates (two time predicates), then
-        // execute an optimised version that will use a range based predicate
-        // on the time column.
+        // If there is a time-range in the predicates (two time predicates),
+        // then execute an optimised version that will use a range based
+        // predicate on the time column.
         if predicates
             .iter()
             .filter(|(col, _)| *col == TIME_COLUMN_NAME)
             .count()
-            // Check if we have two predicates on the time column, i.e., a time range.
+            // Check if we have two predicates on the time column, i.e., a time
+            // range.
             == 2
         {
             // Apply optimised filtering to time column
@@ -261,8 +237,8 @@ impl Segment {
 
                 // some rows match - continue to apply predicates
                 RowIDsOption::Some(row_ids) => {
-                    // fill the result row id set with the matching rows from the
-                    // time column.
+                    // fill the result row id set with the matching rows from
+                    // the time column.
                     result_row_ids.union(&row_ids);
                     dst = row_ids // hand buffer back
                 }
@@ -275,17 +251,17 @@ impl Segment {
         }
 
         for (name, (op, value)) in predicates.iter() {
-            // N.B column should always exist because validation of
-            // predicates should happen at the `Table` level.
+            // N.B column should always exist because validation of predicates
+            // should happen at the `Table` level.
             let (col_name, col) = self.column_name_and_column(name);
 
-            // Explanation of how this buffer pattern works. The idea is
-            // that the buffer should be returned to the caller so it can be
-            // re-used on other columns. Each call to `row_ids_filter` returns
-            // the buffer back enabling it to be re-used.
+            // Explanation of how this buffer pattern works. The idea is that
+            // the buffer should be returned to the caller so it can be re-used
+            // on other columns. Each call to `row_ids_filter` returns the
+            // buffer back enabling it to be re-used.
             match col.row_ids_filter(op, value, dst) {
-                // No rows will be returned for the segment because this column
-                // doe not match any rows.
+                // No rows will be returned for the `RowGroup` because this
+                // column does not match any rows.
                 RowIDsOption::None(_dst) => return RowIDsOption::None(_dst),
 
                 // Intersect the row ids found at this column with all those
@@ -307,8 +283,8 @@ impl Segment {
         }
 
         if result_row_ids.is_empty() {
-            // All rows matched all predicates because any predictates not matching
-            // any rows would have resulted in an early return.
+            // All rows matched all predicates because any predicates not
+            // matching any rows would have resulted in an early return.
             return RowIDsOption::All(result_row_ids);
         }
         RowIDsOption::Some(result_row_ids)
@@ -342,18 +318,18 @@ impl Segment {
     ///
     /// Right now, predicates are treated conjunctive (AND) predicates.
     /// `read_group` does not guarantee any sort order. Ordering of results
-    /// should be handled high up in the `Table` section of the segment store,
-    /// where multiple segment results may need to be merged.
+    /// should be handled high up in the `Table` section of the Read Buffer,
+    /// where multiple `RowGroup` results may need to be merged.
     pub fn read_group(
         &self,
         predicates: &[Predicate<'_>],
         group_columns: &[ColumnName<'_>],
         aggregates: &[(ColumnName<'_>, AggregateType)],
     ) -> ReadGroupResult<'_> {
-        // `ReadGroupResult`s should have the same lifetime as self. Alternatively
-        // ReadGroupResult could not store references to input data and put the
-        // responsibility on the caller to tie result data and input data
-        // together, but the convenience seems useful for now.
+        // `ReadGroupResult`s should have the same lifetime as self.
+        // Alternatively ReadGroupResult could not store references to input
+        // data and put the responsibility on the caller to tie result data and
+        // input data together, but the convenience seems useful for now.
         let mut result = ReadGroupResult {
             group_columns: group_columns
                 .iter()
@@ -410,15 +386,15 @@ impl Segment {
                 let mut encoded_values_buf =
                     EncodedValues::with_capacity_u32(col.num_rows() as usize);
 
-                // Do we want some rows for the column (predicate filtered some rows)
-                // or all of them (predicates filtered no rows).
+                // Do we want some rows for the column (predicate filtered some
+                // rows) or all of them (predicates filtered no rows).
                 match &filter_row_ids {
                     Some(row_ids) => {
                         encoded_values_buf = col.encoded_values(row_ids, encoded_values_buf);
                     }
                     None => {
-                        // None here means "no partial set of row ids" meaning get
-                        // all of them.
+                        // None here means "no partial set of row ids" meaning
+                        // get all of them.
                         encoded_values_buf = col.all_encoded_values(encoded_values_buf);
                     }
                 }
@@ -432,14 +408,16 @@ impl Segment {
             let col = self.column_by_name(name);
 
             // TODO(edd): this materialises a column per aggregate. If there are
-            // multiple aggregates for the same column then this will over-allocate
+            // multiple aggregates for the same column then this will
+            // over-allocate
 
             // Do we want some rows for the column or all of them?
             let column_values = match &filter_row_ids {
                 Some(row_ids) => col.values(row_ids),
                 None => {
                     // None here means "no partial set of row ids", i.e., get
-                    // all of the row ids because they all satisfy the predicates.
+                    // all of the row ids because they all satisfy the
+                    // predicates.
                     col.all_values()
                 }
             };
@@ -462,8 +440,9 @@ impl Segment {
         result
     }
 
-    // read_group_hash executes a read-group-aggregate operation on the segment
-    // using a hashmap to build up a collection of group keys and aggregates.
+    // read_group_hash executes a read-group-aggregate operation on the
+    // `RowGroup` using a hashmap to build up a collection of group keys and
+    // aggregates.
     //
     // read_group_hash accepts a set of conjunctive predicates.
     fn read_group_with_hashing<'a>(
@@ -508,7 +487,8 @@ impl Segment {
             }
 
             match groups.raw_entry_mut().from_key(&key_buf) {
-                // aggregates for this group key are already present. Update them
+                // aggregates for this group key are already present. Update
+                // them
                 hash_map::RawEntryMut::Occupied(mut entry) => {
                     for (i, values) in aggregate_columns_data.iter().enumerate() {
                         entry.get_mut()[i].update(values.value(row));
@@ -557,12 +537,12 @@ impl Segment {
     }
 
     // This function is similar to `read_group_hash_with_vec_key` in that it
-    // calculates groups keys and aggregates for a read-group-aggregate operation
-    // using a hashmap.
+    // calculates groups keys and aggregates for a read-group-aggregate
+    // operation using a hashmap.
     //
     // This function can be invoked when fewer than four columns are being
     // grouped. In this case the key to the hashmap can be a `u128` integer,
-    // which is significantly
+    // which is significantly more performant than using a `Vec<u32>`.
     fn read_group_hash_with_u128_key<'a>(
         &'a self,
         dst: &mut ReadGroupResult<'a>,
@@ -585,7 +565,8 @@ impl Segment {
             }
 
             match groups.raw_entry_mut().from_key(&group_key_packed) {
-                // aggregates for this group key are already present. Update them
+                // aggregates for this group key are already present. Update
+                // them
                 hash_map::RawEntryMut::Occupied(mut entry) => {
                     for (i, values) in aggregate_columns_data.iter().enumerate() {
                         entry.get_mut()[i].update(values.value(row));
@@ -636,8 +617,8 @@ impl Segment {
         dst.aggregates = aggregate_vec;
     }
 
-    // Optimised read group method when there are no predicates and all the group
-    // columns are RLE-encoded.
+    // Optimised `read_group` method when there are no predicates and all the
+    // group columns are RLE-encoded.
     //
     // In this case all the grouping columns pre-computed bitsets for each
     // distinct value.
@@ -666,38 +647,34 @@ impl Segment {
         //
         // For example, we have two columns like:
         //
-        //    [0, 1, 1, 2, 2, 3, 4] // column encodes the values as integers
-        //    [3, 3, 3, 3, 4, 2, 1] // column encodes the values as integers
+        //    [0, 1, 1, 2, 2, 3, 4] // column encodes the values as integers [3,
+        //    3, 3, 3, 4, 2, 1] // column encodes the values as integers
         //
         // The columns have these distinct values:
         //
-        //    [0, 1, 2, 3, 4]
-        //    [1, 2, 3, 4]
+        //    [0, 1, 2, 3, 4] [1, 2, 3, 4]
         //
         // We will produce the following "group key" candidates:
         //
-        //    [0, 1], [0, 2], [0, 3], [0, 4]
-        //    [1, 1], [1, 2], [1, 3], [1, 4]
-        //    [2, 1], [2, 2], [2, 3], [2, 4]
-        //    [3, 1], [3, 2], [3, 3], [3, 4]
-        //    [4, 1], [4, 2], [4, 3], [4, 4]
+        //    [0, 1], [0, 2], [0, 3], [0, 4] [1, 1], [1, 2], [1, 3], [1, 4] [2,
+        //    1], [2, 2], [2, 3], [2, 4] [3, 1], [3, 2], [3, 3], [3, 4] [4, 1],
+        //    [4, 2], [4, 3], [4, 4]
         //
         // Based on the columns we can see that we only have data for the
         // following group keys:
         //
-        //    [0, 3], [1, 3], [2, 3], [2, 4],
-        //    [3, 2], [4, 1]
+        //    [0, 3], [1, 3], [2, 3], [2, 4], [3, 2], [4, 1]
         //
         // We figure out which group keys have data and which don't in the loop
-        // below, by intersecting bitsets for each id and checking for
-        // non-empty sets.
+        // below, by intersecting bitsets for each id and checking for non-empty
+        // sets.
         let group_keys = encoded_groups
             .iter()
             .map(|ids| (0..ids.len()))
             .multi_cartesian_product();
 
-        // Let's figure out which of the candidate group keys are actually
-        // group keys with data.
+        // Let's figure out which of the candidate group keys are actually group
+        // keys with data.
         'outer: for group_key in group_keys {
             let mut aggregate_row_ids =
                 Cow::Borrowed(encoded_groups[0][group_key[0]].unwrap_bitmap());
@@ -751,11 +728,11 @@ impl Segment {
         }
     }
 
-    // Optimised read_group path for queries where only a single column is being
-    // grouped on. In this case building a hash table is not necessary, and
-    // the group keys can be used as indexes into a vector whose values contain
-    // aggregates. As rows are processed these aggregates can be updated in
-    // constant time.
+    // Optimised `read_group` path for queries where only a single column is
+    // being grouped on. In this case building a hash table is not necessary,
+    // and the group keys can be used as indexes into a vector whose values
+    // contain aggregates. As rows are processed these aggregates can be updated
+    // in constant time.
     fn read_group_single_group_column<'a>(
         &'a self,
         dst: &mut ReadGroupResult<'a>,
@@ -767,7 +744,8 @@ impl Segment {
         let total_rows = groupby_encoded_ids.len();
 
         // Allocate a vector to hold aggregates that can be updated as rows are
-        // processed. An extra group is required because encoded ids are 0-indexed.
+        // processed. An extra group is required because encoded ids are
+        // 0-indexed.
         let required_groups = groupby_encoded_ids.iter().max().unwrap() + 1;
         let mut groups: Vec<Option<Vec<AggregateResult<'_>>>> =
             vec![None; required_groups as usize];
@@ -813,8 +791,8 @@ impl Segment {
         dst.aggregates = aggregate_vec;
     }
 
-    // Optimised read group method where all the segment column sort covers all
-    // the columns being grouped such that the required rows are totally ordered.
+    // Optimised `read_group` method for cases where the columns being grouped
+    // are already totally ordered in the `RowGroup`.
     //
     // In this case the rows are already in "group key order" and the aggregates
     // can be calculated by reading the rows in order.
@@ -852,28 +830,22 @@ pub type Predicate<'a> = (ColumnName<'a>, (Operator, Value<'a>));
 // A GroupKey is an ordered collection of row values. The order determines which
 // columns the values originated from.
 #[derive(PartialEq, PartialOrd, Clone)]
-pub struct GroupKey<'segment>(Vec<Value<'segment>>);
+pub struct GroupKey<'row_group>(Vec<Value<'row_group>>);
 
 impl Eq for GroupKey<'_> {}
 
 // Implementing the `Ord` trait on `GroupKey` means that collections of group
-// keys become sortable. This is typically useful for test because depending
-// on the implementation, group keys are not always emitted in sorted order.
+// keys become sortable. This is typically useful for test because depending on
+// the implementation, group keys are not always emitted in sorted order.
 //
 // To be compared, group keys *must* have the same length, or `cmp` will panic.
 // They will be ordered as follows:
 //
-//    [foo, zoo, zoo],
-//    [foo, bar, zoo],
-//    [bar, bar, bar],
-//    [bar, bar, zoo],
+//    [foo, zoo, zoo], [foo, bar, zoo], [bar, bar, bar], [bar, bar, zoo],
 //
 //    becomes:
 //
-//    [bar, bar, bar],
-//    [bar, bar, zoo],
-//    [foo, bar, zoo],
-//    [foo, zoo, zoo],
+//    [bar, bar, bar], [bar, bar, zoo], [foo, bar, zoo], [foo, zoo, zoo],
 //
 // Be careful sorting group keys in result sets, because other columns
 // associated with the group keys won't be sorted unless the correct `sort`
@@ -916,21 +888,6 @@ impl ColumnType {
     }
 }
 
-// The GroupingStrategy determines which algorithm is used for calculating
-// groups.
-// enum GroupingStrategy {
-//     // AutoGroup lets the executor determine the most appropriate grouping
-//     // strategy using heuristics.
-//     AutoGroup,
-
-//     // HashGroup specifies that groupings should be done using a hashmap.
-//     HashGroup,
-
-//     // SortGroup specifies that groupings should be determined by first
-// sorting     // the data to be grouped by the group-key.
-//     SortGroup,
-// }
-
 #[derive(Default, Debug)]
 struct MetaData {
     // The total size of the table in bytes.
@@ -939,15 +896,15 @@ struct MetaData {
     // The total number of rows in the table.
     rows: u32,
 
-    // The distinct set of columns for this table (all of these columns will
-    // appear in all of the table's segments) and the range of values for
-    // each of those columns.
+    // The distinct set of columns for this `RowGroup` (all of these columns
+    // will appear in all of the `Table`'s `RowGroup`s) and the range of values
+    // for each of those columns.
     //
     // This can be used to skip the table entirely if a logical predicate can't
     // possibly match based on the range of values a column has.
     column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
 
-    // The total time range of this table spanning all of the segments within
+    // The total time range of this table spanning all of the `RowGroup`s within
     // the table.
     //
     // This can be used to skip the table entirely if the time range for a query
@@ -956,11 +913,11 @@ struct MetaData {
 }
 
 impl MetaData {
-    // helper function to determine if the provided predicate could be satisfied by
-    // the segment. If this function returns `false` then there is no point
-    // attempting to read data from the segment.
+    // helper function to determine if the provided predicate could be satisfied
+    // by the `RowGroup`. If this function returns `false` then there is no
+    // point attempting to read data from the `RowGroup`.
     //
-    pub fn segment_could_satisfy_predicate(
+    pub fn read_group_could_satisfy_predicate(
         &self,
         column_name: ColumnName<'_>,
         predicate: &(Operator, Value<'_>),
@@ -972,7 +929,8 @@ impl MetaData {
 
         let (op, value) = predicate;
         match op {
-            // If the column range covers the value then it could contain that value.
+            // If the column range covers the value then it could contain that
+            // value.
             Operator::Equal => column_min <= value && column_max >= value,
 
             // If every value in the column is equal to "value" then this will
@@ -998,9 +956,9 @@ impl MetaData {
     }
 }
 
-/// Encapsulates results from segments with a structure that makes them easier
-/// to work with and display.
-pub struct ReadFilterResult<'segment>(pub Vec<(ColumnName<'segment>, Values<'segment>)>);
+/// Encapsulates results from `RowGroup`s with a structure that makes them
+/// easier to work with and display.
+pub struct ReadFilterResult<'row_group>(pub Vec<(ColumnName<'row_group>, Values<'row_group>)>);
 
 impl ReadFilterResult<'_> {
     pub fn is_empty(&self) -> bool {
@@ -1061,20 +1019,20 @@ impl std::fmt::Display for &ReadFilterResult<'_> {
 }
 
 #[derive(Default)]
-pub struct ReadGroupResult<'segment> {
+pub struct ReadGroupResult<'row_group> {
     // columns that are being grouped on.
-    group_columns: Vec<ColumnName<'segment>>,
+    group_columns: Vec<ColumnName<'row_group>>,
 
     // columns that are being aggregated
-    aggregate_columns: Vec<(ColumnName<'segment>, AggregateType)>,
+    aggregate_columns: Vec<(ColumnName<'row_group>, AggregateType)>,
 
     // row-wise collection of group keys. Each group key contains column-wise
     // values for each of the groupby_columns.
-    group_keys: Vec<GroupKey<'segment>>,
+    group_keys: Vec<GroupKey<'row_group>>,
 
     // row-wise collection of aggregates. Each aggregate contains column-wise
     // values for each of the aggregate_columns.
-    aggregates: Vec<Vec<AggregateResult<'segment>>>,
+    aggregates: Vec<Vec<AggregateResult<'row_group>>>,
 }
 
 impl ReadGroupResult<'_> {
@@ -1187,26 +1145,28 @@ mod test {
             &["west", "west", "east", "west", "south", "north"][..],
         ));
         columns.insert("region".to_string(), rc);
-        let segment = Segment::new(6, columns);
+        let row_group = RowGroup::new(6, columns);
 
         // Closed partially covering "time range" predicate
         let row_ids =
-            segment.row_ids_from_predicates(&build_predicates_with_time(200, 600, vec![]));
+            row_group.row_ids_from_predicates(&build_predicates_with_time(200, 600, vec![]));
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 2, 4, 5]);
 
         // Fully covering "time range" predicate
-        let row_ids = segment.row_ids_from_predicates(&build_predicates_with_time(10, 601, vec![]));
+        let row_ids =
+            row_group.row_ids_from_predicates(&build_predicates_with_time(10, 601, vec![]));
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         // Open ended "time range" predicate
-        let row_ids = segment.row_ids_from_predicates(&[(
+        let row_ids = row_group.row_ids_from_predicates(&[(
             TIME_COLUMN_NAME,
             (Operator::GTE, Value::Scalar(Scalar::I64(300))),
         )]);
         assert_eq!(row_ids.unwrap().to_vec(), vec![2, 3, 4, 5]);
 
-        // Closed partially covering "time range" predicate and other column predicate
-        let row_ids = segment.row_ids_from_predicates(&build_predicates_with_time(
+        // Closed partially covering "time range" predicate and other column
+        // predicate
+        let row_ids = row_group.row_ids_from_predicates(&build_predicates_with_time(
             200,
             600,
             vec![("region", (Operator::Equal, Value::String("south")))],
@@ -1214,7 +1174,7 @@ mod test {
         assert_eq!(row_ids.unwrap().to_vec(), vec![4]);
 
         // Fully covering "time range" predicate and other column predicate
-        let row_ids = segment.row_ids_from_predicates(&build_predicates_with_time(
+        let row_ids = row_group.row_ids_from_predicates(&build_predicates_with_time(
             10,
             601,
             vec![("region", (Operator::Equal, Value::String("west")))],
@@ -1222,7 +1182,7 @@ mod test {
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 3]);
 
         // "time range" predicate and other column predicate that doesn't match
-        let row_ids = segment.row_ids_from_predicates(&build_predicates_with_time(
+        let row_ids = row_group.row_ids_from_predicates(&build_predicates_with_time(
             200,
             600,
             vec![("region", (Operator::Equal, Value::String("nope")))],
@@ -1230,17 +1190,17 @@ mod test {
         assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         // Just a column predicate
-        let row_ids = segment
+        let row_ids = row_group
             .row_ids_from_predicates(&[("region", (Operator::Equal, Value::String("east")))]);
         assert_eq!(row_ids.unwrap().to_vec(), vec![2]);
 
         // Predicate can matches all the rows
-        let row_ids = segment
+        let row_ids = row_group
             .row_ids_from_predicates(&[("region", (Operator::NotEqual, Value::String("abba")))]);
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         // No predicates
-        let row_ids = segment.row_ids_from_predicates(&[]);
+        let row_ids = row_group.row_ids_from_predicates(&[]);
         assert!(matches!(row_ids, RowIDsOption::All(_)));
     }
 
@@ -1263,7 +1223,7 @@ mod test {
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
         columns.insert("count".to_string(), fc);
 
-        let segment = Segment::new(6, columns);
+        let row_group = RowGroup::new(6, columns);
 
         let cases = vec![
             (
@@ -1329,12 +1289,12 @@ west,4
         ];
 
         for (cols, predicates, expected) in cases {
-            let results = segment.read_filter(&cols, &predicates);
+            let results = row_group.read_filter(&cols, &predicates);
             assert_eq!(format!("{:?}", &results), expected);
         }
 
         // test no matching rows
-        let results = segment.read_filter(
+        let results = row_group.read_filter(
             &["method", "region", "time"],
             &build_predicates_with_time(-19, 1, vec![]),
         );
@@ -1383,24 +1343,24 @@ west,4
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
         columns.insert("counter".to_string(), fc);
 
-        let segment = Segment::new(6, columns);
+        let row_group = RowGroup::new(6, columns);
 
         // test queries with no predicates and grouping on low cardinality
         // columns
-        read_group_all_rows_all_rle(&segment);
+        read_group_all_rows_all_rle(&row_group);
 
         // test read group queries that group on fewer than five columns.
-        read_group_hash_u128_key(&segment);
+        read_group_hash_u128_key(&row_group);
 
         // test read group queries that use a vector-based group key.
-        read_group_hash_vec_key(&segment);
+        read_group_hash_vec_key(&row_group);
 
         // test read group queries that only group on one column.
-        read_group_single_groupby_column(&segment);
+        read_group_single_groupby_column(&row_group);
     }
 
     // the read_group path where grouping is on fewer than five columns.
-    fn read_group_hash_u128_key(segment: &Segment) {
+    fn read_group_hash_u128_key(row_group: &RowGroup) {
         let cases = vec![
             (
                 build_predicates_with_time(0, 7, vec![]), // all time but without explicit pred
@@ -1438,8 +1398,8 @@ south,NULL,PUT
 west,prod,GET
 ",
             ),
-            // This case is identical to above but has an explicit
-            // `region > "north"` predicate.
+            // This case is identical to above but has an explicit `region >
+            // "north"` predicate.
             (
                 build_predicates_with_time(
                     -1,
@@ -1468,7 +1428,7 @@ west,prod,POST,4
         ];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let mut results = segment.read_group(&predicate, &group_cols, &aggs);
+            let mut results = row_group.read_group(&predicate, &group_cols, &aggs);
             results.sort();
             assert_eq!(format!("{:?}", &results), expected);
         }
@@ -1476,7 +1436,7 @@ west,prod,POST,4
 
     // the read_group path where grouping is on five or more columns. This will
     // ensure that the `read_group_hash_with_vec_key` path is exercised.
-    fn read_group_hash_vec_key(segment: &Segment) {
+    fn read_group_hash_vec_key(row_group: &RowGroup) {
         let cases = vec![(
             build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
             vec!["region", "method", "env", "letters", "numbers"],
@@ -1492,14 +1452,14 @@ west,POST,prod,Bravo,two,203
         )];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let mut results = segment.read_group(&predicate, &group_cols, &aggs);
+            let mut results = row_group.read_group(&predicate, &group_cols, &aggs);
             results.sort();
             assert_eq!(format!("{:?}", &results), expected);
         }
     }
 
     // the read_group path where grouping is on a single column.
-    fn read_group_single_groupby_column(segment: &Segment) {
+    fn read_group_single_groupby_column(row_group: &RowGroup) {
         let cases = vec![(
             build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
             vec!["method"],
@@ -1512,13 +1472,13 @@ PUT,203
         )];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let mut results = segment.read_group(&predicate, &group_cols, &aggs);
+            let mut results = row_group.read_group(&predicate, &group_cols, &aggs);
             results.sort();
             assert_eq!(format!("{:?}", &results), expected);
         }
     }
 
-    fn read_group_all_rows_all_rle(segment: &Segment) {
+    fn read_group_all_rows_all_rle(row_group: &RowGroup) {
         let cases = vec![
             (
                 vec![],
@@ -1573,13 +1533,13 @@ west,POST,304,101,203
         ];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let results = segment.read_group(&predicate, &group_cols, &aggs);
+            let results = row_group.read_group(&predicate, &group_cols, &aggs);
             assert_eq!(format!("{:?}", &results), expected);
         }
     }
 
     #[test]
-    fn segment_could_satisfy_predicate() {
+    fn row_group_could_satisfy_predicate() {
         let mut columns = BTreeMap::new();
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
         columns.insert("time".to_string(), tc);
@@ -1594,7 +1554,7 @@ west,POST,304,101,203
         ));
         columns.insert("method".to_string(), mc);
 
-        let segment = Segment::new(6, columns);
+        let row_group = RowGroup::new(6, columns);
 
         let cases = vec![
             ("az", &(Operator::Equal, Value::String("west")), false), // no az column
@@ -1665,7 +1625,7 @@ west,POST,304,101,203
 
         for (column_name, predicate, exp) in cases {
             assert_eq!(
-                segment.column_could_satisfy_predicate(column_name, predicate),
+                row_group.column_could_satisfy_predicate(column_name, predicate),
                 exp,
                 "({:?}, {:?}) failed",
                 column_name,

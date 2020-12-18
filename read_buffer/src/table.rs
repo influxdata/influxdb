@@ -4,7 +4,7 @@ use std::slice::Iter;
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 
-use crate::row_group::{ColumnName, GroupKey, Predicate, Segment};
+use crate::row_group::{ColumnName, GroupKey, Predicate, RowGroup};
 use crate::{
     column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
     row_group::{ReadFilterResult, ReadGroupResult},
@@ -33,12 +33,12 @@ pub struct Table {
     meta: MetaData,
 
     // schema // TODO(edd): schema type
-    segments: Vec<Segment>,
+    segments: Vec<RowGroup>,
 }
 
 impl Table {
     /// Create a new table with the provided segment.
-    pub fn new(name: String, segment: Segment) -> Self {
+    pub fn new(name: String, segment: RowGroup) -> Self {
         Self {
             name,
             meta: MetaData::new(&segment),
@@ -47,7 +47,7 @@ impl Table {
     }
 
     /// Add a new segment to this table.
-    pub fn add_segment(&mut self, segment: Segment) {
+    pub fn add_segment(&mut self, segment: RowGroup) {
         self.segments.push(segment);
     }
 
@@ -57,7 +57,7 @@ impl Table {
     }
 
     /// Iterate over all segments for the table.
-    pub fn iter(&mut self) -> Iter<'_, Segment> {
+    pub fn iter(&mut self) -> Iter<'_, RowGroup> {
         self.segments.iter()
     }
 
@@ -107,7 +107,7 @@ impl Table {
     }
 
     // Identify set of segments that may satisfy the predicates.
-    fn filter_segments(&self, predicates: &[Predicate<'_>]) -> Vec<&Segment> {
+    fn filter_segments(&self, predicates: &[Predicate<'_>]) -> Vec<&RowGroup> {
         let mut segments = Vec::with_capacity(self.segments.len());
 
         'seg: for segment in &self.segments {
@@ -469,7 +469,7 @@ struct MetaData {
 }
 
 impl MetaData {
-    pub fn new(segment: &Segment) -> Self {
+    pub fn new(segment: &RowGroup) -> Self {
         Self {
             size: segment.size(),
             rows: u64::from(segment.rows()),
@@ -482,7 +482,7 @@ impl MetaData {
         }
     }
 
-    pub fn add_segment(&mut self, segment: &Segment) {
+    pub fn add_segment(&mut self, segment: &RowGroup) {
         // update size, rows, column ranges, time range
         self.size += segment.size();
         self.rows += u64::from(segment.rows());
@@ -628,7 +628,7 @@ mod test {
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
         columns.insert("count".to_string(), fc);
 
-        let segment = Segment::new(6, columns);
+        let segment = RowGroup::new(6, columns);
 
         let mut table = Table::new("cpu".to_owned(), segment);
 
@@ -640,7 +640,7 @@ mod test {
         columns.insert("region".to_string(), rc);
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
         columns.insert("count".to_string(), fc);
-        let segment = Segment::new(3, columns);
+        let segment = RowGroup::new(3, columns);
         table.add_segment(segment);
 
         // Get all the results
