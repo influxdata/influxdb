@@ -782,10 +782,11 @@ impl Segment {
                     }
                 }
                 None => {
-                    let mut group_key_aggs = Vec::with_capacity(dst.aggregate_columns.len());
-                    for (_, agg_type) in &dst.aggregate_columns {
-                        group_key_aggs.push(AggregateResult::from(agg_type));
-                    }
+                    let mut group_key_aggs = dst
+                        .aggregate_columns
+                        .iter()
+                        .map(|(_, agg_type)| AggregateResult::from(agg_type))
+                        .collect::<Vec<_>>();
 
                     for (i, values) in aggregate_columns_data.iter().enumerate() {
                         group_key_aggs[i].update(values.value(row));
