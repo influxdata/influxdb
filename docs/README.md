@@ -7,5 +7,6 @@ not intended to be general user facing documentation
 ## Table of Contents:
 * Rust style and Idiom guide: [style_guide.md](style_guide.md)
 * Tracing and logging Guide: [tracing.md](tracing.md)
+* How InfluxDB IOx manages the lifecycle of time series data: [data_management.md](data_management.md)
 * Thoughts on parquet encoding and compression for timeseries data: [encoding_thoughts.md](encoding_thoughts.md)
 * Thoughts on using multiple cores: [multi_core_tasks.md](multi_core_tasks.md)
