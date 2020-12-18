@@ -515,7 +515,7 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 	if o.id != "" {
 		influxOrgID, err := influxdb.IDFromString(o.id)
 		if err != nil {
-			return 0, fmt.Errorf("invalid org ID '%s' provided: %w (did you pass an org name instead of an ID?)", o.id, err)
+			return 0, fmt.Errorf("invalid org ID '%s' provided (did you pass an org name instead of an ID?): %w", o.id, err)
 		}
 		return *influxOrgID, nil
 	}
@@ -525,7 +525,7 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 			Name: &name,
 		})
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("failed to get ID for org '%s' (do you have org-level read permission?): %w", name, err)
 		}
 		return org.ID, nil
 	}
