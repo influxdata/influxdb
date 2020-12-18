@@ -31,5 +31,5 @@ name = "dictionary"
 harness = false
 
 [[bench]]
-name = "segment"
+name = "row_group"
 harness = false

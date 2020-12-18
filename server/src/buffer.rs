@@ -594,7 +594,7 @@ mod tests {
 
     #[test]
     fn segment_keeps_writer_summaries() {
-        let mut segment = read_buffer::new(1);
+        let mut segment = Segment::new(1);
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         segment.append(write).unwrap();
         let write = lp_to_replicated_write(2, 1, "cpu val=1 10");
