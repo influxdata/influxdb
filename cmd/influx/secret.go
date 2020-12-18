@@ -6,7 +6,8 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
-	"github.com/influxdata/influxdb/v2/http"
+	isecret "github.com/influxdata/influxdb/v2/secret"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 	"github.com/tcnksm/go-input"
 )
@@ -58,7 +59,7 @@ func (b *cmdSecretBuilder) cmdUpdate() *cobra.Command {
 	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
 	cmd.Flags().StringVarP(&b.value, "value", "v", "", "Optional secret value for scripting convenience, using this might expose the secret to your local history")
 	cmd.MarkFlagRequired("key")
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerPrintFlags(cmd)
 
 	return cmd
@@ -108,7 +109,7 @@ func (b *cmdSecretBuilder) cmdDelete() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
 	cmd.MarkFlagRequired("key")
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerPrintFlags(cmd)
 
 	return cmd
@@ -143,7 +144,7 @@ func (b *cmdSecretBuilder) cmdFind() *cobra.Command {
 	cmd.Short = "List secrets"
 	cmd.Aliases = []string{"find", "ls"}
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerPrintFlags(cmd)
 
 	return cmd
@@ -180,12 +181,12 @@ func (b *cmdSecretBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) erro
 
 func (b *cmdSecretBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }
 
 func (b *cmdSecretBuilder) registerPrintFlags(cmd *cobra.Command) {
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 }
 
 func (b *cmdSecretBuilder) printSecrets(opt secretPrintOpt) error {
@@ -244,7 +245,8 @@ func newSecretSVCs() (influxdb.SecretService, influxdb.OrganizationService, func
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	orgSvc := &http.OrganizationService{Client: httpClient}
 
-	return &http.SecretService{Client: httpClient}, orgSvc, internal.GetSecret, nil
+	orgSvc := &tenant.OrgClientService{Client: httpClient}
+
+	return &isecret.Client{Client: httpClient}, orgSvc, internal.GetSecret, nil
 }

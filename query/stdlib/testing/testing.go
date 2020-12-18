@@ -167,16 +167,4 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 
 type PerTestFeatureFlagMap = map[string]map[string]map[string]string
 
-var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{
-	"planner": {
-		"bare_mean_push": {
-			"pushDownWindowAggregateMean": "true",
-		},
-		"window_mean_push": {
-			"pushDownWindowAggregateMean": "true",
-		},
-		"merge_filters": {
-			"mergeFilterRule": "true",
-		},
-	},
-}
+var FluxEndToEndFeatureFlags = PerTestFeatureFlagMap{}

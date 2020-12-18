@@ -145,7 +145,7 @@ func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 		h.api.Err(w, r, err)
 		return
 	}
-	h.log.Debug("Labels retrived", zap.String("labels", fmt.Sprint(labels)))
+	h.log.Debug("Labels retrieved", zap.String("labels", fmt.Sprint(labels)))
 
 	h.api.Respond(w, r, http.StatusOK, newLabelsResponse(labels))
 }

@@ -46,7 +46,7 @@ func TestHealthHandler(t *testing.T) {
 			}
 			var content map[string]interface{}
 			if err := json.Unmarshal(body, &content); err != nil {
-				t.Errorf("%q, HealthHandler(). error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, HealthHandler(). error unmarshalling json %v", tt.name, err)
 				return
 			}
 			if _, found := content["name"]; !found {

@@ -128,7 +128,23 @@ func (i *Index) sourceBucket(tx Tx) (Bucket, error) {
 	return tx.Bucket(i.SourceBucket())
 }
 
-func indexKey(foreignKey, primaryKey []byte) (newKey []byte) {
+var (
+	// ErrKeyInvalidCharacters is returned when a foreignKey or primaryKey contains
+	//
+	ErrKeyInvalidCharacters = errors.New("key: contains invalid characters")
+)
+
+// IndexKey returns a value suitable for use as the key component
+// when storing values in the index. IndexKey returns an
+// ErrKeyInvalidCharacters error if either the foreignKey or primaryKey contains a /.
+func IndexKey(foreignKey, primaryKey []byte) (newKey []byte, err error) {
+	if bytes.IndexByte(foreignKey, '/') != -1 {
+		return nil, ErrKeyInvalidCharacters
+	}
+	if bytes.IndexByte(primaryKey, '/') != -1 {
+		return nil, ErrKeyInvalidCharacters
+	}
+
 	newKey = make([]byte, len(primaryKey)+len(foreignKey)+1)
 	copy(newKey, foreignKey)
 	newKey[len(foreignKey)] = '/'
@@ -157,7 +173,12 @@ func (i *Index) Insert(tx Tx, foreignKey, primaryKey []byte) error {
 		return err
 	}
 
-	return bkt.Put(indexKey(foreignKey, primaryKey), primaryKey)
+	key, err := IndexKey(foreignKey, primaryKey)
+	if err != nil {
+		return err
+	}
+
+	return bkt.Put(key, primaryKey)
 }
 
 // Delete removes the foreignKey and primaryKey mapping from the underlying index.
@@ -167,7 +188,12 @@ func (i *Index) Delete(tx Tx, foreignKey, primaryKey []byte) error {
 		return err
 	}
 
-	return bkt.Delete(indexKey(foreignKey, primaryKey))
+	key, err := IndexKey(foreignKey, primaryKey)
+	if err != nil {
+		return err
+	}
+
+	return bkt.Delete(key)
 }
 
 // Walk walks the source bucket using keys found in the index using the provided foreign key
@@ -195,16 +221,20 @@ func (i *Index) Walk(ctx context.Context, tx Tx, foreignKey []byte, visitFn Visi
 		return err
 	}
 
-	return indexWalk(ctx, cursor, sourceBucket, visitFn)
+	return indexWalk(foreignKey, cursor, sourceBucket, visitFn)
 }
 
 // indexWalk consumes the indexKey and primaryKey pairs in the index bucket and looks up their
 // associated primaryKey's value in the provided source bucket.
 // When an item is located in the source, the provided visit function is called with primary key and associated value.
-func indexWalk(ctx context.Context, indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) (err error) {
+func indexWalk(foreignKey []byte, indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) (err error) {
 	var keys [][]byte
 	for ik, pk := indexCursor.Next(); ik != nil; ik, pk = indexCursor.Next() {
-		keys = append(keys, pk)
+		if fk, _, err := indexKeyParts(ik); err != nil {
+			return err
+		} else if string(fk) == string(foreignKey) {
+			keys = append(keys, pk)
+		}
 	}
 
 	if err := indexCursor.Err(); err != nil {
@@ -222,7 +252,7 @@ func indexWalk(ctx context.Context, indexCursor ForwardCursor, sourceBucket Buck
 
 	for i, value := range values {
 		if value != nil {
-			if err := visit(keys[i], value); err != nil {
+			if cont, err := visit(keys[i], value); !cont || err != nil {
 				return err
 			}
 		}
@@ -240,7 +270,7 @@ type IndexDiff struct {
 	// MissingFromIndex is a map of foreign key to associated primary keys
 	// missing from the index given the source bucket.
 	// These items could be due to the fact an index populate migration has
-	// not yet occured, the index populate code is incorrect or the write path
+	// not yet occurred, the index populate code is incorrect or the write path
 	// for your resource type does not yet insert into the index as well (Create actions).
 	MissingFromIndex map[string]map[string]struct{}
 	// MissingFromSource is a map of foreign key to associated primary keys
@@ -390,9 +420,9 @@ func consumeBucket(ctx context.Context, store Store, fn func(tx Tx) (Bucket, err
 			return err
 		}
 
-		return WalkCursor(ctx, cursor, func(k, v []byte) error {
+		return WalkCursor(ctx, cursor, func(k, v []byte) (bool, error) {
 			kvs = append(kvs, [2][]byte{k, v})
-			return nil
+			return true, nil
 		})
 	})
 }

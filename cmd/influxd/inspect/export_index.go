@@ -16,6 +16,7 @@ func NewExportIndexCommand() *cobra.Command {
 		Long: `
 This command will export all series in a TSI index to
 SQL format for easier inspection and debugging.`,
+		Args: cobra.NoArgs,
 	}
 
 	var seriesFilePath, dataPath string

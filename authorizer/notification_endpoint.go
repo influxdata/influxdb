@@ -16,7 +16,7 @@ type NotificationEndpointService struct {
 	influxdb.OrganizationService
 }
 
-// NewNotificationEndpointService constructs an instance of an authorizing notification endpoint serivce.
+// NewNotificationEndpointService constructs an instance of an authorizing notification endpoint service.
 func NewNotificationEndpointService(
 	s influxdb.NotificationEndpointService,
 	urm influxdb.UserResourceMappingService,

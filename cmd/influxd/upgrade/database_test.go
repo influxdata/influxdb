@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/dustin/go-humanize"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
@@ -36,11 +38,10 @@ func TestUpgradeRealDB(t *testing.T) {
 
 	boltPath := filepath.Join(tl.Path, bolt.DefaultFilename)
 	enginePath := filepath.Join(tl.Path, "engine")
+	cqPath := filepath.Join(tl.Path, "cq.txt")
 
 	v1opts := &optionsV1{dbDir: tmpdir + "/v1db"}
-
-	err = v1opts.checkDirs()
-	require.Nil(t, err)
+	v1opts.populateDirs()
 
 	v1, err := newInfluxDBv1(v1opts)
 	require.Nil(t, err)
@@ -48,6 +49,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	v2opts := &optionsV2{
 		boltPath:   boltPath,
 		enginePath: enginePath,
+		cqPath:     cqPath,
 		userName:   "my-user",
 		password:   "my-password",
 		orgName:    "my-org",
@@ -62,6 +64,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	options.target = *v2opts
 	req, err := nonInteractive()
 	require.Nil(t, err)
+	assert.Equal(t, req.RetentionPeriod, humanize.Week, "Retention policy should pass through")
 
 	resp, err := setupAdmin(ctx, v2, req)
 	require.Nil(t, err)
@@ -112,7 +115,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	buckets, _, err := v2.ts.FindBuckets(ctx, influxdb.BucketFilter{})
 	require.Nil(t, err)
 
-	bucketNames := []string{"my-bucket", "_tasks", "_monitoring", "mydb-autogen", "mydb-1week", "test-autogen", "empty-autogen"}
+	bucketNames := []string{"my-bucket", "_tasks", "_monitoring", "mydb/autogen", "mydb/1week", "test/autogen", "empty/autogen"}
 	myDbAutogenBucketId := ""
 	myDb1weekBucketId := ""
 	testBucketId := ""
@@ -161,7 +164,7 @@ func TestUpgradeRealDB(t *testing.T) {
 		}
 	}
 
-	auths, _, err := v2.kvService.FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
+	auths, _, err := v2.authSvcV2.FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
 	require.Nil(t, err)
 	require.Len(t, auths, 1)
 
@@ -185,6 +188,14 @@ func TestUpgradeRealDB(t *testing.T) {
 
 	respBody = mustRunQuery(t, tl, "mydb", `select count(line) from mydb."1week".log`)
 	assert.Contains(t, respBody, `["1970-01-01T00:00:00Z",1]`)
+
+	cqBytes, err := ioutil.ReadFile(cqPath)
+	require.NoError(t, err)
+	cqs := string(cqBytes)
+
+	assert.Contains(t, cqs, "CREATE CONTINUOUS QUERY other_cq ON test BEGIN SELECT mean(foo) INTO test.autogen.foo FROM empty.autogen.foo GROUP BY time(1h) END")
+	assert.Contains(t, cqs, "CREATE CONTINUOUS QUERY cq_3 ON test BEGIN SELECT mean(bar) INTO test.autogen.bar FROM test.autogen.foo GROUP BY time(1m) END")
+	assert.Contains(t, cqs, "CREATE CONTINUOUS QUERY cq ON empty BEGIN SELECT mean(example) INTO empty.autogen.mean FROM empty.autogen.raw GROUP BY time(1h) END")
 }
 
 func mustRunQuery(t *testing.T, tl *launcher.TestLauncher, db, rawQ string) string {

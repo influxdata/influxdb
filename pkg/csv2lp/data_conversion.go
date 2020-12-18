@@ -84,14 +84,14 @@ func escapeString(val string) string {
 }
 
 // normalizeNumberString normalizes the supplied value according to the supplied format.
-// This normalization is intended to convert number strings of different locales to a strconv-parseable value.
+// This normalization is intended to convert number strings of different locales to a strconv-parsable value.
 //
 // The format's first character is a fraction delimiter character.  Next characters in the format
 // are simply removed, they are typically used to visually separate groups in large numbers.
 // The removeFraction parameter controls whether the returned value can contain also the fraction part.
 // An empty format means ". \n\t\r_"
 //
-// For example, to get a strconv-parseable float from a Spanish value '3.494.826.157,123', use format ",." .
+// For example, to get a strconv-parsable float from a Spanish value '3.494.826.157,123', use format ",." .
 func normalizeNumberString(value string, format string, removeFraction bool) (normalized string, truncated bool) {
 	if len(format) == 0 {
 		format = ". \n\t\r_"

@@ -36,7 +36,7 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.RunE = setupF
 	cmd.Short = "Setup instance with initial user, org, bucket"
 
-	f.registerFlags(cmd, "token")
+	f.registerFlags(opt.viper, cmd, "token")
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
 	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
 	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
@@ -45,7 +45,7 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
 	cmd.Flags().StringVarP(&setupFlags.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
-	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
+	registerPrintOptions(opt.viper, cmd, &setupFlags.hideHeaders, &setupFlags.json)
 
 	cmd.AddCommand(
 		cmdSetupUser(f, opt),
@@ -58,7 +58,7 @@ func cmdSetupUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.RunE = setupUserF
 	cmd.Short = "Setup instance with user, org, bucket"
 
-	f.registerFlags(cmd, "token")
+	f.registerFlags(opt.viper, cmd, "token")
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
 	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
 	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
@@ -67,7 +67,7 @@ func cmdSetupUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
 	cmd.Flags().StringVarP(&setupFlags.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
-	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
+	registerPrintOptions(opt.viper, cmd, &setupFlags.hideHeaders, &setupFlags.json)
 
 	return cmd
 }
@@ -141,24 +141,13 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance at %q has already been setup", activeConfig.Host)
 	}
 
-	existingConfigs := make(config.Configs)
-	if _, err := os.Stat(dPath); err == nil {
-		existingConfigs, _ = localConfigSVC.ListConfigs()
-		// ignore the error if found nothing
-		if setupFlags.name == "" {
-			return errors.New("flag name is required if you already have existing configs")
-		}
-		if _, ok := existingConfigs[setupFlags.name]; ok {
-			return &influxdb.Error{
-				Code: influxdb.EConflict,
-				Msg:  fmt.Sprintf("config name %q already existed", setupFlags.name),
-			}
-		}
+	if err := validateNoNameCollision(localConfigSVC, setupFlags.name); err != nil {
+		return err
 	}
 
 	req, err := onboardingRequest()
 	if err != nil {
-		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
+		return fmt.Errorf("failed to setup instance: %v", err)
 	}
 
 	result, err := s.OnboardInitialUser(context.Background(), req)
@@ -169,7 +158,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 	p := config.DefaultConfig
 	p.Token = result.Auth.Token
 	p.Org = result.Org.Name
-	if len(existingConfigs) > 0 {
+	if setupFlags.name != "" {
 		p.Name = setupFlags.name
 	}
 	if activeConfig.Host != "" {
@@ -202,6 +191,29 @@ func setupF(cmd *cobra.Command, args []string) error {
 		"Organization": result.Org.Name,
 		"Bucket":       result.Bucket.Name,
 	})
+
+	return nil
+}
+
+// validateNoNameCollision asserts that there isn't already a local config with a given name.
+func validateNoNameCollision(localConfigSvc config.Service, configName string) error {
+	existingConfigs, err := localConfigSvc.ListConfigs()
+	if err != nil {
+		return fmt.Errorf("error checking existing configs: %v", err)
+	}
+	if len(existingConfigs) == 0 {
+		return nil
+	}
+
+	// If there are existing configs then require that a name be
+	// specified in order to distinguish this new config from what's
+	// there already.
+	if configName == "" {
+		return errors.New("flag name is required if you already have existing configs")
+	}
+	if _, ok := existingConfigs[configName]; ok {
+		return fmt.Errorf("config name %q already exists", configName)
+	}
 
 	return nil
 }
@@ -240,7 +252,7 @@ func nonInteractive() (*influxdb.OnboardingRequest, error) {
 		return nil, err
 	}
 	if dur > 0 {
-		req.RetentionPeriod = dur / time.Hour
+		req.RetentionPeriod = dur
 	}
 	return req, nil
 }
@@ -277,13 +289,12 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 		req.Bucket = internal2.GetInput(ui, "Please type your primary bucket name", "")
 	}
 
-	dur, err := internal2.RawDurationToTimeDuration(setupFlags.retention)
-	if err != nil {
-		return nil, err
-	}
-
-	if dur > 0 {
-		req.RetentionPeriod = dur / time.Hour
+	if setupFlags.retention != "" {
+		dur, err := internal2.RawDurationToTimeDuration(setupFlags.retention)
+		if err != nil {
+			return nil, err
+		}
+		req.RetentionPeriod = dur
 	} else {
 		for {
 			rpStr := internal2.GetInput(ui, "Please type your retention period in hours.\r\nOr press ENTER for infinite.", strconv.Itoa(influxdb.InfiniteRetention))

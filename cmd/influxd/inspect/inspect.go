@@ -9,6 +9,10 @@ func NewCommand() *cobra.Command {
 	base := &cobra.Command{
 		Use:   "inspect",
 		Short: "Commands for inspecting on-disk database data",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.PrintErrf("See '%s -h' for help\n", cmd.CommandPath())
+		},
 	}
 
 	// List of available sub-commands

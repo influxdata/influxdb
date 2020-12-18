@@ -9,6 +9,7 @@ func cmdV1SubCommands(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 
 	cmd.AddCommand(
 		cmdV1Auth(f, opt),
+		cmdV1DBRP(f, opt),
 	)
 
 	return cmd

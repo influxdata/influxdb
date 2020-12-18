@@ -13,8 +13,10 @@ import (
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
+	"github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -51,12 +53,14 @@ func newSecretService(t *testing.T, ctx context.Context, logger *zap.Logger, s k
 	}
 	orgID = &org.ID // orgID is generated
 
-	return kv.NewService(logger, s)
+	secretStore, err := secret.NewStore(s)
+	require.NoError(t, err)
+	return secret.NewService(secretStore)
 }
 
-// TestEndpointService_cummulativeSecrets tests that secrets are cummulatively added/updated and removed upon delete
+// TestEndpointService_cumulativeSecrets tests that secrets are cumulatively added/updated and removed upon delete
 // see https://github.com/influxdata/influxdb/pull/19082 for details
-func TestEndpointService_cummulativeSecrets(t *testing.T) {
+func TestEndpointService_cumulativeSecrets(t *testing.T) {
 	ctx := context.Background()
 	store := inmem.NewKVStore()
 	logger := zaptest.NewLogger(t)

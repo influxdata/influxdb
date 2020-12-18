@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	// CollectFnOpts provides arugments to the collect operation of a metric.
+	// CollectFnOpts provides arguments to the collect operation of a metric.
 	CollectFnOpts struct {
 		Method          string
 		Start           time.Time

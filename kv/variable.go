@@ -108,14 +108,6 @@ func (s *Service) findVariables(ctx context.Context, tx Tx, filter influxdb.Vari
 		return s.findOrganizationVariables(ctx, tx, *filter.OrganizationID)
 	}
 
-	if filter.Organization != nil {
-		o, err := s.findOrganizationByName(ctx, tx, *filter.Organization)
-		if err != nil {
-			return nil, err
-		}
-		return s.findOrganizationVariables(ctx, tx, o.ID)
-	}
-
 	var o influxdb.FindOptions
 	if len(opt) > 0 {
 		o = opt[0]
@@ -160,7 +152,17 @@ func filterVariablesFn(filter influxdb.VariableFilter) func([]byte, interface{})
 
 // FindVariables returns all variables in the store
 func (s *Service) FindVariables(ctx context.Context, filter influxdb.VariableFilter, opt ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
-	// todo(leodido) > handle find options
+	if filter.Organization != nil {
+		o, err := s.orgs.FindOrganization(ctx, influxdb.OrganizationFilter{
+			Name: filter.Organization,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		filter.OrganizationID = &o.ID
+	}
+
 	res := []*influxdb.Variable{}
 	err := s.kv.View(ctx, func(tx Tx) error {
 		variables, err := s.findVariables(ctx, tx, filter, opt...)

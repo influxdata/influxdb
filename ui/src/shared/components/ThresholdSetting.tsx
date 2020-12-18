@@ -60,7 +60,7 @@ const ThresholdSetting: FunctionComponent<Props> = ({
     label = 'Value is >='
   }
 
-  const isRemoveable =
+  const isRemovable =
     !isBaseThreshold && type !== COLOR_TYPE_MIN && type !== COLOR_TYPE_MAX
 
   const inputStatus = error ? ComponentStatus.Error : ComponentStatus.Default
@@ -100,7 +100,7 @@ const ThresholdSetting: FunctionComponent<Props> = ({
           onChoose={({name, hex}) => onChangeColor(name, hex)}
           style={dropdownStyle}
         />
-        {isRemoveable && (
+        {isRemovable && (
           <SquareButton
             icon={IconFont.Remove}
             onClick={onRemove}

@@ -87,7 +87,7 @@ func (s *CoordinatingTaskService) DeleteTask(ctx context.Context, id influxdb.ID
 	return s.TaskService.DeleteTask(ctx, id)
 }
 
-// CancelRun Cancel the run and publish the cancelation.
+// CancelRun Cancel the run and publish the cancellation.
 func (s *CoordinatingTaskService) CancelRun(ctx context.Context, taskID, runID influxdb.ID) error {
 	if err := s.TaskService.CancelRun(ctx, taskID, runID); err != nil {
 		return err

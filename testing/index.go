@@ -61,14 +61,14 @@ func newSomeResourceStore(t tester, ctx context.Context, store kv.SchemaStore) *
 
 func (s *someResourceStore) FindByOwner(ctx context.Context, ownerID string) (resources []someResource, err error) {
 	err = s.store.View(ctx, func(tx kv.Tx) error {
-		return s.ownerIDIndex.Walk(ctx, tx, []byte(ownerID), func(k, v []byte) error {
+		return s.ownerIDIndex.Walk(ctx, tx, []byte(ownerID), func(k, v []byte) (bool, error) {
 			var resource someResource
 			if err := json.Unmarshal(v, &resource); err != nil {
-				return err
+				return false, err
 			}
 
 			resources = append(resources, resource)
-			return nil
+			return true, nil
 		})
 	})
 	return
@@ -410,12 +410,12 @@ func BenchmarkIndexWalk(b *testing.B, store kv.SchemaStore, resourceCount, fetch
 
 	for i := 0; i < b.N; i++ {
 		store.View(ctx, func(tx kv.Tx) error {
-			return resourceStore.ownerIDIndex.Walk(ctx, tx, []byte(fmt.Sprintf("owner %d", i%userCount)), func(k, v []byte) error {
+			return resourceStore.ownerIDIndex.Walk(ctx, tx, []byte(fmt.Sprintf("owner %d", i%userCount)), func(k, v []byte) (bool, error) {
 				if k == nil || v == nil {
 					b.Fatal("entries must not be nil")
 				}
 
-				return nil
+				return true, nil
 			})
 		})
 	}

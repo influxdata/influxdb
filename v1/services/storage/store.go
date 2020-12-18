@@ -602,7 +602,7 @@ func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *metaqueryAttributes,
 	if ic, err := newIndexSeriesCursorInfluxQLPred(ctx, mqAttrs.pred, s.TSDBStore.Shards(shardIDs)); err != nil {
 		return nil, err
 	} else if ic == nil {
-		return nil, nil
+		return cursors.EmptyStringIterator, nil
 	} else {
 		cur = ic
 	}

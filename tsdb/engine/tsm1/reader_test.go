@@ -1086,7 +1086,7 @@ func TestIndirectIndex_Entries(t *testing.T) {
 
 	indirect := NewIndirectIndex()
 	if err := indirect.UnmarshalBinary(b); err != nil {
-		t.Fatalf("unexpected error unmarshaling index: %v", err)
+		t.Fatalf("unexpected error unmarshalling index: %v", err)
 	}
 
 	entries := indirect.Entries([]byte("cpu"))
@@ -1126,7 +1126,7 @@ func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 
 	indirect := NewIndirectIndex()
 	if err := indirect.UnmarshalBinary(b); err != nil {
-		t.Fatalf("unexpected error unmarshaling index: %v", err)
+		t.Fatalf("unexpected error unmarshalling index: %v", err)
 	}
 
 	// mem has not been added to the index so we should get no entries back
@@ -1884,7 +1884,7 @@ func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if err := indirect.UnmarshalBinary(bytes); err != nil {
-			b.Fatalf("unexpected error unmarshaling index: %v", err)
+			b.Fatalf("unexpected error unmarshalling index: %v", err)
 		}
 	}
 }

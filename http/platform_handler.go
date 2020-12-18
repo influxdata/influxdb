@@ -46,7 +46,7 @@ func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler
 		AssetHandler:  assetHandler,
 		DocsHandler:   Redoc("/api/v2/swagger.json"),
 		APIHandler:    wrappedHandler,
-		LegacyHandler: legacy.NewInflux1xAuthenticationHandler(lh, b.AuthorizationService, b.UserService, b.HTTPErrorHandler),
+		LegacyHandler: legacy.NewInflux1xAuthenticationHandler(lh, b.AuthorizerV1, b.HTTPErrorHandler),
 	}
 }
 

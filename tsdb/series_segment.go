@@ -120,7 +120,7 @@ func (s *SeriesSegment) Path() string { return s.path }
 // InitForWrite initializes a write handle for the segment.
 // This is only used for the last segment in the series file.
 func (s *SeriesSegment) InitForWrite() (err error) {
-	// Only calculcate segment data size if writing.
+	// Only calculate segment data size if writing.
 	for s.size = uint32(SeriesSegmentHeaderSize); s.size < uint32(len(s.data)); {
 		flag, _, _, sz := ReadSeriesEntry(s.data[s.size:])
 		if !IsValidSeriesEntryFlag(flag) {

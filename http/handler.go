@@ -143,7 +143,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.r.ServeHTTP(w, r)
 }
 
-// PrometheusCollectors satisifies prom.PrometheusCollector.
+// PrometheusCollectors satisfies prom.PrometheusCollector.
 func (h *Handler) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		h.requests,

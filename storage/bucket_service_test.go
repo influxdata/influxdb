@@ -7,10 +7,10 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
-	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/storage/mocks"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -25,8 +25,9 @@ func TestBucketService(t *testing.T) {
 
 	engine := mocks.NewMockEngineSchema(ctrl)
 
-	inmemService := newInMemKVSVC(t)
-	service := storage.NewBucketService(inmemService, engine)
+	logger := zaptest.NewLogger(t)
+	inmemService := newTenantService(t)
+	service := storage.NewBucketService(logger, inmemService, engine)
 
 	if err := service.DeleteBucket(context.TODO(), *i); err == nil {
 		t.Fatal("expected error, got nil")
@@ -45,14 +46,14 @@ func TestBucketService(t *testing.T) {
 	engine.EXPECT().DeleteBucket(gomock.Any(), org.ID, bucket.ID)
 
 	// Test deleting a bucket calls into the deleter.
-	service = storage.NewBucketService(inmemService, engine)
+	service = storage.NewBucketService(logger, inmemService, engine)
 
 	if err := service.DeleteBucket(context.TODO(), bucket.ID); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func newInMemKVSVC(t *testing.T) *kv.Service {
+func newTenantService(t *testing.T) *tenant.Service {
 	t.Helper()
 
 	logger := zaptest.NewLogger(t)
@@ -61,5 +62,5 @@ func newInMemKVSVC(t *testing.T) *kv.Service {
 		t.Fatal(err)
 	}
 
-	return kv.NewService(logger, store)
+	return tenant.NewService(tenant.NewStore(store))
 }

@@ -153,7 +153,7 @@ class dataExplorerSteps extends influxSteps {
         });
     }
 
-    async dragToHorizonatalFractionOfGraph(fraction){
+    async dragToHorizontalFractionOfGraph(fraction){
         let fract = fraction.split('/');
         let denom = fract[1];
         let numer = fract[0];
@@ -418,7 +418,7 @@ class dataExplorerSteps extends influxSteps {
                 elem = await this.dePage.getSaveAsPopupTabVar();
                 break;
             default:
-                throw `Unkown menu item ${item}`;
+                throw `Unknown menu item ${item}`;
         }
 
         return elem;

@@ -1873,6 +1873,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /delete:
     post:
+      operationId: PostDelete
       summary: Delete time series data from InfluxDB
       requestBody:
         description: Predicate delete request
@@ -6748,6 +6749,7 @@ components:
     Expression:
       oneOf:
         - $ref: "#/components/schemas/ArrayExpression"
+        - $ref: "#/components/schemas/DictExpression"
         - $ref: "#/components/schemas/FunctionExpression"
         - $ref: "#/components/schemas/BinaryExpression"
         - $ref: "#/components/schemas/CallExpression"
@@ -6780,6 +6782,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Expression"
+    DictExpression:
+      description: Used to create and directly specify the elements of a dictionary
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/NodeType"
+        elements:
+          description: Elements of the dictionary
+          type: array
+          items:
+            $ref: "#/components/schemas/DictItem"
+    DictItem:
+      description: A key/value pair in a dictionary
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/NodeType"
+        key:
+          $ref: "#/components/schemas/Expression"
+        val:
+          $ref: "#/components/schemas/Expression"
     FunctionExpression:
       description: Function expression
       type: object
@@ -8479,45 +8502,6 @@ components:
     TaskStatusType:
       type: string
       enum: [active, inactive]
-    Invite:
-      properties:
-        id:
-          description: the idpe id of the invite
-          readOnly: true
-          type: string
-        email:
-          type: string
-        role:
-          type: string
-          enum:
-            - member
-            - owner
-        expiresAt:
-          format: date-time
-          type: string
-        links:
-          type: object
-          readOnly: true
-          example:
-            self: "/api/v2/invites/1"
-          properties:
-            self:
-              type: string
-              format: uri
-      required: [id, email, role]
-    Invites:
-      type: object
-      properties:
-        links:
-          type: object
-          properties:
-            self:
-              type: string
-              format: uri
-        invites:
-          type: array
-          items:
-            $ref: "#/components/schemas/Invite"
     User:
       properties:
         id:
@@ -10464,6 +10448,10 @@ components:
         bucketID:
           type: string
           description: The ID of the bucket to write to.
+        allowInsecure:
+          type: boolean
+          description: Skip TLS verification on endpoint.
+          default: false
     ScraperTargetResponse:
       type: object
       allOf:

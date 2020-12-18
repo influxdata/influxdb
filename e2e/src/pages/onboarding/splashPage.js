@@ -12,7 +12,7 @@ class splashPage extends basePage {
     }
 
     async getHeadMain(){
-        //promises 201 - passing promisses between methods
+        //promises 201 - passing promises between methods
         //N.B. returns a promise wrapping the element
         return await this.driver.findElement(By.css(headMain));
     }

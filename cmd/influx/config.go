@@ -317,11 +317,11 @@ func (b *cmdConfigBuilder) registerConfigSettingFlags(cmd *cobra.Command) {
 }
 
 func (b *cmdConfigBuilder) registerFilepath(cmd *cobra.Command) {
-	b.globalFlags.registerFlags(cmd, "host", "token", "skip-verify", "trace-debug-id")
+	b.globalFlags.registerFlags(b.viper, cmd, "host", "token", "skip-verify", "trace-debug-id")
 }
 
 func (b *cmdConfigBuilder) registerPrintFlags(cmd *cobra.Command) {
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 }
 
 func (b *cmdConfigBuilder) printConfigs(opts configPrintOpts) error {

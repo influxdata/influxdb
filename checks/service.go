@@ -131,7 +131,7 @@ func (s *Service) findCheckByName(ctx context.Context, tx kv.Tx, orgID influxdb.
 	return chVal.(influxdb.Check), nil
 }
 
-// FindCheck retrives a check using an arbitrary check filter.
+// FindCheck retrieves a check using an arbitrary check filter.
 // Filters using ID, or OrganizationID and check Name should be efficient.
 // Other filters will do a linear scan across checks until it finds a match.
 func (s *Service) FindCheck(ctx context.Context, filter influxdb.CheckFilter) (influxdb.Check, error) {

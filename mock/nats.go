@@ -34,11 +34,11 @@ func NewNats() (nats.Publisher, nats.Subscriber) {
 		server: server,
 	}
 
-	subcriber := &NatsSubscriber{
+	subscriber := &NatsSubscriber{
 		server: server,
 	}
 
-	return publisher, subcriber
+	return publisher, subscriber
 }
 
 // NatsPublisher is a mocked nats publisher.
@@ -58,7 +58,7 @@ type NatsSubscriber struct {
 	server *NatsServer
 }
 
-// Subscribe implements nats.Subscriber inteferface.
+// Subscribe implements nats.Subscriber interface.
 func (s *NatsSubscriber) Subscribe(subject, group string, handler nats.Handler) error {
 	ch, err := s.server.initSubject(subject)
 	if err != nil {

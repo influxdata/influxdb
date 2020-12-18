@@ -207,7 +207,7 @@ func StatusIn(code int, rest ...int) func(*http.Response) error {
 				return nil
 			}
 		}
-		return fmt.Errorf("recieved unexpected status: %s %d", resp.Status, resp.StatusCode)
+		return fmt.Errorf("received unexpected status: %s %d", resp.Status, resp.StatusCode)
 	}
 }
 

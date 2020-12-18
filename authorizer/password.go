@@ -11,7 +11,7 @@ type PasswordService struct {
 	next influxdb.PasswordsService
 }
 
-// NewPasswordService wraps an existing password service with auth middlware.
+// NewPasswordService wraps an existing password service with auth middleware.
 func NewPasswordService(svc influxdb.PasswordsService) *PasswordService {
 	return &PasswordService{next: svc}
 }

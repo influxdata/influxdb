@@ -73,7 +73,7 @@ var (
 	// ErrUnknownFieldType is returned when the type of a field cannot be determined.
 	ErrUnknownFieldType = errors.New("unknown field type")
 
-	// ErrShardNotIdle is returned when an operation requring the shard to be idle/cold is
+	// ErrShardNotIdle is returned when an operation requiring the shard to be idle/cold is
 	// attempted on a hot shard.
 	ErrShardNotIdle = errors.New("shard not idle")
 
@@ -476,7 +476,7 @@ func (s *Shard) SetCompactionsEnabled(enabled bool) {
 func (s *Shard) DiskSize() (int64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// We don't use engine() becuase we still want to report the shard's disk
+	// We don't use engine() because we still want to report the shard's disk
 	// size even if the shard has been disabled.
 	if s._engine == nil {
 		return 0, ErrEngineClosed
@@ -1675,7 +1675,7 @@ func (fs *MeasurementFieldSet) Fields(name []byte) *MeasurementFields {
 	return mf
 }
 
-// FieldsByString returns fields for a measurment by name.
+// FieldsByString returns fields for a measurement by name.
 func (fs *MeasurementFieldSet) FieldsByString(name string) *MeasurementFields {
 	fs.mu.RLock()
 	mf := fs.fields[name]

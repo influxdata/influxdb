@@ -39,6 +39,12 @@ type Bucket struct {
 	CRUDLog
 }
 
+// Clone returns a shallow copy of b.
+func (b *Bucket) Clone() *Bucket {
+	other := *b
+	return &other
+}
+
 // BucketType differentiates system buckets from user buckets.
 type BucketType int
 

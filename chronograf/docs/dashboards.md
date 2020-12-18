@@ -62,7 +62,7 @@ Older chronograf dashboards had the following features:
 * View Dashboard
 * Add new visualization to dashboard
 * Add existing visualization to dashboard
-* Remove visualizatoin from dashboard
+* Remove visualization from dashboard
 * Naming of dashboards
 * Delete dashboard
 * Edit visualization in dashboard

@@ -16,7 +16,7 @@ type ScraperTargetStoreService struct {
 	s influxdb.ScraperTargetStoreService
 }
 
-// NewScraperTargetStoreService constructs an instance of an authorizing scraper target store serivce.
+// NewScraperTargetStoreService constructs an instance of an authorizing scraper target store service.
 func NewScraperTargetStoreService(s influxdb.ScraperTargetStoreService,
 	urm influxdb.UserResourceMappingService,
 	org influxdb.OrganizationService,

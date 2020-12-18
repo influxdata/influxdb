@@ -39,6 +39,23 @@ and use the old zookeeper connection method.
   # sasl_username = "kafka"
   # sasl_password = "secret"
 
+  ## Optional SASL:
+  ## one of: OAUTHBEARER, PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI
+  ## (defaults to PLAIN)
+  # sasl_mechanism = ""
+
+  ## used if sasl_mechanism is GSSAPI (experimental)
+  # sasl_gssapi_service_name = ""
+  # ## One of: KRB5_USER_AUTH and KRB5_KEYTAB_AUTH
+  # sasl_gssapi_auth_type = "KRB5_USER_AUTH"
+  # sasl_gssapi_kerberos_config_path = "/"
+  # sasl_gssapi_realm = "realm"
+  # sasl_gssapi_key_tab_path = ""
+  # sasl_gssapi_disable_pafxfast = false
+
+  ## used if sasl_mechanism is OAUTHBEARER (experimental)
+  # sasl_access_token = ""
+
   ## SASL protocol version.  When connecting to Azure EventHub set to 0.
   # sasl_version = 1
 

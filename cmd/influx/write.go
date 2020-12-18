@@ -55,8 +55,8 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Short = "Write points to InfluxDB"
 	cmd.Long = `Write data to InfluxDB via stdin, or add an entire file specified with the -f flag`
 
-	f.registerFlags(cmd)
-	writeFlags.org.register(cmd, true)
+	f.registerFlags(opt.viper, cmd)
+	writeFlags.org.register(opt.viper, cmd, true)
 	opts := flagOpts{
 		{
 			DestP:      &writeFlags.BucketID,
@@ -81,7 +81,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 			Persistent: true,
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(opt.viper, cmd)
 	cmd.PersistentFlags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
 	cmd.PersistentFlags().StringArrayVar(&writeFlags.Headers, "header", []string{}, "Header prepends lines to input data; Example --header HEADER1 --header HEADER2")
 	cmd.PersistentFlags().StringArrayVarP(&writeFlags.Files, "file", "f", []string{}, "The path to the file to import")
@@ -101,7 +101,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
 	cmdDryRun.Short = "Write to stdout instead of InfluxDB"
 	cmdDryRun.Long = `Write protocol lines to stdout instead of InfluxDB. Troubleshoot conversion from CSV to line protocol.`
-	f.registerFlags(cmdDryRun)
+	f.registerFlags(opt.viper, cmdDryRun)
 	cmd.AddCommand(cmdDryRun)
 	return cmd
 }
@@ -397,7 +397,7 @@ func ToBytesPerSecond(rateLimit string) (float64, error) {
 			return 0, fmt.Errorf("invalid rate limit %q: time is out of range: %v", strVal, err)
 		}
 		if int64Val <= 0 {
-			return 0, fmt.Errorf("invalid rate limit %q: possitive time expected but %v supplied", strVal, matches[3])
+			return 0, fmt.Errorf("invalid rate limit %q: positive time expected but %v supplied", strVal, matches[3])
 		}
 		time = float64(int64Val)
 	}

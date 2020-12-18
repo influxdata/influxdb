@@ -147,7 +147,7 @@ Feature: Dashboards - Dashboard - Cell Edit
   qa,_monitoring,_tasks
   """
     When click the time machine bucket selector item "_monitoring"
-    Then time machine bulider card "1" contains the empty tag message
+    Then time machine builder card "1" contains the empty tag message
     When click the time machine bucket selector item "qa"
     Then there are "1" time machine builder cards
     Then time machine builder card "1" contains:

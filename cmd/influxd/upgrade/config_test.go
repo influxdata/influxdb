@@ -7,29 +7,16 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
 func TestConfigUpgrade(t *testing.T) {
-	targetOtions := optionsV2{
-		boltPath:   "/db/.influxdbv2/influxd.bolt",
-		enginePath: "/db/.influxdbv2/engine",
-	}
-
-	var typicalRetval, emptyRetval configV1
-	_, err := toml.Decode("[meta]\ndir=\"/var/lib/influxdb/meta\"\n[data]\ndir=\"/var/lib/influxdb/data\"\nwal-dir=\"/var/lib/influxdb/wal\"\n",
-		&typicalRetval)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	type testCase struct {
 		name     string
 		config1x string
 		config2x string
-		retval   *configV1
 	}
 
 	var testCases = []testCase{
@@ -37,25 +24,21 @@ func TestConfigUpgrade(t *testing.T) {
 			name:     "minimal",
 			config1x: testConfigV1minimal,
 			config2x: testConfigV2minimal,
-			retval:   &typicalRetval,
 		},
 		{
 			name:     "default",
 			config1x: testConfigV1default,
 			config2x: testConfigV2default,
-			retval:   &typicalRetval,
 		},
 		{
 			name:     "empty",
 			config1x: testConfigV1empty,
 			config2x: testConfigV2empty,
-			retval:   &emptyRetval,
 		},
 		{
 			name:     "obsolete / arrays",
 			config1x: testConfigV1obsoleteArrays,
 			config2x: testConfigV2obsoleteArrays,
-			retval:   &typicalRetval,
 		},
 	}
 
@@ -68,13 +51,20 @@ func TestConfigUpgrade(t *testing.T) {
 			configFileV2 := filepath.Join(filepath.Dir(configFile), "config.toml")
 			err := ioutil.WriteFile(configFile, []byte(tc.config1x), 0444)
 			require.NoError(t, err)
-			retval, err := upgradeConfig(configFile, targetOtions, zaptest.NewLogger(t))
-			if err != nil {
+
+			targetOtions := optionsV2{
+				boltPath:   "/db/.influxdbv2/influxd.bolt",
+				enginePath: "/db/.influxdbv2/engine",
+				configPath: configFileV2,
+			}
+
+			var rawV1Config map[string]interface{}
+			if _, err = toml.Decode(tc.config1x, &rawV1Config); err != nil {
 				t.Fatal(err)
 			}
-			if diff := cmp.Diff(tc.retval, retval); diff != "" {
-				t.Fatal(diff)
-			}
+			err = upgradeConfig(rawV1Config, targetOtions, zaptest.NewLogger(t))
+			assert.NoError(t, err)
+
 			var actual, expected map[string]interface{}
 			if _, err = toml.Decode(tc.config2x, &expected); err != nil {
 				t.Fatal(err)
@@ -88,12 +78,68 @@ func TestConfigUpgrade(t *testing.T) {
 		})
 	}
 }
-func TestConfigUpgradeFileNotExists(t *testing.T) {
-	targetOtions := optionsV2{}
+
+func TestConfigLoadFile(t *testing.T) {
+	var typicalRetval, emptyRetval configV1
+	_, err := toml.Decode(
+		"[meta]\ndir=\"/var/lib/influxdb/meta\"\n[data]\ndir=\"/var/lib/influxdb/data\"\nwal-dir=\"/var/lib/influxdb/wal\"\n[http]\nbind-address=\":8086\"\nhttps-enabled=false",
+		&typicalRetval,
+	)
+	require.NoError(t, err)
+
+	type testCase struct {
+		name     string
+		config1x string
+		retval   *configV1
+	}
+
+	var testCases = []testCase{
+		{
+			name:     "minimal",
+			config1x: testConfigV1minimal,
+			retval:   &typicalRetval,
+		},
+		{
+			name:     "default",
+			config1x: testConfigV1default,
+			retval:   &typicalRetval,
+		},
+		{
+			name:     "empty",
+			config1x: testConfigV1empty,
+			retval:   &emptyRetval,
+		},
+		{
+			name:     "obsolete / arrays",
+			config1x: testConfigV1obsoleteArrays,
+			retval:   &typicalRetval,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tmpdir := t.TempDir()
+			configFile := filepath.Join(tmpdir, "influxdb.conf")
+			err := ioutil.WriteFile(configFile, []byte(tc.config1x), 0444)
+			require.NoError(t, err)
+			retval, _, err := loadV1Config(configFile)
+			require.NoError(t, err)
+
+			if diff := cmp.Diff(tc.retval, retval); diff != "" {
+				t.Fatal(diff)
+			}
+		})
+	}
+}
+
+func TestConfigLoadFileNotExists(t *testing.T) {
 	configFile := "/there/is/no/such/path/influxdb.conf"
 
 	// try upgrade
-	_, err := upgradeConfig(configFile, targetOtions, zap.NewNop())
+
+	_, _, err := loadV1Config(configFile)
 	if err == nil {
 		t.Fatal("error expected")
 	}
@@ -323,6 +369,10 @@ reporting-disabled = true
   dir = "/var/lib/influxdb/data"
   wal-dir = "/var/lib/influxdb/wal"
 
+[http]
+  enabled = true
+  bind-address = ":8086"
+
 [[udp]]
   enabled = false
   bind-address = ":8089"
@@ -372,7 +422,7 @@ influxql-max-select-buckets = 0
 influxql-max-select-point = 0
 influxql-max-select-series = 0
 log-level = "info"
-query-concurrency = 0
+query-concurrency = 10
 storage-cache-max-memory-size = 1073741824
 storage-cache-snapshot-memory-size = 26214400
 storage-cache-snapshot-write-cold-duration = "10m0s"
@@ -395,6 +445,7 @@ tls-key = ""
 var testConfigV2obsoleteArrays = `reporting-disabled = true
 bolt-path = "/db/.influxdbv2/influxd.bolt"
 engine-path = "/db/.influxdbv2/engine"
+http-bind-address = ":8086"
 `
 
 var testConfigV2empty = `

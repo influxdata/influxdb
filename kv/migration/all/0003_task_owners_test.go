@@ -7,9 +7,11 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -114,18 +116,27 @@ func newService(t *testing.T, ctx context.Context) *testService {
 		t.Fatal(err)
 	}
 
-	ts.Service = kv.NewService(logger, ts.Store)
+	store := tenant.NewStore(ts.Store)
+	tenantSvc := tenant.NewService(store)
+
+	authStore, err := authorization.NewStore(ts.Store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authSvc := authorization.NewService(authStore, tenantSvc)
+
+	ts.Service = kv.NewService(logger, ts.Store, tenantSvc)
 
 	ts.User = influxdb.User{Name: t.Name() + "-user"}
-	if err := ts.Service.CreateUser(ctx, &ts.User); err != nil {
+	if err := tenantSvc.CreateUser(ctx, &ts.User); err != nil {
 		t.Fatal(err)
 	}
 	ts.Org = influxdb.Organization{Name: t.Name() + "-org"}
-	if err := ts.Service.CreateOrganization(ctx, &ts.Org); err != nil {
+	if err := tenantSvc.CreateOrganization(ctx, &ts.Org); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := ts.Service.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+	if err := tenantSvc.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
 		ResourceType: influxdb.OrgsResourceType,
 		ResourceID:   ts.Org.ID,
 		UserID:       ts.User.ID,
@@ -139,7 +150,7 @@ func newService(t *testing.T, ctx context.Context) *testService {
 		UserID:      ts.User.ID,
 		Permissions: influxdb.OperPermissions(),
 	}
-	if err := ts.Service.CreateAuthorization(context.Background(), &ts.Auth); err != nil {
+	if err := authSvc.CreateAuthorization(context.Background(), &ts.Auth); err != nil {
 		t.Fatal(err)
 	}
 

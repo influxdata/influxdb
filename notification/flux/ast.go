@@ -122,7 +122,7 @@ func Call(fn ast.Expression, args *ast.ObjectExpression) *ast.CallExpression {
 	}
 }
 
-// ExpressionStatement returns an *ast.ExpressionStagement of e.
+// ExpressionStatement returns an *ast.ExpressionStatement of e.
 func ExpressionStatement(e ast.Expression) *ast.ExpressionStatement {
 	return &ast.ExpressionStatement{Expression: e}
 }

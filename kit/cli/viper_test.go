@@ -4,13 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path"
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zapcore"
 )
 
 type customFlag bool
@@ -39,20 +42,25 @@ func (c *customFlag) Type() string {
 func ExampleNewCommand() {
 	var monitorHost string
 	var number int
+	var smallerNumber int32
+	var longerNumber int64
 	var sleep bool
 	var duration time.Duration
 	var stringSlice []string
 	var fancyBool customFlag
-	cmd := NewCommand(&Program{
+	var logLevel zapcore.Level
+	cmd := NewCommand(viper.New(), &Program{
 		Run: func() error {
 			fmt.Println(monitorHost)
 			for i := 0; i < number; i++ {
 				fmt.Printf("%d\n", i)
 			}
+			fmt.Println(longerNumber - int64(smallerNumber))
 			fmt.Println(sleep)
 			fmt.Println(duration)
 			fmt.Println(stringSlice)
 			fmt.Println(fancyBool)
+			fmt.Println(logLevel.String())
 			return nil
 		},
 		Name: "myprogram",
@@ -68,6 +76,18 @@ func ExampleNewCommand() {
 				Flag:    "number",
 				Default: 2,
 				Desc:    "number of times to loop",
+			},
+			{
+				DestP:   &smallerNumber,
+				Flag:    "smaller-number",
+				Default: math.MaxInt32,
+				Desc:    "limited size number",
+			},
+			{
+				DestP:   &longerNumber,
+				Flag:    "longer-number",
+				Default: math.MaxInt64,
+				Desc:    "explicitly expanded-size number",
 			},
 			{
 				DestP:   &sleep,
@@ -93,6 +113,11 @@ func ExampleNewCommand() {
 				Default: "on",
 				Desc:    "things that implement pflag.Value",
 			},
+			{
+				DestP:   &logLevel,
+				Flag:    "log-level",
+				Default: zapcore.WarnLevel,
+			},
 		},
 	})
 
@@ -103,17 +128,22 @@ func ExampleNewCommand() {
 	// http://localhost:8086
 	// 0
 	// 1
+	// 9223372034707292160
 	// true
 	// 1m0s
 	// [foo bar]
 	// on
+	// warn
 }
 
 func Test_NewProgram(t *testing.T) {
 	testFilePath, cleanup := newConfigFile(t, map[string]string{
 		// config values should be same as flags
-		"foo":      "bar",
-		"shoe-fly": "yadon",
+		"foo":         "bar",
+		"shoe-fly":    "yadon",
+		"number":      "2147483647",
+		"long-number": "9223372036854775807",
+		"log-level":   "debug",
 	})
 	defer cleanup()
 	defer setEnvVar("TEST_CONFIG_PATH", testFilePath)()
@@ -154,6 +184,9 @@ func Test_NewProgram(t *testing.T) {
 
 			var testVar string
 			var testFly string
+			var testNumber int32
+			var testLongNumber int64
+			var logLevel zapcore.Level
 			program := &Program{
 				Name: "test",
 				Opts: []Opt{
@@ -166,16 +199,31 @@ func Test_NewProgram(t *testing.T) {
 						DestP: &testFly,
 						Flag:  "shoe-fly",
 					},
+					{
+						DestP: &testNumber,
+						Flag:  "number",
+					},
+					{
+						DestP: &testLongNumber,
+						Flag:  "long-number",
+					},
+					{
+						DestP: &logLevel,
+						Flag:  "log-level",
+					},
 				},
 				Run: func() error { return nil },
 			}
 
-			cmd := NewCommand(program)
+			cmd := NewCommand(viper.New(), program)
 			cmd.SetArgs(append([]string{}, tt.args...))
 			require.NoError(t, cmd.Execute())
 
 			require.Equal(t, tt.expected, testVar)
 			assert.Equal(t, "yadon", testFly)
+			assert.Equal(t, int32(math.MaxInt32), testNumber)
+			assert.Equal(t, int64(math.MaxInt64), testLongNumber)
+			assert.Equal(t, zapcore.DebugLevel, logLevel)
 		}
 
 		t.Run(tt.name, fn)

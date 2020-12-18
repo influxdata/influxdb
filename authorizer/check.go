@@ -17,7 +17,7 @@ type CheckService struct {
 	influxdb.TaskService
 }
 
-// NewCheckService constructs an instance of an authorizing check serivce.
+// NewCheckService constructs an instance of an authorizing check service.
 func NewCheckService(s influxdb.CheckService, urm influxdb.UserResourceMappingService, org influxdb.OrganizationService) *CheckService {
 	return &CheckService{
 		s:                          s,

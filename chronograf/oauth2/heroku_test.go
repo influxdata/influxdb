@@ -46,7 +46,7 @@ func Test_Heroku_PrincipalID_ExtractsEmailAddress(t *testing.T) {
 
 	email, err := prov.PrincipalID(tc)
 	if err != nil {
-		t.Fatal("Unexpected error while retrieiving PrincipalID: err:", err)
+		t.Fatal("Unexpected error while retrieving PrincipalID: err:", err)
 	}
 
 	if email != expected.Email {

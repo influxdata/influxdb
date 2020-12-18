@@ -224,7 +224,7 @@ Then(/^the item "(.*)" in builder card "(.*)" is selected$/, async (item,index) 
    await celOvSteps.verifyItemSelectedInBuilderCard(index, item);
 })
 
-Then(/^time machine bulider card "(.*)" contains the empty tag message$/, async index => {
+Then(/^time machine builder card "(.*)" contains the empty tag message$/, async index => {
     await celOvSteps.verifyEmptyTagsInBuilderCard(index);
 });
 

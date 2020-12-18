@@ -17,30 +17,12 @@ import (
 type StorageReader interface {
 	ReadFilter(ctx context.Context, spec ReadFilterSpec, alloc *memory.Allocator) (TableIterator, error)
 	ReadGroup(ctx context.Context, spec ReadGroupSpec, alloc *memory.Allocator) (TableIterator, error)
+	ReadWindowAggregate(ctx context.Context, spec ReadWindowAggregateSpec, alloc *memory.Allocator) (TableIterator, error)
 
 	ReadTagKeys(ctx context.Context, spec ReadTagKeysSpec, alloc *memory.Allocator) (TableIterator, error)
 	ReadTagValues(ctx context.Context, spec ReadTagValuesSpec, alloc *memory.Allocator) (TableIterator, error)
 
 	Close()
-}
-
-type GroupCapability interface {
-	HaveCount() bool
-	HaveSum() bool
-	HaveFirst() bool
-	HaveLast() bool
-	HaveMin() bool
-	HaveMax() bool
-}
-
-type GroupAggregator interface {
-	GetGroupCapability(ctx context.Context) GroupCapability
-}
-
-// WindowAggregateReader implements the WindowAggregate capability.
-type WindowAggregateReader interface {
-	// ReadWindowAggregate will read a table using the WindowAggregate method.
-	ReadWindowAggregate(ctx context.Context, spec ReadWindowAggregateSpec, alloc *memory.Allocator) (TableIterator, error)
 }
 
 type ReadFilterSpec struct {
@@ -73,6 +55,8 @@ type ReadTagValuesSpec struct {
 	TagKey string
 }
 
+// Window and the WindowEvery/Offset should be mutually exclusive. If you set either the WindowEvery or Offset with
+// nanosecond values, then the Window will be ignored
 type ReadWindowAggregateSpec struct {
 	ReadFilterSpec
 	WindowEvery int64
