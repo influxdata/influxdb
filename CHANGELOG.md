@@ -10,6 +10,7 @@
 1. [20362](https://github.com/influxdata/influxdb/pull/20362): Don't overwrite stack name/description on `influx stack update`.
 1. [20355](https://github.com/influxdata/influxdb/pull/20355): Fix timeout setup for `influxd` graceful shutdown.
 1. [20387](https://github.com/influxdata/influxdb/pull/20387): Improve error message shown when `influx` CLI can't find an org by name.
+1. [20380](https://github.com/influxdata/influxdb/pull/20380): Remove duplication from task error messages
 
 ## v2.0.3 [2020-12-14]
 
