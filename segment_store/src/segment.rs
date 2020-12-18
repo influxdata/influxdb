@@ -1406,7 +1406,8 @@ west,prod,POST,4
         }
     }
 
-    // the read_group path where grouping is on five or more columns.
+    // the read_group path where grouping is on five or more columns. This will
+    // ensure that the `read_group_hash_with_vec_key` path is exercised.
     fn read_group_hash_vec_key(segment: &Segment) {
         let cases = vec![(
             build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
