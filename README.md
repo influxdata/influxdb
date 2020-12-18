@@ -205,3 +205,7 @@ curl -v -G -d 'org=company' -d 'bucket=sensors' --data-urlencode 'sql_query=sele
 We welcome community contributions from anyone!
 
 Read our [Contributing Guide](CONTRIBUTING.md) for instructions on how to make your first contribution.
+
+## Architecture and Technical Documenation
+
+There are a variety of technical documents describing various parts of IOx in the [docs](docs) directory.
