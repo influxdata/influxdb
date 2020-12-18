@@ -4,7 +4,7 @@
 #![allow(unused_variables)]
 pub mod column;
 pub(crate) mod partition;
-pub mod segment;
+pub mod row_group;
 pub(crate) mod table;
 
 use std::collections::BTreeMap;
@@ -13,7 +13,7 @@ use arrow_deps::arrow::record_batch::RecordBatch;
 
 use column::AggregateType;
 use partition::Partition;
-use segment::ColumnName;
+use row_group::ColumnName;
 
 /// The Segment Store is responsible for providing read access to partition
 /// data.
@@ -209,17 +209,17 @@ impl Store {
 }
 
 /// Generate a predicate for the time range [from, to).
-pub fn time_range_predicate<'a>(from: i64, to: i64) -> Vec<segment::Predicate<'a>> {
+pub fn time_range_predicate<'a>(from: i64, to: i64) -> Vec<row_group::Predicate<'a>> {
     vec![
         (
-            segment::TIME_COLUMN_NAME,
+            row_group::TIME_COLUMN_NAME,
             (
                 column::cmp::Operator::GTE,
                 column::Value::Scalar(column::Scalar::I64(from)),
             ),
         ),
         (
-            segment::TIME_COLUMN_NAME,
+            row_group::TIME_COLUMN_NAME,
             (
                 column::cmp::Operator::LT,
                 column::Value::Scalar(column::Scalar::I64(to)),

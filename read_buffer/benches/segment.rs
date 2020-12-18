@@ -8,8 +8,8 @@ use rand_distr::{Distribution, Normal};
 
 use packers::{sorter, Packers};
 
-use segment_store::column::{AggregateType, Column};
-use segment_store::segment::{build_predicates_with_time, ColumnType, Predicate, Segment};
+use read_buffer::column::{AggregateType, Column};
+use read_buffer::row_group::{build_predicates_with_time, ColumnType, Predicate, Segment};
 
 const ONE_MS: i64 = 1_000_000;
 

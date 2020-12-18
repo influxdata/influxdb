@@ -4,10 +4,10 @@ use std::slice::Iter;
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 
-use crate::segment::{ColumnName, GroupKey, Predicate, Segment};
+use crate::row_group::{ColumnName, GroupKey, Predicate, Segment};
 use crate::{
     column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
-    segment::{ReadFilterResult, ReadGroupResult},
+    row_group::{ReadFilterResult, ReadGroupResult},
 };
 
 /// A Table represents data for a single measurement.
@@ -591,7 +591,7 @@ impl std::fmt::Display for ReadGroupResults<'_, '_> {
 mod test {
     use super::*;
     use crate::column::{cmp::Operator, Column};
-    use crate::segment::{ColumnType, TIME_COLUMN_NAME};
+    use crate::row_group::{ColumnType, TIME_COLUMN_NAME};
 
     fn build_predicates(
         from: i64,
