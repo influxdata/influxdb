@@ -397,6 +397,10 @@ impl Segment {
         result
     }
 
+    // read_group_hash executes a read-group-aggregate operation on the segment
+    // using a hashmap to build up a collection of group keys and aggregates.
+    //
+    // read_group_hash accepts a set of conjunctive predicates.
     fn read_group_hash<'a>(&'a self, predicates: &[Predicate<'_>], dst: &mut ReadGroupResult<'a>) {
         let row_ids = self.row_ids_from_predicates(predicates);
         let filter_row_ids = match row_ids {
@@ -453,9 +457,20 @@ impl Segment {
             aggregate_columns_data.push(column_values);
         }
 
+        // An optimised approach to building the hashmap of group keys using a
+        // single 128-bit integer as the group key. If grouping is on more than
+        // four columns then a fallback to using an vector as a key will happen.
+        if dst.group_columns.len() <= 4 {
+            self.read_group_hash_with_u128_key(dst, &groupby_encoded_ids, &aggregate_columns_data);
+            return;
+        }
+
         self.read_group_hash_with_vec_key(dst, &groupby_encoded_ids, &aggregate_columns_data)
     }
 
+    // This function is used with `read_group_hash` when the number of columns
+    // being grouped on requires the use of a `Vec<u32>` as the group key in the
+    // hash map.
     fn read_group_hash_with_vec_key<'a>(
         &'a self,
         dst: &mut ReadGroupResult<'a>,
@@ -464,12 +479,14 @@ impl Segment {
     ) {
         // Now begin building the group keys.
         let mut groups: HashMap<Vec<u32>, Vec<AggregateResult<'_>>> = HashMap::default();
+        let total_rows = groupby_encoded_ids[0].len();
+        assert!(groupby_encoded_ids.iter().all(|x| x.len() == total_rows));
 
         // key_buf will be used as a temporary buffer for group keys, which are
         // themselves integers.
         let mut key_buf = vec![0; dst.group_columns.len()];
 
-        for row in 0..groupby_encoded_ids[0].len() {
+        for row in 0..total_rows {
             // update the group key buffer with the group key for this row
             for (j, col_ids) in groupby_encoded_ids.iter().enumerate() {
                 key_buf[j] = col_ids[row];
@@ -520,6 +537,86 @@ impl Segment {
         }
 
         // update results
+        dst.group_keys = group_key_vec;
+        dst.aggregates = aggregate_vec;
+    }
+
+    // This function is similar to `read_group_hash_with_vec_key` in that it
+    // calculates groups keys and aggregates for a read-group-aggregate operation
+    // using a hashmap.
+    //
+    // This function can be invoked when fewer than four columns are being
+    // grouped. In this case the key to the hashmap can be a `u128` integer,
+    // which is significantly
+    fn read_group_hash_with_u128_key<'a>(
+        &'a self,
+        dst: &mut ReadGroupResult<'a>,
+        groupby_encoded_ids: &[Vec<u32>],
+        aggregate_columns_data: &[Values<'a>],
+    ) {
+        let total_rows = groupby_encoded_ids[0].len();
+        assert!(groupby_encoded_ids.iter().all(|x| x.len() == total_rows));
+        assert!(dst.group_columns.len() <= 4);
+
+        // Now begin building the group keys.
+        let mut groups: HashMap<u128, Vec<AggregateResult<'_>>> = HashMap::default();
+
+        for row in 0..groupby_encoded_ids[0].len() {
+            // pack each column's encoded value for the row into a packed group
+            // key.
+            let mut group_key_packed = 0_u128;
+            for (i, col_ids) in groupby_encoded_ids.iter().enumerate() {
+                group_key_packed = pack_u32_in_u128(group_key_packed, col_ids[row], i);
+            }
+
+            match groups.raw_entry_mut().from_key(&group_key_packed) {
+                // aggregates for this group key are already present. Update them
+                hash_map::RawEntryMut::Occupied(mut entry) => {
+                    for (i, values) in aggregate_columns_data.iter().enumerate() {
+                        entry.get_mut()[i].update(values.value(row));
+                    }
+                }
+                // group key does not exist, so create it.
+                hash_map::RawEntryMut::Vacant(entry) => {
+                    let mut group_key_aggs = Vec::with_capacity(dst.aggregate_columns.len());
+                    for (_, agg_type) in &dst.aggregate_columns {
+                        group_key_aggs.push(AggregateResult::from(agg_type));
+                    }
+
+                    for (i, values) in aggregate_columns_data.iter().enumerate() {
+                        group_key_aggs[i].update(values.value(row));
+                    }
+
+                    entry.insert(group_key_packed, group_key_aggs);
+                }
+            }
+        }
+
+        // Finally, build results set. Each encoded group key needs to be
+        // materialised into a logical group key
+        let columns = dst
+            .group_columns
+            .iter()
+            .map(|name| self.column_by_name(name))
+            .collect::<Vec<_>>();
+        let mut group_key_vec: Vec<GroupKey<'_>> = Vec::with_capacity(groups.len());
+        let mut aggregate_vec = Vec::with_capacity(groups.len());
+
+        for (group_key_packed, aggs) in groups.into_iter() {
+            let mut logical_key = Vec::with_capacity(columns.len());
+
+            // Unpack the appropriate encoded id for each column from the packed
+            // group key, then materialise the logical value for that id and add
+            // it to the materialised group key (`logical_key`).
+            for (col_idx, column) in columns.iter().enumerate() {
+                let encoded_id = (group_key_packed >> (col_idx * 32)) as u32;
+                logical_key.push(column.decode_id(encoded_id));
+            }
+
+            group_key_vec.push(GroupKey(logical_key));
+            aggregate_vec.push(aggs.clone());
+        }
+
         dst.group_keys = group_key_vec;
         dst.aggregates = aggregate_vec;
     }
@@ -664,6 +761,25 @@ impl Segment {
     ) {
         todo!()
     }
+}
+
+// Packs an encoded values into a `u128` at `pos`, which must be `[0,4)`.
+#[inline(always)]
+fn pack_u32_in_u128(packed_value: u128, encoded_id: u32, pos: usize) -> u128 {
+    packed_value | (encoded_id as u128) << (32 * pos)
+}
+
+// Given a packed encoded group key, unpacks them into `n` individual `u32`
+// group keys, and stores them in `dst`. It is the caller's responsibility to
+// ensure n <= 4.
+fn unpack_u128_group_key(group_key_packed: u128, n: usize, mut dst: Vec<u32>) -> Vec<u32> {
+    dst.resize(n, 0);
+
+    for (i, encoded_id) in dst.iter_mut().enumerate() {
+        *encoded_id = (group_key_packed >> (i * 32)) as u32;
+    }
+
+    dst
 }
 
 pub type Predicate<'a> = (ColumnName<'a>, (Operator, Value<'a>));
@@ -1189,6 +1305,16 @@ west,4
         ));
         columns.insert("env".to_string(), ec);
 
+        let c = ColumnType::Tag(Column::from(
+            &["Alpha", "Alpha", "Bravo", "Bravo", "Alpha", "Alpha"][..],
+        ));
+        columns.insert("letters".to_string(), c);
+
+        let c = ColumnType::Tag(Column::from(
+            &["one", "two", "two", "two", "one", "three"][..],
+        ));
+        columns.insert("numbers".to_string(), c);
+
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
         columns.insert("counter".to_string(), fc);
 
@@ -1198,12 +1324,15 @@ west,4
         // columns
         read_group_all_rows_all_rle(&segment);
 
-        // test general read groups queries that are not special cased.
-        read_group_hash(&segment);
+        // test read group queries that group on fewer than five columns.
+        read_group_hash_u128_key(&segment);
+
+        // test read group queries that use a vector-based group key.
+        read_group_hash_vec_key(&segment);
     }
 
-    // the general read_group path
-    fn read_group_hash(segment: &Segment) {
+    // the read_group path where grouping is on fewer than five columns.
+    fn read_group_hash_u128_key(segment: &Segment) {
         let cases = vec![
             (
                 build_predicates_with_time(0, 7, vec![]), // all time but without explicit pred
@@ -1256,7 +1385,43 @@ south,NULL,PUT
 west,prod,GET
 ",
             ),
+            (
+                build_predicates_with_time(-1, 10, vec![]),
+                vec!["region", "env", "method"],
+                vec![("time", AggregateType::Max)], // Yep, you can aggregate any column.
+                "region,env,method,time_max
+east,stag,POST,3
+north,NULL,GET,6
+south,NULL,PUT,5
+west,prod,GET,1
+west,prod,POST,4
+",
+            ),
         ];
+
+        for (predicate, group_cols, aggs, expected) in cases {
+            let mut results = segment.read_group(&predicate, &group_cols, &aggs);
+            results.sort();
+            assert_eq!(format!("{:?}", &results), expected);
+        }
+    }
+
+    // the read_group path where grouping is on five or more columns. This will
+    // ensure that the `read_group_hash_with_vec_key` path is exercised.
+    fn read_group_hash_vec_key(segment: &Segment) {
+        let cases = vec![(
+            build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
+            vec!["region", "method", "env", "letters", "numbers"],
+            vec![("counter", AggregateType::Sum)],
+            "region,method,env,letters,numbers,counter_sum
+east,POST,stag,Bravo,two,200
+north,GET,NULL,Alpha,three,10
+south,PUT,NULL,Alpha,one,203
+west,GET,prod,Alpha,one,100
+west,POST,prod,Alpha,two,101
+west,POST,prod,Bravo,two,203
+",
+        )];
 
         for (predicate, group_cols, aggs, expected) in cases {
             let mut results = segment.read_group(&predicate, &group_cols, &aggs);
@@ -1417,6 +1582,34 @@ west,POST,304,101,203
                 "({:?}, {:?}) failed",
                 column_name,
                 predicate
+            );
+        }
+    }
+
+    #[test]
+    fn pack_unpack_group_keys() {
+        let cases = vec![
+            vec![0, 0, 0, 0],
+            vec![1, 2, 3, 4],
+            vec![1, 3, 4, 2],
+            vec![0],
+            vec![0, 1],
+            vec![u32::MAX, u32::MAX, u32::MAX, u32::MAX],
+            vec![u32::MAX, u16::MAX as u32, u32::MAX, u16::MAX as u32],
+            vec![0, u16::MAX as u32, 0],
+            vec![0, u16::MAX as u32, 0, 0],
+            vec![0, 0, u32::MAX, 0],
+        ];
+
+        for case in cases {
+            let mut packed_value = 0_u128;
+            for (i, &encoded_id) in case.iter().enumerate() {
+                packed_value = pack_u32_in_u128(packed_value, encoded_id, i);
+            }
+
+            assert_eq!(
+                unpack_u128_group_key(packed_value, case.len(), vec![]),
+                case
             );
         }
     }
