@@ -74,7 +74,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Server<M: ConnectionManager> {
     id: AtomicU32,
     config: RwLock<Config>,
-    connection_manager: M,
+    connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
 }
 
@@ -90,7 +90,7 @@ impl<M: ConnectionManager> Server<M> {
             id: AtomicU32::new(SERVER_ID_NOT_SET),
             config: RwLock::new(Config::default()),
             store,
-            connection_manager,
+            connection_manager: Arc::new(connection_manager),
         }
     }
 
@@ -370,7 +370,7 @@ impl DatabaseStore for Server<ConnectionManagerImpl> {
 pub trait ConnectionManager {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    type RemoteServer: RemoteServer;
+    type RemoteServer: RemoteServer + Send + Sync + 'static;
 
     async fn remote_server(&self, connect: &str) -> Result<Arc<Self::RemoteServer>, Self::Error>;
 }

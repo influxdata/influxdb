@@ -10,7 +10,7 @@
 //! database names and may remove this quasi /v2 API.
 
 use http::header::CONTENT_ENCODING;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use arrow_deps::arrow;
 use influxdb_line_protocol::parse_lines;
@@ -21,9 +21,12 @@ use super::{org_and_bucket_to_database, OrgBucketMappingError};
 use bytes::{Bytes, BytesMut};
 use data_types::database_rules::DatabaseRules;
 use futures::{self, StreamExt};
-use hyper::{Body, Method, StatusCode};
+use hyper::{Body, Method, Request, Response, StatusCode};
+use routerify::prelude::*;
+use routerify::{RequestInfo, Router, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::fmt::Debug;
 use std::str;
 use std::sync::Arc;
 
@@ -130,32 +133,92 @@ pub enum ApplicationError {
 }
 
 impl ApplicationError {
-    pub fn status_code(&self) -> StatusCode {
-        match self {
-            Self::BucketByName { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::BucketMappingError { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::WritingPoints { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Query { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::QueryError { .. } => StatusCode::BAD_REQUEST,
-            Self::BucketNotFound { .. } => StatusCode::NOT_FOUND,
-            Self::RequestSizeExceeded { .. } => StatusCode::BAD_REQUEST,
-            Self::ExpectedQueryString { .. } => StatusCode::BAD_REQUEST,
-            Self::InvalidQueryString { .. } => StatusCode::BAD_REQUEST,
-            Self::InvalidRequestBody { .. } => StatusCode::BAD_REQUEST,
-            Self::InvalidContentEncoding { .. } => StatusCode::BAD_REQUEST,
-            Self::ReadingHeaderAsUtf8 { .. } => StatusCode::BAD_REQUEST,
-            Self::ReadingBody { .. } => StatusCode::BAD_REQUEST,
-            Self::ReadingBodyAsUtf8 { .. } => StatusCode::BAD_REQUEST,
-            Self::ParsingLineProtocol { .. } => StatusCode::BAD_REQUEST,
-            Self::ReadingBodyAsGzip { .. } => StatusCode::BAD_REQUEST,
-            Self::RouteNotFound { .. } => StatusCode::NOT_FOUND,
-            Self::DatabaseError { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::JsonGenerationError { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-        }
+    pub fn response(&self) -> Result<Response<Body>, Self> {
+        Ok(match self {
+            Self::BucketByName { .. } => self.internal_error(),
+            Self::BucketMappingError { .. } => self.internal_error(),
+            Self::WritingPoints { .. } => self.internal_error(),
+            Self::Query { .. } => self.internal_error(),
+            Self::QueryError { .. } => self.bad_request(),
+            Self::BucketNotFound { .. } => self.not_found(),
+            Self::RequestSizeExceeded { .. } => self.bad_request(),
+            Self::ExpectedQueryString { .. } => self.bad_request(),
+            Self::InvalidQueryString { .. } => self.bad_request(),
+            Self::InvalidRequestBody { .. } => self.bad_request(),
+            Self::InvalidContentEncoding { .. } => self.bad_request(),
+            Self::ReadingHeaderAsUtf8 { .. } => self.bad_request(),
+            Self::ReadingBody { .. } => self.bad_request(),
+            Self::ReadingBodyAsUtf8 { .. } => self.bad_request(),
+            Self::ParsingLineProtocol { .. } => self.bad_request(),
+            Self::ReadingBodyAsGzip { .. } => self.bad_request(),
+            Self::RouteNotFound { .. } => self.not_found(),
+            Self::DatabaseError { .. } => self.internal_error(),
+            Self::JsonGenerationError { .. } => self.internal_error(),
+        })
+    }
+
+    fn bad_request(&self) -> Response<Body> {
+        Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(self.body())
+            .unwrap()
+    }
+
+    fn internal_error(&self) -> Response<Body> {
+        Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(self.body())
+            .unwrap()
+    }
+
+    fn not_found(&self) -> Response<Body> {
+        Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    fn body(&self) -> Body {
+        let json = serde_json::json!({"error": self.to_string()}).to_string();
+        Body::from(json)
     }
 }
 
 const MAX_SIZE: usize = 10_485_760; // max write request size of 10MB
+
+fn router<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    server: Arc<AppServer<M>>,
+) -> Router<Body, ApplicationError> {
+    // Create a router and specify the the handlers.
+    Router::builder()
+        .data(server)
+        // this endpoint is for API backward compatibility with InfluxDB 2.x
+        .post("/api/v2/write", write::<M>)
+        .get("/ping", ping)
+        .get("/api/v2/read", read::<M>)
+        .get("/api/v1/partitions", list_partitions::<M>)
+        .post("/api/v1/snapshot", snapshot_partition::<M>)
+        // Specify the error handler to handle any errors caused by
+        // a route or any middleware.
+        .err_handler_with_info(error_handler)
+        .build()
+        .unwrap()
+}
+
+// the Routerify error handler. This should be the handler of last resort.
+// Errors should be handled with responses built in the individual handlers for
+// specific ApplicationError(s)
+async fn error_handler(err: routerify::Error, req: RequestInfo) -> Response<Body> {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+    error!(error = ?err, method = ?method, uri = ?uri, "Error while handing request");
+
+    let json = serde_json::json!({"error": err.to_string()}).to_string();
+    Response::builder()
+        .status(StatusCode::INTERNAL_SERVER_ERROR)
+        .body(Body::from(json))
+        .unwrap()
+}
 
 #[derive(Debug, Deserialize)]
 /// Body of the request to the /write endpoint
@@ -216,27 +279,41 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
     }
 }
 
+macro_rules! return_err {
+    ($val:expr) => {{
+        match $val {
+            Ok(v) => v,
+            Err(e) => return e.response(),
+        }
+    }};
+}
+
 #[tracing::instrument(level = "debug")]
-async fn write<M: ConnectionManager + std::fmt::Debug>(
-    req: hyper::Request<Body>,
-    server: Arc<AppServer<M>>,
-) -> Result<Option<Body>, ApplicationError> {
-    let query = req.uri().query().context(ExpectedQueryString)?;
+async fn write<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let server = req
+        .data::<Arc<AppServer<M>>>()
+        .expect("server state")
+        .clone();
+
+    let query = return_err!(req.uri().query().context(ExpectedQueryString));
 
     let write_info: WriteInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
         query_string: String::from(query),
     })?;
 
-    let db_name = org_and_bucket_to_database(&write_info.org, &write_info.bucket)
-        .context(BucketMappingError)?;
+    let db_name = return_err!(
+        org_and_bucket_to_database(&write_info.org, &write_info.bucket).context(BucketMappingError)
+    );
 
-    let body = parse_body(req).await?;
+    let body = return_err!(parse_body(req).await);
 
-    let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
+    let body = return_err!(str::from_utf8(&body).context(ReadingBodyAsUtf8));
 
-    let lines = parse_lines(body)
+    let lines = return_err!(parse_lines(body)
         .collect::<Result<Vec<_>, influxdb_line_protocol::Error>>()
-        .context(ParsingLineProtocol)?;
+        .context(ParsingLineProtocol));
 
     debug!(
         "Inserting {} lines into database {} (org {} bucket {})",
@@ -252,26 +329,30 @@ async fn write<M: ConnectionManager + std::fmt::Debug>(
             store_locally: true,
             ..Default::default()
         };
-        server
+
+        return_err!(server
             .create_database(db_name.to_string(), rules)
             .await
             .map_err(|e| Box::new(e) as _)
             .context(WritingPoints {
                 org: write_info.org.clone(),
                 bucket_name: write_info.bucket.clone(),
-            })?;
+            }));
     }
 
-    server
+    return_err!(server
         .write_lines(&db_name, &lines)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(WritingPoints {
             org: write_info.org.clone(),
             bucket_name: write_info.bucket.clone(),
-        })?;
+        }));
 
-    Ok(None)
+    Ok(Response::builder()
+        .status(StatusCode::NO_CONTENT)
+        .body(Body::empty())
+        .unwrap())
 }
 
 #[derive(Deserialize, Debug)]
@@ -287,10 +368,13 @@ struct ReadInfo {
 // TODO: figure out how to stream read results out rather than rendering the
 // whole thing in mem
 #[tracing::instrument(level = "debug")]
-async fn read<M: ConnectionManager + std::fmt::Debug>(
-    req: hyper::Request<Body>,
-    server: Arc<AppServer<M>>,
-) -> Result<Option<Body>, ApplicationError> {
+async fn read<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let server = req
+        .data::<Arc<AppServer<M>>>()
+        .expect("server state")
+        .clone();
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let read_info: ReadInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
@@ -312,19 +396,14 @@ async fn read<M: ConnectionManager + std::fmt::Debug>(
         .context(QueryError {})?;
     let results = arrow::util::pretty::pretty_format_batches(&results).unwrap();
 
-    Ok(Some(results.into_bytes().into()))
+    Ok(Response::new(Body::from(results.into_bytes())))
 }
 
 // Route to test that the server is alive
 #[tracing::instrument(level = "debug")]
-async fn ping(req: hyper::Request<Body>) -> Result<Option<Body>, ApplicationError> {
+async fn ping(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
     let response_body = "PONG";
-    Ok(Some(response_body.into()))
-}
-
-fn no_op(name: &str) -> Result<Option<Body>, ApplicationError> {
-    info!("NOOP: {}", name);
-    Ok(None)
+    Ok(Response::new(Body::from(response_body.to_string())))
 }
 
 #[derive(Deserialize, Debug)]
@@ -335,10 +414,13 @@ struct DatabaseInfo {
 }
 
 #[tracing::instrument(level = "debug")]
-async fn list_partitions<M: ConnectionManager + std::fmt::Debug>(
-    req: hyper::Request<Body>,
-    app_server: Arc<AppServer<M>>,
-) -> Result<Option<Body>, ApplicationError> {
+async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let server = req
+        .data::<Arc<AppServer<M>>>()
+        .expect("server state")
+        .clone();
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let info: DatabaseInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
@@ -348,7 +430,7 @@ async fn list_partitions<M: ConnectionManager + std::fmt::Debug>(
     let db_name =
         org_and_bucket_to_database(&info.org, &info.bucket).context(BucketMappingError)?;
 
-    let db = app_server.db(&db_name).await.context(BucketNotFound {
+    let db = server.db(&db_name).await.context(BucketNotFound {
         org: &info.org,
         bucket: &info.bucket,
     })?;
@@ -364,7 +446,7 @@ async fn list_partitions<M: ConnectionManager + std::fmt::Debug>(
 
     let result = serde_json::to_string(&partition_keys).context(JsonGenerationError)?;
 
-    Ok(Some(result.into_bytes().into()))
+    Ok(Response::new(Body::from(result)))
 }
 
 #[derive(Deserialize, Debug)]
@@ -376,10 +458,13 @@ struct SnapshotInfo {
 }
 
 #[tracing::instrument(level = "debug")]
-async fn snapshot_partition<M: ConnectionManager + std::fmt::Debug>(
-    req: hyper::Request<Body>,
-    server: Arc<AppServer<M>>,
-) -> Result<Option<Body>, ApplicationError> {
+async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let server = req
+        .data::<Arc<AppServer<M>>>()
+        .expect("server state")
+        .clone();
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let snapshot: SnapshotInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
@@ -409,49 +494,14 @@ async fn snapshot_partition<M: ConnectionManager + std::fmt::Debug>(
     .unwrap();
 
     let ret = format!("{}", snapshot.id);
-    Ok(Some(ret.into_bytes().into()))
+    Ok(Response::new(Body::from(ret)))
 }
 
-pub async fn service<M: ConnectionManager + std::fmt::Debug>(
-    req: hyper::Request<Body>,
+pub fn router_service<M: ConnectionManager + Send + Sync + Debug + 'static>(
     server: Arc<AppServer<M>>,
-) -> http::Result<hyper::Response<Body>> {
-    let method = req.method().clone();
-    let uri = req.uri().clone();
-
-    let response = match (req.method(), req.uri().path()) {
-        (&Method::POST, "/api/v2/write") => write(req, server).await,
-        (&Method::POST, "/api/v2/buckets") => no_op("create bucket"),
-        (&Method::GET, "/ping") => ping(req).await,
-        (&Method::GET, "/api/v2/read") => read(req, server).await,
-        // TODO: implement routing to change this API
-        (&Method::GET, "/api/v1/partitions") => list_partitions(req, server).await,
-        (&Method::POST, "/api/v1/snapshot") => snapshot_partition(req, server).await,
-        _ => Err(ApplicationError::RouteNotFound {
-            method: method.clone(),
-            path: uri.to_string(),
-        }),
-    };
-
-    let result = match response {
-        Ok(Some(body)) => hyper::Response::builder()
-            .body(body)
-            .expect("Should have been able to construct a response"),
-        Ok(None) => hyper::Response::builder()
-            .status(StatusCode::NO_CONTENT)
-            .body(Body::empty())
-            .expect("Should have been able to construct a response"),
-        Err(e) => {
-            error!(error = ?e, error_message = ?e.to_string(), method = ?method, uri = ?uri, "Error while handling request");
-            let json = serde_json::json!({"error": e.to_string()}).to_string();
-            hyper::Response::builder()
-                .status(e.status_code())
-                .body(json.into())
-                .expect("Should have been able to construct a response")
-        }
-    };
-    info!(method = ?method, uri = ?uri, status = ?result.status(), "Handled request");
-    Ok(result)
+) -> RouterService<Body, ApplicationError> {
+    let router = router(server);
+    RouterService::new(router).unwrap()
 }
 
 #[cfg(test)]
@@ -462,7 +512,6 @@ mod tests {
     use http::header;
     use reqwest::{Client, Response};
 
-    use hyper::service::{make_service_fn, service_fn};
     use hyper::Server;
 
     use data_types::database_rules::DatabaseRules;
@@ -647,15 +696,7 @@ mod tests {
     /// creates an instance of the http service backed by a in-memory
     /// testable database.  Returns the url of the server
     fn test_server(server: Arc<AppServer<ConnectionManagerImpl>>) -> String {
-        let make_svc = make_service_fn(move |_conn| {
-            let server = server.clone();
-            async move {
-                Ok::<_, http::Error>(service_fn(move |req| {
-                    let server = server.clone();
-                    super::service(req, server)
-                }))
-            }
-        });
+        let make_svc = router_service(server);
 
         // NB: specify port 0 to let the OS pick the port.
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);

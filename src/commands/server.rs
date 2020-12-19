@@ -9,7 +9,6 @@ use crate::server::http_routes;
 use crate::server::rpc::service;
 use server::server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 
-use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
 use object_store::{self, GoogleCloudStorage, ObjectStore};
 use query::exec::Executor as QueryExecutor;
@@ -131,18 +130,11 @@ pub async fn main() -> Result<()> {
         }
     };
 
-    let make_svc = make_service_fn(move |_conn| {
-        let app_server = app_server.clone();
-        async move {
-            Ok::<_, http::Error>(service_fn(move |req| {
-                http_routes::service(req, app_server.clone())
-            }))
-        }
-    });
+    let router_service = http_routes::router_service(app_server.clone());
 
     let http_server = Server::try_bind(&bind_addr)
         .context(StartListening { bind_addr })?
-        .serve(make_svc);
+        .serve(router_service);
     info!(bind_address=?bind_addr, "HTTP server listening");
 
     println!("InfluxDB IOx server ready");
