@@ -109,13 +109,9 @@ func (t *cmdTaskBuilder) taskCreateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client, err := newHTTPClient()
+	tskSvc, orgSvc, err := t.svcFn()
 	if err != nil {
 		return err
-	}
-
-	s := &http.TaskService{
-		Client: client,
 	}
 
 	flux, err := readFluxQuery(args, t.taskCreateFlags.file)
@@ -128,18 +124,14 @@ func (t *cmdTaskBuilder) taskCreateF(cmd *cobra.Command, args []string) error {
 		Organization: t.org.name,
 	}
 	if t.org.id != "" || t.org.name != "" {
-		svc, err := newOrganizationService()
-		if err != nil {
-			return nil
-		}
-		oid, err := t.org.getID(svc)
+		oid, err := t.org.getID(orgSvc)
 		if err != nil {
 			return fmt.Errorf("error parsing organization ID: %s", err)
 		}
 		tc.OrganizationID = oid
 	}
 
-	tsk, err := s.CreateTask(context.Background(), tc)
+	tsk, err := tskSvc.CreateTask(context.Background(), tc)
 	if err != nil {
 		return err
 	}
@@ -175,13 +167,9 @@ func (t *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client, err := newHTTPClient()
+	tskSvc, _, err := t.svcFn()
 	if err != nil {
 		return err
-	}
-
-	s := &http.TaskService{
-		Client: client,
 	}
 
 	filter := influxdb.TaskFilter{}
@@ -217,14 +205,14 @@ func (t *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		task, err := s.FindTaskByID(context.Background(), *id)
+		task, err := tskSvc.FindTaskByID(context.Background(), *id)
 		if err != nil {
 			return err
 		}
 
 		tasks = append(tasks, task)
 	} else {
-		tasks, _, err = s.FindTasks(context.Background(), filter)
+		tasks, _, err = tskSvc.FindTasks(context.Background(), filter)
 		if err != nil {
 			return err
 		}
@@ -258,13 +246,9 @@ func (t *cmdTaskBuilder) taskRerunFailedF(*cobra.Command, []string) error {
 		return err
 	}
 
-	client, err := newHTTPClient()
+	tskSvc, _, err := t.svcFn()
 	if err != nil {
 		return err
-	}
-
-	s := &http.TaskService{
-		Client: client,
 	}
 
 	taskIDPresent := t.taskID == ""
@@ -299,21 +283,21 @@ func (t *cmdTaskBuilder) taskRerunFailedF(*cobra.Command, []string) error {
 
 	var allRuns []*influxdb.Run
 	if !taskIDPresent {
-		allTasks, _, err := s.FindTasks(context.Background(), taskFilter)
+		allTasks, _, err := tskSvc.FindTasks(context.Background(), taskFilter)
 		if err != nil {
 			return err
 		}
 
 		for _, t := range allTasks {
 			runFilter.Task = t.ID
-			runsPerTask, _, err := s.FindRuns(context.Background(), runFilter)
+			runsPerTask, _, err := tskSvc.FindRuns(context.Background(), runFilter)
 			if err != nil {
 				return err
 			}
 			allRuns = append(allRuns, runsPerTask...)
 		}
 	} else {
-		allRuns, _, err = s.FindRuns(context.Background(), runFilter)
+		allRuns, _, err = tskSvc.FindRuns(context.Background(), runFilter)
 	}
 	var failedRuns []*influxdb.Run
 	for _, run := range allRuns {
@@ -322,7 +306,7 @@ func (t *cmdTaskBuilder) taskRerunFailedF(*cobra.Command, []string) error {
 		}
 	}
 	for _, run := range failedRuns {
-		newRun, err := s.RetryRun(context.Background(), run.TaskID, run.ID)
+		newRun, err := tskSvc.RetryRun(context.Background(), run.TaskID, run.ID)
 		if err != nil {
 			return err
 		}
@@ -354,13 +338,9 @@ func (t *cmdTaskBuilder) taskUpdateCmd() *cobra.Command {
 }
 
 func (t *cmdTaskBuilder) taskUpdateF(cmd *cobra.Command, args []string) error {
-	client, err := newHTTPClient()
+	tskSvc, _, err := t.svcFn()
 	if err != nil {
 		return err
-	}
-
-	s := &http.TaskService{
-		Client: client,
 	}
 
 	var id influxdb.ID
@@ -382,7 +362,7 @@ func (t *cmdTaskBuilder) taskUpdateF(cmd *cobra.Command, args []string) error {
 		update.Flux = &flux
 	}
 
-	tsk, err := s.UpdateTask(context.Background(), id, update)
+	tsk, err := tskSvc.UpdateTask(context.Background(), id, update)
 	if err != nil {
 		return err
 	}
@@ -403,13 +383,9 @@ func (t *cmdTaskBuilder) taskDeleteCmd() *cobra.Command {
 }
 
 func (t *cmdTaskBuilder) taskDeleteF(cmd *cobra.Command, args []string) error {
-	client, err := newHTTPClient()
+	tskSvc, _, err := t.svcFn()
 	if err != nil {
 		return err
-	}
-
-	s := &http.TaskService{
-		Client: client,
 	}
 
 	var id influxdb.ID
@@ -419,12 +395,12 @@ func (t *cmdTaskBuilder) taskDeleteF(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.TODO()
-	tsk, err := s.FindTaskByID(ctx, id)
+	tsk, err := tskSvc.FindTaskByID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	if err = s.DeleteTask(ctx, id); err != nil {
+	if err = tskSvc.DeleteTask(ctx, id); err != nil {
 		return err
 	}
 
@@ -505,13 +481,9 @@ func (t *cmdTaskBuilder) taskLogFindCmd() *cobra.Command {
 }
 
 func (t *cmdTaskBuilder) taskLogFindF(cmd *cobra.Command, args []string) error {
-	client, err := newHTTPClient()
+	tskSvc, _, err := t.svcFn()
 	if err != nil {
 		return err
-	}
-
-	s := &http.TaskService{
-		Client: client,
 	}
 
 	var filter influxdb.LogFilter
@@ -530,7 +502,7 @@ func (t *cmdTaskBuilder) taskLogFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.TODO()
-	logs, _, err := s.FindLogs(ctx, filter)
+	logs, _, err := tskSvc.FindLogs(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -593,13 +565,9 @@ func (t *cmdTaskBuilder) taskRunFindCmd() *cobra.Command {
 }
 
 func (t *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
-	client, err := newHTTPClient()
+	tskSvc, _, err := t.svcFn()
 	if err != nil {
 		return err
-	}
-
-	s := &http.TaskService{
-		Client: client,
 	}
 
 	filter := influxdb.RunFilter{
@@ -619,13 +587,13 @@ func (t *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		run, err := s.FindRunByID(context.Background(), filter.Task, *id)
+		run, err := tskSvc.FindRunByID(context.Background(), filter.Task, *id)
 		if err != nil {
 			return err
 		}
 		runs = append(runs, run)
 	} else {
-		runs, _, err = s.FindRuns(context.Background(), filter)
+		runs, _, err = tskSvc.FindRuns(context.Background(), filter)
 		if err != nil {
 			return err
 		}
@@ -692,13 +660,9 @@ func (t *cmdTaskBuilder) taskRunRetryCmd() *cobra.Command {
 }
 
 func (t *cmdTaskBuilder) runRetryF(*cobra.Command, []string) error {
-	client, err := newHTTPClient()
+	tskSvc, _, err := t.svcFn()
 	if err != nil {
 		return err
-	}
-
-	s := &http.TaskService{
-		Client: client,
 	}
 
 	var taskID, runID influxdb.ID
@@ -710,7 +674,7 @@ func (t *cmdTaskBuilder) runRetryF(*cobra.Command, []string) error {
 	}
 
 	ctx := context.TODO()
-	newRun, err := s.RetryRun(ctx, taskID, runID)
+	newRun, err := tskSvc.RetryRun(ctx, taskID, runID)
 	if err != nil {
 		return err
 	}
