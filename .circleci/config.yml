@@ -73,15 +73,14 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      # Speed up `make build` by restoring caches from previous runs.
       - restore_cache:
-          name: Restoring GOCACHE
+          name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gocache- # Just match the most recent Go cache.
+            - influxdb-gomod-{{ checksum "go.sum" }}
       - restore_cache:
-          name: Restoring GOPATH/pkg/mod
+          name: Restore Yarn Cache
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
+            - yarn-cache-{{ checksum "ui/yarn.lock" }}
       - run: make protoc
       - run: make build
       - run:
@@ -130,9 +129,10 @@ jobs:
     steps:
       - checkout
       - restore_cache:
+          name: Restore Yarn Cache
           keys:
-            - 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
-          name: "Restore Yarn Package Cache"
+            - yarn-jstest-{{ checksum "ui/yarn.lock" }}
+            - yarn-cache-{{ checksum "ui/yarn.lock" }}
       - run:
           command: |
             set +e
@@ -154,8 +154,8 @@ jobs:
           path: coverage
           destination: raw-test-output
       - save_cache:
-          key: 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
-          name: "Save Yarn Package Cache"
+          name: Save Yarn Cache
+          key: yarn-jstest-{{ checksum "ui/yarn.lock" }}
           paths:
             - ~/.cache/yarn
 
@@ -167,9 +167,10 @@ jobs:
     steps:
       - checkout
       - restore_cache:
+          name: Restore Yarn Cache
           keys:
-            - 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
-          name: "Restore Yarn Package Cache"
+            - yarn-cache-{{ checksum "ui/yarn.lock" }}
+            - yarn-cache-
       - run:
           command: |
             set +e
@@ -185,8 +186,8 @@ jobs:
             TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
             yarn eslint:circleci $TESTFILES
       - save_cache:
-          key: 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
-          name: "Save Yarn Package Cache"
+          name: Save Yarn Cache
+          key: yarn-cache-{{ checksum "ui/yarn.lock" }}
           paths:
             - ~/.cache/yarn
   gotest:
@@ -359,17 +360,27 @@ jobs:
       - checkout
       - run: make checkcommit
       - restore_cache:
-          name: Restoring GOPATH/pkg/mod
+          name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Exact match on module checksums.
             - influxdb-gomod- # Latest cache.
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-cache-{{ checksum "ui/yarn.lock" }}
+            - yarn-cache-
       - run: make protoc
       - run: make build
       - save_cache:
-          name: Saving GOPATH/pkg/mod
+          name: Save GOPATH/pkg/mod
           key: influxdb-gomod-{{ checksum "go.sum" }}
           paths:
             - /go/pkg/mod
+      - save_cache:
+          name: Save Yarn Cache
+          key: yarn-cache-{{ checksum "ui/yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
       - persist_to_workspace:
           root: .
           paths:
@@ -423,6 +434,10 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-cache-{{ checksum "ui/yarn.lock" }}
       - setup_remote_docker
       - run:
           name: "Docker Login"
@@ -441,10 +456,16 @@ workflows:
   version: 2
   build:
     jobs:
-      - build
       - golint
       - jslint
+      - build:
+          requires:
+            - golint
+            - jslint
       - gotest:
+          requires:
+            - build
+      - e2e:
           requires:
             - build
       - jstest:
@@ -475,10 +496,6 @@ workflows:
             branches:
               only:
                 - master
-
-  e2e:
-    jobs:
-      - e2e
 
   hourly-e2e:
     triggers:
