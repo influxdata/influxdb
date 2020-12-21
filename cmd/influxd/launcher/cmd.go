@@ -29,14 +29,17 @@ const (
 
 // NewInfluxdCommand constructs the root of the influxd CLI, along with a `run` subcommand.
 // The `run` subcommand is set as the default to execute.
-func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
+func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 	o := newOpts(v)
 
 	prog := cli.Program{
 		Name: "influxd",
 		Run:  cmdRunE(ctx, o),
 	}
-	cmd := cli.NewCommand(o.Viper, &prog)
+	cmd, err := cli.NewCommand(o.Viper, &prog)
+	if err != nil {
+		return nil, err
+	}
 
 	runCmd := &cobra.Command{
 		Use:  "run",
@@ -45,11 +48,13 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 	}
 	for _, c := range []*cobra.Command{cmd, runCmd} {
 		setCmdDescriptions(c)
-		o.bindCliOpts(c)
+		if err := o.bindCliOpts(c); err != nil {
+			return nil, err
+		}
 	}
 	cmd.AddCommand(runCmd)
 
-	return cmd
+	return cmd, nil
 }
 
 func setCmdDescriptions(cmd *cobra.Command) {
@@ -183,7 +188,7 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 }
 
 // bindCliOpts configures a cobra command to set server options based on CLI args.
-func (o *InfluxdOpts) bindCliOpts(cmd *cobra.Command) {
+func (o *InfluxdOpts) bindCliOpts(cmd *cobra.Command) error {
 	opts := []cli.Opt{
 		{
 			DestP:   &o.LogLevel,
@@ -471,5 +476,5 @@ func (o *InfluxdOpts) bindCliOpts(cmd *cobra.Command) {
 		},
 	}
 
-	cli.BindOptions(o.Viper, cmd, opts)
+	return cli.BindOptions(o.Viper, cmd, opts)
 }

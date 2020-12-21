@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	fmt "fmt"
 	_ "net/http/pprof"
 	"os"
 	"time"
@@ -31,16 +31,22 @@ func main() {
 	influxdb.SetBuildInfo(version, commit, date)
 
 	v := viper.New()
-	rootCmd := launcher.NewInfluxdCommand(context.Background(), v)
+	rootCmd, err := launcher.NewInfluxdCommand(context.Background(), v)
+	if err != nil {
+		handleErr("Failed to initialize CLI parser: %v", err)
+	}
 	// upgrade binds options to env variables, so it must be added after rootCmd is initialized
-	rootCmd.AddCommand(upgrade.NewCommand(v))
+	upgradeCmd, err := upgrade.NewCommand(v)
+	if err != nil {
+		handleErr("Failed to initialize CLI parser: %v", err)
+	}
+	rootCmd.AddCommand(upgradeCmd)
 	rootCmd.AddCommand(inspect.NewCommand())
 	rootCmd.AddCommand(versionCmd())
 
 	rootCmd.SilenceUsage = true
 	if err := rootCmd.Execute(); err != nil {
-		rootCmd.PrintErrf("See '%s -h' for help\n", rootCmd.CommandPath())
-		os.Exit(1)
+		handleErr("See '%s -h' for help\n", rootCmd.CommandPath())
 	}
 }
 
@@ -52,4 +58,9 @@ func versionCmd() *cobra.Command {
 			fmt.Printf("InfluxDB %s (git: %s) build_date: %s\n", version, commit, date)
 		},
 	}
+}
+
+func handleErr(format string, args ...interface{}) {
+	_, _ = fmt.Fprintf(os.Stderr, format, args...)
+	os.Exit(1)
 }

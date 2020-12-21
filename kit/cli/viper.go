@@ -29,16 +29,6 @@ type Opt struct {
 	Desc    string
 }
 
-// NewOpt creates a new command line option.
-func NewOpt(destP interface{}, flag string, dflt interface{}, desc string) Opt {
-	return Opt{
-		DestP:   destP,
-		Flag:    flag,
-		Default: dflt,
-		Desc:    desc,
-	}
-}
-
 // Program parses CLI options
 type Program struct {
 	// Run is invoked by cobra on execute.
@@ -55,7 +45,7 @@ type Program struct {
 // to all environment variables.
 //
 // This is to simplify the viper/cobra boilerplate.
-func NewCommand(v *viper.Viper, p *Program) *cobra.Command {
+func NewCommand(v *viper.Viper, p *Program) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:  p.Name,
 		Args: cobra.NoArgs,
@@ -89,11 +79,13 @@ func NewCommand(v *viper.Viper, p *Program) *cobra.Command {
 	//  2. env vars
 	//	3. config file
 	if err := initializeConfig(v); err != nil {
-		panic("invalid config file caused panic: " + err.Error())
+		return nil, fmt.Errorf("invalid config file caused error: %w", err)
 	}
-	BindOptions(v, cmd, p.Opts)
+	if err := BindOptions(v, cmd, p.Opts); err != nil {
+		return nil, fmt.Errorf("failed to bind CLI options: %w", err)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func initializeConfig(v *viper.Viper) error {
@@ -108,15 +100,11 @@ func initializeConfig(v *viper.Viper) error {
 
 // BindOptions adds opts to the specified command and automatically
 // registers those options with viper.
-func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
+func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 	for _, o := range opts {
 		flagset := cmd.Flags()
 		if o.Persistent {
 			flagset = cmd.PersistentFlags()
-		}
-
-		if o.Required {
-			cmd.MarkFlagRequired(o.Flag)
 		}
 
 		envVar := o.Flag
@@ -137,7 +125,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.StringVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return err
+			}
 			*destP = v.GetString(envVar)
 		case *int:
 			var d int
@@ -149,7 +139,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.IntVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return err
+			}
 			*destP = v.GetInt(envVar)
 		case *int32:
 			var d int32
@@ -176,7 +168,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.Int32Var(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return err
+			}
 			*destP = v.GetInt32(envVar)
 		case *int64:
 			var d int64
@@ -201,7 +195,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.Int64Var(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return err
+			}
 			*destP = v.GetInt64(envVar)
 		case *bool:
 			var d bool
@@ -213,7 +209,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.BoolVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return err
+			}
 			*destP = v.GetBool(envVar)
 		case *time.Duration:
 			var d time.Duration
@@ -225,7 +223,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.DurationVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return err
+			}
 			*destP = v.GetDuration(envVar)
 		case *[]string:
 			var d []string
@@ -237,7 +237,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.StringSliceVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return err
+			}
 			*destP = v.GetStringSlice(envVar)
 		case *map[string]string:
 			var d map[string]string
@@ -249,7 +251,9 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.StringToStringVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return err
+			}
 			*destP = v.GetStringMapString(envVar)
 		case pflag.Value:
 			if hasShort {
@@ -260,8 +264,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			if o.Default != nil {
 				destP.Set(o.Default.(string))
 			}
-			mustBindPFlag(v, o.Flag, flagset)
-			destP.Set(v.GetString(envVar))
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return err
+			}
+			if err := destP.Set(v.GetString(envVar)); err != nil {
+				return err
+			}
 		case *influxdb.ID:
 			var d influxdb.ID
 			if o.Default != nil {
@@ -291,19 +299,22 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 		default:
 			// if you get a panic here, sorry about that!
 			// anyway, go ahead and make a PR and add another type.
-			panic(fmt.Errorf("unknown destination type %t", o.DestP))
+			return fmt.Errorf("unknown destination type %t", o.DestP)
 		}
 
-		// so weirdness with the flagset her, the flag must be set before marking it
-		// hidden. This is in contrast to the MarkRequired, which can be set before...
+		// N.B. these "Mark" calls must run after the block above,
+		// otherwise cobra will return a "no such flag" error.
+		if o.Required {
+			if err := cmd.MarkFlagRequired(o.Flag); err != nil {
+				return err
+			}
+		}
 		if o.Hidden {
-			flagset.MarkHidden(o.Flag)
+			if err := flagset.MarkHidden(o.Flag); err != nil {
+				return err
+			}
 		}
 	}
-}
 
-func mustBindPFlag(v *viper.Viper, key string, flagset *pflag.FlagSet) {
-	if err := v.BindPFlag(key, flagset.Lookup(key)); err != nil {
-		panic(err)
-	}
+	return nil
 }
