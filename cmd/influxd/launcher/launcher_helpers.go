@@ -128,9 +128,9 @@ func (tl *TestLauncher) Run(tb testing.TB, ctx context.Context, setters ...OptSe
 
 // Shutdown stops the program and cleans up temporary paths.
 func (tl *TestLauncher) Shutdown(ctx context.Context) error {
+	defer os.RemoveAll(tl.Path)
 	tl.Cancel()
-	tl.Launcher.Shutdown(ctx)
-	return os.RemoveAll(tl.Path)
+	return tl.Launcher.Shutdown(ctx)
 }
 
 // ShutdownOrFail stops the program and cleans up temporary paths. Fail on error.

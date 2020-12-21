@@ -96,9 +96,7 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		// in-progress requests.
 		shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		l.Shutdown(shutdownCtx)
-
-		return nil
+		return l.Shutdown(shutdownCtx)
 	}
 }
 
