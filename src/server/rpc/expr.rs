@@ -26,9 +26,6 @@ use tracing::warn;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Error creating aggregate: Unexpected empty aggregate"))]
-    EmptyAggregate {},
-
     #[snafu(display("Error creating aggregate: Exactly one aggregate is supported, but {} were supplied: {:?}",
                     aggregates.len(), aggregates))]
     AggregateNotSingleton { aggregates: Vec<RPCAggregate> },
@@ -44,11 +41,6 @@ pub enum Error {
         num_group_keys
     ))]
     InvalidGroupNone { num_group_keys: usize },
-
-    #[snafu(display(
-        "Incompatible read_group request: Group::By had no group keys (expected at least 1)"
-    ))]
-    InvalidGroupBy {},
 
     #[snafu(display("Error creating predicate: Unexpected empty predicate: Node"))]
     EmptyPredicateNode {},
@@ -499,8 +491,6 @@ pub fn make_read_group_aggregate(
             num_group_keys: group_keys.len(),
         }
         .fail(),
-        // Group:By is invalid if no grouping keys are specified
-        RPCGroup::By if group_keys.is_empty() => InvalidGroupBy {}.fail(),
         _ => Ok(()),
     }?;
 
@@ -596,7 +586,7 @@ fn convert_duration(
 
 fn convert_aggregate(aggregate: Option<RPCAggregate>) -> Result<QueryAggregate> {
     let aggregate = match aggregate {
-        None => return EmptyAggregate {}.fail(),
+        None => return Ok(QueryAggregate::None),
         Some(aggregate) => aggregate,
     };
 
@@ -1179,12 +1169,13 @@ mod tests {
             }
         );
 
-        // error cases
+        // Flux does send this kind of request
         assert_eq!(
-            make_read_group_aggregate(None, RPCGroup::None, vec![])
-                .unwrap_err()
-                .to_string(),
-            "Error creating aggregate: Unexpected empty aggregate"
+            make_read_group_aggregate(None, RPCGroup::By, vec![]).unwrap(),
+            GroupByAndAggregate::Columns {
+                agg: QueryAggregate::None,
+                group_columns: vec![]
+            }
         );
 
         assert_eq!(
@@ -1193,11 +1184,13 @@ mod tests {
                 .to_string(),
             "Incompatible read_group request: Group::None had 1 group keys (expected 0)"
         );
+
         assert_eq!(
-            make_read_group_aggregate(Some(make_aggregate(1)), RPCGroup::By, vec![])
-                .unwrap_err()
-                .to_string(),
-            "Incompatible read_group request: Group::By had no group keys (expected at least 1)"
+            make_read_group_aggregate(Some(make_aggregate(1)), RPCGroup::By, vec![]).unwrap(),
+            GroupByAndAggregate::Columns {
+                agg: QueryAggregate::Sum,
+                group_columns: vec![]
+            }
         );
     }
 
@@ -1328,10 +1321,7 @@ mod tests {
 
     #[test]
     fn test_convert_aggregate() {
-        assert_eq!(
-            error_result_to_string(convert_aggregate(None)),
-            "Error creating aggregate: Unexpected empty aggregate"
-        );
+        assert_eq!(convert_aggregate(None).unwrap(), QueryAggregate::None);
         assert_eq!(
             convert_aggregate(make_aggregate_opt(0)).unwrap(),
             QueryAggregate::None
