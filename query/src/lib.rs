@@ -19,7 +19,6 @@ pub mod group_by;
 pub mod id;
 pub mod predicate;
 pub mod util;
-pub mod window;
 
 use self::group_by::GroupByAndAggregate;
 use self::predicate::{Predicate, TimestampRange};

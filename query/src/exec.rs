@@ -8,9 +8,6 @@ mod schema_pivot;
 pub mod seriesset;
 pub mod stringset;
 
-// Export function to make window bounds without exposing its implementation
-pub use planning::make_window_bound_expr;
-
 use std::sync::Arc;
 
 use arrow_deps::{

@@ -2,9 +2,10 @@
 //! and Aggregate functions in IOx, designed to be compatible with
 //! InfluxDB classic
 
-use crate::window;
 use arrow_deps::datafusion::logical_plan::Expr;
 use snafu::Snafu;
+
+use crate::func::window;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

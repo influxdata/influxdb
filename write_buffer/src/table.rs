@@ -1,7 +1,9 @@
 use generated_types::wal as wb;
-use query::exec::make_window_bound_expr;
-use query::exec::{make_schema_pivot, SeriesSetPlan};
-use query::group_by::{Aggregate, WindowDuration};
+use query::{
+    exec::{make_schema_pivot, SeriesSetPlan},
+    func::window::make_window_bound_expr,
+    group_by::{Aggregate, WindowDuration},
+};
 use tracing::debug;
 
 use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
