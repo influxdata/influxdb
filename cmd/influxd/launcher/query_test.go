@@ -27,16 +27,13 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	phttp "github.com/influxdata/influxdb/v2/http"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
-	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 	"go.uber.org/zap"
 )
 
 func TestLauncher_Write_Query_FieldKey(t *testing.T) {
-	be := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	be.SetupOrFail(t)
+	be := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer be.ShutdownOrFail(t, ctx)
 
 	resp, err := nethttp.DefaultClient.Do(
@@ -81,8 +78,7 @@ mem,server=b value=45.2`))
 // and checks that the queried results contain the expected number of tables
 // and expected number of columns.
 func TestLauncher_WriteV2_Query(t *testing.T) {
-	be := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	be.SetupOrFail(t)
+	be := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer be.ShutdownOrFail(t, ctx)
 
 	// The default gateway instance inserts some values directly such that ID lookups seem to break,
@@ -301,8 +297,7 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			l := launcher.RunTestLauncherOrFail(t, ctx, nil, tc.setOpts)
-			l.SetupOrFail(t)
+			l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, tc.setOpts)
 			defer l.ShutdownOrFail(t, ctx)
 
 			const tagValue = "t0"
@@ -339,14 +334,13 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\" on OK query")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil, func(o *launcher.InfluxdOpts) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
 		o.LogLevel = zap.ErrorLevel
 		o.ConcurrencyQuota = 1
 		o.InitialMemoryBytesQuotaPerQuery = 100
 		o.MemoryBytesQuotaPerQuery = 50000
 		o.MaxMemoryBytes = 200000
 	})
-	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// One tag does not exceed memory.
@@ -384,14 +378,13 @@ func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\"")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil, func(o *launcher.InfluxdOpts) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
 		o.LogLevel = zap.ErrorLevel
 		o.ConcurrencyQuota = 1
 		o.InitialMemoryBytesQuotaPerQuery = 100
 		o.MemoryBytesQuotaPerQuery = 50000
 		o.MaxMemoryBytes = 200000
 	})
-	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	const tag = "t0"
@@ -428,7 +421,7 @@ func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ConcurrentQueries(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"dial tcp 127.0.0.1:59654: connect: connection reset by peer\"")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil, func(o *launcher.InfluxdOpts) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
 		o.LogLevel = zap.ErrorLevel
 		o.QueueSize = 1024
 		o.ConcurrencyQuota = 1
@@ -436,7 +429,6 @@ func TestLauncher_QueryMemoryManager_ConcurrentQueries(t *testing.T) {
 		o.MemoryBytesQuotaPerQuery = 50000
 		o.MaxMemoryBytes = 200000
 	})
-	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// One tag does not exceed memory.
@@ -502,8 +494,7 @@ func TestLauncher_QueryMemoryManager_ConcurrentQueries(t *testing.T) {
 }
 
 func TestLauncher_Query_LoadSecret_Success(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	const key, value = "mytoken", "secrettoken"
@@ -552,8 +543,7 @@ from(bucket: "%s")
 }
 
 func TestLauncher_Query_LoadSecret_Forbidden(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	const key, value = "mytoken", "secrettoken"
@@ -611,8 +601,7 @@ from(bucket: "%s")
 // This will change once we make side effects drive execution and remove from/to concurrency in our e2e tests.
 // See https://github.com/influxdata/flux/issues/1799.
 func TestLauncher_DynamicQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	l.WritePointsOrFail(t, `
@@ -686,8 +675,7 @@ stream2 |> filter(fn: (r) => contains(value: r._value, set: col)) |> group() |> 
 }
 
 func TestLauncher_Query_ExperimentalTo(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Last row of data tests nil field value
@@ -920,9 +908,7 @@ error2","query plan",109,110
 	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-
-			l.SetupOrFail(t)
+			l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 			defer l.ShutdownOrFail(t, ctx)
 
 			l.WritePointsOrFail(t, strings.Join(tc.data, "\n"))
@@ -2530,9 +2516,8 @@ from(bucket: v.bucket)
 			if tc.skip != "" {
 				t.Skip(tc.skip)
 			}
-			l := launcher.RunTestLauncherOrFail(t, ctx, mock.NewFlagger(map[feature.Flag]interface{}{}))
 
-			l.SetupOrFail(t)
+			l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 			defer l.ShutdownOrFail(t, ctx)
 
 			l.WritePointsOrFail(t, strings.Join(tc.data, "\n"))
@@ -2562,8 +2547,7 @@ from(bucket: v.bucket)
 }
 
 func TestLauncher_Query_Buckets_MultiplePages(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Create a large number of buckets. This is above the default
