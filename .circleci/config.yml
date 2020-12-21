@@ -220,7 +220,7 @@ jobs:
           command: |
             GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -p=4"
             TESTFILES=($(go list ./... | circleci tests split --split-by=timings))
-            make GO_TEST_CMD="$GO_TEST_CMD" GO_TEST_PATHS="${TESTFILES[@]}" test-go-race
+            make GO_TEST_CMD="$GO_TEST_CMD" GO_TEST_PATHS="${TESTFILES[*]}" test-go-race
       - save_cache:
           name: Saving GOCACHE
           key: influxdb-gotest-{{ .Branch }}-{{ .Revision }}
