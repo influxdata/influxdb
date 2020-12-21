@@ -93,7 +93,7 @@ pub async fn main() -> Result<()> {
         info!("setting server ID to {}", id);
         app_server.set_id(id).await;
     } else {
-        warn!("server ID not set. This must be set via API before writing or querying data.");
+        warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID environment variable or via API before writing or querying data.");
     }
 
     // Fire up the query executor
@@ -117,7 +117,7 @@ pub async fn main() -> Result<()> {
 
     let grpc_server = service::make_server(socket, app_server.clone(), executor);
 
-    info!("gRPC server listening on http://{}", grpc_bind_addr);
+    info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 
     // Construct and start up HTTP server
 
@@ -143,7 +143,7 @@ pub async fn main() -> Result<()> {
     let http_server = Server::try_bind(&bind_addr)
         .context(StartListening { bind_addr })?
         .serve(make_svc);
-    info!("Listening on http://{}", bind_addr);
+    info!(bind_address=?bind_addr, "HTTP server listening");
 
     println!("InfluxDB IOx server ready");
 

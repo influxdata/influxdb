@@ -445,7 +445,7 @@ pub async fn service<M: ConnectionManager + std::fmt::Debug>(
             .body(Body::empty())
             .expect("Should have been able to construct a response"),
         Err(e) => {
-            error!(error = ?e, method = ?method, uri = ?uri, "Error while handing request");
+            error!(error = ?e, error_message = ?e.to_string(), method = ?method, uri = ?uri, "Error while handling request");
             let json = serde_json::json!({"error": e.to_string()}).to_string();
             hyper::Response::builder()
                 .status(e.status_code())
