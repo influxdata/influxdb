@@ -102,22 +102,19 @@ type optionsV2 struct {
 	retention      string
 }
 
-var options = struct {
+type options struct {
 	// flags for source InfluxDB
 	source optionsV1
 
 	// flags for target InfluxDB
 	target optionsV2
 
-	// verbose output
-	verbose bool
-
 	// logging
 	logLevel zapcore.Level
 	logPath  string
 
 	force bool
-}{}
+}
 
 func NewCommand(v *viper.Viper) *cobra.Command {
 
@@ -126,6 +123,10 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 	if err != nil {
 		panic("error fetching default InfluxDB 2.0 dir: " + err.Error())
 	}
+
+	// DEPRECATED in favor of log-level=debug, but left for backwards-compatibility
+	verbose := false
+	options := &options{}
 
 	cmd := &cobra.Command{
 		Use:   "upgrade",
@@ -143,7 +144,9 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 
     Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
 `,
-		RunE: runUpgradeE,
+		RunE: func(*cobra.Command, []string) error {
+			return runUpgradeE(options, verbose)
+		},
 		Args: cobra.NoArgs,
 	}
 
@@ -154,11 +157,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Desc:  "path to source 1.x db directory containing meta, data and wal sub-folders",
 		},
 		{
-			DestP:   &options.verbose,
+			DestP:   &verbose,
 			Flag:    "verbose",
 			Default: true,
-			Desc:    "verbose output",
+			Desc:    "DEPRECATED: use --log-level=debug instead",
 			Short:   'v',
+			Hidden:  true,
 		},
 		{
 			DestP:   &options.target.boltPath,
@@ -309,7 +313,26 @@ func (i *influxDBv2) close() error {
 
 var fluxInitialized bool
 
-func runUpgradeE(*cobra.Command, []string) error {
+func runUpgradeE(options *options, verbose bool) error {
+	ctx := context.Background()
+	config := zap.NewProductionConfig()
+
+	config.Level = zap.NewAtomicLevelAt(options.logLevel)
+	if verbose {
+		config.Level.SetLevel(zap.DebugLevel)
+	}
+
+	config.OutputPaths = append(config.OutputPaths, options.logPath)
+	config.ErrorOutputPaths = append(config.ErrorOutputPaths, options.logPath)
+
+	log, err := config.Build()
+	if err != nil {
+		return err
+	}
+	if verbose {
+		log.Warn("--verbose is deprecated, use --log-level=debug instead")
+	}
+
 	// This command is executed multiple times by test code. Initialization can happen only once.
 	if !fluxInitialized {
 		fluxinit.FluxInit()
@@ -331,16 +354,6 @@ func runUpgradeE(*cobra.Command, []string) error {
 			}
 			options.source.dbDir = v1dir
 		}
-	}
-
-	ctx := context.Background()
-	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(options.logLevel)
-	config.OutputPaths = append(config.OutputPaths, options.logPath)
-	config.ErrorOutputPaths = append(config.ErrorOutputPaths, options.logPath)
-	log, err := config.Build()
-	if err != nil {
-		return err
 	}
 
 	var v1Config *configV1
@@ -413,7 +426,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 		return errors.New("InfluxDB has been already set up")
 	}
 
-	req, err := onboardingRequest()
+	req, err := onboardingRequest(options)
 	if err != nil {
 		return err
 	}

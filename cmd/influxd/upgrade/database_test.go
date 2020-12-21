@@ -61,8 +61,8 @@ func TestUpgradeRealDB(t *testing.T) {
 	v2, err := newInfluxDBv2(ctx, v2opts, zap.NewNop())
 	require.Nil(t, err)
 
-	options.target = *v2opts
-	req, err := nonInteractive()
+	opts := &options{target: *v2opts}
+	req, err := nonInteractive(opts)
 	require.Nil(t, err)
 	assert.Equal(t, req.RetentionPeriod, humanize.Week, "Retention policy should pass through")
 

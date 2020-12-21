@@ -25,7 +25,7 @@ func setupAdmin(ctx context.Context, v2 *influxDBv2, req *influxdb.OnboardingReq
 	return res, nil
 }
 
-func isInteractive() bool {
+func isInteractive(options *options) bool {
 	return !options.force ||
 		options.target.userName == "" ||
 		options.target.password == "" ||
@@ -33,14 +33,14 @@ func isInteractive() bool {
 		options.target.bucket == ""
 }
 
-func onboardingRequest() (*influxdb.OnboardingRequest, error) {
-	if isInteractive() {
-		return interactive()
+func onboardingRequest(options *options) (*influxdb.OnboardingRequest, error) {
+	if isInteractive(options) {
+		return interactive(options)
 	}
-	return nonInteractive()
+	return nonInteractive(options)
 }
 
-func nonInteractive() (*influxdb.OnboardingRequest, error) {
+func nonInteractive(options *options) (*influxdb.OnboardingRequest, error) {
 	if len(options.target.password) < internal.MinPasswordLen {
 		return nil, internal.ErrPasswordIsTooShort
 	}
@@ -63,7 +63,7 @@ func nonInteractive() (*influxdb.OnboardingRequest, error) {
 	return req, nil
 }
 
-func interactive() (req *influxdb.OnboardingRequest, err error) {
+func interactive(options *options) (req *influxdb.OnboardingRequest, err error) {
 	ui := &input.UI{
 		Writer: os.Stdout,
 		Reader: os.Stdin,
