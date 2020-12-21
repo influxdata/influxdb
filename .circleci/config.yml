@@ -22,7 +22,6 @@ jobs:
           destination: raw-daily-output
       - store_test_results:
           path: ~/project
-          destination: daily-junit
 
   litmus_integration:
     machine: true
@@ -44,7 +43,6 @@ jobs:
           destination: raw-daily-output
       - store_test_results:
           path: ~/project
-          destination: daily-junit
 
   litmus_nightly:
     machine: true
@@ -66,13 +64,12 @@ jobs:
           destination: raw-nightly-output
       - store_test_results:
           path: ~/project
-          destination: nightly-junit
+
   e2e:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -93,51 +90,12 @@ jobs:
       - run: make e2e
       - store_test_results:
           path: ui/junit-results
-          destination: junit-results
       - store_artifacts:
           path: ui/cypress/videos
           destination: videos
       - store_artifacts:
           path: ui/cypress/screenshots
           destination: screenshots
-
-  selenium_accept:
-    docker:
-      - image: circleci/node:lts-stretch-browsers
-      - image: quay.io/influxdb/influx:nightly
-        command: [--e2e-testing=true]
-    steps:
-      - checkout
-      - run:
-          name: Environment check
-          command: |
-            git --version
-            node --version && npm --version
-            docker --version
-            google-chrome --version && which google-chrome && chromedriver --version && which chromedriver
-            timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:8086)" != "200" ]]; do sleep 5; done' || false
-      - run:
-          name: Selenium tests
-          command: |
-            set +e
-            cd e2e
-            npm install
-            sed -i "s/\"headless\": false/\"headless\": true/g" e2e.conf.json
-            npm test; TEST_RESULT=$?
-            npm run report:html
-            npm run report:junit
-            mkdir -p ~/e2e/test-results/cucumber
-            mkdir -p ~/e2e/artifacts/html
-            cp ~/project/e2e/report/cucumber_report.html ~/e2e/artifacts/html/cucumber_report.html
-            cp ~/project/e2e/report/cucumber_junit.xml ~/e2e/test-results/cucumber/report.xml
-            cp ~/project/e2e/report/cucumber_junit.xml ~/e2e/artifacts/report.xml
-            cp -r ~/project/e2e/screenshots ~/e2e/artifacts
-            ls -al
-            exit $TEST_RESULT
-      - store_test_results:
-          path: ~/e2e/test-results
-      - store_artifacts:
-          path: ~/e2e/artifacts
 
   grace_nightly:
     machine: true
@@ -150,6 +108,7 @@ jobs:
           path: ~/project
       - store_test_results:
           path: ~/project
+
   grace_daily:
     machine: true
     steps:
@@ -236,7 +195,6 @@ jobs:
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
       TEST_RESULTS: /tmp/test-results
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
@@ -246,32 +204,31 @@ jobs:
       - restore_cache:
           name: Restoring GOCACHE
           keys:
-            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gocache- # Matches a new branch.
+            - influxdb-gotest-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - influxdb-gotest-{{ .Branch }}- # Matches a new commit on an existing branch.
+            - influxdb-gotest- # Matches a new branch.
       # Populate GOPATH/pkg.
       - restore_cache:
           name: Restoring GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
+            - influxdb-gotest-gomod-{{ checksum "go.sum" }} # Retrying a single run.
+            - influxdb-gomod-{{ checksum "go.sum" }} # Fresh test-run following the build job.
       - run: mkdir -p $TEST_RESULTS
-      - run: make test-go # This uses the test cache so it may succeed or fail quickly.
       - run:
-          name: parallel go race tests
+          name: run parallel race tests
           command: |
-            set +e
+            GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -p=4"
             TESTFILES=$(go list ./... | circleci tests split --split-by=timings)
-            echo $TESTFILES
-            GOTRACEBACK=all GO111MODULE=on ./env gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 $TESTFILES
+            make GO_TEST_CMD="$GO_TEST_CMD" GO_TEST_PATHS="$TESTFILES" test-go-race
       - save_cache:
           name: Saving GOCACHE
-          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
+          key: influxdb-gotest-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
           when: always
       - save_cache:
           name: Saving GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
+          key: influxdb-gotest-gomod-{{ checksum "go.sum" }}
           paths:
             - /go/pkg/mod
           when: always
@@ -295,25 +252,26 @@ jobs:
       - restore_cache:
           name: Restoring GOCACHE
           keys:
-            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gocache- # Matches a new branch.
+            - influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - influxdb-iqlvalidation-{{ .Branch }}- # Matches a new commit on an existing branch.
+            - influxdb-iqlvalidation- # Matches a new branch.
       # Populate GOPATH/pkg.
       - restore_cache:
           name: Restoring GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
+            - influxdb-iqlvalidation-gomod-{{ checksum "go.sum" }} # Retrying a single run.
+            - influxdb-gomod-{{ checksum "go.sum" }} # Fresh test-run following the build job.
       - run: mkdir -p $TEST_RESULTS
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-validation
       - save_cache:
           name: Saving GOCACHE
-          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
+          key: influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
           when: always
       - save_cache:
           name: Saving GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
+          key: influxdb-iqlvalidation-gomod-{{ checksum "go.sum" }}
           paths:
             - /go/pkg/mod
           when: always
@@ -337,25 +295,26 @@ jobs:
       - restore_cache:
           name: Restoring GOCACHE
           keys:
-            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gocache- # Matches a new branch.
+            - influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - influxdb-iqlintegration-{{ .Branch }}- # Matches a new commit on an existing branch.
+            - influxdb-iqlintegration- # Matches a new branch.
       # Populate GOPATH/pkg.
       - restore_cache:
           name: Restoring GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
+            - influxdb-iqlintegration-gomod-{{ checksum "go.sum" }}  # Retrying a single run.
+            - influxdb-gomod-{{ checksum "go.sum" }} # Fresh test-run following the build job.
       - run: mkdir -p $TEST_RESULTS
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-integration
       - save_cache:
           name: Saving GOCACHE
-          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
+          key: influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
           when: always
       - save_cache:
           name: Saving GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
+          key: influxdb-iqlintegration-gomod-{{ checksum "go.sum" }}
           paths:
             - /go/pkg/mod
           when: always
@@ -370,12 +329,9 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
-      TEST_RESULTS: /tmp/test-results
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - run: mkdir -p $TEST_RESULTS
       - run: |
           # this is not in a seperate bash script because it isn't meant to be run on local.
           # it just checks to make sure that the same major/minor version of go is used in the mod file as on ci
@@ -392,32 +348,28 @@ jobs:
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
       - run: GO111MODULE=on ./env staticcheck ./...
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results:
-          path: /tmp/test-results
+
   build:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - run: make checkcommit
-      # Speed up `make build` by restoring caches from previous runs.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache- # Just match the most recent Go cache.
       - restore_cache:
           name: Restoring GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
+            - influxdb-gomod-{{ checksum "go.sum" }} # Exact match on module checksums.
+            - influxdb-gomod- # Latest cache.
       - run: make protoc
       - run: make build
+      - save_cache:
+          name: Saving GOPATH/pkg/mod
+          key: influxdb-gomod-{{ checksum "go.sum" }}
+          paths:
+            - /go/pkg/mod
       - persist_to_workspace:
           root: .
           paths:
@@ -426,12 +378,12 @@ jobs:
             - bin/linux/influx
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
+
   deploy-nightly:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -463,20 +415,14 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
       DOCKER_VERSION: 2.0.0-rc
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      # Speed up `make nightly` by restoring caches from previous runs.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache- # Just match the most recent Go cache.
       - restore_cache:
           name: Restoring GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
+            - influxdb-gomod-{{ checksum "go.sum" }}
       - setup_remote_docker
       - run:
           name: "Docker Login"
@@ -495,13 +441,21 @@ workflows:
   version: 2
   build:
     jobs:
-      - gotest
-      - golint
-      - jstest
-      - jslint
       - build
-      - influxql_validation
-      - influxql_integration
+      - golint
+      - jslint
+      - gotest:
+          requires:
+            - build
+      - jstest:
+          requires:
+            - jslint
+      - influxql_validation:
+          requires:
+            - build
+      - influxql_integration:
+          requires:
+            - build
       - grace_daily:
           requires:
             - build
@@ -558,6 +512,8 @@ workflows:
             - golint
             - jstest
             - jslint
+            - influxql_validation
+            - influxql_integration
           filters:
             branches:
               only:
@@ -565,9 +521,6 @@ workflows:
       - litmus_nightly:
           requires:
             - deploy-nightly
-      # - selenium_accept:
-      #    requires:
-      #      - deploy-nightly
       - grace_nightly:
           requires:
             - deploy-nightly
