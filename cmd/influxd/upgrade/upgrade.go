@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/v2/v1/services/meta/filestore"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/tcnksm/go-input"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -144,8 +145,8 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 
     Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
 `,
-		RunE: func(*cobra.Command, []string) error {
-			return runUpgradeE(options, verbose)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runUpgradeE(cmd, options, verbose)
 		},
 		Args: cobra.NoArgs,
 	}
@@ -159,7 +160,7 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 		{
 			DestP:   &verbose,
 			Flag:    "verbose",
-			Default: true,
+			Default: false,
 			Desc:    "DEPRECATED: use --log-level=debug instead",
 			Short:   'v',
 			Hidden:  true,
@@ -313,7 +314,7 @@ func (i *influxDBv2) close() error {
 
 var fluxInitialized bool
 
-func runUpgradeE(options *options, verbose bool) error {
+func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 	ctx := context.Background()
 	config := zap.NewProductionConfig()
 
@@ -426,7 +427,12 @@ func runUpgradeE(options *options, verbose bool) error {
 		return errors.New("InfluxDB has been already set up")
 	}
 
-	req, err := onboardingRequest(options)
+	ui := &input.UI{
+		Writer: cmd.OutOrStdout(),
+		Reader: cmd.InOrStdin(),
+	}
+
+	req, err := onboardingRequest(ui, options)
 	if err != nil {
 		return err
 	}
@@ -444,7 +450,7 @@ func runUpgradeE(options *options, verbose bool) error {
 		return err
 	}
 
-	db2BucketIds, err := upgradeDatabases(ctx, v1, v2, &options.source, &options.target, or.Org.ID, log)
+	db2BucketIds, err := upgradeDatabases(ctx, ui, v1, v2, options, or.Org.ID, log)
 	if err != nil {
 		//remove all files
 		log.Info("Database upgrade error, removing data")

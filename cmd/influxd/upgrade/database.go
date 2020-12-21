@@ -2,20 +2,25 @@ package upgrade
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/dustin/go-humanize"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/dustin/go-humanize"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	"github.com/tcnksm/go-input"
 	"go.uber.org/zap"
 )
 
 // upgradeDatabases creates databases, buckets, retention policies and shard info according to 1.x meta and copies data
-func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opts *optionsV1, v2opts *optionsV2, orgID influxdb.ID, log *zap.Logger) (map[string][]influxdb.ID, error) {
+func upgradeDatabases(ctx context.Context, ui *input.UI, v1 *influxDBv1, v2 *influxDBv2, opts *options, orgID influxdb.ID, log *zap.Logger) (map[string][]influxdb.ID, error) {
+	v1opts := opts.source
+	v2opts := opts.target
 	db2BucketIds := make(map[string][]influxdb.ID)
 
 	targetDataPath := filepath.Join(v2opts.enginePath, "data")
@@ -33,25 +38,8 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 		log.Info("No database found in the 1.x meta")
 		return db2BucketIds, nil
 	}
-	// Check space
-	log.Info("Checking space")
-	size, err := DirSize(v1opts.dataDir)
-	if err != nil {
-		return nil, fmt.Errorf("error getting size of %s: %w", v1opts.dataDir, err)
-	}
-	size2, err := DirSize(v1opts.walDir)
-	if err != nil {
-		return nil, fmt.Errorf("error getting size of %s: %w", v1opts.walDir, err)
-	}
-	size += size2
-	v2dir := filepath.Dir(v2opts.boltPath)
-	diskInfo, err := fs.DiskUsage(v2dir)
-	if err != nil {
-		return nil, fmt.Errorf("error getting info of disk %s: %w", v2dir, err)
-	}
-	log.Info("Disk space info", zap.String("Free space", humanize.Bytes(diskInfo.Free)), zap.String("Requested space", humanize.Bytes(size)))
-	if size > diskInfo.Free {
-		return nil, fmt.Errorf("not enough space on target disk of %s: need %d, available %d ", v2dir, size, diskInfo.Free)
+	if err := checkDiskSpace(ui, opts, log); err != nil {
+		return nil, err
 	}
 
 	cqFile, err := os.OpenFile(v2opts.cqPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -204,4 +192,46 @@ func upgradeDatabases(ctx context.Context, v1 *influxDBv1, v2 *influxDBv2, v1opt
 	}
 
 	return db2BucketIds, nil
+}
+
+// checkDiskSpace ensures there is enough room at the target path to store
+// a full copy of all V1 data.
+func checkDiskSpace(ui *input.UI, opts *options, log *zap.Logger) error {
+	log.Info("Checking available disk space")
+
+	size, err := DirSize(opts.source.dataDir)
+	if err != nil {
+		return fmt.Errorf("error getting size of %s: %w", opts.source.dataDir, err)
+	}
+
+	walSize, err := DirSize(opts.source.walDir)
+	if err != nil {
+		return fmt.Errorf("error getting size of %s: %w", opts.source.walDir, err)
+	}
+	size += walSize
+
+	v2dir := filepath.Dir(opts.target.boltPath)
+	diskInfo, err := fs.DiskUsage(v2dir)
+	if err != nil {
+		return fmt.Errorf("error getting info of disk %s: %w", v2dir, err)
+	}
+
+	freeBytes := humanize.Bytes(diskInfo.Free)
+	requiredBytes := humanize.Bytes(size)
+	log.Info("Computed disk space", zap.String("free", freeBytes), zap.String("required", requiredBytes))
+
+	if size > diskInfo.Free {
+		return fmt.Errorf("not enough space on target disk of %s: need %d, available %d", v2dir, size, diskInfo.Free)
+	}
+	if !opts.force {
+		if confirmed := internal.GetConfirm(ui, func() string {
+			return fmt.Sprintf(`Proceeding will copy all V1 data to %q
+  Space available: %s
+  Space required:  %s
+`, v2dir, freeBytes, requiredBytes)
+		}); !confirmed {
+			return errors.New("upgrade was canceled")
+		}
+	}
+	return nil
 }

@@ -1,6 +1,7 @@
 package upgrade
 
 import (
+	"bytes"
 	"context"
 	"io/ioutil"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/dustin/go-humanize"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tcnksm/go-input"
 	"go.uber.org/zap"
 )
 
@@ -61,7 +62,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	v2, err := newInfluxDBv2(ctx, v2opts, zap.NewNop())
 	require.Nil(t, err)
 
-	opts := &options{target: *v2opts}
+	opts := &options{source: *v1opts, target: *v2opts, force: true}
 	req, err := nonInteractive(opts)
 	require.Nil(t, err)
 	assert.Equal(t, req.RetentionPeriod, humanize.Week, "Retention policy should pass through")
@@ -82,7 +83,11 @@ func TestUpgradeRealDB(t *testing.T) {
 	log, err := zap.NewDevelopment()
 	require.Nil(t, err)
 
-	db2bids, err := upgradeDatabases(ctx, v1, v2, v1opts, v2opts, resp.Org.ID, log)
+	ui := &input.UI{
+		Writer: &bytes.Buffer{},
+		Reader: &bytes.Buffer{},
+	}
+	db2bids, err := upgradeDatabases(ctx, ui, v1, v2, opts, resp.Org.ID, log)
 	require.Nil(t, err)
 
 	err = v2.close()

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -33,9 +32,9 @@ func isInteractive(options *options) bool {
 		options.target.bucket == ""
 }
 
-func onboardingRequest(options *options) (*influxdb.OnboardingRequest, error) {
+func onboardingRequest(ui *input.UI, options *options) (*influxdb.OnboardingRequest, error) {
 	if isInteractive(options) {
-		return interactive(options)
+		return interactive(ui, options)
 	}
 	return nonInteractive(options)
 }
@@ -63,11 +62,7 @@ func nonInteractive(options *options) (*influxdb.OnboardingRequest, error) {
 	return req, nil
 }
 
-func interactive(options *options) (req *influxdb.OnboardingRequest, err error) {
-	ui := &input.UI{
-		Writer: os.Stdout,
-		Reader: os.Stdin,
-	}
+func interactive(ui *input.UI, options *options) (req *influxdb.OnboardingRequest, err error) {
 	req = new(influxdb.OnboardingRequest)
 	fmt.Println(string(internal.PromptWithColor(`Welcome to InfluxDB 2.0 upgrade!`, internal.ColorYellow)))
 	if options.target.userName != "" {
@@ -119,8 +114,7 @@ func interactive(options *options) (req *influxdb.OnboardingRequest, err error) 
 			if req.RetentionPeriod > 0 {
 				rp = fmt.Sprintf("%d hrs", req.RetentionPeriod/time.Hour)
 			}
-			return fmt.Sprintf(`
-You have entered:
+			return fmt.Sprintf(`You have entered:
   Username:          %s
   Organization:      %s
   Bucket:            %s
