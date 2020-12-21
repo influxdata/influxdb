@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/kit/signals"
+	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/vault"
@@ -70,10 +72,21 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 	return func() error {
 		fluxinit.FluxInit()
 
-		// exit with SIGINT and SIGTERM
-		runCtx := signals.WithStandardSignals(ctx)
-
 		l := NewLauncher()
+
+		// Create top level logger
+		logconf := &influxlogger.Config{
+			Format: "auto",
+			Level:  o.LogLevel,
+		}
+		logger, err := logconf.New(os.Stdout)
+		if err != nil {
+			return err
+		}
+		l.log = logger
+
+		// Start the launcher and wait for it to exit on SIGINT or SIGTERM.
+		runCtx := signals.WithStandardSignals(ctx)
 		if err := l.run(runCtx, o); err != nil {
 			return err
 		}
@@ -82,9 +95,7 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		// Attempt clean shutdown.
 		shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		l.Shutdown(shutdownCtx)
-
-		return nil
+		return l.Shutdown(shutdownCtx)
 	}
 }
 
