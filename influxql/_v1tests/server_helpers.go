@@ -11,20 +11,22 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/tests"
 	"github.com/influxdata/influxdb/v2/tests/pipeline"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest"
 )
 
-func OpenServer(t *testing.T, extra ...tests.PipelineOption) *tests.DefaultPipeline {
+func OpenServer(t *testing.T, extra ...launcher.OptSetter) *tests.DefaultPipeline {
 	t.Helper()
 
-	defaults := []tests.PipelineOption{
-		tests.WithLogger(zaptest.NewLogger(t, zaptest.Level(zapcore.ErrorLevel))),
+	defaults := []launcher.OptSetter{
+		func(o *launcher.InfluxdOpts) {
+			o.LogLevel = zapcore.ErrorLevel
+		},
 	}
 
 	p := tests.NewDefaultPipeline(t, append(defaults, extra...)...)

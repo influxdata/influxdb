@@ -6,9 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 )
 
 // A Pipeline is responsible for configuring launcher.TestLauncher
@@ -22,57 +20,38 @@ type Pipeline struct {
 	DefaultUserID   influxdb.ID
 }
 
-// pipelineConfig tracks the pre-configuration for a pipeline.
-type pipelineConfig struct {
-	logger *zap.Logger
-}
-
 // NewDefaultPipeline creates a Pipeline with default
 // values.
 //
 // It is retained for compatibility with cloud tests.
-func NewDefaultPipeline(t *testing.T, opts ...PipelineOption) *DefaultPipeline {
-	opts = append(WithDefaults(), opts...)
+func NewDefaultPipeline(t *testing.T, opts ...launcher.OptSetter) *DefaultPipeline {
+	setDefaultLogLevel := func(o *launcher.InfluxdOpts) {
+		// This is left here mainly for retro compatibility
+		if VeryVerbose {
+			o.LogLevel = zap.DebugLevel
+		} else {
+			o.LogLevel = zap.InfoLevel
+		}
+
+	}
+	// Set the default log level as the FIRST option here so users can override
+	// it with passed-in setters.
+	opts = append([]launcher.OptSetter{setDefaultLogLevel}, opts...)
 	return &DefaultPipeline{Pipeline: NewPipeline(t, opts...)}
 }
 
 // NewPipeline returns a pipeline with the given options applied to the configuration as appropriate.
 //
 // A single user, org, bucket and token are created.
-func NewPipeline(tb testing.TB, opts ...PipelineOption) *Pipeline {
+func NewPipeline(tb testing.TB, opts ...launcher.OptSetter) *Pipeline {
 	tb.Helper()
 
-	var conf pipelineConfig
-	for _, o := range opts {
-		o.applyConfig(&conf)
-	}
-
-	logger := conf.logger
-	if logger == nil {
-		// This is left here mainly for retro compatibility
-		var logLevel zaptest.LoggerOption
-		if VeryVerbose {
-			logLevel = zaptest.Level(zap.DebugLevel)
-		} else {
-			logLevel = zaptest.Level(zap.InfoLevel)
-		}
-
-		logger = zaptest.NewLogger(tb, logLevel).With(zap.String("test_name", tb.Name()))
-	}
-
-	tl := launcher.NewTestLauncher(nil)
-	tl.SetLogger(logger)
-
+	tl := launcher.NewTestLauncher()
 	p := &Pipeline{
 		Launcher: tl,
 	}
 
-	err := tl.Run(context.Background(), func(o *launcher.InfluxdOpts) {
-		for _, opt := range opts {
-			opt.applyOptSetter(o)
-		}
-	})
-	require.NoError(tb, err)
+	tl.RunOrFail(tb, context.Background(), opts...)
 
 	// setup default operator
 	res := p.Launcher.OnBoardOrFail(tb, &influxdb.OnboardingRequest{
