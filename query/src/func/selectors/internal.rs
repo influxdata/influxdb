@@ -10,8 +10,8 @@ use std::fmt::Debug;
 
 use arrow_deps::{
     arrow::compute::kernels::aggregate::{
-        max as array_max, max_string as array_max_string, min as array_min,
-        min_string as array_min_string,
+        max as array_max, max_boolean as array_max_boolean, max_string as array_max_string,
+        min as array_min, min_boolean as array_min_boolean, min_string as array_min_string,
     },
     arrow::{
         array::{Array, ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray},
@@ -21,48 +21,6 @@ use arrow_deps::{
 };
 
 use super::{Selector, SelectorOutput};
-
-/// Arrow aggregate kernels don't include a min or max for
-/// bools... Which is a silly operation anyways, when you think about
-/// it. However, we include it here for completeness.
-///
-/// This is some version of `min_max_helper` from
-/// aggregate.rs in arrow
-///
-/// This code should be contribited upstream and then removed from
-/// here when arrow gets this feature:
-/// https://issues.apache.org/jira/browse/ARROW-10944
-fn min_max_helper<F>(array: &BooleanArray, cmp: F) -> Option<bool>
-where
-    F: Fn(bool, bool) -> bool,
-{
-    let null_count = array.null_count();
-
-    // Includes case array.len() == 0
-    if null_count == array.len() {
-        return None;
-    }
-
-    // optimized path for arrays without null values
-    let m0: Option<bool> = array.iter().next().unwrap();
-
-    array.iter().fold(m0, |max, item| match (max, item) {
-        (Some(max), Some(item)) => Some(if cmp(max, item) { item } else { max }),
-        (Some(max), None) => Some(max),
-        (None, Some(item)) => Some(item),
-        (None, None) => None,
-    })
-}
-
-fn array_min_bool(array: &BooleanArray) -> Option<bool> {
-    // a > b == a & !b
-    min_max_helper(array, |a, b| a & !b)
-}
-
-fn array_max_bool(array: &BooleanArray) -> Option<bool> {
-    // a < b == !a & b
-    min_max_helper(array, |a, b| !a & b)
-}
 
 /// Trait for comparing values in arrays with their native
 /// representation. This so the same comparison expression can be used
@@ -583,7 +541,7 @@ make_min_selector!(
     bool,
     DataType::Boolean,
     BooleanArray,
-    array_min_bool,
+    array_min_boolean,
     ScalarValue::Boolean
 );
 
@@ -618,6 +576,6 @@ make_max_selector!(
     bool,
     DataType::Boolean,
     BooleanArray,
-    array_max_bool,
+    array_max_boolean,
     ScalarValue::Boolean
 );

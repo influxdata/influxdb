@@ -86,8 +86,9 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=edff65dfe73d3380a211b678f3760a60a66e5544#edff65dfe73d3380a211b678f3760a60a66e5544"
+source = "git+https://github.com/apache/arrow.git?rev=9724afd732481115c675fe68973d741c5530d23d#9724afd732481115c675fe68973d741c5530d23d"
 dependencies = [
+ "cfg_aliases",
  "chrono",
  "csv",
  "flatbuffers",
@@ -362,6 +363,12 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "cfg_aliases"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
 name = "chrono"
@@ -729,7 +736,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=edff65dfe73d3380a211b678f3760a60a66e5544#edff65dfe73d3380a211b678f3760a60a66e5544"
+source = "git+https://github.com/apache/arrow.git?rev=9724afd732481115c675fe68973d741c5530d23d#9724afd732481115c675fe68973d741c5530d23d"
 dependencies = [
  "ahash 0.6.2",
  "arrow",
@@ -2075,10 +2082,10 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=edff65dfe73d3380a211b678f3760a60a66e5544#edff65dfe73d3380a211b678f3760a60a66e5544"
+source = "git+https://github.com/apache/arrow.git?rev=9724afd732481115c675fe68973d741c5530d23d#9724afd732481115c675fe68973d741c5530d23d"
 dependencies = [
  "arrow",
- "base64 0.13.0",
+ "base64 0.12.3",
  "brotli",
  "byteorder",
  "chrono",

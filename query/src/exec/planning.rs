@@ -13,6 +13,7 @@ use arrow_deps::{
         execution::context::{ExecutionContextState, QueryPlanner},
         logical_plan::{Expr, LogicalPlan, UserDefinedLogicalNode},
         physical_plan::{
+            collect,
             functions::ScalarFunctionImplementation,
             merge::MergeExec,
             planner::{DefaultPhysicalPlanner, ExtensionPlanner},
@@ -126,7 +127,7 @@ impl IOxExecutionContext {
 
         debug!("Running plan, physical:\n{:?}", physical_plan);
 
-        self.inner.collect(physical_plan).await
+        collect(physical_plan).await
     }
 
     /// Executes the physical plan and produces a RecordBatchStream to stream

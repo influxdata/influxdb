@@ -28,10 +28,9 @@ use std::{
 use arrow_deps::{
     arrow,
     arrow::{datatypes::Schema as ArrowSchema, record_batch::RecordBatch},
-    datafusion::logical_plan::LogicalPlan,
-    datafusion::prelude::ExecutionConfig,
     datafusion::{
         datasource::MemTable, error::DataFusionError, execution::context::ExecutionContext,
+        logical_plan::LogicalPlan, physical_plan::collect, prelude::ExecutionConfig,
     },
 };
 use data_types::data::{split_lines_into_write_entry_partitions, ReplicatedWrite};
@@ -596,7 +595,7 @@ impl SQLDatabase for Db {
             .create_physical_plan(&plan)
             .context(QueryError { query })?;
 
-        ctx.collect(plan).await.context(QueryError { query })
+        collect(plan).await.context(QueryError { query })
     }
 
     /// Fetch the specified table names and columns as Arrow
