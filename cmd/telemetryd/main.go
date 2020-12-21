@@ -33,7 +33,11 @@ func main() {
 		},
 	}
 	v := viper.New()
-	cmd := cli.NewCommand(v, prog)
+	cmd, err := cli.NewCommand(v, prog)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing CLI parser: %v\n", err)
+		os.Exit(1)
+	}
 
 	var exitCode int
 	if err := cmd.Execute(); err != nil {

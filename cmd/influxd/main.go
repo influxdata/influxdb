@@ -33,12 +33,12 @@ func main() {
 	v := viper.New()
 	rootCmd, err := launcher.NewInfluxdCommand(context.Background(), v)
 	if err != nil {
-		handleErr("Failed to initialize CLI parser: %v", err)
+		handleErr("Failed to initialize CLI parser: %v\n", err)
 	}
 	// upgrade binds options to env variables, so it must be added after rootCmd is initialized
 	upgradeCmd, err := upgrade.NewCommand(v)
 	if err != nil {
-		handleErr("Failed to initialize CLI parser: %v", err)
+		handleErr("Failed to initialize CLI parser: %v\n", err)
 	}
 	rootCmd.AddCommand(upgradeCmd)
 	rootCmd.AddCommand(inspect.NewCommand())

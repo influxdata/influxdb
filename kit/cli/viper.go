@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/spf13/cast"
 	"os"
 	"path"
 	"strings"
@@ -106,12 +107,7 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 		if o.Persistent {
 			flagset = cmd.PersistentFlags()
 		}
-
-		envVar := o.Flag
-		if o.EnvVar != "" {
-			envVar = o.EnvVar
-		}
-
+		envVal := lookupEnv(v, &o)
 		hasShort := o.Short != 0
 
 		switch destP := o.DestP.(type) {
@@ -128,7 +124,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return err
 			}
-			*destP = v.GetString(envVar)
+			if envVal != nil {
+				if s, err := cast.ToStringE(envVal); err == nil {
+					*destP = s
+				}
+			}
+
 		case *int:
 			var d int
 			if o.Default != nil {
@@ -142,7 +143,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return err
 			}
-			*destP = v.GetInt(envVar)
+			if envVal != nil {
+				if i, err := cast.ToIntE(envVal); err == nil {
+					*destP = i
+				}
+			}
+
 		case *int32:
 			var d int32
 			if o.Default != nil {
@@ -171,7 +177,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return err
 			}
-			*destP = v.GetInt32(envVar)
+			if envVal != nil {
+				if i, err := cast.ToInt32E(envVal); err == nil {
+					*destP = i
+				}
+			}
+
 		case *int64:
 			var d int64
 			if o.Default != nil {
@@ -198,7 +209,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return err
 			}
-			*destP = v.GetInt64(envVar)
+			if envVal != nil {
+				if i, err := cast.ToInt64E(envVal); err == nil {
+					*destP = i
+				}
+			}
+
 		case *bool:
 			var d bool
 			if o.Default != nil {
@@ -212,7 +228,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return err
 			}
-			*destP = v.GetBool(envVar)
+			if envVal != nil {
+				if b, err := cast.ToBoolE(envVal); err == nil {
+					*destP = b
+				}
+			}
+
 		case *time.Duration:
 			var d time.Duration
 			if o.Default != nil {
@@ -226,7 +247,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return err
 			}
-			*destP = v.GetDuration(envVar)
+			if envVal != nil {
+				if d, err := cast.ToDurationE(envVal); err == nil {
+					*destP = d
+				}
+			}
+
 		case *[]string:
 			var d []string
 			if o.Default != nil {
@@ -240,7 +266,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return err
 			}
-			*destP = v.GetStringSlice(envVar)
+			if envVal != nil {
+				if ss, err := cast.ToStringSliceE(envVal); err == nil {
+					*destP = ss
+				}
+			}
+
 		case *map[string]string:
 			var d map[string]string
 			if o.Default != nil {
@@ -254,7 +285,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return err
 			}
-			*destP = v.GetStringMapString(envVar)
+			if envVal != nil {
+				if sms, err := cast.ToStringMapStringE(envVal); err == nil {
+					*destP = sms
+				}
+			}
+
 		case pflag.Value:
 			if hasShort {
 				flagset.VarP(destP, o.Flag, string(o.Short), o.Desc)
@@ -262,14 +298,17 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				flagset.Var(destP, o.Flag, o.Desc)
 			}
 			if o.Default != nil {
-				destP.Set(o.Default.(string))
+				_ = destP.Set(o.Default.(string))
 			}
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return err
 			}
-			if err := destP.Set(v.GetString(envVar)); err != nil {
-				return err
+			if envVal != nil {
+				if s, err := cast.ToStringE(envVal); err == nil {
+					_ = destP.Set(s)
+				}
 			}
+
 		case *influxdb.ID:
 			var d influxdb.ID
 			if o.Default != nil {
@@ -280,9 +319,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			} else {
 				IDVar(flagset, destP, o.Flag, d, o.Desc)
 			}
-			if s := v.GetString(envVar); s != "" {
-				_ = (*destP).DecodeFromString(v.GetString(envVar))
+			if envVal != nil {
+				if s, err := cast.ToStringE(envVal); err == nil {
+					_ = (*destP).DecodeFromString(s)
+				}
 			}
+
 		case *zapcore.Level:
 			var l zapcore.Level
 			if o.Default != nil {
@@ -293,9 +335,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			} else {
 				LevelVar(flagset, destP, o.Flag, l, o.Desc)
 			}
-			if s := v.GetString(envVar); s != "" {
-				_ = (*destP).Set(v.GetString(envVar))
+			if envVal != nil {
+				if s, err := cast.ToStringE(envVal); err == nil {
+					_ = (*destP).Set(s)
+				}
 			}
+
 		default:
 			// if you get a panic here, sorry about that!
 			// anyway, go ahead and make a PR and add another type.
@@ -304,7 +349,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 
 		// N.B. these "Mark" calls must run after the block above,
 		// otherwise cobra will return a "no such flag" error.
-		if o.Required {
+
+		// Cobra will complain if a flag marked as required isn't present
+		// on the CLI or in config. To support setting required args via env
+		// variables, we only enforce the required check if we didn't find
+		// a value in the env.
+		if o.Required && envVal == nil {
 			if err := cmd.MarkFlagRequired(o.Flag); err != nil {
 				return err
 			}
@@ -317,4 +367,13 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 	}
 
 	return nil
+}
+
+// lookupEnv returns the value for a CLI option found in the environment, if any.
+func lookupEnv(v *viper.Viper, o *Opt) interface{} {
+	envVar := o.Flag
+	if o.EnvVar != "" {
+		envVar = o.EnvVar
+	}
+	return v.Get(envVar)
 }
