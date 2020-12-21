@@ -30,11 +30,11 @@ func TestLauncher_Pkger(t *testing.T) {
 	//lint:file-ignore U1000 Ignore all unused code, it's actually used by the skipped test.
 	t.Skip("FLAKY TEST: See issue #20014 for tracking a fix")
 
-	l := RunTestLauncherOrFail(t, ctx, nil, func(o *InfluxdOpts) {
+	l := RunAndSetupNewLauncherOrFail(ctx, t, func(o *InfluxdOpts) {
 		o.LogLevel = zap.ErrorLevel
 	})
-	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
+
 	require.NoError(t, l.BucketService(t).DeleteBucket(ctx, l.Bucket.ID))
 
 	svc := l.PkgerService(t)
