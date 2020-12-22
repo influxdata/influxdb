@@ -21,7 +21,7 @@ use crate::{
 /// possible that time-ranges (for example) can overlap across segments.
 ///
 /// The current write path ensures that a single table emitted for a
-/// measurement within any partition will have the same schema, therefore this
+/// measurement within any chunk will have the same schema, therefore this
 /// table's schema applies to all of the segments held within it.
 ///
 /// The total size of a table is tracked and can be increased or reduced by
@@ -419,7 +419,7 @@ impl Table {
     /// optional predicates and time range.
     ///
     /// As a special case, if `tag_keys` is empty then all distinct values for
-    /// all columns (tag keys) are returned for the partition.
+    /// all columns (tag keys) are returned for the chunk.
     pub fn tag_values<'a>(
         &self,
         time_range: (i64, i64),

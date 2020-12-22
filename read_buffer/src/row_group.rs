@@ -11,7 +11,7 @@ use crate::column::{
 /// The name used for a timestamp column.
 pub const TIME_COLUMN_NAME: &str = data_types::TIME_COLUMN_NAME;
 
-/// A `RowGroup` is an immutable horizontal partition of a single `Table`. By
+/// A `RowGroup` is an immutable horizontal chunk of a single `Table`. By
 /// definition it has the same schema as all the other read groups in the table.
 /// All the columns within the `RowGroup` must have the same number of logical
 /// rows.

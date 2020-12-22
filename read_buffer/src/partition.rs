@@ -1,36 +1,29 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::column::{AggregateResult, AggregateType, Values};
-use crate::row_group::{ColumnName, GroupKey};
-use crate::table::Table;
+use crate::column::AggregateType;
+use crate::row_group::{ColumnName, Predicate};
+use crate::table::{ReadFilterResults, ReadGroupResults, Table};
 
-// The name of a measurement, i.e., a table name.
-type MeasurementName = String;
+type TableName = String;
 
-/// A Partition comprises a collection of tables that have been organised
-/// according to a partition rule, e.g., based on time or arrival, some column
-/// value etc.
-///
-/// A partition's key uniquely identifies a property that all tables within the
-/// the partition share.
-///
-/// Each table within a partition can be identified by its measurement name.
-pub struct Partition {
-    // The partition key uniquely identifies this partition.
-    key: String,
+/// A `Chunk` comprises a collection of `Tables` where every table must have a
+/// unique identifier (name).
+pub struct Chunk {
+    // The unique identifier for this chunk.
+    id: u32,
 
-    // Metadata about this partition.
+    // Metadata about the tables within this chunk.
     meta: MetaData,
 
-    // The set of tables within this partition. Each table is identified by
-    // a measurement name.
-    tables: BTreeMap<MeasurementName, Table>,
+    // The set of tables within this chunk. Each table is identified by a
+    // measurement name.
+    tables: BTreeMap<TableName, Table>,
 }
 
-impl Partition {
-    pub fn new(key: String, table: Table) -> Self {
+impl Chunk {
+    pub fn new(id: u32, table: Table) -> Self {
         let mut p = Self {
-            key,
+            id,
             meta: MetaData::new(&table),
             tables: BTreeMap::new(),
         };
@@ -38,33 +31,26 @@ impl Partition {
         p
     }
 
-    /// Returns vectors of columnar data for the specified column
-    /// selections on the specified table name (measurement).
+    /// Returns data for the specified column selections on the specified table
+    /// name.
     ///
-    /// Results may be filtered by (currently only) equality predicates, but can
-    /// be ranged by time, which should be represented as nanoseconds since the
-    /// epoch. Results are included if they satisfy the predicate and fall
-    /// with the [min, max) time range domain.
+    /// Results may be filtered by conjunctive predicates. Time predicates
+    /// should use as nanoseconds since the epoch.
     pub fn select(
         &self,
         table_name: &str,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
-        select_columns: Vec<ColumnName<'_>>,
-    ) -> BTreeMap<ColumnName<'_>, Values<'_>> {
-        // Find the measurement name on the partition and dispatch query to the
-        // table for that measurement if the partition's time range overlaps the
-        // requested time range.
+        predicates: &[Predicate<'_>],
+        select_columns: &[ColumnName<'_>],
+    ) -> ReadFilterResults<'_, '_> {
+        // Lookup table by name and dispatch execution.
         todo!();
     }
 
     /// Returns aggregates segmented by grouping keys for the specified
-    /// measurement.
+    /// table name.
     ///
-    /// The set of data to be aggregated may be filtered by (currently only)
-    /// equality predicates, but can be ranged by time, which should be
-    /// represented as nanoseconds since the epoch. Results are included if they
-    /// satisfy the predicate and fall with the [min, max) time range domain.
+    /// The set of data to be aggregated may be filtered by optional conjunctive
+    /// predicates.
     ///
     /// Group keys are determined according to the provided group column names.
     /// Currently only grouping by string (tag key) columns is supported.
@@ -75,14 +61,11 @@ impl Partition {
     pub fn aggregate(
         &self,
         table_name: &str,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         group_columns: Vec<ColumnName<'_>>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-    ) -> BTreeMap<GroupKey<'_>, Vec<(ColumnName<'_>, AggregateResult<'_>)>> {
-        // Find the measurement name on the partition and dispatch query to the
-        // table for that measurement if the partition's time range overlaps the
-        // requested time range.
+    ) -> ReadGroupResults<'_, '_> {
+        // Lookup table by name and dispatch execution.
         todo!()
     }
 
@@ -92,11 +75,7 @@ impl Partition {
 
     /// Returns the distinct set of table names that contain data that satisfies
     /// the time range and predicates.
-    pub fn table_names(
-        &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
-    ) -> BTreeSet<String> {
+    pub fn table_names(&self, predicates: &[Predicate<'_>]) -> BTreeSet<String> {
         //
         // TODO(edd): do we want to add the ability to apply a predicate to the
         // table names? For example, a regex where you only want table names
@@ -109,13 +88,12 @@ impl Partition {
     pub fn tag_keys(
         &self,
         table_name: String,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         found_keys: &BTreeSet<ColumnName<'_>>,
     ) -> BTreeSet<ColumnName<'_>> {
-        // Dispatch query to the table for the provided measurement if the
-        // partition's time range overlaps the requested time range *and* there
-        // exists columns in the table's schema that are *not* already found.
+        // Lookup table by name and dispatch execution if the table's time range
+        // overlaps the requested time range *and* there exists columns in the
+        // table's schema that are *not* already found.
         todo!();
     }
 
@@ -124,18 +102,16 @@ impl Partition {
     /// optional predicates and time range.
     ///
     /// As a special case, if `tag_keys` is empty then all distinct values for
-    /// all columns (tag keys) are returned for the partition.
+    /// all columns (tag keys) are returned for the chunk.
     pub fn tag_values(
         &self,
         table_name: String,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         tag_keys: &[ColumnName<'_>],
         found_tag_values: &BTreeMap<ColumnName<'_>, BTreeSet<&String>>,
     ) -> BTreeMap<ColumnName<'_>, BTreeSet<&String>> {
-        // Find the measurement name on the partition and dispatch query to the
-        // table for that measurement if the partition's time range overlaps the
-        // requested time range.
+        // Lookup table by name and dispatch execution to the table for that
+        // if the chunk's time range overlaps the requested time range.
         //
         // This method also has the ability to short-circuit execution against
         // columns if those columns only contain values that have already been
@@ -144,16 +120,16 @@ impl Partition {
     }
 }
 
-// Partition metadata that is used to track statistics about the partition and
-// whether it may contains data for a query.
+// `Chunk` metadata that is used to track statistics about the chunk and
+// whether it could contain data necessary to execute a query.
 struct MetaData {
-    size: u64, // size in bytes of the partition
+    size: u64, // size in bytes of the chunk
     rows: u64, // Total number of rows across all tables
 
     // The total time range of *all* data (across all tables) within this
-    // partition.
+    // chunk.
     //
-    // This would only be None if the partition contained only tables that had
+    // This would only be None if the chunk contained only tables that had
     // no time-stamp column or the values were all NULL.
     time_range: Option<(i64, i64)>,
 }
@@ -172,8 +148,8 @@ impl MetaData {
         todo!()
     }
 
-    // invalidate should be called when a table is removed that impacts the
-    // meta data.
+    // invalidate should be called when a table is removed. All meta data must
+    // be determined by asking each table in the chunk for its meta data.
     pub fn invalidate(&mut self) {
         // Update size, rows, time_range by linearly scanning all tables.
         todo!()
