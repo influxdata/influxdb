@@ -46,6 +46,8 @@ endif
 
 # Allow for `go test` to be swapped out by other tooling, i.e. `gotestsum`
 GO_TEST_CMD=go test
+# Allow for a subset of tests to be specified.
+GO_TEST_PATHS=./...
 
 # Test vars can be used by all recursive Makefiles
 export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh
@@ -149,7 +151,7 @@ test-js: node_modules
 	make -C ui test
 
 test-go:
-	$(GO_TEST) ./...
+	$(GO_TEST) $(GO_TEST_PATHS)
 
 test-influxql-integration:
 	$(GO_TEST) -mod=readonly ./influxql/_v1tests
@@ -159,12 +161,12 @@ test-influxql-validation:
 
 test-integration: GO_TAGS=integration
 test-integration:
-	$(GO_TEST) -count=1 ./...
+	$(GO_TEST) -count=1 $(GO_TEST_PATHS)
 
 test: test-go test-js
 
 test-go-race:
-	$(GO_TEST) -v -race -count=1 ./...
+	$(GO_TEST) -v -race -count=1 $(GO_TEST_PATHS)
 
 vet:
 	$(GO_VET) -v ./...
