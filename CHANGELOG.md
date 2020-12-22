@@ -21,6 +21,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20387](https://github.com/influxdata/influxdb/pull/20387): Improve error message shown when `influx` CLI can't find an org by name.
 1. [20380](https://github.com/influxdata/influxdb/pull/20380): Remove duplication from task error messages.
 1. [20313](https://github.com/influxdata/influxdb/pull/20313): Automatically build `tsi1` indexes for shards that need it instead of falling back to `inmem`.
+1. [20313](https://github.com/influxdata/influxdb/pull/20313): Fix logging initialization for storage engine.
 
 ## v2.0.3 [2020-12-14]
 
