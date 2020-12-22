@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
+	"testing"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
-	"testing"
 )
 
 //func Test_taskRerunFailedCmd(t *testing.T) {
@@ -51,7 +52,7 @@ func TestCmdTask(t *testing.T) {
 			{
 				name: "basic create",
 				flags: []string{
-					"--org influxdata",
+					"--org=influxdata",
 				},
 				expectedTask: influxdb.Task{
 					OrganizationID: 9000,
