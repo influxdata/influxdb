@@ -1,6 +1,9 @@
 v1.8.3 [unreleased]
 -------------------
 
+### Bugfixes
+-	[#20303](https://github.com/influxdata/influxdb/pull/20303): fix(tsdb): simple8b.EncodeAll and simple8b.Encoder can return the same bytes result.
+
 v1.8.2 [2020-08-13]
 -------------------
 
