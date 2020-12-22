@@ -2,6 +2,7 @@
 package httpd // import "github.com/influxdata/influxdb/services/httpd"
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -27,6 +28,7 @@ const (
 	statWriteRequestBytesReceived    = "writeReqBytes"          // Sum of all bytes in write requests.
 	statQueryRequestBytesTransmitted = "queryRespBytes"         // Sum of all bytes returned in query reponses.
 	statPointsWrittenOK              = "pointsWrittenOK"        // Number of points written OK.
+	statValuesWrittenOK              = "valuesWrittenOK"        // Number of values (fields) written OK.
 	statPointsWrittenDropped         = "pointsWrittenDropped"   // Number of points dropped by the storage engine.
 	statPointsWrittenFail            = "pointsWrittenFail"      // Number of points that failed to be written.
 	statAuthFail                     = "authFail"               // Number of authentication failures.
@@ -56,6 +58,8 @@ type Service struct {
 	tlsConfig *tls.Config
 	err       chan error
 
+	httpServer http.Server
+
 	unixSocket         bool
 	unixSocketPerm     uint32
 	unixSocketGroup    int
@@ -69,6 +73,7 @@ type Service struct {
 
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
+	handler := NewHandler(c)
 	s := &Service{
 		addr:           c.BindAddress,
 		https:          c.HTTPSEnabled,
@@ -80,8 +85,11 @@ func NewService(c Config) *Service {
 		unixSocket:     c.UnixSocketEnabled,
 		unixSocketPerm: uint32(c.UnixSocketPermissions),
 		bindSocket:     c.BindSocket,
-		Handler:        NewHandler(c),
-		Logger:         zap.NewNop(),
+		Handler:        handler,
+		httpServer: http.Server{
+			Handler: handler,
+		},
+		Logger: zap.NewNop(),
 	}
 	if s.tlsConfig == nil {
 		s.tlsConfig = new(tls.Config)
@@ -191,6 +199,13 @@ func (s *Service) Open() error {
 func (s *Service) Close() error {
 	s.Handler.Close()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		return err
+	}
+
 	if s.ln != nil {
 		if err := s.ln.Close(); err != nil {
 			return err
@@ -246,8 +261,7 @@ func (s *Service) serveUnixSocket() {
 func (s *Service) serve(listener net.Listener) {
 	// The listener was closed so exit
 	// See https://github.com/golang/go/issues/4373
-	err := http.Serve(listener, s.Handler)
-	if err != nil && !strings.Contains(err.Error(), "closed") {
+	if err := s.httpServer.Serve(listener); err != nil && !strings.Contains(err.Error(), "closed") {
 		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
 	}
 }

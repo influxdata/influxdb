@@ -456,7 +456,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 			}
 
 			_ = sh.WritePoints(points[:500])
-			if f, err := sh.CreateSnapshot(); err == nil {
+			if f, err := sh.CreateSnapshot(false); err == nil {
 				os.RemoveAll(f)
 			}
 
@@ -472,7 +472,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 			}
 
 			_ = sh.WritePoints(points[500:])
-			if f, err := sh.CreateSnapshot(); err == nil {
+			if f, err := sh.CreateSnapshot(false); err == nil {
 				os.RemoveAll(f)
 			}
 		}
@@ -1913,10 +1913,10 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	defer sfile.Close()
 
 	shard, tmpDir, err := openShard(sfile)
-	defer shard.Close()
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer shard.Close()
 
 	chunkedWrite(shard, points)
 
@@ -1957,10 +1957,10 @@ func benchmarkWritePointsExistingSeriesFields(b *testing.B, mCnt, tkCnt, tvCnt, 
 	defer sfile.Close()
 
 	shard, tmpDir, err := openShard(sfile)
-	defer shard.Close()
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer shard.Close()
 
 	chunkedWrite(shard, points)
 
@@ -1998,10 +1998,10 @@ func benchmarkWritePointsExistingSeriesEqualBatches(b *testing.B, mCnt, tkCnt, t
 	defer sfile.Close()
 
 	shard, tmpDir, err := openShard(sfile)
-	defer shard.Close()
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer shard.Close()
 
 	chunkedWrite(shard, points)
 

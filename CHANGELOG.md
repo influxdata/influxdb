@@ -1,8 +1,36 @@
-v1.8.3 [unreleased]
+v1.8.4 [unreleased]
 -------------------
 
+### Features
+
+-	[#20118](https://github.com/influxdata/influxdb/pull/20118): feat: Optimize shard lookups in groups containing only one shard. Thanks @StoneYunZhao!
+
 ### Bugfixes
--	[#20303](https://github.com/influxdata/influxdb/pull/20303): fix(tsdb): simple8b.EncodeAll and simple8b.Encoder can return the same bytes result.
+
+-	[#20101](https://github.com/influxdata/influxdb/pull/20101): fix(write): Successful writes increment write error statistics incorrectly.
+-	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging.
+-	[#20276](https://github.com/influxdata/influxdb/pull/20276): fix(error): unsupported value: +Inf" error not handled gracefully.
+-	[#20277](https://github.com/influxdata/influxdb/pull/20277): fix(query): Group By queries with offset that crosses a DST boundary can fail.
+-	[#20295](https://github.com/influxdata/influxdb/pull/20295): fix: cp.Mux.Serve() closes all net.Listener instances silently on error.
+-	[#19832](https://github.com/influxdata/influxdb/pull/19832): fix(prometheus): regexp handling should comply with PromQL.
+- [#20303](https://github.com/influxdata/influxdb/pull/20303): fix(tsdb): simple8b.EncodeAll and simple8b.Encoder can return the same bytes result.
+
+v1.8.3 [2020-09-30]
+-------------------
+
+### Features
+
+-	[#19187](https://github.com/influxdata/influxdb/pull/19187): feat: Collect values written stats.
+-	[#19611](https://github.com/influxdata/influxdb/pull/19611): feat: Add -lponly flag to export sub-command.
+
+### Bugfixes
+
+-	[#19409](https://github.com/influxdata/influxdb/pull/19409): chore: update uuid library from satori to gofrs.
+-	[#19439](https://github.com/influxdata/influxdb/pull/19439): fix(storage): ArrayFilterCursor truncation for multi-block data.
+-	[#19460](https://github.com/influxdata/influxdb/pull/19460): chore: Use latest version of influxql package.
+-	[#19512](https://github.com/influxdata/influxdb/pull/19512): chore: Quiet static analysis tools.
+-	[#19592](https://github.com/influxdata/influxdb/pull/19592): fix(services/storage): multi measurement queries return all applicable series.
+-	[#19612](https://github.com/influxdata/influxdb/pull/19612): fix: lock map before writes.
 
 v1.8.2 [2020-08-13]
 -------------------

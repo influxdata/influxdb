@@ -3,6 +3,7 @@ package httpd
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -97,9 +98,13 @@ func (w *bytesCountWriter) Write(data []byte) (int, error) {
 
 // WriteResponse writes the response using the formatter.
 func (w *responseWriter) WriteResponse(resp Response) (int, error) {
+	n := 0
 	writer := bytesCountWriter{w: w.ResponseWriter}
 	err := w.formatter.WriteResponse(&writer, resp)
-	return writer.n, err
+	if err != nil {
+		n, _ = WriteError(w, err)
+	}
+	return writer.n + n, err
 }
 
 // Flush flushes the ResponseWriter if it has a Flush() method.
@@ -124,6 +129,7 @@ type jsonFormatter struct {
 
 func (f *jsonFormatter) WriteResponse(w io.Writer, resp Response) (err error) {
 	var b []byte
+
 	if f.Pretty {
 		b, err = json.MarshalIndent(resp, "", "    ")
 	} else {
@@ -131,12 +137,17 @@ func (f *jsonFormatter) WriteResponse(w io.Writer, resp Response) (err error) {
 	}
 
 	if err != nil {
-		_, err = io.WriteString(w, err.Error())
-	} else {
-		_, err = w.Write(b)
+		err = unnestError(err)
+	} else if _, err = w.Write(b); err == nil {
+		_, err = w.Write([]byte("\n"))
 	}
+	return
+}
 
-	w.Write([]byte("\n"))
+func unnestError(err error) error {
+	for errNested := err; errNested != nil; errNested = errors.Unwrap(err) {
+		err = errNested
+	}
 	return err
 }
 

@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/dgrijalva/jwt-go/v4"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/google/go-cmp/cmp"
@@ -193,7 +193,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"signature is invalid"}` {
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"token signature is invalid"}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 
@@ -217,7 +217,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if !strings.Contains(w.Body.String(), `{"error":"Token is expired`) {
+	} else if !strings.Contains(w.Body.String(), `{"error":"token is expired`) {
 		t.Fatalf("unexpected body: %s", w.Body.String())
 	}
 

@@ -40,6 +40,7 @@ const (
 	statWritePointsErr     = "writePointsErr"
 	statWritePointsDropped = "writePointsDropped"
 	statWritePointsOK      = "writePointsOk"
+	statWriteValuesOK      = "writeValuesOk"
 	statWriteBytes         = "writeBytes"
 	statDiskBytes          = "diskBytes"
 )
@@ -246,6 +247,7 @@ type ShardStatistics struct {
 	WritePointsErr     int64
 	WritePointsDropped int64
 	WritePointsOK      int64
+	WriteValuesOK      int64
 	BytesWritten       int64
 	DiskBytes          int64
 }
@@ -283,6 +285,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 			statWritePointsErr:     atomic.LoadInt64(&s.stats.WritePointsErr),
 			statWritePointsDropped: atomic.LoadInt64(&s.stats.WritePointsDropped),
 			statWritePointsOK:      atomic.LoadInt64(&s.stats.WritePointsOK),
+			statWriteValuesOK:      atomic.LoadInt64(&s.stats.WriteValuesOK),
 			statWriteBytes:         atomic.LoadInt64(&s.stats.BytesWritten),
 			statDiskBytes:          atomic.LoadInt64(&s.stats.DiskBytes),
 		},
@@ -492,8 +495,27 @@ type FieldCreate struct {
 	Field       *Field
 }
 
-// WritePoints will write the raw data points and any new metadata to the index in the shard.
+// WritePoints() is a thin wrapper for WritePointsWithContext().
 func (s *Shard) WritePoints(points []models.Point) error {
+	return s.WritePointsWithContext(context.Background(), points)
+}
+
+type ConetextKey int
+
+const (
+	StatPointsWritten = ConetextKey(iota)
+	StatValuesWritten
+)
+
+// WritePointsWithContext() will write the raw data points and any new metadata
+// to the index in the shard.
+//
+// If a context key of type ConetextKey is passed in, WritePointsWithContext()
+// will store points written stats into the int64 pointer associated with
+// StatPointsWritten and the number of values written in the int64 pointer
+// stored in the StatValuesWritten context values.
+//
+func (s *Shard) WritePointsWithContext(ctx context.Context, points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -521,14 +543,44 @@ func (s *Shard) WritePoints(points []models.Point) error {
 		return err
 	}
 
-	// Write to the engine.
-	if err := engine.WritePoints(points); err != nil {
-		atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
-		atomic.AddInt64(&s.stats.WriteReqErr, 1)
-		return fmt.Errorf("engine: %s", err)
+	// see if our engine is capable of WritePointsWithContext
+	type contextWriter interface {
+		WritePointsWithContext(context.Context, []models.Point) error
 	}
-	atomic.AddInt64(&s.stats.WritePointsOK, int64(len(points)))
+	switch eng := engine.(type) {
+	case contextWriter:
+		if err := eng.WritePointsWithContext(ctx, points); err != nil {
+			atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
+			atomic.AddInt64(&s.stats.WriteReqErr, 1)
+			return fmt.Errorf("engine: %s", err)
+		}
+	default:
+		// Write to the engine.
+		if err := engine.WritePoints(points); err != nil {
+			atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
+			atomic.AddInt64(&s.stats.WriteReqErr, 1)
+			return fmt.Errorf("engine: %s", err)
+		}
+	}
+
+	// increment the number OK write requests
 	atomic.AddInt64(&s.stats.WriteReqOK, 1)
+
+	// Increment the number of points written.  If was a StatPointsWritten
+	// request is sent to this function via a context, use the value that the
+	// engine reported.  otherwise, use the length of our points slice.
+	if npoints, ok := ctx.Value(StatPointsWritten).(*int64); ok {
+		// use engine counted points
+		atomic.AddInt64(&s.stats.WritePointsOK, *npoints)
+	} else {
+		// fallback to assuming that len(points) is accurate
+		atomic.AddInt64(&s.stats.WritePointsOK, int64(len(points)))
+	}
+
+	// Increment the number of values stored if available
+	if nvalues, ok := ctx.Value(StatValuesWritten).(*int64); ok {
+		atomic.AddInt64(&s.stats.WriteValuesOK, *nvalues)
+	}
 
 	return writeError
 }
@@ -799,9 +851,17 @@ func (s *Shard) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 	return indexSet.MeasurementTagKeyValuesByExpr(auth, name, key, expr, keysSorted)
 }
 
+// MeasurementNamesByPredicate returns fields for a measurement filtered by an expression.
+func (s *Shard) MeasurementNamesByPredicate(expr influxql.Expr) ([][]byte, error) {
+	index, err := s.Index()
+	if err != nil {
+		return nil, err
+	}
+	indexSet := IndexSet{Indexes: []Index{index}, SeriesFile: s.sfile}
+	return indexSet.MeasurementNamesByPredicate(query.OpenAuthorizer, expr)
+}
+
 // MeasurementFields returns fields for a measurement.
-// TODO(edd): This method is currently only being called from tests; do we
-// really need it?
 func (s *Shard) MeasurementFields(name []byte) *MeasurementFields {
 	engine, err := s.Engine()
 	if err != nil {
@@ -1117,12 +1177,12 @@ func (s *Shard) Import(r io.Reader, basePath string) error {
 
 // CreateSnapshot will return a path to a temp directory
 // containing hard links to the underlying shard files.
-func (s *Shard) CreateSnapshot() (string, error) {
+func (s *Shard) CreateSnapshot(skipCacheOk bool) (string, error) {
 	engine, err := s.Engine()
 	if err != nil {
 		return "", err
 	}
-	return engine.CreateSnapshot()
+	return engine.CreateSnapshot(skipCacheOk)
 }
 
 // ForEachMeasurementName iterates over each measurement in the shard.
@@ -1254,6 +1314,38 @@ func (a Shards) FieldKeysByMeasurement(name []byte) []string {
 		all = append(all, mf.FieldKeys())
 	}
 	return slices.MergeSortedStrings(all...)
+}
+
+// MeasurementNamesByPredicate returns the measurements that match the given predicate.
+func (a Shards) MeasurementNamesByPredicate(expr influxql.Expr) ([][]byte, error) {
+	if len(a) == 1 {
+		return a[0].MeasurementNamesByPredicate(expr)
+	}
+
+	all := make([][][]byte, len(a))
+	for i, shard := range a {
+		names, err := shard.MeasurementNamesByPredicate(expr)
+		if err != nil {
+			return nil, err
+		}
+		all[i] = names
+	}
+	return slices.MergeSortedBytes(all...), nil
+}
+
+// FieldKeysByPredicate returns the field keys for series that match
+// the given predicate.
+func (a Shards) FieldKeysByPredicate(expr influxql.Expr) (map[string][]string, error) {
+	names, err := a.MeasurementNamesByPredicate(expr)
+	if err != nil {
+		return nil, err
+	}
+
+	all := make(map[string][]string, len(names))
+	for _, name := range names {
+		all[string(name)] = a.FieldKeysByMeasurement(name)
+	}
+	return all, nil
 }
 
 func (a Shards) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {

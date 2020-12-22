@@ -87,6 +87,9 @@ const (
 
 	// deleteFlushThreshold is the size in bytes of a batch of series keys to delete.
 	deleteFlushThreshold = 50 * 1024 * 1024
+
+	// DoNotCompactFile is the name of the file that disables compactions.
+	DoNotCompactFile = "do_not_compact"
 )
 
 // Statistics gathered by the engine.
@@ -909,26 +912,16 @@ func (e *Engine) Free() error {
 // of the files in the archive. It will force a snapshot of the WAL first
 // then perform the backup with a read lock against the file store. This means
 // that new TSM files will not be able to be created in this shard while the
-// backup is running. For shards that are still acively getting writes, this
-// could cause the WAL to backup, increasing memory usage and evenutally rejecting writes.
+// backup is running. For shards that are still actively getting writes, this
+// could cause the WAL to backup, increasing memory usage and eventually rejecting writes.
 func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	var err error
 	var path string
-	for i := 0; i < 3; i++ {
-		path, err = e.CreateSnapshot()
-		if err != nil {
-			switch err {
-			case ErrSnapshotInProgress:
-				backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
-				time.Sleep(backoff)
-			default:
-				return err
-			}
-		}
+	path, err = e.CreateSnapshot(true)
+	if err != nil {
+		return err
 	}
-	if err == ErrSnapshotInProgress {
-		e.logger.Warn("Snapshotter busy: Backup proceeding without snapshot contents.")
-	}
+
 	// Remove the temporary snapshot dir
 	defer func() {
 		if err := os.RemoveAll(path); err != nil {
@@ -995,7 +988,7 @@ func (e *Engine) timeStampFilterTarFile(start, end time.Time) func(f os.FileInfo
 }
 
 func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.Time) error {
-	path, err := e.CreateSnapshot()
+	path, err := e.CreateSnapshot(false)
 	if err != nil {
 		return err
 	}
@@ -1279,22 +1272,46 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 	return nil
 }
 
-// WritePoints writes metadata and point data into the engine.
-// It returns an error if new points are added to an existing key.
+// WritePoints() is a thin wrapper for WritePointsWithContext().
+//
+// TODO: We should consider obsolteing and removing this function in favor of
+// WritePointsWithContext()
+//
 func (e *Engine) WritePoints(points []models.Point) error {
+	return e.WritePointsWithContext(context.Background(), points)
+}
+
+// WritePointsWithContext() writes metadata and point data into the engine.  It
+// returns an error if new points are added to an existing key.
+//
+// In addition, it accepts a context.Context value. It stores write statstics
+// to context values passed in of type tsdb.ContextKey. The metrics it stores
+// are points written and values (fields) written.
+//
+// It expects int64 pointers to be stored in the tsdb.StatPointsWritten and
+// tsdb.StatValuesWritten keys and will store the proper values if requested.
+//
+func (e *Engine) WritePointsWithContext(ctx context.Context, points []models.Point) error {
 	values := make(map[string][]Value, len(points))
 	var (
 		keyBuf    []byte
 		baseLen   int
 		seriesErr error
+		npoints   int64 // total points processed
+		nvalues   int64 // total values (fields) processed
 	)
 
 	for _, p := range points {
+		// TODO: In the future we'd like to check ctx.Err() for cancellation here.
+		// Beforehand we should measure the performance impact.
+
 		keyBuf = append(keyBuf[:0], p.Key()...)
 		keyBuf = append(keyBuf, keyFieldSeparator...)
 		baseLen = len(keyBuf)
 		iter := p.FieldIterator()
 		t := p.Time().UnixNano()
+
+		npoints++
 		for iter.Next() {
 			// Skip fields name "time", they are illegal
 			if bytes.Equal(iter.FieldKey(), timeBytes) {
@@ -1364,6 +1381,8 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			default:
 				return fmt.Errorf("unknown field type for %s: %s", string(iter.FieldKey()), p.String())
 			}
+
+			nvalues++
 			values[string(keyBuf)] = append(values[string(keyBuf)], v)
 		}
 	}
@@ -1381,6 +1400,17 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			return err
 		}
 	}
+
+	// if requested, store points written stats
+	if pointsWritten, ok := ctx.Value(tsdb.StatPointsWritten).(*int64); ok {
+		*pointsWritten = npoints
+	}
+
+	// if requested, store values written stats
+	if valuesWritten, ok := ctx.Value(tsdb.StatValuesWritten).(*int64); ok {
+		*valuesWritten = nvalues
+	}
+
 	return seriesErr
 }
 
@@ -1918,9 +1948,19 @@ func (e *Engine) WriteSnapshot() (err error) {
 }
 
 // CreateSnapshot will create a temp directory that holds
-// temporary hardlinks to the underylyng shard files.
-func (e *Engine) CreateSnapshot() (string, error) {
-	if err := e.WriteSnapshot(); err != nil {
+// temporary hardlinks to the underlying shard files.
+// skipCacheOk controls whether it is permissible to fail writing out
+// in-memory cache data when a previous snapshot is in progress
+func (e *Engine) CreateSnapshot(skipCacheOk bool) (string, error) {
+	err := e.WriteSnapshot()
+	for i := 0; (i < 3) && (err == ErrSnapshotInProgress); i += 1 {
+		backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
+		time.Sleep(backoff)
+		err = e.WriteSnapshot()
+	}
+	if (err == ErrSnapshotInProgress) && skipCacheOk {
+		e.logger.Warn("Snapshotter busy: proceeding without cache contents.")
+	} else if err != nil {
 		return "", err
 	}
 
@@ -2029,6 +2069,8 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
+	var nextDisabledMsg time.Time
+
 	for {
 		e.mu.RLock()
 		quit := e.done
@@ -2039,6 +2081,17 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			return
 
 		case <-t.C:
+			// See if compactions are disabled.
+			doNotCompactFile := filepath.Join(e.Path(), DoNotCompactFile)
+			_, err := os.Stat(doNotCompactFile)
+			if err == nil {
+				now := time.Now()
+				if now.After(nextDisabledMsg) {
+					e.logger.Info("TSM compaction disabled", logger.Shard(e.id), zap.String("reason", doNotCompactFile))
+					nextDisabledMsg = now.Add(time.Minute * 15)
+				}
+				continue
+			}
 
 			// Find our compaction plans
 			level1Groups := e.CompactionPlan.PlanLevel(1)
@@ -2203,7 +2256,7 @@ func (s *compactionStrategy) Apply() {
 // compactGroup executes the compaction strategy against a single CompactionGroup.
 func (s *compactionStrategy) compactGroup() {
 	group := s.group
-	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1_compact_group")
+	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1_compact_group", logger.Shard(s.engine.id))
 	defer logEnd()
 
 	log.Info("Beginning compaction", zap.Int("tsm1_files_n", len(group)))

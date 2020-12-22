@@ -2,6 +2,7 @@ package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -674,13 +675,13 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 
 // CreateShardSnapShot will create a hard link to the underlying shard and return a path.
 // The caller is responsible for cleaning up (removing) the file path returned.
-func (s *Store) CreateShardSnapshot(id uint64) (string, error) {
+func (s *Store) CreateShardSnapshot(id uint64, skipCacheOk bool) (string, error) {
 	sh := s.Shard(id)
 	if sh == nil {
 		return "", ErrShardNotFound
 	}
 
-	return sh.CreateSnapshot()
+	return sh.CreateSnapshot(skipCacheOk)
 }
 
 // SetShardEnabled enables or disables a shard for read and writes.
@@ -1391,6 +1392,10 @@ func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 
 // WriteToShard writes a list of points to a shard identified by its ID.
 func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
+	return s.WriteToShardWithContext(context.Background(), shardID, points)
+}
+
+func (s *Store) WriteToShardWithContext(ctx context.Context, shardID uint64, points []models.Point) error {
 	s.mu.RLock()
 
 	select {
@@ -1427,7 +1432,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 		sh.SetCompactionsEnabled(true)
 	}
 
-	return sh.WritePoints(points)
+	return sh.WritePointsWithContext(ctx, points)
 }
 
 // MeasurementNames returns a slice of all measurements. Measurements accepts an

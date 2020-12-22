@@ -2093,6 +2093,40 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 			}
 		})
 	}
+
+}
+
+func TestEngine_WritePointsWithContext(t *testing.T) {
+	// Create a few points.
+	points := []models.Point{
+		MustParsePointString("cpu,host=A value=1.1 1000000000"),
+		MustParsePointString("cpu,host=B value=1.2,value2=8 2000000000"),
+	}
+
+	expectedPoints, expectedValues := int64(2), int64(3)
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			e := MustOpenEngine(index)
+
+			var numPoints, numValues int64
+
+			ctx := context.WithValue(context.Background(), tsdb.StatPointsWritten, &numPoints)
+			ctx = context.WithValue(ctx, tsdb.StatValuesWritten, &numValues)
+
+			if err := e.WritePointsWithContext(ctx, points); err != nil {
+				t.Fatalf("failed to write points: %v", err)
+			}
+
+			if got, expected := numPoints, expectedPoints; got != expected {
+				t.Fatalf("Expected stats to return %d points; got %d", expected, got)
+			}
+
+			if got, expected := numValues, expectedValues; got != expected {
+				t.Fatalf("Expected stats to return %d points; got %d", expected, got)
+			}
+		})
+	}
 }
 
 func TestEngine_WritePoints_TypeConflict(t *testing.T) {
