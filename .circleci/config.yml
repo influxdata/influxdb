@@ -26,8 +26,8 @@ workflows:
             - jsdeps
       - build:
           requires:
-            - golint
-            - jslint
+            - godeps
+            - jsdeps
       - e2e:
           requires:
             - build
@@ -163,8 +163,8 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-modules-{{ checksum "ui/yarn.lock" }}
-            - yarn-modules-
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-
       - run:
           name: Install Dependencies
           command: |
@@ -173,10 +173,11 @@ jobs:
             yarn install --immutable
       - save_cache:
           name: Save Yarn Cache
-          key: yarn-modules-{{ checksum "ui/yarn.lock" }}
+          key: yarn-deps-{{ checksum "ui/yarn.lock" }}
           paths:
             - /go/src/github.com/influxdata/influxdb/ui/node_modules
             - ~/.cache/yarn
+            - ~/.cache/Cypress
 
   jstest:
     docker:
@@ -188,7 +189,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-modules-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
       - run: make ui_client
       - run:
           name: parallel jest tests
@@ -198,9 +199,9 @@ jobs:
             TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
             yarn test:circleci $TESTFILES
       - store_test_results:
-          path: coverage
+          path: ui/coverage
       - store_artifacts:
-          path: coverage
+          path: ui/coverage
           destination: raw-test-output
 
   jslint:
@@ -213,7 +214,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-modules-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
       - run: make ui_client
       - run:
           name: parallel eslint
@@ -410,7 +411,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-modules-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
       - run: make protoc
       - run: make build
       - save_cache:
@@ -451,7 +452,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-modules-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
       - setup_remote_docker
       - run:
           name: Docker Login
@@ -496,7 +497,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-modules-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
       - setup_remote_docker
       - run:
           name: Docker Login
@@ -533,7 +534,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-modules-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
       - run: make protoc
       - run:
           command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
