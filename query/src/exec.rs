@@ -2,6 +2,7 @@
 //! plans. This is currently implemented using DataFusion, and this
 //! interface abstracts away many of the details
 mod counters;
+pub mod field;
 pub mod fieldlist;
 mod planning;
 mod schema_pivot;
@@ -16,6 +17,7 @@ use arrow_deps::{
 };
 use counters::ExecutionCounters;
 
+use field::FieldColumns;
 use planning::IOxExecutionContext;
 use schema_pivot::SchemaPivotNode;
 
@@ -161,7 +163,7 @@ pub struct SeriesSetPlan {
     /// Note these are `Arc` strings because they are duplicated for
     /// *each* resulting `SeriesSet` that is produced when this type
     /// of plan is executed.
-    pub field_columns: Vec<Arc<String>>,
+    pub field_columns: FieldColumns,
 
     /// If present, how many of the series_set_plan::tag_columns
     /// should be used to compute the group
@@ -170,13 +172,24 @@ pub struct SeriesSetPlan {
 
 impl SeriesSetPlan {
     /// Create a SeriesSetPlan that will not produce any Group items
-    pub fn new(
+    pub fn new_from_shared_timestamp(
         table_name: Arc<String>,
         plan: LogicalPlan,
         tag_columns: Vec<Arc<String>>,
         field_columns: Vec<Arc<String>>,
     ) -> Self {
+        Self::new(table_name, plan, tag_columns, field_columns.into())
+    }
+
+    /// Create a SeriesSetPlan that will not produce any Group items
+    pub fn new(
+        table_name: Arc<String>,
+        plan: LogicalPlan,
+        tag_columns: Vec<Arc<String>>,
+        field_columns: FieldColumns,
+    ) -> Self {
         let num_prefix_tag_group_columns = None;
+
         Self {
             table_name,
             plan,
@@ -283,7 +296,6 @@ impl Executor {
                     } = plan;
 
                     let tag_columns = Arc::new(tag_columns);
-                    let field_columns = Arc::new(field_columns);
 
                     // TODO run these on some executor other than the main tokio pool (maybe?)
                     let ctx = IOxExecutionContext::new(counters);

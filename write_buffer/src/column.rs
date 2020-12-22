@@ -4,6 +4,8 @@ use snafu::Snafu;
 use crate::dictionary::Dictionary;
 use data_types::{data::type_description, partition_metadata::Statistics};
 
+use arrow_deps::arrow::datatypes::DataType as ArrowDataType;
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Don't know how to insert a column of type {}", inserted_value_type))]
@@ -122,6 +124,17 @@ impl Column {
             Self::String(_, _) => "String",
             Self::Bool(_, _) => "bool",
             Self::Tag(_, _) => "tag",
+        }
+    }
+
+    /// Return the arrow DataType for this column
+    pub fn data_type(&self) -> ArrowDataType {
+        match self {
+            Self::F64(..) => ArrowDataType::Float64,
+            Self::I64(..) => ArrowDataType::Int64,
+            Self::String(..) => ArrowDataType::Utf8,
+            Self::Bool(..) => ArrowDataType::Boolean,
+            Self::Tag(..) => ArrowDataType::Utf8,
         }
     }
 

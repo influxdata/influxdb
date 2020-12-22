@@ -519,11 +519,7 @@ impl TSDatabase for Db {
         let mut filter = PartitionTableFilter::new(predicate);
 
         match gby_agg {
-            GroupByAndAggregate::Columns {
-                // TODO use aggregate:  https://github.com/influxdata/influxdb_iox/issues/448
-                agg,
-                group_columns,
-            } => {
+            GroupByAndAggregate::Columns { agg, group_columns } => {
                 // Add any specified groups as predicate columns (so we
                 // can skip tables without those tags)
                 let mut filter = filter.add_required_columns(&group_columns);
@@ -1236,7 +1232,8 @@ struct ArrowTable {
 mod tests {
     use super::*;
     use arrow_deps::datafusion::prelude::*;
-    use query::exec::seriesset::SeriesSetItem;
+    use query::exec::{field::FieldIndexes, seriesset::SeriesSetItem};
+
     use query::{
         exec::fieldlist::{Field, FieldList},
         exec::{
@@ -1998,8 +1995,10 @@ disk bytes=23432323i 1600136510000000000",
             series_set0.tags,
             str_pair_vec_to_vec(&[("city", "Boston"), ("state", "MA")])
         );
-        assert_eq!(series_set0.timestamp_index, 3);
-        assert_eq!(series_set0.field_indices, Arc::new(vec![2]));
+        assert_eq!(
+            series_set0.field_indexes,
+            FieldIndexes::from_timestamp_and_value_indexes(3, &[2])
+        );
         assert_eq!(series_set0.start_row, 0);
         assert_eq!(series_set0.num_rows, 2);
 
@@ -2009,8 +2008,10 @@ disk bytes=23432323i 1600136510000000000",
             series_set1.tags,
             str_pair_vec_to_vec(&[("city", "LA"), ("state", "CA")])
         );
-        assert_eq!(series_set1.timestamp_index, 3);
-        assert_eq!(series_set1.field_indices, Arc::new(vec![2]));
+        assert_eq!(
+            series_set1.field_indexes,
+            FieldIndexes::from_timestamp_and_value_indexes(3, &[2])
+        );
         assert_eq!(series_set1.start_row, 2);
         assert_eq!(series_set1.num_rows, 2);
 
@@ -2020,8 +2021,10 @@ disk bytes=23432323i 1600136510000000000",
             series_set2.tags,
             str_pair_vec_to_vec(&[("city", "Boston"), ("state", "MA")])
         );
-        assert_eq!(series_set2.timestamp_index, 4);
-        assert_eq!(series_set2.field_indices, Arc::new(vec![2, 3]));
+        assert_eq!(
+            series_set2.field_indexes,
+            FieldIndexes::from_timestamp_and_value_indexes(4, &[2, 3])
+        );
         assert_eq!(series_set2.start_row, 0);
         assert_eq!(series_set2.num_rows, 2);
 
@@ -2069,8 +2072,10 @@ disk bytes=23432323i 1600136510000000000",
             series_set0.tags,
             str_pair_vec_to_vec(&[("city", "LA"), ("state", "CA")])
         );
-        assert_eq!(series_set0.timestamp_index, 3);
-        assert_eq!(series_set0.field_indices, Arc::new(vec![2]));
+        assert_eq!(
+            series_set0.field_indexes,
+            FieldIndexes::from_timestamp_and_value_indexes(3, &[2])
+        );
         assert_eq!(series_set0.start_row, 0);
         assert_eq!(series_set0.num_rows, 1); // only has one row!
 

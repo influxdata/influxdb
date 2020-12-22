@@ -21,19 +21,18 @@
 
 use std::sync::Arc;
 
-use arrow::{
-    array::StringArray, datatypes::DataType, datatypes::SchemaRef, record_batch::RecordBatch,
-};
+use arrow::{array::StringArray, datatypes::DataType, record_batch::RecordBatch};
 use arrow_deps::{
     arrow::{self},
     datafusion::physical_plan::SendableRecordBatchStream,
 };
-use data_types::TIME_COLUMN_NAME;
 use snafu::{ResultExt, Snafu};
 use tokio::stream::StreamExt;
 use tokio::sync::mpsc::{self, error::SendError};
 
 use croaring::bitmap::Bitmap;
+
+use super::field::{FieldColumns, FieldIndexes};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -48,11 +47,8 @@ pub enum Error {
     ))]
     ReadingRecordBatch { source: arrow::error::ArrowError },
 
-    #[snafu(display("Error finding column: {:?} in schema '{}'", column_name, source))]
-    ColumnNotFoundForSeriesSet {
-        column_name: String,
-        source: arrow::error::ArrowError,
-    },
+    #[snafu(display("Internal field error while converting series set: {}", source))]
+    InternalField { source: super::field::Error },
 
     #[snafu(display("Sending series set results during conversion: {:?}", source))]
     SendingDuringConversion {
@@ -85,14 +81,11 @@ pub struct SeriesSet {
     /// key = value pairs that define this series
     pub tags: Vec<(Arc<String>, Arc<String>)>,
 
-    /// timestamp column index
-    pub timestamp_index: usize,
-
     /// the column index of each "field" of the time series. For
     /// example, if there are two field indexes then this series set
     /// would result in two distinct series being sent back, one for
     /// each field.
-    pub field_indices: Arc<Vec<usize>>,
+    pub field_indexes: FieldIndexes,
 
     // The row in the record batch where the data starts (inclusive)
     pub start_row: usize,
@@ -114,7 +107,6 @@ pub struct SeriesSet {
 pub struct GroupDescription {
     /// key = value  pairs that define the group
     pub tags: Vec<(Arc<String>, Arc<String>)>,
-    // TODO: maybe also include the resulting aggregate value (per group) here
 }
 
 #[derive(Debug)]
@@ -155,7 +147,7 @@ impl SeriesSetConverter {
         &mut self,
         table_name: Arc<String>,
         tag_columns: Arc<Vec<Arc<String>>>,
-        field_columns: Arc<Vec<Arc<String>>>,
+        field_columns: FieldColumns,
         num_prefix_tag_group_columns: Option<usize>,
         it: SendableRecordBatchStream,
     ) -> Result<()> {
@@ -185,7 +177,7 @@ impl SeriesSetConverter {
         &mut self,
         table_name: Arc<String>,
         tag_columns: Arc<Vec<Arc<String>>>,
-        field_columns: Arc<Vec<Arc<String>>>,
+        field_columns: FieldColumns,
         num_prefix_tag_group_columns: Option<usize>,
         mut it: SendableRecordBatchStream,
     ) -> Result<()> {
@@ -202,20 +194,15 @@ impl SeriesSetConverter {
 
             let schema = batch.schema();
             // TODO: check that the tag columns are sorted by tag name...
-
-            let timestamp_index =
-                schema
-                    .index_of(TIME_COLUMN_NAME)
-                    .context(ColumnNotFoundForSeriesSet {
-                        column_name: TIME_COLUMN_NAME,
-                    })?;
-            let tag_indicies = Self::names_to_indices(&schema, &tag_columns)?;
-            let field_indicies = Arc::new(Self::names_to_indices(&schema, &field_columns)?);
+            let tag_indexes =
+                FieldIndexes::names_to_indexes(&schema, &tag_columns).context(InternalField)?;
+            let field_indexes =
+                FieldIndexes::from_field_columns(&schema, &field_columns).context(InternalField)?;
 
             // Algorithm: compute, via bitsets, the rows at which each
             // tag column changes and thereby where the tagset
             // changes. Emit a new SeriesSet at each such transition
-            let mut tag_transitions = tag_indicies
+            let mut tag_transitions = tag_indexes
                 .iter()
                 .map(|&col| Self::compute_transitions(&batch, col))
                 .collect::<Result<Vec<_>>>()?;
@@ -253,10 +240,9 @@ impl SeriesSetConverter {
                             &batch,
                             start_row as usize,
                             &tag_columns,
-                            &tag_indicies,
+                            &tag_indexes,
                         ),
-                        timestamp_index,
-                        field_indices: field_indicies.clone(),
+                        field_indexes: field_indexes.clone(),
                         start_row: start_row as usize,
                         num_rows: (end_row - start_row) as usize,
                         batch: batch.clone(),
@@ -288,21 +274,7 @@ impl SeriesSetConverter {
         Ok(())
     }
 
-    // look up which column index correponds to each column name
-    fn names_to_indices(schema: &SchemaRef, column_names: &[Arc<String>]) -> Result<Vec<usize>> {
-        column_names
-            .iter()
-            .map(|column_name| {
-                schema
-                    .index_of(&*column_name)
-                    .context(ColumnNotFoundForSeriesSet {
-                        column_name: column_name.as_ref(),
-                    })
-            })
-            .collect()
-    }
-
-    /// returns a bitset with all row indicies where the value of the
+    /// returns a bitset with all row indexes where the value of the
     /// batch[col_idx] changes.  Does not include row 0, always includes
     /// the last row, `batch.num_rows() - 1`
     fn compute_transitions(batch: &RecordBatch, col_idx: usize) -> Result<Bitmap> {
@@ -345,18 +317,18 @@ impl SeriesSetConverter {
 
     /// Creates (column_name, column_value) pairs for each column
     /// named in `tag_column_name` at the corresponding index
-    /// `tag_indicies`
+    /// `tag_indexes`
     fn get_tag_keys(
         batch: &RecordBatch,
         row: usize,
         tag_column_names: &[Arc<String>],
-        tag_indicies: &[usize],
+        tag_indexes: &[usize],
     ) -> Vec<(Arc<String>, Arc<String>)> {
-        assert_eq!(tag_column_names.len(), tag_indicies.len());
+        assert_eq!(tag_column_names.len(), tag_indexes.len());
 
         tag_column_names
             .iter()
-            .zip(tag_indicies)
+            .zip(tag_indexes)
             .map(|(column_name, column_index)| {
                 let tag_value: String = batch
                     .column(*column_index)
@@ -471,8 +443,10 @@ mod tests {
 
         assert_eq!(*series_set.table_name, "foo");
         assert!(series_set.tags.is_empty());
-        assert_eq!(series_set.timestamp_index, 4);
-        assert_eq!(series_set.field_indices, Arc::new(vec![2]));
+        assert_eq!(
+            series_set.field_indexes,
+            FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+        );
         assert_eq!(series_set.start_row, 0);
         assert_eq!(series_set.num_rows, 2);
 
@@ -524,8 +498,10 @@ mod tests {
 
         assert_eq!(*series_set.table_name, "foo");
         assert!(series_set.tags.is_empty());
-        assert_eq!(series_set.timestamp_index, 4);
-        assert_eq!(series_set.field_indices, Arc::new(vec![2]));
+        assert_eq!(
+            series_set.field_indexes,
+            FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+        );
         assert_eq!(series_set.start_row, 0);
         assert_eq!(series_set.num_rows, 2);
 
@@ -577,8 +553,10 @@ mod tests {
 
         assert_eq!(*series_set.table_name, "bar");
         assert_eq!(series_set.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
-        assert_eq!(series_set.timestamp_index, 4);
-        assert_eq!(series_set.field_indices, Arc::new(vec![2]));
+        assert_eq!(
+            series_set.field_indexes,
+            FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+        );
         assert_eq!(series_set.start_row, 0);
         assert_eq!(series_set.num_rows, 2);
 
@@ -614,8 +592,10 @@ mod tests {
 
         assert_eq!(*series_set1.table_name, "foo");
         assert_eq!(series_set1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
-        assert_eq!(series_set1.timestamp_index, 4);
-        assert_eq!(series_set1.field_indices, Arc::new(vec![3]));
+        assert_eq!(
+            series_set1.field_indexes,
+            FieldIndexes::from_timestamp_and_value_indexes(4, &[3])
+        );
         assert_eq!(series_set1.start_row, 0);
         assert_eq!(series_set1.num_rows, 3);
 
@@ -623,8 +603,10 @@ mod tests {
 
         assert_eq!(*series_set2.table_name, "foo");
         assert_eq!(series_set2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
-        assert_eq!(series_set2.timestamp_index, 4);
-        assert_eq!(series_set2.field_indices, Arc::new(vec![3]));
+        assert_eq!(
+            series_set2.field_indexes,
+            FieldIndexes::from_timestamp_and_value_indexes(4, &[3])
+        );
         assert_eq!(series_set2.start_row, 3);
         assert_eq!(series_set2.num_rows, 2);
 
@@ -844,7 +826,7 @@ mod tests {
 
         let table_name = Arc::new(table_name.into());
         let tag_columns = str_vec_to_arc_vec(tag_columns);
-        let field_columns = str_vec_to_arc_vec(field_columns);
+        let field_columns = FieldColumns::from(field_columns);
 
         tokio::task::spawn(async move {
             converter
@@ -881,7 +863,7 @@ mod tests {
 
         let table_name = Arc::new(table_name.into());
         let tag_columns = str_vec_to_arc_vec(tag_columns);
-        let field_columns = str_vec_to_arc_vec(field_columns);
+        let field_columns = FieldColumns::from(field_columns);
 
         tokio::task::spawn(async move {
             converter

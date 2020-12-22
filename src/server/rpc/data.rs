@@ -9,6 +9,7 @@ use arrow_deps::arrow::{
 };
 
 use query::exec::{
+    field::FieldIndex,
     fieldlist::FieldList,
     seriesset::{GroupDescription, SeriesSet, SeriesSetItem},
 };
@@ -54,8 +55,8 @@ pub fn tag_keys_to_byte_vecs(tag_keys: Arc<BTreeSet<String>>) -> Vec<Vec<u8>> {
 
 fn series_set_to_frames(series_set: SeriesSet) -> Result<Vec<Frame>> {
     let mut data_records = Vec::new();
-    for field_index in series_set.field_indices.iter() {
-        field_to_data(&mut data_records, &series_set, *field_index)?
+    for field_index in series_set.field_indexes.as_slice().iter() {
+        field_to_data(&mut data_records, &series_set, field_index)?
     }
 
     let frames = data_records
@@ -139,12 +140,16 @@ fn is_all_null(arr: &ArrayRef, start_row: usize, num_rows: usize) -> bool {
 }
 
 // Convert and append a single field to a sequence of frames
-fn field_to_data(frames: &mut Vec<Data>, series_set: &SeriesSet, field_index: usize) -> Result<()> {
+fn field_to_data(
+    frames: &mut Vec<Data>,
+    series_set: &SeriesSet,
+    indexes: &FieldIndex,
+) -> Result<()> {
     let batch = &series_set.batch;
     let schema = batch.schema();
 
-    let field = schema.field(field_index);
-    let array = batch.column(field_index);
+    let field = schema.field(indexes.value_index);
+    let array = batch.column(indexes.value_index);
 
     let start_row = series_set.start_row;
     let num_rows = series_set.num_rows;
@@ -158,7 +163,7 @@ fn field_to_data(frames: &mut Vec<Data>, series_set: &SeriesSet, field_index: us
     let series_frame = SeriesFrame {
         tags: convert_tags(
             series_set.table_name.as_ref(),
-            schema.field(field_index).name(),
+            schema.field(indexes.value_index).name(),
             &series_set.tags,
         ),
         data_type: data_type(array)? as i32,
@@ -166,7 +171,7 @@ fn field_to_data(frames: &mut Vec<Data>, series_set: &SeriesSet, field_index: us
     frames.push(Data::Series(series_frame));
 
     let timestamps = batch
-        .column(series_set.timestamp_index)
+        .column(indexes.timestamp_index)
         .as_any()
         .downcast_ref::<Int64Array>()
         .unwrap()
@@ -320,7 +325,7 @@ mod tests {
         datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema},
         record_batch::RecordBatch,
     };
-    use query::exec::fieldlist::Field;
+    use query::exec::{field::FieldIndexes, fieldlist::Field};
 
     use super::*;
 
@@ -361,8 +366,7 @@ mod tests {
         let series_set = SeriesSet {
             table_name: Arc::new("the_table".into()),
             tags: vec![(Arc::new("tag1".into()), Arc::new("val1".into()))],
-            timestamp_index: 4,
-            field_indices: Arc::new(vec![0, 1, 2, 3]),
+            field_indexes: FieldIndexes::from_timestamp_and_value_indexes(4, &[0, 1, 2, 3]),
             start_row: 1,
             num_rows: 2,
             batch: make_record_batch(),
@@ -388,6 +392,59 @@ mod tests {
             "FloatPointsFrame, timestamps: [2000, 3000], values: \"20.1,30.1\"",
             "SeriesFrame, tags: _field=boolean_field,_measurement=the_table,tag1=val1, type: 3",
             "BooleanPointsFrame, timestamps: [2000, 3000], values: false,true",
+        ];
+
+        assert_eq!(
+            dumped_frames, expected_frames,
+            "Expected:\n{:#?}\nActual:\n{:#?}",
+            expected_frames, dumped_frames
+        );
+    }
+
+    #[test]
+    fn test_series_set_conversion_different_time_columns() {
+        let schema = Arc::new(Schema::new(vec![
+            ArrowField::new("time1", ArrowDataType::Int64, true),
+            ArrowField::new("string_field1", ArrowDataType::Utf8, true),
+            ArrowField::new("time2", ArrowDataType::Int64, true),
+            ArrowField::new("string_field2", ArrowDataType::Utf8, true),
+        ]));
+
+        let time1_array: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 3]));
+        let string1_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz"]));
+        let time2_array: ArrayRef = Arc::new(Int64Array::from(vec![3, 4, 5]));
+        let string2_array: ArrayRef = Arc::new(StringArray::from(vec!["boo", "far", "faz"]));
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![time1_array, string1_array, time2_array, string2_array],
+        )
+        .expect("created new record batch");
+
+        let series_set = SeriesSet {
+            table_name: Arc::new("the_table".into()),
+            tags: vec![(Arc::new("tag1".into()), Arc::new("val1".into()))],
+            // field indexes are (value, time)
+            field_indexes: FieldIndexes::from_slice(&[(3, 2), (1, 0)]),
+            start_row: 1,
+            num_rows: 2,
+            batch,
+        };
+
+        let response =
+            series_set_to_read_response(series_set).expect("Correctly converted series set");
+
+        let dumped_frames = response
+            .frames
+            .iter()
+            .map(|f| dump_frame(f))
+            .collect::<Vec<_>>();
+
+        let expected_frames = vec![
+            "SeriesFrame, tags: _field=string_field2,_measurement=the_table,tag1=val1, type: 4",
+            "StringPointsFrame, timestamps: [4, 5], values: far,faz",
+            "SeriesFrame, tags: _field=string_field1,_measurement=the_table,tag1=val1, type: 4",
+            "StringPointsFrame, timestamps: [2, 3], values: bar,baz",
         ];
 
         assert_eq!(
@@ -427,8 +484,7 @@ mod tests {
         let series_set = SeriesSet {
             table_name: Arc::new("the_table".into()),
             tags: vec![(Arc::new("state".into()), Arc::new("MA".into()))],
-            timestamp_index: 3,
-            field_indices: Arc::new(vec![1, 2]),
+            field_indexes: FieldIndexes::from_timestamp_and_value_indexes(3, &[1, 2]),
             start_row: 0,
             num_rows: batch.num_rows(),
             batch,
@@ -504,8 +560,7 @@ mod tests {
         let series_set = SeriesSet {
             table_name: Arc::new("the_table".into()),
             tags: vec![(Arc::new("tag1".into()), Arc::new("val1".into()))],
-            timestamp_index: 1,
-            field_indices: Arc::new(vec![0]),
+            field_indexes: FieldIndexes::from_timestamp_and_value_indexes(1, &[0]),
             start_row: 1,
             num_rows: 2,
             batch,

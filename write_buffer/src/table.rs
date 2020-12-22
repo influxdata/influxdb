@@ -1,6 +1,7 @@
 use generated_types::wal as wb;
 use query::{
-    exec::{make_schema_pivot, SeriesSetPlan},
+    exec::{field::FieldColumns, make_schema_pivot, SeriesSetPlan},
+    func::selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
     func::window::make_window_bound_expr,
     group_by::{Aggregate, WindowDuration},
 };
@@ -84,6 +85,12 @@ pub enum Error {
         expected_column_type: String,
         actual_column_type: String,
     },
+
+    #[snafu(display("Internal error: unexpected aggregate request for None aggregate",))]
+    InternalUnexpectedNoneAggregate {},
+
+    #[snafu(display("Internal error: aggregate {:?} is not a selector", agg))]
+    InternalAggregateNotSelector { agg: Aggregate },
 
     #[snafu(display(
         "Column name '{}' not found in dictionary of partition {}",
@@ -475,7 +482,7 @@ impl Table {
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
 
-        Ok(SeriesSetPlan::new(
+        Ok(SeriesSetPlan::new_from_shared_timestamp(
             self.table_name(partition),
             plan,
             tag_columns,
@@ -533,14 +540,10 @@ impl Table {
     ) -> Result<SeriesSetPlan> {
         let num_prefix_tag_group_columns = group_columns.len();
 
-        let plan = match agg {
-            Aggregate::None => {
-                self.series_set_plan_impl(partition_predicate, Some(&group_columns), partition)?
-            }
-            Aggregate::Sum | Aggregate::Count | Aggregate::Mean => {
-                self.aggregate_series_set_plan(partition_predicate, agg, group_columns, partition)?
-            }
-            _ => todo!("Aggregate {:?} not implemented", agg),
+        let plan = if let Aggregate::None = agg {
+            self.series_set_plan_impl(partition_predicate, Some(&group_columns), partition)?
+        } else {
+            self.aggregate_series_set_plan(partition_predicate, agg, group_columns, partition)?
         };
 
         Ok(plan.grouped(num_prefix_tag_group_columns))
@@ -551,21 +554,38 @@ impl Table {
     /// group by all tags (so group within series) and the
     /// group_columns define the order of the result
     ///
-    /// Equivalent to this SQL query:
+    /// Equivalent to this SQL query for 'aggregates': sum, count, mean
     /// SELECT
     ///   tag1...tagN
-    ///   agg_function(_val) as _value
+    ///   agg_function(_val1) as _value1
+    ///   ...
+    ///   agg_function(_valN) as _valueN
     ///   agg_function(time) as time
     /// GROUP BY
     ///   group_key1, group_key2, remaining tags,
     /// ORDER BY
-    ///   group_key1, group_key2, remaining tags, time,
+    ///   group_key1, group_key2, remaining tags
+    ///
+    /// Equivalent to this SQL query for 'selector' functions: first, last, min,
+    /// max as they can have different values of the timestamp column
+    ///
+    /// SELECT
+    ///   tag1...tagN
+    ///   agg_function(_val1) as _value1
+    ///   agg_function(time) as time1
+    ///   ..
+    ///   agg_function(_valN) as _valueN
+    ///   agg_function(time) as timeN
+    /// GROUP BY
+    ///   group_key1, group_key2, remaining tags,
+    /// ORDER BY
+    ///   group_key1, group_key2, remaining tags
     ///
     /// The created plan looks like:
     ///
-    ///  OrderBy(gby: tag columns, window_function; agg: aggregate(field)
-    ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field)
-    ///        Filter(predicate)
+    ///  OrderBy(gby cols; agg)
+    ///     GroupBy(gby cols, aggs, time cols)
+    ///       Filter(predicate)
     ///          InMemoryScan
     pub fn aggregate_series_set_plan(
         &self,
@@ -590,20 +610,18 @@ impl Table {
             .map(|tag_name| col(tag_name.as_ref()))
             .collect::<Vec<_>>();
 
-        // aggregate each field *and* the timestamp field
-        let mut agg_exprs = field_columns
-            .iter()
-            .map(|field_name| make_agg_expr(agg, field_name.as_ref()))
-            .collect::<Result<Vec<_>>>()?;
-        // also aggregate the time column itself
-        agg_exprs.push(make_agg_expr(agg, TIME_COLUMN_NAME)?);
+        let AggExprs {
+            agg_exprs,
+            field_columns,
+        } = AggExprs::new(agg, field_columns, |col_name| {
+            let index = self.column_index(partition, col_name)?;
+            Ok(self.columns[index].data_type())
+        })?;
 
-        // sort by the group by expressions as well as (aggregated) time value
-        let mut sort_exprs = group_exprs
+        let sort_exprs = group_exprs
             .iter()
             .map(|expr| expr.into_sort_expr())
             .collect::<Vec<_>>();
-        sort_exprs.push(TIME_COLUMN_NAME.into_sort_expr());
 
         let plan_builder = plan_builder
             .aggregate(group_exprs, agg_exprs)
@@ -695,7 +713,7 @@ impl Table {
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
 
-        Ok(SeriesSetPlan::new(
+        Ok(SeriesSetPlan::new_from_shared_timestamp(
             self.table_name(partition),
             plan,
             tag_columns,
@@ -831,6 +849,24 @@ impl Table {
         }
     }
 
+    fn column_index(&self, partition: &Partition, column_name: &str) -> Result<usize> {
+        let column_id = partition.dictionary.lookup_value(column_name).context(
+            ColumnNameNotFoundInDictionary {
+                column_name,
+                partition: &partition.key,
+            },
+        )?;
+
+        self.column_id_to_index
+            .get(&column_id)
+            .copied()
+            .context(InternalNoColumnInIndex {
+                column_name,
+                column_id,
+            })
+    }
+
+    /// Returns (name, index) pairs for all named columns
     fn column_names_with_index<'a>(
         &self,
         partition: &Partition,
@@ -839,21 +875,7 @@ impl Table {
         columns
             .iter()
             .map(|&column_name| {
-                let column_id = partition.dictionary.lookup_value(column_name).context(
-                    ColumnNameNotFoundInDictionary {
-                        column_name,
-                        partition: &partition.key,
-                    },
-                )?;
-
-                let column_index =
-                    *self
-                        .column_id_to_index
-                        .get(&column_id)
-                        .context(InternalNoColumnInIndex {
-                            column_name,
-                            column_id,
-                        })?;
+                let column_index = self.column_index(partition, column_name)?;
 
                 Ok((column_name, column_index))
             })
@@ -1176,6 +1198,89 @@ impl IntoExpr for Expr {
     }
 }
 
+struct AggExprs {
+    agg_exprs: Vec<Expr>,
+    field_columns: FieldColumns,
+}
+
+/// Creates aggregate and sort expressions for an aggregate plan,
+/// according to the rules explained on
+/// `aggregate_series_set_plan`
+impl AggExprs {
+    /// Create the appropriate aggregate expressions, based on the type of
+    fn new<F>(agg: Aggregate, field_columns: Vec<Arc<String>>, field_type_lookup: F) -> Result<Self>
+    where
+        F: Fn(&str) -> Result<ArrowDataType>,
+    {
+        match agg {
+            Aggregate::Sum | Aggregate::Count | Aggregate::Mean => {
+                //  agg_function(_val1) as _value1
+                //  ...
+                //  agg_function(_valN) as _valueN
+                //  agg_function(time) as time
+
+                let mut agg_exprs = field_columns
+                    .iter()
+                    .map(|field_name| make_agg_expr(agg, field_name.as_ref()))
+                    .collect::<Result<Vec<_>>>()?;
+
+                agg_exprs.push(make_agg_expr(agg, TIME_COLUMN_NAME)?);
+
+                let field_columns = field_columns.into();
+                Ok(Self {
+                    agg_exprs,
+                    field_columns,
+                })
+            }
+            Aggregate::First | Aggregate::Last | Aggregate::Min | Aggregate::Max => {
+                //   agg_function(_val1) as _value1
+                //   agg_function(time) as time1
+                //   ..
+                //   agg_function(_valN) as _valueN
+                //   agg_function(time) as timeN
+
+                // might be nice to use a more functional style here
+                let mut agg_exprs = Vec::with_capacity(field_columns.len() * 2);
+                let mut field_list = Vec::with_capacity(field_columns.len());
+
+                for field_name in &field_columns {
+                    let field_type = field_type_lookup(field_name.as_ref())?;
+
+                    agg_exprs.push(make_selector_expr(
+                        agg,
+                        SelectorOutput::Value,
+                        field_name.as_ref(),
+                        &field_type,
+                        field_name.as_ref(),
+                    )?);
+
+                    let time_column_name = Arc::new(format!("{}_{}", TIME_COLUMN_NAME, field_name));
+
+                    agg_exprs.push(make_selector_expr(
+                        agg,
+                        SelectorOutput::Time,
+                        field_name.as_ref(),
+                        &field_type,
+                        time_column_name.as_ref(),
+                    )?);
+
+                    field_list.push((
+                        field_name.clone(), // value name
+                        time_column_name,
+                    ));
+                }
+
+                let field_columns = field_list.into();
+                Ok(Self {
+                    agg_exprs,
+                    field_columns,
+                })
+            }
+            Aggregate::None => InternalUnexpectedNoneAggregate.fail(),
+        }
+    }
+}
+
 /// Creates a DataFusion expression suitable for calculating an aggregate:
 ///
 /// equivalent to `CAST agg(field) as field`
@@ -1183,6 +1288,29 @@ fn make_agg_expr(agg: Aggregate, field_name: &str) -> Result<Expr> {
     agg.to_datafusion_expr(col(field_name))
         .context(CreatingAggregates)
         .map(|agg| agg.alias(field_name))
+}
+
+/// Creates a DataFusion expression suitable for calculating the time
+/// part of a selector:
+///
+/// equivalent to `CAST selector_time(field) as column_name`
+fn make_selector_expr(
+    agg: Aggregate,
+    output: SelectorOutput,
+    field_name: &str,
+    data_type: &ArrowDataType,
+    column_name: &str,
+) -> Result<Expr> {
+    let uda = match agg {
+        Aggregate::First => selector_first(data_type, output),
+        Aggregate::Last => selector_last(data_type, output),
+        Aggregate::Min => selector_min(data_type, output),
+        Aggregate::Max => selector_max(data_type, output),
+        _ => return InternalAggregateNotSelector { agg }.fail(),
+    };
+    Ok(uda
+        .call(vec![col(field_name), col(TIME_COLUMN_NAME)])
+        .alias(column_name))
 }
 
 #[cfg(test)]
@@ -1343,10 +1471,7 @@ mod tests {
             series_set_plan.tag_columns,
             *str_vec_to_arc_vec(&["city", "state"])
         );
-        assert_eq!(
-            series_set_plan.field_columns,
-            *str_vec_to_arc_vec(&["temp"])
-        );
+        assert_eq!(series_set_plan.field_columns, vec!["temp"].into());
 
         // run the created plan, ensuring the output is as expected
         let results = run_plan(series_set_plan.plan).await;
@@ -1394,10 +1519,7 @@ mod tests {
             series_set_plan.tag_columns,
             *str_vec_to_arc_vec(&["city", "state", "zz_tag"])
         );
-        assert_eq!(
-            series_set_plan.field_columns,
-            *str_vec_to_arc_vec(&["other", "temp"])
-        );
+        assert_eq!(series_set_plan.field_columns, vec!["other", "temp"].into(),);
 
         // run the created plan, ensuring the output is as expected
         let results = run_plan(series_set_plan.plan).await;
@@ -1450,10 +1572,7 @@ mod tests {
             series_set_plan.tag_columns,
             *str_vec_to_arc_vec(&["city", "state"])
         );
-        assert_eq!(
-            series_set_plan.field_columns,
-            *str_vec_to_arc_vec(&["temp"])
-        );
+        assert_eq!(series_set_plan.field_columns, vec!["temp"].into(),);
 
         // run the created plan, ensuring the output is as expected
         let results = run_plan(series_set_plan.plan).await;
@@ -1632,6 +1751,134 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_grouped_series_set_plan_first() {
+        let lp_lines = vec![
+            "h2o,state=MA,city=Cambridge f=8.0,i=8i,b=true,s=\"d\" 1000",
+            "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=true,s=\"c\" 2000",
+            "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=false,s=\"b\" 3000",
+            "h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"a\" 4000",
+        ];
+
+        let mut fixture = TableFixture::new(lp_lines);
+
+        let predicate = PredicateBuilder::default()
+            // fiter out first row (ts 1000)
+            .timestamp_range(1001, 4001)
+            .build();
+
+        // run the created plan, ensuring the output is as expected
+        let results = fixture
+            .grouped_series_set(predicate, Aggregate::First, &["state"])
+            .await;
+
+        let expected = vec![
+            "+-------+-----------+------+--------+---+--------+---+--------+---+--------+",
+            "| state | city      | b    | time_b | f | time_f | i | time_i | s | time_s |",
+            "+-------+-----------+------+--------+---+--------+---+--------+---+--------+",
+            "| MA    | Cambridge | true | 2000   | 7 | 2000   | 7 | 2000   | c | 2000   |",
+            "+-------+-----------+------+--------+---+--------+---+--------+---+--------+",
+        ];
+
+        assert_eq!(expected, results, "expected output");
+    }
+
+    #[tokio::test]
+    async fn test_grouped_series_set_plan_last() {
+        let lp_lines = vec![
+            "h2o,state=MA,city=Cambridge f=8.0,i=8i,b=true,s=\"d\" 1000",
+            "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=true,s=\"c\" 2000",
+            "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=false,s=\"b\" 3000",
+            "h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"a\" 4000",
+        ];
+
+        let mut fixture = TableFixture::new(lp_lines);
+
+        let predicate = PredicateBuilder::default()
+            // fiter out last row (ts 4000)
+            .timestamp_range(100, 3999)
+            .build();
+
+        // run the created plan, ensuring the output is as expected
+        let results = fixture
+            .grouped_series_set(predicate, Aggregate::Last, &["state"])
+            .await;
+
+        let expected = vec![
+            "+-------+-----------+-------+--------+---+--------+---+--------+---+--------+",
+            "| state | city      | b     | time_b | f | time_f | i | time_i | s | time_s |",
+            "+-------+-----------+-------+--------+---+--------+---+--------+---+--------+",
+            "| MA    | Cambridge | false | 3000   | 6 | 3000   | 6 | 3000   | b | 3000   |",
+            "+-------+-----------+-------+--------+---+--------+---+--------+---+--------+",
+        ];
+
+        assert_eq!(expected, results, "expected output");
+    }
+
+    #[tokio::test]
+    async fn test_grouped_series_set_plan_min() {
+        let lp_lines = vec![
+            "h2o,state=MA,city=Cambridge f=8.0,i=8i,b=false,s=\"c\" 1000",
+            "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=false,s=\"a\" 2000",
+            "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=true,s=\"z\" 3000",
+            "h2o,state=MA,city=Cambridge f=5.0,i=5i,b=true,s=\"c\" 4000",
+        ];
+
+        let mut fixture = TableFixture::new(lp_lines);
+
+        let predicate = PredicateBuilder::default()
+            // fiter out last row (ts 4000)
+            .timestamp_range(100, 3999)
+            .build();
+
+        // run the created plan, ensuring the output is as expected
+        let results = fixture
+            .grouped_series_set(predicate, Aggregate::Min, &["state"])
+            .await;
+
+        let expected = vec![
+            "+-------+-----------+-------+--------+---+--------+---+--------+---+--------+",
+            "| state | city      | b     | time_b | f | time_f | i | time_i | s | time_s |",
+            "+-------+-----------+-------+--------+---+--------+---+--------+---+--------+",
+            "| MA    | Cambridge | false | 1000   | 6 | 3000   | 6 | 3000   | a | 2000   |",
+            "+-------+-----------+-------+--------+---+--------+---+--------+---+--------+",
+        ];
+
+        assert_eq!(expected, results, "expected output");
+    }
+
+    #[tokio::test]
+    async fn test_grouped_series_set_plan_max() {
+        let lp_lines = vec![
+            "h2o,state=MA,city=Cambridge f=8.0,i=8i,b=true,s=\"c\" 1000",
+            "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=false,s=\"d\" 2000",
+            "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=true,s=\"a\" 3000",
+            "h2o,state=MA,city=Cambridge f=5.0,i=5i,b=true,s=\"z\" 4000",
+        ];
+
+        let mut fixture = TableFixture::new(lp_lines);
+
+        let predicate = PredicateBuilder::default()
+            // fiter out first row (ts 1000)
+            .timestamp_range(1001, 4001)
+            .build();
+
+        // run the created plan, ensuring the output is as expected
+        let results = fixture
+            .grouped_series_set(predicate, Aggregate::Max, &["state"])
+            .await;
+
+        let expected = vec![
+            "+-------+-----------+------+--------+---+--------+---+--------+---+--------+",
+            "| state | city      | b    | time_b | f | time_f | i | time_i | s | time_s |",
+            "+-------+-----------+------+--------+---+--------+---+--------+---+--------+",
+            "| MA    | Cambridge | true | 3000   | 7 | 2000   | 7 | 2000   | z | 4000   |",
+            "+-------+-----------+------+--------+---+--------+---+--------+---+--------+",
+        ];
+
+        assert_eq!(expected, results, "expected output");
+    }
+
+    #[tokio::test]
     async fn test_grouped_series_set_plan_group_by_keys() {
         let lp_lines = vec![
             "h2o,state=MA,city=Cambridge temp=80 50",
@@ -1725,7 +1972,7 @@ mod tests {
             .expect("creating the grouped_series set plan");
 
         assert_eq!(plan.tag_columns, *str_vec_to_arc_vec(&["city", "state"]));
-        assert_eq!(plan.field_columns, *str_vec_to_arc_vec(&["temp"]));
+        assert_eq!(plan.field_columns, vec!["temp"].into());
 
         // run the created plan, ensuring the output is as expected
         let results = run_plan(plan.plan).await;
@@ -1774,7 +2021,7 @@ mod tests {
             .expect("creating the grouped_series set plan");
 
         assert_eq!(plan.tag_columns, *str_vec_to_arc_vec(&["city", "state"]));
-        assert_eq!(plan.field_columns, *str_vec_to_arc_vec(&["temp"]));
+        assert_eq!(plan.field_columns, vec!["temp"].into());
 
         // run the created plan, ensuring the output is as expected
         let results = run_plan(plan.plan).await;
