@@ -60,7 +60,15 @@ workflows:
               only:
                 - master
     jobs:
-      - e2e
+      - godeps
+      - jsdeps
+      - build:
+          requires:
+            - godeps
+            - jsdeps
+      - e2e:
+          requires:
+            - build
 
   nightly:
     triggers:
@@ -71,12 +79,26 @@ workflows:
               only:
                 - master
     jobs:
-      - gotest
-      - golint
-      - jstest
-      - jslint
-      - influxql_validation
-      - influxql_integration
+      - godeps
+      - jsdeps
+      - gotest:
+          requires:
+            - godeps
+      - golint:
+          requires:
+            - godeps
+      - influxql_validation:
+          requires:
+            - godeps
+      - influxql_integration:
+          requires:
+            - godeps
+      - jstest:
+          requires:
+            - jsdeps
+      - jslint:
+          requires:
+            - jsdeps
       - deploy-nightly:
           requires:
             - gotest
@@ -98,37 +120,61 @@ workflows:
 
   release:
     jobs:
+      - godeps:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+      - jsdeps:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
       - gotest:
+          requires:
+            - godeps
           filters:
             branches:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
       - golint:
+          requires:
+            - godeps
           filters:
             branches:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
       - jstest:
+          requires:
+            - jsdeps
           filters:
             branches:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
       - jslint:
+          requires:
+            - jsdeps
           filters:
             branches:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
       - influxql_validation:
+          requires:
+            - godeps
           filters:
             branches:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
       - influxql_integration:
+          requires:
+            - godeps
           filters:
             branches:
               ignore: /.*/
