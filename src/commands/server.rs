@@ -25,13 +25,13 @@ pub enum Error {
     },
 
     #[snafu(display("Unable to initialize database in directory {:?}:  {}", db_dir, source))]
-    InitializingWriteBuffer {
+    InitializingMutableBuffer {
         db_dir: PathBuf,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
     #[snafu(display("Unable to restore WAL from directory {:?}:  {}", dir, source))]
-    RestoringWriteBuffer {
+    RestoringMutableBuffer {
         dir: PathBuf,
         source: Box<dyn std::error::Error + Send + Sync>,
     },

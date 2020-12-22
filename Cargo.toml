@@ -21,7 +21,7 @@ members = [
     "influxdb_tsm",
     "query",
     "wal",
-    "write_buffer",
+    "mutable_buffer",
     "influxdb2_client",
 ]
 
@@ -40,7 +40,7 @@ influxdb_line_protocol = { path = "influxdb_line_protocol" }
 mem_qe = { path = "mem_qe" }
 segment_store = { path = "segment_store" }
 packers = { path = "packers" }
-write_buffer = { path = "write_buffer" }
+mutable_buffer = { path = "mutable_buffer" }
 object_store = { path = "object_store" }
 query = { path = "query" }
 influxdb_tsm = { path = "influxdb_tsm" }

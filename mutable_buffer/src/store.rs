@@ -7,7 +7,7 @@ use std::{fs, sync::Arc};
 
 use std::{collections::BTreeMap, path::PathBuf};
 
-use crate::database::Db;
+use crate::database::MutableBufferDb;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -27,12 +27,12 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
-pub struct WriteBufferDatabases {
-    databases: RwLock<BTreeMap<String, Arc<Db>>>,
+pub struct MutableBufferDatabases {
+    databases: RwLock<BTreeMap<String, Arc<MutableBufferDb>>>,
     base_dir: PathBuf,
 }
 
-impl WriteBufferDatabases {
+impl MutableBufferDatabases {
     pub fn new(base_dir: impl Into<PathBuf>) -> Self {
         Self {
             databases: RwLock::new(BTreeMap::new()),
@@ -70,15 +70,15 @@ impl WriteBufferDatabases {
         Ok(dirs)
     }
 
-    pub async fn add_db(&self, db: Db) {
+    pub async fn add_db(&self, db: MutableBufferDb) {
         let mut databases = self.databases.write().await;
         databases.insert(db.name.clone(), Arc::new(db));
     }
 }
 
 #[async_trait]
-impl DatabaseStore for WriteBufferDatabases {
-    type Database = Db;
+impl DatabaseStore for MutableBufferDatabases {
+    type Database = MutableBufferDb;
     type Error = Error;
 
     async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
@@ -106,7 +106,7 @@ impl DatabaseStore for WriteBufferDatabases {
             return Ok(db.clone());
         }
 
-        let db = Db::try_with_wal(name, &mut self.base_dir.clone())
+        let db = MutableBufferDb::try_with_wal(name, &mut self.base_dir.clone())
             .await
             .context(DatabaseError)?;
         let db = Arc::new(db);

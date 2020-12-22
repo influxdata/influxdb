@@ -16,9 +16,9 @@ use data_types::{
     {DatabaseName, DatabaseNameError},
 };
 use influxdb_line_protocol::ParsedLine;
+use mutable_buffer::MutableBufferDb;
 use object_store::ObjectStore;
 use query::{DatabaseStore, SQLDatabase, TSDatabase};
-use write_buffer::Db as WriteBufferDb;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -123,7 +123,7 @@ impl<M: ConnectionManager> Server<M> {
         let db_name = DatabaseName::new(db_name.into()).context(InvalidDatabaseName)?;
 
         let buffer = if rules.store_locally {
-            Some(Arc::new(WriteBufferDb::new(db_name.to_string())))
+            Some(Arc::new(MutableBufferDb::new(db_name.to_string())))
         } else {
             None
         };
@@ -319,7 +319,7 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    pub async fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<WriteBufferDb>> {
+    pub async fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<MutableBufferDb>> {
         let config = self.config.read().await;
         config
             .databases
@@ -330,7 +330,7 @@ impl<M: ConnectionManager> Server<M> {
 
 #[async_trait]
 impl DatabaseStore for Server<ConnectionManagerImpl> {
-    type Database = WriteBufferDb;
+    type Database = MutableBufferDb;
     type Error = Error;
 
     async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
@@ -395,7 +395,7 @@ pub struct Db {
     #[serde(flatten)]
     pub rules: DatabaseRules,
     #[serde(skip)]
-    pub local_store: Option<Arc<WriteBufferDb>>,
+    pub local_store: Option<Arc<MutableBufferDb>>,
     #[serde(skip)]
     wal_buffer: Option<Buffer>,
     #[serde(skip)]

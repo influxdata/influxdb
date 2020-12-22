@@ -461,7 +461,7 @@ impl ExpressionVisitor for SupportVisitor {
                 }
             }
             _ => panic!(
-                "Unsupported expression in write_buffer database: {:?}",
+                "Unsupported expression in mutable_buffer database: {:?}",
                 expr
             ),
         }

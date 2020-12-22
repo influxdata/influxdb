@@ -1,8 +1,5 @@
-//! This module contains a parallel implementation of the /v2 HTTP api
-//! routes for InfluxDB IOx based on the WriteBuffer storage implementation.
-//!
-//! The goal is that eventually the implementation in these routes
-//! will replace the implementation in http_routes.rs
+//! This module contains a partial implementation of the /v2 HTTP api
+//! routes for InfluxDB IOx.
 //!
 //! Note that these routes are designed to be just helpers for now,
 //! and "close enough" to the real /v2 api to be able to test InfluxDB IOx
@@ -10,7 +7,7 @@
 //! id (this is done by other services in the influx cloud)
 //!
 //! Long term, we expect to create IOx specific api in terms of
-//! database names and may remove this quasi /v2 API from the Deloren.
+//! database names and may remove this quasi /v2 API.
 
 use http::header::CONTENT_ENCODING;
 use tracing::{debug, error, info};

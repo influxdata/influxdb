@@ -17,6 +17,6 @@ mod table;
 
 // Allow restore partitions to be used outside of this crate (for
 // benchmarking)
-pub use crate::database::Db;
+pub use crate::database::MutableBufferDb;
 pub use crate::partition::restore_partitions_from_wal;
-pub use crate::store::WriteBufferDatabases;
+pub use crate::store::MutableBufferDatabases;

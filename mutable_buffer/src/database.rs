@@ -239,14 +239,14 @@ impl From<crate::partition::Error> for Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Default)]
-pub struct Db {
+pub struct MutableBufferDb {
     pub name: String,
     // TODO: partitions need to be wrapped in an Arc if they're going to be used without this lock
     partitions: RwLock<Vec<Partition>>,
     wal_details: Option<WalDetails>,
 }
 
-impl Db {
+impl MutableBufferDb {
     /// New creates a new in-memory only write buffer database
     pub fn new(name: impl Into<String>) -> Self {
         Self {
@@ -377,7 +377,7 @@ impl Db {
 }
 
 #[async_trait]
-impl TSDatabase for Db {
+impl TSDatabase for MutableBufferDb {
     type Partition = crate::partition::Partition;
     type Error = Error;
 
@@ -537,7 +537,7 @@ impl TSDatabase for Db {
 }
 
 #[async_trait]
-impl SQLDatabase for Db {
+impl SQLDatabase for MutableBufferDb {
     type Partition = Partition;
     type Error = Error;
 
@@ -716,7 +716,7 @@ trait Visitor {
     }
 }
 
-impl Db {
+impl MutableBufferDb {
     /// returns the number of partitions in this database
     pub async fn len(&self) -> usize {
         self.partitions.read().await.len()
@@ -1270,7 +1270,7 @@ mod tests {
     }
 
     // query the table names, with optional range predicate
-    async fn table_names(db: &Db, predicate: Predicate) -> Result<StringSet> {
+    async fn table_names(db: &MutableBufferDb, predicate: Predicate) -> Result<StringSet> {
         let plan = db.table_names(predicate).await?;
         let executor = Executor::default();
         let s = executor.to_string_set(plan).await?;
@@ -1284,7 +1284,7 @@ mod tests {
     async fn list_table_names() -> Result {
         let mut dir = test_helpers::tmp_dir()?.into_path();
 
-        let db = Db::try_with_wal("mydb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("mydb", &mut dir).await?;
 
         // no tables initially
         assert_eq!(
@@ -1312,7 +1312,7 @@ mod tests {
     async fn list_table_names_timestamps() -> Result {
         let mut dir = test_helpers::tmp_dir()?.into_path();
 
-        let db = Db::try_with_wal("mydb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("mydb", &mut dir).await?;
 
         // write two different tables at the following times:
         // cpu: 100 and 150
@@ -1348,7 +1348,7 @@ mod tests {
     async fn missing_tags_are_null() -> Result {
         let mut dir = test_helpers::tmp_dir()?.into_path();
 
-        let db = Db::try_with_wal("mydb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("mydb", &mut dir).await?;
 
         // Note the `region` tag is introduced in the second line, so
         // the values in prior rows for the region column are
@@ -1438,7 +1438,7 @@ mod tests {
         let disk_columns = &["region", "host", "bytes", "used_percent", "time"];
 
         {
-            let db = Db::try_with_wal("mydb", &mut dir).await?;
+            let db = MutableBufferDb::try_with_wal("mydb", &mut dir).await?;
             let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i,str=\"some string\",b=true 10\ndisk,region=west,host=A bytes=23432323i,used_percent=76.2 10").map(|l| l.unwrap()).collect();
             db.write_lines(&lines).await?;
             let lines: Vec<_> = parse_lines("cpu,region=west,host=B user=23.1 15")
@@ -1466,7 +1466,7 @@ mod tests {
 
         // check that it recovers from the wal
         {
-            let db = Db::restore_from_wal(&dir).await?;
+            let db = MutableBufferDb::restore_from_wal(&dir).await?;
 
             let partitions = db.table_to_arrow("cpu", cpu_columns).await?;
             assert_table_eq(expected_cpu_table, &partitions);
@@ -1483,7 +1483,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_and_query() -> Result {
-        let db = Db::new("foo");
+        let db = MutableBufferDb::new("foo");
 
         let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i 10")
             .map(|l| l.unwrap())
@@ -1544,7 +1544,7 @@ mod tests {
         let mem_columns = &["region", "host", "val", "time"];
         let disk_columns = &["region", "host", "bytes", "used_percent", "time"];
         {
-            let db = Db::try_with_wal("mydb", &mut dir).await?;
+            let db = MutableBufferDb::try_with_wal("mydb", &mut dir).await?;
             let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i,str=\"some string\",b=true 10\ndisk,region=west,host=A bytes=23432323i,used_percent=76.2 10").map(|l| l.unwrap()).collect();
             db.write_lines(&lines).await?;
             let lines: Vec<_> = parse_lines("cpu,region=west,host=B user=23.1 15")
@@ -1585,7 +1585,7 @@ mod tests {
 
             let (partitions, _stats) = restore_partitions_from_wal(wal_entries)?;
 
-            let db = Db {
+            let db = MutableBufferDb {
                 name,
                 partitions: RwLock::new(partitions),
                 wal_details: None,
@@ -1640,7 +1640,7 @@ disk bytes=23432323i 1600136510000000000",
     #[tokio::test]
     async fn list_column_names() -> Result {
         let mut dir = test_helpers::tmp_dir()?.into_path();
-        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("column_namedb", &mut dir).await?;
 
         let lp_data = "h2o,state=CA,city=LA,county=LA temp=70.4 100\n\
                        h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250\n\
@@ -1768,7 +1768,7 @@ disk bytes=23432323i 1600136510000000000",
         // Demonstration test to show column names with predicate working
 
         let mut dir = test_helpers::tmp_dir()?.into_path();
-        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("column_namedb", &mut dir).await?;
 
         let lp_data = "h2o,state=CA,city=LA,county=LA temp=70.4 100\n\
                        h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250\n\
@@ -1802,7 +1802,7 @@ disk bytes=23432323i 1600136510000000000",
     #[tokio::test]
     async fn list_column_values() -> Result {
         let mut dir = test_helpers::tmp_dir()?.into_path();
-        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("column_namedb", &mut dir).await?;
 
         let lp_data = "h2o,state=CA,city=LA temp=70.4 100\n\
                        h2o,state=MA,city=Boston temp=72.4 250\n\
@@ -1958,7 +1958,7 @@ disk bytes=23432323i 1600136510000000000",
         // correctly.  There are more detailed tests in table.rs that
         // test the generated queries.
         let mut dir = test_helpers::tmp_dir()?.into_path();
-        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("column_namedb", &mut dir).await?;
 
         let mut lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
@@ -2035,7 +2035,7 @@ disk bytes=23432323i 1600136510000000000",
     async fn test_query_series_filter() -> Result {
         // check the appropriate filters are applied in the datafusion plans
         let mut dir = test_helpers::tmp_dir()?.into_path();
-        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("column_namedb", &mut dir).await?;
 
         let lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 100",
@@ -2085,7 +2085,7 @@ disk bytes=23432323i 1600136510000000000",
     #[tokio::test]
     async fn test_query_series_pred_refers_to_column_not_in_table() -> Result {
         let mut dir = test_helpers::tmp_dir()?.into_path();
-        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("column_namedb", &mut dir).await?;
 
         let lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 100",
@@ -2145,7 +2145,9 @@ disk bytes=23432323i 1600136510000000000",
     )]
     async fn test_query_series_pred_neq() {
         let mut dir = test_helpers::tmp_dir().unwrap().into_path();
-        let db = Db::try_with_wal("column_namedb", &mut dir).await.unwrap();
+        let db = MutableBufferDb::try_with_wal("column_namedb", &mut dir)
+            .await
+            .unwrap();
 
         let lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 100",
@@ -2170,7 +2172,7 @@ disk bytes=23432323i 1600136510000000000",
         // Ensure that the database queries are hooked up correctly
 
         let mut dir = test_helpers::tmp_dir()?.into_path();
-        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("column_namedb", &mut dir).await?;
 
         let lp_data = vec![
             "h2o,state=MA,city=Boston temp=70.4 50",
@@ -2266,7 +2268,7 @@ disk bytes=23432323i 1600136510000000000",
     async fn test_field_columns_timestamp_predicate() -> Result {
         // check the appropriate filters are applied in the datafusion plans
         let mut dir = test_helpers::tmp_dir()?.into_path();
-        let db = Db::try_with_wal("column_namedb", &mut dir).await?;
+        let db = MutableBufferDb::try_with_wal("column_namedb", &mut dir).await?;
 
         let lp_data = vec![
             "h2o,state=MA,city=Boston temp=70.4 50",

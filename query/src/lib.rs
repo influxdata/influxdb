@@ -180,7 +180,7 @@ pub trait DatabaseStore: Debug + Send + Sync {
 // but when I do so then other modules can not find them. For example:
 //
 // error[E0433]: failed to resolve: could not find `test` in `storage`
-//   --> src/server/write_buffer_routes.rs:353:19
+//   --> src/server/mutable_buffer_routes.rs:353:19
 //     |
 // 353 |     use query::test::TestDatabaseStore;
 //     |                ^^^^ could not find `test` in `query`

@@ -44,7 +44,7 @@ impl Store {
     }
 
     /// This method adds a partition to the segment store. It is probably what
-    /// the `WriteBuffer` will call.
+    /// the `MutableBuffer` will call.
     ///
     /// The partition should comprise a single table (record batch) for each
     /// measurement name in the partition.

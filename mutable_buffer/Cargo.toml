@@ -1,5 +1,5 @@
 [package]
-name = "write_buffer"
+name = "mutable_buffer"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
