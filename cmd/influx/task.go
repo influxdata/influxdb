@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/tenant"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/tenant"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
@@ -96,7 +97,6 @@ func (t *cmdTaskBuilder) taskCreateCmd() *cobra.Command {
 	cmd.Short = "Create task"
 	cmd.Long = `Create a task with a Flux script provided via the first argument or a file or stdin`
 
-	t.globalFlags.registerFlags(t.opts.viper, cmd)
 	cmd.Flags().StringVarP(&t.taskCreateFlags.file, "file", "f", "", "Path to Flux script file")
 	t.org.register(t.opts.viper, cmd, false)
 	registerPrintOptions(t.opts.viper, cmd, &t.taskPrintFlags.hideHeaders, &t.taskPrintFlags.json)
