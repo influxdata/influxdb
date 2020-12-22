@@ -74,15 +74,10 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          name: Restore GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
-      - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-cache-{{ checksum "ui/yarn.lock" }}
+            - yarn-modules-{{ checksum "ui/yarn.lock" }}
       - run: make protoc
-      - run: make build
       - run:
           command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
           background: true
@@ -130,8 +125,8 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-cache-{{ checksum "ui/yarn.lock" }}
-            - yarn-cache-
+            - yarn-modules-{{ checksum "ui/yarn.lock" }}
+            - yarn-modules-
       - run:
           name: Install Dependencies
           command: |
@@ -140,8 +135,9 @@ jobs:
             yarn install --immutable
       - save_cache:
           name: Save Yarn Cache
-          key: yarn-cache-{{ checksum "ui/yarn.lock" }}
+          key: yarn-modules-{{ checksum "ui/yarn.lock" }}
           paths:
+            - /go/src/github.com/influxdata/influxdb/ui/node_modules
             - ~/.cache/yarn
 
   jstest:
@@ -154,7 +150,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-cache-{{ checksum "ui/yarn.lock" }}
+            - yarn-modules-{{ checksum "ui/yarn.lock" }}
       - run: make ui_client
       - run:
           name: parallel jest tests
@@ -179,7 +175,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-cache-{{ checksum "ui/yarn.lock" }}
+            - yarn-modules-{{ checksum "ui/yarn.lock" }}
       - run: make ui_client
       - run:
           name: parallel eslint
@@ -368,7 +364,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-cache-{{ checksum "ui/yarn.lock" }}
+            - yarn-modules-{{ checksum "ui/yarn.lock" }}
       - run: make protoc
       - run: make build
       - save_cache:
@@ -409,7 +405,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-cache-{{ checksum "ui/yarn.lock" }}
+            - yarn-modules-{{ checksum "ui/yarn.lock" }}
       - setup_remote_docker
       - run:
           name: Docker Login
@@ -454,7 +450,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-cache-{{ checksum "ui/yarn.lock" }}
+            - yarn-modules-{{ checksum "ui/yarn.lock" }}
       - setup_remote_docker
       - run:
           name: Docker Login
