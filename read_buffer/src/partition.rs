@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::column::{AggregateResult, AggregateType, Values};
-use crate::segment::{ColumnName, GroupKey};
+use crate::row_group::{ColumnName, GroupKey};
 use crate::table::Table;
 
 // The name of a measurement, i.e., a table name.
