@@ -235,8 +235,8 @@ func (t *cmdTaskBuilder) taskRerunFailedCmd() *cobra.Command {
 	t.globalFlags.registerFlags(t.opts.viper, cmd)
 	registerPrintOptions(t.opts.viper, cmd, &t.taskPrintFlags.hideHeaders, &t.taskPrintFlags.json)
 	cmd.Flags().StringVarP(&t.taskID, "id", "i", "", "task ID")
-	cmd.Flags().StringVarP(&t.taskRerunFailedFlags.before, "before", "bf", "", "before interval")
-	cmd.Flags().StringVarP(&t.taskRerunFailedFlags.after, "after", "af", "", "after interval")
+	cmd.Flags().StringVar(&t.taskRerunFailedFlags.before, "before", "", "before interval")
+	cmd.Flags().StringVar(&t.taskRerunFailedFlags.after, "after", "", "after interval")
 
 	return cmd
 }
