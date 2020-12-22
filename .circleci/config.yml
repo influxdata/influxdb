@@ -528,6 +528,8 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
+      - attach_workspace:
+          at: /go/src/github.com/influxdata/influxdb
       - restore_cache:
           name: Restore Yarn Cache
           keys:
