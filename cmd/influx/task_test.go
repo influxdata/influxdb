@@ -40,7 +40,7 @@ func TestCmdTask(t *testing.T) {
 
 	t.Run("create", func(t *testing.T) {
 		/*
-			checking cmd line tool gives all data needed for TaskServce to actually create a Task
+			checking cmd line tool gives all data needed for TaskService to actually create a Task
 		*/
 		tests := []struct {
 			name         string
@@ -75,12 +75,28 @@ func TestCmdTask(t *testing.T) {
 					Flux:           task.Flux,
 				}
 
+				errMsg := fmt.Errorf("unexpected task;\n\twant= %+v\n\tgot=  %+v", expectedTsk, task)
+
 				// todo: compare fields for expected to actual/"tmpTsk"
-				if expectedTsk != tmpTsk {
-					return nil, fmt.Errorf("unexpected task;\n\twant= %+v\n\tgot=  %+v", expectedTsk, task)
+				if expectedTsk.Type != tmpTsk.Type {
+					return nil, errMsg
+				} else if expectedTsk.Flux != tmpTsk.Flux {
+					return nil, errMsg
+				} else if expectedTsk.Status != tmpTsk.Status {
+					return nil, errMsg
+				} else if expectedTsk.Description != tmpTsk.Description {
+					return nil, errMsg
+				} else if expectedTsk.Organization != tmpTsk.Organization {
+					return nil, errMsg
+				} else if expectedTsk.OrganizationID != tmpTsk.OrganizationID {
+					return nil, errMsg
+				} else if expectedTsk.OwnerID != tmpTsk.OwnerID {
+					return nil, errMsg
+				} else {
+					// todo: buckets doesn't require a bucket returned
+					return &expectedTsk, nil
 				}
-				// todo: buckets doesn't require a bucket returned
-				return &expectedTsk, nil
+
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
