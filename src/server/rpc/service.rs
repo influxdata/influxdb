@@ -332,8 +332,6 @@ where
             InternalHintsFieldNotSupported { hints }.fail()?
         }
 
-        warn!("read_group implementation not yet complete: https://github.com/influxdata/influxdb_iox/issues/448");
-
         let aggregate_string = format!(
             "aggregate: {:?}, group: {:?}, group_keys: {:?}",
             aggregate, group, group_keys
@@ -569,15 +567,18 @@ where
         //
 
         // For now, hard code our list of support
-        let caps = [(
-            "WindowAggregate",
-            vec![
-                "Count", "Sum", // "First"
-                // "Last",
-                "Min", "Max", "Mean",
-                // "Offset"
-            ],
-        )];
+        let caps = [
+            (
+                "WindowAggregate",
+                vec![
+                    "Count", "Sum", // "First"
+                    // "Last",
+                    "Min", "Max", "Mean",
+                    // "Offset"
+                ],
+            ),
+            ("Group", vec!["First", "Last", "Min", "Max"]),
+        ];
 
         // Turn it into the HashMap -> Capabiltity
         let caps = caps
@@ -1240,6 +1241,8 @@ mod tests {
             "WindowAggregate".into(),
             to_str_vec(&["Count", "Sum", "Min", "Max", "Mean"]),
         );
+
+        expected_capabilities.insert("Group".into(), to_str_vec(&["First", "Last", "Min", "Max"]));
 
         assert_eq!(
             expected_capabilities,

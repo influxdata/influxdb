@@ -203,7 +203,7 @@ async fn read_and_write_data() -> Result<()> {
     let capabilities_response = capabilities_response.into_inner();
     assert_eq!(
         capabilities_response.caps.len(),
-        1,
+        2,
         "Response: {:?}",
         capabilities_response
     );
