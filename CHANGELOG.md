@@ -10,6 +10,7 @@
 1. [20376](https://github.com/influxdata/influxdb/pull/20376): Don't overwrite stack name/description on `influx stack update`.
 1. [20375](https://github.com/influxdata/influxdb/pull/20375): Fix timeout setup for `influxd` graceful shutdown.
 1. [20354](https://github.com/influxdata/influxdb/pull/20354): Don't ignore failures to set password during initial user onboarding.
+1. [20402](https://github.com/influxdata/influxdb/pull/20402): Remove duplication from task error messages.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
