@@ -13,19 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//func Test_taskRerunFailedCmd(t *testing.T) {
-//
-//	/*
-//		Need to:
-//		1. create a mock task backend
-//		2. create a task
-//		3. have it fail couple times
-//		4. run testrerun
-//
-//		how to output a cobra.Command?
-//	*/
-//}
-
 func TestCmdTask(t *testing.T) {
 	orgID := influxdb.ID(9000)
 
@@ -63,8 +50,6 @@ func TestCmdTask(t *testing.T) {
 
 		cmdFn := func(expectedTsk influxdb.Task) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewTaskService()
-
-			//todo: Task vs TaskCreate?
 			svc.CreateTaskFn = func(ctx context.Context, task influxdb.TaskCreate) (*influxdb.Task, error) {
 				tmpTsk := influxdb.Task{
 					Type:           task.Type,
@@ -78,7 +63,7 @@ func TestCmdTask(t *testing.T) {
 
 				errMsg := fmt.Errorf("unexpected task;\n\twant= %+v\n\tgot=  %+v", expectedTsk, task)
 
-				// todo: compare fields for expected to actual/"tmpTsk"
+				// todo: compare fields for expected to actual (aka "tmpTsk") using go-cmp pkg
 				if expectedTsk.Type != tmpTsk.Type {
 					return nil, errMsg
 				} else if expectedTsk.Flux != tmpTsk.Flux {
@@ -94,7 +79,6 @@ func TestCmdTask(t *testing.T) {
 				} else if expectedTsk.OwnerID != tmpTsk.OwnerID {
 					return nil, errMsg
 				} else {
-					// todo: buckets doesn't require a bucket returned
 					return &expectedTsk, nil
 				}
 

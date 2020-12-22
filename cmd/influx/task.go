@@ -44,10 +44,7 @@ type cmdTaskBuilder struct {
 	taskRerunFailedFlags taskRerunFailedFlags
 	taskUpdateFlags      taskUpdateFlags
 	taskRunFindFlags     taskRunFindFlags
-	name                 string
-	description          string
 	org                  organization
-	query                string
 }
 
 func newCmdTaskBuilder(svcsFn taskSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdTaskBuilder {
@@ -297,7 +294,7 @@ func (t *cmdTaskBuilder) taskRerunFailedF(*cobra.Command, []string) error {
 			allRuns = append(allRuns, runsPerTask...)
 		}
 	} else {
-		allRuns, _, err = tskSvc.FindRuns(context.Background(), runFilter)
+		allRuns, _, _ = tskSvc.FindRuns(context.Background(), runFilter)
 	}
 	var failedRuns []*influxdb.Run
 	for _, run := range allRuns {
