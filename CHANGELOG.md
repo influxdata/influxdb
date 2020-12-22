@@ -1,5 +1,14 @@
 ## unreleased
 
+### Breaking Changes
+
+#### inmem indexes
+This release fully removes the `inmem` indexing option, along with the associated config options:
+* `max-series-per-database`
+* `max-values-per-tag`
+
+Replacement `tsi1` indexes will be automatically generated on startup for shards that need it.
+
 ### Bug Fixes
 
 1. [20339](https://github.com/influxdata/influxdb/pull/20339): Include upgrade helper script in goreleaser manifest.
