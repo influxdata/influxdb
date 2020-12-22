@@ -121,6 +121,29 @@ jobs:
       - store_artifacts:
           path: ~/project
 
+  jsdeps:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:latest
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-cache-{{ checksum "ui/yarn.lock" }}
+            - yarn-cache-
+      - run:
+          name: Install Dependencies
+          command: |
+            set +e
+            cd ui
+            yarn install --immutable
+      - save_cache:
+          name: Save Yarn Cache
+          key: yarn-cache-{{ checksum "ui/yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+
   jstest:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
@@ -131,15 +154,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-jstest-{{ checksum "ui/yarn.lock" }}
             - yarn-cache-{{ checksum "ui/yarn.lock" }}
-      - run:
-          command: |
-            set +e
-            cd ui
-            yarn install
-            yarn prettier
-          name: "Install Dependencies"
       - run: make ui_client
       - run:
           name: parallel jest tests
@@ -153,12 +168,6 @@ jobs:
       - store_artifacts:
           path: coverage
           destination: raw-test-output
-      - save_cache:
-          name: Save Yarn Cache
-          key: yarn-jstest-{{ checksum "ui/yarn.lock" }}
-          paths:
-            - ~/.cache/yarn
-          when: always
 
   jslint:
     docker:
@@ -171,13 +180,6 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-cache-{{ checksum "ui/yarn.lock" }}
-            - yarn-cache-
-      - run:
-          command: |
-            set +e
-            cd ui
-            yarn install
-          name: "Install Dependencies"
       - run: make ui_client
       - run:
           name: parallel eslint
@@ -185,13 +187,32 @@ jobs:
             set +e
             cd ui
             TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
-            yarn eslint:circleci $TESTFILES
+            yarn prettier:circleci ${TESTFILES[@]}
+            yarn eslint:circleci ${TESTFILES[@]}
+
+  godeps:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:latest
+    resource_class: large
+    environment:
+      GOCACHE: /tmp/go-cache
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.mod" }}
+            - influxdb-gomod-
+      - run:
+          name: Install Dependencies
+          command: go mod download -x
       - save_cache:
-          name: Save Yarn Cache
-          key: yarn-cache-{{ checksum "ui/yarn.lock" }}
+          name: Save GOPATH/pkg/mod
+          key: influxdb-gomod-{{ checksum "go.mod" }}
           paths:
-            - ~/.cache/yarn
-          when: always
+            - /go/pkg/mod
+
   gotest:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
@@ -203,19 +224,16 @@ jobs:
     parallelism: 8
     steps:
       - checkout
-      # Populate GOCACHE.
       - restore_cache:
-          name: Restoring GOCACHE
+          name: Restore GOCACHE
           keys:
-            - influxdb-gotest-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gotest-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gotest- # Matches a new branch.
-      # Populate GOPATH/pkg.
+            - influxdb-gotest-{{ .Branch }}-{{ .Revision }}
+            - influxdb-gotest-{{ .Branch }}-
+            - influxdb-gotest-
       - restore_cache:
-          name: Restoring GOPATH/pkg/mod
+          name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gotest-gomod-{{ checksum "go.sum" }} # Retrying a single run.
-            - influxdb-gomod-{{ checksum "go.sum" }} # Fresh test-run following the build job.
+            - influxdb-gomod-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run:
           name: run parallel race tests
@@ -224,21 +242,14 @@ jobs:
             TESTFILES=($(go list ./... | circleci tests split --split-by=timings))
             make GO_TEST_CMD="$GO_TEST_CMD" GO_TEST_PATHS="${TESTFILES[*]}" test-go-race
       - save_cache:
-          name: Saving GOCACHE
+          name: Save GOCACHE
           key: influxdb-gotest-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
-          when: always
-      - save_cache:
-          name: Saving GOPATH/pkg/mod
-          key: influxdb-gotest-gomod-{{ checksum "go.sum" }}
-          paths:
-            - /go/pkg/mod
-          when: always
-      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
+      - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
-      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
+      - store_test_results:
           path: /tmp/test-results
 
   influxql_validation:
@@ -251,37 +262,27 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      # Populate GOCACHE.
       - restore_cache:
-          name: Restoring GOCACHE
+          name: Restore GOCACHE
           keys:
-            - influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-iqlvalidation-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-iqlvalidation- # Matches a new branch.
-      # Populate GOPATH/pkg.
+            - influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }}
+            - influxdb-iqlvalidation-{{ .Branch }}-
+            - influxdb-iqlvalidation-
       - restore_cache:
-          name: Restoring GOPATH/pkg/mod
+          name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-iqlvalidation-gomod-{{ checksum "go.sum" }} # Retrying a single run.
-            - influxdb-gomod-{{ checksum "go.sum" }} # Fresh test-run following the build job.
+            - influxdb-gomod-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-validation
       - save_cache:
-          name: Saving GOCACHE
+          name: Save GOCACHE
           key: influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
-          when: always
-      - save_cache:
-          name: Saving GOPATH/pkg/mod
-          key: influxdb-iqlvalidation-gomod-{{ checksum "go.sum" }}
-          paths:
-            - /go/pkg/mod
-          when: always
-      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
+      - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
-      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
+      - store_test_results:
           path: /tmp/test-results
 
   influxql_integration:
@@ -294,37 +295,27 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      # Populate GOCACHE.
       - restore_cache:
-          name: Restoring GOCACHE
+          name: Restore GOCACHE
           keys:
-            - influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-iqlintegration-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-iqlintegration- # Matches a new branch.
-      # Populate GOPATH/pkg.
+            - influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }}
+            - influxdb-iqlintegration-{{ .Branch }}-
+            - influxdb-iqlintegration-
       - restore_cache:
-          name: Restoring GOPATH/pkg/mod
+          name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-iqlintegration-gomod-{{ checksum "go.sum" }}  # Retrying a single run.
-            - influxdb-gomod-{{ checksum "go.sum" }} # Fresh test-run following the build job.
+            - influxdb-gomod-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-integration
       - save_cache:
-          name: Saving GOCACHE
+          name: Save GOCACHE
           key: influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
-          when: always
-      - save_cache:
-          name: Saving GOPATH/pkg/mod
-          key: influxdb-iqlintegration-gomod-{{ checksum "go.sum" }}
-          paths:
-            - /go/pkg/mod
-          when: always
-      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
+      - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
-      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
+      - store_test_results:
           path: /tmp/test-results
 
   golint:
@@ -335,6 +326,9 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }}
       - run: |
           # this is not in a seperate bash script because it isn't meant to be run on local.
           # it just checks to make sure that the same major/minor version of go is used in the mod file as on ci
@@ -364,27 +358,24 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Exact match on module checksums.
-            - influxdb-gomod- # Latest cache.
+            - influxdb-gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore GOCACHE
+          keys:
+            - influxdb-build-{{ .Branch }}-{{ .Revision }}
+            - influxdb-build-{{ .Branch }}-
+            - influxdb-build-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
             - yarn-cache-{{ checksum "ui/yarn.lock" }}
-            - yarn-cache-
       - run: make protoc
       - run: make build
       - save_cache:
-          name: Save GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
+          name: Save GOCACHE
+          key: influxdb-build-{{ .Branch }}-{{ .Revision }}
           paths:
-            - /go/pkg/mod
-          when: always
-      - save_cache:
-          name: Save Yarn Cache
-          key: yarn-cache-{{ checksum "ui/yarn.lock" }}
-          paths:
-            - ~/.cache/yarn
-          when: always
+            - /tmp/go-cache
       - persist_to_workspace:
           root: .
           paths:
@@ -402,23 +393,36 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      # Speed up `make nightly` by restoring caches from previous runs.
       - restore_cache:
-          name: Restoring GOCACHE
+          name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gocache- # Just match the most recent Go cache.
+            - influxdb-gomod-{{ checksum "go.sum" }}
       - restore_cache:
-          name: Restoring GOPATH/pkg/mod
+          name: Restore GOCACHE
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
+            - influxdb-nightly-{{ .Branch }}-{{ .Revision }}
+            - influxdb-nightly-{{ .Branch }}-
+            - influxdb-build-{{ .Branch }}-{{ .Revision }}
+            - influxdb-build-{{ .Branch }}-
+            - influxdb-nightly-
+            - influxdb-build-
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-cache-{{ checksum "ui/yarn.lock" }}
       - setup_remote_docker
       - run:
-          name: "Docker Login"
+          name: Docker Login
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run: make protoc # installs protoc
       - run:
-          name: "Build nightly"
+          name: Build nightly
           command: make nightly
+      - save_cache:
+          name: Save GOCACHE
+          key: influxdb-nightly-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
       - persist_to_workspace:
           root: .
           paths:
@@ -435,16 +439,25 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          name: Restoring GOPATH/pkg/mod
+          name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore GOCACHE
+          keys:
+            - influxdb-release-{{ .Branch }}-{{ .Revision }}
+            - influxdb-release-{{ .Branch }}-
+            - influxdb-build-{{ .Branch }}-{{ .Revision }}
+            - influxdb-build-{{ .Branch }}-
+            - influxdb-release-
+            - influxdb-build-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
             - yarn-cache-{{ checksum "ui/yarn.lock" }}
       - setup_remote_docker
       - run:
-          name: "Docker Login"
+          name: Docker Login
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run: make protoc # installs protoc
       - run:
@@ -453,32 +466,43 @@ jobs:
             echo -e "$GPG_PRIVATE_KEY" > private.key
             gpg --batch --import private.key
       - run:
-          name: "Build release"
+          name: Build release
           command: make release
+      - save_cache:
+          name: Save GOCACHE
+          key: influxdb-release-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
 
 workflows:
   version: 2
   build:
     jobs:
-      - golint
-      - jslint
+      - godeps
+      - jsdeps
+      - gotest:
+          requires:
+            - godeps
+      - jstest:
+          requires:
+            - jsdeps
+      - influxql_validation:
+          requires:
+            - godeps
+      - influxql_integration:
+          requires:
+            - godeps
+      - golint:
+          requires:
+            - godeps
+      - jslint:
+          requires:
+            - jsdeps
       - build:
           requires:
             - golint
             - jslint
-      - gotest:
-          requires:
-            - build
       - e2e:
-          requires:
-            - build
-      - jstest:
-          requires:
-            - jslint
-      - influxql_validation:
-          requires:
-            - build
-      - influxql_integration:
           requires:
             - build
       - grace_daily:
