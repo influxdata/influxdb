@@ -6,12 +6,14 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kv"
+	"go.uber.org/zap"
 )
 
 type OnboardService struct {
 	service     *Service
 	authSvc     influxdb.AuthorizationService
 	alwaysAllow bool
+	log         *zap.Logger
 }
 
 type OnboardServiceOptionFn func(*OnboardService)
@@ -25,10 +27,17 @@ func WithAlwaysAllowInitialUser() OnboardServiceOptionFn {
 	}
 }
 
+func WithOnboardingLogger(logger *zap.Logger) OnboardServiceOptionFn {
+	return func(s *OnboardService) {
+		s.log = logger
+	}
+}
+
 func NewOnboardService(svc *Service, as influxdb.AuthorizationService, opts ...OnboardServiceOptionFn) influxdb.OnboardingService {
 	s := &OnboardService{
 		service: svc,
 		authSvc: as,
+		log:     zap.NewNop(),
 	}
 
 	for _, opt := range opts {
@@ -98,7 +107,18 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 
 	// create users password
 	if req.Password != "" {
-		s.service.SetPassword(ctx, user.ID, req.Password)
+		if err := s.service.SetPassword(ctx, user.ID, req.Password); err != nil {
+			// Try to clean up.
+			if cleanupErr := s.service.DeleteUser(ctx, user.ID); cleanupErr != nil {
+				s.log.Error(
+					"couldn't clean up user after failing to set password",
+					zap.String("user", user.Name),
+					zap.String("user_id", user.ID.String()),
+					zap.Error(cleanupErr),
+				)
+			}
+			return nil, err
+		}
 	}
 
 	// set the new user in the context

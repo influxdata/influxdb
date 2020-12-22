@@ -200,3 +200,27 @@ func TestOnboardService_RetentionPolicy(t *testing.T) {
 
 	assert.Equal(t, onboard.Bucket.RetentionPeriod, retention, "Retention policy should pass through")
 }
+
+func TestOnboardService_WeakPassword(t *testing.T) {
+	s, _, _ := NewTestInmemStore(t)
+	storage := tenant.NewStore(s)
+	ten := tenant.NewService(storage)
+
+	authStore, err := authorization.NewStore(s)
+	require.NoError(t, err)
+
+	authSvc := authorization.NewService(authStore, ten)
+	svc := tenant.NewOnboardService(ten, authSvc)
+
+	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
+		UserID: 123,
+	})
+
+	_, err = svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
+		User:     "name",
+		Password: "short",
+		Org:      "name",
+		Bucket:   "name",
+	})
+	assert.Equal(t, err, tenant.EShortPassword)
+}

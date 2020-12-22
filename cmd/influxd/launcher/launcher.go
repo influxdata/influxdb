@@ -1127,15 +1127,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	ts.BucketService = storage.NewBucketService(m.log, ts.BucketService, m.engine)
 	ts.BucketService = dbrp.NewBucketService(m.log, ts.BucketService, dbrpSvc)
 
-	var onboardOpts []tenant.OnboardServiceOptionFn
+	onboardingLogger := m.log.With(zap.String("handler", "onboard"))
+	onboardOpts := []tenant.OnboardServiceOptionFn{tenant.WithOnboardingLogger(onboardingLogger)}
 	if m.testingAlwaysAllowSetup {
 		onboardOpts = append(onboardOpts, tenant.WithAlwaysAllowInitialUser())
 	}
 
-	onboardSvc := tenant.NewOnboardService(ts, authSvc, onboardOpts...)                               // basic service
-	onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
-	onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new"))             // with metrics
-	onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
+	onboardSvc := tenant.NewOnboardService(ts, authSvc, onboardOpts...)                   // basic service
+	onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                   // with auth
+	onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new")) // with metrics
+	onboardSvc = tenant.NewOnboardingLogger(onboardingLogger, onboardSvc)                 // with logging
 
 	var (
 		authorizerV1 platform.AuthorizerV1

@@ -184,7 +184,7 @@ func TestUpgradeSecurity(t *testing.T) {
 			// onboard admin
 			oReq := &influxdb.OnboardingRequest{
 				User:            "admin",
-				Password:        "12345",
+				Password:        "12345678",
 				Org:             "testers",
 				Bucket:          "def",
 				RetentionPeriod: influxdb.InfiniteRetention,
