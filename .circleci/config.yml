@@ -1,6 +1,495 @@
 version: "2.1"
 
+workflows:
+  version: 2
+  build:
+    jobs:
+      - godeps
+      - jsdeps
+      - gotest:
+          requires:
+            - godeps
+      - jstest:
+          requires:
+            - jsdeps
+      - influxql_validation:
+          requires:
+            - godeps
+      - influxql_integration:
+          requires:
+            - godeps
+      - golint:
+          requires:
+            - godeps
+      - jslint:
+          requires:
+            - jsdeps
+      - build:
+          requires:
+            - godeps
+            - jsdeps
+      - e2e:
+          requires:
+            - build
+      - grace_daily:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /^(?!pull\/).*$/
+      - litmus_daily:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /^(?!pull\/).*$/
+      - litmus_integration:
+          requires:
+            - litmus_daily
+          filters:
+            branches:
+              only:
+                - "2.0"
+
+  release:
+    jobs:
+      - godeps:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+      - jsdeps:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+      - gotest:
+          requires:
+            - godeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+      - golint:
+          requires:
+            - godeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+      - jstest:
+          requires:
+            - jsdeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+      - jslint:
+          requires:
+            - jsdeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+      - influxql_validation:
+          requires:
+            - godeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+      - influxql_integration:
+          requires:
+            - godeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+      - release:
+          requires:
+            - gotest
+            - golint
+            - jstest
+            - jslint
+            - influxql_validation
+            - influxql_integration
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+
 jobs:
+
+  ####################
+  ### UI-only jobs ###
+  ####################
+
+  jsdeps:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:2.0
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-
+      - run:
+          name: Install Dependencies
+          command: |
+            set +e
+            cd ui
+            yarn install --immutable
+      - save_cache:
+          name: Save Yarn Cache
+          key: yarn-deps-{{ checksum "ui/yarn.lock" }}
+          paths:
+            - /go/src/github.com/influxdata/influxdb/ui/node_modules
+            - ~/.cache/yarn
+            - ~/.cache/Cypress
+
+  jstest:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:2.0
+    working_directory: /go/src/github.com/influxdata/influxdb
+    parallelism: 8
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+      - run: make ui_client
+      - run:
+          name: parallel jest tests
+          command: |
+            set +e
+            cd ui
+            # This should usually be a no-op (fully contained in the Yarn cache above), but we
+            # include it to be safe since `yarn test` won't auto-install missing modules.
+            yarn install --immutable
+            TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
+            yarn test:circleci $TESTFILES
+      - store_test_results:
+          path: ui/coverage
+      - store_artifacts:
+          path: ui/coverage
+          destination: raw-test-output
+
+  jslint:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:2.0
+    working_directory: /go/src/github.com/influxdata/influxdb
+    parallelism: 8
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+      - run: make ui_client
+      - run:
+          name: parallel eslint
+          command: |
+            set +e
+            cd ui
+            # This should usually be a no-op (fully contained in the Yarn cache above), but we
+            # include it to be safe since `yarn test` won't auto-install missing modules.
+            yarn install --immutable
+            TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
+            yarn prettier:circleci ${TESTFILES[@]}
+            yarn eslint:circleci ${TESTFILES[@]}
+
+  #########################
+  ### Backend-only jobs ###
+  #########################
+
+  godeps:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:2.0
+    resource_class: large
+    environment:
+      GOCACHE: /tmp/go-cache
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.mod" }}
+            - influxdb-gomod-
+      - run:
+          name: Install Dependencies
+          command: go mod download -x
+      - save_cache:
+          name: Save GOPATH/pkg/mod
+          key: influxdb-gomod-{{ checksum "go.mod" }}
+          paths:
+            - /go/pkg/mod
+
+  golint:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:2.0
+    environment:
+      GOCACHE: /tmp/go-cache
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }}
+      - run: |
+          # this is not in a seperate bash script because it isn't meant to be run on local.
+          # it just checks to make sure that the same major/minor version of go is used in the mod file as on ci
+          # to prevent accidentally checking in a wrong go mod version.
+          gomodversiondiff=$( go mod edit -go=$( go version | sed -n 's/^.*go\([0-9]*.[0-9]*\).*$/\1/p') -print |diff - go.mod )
+          if [ "$gomodversiondiff" ]
+          then
+            echo unexpected go version $gomodversiondiff
+            exit 1
+          fi
+      - run: make vet
+      - run: make checkfmt
+      - run: make checktidy
+      - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
+      - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
+      - run: GO111MODULE=on ./env staticcheck ./...
+
+  gotest:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:2.0
+    resource_class: large
+    environment:
+      GOCACHE: /tmp/go-cache
+      TEST_RESULTS: /tmp/test-results
+    working_directory: /go/src/github.com/influxdata/influxdb
+    parallelism: 8
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOCACHE
+          keys:
+            - influxdb-gotest-{{ .Branch }}-{{ .Revision }}
+            - influxdb-gotest-{{ .Branch }}-
+            - influxdb-gotest-
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }}
+      - run: mkdir -p $TEST_RESULTS
+      - run:
+          name: run parallel race tests
+          command: |
+            GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -p=4"
+            TESTFILES=($(go list ./... | circleci tests split --split-by=timings))
+            make GO_TEST_CMD="$GO_TEST_CMD" GO_TEST_PATHS="${TESTFILES[*]}" test-go-race
+      - save_cache:
+          name: Save GOCACHE
+          key: influxdb-gotest-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
+
+  influxql_validation:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:2.0
+    resource_class: large
+    environment:
+      GOCACHE: /tmp/go-cache
+      TEST_RESULTS: /tmp/test-results
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOCACHE
+          keys:
+            - influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }}
+            - influxdb-iqlvalidation-{{ .Branch }}-
+            - influxdb-iqlvalidation-
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }}
+      - run: mkdir -p $TEST_RESULTS
+      - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-validation
+      - save_cache:
+          name: Save GOCACHE
+          key: influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
+
+  influxql_integration:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:2.0
+    resource_class: large
+    environment:
+      GOCACHE: /tmp/go-cache
+      TEST_RESULTS: /tmp/test-results
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOCACHE
+          keys:
+            - influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }}
+            - influxdb-iqlintegration-{{ .Branch }}-
+            - influxdb-iqlintegration-
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }}
+      - run: mkdir -p $TEST_RESULTS
+      - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-integration
+      - save_cache:
+          name: Save GOCACHE
+          key: influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
+
+  #####################################
+  ### UI+backend build/release jobs ###
+  #####################################
+
+  build:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:2.0
+    environment:
+      GOCACHE: /tmp/go-cache
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - run: make checkcommit
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore GOCACHE
+          keys:
+            - influxdb-build-{{ .Branch }}-{{ .Revision }}
+            - influxdb-build-{{ .Branch }}-
+            - influxdb-build-
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+      - run: make protoc
+      - run: make build
+      - save_cache:
+          name: Save GOCACHE
+          key: influxdb-build-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+      - persist_to_workspace:
+          root: .
+          paths:
+            - project
+            - bin/linux/influxd
+            - bin/linux/influx
+            - etc/litmus_success_notify.sh
+            - etc/litmus_fail_notify.sh
+
+  release:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:latest
+    environment:
+      GOCACHE: /tmp/go-cache
+      DOCKER_VERSION: 2.0.0-rc
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore GOCACHE
+          keys:
+            - influxdb-release-{{ .Branch }}-{{ .Revision }}
+            - influxdb-release-{{ .Branch }}-
+            - influxdb-build-{{ .Branch }}-{{ .Revision }}
+            - influxdb-build-{{ .Branch }}-
+            - influxdb-release-
+            - influxdb-build-
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+      - setup_remote_docker
+      - run:
+          name: Docker Login
+          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - run: make protoc # installs protoc
+      - run:
+          name: import GPG key
+          command: |
+            echo -e "$GPG_PRIVATE_KEY" > private.key
+            gpg --batch --import private.key
+      - run:
+          name: Build release
+          command: make release
+      - save_cache:
+          name: Save GOCACHE
+          key: influxdb-release-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+
+  #################################
+  ### e2e/integration test jobs ###
+  #################################
+
+  e2e:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:2.0
+    environment:
+      GOCACHE: /tmp/go-cache
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /go/src/github.com/influxdata/influxdb
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+      - run: make protoc
+      - run:
+          command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
+          background: true
+      - run: make e2e
+      - store_test_results:
+          path: ui/junit-results
+      - store_artifacts:
+          path: ui/cypress/videos
+          destination: videos
+      - store_artifacts:
+          path: ui/cypress/screenshots
+          destination: screenshots
+
   litmus_daily:
     machine: true
     steps:
@@ -22,7 +511,6 @@ jobs:
           destination: raw-daily-output
       - store_test_results:
           path: ~/project
-          destination: daily-junit
 
   litmus_integration:
     machine: true
@@ -44,41 +532,6 @@ jobs:
           destination: raw-daily-output
       - store_test_results:
           path: ~/project
-          destination: daily-junit
-
-  e2e:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:2.0
-    environment:
-      GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
-    working_directory: /go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      # Speed up `make build` by restoring caches from previous runs.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache- # Just match the most recent Go cache.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
-      - run: make protoc
-      - run: make build
-      - run:
-          command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
-          background: true
-      - run: make e2e
-      - store_test_results:
-          path: ui/junit-results
-          destination: junit-results
-      - store_artifacts:
-          path: ui/cypress/videos
-          destination: videos
-      - store_artifacts:
-          path: ui/cypress/screenshots
-          destination: screenshots
 
   grace_daily:
     machine: true
@@ -92,389 +545,3 @@ jobs:
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/grace/test-results/grace-results quay.io/influxdb/grace:daily
       - store_artifacts:
           path: ~/project
-
-  jstest:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:2.0
-    working_directory: /go/src/github.com/influxdata/influxdb
-    parallelism: 8
-    steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
-          name: "Restore Yarn Package Cache"
-      - run:
-          command: |
-            set +e
-            cd ui
-            yarn install
-            yarn prettier
-          name: "Install Dependencies"
-      - run: make ui_client
-      - run:
-          name: parallel jest tests
-          command: |
-            set +e
-            cd ui
-            TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
-            yarn test:circleci $TESTFILES
-      - store_test_results:
-          path: coverage
-      - store_artifacts:
-          path: coverage
-          destination: raw-test-output
-      - save_cache:
-          key: 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
-          name: "Save Yarn Package Cache"
-          paths:
-            - ~/.cache/yarn
-
-  jslint:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:2.0
-    working_directory: /go/src/github.com/influxdata/influxdb
-    parallelism: 8
-    steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
-          name: "Restore Yarn Package Cache"
-      - run:
-          command: |
-            set +e
-            cd ui
-            yarn install
-          name: "Install Dependencies"
-      - run: make ui_client
-      - run:
-          name: parallel eslint
-          command: |
-            set +e
-            cd ui
-            TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
-            yarn eslint:circleci $TESTFILES
-      - save_cache:
-          key: 'yarn-cached-packages-{{ checksum "ui/yarn.lock" }}'
-          name: "Save Yarn Package Cache"
-          paths:
-            - ~/.cache/yarn
-
-  gotest:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:2.0
-    resource_class: large
-    environment:
-      GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
-      TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
-    parallelism: 8
-    steps:
-      - checkout
-      # Populate GOCACHE.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gocache- # Matches a new branch.
-      # Populate GOPATH/pkg.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
-      - run: mkdir -p $TEST_RESULTS
-      - run: make test-go # This uses the test cache so it may succeed or fail quickly.
-      - run:
-          name: parallel go race tests
-          command: |
-            set +e
-            TESTFILES=$(go list ./... | circleci tests split --split-by=timings)
-            echo $TESTFILES
-            GOTRACEBACK=all GO111MODULE=on ./env gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 $TESTFILES
-      - save_cache:
-          name: Saving GOCACHE
-          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
-          when: always
-      - save_cache:
-          name: Saving GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
-          paths:
-            - /go/pkg/mod
-          when: always
-      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
-          path: /tmp/test-results
-
-  influxql_validation:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:2.0
-    resource_class: large
-    environment:
-      GOCACHE: /tmp/go-cache
-      TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      # Populate GOCACHE.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gocache- # Matches a new branch.
-      # Populate GOPATH/pkg.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
-      - run: mkdir -p $TEST_RESULTS
-      - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-validation
-      - save_cache:
-          name: Saving GOCACHE
-          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
-          when: always
-      - save_cache:
-          name: Saving GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
-          paths:
-            - /go/pkg/mod
-          when: always
-      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
-          path: /tmp/test-results
-
-  influxql_integration:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:2.0
-    resource_class: large
-    environment:
-      GOCACHE: /tmp/go-cache
-      TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      # Populate GOCACHE.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
-            - influxdb-gocache- # Matches a new branch.
-      # Populate GOPATH/pkg.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
-      - run: mkdir -p $TEST_RESULTS
-      - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-integration
-      - save_cache:
-          name: Saving GOCACHE
-          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
-          when: always
-      - save_cache:
-          name: Saving GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
-          paths:
-            - /go/pkg/mod
-          when: always
-      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
-          path: /tmp/test-results
-
-  golint:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:2.0
-    environment:
-      GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
-      TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      - run: mkdir -p $TEST_RESULTS
-      - run: |
-          # this is not in a seperate bash script because it isn't meant to be run on local.
-          # it just checks to make sure that the same major/minor version of go is used in the mod file as on ci
-          # to prevent accidentally checking in a wrong go mod version.
-          gomodversiondiff=$( go mod edit -go=$( go version | sed -n 's/^.*go\([0-9]*.[0-9]*\).*$/\1/p') -print |diff - go.mod )
-          if [ "$gomodversiondiff" ]
-          then
-            echo unexpected go version $gomodversiondiff
-            exit 1
-          fi
-      - run: make vet
-      - run: make checkfmt
-      - run: make checktidy
-      - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
-      - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
-      - run: GO111MODULE=on ./env staticcheck ./...
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results:
-          path: /tmp/test-results
-
-  build:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:2.0
-    environment:
-      GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
-    working_directory: /go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      - run: make checkcommit
-      # Speed up `make build` by restoring caches from previous runs.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache- # Just match the most recent Go cache.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
-      - run: make protoc
-      - run: make build
-      - persist_to_workspace:
-          root: .
-          paths:
-            - project
-            - bin/linux/influxd
-            - bin/linux/influx
-            - etc/litmus_success_notify.sh
-            - etc/litmus_fail_notify.sh
-
-  release:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:2.0
-    environment:
-      GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
-      DOCKER_VERSION: 2.0.0-rc
-    working_directory: /go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      # Speed up `make nightly` by restoring caches from previous runs.
-      - restore_cache:
-          name: Restoring GOCACHE
-          keys:
-            - influxdb-gocache- # Just match the most recent Go cache.
-      - restore_cache:
-          name: Restoring GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
-      - setup_remote_docker
-      - run:
-          name: "Docker Login"
-          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: make protoc # installs protoc
-      - run:
-          name: import GPG key
-          command: |
-            echo -e "$GPG_PRIVATE_KEY" > private.key
-            gpg --batch --import private.key
-      - run:
-          name: "Build release"
-          command: make release
-
-workflows:
-  version: 2
-  build:
-    jobs:
-      - gotest
-      - golint
-      - jstest
-      - jslint
-      - build
-      - influxql_validation
-      - influxql_integration
-      - grace_daily:
-          requires:
-            - build
-          filters:
-            branches:
-              only: /^(?!pull\/).*$/
-      - litmus_daily:
-          requires:
-            - build
-          filters:
-            branches:
-              only: /^(?!pull\/).*$/
-      - litmus_integration:
-          requires:
-            - litmus_daily
-          filters:
-            branches:
-              only:
-                - "2.0"
-
-  e2e:
-    jobs:
-      - e2e
-
-  release:
-    jobs:
-      - gotest:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - golint:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - jstest:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - jslint:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - influxql_validation:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - influxql_integration:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - release:
-          requires:
-            - gotest
-            - golint
-            - jstest
-            - jslint
-            - influxql_validation
-            - influxql_integration
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
