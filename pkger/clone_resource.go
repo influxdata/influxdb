@@ -761,6 +761,12 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.GeoLayers = convertGeoLayers(p.GeoLayers)
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+	case influxdb.GaugeMiniViewProperties:
+		ch.Kind = chartKindGauge
+		ch.Colors = convertColors(p.ViewColors)
+		ch.Queries = convertQueries(p.Queries)
+		ch.Note = p.Note
+		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 	case influxdb.HeatmapViewProperties:
 		ch.Kind = chartKindHeatMap
 		ch.Queries = convertQueries(p.Queries)

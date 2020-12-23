@@ -99,6 +99,12 @@ func convert1To2Cell(cell chronograf.DashboardCell) *influxdb.Cell {
 			Note:       cell.Note,
 			// TODO(desa): what to do about ShowNoteWhenEmpty?
 		}
+	case "gauge-mini":
+		v.Properties = influxdb.GaugeMiniViewProperties{
+			Queries:    convertQueries(cell.Queries),
+			ViewColors: convertColors(cell.CellColors),
+			Note:       cell.Note,
+		}
 	case "table":
 		v.Properties = influxdb.TableViewProperties{
 			Queries:    convertQueries(cell.Queries),

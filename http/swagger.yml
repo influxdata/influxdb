@@ -9648,6 +9648,98 @@ components:
           $ref: "#/components/schemas/Legend"
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+    GaugeMiniViewProperties:
+      type: object
+      required:
+        [
+          type,
+          queries,
+          colors,
+          shape,
+          note,
+          showNoteWhenEmpty,
+        ]
+      properties:
+        type:
+          type: string
+          enum: [gauge-mini]
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardColor"
+        shape:
+          type: string
+          enum: ["chronograf-v2"]
+        note:
+          type: string
+        showNoteWhenEmpty:
+          description: If true, will display note when empty
+          type: boolean
+        # todo: wait for simpler typings
+        # barsDefinitions: GaugeMiniBarsDefinitions<any>;
+        mode:
+          type: string
+          enum: [progress, bullet]
+        textMode:
+          type: string
+          enum: [follow, left]
+        valueHeight:
+          type: number
+        gaugeHeight: 
+          type: number
+        valueRounding: 
+          type: number
+        gaugeRounding: 
+          type: number
+        barPaddings: 
+          type: number
+        sidePaddings: 
+          type: number
+        oveflowFraction: 
+          type: number
+        colorSecondary: 
+          type: string
+        labelMain: 
+          type: string
+        labelMainFontSize: 
+          type: number
+        labelMainFontColor: 
+          type: string
+        labelBarsFontSize: 
+          type: number
+        labelBarsFontColor: 
+          type: string
+        valuePadding: 
+          type: number
+        valueFontSize: 
+          type: number
+        valueFontColorInside: 
+          type: string
+        valueFontColorOutside: 
+          type: string
+        # todo: wait for simpler typings
+        # valueFormater?: (value: number) => string;
+        # axesSteps?: number | 'thresholds' | undefined | number[];
+        axesSteps:
+          oneOf:
+            - type: number
+            - type: string
+              enum: [thresholds]
+            - type: undefined
+            - type: array
+              items: 
+                type: number
+        axesFontSize: 
+          type: number
+        axesFontColor: 
+          type: string
+        # todo: wait for simpler typings
+        # axesFormater?: (value: number) => string;
     TableViewProperties:
       type: object
       required:
@@ -10092,6 +10184,7 @@ components:
         - $ref: "#/components/schemas/SingleStatViewProperties"
         - $ref: "#/components/schemas/HistogramViewProperties"
         - $ref: "#/components/schemas/GaugeViewProperties"
+        - $ref: "#/components/schemas/GaugeMiniViewProperties"
         - $ref: "#/components/schemas/TableViewProperties"
         - $ref: "#/components/schemas/MarkdownViewProperties"
         - $ref: "#/components/schemas/CheckViewProperties"

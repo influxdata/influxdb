@@ -424,6 +424,7 @@ const (
 	chartKindUnknown            chartKind = ""
 	chartKindGauge              chartKind = "gauge"
 	chartKindGeo                chartKind = "geo"
+	chartKindGaugeMini          chartKind = "gauge-mini"
 	chartKindHeatMap            chartKind = "heatmap"
 	chartKindHistogram          chartKind = "histogram"
 	chartKindMarkdown           chartKind = "markdown"
@@ -439,7 +440,8 @@ const (
 func (c chartKind) ok() bool {
 	switch c {
 	case chartKindGauge, chartKindGeo, chartKindHeatMap, chartKindHistogram,
-		chartKindMarkdown, chartKindMosaic, chartKindScatter,
+	case chartKindGauge, chartKindGeo, chartKindGaugeMini, chartKindHeatMap, 
+    chartKindHistogram, chartKindMarkdown, chartKindMosaic, chartKindScatter,
 		chartKindSingleStat, chartKindSingleStatPlusLine, chartKindTable,
 		chartKindXY, chartKindBand:
 		return true
