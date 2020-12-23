@@ -229,7 +229,6 @@ jobs:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
     working_directory: /go/src/github.com/influxdata/influxdb
-    parallelism: 8
     steps:
       - checkout
       - restore_cache:
@@ -245,8 +244,7 @@ jobs:
             # This should usually be a no-op (fully contained in the Yarn cache above), but we
             # include it to be safe since `yarn test` won't auto-install missing modules.
             yarn install --immutable
-            TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
-            yarn test:circleci $TESTFILES
+            yarn test:circleci
       - store_test_results:
           path: ui/coverage
       - store_artifacts:
