@@ -2,13 +2,13 @@ package cli
 
 import (
 	"fmt"
-	"github.com/spf13/cast"
 	"os"
 	"path"
 	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
