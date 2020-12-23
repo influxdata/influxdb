@@ -138,13 +138,11 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 // WithLogger sets the logger on the Store. It must be called before Open.
 func (e *Engine) WithLogger(log *zap.Logger) {
-	fields := []zap.Field{}
-	fields = append(fields, zap.String("service", "storage-engine"))
-	e.logger = log.With(fields...)
+	e.logger = log.With(zap.String("service", "storage-engine"))
 
-	e.tsdbStore.Logger = e.logger
+	e.tsdbStore.WithLogger(e.logger)
 	if pw, ok := e.pointsWriter.(*coordinator.PointsWriter); ok {
-		pw.Logger = e.logger
+		pw.WithLogger(e.logger)
 	}
 
 	if e.retentionService != nil {
