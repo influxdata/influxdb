@@ -244,7 +244,7 @@ jobs:
             # This should usually be a no-op (fully contained in the Yarn cache above), but we
             # include it to be safe since `yarn test` won't auto-install missing modules.
             yarn install --immutable
-            yarn test:ci
+            yarn test:circleci
       - store_test_results:
           path: ui/coverage
       - store_artifacts:
