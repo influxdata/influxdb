@@ -33,5 +33,5 @@ module.exports = {
   ],
   coverageDirectory: './coverage',
   coverageReporters: ['html', 'cobertura'],
-  reporters: ['default', 'jest-junit'],
+  reporters: ['default', ['jest-junit', { classNameTemplate: '{filepath}' }]],
 }
