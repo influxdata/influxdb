@@ -86,17 +86,21 @@ func TestFinalizerIterator(t *testing.T) {
 		newFinalizerIterator(itr, l)
 	}()
 
-	for i := 0; i < 100; i++ {
+	// Thrash the GC here and hope it eventually notices that itr (above) should be
+	// cleaned up, triggering the finalizer.
+	for i := 0; i < 500; i++ {
 		runtime.GC()
 	}
 
-	timer := time.NewTimer(100 * time.Millisecond)
+	// Wait for the finalizer to close the 1st channel.
+	timer := time.NewTimer(1000 * time.Millisecond)
 	select {
 	case <-timer.C:
+		defer close(done)
 		t.Fatal("The finalizer for the iterator did not run")
-		close(done)
 	case <-step1:
-		// The finalizer has successfully run, but should not have completed yet.
+		// The finalizer has successfully started running, but it won't complete
+		// until we close the done channel.
 		timer.Stop()
 	}
 
@@ -123,11 +127,11 @@ func TestFinalizerIterator(t *testing.T) {
 		t.Log("This should never be output")
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 500; i++ {
 		runtime.GC()
 	}
 
-	timer.Reset(100 * time.Millisecond)
+	timer.Reset(1000 * time.Millisecond)
 	select {
 	case <-timer.C:
 		t.Fatal("The second finalizer did not run")
@@ -138,7 +142,7 @@ func TestFinalizerIterator(t *testing.T) {
 	}
 
 	// Wait for step3 to finish where the closed value should be set.
-	timer.Reset(100 * time.Millisecond)
+	timer.Reset(1000 * time.Millisecond)
 	select {
 	case <-timer.C:
 		t.Fatal("The iterator was not finalized")
