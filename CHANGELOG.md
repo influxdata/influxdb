@@ -1,6 +1,15 @@
 ## v2.0.4 [unreleased]
 ----------------------
 
+### Breaking Changes
+
+#### inmem index option removed
+This release fully removes the `inmem` indexing option, along with the associated config options:
+* `max-series-per-database`
+* `max-values-per-tag`
+
+Replacement `tsi1` indexes will be automatically generated on startup for shards that need it.
+
 ### Bug Fixes
 
 1. [20351](https://github.com/influxdata/influxdb/pull/20351): Ensure `influxdb` service sees default env variables when running under `init.d`.
@@ -13,6 +22,7 @@
 1. [20402](https://github.com/influxdata/influxdb/pull/20402): Remove duplication from task error messages.
 1. [20403](https://github.com/influxdata/influxdb/pull/20403): Improve error message shown when `influx` CLI can't find an org by name.
 1. [20411](https://github.com/influxdata/influxdb/pull/20411): Fix logging initialization for storage engine.
+1. [20313](https://github.com/influxdata/influxdb/pull/20313): Automatically build `tsi1` indexes for shards that need it instead of falling back to `inmem`.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
