@@ -28,7 +28,6 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index"
-	"github.com/influxdata/influxdb/v2/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
 )
 
@@ -43,7 +42,6 @@ func TestShardWriteAndIndex(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 
@@ -102,6 +100,84 @@ func TestShardWriteAndIndex(t *testing.T) {
 	}
 }
 
+func TestShardRebuildIndex(t *testing.T) {
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := filepath.Join(tmpDir, "shard")
+	tmpWal := filepath.Join(tmpDir, "wal")
+
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error opening shard: %s", err.Error())
+	}
+
+	pt := models.MustNewPoint(
+		"cpu",
+		models.Tags{{Key: []byte("host"), Value: []byte("server")}},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err := sh.WritePoints([]models.Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	pt.SetTime(time.Unix(2, 3))
+	err = sh.WritePoints([]models.Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	indexPath := filepath.Join(tmpShard, "index")
+	validateIndex := func() {
+		cnt := sh.SeriesN()
+		if got, exp := cnt, int64(1); got != exp {
+			t.Fatalf("got %v series, exp %v series in index", got, exp)
+		}
+		fi, err := os.Stat(indexPath)
+
+		// Make sure index data is being persisted to disk.
+		if os.IsNotExist(err) {
+			t.Fatalf("index path %q does not exist", indexPath)
+		}
+		if !fi.IsDir() {
+			t.Fatalf("index path %q is not a directory", indexPath)
+		}
+	}
+
+	validateIndex()
+
+	// ensure the index gets rebuilt after its directory is deleted and
+	// the shard is reopened.
+	if err := sh.Close(); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if err := os.RemoveAll(indexPath); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	sh = tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error opening shard: %s", err.Error())
+	}
+
+	validateIndex()
+
+	// and ensure that we can still write data
+	pt.SetTime(time.Unix(2, 6))
+	err = sh.WritePoints([]models.Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+}
+
 func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
@@ -113,7 +189,6 @@ func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 
@@ -153,120 +228,6 @@ func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
 	}
 }
 
-func TestMaxSeriesLimit(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
-	tmpShard := filepath.Join(tmpDir, "db", "rp", "1")
-	tmpWal := filepath.Join(tmpDir, "wal")
-
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
-	opts := tsdb.NewEngineOptions()
-	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.Config.MaxSeriesPerDatabase = 1000
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
-	opts.IndexVersion = tsdb.InmemIndexName
-
-	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
-
-	if err := sh.Open(); err != nil {
-		t.Fatalf("error opening shard: %s", err.Error())
-	}
-
-	// Writing 1K series should succeed.
-	points := []models.Point{}
-
-	for i := 0; i < 1000; i++ {
-		pt := models.MustNewPoint(
-			"cpu",
-			models.Tags{{Key: []byte("host"), Value: []byte(fmt.Sprintf("server%d", i))}},
-			map[string]interface{}{"value": 1.0},
-			time.Unix(1, 2),
-		)
-		points = append(points, pt)
-	}
-
-	err := sh.WritePoints(points)
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	// Writing one more series should exceed the series limit.
-	pt := models.MustNewPoint(
-		"cpu",
-		models.Tags{{Key: []byte("host"), Value: []byte("server9999")}},
-		map[string]interface{}{"value": 1.0},
-		time.Unix(1, 2),
-	)
-
-	err = sh.WritePoints([]models.Point{pt})
-	if err == nil {
-		t.Fatal("expected error")
-	} else if exp, got := `partial write: max-series-per-database limit exceeded: (1000) dropped=1`, err.Error(); exp != got {
-		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
-	}
-
-	sh.Close()
-}
-
-func TestShard_MaxTagValuesLimit(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
-	tmpShard := filepath.Join(tmpDir, "db", "rp", "1")
-	tmpWal := filepath.Join(tmpDir, "wal")
-
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
-	opts := tsdb.NewEngineOptions()
-	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.Config.MaxValuesPerTag = 1000
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
-	opts.IndexVersion = tsdb.InmemIndexName
-
-	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
-
-	if err := sh.Open(); err != nil {
-		t.Fatalf("error opening shard: %s", err.Error())
-	}
-
-	// Writing 1K series should succeed.
-	points := []models.Point{}
-
-	for i := 0; i < 1000; i++ {
-		pt := models.MustNewPoint(
-			"cpu",
-			models.Tags{{Key: []byte("host"), Value: []byte(fmt.Sprintf("server%d", i))}},
-			map[string]interface{}{"value": 1.0},
-			time.Unix(1, 2),
-		)
-		points = append(points, pt)
-	}
-
-	err := sh.WritePoints(points)
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	// Writing one more series should exceed the series limit.
-	pt := models.MustNewPoint(
-		"cpu",
-		models.Tags{{Key: []byte("host"), Value: []byte("server9999")}},
-		map[string]interface{}{"value": 1.0},
-		time.Unix(1, 2),
-	)
-
-	err = sh.WritePoints([]models.Point{pt})
-	if err == nil {
-		t.Fatal("expected error")
-	} else if exp, got := `partial write: max-values-per-tag limit exceeded (1000/1000): measurement="cpu" tag="host" value="server9999" dropped=1`, err.Error(); exp != got {
-		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
-	}
-
-	sh.Close()
-}
-
 func TestWriteTimeTag(t *testing.T) {
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
@@ -278,7 +239,6 @@ func TestWriteTimeTag(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 	if err := sh.Open(); err != nil {
@@ -329,7 +289,6 @@ func TestWriteTimeField(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 	if err := sh.Open(); err != nil {
@@ -365,7 +324,6 @@ func TestShardWriteAddNewField(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 	if err := sh.Open(); err != nil {
@@ -418,7 +376,6 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
 	opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
@@ -507,7 +464,6 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
 	opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
@@ -658,7 +614,6 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 	if err := sh.Open(); err != nil {
@@ -2054,7 +2009,6 @@ func openShard(sfile *SeriesFile) (*tsdb.Shard, string, error) {
 	tmpWal := filepath.Join(tmpDir, "wal")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = tmpWal
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
 	shard := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 	err := shard.Open()
 	return shard, tmpDir, err
@@ -2202,9 +2156,6 @@ func NewShards(index string, n int) Shards {
 		opt := tsdb.NewEngineOptions()
 		opt.IndexVersion = index
 		opt.Config.WALDir = filepath.Join(dir, "wal")
-		if index == tsdb.InmemIndexName {
-			opt.InmemIndex = inmem.NewIndex(filepath.Base(dir), sfile.SeriesFile)
-		}
 
 		// Initialise series id sets. Need to do this as it's normally done at the
 		// store level.

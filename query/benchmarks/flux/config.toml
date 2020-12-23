@@ -16,8 +16,6 @@ bind-address = ":8188"
   cache-snapshot-memory-size = 26214400
   cache-snapshot-write-cold-duration = "10m0s"
   compact-full-write-cold-duration = "4h0m0s"
-  max-series-per-database = 1000000
-  max-values-per-tag = 100000
   max-concurrent-compactions = 0
   trace-logging-enabled = false
 

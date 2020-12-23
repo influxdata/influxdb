@@ -1,5 +1,14 @@
 ## unreleased
 
+### Breaking Changes
+
+#### inmem index option removed
+This release fully removes the `inmem` indexing option, along with the associated config options:
+* `max-series-per-database`
+* `max-values-per-tag`
+
+Replacement `tsi1` indexes will be automatically generated on startup for shards that need it.
+
 ### Bug Fixes
 
 1. [20339](https://github.com/influxdata/influxdb/pull/20339): Include upgrade helper script in goreleaser manifest.
@@ -10,7 +19,9 @@
 1. [20362](https://github.com/influxdata/influxdb/pull/20362): Don't overwrite stack name/description on `influx stack update`.
 1. [20355](https://github.com/influxdata/influxdb/pull/20355): Fix timeout setup for `influxd` graceful shutdown.
 1. [20387](https://github.com/influxdata/influxdb/pull/20387): Improve error message shown when `influx` CLI can't find an org by name.
-1. [20380](https://github.com/influxdata/influxdb/pull/20380): Remove duplication from task error messages
+1. [20380](https://github.com/influxdata/influxdb/pull/20380): Remove duplication from task error messages.
+1. [20313](https://github.com/influxdata/influxdb/pull/20313): Automatically build `tsi1` indexes for shards that need it instead of falling back to `inmem`.
+1. [20313](https://github.com/influxdata/influxdb/pull/20313): Fix logging initialization for storage engine.
 
 ## v2.0.3 [2020-12-14]
 
