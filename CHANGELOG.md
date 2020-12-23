@@ -2,7 +2,7 @@
 
 ### Breaking Changes
 
-#### inmem indexes
+#### inmem index option removed
 This release fully removes the `inmem` indexing option, along with the associated config options:
 * `max-series-per-database`
 * `max-values-per-tag`
