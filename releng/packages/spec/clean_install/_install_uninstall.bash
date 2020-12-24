@@ -27,7 +27,7 @@ function testInstalled() {
 
 function testUninstalled() {
   if command -v "$1" >/dev/null 2>&1 ; then
-    >&2 echo "$1 still on \$PATH after install"
+    >&2 echo "$1 still on \$PATH after uninstall"
     exit 1
   fi
 }
