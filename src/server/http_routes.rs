@@ -10,7 +10,7 @@
 //! database names and may remove this quasi /v2 API.
 
 use http::header::CONTENT_ENCODING;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use arrow_deps::arrow;
 use influxdb_line_protocol::parse_lines;
@@ -23,7 +23,7 @@ use data_types::database_rules::DatabaseRules;
 use futures::{self, StreamExt};
 use hyper::{Body, Method, Request, Response, StatusCode};
 use routerify::prelude::*;
-use routerify::{RequestInfo, Router, RouterService};
+use routerify::{Middleware, RequestInfo, Router, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::fmt::Debug;
@@ -186,18 +186,26 @@ impl ApplicationError {
 
 const MAX_SIZE: usize = 10_485_760; // max write request size of 10MB
 
-fn router<M: ConnectionManager + Send + Sync + Debug + 'static>(
-    server: Arc<AppServer<M>>,
-) -> Router<Body, ApplicationError> {
+fn router<M>(server: Arc<AppServer<M>>) -> Router<Body, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
     // Create a router and specify the the handlers.
     Router::builder()
         .data(server)
-        // this endpoint is for API backward compatibility with InfluxDB 2.x
-        .post("/api/v2/write", write::<M>)
+        .middleware(Middleware::pre(|req| async move {
+            info!(request = ?req, "Processing request");
+            Ok(req)
+        }))
+        .middleware(Middleware::post(|res| async move {
+            info!(response = ?res, "Successfully processed request");
+            Ok(res)
+        })) // this endpoint is for API backward compatibility with InfluxDB 2.x
+        .post("/api/v2/write", write_handler::<M>)
         .get("/ping", ping)
-        .get("/api/v2/read", read::<M>)
-        .get("/api/v1/partitions", list_partitions::<M>)
-        .post("/api/v1/snapshot", snapshot_partition::<M>)
+        .get("/api/v2/read", read_handler::<M>)
+        .get("/api/v1/partitions", list_partitions_handler::<M>)
+        .post("/api/v1/snapshot", snapshot_partition_handler::<M>)
         // Specify the error handler to handle any errors caused by
         // a route or any middleware.
         .err_handler_with_info(error_handler)
@@ -211,7 +219,7 @@ fn router<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn error_handler(err: routerify::Error, req: RequestInfo) -> Response<Body> {
     let method = req.method().clone();
     let uri = req.uri().clone();
-    error!(error = ?err, method = ?method, uri = ?uri, "Error while handing request");
+    error!(error = ?err, error_message = ?err.to_string(), method = ?method, uri = ?uri, "Error while handling request");
 
     let json = serde_json::json!({"error": err.to_string()}).to_string();
     Response::builder()
@@ -279,41 +287,46 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
     }
 }
 
-macro_rules! return_err {
-    ($val:expr) => {{
-        match $val {
-            Ok(v) => v,
-            Err(e) => return e.response(),
+#[tracing::instrument(level = "debug")]
+async fn write_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    match write::<M>(req).await {
+        Err(e) => {
+            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
+            e.response()
         }
-    }};
+        res => res,
+    }
 }
 
 #[tracing::instrument(level = "debug")]
-async fn write<M: ConnectionManager + Send + Sync + Debug + 'static>(
-    req: Request<Body>,
-) -> Result<Response<Body>, ApplicationError> {
+async fn write<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
     let server = req
         .data::<Arc<AppServer<M>>>()
         .expect("server state")
         .clone();
 
-    let query = return_err!(req.uri().query().context(ExpectedQueryString));
+    let query = req.uri().query().context(ExpectedQueryString)?;
 
     let write_info: WriteInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
         query_string: String::from(query),
     })?;
 
-    let db_name = return_err!(
-        org_and_bucket_to_database(&write_info.org, &write_info.bucket).context(BucketMappingError)
-    );
+    let db_name = org_and_bucket_to_database(&write_info.org, &write_info.bucket)
+        .context(BucketMappingError)?;
 
-    let body = return_err!(parse_body(req).await);
+    let body = parse_body(req).await?;
 
-    let body = return_err!(str::from_utf8(&body).context(ReadingBodyAsUtf8));
+    let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
 
-    let lines = return_err!(parse_lines(body)
+    let lines = parse_lines(body)
         .collect::<Result<Vec<_>, influxdb_line_protocol::Error>>()
-        .context(ParsingLineProtocol));
+        .context(ParsingLineProtocol)?;
 
     debug!(
         "Inserting {} lines into database {} (org {} bucket {})",
@@ -330,24 +343,24 @@ async fn write<M: ConnectionManager + Send + Sync + Debug + 'static>(
             ..Default::default()
         };
 
-        return_err!(server
+        server
             .create_database(db_name.to_string(), rules)
             .await
             .map_err(|e| Box::new(e) as _)
             .context(WritingPoints {
                 org: write_info.org.clone(),
                 bucket_name: write_info.bucket.clone(),
-            }));
+            })?;
     }
 
-    return_err!(server
+    server
         .write_lines(&db_name, &lines)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(WritingPoints {
             org: write_info.org.clone(),
             bucket_name: write_info.bucket.clone(),
-        }));
+        })?;
 
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
@@ -363,6 +376,21 @@ struct ReadInfo {
     // TODO This is currently a "SQL" request -- should be updated to conform
     // to the V2 API for reading (using timestamps, etc).
     sql_query: String,
+}
+
+#[tracing::instrument(level = "debug")]
+async fn read_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    match read::<M>(req).await {
+        Err(e) => {
+            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
+
+            e.response()
+        }
+        res => res,
+    }
 }
 
 // TODO: figure out how to stream read results out rather than rendering the
@@ -414,6 +442,21 @@ struct DatabaseInfo {
 }
 
 #[tracing::instrument(level = "debug")]
+async fn list_partitions_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    match list_partitions::<M>(req).await {
+        Err(e) => {
+            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
+
+            e.response()
+        }
+        res => res,
+    }
+}
+
+#[tracing::instrument(level = "debug")]
 async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
@@ -455,6 +498,23 @@ struct SnapshotInfo {
     org: String,
     bucket: String,
     partition: String,
+}
+
+#[tracing::instrument(level = "debug")]
+async fn snapshot_partition_handler<M>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    match snapshot_partition::<M>(req).await {
+        Err(e) => {
+            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
+
+            e.response()
+        }
+        res => res,
+    }
 }
 
 #[tracing::instrument(level = "debug")]
