@@ -49,6 +49,7 @@ server = { path = "server" }
 
 bytes = "0.5.4"
 hyper = "0.13"
+routerify = "1.1"
 tokio = { version = "0.2", features = ["full"] }
 
 clap = "2.33.1"
