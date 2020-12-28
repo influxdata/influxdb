@@ -9648,6 +9648,15 @@ components:
           $ref: "#/components/schemas/Legend"
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+    FormatStatValueOptions:
+      type: object
+      properties:
+        decimalPlaces:
+          $ref: "#/components/schemas/DecimalPlaces"
+        prefix:
+          type: string
+        suffix: 
+          type: string
     GaugeMiniViewProperties:
       type: object
       required:
@@ -9680,8 +9689,24 @@ components:
         showNoteWhenEmpty:
           description: If true, will display note when empty
           type: boolean
-        # todo: wait for simpler typings
-        # barsDefinitions: GaugeMiniBarsDefinitions<any>;
+        barsDefinitions:
+          type: object
+          properties:
+            groupByColumns:
+              type: array
+              items:
+                type: string
+            bars:
+              type: array
+              items:
+                type: object
+                properties:
+                  barDef:
+                    type: array
+                    items:
+                      type: string
+                  label:
+                    type: string
         mode:
           type: string
           enum: [progress, bullet]
@@ -9722,9 +9747,8 @@ components:
           type: string
         valueFontColorOutside: 
           type: string
-        # todo: wait for simpler typings
-        # valueFormater?: (value: number) => string;
-        # axesSteps?: number | 'thresholds' | undefined | number[];
+        valueFormater:
+          $ref: "#/components/schemas/FormatStatValueOptions"
         axesSteps:
           oneOf:
             - type: number
@@ -9738,8 +9762,8 @@ components:
           type: number
         axesFontColor: 
           type: string
-        # todo: wait for simpler typings
-        # axesFormater?: (value: number) => string;
+        axesFormater:
+          $ref: "#/components/schemas/FormatStatValueOptions"
     TableViewProperties:
       type: object
       required:
