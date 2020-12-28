@@ -550,7 +550,7 @@ mod tests {
                 writer.write(&r).unwrap();
             }
         }
-        assert_eq!(&sw.to_string(), "bar,time\n1,10\n");
+        assert_eq!(&sw.to_string(), "bar,time\n1.0,10\n");
 
         Ok(())
     }

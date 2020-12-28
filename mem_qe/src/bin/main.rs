@@ -157,7 +157,7 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
                     .as_any()
                     .downcast_ref::<array::Float64Array>()
                     .unwrap();
-                let column = Column::from(arr.value_slice(0, rb.num_rows()));
+                let column = Column::from(arr.values());
                 segment.add_column(rb.schema().field(i).name(), ColumnType::Field(column));
 
                 // TODO(edd): figure out how to get ownership here without
@@ -172,7 +172,7 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
                     panic!("null integers not expected in testing");
                 }
                 let arr = column.as_any().downcast_ref::<array::Int64Array>().unwrap();
-                let column = Column::from(arr.value_slice(0, rb.num_rows()));
+                let column = Column::from(arr.values());
                 segment.add_column(rb.schema().field(i).name(), ColumnType::Time(column));
 
                 // TODO(edd): figure out how to get ownership here without
@@ -190,7 +190,7 @@ fn convert_record_batch(rb: RecordBatch, segment: &mut Segment) -> Result<(), Er
                     .as_any()
                     .downcast_ref::<array::TimestampMicrosecondArray>()
                     .unwrap();
-                let column = Column::from(arr.value_slice(0, rb.num_rows()));
+                let column = Column::from(arr.values());
                 segment.add_column(rb.schema().field(i).name(), ColumnType::Time(column));
 
                 // TODO(edd): figure out how to get ownership here without

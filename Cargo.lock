@@ -86,12 +86,12 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9724afd732481115c675fe68973d741c5530d23d#9724afd732481115c675fe68973d741c5530d23d"
+source = "git+https://github.com/apache/arrow.git?rev=c46fd102678fd22b9781642437ad8821f907d9db#c46fd102678fd22b9781642437ad8821f907d9db"
 dependencies = [
  "cfg_aliases",
  "chrono",
  "csv",
- "flatbuffers",
+ "flatbuffers 0.8.0",
  "hex",
  "indexmap",
  "lazy_static",
@@ -715,7 +715,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "crc32fast",
- "flatbuffers",
+ "flatbuffers 0.6.1",
  "generated_types",
  "influxdb_line_protocol",
  "serde",
@@ -726,7 +726,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9724afd732481115c675fe68973d741c5530d23d#9724afd732481115c675fe68973d741c5530d23d"
+source = "git+https://github.com/apache/arrow.git?rev=c46fd102678fd22b9781642437ad8821f907d9db#c46fd102678fd22b9781642437ad8821f907d9db"
 dependencies = [
  "ahash 0.6.2",
  "arrow",
@@ -736,6 +736,7 @@ dependencies = [
  "crossbeam 0.8.0",
  "futures",
  "hashbrown",
+ "log",
  "num_cpus",
  "parquet",
  "paste",
@@ -914,6 +915,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "flatbuffers"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4d0e80bffea40f65eb6eefd74f2bef75d3c4f5dfdf973b91449706d43369cd9"
+dependencies = [
+ "bitflags",
+ "smallvec",
+ "thiserror",
+]
+
+[[package]]
 name = "flate2"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1080,7 +1092,7 @@ dependencies = [
 name = "generated_types"
 version = "0.1.0"
 dependencies = [
- "flatbuffers",
+ "flatbuffers 0.6.1",
  "futures",
  "prost",
  "prost-types",
@@ -1794,7 +1806,7 @@ dependencies = [
  "chrono",
  "criterion",
  "data_types",
- "flatbuffers",
+ "flatbuffers 0.6.1",
  "generated_types",
  "influxdb_line_protocol",
  "query",
@@ -2094,10 +2106,10 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "3.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9724afd732481115c675fe68973d741c5530d23d#9724afd732481115c675fe68973d741c5530d23d"
+source = "git+https://github.com/apache/arrow.git?rev=c46fd102678fd22b9781642437ad8821f907d9db#c46fd102678fd22b9781642437ad8821f907d9db"
 dependencies = [
  "arrow",
- "base64 0.13.0",
+ "base64 0.12.3",
  "brotli",
  "byteorder",
  "chrono",
@@ -3206,6 +3218,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 dependencies = [
  "unicode-width",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76cc616c6abf8c8928e2fdcc0dbfab37175edd8fb49a4641066ad1364fdab146"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9be73a2caec27583d0046ef3796c3794f868a5bc813db689eed00c7631275cd1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
