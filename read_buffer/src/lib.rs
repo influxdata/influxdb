@@ -2,8 +2,8 @@
 #![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
 #![allow(unused_variables)]
+pub(crate) mod chunk;
 pub mod column;
-pub(crate) mod partition;
 pub mod row_group;
 pub(crate) mod table;
 
@@ -11,12 +11,12 @@ use std::collections::BTreeMap;
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 
+use chunk::Chunk;
 use column::AggregateType;
-use partition::Partition;
-use row_group::ColumnName;
+use row_group::{ColumnName, Predicate};
 
-/// The Segment Store is responsible for providing read access to partition
-/// data.
+/// The `Store` is responsible for providing an execution engine for reading
+/// `Chunk` data.
 #[derive(Default)]
 pub struct Store {
     // A mapping from database name (tenant id, bucket id etc) to a database.
@@ -43,17 +43,17 @@ impl Store {
         todo!()
     }
 
-    /// This method adds a partition to the segment store. It is probably what
+    /// This method adds a `Chunk` to the Read Buffer. It is probably what
     /// the `MutableBuffer` will call.
     ///
-    /// The partition should comprise a single table (record batch) for each
-    /// measurement name in the partition.
-    pub fn add_partition(&mut self, database_id: String, partition: BTreeMap<String, RecordBatch>) {
+    /// The chunk should comprise a single record batch for each table it
+    /// contains.
+    pub fn add_chunk(&mut self, database_id: String, chunk: BTreeMap<String, RecordBatch>) {
         todo!()
     }
 
-    /// Executes selections against matching partitions, returning a single
-    /// record batch with all partition results appended.
+    /// Executes selections against matching chunks, returning a single
+    /// record batch with all chunk results appended.
     ///
     /// Results may be filtered by (currently only) equality predicates, but can
     /// be ranged by time, which should be represented as nanoseconds since the
@@ -64,7 +64,7 @@ impl Store {
         database_name: &str,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         select_columns: Vec<String>,
     ) -> Option<RecordBatch> {
         // Execute against matching database.
@@ -79,7 +79,7 @@ impl Store {
 
     /// Returns aggregates segmented by grouping keys for the specified
     /// measurement as record batches, with one record batch per matching
-    /// partition.
+    /// chunk.
     ///
     /// The set of data to be aggregated may be filtered by (currently only)
     /// equality predicates, but can be ranged by time, which should be
@@ -97,7 +97,7 @@ impl Store {
         database_name: &str,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         group_columns: Vec<String>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
     ) -> Option<RecordBatch> {
@@ -136,7 +136,7 @@ impl Store {
         database_name: &str,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         group_columns: Vec<String>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
         window: i64,
@@ -164,7 +164,7 @@ impl Store {
         &self,
         database_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
     ) -> Option<RecordBatch> {
         if let Some(db) = self.databases.get(database_name) {
             return db.table_names(database_name, time_range, predicates);
@@ -179,7 +179,7 @@ impl Store {
         database_name: &str,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
     ) -> Option<RecordBatch> {
         if let Some(db) = self.databases.get(database_name) {
             return db.tag_keys(table_name, time_range, predicates);
@@ -192,13 +192,13 @@ impl Store {
     /// optional predicates and time range.
     ///
     /// As a special case, if `tag_keys` is empty then all distinct values for
-    /// all columns (tag keys) are returned for the partition.
+    /// all columns (tag keys) are returned for the chunks.
     pub fn tag_values(
         &self,
         database_name: &str,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         tag_keys: &[String],
     ) -> Option<RecordBatch> {
         if let Some(db) = self.databases.get(database_name) {
@@ -233,9 +233,9 @@ pub fn time_range_predicate<'a>(from: i64, to: i64) -> Vec<row_group::Predicate<
 // measurement name.
 #[derive(Default)]
 pub struct Database {
-    // The collection of partitions in the database. Each partition is uniquely
-    // identified by a partition key.
-    partitions: BTreeMap<String, Partition>,
+    // The collection of chunks in the database. Each chunk is uniquely
+    // identified by a chunk key.
+    chunks: BTreeMap<String, Chunk>,
 
     // The current total size of the database.
     size: u64,
@@ -246,11 +246,11 @@ impl Database {
         Self::default()
     }
 
-    pub fn add_partition(&mut self, partition: Partition) {
+    pub fn add_chunk(&mut self, chunk: Chunk) {
         todo!()
     }
 
-    pub fn remove_partition(&mut self, partition: Partition) {
+    pub fn remove_chunk(&mut self, chunk: Chunk) {
         todo!()
     }
 
@@ -258,8 +258,8 @@ impl Database {
         self.size
     }
 
-    /// Executes selections against matching partitions, returning a single
-    /// record batch with all partition results appended.
+    /// Executes selections against matching chunks, returning a single
+    /// record batch with all chunk results appended.
     ///
     /// Results may be filtered by (currently only) equality predicates, but can
     /// be ranged by time, which should be represented as nanoseconds since the
@@ -269,21 +269,21 @@ impl Database {
         &self,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         select_columns: Vec<String>,
     ) -> Option<RecordBatch> {
-        // Find all matching partitions using:
+        // Find all matching chunks using:
         //   - time range
         //   - measurement name.
         //
-        // Execute against each partition and append each result set into a
+        // Execute against each chunk and append each result set into a
         // single record batch.
         todo!();
     }
 
     /// Returns aggregates segmented by grouping keys for the specified
     /// measurement as record batches, with one record batch per matching
-    /// partition.
+    /// chunk.
     ///
     /// The set of data to be aggregated may be filtered by (currently only)
     /// equality predicates, but can be ranged by time, which should be
@@ -300,17 +300,17 @@ impl Database {
         &self,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         group_columns: Vec<String>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
     ) -> Option<RecordBatch> {
-        // Find all matching partitions using:
+        // Find all matching chunks using:
         //   - time range
         //   - measurement name.
         //
-        // Execute query against each matching partition and get result set.
+        // Execute query against each matching chunk and get result set.
         // For each result set it may be possible for there to be duplicate
-        // group keys, e.g., due to back-filling. So partition results may need
+        // group keys, e.g., due to back-filling. So chunk results may need
         // to be merged together with the aggregates from identical group keys
         // being resolved.
         //
@@ -340,18 +340,18 @@ impl Database {
         &self,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         group_columns: Vec<String>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
         window: i64,
     ) -> Option<RecordBatch> {
-        // Find all matching partitions using:
+        // Find all matching chunks using:
         //   - time range
         //   - measurement name.
         //
-        // Execute query against each matching partition and get result set.
+        // Execute query against each matching chunk and get result set.
         // For each result set it may be possible for there to be duplicate
-        // group keys, e.g., due to back-filling. So partition results may need
+        // group keys, e.g., due to back-filling. So chunk results may need
         // to be merged together with the aggregates from identical group keys
         // being resolved.
         //
@@ -369,7 +369,7 @@ impl Database {
         &self,
         database_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
     ) -> Option<RecordBatch> {
         //
         // TODO(edd): do we want to add the ability to apply a predicate to the
@@ -384,15 +384,15 @@ impl Database {
         &self,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
     ) -> Option<RecordBatch> {
-        // Find all matching partitions using:
+        // Find all matching chunks using:
         //   - time range
         //   - measurement name.
         //
-        // Execute query against matching partitions. The `tag_keys` method for
-        // a partition allows the caller to provide already found tag keys
-        // (column names). This allows the execution to skip entire partitions,
+        // Execute query against matching chunks. The `tag_keys` method for
+        // a chunk allows the caller to provide already found tag keys
+        // (column names). This allows the execution to skip entire chunks,
         // tables or segments if there are no new columns to be found there...
         todo!();
     }
@@ -402,16 +402,16 @@ impl Database {
     /// optional predicates and time range.
     ///
     /// As a special case, if `tag_keys` is empty then all distinct values for
-    /// all columns (tag keys) are returned for the partition.
+    /// all columns (tag keys) are returned for the chunk.
     pub fn tag_values(
         &self,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[(&str, &str)],
+        predicates: &[Predicate<'_>],
         tag_keys: &[String],
     ) -> Option<RecordBatch> {
-        // Find the measurement name on the partition and dispatch query to the
-        // table for that measurement if the partition's time range overlaps the
+        // Find the measurement name on the chunk and dispatch query to the
+        // table for that measurement if the chunk's time range overlaps the
         // requested time range.
         todo!();
     }
