@@ -10,11 +10,11 @@ use tracing::debug;
 use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
 
 use crate::{
+    chunk::ChunkIdSet,
+    chunk::{Chunk, ChunkPredicate},
     column,
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
-    partition::PartitionIdSet,
-    partition::{Partition, PartitionPredicate},
 };
 use data_types::{partition_metadata::Column as ColumnStats, TIME_COLUMN_NAME};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -35,37 +35,11 @@ use arrow_deps::{
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Table {} not found", table))]
-    TableNotFound { table: String },
-
-    #[snafu(display(
-        "Column {} said it was type {} but extracting a value of that type failed",
-        column,
-        expected
-    ))]
-    WalValueTypeMismatch { column: String, expected: String },
-
-    #[snafu(display(
-        "Tag value ID {} not found in dictionary of partition {}",
-        value,
-        partition
-    ))]
+    #[snafu(display("Tag value ID {} not found in dictionary of chunk {}", value, chunk))]
     TagValueIdNotFoundInDictionary {
         value: u32,
-        partition: String,
+        chunk: String,
         source: DictionaryError,
-    },
-
-    #[snafu(display(
-        "Column type mismatch for column {}: can't insert {} into column with type {}",
-        column,
-        inserted_value_type,
-        existing_column_type
-    ))]
-    ColumnTypeMismatch {
-        column: String,
-        existing_column_type: String,
-        inserted_value_type: String,
     },
 
     #[snafu(display("Column error on column {}: {}", column, source))]
@@ -93,37 +67,25 @@ pub enum Error {
     InternalAggregateNotSelector { agg: Aggregate },
 
     #[snafu(display(
-        "Column name '{}' not found in dictionary of partition {}",
+        "Column name '{}' not found in dictionary of chunk {}",
         column_name,
-        partition
+        chunk
     ))]
     ColumnNameNotFoundInDictionary {
         column_name: String,
-        partition: String,
+        chunk: String,
         source: DictionaryError,
     },
 
     #[snafu(display(
-        "Internal: Column id '{}' not found in dictionary of partition {}",
+        "Internal: Column id '{}' not found in dictionary of chunk {}",
         column_id,
-        partition
+        chunk
     ))]
     ColumnIdNotFoundInDictionary {
         column_id: u32,
-        partition: String,
+        chunk: String,
         source: DictionaryError,
-    },
-
-    #[snafu(display(
-        "Schema mismatch: for column {}: can't insert {} into column with type {}",
-        column,
-        inserted_value_type,
-        existing_column_type
-    ))]
-    SchemaMismatch {
-        column: u32,
-        existing_column_type: String,
-        inserted_value_type: String,
     },
 
     #[snafu(display("Error building plan: {}", source))]
@@ -133,12 +95,6 @@ pub enum Error {
 
     #[snafu(display("arrow conversion error: {}", source))]
     ArrowError { source: arrow::error::ArrowError },
-
-    #[snafu(display("Schema mismatch: for column {}: {}", column, source))]
-    InternalSchemaMismatch {
-        column: u32,
-        source: crate::column::Error,
-    },
 
     #[snafu(display(
         "No index entry found for column {} with id {}",
@@ -177,20 +133,15 @@ pub enum Error {
 
     #[snafu(display("Duplicate group column '{}'", column_name))]
     DuplicateGroupColumn { column_name: String },
-
-    #[snafu(display("Internal error converting schema to DFSchema: {}", source))]
-    InternalConvertingSchema {
-        source: datafusion::error::DataFusionError,
-    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct Table {
-    /// Name of the table as a u32 in the partition dictionary
+    /// Name of the table as a u32 in the chunk dictionary
     pub id: u32,
 
-    /// Maps column name (as a u32 in the partition dictionary) to an index in
+    /// Maps column name (as a u32 in the chunk dictionary) to an index in
     /// self.columns
     pub column_id_to_index: HashMap<u32, usize>,
 
@@ -297,9 +248,9 @@ impl Table {
     /// combination of predicate and timestamp. Returns the builder
     fn add_datafusion_predicate(
         plan_builder: LogicalPlanBuilder,
-        partition_predicate: &PartitionPredicate,
+        chunk_predicate: &ChunkPredicate,
     ) -> Result<LogicalPlanBuilder> {
-        match partition_predicate.filter_expr() {
+        match chunk_predicate.filter_expr() {
             Some(df_predicate) => plan_builder.filter(df_predicate).context(BuildingPlan),
             None => Ok(plan_builder),
         }
@@ -316,12 +267,12 @@ impl Table {
     ///          InMemoryScan
     pub fn tag_column_names_plan(
         &self,
-        partition_predicate: &PartitionPredicate,
-        partition: &Partition,
+        chunk_predicate: &ChunkPredicate,
+        chunk: &Chunk,
     ) -> Result<LogicalPlan> {
-        let need_time_column = partition_predicate.range.is_some();
+        let need_time_column = chunk_predicate.range.is_some();
 
-        let time_column_id = partition_predicate.time_column_id;
+        let time_column_id = chunk_predicate.time_column_id;
 
         // figure out the tag columns
         let requested_columns_with_index = self
@@ -338,7 +289,7 @@ impl Table {
 
                 if need_column {
                     // the id came out of our map, so it should always be valid
-                    let column_name = partition.dictionary.lookup_id(column_id).unwrap();
+                    let column_name = chunk.dictionary.lookup_id(column_id).unwrap();
                     Some((column_name, column_index))
                 } else {
                     None
@@ -347,7 +298,7 @@ impl Table {
             .collect::<Vec<_>>();
 
         // TODO avoid materializing here
-        let data = self.to_arrow_impl(partition, &requested_columns_with_index)?;
+        let data = self.to_arrow_impl(chunk, &requested_columns_with_index)?;
 
         let schema = data.schema();
 
@@ -356,7 +307,7 @@ impl Table {
         let plan_builder = LogicalPlanBuilder::scan_memory(vec![vec![data]], schema, projection)
             .context(BuildingPlan)?;
 
-        let plan_builder = Self::add_datafusion_predicate(plan_builder, partition_predicate)?;
+        let plan_builder = Self::add_datafusion_predicate(plan_builder, chunk_predicate)?;
 
         // add optional selection to remove time column
         let plan_builder = if !need_time_column {
@@ -384,7 +335,7 @@ impl Table {
 
         debug!(
             "Created column_name plan for table '{}':\n{}",
-            partition.dictionary.lookup_id(self.id).unwrap(),
+            chunk.dictionary.lookup_id(self.id).unwrap(),
             plan.display_indent_schema()
         );
 
@@ -402,11 +353,11 @@ impl Table {
     pub fn tag_values_plan(
         &self,
         column_name: &str,
-        partition_predicate: &PartitionPredicate,
-        partition: &Partition,
+        chunk_predicate: &ChunkPredicate,
+        chunk: &Chunk,
     ) -> Result<LogicalPlan> {
         // Scan and Filter
-        let plan_builder = self.scan_with_predicates(partition_predicate, partition)?;
+        let plan_builder = self.scan_with_predicates(chunk_predicate, chunk)?;
 
         let select_exprs = vec![col(column_name)];
 
@@ -430,10 +381,10 @@ impl Table {
     /// same) occur together in the plan
     pub fn series_set_plan(
         &self,
-        partition_predicate: &PartitionPredicate,
-        partition: &Partition,
+        chunk_predicate: &ChunkPredicate,
+        chunk: &Chunk,
     ) -> Result<SeriesSetPlan> {
-        self.series_set_plan_impl(partition_predicate, None, partition)
+        self.series_set_plan_impl(chunk_predicate, None, chunk)
     }
 
     /// Creates the plans for computing series set, ensuring that
@@ -447,12 +398,12 @@ impl Table {
     ///          InMemoryScan
     pub fn series_set_plan_impl(
         &self,
-        partition_predicate: &PartitionPredicate,
+        chunk_predicate: &ChunkPredicate,
         prefix_columns: Option<&[String]>,
-        partition: &Partition,
+        chunk: &Chunk,
     ) -> Result<SeriesSetPlan> {
         let (mut tag_columns, field_columns) =
-            self.tag_and_field_column_names(partition_predicate, partition)?;
+            self.tag_and_field_column_names(chunk_predicate, chunk)?;
 
         // reorder tag_columns to have the prefix columns, if requested
         if let Some(prefix_columns) = prefix_columns {
@@ -462,7 +413,7 @@ impl Table {
         // TODO avoid materializing all the columns here (ideally we
         // would use a data source and then let DataFusion prune out
         // column references during its optimizer phase).
-        let plan_builder = self.scan_with_predicates(partition_predicate, partition)?;
+        let plan_builder = self.scan_with_predicates(chunk_predicate, chunk)?;
 
         let mut sort_exprs = Vec::new();
         sort_exprs.extend(tag_columns.iter().map(|c| c.into_sort_expr()));
@@ -483,7 +434,7 @@ impl Table {
         let plan = plan_builder.build().context(BuildingPlan)?;
 
         Ok(SeriesSetPlan::new_from_shared_timestamp(
-            self.table_name(partition),
+            self.table_name(chunk),
             plan,
             tag_columns,
             field_columns,
@@ -491,18 +442,18 @@ impl Table {
     }
 
     /// Returns a LogialPlannBuilder which scans all columns in this
-    /// Table and has applied any predicates in `partition_predicate`
+    /// Table and has applied any predicates in `chunk_predicate`
     ///
     ///  Filter(predicate)
     ///    InMemoryScan
     fn scan_with_predicates(
         &self,
-        partition_predicate: &PartitionPredicate,
-        partition: &Partition,
+        chunk_predicate: &ChunkPredicate,
+        chunk: &Chunk,
     ) -> Result<LogicalPlanBuilder> {
         // TODO avoid materializing all the columns here (ideally
         // DataFusion can prune some of them out)
-        let data = self.all_to_arrow(partition)?;
+        let data = self.all_to_arrow(chunk)?;
 
         let schema = data.schema();
 
@@ -513,13 +464,13 @@ impl Table {
             .context(BuildingPlan)?;
 
         // Filtering
-        Self::add_datafusion_predicate(plan_builder, partition_predicate)
+        Self::add_datafusion_predicate(plan_builder, chunk_predicate)
     }
 
     /// Look up this table's name as a string
-    fn table_name(&self, partition: &Partition) -> Arc<String> {
+    fn table_name(&self, chunk: &Chunk) -> Arc<String> {
         // I wonder if all this string creation will be too slow?
-        let table_name = partition
+        let table_name = chunk
             .dictionary
             .lookup_id(self.id)
             .expect("looking up table name in dictionary")
@@ -533,17 +484,17 @@ impl Table {
     /// series_set_plan_impl for more details.
     pub fn grouped_series_set_plan(
         &self,
-        partition_predicate: &PartitionPredicate,
+        chunk_predicate: &ChunkPredicate,
         agg: Aggregate,
         group_columns: &[String],
-        partition: &Partition,
+        chunk: &Chunk,
     ) -> Result<SeriesSetPlan> {
         let num_prefix_tag_group_columns = group_columns.len();
 
         let plan = if let Aggregate::None = agg {
-            self.series_set_plan_impl(partition_predicate, Some(&group_columns), partition)?
+            self.series_set_plan_impl(chunk_predicate, Some(&group_columns), chunk)?
         } else {
-            self.aggregate_series_set_plan(partition_predicate, agg, group_columns, partition)?
+            self.aggregate_series_set_plan(chunk_predicate, agg, group_columns, chunk)?
         };
 
         Ok(plan.grouped(num_prefix_tag_group_columns))
@@ -589,20 +540,20 @@ impl Table {
     ///          InMemoryScan
     pub fn aggregate_series_set_plan(
         &self,
-        partition_predicate: &PartitionPredicate,
+        chunk_predicate: &ChunkPredicate,
         agg: Aggregate,
         group_columns: &[String],
-        partition: &Partition,
+        chunk: &Chunk,
     ) -> Result<SeriesSetPlan> {
         let (tag_columns, field_columns) =
-            self.tag_and_field_column_names(partition_predicate, partition)?;
+            self.tag_and_field_column_names(chunk_predicate, chunk)?;
 
         // order the tag columns so that the group keys come first (we will group and
         // order in the same order)
         let tag_columns = reorder_prefix(group_columns, tag_columns)?;
 
         // Scan and Filter
-        let plan_builder = self.scan_with_predicates(partition_predicate, partition)?;
+        let plan_builder = self.scan_with_predicates(chunk_predicate, chunk)?;
 
         // Group by all tag columns
         let group_exprs = tag_columns
@@ -614,7 +565,7 @@ impl Table {
             agg_exprs,
             field_columns,
         } = AggExprs::new(agg, field_columns, |col_name| {
-            let index = self.column_index(partition, col_name)?;
+            let index = self.column_index(chunk, col_name)?;
             Ok(self.columns[index].data_type())
         })?;
 
@@ -633,7 +584,7 @@ impl Table {
         let plan = plan_builder.build().context(BuildingPlan)?;
 
         Ok(SeriesSetPlan::new(
-            self.table_name(partition),
+            self.table_name(chunk),
             plan,
             tag_columns,
             field_columns,
@@ -670,17 +621,17 @@ impl Table {
     ///          InMemoryScan
     pub fn window_grouped_series_set_plan(
         &self,
-        partition_predicate: &PartitionPredicate,
+        chunk_predicate: &ChunkPredicate,
         agg: Aggregate,
         every: &WindowDuration,
         offset: &WindowDuration,
-        partition: &Partition,
+        chunk: &Chunk,
     ) -> Result<SeriesSetPlan> {
         let (tag_columns, field_columns) =
-            self.tag_and_field_column_names(partition_predicate, partition)?;
+            self.tag_and_field_column_names(chunk_predicate, chunk)?;
 
         // Scan and Filter
-        let plan_builder = self.scan_with_predicates(partition_predicate, partition)?;
+        let plan_builder = self.scan_with_predicates(chunk_predicate, chunk)?;
 
         // Group by all tag columns and the window bounds
         let mut group_exprs = tag_columns
@@ -714,7 +665,7 @@ impl Table {
         let plan = plan_builder.build().context(BuildingPlan)?;
 
         Ok(SeriesSetPlan::new_from_shared_timestamp(
-            self.table_name(partition),
+            self.table_name(chunk),
             plan,
             tag_columns,
             field_columns,
@@ -735,15 +686,15 @@ impl Table {
     ///          InMemoryScan
     pub fn field_names_plan(
         &self,
-        partition_predicate: &PartitionPredicate,
-        partition: &Partition,
+        chunk_predicate: &ChunkPredicate,
+        chunk: &Chunk,
     ) -> Result<LogicalPlan> {
         // Scan and Filter
-        let plan_builder = self.scan_with_predicates(partition_predicate, partition)?;
+        let plan_builder = self.scan_with_predicates(chunk_predicate, chunk)?;
 
         // Selection
         let select_exprs = self
-            .field_and_time_column_names(partition_predicate, partition)
+            .field_and_time_column_names(chunk_predicate, chunk)
             .into_iter()
             .map(|c| c.into_expr())
             .collect::<Vec<_>>();
@@ -759,14 +710,14 @@ impl Table {
     // have been applied. The vectors are sorted by lexically by name.
     fn tag_and_field_column_names(
         &self,
-        partition_predicate: &PartitionPredicate,
-        partition: &Partition,
+        chunk_predicate: &ChunkPredicate,
+        chunk: &Chunk,
     ) -> Result<(ArcStringVec, ArcStringVec)> {
         let mut tag_columns = Vec::with_capacity(self.column_id_to_index.len());
         let mut field_columns = Vec::with_capacity(self.column_id_to_index.len());
 
         for (&column_id, &column_index) in &self.column_id_to_index {
-            let column_name = partition
+            let column_name = chunk
                 .dictionary
                 .lookup_id(column_id)
                 .expect("Find column name in dictionary");
@@ -777,7 +728,7 @@ impl Table {
                 match self.columns[column_index] {
                     Column::Tag(_, _) => tag_columns.push(column_name),
                     _ => {
-                        if partition_predicate.should_include_field(column_id) {
+                        if chunk_predicate.should_include_field(column_id) {
                             field_columns.push(column_name)
                         }
                     }
@@ -800,8 +751,8 @@ impl Table {
     // Returns (field_columns and time) in sorted order
     fn field_and_time_column_names(
         &self,
-        partition_predicate: &PartitionPredicate,
-        partition: &Partition,
+        chunk_predicate: &ChunkPredicate,
+        chunk: &Chunk,
     ) -> ArcStringVec {
         let mut field_columns = self
             .column_id_to_index
@@ -810,10 +761,10 @@ impl Table {
                 match self.columns[column_index] {
                     Column::Tag(_, _) => None, // skip tags
                     _ => {
-                        if partition_predicate.should_include_field(column_id)
-                            || partition_predicate.is_time_column(column_id)
+                        if chunk_predicate.should_include_field(column_id)
+                            || chunk_predicate.is_time_column(column_id)
                         {
-                            let column_name = partition
+                            let column_name = chunk
                                 .dictionary
                                 .lookup_id(column_id)
                                 .expect("Find column name in dictionary");
@@ -834,28 +785,26 @@ impl Table {
     }
 
     /// Converts this table to an arrow record batch.
-    pub fn to_arrow(
-        &self,
-        partition: &Partition,
-        requested_columns: &[&str],
-    ) -> Result<RecordBatch> {
+    pub fn to_arrow(&self, chunk: &Chunk, requested_columns: &[&str]) -> Result<RecordBatch> {
         // if requested columns is empty, retrieve all columns in the table
         if requested_columns.is_empty() {
-            self.all_to_arrow(partition)
+            self.all_to_arrow(chunk)
         } else {
-            let columns_with_index = self.column_names_with_index(partition, requested_columns)?;
+            let columns_with_index = self.column_names_with_index(chunk, requested_columns)?;
 
-            self.to_arrow_impl(partition, &columns_with_index)
+            self.to_arrow_impl(chunk, &columns_with_index)
         }
     }
 
-    fn column_index(&self, partition: &Partition, column_name: &str) -> Result<usize> {
-        let column_id = partition.dictionary.lookup_value(column_name).context(
-            ColumnNameNotFoundInDictionary {
-                column_name,
-                partition: &partition.key,
-            },
-        )?;
+    fn column_index(&self, chunk: &Chunk, column_name: &str) -> Result<usize> {
+        let column_id =
+            chunk
+                .dictionary
+                .lookup_value(column_name)
+                .context(ColumnNameNotFoundInDictionary {
+                    column_name,
+                    chunk: &chunk.key,
+                })?;
 
         self.column_id_to_index
             .get(&column_id)
@@ -869,13 +818,13 @@ impl Table {
     /// Returns (name, index) pairs for all named columns
     fn column_names_with_index<'a>(
         &self,
-        partition: &Partition,
+        chunk: &Chunk,
         columns: &[&'a str],
     ) -> Result<Vec<(&'a str, usize)>> {
         columns
             .iter()
             .map(|&column_name| {
-                let column_index = self.column_index(partition, column_name)?;
+                let column_index = self.column_index(chunk, column_name)?;
 
                 Ok((column_name, column_index))
             })
@@ -883,15 +832,15 @@ impl Table {
     }
 
     /// Convert all columns to an arrow record batch
-    pub fn all_to_arrow(&self, partition: &Partition) -> Result<RecordBatch> {
+    pub fn all_to_arrow(&self, chunk: &Chunk) -> Result<RecordBatch> {
         let mut requested_columns_with_index = self
             .column_id_to_index
             .iter()
             .map(|(&column_id, &column_index)| {
-                let column_name = partition.dictionary.lookup_id(column_id).context(
+                let column_name = chunk.dictionary.lookup_id(column_id).context(
                     ColumnIdNotFoundInDictionary {
                         column_id,
-                        partition: &partition.key,
+                        chunk: &chunk.key,
                     },
                 )?;
                 Ok((column_name, column_index))
@@ -900,7 +849,7 @@ impl Table {
 
         requested_columns_with_index.sort_by(|(a, _), (b, _)| a.cmp(b));
 
-        self.to_arrow_impl(partition, &requested_columns_with_index)
+        self.to_arrow_impl(chunk, &requested_columns_with_index)
     }
 
     /// Converts this table to an arrow record batch,
@@ -908,7 +857,7 @@ impl Table {
     /// requested columns with index are tuples of column_name, column_index
     pub fn to_arrow_impl(
         &self,
-        partition: &Partition,
+        chunk: &Chunk,
         requested_columns_with_index: &[(&str, usize)],
     ) -> Result<RecordBatch> {
         let mut fields = Vec::with_capacity(requested_columns_with_index.len());
@@ -938,10 +887,10 @@ impl Table {
                         match v {
                             None => builder.append_null(),
                             Some(value_id) => {
-                                let tag_value = partition.dictionary.lookup_id(*value_id).context(
+                                let tag_value = chunk.dictionary.lookup_id(*value_id).context(
                                     TagValueIdNotFoundInDictionary {
                                         value: *value_id,
-                                        partition: &partition.key,
+                                        chunk: &chunk.key,
                                     },
                                 )?;
                                 builder.append_value(tag_value)
@@ -997,14 +946,12 @@ impl Table {
     /// just that the entire table can not be ruled out.
     ///
     /// false means that no rows in this table could possibly match
-    pub fn could_match_predicate(&self, partition_predicate: &PartitionPredicate) -> Result<bool> {
+    pub fn could_match_predicate(&self, chunk_predicate: &ChunkPredicate) -> Result<bool> {
         Ok(
-            self.matches_column_name_predicate(partition_predicate.field_name_predicate.as_ref())
-                && self.matches_table_name_predicate(
-                    partition_predicate.table_name_predicate.as_ref(),
-                )
-                && self.matches_timestamp_predicate(partition_predicate)?
-                && self.has_columns(partition_predicate.required_columns.as_ref()),
+            self.matches_column_name_predicate(chunk_predicate.field_name_predicate.as_ref())
+                && self.matches_table_name_predicate(chunk_predicate.table_name_predicate.as_ref())
+                && self.matches_timestamp_predicate(chunk_predicate)?
+                && self.has_columns(chunk_predicate.required_columns.as_ref()),
         )
     }
 
@@ -1032,14 +979,11 @@ impl Table {
 
     /// returns true if there are any timestamps in this table that
     /// fall within the timestamp range
-    fn matches_timestamp_predicate(
-        &self,
-        partition_predicate: &PartitionPredicate,
-    ) -> Result<bool> {
-        match &partition_predicate.range {
+    fn matches_timestamp_predicate(&self, chunk_predicate: &ChunkPredicate) -> Result<bool> {
+        match &chunk_predicate.range {
             None => Ok(true),
             Some(range) => {
-                let time_column_id = partition_predicate.time_column_id;
+                let time_column_id = chunk_predicate.time_column_id;
                 let time_column = self.column(time_column_id)?;
                 time_column.has_i64_range(range.start, range.end).context(
                     ColumnPredicateEvaluation {
@@ -1052,11 +996,11 @@ impl Table {
 
     /// returns true if no columns are specified, or the table has all
     /// columns specified
-    fn has_columns(&self, columns: Option<&PartitionIdSet>) -> bool {
+    fn has_columns(&self, columns: Option<&ChunkIdSet>) -> bool {
         if let Some(columns) = columns {
             match columns {
-                PartitionIdSet::AtLeastOneMissing => return false,
-                PartitionIdSet::Present(symbols) => {
+                ChunkIdSet::AtLeastOneMissing => return false,
+                ChunkIdSet::Present(symbols) => {
                     for symbol in symbols {
                         if !self.column_id_to_index.contains_key(symbol) {
                             return false;
@@ -1073,12 +1017,12 @@ impl Table {
     pub fn column_matches_predicate<T>(
         &self,
         column: &[Option<T>],
-        partition_predicate: &PartitionPredicate,
+        chunk_predicate: &ChunkPredicate,
     ) -> Result<bool> {
-        match partition_predicate.range {
+        match chunk_predicate.range {
             None => Ok(true),
             Some(range) => {
-                let time_column_id = partition_predicate.time_column_id;
+                let time_column_id = chunk_predicate.time_column_id;
                 let time_column = self.column(time_column_id)?;
                 time_column
                     .has_non_null_i64_range(column, range.start, range.end)
@@ -1329,8 +1273,8 @@ mod tests {
 
     #[test]
     fn test_has_columns() {
-        let mut partition = Partition::new("dummy_partition_key");
-        let dictionary = &mut partition.dictionary;
+        let mut chunk = Chunk::new("dummy_chunk_key");
+        let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
@@ -1345,34 +1289,34 @@ mod tests {
 
         assert!(table.has_columns(None));
 
-        let pred = PartitionIdSet::AtLeastOneMissing;
+        let pred = ChunkIdSet::AtLeastOneMissing;
         assert!(!table.has_columns(Some(&pred)));
 
         let set = BTreeSet::<u32>::new();
-        let pred = PartitionIdSet::Present(set);
+        let pred = ChunkIdSet::Present(set);
         assert!(table.has_columns(Some(&pred)));
 
         let mut set = BTreeSet::new();
         set.insert(state_symbol);
-        let pred = PartitionIdSet::Present(set);
+        let pred = ChunkIdSet::Present(set);
         assert!(table.has_columns(Some(&pred)));
 
         let mut set = BTreeSet::new();
         set.insert(new_symbol);
-        let pred = PartitionIdSet::Present(set);
+        let pred = ChunkIdSet::Present(set);
         assert!(!table.has_columns(Some(&pred)));
 
         let mut set = BTreeSet::new();
         set.insert(state_symbol);
         set.insert(new_symbol);
-        let pred = PartitionIdSet::Present(set);
+        let pred = ChunkIdSet::Present(set);
         assert!(!table.has_columns(Some(&pred)));
     }
 
     #[test]
     fn test_matches_table_name_predicate() {
-        let mut partition = Partition::new("dummy_partition_key");
-        let dictionary = &mut partition.dictionary;
+        let mut chunk = Chunk::new("dummy_chunk_key");
+        let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
 
         let lp_lines = vec![
@@ -1401,8 +1345,8 @@ mod tests {
 
     #[test]
     fn test_matches_column_name_predicate() {
-        let mut partition = Partition::new("dummy_partition_key");
-        let dictionary = &mut partition.dictionary;
+        let mut chunk = Chunk::new("dummy_chunk_key");
+        let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
 
         let lp_lines = vec![
@@ -1447,8 +1391,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_series_set_plan() {
-        let mut partition = Partition::new("dummy_partition_key");
-        let dictionary = &mut partition.dictionary;
+        let mut chunk = Chunk::new("dummy_chunk_key");
+        let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
@@ -1461,9 +1405,9 @@ mod tests {
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
         let predicate = PredicateBuilder::default().build();
-        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
+        let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
         let series_set_plan = table
-            .series_set_plan(&partition_predicate, &partition)
+            .series_set_plan(&chunk_predicate, &chunk)
             .expect("creating the series set plan");
 
         assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
@@ -1494,8 +1438,8 @@ mod tests {
         // test that the columns and rows come out in the right order (tags then
         // timestamp)
 
-        let mut partition = Partition::new("dummy_partition_key");
-        let dictionary = &mut partition.dictionary;
+        let mut chunk = Chunk::new("dummy_chunk_key");
+        let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
@@ -1509,9 +1453,9 @@ mod tests {
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
         let predicate = PredicateBuilder::default().build();
-        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
+        let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
         let series_set_plan = table
-            .series_set_plan(&partition_predicate, &partition)
+            .series_set_plan(&chunk_predicate, &chunk)
             .expect("creating the series set plan");
 
         assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
@@ -1543,8 +1487,8 @@ mod tests {
     async fn test_series_set_plan_filter() {
         // test that filters are applied reasonably
 
-        let mut partition = Partition::new("dummy_partition_key");
-        let dictionary = &mut partition.dictionary;
+        let mut chunk = Chunk::new("dummy_chunk_key");
+        let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
@@ -1561,10 +1505,10 @@ mod tests {
             .timestamp_range(190, 210)
             .build();
 
-        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
+        let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
 
         let series_set_plan = table
-            .series_set_plan(&partition_predicate, &partition)
+            .series_set_plan(&chunk_predicate, &chunk)
             .expect("creating the series set plan");
 
         assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
@@ -1932,8 +1876,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_grouped_window_series_set_plan_nanoseconds() {
-        let mut partition = Partition::new("dummy_partition_key");
-        let dictionary = &mut partition.dictionary;
+        let mut chunk = Chunk::new("dummy_chunk_key");
+        let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
@@ -1961,14 +1905,14 @@ mod tests {
             .add_expr(col("city").eq(lit("Boston")).or(col("city").eq(lit("LA"))))
             .timestamp_range(100, 450)
             .build();
-        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
+        let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
 
         let agg = Aggregate::Mean;
         let every = WindowDuration::from_nanoseconds(200);
         let offset = WindowDuration::from_nanoseconds(0);
 
         let plan = table
-            .window_grouped_series_set_plan(&partition_predicate, agg, &every, &offset, &partition)
+            .window_grouped_series_set_plan(&chunk_predicate, agg, &every, &offset, &chunk)
             .expect("creating the grouped_series set plan");
 
         assert_eq!(plan.tag_columns, *str_vec_to_arc_vec(&["city", "state"]));
@@ -1996,8 +1940,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_grouped_window_series_set_plan_months() {
-        let mut partition = Partition::new("dummy_partition_key");
-        let dictionary = &mut partition.dictionary;
+        let mut chunk = Chunk::new("dummy_chunk_key");
+        let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
@@ -2010,14 +1954,14 @@ mod tests {
         write_lines_to_table(&mut table, dictionary, lp_lines);
 
         let predicate = PredicateBuilder::default().build();
-        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
+        let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
 
         let agg = Aggregate::Mean;
         let every = WindowDuration::from_months(1, false);
         let offset = WindowDuration::from_months(0, false);
 
         let plan = table
-            .window_grouped_series_set_plan(&partition_predicate, agg, &every, &offset, &partition)
+            .window_grouped_series_set_plan(&chunk_predicate, agg, &every, &offset, &chunk)
             .expect("creating the grouped_series set plan");
 
         assert_eq!(plan.tag_columns, *str_vec_to_arc_vec(&["city", "state"]));
@@ -2041,8 +1985,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_field_name_plan() {
-        let mut partition = Partition::new("dummy_partition_key");
-        let dictionary = &mut partition.dictionary;
+        let mut chunk = Chunk::new("dummy_chunk_key");
+        let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
@@ -2058,10 +2002,10 @@ mod tests {
 
         let predicate = PredicateBuilder::default().timestamp_range(0, 200).build();
 
-        let partition_predicate = partition.compile_predicate(&predicate).unwrap();
+        let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
 
         let field_names_set_plan = table
-            .field_names_plan(&partition_predicate, &partition)
+            .field_names_plan(&chunk_predicate, &chunk)
             .expect("creating the field_name plan");
 
         // run the created plan, ensuring the output is as expected
@@ -2189,7 +2133,7 @@ mod tests {
 
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
 
-        let data = split_lines_into_write_entry_partitions(partition_key_func, &lines);
+        let data = split_lines_into_write_entry_partitions(chunk_key_func, &lines);
 
         let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&data);
         let entries = batch.entries().expect("at least one entry");
@@ -2205,25 +2149,25 @@ mod tests {
         }
     }
 
-    fn partition_key_func(_: &ParsedLine<'_>) -> String {
-        String::from("the_partition_key")
+    fn chunk_key_func(_: &ParsedLine<'_>) -> String {
+        String::from("the_chunk_key")
     }
 
     /// Pre-loaded Table for use in tests
     struct TableFixture {
-        partition: Partition,
+        chunk: Chunk,
         table: Table,
     }
 
     impl TableFixture {
         /// Create an Table with the specified lines loaded
         fn new(lp_lines: Vec<&str>) -> Self {
-            let mut partition = Partition::new("dummy_partition_key");
-            let dictionary = &mut partition.dictionary;
+            let mut chunk = Chunk::new("dummy_chunk_key");
+            let dictionary = &mut chunk.dictionary;
             let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
             write_lines_to_table(&mut table, dictionary, lp_lines);
-            Self { partition, table }
+            Self { chunk, table }
         }
 
         /// create a series set plan from the predicate ane aggregates
@@ -2234,13 +2178,13 @@ mod tests {
             agg: Aggregate,
             group_columns: &[&str],
         ) -> Vec<String> {
-            let partition_predicate = self.partition.compile_predicate(&predicate).unwrap();
+            let chunk_predicate = self.chunk.compile_predicate(&predicate).unwrap();
 
             let group_columns: Vec<_> = group_columns.iter().map(|s| String::from(*s)).collect();
 
             let grouped_series_set_plan = self
                 .table
-                .grouped_series_set_plan(&partition_predicate, agg, &group_columns, &self.partition)
+                .grouped_series_set_plan(&chunk_predicate, agg, &group_columns, &self.chunk)
                 .expect("creating the grouped_series set plan");
 
             // ensure the group prefix got to the right place

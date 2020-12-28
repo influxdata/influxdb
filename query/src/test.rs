@@ -221,6 +221,7 @@ fn predicate_to_test_string(predicate: &Predicate) -> String {
         field_columns,
         exprs,
         range,
+        partition_key,
     } = predicate;
 
     let mut result = String::new();
@@ -242,13 +243,17 @@ fn predicate_to_test_string(predicate: &Predicate) -> String {
         write!(result, " range: {:?}", range).unwrap();
     }
 
+    if let Some(partition_key) = partition_key {
+        write!(result, " partition_key: {:?}", partition_key).unwrap();
+    }
+
     write!(result, "}}").unwrap();
     result
 }
 
 #[async_trait]
 impl TSDatabase for TestDatabase {
-    type Partition = TestPartition;
+    type Chunk = TestChunk;
     type Error = TestError;
 
     /// Writes parsed lines into this database
@@ -402,7 +407,7 @@ impl TSDatabase for TestDatabase {
 
 #[async_trait]
 impl SQLDatabase for TestDatabase {
-    type Partition = TestPartition;
+    type Chunk = TestChunk;
     type Error = TestError;
 
     /// Execute the specified query and return arrow record batches with the
@@ -424,13 +429,6 @@ impl SQLDatabase for TestDatabase {
         unimplemented!("table_names_for_partition not yet implemented for test database");
     }
 
-    async fn remove_partition(
-        &self,
-        _partition_key: &str,
-    ) -> Result<Arc<Self::Partition>, Self::Error> {
-        unimplemented!()
-    }
-
     /// Fetch the specified table names and columns as Arrow
     /// RecordBatches. Columns are returned in the order specified.
     async fn table_to_arrow(
@@ -443,9 +441,9 @@ impl SQLDatabase for TestDatabase {
 }
 
 #[derive(Debug)]
-pub struct TestPartition {}
+pub struct TestChunk {}
 
-impl PartitionChunk for TestPartition {
+impl PartitionChunk for TestChunk {
     type Error = TestError;
 
     fn key(&self) -> &str {
@@ -458,9 +456,10 @@ impl PartitionChunk for TestPartition {
 
     fn table_to_arrow(
         &self,
+        _dst: &mut Vec<RecordBatch>,
         _table_name: &str,
         _columns: &[&str],
-    ) -> Result<RecordBatch, Self::Error> {
+    ) -> Result<(), Self::Error> {
         unimplemented!()
     }
 }

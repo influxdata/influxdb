@@ -497,7 +497,7 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
 struct SnapshotInfo {
     org: String,
     bucket: String,
-    partition: String,
+    chunk: String,
 }
 
 #[tracing::instrument(level = "debug")]
@@ -542,13 +542,13 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
     })?;
 
     let metadata_path = format!("{}/meta", &db_name);
-    let data_path = format!("{}/data/{}", &db_name, &snapshot.partition);
-    let partition = db.remove_partition(&snapshot.partition).await.unwrap();
-    let snapshot = server::snapshot::snapshot_partition(
+    let data_path = format!("{}/data/{}", &db_name, &snapshot.chunk);
+    let partition = db.rollover_partition(&snapshot.chunk).await.unwrap();
+    let snapshot = server::snapshot::snapshot_chunk(
         metadata_path,
         data_path,
         server.store.clone(),
-        Arc::new(partition),
+        partition,
         None,
     )
     .unwrap();

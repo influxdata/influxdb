@@ -46,7 +46,7 @@ use self::predicate::{Predicate, TimestampRange};
 #[async_trait]
 pub trait TSDatabase: Debug + Send + Sync {
     /// the type of partition that is stored by this database
-    type Partition: Send + Sync + 'static + PartitionChunk;
+    type Chunk: Send + Sync + 'static + PartitionChunk;
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// writes parsed lines into this database
@@ -109,7 +109,7 @@ pub trait TSDatabase: Debug + Send + Sync {
 #[async_trait]
 pub trait SQLDatabase: Debug + Send + Sync {
     /// the type of partition that is stored by this database
-    type Partition: Send + Sync + 'static + PartitionChunk;
+    type Chunk: Send + Sync + 'static + PartitionChunk;
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Execute the specified query and return arrow record batches with the
@@ -132,12 +132,6 @@ pub trait SQLDatabase: Debug + Send + Sync {
         &self,
         partition_key: &str,
     ) -> Result<Vec<String>, Self::Error>;
-
-    /// Removes the partition from the database and returns it
-    async fn remove_partition(
-        &self,
-        partition_key: &str,
-    ) -> Result<Arc<Self::Partition>, Self::Error>;
 }
 
 /// Collection of data that shares the same partition key
@@ -150,12 +144,13 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// returns the partition metadata stats for every table in the partition
     fn table_stats(&self) -> Result<Vec<TableStats>, Self::Error>;
 
-    /// converts the table to an Arrow RecordBatch
+    /// converts the table to an Arrow RecordBatch and writes to dst
     fn table_to_arrow(
         &self,
+        dst: &mut Vec<RecordBatch>,
         table_name: &str,
         columns: &[&str],
-    ) -> Result<RecordBatch, Self::Error>;
+    ) -> Result<(), Self::Error>;
 }
 
 #[async_trait]

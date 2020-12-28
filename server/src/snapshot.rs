@@ -1,4 +1,4 @@
-//! This module contains code for snapshotting a database partition to Parquet
+//! This module contains code for snapshotting a database chunk to Parquet
 //! files in object storage.
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
@@ -144,15 +144,14 @@ where
 
     async fn run(&self, notify: Option<oneshot::Sender<()>>) -> Result<()> {
         while let Some((pos, table_name)) = self.next_table() {
-            let batch = self
-                .partition
-                .table_to_arrow(table_name, &[])
+            let mut batches = Vec::new();
+            self.partition
+                .table_to_arrow(&mut batches, table_name, &[])
                 .map_err(|e| Box::new(e) as _)
                 .context(PartitionError)?;
 
             let file_name = format!("{}/{}.parquet", &self.data_path, table_name);
-
-            self.write_batch(batch, &file_name).await?;
+            self.write_batches(batches, &file_name).await?;
             self.mark_table_finished(pos);
 
             if self.should_stop() {
@@ -186,12 +185,14 @@ where
         Ok(())
     }
 
-    async fn write_batch(&self, batch: RecordBatch, file_name: &str) -> Result<()> {
+    async fn write_batches(&self, batches: Vec<RecordBatch>, file_name: &str) -> Result<()> {
         let mem_writer = MemWriter::default();
         {
-            let mut writer = ArrowWriter::try_new(mem_writer.clone(), batch.schema(), None)
+            let mut writer = ArrowWriter::try_new(mem_writer.clone(), batches[0].schema(), None)
                 .context(OpeningParquetWriter)?;
-            writer.write(&batch).context(WritingParquetToMemory)?;
+            for batch in batches.into_iter() {
+                writer.write(&batch).context(WritingParquetToMemory)?;
+            }
             writer.close().context(ClosingParquetWriter)?;
         } // drop the reference to the MemWriter that the SerializedFileWriter has
 
@@ -234,7 +235,7 @@ pub struct Status {
     error: Option<Error>,
 }
 
-pub fn snapshot_partition<T>(
+pub fn snapshot_chunk<T>(
     metadata_path: impl Into<String>,
     data_path: impl Into<String>,
     store: Arc<ObjectStore>,
@@ -325,7 +326,7 @@ mod tests {
     use data_types::database_rules::DatabaseRules;
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
-    use mutable_buffer::partition::Partition as PartitionWB;
+    use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::InMemory;
 
     #[tokio::test]
@@ -339,23 +340,23 @@ mem,host=A,region=west used=45 1
 
         let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
         let write = lines_to_replicated_write(1, 1, &lines, &DatabaseRules::default());
-        let mut partition = PartitionWB::new("testaroo");
+        let mut chunk = ChunkWB::new("testaroo");
 
         for e in write.write_buffer_batch().unwrap().entries().unwrap() {
-            partition.write_entry(&e).unwrap();
+            chunk.write_entry(&e).unwrap();
         }
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let partition = Arc::new(partition);
+        let chunk = Arc::new(chunk);
         let (tx, rx) = tokio::sync::oneshot::channel();
         let metadata_path = "/meta";
         let data_path = "/data";
 
-        let snapshot = snapshot_partition(
+        let snapshot = snapshot_chunk(
             metadata_path,
             data_path,
             store.clone(),
-            partition.clone(),
+            chunk.clone(),
             Some(tx),
         )
         .unwrap();
@@ -393,16 +394,16 @@ mem,host=A,region=west used=45 1
         ];
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let partition = Arc::new(PartitionWB::new("testaroo"));
+        let chunk = Arc::new(ChunkWB::new("testaroo"));
         let metadata_path = "/meta".to_string();
         let data_path = "/data".to_string();
 
         let snapshot = Snapshot::new(
-            partition.key.clone(),
+            chunk.key.clone(),
             metadata_path,
             data_path,
             store,
-            partition,
+            chunk,
             tables,
         );
 

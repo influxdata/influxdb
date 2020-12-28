@@ -8,7 +8,11 @@
 
 //! # wal
 //!
-//! This crate provides a WAL tailored for InfluxDB IOx `Partition`s
+//! This crate provides a local-disk based WAL tailored for InfluxDB
+//! IOx `Partition`s.
+//!
+//! It is not currently connected to anything, but the intent is to
+//! permit IOx running in standalone mode better durability.
 //!
 //! Work remaining:
 //!
