@@ -9655,8 +9655,8 @@ components:
           $ref: "#/components/schemas/DecimalPlaces"
         prefix:
           type: string
-        suffix: 
-          type: string
+        suffix:
+        type: string
     GaugeMiniViewProperties:
       type: object
       required:
@@ -9715,37 +9715,37 @@ components:
           enum: [follow, left]
         valueHeight:
           type: number
-        gaugeHeight: 
+        gaugeHeight:
           type: number
-        valueRounding: 
+        valueRounding:
           type: number
-        gaugeRounding: 
+        gaugeRounding:
           type: number
-        barPaddings: 
+        barPaddings:
           type: number
-        sidePaddings: 
+        sidePaddings:
           type: number
-        oveflowFraction: 
+        oveflowFraction:
           type: number
-        colorSecondary: 
+        colorSecondary:
           type: string
-        labelMain: 
+        labelMain:
           type: string
-        labelMainFontSize: 
+        labelMainFontSize:
           type: number
-        labelMainFontColor: 
+        labelMainFontColor:
           type: string
-        labelBarsFontSize: 
+        labelBarsFontSize:
           type: number
-        labelBarsFontColor: 
+        labelBarsFontColor:
           type: string
-        valuePadding: 
+        valuePadding:
           type: number
-        valueFontSize: 
+        valueFontSize:
           type: number
-        valueFontColorInside: 
+        valueFontColorInside:
           type: string
-        valueFontColorOutside: 
+        valueFontColorOutside:
           type: string
         valueFormater:
           $ref: "#/components/schemas/FormatStatValueOptions"
@@ -9756,12 +9756,12 @@ components:
               enum: [thresholds]
             - type: undefined
             - type: array
-              items: 
-                type: number
-        axesFontSize: 
-          type: number
-        axesFontColor: 
-          type: string
+              items:
+                    type: number
+        axesFontSize:
+        type: number
+        axesFontColor:
+        type: string
         axesFormater:
           $ref: "#/components/schemas/FormatStatValueOptions"
     TableViewProperties:
