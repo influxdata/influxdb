@@ -785,8 +785,10 @@ impl Table {
     }
 
     /// Converts this table to an arrow record batch.
+    ///
+    /// If requested_columns is empty (`[]`), retrieve all columns in
+    /// the table
     pub fn to_arrow(&self, chunk: &Chunk, requested_columns: &[&str]) -> Result<RecordBatch> {
-        // if requested columns is empty, retrieve all columns in the table
         if requested_columns.is_empty() {
             self.all_to_arrow(chunk)
         } else {
@@ -1273,7 +1275,7 @@ mod tests {
 
     #[test]
     fn test_has_columns() {
-        let mut chunk = Chunk::new("dummy_chunk_key");
+        let mut chunk = Chunk::new("dummy_chunk_key", 42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1315,7 +1317,7 @@ mod tests {
 
     #[test]
     fn test_matches_table_name_predicate() {
-        let mut chunk = Chunk::new("dummy_chunk_key");
+        let mut chunk = Chunk::new("dummy_chunk_key", 42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
 
@@ -1345,7 +1347,7 @@ mod tests {
 
     #[test]
     fn test_matches_column_name_predicate() {
-        let mut chunk = Chunk::new("dummy_chunk_key");
+        let mut chunk = Chunk::new("dummy_chunk_key", 42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
 
@@ -1391,7 +1393,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_series_set_plan() {
-        let mut chunk = Chunk::new("dummy_chunk_key");
+        let mut chunk = Chunk::new("dummy_chunk_key", 42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1438,7 +1440,7 @@ mod tests {
         // test that the columns and rows come out in the right order (tags then
         // timestamp)
 
-        let mut chunk = Chunk::new("dummy_chunk_key");
+        let mut chunk = Chunk::new("dummy_chunk_key", 42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1487,7 +1489,7 @@ mod tests {
     async fn test_series_set_plan_filter() {
         // test that filters are applied reasonably
 
-        let mut chunk = Chunk::new("dummy_chunk_key");
+        let mut chunk = Chunk::new("dummy_chunk_key", 42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1876,7 +1878,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_grouped_window_series_set_plan_nanoseconds() {
-        let mut chunk = Chunk::new("dummy_chunk_key");
+        let mut chunk = Chunk::new("dummy_chunk_key", 42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1940,7 +1942,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_grouped_window_series_set_plan_months() {
-        let mut chunk = Chunk::new("dummy_chunk_key");
+        let mut chunk = Chunk::new("dummy_chunk_key", 42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1985,7 +1987,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_field_name_plan() {
-        let mut chunk = Chunk::new("dummy_chunk_key");
+        let mut chunk = Chunk::new("dummy_chunk_key", 42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -2162,7 +2164,7 @@ mod tests {
     impl TableFixture {
         /// Create an Table with the specified lines loaded
         fn new(lp_lines: Vec<&str>) -> Self {
-            let mut chunk = Chunk::new("dummy_chunk_key");
+            let mut chunk = Chunk::new("dummy_chunk_key", 42);
             let dictionary = &mut chunk.dictionary;
             let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 

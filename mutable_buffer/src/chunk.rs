@@ -7,6 +7,7 @@ use arrow_deps::{
         prelude::*,
     },
 };
+use chrono::{DateTime, Utc};
 use generated_types::wal as wb;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -35,13 +36,6 @@ pub enum Error {
         source: crate::table::Error,
     },
 
-    #[snafu(display("Table name {} not found in dictionary of chunk {}", table, chunk))]
-    TableNameNotFoundInDictionary {
-        table: String,
-        chunk: String,
-        source: crate::dictionary::Error,
-    },
-
     #[snafu(display("Table ID {} not found in dictionary of chunk {}", table, chunk))]
     TableIdNotFoundInDictionary {
         table: u32,
@@ -60,8 +54,25 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct Chunk {
-    /// Chunk key for all rows in this the chunk
+    /// The id for this chunk
+    pub id: u64,
+
+    /// partition key for all rows in this chunk
     pub key: String,
+
+    /// Time at which the first data was written into this chunk. Note
+    /// this is not the same as the timestamps on the data itself
+    pub time_of_first_write: Option<DateTime<Utc>>,
+
+    /// Most recent time at which data write was initiated into this
+    /// chunk. Note this is not the same as the timestamps on the data
+    /// itself
+    pub time_of_last_write: Option<DateTime<Utc>>,
+
+    /// Time at which this chunk became immutable (no new data was
+    /// written after this time). Note this is not the same as the
+    /// timestamps on the data itself
+    pub time_became_immutable: Option<DateTime<Utc>>,
 
     /// `dictionary` maps &str -> u32. The u32s are used in place of String or
     /// str to avoid slow string operations. The same dictionary is used for
@@ -169,16 +180,26 @@ fn make_range_expr(range: &TimestampRange) -> Expr {
 }
 
 impl Chunk {
-    pub fn new(key: impl Into<String>) -> Self {
+    pub fn new(key: impl Into<String>, id: u64) -> Self {
         Self {
+            id,
             key: key.into(),
             dictionary: Dictionary::new(),
             tables: HashMap::new(),
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_became_immutable: None,
         }
     }
 
     pub fn write_entry(&mut self, entry: &wb::WriteBufferEntry<'_>) -> Result<()> {
         if let Some(table_batches) = entry.table_batches() {
+            let now = Utc::now();
+            if self.time_of_first_write.is_none() {
+                self.time_of_first_write = Some(now);
+            }
+            self.time_of_last_write = Some(now);
+
             for batch in table_batches {
                 self.write_table_batch(&batch)?;
             }
@@ -203,6 +224,12 @@ impl Chunk {
         }
 
         Ok(())
+    }
+
+    /// Tell this chunk that it has been marked as immutable
+    pub fn mark_immutable(&mut self) {
+        assert!(self.time_became_immutable.is_none());
+        self.time_became_immutable = Some(Utc::now())
     }
 
     /// Translates `predicate` into per-chunk ids that can be
@@ -305,10 +332,14 @@ impl Chunk {
         }
     }
 
-    /// returns true if data with chunk key `key` should be
-    /// written to this chunk,
-    pub fn should_write(&self, key: &str) -> bool {
-        self.key.starts_with(key)
+    /// returns true if there is no data in this chunk
+    pub fn is_empty(&self) -> bool {
+        self.tables.is_empty()
+    }
+
+    /// return the ID of this chunk
+    pub fn id(&self) -> u64 {
+        self.id
     }
 
     /// Convert the table specified in this chunk into some number of
@@ -319,13 +350,13 @@ impl Chunk {
         table_name: &str,
         columns: &[&str],
     ) -> Result<()> {
-        let table = self.table(table_name)?;
-
-        dst.push(
-            table
-                .to_arrow(&self, columns)
-                .context(NamedTableError { table_name })?,
-        );
+        if let Some(table) = self.table(table_name)? {
+            dst.push(
+                table
+                    .to_arrow(&self, columns)
+                    .context(NamedTableError { table_name })?,
+            );
+        }
         Ok(())
     }
 
@@ -353,20 +384,17 @@ impl Chunk {
         Ok(stats)
     }
 
-    fn table(&self, table_name: &str) -> Result<&Table> {
-        let table_id =
-            self.dictionary
-                .lookup_value(table_name)
-                .context(TableNameNotFoundInDictionary {
-                    table: table_name,
-                    chunk: &self.key,
-                })?;
+    /// Returns the named table, or None if no such table exists in this chunk
+    fn table(&self, table_name: &str) -> Result<Option<&Table>> {
+        let table_id = self.dictionary.lookup_value(table_name);
 
-        let table = self.tables.get(&table_id).context(TableNotFoundInChunk {
-            table: table_id,
-            chunk: &self.key,
-        })?;
-
+        let table = match table_id {
+            Ok(table_id) => Some(self.tables.get(&table_id).context(TableNotFoundInChunk {
+                table: table_id,
+                chunk: &self.key,
+            })?),
+            Err(_) => None,
+        };
         Ok(table)
     }
 
@@ -394,6 +422,10 @@ impl query::PartitionChunk for Chunk {
 
     fn key(&self) -> &str {
         &self.key
+    }
+
+    fn id(&self) -> u64 {
+        self.id
     }
 
     fn table_stats(&self) -> Result<Vec<TableStats>, Self::Error> {

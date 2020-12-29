@@ -138,8 +138,12 @@ pub trait SQLDatabase: Debug + Send + Sync {
 pub trait PartitionChunk: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// returns the partition key
+    /// returns the partition key of this chunk
     fn key(&self) -> &str;
+
+    /// returns the Id of this chunk. Ids are unique within a
+    /// particular partition.
+    fn id(&self) -> u64;
 
     /// returns the partition metadata stats for every table in the partition
     fn table_stats(&self) -> Result<Vec<TableStats>, Self::Error>;

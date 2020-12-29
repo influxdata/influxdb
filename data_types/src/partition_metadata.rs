@@ -33,6 +33,19 @@ pub enum Column {
     String(Statistics<String>),
 }
 
+impl Column {
+    /// Returns the total number of rows in this column
+    pub fn count(&self) -> u32 {
+        match self {
+            Self::I64(s) => s.count,
+            Self::U64(s) => s.count,
+            Self::F64(s) => s.count,
+            Self::Bool(s) => s.count,
+            Self::String(s) => s.count,
+        }
+    }
+}
+
 /// Summary statistics for a column.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Statistics<T: PartialEq + PartialOrd + Debug + Display + Clone> {

@@ -7,3 +7,6 @@
 pub use arrow;
 pub use datafusion;
 pub use parquet;
+
+/// This has a collection of testing helper functions
+pub mod test_util;

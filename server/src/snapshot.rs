@@ -340,7 +340,7 @@ mem,host=A,region=west used=45 1
 
         let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
         let write = lines_to_replicated_write(1, 1, &lines, &DatabaseRules::default());
-        let mut chunk = ChunkWB::new("testaroo");
+        let mut chunk = ChunkWB::new("testaroo", 11);
 
         for e in write.write_buffer_batch().unwrap().entries().unwrap() {
             chunk.write_entry(&e).unwrap();
@@ -394,7 +394,7 @@ mem,host=A,region=west used=45 1
         ];
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let chunk = Arc::new(ChunkWB::new("testaroo"));
+        let chunk = Arc::new(ChunkWB::new("testaroo", 11));
         let metadata_path = "/meta".to_string();
         let data_path = "/data".to_string();
 

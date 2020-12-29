@@ -180,14 +180,13 @@ impl MutableBufferDb {
         let mut batches = Vec::new();
         for partition in self.partition_snapshot().await.into_iter() {
             let partition = partition.read().await;
-            for chunk in partition.iter() {
-                chunk.table_to_arrow(&mut batches, table_name, columns)?
-            }
+            partition.table_to_arrow(&mut batches, table_name, columns)?
         }
 
         Ok(batches)
     }
 
+    /// Rolls over the active chunk in this partititon
     pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<Chunk>> {
         let partition = self.get_partition(partition_key).await;
         let mut partition = partition.write().await;
@@ -1074,7 +1073,6 @@ struct ArrowTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_deps::datafusion::prelude::*;
     use query::{
         exec::fieldlist::{Field, FieldList},
         exec::{
@@ -1086,11 +1084,13 @@ mod tests {
         TSDatabase,
     };
 
-    use arrow_deps::arrow::{
-        array::{Array, StringArray},
-        datatypes::DataType,
-        record_batch::RecordBatch,
-        util::pretty::pretty_format_batches,
+    use arrow_deps::{
+        arrow::{
+            array::{Array, StringArray},
+            datatypes::DataType,
+        },
+        assert_table_eq,
+        datafusion::prelude::*,
     };
     use influxdb_line_protocol::parse_lines;
     use test_helpers::str_pair_vec_to_vec;
@@ -1101,15 +1101,6 @@ mod tests {
 
     fn to_set(v: &[&str]) -> BTreeSet<String> {
         v.iter().map(|s| s.to_string()).collect::<BTreeSet<_>>()
-    }
-
-    // Abstract a bit of boilerplate around table assertions and improve the failure
-    // output. The default failure message uses Debug formatting, which prints
-    // newlines as `\n`. This prints the pretty_format_batches using Display so
-    // it's easier to read the tables.
-    fn assert_table_eq(table: &str, chunks: &[RecordBatch]) {
-        let res = pretty_format_batches(chunks).unwrap();
-        assert_eq!(table, res, "\n\nleft:\n\n{}\nright:\n\n{}", table, res);
     }
 
     // query the table names, with optional range predicate
@@ -1246,14 +1237,15 @@ mod tests {
 
         let results = db.query("select * from cpu").await?;
 
-        let expected_cpu_table = r#"+------+-------+--------+------+------+
-| host | other | region | time | user |
-+------+-------+--------+------+------+
-| A    | 1     | west   | 10   | 23.2 |
-+------+-------+--------+------+------+
-"#;
+        let expected_cpu_table = &[
+            "+------+-------+--------+------+------+",
+            "| host | other | region | time | user |",
+            "+------+-------+--------+------+------+",
+            "| A    | 1     | west   | 10   | 23.2 |",
+            "+------+-------+--------+------+------+",
+        ];
 
-        assert_table_eq(expected_cpu_table, &results);
+        assert_table_eq!(expected_cpu_table, &results);
 
         Ok(())
     }

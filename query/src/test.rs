@@ -450,6 +450,10 @@ impl PartitionChunk for TestChunk {
         unimplemented!()
     }
 
+    fn id(&self) -> u64 {
+        unimplemented!()
+    }
+
     fn table_stats(&self) -> Result<Vec<data_types::partition_metadata::Table>, Self::Error> {
         unimplemented!()
     }
