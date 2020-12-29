@@ -9656,7 +9656,7 @@ components:
         prefix:
           type: string
         suffix:
-        type: string
+          type: string
     GaugeMiniViewProperties:
       type: object
       required:
@@ -9757,11 +9757,11 @@ components:
             - type: undefined
             - type: array
               items:
-                    type: number
+                type: number
         axesFontSize:
-        type: number
+          type: number
         axesFontColor:
-        type: string
+          type: string
         axesFormater:
           $ref: "#/components/schemas/FormatStatValueOptions"
     TableViewProperties:
