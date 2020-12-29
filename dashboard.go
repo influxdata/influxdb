@@ -1029,6 +1029,12 @@ type GaugeMiniBarsDefinitions struct {
 	}) `json:"bars"`
 }
 
+type FormatStatValueOptions struct {
+	DecimalPlaces DecimalPlaces `json:"decimalPlaces"`
+	Prefix        string        `json:"prefix"`
+	Suffix        string        `json:"suffix"`
+}
+
 // GaugeMiniViewProperties represents options for gauge view in Chronograf
 type GaugeMiniViewProperties struct {
 	Type              string           `json:"type"`
@@ -1037,7 +1043,6 @@ type GaugeMiniViewProperties struct {
 	Note              string           `json:"note"`
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 
-	// todo: wait for simpler types
 	BarsDefinitions GaugeMiniBarsDefinitions `json:"barsDefinitions"`
 	Mode            string                   `json:"mode"`
 	TextMode        string                   `json:"textMode"`
@@ -1059,19 +1064,16 @@ type GaugeMiniViewProperties struct {
 	LabelBarsFontSize  float64 `json:"labelBarsFontSize"`
 	LabelBarsFontColor string  `json:"labelBarsFontColor"`
 
-	ValuePadding          float64 `json:"valuePadding"`
-	ValueFontSize         float64 `json:"valueFontSize"`
-	ValueFontColorInside  string  `json:"valueFontColorInside"`
-	ValueFontColorOutside string  `json:"valueFontColorOutside"`
-	// todo: wait for simpler types
-	// valueFormater?: (value: number) => string
+	ValuePadding          float64                `json:"valuePadding"`
+	ValueFontSize         float64                `json:"valueFontSize"`
+	ValueFontColorInside  string                 `json:"valueFontColorInside"`
+	ValueFontColorOutside string                 `json:"valueFontColorOutside"`
+	ValueFormater         FormatStatValueOptions `json:"valueFormater"`
 
-	// todo: find how to do union types inside go
-	// axesSteps  int32 | string | nil | []float64 `json:"axesSteps"`
-	AxesFontSize  float64 `json:"axesFontSize"`
-	AxesFontColor string  `json:"axesFontColor"`
-	// todo: wait for simpler types
-	// axesFormater?: (value: number) => string
+	AxesSteps     json.RawMessage        `json:"axesSteps"`
+	AxesFontSize  float64                `json:"axesFontSize"`
+	AxesFontColor string                 `json:"axesFontColor"`
+	AxesFormater  FormatStatValueOptions `json:"axesFormater"`
 }
 
 // TableViewProperties represents options for table view in Chronograf
