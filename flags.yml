@@ -100,6 +100,14 @@
   expose: true
   lifetime: temporary
 
+- name: Gauge Mini Graph Type
+  description: Enables the creation of a Gauge Mini graph in Dashboards
+  key: gaugeMini
+  default: false
+  contact: Bonitoo-io
+  expose: true
+  lifetime: temporary
+
 - name: Notebooks
   description: Determine if the notebook feature's route and navbar icon are visible to the user
   key: notebooks
