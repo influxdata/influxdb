@@ -103,6 +103,8 @@ func (m *Main) Run(args ...string) error {
 			cmd.Logger.Info("Server shutdown completed")
 		}
 
+		cmd.Logger.Sync()
+
 		// goodbye.
 
 	case "backup":
