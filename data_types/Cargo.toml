@@ -15,3 +15,10 @@ chrono = "0.4"
 flatbuffers = "0.6"
 crc32fast = "1.2.0"
 tracing = "0.1"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false

@@ -147,7 +147,7 @@ pub enum WalBufferRollover {
 /// what partition key is generated.
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq)]
 pub struct PartitionTemplate {
-    parts: Vec<TemplatePart>,
+    pub parts: Vec<TemplatePart>,
 }
 
 impl PartitionTemplate {

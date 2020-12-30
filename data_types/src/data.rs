@@ -58,6 +58,30 @@ impl ReplicatedWrite {
         let fb = self.to_fb();
         (fb.writer(), fb.sequence())
     }
+
+    /// Returns the serialized bytes for the write. (used for benchmarking)
+    pub fn bytes(&self) -> &Vec<u8> {
+        &self.data
+    }
+
+    /// Returns the number of write buffer entries in this replicated write
+    pub fn entry_count(&self) -> usize {
+        if let Some(batch) = self.write_buffer_batch() {
+            if let Some(entries) = batch.entries() {
+                return entries.len();
+            }
+        }
+
+        0
+    }
+}
+
+impl From<&[u8]> for ReplicatedWrite {
+    fn from(data: &[u8]) -> Self {
+        Self {
+            data: Vec::from(data),
+        }
+    }
 }
 
 impl fmt::Display for ReplicatedWrite {
