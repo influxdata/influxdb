@@ -7,6 +7,7 @@ v1.8.4 [unreleased]
 
 ### Bugfixes
 
+-	[#20422](https://github.com/influxdata/influxdb/pull/20422): fix(log): Call Sync before progress exit.
 -	[#20101](https://github.com/influxdata/influxdb/pull/20101): fix(write): Successful writes increment write error statistics incorrectly.
 -	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging.
 -	[#20276](https://github.com/influxdata/influxdb/pull/20276): fix(error): unsupported value: +Inf" error not handled gracefully.
