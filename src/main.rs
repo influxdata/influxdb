@@ -16,15 +16,16 @@ mod panic;
 pub mod server;
 
 mod commands {
+    pub mod config;
     pub mod convert;
     pub mod file_meta;
     mod input;
+    pub mod logging;
     pub mod server;
     pub mod stats;
 }
 
-use panic::SendPanicsToTracing;
-use tracing_subscriber::{prelude::*, EnvFilter};
+use commands::logging::LoggingLevel;
 
 enum ReturnCode {
     ConversionFailed = 1,
@@ -39,6 +40,9 @@ fn main() -> Result<(), std::io::Error> {
 Examples:
     # Run the InfluxDB IOx server:
     influxdb_iox
+
+    # Display all current config settings
+    influxdb_iox config show
 
     # Run the InfluxDB IOx server with extra verbose logging
     influxdb_iox -v
@@ -118,6 +122,12 @@ Examples:
                 ),
         )
         .subcommand(
+            SubCommand::with_name("config")
+                .about("Configuration display and manipulation")
+                .subcommand(SubCommand::with_name("show").help("show current configuration information"))
+                .subcommand(SubCommand::with_name("help").help("explain detailed configuration options"))
+        )
+         .subcommand(
             SubCommand::with_name("server")
                 .about("Runs in server mode (default)")
         )
@@ -127,6 +137,9 @@ Examples:
         ))
         .arg(Arg::with_name("num-threads").long("num-threads").takes_value(true).help(
             "Set the maximum number of threads to use. Defaults to the number of cores on the system",
+        ))
+        .arg(Arg::with_name("ignore-config-file").long("ignore-config-file").takes_value(false).help(
+            "If specified, ignores the default configuration file, if any. Configuration is read from the environment only",
         ))
         .get_matches();
 
@@ -138,19 +151,18 @@ Examples:
 }
 
 async fn dispatch_args(matches: ArgMatches<'_>) {
-    let _drop_handle = setup_logging(matches.occurrences_of("verbose"));
+    // Logging level is determined via:
+    // 1. If RUST_LOG environment variable is set, use that value
+    // 2. if `-vv` (multiple instances of verbose), use DEFAULT_DEBUG_LOG_LEVEL
+    // 2. if `-v` (single instances of verbose), use DEFAULT_VERBOSE_LOG_LEVEL
+    // 3. Otherwise use DEFAULT_LOG_LEVEL
+    let logging_level = LoggingLevel::new(matches.occurrences_of("verbose"));
 
-    // Install custom panic handler and forget about it.
-    //
-    // This leaks the handler and prevents it from ever being dropped during the
-    // lifetime of the program - this is actually a good thing, as it prevents
-    // the panic handler from being removed while unwinding a panic (which in
-    // turn, causes a panic - see #548)
-    let f = SendPanicsToTracing::new();
-    std::mem::forget(f);
+    let ignore_config_file = matches.occurrences_of("ignore-config-file") > 0;
 
     match matches.subcommand() {
         ("convert", Some(sub_matches)) => {
+            logging_level.setup_basic_logging();
             let input_path = sub_matches.value_of("INPUT").unwrap();
             let output_path = sub_matches.value_of("OUTPUT").unwrap();
             let compression_level =
@@ -164,6 +176,7 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
             }
         }
         ("meta", Some(sub_matches)) => {
+            logging_level.setup_basic_logging();
             let input_filename = sub_matches.value_of("INPUT").unwrap();
             match commands::file_meta::dump_meta(&input_filename) {
                 Ok(()) => debug!("Metadata dump completed successfully"),
@@ -174,6 +187,7 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
             }
         }
         ("stats", Some(sub_matches)) => {
+            logging_level.setup_basic_logging();
             let config = commands::stats::StatsConfig {
                 input_path: sub_matches.value_of("INPUT").unwrap().into(),
                 per_file: sub_matches.is_present("per-file"),
@@ -188,9 +202,19 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
                 }
             }
         }
+        ("config", Some(sub_matches)) => {
+            logging_level.setup_basic_logging();
+            match sub_matches.subcommand() {
+                ("show", _) => commands::config::show_config(ignore_config_file),
+                ("help", _) => commands::config::describe_config(ignore_config_file),
+                (command, _) => panic!("Unknown subcommand for config: {}", command),
+            }
+        }
         ("server", Some(_)) | (_, _) => {
+            // Note don't set up basic logging here, different logging rules appy in server
+            // mode
             println!("InfluxDB IOx server starting");
-            match commands::server::main().await {
+            match commands::server::main(logging_level, ignore_config_file).await {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {
                     error!("Server shutdown with error: {}", e);
@@ -199,88 +223,6 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
             }
         }
     }
-}
-
-/// Default debug level is debug for everything except
-/// some especially noisy low level libraries
-const DEFAULT_DEBUG_LOG_LEVEL: &str = "debug,hyper::proto::h1=info,h2=info";
-
-// Default verbose log level is info level for all components
-const DEFAULT_VERBOSE_LOG_LEVEL: &str = "info";
-
-// Default log level is warn level for all components
-const DEFAULT_LOG_LEVEL: &str = "warn";
-
-/// Configures logging in the following precedence:
-///
-/// 1. If RUST_LOG environment variable is set, use that value
-/// 2. if `-vv` (multiple instances of verbose), use DEFAULT_DEBUG_LOG_LEVEL
-/// 2. if `-v` (single instances of verbose), use DEFAULT_VERBOSE_LOG_LEVEL
-/// 3. Otherwise use DEFAULT_LOG_LEVEL
-fn setup_logging(num_verbose: u64) -> Option<opentelemetry_jaeger::Uninstall> {
-    let rust_log_env = std::env::var("RUST_LOG");
-
-    match rust_log_env {
-        Ok(lvl) => {
-            if num_verbose > 0 {
-                eprintln!(
-                    "WARNING: Using RUST_LOG='{}' environment, ignoring -v command line",
-                    lvl
-                );
-            }
-        }
-        Err(_) => match num_verbose {
-            0 => std::env::set_var("RUST_LOG", DEFAULT_LOG_LEVEL),
-            1 => std::env::set_var("RUST_LOG", DEFAULT_VERBOSE_LOG_LEVEL),
-            _ => std::env::set_var("RUST_LOG", DEFAULT_DEBUG_LOG_LEVEL),
-        },
-    }
-
-    // Configure the OpenTelemetry tracer, if requested.
-    //
-    // To enable the tracing functionality, set OTEL_EXPORTER_JAEGER_AGENT_HOST
-    // env to some suitable value (see below).
-    //
-    // The Jaeger layer emits traces under the service name of "iox" if not
-    // overwrote by the user by setting the env below. All configuration is
-    // sourced from the environment:
-    //
-    // - OTEL_SERVICE_NAME: emitter service name (iox by default)
-    // - OTEL_EXPORTER_JAEGER_AGENT_HOST: hostname/address of the collector
-    // - OTEL_EXPORTER_JAEGER_AGENT_PORT: listening port of the collector
-    //
-    let (opentelemetry, drop_handle) = if std::env::var("OTEL_EXPORTER_JAEGER_AGENT_HOST").is_ok() {
-        // Initialise the jaeger event emitter
-        let (tracer, drop_handle) = opentelemetry_jaeger::new_pipeline()
-            .with_service_name("iox")
-            .from_env()
-            .install()
-            .expect("failed to initialise the Jaeger tracing sink");
-
-        // Initialise the opentelemetry tracing layer, giving it the jaeger emitter
-        let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-
-        (Some(opentelemetry), Some(drop_handle))
-    } else {
-        (None, None)
-    };
-
-    // Configure the logger to write to stderr
-    let logger = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
-
-    // Register the chain of event subscribers:
-    //
-    //      - Jaeger tracing emitter
-    //      - Env filter (using RUST_LOG as the filter env)
-    //      - A stdout logger
-    //
-    tracing_subscriber::registry()
-        .with(opentelemetry)
-        .with(EnvFilter::from_default_env())
-        .with(logger)
-        .init();
-
-    drop_handle
 }
 
 /// Creates the tokio runtime for executing IOx

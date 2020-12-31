@@ -115,25 +115,19 @@ InstalledDir: /Library/Developer/CommandLineTools/usr/bin
 
 ### Specifying Configuration
 
-**OPTIONAL:** There are a number of configuration variables you can choose to customize by
-specifying values for environment variables in a `.env` file. To get an example file to start from,
-run:
+IOx is designed for running in modern containerized environments. As
+such, it takes its configuration as enviroment variables.
 
-```shell
-cp docs/env.example .env
-```
+You can see a list of the current configuration values by running `influxdb_iox config show`.
 
-then edit the newly-created `.env` file.
 
-For development purposes, the most relevant environment variables are the `INFLUXDB_IOX_DB_DIR` and
-`TEST_INFLUXDB_IOX_DB_DIR` variables that configure where files are stored on disk. The default
-values are shown in the comments in the example file; to change them, uncomment the relevant lines
-and change the values to the directories in which you'd like to store the files instead:
+You can see a list of all available configuration items using the `influxdb_iox config help` 
+command.
 
-```shell
-INFLUXDB_IOX_DB_DIR=/some/place/else
-TEST_INFLUXDB_IOX_DB_DIR=/another/place
-```
+Should you desire specifying config via a file, you can do so using a `.env` formatted file in `$HOME/.influxdb_iox/config`. 
+Note that you can save the current config values by saving the output of 
+`influxdb_iox config show` into `$HOME/.influxdb_iox/config`
+
 
 ### Compiling and Starting the Server
 

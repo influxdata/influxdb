@@ -842,13 +842,13 @@ struct TestServer {
 
 impl TestServer {
     fn new() -> Result<Self> {
-        let _ = dotenv::dotenv(); // load .env file if present
-
         let dir = test_helpers::tmp_dir()?;
 
         let server_process = Command::cargo_bin("influxdb_iox")?
             // Can enable for debbugging
             //.arg("-vv")
+            // ignore any config file in the user's home directory
+            .arg("--ignore-config-file")
             .env("INFLUXDB_IOX_DB_DIR", dir.path())
             .env("INFLUXDB_IOX_ID", "1")
             .spawn()?;
@@ -866,7 +866,10 @@ impl TestServer {
         self.server_process = Command::cargo_bin("influxdb_iox")?
             // Can enable for debbugging
             //.arg("-vv")
+            // ignore any config file in the user's home directory
+            .arg("--ignore-config-file")
             .env("INFLUXDB_IOX_DB_DIR", self.dir.path())
+            .env("INFLUXDB_IOX_ID", "1")
             .spawn()?;
         Ok(())
     }

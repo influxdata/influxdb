@@ -441,6 +441,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "config"
+version = "0.1.0"
+dependencies = [
+ "dirs 3.0.1",
+ "dotenv",
+ "snafu",
+ "test_helpers",
+]
+
+[[package]]
 name = "const_fn"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1349,11 +1359,11 @@ dependencies = [
  "byteorder",
  "bytes",
  "clap",
+ "config",
  "criterion",
  "csv",
  "data_types",
- "dirs 3.0.1",
- "dotenv",
+ "env_logger",
  "flate2",
  "futures",
  "generated_types",
