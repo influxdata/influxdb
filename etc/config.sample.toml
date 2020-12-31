@@ -67,6 +67,10 @@
   # log any sensitive data contained within a query.
   # query-log-enabled = true
 
+  # Provides more error checking. For example, SELECT INTO will err out inserting an +/-Inf value
+  # rather than silently failing.
+  # strict-error-handling = false
+
   # Validates incoming writes to ensure keys only have valid unicode characters.
   # This setting will incur a small overhead because every key must be checked.
   # validate-keys = false

@@ -215,11 +215,12 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 			MetaClient: s.MetaClient,
 			TSDBStore:  coordinator.LocalTSDBStore{Store: s.TSDBStore},
 		},
-		Monitor:           s.Monitor,
-		PointsWriter:      s.PointsWriter,
-		MaxSelectPointN:   c.Coordinator.MaxSelectPointN,
-		MaxSelectSeriesN:  c.Coordinator.MaxSelectSeriesN,
-		MaxSelectBucketsN: c.Coordinator.MaxSelectBucketsN,
+		StrictErrorHandling: s.TSDBStore.EngineOptions.Config.StrictErrorHandling,
+		Monitor:             s.Monitor,
+		PointsWriter:        s.PointsWriter,
+		MaxSelectPointN:     c.Coordinator.MaxSelectPointN,
+		MaxSelectSeriesN:    c.Coordinator.MaxSelectSeriesN,
+		MaxSelectBucketsN:   c.Coordinator.MaxSelectBucketsN,
 	}
 	s.QueryExecutor.TaskManager.QueryTimeout = time.Duration(c.Coordinator.QueryTimeout)
 	s.QueryExecutor.TaskManager.LogQueriesAfter = time.Duration(c.Coordinator.LogQueriesAfter)
