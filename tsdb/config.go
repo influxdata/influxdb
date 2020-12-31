@@ -93,6 +93,9 @@ type Config struct {
 	// Enables unicode validation on series keys on write.
 	ValidateKeys bool `toml:"validate-keys"`
 
+	// Enables strict error handling. For example, forces SELECT INTO to err out on INF values.
+	StrictErrorHandling bool `toml:"strict-error-handling"`
+
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 
@@ -155,7 +158,8 @@ func NewConfig() Config {
 		Engine: DefaultEngine,
 		Index:  DefaultIndex,
 
-		QueryLogEnabled: true,
+		StrictErrorHandling: false,
+		QueryLogEnabled:     true,
 
 		CacheMaxMemorySize:             toml.Size(DefaultCacheMaxMemorySize),
 		CacheSnapshotMemorySize:        toml.Size(DefaultCacheSnapshotMemorySize),
@@ -229,6 +233,7 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"dir":                                    c.Dir,
 		"wal-dir":                                c.WALDir,
 		"wal-fsync-delay":                        c.WALFsyncDelay,
+		"strict-error-handling":                  c.StrictErrorHandling,
 		"cache-max-memory-size":                  c.CacheMaxMemorySize,
 		"cache-snapshot-memory-size":             c.CacheSnapshotMemorySize,
 		"cache-snapshot-write-cold-duration":     c.CacheSnapshotWriteColdDuration,
