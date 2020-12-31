@@ -431,7 +431,7 @@ mod tests {
     use data_types::database_rules::{MatchTables, Matcher, Subscription};
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
-    use object_store::{InMemory, ObjectStoreIntegration};
+    use object_store::{memory::InMemory, ObjectStoreIntegration};
     use snafu::Snafu;
     use std::sync::Mutex;
 

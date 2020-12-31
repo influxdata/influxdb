@@ -327,7 +327,7 @@ mod tests {
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
     use mutable_buffer::chunk::Chunk as ChunkWB;
-    use object_store::InMemory;
+    use object_store::memory::InMemory;
 
     #[tokio::test]
     async fn snapshot() {

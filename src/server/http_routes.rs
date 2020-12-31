@@ -576,7 +576,7 @@ mod tests {
 
     use data_types::database_rules::DatabaseRules;
     use data_types::DatabaseName;
-    use object_store::{InMemory, ObjectStore};
+    use object_store::{memory::InMemory, ObjectStore};
     use server::server::ConnectionManagerImpl;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;

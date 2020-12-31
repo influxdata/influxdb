@@ -10,7 +10,7 @@ use crate::server::rpc::service;
 use server::server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 
 use hyper::Server;
-use object_store::{self, GoogleCloudStorage, ObjectStore};
+use object_store::{self, gcp::GoogleCloudStorage, ObjectStore};
 use query::exec::Executor as QueryExecutor;
 
 use snafu::{ResultExt, Snafu};
@@ -97,7 +97,7 @@ pub async fn main(logging_level: LoggingLevel, ignore_config_file: bool) -> Resu
         ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name))
     } else {
         info!("Using local dir {:?} for storage", db_dir);
-        ObjectStore::new_file(object_store::File::new(&db_dir))
+        ObjectStore::new_file(object_store::disk::File::new(&db_dir))
     };
     let object_storage = Arc::new(object_store);
 
