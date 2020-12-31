@@ -51,6 +51,9 @@ type StatementExecutor struct {
 		WritePointsInto(*IntoWriteRequest) error
 	}
 
+	// Disallow INF values in SELECT INTO and other previously ignored errors
+	StrictErrorHandling bool
+
 	// Select statement limits
 	MaxSelectPointN   int
 	MaxSelectSeriesN  int
@@ -573,7 +576,7 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 
 		// Write points back into system for INTO statements.
 		if stmt.Target != nil {
-			n, err := e.writeInto(pointsWriter, stmt, row)
+			n, err := e.writeInto(pointsWriter, stmt, row, e.StrictErrorHandling)
 			if err != nil {
 				return err
 			}
@@ -1188,7 +1191,7 @@ func (w *BufferedPointsWriter) Len() int { return len(w.buf) }
 // Cap returns the capacity (in points) of the buffer.
 func (w *BufferedPointsWriter) Cap() int { return cap(w.buf) }
 
-func (e *StatementExecutor) writeInto(w pointsWriter, stmt *influxql.SelectStatement, row *models.Row) (n int64, err error) {
+func (e *StatementExecutor) writeInto(w pointsWriter, stmt *influxql.SelectStatement, row *models.Row, strictErrorHandling bool) (n int64, err error) {
 	if stmt.Target.Measurement.Database == "" {
 		return 0, errNoDatabaseInTarget
 	}
@@ -1205,7 +1208,7 @@ func (e *StatementExecutor) writeInto(w pointsWriter, stmt *influxql.SelectState
 		name = row.Name
 	}
 
-	points, err := convertRowToPoints(name, row)
+	points, err := convertRowToPoints(name, row, strictErrorHandling)
 	if err != nil {
 		return 0, err
 	}
@@ -1224,7 +1227,7 @@ func (e *StatementExecutor) writeInto(w pointsWriter, stmt *influxql.SelectState
 var errNoDatabaseInTarget = errors.New("no database in target")
 
 // convertRowToPoints will convert a query result Row into Points that can be written back in.
-func convertRowToPoints(measurementName string, row *models.Row) ([]models.Point, error) {
+func convertRowToPoints(measurementName string, row *models.Row, strictErrorHandling bool) ([]models.Point, error) {
 	// figure out which parts of the result are the time and which are the fields
 	timeIndex := -1
 	fieldIndexes := make(map[string]int)
@@ -1256,13 +1259,16 @@ func convertRowToPoints(measurementName string, row *models.Row) ([]models.Point
 
 		p, err := models.NewPoint(measurementName, models.NewTags(row.Tags), vals, v[timeIndex].(time.Time))
 		if err != nil {
-			// Drop points that can't be stored
-			continue
+			if !strictErrorHandling {
+				// Drop points that can't be stored
+				continue
+			} else {
+				return nil, err
+			}
 		}
 
 		points = append(points, p)
 	}
-
 	return points, nil
 }
 
