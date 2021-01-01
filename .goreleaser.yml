@@ -119,14 +119,33 @@ dockers:
       - influxd
       - influx
     image_templates:
-      - "quay.io/influxdb/influxdb2:{{ .Tag }}"
+      - "quay.io/influxdb/influxdb-amd64:{{ .Tag }}"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - goos: linux
+    goarch: arm64
+    binaries:
+      - influxd
+      - influx
+    image_templates:
+      - "quay.io/influxdb/influxdb-arm64v8:{{ .Tag }}"
+    dockerfile: docker/influxd/Dockerfile
+    extra_files:
+      - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+
+docker_manifests:
+  - name_template: "quay.io/influxdb/influxdb:{{ .Tag }}"
+    image_templates:
+      - "quay.io/influxdb/influxdb-amd64:{{ .Tag }}"
+      - "quay.io/influxdb/influxdb-arm64v8:{{ .Tag }}"
 
 signs:
-  -
-    signature: "${artifact}.asc"
+  - signature: "${artifact}.asc"
     cmd: gpg
     args: [ "--passphrase", "{{.Env.PASSPHRASE}}",  "--pinentry-mode=loopback", "--batch", "--armor",  "--detach-sign", "${artifact}"]
     artifacts: all

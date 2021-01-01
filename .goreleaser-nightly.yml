@@ -108,10 +108,30 @@ dockers:
       - influxd
       - influx
     image_templates:
-      - "quay.io/influxdb/influxdb2:nightly"
+      - "quay.io/influxdb/influxdb-amd64:nightly"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - goos: linux
+    goarch: arm64
+    binaries:
+      - influxd
+      - influx
+    image_templates:
+      - "quay.io/influxdb/influxdb-arm64v8:nightly"
+    dockerfile: docker/influxd/Dockerfile
+    extra_files:
+      - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+
+docker_manifests:
+  - name_template: "quay.io/influxdb/influxdb:nightly"
+    image_templates:
+      - "quay.io/influxdb/influxdb-amd64:nightly"
+      - "quay.io/influxdb/influxdb-arm64v8:nightly"
 
 # Do not make github release
 release:
