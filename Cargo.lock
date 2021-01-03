@@ -1990,6 +1990,7 @@ name = "object_store"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "chrono",
  "cloud-storage",
  "dotenv",
  "futures",

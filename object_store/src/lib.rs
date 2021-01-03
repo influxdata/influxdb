@@ -26,6 +26,7 @@ use gcp::GoogleCloudStorage;
 use memory::InMemory;
 
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, TryStreamExt};
 use snafu::Snafu;
 use std::{io, path::PathBuf};
@@ -110,6 +111,19 @@ impl ObjectStore {
         }
         .err_into())
     }
+
+    /// List objects with the given prefix and an implementation specific
+    /// delimiter. Returns common prefixes (directories) in addition to object
+    /// metadata.
+    pub async fn list_with_delimiter<'a>(&'a self, prefix: Option<&'a str>) -> Result<ListResult> {
+        use ObjectStoreIntegration::*;
+        match &self.0 {
+            AmazonS3(s3) => s3.list_with_delimiter(prefix, &None).await,
+            GoogleCloudStorage(_gcs) => unimplemented!(),
+            InMemory(_in_mem) => unimplemented!(),
+            File(_file) => unimplemented!(),
+        }
+    }
 }
 
 /// All supported object storage integrations
@@ -125,6 +139,30 @@ pub enum ObjectStoreIntegration {
     File(File),
 }
 
+/// Result of a list call that includes objects, prefixes (directories) and a
+/// token for the next set of results. Individual results sets are limited to
+/// 1,000 objects.
+#[derive(Debug)]
+pub struct ListResult {
+    /// Token passed to the API for the next page of list results.
+    pub next_token: Option<String>,
+    /// Prefixes that are common (like directories)
+    pub common_prefixes: Vec<String>,
+    /// Object metadata for the listing
+    pub objects: Vec<ObjectMeta>,
+}
+
+/// The metadata that describes an object.
+#[derive(Debug)]
+pub struct ObjectMeta {
+    /// The full path to the object
+    pub location: String,
+    /// The last modified time
+    pub last_modified: DateTime<Utc>,
+    /// The size in bytes of the object
+    pub size: usize,
+}
+
 /// A specialized `Result` for object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -135,6 +173,11 @@ pub enum Error {
     DataDoesNotMatchLength {
         expected: usize,
         actual: usize,
+    },
+    #[snafu(display("Unable to parse last modified time {}: {}", value, err))]
+    UnableToParseLastModifiedTime {
+        value: String,
+        err: chrono::ParseError,
     },
 
     UnableToPutDataToGcs {
@@ -274,6 +317,8 @@ mod tests {
     }
 
     pub(crate) async fn put_get_delete_list(storage: &ObjectStore) -> Result<()> {
+        delete_fixtures(storage).await;
+
         let content_list = flatten_list_stream(storage, None).await?;
         assert!(content_list.is_empty());
 
@@ -317,6 +362,58 @@ mod tests {
         Ok(())
     }
 
+    pub(crate) async fn list_with_delimiter(storage: &ObjectStore) -> Result<()> {
+        delete_fixtures(storage).await;
+
+        let content_list = flatten_list_stream(storage, None).await?;
+        assert!(content_list.is_empty());
+
+        let data = Bytes::from("arbitrary data");
+
+        let files = vec![
+            "mydb/wal/000/000/001.segment",
+            "mydb/wal/001/001/000.segment",
+            "mydb/wal/foo.test",
+        ];
+
+        let time_before_creation = Utc::now();
+
+        for f in &files {
+            let stream_data = std::io::Result::Ok(data.clone());
+            storage
+                .put(
+                    f,
+                    futures::stream::once(async move { stream_data }),
+                    data.len(),
+                )
+                .await
+                .unwrap();
+        }
+
+        let result = storage
+            .list_with_delimiter(Some("mydb/wal/"))
+            .await
+            .unwrap();
+        assert_eq!(
+            result.common_prefixes,
+            vec!["mydb/wal/000/", "mydb/wal/001/"]
+        );
+        assert_eq!(result.objects.len(), 1);
+        let object = &result.objects[0];
+        assert_eq!(object.location, "mydb/wal/foo.test");
+        assert_eq!(object.size, data.len());
+        assert!(object.last_modified > time_before_creation);
+
+        for f in files {
+            storage.delete(f).await.unwrap();
+        }
+
+        let content_list = flatten_list_stream(storage, None).await?;
+        assert!(content_list.is_empty());
+
+        Ok(())
+    }
+
     #[cfg(any(test_aws, test_gcs))]
     pub(crate) async fn get_nonexistent_object(
         storage: &ObjectStore,
@@ -334,6 +431,20 @@ mod tests {
             .try_concat()
             .await?
             .freeze())
+    }
+
+    async fn delete_fixtures(storage: &ObjectStore) {
+        let files = vec![
+            "test_file",
+            "mydb/wal/000/000/001.segment",
+            "mydb/wal/001/001/000.segment",
+            "mydb/wal/foo.test",
+        ];
+
+        for f in files {
+            // don't care if it errors, should fail elsewhere
+            let _ = storage.delete(f).await;
+        }
     }
 
     // Tests TODO:

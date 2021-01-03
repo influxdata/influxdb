@@ -1,16 +1,21 @@
 //! This module contains the IOx implementation for using S3 as the object
 //! store.
 use crate::{
-    Error, NoDataFromS3, Result, UnableToDeleteDataFromS3, UnableToGetDataFromS3,
-    UnableToGetPieceOfDataFromS3, UnableToPutDataToS3,
+    Error, ListResult, NoDataFromS3, ObjectMeta, Result, UnableToDeleteDataFromS3,
+    UnableToGetDataFromS3, UnableToGetPieceOfDataFromS3, UnableToPutDataToS3,
 };
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use futures::{stream, Stream, TryStreamExt};
 use rusoto_core::ByteStream;
 use rusoto_credential::ChainProvider;
 use rusoto_s3::S3;
 use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt};
+use std::convert::TryFrom;
 use std::{fmt, io};
+
+// The delimiter to separate object namespaces, creating a directory structure.
+const DELIMITER: &str = "/";
 
 /// Configuration for connecting to [Amazon S3](https://aws.amazon.com/s3/).
 pub struct AmazonS3 {
@@ -181,6 +186,79 @@ impl AmazonS3 {
             Some((Ok(names), next_state))
         }))
     }
+
+    /// List objects with the given prefix and a set delimiter of `/`. Returns
+    /// common prefixes (directories) in addition to object metadata.
+    pub async fn list_with_delimiter<'a>(
+        &'a self,
+        prefix: Option<&'a str>,
+        next_token: &Option<String>,
+    ) -> Result<ListResult> {
+        let mut list_request = rusoto_s3::ListObjectsV2Request {
+            bucket: self.bucket_name.clone(),
+            prefix: prefix.map(ToString::to_string),
+            delimiter: Some(DELIMITER.to_string()),
+            ..Default::default()
+        };
+
+        if let Some(t) = next_token {
+            list_request.continuation_token = Some(t.clone());
+        }
+
+        let resp = match self.client.list_objects_v2(list_request).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                return Err(Error::UnableToListDataFromS3 {
+                    source: e,
+                    bucket: self.bucket_name.clone(),
+                })
+            }
+        };
+
+        let contents = resp.contents.unwrap_or_default();
+        let objects: Vec<_> = contents
+            .into_iter()
+            .map(|object| {
+                let location = object.key.expect("object doesn't exist without a key");
+                let last_modified = match object.last_modified {
+                    Some(lm) => {
+                        DateTime::parse_from_rfc3339(&lm)
+                            .unwrap()
+                            .with_timezone(&Utc)
+                        // match dt {
+                        //     Err(err) => return
+                        // Err(Error::UnableToParseLastModifiedTime{value: lm,
+                        // err})     Ok(dt) =>
+                        // dt.with_timezone(&Utc), }
+                    }
+                    None => Utc::now(),
+                };
+                let size = usize::try_from(object.size.unwrap_or(0))
+                    .expect("unsupported size on this platform");
+
+                ObjectMeta {
+                    location,
+                    last_modified,
+                    size,
+                }
+            })
+            .collect();
+
+        let common_prefixes = resp
+            .common_prefixes
+            .unwrap_or_default()
+            .into_iter()
+            .map(|p| p.prefix.expect("can't have a prefix without a value"))
+            .collect();
+
+        let result = ListResult {
+            objects,
+            common_prefixes,
+            next_token: resp.next_continuation_token,
+        };
+
+        Ok(result)
+    }
 }
 
 impl Error {
@@ -225,6 +303,7 @@ mod tests {
         use std::env;
 
         use super::super::*;
+        use crate::tests::list_with_delimiter;
 
         type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
         type Result<T, E = TestError> = std::result::Result<T, E>;
@@ -261,6 +340,8 @@ mod tests {
 
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
             check_credentials(put_get_delete_list(&integration).await)?;
+
+            check_credentials(list_with_delimiter(&integration).await).unwrap();
 
             Ok(())
         }
