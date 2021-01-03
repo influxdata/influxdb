@@ -1,11 +1,18 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
-use crate::{DataDoesNotMatchLength, NoDataInMemory, Result, UnableToPutDataInMemory};
+use crate::{
+    DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta, Result, UnableToPutDataInMemory,
+};
 use bytes::Bytes;
+use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use snafu::{ensure, OptionExt, ResultExt};
+use std::collections::BTreeSet;
 use std::{collections::BTreeMap, io};
 use tokio::sync::RwLock;
+
+// The delimiter to separate object namespaces, creating a directory structure.
+const DELIMITER: &str = "/";
 
 /// In-memory storage suitable for testing or for opting out of using a cloud
 /// storage provider.
@@ -96,6 +103,62 @@ impl InMemory {
 
         Ok(futures::stream::once(async move { Ok(list) }))
     }
+
+    /// List objects with the given prefix and a set delimiter of `/`. Returns
+    /// common prefixes (directories) in addition to object metadata. The
+    /// memory implementation returns all results, as opposed to the cloud
+    /// versions which limit their results to 1k or more because of API
+    /// limitations.
+    pub async fn list_with_delimiter<'a>(
+        &'a self,
+        prefix: &'a str,
+        _next_token: &Option<String>,
+    ) -> Result<ListResult> {
+        let mut common_prefixes = BTreeSet::new();
+        let last_modified = Utc::now();
+
+        // first ensure the prefix ends with the delimiter
+        let prefix = if prefix.ends_with(DELIMITER) {
+            prefix.to_string()
+        } else {
+            prefix.to_string() + DELIMITER
+        };
+
+        // set the end prefix so we pull back everything that starts with
+        // the passed in prefix
+        let mut end_prefix = prefix.clone();
+        end_prefix.pop();
+        end_prefix.push('0');
+
+        // Only objects in this base level should be returned in the
+        // response. Otherwise, we just collect the common prefixes.
+        let mut objects = vec![];
+        for (k, v) in self.storage.read().await.range(prefix.clone()..end_prefix) {
+            let parts: Vec<_> = k
+                .strip_prefix(&prefix)
+                .expect("must have prefix if in range")
+                .split(DELIMITER)
+                .collect();
+
+            if parts.len() >= 2 {
+                let full_prefix = prefix.clone() + parts[0] + DELIMITER;
+                common_prefixes.insert(full_prefix);
+            } else {
+                let object = ObjectMeta {
+                    location: k.clone(),
+                    last_modified,
+                    size: v.len(),
+                };
+                objects.push(object);
+            }
+        }
+
+        Ok(ListResult {
+            objects,
+            common_prefixes: common_prefixes.into_iter().collect(),
+            next_token: None,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -107,7 +170,10 @@ mod tests {
 
     mod in_memory {
         use super::*;
-        use crate::{tests::put_get_delete_list, Error, ObjectStore};
+        use crate::{
+            tests::{list_with_delimiter, put_get_delete_list},
+            Error, ObjectStore,
+        };
         use futures::stream;
 
         #[tokio::test]
@@ -115,6 +181,9 @@ mod tests {
             let integration = ObjectStore::new_in_memory(InMemory::new());
 
             put_get_delete_list(&integration).await?;
+
+            list_with_delimiter(&integration).await.unwrap();
+
             Ok(())
         }
 

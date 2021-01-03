@@ -191,12 +191,12 @@ impl AmazonS3 {
     /// common prefixes (directories) in addition to object metadata.
     pub async fn list_with_delimiter<'a>(
         &'a self,
-        prefix: Option<&'a str>,
+        prefix: &'a str,
         next_token: &Option<String>,
     ) -> Result<ListResult> {
         let mut list_request = rusoto_s3::ListObjectsV2Request {
             bucket: self.bucket_name.clone(),
-            prefix: prefix.map(ToString::to_string),
+            prefix: Some(prefix.to_string()),
             delimiter: Some(DELIMITER.to_string()),
             ..Default::default()
         };

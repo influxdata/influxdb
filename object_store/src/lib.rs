@@ -115,12 +115,12 @@ impl ObjectStore {
     /// List objects with the given prefix and an implementation specific
     /// delimiter. Returns common prefixes (directories) in addition to object
     /// metadata.
-    pub async fn list_with_delimiter<'a>(&'a self, prefix: Option<&'a str>) -> Result<ListResult> {
+    pub async fn list_with_delimiter<'a>(&'a self, prefix: &'a str) -> Result<ListResult> {
         use ObjectStoreIntegration::*;
         match &self.0 {
             AmazonS3(s3) => s3.list_with_delimiter(prefix, &None).await,
             GoogleCloudStorage(_gcs) => unimplemented!(),
-            InMemory(_in_mem) => unimplemented!(),
+            InMemory(in_mem) => in_mem.list_with_delimiter(prefix, &None).await,
             File(_file) => unimplemented!(),
         }
     }
@@ -371,9 +371,11 @@ mod tests {
         let data = Bytes::from("arbitrary data");
 
         let files = vec![
+            "mydb/wal/000/000/000.segment",
             "mydb/wal/000/000/001.segment",
             "mydb/wal/001/001/000.segment",
             "mydb/wal/foo.test",
+            "mydb/data/whatevs",
         ];
 
         let time_before_creation = Utc::now();
@@ -390,10 +392,7 @@ mod tests {
                 .unwrap();
         }
 
-        let result = storage
-            .list_with_delimiter(Some("mydb/wal/"))
-            .await
-            .unwrap();
+        let result = storage.list_with_delimiter("mydb/wal/").await.unwrap();
         assert_eq!(
             result.common_prefixes,
             vec!["mydb/wal/000/", "mydb/wal/001/"]
@@ -436,9 +435,11 @@ mod tests {
     async fn delete_fixtures(storage: &ObjectStore) {
         let files = vec![
             "test_file",
+            "mydb/wal/000/000/000.segment",
             "mydb/wal/000/000/001.segment",
             "mydb/wal/001/001/000.segment",
             "mydb/wal/foo.test",
+            "mydb/data/whatevs",
         ];
 
         for f in files {
