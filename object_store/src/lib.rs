@@ -321,7 +321,11 @@ mod tests {
         delete_fixtures(storage).await;
 
         let content_list = flatten_list_stream(storage, None).await?;
-        assert!(content_list.is_empty());
+        assert!(
+            content_list.is_empty(),
+            "Expected list to be empty; found: {:?}",
+            content_list
+        );
 
         let data = Bytes::from("arbitrary data");
         let location = "test_file";
