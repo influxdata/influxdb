@@ -280,3 +280,22 @@ func Test_RequiredFlag(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, `required flag(s) "foo" not set`, err.Error())
 }
+
+func Test_InvalidEnv(t *testing.T) {
+	var testInt int
+	program := &Program{
+		Name: "test",
+		Opts: []Opt{
+			{
+				DestP:    &testInt,
+				Flag:     "foo",
+				Required: true,
+			},
+		},
+	}
+
+	defer setEnvVar("TEST_FOO", "not an int")()
+	_, err := NewCommand(viper.New(), program)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `invalid int value "not an int" found in config or env for option "foo"`)
+}

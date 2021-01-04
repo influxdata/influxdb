@@ -125,9 +125,11 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				return err
 			}
 			if envVal != nil {
-				if s, err := cast.ToStringE(envVal); err == nil {
-					*destP = s
+				s, err := cast.ToStringE(envVal)
+				if err != nil {
+					return fmt.Errorf("invalid string value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
+				*destP = s
 			}
 
 		case *int:
@@ -144,9 +146,11 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				return err
 			}
 			if envVal != nil {
-				if i, err := cast.ToIntE(envVal); err == nil {
-					*destP = i
+				i, err := cast.ToIntE(envVal)
+				if err != nil {
+					return fmt.Errorf("invalid int value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
+				*destP = i
 			}
 
 		case *int32:
@@ -178,9 +182,11 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				return err
 			}
 			if envVal != nil {
-				if i, err := cast.ToInt32E(envVal); err == nil {
-					*destP = i
+				i, err := cast.ToInt32E(envVal)
+				if err != nil {
+					return fmt.Errorf("invalid int value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
+				*destP = i
 			}
 
 		case *int64:
@@ -210,9 +216,11 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				return err
 			}
 			if envVal != nil {
-				if i, err := cast.ToInt64E(envVal); err == nil {
-					*destP = i
+				i, err := cast.ToInt64E(envVal)
+				if err != nil {
+					return fmt.Errorf("invalid int value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
+				*destP = i
 			}
 
 		case *bool:
@@ -229,9 +237,11 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				return err
 			}
 			if envVal != nil {
-				if b, err := cast.ToBoolE(envVal); err == nil {
-					*destP = b
+				b, err := cast.ToBoolE(envVal)
+				if err != nil {
+					return fmt.Errorf("invalid bool value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
+				*destP = b
 			}
 
 		case *time.Duration:
@@ -248,9 +258,11 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				return err
 			}
 			if envVal != nil {
-				if d, err := cast.ToDurationE(envVal); err == nil {
-					*destP = d
+				d, err := cast.ToDurationE(envVal)
+				if err != nil {
+					return fmt.Errorf("invalid duration value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
+				*destP = d
 			}
 
 		case *[]string:
@@ -267,9 +279,11 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				return err
 			}
 			if envVal != nil {
-				if ss, err := cast.ToStringSliceE(envVal); err == nil {
-					*destP = ss
+				ss, err := cast.ToStringSliceE(envVal)
+				if err != nil {
+					return fmt.Errorf("invalid string-slice value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
+				*destP = ss
 			}
 
 		case *map[string]string:
@@ -286,9 +300,11 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				return err
 			}
 			if envVal != nil {
-				if sms, err := cast.ToStringMapStringE(envVal); err == nil {
-					*destP = sms
+				sms, err := cast.ToStringMapStringE(envVal)
+				if err != nil {
+					return fmt.Errorf("invalid string-map-string value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
+				*destP = sms
 			}
 
 		case pflag.Value:
@@ -304,8 +320,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				return err
 			}
 			if envVal != nil {
-				if s, err := cast.ToStringE(envVal); err == nil {
-					_ = destP.Set(s)
+				s, err := cast.ToStringE(envVal)
+				if err == nil {
+					err = destP.Set(s)
+				}
+				if err != nil {
+					return fmt.Errorf("invalid value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
 			}
 
@@ -320,8 +340,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				IDVar(flagset, destP, o.Flag, d, o.Desc)
 			}
 			if envVal != nil {
-				if s, err := cast.ToStringE(envVal); err == nil {
-					_ = (*destP).DecodeFromString(s)
+				s, err := cast.ToStringE(envVal)
+				if err == nil {
+					err = (*destP).DecodeFromString(s)
+				}
+				if err != nil {
+					return fmt.Errorf("invalid ID value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
 			}
 
@@ -336,8 +360,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				LevelVar(flagset, destP, o.Flag, l, o.Desc)
 			}
 			if envVal != nil {
-				if s, err := cast.ToStringE(envVal); err == nil {
-					_ = (*destP).Set(s)
+				s, err := cast.ToStringE(envVal)
+				if err == nil {
+					err = (*destP).Set(s)
+				}
+				if err != nil {
+					return fmt.Errorf("invalid log-level value %q found in config or env for option %q: %w", envVal, o.Flag, err)
 				}
 			}
 
