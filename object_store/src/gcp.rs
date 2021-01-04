@@ -136,13 +136,17 @@ impl GoogleCloudStorage {
 mod test {
     #[cfg(test_gcs)]
     mod google_cloud_storage {
-        use crate::tests::{get_nonexistent_object, put_get_delete_list};
+        use crate::{
+            tests::{get_nonexistent_object, put_get_delete_list},
+            Error, GoogleCloudStorage, ObjectStore,
+        };
+        use bytes::Bytes;
         use std::env;
 
         const NON_EXISTENT_NAME: &str = "nonexistentname";
 
-        type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
-        type Result<T, E = Error> = std::result::Result<T, E>;
+        type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
+        type Result<T, E = TestError> = std::result::Result<T, E>;
 
         fn bucket_name() -> Result<String> {
             dotenv::dotenv().ok();
