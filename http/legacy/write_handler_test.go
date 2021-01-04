@@ -235,7 +235,7 @@ func TestWriteHandler_PartialWrite(t *testing.T) {
 	writePoints := pointsWriter.
 		EXPECT().
 		WritePoints(gomock.Any(), orgID, bucket.ID, pointsMatcher{points}).
-		Return(tsdb.PartialWriteError{Dropped: 1})
+		Return(tsdb.PartialWriteError{Reason: "bad points", Dropped: 1})
 
 	recordWriteEvent := eventRecorder.EXPECT().
 		Record(gomock.Any(), gomock.Any())
@@ -266,8 +266,8 @@ func TestWriteHandler_PartialWrite(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
-	assert.Equal(t, http.StatusNoContent, w.Code)
-	assert.Equal(t, "", w.Body.String())
+	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	assert.Equal(t, `{"code":"unprocessable entity","message":"failure writing points to database: partial write: bad points dropped=1"}`, w.Body.String())
 }
 
 func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {

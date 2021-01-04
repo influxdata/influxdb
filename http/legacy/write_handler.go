@@ -142,10 +142,13 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.PointsWriter.WritePoints(ctx, auth.OrgID, bucket.ID, parsed.Points); err != nil {
-		// N.B. PartialWriteError is logged instead of returned to the user to match cloud behavior.
 		if partialErr, ok := err.(tsdb.PartialWriteError); ok {
-			h.logger.Warn("partial write failure", zap.Error(partialErr))
-			sw.WriteHeader(http.StatusNoContent)
+			h.HandleHTTPError(ctx, &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
+				Op:   opWriteHandler,
+				Msg:  "failure writing points to database",
+				Err:  partialErr,
+			}, sw)
 			return
 		}
 
