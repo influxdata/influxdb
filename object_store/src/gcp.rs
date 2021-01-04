@@ -134,7 +134,6 @@ impl GoogleCloudStorage {
 
 #[cfg(test)]
 mod test {
-    #[cfg(test_gcs)]
     mod google_cloud_storage {
         use crate::{
             tests::{get_nonexistent_object, put_get_delete_list},
@@ -143,21 +142,41 @@ mod test {
         use bytes::Bytes;
         use std::env;
 
-        const NON_EXISTENT_NAME: &str = "nonexistentname";
-
         type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
         type Result<T, E = TestError> = std::result::Result<T, E>;
 
-        fn bucket_name() -> Result<String> {
-            dotenv::dotenv().ok();
-            let bucket_name = env::var("GCS_BUCKET_NAME")
-                .map_err(|_| "The environment variable GCS_BUCKET_NAME must be set")?;
+        const NON_EXISTENT_NAME: &str = "nonexistentname";
 
-            Ok(bucket_name)
+        // Helper macro to skip tests if the AWS environment variables are not set.
+        // Skips become hard errors if TEST_INTEGRATION is set.
+        macro_rules! maybe_skip_integration {
+            () => {
+                dotenv::dotenv().ok();
+
+                let bucket_name = env::var("GCS_BUCKET_NAME");
+                let force = std::env::var("TEST_INTEGRATION");
+
+                match (bucket_name.is_ok(), force.is_ok()) {
+                    (false, true) => {
+                        panic!("TEST_INTEGRATION is set, but GCS_BUCKET_NAME is not")
+                    }
+                    (false, false) => {
+                        eprintln!("skipping integration test - set GCS_BUCKET_NAME to run");
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            };
+        }
+
+        fn bucket_name() -> Result<String> {
+            Ok(env::var("GCS_BUCKET_NAME")
+                .map_err(|_| "The environment variable GCS_BUCKET_NAME must be set")?)
         }
 
         #[tokio::test]
         async fn gcs_test() -> Result<()> {
+            maybe_skip_integration!();
             let bucket_name = bucket_name()?;
 
             let integration =
@@ -168,6 +187,7 @@ mod test {
 
         #[tokio::test]
         async fn gcs_test_get_nonexistent_location() -> Result<()> {
+            maybe_skip_integration!();
             let bucket_name = bucket_name()?;
             let location_name = NON_EXISTENT_NAME;
             let integration =
@@ -185,6 +205,7 @@ mod test {
 
         #[tokio::test]
         async fn gcs_test_get_nonexistent_bucket() -> Result<()> {
+            maybe_skip_integration!();
             let bucket_name = NON_EXISTENT_NAME;
             let location_name = NON_EXISTENT_NAME;
             let integration =
@@ -199,6 +220,7 @@ mod test {
 
         #[tokio::test]
         async fn gcs_test_delete_nonexistent_location() -> Result<()> {
+            maybe_skip_integration!();
             let bucket_name = bucket_name()?;
             let location_name = NON_EXISTENT_NAME;
             let integration =
@@ -224,6 +246,7 @@ mod test {
 
         #[tokio::test]
         async fn gcs_test_delete_nonexistent_bucket() -> Result<()> {
+            maybe_skip_integration!();
             let bucket_name = NON_EXISTENT_NAME;
             let location_name = NON_EXISTENT_NAME;
             let integration =
@@ -249,6 +272,7 @@ mod test {
 
         #[tokio::test]
         async fn gcs_test_put_nonexistent_bucket() -> Result<()> {
+            maybe_skip_integration!();
             let bucket_name = NON_EXISTENT_NAME;
             let location_name = NON_EXISTENT_NAME;
             let integration =

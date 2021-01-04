@@ -263,7 +263,6 @@ impl AmazonS3 {
 
 impl Error {
     #[cfg(test)]
-    #[cfg(test_aws)]
     fn s3_error_due_to_credentials(&self) -> bool {
         use crate::Error::*;
         use rusoto_core::RusotoError;
@@ -294,7 +293,6 @@ impl Error {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(test_aws)]
     mod amazon_s3 {
         use crate::{
             tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
@@ -308,11 +306,60 @@ mod tests {
 
         const NON_EXISTENT_NAME: &str = "nonexistentname";
 
-        fn region_and_bucket_name() -> Result<(rusoto_core::Region, String)> {
-            dotenv::dotenv().ok();
+        // Helper macro to skip tests if the AWS environment variables are not set.
+        // Skips become hard errors if TEST_INTEGRATION is set.
+        macro_rules! maybe_skip_integration {
+            () => {
+                dotenv::dotenv().ok();
 
-            let region = env::var("AWS_DEFAULT_REGION")
-                .map_err(|_| "The environment variable AWS_DEFAULT_REGION must be set to a value like `us-east-2`")?;
+                let region = env::var("AWS_DEFAULT_REGION");
+                let bucket_name = env::var("AWS_S3_BUCKET_NAME");
+                let force = std::env::var("TEST_INTEGRATION");
+
+                match (region.is_ok(), bucket_name.is_ok(), force.is_ok()) {
+                    (false, false, true) => {
+                        panic!(
+                            "TEST_INTEGRATION is set, \
+                                but AWS_DEFAULT_REGION and AWS_S3_BUCKET_NAME are not"
+                        )
+                    }
+                    (false, true, true) => {
+                        panic!("TEST_INTEGRATION is set, but AWS_DEFAULT_REGION is not")
+                    }
+                    (true, false, true) => {
+                        panic!("TEST_INTEGRATION is set, but AWS_S3_BUCKET_NAME is not")
+                    }
+                    (false, false, false) => {
+                        eprintln!(
+                            "skipping integration test - set \
+                                   AWS_DEFAULT_REGION and AWS_S3_BUCKET_NAME to run"
+                        );
+                        return Ok(());
+                    }
+                    (false, true, false) => {
+                        eprintln!("skipping integration test - set AWS_DEFAULT_REGION to run");
+                        return Ok(());
+                    }
+                    (true, false, false) => {
+                        eprintln!("skipping integration test - set AWS_S3_BUCKET_NAME to run");
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            };
+        }
+
+        // Helper to get region and bucket from environment variables. Call the
+        // `maybe_skip_integration!` macro before calling this to skip the test if these
+        // aren't set; if you don't call that macro, the tests will fail if
+        // these env vars aren't set.
+        //
+        // `AWS_DEFAULT_REGION` should be a value like `us-east-2`.
+        fn region_and_bucket_name() -> Result<(rusoto_core::Region, String)> {
+            let region = env::var("AWS_DEFAULT_REGION").map_err(|_| {
+                "The environment variable AWS_DEFAULT_REGION must be set \
+                     to a value like `us-east-2`"
+            })?;
             let bucket_name = env::var("AWS_S3_BUCKET_NAME")
                 .map_err(|_| "The environment variable AWS_S3_BUCKET_NAME must be set")?;
 
@@ -324,7 +371,10 @@ mod tests {
                 let e = &**e;
                 if let Some(e) = e.downcast_ref::<crate::Error>() {
                     if e.s3_error_due_to_credentials() {
-                        eprintln!("Try setting the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables");
+                        eprintln!(
+                            "Try setting the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY \
+                                   environment variables"
+                        );
                     }
                 }
             }
@@ -334,6 +384,7 @@ mod tests {
 
         #[tokio::test]
         async fn s3_test() -> Result<()> {
+            maybe_skip_integration!();
             let (region, bucket_name) = region_and_bucket_name()?;
 
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
@@ -346,6 +397,7 @@ mod tests {
 
         #[tokio::test]
         async fn s3_test_get_nonexistent_region() -> Result<()> {
+            maybe_skip_integration!();
             // Assumes environment variables do not provide credentials to AWS US West 1
             let (_, bucket_name) = region_and_bucket_name()?;
             let region = rusoto_core::Region::UsWest1;
@@ -369,6 +421,7 @@ mod tests {
 
         #[tokio::test]
         async fn s3_test_get_nonexistent_location() -> Result<()> {
+            maybe_skip_integration!();
             let (region, bucket_name) = region_and_bucket_name()?;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
             let location_name = NON_EXISTENT_NAME;
@@ -397,6 +450,7 @@ mod tests {
 
         #[tokio::test]
         async fn s3_test_get_nonexistent_bucket() -> Result<()> {
+            maybe_skip_integration!();
             let (region, _) = region_and_bucket_name()?;
             let bucket_name = NON_EXISTENT_NAME;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
@@ -424,6 +478,7 @@ mod tests {
 
         #[tokio::test]
         async fn s3_test_put_nonexistent_region() -> Result<()> {
+            maybe_skip_integration!();
             // Assumes environment variables do not provide credentials to AWS US West 1
             let (_, bucket_name) = region_and_bucket_name()?;
             let region = rusoto_core::Region::UsWest1;
@@ -459,6 +514,7 @@ mod tests {
 
         #[tokio::test]
         async fn s3_test_put_nonexistent_bucket() -> Result<()> {
+            maybe_skip_integration!();
             let (region, _) = region_and_bucket_name()?;
             let bucket_name = NON_EXISTENT_NAME;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
@@ -493,6 +549,7 @@ mod tests {
 
         #[tokio::test]
         async fn s3_test_delete_nonexistent_location() -> Result<()> {
+            maybe_skip_integration!();
             let (region, bucket_name) = region_and_bucket_name()?;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
             let location_name = NON_EXISTENT_NAME;
@@ -506,6 +563,7 @@ mod tests {
 
         #[tokio::test]
         async fn s3_test_delete_nonexistent_region() -> Result<()> {
+            maybe_skip_integration!();
             // Assumes environment variables do not provide credentials to AWS US West 1
             let (_, bucket_name) = region_and_bucket_name()?;
             let region = rusoto_core::Region::UsWest1;
@@ -531,6 +589,7 @@ mod tests {
 
         #[tokio::test]
         async fn s3_test_delete_nonexistent_bucket() -> Result<()> {
+            maybe_skip_integration!();
             let (region, _) = region_and_bucket_name()?;
             let bucket_name = NON_EXISTENT_NAME;
             let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));

@@ -414,7 +414,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(any(test_aws, test_gcs))]
     pub(crate) async fn get_nonexistent_object(
         storage: &ObjectStore,
         location: Option<&str>,
