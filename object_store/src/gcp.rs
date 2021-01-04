@@ -1,6 +1,7 @@
 //! This module contains the IOx implementation for using Google Cloud Storage
 //! as the object store.
 use crate::{
+    path::{CloudConverter, ObjectStorePath},
     DataDoesNotMatchLength, Result, UnableToDeleteDataFromGcs, UnableToDeleteDataFromGcs2,
     UnableToGetDataFromGcs, UnableToGetDataFromGcs2, UnableToListDataFromGcs,
     UnableToListDataFromGcs2, UnableToPutDataToGcs,
@@ -25,7 +26,7 @@ impl GoogleCloudStorage {
     }
 
     /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &str, bytes: S, length: usize) -> Result<()>
+    pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -44,7 +45,8 @@ impl GoogleCloudStorage {
             }
         );
 
-        let location_copy = location.to_string();
+        let location = CloudConverter::convert(&location);
+        let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
         let _ = tokio::task::spawn_blocking(move || {
@@ -65,8 +67,12 @@ impl GoogleCloudStorage {
     }
 
     /// Return the bytes that are stored at the specified location.
-    pub async fn get(&self, location: &str) -> Result<impl Stream<Item = Result<Bytes>>> {
-        let location_copy = location.to_string();
+    pub async fn get(
+        &self,
+        location: &ObjectStorePath,
+    ) -> Result<impl Stream<Item = Result<Bytes>>> {
+        let location = CloudConverter::convert(&location);
+        let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
         let bytes = tokio::task::spawn_blocking(move || {
@@ -75,7 +81,7 @@ impl GoogleCloudStorage {
         .await
         .context(UnableToGetDataFromGcs {
             bucket: &self.bucket_name,
-            location,
+            location: location.clone(),
         })?
         .context(UnableToGetDataFromGcs2 {
             bucket: &self.bucket_name,
@@ -86,8 +92,9 @@ impl GoogleCloudStorage {
     }
 
     /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &str) -> Result<()> {
-        let location_copy = location.to_string();
+    pub async fn delete(&self, location: &ObjectStorePath) -> Result<()> {
+        let location = CloudConverter::convert(&location);
+        let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
         tokio::task::spawn_blocking(move || {
@@ -96,7 +103,7 @@ impl GoogleCloudStorage {
         .await
         .context(UnableToDeleteDataFromGcs {
             bucket: &self.bucket_name,
-            location,
+            location: location.clone(),
         })?
         .context(UnableToDeleteDataFromGcs2 {
             bucket: &self.bucket_name,
@@ -109,10 +116,10 @@ impl GoogleCloudStorage {
     /// List all the objects with the given prefix.
     pub async fn list<'a>(
         &'a self,
-        prefix: Option<&'a str>,
-    ) -> Result<impl Stream<Item = Result<Vec<String>>> + 'a> {
+        prefix: Option<&'a ObjectStorePath>,
+    ) -> Result<impl Stream<Item = Result<Vec<ObjectStorePath>>> + 'a> {
         let bucket_name = self.bucket_name.clone();
-        let prefix = prefix.map(|p| p.to_string());
+        let prefix = prefix.map(CloudConverter::convert);
 
         let objects = tokio::task::spawn_blocking(move || match prefix {
             Some(prefix) => cloud_storage::Object::list_prefix(&bucket_name, &prefix),
@@ -127,7 +134,10 @@ impl GoogleCloudStorage {
         })?;
 
         Ok(futures::stream::once(async move {
-            Ok(objects.into_iter().map(|o| o.name).collect())
+            Ok(objects
+                .into_iter()
+                .map(|o| ObjectStorePath::from_cloud_unchecked(o.name))
+                .collect())
         }))
     }
 }
@@ -135,6 +145,7 @@ impl GoogleCloudStorage {
 #[cfg(test)]
 mod test {
     use crate::{
+        path::ObjectStorePath,
         tests::{get_nonexistent_object, put_get_delete_list},
         Error, GoogleCloudStorage, ObjectStore,
     };
@@ -188,7 +199,7 @@ mod test {
     async fn gcs_test_get_nonexistent_location() -> Result<()> {
         maybe_skip_integration!();
         let bucket_name = bucket_name()?;
-        let location_name = NON_EXISTENT_NAME;
+        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
         let integration =
             ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
 
@@ -196,7 +207,10 @@ mod test {
 
         assert_eq!(
             result,
-            Bytes::from(format!("No such object: {}/{}", bucket_name, location_name))
+            Bytes::from(format!(
+                "No such object: {}/{}",
+                bucket_name, NON_EXISTENT_NAME
+            ))
         );
 
         Ok(())
@@ -206,7 +220,7 @@ mod test {
     async fn gcs_test_get_nonexistent_bucket() -> Result<()> {
         maybe_skip_integration!();
         let bucket_name = NON_EXISTENT_NAME;
-        let location_name = NON_EXISTENT_NAME;
+        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
         let integration =
             ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
 
@@ -221,11 +235,11 @@ mod test {
     async fn gcs_test_delete_nonexistent_location() -> Result<()> {
         maybe_skip_integration!();
         let bucket_name = bucket_name()?;
-        let location_name = NON_EXISTENT_NAME;
+        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
         let integration =
             ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
 
-        let err = integration.delete(location_name).await.unwrap_err();
+        let err = integration.delete(&location_name).await.unwrap_err();
 
         if let Error::UnableToDeleteDataFromGcs2 {
             source,
@@ -235,7 +249,7 @@ mod test {
         {
             assert!(matches!(source, cloud_storage::Error::Google(_)));
             assert_eq!(bucket, bucket_name);
-            assert_eq!(location, location_name);
+            assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type")
         }
@@ -247,11 +261,11 @@ mod test {
     async fn gcs_test_delete_nonexistent_bucket() -> Result<()> {
         maybe_skip_integration!();
         let bucket_name = NON_EXISTENT_NAME;
-        let location_name = NON_EXISTENT_NAME;
+        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
         let integration =
             ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
 
-        let err = integration.delete(location_name).await.unwrap_err();
+        let err = integration.delete(&location_name).await.unwrap_err();
 
         if let Error::UnableToDeleteDataFromGcs2 {
             source,
@@ -261,7 +275,7 @@ mod test {
         {
             assert!(matches!(source, cloud_storage::Error::Google(_)));
             assert_eq!(bucket, bucket_name);
-            assert_eq!(location, location_name);
+            assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type")
         }
@@ -273,7 +287,7 @@ mod test {
     async fn gcs_test_put_nonexistent_bucket() -> Result<()> {
         maybe_skip_integration!();
         let bucket_name = NON_EXISTENT_NAME;
-        let location_name = NON_EXISTENT_NAME;
+        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
         let integration =
             ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
         let data = Bytes::from("arbitrary data");
@@ -281,7 +295,7 @@ mod test {
 
         let result = integration
             .put(
-                location_name,
+                &location_name,
                 futures::stream::once(async move { stream_data }),
                 data.len(),
             )

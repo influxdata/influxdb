@@ -1994,6 +1994,7 @@ dependencies = [
  "cloud-storage",
  "dotenv",
  "futures",
+ "itertools 0.9.0",
  "percent-encoding",
  "rusoto_core",
  "rusoto_credential",

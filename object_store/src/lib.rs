@@ -25,6 +25,7 @@ use aws::AmazonS3;
 use disk::File;
 use gcp::GoogleCloudStorage;
 use memory::InMemory;
+use path::ObjectStorePath;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -58,7 +59,7 @@ impl ObjectStore {
     }
 
     /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &str, bytes: S, length: usize) -> Result<()>
+    pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -74,7 +75,10 @@ impl ObjectStore {
     }
 
     /// Return the bytes that are stored at the specified location.
-    pub async fn get(&self, location: &str) -> Result<impl Stream<Item = Result<Bytes>>> {
+    pub async fn get(
+        &self,
+        location: &ObjectStorePath,
+    ) -> Result<impl Stream<Item = Result<Bytes>>> {
         use ObjectStoreIntegration::*;
         Ok(match &self.0 {
             AmazonS3(s3) => s3.get(location).await?.boxed(),
@@ -86,7 +90,7 @@ impl ObjectStore {
     }
 
     /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &str) -> Result<()> {
+    pub async fn delete(&self, location: &ObjectStorePath) -> Result<()> {
         use ObjectStoreIntegration::*;
         match &self.0 {
             AmazonS3(s3) => s3.delete(location).await?,
@@ -101,8 +105,8 @@ impl ObjectStore {
     /// List all the objects with the given prefix.
     pub async fn list<'a>(
         &'a self,
-        prefix: Option<&'a str>,
-    ) -> Result<impl Stream<Item = Result<Vec<String>>> + 'a> {
+        prefix: Option<&'a ObjectStorePath>,
+    ) -> Result<impl Stream<Item = Result<Vec<ObjectStorePath>>> + 'a> {
         use ObjectStoreIntegration::*;
         Ok(match &self.0 {
             AmazonS3(s3) => s3.list(prefix).await?.boxed(),
@@ -116,13 +120,29 @@ impl ObjectStore {
     /// List objects with the given prefix and an implementation specific
     /// delimiter. Returns common prefixes (directories) in addition to object
     /// metadata.
-    pub async fn list_with_delimiter<'a>(&'a self, prefix: &'a str) -> Result<ListResult> {
+    pub async fn list_with_delimiter<'a>(
+        &'a self,
+        prefix: &'a ObjectStorePath,
+    ) -> Result<ListResult> {
         use ObjectStoreIntegration::*;
         match &self.0 {
             AmazonS3(s3) => s3.list_with_delimiter(prefix, &None).await,
             GoogleCloudStorage(_gcs) => unimplemented!(),
             InMemory(in_mem) => in_mem.list_with_delimiter(prefix, &None).await,
             File(_file) => unimplemented!(),
+        }
+    }
+
+    /// Convert an `ObjectStorePath` to a `String` according to the appropriate
+    /// implementation. Suitable for printing; not suitable for sending to
+    /// APIs
+    pub fn convert_path(&self, path: &ObjectStorePath) -> String {
+        use ObjectStoreIntegration::*;
+        match &self.0 {
+            AmazonS3(_) | GoogleCloudStorage(_) | InMemory(_) => {
+                path::CloudConverter::convert(path)
+            }
+            File(_) => path::FileConverter::convert(path).display().to_string(),
         }
     }
 }
@@ -148,7 +168,7 @@ pub struct ListResult {
     /// Token passed to the API for the next page of list results.
     pub next_token: Option<String>,
     /// Prefixes that are common (like directories)
-    pub common_prefixes: Vec<String>,
+    pub common_prefixes: Vec<ObjectStorePath>,
     /// Object metadata for the listing
     pub objects: Vec<ObjectMeta>,
 }
@@ -157,7 +177,7 @@ pub struct ListResult {
 #[derive(Debug)]
 pub struct ObjectMeta {
     /// The full path to the object
-    pub location: String,
+    pub location: ObjectStorePath,
     /// The last modified time
     pub last_modified: DateTime<Utc>,
     /// The size in bytes of the object
@@ -292,8 +312,6 @@ pub enum Error {
     UnableToCopyDataToFile {
         source: io::Error,
     },
-    #[snafu(display("Unable to retrieve filename"))]
-    UnableToGetFileName,
 }
 
 #[cfg(test)]
@@ -306,8 +324,8 @@ mod tests {
 
     async fn flatten_list_stream(
         storage: &ObjectStore,
-        prefix: Option<&str>,
-    ) -> Result<Vec<String>> {
+        prefix: Option<&ObjectStorePath>,
+    ) -> Result<Vec<ObjectStorePath>> {
         storage
             .list(prefix)
             .await?
@@ -328,12 +346,13 @@ mod tests {
         );
 
         let data = Bytes::from("arbitrary data");
-        let location = "test_file";
+        let mut location = ObjectStorePath::default();
+        location.push("test_file");
 
         let stream_data = std::io::Result::Ok(data.clone());
         storage
             .put(
-                location,
+                &location,
                 futures::stream::once(async move { stream_data }),
                 data.len(),
             )
@@ -341,25 +360,29 @@ mod tests {
 
         // List everything
         let content_list = flatten_list_stream(storage, None).await?;
-        assert_eq!(content_list, &[location]);
+        assert_eq!(content_list, &[location.clone()]);
 
         // List everything starting with a prefix that should return results
-        let content_list = flatten_list_stream(storage, Some("test")).await?;
-        assert_eq!(content_list, &[location]);
+        let mut prefix = ObjectStorePath::default();
+        prefix.push("test");
+        let content_list = flatten_list_stream(storage, Some(&prefix)).await?;
+        assert_eq!(content_list, &[location.clone()]);
 
         // List everything starting with a prefix that shouldn't return results
-        let content_list = flatten_list_stream(storage, Some("something")).await?;
+        let mut prefix = ObjectStorePath::default();
+        prefix.push("something");
+        let content_list = flatten_list_stream(storage, Some(&prefix)).await?;
         assert!(content_list.is_empty());
 
         let read_data = storage
-            .get(location)
+            .get(&location)
             .await?
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
             .await?;
         assert_eq!(&*read_data, data);
 
-        storage.delete(location).await?;
+        storage.delete(&location).await?;
 
         let content_list = flatten_list_stream(storage, None).await?;
         assert!(content_list.is_empty());
@@ -375,13 +398,16 @@ mod tests {
 
         let data = Bytes::from("arbitrary data");
 
-        let files = vec![
+        let files: Vec<_> = [
             "mydb/wal/000/000/000.segment",
             "mydb/wal/000/000/001.segment",
             "mydb/wal/001/001/000.segment",
             "mydb/wal/foo.test",
             "mydb/data/whatevs",
-        ];
+        ]
+        .iter()
+        .map(|&s| ObjectStorePath::from_cloud_unchecked(s))
+        .collect();
 
         let time_before_creation = Utc::now();
 
@@ -397,18 +423,30 @@ mod tests {
                 .unwrap();
         }
 
-        let result = storage.list_with_delimiter("mydb/wal/").await.unwrap();
-        assert_eq!(
-            result.common_prefixes,
-            vec!["mydb/wal/000/", "mydb/wal/001/"]
-        );
+        let mut prefix = ObjectStorePath::default();
+        prefix.push_all(&["mydb", "wal"]);
+
+        let mut expected_000 = prefix.clone();
+        expected_000.push("000");
+        let mut expected_001 = prefix.clone();
+        expected_001.push("001");
+        let mut expected_location = prefix.clone();
+        expected_location.push("foo.test");
+
+        // This is needed because we want a trailing slash on the prefix in this test
+        prefix.push("");
+        let result = storage.list_with_delimiter(&prefix).await.unwrap();
+
+        assert_eq!(result.common_prefixes, vec![expected_000, expected_001]);
         assert_eq!(result.objects.len(), 1);
+
         let object = &result.objects[0];
-        assert_eq!(object.location, "mydb/wal/foo.test");
+
+        assert_eq!(object.location, expected_location);
         assert_eq!(object.size, data.len());
         assert!(object.last_modified > time_before_creation);
 
-        for f in files {
+        for f in &files {
             storage.delete(f).await.unwrap();
         }
 
@@ -420,15 +458,16 @@ mod tests {
 
     pub(crate) async fn get_nonexistent_object(
         storage: &ObjectStore,
-        location: Option<&str>,
+        location: Option<ObjectStorePath>,
     ) -> Result<Bytes> {
-        let location = location.unwrap_or("this_file_should_not_exist");
+        let location = location
+            .unwrap_or_else(|| ObjectStorePath::from_cloud_unchecked("this_file_should_not_exist"));
 
-        let content_list = flatten_list_stream(storage, Some(location)).await?;
+        let content_list = flatten_list_stream(storage, Some(&location)).await?;
         assert!(content_list.is_empty());
 
         Ok(storage
-            .get(location)
+            .get(&location)
             .await?
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
@@ -437,16 +476,19 @@ mod tests {
     }
 
     async fn delete_fixtures(storage: &ObjectStore) {
-        let files = vec![
+        let files: Vec<_> = [
             "test_file",
             "mydb/wal/000/000/000.segment",
             "mydb/wal/000/000/001.segment",
             "mydb/wal/001/001/000.segment",
             "mydb/wal/foo.test",
             "mydb/data/whatevs",
-        ];
+        ]
+        .iter()
+        .map(|&s| ObjectStorePath::from_cloud_unchecked(s))
+        .collect();
 
-        for f in files {
+        for f in &files {
             // don't care if it errors, should fail elsewhere
             let _ = storage.delete(f).await;
         }
