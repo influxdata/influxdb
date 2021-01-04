@@ -168,41 +168,38 @@ mod tests {
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = TestError> = std::result::Result<T, E>;
 
-    mod in_memory {
-        use super::*;
-        use crate::{
-            tests::{list_with_delimiter, put_get_delete_list},
-            Error, ObjectStore,
-        };
-        use futures::stream;
+    use crate::{
+        tests::{list_with_delimiter, put_get_delete_list},
+        Error, ObjectStore,
+    };
+    use futures::stream;
 
-        #[tokio::test]
-        async fn in_memory_test() -> Result<()> {
-            let integration = ObjectStore::new_in_memory(InMemory::new());
+    #[tokio::test]
+    async fn in_memory_test() -> Result<()> {
+        let integration = ObjectStore::new_in_memory(InMemory::new());
 
-            put_get_delete_list(&integration).await?;
+        put_get_delete_list(&integration).await?;
 
-            list_with_delimiter(&integration).await.unwrap();
+        list_with_delimiter(&integration).await.unwrap();
 
-            Ok(())
-        }
+        Ok(())
+    }
 
-        #[tokio::test]
-        async fn length_mismatch_is_an_error() -> Result<()> {
-            let integration = ObjectStore::new_in_memory(InMemory::new());
+    #[tokio::test]
+    async fn length_mismatch_is_an_error() -> Result<()> {
+        let integration = ObjectStore::new_in_memory(InMemory::new());
 
-            let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
-            let res = integration.put("junk", bytes, 0).await;
+        let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
+        let res = integration.put("junk", bytes, 0).await;
 
-            assert!(matches!(
-                res.err().unwrap(),
-                Error::DataDoesNotMatchLength {
-                    expected: 0,
-                    actual: 11,
-                }
-            ));
+        assert!(matches!(
+            res.err().unwrap(),
+            Error::DataDoesNotMatchLength {
+                expected: 0,
+                actual: 11,
+            }
+        ));
 
-            Ok(())
-        }
+        Ok(())
     }
 }

@@ -293,323 +293,319 @@ impl Error {
 
 #[cfg(test)]
 mod tests {
-    mod amazon_s3 {
-        use crate::{
-            tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
-            AmazonS3, Error, ObjectStore,
-        };
-        use bytes::Bytes;
-        use std::env;
+    use crate::{
+        tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
+        AmazonS3, Error, ObjectStore,
+    };
+    use bytes::Bytes;
+    use std::env;
 
-        type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-        type Result<T, E = TestError> = std::result::Result<T, E>;
+    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Result<T, E = TestError> = std::result::Result<T, E>;
 
-        const NON_EXISTENT_NAME: &str = "nonexistentname";
+    const NON_EXISTENT_NAME: &str = "nonexistentname";
 
-        // Helper macro to skip tests if the AWS environment variables are not set.
-        // Skips become hard errors if TEST_INTEGRATION is set.
-        macro_rules! maybe_skip_integration {
-            () => {
-                dotenv::dotenv().ok();
+    // Helper macro to skip tests if the AWS environment variables are not set.
+    // Skips become hard errors if TEST_INTEGRATION is set.
+    macro_rules! maybe_skip_integration {
+        () => {
+            dotenv::dotenv().ok();
 
-                let region = env::var("AWS_DEFAULT_REGION");
-                let bucket_name = env::var("AWS_S3_BUCKET_NAME");
-                let force = std::env::var("TEST_INTEGRATION");
+            let region = env::var("AWS_DEFAULT_REGION");
+            let bucket_name = env::var("AWS_S3_BUCKET_NAME");
+            let force = std::env::var("TEST_INTEGRATION");
 
-                match (region.is_ok(), bucket_name.is_ok(), force.is_ok()) {
-                    (false, false, true) => {
-                        panic!(
-                            "TEST_INTEGRATION is set, \
-                                but AWS_DEFAULT_REGION and AWS_S3_BUCKET_NAME are not"
-                        )
-                    }
-                    (false, true, true) => {
-                        panic!("TEST_INTEGRATION is set, but AWS_DEFAULT_REGION is not")
-                    }
-                    (true, false, true) => {
-                        panic!("TEST_INTEGRATION is set, but AWS_S3_BUCKET_NAME is not")
-                    }
-                    (false, false, false) => {
-                        eprintln!(
-                            "skipping integration test - set \
-                                   AWS_DEFAULT_REGION and AWS_S3_BUCKET_NAME to run"
-                        );
-                        return Ok(());
-                    }
-                    (false, true, false) => {
-                        eprintln!("skipping integration test - set AWS_DEFAULT_REGION to run");
-                        return Ok(());
-                    }
-                    (true, false, false) => {
-                        eprintln!("skipping integration test - set AWS_S3_BUCKET_NAME to run");
-                        return Ok(());
-                    }
-                    _ => {}
-                }
-            };
-        }
-
-        // Helper to get region and bucket from environment variables. Call the
-        // `maybe_skip_integration!` macro before calling this to skip the test if these
-        // aren't set; if you don't call that macro, the tests will fail if
-        // these env vars aren't set.
-        //
-        // `AWS_DEFAULT_REGION` should be a value like `us-east-2`.
-        fn region_and_bucket_name() -> Result<(rusoto_core::Region, String)> {
-            let region = env::var("AWS_DEFAULT_REGION").map_err(|_| {
-                "The environment variable AWS_DEFAULT_REGION must be set \
-                     to a value like `us-east-2`"
-            })?;
-            let bucket_name = env::var("AWS_S3_BUCKET_NAME")
-                .map_err(|_| "The environment variable AWS_S3_BUCKET_NAME must be set")?;
-
-            Ok((region.parse()?, bucket_name))
-        }
-
-        fn check_credentials<T>(r: Result<T>) -> Result<T> {
-            if let Err(e) = &r {
-                let e = &**e;
-                if let Some(e) = e.downcast_ref::<crate::Error>() {
-                    if e.s3_error_due_to_credentials() {
-                        eprintln!(
-                            "Try setting the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY \
-                                   environment variables"
-                        );
-                    }
-                }
-            }
-
-            r
-        }
-
-        #[tokio::test]
-        async fn s3_test() -> Result<()> {
-            maybe_skip_integration!();
-            let (region, bucket_name) = region_and_bucket_name()?;
-
-            let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            check_credentials(put_get_delete_list(&integration).await)?;
-
-            check_credentials(list_with_delimiter(&integration).await).unwrap();
-
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn s3_test_get_nonexistent_region() -> Result<()> {
-            maybe_skip_integration!();
-            // Assumes environment variables do not provide credentials to AWS US West 1
-            let (_, bucket_name) = region_and_bucket_name()?;
-            let region = rusoto_core::Region::UsWest1;
-            let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            let location_name = NON_EXISTENT_NAME;
-
-            let err = get_nonexistent_object(&integration, Some(location_name))
-                .await
-                .unwrap_err();
-            if let Some(Error::UnableToListDataFromS3 { source, bucket }) =
-                err.downcast_ref::<crate::Error>()
-            {
-                assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-                assert_eq!(bucket, &bucket_name);
-            } else {
-                panic!("unexpected error type")
-            }
-
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn s3_test_get_nonexistent_location() -> Result<()> {
-            maybe_skip_integration!();
-            let (region, bucket_name) = region_and_bucket_name()?;
-            let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            let location_name = NON_EXISTENT_NAME;
-
-            let err = get_nonexistent_object(&integration, Some(location_name))
-                .await
-                .unwrap_err();
-            if let Some(Error::UnableToGetDataFromS3 {
-                source,
-                bucket,
-                location,
-            }) = err.downcast_ref::<crate::Error>()
-            {
-                assert!(matches!(
-                    source,
-                    rusoto_core::RusotoError::Service(rusoto_s3::GetObjectError::NoSuchKey(_))
-                ));
-                assert_eq!(bucket, &bucket_name);
-                assert_eq!(location, location_name);
-            } else {
-                panic!("unexpected error type")
-            }
-
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn s3_test_get_nonexistent_bucket() -> Result<()> {
-            maybe_skip_integration!();
-            let (region, _) = region_and_bucket_name()?;
-            let bucket_name = NON_EXISTENT_NAME;
-            let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
-            let location_name = NON_EXISTENT_NAME;
-
-            let err = get_nonexistent_object(&integration, Some(location_name))
-                .await
-                .unwrap_err();
-            if let Some(Error::UnableToListDataFromS3 { source, bucket }) =
-                err.downcast_ref::<crate::Error>()
-            {
-                assert!(matches!(
-                    source,
-                    rusoto_core::RusotoError::Service(
-                        rusoto_s3::ListObjectsV2Error::NoSuchBucket(_),
+            match (region.is_ok(), bucket_name.is_ok(), force.is_ok()) {
+                (false, false, true) => {
+                    panic!(
+                        "TEST_INTEGRATION is set, \
+                            but AWS_DEFAULT_REGION and AWS_S3_BUCKET_NAME are not"
                     )
-                ));
-                assert_eq!(bucket, bucket_name);
-            } else {
-                panic!("unexpected error type")
+                }
+                (false, true, true) => {
+                    panic!("TEST_INTEGRATION is set, but AWS_DEFAULT_REGION is not")
+                }
+                (true, false, true) => {
+                    panic!("TEST_INTEGRATION is set, but AWS_S3_BUCKET_NAME is not")
+                }
+                (false, false, false) => {
+                    eprintln!(
+                        "skipping integration test - set \
+                               AWS_DEFAULT_REGION and AWS_S3_BUCKET_NAME to run"
+                    );
+                    return Ok(());
+                }
+                (false, true, false) => {
+                    eprintln!("skipping integration test - set AWS_DEFAULT_REGION to run");
+                    return Ok(());
+                }
+                (true, false, false) => {
+                    eprintln!("skipping integration test - set AWS_S3_BUCKET_NAME to run");
+                    return Ok(());
+                }
+                _ => {}
             }
+        };
+    }
 
-            Ok(())
+    // Helper to get region and bucket from environment variables. Call the
+    // `maybe_skip_integration!` macro before calling this to skip the test if these
+    // aren't set; if you don't call that macro, the tests will fail if
+    // these env vars aren't set.
+    //
+    // `AWS_DEFAULT_REGION` should be a value like `us-east-2`.
+    fn region_and_bucket_name() -> Result<(rusoto_core::Region, String)> {
+        let region = env::var("AWS_DEFAULT_REGION").map_err(|_| {
+            "The environment variable AWS_DEFAULT_REGION must be set \
+                 to a value like `us-east-2`"
+        })?;
+        let bucket_name = env::var("AWS_S3_BUCKET_NAME")
+            .map_err(|_| "The environment variable AWS_S3_BUCKET_NAME must be set")?;
+
+        Ok((region.parse()?, bucket_name))
+    }
+
+    fn check_credentials<T>(r: Result<T>) -> Result<T> {
+        if let Err(e) = &r {
+            let e = &**e;
+            if let Some(e) = e.downcast_ref::<crate::Error>() {
+                if e.s3_error_due_to_credentials() {
+                    eprintln!(
+                        "Try setting the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY \
+                               environment variables"
+                    );
+                }
+            }
         }
 
-        #[tokio::test]
-        async fn s3_test_put_nonexistent_region() -> Result<()> {
-            maybe_skip_integration!();
-            // Assumes environment variables do not provide credentials to AWS US West 1
-            let (_, bucket_name) = region_and_bucket_name()?;
-            let region = rusoto_core::Region::UsWest1;
-            let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            let location_name = NON_EXISTENT_NAME;
-            let data = Bytes::from("arbitrary data");
-            let stream_data = std::io::Result::Ok(data.clone());
+        r
+    }
 
-            let err = integration
-                .put(
-                    location_name,
-                    futures::stream::once(async move { stream_data }),
-                    data.len(),
-                )
-                .await
-                .unwrap_err();
+    #[tokio::test]
+    async fn s3_test() -> Result<()> {
+        maybe_skip_integration!();
+        let (region, bucket_name) = region_and_bucket_name()?;
 
-            if let Error::UnableToPutDataToS3 {
+        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        check_credentials(put_get_delete_list(&integration).await)?;
+
+        check_credentials(list_with_delimiter(&integration).await).unwrap();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn s3_test_get_nonexistent_region() -> Result<()> {
+        maybe_skip_integration!();
+        // Assumes environment variables do not provide credentials to AWS US West 1
+        let (_, bucket_name) = region_and_bucket_name()?;
+        let region = rusoto_core::Region::UsWest1;
+        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let location_name = NON_EXISTENT_NAME;
+
+        let err = get_nonexistent_object(&integration, Some(location_name))
+            .await
+            .unwrap_err();
+        if let Some(Error::UnableToListDataFromS3 { source, bucket }) =
+            err.downcast_ref::<crate::Error>()
+        {
+            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
+            assert_eq!(bucket, &bucket_name);
+        } else {
+            panic!("unexpected error type")
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn s3_test_get_nonexistent_location() -> Result<()> {
+        maybe_skip_integration!();
+        let (region, bucket_name) = region_and_bucket_name()?;
+        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let location_name = NON_EXISTENT_NAME;
+
+        let err = get_nonexistent_object(&integration, Some(location_name))
+            .await
+            .unwrap_err();
+        if let Some(Error::UnableToGetDataFromS3 {
+            source,
+            bucket,
+            location,
+        }) = err.downcast_ref::<crate::Error>()
+        {
+            assert!(matches!(
                 source,
-                bucket,
-                location,
-            } = err
-            {
-                assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-                assert_eq!(bucket, bucket_name);
-                assert_eq!(location, location_name);
-            } else {
-                panic!("unexpected error type")
-            }
-
-            Ok(())
+                rusoto_core::RusotoError::Service(rusoto_s3::GetObjectError::NoSuchKey(_))
+            ));
+            assert_eq!(bucket, &bucket_name);
+            assert_eq!(location, location_name);
+        } else {
+            panic!("unexpected error type")
         }
 
-        #[tokio::test]
-        async fn s3_test_put_nonexistent_bucket() -> Result<()> {
-            maybe_skip_integration!();
-            let (region, _) = region_and_bucket_name()?;
-            let bucket_name = NON_EXISTENT_NAME;
-            let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
-            let location_name = NON_EXISTENT_NAME;
-            let data = Bytes::from("arbitrary data");
-            let stream_data = std::io::Result::Ok(data.clone());
+        Ok(())
+    }
 
-            let err = integration
-                .put(
-                    location_name,
-                    futures::stream::once(async move { stream_data }),
-                    data.len(),
-                )
-                .await
-                .unwrap_err();
+    #[tokio::test]
+    async fn s3_test_get_nonexistent_bucket() -> Result<()> {
+        maybe_skip_integration!();
+        let (region, _) = region_and_bucket_name()?;
+        let bucket_name = NON_EXISTENT_NAME;
+        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
+        let location_name = NON_EXISTENT_NAME;
 
-            if let Error::UnableToPutDataToS3 {
+        let err = get_nonexistent_object(&integration, Some(location_name))
+            .await
+            .unwrap_err();
+        if let Some(Error::UnableToListDataFromS3 { source, bucket }) =
+            err.downcast_ref::<crate::Error>()
+        {
+            assert!(matches!(
                 source,
-                bucket,
-                location,
-            } = err
-            {
-                assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-                assert_eq!(bucket, bucket_name);
-                assert_eq!(location, location_name);
-            } else {
-                panic!("unexpected error type")
-            }
-
-            Ok(())
+                rusoto_core::RusotoError::Service(rusoto_s3::ListObjectsV2Error::NoSuchBucket(_))
+            ));
+            assert_eq!(bucket, bucket_name);
+        } else {
+            panic!("unexpected error type")
         }
 
-        #[tokio::test]
-        async fn s3_test_delete_nonexistent_location() -> Result<()> {
-            maybe_skip_integration!();
-            let (region, bucket_name) = region_and_bucket_name()?;
-            let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            let location_name = NON_EXISTENT_NAME;
+        Ok(())
+    }
 
-            let result = integration.delete(location_name).await;
+    #[tokio::test]
+    async fn s3_test_put_nonexistent_region() -> Result<()> {
+        maybe_skip_integration!();
+        // Assumes environment variables do not provide credentials to AWS US West 1
+        let (_, bucket_name) = region_and_bucket_name()?;
+        let region = rusoto_core::Region::UsWest1;
+        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let location_name = NON_EXISTENT_NAME;
+        let data = Bytes::from("arbitrary data");
+        let stream_data = std::io::Result::Ok(data.clone());
 
-            assert!(result.is_ok());
+        let err = integration
+            .put(
+                location_name,
+                futures::stream::once(async move { stream_data }),
+                data.len(),
+            )
+            .await
+            .unwrap_err();
 
-            Ok(())
+        if let Error::UnableToPutDataToS3 {
+            source,
+            bucket,
+            location,
+        } = err
+        {
+            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
+            assert_eq!(bucket, bucket_name);
+            assert_eq!(location, location_name);
+        } else {
+            panic!("unexpected error type")
         }
 
-        #[tokio::test]
-        async fn s3_test_delete_nonexistent_region() -> Result<()> {
-            maybe_skip_integration!();
-            // Assumes environment variables do not provide credentials to AWS US West 1
-            let (_, bucket_name) = region_and_bucket_name()?;
-            let region = rusoto_core::Region::UsWest1;
-            let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-            let location_name = NON_EXISTENT_NAME;
+        Ok(())
+    }
 
-            let err = integration.delete(location_name).await.unwrap_err();
-            if let Error::UnableToDeleteDataFromS3 {
-                source,
-                bucket,
-                location,
-            } = err
-            {
-                assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-                assert_eq!(bucket, bucket_name);
-                assert_eq!(location, location_name);
-            } else {
-                panic!("unexpected error type")
-            }
+    #[tokio::test]
+    async fn s3_test_put_nonexistent_bucket() -> Result<()> {
+        maybe_skip_integration!();
+        let (region, _) = region_and_bucket_name()?;
+        let bucket_name = NON_EXISTENT_NAME;
+        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
+        let location_name = NON_EXISTENT_NAME;
+        let data = Bytes::from("arbitrary data");
+        let stream_data = std::io::Result::Ok(data.clone());
 
-            Ok(())
+        let err = integration
+            .put(
+                location_name,
+                futures::stream::once(async move { stream_data }),
+                data.len(),
+            )
+            .await
+            .unwrap_err();
+
+        if let Error::UnableToPutDataToS3 {
+            source,
+            bucket,
+            location,
+        } = err
+        {
+            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
+            assert_eq!(bucket, bucket_name);
+            assert_eq!(location, location_name);
+        } else {
+            panic!("unexpected error type")
         }
 
-        #[tokio::test]
-        async fn s3_test_delete_nonexistent_bucket() -> Result<()> {
-            maybe_skip_integration!();
-            let (region, _) = region_and_bucket_name()?;
-            let bucket_name = NON_EXISTENT_NAME;
-            let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
-            let location_name = NON_EXISTENT_NAME;
+        Ok(())
+    }
 
-            let err = integration.delete(location_name).await.unwrap_err();
-            if let Error::UnableToDeleteDataFromS3 {
-                source,
-                bucket,
-                location,
-            } = err
-            {
-                assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-                assert_eq!(bucket, bucket_name);
-                assert_eq!(location, location_name);
-            } else {
-                panic!("unexpected error type")
-            }
+    #[tokio::test]
+    async fn s3_test_delete_nonexistent_location() -> Result<()> {
+        maybe_skip_integration!();
+        let (region, bucket_name) = region_and_bucket_name()?;
+        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let location_name = NON_EXISTENT_NAME;
 
-            Ok(())
+        let result = integration.delete(location_name).await;
+
+        assert!(result.is_ok());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn s3_test_delete_nonexistent_region() -> Result<()> {
+        maybe_skip_integration!();
+        // Assumes environment variables do not provide credentials to AWS US West 1
+        let (_, bucket_name) = region_and_bucket_name()?;
+        let region = rusoto_core::Region::UsWest1;
+        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let location_name = NON_EXISTENT_NAME;
+
+        let err = integration.delete(location_name).await.unwrap_err();
+        if let Error::UnableToDeleteDataFromS3 {
+            source,
+            bucket,
+            location,
+        } = err
+        {
+            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
+            assert_eq!(bucket, bucket_name);
+            assert_eq!(location, location_name);
+        } else {
+            panic!("unexpected error type")
         }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn s3_test_delete_nonexistent_bucket() -> Result<()> {
+        maybe_skip_integration!();
+        let (region, _) = region_and_bucket_name()?;
+        let bucket_name = NON_EXISTENT_NAME;
+        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
+        let location_name = NON_EXISTENT_NAME;
+
+        let err = integration.delete(location_name).await.unwrap_err();
+        if let Error::UnableToDeleteDataFromS3 {
+            source,
+            bucket,
+            location,
+        } = err
+        {
+            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
+            assert_eq!(bucket, bucket_name);
+            assert_eq!(location, location_name);
+        } else {
+            panic!("unexpected error type")
+        }
+
+        Ok(())
     }
 }

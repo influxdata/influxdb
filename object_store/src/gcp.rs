@@ -134,162 +134,160 @@ impl GoogleCloudStorage {
 
 #[cfg(test)]
 mod test {
-    mod google_cloud_storage {
-        use crate::{
-            tests::{get_nonexistent_object, put_get_delete_list},
-            Error, GoogleCloudStorage, ObjectStore,
-        };
-        use bytes::Bytes;
-        use std::env;
+    use crate::{
+        tests::{get_nonexistent_object, put_get_delete_list},
+        Error, GoogleCloudStorage, ObjectStore,
+    };
+    use bytes::Bytes;
+    use std::env;
 
-        type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-        type Result<T, E = TestError> = std::result::Result<T, E>;
+    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Result<T, E = TestError> = std::result::Result<T, E>;
 
-        const NON_EXISTENT_NAME: &str = "nonexistentname";
+    const NON_EXISTENT_NAME: &str = "nonexistentname";
 
-        // Helper macro to skip tests if the AWS environment variables are not set.
-        // Skips become hard errors if TEST_INTEGRATION is set.
-        macro_rules! maybe_skip_integration {
-            () => {
-                dotenv::dotenv().ok();
+    // Helper macro to skip tests if the AWS environment variables are not set.
+    // Skips become hard errors if TEST_INTEGRATION is set.
+    macro_rules! maybe_skip_integration {
+        () => {
+            dotenv::dotenv().ok();
 
-                let bucket_name = env::var("GCS_BUCKET_NAME");
-                let force = std::env::var("TEST_INTEGRATION");
+            let bucket_name = env::var("GCS_BUCKET_NAME");
+            let force = std::env::var("TEST_INTEGRATION");
 
-                match (bucket_name.is_ok(), force.is_ok()) {
-                    (false, true) => {
-                        panic!("TEST_INTEGRATION is set, but GCS_BUCKET_NAME is not")
-                    }
-                    (false, false) => {
-                        eprintln!("skipping integration test - set GCS_BUCKET_NAME to run");
-                        return Ok(());
-                    }
-                    _ => {}
+            match (bucket_name.is_ok(), force.is_ok()) {
+                (false, true) => {
+                    panic!("TEST_INTEGRATION is set, but GCS_BUCKET_NAME is not")
                 }
-            };
-        }
-
-        fn bucket_name() -> Result<String> {
-            Ok(env::var("GCS_BUCKET_NAME")
-                .map_err(|_| "The environment variable GCS_BUCKET_NAME must be set")?)
-        }
-
-        #[tokio::test]
-        async fn gcs_test() -> Result<()> {
-            maybe_skip_integration!();
-            let bucket_name = bucket_name()?;
-
-            let integration =
-                ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
-            put_get_delete_list(&integration).await?;
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn gcs_test_get_nonexistent_location() -> Result<()> {
-            maybe_skip_integration!();
-            let bucket_name = bucket_name()?;
-            let location_name = NON_EXISTENT_NAME;
-            let integration =
-                ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
-
-            let result = get_nonexistent_object(&integration, Some(location_name)).await?;
-
-            assert_eq!(
-                result,
-                Bytes::from(format!("No such object: {}/{}", bucket_name, location_name))
-            );
-
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn gcs_test_get_nonexistent_bucket() -> Result<()> {
-            maybe_skip_integration!();
-            let bucket_name = NON_EXISTENT_NAME;
-            let location_name = NON_EXISTENT_NAME;
-            let integration =
-                ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
-
-            let result = get_nonexistent_object(&integration, Some(location_name)).await?;
-
-            assert_eq!(result, Bytes::from("Not Found"));
-
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn gcs_test_delete_nonexistent_location() -> Result<()> {
-            maybe_skip_integration!();
-            let bucket_name = bucket_name()?;
-            let location_name = NON_EXISTENT_NAME;
-            let integration =
-                ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
-
-            let err = integration.delete(location_name).await.unwrap_err();
-
-            if let Error::UnableToDeleteDataFromGcs2 {
-                source,
-                bucket,
-                location,
-            } = err
-            {
-                assert!(matches!(source, cloud_storage::Error::Google(_)));
-                assert_eq!(bucket, bucket_name);
-                assert_eq!(location, location_name);
-            } else {
-                panic!("unexpected error type")
+                (false, false) => {
+                    eprintln!("skipping integration test - set GCS_BUCKET_NAME to run");
+                    return Ok(());
+                }
+                _ => {}
             }
+        };
+    }
 
-            Ok(())
+    fn bucket_name() -> Result<String> {
+        Ok(env::var("GCS_BUCKET_NAME")
+            .map_err(|_| "The environment variable GCS_BUCKET_NAME must be set")?)
+    }
+
+    #[tokio::test]
+    async fn gcs_test() -> Result<()> {
+        maybe_skip_integration!();
+        let bucket_name = bucket_name()?;
+
+        let integration =
+            ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
+        put_get_delete_list(&integration).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn gcs_test_get_nonexistent_location() -> Result<()> {
+        maybe_skip_integration!();
+        let bucket_name = bucket_name()?;
+        let location_name = NON_EXISTENT_NAME;
+        let integration =
+            ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
+
+        let result = get_nonexistent_object(&integration, Some(location_name)).await?;
+
+        assert_eq!(
+            result,
+            Bytes::from(format!("No such object: {}/{}", bucket_name, location_name))
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn gcs_test_get_nonexistent_bucket() -> Result<()> {
+        maybe_skip_integration!();
+        let bucket_name = NON_EXISTENT_NAME;
+        let location_name = NON_EXISTENT_NAME;
+        let integration =
+            ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
+
+        let result = get_nonexistent_object(&integration, Some(location_name)).await?;
+
+        assert_eq!(result, Bytes::from("Not Found"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn gcs_test_delete_nonexistent_location() -> Result<()> {
+        maybe_skip_integration!();
+        let bucket_name = bucket_name()?;
+        let location_name = NON_EXISTENT_NAME;
+        let integration =
+            ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
+
+        let err = integration.delete(location_name).await.unwrap_err();
+
+        if let Error::UnableToDeleteDataFromGcs2 {
+            source,
+            bucket,
+            location,
+        } = err
+        {
+            assert!(matches!(source, cloud_storage::Error::Google(_)));
+            assert_eq!(bucket, bucket_name);
+            assert_eq!(location, location_name);
+        } else {
+            panic!("unexpected error type")
         }
 
-        #[tokio::test]
-        async fn gcs_test_delete_nonexistent_bucket() -> Result<()> {
-            maybe_skip_integration!();
-            let bucket_name = NON_EXISTENT_NAME;
-            let location_name = NON_EXISTENT_NAME;
-            let integration =
-                ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
+        Ok(())
+    }
 
-            let err = integration.delete(location_name).await.unwrap_err();
+    #[tokio::test]
+    async fn gcs_test_delete_nonexistent_bucket() -> Result<()> {
+        maybe_skip_integration!();
+        let bucket_name = NON_EXISTENT_NAME;
+        let location_name = NON_EXISTENT_NAME;
+        let integration =
+            ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
 
-            if let Error::UnableToDeleteDataFromGcs2 {
-                source,
-                bucket,
-                location,
-            } = err
-            {
-                assert!(matches!(source, cloud_storage::Error::Google(_)));
-                assert_eq!(bucket, bucket_name);
-                assert_eq!(location, location_name);
-            } else {
-                panic!("unexpected error type")
-            }
+        let err = integration.delete(location_name).await.unwrap_err();
 
-            Ok(())
+        if let Error::UnableToDeleteDataFromGcs2 {
+            source,
+            bucket,
+            location,
+        } = err
+        {
+            assert!(matches!(source, cloud_storage::Error::Google(_)));
+            assert_eq!(bucket, bucket_name);
+            assert_eq!(location, location_name);
+        } else {
+            panic!("unexpected error type")
         }
 
-        #[tokio::test]
-        async fn gcs_test_put_nonexistent_bucket() -> Result<()> {
-            maybe_skip_integration!();
-            let bucket_name = NON_EXISTENT_NAME;
-            let location_name = NON_EXISTENT_NAME;
-            let integration =
-                ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
-            let data = Bytes::from("arbitrary data");
-            let stream_data = std::io::Result::Ok(data.clone());
+        Ok(())
+    }
 
-            let result = integration
-                .put(
-                    location_name,
-                    futures::stream::once(async move { stream_data }),
-                    data.len(),
-                )
-                .await;
-            assert!(result.is_ok());
+    #[tokio::test]
+    async fn gcs_test_put_nonexistent_bucket() -> Result<()> {
+        maybe_skip_integration!();
+        let bucket_name = NON_EXISTENT_NAME;
+        let location_name = NON_EXISTENT_NAME;
+        let integration =
+            ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
+        let data = Bytes::from("arbitrary data");
+        let stream_data = std::io::Result::Ok(data.clone());
 
-            Ok(())
-        }
+        let result = integration
+            .put(
+                location_name,
+                futures::stream::once(async move { stream_data }),
+                data.len(),
+            )
+            .await;
+        assert!(result.is_ok());
+
+        Ok(())
     }
 }

@@ -133,67 +133,64 @@ mod tests {
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = TestError> = std::result::Result<T, E>;
 
-    mod file {
-        use super::*;
-        use tempfile::TempDir;
+    use tempfile::TempDir;
 
-        use crate::{tests::put_get_delete_list, Error, ObjectStore};
-        use futures::stream;
+    use crate::{tests::put_get_delete_list, Error, ObjectStore};
+    use futures::stream;
 
-        #[tokio::test]
-        async fn file_test() -> Result<()> {
-            let root = TempDir::new()?;
-            let integration = ObjectStore::new_file(File::new(root.path()));
+    #[tokio::test]
+    async fn file_test() -> Result<()> {
+        let root = TempDir::new()?;
+        let integration = ObjectStore::new_file(File::new(root.path()));
 
-            put_get_delete_list(&integration).await?;
-            Ok(())
-        }
+        put_get_delete_list(&integration).await?;
+        Ok(())
+    }
 
-        #[tokio::test]
-        async fn length_mismatch_is_an_error() -> Result<()> {
-            let root = TempDir::new()?;
-            let integration = ObjectStore::new_file(File::new(root.path()));
+    #[tokio::test]
+    async fn length_mismatch_is_an_error() -> Result<()> {
+        let root = TempDir::new()?;
+        let integration = ObjectStore::new_file(File::new(root.path()));
 
-            let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
-            let res = integration.put("junk", bytes, 0).await;
+        let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
+        let res = integration.put("junk", bytes, 0).await;
 
-            assert!(matches!(
-                res.err().unwrap(),
-                Error::DataDoesNotMatchLength {
-                    expected: 0,
-                    actual: 11,
-                }
-            ));
+        assert!(matches!(
+            res.err().unwrap(),
+            Error::DataDoesNotMatchLength {
+                expected: 0,
+                actual: 11,
+            }
+        ));
 
-            Ok(())
-        }
+        Ok(())
+    }
 
-        #[tokio::test]
-        async fn creates_dir_if_not_present() -> Result<()> {
-            let root = TempDir::new()?;
-            let storage = ObjectStore::new_file(File::new(root.path()));
+    #[tokio::test]
+    async fn creates_dir_if_not_present() -> Result<()> {
+        let root = TempDir::new()?;
+        let storage = ObjectStore::new_file(File::new(root.path()));
 
-            let data = Bytes::from("arbitrary data");
-            let location = "nested/file/test_file";
+        let data = Bytes::from("arbitrary data");
+        let location = "nested/file/test_file";
 
-            let stream_data = std::io::Result::Ok(data.clone());
-            storage
-                .put(
-                    location,
-                    futures::stream::once(async move { stream_data }),
-                    data.len(),
-                )
-                .await?;
+        let stream_data = std::io::Result::Ok(data.clone());
+        storage
+            .put(
+                location,
+                futures::stream::once(async move { stream_data }),
+                data.len(),
+            )
+            .await?;
 
-            let read_data = storage
-                .get(location)
-                .await?
-                .map_ok(|b| bytes::BytesMut::from(&b[..]))
-                .try_concat()
-                .await?;
-            assert_eq!(&*read_data, data);
+        let read_data = storage
+            .get(location)
+            .await?
+            .map_ok(|b| bytes::BytesMut::from(&b[..]))
+            .try_concat()
+            .await?;
+        assert_eq!(&*read_data, data);
 
-            Ok(())
-        }
+        Ok(())
     }
 }
