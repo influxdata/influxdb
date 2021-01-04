@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -141,6 +142,13 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.PointsWriter.WritePoints(ctx, auth.OrgID, bucket.ID, parsed.Points); err != nil {
+		// N.B. PartialWriteError is logged instead of returned to the user to match cloud behavior.
+		if partialErr, ok := err.(tsdb.PartialWriteError); ok {
+			h.logger.Warn("partial write failure", zap.Error(partialErr))
+			sw.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EInternal,
 			Op:   opWriteHandler,
