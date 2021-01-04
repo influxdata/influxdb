@@ -297,13 +297,11 @@ mod tests {
     #[cfg(test_aws)]
     mod amazon_s3 {
         use crate::{
-            tests::{get_nonexistent_object, put_get_delete_list},
-            ObjectStore,
+            tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
+            AmazonS3, Error, ObjectStore,
         };
+        use bytes::Bytes;
         use std::env;
-
-        use super::super::*;
-        use crate::tests::list_with_delimiter;
 
         type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
         type Result<T, E = TestError> = std::result::Result<T, E>;
