@@ -17,6 +17,7 @@ import (
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -119,6 +120,23 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			state: state{
 				org:    testOrg("043e0780ee2b1000"),
 				bucket: testBucket("043e0780ee2b1000", "04504b356e23b000"),
+			},
+			wants: wants{
+				code: 204,
+			},
+		},
+		{
+			name: "partial write error is accepted",
+			request: request{
+				org:    "043e0780ee2b1000",
+				bucket: "04504b356e23b000",
+				body:   "m1,t1=v1 f1=1",
+				auth:   bucketWritePermission("043e0780ee2b1000", "04504b356e23b000"),
+			},
+			state: state{
+				org:      testOrg("043e0780ee2b1000"),
+				bucket:   testBucket("043e0780ee2b1000", "04504b356e23b000"),
+				writeErr: tsdb.PartialWriteError{Dropped: 1},
 			},
 			wants: wants{
 				code: 204,
