@@ -14,8 +14,8 @@
 //! │    ┌────────────────┐                         │
 //! │    │   Partition    │                         │
 //! │    └────────────────┘                         │
-//! │             │  one mutable Chunk              │
-//! │             │  0 or more immutable            │
+//! │             │  one open Chunk                 │
+//! │             │  zero or more closed            │
 //! │             ▼  Chunks                         │
 //! │    ┌────────────────┐                         │
 //! │    │     Chunk      │                         │
@@ -35,18 +35,18 @@
 //! └───────────────────────────────────────────────┘
 //!
 //! Each row of data is routed into a particular partitions based on
-//! column values in that row. The partition's active (mutable) chunk is updated
-//! with the new data.
+//! column values in that row. The partition's open chunk
+//! is updated with the new data.
 //!
-//! The currently active chunk in a partition can be rolled over. When
-//! this happens, the chunk becomes immutable (read-only) and stops taking
-//! writes. Any new writes to the same partition will create a
-//! a new active chunk.
+//! The currently open chunk in a partition can be rolled
+//! over. When this happens, the chunk is closed (becomes read-only)
+//! and stops taking writes. Any new writes to the same partition will
+//! create a new active open chunk.
 //!
 //! Note: Strings in the mutable buffer are dictionary encoded (via
 //! string interning) to reduce memory usage. This dictionary encoding
-//! is done on a per-Chunk basis, so that as soon as the chunk becomes
-//! "immutable" the corresponding dictionary also becomes immutable
+//! is done on a per-Chunk basis, so that as soon as the chunk is
+//! closed the corresponding dictionary also becomes immutable
 
 #![deny(rust_2018_idioms)]
 #![warn(

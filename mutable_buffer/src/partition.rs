@@ -11,7 +11,7 @@ use snafu::{ResultExt, Snafu};
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(
-        "Error writing to active chunk of partition with key '{}': {}",
+        "Error writing to open chunk of partition with key '{}': {}",
         partition_key,
         source
     ))]
@@ -21,11 +21,11 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Can not drop active chunk '{}' of partition with key '{}'",
+        "Can not drop open chunk '{}' of partition with key '{}'",
         chunk_id,
         partition_key,
     ))]
-    DropMutableChunk {
+    DropOpenChunk {
         partition_key: String,
         chunk_id: u64,
     },
@@ -50,15 +50,17 @@ pub struct Partition {
     /// The partition key that is shared by all Chunks in this Partition
     key: String,
 
-    /// The active mutable Chunk; All new writes go to this chunk
-    mutable_chunk: Chunk,
+    /// The currently active, open Chunk; All new writes go to this chunk
+    open_chunk: Chunk,
 
-    /// Immutable chunks which can no longer be written
+    /// Closed chunks which can no longer be written
     /// key: chunk_id, value: Chunk
     ///
-    /// Use BTreeMap here as it is ordered by id and we need to use
-    /// `iter()` to iterate over chunks in their creation order
-    immutable_chunks: BTreeMap<u64, Arc<Chunk>>,
+    /// List of chunks, ordered by chunk id (and thus creation time).
+    /// The ordereing is achieved with a BTreeMap. The ordering is
+    /// used when `iter()` is used to iterate over chunks in their
+    /// creation order
+    closed_chunks: BTreeMap<u64, Arc<Chunk>>,
 
     /// Responsible for assigning ids to chunks. Eventually, this might
     /// need to start at a number other than 0.
@@ -71,18 +73,18 @@ impl Partition {
         let mut id_generator = 0;
 
         let key: String = key.into();
-        let mutable_chunk = Chunk::new(&key, id_generator);
+        let open_chunk = Chunk::new(&key, id_generator);
         id_generator += 1;
 
         Self {
             key,
-            mutable_chunk,
-            immutable_chunks: BTreeMap::new(),
+            open_chunk,
+            closed_chunks: BTreeMap::new(),
             id_generator,
         }
     }
 
-    /// write data to the active mutable chunk
+    /// write data to the open chunk
     pub fn write_entry(&mut self, entry: &wb::WriteBufferEntry<'_>) -> Result<()> {
         assert_eq!(
             entry
@@ -90,7 +92,7 @@ impl Partition {
                 .expect("partition key should be present"),
             self.key
         );
-        self.mutable_chunk
+        self.open_chunk
             .write_entry(entry)
             .with_context(|| WritingChunkData {
                 partition_key: entry.partition_key().unwrap(),
@@ -115,12 +117,13 @@ impl Partition {
     #[allow(dead_code)]
     pub fn chunk_info(&self) -> PartitionChunkInfo {
         PartitionChunkInfo {
-            num_immutable_chunks: self.immutable_chunks.len(),
+            num_closed_chunks: self.closed_chunks.len(),
         }
     }
 
-    /// roll over the active chunk, adding it to immutable_chunks if
-    /// it had data, and returns it.
+    /// Close the currently open chunk and create a new open
+    /// chunk. The newly closed chunk is adding to the list of closed
+    /// chunks if it had data, and is returned.
     ///
     /// Any new writes to this partition will go to a new chunk.
     ///
@@ -130,11 +133,11 @@ impl Partition {
         let chunk_id = self.id_generator;
         self.id_generator += 1;
         let mut chunk = Chunk::new(self.key(), chunk_id);
-        std::mem::swap(&mut chunk, &mut self.mutable_chunk);
-        chunk.mark_immutable();
+        std::mem::swap(&mut chunk, &mut self.open_chunk);
+        chunk.mark_closed();
         let chunk = Arc::new(chunk);
         if !chunk.is_empty() {
-            let existing_value = self.immutable_chunks.insert(chunk.id(), chunk.clone());
+            let existing_value = self.closed_chunks.insert(chunk.id(), chunk.clone());
             assert!(existing_value.is_none());
         }
         chunk
@@ -144,10 +147,10 @@ impl Partition {
     /// chunk
     #[allow(dead_code)]
     pub fn drop_chunk(&mut self, chunk_id: u64) -> Result<Arc<Chunk>> {
-        self.immutable_chunks.remove(&chunk_id).ok_or_else(|| {
+        self.closed_chunks.remove(&chunk_id).ok_or_else(|| {
             let partition_key = self.key.clone();
-            if self.mutable_chunk.id() == chunk_id {
-                Error::DropMutableChunk {
+            if self.open_chunk.id() == chunk_id {
+                Error::DropOpenChunk {
                     partition_key,
                     chunk_id,
                 }
@@ -177,26 +180,26 @@ impl Partition {
 /// information on chunks for this partition
 #[derive(Debug, Default, PartialEq)]
 pub struct PartitionChunkInfo {
-    pub num_immutable_chunks: usize,
+    pub num_closed_chunks: usize,
 }
 
-/// Iterates over chunks in a partition. Always iterates over mutable
-/// partition last so that chunks are visited in the same order even
-/// after rollover. This results in data being output in the same
-/// order it was written in
+/// Iterates over chunks in a partition. Always iterates over chunks
+/// in their creation (id) order: Closed chunks first, followed by the
+/// open chunk, if any. This allows data to be read out in the same order it
+/// was written in
 pub struct ChunkIter<'a> {
     partition: &'a Partition,
-    visited_mutable: bool,
-    immutable_iter: std::collections::btree_map::Iter<'a, u64, Arc<Chunk>>,
+    visited_open: bool,
+    closed_iter: std::collections::btree_map::Iter<'a, u64, Arc<Chunk>>,
 }
 
 impl<'a> ChunkIter<'a> {
     fn new(partition: &'a Partition) -> Self {
-        let immutable_iter = partition.immutable_chunks.iter();
+        let closed_iter = partition.closed_chunks.iter();
         Self {
             partition,
-            visited_mutable: false,
-            immutable_iter,
+            visited_open: false,
+            closed_iter,
         }
     }
 }
@@ -207,13 +210,13 @@ impl<'a> Iterator for ChunkIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let partition = self.partition;
 
-        self.immutable_iter
+        self.closed_iter
             .next()
             .map(|(_k, v)| v.as_ref())
             .or_else(|| {
-                if !self.visited_mutable {
-                    self.visited_mutable = true;
-                    Some(&partition.mutable_chunk)
+                if !self.visited_open {
+                    self.visited_open = true;
+                    Some(&partition.open_chunk)
                 } else {
                     None
                 }
@@ -256,7 +259,7 @@ mod tests {
         assert_eq!(
             partition.chunk_info(),
             PartitionChunkInfo {
-                num_immutable_chunks: 0
+                num_closed_chunks: 0
             }
         );
         assert_table_eq!(expected, &dump_table(&partition, "h2o"));
@@ -268,19 +271,19 @@ mod tests {
         assert_eq!(
             partition.chunk_info(),
             PartitionChunkInfo {
-                num_immutable_chunks: 1
+                num_closed_chunks: 1
             }
         );
         assert_table_eq!(expected, &dump_table(&partition, "h2o"));
         assert_eq!(row_count("h2o", &chunk), 2);
 
         // calling rollover chunk again is ok; It is returned but not added to the
-        // immutable chunk list
+        // closed chunk list
         let chunk = partition.rollover_chunk();
         assert_eq!(
             partition.chunk_info(),
             PartitionChunkInfo {
-                num_immutable_chunks: 1
+                num_closed_chunks: 1
             }
         );
         assert_table_eq!(expected, &dump_table(&partition, "h2o"));
@@ -305,7 +308,7 @@ mod tests {
         assert_eq!(
             partition.chunk_info(),
             PartitionChunkInfo {
-                num_immutable_chunks: 1
+                num_closed_chunks: 1
             }
         );
         assert_eq!(row_count("h2o", &chunk), 2);
@@ -339,7 +342,7 @@ mod tests {
         assert_eq!(
             partition.chunk_info(),
             PartitionChunkInfo {
-                num_immutable_chunks: 2
+                num_closed_chunks: 2
             }
         );
         assert_eq!(row_count("h2o", &chunk), 3);
@@ -378,7 +381,7 @@ mod tests {
         assert_eq!(
             partition.chunk_info(),
             PartitionChunkInfo {
-                num_immutable_chunks: 0
+                num_closed_chunks: 0
             }
         );
 
@@ -390,7 +393,7 @@ mod tests {
         assert_eq!(
             partition.chunk_info(),
             PartitionChunkInfo {
-                num_immutable_chunks: 1
+                num_closed_chunks: 1
             }
         );
         assert_eq!(row_count("h2o", &chunk), 1);
@@ -425,7 +428,7 @@ mod tests {
     async fn test_rollover_chunk_drop_data_is_gone() {
         let mut partition = Partition::new("a_key");
 
-        // Given data loaded into two chunks (one immutable)
+        // Given data loaded into two chunks (one closed)
         load_data(
             &mut partition,
             &[
@@ -474,11 +477,10 @@ mod tests {
     async fn test_write_after_drop_chunk() {
         let mut partition = Partition::new("a_key");
 
-        // Given data loaded into three chunks (two immutable
+        // Given data loaded into three chunks (two closed)
         load_data(&mut partition, &["h2o,state=MA,city=Boston temp=70.4 100"]).await;
         partition.rollover_chunk();
 
-        // Given data loaded into three chunks (two immutable
         load_data(&mut partition, &["h2o,state=MA,city=Boston temp=72.4 200"]).await;
         partition.rollover_chunk();
 
@@ -522,7 +524,7 @@ mod tests {
         let mut partition = Partition::new("a_key");
         let e = partition.drop_chunk(0).unwrap_err();
         assert_eq!(
-            "Can not drop active chunk '0' of partition with key 'a_key'",
+            "Can not drop open chunk '0' of partition with key 'a_key'",
             format!("{}", e)
         );
 
@@ -568,8 +570,8 @@ mod tests {
         assert!(after_partition_creation < chunk.time_of_first_write.unwrap());
         assert!(chunk.time_of_first_write.unwrap() < after_data_load);
         assert!(chunk.time_of_first_write.unwrap() == chunk.time_of_last_write.unwrap());
-        assert!(after_data_load < chunk.time_became_immutable.unwrap());
-        assert!(chunk.time_became_immutable.unwrap() < after_rollover);
+        assert!(after_data_load < chunk.time_closed.unwrap());
+        assert!(chunk.time_closed.unwrap() < after_rollover);
     }
 
     #[tokio::test]
@@ -598,8 +600,8 @@ mod tests {
         let after_rollover = Utc::now();
         assert!(chunk.time_of_first_write.is_none());
         assert!(chunk.time_of_last_write.is_none());
-        assert!(after_partition_creation < chunk.time_became_immutable.unwrap());
-        assert!(chunk.time_became_immutable.unwrap() < after_rollover);
+        assert!(after_partition_creation < chunk.time_closed.unwrap());
+        assert!(chunk.time_closed.unwrap() < after_rollover);
     }
 
     #[tokio::test]
@@ -615,8 +617,8 @@ mod tests {
 
         assert!(chunk.time_of_first_write.is_none());
         assert!(chunk.time_of_last_write.is_none());
-        assert!(after_partition_creation < chunk.time_became_immutable.unwrap());
-        assert!(chunk.time_became_immutable.unwrap() < after_rollover);
+        assert!(after_partition_creation < chunk.time_closed.unwrap());
+        assert!(chunk.time_closed.unwrap() < after_rollover);
     }
 
     fn row_count(table_name: &str, chunk: &Chunk) -> u32 {
