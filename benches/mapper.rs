@@ -79,7 +79,7 @@ fn map_field_columns(c: &mut Criterion) {
     block_map.insert(2, block2);
     let decoder = reader::MockBlockDecoder::new(block_map);
 
-    group.bench_function("map field columns", move |b| {
+    group.bench_function("map_field_columns", move |b| {
         b.iter_batched(
             || (decoder.clone(), measurement_table.clone()),
             |(mut data, mut measurement_table)| {
