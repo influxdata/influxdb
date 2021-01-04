@@ -19,6 +19,7 @@ pub mod aws;
 pub mod disk;
 pub mod gcp;
 pub mod memory;
+pub mod path;
 
 use aws::AmazonS3;
 use disk::File;
