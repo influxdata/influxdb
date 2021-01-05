@@ -55,11 +55,15 @@ nfpms:
       - deb
       - rpm
     bindir: /usr/bin
-    files:
-      "scripts/init.sh": "/usr/lib/influxdb/scripts/init.sh"
-      "scripts/influxdb.service": "/usr/lib/influxdb/scripts/influxdb.service"
-      "scripts/logrotate": "/etc/logrotate.d/influxdb"
-      "scripts/influxdb2-upgrade.sh": "/usr/share/influxdb/influxdb2-upgrade.sh"
+    contents:
+      - src: scripts/init.sh
+        dst: /usr/lib/influxdb/scripts/init.sh
+      - src: scripts/influxdb.service
+        dst: /usr/lib/influxdb/scripts/influxdb.service
+      - src: scripts/logrotate
+        dst: /etc/logrotate.d/influxdb
+      - src: scripts/influxdb2-upgrade.sh
+        dst: /usr/share/influxdb/influxdb2-upgrade.sh
     scripts:
       preinstall:  "scripts/pre-install.sh"
       postinstall: "scripts/post-install.sh"
@@ -125,6 +129,7 @@ dockers:
       - docker/influxd/entrypoint.sh
     build_flag_templates:
       - "--platform=linux/amd64"
+    use_buildx: true
   - goos: linux
     goarch: arm64
     binaries:
@@ -137,6 +142,7 @@ dockers:
       - docker/influxd/entrypoint.sh
     build_flag_templates:
       - "--platform=linux/arm64/v8"
+    use_buildx: true
 
 docker_manifests:
   - name_template: "quay.io/influxdb/influxdb:{{ .Tag }}"

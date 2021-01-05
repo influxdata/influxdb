@@ -91,7 +91,7 @@ ENV CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/local/osxcross/target/bin/x86_6
 WORKDIR /go
 
 # Install goreleaser.
-ENV GORELEASER_VERSION=v0.142.0
+ENV GORELEASER_VERSION=v0.152.0
 RUN curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh && \
     sh goreleaser-install ${GORELEASER_VERSION} && \
     rm goreleaser-install
