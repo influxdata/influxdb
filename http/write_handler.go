@@ -16,6 +16,7 @@ import (
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -187,6 +188,16 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	requestBytes = parsed.RawSize
 
 	if err := h.PointsWriter.WritePoints(ctx, org.ID, bucket.ID, parsed.Points); err != nil {
+		if partialErr, ok := err.(tsdb.PartialWriteError); ok {
+			h.HandleHTTPError(ctx, &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
+				Op:   opWriteHandler,
+				Msg:  "failure writing points to database",
+				Err:  partialErr,
+			}, sw)
+			return
+		}
+
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EInternal,
 			Op:   opWriteHandler,
