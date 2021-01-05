@@ -13,6 +13,7 @@ use arrow_deps::arrow::record_batch::RecordBatch;
 
 use chunk::Chunk;
 use column::AggregateType;
+pub use column::{FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE, TIME_COLUMN_TYPE};
 use row_group::{ColumnName, Predicate};
 
 /// Generate a predicate for the time range [from, to).
@@ -41,8 +42,8 @@ pub fn time_range_predicate<'a>(from: i64, to: i64) -> Vec<row_group::Predicate<
 #[derive(Default)]
 pub struct Database {
     // The collection of chunks in the database. Each chunk is uniquely
-    // identified by a chunk key.
-    chunks: BTreeMap<String, Chunk>,
+    // identified by a chunk id.
+    chunks: BTreeMap<u32, Chunk>,
 
     // The current total size of the database.
     size: u64,
@@ -64,11 +65,11 @@ impl Database {
         Self::default()
     }
 
-    pub fn add_chunk(&mut self, chunk: Chunk) {
+    pub fn add_chunk(&mut self, chunk_id: u32, chunk_data: BTreeMap<String, RecordBatch>) {
         todo!()
     }
 
-    pub fn remove_chunk(&mut self, chunk: Chunk) {
+    pub fn remove_chunk(&mut self, chunk_id: u32) {
         todo!()
     }
 

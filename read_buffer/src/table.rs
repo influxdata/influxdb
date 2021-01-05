@@ -32,7 +32,6 @@ pub struct Table {
     // Metadata about the table's segments
     meta: MetaData,
 
-    // schema // TODO(edd): schema type
     segments: Vec<RowGroup>,
 }
 
