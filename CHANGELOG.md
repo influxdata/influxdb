@@ -1,5 +1,15 @@
 ## unreleased
 
+### Docker
+
+#### ARM64
+This release extends the Docker builds hosted in `quay.io` to support the `linux/arm64` platform.
+
+#### 2.x nightly images
+Prior to this release, competing nightly builds caused the `nightly` Docker tag to contain outdated
+binaries. This conflict has been fixed, and the image tagged with `nightly` will now contain `2.x`
+binaries built from the `HEAD` of the `master` branch.
+
 ### Breaking Changes
 
 #### inmem index option removed
