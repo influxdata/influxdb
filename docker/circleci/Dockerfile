@@ -2,34 +2,44 @@ FROM circleci/golang:1.15-node-browsers
 
 WORKDIR /tmp
 
-# Install musl cross-compiler for ARM64.
 ENV MUSL_VERSION=1.1.24
-ENV MUSL_CROSS_MAKE_VERSION=v0.9.9
+ENV MUSL_CROSS_MAKE_VERSION=0.9.9
 
 RUN sudo apt-get update && \
     sudo apt-get install -y --no-install-recommends \
         patch && \
     sudo rm -rf /var/lib/apt/lists/*
 
-RUN git clone https://github.com/richfelker/musl-cross-make.git && \
-    cd musl-cross-make && \
-    git checkout ${MUSL_CROSS_MAKE_VERSION} && \
-    make MUSL_VER=${MUSL_VERSION} TARGET=aarch64-unknown-linux-musl install && \
-    sudo mv output /usr/local/musl-cross && \
-    cd .. && \
-    rm -rf musl-cross-make
+# Install musl cross-compiler for ARM64.
+# The archive downloaded below was built using these commands:
+#RUN git clone https://github.com/richfelker/musl-cross-make.git && \
+#    cd musl-cross-make && \
+#    git checkout v${MUSL_CROSS_MAKE_VERSION} && \
+#    make MUSL_VER=${MUSL_VERSION} TARGET=aarch64-unknown-linux-musl install && \
+#    mv output musl-cross && \
+#    tar czf /tmp/musl-cross-aarch64-${MUSL_CROSS_MAKE_VERSION}.tar.gz musl && \
+#    cd .. && \
+#    rm -rf musl-cross-make
+RUN curl https://dl.influxdata.com/influxdb-ci/musl/${MUSL_VERSION}/musl-cross/${MUSL_CROSS_MAKE_VERSION}/musl-cross-aarch64-${MUSL_CROSS_MAKE_VERSION}.tar.gz -O && \
+    sudo tar xzf musl-cross-aarch64-${MUSL_CROSS_MAKE_VERSION}.tar.gz -C /usr/local && \
+    rm musl-cross-aarch64-${MUSL_CROSS_MAKE_VERSION}.tar.gz
 
 ENV PATH=/usr/local/musl-cross/bin:${PATH}
 
 # Install native musl.
-RUN curl https://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz -O && \
-    tar xzf musl-${MUSL_VERSION}.tar.gz && \
-    cd musl-${MUSL_VERSION} && \
-    ./configure && \
-    make && \
-    sudo make install && \
-    cd .. && \
-    rm -rf musl-${MUSL_VERSION}*
+# The archive downloaded below was built using these commands:
+#RUN curl https://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz -O && \
+#    tar xzf musl-${MUSL_VERSION}.tar.gz && \
+#    cd musl-${MUSL_VERSION} && \
+#    ./configure && \
+#    make && \
+#    sudo make install && \
+#    tar czf /tmp/musl-${MUSL_VERSION}.tar.gz /usr/local/musl
+#    cd .. && \
+#    rm -rf musl-${MUSL_VERSION}*
+RUN curl https://dl.influxdata.com/influxdb-ci/musl/${MUSL_VERSION}/musl-${MUSL_VERSION}.tar.gz -O && \
+    sudo tar xzf musl-${MUSL_VERSION}.tar.gz -C /usr/local && \
+    rm musl-${MUSL_VERSION}.tar.gz
 
 ENV PATH=/usr/local/musl/bin:${PATH}
 
@@ -47,13 +57,19 @@ RUN sudo apt-get update && \
         zlib1g-dev && \
     sudo rm -rf /var/lib/apt/lists/*
 
-RUN sudo git clone https://github.com/tpoechtrager/osxcross.git /usr/local/osxcross && \
-    cd /usr/local/osxcross && \
-    sudo git checkout ${OSX_CROSS_VERSION} && \
-    sudo curl -L -o ./tarballs/MacOSX10.11.sdk.tar.xz https://macos-sdks.s3.amazonaws.com/MacOSX10.11.sdk.tar.xz && \
-    sudo UNATTENDED=1 PORTABLE=true OCDEBUG=1 ./build.sh && \
-    sudo rm -rf .git build tarballs && \
-    cd /tmp
+# The archive downloaded below was built using these commands:
+#RUN sudo git clone https://github.com/tpoechtrager/osxcross.git /usr/local/osxcross && \
+#    cd /usr/local/osxcross && \
+#    sudo git checkout ${OSX_CROSS_VERSION} && \
+#    sudo curl -L -o ./tarballs/MacOSX10.11.sdk.tar.xz https://macos-sdks.s3.amazonaws.com/MacOSX10.11.sdk.tar.xz && \
+#    sudo UNATTENDED=1 PORTABLE=true OCDEBUG=1 ./build.sh && \
+#    sudo rm -rf .git build tarballs && \
+#    cd /tmp && \
+#    tar czf osxcross-${OSX_CROSS_VERSION}.tar.gz /usr/local/osxcross && \
+#    sudo rm -rf /usr/local/osxcross
+RUN curl https://dl.influxdata.com/influxdb-ci/osxcross/${OSX_CROSS_VERSION}/osxcross-${OSX_CROSS_VERSION}.tar.gz -O && \
+    sudo tar xzf osxcross-${OSX_CROSS_VERSION}.tar.gz -C /usr/local && \
+    rm osxcross-${OSX_CROSS_VERSION}.tar.gz
 
 ENV PATH=/usr/local/osxcross/target/bin:${PATH}
 
