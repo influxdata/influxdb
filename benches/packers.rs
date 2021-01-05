@@ -97,15 +97,15 @@ fn benchmark_get(c: &mut Criterion, benchmark_group_name: &str, batch_sizes: &[u
             u64::try_from(input.len() * mem::size_of::<Option<u64>>()).unwrap(),
         ));
 
+        let mut packer = Packer::with_capacity(input.len());
+        for v in input {
+            packer.push_option(v);
+        }
+
         group.bench_with_input(
             BenchmarkId::from_parameter(batch_size),
-            &input,
-            |b, input| {
-                let mut packer = Packer::with_capacity(input.len());
-                for v in input {
-                    packer.push_option(*v);
-                }
-
+            &packer,
+            |b, packer| {
                 b.iter(|| {
                     // worst case getting last element.
                     packer.get(packer.num_rows() - 1);
@@ -125,15 +125,15 @@ fn benchmark_iter(c: &mut Criterion, benchmark_group_name: &str, batch_sizes: &[
             u64::try_from(input.len() * mem::size_of::<Option<u64>>()).unwrap(),
         ));
 
+        let mut packer = Packer::with_capacity(input.len());
+        for v in input {
+            packer.push_option(v);
+        }
+
         group.bench_with_input(
             BenchmarkId::from_parameter(batch_size),
-            &input,
-            |b, input| {
-                let mut packer = Packer::with_capacity(input.len());
-                for v in input {
-                    packer.push_option(*v);
-                }
-
+            &packer,
+            |b, packer| {
                 let mut sum = 0;
                 b.iter(|| {
                     for v in packer.iter() {
