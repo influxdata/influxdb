@@ -1,12 +1,12 @@
 {
-  "name": "chronograf-ui",
-  "version": "2.0.0",
+  "name": "influxdb-ui",
+  "version": "2.0.x",
   "private": false,
-  "license": "AGPL-3.0",
+  "license": "MIT",
   "description": "",
   "repository": {
     "type": "git",
-    "url": "github:influxdata/chronograf"
+    "url": "github:influxdata/ui"
   },
   "engines": {
     "node": ">=10.5.0",
