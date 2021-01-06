@@ -12,52 +12,62 @@ use crate::{
 
 /// A Table represents data for a single measurement.
 ///
-/// Tables contain potentially many collections of rows in the form of segments.
-/// These segments can be thought of as horizontally sliced segments of the
-/// entire table, where each row within any segment is unique and not found on
-/// any other segments for the table.
+/// Tables contain potentially many collections of rows in the form of row
+/// groups. These row groups can be thought of as horizontally sliced sections
+/// of the entire table, where each row within any row group is unique and not
+/// found on any other row groups for the table.
 ///
-/// Rows within a table's segments can be sorted arbitrarily, therefore it is
-/// possible that time-ranges (for example) can overlap across segments.
+/// Rows within a table's row groups can be sorted arbitrarily, therefore it is
+/// possible that time-ranges (for example) can overlap across row groups.
 ///
-/// The current write path ensures that a single table emitted for a
-/// measurement within any chunk will have the same schema, therefore this
-/// table's schema applies to all of the segments held within it.
+/// The current write path ensures that a single row group emitted for a
+/// table within any chunk will have the same schema, therefore this
+/// table's schema applies to all of the row groups held within it.
 ///
 /// The total size of a table is tracked and can be increased or reduced by
-/// adding or removing segments.
+/// adding or removing row groups for that table.
 pub struct Table {
     name: String,
 
     // Metadata about the table's segments
     meta: MetaData,
 
-    segments: Vec<RowGroup>,
+    row_groups: Vec<RowGroup>,
 }
 
 impl Table {
-    /// Create a new table with the provided segment.
-    pub fn new(name: String, segment: RowGroup) -> Self {
+    /// Create a new table with the provided row_group.
+    pub fn new(name: String, rg: RowGroup) -> Self {
         Self {
             name,
-            meta: MetaData::new(&segment),
-            segments: vec![segment],
+            meta: MetaData::new(&rg),
+            row_groups: vec![rg],
         }
     }
 
-    /// Add a new segment to this table.
-    pub fn add_segment(&mut self, segment: RowGroup) {
-        self.segments.push(segment);
+    /// Initialise a Table using an Arrow `RecordBatch`.
+    pub fn with_recordbatch(name: String, rb: RecordBatch) -> Self {
+        let rg = RowGroup::from(rb);
+        Self {
+            name,
+            meta: MetaData::new(&rg),
+            row_groups: vec![rg],
+        }
     }
 
-    /// Remove the segment at `position` from table.
+    /// Add a new row group to this table.
+    pub fn add_row_group(&mut self, rg: RowGroup) {
+        self.row_groups.push(rg);
+    }
+
+    /// Remove the row group at `position` from table.
     pub fn drop_segment(&mut self, position: usize) {
         todo!();
     }
 
-    /// Iterate over all segments for the table.
+    /// Iterate over all row groups for the table.
     pub fn iter(&mut self) -> Iter<'_, RowGroup> {
-        self.segments.iter()
+        self.row_groups.iter()
     }
 
     /// The name of the table (equivalent to measurement or table name).
@@ -65,14 +75,14 @@ impl Table {
         &self.name
     }
 
-    /// Determines if this table contains no segments.
+    /// Determines if this table contains no row groups.
     pub fn is_empty(&self) -> bool {
-        self.segments.is_empty()
+        self.row_groups.is_empty()
     }
 
-    /// The total number of segments within this table.
+    /// The total number of row groups within this table.
     pub fn len(&self) -> usize {
-        self.segments.len()
+        self.row_groups.len()
     }
 
     /// The total size of the table in bytes.
@@ -85,12 +95,12 @@ impl Table {
         todo!()
     }
 
-    /// The time range of all segments within this table.
+    /// The time range of all row groups within this table.
     pub fn time_range(&self) -> Option<(i64, i64)> {
-        todo!()
+        self.meta.time_range
     }
 
-    /// The ranges on each column in the table (across all segments).
+    /// The ranges on each column in the table (across all row groups).
     pub fn column_ranges(&self) -> BTreeMap<String, (OwnedValue, OwnedValue)> {
         todo!()
     }
@@ -105,23 +115,23 @@ impl Table {
         true
     }
 
-    // Identify set of segments that may satisfy the predicates.
-    fn filter_segments(&self, predicates: &[Predicate<'_>]) -> Vec<&RowGroup> {
-        let mut segments = Vec::with_capacity(self.segments.len());
+    // Identify set of row groups that may satisfy the predicates.
+    fn filter_row_groups(&self, predicates: &[Predicate<'_>]) -> Vec<&RowGroup> {
+        let mut rgs = Vec::with_capacity(self.row_groups.len());
 
-        'seg: for segment in &self.segments {
+        'rowgroup: for rg in &self.row_groups {
             // check all provided predicates
             for (col_name, pred) in predicates {
-                if !segment.column_could_satisfy_predicate(col_name, pred) {
-                    continue 'seg;
+                if !rg.column_could_satisfy_predicate(col_name, pred) {
+                    continue 'rowgroup;
                 }
             }
 
             // segment could potentially satisfy all predicates
-            segments.push(segment);
+            rgs.push(rg);
         }
 
-        segments
+        rgs
     }
 
     /// Returns vectors of columnar data for the specified column
@@ -139,7 +149,7 @@ impl Table {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
-        let segments = self.filter_segments(predicates);
+        let segments = self.filter_row_groups(predicates);
 
         let mut results = ReadFilterResults {
             names: columns.to_vec(),
@@ -197,7 +207,7 @@ impl Table {
         // using segment meta data, and then execute against those segments and
         // merge results.
         let mut results = ReadGroupResults::default();
-        let segments = self.filter_segments(predicates);
+        let segments = self.filter_row_groups(predicates);
         if segments.is_empty() {
             results.groupby_columns = group_columns;
             results.aggregate_columns = aggregates;
@@ -437,13 +447,6 @@ impl Table {
     }
 }
 
-/// Convert a record batch into a table.
-impl From<RecordBatch> for Table {
-    fn from(rb: RecordBatch) -> Self {
-        todo!()
-    }
-}
-
 struct MetaData {
     // The total size of the table in bytes.
     size: u64,
@@ -452,14 +455,14 @@ struct MetaData {
     rows: u64,
 
     // The distinct set of columns for this table (all of these columns will
-    // appear in all of the table's segments) and the range of values for
+    // appear in all of the table's row groups) and the range of values for
     // each of those columns.
     //
     // This can be used to skip the table entirely if a logical predicate can't
     // possibly match based on the range of values a column has.
     column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
 
-    // The total time range of this table spanning all of the segments within
+    // The total time range of this table spanning all of the row groups within
     // the table.
     //
     // This can be used to skip the table entirely if the time range for a query

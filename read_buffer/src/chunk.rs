@@ -31,6 +31,17 @@ impl Chunk {
         p
     }
 
+    /// Add a table to the chunk, updating all Chunk meta data.
+    pub fn add_table(&mut self, table: Table) {
+        // update meta data
+        self.meta.add_table(&table);
+
+        self.tables
+            .entry(table.name().to_owned())
+            .and_modify(|_| unimplemented!("Can a chunk have multiple tables with the same name?"))
+            .or_insert_with(|| table);
+    }
+
     /// Returns data for the specified column selections on the specified table
     /// name.
     ///
@@ -144,8 +155,24 @@ impl MetaData {
     }
 
     pub fn add_table(&mut self, table: &Table) {
-        // Update size, rows, time_range
-        todo!()
+        self.size += table.size();
+        self.rows += table.rows();
+
+        match (&mut self.time_range, table.time_range()) {
+            (None, None) => {}
+            (Some(_), None) => {}
+            (None, Some(range)) => {
+                self.time_range = Some(range);
+            }
+            (Some((this_min, this_max)), Some((them_min, them_max))) => {
+                if them_min < *this_min {
+                    *this_min = them_min;
+                }
+                if them_max > *this_max {
+                    *this_max = them_max;
+                }
+            }
+        }
     }
 
     // invalidate should be called when a table is removed. All meta data must

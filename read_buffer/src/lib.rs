@@ -15,6 +15,7 @@ use chunk::Chunk;
 use column::AggregateType;
 pub use column::{FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE, TIME_COLUMN_TYPE};
 use row_group::{ColumnName, Predicate};
+use table::Table;
 
 /// Generate a predicate for the time range [from, to).
 pub fn time_range_predicate<'a>(from: i64, to: i64) -> Vec<row_group::Predicate<'a>> {
@@ -65,8 +66,30 @@ impl Database {
         Self::default()
     }
 
+    // TODO(edd) - figure the entry thing out with the closure
+    #[allow(clippy::map_entry)]
+    /// Add a new Chunk to this database
     pub fn add_chunk(&mut self, chunk_id: u32, chunk_data: BTreeMap<String, RecordBatch>) {
-        todo!()
+        for (table_name, rb) in chunk_data {
+            let table = Table::with_recordbatch(table_name, rb);
+
+            // create a new chunk if one doesn't exist, or add the table to the
+            // existing chunk.
+            if !self.chunks.contains_key(&chunk_id) {
+                self.chunks.insert(chunk_id, Chunk::new(chunk_id, table));
+            } else {
+                let chunk = self.chunks.get_mut(&chunk_id).unwrap();
+                chunk.add_table(table);
+            }
+
+            //
+            // - sad face that the borrow checker can't figure this out...
+            // let chunk = self
+            //     .chunks
+            //     .entry(chunk_id)
+            //     .and_modify(|chunk| chunk.add_table(table))
+            //     .or_insert_with(|| Chunk::new(chunk_id, table));
+        }
     }
 
     pub fn remove_chunk(&mut self, chunk_id: u32) {
