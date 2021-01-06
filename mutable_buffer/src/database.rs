@@ -1,11 +1,10 @@
-use generated_types::wal as wb;
-use influxdb_line_protocol::ParsedLine;
+use generated_types::wal;
 use query::group_by::GroupByAndAggregate;
 use query::group_by::WindowDuration;
 use query::{
     exec::{stringset::StringSet, FieldListPlan, SeriesSetPlan, SeriesSetPlans, StringSetPlan},
     predicate::Predicate,
-    SQLDatabase, TSDatabase,
+    Database, SQLDatabase,
 };
 use query::{group_by::Aggregate, predicate::PredicateBuilder};
 
@@ -26,12 +25,11 @@ use arrow_deps::{
         logical_plan::LogicalPlan, physical_plan::collect, prelude::ExecutionConfig,
     },
 };
-use data_types::data::{split_lines_into_write_entry_partitions, ReplicatedWrite};
+use data_types::data::ReplicatedWrite;
 
 use crate::dictionary::Error as DictionaryError;
 
 use async_trait::async_trait;
-use chrono::{offset::TimeZone, Utc};
 use snafu::{ResultExt, Snafu};
 use sqlparser::{
     ast::{SetExpr, Statement, TableFactor},
@@ -160,7 +158,7 @@ impl MutableBufferDb {
     }
 
     /// Directs the writes from batch into the appropriate partitions
-    async fn write_entries_to_partitions(&self, batch: &wb::WriteBufferBatch<'_>) -> Result<()> {
+    async fn write_entries_to_partitions(&self, batch: &wal::WriteBufferBatch<'_>) -> Result<()> {
         if let Some(entries) = batch.entries() {
             for entry in entries {
                 let key = entry
@@ -195,21 +193,8 @@ impl MutableBufferDb {
 }
 
 #[async_trait]
-impl TSDatabase for MutableBufferDb {
-    type Chunk = crate::chunk::Chunk;
+impl Database for MutableBufferDb {
     type Error = Error;
-
-    // TODO: writes lines creates a column named "time" for the timestamp data. If
-    //       we keep this we need to validate that no tag or field has the same
-    // name.
-    async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
-        let data = split_lines_into_write_entry_partitions(compute_partition_key, lines);
-        let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&data);
-
-        self.write_entries_to_partitions(&batch).await?;
-
-        Ok(())
-    }
 
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         match write.write_buffer_batch() {
@@ -312,7 +297,6 @@ impl TSDatabase for MutableBufferDb {
 
 #[async_trait]
 impl SQLDatabase for MutableBufferDb {
-    type Chunk = Chunk;
     type Error = Error;
 
     async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
@@ -1053,17 +1037,6 @@ impl Visitor for WindowGroupsVisitor {
     }
 }
 
-// compute_partition_key returns the partititon key for the given
-// line. The key will be the prefix of a chunk name (multiple chunks
-// can exist for each key).  It uses the user defined chunking rules
-// to construct this key
-pub fn compute_partition_key(line: &ParsedLine<'_>) -> String {
-    // TODO - wire this up to use chunking rules, for now just chunk by day
-    let ts = line.timestamp.unwrap();
-    let dt = Utc.timestamp_nanos(ts);
-    dt.format("%Y-%m-%dT%H").to_string()
-}
-
 struct ArrowTable {
     name: String,
     schema: Arc<ArrowSchema>,
@@ -1081,7 +1054,7 @@ mod tests {
             Executor,
         },
         predicate::PredicateBuilder,
-        TSDatabase,
+        Database,
     };
 
     use arrow_deps::{
@@ -1092,7 +1065,7 @@ mod tests {
         assert_table_eq,
         datafusion::prelude::*,
     };
-    use influxdb_line_protocol::parse_lines;
+    use influxdb_line_protocol::{parse_lines, ParsedLine};
     use test_helpers::str_pair_vec_to_vec;
     use tokio::sync::mpsc;
 
@@ -1129,7 +1102,7 @@ mod tests {
             parse_lines("cpu,region=west user=23.2 10\ndisk,region=east bytes=99i 11")
                 .map(|l| l.unwrap())
                 .collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         // Now, we should see the two tables
         assert_eq!(
@@ -1151,7 +1124,7 @@ mod tests {
             parse_lines("cpu,region=west user=23.2 100\ncpu,region=west user=21.0 150\ndisk,region=east bytes=99i 200")
                 .map(|l| l.unwrap())
                 .collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         // Cover all times
         let predicate = PredicateBuilder::default().timestamp_range(0, 201).build();
@@ -1189,7 +1162,7 @@ mod tests {
         )
         .map(|l| l.unwrap())
         .collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         let chunks = db.table_to_arrow("cpu", &["region", "core"]).await?;
         let columns = chunks[0].columns();
@@ -1233,7 +1206,7 @@ mod tests {
         let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i 10")
             .map(|l| l.unwrap())
             .collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         let results = db.query("select * from cpu").await?;
 
@@ -1251,21 +1224,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn db_partition_key() -> Result {
-        let partition_keys: Vec<_> = parse_lines(
-            "\
-cpu user=23.2 1600107710000000000
-disk bytes=23432323i 1600136510000000000",
-        )
-        .map(|line| compute_partition_key(&line.unwrap()))
-        .collect();
-
-        assert_eq!(partition_keys, vec!["2020-09-14T18", "2020-09-15T02"]);
-
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn list_column_names() -> Result {
         let db = MutableBufferDb::new("column_namedb");
 
@@ -1278,7 +1236,7 @@ disk bytes=23432323i 1600136510000000000",
                        o2,state=NY,city=NYC,borough=Brooklyn temp=61.0 600\n";
 
         let lines: Vec<_> = parse_lines(lp_data).map(|l| l.unwrap()).collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         #[derive(Debug)]
         struct TestCase<'a> {
@@ -1403,7 +1361,7 @@ disk bytes=23432323i 1600136510000000000",
                        o2,state=NY,city=NYC,borough=Brooklyn temp=60.8 400\n";
 
         let lines: Vec<_> = parse_lines(lp_data).map(|l| l.unwrap()).collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         // Predicate: state=MA
         let expr = col("state").eq(lit("MA"));
@@ -1436,7 +1394,7 @@ disk bytes=23432323i 1600136510000000000",
                        o2,state=NY temp=60.8 400\n";
 
         let lines: Vec<_> = parse_lines(lp_data).map(|l| l.unwrap()).collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         #[derive(Debug)]
         struct TestCase<'a> {
@@ -1600,7 +1558,7 @@ disk bytes=23432323i 1600136510000000000",
         let lp_data = lp_lines.join("\n");
 
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         let predicate = Predicate::default();
 
@@ -1672,7 +1630,7 @@ disk bytes=23432323i 1600136510000000000",
         let lp_data = lp_lines.join("\n");
 
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         // filter out one row in h20
         let predicate = PredicateBuilder::default()
@@ -1717,7 +1675,7 @@ disk bytes=23432323i 1600136510000000000",
         let lp_data = lp_lines.join("\n");
 
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         let predicate = PredicateBuilder::default()
             .add_expr(col("tag_not_in_h20").eq(lit("foo")))
@@ -1776,7 +1734,7 @@ disk bytes=23432323i 1600136510000000000",
         let lp_data = lp_lines.join("\n");
 
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        db.write_lines(&lines).await.unwrap();
+        write_lines(&db, &lines).await;
 
         let predicate = PredicateBuilder::default()
             .add_expr(col("state").not_eq(lit("MA")))
@@ -1801,9 +1759,9 @@ disk bytes=23432323i 1600136510000000000",
         .join("\n");
 
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
-        // write a new lp_line that is in a new day and thus a new chunk
+        // write a new lp_line that is in a new day and thus a new partititon
         let nanoseconds_per_day: i64 = 1_000_000_000 * 60 * 60 * 24;
 
         let lp_data = vec![format!(
@@ -1812,7 +1770,7 @@ disk bytes=23432323i 1600136510000000000",
         )]
         .join("\n");
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         // ensure there are 2 chunks
         assert_eq!(db.len().await, 2);
@@ -1896,7 +1854,7 @@ disk bytes=23432323i 1600136510000000000",
         .join("\n");
 
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        db.write_lines(&lines).await?;
+        write_lines(&db, &lines).await;
 
         // setup to run the execution plan (
         let executor = Executor::default();
@@ -1979,5 +1937,11 @@ disk bytes=23432323i 1600136510000000000",
         println!("The results are: {:#?}", results);
 
         results
+    }
+
+    /// write lines into this database
+    async fn write_lines(database: &MutableBufferDb, lines: &[ParsedLine<'_>]) {
+        let mut writer = query::test::TestLPWriter::default();
+        writer.write_lines(database, lines).await.unwrap()
     }
 }

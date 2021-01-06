@@ -8,7 +8,7 @@ use std::{
     },
 };
 
-use crate::buffer::Buffer;
+use crate::db::Db;
 use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
@@ -18,7 +18,7 @@ use data_types::{
 use influxdb_line_protocol::ParsedLine;
 use mutable_buffer::MutableBufferDb;
 use object_store::ObjectStore;
-use query::{DatabaseStore, SQLDatabase, TSDatabase};
+use query::{Database, DatabaseStore, SQLDatabase};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -31,6 +31,8 @@ type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 /// A server ID of 0 is reserved and indicates no ID has been configured.
 const SERVER_ID_NOT_SET: u32 = 0;
+
+const STARTING_SEQUENCE: u64 = 1;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -80,7 +82,7 @@ pub struct Server<M: ConnectionManager> {
 
 #[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 struct Config {
-    databases: BTreeMap<DatabaseName<'static>, Db>,
+    databases: BTreeMap<DatabaseName<'static>, Arc<Db>>,
     host_groups: BTreeMap<HostGroupId, HostGroup>,
 }
 
@@ -129,15 +131,11 @@ impl<M: ConnectionManager> Server<M> {
         };
 
         let sequence = AtomicU64::new(STARTING_SEQUENCE);
-        let db = Db {
-            rules,
-            local_store: buffer,
-            wal_buffer: None,
-            sequence,
-        };
+        let wal_buffer = None;
+        let db = Db::new(rules, buffer, wal_buffer, sequence);
 
         let mut config = self.config.write().await;
-        config.databases.insert(db_name, db);
+        config.databases.insert(db_name, Arc::new(db));
 
         Ok(())
     }
@@ -319,18 +317,15 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    pub async fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<MutableBufferDb>> {
+    pub async fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
         let config = self.config.read().await;
-        config
-            .databases
-            .get(&name)
-            .and_then(|d| d.local_store.clone())
+        config.databases.get(&name).cloned()
     }
 }
 
 #[async_trait]
 impl DatabaseStore for Server<ConnectionManagerImpl> {
-    type Database = MutableBufferDb;
+    type Database = Db;
     type Error = Error;
 
     async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
@@ -388,33 +383,6 @@ pub trait RemoteServer {
         db: &str,
         replicated_write: &ReplicatedWrite,
     ) -> Result<(), Self::Error>;
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Db {
-    #[serde(flatten)]
-    pub rules: DatabaseRules,
-    #[serde(skip)]
-    pub local_store: Option<Arc<MutableBufferDb>>,
-    #[serde(skip)]
-    wal_buffer: Option<Buffer>,
-    #[serde(skip)]
-    sequence: AtomicU64,
-}
-
-impl PartialEq for Db {
-    fn eq(&self, other: &Self) -> bool {
-        self.rules == other.rules
-    }
-}
-impl Eq for Db {}
-
-const STARTING_SEQUENCE: u64 = 1;
-
-impl Db {
-    fn next_sequence(&self) -> u64 {
-        self.sequence.fetch_add(1, Ordering::SeqCst)
-    }
 }
 
 /// The connection manager maps a host identifier to a remote server.

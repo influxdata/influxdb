@@ -58,7 +58,7 @@
 
 pub mod chunk;
 mod column;
-mod database;
+pub mod database;
 mod dictionary;
 mod partition;
 mod store;

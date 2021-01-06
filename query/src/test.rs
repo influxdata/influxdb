@@ -10,10 +10,13 @@ use crate::{
         stringset::{StringSet, StringSetRef},
         SeriesSetPlans, StringSetPlan,
     },
-    DatabaseStore, PartitionChunk, Predicate, SQLDatabase, TSDatabase, TimestampRange,
+    Database, DatabaseStore, PartitionChunk, Predicate, SQLDatabase, TimestampRange,
 };
 
-use data_types::data::ReplicatedWrite;
+use data_types::{
+    data::{lines_to_replicated_write, ReplicatedWrite},
+    database_rules::{DatabaseRules, PartitionTemplate, TemplatePart},
+};
 use influxdb_line_protocol::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;
@@ -110,7 +113,14 @@ pub enum TestError {
 
     #[snafu(display("Test database execution:  {:?}", source))]
     Execution { source: crate::exec::Error },
+
+    #[snafu(display("Test error writing to database: {}", source))]
+    DatabaseWrite {
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
 }
+
+pub type Result<T, E = TestError> = std::result::Result<T, E>;
 
 impl TestDatabase {
     pub fn new() -> Self {
@@ -134,9 +144,14 @@ impl TestDatabase {
             .collect::<Result<Vec<_>, _>>()
             .unwrap_or_else(|_| panic!("parsing line protocol: {}", lp_data));
 
-        self.write_lines(&parsed_lines)
-            .await
-            .expect("writing lines");
+        let mut writer = TestLPWriter::default();
+        writer.write_lines(self, &parsed_lines).await.unwrap();
+
+        // Writes parsed lines into this database
+        let mut saved_lines = self.saved_lines.lock().await;
+        for line in parsed_lines {
+            saved_lines.push(line.to_string())
+        }
     }
 
     /// Set the list of column names that will be returned on a call to
@@ -252,18 +267,8 @@ fn predicate_to_test_string(predicate: &Predicate) -> String {
 }
 
 #[async_trait]
-impl TSDatabase for TestDatabase {
-    type Chunk = TestChunk;
+impl Database for TestDatabase {
     type Error = TestError;
-
-    /// Writes parsed lines into this database
-    async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error> {
-        let mut saved_lines = self.saved_lines.lock().await;
-        for line in lines {
-            saved_lines.push(line.to_string())
-        }
-        Ok(())
-    }
 
     /// Adds the replicated write to this database
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
@@ -407,7 +412,6 @@ impl TSDatabase for TestDatabase {
 
 #[async_trait]
 impl SQLDatabase for TestDatabase {
-    type Chunk = TestChunk;
     type Error = TestError;
 
     /// Execute the specified query and return arrow record batches with the
@@ -519,5 +523,41 @@ impl DatabaseStore for TestDatabaseStore {
             databases.insert(name.to_string(), new_db.clone());
             Ok(new_db)
         }
+    }
+}
+
+/// Helper for writing line protocol data directly into test databases
+/// (handles creating sequence numbers and writer ids
+#[derive(Debug, Default)]
+pub struct TestLPWriter {
+    writer_id: u32,
+    sequence_number: u64,
+}
+
+impl TestLPWriter {
+    // writes data in LineProtocol format into a database
+    pub async fn write_lines<D: Database>(
+        &mut self,
+        database: &D,
+        lines: &[ParsedLine<'_>],
+    ) -> Result<()> {
+        // partitions data in hourly segments
+        let partition_template = PartitionTemplate {
+            parts: vec![TemplatePart::TimeFormat("%Y-%m-%dT%H".to_string())],
+        };
+
+        let rules = DatabaseRules {
+            partition_template,
+            ..Default::default()
+        };
+
+        let write = lines_to_replicated_write(self.writer_id, self.sequence_number, &lines, &rules);
+        self.sequence_number += 1;
+        database
+            .store_replicated_write(&write)
+            .await
+            .map_err(|e| TestError::DatabaseWrite {
+                source: Box::new(e),
+            })
     }
 }

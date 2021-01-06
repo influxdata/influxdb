@@ -9,7 +9,6 @@ use arrow_deps::arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{data::ReplicatedWrite, partition_metadata::Table as TableStats};
 use exec::{FieldListPlan, SeriesSetPlans, StringSetPlan};
-use influxdb_line_protocol::ParsedLine;
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -17,40 +16,24 @@ pub mod exec;
 pub mod func;
 pub mod group_by;
 pub mod id;
+pub mod planner;
 pub mod predicate;
 pub mod util;
 
 use self::group_by::GroupByAndAggregate;
 use self::predicate::{Predicate, TimestampRange};
 
-/// A `TSDatabase` describes something that Timeseries data using the
-/// InfluxDB Line Protocol data model (`ParsedLine` structures) and
-/// provides an interface to query that data. The query methods on
-/// this trait such as `tag_columns are specific to this data model.
+/// A `Database` is the main trait implemented by the IOx subsystems
+/// that store actual data.
 ///
-/// The IOx storage engine implements this trait to provide Timeseries
-/// specific queries, but also provides more generic access to the same
-/// underlying data via other interfaces (e.g. SQL).
+/// Databases store data organized by partitions and each partition stores
+/// data in Chunks.
 ///
-/// The InfluxDB Timeseries data model can can be thought of as a
-/// relational database table where each column has both a type as
-/// well as one of the following categories:
-///
-/// * Tag (always String type)
-/// * Field (Float64, Int64, UInt64, String, or Bool)
-/// * Time (Int64)
-///
-/// While the underlying storage is the same for columns in different
-/// categories with the same data type, columns of different
-/// categories are treated differently in the different query types.
+/// TODO: Move all Query and Line Protocol specific things out of this
+/// trait and into the various query planners.
 #[async_trait]
-pub trait TSDatabase: Debug + Send + Sync {
-    /// the type of partition that is stored by this database
-    type Chunk: Send + Sync + 'static + PartitionChunk;
+pub trait Database: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
-
-    /// writes parsed lines into this database
-    async fn write_lines(&self, lines: &[ParsedLine<'_>]) -> Result<(), Self::Error>;
 
     /// Stores the replicated write in the write buffer and, if enabled, the
     /// write ahead log.
@@ -108,8 +91,6 @@ pub trait TSDatabase: Debug + Send + Sync {
 
 #[async_trait]
 pub trait SQLDatabase: Debug + Send + Sync {
-    /// the type of partition that is stored by this database
-    type Chunk: Send + Sync + 'static + PartitionChunk;
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Execute the specified query and return arrow record batches with the
@@ -161,7 +142,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
 /// Storage for `Databases` which can be retrieved by name
 pub trait DatabaseStore: Debug + Send + Sync {
     /// The type of database that is stored by this DatabaseStore
-    type Database: TSDatabase + SQLDatabase;
+    type Database: Database + SQLDatabase;
 
     /// The type of error this DataBase store generates
     type Error: std::error::Error + Send + Sync + 'static;

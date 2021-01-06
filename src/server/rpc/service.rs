@@ -34,7 +34,7 @@ use query::{
         Executor as QueryExecutor,
     },
     predicate::PredicateBuilder,
-    DatabaseStore, TSDatabase,
+    Database, DatabaseStore,
 };
 
 use snafu::{OptionExt, ResultExt, Snafu};
