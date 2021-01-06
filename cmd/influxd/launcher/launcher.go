@@ -201,9 +201,12 @@ func (m *Launcher) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	if err := m.log.Sync(); err != nil {
-		errs = append(errs, err.Error())
-	}
+	// N.B. We ignore any errors here because Sync is known to fail with EINVAL
+	// when logging to Stdout on certain OS's.
+	//
+	// Uber made the same change within the core of the logger implementation.
+	// See: https://github.com/uber-go/zap/issues/328
+	_ = m.log.Sync()
 
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to shut down server: [%s]", strings.Join(errs, ","))
