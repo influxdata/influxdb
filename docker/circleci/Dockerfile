@@ -1,4 +1,4 @@
-FROM circleci/golang:1.15-node-browsers
+FROM cimg/go:1.15.6-browsers
 
 WORKDIR /tmp
 
