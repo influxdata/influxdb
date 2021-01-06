@@ -203,7 +203,7 @@ jobs:
   jsdeps:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -228,7 +228,7 @@ jobs:
   jstest:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -254,7 +254,7 @@ jobs:
   jslint:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
       - checkout
@@ -285,7 +285,7 @@ jobs:
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -307,7 +307,7 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -337,7 +337,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
       - checkout
@@ -376,7 +376,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -409,7 +409,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -444,7 +444,7 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - run: make checkcommit
@@ -483,7 +483,7 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -527,8 +527,7 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-      DOCKER_VERSION: 2.0.0-rc
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -576,7 +575,7 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - attach_workspace:

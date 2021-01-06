@@ -79,8 +79,8 @@ RUN curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/go
     rm goreleaser-install
 
 # Install our cross-compiler.
-COPY --chown=circleci:circleci ./xcc.sh /go/bin/xcc
-RUN chmod a+x /go/bin/xcc
+COPY --chown=circleci:circleci ./xcc.sh $GOPATH/bin/xcc
+RUN chmod a+x $GOPATH/bin/xcc
 
 # Install build and test dependencies.
 RUN sudo apt-get update && \
