@@ -17,6 +17,9 @@ use std::fmt::{Debug, Display};
 use std::mem::size_of;
 use std::ops::AddAssign;
 
+use arrow_deps::arrow;
+use arrow_deps::arrow::array::Array;
+
 use crate::column::{cmp, RowIDs};
 
 #[derive(Debug, Default)]
@@ -486,7 +489,7 @@ where
 //        }
 //    }
 //
-macro_rules! plain_from_impls {
+macro_rules! fixed_from_impls {
     ($(($type_from:ty, $type_to:ty),)*) => {
         $(
             impl From<&[$type_from]> for Fixed<$type_to> {
@@ -499,7 +502,7 @@ macro_rules! plain_from_impls {
 }
 
 // Supported logical and physical datatypes for the Fixed encoding.
-plain_from_impls! {
+fixed_from_impls! {
      (i64, i64),
      (i64, i32),
      (i64, i16),
@@ -528,6 +531,65 @@ plain_from_impls! {
      (u8, u8),
      (f64, f64),
      (f32, f32),
+}
+
+// This macro implements the From trait for arrow arrays of various logical
+// types.
+//
+// Here is an example implementation:
+//
+//  impl From<Int64Array> for Fixed<i16> {
+//      fn from(arr: Int64Array) -> Self {
+//          assert_eq!(arr.null_count(), 0);
+//          let mut values = Vec::with_capacity(arr.len());
+//          for i in 0..arr.len(){
+//              values.push(arr.value(i) as i16);
+//          }
+//          Self{values}
+//      }
+//  }
+//
+macro_rules! fixed_from_arrow_impls {
+    ($(($type_from:ty, $type_to:ty),)*) => {
+        $(
+            impl From<$type_from> for Fixed<$type_to> {
+                fn from(arr: $type_from) -> Self {
+                    assert_eq!(arr.null_count(), 0);
+                    let mut values = Vec::with_capacity(arr.len());
+                    for i in 0..arr.len(){
+                        values.push(arr.value(i) as $type_to);
+                    }
+                    Self{values}
+                }
+            }
+        )*
+    };
+}
+
+fixed_from_arrow_impls! {
+    (&arrow::array::Int64Array, i64),
+    (&arrow::array::Int64Array, i32),
+    (&arrow::array::Int64Array, i16),
+    (&arrow::array::Int64Array, i8),
+    (&arrow::array::Int64Array, u32),
+    (&arrow::array::Int64Array, u16),
+    (&arrow::array::Int64Array, u8),
+    (arrow::array::Int64Array, i64),
+    (arrow::array::Int64Array, i32),
+    (arrow::array::Int64Array, i16),
+    (arrow::array::Int64Array, i8),
+    (arrow::array::Int64Array, u32),
+    (arrow::array::Int64Array, u16),
+    (arrow::array::Int64Array, u8),
+
+    (&arrow::array::UInt64Array, u64),
+    (&arrow::array::UInt64Array, u32),
+    (&arrow::array::UInt64Array, u16),
+    (&arrow::array::UInt64Array, u8),
+    (arrow::array::UInt64Array, u64),
+    (arrow::array::UInt64Array, u32),
+    (arrow::array::UInt64Array, u16),
+    (arrow::array::UInt64Array, u8),
 }
 
 #[cfg(test)]

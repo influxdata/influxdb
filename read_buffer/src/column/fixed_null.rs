@@ -568,6 +568,9 @@ macro_rules! fixed_from_arrow_impls {
 // Need to look at possibility of initialising smaller datatypes...
 fixed_from_arrow_impls! {
     (arrow::array::Int64Array, arrow_deps::arrow::datatypes::Int64Type),
+    (arrow::array::UInt64Array, arrow_deps::arrow::datatypes::UInt64Type),
+    (arrow::array::Float64Array, arrow_deps::arrow::datatypes::Float64Type),
+
     // TODO(edd): add more datatypes
 }
 
