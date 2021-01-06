@@ -224,14 +224,14 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.mod" }}
+            - influxdb-gomod-{{ checksum "go.sum" }}
             - influxdb-gomod-
       - run:
           name: Install Dependencies
           command: go mod download -x
       - save_cache:
           name: Save GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.mod" }}
+          key: influxdb-gomod-{{ checksum "go.sum" }}
           paths:
             - /go/pkg/mod
 
