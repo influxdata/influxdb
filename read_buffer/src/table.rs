@@ -643,7 +643,7 @@ mod test {
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
         columns.insert("count".to_string(), fc);
         let segment = RowGroup::new(3, columns);
-        table.add_segment(segment);
+        table.add_row_group(segment);
 
         // Get all the results
         let results = table.select(
