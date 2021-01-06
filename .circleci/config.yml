@@ -585,7 +585,7 @@ jobs:
     steps:
       - checkout
       - attach_workspace:
-          at: /go/src/github.com/influxdata/influxdb
+          at: /home/circleci/go/src/github.com/influxdata/influxdb
       - restore_cache:
           name: Restore Yarn Cache
           keys:
