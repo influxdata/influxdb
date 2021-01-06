@@ -14,8 +14,6 @@ avoid cardinality issues:
 
 - Use [metric filtering][] options to exclude unneeded measurements and tags.
 - Write to a database with an appropriate [retention policy][].
-- Limit series cardinality in your database using the
-  [max-series-per-database][] and [max-values-per-tag][] settings.
 - Consider using the [Time Series Index][tsi].
 - Monitor your databases [series cardinality][].
 - Consult the [InfluxDB documentation][influx-docs] for the most up-to-date techniques.
@@ -113,8 +111,6 @@ This sflow implementation was built from the reference document
 
 [metric filtering]: https://github.com/influxdata/telegraf/blob/master/docs/CONFIGURATION.md#metric-filtering
 [retention policy]: https://docs.influxdata.com/influxdb/latest/guides/downsampling_and_retention/
-[max-series-per-database]: https://docs.influxdata.com/influxdb/latest/administration/config/#max-series-per-database-1000000
-[max-values-per-tag]: https://docs.influxdata.com/influxdb/latest/administration/config/#max-values-per-tag-100000
 [tsi]: https://docs.influxdata.com/influxdb/latest/concepts/time-series-index/
 [series cardinality]: https://docs.influxdata.com/influxdb/latest/query_language/spec/#show-cardinality
 [influx-docs]: https://docs.influxdata.com/influxdb/latest/
