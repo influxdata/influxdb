@@ -40,6 +40,7 @@
     "eslint:circleci": "eslint",
     "eslint:fix": "eslint --fix '{src,cypress}/**/*.{ts,tsx}'",
     "prettier": "prettier --config .prettierrc.json --check '{src,cypress}/**/*.{ts,tsx}'",
+    "prettier:circleci": "prettier --config .prettierrc.json --check",
     "prettier:fix": "prettier --config .prettierrc.json --write '{src,cypress}/**/*.{ts,tsx}'",
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty --skipLibCheck",
     "tsc:cypress": "tsc -p ./cypress/tsconfig.json --noEmit --pretty --skipLibCheck",
