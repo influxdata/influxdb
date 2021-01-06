@@ -221,7 +221,7 @@ jobs:
           name: Save Yarn Cache
           key: yarn-deps-{{ checksum "ui/yarn.lock" }}
           paths:
-            - /go/src/github.com/influxdata/influxdb/ui/node_modules
+            - /home/circleci/go/src/github.com/influxdata/influxdb/ui/node_modules
             - ~/.cache/yarn
             - ~/.cache/Cypress
 
@@ -235,15 +235,18 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-{{ checksum "ui/yarn.lock" }}
-      - run: make ui_client
       - run:
-          name: parallel jest tests
+          name: install dependencies
           command: |
-            set +e
             cd ui
             # This should usually be a no-op (fully contained in the Yarn cache above), but we
             # include it to be safe since `yarn test` won't auto-install missing modules.
             yarn install --immutable
+      - run: make ui_client
+      - run:
+          name: run tests
+          command: |
+            cd ui
             yarn test:circleci
       - store_test_results:
           path: ui/coverage
@@ -262,15 +265,18 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-{{ checksum "ui/yarn.lock" }}
+      - run:
+          name: install dependencies
+          command: |
+            cd ui
+            # This should usually be a no-op (fully contained in the Yarn cache above), but we
+            # include it to be safe since the lint commands won't auto-install missing modules.
+            yarn install --immutable
       - run: make ui_client
       - run:
           name: parallel eslint
           command: |
-            set +e
             cd ui
-            # This should usually be a no-op (fully contained in the Yarn cache above), but we
-            # include it to be safe since `yarn test` won't auto-install missing modules.
-            yarn install --immutable
             TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
             yarn prettier:circleci ${TESTFILES[@]}
             yarn eslint:circleci ${TESTFILES[@]}
@@ -300,7 +306,7 @@ jobs:
           name: Save GOPATH/pkg/mod
           key: influxdb-gomod-{{ checksum "go.sum" }}
           paths:
-            - /go/pkg/mod
+            - /home/circleci/go/pkg/mod
 
   golint:
     docker:
