@@ -1,8 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
-use crate::column::AggregateType;
 use crate::row_group::{ColumnName, Predicate};
 use crate::table::{ReadFilterResults, ReadGroupResults, Table};
+use crate::{column::AggregateType, row_group::RowGroup};
 
 type TableName = String;
 
@@ -32,14 +32,19 @@ impl Chunk {
     }
 
     /// Add a table to the chunk, updating all Chunk meta data.
-    pub fn add_table(&mut self, table: Table) {
+    pub fn update_table(&mut self, table_name: String, row_group: RowGroup) {
         // update meta data
-        self.meta.add_table(&table);
+        self.meta.update(&row_group);
 
-        self.tables
-            .entry(table.name().to_owned())
-            .and_modify(|_| unimplemented!("Can a chunk have multiple tables with the same name?"))
-            .or_insert_with(|| table);
+        match self.tables.entry(table_name.to_owned()) {
+            Entry::Occupied(mut e) => {
+                let table = e.get_mut();
+                table.add_row_group(row_group);
+            }
+            Entry::Vacant(e) => {
+                e.insert(Table::new(table_name, row_group));
+            }
+        };
     }
 
     /// Returns data for the specified column selections on the specified table
@@ -154,23 +159,24 @@ impl MetaData {
         }
     }
 
-    pub fn add_table(&mut self, table: &Table) {
-        self.size += table.size();
-        self.rows += table.rows();
+    /// Updates the meta data associated with the `Chunk` based on the provided
+    /// row_group
+    pub fn update(&mut self, table_data: &RowGroup) {
+        self.size += table_data.size();
+        self.rows += table_data.rows() as u64;
 
-        match (&mut self.time_range, table.time_range()) {
-            (None, None) => {}
-            (Some(_), None) => {}
-            (None, Some(range)) => {
-                self.time_range = Some(range);
-            }
-            (Some((this_min, this_max)), Some((them_min, them_max))) => {
+        match &mut self.time_range {
+            Some((this_min, this_max)) => {
+                let (them_min, them_max) = table_data.time_range();
                 if them_min < *this_min {
                     *this_min = them_min;
                 }
                 if them_max > *this_max {
                     *this_max = them_max;
                 }
+            }
+            None => {
+                self.time_range = Some(table_data.time_range());
             }
         }
     }

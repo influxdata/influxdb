@@ -7,14 +7,17 @@ pub mod column;
 pub mod row_group;
 pub(crate) mod table;
 
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::{btree_map::Entry, BTreeMap},
+    fmt,
+};
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 
 use chunk::Chunk;
 use column::AggregateType;
 pub use column::{FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE, TIME_COLUMN_TYPE};
-use row_group::{ColumnName, Predicate};
+use row_group::{ColumnName, Predicate, RowGroup};
 use table::Table;
 
 /// Generate a predicate for the time range [from, to).
@@ -52,10 +55,8 @@ pub struct Database {
 
 impl fmt::Debug for Database {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let chunk_ids: Vec<_> = self.chunks.iter().map(|(id, _chunk)| id).collect();
-
         f.debug_struct("Database")
-            .field("chunks", &chunk_ids)
+            .field("chunks", &self.chunks.keys())
             .field("size", &self.size)
             .finish()
     }
@@ -68,28 +69,22 @@ impl Database {
 
     // TODO(edd) - figure the entry thing out with the closure
     #[allow(clippy::map_entry)]
-    /// Add a new Chunk to this database
-    pub fn add_chunk(&mut self, chunk_id: u32, chunk_data: BTreeMap<String, RecordBatch>) {
-        for (table_name, rb) in chunk_data {
-            let table = Table::with_recordbatch(table_name, rb);
+    /// Add new table data for a chunk. If the `Chunk` does not exist it will be
+    /// created.
+    pub fn update_chunk(&mut self, chunk_id: u32, table_name: String, table_data: RecordBatch) {
+        let row_group = RowGroup::from(table_data);
 
-            // create a new chunk if one doesn't exist, or add the table to the
-            // existing chunk.
-            if !self.chunks.contains_key(&chunk_id) {
-                self.chunks.insert(chunk_id, Chunk::new(chunk_id, table));
-            } else {
-                let chunk = self.chunks.get_mut(&chunk_id).unwrap();
-                chunk.add_table(table);
+        // create a new chunk if one doesn't exist, or add the table data to
+        // the existing chunk.
+        match self.chunks.entry(chunk_id) {
+            Entry::Occupied(mut e) => {
+                let chunk = e.get_mut();
+                chunk.update_table(table_name, row_group);
             }
-
-            //
-            // - sad face that the borrow checker can't figure this out...
-            // let chunk = self
-            //     .chunks
-            //     .entry(chunk_id)
-            //     .and_modify(|chunk| chunk.add_table(table))
-            //     .or_insert_with(|| Chunk::new(chunk_id, table));
-        }
+            Entry::Vacant(e) => {
+                e.insert(Chunk::new(chunk_id, Table::new(table_name, row_group)));
+            }
+        };
     }
 
     pub fn remove_chunk(&mut self, chunk_id: u32) {

@@ -2,8 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
 
-use arrow_deps::arrow::record_batch::RecordBatch;
-
 use crate::row_group::{ColumnName, GroupKey, Predicate, RowGroup};
 use crate::{
     column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
@@ -45,18 +43,9 @@ impl Table {
         }
     }
 
-    /// Initialise a Table using an Arrow `RecordBatch`.
-    pub fn with_recordbatch(name: String, rb: RecordBatch) -> Self {
-        let rg = RowGroup::from(rb);
-        Self {
-            name,
-            meta: MetaData::new(&rg),
-            row_groups: vec![rg],
-        }
-    }
-
     /// Add a new row group to this table.
     pub fn add_row_group(&mut self, rg: RowGroup) {
+        self.meta.update(&rg);
         self.row_groups.push(rg);
     }
 
@@ -484,25 +473,23 @@ impl MetaData {
         }
     }
 
-    pub fn add_segment(&mut self, segment: &RowGroup) {
+    pub fn update(&mut self, rg: &RowGroup) {
         // update size, rows, column ranges, time range
-        self.size += segment.size();
-        self.rows += u64::from(segment.rows());
+        self.size += rg.size();
+        self.rows += u64::from(rg.rows());
 
-        assert_eq!(self.column_ranges.len(), segment.column_ranges().len());
-        for (segment_column_name, (segment_column_range_min, segment_column_range_max)) in
-            segment.column_ranges()
-        {
+        assert_eq!(self.column_ranges.len(), rg.column_ranges().len());
+        for (column_name, (column_range_min, column_range_max)) in rg.column_ranges() {
             let mut curr_range = self
                 .column_ranges
-                .get_mut(&segment_column_name.to_string())
+                .get_mut(&column_name.to_string())
                 .unwrap();
-            if segment_column_range_min < &curr_range.0 {
-                curr_range.0 = segment_column_range_min.clone();
+            if column_range_min < &curr_range.0 {
+                curr_range.0 = column_range_min.clone();
             }
 
-            if segment_column_range_max > &curr_range.1 {
-                curr_range.1 = segment_column_range_max.clone();
+            if column_range_max > &curr_range.1 {
+                curr_range.1 = column_range_max.clone();
             }
         }
     }
