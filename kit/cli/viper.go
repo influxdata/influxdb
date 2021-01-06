@@ -121,9 +121,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			} else {
 				flagset.StringVar(destP, o.Flag, d, o.Desc)
 			}
-			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
-				return err
-			}
 			if envVal != nil {
 				s, err := cast.ToStringE(envVal)
 				if err != nil {
@@ -141,9 +138,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				flagset.IntVarP(destP, o.Flag, string(o.Short), d, o.Desc)
 			} else {
 				flagset.IntVar(destP, o.Flag, d, o.Desc)
-			}
-			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
-				return err
 			}
 			if envVal != nil {
 				i, err := cast.ToIntE(envVal)
@@ -178,9 +172,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			} else {
 				flagset.Int32Var(destP, o.Flag, d, o.Desc)
 			}
-			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
-				return err
-			}
 			if envVal != nil {
 				i, err := cast.ToInt32E(envVal)
 				if err != nil {
@@ -212,9 +203,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			} else {
 				flagset.Int64Var(destP, o.Flag, d, o.Desc)
 			}
-			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
-				return err
-			}
 			if envVal != nil {
 				i, err := cast.ToInt64E(envVal)
 				if err != nil {
@@ -232,9 +220,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				flagset.BoolVarP(destP, o.Flag, string(o.Short), d, o.Desc)
 			} else {
 				flagset.BoolVar(destP, o.Flag, d, o.Desc)
-			}
-			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
-				return err
 			}
 			if envVal != nil {
 				b, err := cast.ToBoolE(envVal)
@@ -254,9 +239,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			} else {
 				flagset.DurationVar(destP, o.Flag, d, o.Desc)
 			}
-			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
-				return err
-			}
 			if envVal != nil {
 				d, err := cast.ToDurationE(envVal)
 				if err != nil {
@@ -274,9 +256,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				flagset.StringSliceVarP(destP, o.Flag, string(o.Short), d, o.Desc)
 			} else {
 				flagset.StringSliceVar(destP, o.Flag, d, o.Desc)
-			}
-			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
-				return err
 			}
 			if envVal != nil {
 				ss, err := cast.ToStringSliceE(envVal)
@@ -296,9 +275,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			} else {
 				flagset.StringToStringVar(destP, o.Flag, d, o.Desc)
 			}
-			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
-				return err
-			}
 			if envVal != nil {
 				sms, err := cast.ToStringMapStringE(envVal)
 				if err != nil {
@@ -315,9 +291,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			}
 			if o.Default != nil {
 				_ = destP.Set(o.Default.(string))
-			}
-			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
-				return err
 			}
 			if envVal != nil {
 				s, err := cast.ToStringE(envVal)
@@ -373,6 +346,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			// if you get a panic here, sorry about that!
 			// anyway, go ahead and make a PR and add another type.
 			return fmt.Errorf("unknown destination type %t", o.DestP)
+		}
+
+		if o.Persistent {
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return err
+			}
 		}
 
 		// N.B. these "Mark" calls must run after the block above,
