@@ -194,6 +194,10 @@ workflows:
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
 
+orbs:
+  # Needed to install chrome for e2e testing.
+  browser-tools: circleci/browser-tools@1.1
+
 jobs:
 
   ####################
@@ -583,6 +587,7 @@ jobs:
       GOCACHE: /tmp/go-cache
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
+      - browser-tools/install-browser-tools
       - checkout
       - attach_workspace:
           at: /home/circleci/go/src/github.com/influxdata/influxdb
