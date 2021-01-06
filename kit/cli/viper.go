@@ -348,6 +348,12 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			return fmt.Errorf("unknown destination type %t", o.DestP)
 		}
 
+
+		// Viper is meant to store global options/config/env, so we only bind persistent flags to it.
+		// See: https://github.com/spf13/viper/issues/233#issuecomment-553225438
+		//
+		// FIXME(danxmoran): I'm still not convinced we're using this the right way, revisit when we sweep
+		//  through to ensure all CLI options are using these common utilities.
 		if o.Persistent {
 			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
 				return err
