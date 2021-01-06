@@ -12,6 +12,7 @@
 1. [20354](https://github.com/influxdata/influxdb/pull/20354): Don't ignore failures to set password during initial user onboarding.
 1. [20402](https://github.com/influxdata/influxdb/pull/20402): Remove duplication from task error messages.
 1. [20403](https://github.com/influxdata/influxdb/pull/20403): Improve error message shown when `influx` CLI can't find an org by name.
+1. [20411](https://github.com/influxdata/influxdb/pull/20411): Fix logging initialization for storage engine.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
