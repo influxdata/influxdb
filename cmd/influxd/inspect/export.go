@@ -45,36 +45,39 @@ type exportFilters struct {
 	end          int64
 }
 
+func newFilters() *exportFilters {
+	return &exportFilters{
+		measurements: make(map[string]struct{}),
+		start:        math.MinInt64,
+		end:          math.MaxInt64,
+	}
+}
+
 // filters converts CLI-specified filters into storage-optimized forms.
 func (f *exportFlags) filters() (*exportFilters, error) {
-	var start int64 = math.MinInt64
+	filters := newFilters()
+
 	if f.startTime != "" {
 		s, err := time.Parse(time.RFC3339, f.startTime)
 		if err != nil {
 			return nil, err
 		}
-		start = s.UnixNano()
+		filters.start = s.UnixNano()
 	}
 
-	var end int64 = math.MaxInt64
 	if f.endTime != "" {
 		e, err := time.Parse(time.RFC3339, f.endTime)
 		if err != nil {
 			return nil, err
 		}
-		end = e.UnixNano()
+		filters.end = e.UnixNano()
 	}
 
-	measurements := make(map[string]struct{})
 	for _, m := range f.measurements {
-		measurements[m] = struct{}{}
+		filters.measurements[m] = struct{}{}
 	}
 
-	return &exportFilters{
-		measurements: measurements,
-		start:        start,
-		end:          end,
-	}, nil
+	return filters, nil
 }
 
 func newFlags() *exportFlags {
