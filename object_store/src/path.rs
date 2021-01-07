@@ -173,7 +173,13 @@ const INVALID: &AsciiSet = &CONTROLS
 
 impl From<&str> for PathPart {
     fn from(v: &str) -> Self {
-        Self(percent_encode(v.as_bytes(), INVALID).to_string())
+        match v {
+            // We don't want to encode `.` generally, but we do want to disallow parts of paths
+            // to be equal to `.` or `..` to prevent file system traversal shenanigans.
+            "." => Self(String::from("%2E")),
+            ".." => Self(String::from("%2E%2E")),
+            other => Self(percent_encode(other.as_bytes(), INVALID).to_string()),
+        }
     }
 }
 
@@ -207,6 +213,20 @@ mod tests {
         let part: PathPart = "foo%2Fbar".into();
         assert_eq!(part, PathPart(String::from("foo%252Fbar")));
         assert_eq!(part.to_string(), "foo%2Fbar");
+    }
+
+    #[test]
+    fn path_part_cant_be_one_dot() {
+        let part: PathPart = ".".into();
+        assert_eq!(part, PathPart(String::from("%2E")));
+        assert_eq!(part.to_string(), ".");
+    }
+
+    #[test]
+    fn path_part_cant_be_two_dots() {
+        let part: PathPart = "..".into();
+        assert_eq!(part, PathPart(String::from("%2E%2E")));
+        assert_eq!(part.to_string(), "..");
     }
 
     // Invariants to maintain/document/test:
