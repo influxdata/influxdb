@@ -56,7 +56,16 @@ func (c *Client) Open(ctx context.Context) error {
 	// Open database file.
 	db, err := bolt.Open(c.Path, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
-		return fmt.Errorf("unable to open boltdb; is there a chronograf already running?  %v", err)
+		// Hack to give a slightly nicer error message for a known failure mode when bolt calls
+		// mmap on a file system that doesn't support the MAP_SHARED option.
+		//
+		// See: https://github.com/boltdb/bolt/issues/272
+		// See: https://stackoverflow.com/a/18421071
+		if err.Error() == "invalid argument" {
+			return fmt.Errorf("unable to open boltdb: the filesystem for %q may not support mmap with the MAP_SHARED option", c.Path)
+		}
+
+		return fmt.Errorf("unable to open boltdb: %w", err)
 	}
 	c.db = db
 
