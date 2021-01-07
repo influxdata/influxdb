@@ -1,5 +1,5 @@
-//! This module contains the main IOx database object that points to all the
-//! data
+//! This module contains the main IOx Database object which has the
+//! instances of the immutable buffer, read buffer, and object store
 
 use std::sync::{
     atomic::{AtomicU64, Ordering},
@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use data_types::{data::ReplicatedWrite, database_rules::DatabaseRules};
 use mutable_buffer::MutableBufferDb;
 use query::{Database, PartitionChunk};
+use read_buffer::Database as ReadBufferDb;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -51,23 +52,36 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Db {
     #[serde(flatten)]
     pub rules: DatabaseRules,
+
     #[serde(skip)]
-    pub local_store: Option<Arc<MutableBufferDb>>,
+    /// The (optional) mutable buffer stores incoming writes. If a
+    /// database does not have a mutable buffer it can not accept
+    /// writes (it is a read replica)
+    pub mutable_buffer: Option<Arc<MutableBufferDb>>,
+
+    #[serde(skip)]
+    /// The read buffer holds chunk data in an in-memory optimized
+    /// format.
+    pub read_buffer: Arc<ReadBufferDb>,
+
     #[serde(skip)]
     wal_buffer: Option<Buffer>,
+
     #[serde(skip)]
     sequence: AtomicU64,
 }
 impl Db {
     pub fn new(
         rules: DatabaseRules,
-        local_store: Option<Arc<MutableBufferDb>>,
+        mutable_buffer: Option<Arc<MutableBufferDb>>,
+        read_buffer: Arc<ReadBufferDb>,
         wal_buffer: Option<Buffer>,
         sequence: AtomicU64,
     ) -> Self {
         Self {
             rules,
-            local_store,
+            mutable_buffer,
+            read_buffer,
             wal_buffer,
             sequence,
         }
@@ -75,7 +89,7 @@ impl Db {
 
     /// Rolls over the active chunk in the database's specified partition
     pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<DBChunk>> {
-        if let Some(local_store) = self.local_store.as_ref() {
+        if let Some(local_store) = self.mutable_buffer.as_ref() {
             local_store
                 .rollover_partition(partition_key)
                 .await
@@ -156,11 +170,11 @@ impl PartitionChunk for DBChunk {
 impl Database for Db {
     type Error = Error;
 
-    // Note that most of these traits will eventually be removed from
+    // Note that most of these functions will eventually be removed from
     // this trait. For now, pass them directly on to the local store
 
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
-        self.local_store
+        self.mutable_buffer
             .as_ref()
             .context(DatatbaseNotWriteable)?
             .store_replicated_write(write)
@@ -172,7 +186,7 @@ impl Database for Db {
         &self,
         predicate: query::predicate::Predicate,
     ) -> Result<query::exec::StringSetPlan, Self::Error> {
-        self.local_store
+        self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
             .table_names(predicate)
@@ -184,7 +198,7 @@ impl Database for Db {
         &self,
         predicate: query::predicate::Predicate,
     ) -> Result<query::exec::StringSetPlan, Self::Error> {
-        self.local_store
+        self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
             .tag_column_names(predicate)
@@ -196,7 +210,7 @@ impl Database for Db {
         &self,
         predicate: query::predicate::Predicate,
     ) -> Result<query::exec::FieldListPlan, Self::Error> {
-        self.local_store
+        self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
             .field_column_names(predicate)
@@ -209,7 +223,7 @@ impl Database for Db {
         column_name: &str,
         predicate: query::predicate::Predicate,
     ) -> Result<query::exec::StringSetPlan, Self::Error> {
-        self.local_store
+        self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
             .column_values(column_name, predicate)
@@ -221,7 +235,7 @@ impl Database for Db {
         &self,
         predicate: query::predicate::Predicate,
     ) -> Result<query::exec::SeriesSetPlans, Self::Error> {
-        self.local_store
+        self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
             .query_series(predicate)
@@ -234,7 +248,7 @@ impl Database for Db {
         predicate: query::predicate::Predicate,
         gby_agg: query::group_by::GroupByAndAggregate,
     ) -> Result<query::exec::SeriesSetPlans, Self::Error> {
-        self.local_store
+        self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
             .query_groups(predicate, gby_agg)
@@ -247,7 +261,7 @@ impl Database for Db {
         table_name: &str,
         columns: &[&str],
     ) -> Result<Vec<arrow_deps::arrow::record_batch::RecordBatch>, Self::Error> {
-        self.local_store
+        self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
             .table_to_arrow(table_name, columns)
@@ -256,7 +270,7 @@ impl Database for Db {
     }
 
     async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        self.local_store
+        self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
             .partition_keys()
@@ -268,7 +282,7 @@ impl Database for Db {
         &self,
         partition_key: &str,
     ) -> Result<Vec<String>, Self::Error> {
-        self.local_store
+        self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
             .table_names_for_partition(partition_key)

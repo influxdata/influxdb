@@ -16,6 +16,7 @@ generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 query = { path = "../query" }
 mutable_buffer = { path = "../mutable_buffer" }
+read_buffer = { path = "../read_buffer" }
 object_store = { path = "../object_store" }
 tracing = "0.1"
 tokio = { version = "0.2", features = ["full"] }

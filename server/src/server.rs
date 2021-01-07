@@ -18,6 +18,7 @@ use influxdb_line_protocol::ParsedLine;
 use mutable_buffer::MutableBufferDb;
 use object_store::{path::ObjectStorePath, ObjectStore};
 use query::{exec::Executor, Database, DatabaseStore};
+use read_buffer::Database as ReadBufferDb;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -125,15 +126,17 @@ impl<M: ConnectionManager> Server<M> {
 
         let db_name = DatabaseName::new(db_name.into()).context(InvalidDatabaseName)?;
 
-        let buffer = if rules.store_locally {
+        let mutable_buffer = if rules.store_locally {
             Some(Arc::new(MutableBufferDb::new(db_name.to_string())))
         } else {
             None
         };
 
+        let read_buffer = Arc::new(ReadBufferDb::new());
+
         let sequence = AtomicU64::new(STARTING_SEQUENCE);
         let wal_buffer = None;
-        let db = Db::new(rules, buffer, wal_buffer, sequence);
+        let db = Db::new(rules, mutable_buffer, read_buffer, wal_buffer, sequence);
 
         let mut config = self.config.write().await;
         config.databases.insert(db_name, Arc::new(db));
@@ -234,7 +237,7 @@ impl<M: ConnectionManager> Server<M> {
         db: &Db,
         write: ReplicatedWrite,
     ) -> Result<()> {
-        if let Some(buf) = &db.local_store {
+        if let Some(buf) = &db.mutable_buffer {
             buf.store_replicated_write(&write)
                 .await
                 .map_err(|e| Box::new(e) as DatabaseError)
@@ -505,7 +508,7 @@ mod tests {
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).await.unwrap();
 
-        let buff = db.local_store.as_ref().unwrap();
+        let buff = db.mutable_buffer.as_ref().unwrap();
 
         let planner = SQLQueryPlanner::default();
         let executor = server.executor();

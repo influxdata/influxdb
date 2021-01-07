@@ -2954,6 +2954,7 @@ dependencies = [
  "mutable_buffer",
  "object_store",
  "query",
+ "read_buffer",
  "serde",
  "serde_json",
  "snafu",
