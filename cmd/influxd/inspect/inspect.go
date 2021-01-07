@@ -2,10 +2,11 @@ package inspect
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // NewCommand creates the new command.
-func NewCommand() *cobra.Command {
+func NewCommand(v *viper.Viper) *cobra.Command {
 	base := &cobra.Command{
 		Use:   "inspect",
 		Short: "Commands for inspecting on-disk database data",
@@ -21,6 +22,7 @@ func NewCommand() *cobra.Command {
 		//NewBuildTSICommand(),
 		//NewCompactSeriesFileCommand(),
 		//NewExportBlocksCommand(),
+		NewExportCommand(v),
 		NewExportIndexCommand(),
 		//NewReportTSMCommand(),
 		//NewVerifyTSMCommand(),
