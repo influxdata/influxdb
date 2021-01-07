@@ -8,22 +8,22 @@ default-run = "influxdb_iox"
 [workspace]
 members = [
     "arrow_deps",
-    "server",
     "config",
     "data_types",
     "generated_types",
-    "ingest",
     "influxdb_line_protocol",
-    "object_store",
-    "mem_qe",
-    "read_buffer",
-    "packers",
-    "test_helpers",
     "influxdb_tsm",
-    "query",
-    "wal",
-    "mutable_buffer",
     "influxdb2_client",
+    "ingest",
+    "mem_qe",
+    "mutable_buffer",
+    "object_store",
+    "packers",
+    "query",
+    "read_buffer",
+    "server",
+    "test_helpers",
+    "wal",
 ]
 
 [profile.release]
@@ -33,21 +33,21 @@ debug = true
 debug = true
 
 [dependencies]
+arrow_deps = { path = "arrow_deps" }
 config = { path = "config" }
 data_types = { path = "data_types" }
-arrow_deps = { path = "arrow_deps" }
 generated_types = { path = "generated_types" }
-ingest = { path = "ingest" }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
+influxdb_tsm = { path = "influxdb_tsm" }
+ingest = { path = "ingest" }
 mem_qe = { path = "mem_qe" }
-read_buffer = { path = "read_buffer" }
-packers = { path = "packers" }
 mutable_buffer = { path = "mutable_buffer" }
 object_store = { path = "object_store" }
+packers = { path = "packers" }
 query = { path = "query" }
-influxdb_tsm = { path = "influxdb_tsm" }
-wal = { path = "wal" }
+read_buffer = { path = "read_buffer" }
 server = { path = "server" }
+wal = { path = "wal" }
 
 bytes = "0.5.4"
 hyper = "0.13"
@@ -91,7 +91,6 @@ rand = "0.7.2"
 reqwest = "0.10.1"
 predicates = "1.0.4"
 tempfile = "3.1.0"
-
 
 [[bin]]
 name = "cpu_feature_check"
