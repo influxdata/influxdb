@@ -15,6 +15,7 @@
 # It is required that all SUBDIRS have the `all` and `clean` targets.
 SUBDIRS := http ui chronograf storage
 
+export GOPATH=$(shell go env GOPATH)
 export GOOS=$(shell go env GOOS)
 export GOARCH=$(shell go env GOARCH)
 
@@ -220,8 +221,8 @@ run-e2e: chronogiraffe
 # TODO: Move this to the CI docker image build?
 protoc:
 	curl -s -L https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip > /tmp/protoc.zip
-	unzip -o -d /go /tmp/protoc.zip
-	chmod +x /go/bin/protoc
+	unzip -o -d $(GOPATH) /tmp/protoc.zip
+	chmod +x $(GOPATH)/bin/protoc
 
 # generate feature flags
 flags:
