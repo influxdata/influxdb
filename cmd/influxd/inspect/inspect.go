@@ -21,8 +21,7 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 	subCommands := []*cobra.Command{
 		//NewBuildTSICommand(),
 		//NewCompactSeriesFileCommand(),
-		//NewExportBlocksCommand(),
-		NewExportCommand(v),
+		NewExportLineProtocolCommand(v),
 		NewExportIndexCommand(),
 		//NewReportTSMCommand(),
 		//NewVerifyTSMCommand(),

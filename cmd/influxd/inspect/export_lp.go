@@ -87,12 +87,12 @@ func newFlags() *exportFlags {
 	}
 }
 
-// NewExportCommand builds and registers the `export` subcommand of `influxd inspect`.
-func NewExportCommand(v *viper.Viper) *cobra.Command {
+// NewExportLineProtocolCommand builds and registers the `export` subcommand of `influxd inspect`.
+func NewExportLineProtocolCommand(v *viper.Viper) *cobra.Command {
 	flags := newFlags()
 
 	cmd := &cobra.Command{
-		Use:   `export`,
+		Use:   `export-lp`,
 		Short: "Export TSM data as line protocol",
 		Long: `
 This command will export all TSM data stored in a bucket
