@@ -1990,9 +1990,12 @@ name = "object_store"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "chrono",
  "cloud-storage",
  "dotenv",
  "futures",
+ "itertools 0.9.0",
+ "percent-encoding",
  "rusoto_core",
  "rusoto_credential",
  "rusoto_s3",

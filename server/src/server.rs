@@ -17,7 +17,7 @@ use data_types::{
 };
 use influxdb_line_protocol::ParsedLine;
 use mutable_buffer::MutableBufferDb;
-use object_store::ObjectStore;
+use object_store::{path::ObjectStorePath, ObjectStore};
 use query::{Database, DatabaseStore, SQLDatabase};
 
 use async_trait::async_trait;
@@ -419,8 +419,10 @@ impl RemoteServer for RemoteServerImpl {
 }
 
 // location in the store for the configuration file
-fn config_location(id: u32) -> String {
-    format!("{}/config.json", id)
+fn config_location(id: u32) -> ObjectStorePath {
+    let mut path = ObjectStorePath::default();
+    path.push_all(&[&id.to_string(), "config.json"]);
+    path
 }
 
 #[cfg(test)]
@@ -431,7 +433,7 @@ mod tests {
     use data_types::database_rules::{MatchTables, Matcher, Subscription};
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
-    use object_store::{InMemory, ObjectStoreIntegration};
+    use object_store::{memory::InMemory, ObjectStoreIntegration};
     use snafu::Snafu;
     use std::sync::Mutex;
 
@@ -670,10 +672,12 @@ partition_key:
 
         server.store_configuration().await.unwrap();
 
-        let location = "1/config.json";
+        let mut location = ObjectStorePath::default();
+        location.push_all(&["1", "config.json"]);
+
         let read_data = server
             .store
-            .get(location)
+            .get(&location)
             .await
             .unwrap()
             .map_ok(|b| bytes::BytesMut::from(&b[..]))

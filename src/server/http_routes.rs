@@ -9,26 +9,27 @@
 //! Long term, we expect to create IOx specific api in terms of
 //! database names and may remove this quasi /v2 API.
 
-use http::header::CONTENT_ENCODING;
-use tracing::{debug, error, info};
+use super::{org_and_bucket_to_database, OrgBucketMappingError};
 
+// Influx crates
 use arrow_deps::arrow;
+use data_types::database_rules::DatabaseRules;
 use influxdb_line_protocol::parse_lines;
+use object_store::path::ObjectStorePath;
 use query::SQLDatabase;
 use server::server::{ConnectionManager, Server as AppServer};
 
-use super::{org_and_bucket_to_database, OrgBucketMappingError};
+// External crates
 use bytes::{Bytes, BytesMut};
-use data_types::database_rules::DatabaseRules;
 use futures::{self, StreamExt};
+use http::header::CONTENT_ENCODING;
 use hyper::{Body, Method, Request, Response, StatusCode};
-use routerify::prelude::*;
-use routerify::{Middleware, RequestInfo, Router, RouterService};
+use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::fmt::Debug;
-use std::str;
-use std::sync::Arc;
+use tracing::{debug, error, info};
+
+use std::{fmt::Debug, str, sync::Arc};
 
 #[derive(Debug, Snafu)]
 pub enum ApplicationError {
@@ -541,8 +542,12 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
         bucket: &snapshot.bucket,
     })?;
 
-    let metadata_path = format!("{}/meta", &db_name);
-    let data_path = format!("{}/data/{}", &db_name, &snapshot.chunk);
+    let mut metadata_path = ObjectStorePath::default();
+    metadata_path.push(&db_name.to_string());
+    let mut data_path = metadata_path.clone();
+    metadata_path.push("meta");
+    data_path.push_all(&["data", &snapshot.chunk]);
+
     let partition = db.rollover_partition(&snapshot.chunk).await.unwrap();
     let snapshot = server::snapshot::snapshot_chunk(
         metadata_path,
@@ -576,7 +581,7 @@ mod tests {
 
     use data_types::database_rules::DatabaseRules;
     use data_types::DatabaseName;
-    use object_store::{InMemory, ObjectStore};
+    use object_store::{memory::InMemory, ObjectStore};
     use server::server::ConnectionManagerImpl;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
