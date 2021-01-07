@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/v2/v1/services/meta/filestore"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/tcnksm/go-input"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -102,22 +103,19 @@ type optionsV2 struct {
 	retention      string
 }
 
-var options = struct {
+type options struct {
 	// flags for source InfluxDB
 	source optionsV1
 
 	// flags for target InfluxDB
 	target optionsV2
 
-	// verbose output
-	verbose bool
-
 	// logging
 	logLevel string
 	logPath  string
 
 	force bool
-}{}
+}
 
 func NewCommand(v *viper.Viper) *cobra.Command {
 
@@ -126,6 +124,10 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 	if err != nil {
 		panic("error fetching default InfluxDB 2.0 dir: " + err.Error())
 	}
+
+	// DEPRECATED in favor of log-level=debug, but left for backwards-compatibility
+	verbose := false
+	options := &options{}
 
 	cmd := &cobra.Command{
 		Use:   "upgrade",
@@ -143,7 +145,9 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 
     Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
 `,
-		RunE: runUpgradeE,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runUpgradeE(cmd, options, verbose)
+		},
 		Args: cobra.NoArgs,
 	}
 
@@ -154,11 +158,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Desc:  "path to source 1.x db directory containing meta, data and wal sub-folders",
 		},
 		{
-			DestP:   &options.verbose,
+			DestP:   &verbose,
 			Flag:    "verbose",
-			Default: true,
-			Desc:    "verbose output",
+			Default: false,
+			Desc:    "DEPRECATED: use --log-level=debug instead",
 			Short:   'v',
+			Hidden:  true,
 		},
 		{
 			DestP:   &options.target.boltPath,
@@ -309,16 +314,35 @@ func (i *influxDBv2) close() error {
 
 var fluxInitialized bool
 
-func runUpgradeE(*cobra.Command, []string) error {
-	// This command is executed multiple times by test code. Initialization can happen only once.
-	if !fluxInitialized {
-		fluxinit.FluxInit()
-		fluxInitialized = true
-	}
+func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
+	ctx := context.Background()
+	config := zap.NewProductionConfig()
 
 	var lvl zapcore.Level
 	if err := lvl.Set(options.logLevel); err != nil {
 		return errors.New("unknown log level; supported levels are debug, info, warn and error")
+	}
+
+	config.Level = zap.NewAtomicLevelAt(lvl)
+	if verbose {
+		config.Level.SetLevel(zap.DebugLevel)
+	}
+
+	config.OutputPaths = append(config.OutputPaths, options.logPath)
+	config.ErrorOutputPaths = append(config.ErrorOutputPaths, options.logPath)
+
+	log, err := config.Build()
+	if err != nil {
+		return err
+	}
+	if verbose {
+		log.Warn("--verbose is deprecated, use --log-level=debug instead")
+	}
+
+	// This command is executed multiple times by test code. Initialization can happen only once.
+	if !fluxInitialized {
+		fluxinit.FluxInit()
+		fluxInitialized = true
 	}
 
 	if options.source.configFile != "" && options.source.dbDir != "" {
@@ -336,16 +360,6 @@ func runUpgradeE(*cobra.Command, []string) error {
 			}
 			options.source.dbDir = v1dir
 		}
-	}
-
-	ctx := context.Background()
-	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(lvl)
-	config.OutputPaths = append(config.OutputPaths, options.logPath)
-	config.ErrorOutputPaths = append(config.ErrorOutputPaths, options.logPath)
-	log, err := config.Build()
-	if err != nil {
-		return err
 	}
 
 	var v1Config *configV1
@@ -418,7 +432,12 @@ func runUpgradeE(*cobra.Command, []string) error {
 		return errors.New("InfluxDB has been already set up")
 	}
 
-	req, err := onboardingRequest()
+	ui := &input.UI{
+		Writer: cmd.OutOrStdout(),
+		Reader: cmd.InOrStdin(),
+	}
+
+	req, err := onboardingRequest(ui, options)
 	if err != nil {
 		return err
 	}
@@ -436,7 +455,7 @@ func runUpgradeE(*cobra.Command, []string) error {
 		return err
 	}
 
-	db2BucketIds, err := upgradeDatabases(ctx, v1, v2, &options.source, &options.target, or.Org.ID, log)
+	db2BucketIds, err := upgradeDatabases(ctx, ui, v1, v2, options, or.Org.ID, log)
 	if err != nil {
 		//remove all files
 		log.Info("Database upgrade error, removing data")

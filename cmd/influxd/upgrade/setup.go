@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -25,7 +24,7 @@ func setupAdmin(ctx context.Context, v2 *influxDBv2, req *influxdb.OnboardingReq
 	return res, nil
 }
 
-func isInteractive() bool {
+func isInteractive(options *options) bool {
 	return !options.force ||
 		options.target.userName == "" ||
 		options.target.password == "" ||
@@ -33,14 +32,14 @@ func isInteractive() bool {
 		options.target.bucket == ""
 }
 
-func onboardingRequest() (*influxdb.OnboardingRequest, error) {
-	if isInteractive() {
-		return interactive()
+func onboardingRequest(ui *input.UI, options *options) (*influxdb.OnboardingRequest, error) {
+	if isInteractive(options) {
+		return interactive(ui, options)
 	}
-	return nonInteractive()
+	return nonInteractive(options)
 }
 
-func nonInteractive() (*influxdb.OnboardingRequest, error) {
+func nonInteractive(options *options) (*influxdb.OnboardingRequest, error) {
 	if len(options.target.password) < internal.MinPasswordLen {
 		return nil, internal.ErrPasswordIsTooShort
 	}
@@ -63,11 +62,7 @@ func nonInteractive() (*influxdb.OnboardingRequest, error) {
 	return req, nil
 }
 
-func interactive() (req *influxdb.OnboardingRequest, err error) {
-	ui := &input.UI{
-		Writer: os.Stdout,
-		Reader: os.Stdin,
-	}
+func interactive(ui *input.UI, options *options) (req *influxdb.OnboardingRequest, err error) {
 	req = new(influxdb.OnboardingRequest)
 	fmt.Println(string(internal.PromptWithColor(`Welcome to InfluxDB 2.0 upgrade!`, internal.ColorYellow)))
 	if options.target.userName != "" {
@@ -119,8 +114,7 @@ func interactive() (req *influxdb.OnboardingRequest, err error) {
 			if req.RetentionPeriod > 0 {
 				rp = fmt.Sprintf("%d hrs", req.RetentionPeriod/time.Hour)
 			}
-			return fmt.Sprintf(`
-You have entered:
+			return fmt.Sprintf(`You have entered:
   Username:          %s
   Organization:      %s
   Bucket:            %s
