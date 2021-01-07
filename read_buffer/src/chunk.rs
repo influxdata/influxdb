@@ -31,6 +31,31 @@ impl Chunk {
         p
     }
 
+    /// The total size in bytes of all row groups in all tables in this chunk.
+    pub fn size(&self) -> u64 {
+        self.meta.size
+    }
+
+    /// The total number of rows in all row groups in all tables in this chunk.
+    pub fn rows(&self) -> u64 {
+        self.meta.rows
+    }
+
+    /// The total number of row groups in all tables in this chunk.
+    pub fn row_groups(&self) -> usize {
+        self.meta.row_groups
+    }
+
+    /// The total number of tables in this chunk.
+    pub fn tables(&self) -> usize {
+        self.tables.len()
+    }
+
+    /// Returns true if there are no tables under this chunk.
+    pub fn is_empty(&self) -> bool {
+        self.tables() == 0
+    }
+
     /// Add a table to the chunk, updating all Chunk meta data.
     pub fn update_table(&mut self, table_name: String, row_group: RowGroup) {
         // update meta data
@@ -142,6 +167,8 @@ struct MetaData {
     size: u64, // size in bytes of the chunk
     rows: u64, // Total number of rows across all tables
 
+    row_groups: usize, // Total number of row groups across all tables in the chunk.
+
     // The total time range of *all* data (across all tables) within this
     // chunk.
     //
@@ -156,6 +183,7 @@ impl MetaData {
             size: table.size(),
             rows: table.rows(),
             time_range: table.time_range(),
+            row_groups: 1,
         }
     }
 
@@ -164,6 +192,7 @@ impl MetaData {
     pub fn update(&mut self, table_data: &RowGroup) {
         self.size += table_data.size();
         self.rows += table_data.rows() as u64;
+        self.row_groups += 1;
 
         match &mut self.time_range {
             Some((this_min, this_max)) => {

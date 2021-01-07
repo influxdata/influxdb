@@ -810,13 +810,22 @@ impl RowGroup {
     }
 }
 
+/// Initialise a `RowGroup` from an Arrow RecordBatch.
+///
+/// Presently this requires the RecordBatch to contain meta-data that specifies
+/// the semantic meaning of each column in terms of an Influx time-series
+/// use-case, i.e., whether the column is a tag column, field column or a time
+/// column.
 impl From<RecordBatch> for RowGroup {
     fn from(rb: RecordBatch) -> Self {
         let rows = rb.num_rows();
+        let schema = rb.schema();
+
         let mut columns = BTreeMap::new();
-        for (i, (col_name, col_type)) in rb.schema().metadata().iter().enumerate() {
-            // assert!(!columns.contains_key(col_name));
-            match col_type.as_str() {
+        for (i, col_data) in rb.columns().iter().enumerate() {
+            let col_name = schema.field(i).name();
+
+            match rb.schema().metadata().get(col_name).unwrap().as_str() {
                 TAG_COLUMN_TYPE => {
                     let arrow_column = rb.column(i);
                     assert_eq!(arrow_column.data_type(), &arrow::datatypes::DataType::Utf8);
@@ -850,7 +859,10 @@ impl From<RecordBatch> for RowGroup {
                                 .downcast_ref::<arrow::array::UInt64Array>()
                                 .unwrap(),
                         ),
-                        _ => unimplemented!("data type currently not supported for field columns"),
+                        dt => unimplemented!(
+                            "data type {:?} currently not supported for field columns",
+                            dt
+                        ),
                     };
 
                     columns.insert(col_name.to_owned(), ColumnType::Field(column_data));
@@ -864,7 +876,7 @@ impl From<RecordBatch> for RowGroup {
                             .as_any()
                             .downcast_ref::<arrow::array::Int64Array>()
                             .unwrap(),
-                        _ => panic!("timestamp column must be i64"),
+                        dt => panic!("{:?} column with {:?} must have type i64", col_name, dt),
                     });
 
                     columns.insert(col_name.to_owned(), ColumnType::Time(column_data));

@@ -51,15 +51,9 @@ pub struct Database {
 
     // The current total size of the database.
     size: u64,
-}
 
-impl fmt::Debug for Database {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Database")
-            .field("chunks", &self.chunks.keys())
-            .field("size", &self.size)
-            .finish()
-    }
+    // Total number of rows in the database.
+    rows: u64,
 }
 
 impl Database {
@@ -67,12 +61,27 @@ impl Database {
         Self::default()
     }
 
-    // TODO(edd) - figure the entry thing out with the closure
-    #[allow(clippy::map_entry)]
     /// Add new table data for a chunk. If the `Chunk` does not exist it will be
     /// created.
     pub fn update_chunk(&mut self, chunk_id: u32, table_name: String, table_data: RecordBatch) {
+        // validate table data contains appropriate meta data.
+        let schema = table_data.schema();
+        if schema.fields().len() != schema.metadata().len() {
+            todo!("return error with missing column types for fields")
+        }
+
+        // ensure that a valid column type is specified for each column in
+        // the record batch.
+        for (col_name, col_type) in schema.metadata() {
+            match col_type.as_str() {
+                TAG_COLUMN_TYPE | FIELD_COLUMN_TYPE | TIME_COLUMN_TYPE => continue,
+                _ => todo!("return error with incorrect column type specified"),
+            }
+        }
+
         let row_group = RowGroup::from(table_data);
+        self.size += row_group.size();
+        self.rows += row_group.rows() as u64;
 
         // create a new chunk if one doesn't exist, or add the table data to
         // the existing chunk.
@@ -93,6 +102,22 @@ impl Database {
 
     pub fn size(&self) -> u64 {
         self.size
+    }
+
+    pub fn rows(&self) -> u64 {
+        self.rows
+    }
+
+    /// Determines the total number of tables under all chunks within the
+    /// database.
+    pub fn tables(&self) -> usize {
+        self.chunks.values().map(|chunk| chunk.tables()).sum()
+    }
+
+    /// Determines the total number of row groups under all tables under all
+    /// chunks, within the database.
+    pub fn row_groups(&self) -> usize {
+        self.chunks.values().map(|chunk| chunk.row_groups()).sum()
     }
 
     /// Executes selections against matching chunks, returning a single
@@ -251,5 +276,119 @@ impl Database {
         // table for that measurement if the chunk's time range overlaps the
         // requested time range.
         todo!();
+    }
+}
+
+impl fmt::Debug for Database {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Database")
+            .field("chunks", &self.chunks.keys())
+            .field("size", &self.size)
+            .finish()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use arrow_deps::arrow::{
+        array::{ArrayRef, Float64Array, Int64Array, StringArray},
+        datatypes::{
+            DataType::{Float64, Int64, Utf8},
+            Field, Schema,
+        },
+    };
+
+    use super::*;
+
+    // helper to make the `database_update_chunk` test simpler to read.
+    fn gen_recordbatch() -> RecordBatch {
+        let metadata = vec![
+            ("region".to_owned(), TAG_COLUMN_TYPE.to_owned()),
+            ("counter".to_owned(), FIELD_COLUMN_TYPE.to_owned()),
+            (
+                row_group::TIME_COLUMN_NAME.to_owned(),
+                TIME_COLUMN_TYPE.to_owned(),
+            ),
+        ]
+        .into_iter()
+        .collect::<HashMap<String, String>>();
+
+        let schema = Schema::new_with_metadata(
+            vec![
+                ("region", Utf8),
+                ("counter", Float64),
+                (row_group::TIME_COLUMN_NAME, Int64),
+            ]
+            .into_iter()
+            .map(|(name, typ)| Field::new(name, typ, false))
+            .collect(),
+            metadata,
+        );
+
+        let data: Vec<ArrayRef> = vec![
+            Arc::new(StringArray::from(vec!["west", "west", "east"])),
+            Arc::new(Float64Array::from(vec![1.2, 3.3, 45.3])),
+            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+        ];
+
+        RecordBatch::try_new(Arc::new(schema), data).unwrap()
+    }
+
+    #[test]
+    fn database_update_chunk() {
+        let mut db = Database::new();
+        db.update_chunk(22, "a_table".to_owned(), gen_recordbatch());
+
+        assert_eq!(db.rows(), 3);
+        assert_eq!(db.tables(), 1);
+        assert_eq!(db.row_groups(), 1);
+
+        let chunk = db.chunks.values().next().unwrap();
+        assert_eq!(chunk.tables(), 1);
+        assert_eq!(chunk.rows(), 3);
+        assert_eq!(chunk.row_groups(), 1);
+
+        // Updating the chunk with another row group for the table just adds
+        // that row group to the existing table.
+        db.update_chunk(22, "a_table".to_owned(), gen_recordbatch());
+        assert_eq!(db.rows(), 6);
+        assert_eq!(db.tables(), 1); // still one table
+        assert_eq!(db.row_groups(), 2);
+
+        let chunk = db.chunks.values().next().unwrap();
+        assert_eq!(chunk.tables(), 1); // it's the same table.
+        assert_eq!(chunk.rows(), 6);
+        assert_eq!(chunk.row_groups(), 2);
+
+        // Adding the same data under another table would increase the table
+        // count.
+        db.update_chunk(22, "b_table".to_owned(), gen_recordbatch());
+        assert_eq!(db.rows(), 9);
+        assert_eq!(db.tables(), 2);
+        assert_eq!(db.row_groups(), 3);
+
+        let chunk = db.chunks.values().next().unwrap();
+        assert_eq!(chunk.tables(), 2);
+        assert_eq!(chunk.rows(), 9);
+        assert_eq!(chunk.row_groups(), 3);
+
+        // Adding the data under another chunk adds a new chunk.
+        db.update_chunk(29, "a_table".to_owned(), gen_recordbatch());
+        assert_eq!(db.rows(), 12);
+        assert_eq!(db.tables(), 3); // two distinct tables but across two chunks.
+        assert_eq!(db.row_groups(), 4);
+
+        let chunk = db.chunks.values().next().unwrap();
+        assert_eq!(chunk.tables(), 2);
+        assert_eq!(chunk.rows(), 9);
+        assert_eq!(chunk.row_groups(), 3);
+
+        let chunk = db.chunks.values().nth(1).unwrap();
+        assert_eq!(chunk.tables(), 1);
+        assert_eq!(chunk.rows(), 3);
+        assert_eq!(chunk.row_groups(), 1);
     }
 }

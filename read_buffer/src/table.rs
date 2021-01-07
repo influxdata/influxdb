@@ -76,12 +76,12 @@ impl Table {
 
     /// The total size of the table in bytes.
     pub fn size(&self) -> u64 {
-        todo!()
+        self.meta.size
     }
 
     /// The number of rows in this table.
     pub fn rows(&self) -> u64 {
-        todo!()
+        self.meta.rows
     }
 
     /// The time range of all row groups within this table.
