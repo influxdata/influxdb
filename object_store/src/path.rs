@@ -2,7 +2,7 @@
 //! across different backing implementations and platforms.
 
 use itertools::Itertools;
-use percent_encoding::{percent_encode, AsciiSet, CONTROLS};
+use percent_encoding::{percent_decode_str, percent_encode, AsciiSet, CONTROLS};
 use std::path::PathBuf;
 
 /// Universal interface for handling paths and locations for objects and
@@ -192,7 +192,10 @@ impl From<&str> for PathPart {
 
 impl std::fmt::Display for PathPart {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
+        percent_decode_str(&self.0)
+            .decode_utf8()
+            .expect("Valid UTF-8 that came from String")
+            .fmt(f)
     }
 }
 
@@ -203,6 +206,19 @@ mod tests {
     #[test]
     fn path_part_delimiter_gets_encoded() {
         let part: PathPart = "foo/bar".into();
-        assert_eq!(part, PathPart(String::from("foo%2Fbar")))
+        assert_eq!(part, PathPart(String::from("foo%2Fbar")));
+    }
+
+    #[test]
+    fn path_part_gets_decoded_for_display() {
+        let part: PathPart = "foo/bar".into();
+        assert_eq!(part.to_string(), "foo/bar");
+    }
+
+    #[test]
+    fn path_part_given_already_encoded_string() {
+        let part: PathPart = "foo%2Fbar".into();
+        assert_eq!(part, PathPart(String::from("foo%252Fbar")));
+        assert_eq!(part.to_string(), "foo%2Fbar");
     }
 }
