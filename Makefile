@@ -217,13 +217,6 @@ run: chronogiraffe
 run-e2e: chronogiraffe
 	./bin/$(GOOS)/influxd --assets-path=ui/build --e2e-testing --store=memory
 
-# assume this is running from circleci
-# TODO: Move this to the CI docker image build?
-protoc:
-	curl -s -L https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip > /tmp/protoc.zip
-	unzip -o -d $(GOPATH) /tmp/protoc.zip
-	chmod +x $(GOPATH)/bin/protoc
-
 # generate feature flags
 flags:
 	$(GO_GENERATE) ./kit/feature

@@ -479,7 +479,6 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - run: make protoc
       - run: make build
       - save_cache:
           name: Save GOCACHE
@@ -523,7 +522,6 @@ jobs:
       - run:
           name: Docker Login
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: make protoc
       - run: make dist
       - save_cache:
           name: Save GOCACHE
@@ -560,7 +558,6 @@ jobs:
       - run:
           name: Docker Login
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: make protoc # installs protoc
       - run:
           name: Build nightly
           command: make nightly
@@ -604,7 +601,6 @@ jobs:
       - run:
           name: Docker Login
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: make protoc # installs protoc
       - run:
           name: import GPG key
           command: |
@@ -638,7 +634,6 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - run: make protoc
       - run:
           command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
           background: true
