@@ -43,6 +43,13 @@ workflows:
           filters:
             branches:
               only: /^(?!pull\/).*$/
+      - cross_build:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - "2.0"
       - litmus_integration:
           requires:
             - litmus_daily
@@ -127,6 +134,10 @@ workflows:
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
 
+orbs:
+  # Needed to install chrome for e2e testing.
+  browser-tools: circleci/browser-tools@1.1
+
 jobs:
 
   ####################
@@ -136,14 +147,14 @@ jobs:
   jsdeps:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:2.0
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
-            - yarn-deps-
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-lock-
       - run:
           name: Install Dependencies
           command: |
@@ -152,31 +163,34 @@ jobs:
             yarn install --immutable
       - save_cache:
           name: Save Yarn Cache
-          key: yarn-deps-{{ checksum "ui/yarn.lock" }}
+          key: yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
           paths:
-            - /go/src/github.com/influxdata/influxdb/ui/node_modules
+            - /home/circleci/go/src/github.com/influxdata/influxdb/ui/node_modules
             - ~/.cache/yarn
             - ~/.cache/Cypress
 
   jstest:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:2.0
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
-      - run: make ui_client
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - run:
-          name: parallel jest tests
+          name: install dependencies
           command: |
-            set +e
             cd ui
             # This should usually be a no-op (fully contained in the Yarn cache above), but we
             # include it to be safe since `yarn test` won't auto-install missing modules.
             yarn install --immutable
+      - run: make ui_client
+      - run:
+          name: run tests
+          command: |
+            cd ui
             yarn test:circleci
       - store_test_results:
           path: ui/coverage
@@ -187,23 +201,26 @@ jobs:
   jslint:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:2.0
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
       - checkout
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
+      - run:
+          name: install dependencies
+          command: |
+            cd ui
+            # This should usually be a no-op (fully contained in the Yarn cache above), but we
+            # include it to be safe since the lint commands won't auto-install missing modules.
+            yarn install --immutable
       - run: make ui_client
       - run:
           name: parallel eslint
           command: |
-            set +e
             cd ui
-            # This should usually be a no-op (fully contained in the Yarn cache above), but we
-            # include it to be safe since `yarn test` won't auto-install missing modules.
-            yarn install --immutable
             TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
             yarn prettier:circleci ${TESTFILES[@]}
             yarn eslint:circleci ${TESTFILES[@]}
@@ -218,34 +235,34 @@ jobs:
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
-            - influxdb-gomod-
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-
       - run:
           name: Install Dependencies
           command: go mod download -x
       - save_cache:
           name: Save GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
+          key: influxdb-gomod-sum-{{ checksum "go.sum" }}
           paths:
-            - /go/pkg/mod
+            - /home/circleci/go/pkg/mod
 
   golint:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:2.0
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: |
           # this is not in a seperate bash script because it isn't meant to be run on local.
           # it just checks to make sure that the same major/minor version of go is used in the mod file as on ci
@@ -270,7 +287,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
       - checkout
@@ -283,7 +300,7 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run:
           name: run parallel race tests
@@ -309,7 +326,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -321,7 +338,7 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-validation
       - save_cache:
@@ -342,7 +359,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -354,7 +371,7 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-integration
       - save_cache:
@@ -377,14 +394,14 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:2.0
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - run: make checkcommit
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - restore_cache:
           name: Restore GOCACHE
           keys:
@@ -394,8 +411,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
-      - run: make protoc
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - run: make build
       - save_cache:
           name: Save GOCACHE
@@ -411,19 +427,53 @@ jobs:
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
 
-  release:
+  cross_build:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: quay.io/influxdb/influxdb-circleci:2.0
     environment:
       GOCACHE: /tmp/go-cache
-      DOCKER_VERSION: 2.0.0-rc
-    working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore GOCACHE
+          keys:
+            - influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
+            - influxdb-cross-build-{{ .Branch }}-
+            - influxdb-build-{{ .Branch }}-{{ .Revision }}
+            - influxdb-build-{{ .Branch }}-
+            - influxdb-cross-build-
+            - influxdb-build-
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
+      - setup_remote_docker
+      - run:
+          name: Docker Login
+          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - run: make dist
+      - save_cache:
+          name: Save GOCACHE
+          key: influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+
+  release:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:latest
+    environment:
+      GOCACHE: /tmp/go-cache
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - restore_cache:
           name: Restore GOCACHE
           keys:
@@ -436,12 +486,11 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - setup_remote_docker
       - run:
           name: Docker Login
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: make protoc # installs protoc
       - run:
           name: import GPG key
           command: |
@@ -465,16 +514,16 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:2.0
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
+      - browser-tools/install-browser-tools
       - checkout
       - attach_workspace:
-          at: /go/src/github.com/influxdata/influxdb
+          at: /home/circleci/go/src/github.com/influxdata/influxdb
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
-      - run: make protoc
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - run:
           command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
           background: true
