@@ -70,12 +70,7 @@ impl ObjectStorePath {
 
     /// Push a bunch of parts in one go.
     pub fn push_all<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
-        // Turn T into a slice of str, validate each one, and collect() it into a
-        // Vec<String>
-        let parts = parts.as_ref().iter().map(|&v| v.into()).collect::<Vec<_>>();
-
-        // Push them to the internal path
-        self.parts.extend(parts);
+        self.parts.extend(parts.as_ref().iter().map(|&v| v.into()));
     }
 
     /// Return the component parts of the path.
