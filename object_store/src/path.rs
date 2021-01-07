@@ -18,18 +18,6 @@ pub struct ObjectStorePath {
     parts: Vec<PathPart>,
 }
 
-// Invariants to maintain/document/test:
-//
-// - always ends in DELIMITER if it's a directory. If it's the end object, it
-//   should have some sort of file extension like .parquet, .json, or .segment
-// - does not contain unencoded DELIMITER
-// - for file paths: does not escape root dir
-// - for object storage: looks like directories
-// - Paths that come from object stores directly don't need to be
-//   parsed/validated
-// - Within a process, the same backing store will always be used
-//
-
 impl ObjectStorePath {
     /// For use when receiving a path from an object store API directly, not
     /// when building a path. Assumes DELIMITER is the separator.
@@ -219,5 +207,60 @@ mod tests {
         let part: PathPart = "foo%2Fbar".into();
         assert_eq!(part, PathPart(String::from("foo%252Fbar")));
         assert_eq!(part.to_string(), "foo%2Fbar");
+    }
+
+    // Invariants to maintain/document/test:
+    //
+    // - always ends in DELIMITER if it's a directory. If it's the end object, it
+    //   should have some sort of file extension like .parquet, .json, or .segment
+    // - does not contain unencoded DELIMITER
+    // - for file paths: does not escape root dir
+    // - for object storage: looks like directories
+    // - Paths that come from object stores directly don't need to be
+    //   parsed/validated
+    // - Within a process, the same backing store will always be used
+    //
+
+    #[test]
+    fn cloud_prefix_no_trailing_delimiter_or_filename() {
+        // Use case: a file named `test_file.json` exists in object storage and it
+        // should be returned for a search on prefix `test`, so the prefix path
+        // should not get a trailing delimiter automatically added
+        let mut prefix = ObjectStorePath::default();
+        prefix.push("test");
+
+        let converted = CloudConverter::convert(&prefix);
+        assert_eq!(converted, "test");
+    }
+
+    #[test]
+    fn cloud_prefix_with_trailing_delimiter() {
+        // Use case: files exist in object storage named `foo/bar.json` and
+        // `foo_test.json`. A search for the prefix `foo/` should return
+        // `foo/bar.json` but not `foo_test.json'.
+        let mut prefix = ObjectStorePath::default();
+        prefix.push_all(&["test", ""]);
+
+        let converted = CloudConverter::convert(&prefix);
+        assert_eq!(converted, "test/");
+    }
+
+    #[test]
+    fn push_encodes() {
+        let mut location = ObjectStorePath::default();
+        location.push("foo/bar");
+        location.push("baz%2Ftest");
+
+        let converted = CloudConverter::convert(&location);
+        assert_eq!(converted, "foo%2Fbar/baz%252Ftest");
+    }
+
+    #[test]
+    fn push_all_encodes() {
+        let mut location = ObjectStorePath::default();
+        location.push_all(&["foo/bar", "baz%2Ftest"]);
+
+        let converted = CloudConverter::convert(&location);
+        assert_eq!(converted, "foo%2Fbar/baz%252Ftest");
     }
 }
