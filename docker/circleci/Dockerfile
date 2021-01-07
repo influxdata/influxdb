@@ -62,15 +62,14 @@ ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl/bin/musl-gcc
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl-cross/bin/aarch64-unknown-linux-musl-gcc
 ENV CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/local/osxcross/target/bin/x86_64-apple-darwin15-clang
 
-WORKDIR /go
-
 # Install Docker buildkit to support multi-arch image builds.
 ENV DOCKER_BUILDX_VERSION=0.5.1
-
 RUN mkdir -p /home/circleci/.docker/cli-plugins && \
     curl -sfL -o /home/circleci/.docker/cli-plugins/docker-buildx \
         https://github.com/docker/buildx/releases/download/v${DOCKER_BUILDX_VERSION}/buildx-v${DOCKER_BUILDX_VERSION}.linux-amd64 && \
     chmod a+x /home/circleci/.docker/cli-plugins/docker-buildx
+
+WORKDIR $GOPATH
 
 # Install goreleaser.
 ENV GORELEASER_VERSION=v0.152.0
