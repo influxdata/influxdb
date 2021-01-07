@@ -43,6 +43,13 @@ workflows:
           filters:
             branches:
               only: /^(?!pull\/).*$/
+      - cross_build:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - master
       - litmus_integration:
           requires:
             - litmus_daily
@@ -99,7 +106,7 @@ workflows:
       - jslint:
           requires:
             - jsdeps
-      - deploy-nightly:
+      - deploy_nightly:
           requires:
             - gotest
             - golint
@@ -113,10 +120,10 @@ workflows:
                 - master
       - litmus_nightly:
           requires:
-            - deploy-nightly
+            - deploy_nightly
       - grace_nightly:
           requires:
-            - deploy-nightly
+            - deploy_nightly
 
   release:
     jobs:
@@ -488,7 +495,43 @@ jobs:
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
 
-  deploy-nightly:
+  cross_build:
+    docker:
+      - image: quay.io/influxdb/influxdb-circleci:latest
+    environment:
+      GOCACHE: /tmp/go-cache
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore GOCACHE
+          keys:
+            - influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
+            - influxdb-cross-build-{{ .Branch }}-
+            - influxdb-build-{{ .Branch }}-{{ .Revision }}
+            - influxdb-build-{{ .Branch }}-
+            - influxdb-cross-build-
+            - influxdb-build-
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
+      - setup_remote_docker
+      - run:
+          name: Docker Login
+          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - run: make protoc
+      - run: make dist
+      - save_cache:
+          name: Save GOCACHE
+          key: influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+
+  deploy_nightly:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
