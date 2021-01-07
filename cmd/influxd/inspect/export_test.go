@@ -20,38 +20,62 @@ import (
 type corpus map[string][]tsm1.Value
 
 var (
-	basicCorpus = corpus{
+	floatCorpus = corpus{
 		tsm1.SeriesFieldKey("floats,k=f", "f"): []tsm1.Value{
 			tsm1.NewValue(1, float64(1.5)),
 			tsm1.NewValue(2, float64(3)),
 		},
+	}
+
+	floatLines = []string{
+		"floats,k=f f=1.5 1",
+		"floats,k=f f=3 2",
+	}
+
+	intCorpus = corpus{
 		tsm1.SeriesFieldKey("ints,k=i", "i"): []tsm1.Value{
 			tsm1.NewValue(10, int64(15)),
 			tsm1.NewValue(20, int64(30)),
 		},
+	}
+
+	intLines = []string{
+		"ints,k=i i=15i 10",
+		"ints,k=i i=30i 20",
+	}
+
+	boolCorpus = corpus{
 		tsm1.SeriesFieldKey("bools,k=b", "b"): []tsm1.Value{
 			tsm1.NewValue(100, true),
 			tsm1.NewValue(200, false),
 		},
+	}
+
+	boolLines = []string{
+		"bools,k=b b=true 100",
+		"bools,k=b b=false 200",
+	}
+
+	stringCorpus = corpus{
 		tsm1.SeriesFieldKey("strings,k=s", "s"): []tsm1.Value{
 			tsm1.NewValue(1000, "1k"),
 			tsm1.NewValue(2000, "2k"),
 		},
+	}
+
+	stringLines = []string{
+		`strings,k=s s="1k" 1000`,
+		`strings,k=s s="2k" 2000`,
+	}
+
+	uintCorpus = corpus{
 		tsm1.SeriesFieldKey("uints,k=u", "u"): []tsm1.Value{
 			tsm1.NewValue(3000, uint64(45)),
 			tsm1.NewValue(4000, uint64(60)),
 		},
 	}
 
-	basicCorpusExpLines = []string{
-		"floats,k=f f=1.5 1",
-		"floats,k=f f=3 2",
-		"ints,k=i i=15i 10",
-		"ints,k=i i=30i 20",
-		"bools,k=b b=true 100",
-		"bools,k=b b=false 200",
-		`strings,k=s s="1k" 1000`,
-		`strings,k=s s="2k" 2000`,
+	uintLines = []string{
 		`uints,k=u u=45u 3000`,
 		`uints,k=u u=60u 4000`,
 	}
@@ -69,23 +93,68 @@ var (
 		`t s="2. back\\slash" 2`,
 		`t s="3. bs\\q\"" 3`,
 	}
+
+	basicCorpus         = make(corpus)
+	basicCorpusExpLines []string
+
+	numsOnlyFilter   = newFilters()
+	numsOnlyExpLines []string
+
+	earlyEntriesOnlyFilter   = newFilters()
+	earlyEntriesOnlyExpLines []string
+
+	lateEntriesOnlyFilter   = newFilters()
+	lateEntriesOnlyExpLines []string
 )
+
+func init() {
+	for _, c := range []corpus{floatCorpus, intCorpus, boolCorpus, stringCorpus, uintCorpus} {
+		for k, v := range c {
+			basicCorpus[k] = v
+		}
+	}
+
+	for _, l := range [][]string{floatLines, intLines, boolLines, stringLines, uintLines} {
+		basicCorpusExpLines = append(basicCorpusExpLines, l...)
+	}
+
+	for _, m := range []string{"floats", "ints", "uints"} {
+		numsOnlyFilter.measurements[m] = struct{}{}
+	}
+	for _, l := range [][]string{floatLines, intLines, uintLines} {
+		numsOnlyExpLines = append(numsOnlyExpLines, l...)
+	}
+
+	earlyEntriesOnlyFilter.end = 150
+	earlyEntriesOnlyExpLines = append(earlyEntriesOnlyExpLines, floatLines...)
+	earlyEntriesOnlyExpLines = append(earlyEntriesOnlyExpLines, intLines...)
+	earlyEntriesOnlyExpLines = append(earlyEntriesOnlyExpLines, boolLines[0])
+
+	lateEntriesOnlyFilter.start = 150
+	lateEntriesOnlyExpLines = append(lateEntriesOnlyExpLines, boolLines[1])
+	lateEntriesOnlyExpLines = append(lateEntriesOnlyExpLines, stringLines...)
+	lateEntriesOnlyExpLines = append(lateEntriesOnlyExpLines, uintLines...)
+}
 
 func Test_exportWAL(t *testing.T) {
 	log := zaptest.NewLogger(t)
 
 	for _, c := range []struct {
 		corpus corpus
+		filter *exportFilters
 		lines  []string
 	}{
-		{corpus: basicCorpus, lines: basicCorpusExpLines},
-		{corpus: escapeStringCorpus, lines: escCorpusExpLines},
+		{corpus: basicCorpus, filter: newFilters(), lines: basicCorpusExpLines},
+		{corpus: escapeStringCorpus, filter: newFilters(), lines: escCorpusExpLines},
+		{corpus: basicCorpus, filter: numsOnlyFilter, lines: numsOnlyExpLines},
+		{corpus: basicCorpus, filter: earlyEntriesOnlyFilter, lines: earlyEntriesOnlyExpLines},
+		{corpus: basicCorpus, filter: lateEntriesOnlyFilter, lines: lateEntriesOnlyExpLines},
 	} {
 		walFile := writeCorpusToWALFile(c.corpus)
 		defer os.Remove(walFile.Name())
 
 		var out bytes.Buffer
-		if err := exportWAL(walFile.Name(), newFilters(), &out, log, func() {}); err != nil {
+		if err := exportWAL(walFile.Name(), c.filter, &out, log, func() {}); err != nil {
 			t.Fatal(err)
 		}
 
@@ -117,16 +186,20 @@ func Test_exportTSM(t *testing.T) {
 
 	for _, c := range []struct {
 		corpus corpus
+		filter *exportFilters
 		lines  []string
 	}{
-		{corpus: basicCorpus, lines: basicCorpusExpLines},
-		{corpus: escapeStringCorpus, lines: escCorpusExpLines},
+		{corpus: basicCorpus, filter: newFilters(), lines: basicCorpusExpLines},
+		{corpus: escapeStringCorpus, filter: newFilters(), lines: escCorpusExpLines},
+		{corpus: basicCorpus, filter: numsOnlyFilter, lines: numsOnlyExpLines},
+		{corpus: basicCorpus, filter: earlyEntriesOnlyFilter, lines: earlyEntriesOnlyExpLines},
+		{corpus: basicCorpus, filter: lateEntriesOnlyFilter, lines: lateEntriesOnlyExpLines},
 	} {
 		tsmFile := writeCorpusToTSMFile(c.corpus)
 		defer os.Remove(tsmFile.Name())
 
 		var out bytes.Buffer
-		if err := exportTSM(tsmFile.Name(), newFilters(), &out, log); err != nil {
+		if err := exportTSM(tsmFile.Name(), c.filter, &out, log); err != nil {
 			t.Fatal(err)
 		}
 
