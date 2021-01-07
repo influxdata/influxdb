@@ -348,7 +348,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 			return fmt.Errorf("unknown destination type %t", o.DestP)
 		}
 
-
 		// Viper is meant to store global options/config/env, so we only bind persistent flags to it.
 		// See: https://github.com/spf13/viper/issues/233#issuecomment-553225438
 		//
