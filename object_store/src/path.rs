@@ -144,9 +144,8 @@ impl FileConverter {
 
 /// The delimiter to separate object namespaces, creating a directory structure.
 pub const DELIMITER: &str = "/";
-// percent_encode's API needs this as a byte... is there a const conversion for
-// this?
-const DELIMITER_BYTE: u8 = b'/';
+// percent_encode's API needs this as a byte
+const DELIMITER_BYTE: u8 = DELIMITER.as_bytes()[0];
 
 /// The PathPart type exists to validate the directory/file names that form part
 /// of a path.
