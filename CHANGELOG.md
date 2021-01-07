@@ -34,6 +34,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20411](https://github.com/influxdata/influxdb/pull/20411): Fix logging initialization for storage engine.
 1. [20456](https://github.com/influxdata/influxdb/pull/20456): Automatically build `tsi1` indexes for shards that need it instead of falling back to `inmem`.
 1. [20455](https://github.com/influxdata/influxdb/pull/20455): Don't return 500 codes for partial write failures.
+1. [20409](https://github.com/influxdata/influxdb/pull/20409): Improve messages in DBRP API validation errors.
 
 ## v2.0.3 [2020-12-14]
 ----------------------

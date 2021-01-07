@@ -1,16 +1,12 @@
 package dbrp
 
 import (
+	"fmt"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
 var (
-	// ErrInvalidDBRPID is used when the ID of the DBRP cannot be encoded.
-	ErrInvalidDBRPID = &influxdb.Error{
-		Code: influxdb.EInvalid,
-		Msg:  "DBRP ID is invalid",
-	}
-
 	// ErrDBRPNotFound is used when the specified DBRP cannot be found.
 	ErrDBRPNotFound = &influxdb.Error{
 		Code: influxdb.ENotFound,
@@ -29,7 +25,50 @@ var (
 		Code: influxdb.EInternal,
 		Msg:  "unable to generate valid id",
 	}
+
+	ErrNoOrgProvided = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "either 'org' or 'orgID' must be provided",
+	}
 )
+
+// ErrOrgNotFound returns a more informative error about a 404 on org name.
+func ErrOrgNotFound(org string) error {
+	return &influxdb.Error{
+		Code: influxdb.ENotFound,
+		Msg:  fmt.Sprintf("invalid org %q", org),
+		Err:  influxdb.ErrOrgNotFound,
+	}
+}
+
+// ErrInvalidOrgID returns a more informative error about a failure
+// to decode an organization ID.
+func ErrInvalidOrgID(id string, err error) error {
+	return &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  fmt.Sprintf("invalid org ID %q", id),
+		Err:  err,
+	}
+}
+
+// ErrInvalidBucketID returns a more informative error about a failure
+// to decode a bucket ID.
+func ErrInvalidBucketID(id string, err error) error {
+	return &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  fmt.Sprintf("invalid bucket ID %q", id),
+		Err:  err,
+	}
+}
+
+// ErrInvalidDBRPID is used when the ID of the DBRP cannot be encoded.
+func ErrInvalidDBRPID(id string, err error) error {
+	return &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  fmt.Sprintf("invalid DBRP ID %q", id),
+		Err:  err,
+	}
+}
 
 // ErrInvalidDBRP is used when a service was provided an invalid DBRP.
 func ErrInvalidDBRP(err error) *influxdb.Error {
