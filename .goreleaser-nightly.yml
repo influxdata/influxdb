@@ -48,18 +48,21 @@ builds:
       pre: make generate
 
 nfpms:
-  -
-    id: "influxdb2"
+  - id: "influxdb2"
     builds: ["influx", "influxd"]
     formats:
       - deb
       - rpm
     bindir: /usr/bin
-    files:
-      "scripts/init.sh": "/usr/lib/influxdb/scripts/init.sh"
-      "scripts/influxdb.service": "/usr/lib/influxdb/scripts/influxdb.service"
-      "scripts/logrotate": "/etc/logrotate.d/influxdb"
-      "scripts/influxdb2-upgrade.sh": "/usr/share/influxdb/influxdb2-upgrade.sh"
+    contents:
+      - src: scripts/init.sh
+        dst: /usr/lib/influxdb/scripts/init.sh
+      - src: scripts/influxdb.service
+        dst: /usr/lib/influxdb/scripts/influxdb.service
+      - src: scripts/logrotate
+        dst: /etc/logrotate.d/influxdb
+      - src: scripts/influxdb2-upgrade.sh
+        dst: /usr/share/influxdb/influxdb2-upgrade.sh
     scripts:
       preinstall:  "scripts/pre-install.sh"
       postinstall: "scripts/post-install.sh"
@@ -107,10 +110,32 @@ dockers:
       - influxd
       - influx
     image_templates:
-      - "quay.io/influxdb/influx:nightly"
+      - "quay.io/influxdb/influxdb-amd64:nightly"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/amd64"
+    use_buildx: true
+  - goos: linux
+    goarch: arm64
+    binaries:
+      - influxd
+      - influx
+    image_templates:
+      - "quay.io/influxdb/influxdb-arm64v8:nightly"
+    dockerfile: docker/influxd/Dockerfile
+    extra_files:
+      - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+    use_buildx: true
+
+docker_manifests:
+  - name_template: "quay.io/influxdb/influxdb:nightly"
+    image_templates:
+      - "quay.io/influxdb/influxdb-amd64:nightly"
+      - "quay.io/influxdb/influxdb-arm64v8:nightly"
 
 # Do not make github release
 release:
