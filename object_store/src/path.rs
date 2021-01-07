@@ -170,13 +170,19 @@ const INVALID: &AsciiSet = &CONTROLS
     .add(b'%')
     .add(b'`')
     .add(b']')
-    .add(b'"')
+    .add(b'"') // " <-- my editor is confused about double quotes within single quotes
     .add(b'>')
     .add(b'[')
     .add(b'~')
     .add(b'<')
     .add(b'#')
-    .add(b'|');
+    .add(b'|')
+    // Characters Google Cloud Storage recommends avoiding for object names
+    // https://cloud.google.com/storage/docs/naming-objects
+    .add(b'\r')
+    .add(b'\n')
+    .add(b'*')
+    .add(b'?');
 
 impl From<&str> for PathPart {
     fn from(v: &str) -> Self {
