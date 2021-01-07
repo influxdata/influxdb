@@ -84,8 +84,25 @@ impl ObjectStorePath {
     }
 
     /// Determines whether `prefix` is a prefix of `self`.
-    pub fn starts_with(&self, _prefix: &Self) -> bool {
-        unimplemented!()
+    pub fn starts_with(&self, prefix: &Self) -> bool {
+        let diff = itertools::diff_with(self.parts.iter(), prefix.parts.iter(), |a, b| a == b);
+        match diff {
+            None => true,
+            Some(itertools::Diff::Shorter(..)) => true,
+            Some(itertools::Diff::FirstMismatch(_, mut remaining_self, mut remaining_prefix)) => {
+                let first_prefix = remaining_prefix.next().expect("must be at least one value");
+
+                // there must not be any other remaining parts in the prefix
+                remaining_prefix.next().is_none()
+                // and the next item in self must start with the last item in the prefix
+                    && remaining_self
+                        .next()
+                        .expect("must be at least one value")
+                        .0
+                        .starts_with(&first_prefix.0)
+            }
+            _ => false,
+        }
     }
 
     /// Returns delimiter-separated parts contained in `self` after `prefix`.
@@ -277,5 +294,68 @@ mod tests {
 
         let converted = CloudConverter::convert(&location);
         assert_eq!(converted, "foo%2Fbar/baz%252Ftest");
+    }
+
+    #[test]
+    fn starts_with_parts() {
+        let mut haystack = ObjectStorePath::default();
+        haystack.push_all(&["foo/bar", "baz%2Ftest", "something"]);
+
+        assert!(
+            haystack.starts_with(&haystack),
+            "{:?} should have started with {:?}",
+            haystack,
+            haystack
+        );
+
+        let mut needle = haystack.clone();
+        needle.push("longer now");
+        assert!(
+            !haystack.starts_with(&needle),
+            "{:?} shouldn't have started with {:?}",
+            haystack,
+            needle
+        );
+
+        let mut needle = ObjectStorePath::default();
+        needle.push("foo/bar");
+        assert!(
+            haystack.starts_with(&needle),
+            "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
+        needle.push("baz%2Ftest");
+        assert!(
+            haystack.starts_with(&needle),
+            "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
+
+        let mut needle = ObjectStorePath::default();
+        needle.push("f");
+        assert!(
+            haystack.starts_with(&needle),
+            "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
+        needle.push("oo/bar");
+        assert!(
+            !haystack.starts_with(&needle),
+            "{:?} shouldn't have started with {:?}",
+            haystack,
+            needle
+        );
+
+        let mut needle = ObjectStorePath::default();
+        needle.push_all(&["foo/bar", "baz"]);
+        assert!(
+            haystack.starts_with(&needle),
+            "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
     }
 }
