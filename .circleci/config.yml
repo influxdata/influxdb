@@ -213,8 +213,8 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
-            - yarn-deps-
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-lock-
       - run:
           name: Install Dependencies
           command: |
@@ -223,7 +223,7 @@ jobs:
             yarn install --immutable
       - save_cache:
           name: Save Yarn Cache
-          key: yarn-deps-{{ checksum "ui/yarn.lock" }}
+          key: yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
           paths:
             - /home/circleci/go/src/github.com/influxdata/influxdb/ui/node_modules
             - ~/.cache/yarn
@@ -238,7 +238,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - run:
           name: install dependencies
           command: |
@@ -268,7 +268,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - run:
           name: install dependencies
           command: |
@@ -301,14 +301,14 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
-            - influxdb-gomod-
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-
       - run:
           name: Install Dependencies
           command: go mod download -x
       - save_cache:
           name: Save GOPATH/pkg/mod
-          key: influxdb-gomod-{{ checksum "go.sum" }}
+          key: influxdb-gomod-sum-{{ checksum "go.sum" }}
           paths:
             - /home/circleci/go/pkg/mod
 
@@ -322,7 +322,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: |
           # this is not in a seperate bash script because it isn't meant to be run on local.
           # it just checks to make sure that the same major/minor version of go is used in the mod file as on ci
@@ -360,7 +360,7 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run:
           name: run parallel race tests
@@ -398,7 +398,7 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-validation
       - save_cache:
@@ -431,7 +431,7 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-integration
       - save_cache:
@@ -461,7 +461,7 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - restore_cache:
           name: Restore GOCACHE
           keys:
@@ -471,7 +471,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - run: make protoc
       - run: make build
       - save_cache:
@@ -499,7 +499,7 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - restore_cache:
           name: Restore GOCACHE
           keys:
@@ -512,7 +512,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - setup_remote_docker
       - run:
           name: Docker Login
@@ -543,7 +543,7 @@ jobs:
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
-            - influxdb-gomod-{{ checksum "go.sum" }}
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - restore_cache:
           name: Restore GOCACHE
           keys:
@@ -556,7 +556,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - setup_remote_docker
       - run:
           name: Docker Login
@@ -594,7 +594,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Cache
           keys:
-            - yarn-deps-{{ checksum "ui/yarn.lock" }}
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
       - run: make protoc
       - run:
           command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
