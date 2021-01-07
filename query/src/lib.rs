@@ -8,15 +8,15 @@
 use arrow_deps::arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{data::ReplicatedWrite, partition_metadata::Table as TableStats};
-use exec::{FieldListPlan, SeriesSetPlans, StringSetPlan};
+use exec::{Executor, FieldListPlan, SeriesSetPlans, StringSetPlan};
 
 use std::{fmt::Debug, sync::Arc};
 
 pub mod exec;
+pub mod frontend;
 pub mod func;
 pub mod group_by;
 pub mod id;
-pub mod planner;
 pub mod predicate;
 pub mod util;
 
@@ -38,6 +38,27 @@ pub trait Database: Debug + Send + Sync {
     /// Stores the replicated write in the write buffer and, if enabled, the
     /// write ahead log.
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
+
+    /// Fetch the specified table names and columns as Arrow
+    /// RecordBatches. Columns are returned in the order specified.
+    async fn table_to_arrow(
+        &self,
+        table_name: &str,
+        columns: &[&str],
+    ) -> Result<Vec<RecordBatch>, Self::Error>;
+
+    /// Return the partition keys for data in this DB
+    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
+
+    /// Return the table names that are in a given partition key
+    async fn table_names_for_partition(
+        &self,
+        partition_key: &str,
+    ) -> Result<Vec<String>, Self::Error>;
+
+    // ----------
+    // The functions below are slated for removal
+    // ---------
 
     /// Returns a plan that lists the names of tables in this
     /// database that have at least one row that matches the
@@ -89,32 +110,6 @@ pub trait Database: Debug + Send + Sync {
     ) -> Result<SeriesSetPlans, Self::Error>;
 }
 
-#[async_trait]
-pub trait SQLDatabase: Debug + Send + Sync {
-    type Error: std::error::Error + Send + Sync + 'static;
-
-    /// Execute the specified query and return arrow record batches with the
-    /// result
-    async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error>;
-
-    /// Fetch the specified table names and columns as Arrow
-    /// RecordBatches. Columns are returned in the order specified.
-    async fn table_to_arrow(
-        &self,
-        table_name: &str,
-        columns: &[&str],
-    ) -> Result<Vec<RecordBatch>, Self::Error>;
-
-    /// Return the partition keys for data in this DB
-    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
-
-    /// Return the table names that are in a given partition key
-    async fn table_names_for_partition(
-        &self,
-        partition_key: &str,
-    ) -> Result<Vec<String>, Self::Error>;
-}
-
 /// Collection of data that shares the same partition key
 pub trait PartitionChunk: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
@@ -142,7 +137,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
 /// Storage for `Databases` which can be retrieved by name
 pub trait DatabaseStore: Debug + Send + Sync {
     /// The type of database that is stored by this DatabaseStore
-    type Database: Database + SQLDatabase;
+    type Database: Database;
 
     /// The type of error this DataBase store generates
     type Error: std::error::Error + Send + Sync + 'static;
@@ -154,6 +149,10 @@ pub trait DatabaseStore: Debug + Send + Sync {
     /// Retrieve the database specified by `name`, creating it if it
     /// doesn't exist.
     async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error>;
+
+    /// Provide a query executor to use for running queries on
+    /// databases in this `DatabaseStore`
+    fn executor(&self) -> Arc<Executor>;
 }
 
 // Note: I would like to compile this module only in the 'test' cfg,

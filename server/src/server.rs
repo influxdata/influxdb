@@ -9,7 +9,6 @@ use std::{
 };
 
 use crate::db::Db;
-use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
     database_rules::{DatabaseRules, HostGroup, HostGroupId, MatchTables},
@@ -18,7 +17,7 @@ use data_types::{
 use influxdb_line_protocol::ParsedLine;
 use mutable_buffer::MutableBufferDb;
 use object_store::{path::ObjectStorePath, ObjectStore};
-use query::{Database, DatabaseStore, SQLDatabase};
+use query::{exec::Executor, Database, DatabaseStore};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -78,6 +77,7 @@ pub struct Server<M: ConnectionManager> {
     config: RwLock<Config>,
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
+    executor: Arc<Executor>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
@@ -93,6 +93,7 @@ impl<M: ConnectionManager> Server<M> {
             config: RwLock::new(Config::default()),
             store,
             connection_manager: Arc::new(connection_manager),
+            executor: Arc::new(Executor::new()),
         }
     }
 
@@ -227,26 +228,6 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    /// Executes a query against the local write buffer database, if one exists.
-    pub async fn query_local(&self, db_name: &str, query: &str) -> Result<Vec<RecordBatch>> {
-        let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
-
-        let config = self.config.read().await;
-        let db = config
-            .databases
-            .get(&db_name)
-            .context(DatabaseNotFound { db_name: &*db_name })?;
-
-        let buff = db
-            .local_store
-            .as_ref()
-            .context(NoLocalBuffer { db: &*db_name })?;
-        buff.query(query)
-            .await
-            .map_err(|e| Box::new(e) as DatabaseError)
-            .context(UnknownDatabaseError {})
-    }
-
     pub async fn handle_replicated_write(
         &self,
         db_name: &DatabaseName<'_>,
@@ -329,7 +310,10 @@ impl<M: ConnectionManager> Server<M> {
 }
 
 #[async_trait]
-impl DatabaseStore for Server<ConnectionManagerImpl> {
+impl<M> DatabaseStore for Server<M>
+where
+    M: ConnectionManager + std::fmt::Debug + Send + Sync,
+{
     type Database = Db;
     type Error = Error;
 
@@ -360,6 +344,10 @@ impl DatabaseStore for Server<ConnectionManagerImpl> {
         };
 
         Ok(db)
+    }
+
+    fn executor(&self) -> Arc<Executor> {
+        self.executor.clone()
     }
 }
 
@@ -433,12 +421,13 @@ fn config_location(id: u32) -> ObjectStorePath {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_deps::arrow::{csv, util::string_writer::StringWriter};
+    use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
     use async_trait::async_trait;
     use data_types::database_rules::{MatchTables, Matcher, Subscription};
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, ObjectStoreIntegration};
+    use query::frontend::sql::SQLQueryPlanner;
     use snafu::Snafu;
     use std::sync::Mutex;
 
@@ -513,19 +502,27 @@ mod tests {
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
         server.write_lines("foo", &lines).await.unwrap();
 
-        let results = server
-            .query_local("foo", "select * from cpu")
+        let db_name = DatabaseName::new("foo").unwrap();
+        let db = server.db(&db_name).await.unwrap();
+
+        let buff = db.local_store.as_ref().unwrap();
+
+        let planner = SQLQueryPlanner::default();
+        let executor = server.executor();
+        let physical_plan = planner
+            .query(buff.as_ref(), "select * from cpu", executor.as_ref())
             .await
             .unwrap();
 
-        let mut sw = StringWriter::new();
-        {
-            let mut writer = csv::Writer::new(&mut sw);
-            for r in results {
-                writer.write(&r).unwrap();
-            }
-        }
-        assert_eq!(&sw.to_string(), "bar,time\n1.0,10\n");
+        let batches = collect(physical_plan).await.unwrap();
+        let expected = vec![
+            "+-----+------+",
+            "| bar | time |",
+            "+-----+------+",
+            "| 1   | 10   |",
+            "+-----+------+",
+        ];
+        assert_table_eq!(expected, &batches);
 
         Ok(())
     }
@@ -723,6 +720,7 @@ partition_key:
         General { message: String },
     }
 
+    #[derive(Debug)]
     struct TestConnectionManager {
         remotes: BTreeMap<String, Arc<TestRemoteServer>>,
     }
@@ -745,7 +743,7 @@ partition_key:
         }
     }
 
-    #[derive(Default)]
+    #[derive(Debug, Default)]
     struct TestRemoteServer {
         writes: Mutex<BTreeMap<String, Vec<ReplicatedWrite>>>,
     }

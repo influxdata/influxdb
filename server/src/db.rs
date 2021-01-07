@@ -9,7 +9,7 @@ use std::sync::{
 use async_trait::async_trait;
 use data_types::{data::ReplicatedWrite, database_rules::DatabaseRules};
 use mutable_buffer::MutableBufferDb;
-use query::{Database, PartitionChunk, SQLDatabase};
+use query::{Database, PartitionChunk};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -238,23 +238,6 @@ impl Database for Db {
             .as_ref()
             .context(DatabaseNotReadable)?
             .query_groups(predicate, gby_agg)
-            .await
-            .context(MutableBufferRead)
-    }
-}
-
-#[async_trait]
-impl SQLDatabase for Db {
-    type Error = Error;
-
-    async fn query(
-        &self,
-        query: &str,
-    ) -> Result<Vec<arrow_deps::arrow::record_batch::RecordBatch>, Self::Error> {
-        self.local_store
-            .as_ref()
-            .context(DatabaseNotReadable)?
-            .query(query)
             .await
             .context(MutableBufferRead)
     }

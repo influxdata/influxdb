@@ -4,7 +4,7 @@ use query::group_by::WindowDuration;
 use query::{
     exec::{stringset::StringSet, FieldListPlan, SeriesSetPlan, SeriesSetPlans, StringSetPlan},
     predicate::Predicate,
-    Database, SQLDatabase,
+    Database,
 };
 use query::{group_by::Aggregate, predicate::PredicateBuilder};
 
@@ -19,11 +19,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use arrow_deps::{
-    arrow::{datatypes::Schema as ArrowSchema, record_batch::RecordBatch},
-    datafusion::{
-        datasource::MemTable, error::DataFusionError, execution::context::ExecutionContext,
-        logical_plan::LogicalPlan, physical_plan::collect, prelude::ExecutionConfig,
-    },
+    arrow::record_batch::RecordBatch,
+    datafusion::{error::DataFusionError, logical_plan::LogicalPlan},
 };
 use data_types::data::ReplicatedWrite;
 
@@ -31,11 +28,6 @@ use crate::dictionary::Error as DictionaryError;
 
 use async_trait::async_trait;
 use snafu::{ResultExt, Snafu};
-use sqlparser::{
-    ast::{SetExpr, Statement, TableFactor},
-    dialect::GenericDialect,
-    parser::Parser,
-};
 use tokio::sync::RwLock;
 
 #[derive(Debug, Snafu)]
@@ -87,22 +79,10 @@ pub enum Error {
     #[snafu(display("id conversion error"))]
     IdConversionError { source: std::num::TryFromIntError },
 
-    #[snafu(display("Invalid sql query: {} : {}", query, source))]
-    InvalidSqlQuery {
-        query: String,
-        source: sqlparser::parser::ParserError,
-    },
-
     #[snafu(display("error executing query {}: {}", query, source))]
     QueryError {
         query: String,
         source: DataFusionError,
-    },
-
-    #[snafu(display("Unsupported SQL statement in query {}: {}", query, statement))]
-    UnsupportedStatement {
-        query: String,
-        statement: Box<Statement>,
     },
 
     #[snafu(display("replicated write from writer {} missing payload", writer))]
@@ -292,64 +272,6 @@ impl Database for MutableBufferDb {
                 Ok(visitor.plans.into())
             }
         }
-    }
-}
-
-#[async_trait]
-impl SQLDatabase for MutableBufferDb {
-    type Error = Error;
-
-    async fn query(&self, query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
-        let mut tables = vec![];
-
-        let dialect = GenericDialect {};
-        let ast = Parser::parse_sql(&dialect, query).context(InvalidSqlQuery { query })?;
-
-        for statement in ast {
-            match statement {
-                Statement::Query(q) => {
-                    if let SetExpr::Select(q) = q.body {
-                        for item in q.from {
-                            if let TableFactor::Table { name, .. } = item.relation {
-                                let name = name.to_string();
-                                let data = self.table_to_arrow(&name, &[]).await?;
-                                tables.push(ArrowTable {
-                                    name,
-                                    schema: data[0].schema().clone(),
-                                    data,
-                                });
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    return UnsupportedStatement {
-                        query: query.to_string(),
-                        statement,
-                    }
-                    .fail()
-                }
-            }
-        }
-
-        let config = ExecutionConfig::new().with_batch_size(1024 * 1024);
-        let mut ctx = ExecutionContext::with_config(config);
-
-        for table in tables {
-            let provider =
-                MemTable::try_new(table.schema, vec![table.data]).context(QueryError { query })?;
-            ctx.register_table(&table.name, Box::new(provider));
-        }
-
-        let plan = ctx
-            .create_logical_plan(&query)
-            .context(QueryError { query })?;
-        let plan = ctx.optimize(&plan).context(QueryError { query })?;
-        let plan = ctx
-            .create_physical_plan(&plan)
-            .context(QueryError { query })?;
-
-        collect(plan).await.context(QueryError { query })
     }
 
     /// Fetch the specified table names and columns as Arrow
@@ -1037,12 +959,6 @@ impl Visitor for WindowGroupsVisitor {
     }
 }
 
-struct ArrowTable {
-    name: String,
-    schema: Arc<ArrowSchema>,
-    data: Vec<RecordBatch>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1053,6 +969,7 @@ mod tests {
             seriesset::{Error as SeriesSetError, SeriesSet, SeriesSetItem},
             Executor,
         },
+        frontend::sql::SQLQueryPlanner,
         predicate::PredicateBuilder,
         Database,
     };
@@ -1063,7 +980,7 @@ mod tests {
             datatypes::DataType,
         },
         assert_table_eq,
-        datafusion::prelude::*,
+        datafusion::{physical_plan::collect, prelude::*},
     };
     use influxdb_line_protocol::{parse_lines, ParsedLine};
     use test_helpers::str_pair_vec_to_vec;
@@ -1208,7 +1125,7 @@ mod tests {
             .collect();
         write_lines(&db, &lines).await;
 
-        let results = db.query("select * from cpu").await?;
+        let results = run_sql_query(&db, "select * from cpu").await;
 
         let expected_cpu_table = &[
             "+------+-------+--------+------+------+",
@@ -1943,5 +1860,14 @@ mod tests {
     async fn write_lines(database: &MutableBufferDb, lines: &[ParsedLine<'_>]) {
         let mut writer = query::test::TestLPWriter::default();
         writer.write_lines(database, lines).await.unwrap()
+    }
+
+    async fn run_sql_query(database: &MutableBufferDb, query: &str) -> Vec<RecordBatch> {
+        let planner = SQLQueryPlanner::default();
+        let executor = Executor::new();
+
+        let physical_plan = planner.query(database, query, &executor).await.unwrap();
+
+        collect(physical_plan).await.unwrap()
     }
 }

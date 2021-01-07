@@ -1,7 +1,7 @@
 //! This module contains plumbing to connect InfluxDB IOx extensions to
 //! DataFusion
 
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
@@ -27,6 +27,8 @@ pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
 
 use super::counters::ExecutionCounters;
 
+/// This structure implements the DataFusion notion of "query planner"
+/// and is needed to create plans with the IOx extension nodes.
 struct IOxQueryPlanner {}
 
 impl QueryPlanner for IOxQueryPlanner {
@@ -77,9 +79,24 @@ impl ExtensionPlanner for IOxExtensionPlanner {
     }
 }
 
+/// This is an execution context for planning in IOx.
+/// It wraps a DataFusion execution context and incudes
+/// statistical counters.
+///
+/// Eventually we envision this as also managing resources
+/// and providing visibility into what plans are running
 pub struct IOxExecutionContext {
     counters: Arc<ExecutionCounters>,
     inner: ExecutionContext,
+}
+
+impl fmt::Debug for IOxExecutionContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("IOxExecutionContext")
+            .field("counters", &self.counters)
+            .field("inner", &"<DataFusion ExecutionContext>")
+            .finish()
+    }
 }
 
 impl IOxExecutionContext {
@@ -96,7 +113,25 @@ impl IOxExecutionContext {
         Self { counters, inner }
     }
 
-    pub async fn make_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
+    /// returns a reference to the inner datafusion execution context
+    pub fn inner(&self) -> &ExecutionContext {
+        &self.inner
+    }
+
+    /// returns a mutable reference to the inner datafusion execution context
+    pub fn inner_mut(&mut self) -> &mut ExecutionContext {
+        &mut self.inner
+    }
+
+    /// Prepare a SQL statement for execution. This assumes that any
+    /// tables referenced in the SQL have been registered with this context
+    pub async fn prepare_sql(&mut self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
+        let logical_plan = self.inner.sql(sql)?.to_logical_plan();
+        self.prepare_plan(&logical_plan).await
+    }
+
+    /// Prepare (optimize + plan) a pre-created logical plan for execution
+    pub async fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
         debug!(
             "Creating plan: Initial plan\n----\n{}\n{}\n----",
             plan.display_indent_schema(),

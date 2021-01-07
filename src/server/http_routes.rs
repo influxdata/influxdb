@@ -12,11 +12,11 @@
 use super::{org_and_bucket_to_database, OrgBucketMappingError};
 
 // Influx crates
-use arrow_deps::arrow;
+use arrow_deps::{arrow, datafusion::physical_plan::collect};
 use data_types::{database_rules::DatabaseRules, DatabaseName};
 use influxdb_line_protocol::parse_lines;
 use object_store::path::ObjectStorePath;
-use query::SQLDatabase;
+use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore};
 use server::server::{ConnectionManager, Server as AppServer};
 
 // External crates
@@ -60,13 +60,15 @@ pub enum ApplicationError {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display(
-        "Internal error reading points from database {}:  {}",
-        database,
-        source
-    ))]
+    #[snafu(display("Error planning query {}: {}", query, source))]
+    PlanningSQLQuery {
+        query: String,
+        source: query::frontend::sql::Error,
+    },
+
+    #[snafu(display("Internal error reading points from database {}:  {}", db_name, source))]
     Query {
-        database: String,
+        db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
@@ -147,6 +149,7 @@ impl ApplicationError {
             Self::BucketByName { .. } => self.internal_error(),
             Self::BucketMappingError { .. } => self.internal_error(),
             Self::WritingPoints { .. } => self.internal_error(),
+            Self::PlanningSQLQuery { .. } => self.bad_request(),
             Self::Query { .. } => self.internal_error(),
             Self::QueryError { .. } => self.bad_request(),
             Self::BucketNotFound { .. } => self.not_found(),
@@ -406,6 +409,9 @@ async fn read<M: ConnectionManager + Send + Sync + Debug + 'static>(
         query_string: query,
     })?;
 
+    let planner = SQLQueryPlanner::default();
+    let executor = server.executor();
+
     let db_name = org_and_bucket_to_database(&read_info.org, &read_info.bucket)
         .context(BucketMappingError)?;
 
@@ -414,12 +420,17 @@ async fn read<M: ConnectionManager + Send + Sync + Debug + 'static>(
         bucket: read_info.bucket.clone(),
     })?;
 
-    let results = db
-        .query(&read_info.sql_query)
+    let physical_plan = planner
+        .query(db.as_ref(), &read_info.sql_query, executor.as_ref())
+        .await
+        .context(PlanningSQLQuery { query })?;
+
+    let batches = collect(physical_plan)
         .await
         .map_err(|e| Box::new(e) as _)
-        .context(QueryError {})?;
-    let results = arrow::util::pretty::pretty_format_batches(&results).unwrap();
+        .context(Query { db_name })?;
+
+    let results = arrow::util::pretty::pretty_format_batches(&batches).unwrap();
 
     Ok(Response::new(Body::from(results.into_bytes())))
 }
@@ -657,7 +668,9 @@ mod tests {
     use super::*;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
+    use arrow_deps::{arrow::record_batch::RecordBatch, assert_table_eq};
     use http::header;
+    use query::exec::Executor;
     use reqwest::{Client, Response};
 
     use hyper::Server;
@@ -665,7 +678,7 @@ mod tests {
     use data_types::database_rules::DatabaseRules;
     use data_types::DatabaseName;
     use object_store::{memory::InMemory, ObjectStore};
-    use server::server::ConnectionManagerImpl;
+    use server::{db::Db, server::ConnectionManagerImpl};
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
@@ -727,22 +740,15 @@ mod tests {
             .await
             .expect("Database exists");
 
-        let results = test_db
-            .query("select * from h2o_temperature")
-            .await
-            .unwrap();
-        let results_str = arrow::util::pretty::pretty_format_batches(&results).unwrap();
-        let results: Vec<_> = results_str.split('\n').collect();
-
+        let batches = run_query(test_db.as_ref(), "select * from h2o_temperature").await;
         let expected = vec![
             "+----------------+--------------+-------+-----------------+------------+",
             "| bottom_degrees | location     | state | surface_degrees | time       |",
             "+----------------+--------------+-------+-----------------+------------+",
             "| 50.4           | santa_monica | CA    | 65.2            | 1568756160 |",
             "+----------------+--------------+-------+-----------------+------------+",
-            "",
         ];
-        assert_eq!(results, expected);
+        assert_table_eq!(expected, &batches);
 
         Ok(())
     }
@@ -796,12 +802,7 @@ mod tests {
             .await
             .expect("Database exists");
 
-        let results = test_db
-            .query("select * from h2o_temperature")
-            .await
-            .unwrap();
-        let results_str = arrow::util::pretty::pretty_format_batches(&results).unwrap();
-        let results: Vec<_> = results_str.split('\n').collect();
+        let batches = run_query(test_db.as_ref(), "select * from h2o_temperature").await;
 
         let expected = vec![
             "+----------------+--------------+-------+-----------------+------------+",
@@ -809,9 +810,8 @@ mod tests {
             "+----------------+--------------+-------+-----------------+------------+",
             "| 50.4           | santa_monica | CA    | 65.2            | 1568756160 |",
             "+----------------+--------------+-------+-----------------+------------+",
-            "",
         ];
-        assert_eq!(results, expected);
+        assert_table_eq!(expected, &batches);
 
         Ok(())
     }
@@ -913,5 +913,14 @@ mod tests {
         tokio::task::spawn(server);
         println!("Started server at {}", server_url);
         server_url
+    }
+
+    /// Run the specified SQL query and return formatted results as a string
+    async fn run_query(db: &Db, query: &str) -> Vec<RecordBatch> {
+        let planner = SQLQueryPlanner::default();
+        let executor = Executor::new();
+        let physical_plan = planner.query(db, query, &executor).await.unwrap();
+
+        collect(physical_plan).await.unwrap()
     }
 }

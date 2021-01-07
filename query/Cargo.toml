@@ -19,6 +19,7 @@ croaring = "0.4.5"
 chrono = "0.4"
 
 arrow_deps = { path = "../arrow_deps" }
+sqlparser = "0.6.1"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 data_types = { path = "../data_types" }
 test_helpers = { path = "../test_helpers" }

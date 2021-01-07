@@ -1,5 +1,3 @@
-//! The main query planners of InfluxDB IOx
-
 /// Plans queries that originate from the InfluxDB Storage gRPC
 /// interface, which are in terms of the InfluxDB Line Protocol data
 /// model (the `ParsedLine` structures) and provides an interface to query
@@ -28,11 +26,4 @@ pub struct InfluxRPCPlanner {
 // async fn table_names(&self, database: impl Database, predicate: Predicate) ->
 // Result<StringSetPlan>; async fn tag_column_names(&self, database: impl Database, predicate:
 // Predicate) -> Result<StringSetPlan>; ...
-}
-
-/// Plans queries as SQL against databases
-#[derive(Debug)]
-pub struct SQLQueryPlanner {
-    // Example methods:
-//async fn query(&self, database: &impl Database, query: &str) -> Result<Vec<RecordBatch>>;
 }

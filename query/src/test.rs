@@ -3,14 +3,14 @@
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 
-use crate::group_by::GroupByAndAggregate;
+use crate::{exec::Executor, group_by::GroupByAndAggregate};
 use crate::{
     exec::FieldListPlan,
     exec::{
         stringset::{StringSet, StringSetRef},
         SeriesSetPlans, StringSetPlan,
     },
-    Database, DatabaseStore, PartitionChunk, Predicate, SQLDatabase, TimestampRange,
+    Database, DatabaseStore, PartitionChunk, Predicate, TimestampRange,
 };
 
 use data_types::{
@@ -408,30 +408,6 @@ impl Database for TestDatabase {
                 message: "No saved query_groups in TestDatabase",
             })
     }
-}
-
-#[async_trait]
-impl SQLDatabase for TestDatabase {
-    type Error = TestError;
-
-    /// Execute the specified query and return arrow record batches with the
-    /// result
-    async fn query(&self, _query: &str) -> Result<Vec<RecordBatch>, Self::Error> {
-        unimplemented!("query Not yet implemented");
-    }
-
-    /// Return the partition keys for data in this DB
-    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        unimplemented!("partition_keys not yet implemented for test database");
-    }
-
-    /// Return the table names that are in a given partition key
-    async fn table_names_for_partition(
-        &self,
-        _partition_key: &str,
-    ) -> Result<Vec<String>, Self::Error> {
-        unimplemented!("table_names_for_partition not yet implemented for test database");
-    }
 
     /// Fetch the specified table names and columns as Arrow
     /// RecordBatches. Columns are returned in the order specified.
@@ -441,6 +417,19 @@ impl SQLDatabase for TestDatabase {
         _columns: &[&str],
     ) -> Result<Vec<RecordBatch>, Self::Error> {
         unimplemented!()
+    }
+
+    /// Return the partition keys for data in this DB
+    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
+        unimplemented!("partition_keys not yet for test database");
+    }
+
+    /// Return the table names that are in a given partition key
+    async fn table_names_for_partition(
+        &self,
+        _partition_key: &str,
+    ) -> Result<Vec<String>, Self::Error> {
+        unimplemented!("table_names_for_partition not implemented for test database");
     }
 }
 
@@ -475,6 +464,7 @@ impl PartitionChunk for TestChunk {
 #[derive(Debug)]
 pub struct TestDatabaseStore {
     databases: Mutex<BTreeMap<String, Arc<TestDatabase>>>,
+    executor: Arc<Executor>,
 }
 
 impl TestDatabaseStore {
@@ -496,6 +486,7 @@ impl Default for TestDatabaseStore {
     fn default() -> Self {
         Self {
             databases: Mutex::new(BTreeMap::new()),
+            executor: Arc::new(Executor::new()),
         }
     }
 }
@@ -523,6 +514,10 @@ impl DatabaseStore for TestDatabaseStore {
             databases.insert(name.to_string(), new_db.clone());
             Ok(new_db)
         }
+    }
+
+    fn executor(&self) -> Arc<Executor> {
+        self.executor.clone()
     }
 }
 

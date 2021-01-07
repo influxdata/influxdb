@@ -76,6 +76,12 @@ impl<'a> DatabaseName<'a> {
     }
 }
 
+impl<'a> std::convert::From<DatabaseName<'a>> for String {
+    fn from(name: DatabaseName<'a>) -> Self {
+        name.0.to_string()
+    }
+}
+
 impl<'a> std::convert::TryFrom<&'a str> for DatabaseName<'a> {
     type Error = DatabaseNameError;
 

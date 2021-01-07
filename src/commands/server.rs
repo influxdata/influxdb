@@ -11,7 +11,6 @@ use server::server::{ConnectionManagerImpl as ConnectionManager, Server as AppSe
 
 use hyper::Server;
 use object_store::{self, gcp::GoogleCloudStorage, ObjectStore};
-use query::exec::Executor as QueryExecutor;
 
 use snafu::{ResultExt, Snafu};
 
@@ -112,9 +111,6 @@ pub async fn main(logging_level: LoggingLevel, ignore_config_file: bool) -> Resu
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }
 
-    // Fire up the query executor
-    let executor = Arc::new(QueryExecutor::default());
-
     // Construct and start up gRPC server
 
     let grpc_bind_addr = config.grpc_bind_address;
@@ -122,7 +118,7 @@ pub async fn main(logging_level: LoggingLevel, ignore_config_file: bool) -> Resu
         .await
         .context(StartListeningGrpc { grpc_bind_addr })?;
 
-    let grpc_server = service::make_server(socket, app_server.clone(), executor);
+    let grpc_server = service::make_server(socket, app_server.clone());
 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 
