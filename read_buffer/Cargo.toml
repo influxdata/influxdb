@@ -8,6 +8,7 @@ edition = "2018"
 
 
 [dependencies]
+snafu = "0.6"
 arrow_deps = { path = "../arrow_deps" }
 data_types = { path = "../data_types" }
 packers = { path = "../packers" }

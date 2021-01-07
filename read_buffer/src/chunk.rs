@@ -116,12 +116,12 @@ impl Chunk {
 
     /// Returns the distinct set of table names that contain data that satisfies
     /// the time range and predicates.
-    pub fn table_names(&self, predicates: &[Predicate<'_>]) -> BTreeSet<String> {
-        //
-        // TODO(edd): do we want to add the ability to apply a predicate to the
-        // table names? For example, a regex where you only want table names
-        // beginning with /cpu.+/ or something?
-        todo!()
+    pub fn table_names(&self, predicates: &[Predicate<'_>]) -> BTreeSet<&String> {
+        if !predicates.is_empty() {
+            unimplemented!("Predicate support on `table_names` is not yet implemented");
+        }
+
+        self.tables.keys().collect::<BTreeSet<&String>>()
     }
 
     /// Returns the distinct set of tag keys (column names) matching the

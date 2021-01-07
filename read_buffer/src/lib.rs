@@ -8,11 +8,17 @@ pub mod row_group;
 pub(crate) mod table;
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     fmt,
+    sync::Arc,
 };
 
-use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow_deps::arrow::{
+    array::{ArrayRef, StringArray},
+    datatypes::{DataType::Utf8, Field, Schema},
+    record_batch::RecordBatch,
+};
+use snafu::{ResultExt, Snafu};
 
 use chunk::Chunk;
 use column::AggregateType;
@@ -20,25 +26,15 @@ pub use column::{FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE, TIME_COLUMN_TYPE};
 use row_group::{ColumnName, Predicate, RowGroup};
 use table::Table;
 
-/// Generate a predicate for the time range [from, to).
-pub fn time_range_predicate<'a>(from: i64, to: i64) -> Vec<row_group::Predicate<'a>> {
-    vec![
-        (
-            row_group::TIME_COLUMN_NAME,
-            (
-                column::cmp::Operator::GTE,
-                column::Value::Scalar(column::Scalar::I64(from)),
-            ),
-        ),
-        (
-            row_group::TIME_COLUMN_NAME,
-            (
-                column::cmp::Operator::LT,
-                column::Value::Scalar(column::Scalar::I64(to)),
-            ),
-        ),
-    ]
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("arrow conversion error: {}", source))]
+    ArrowError {
+        source: arrow_deps::arrow::error::ArrowError,
+    },
 }
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // A database is scoped to a single tenant. Within a database there exists
 // tables for measurements. There is a 1:1 mapping between a table and a
@@ -227,17 +223,32 @@ impl Database {
 
     /// Returns the distinct set of table names that contain data that satisfies
     /// the time range and predicates.
-    pub fn table_names(
-        &self,
-        database_name: &str,
-        time_range: (i64, i64),
-        predicates: &[Predicate<'_>],
-    ) -> Option<RecordBatch> {
-        //
-        // TODO(edd): do we want to add the ability to apply a predicate to the
-        // table names? For example, a regex where you only want table names
-        // beginning with /cpu.+/ or something?
-        todo!()
+    ///
+    /// TODO(edd): Implement predicate support.
+    pub fn table_names(&self, predicates: &[Predicate<'_>]) -> Result<Option<RecordBatch>> {
+        let mut intersection = BTreeSet::new();
+        let chunk_table_names = self
+            .chunks
+            .values()
+            .map(|chunk| chunk.table_names(predicates))
+            .for_each(|mut names| intersection.append(&mut names));
+
+        if intersection.is_empty() {
+            return Ok(None);
+        }
+
+        let schema = Schema::new(vec![Field::new("table", Utf8, false)]);
+        let columns: Vec<ArrayRef> = vec![Arc::new(StringArray::from(
+            intersection
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<&str>>(),
+        ))];
+
+        match RecordBatch::try_new(Arc::new(schema), columns).context(ArrowError {}) {
+            Ok(rb) => Ok(Some(rb)),
+            Err(e) => Err(e),
+        }
     }
 
     /// Returns the distinct set of tag keys (column names) matching the
@@ -286,6 +297,26 @@ impl fmt::Debug for Database {
             .field("size", &self.size)
             .finish()
     }
+}
+
+/// Generate a predicate for the time range [from, to).
+pub fn time_range_predicate<'a>(from: i64, to: i64) -> Vec<row_group::Predicate<'a>> {
+    vec![
+        (
+            row_group::TIME_COLUMN_NAME,
+            (
+                column::cmp::Operator::GTE,
+                column::Value::Scalar(column::Scalar::I64(from)),
+            ),
+        ),
+        (
+            row_group::TIME_COLUMN_NAME,
+            (
+                column::cmp::Operator::LT,
+                column::Value::Scalar(column::Scalar::I64(to)),
+            ),
+        ),
+    ]
 }
 
 #[cfg(test)]
@@ -390,5 +421,66 @@ mod test {
         assert_eq!(chunk.tables(), 1);
         assert_eq!(chunk.rows(), 3);
         assert_eq!(chunk.row_groups(), 1);
+    }
+
+    // Helper function to assert the contents of a column on a record batch.
+    fn assert_rb_column_equals(rb: &RecordBatch, col_name: &str, exp: &column::Values<'_>) {
+        let got_column = rb.column(rb.schema().index_of(col_name).unwrap());
+
+        match exp {
+            column::Values::String(exp_data) => {
+                let arr: &StringArray = got_column.as_any().downcast_ref::<StringArray>().unwrap();
+                assert_eq!(&arr.iter().collect::<Vec<_>>(), exp_data);
+            }
+            column::Values::I64(exp_data) => {
+                let arr: &Int64Array = got_column.as_any().downcast_ref::<Int64Array>().unwrap();
+                assert_eq!(arr.values(), exp_data);
+            }
+            column::Values::U64(_) => {}
+            column::Values::F64(_) => {}
+            column::Values::I64N(_) => {}
+            column::Values::U64N(_) => {}
+            column::Values::F64N(_) => {}
+            column::Values::Bool(_) => {}
+            column::Values::ByteArray(_) => {}
+        }
+    }
+
+    #[test]
+    fn table_names() {
+        let mut db = Database::new();
+        assert!(matches!(db.table_names(&[]), Ok(None)));
+
+        db.update_chunk(22, "Coolverine".to_owned(), gen_recordbatch());
+        let data = db.table_names(&[]).unwrap().unwrap();
+        assert_rb_column_equals(
+            &data,
+            "table",
+            &column::Values::String(vec![Some("Coolverine")]),
+        );
+
+        db.update_chunk(22, "Coolverine".to_owned(), gen_recordbatch());
+        let data = db.table_names(&[]).unwrap().unwrap();
+        assert_rb_column_equals(
+            &data,
+            "table",
+            &column::Values::String(vec![Some("Coolverine")]),
+        );
+
+        db.update_chunk(2, "Coolverine".to_owned(), gen_recordbatch());
+        let data = db.table_names(&[]).unwrap().unwrap();
+        assert_rb_column_equals(
+            &data,
+            "table",
+            &column::Values::String(vec![Some("Coolverine")]),
+        );
+
+        db.update_chunk(2, "20 Size".to_owned(), gen_recordbatch());
+        let data = db.table_names(&[]).unwrap().unwrap();
+        assert_rb_column_equals(
+            &data,
+            "table",
+            &column::Values::String(vec![Some("20 Size"), Some("Coolverine")]),
+        );
     }
 }
