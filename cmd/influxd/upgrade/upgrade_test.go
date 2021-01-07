@@ -41,21 +41,25 @@ func TestPathValidations(t *testing.T) {
 		enginePath:     enginePath,
 	}
 
-	err = validatePaths(sourceOpts, targetOpts)
+
+	err = sourceOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
 	assert.Contains(t, err.Error(), "1.x DB dir")
 
 	err = os.MkdirAll(filepath.Join(v1Dir, "meta"), 0777)
 	require.Nil(t, err)
 
-	err = validatePaths(sourceOpts, targetOpts)
+	err = sourceOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
 	assert.Contains(t, err.Error(), "1.x meta.db")
 
 	err = ioutil.WriteFile(filepath.Join(v1Dir, "meta", "meta.db"), []byte{1}, 0777)
 	require.Nil(t, err)
 
-	err = validatePaths(sourceOpts, targetOpts)
+	err = sourceOpts.validatePaths()
+	require.Nil(t, err)
+
+	err = targetOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
 	assert.Contains(t, err.Error(), "2.x engine")
 
@@ -65,7 +69,7 @@ func TestPathValidations(t *testing.T) {
 	err = ioutil.WriteFile(configsPath, []byte{1}, 0777)
 	require.Nil(t, err)
 
-	err = validatePaths(sourceOpts, targetOpts)
+	err = targetOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
 	assert.Contains(t, err.Error(), "2.x CLI configs")
 }
