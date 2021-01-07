@@ -179,6 +179,7 @@ func (*mockTSMFile) Unref()                                          { panic("im
 func (*mockTSMFile) Stats() FileStat                                 { panic("implement me") }
 func (*mockTSMFile) BlockIterator() *BlockIterator                   { panic("implement me") }
 func (*mockTSMFile) Free() error                                     { panic("implement me") }
+func (*mockTSMFile) MeasurementStats() (MeasurementStats, error)     { panic("implement me") }
 
 func (*mockTSMFile) ReadFloatBlockAt(*IndexEntry, *[]FloatValue) ([]FloatValue, error) {
 	panic("implement me")

@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -360,6 +361,23 @@ func (t *TSMReader) Type(key []byte) (byte, error) {
 	return t.index.Type(key)
 }
 
+// MeasurementStats returns the on-disk measurement stats for this file, if available.
+func (t *TSMReader) MeasurementStats() (MeasurementStats, error) {
+	f, err := os.Open(StatsFilename(t.Path()))
+	if os.IsNotExist(err) {
+		return make(MeasurementStats), nil
+	} else if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	stats := make(MeasurementStats)
+	if _, err := stats.ReadFrom(bufio.NewReader(f)); err != nil {
+		return nil, err
+	}
+	return stats, err
+}
+
 // Close closes the TSMReader.
 func (t *TSMReader) Close() error {
 	t.refsWG.Wait()
@@ -419,10 +437,13 @@ func (t *TSMReader) remove() error {
 	}
 
 	if path != "" {
-		err := os.RemoveAll(path)
-		if err != nil {
+		if err := os.RemoveAll(path); err != nil {
 			return err
 		}
+		if err := os.RemoveAll(StatsFilename(path)); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+
 	}
 
 	if err := t.tombstoner.Delete(); err != nil {

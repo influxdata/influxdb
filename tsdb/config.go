@@ -99,6 +99,9 @@ type Config struct {
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 
+	// Whether to track stats (disk usage) by measurement
+	MeasurementStatsEnabled bool `toml:"measurement-stats-enabled"`
+
 	// Compaction options for tsm1 (descriptions above with defaults)
 	CacheMaxMemorySize             toml.Size     `toml:"cache-max-memory-size"`
 	CacheSnapshotMemorySize        toml.Size     `toml:"cache-snapshot-memory-size"`

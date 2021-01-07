@@ -38,6 +38,9 @@ const (
 
 	// TSMFileExtension is the extension used for TSM files.
 	TSMFileExtension = "tsm"
+
+	// TSSFileExtension is the extension used for TSM stats files
+	tssFileExtension = "tss"
 )
 
 var (
@@ -708,6 +711,8 @@ type Compactor struct {
 	formatFileName FormatFileNameFunc
 	parseFileName  ParseFileNameFunc
 
+	MeasurementStatsEnabled bool
+
 	mu                 sync.RWMutex
 	snapshotsEnabled   bool
 	compactionsEnabled bool
@@ -1040,6 +1045,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 
 		// New TSM files are written to a temp file and renamed when fully completed.
 		fileName := filepath.Join(c.Dir, c.formatFileName(generation, sequence)+"."+TSMFileExtension+"."+TmpTSMFileExtension)
+		statsFileName := StatsFilename(fileName)
 
 		// Write as much as possible to this file
 		err := c.write(fileName, iter, throttle)
@@ -1055,6 +1061,9 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 			if err := os.RemoveAll(fileName); err != nil {
 				return nil, err
 			}
+			if err := os.RemoveAll(statsFileName); err != nil && !os.IsNotExist(err) {
+				return nil, err
+			}
 			break
 		} else if _, ok := err.(errCompactionInProgress); ok {
 			// Don't clean up the file as another compaction is using it.  This should not happen as the
@@ -1066,9 +1075,15 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 				if err := os.RemoveAll(f); err != nil {
 					return nil, err
 				}
+				if err := os.RemoveAll(StatsFilename(f)); err != nil && !os.IsNotExist(err) {
+					return nil, err
+				}
 			}
-			// We hit an error and didn't finish the compaction.  Remove the temp file and abort.
+			// Also remove the tmp file we were still working on
 			if err := os.RemoveAll(fileName); err != nil {
+				return nil, err
+			}
+			if err := os.RemoveAll(statsFileName); err != nil && !os.IsNotExist(err) {
 				return nil, err
 			}
 			return nil, err
@@ -1117,6 +1132,10 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool) (err err
 		if err != nil {
 			return err
 		}
+	}
+
+	if c.MeasurementStatsEnabled {
+		w.EnableMeasurementStats()
 	}
 
 	defer func() {

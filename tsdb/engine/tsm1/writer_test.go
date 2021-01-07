@@ -8,6 +8,8 @@ import (
 	"os"
 	"testing"
 
+	tassert "github.com/stretchr/testify/assert"
+
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
@@ -114,64 +116,61 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 }
 
 func TestTSMWriter_Write_Multiple(t *testing.T) {
+	assert := tassert.New(t)
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
 
 	w, err := tsm1.NewTSMWriter(f)
-	if err != nil {
-		t.Fatalf("unexpected error creating writer: %v", err)
-	}
+	assert.NoError(err, "creating writer")
+	w.EnableMeasurementStats()
 
 	var data = []struct {
 		key    string
 		values []tsm1.Value
 	}{
-		{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
-		{"mem", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		{"cpu", []tsm1.Value{
+			tsm1.NewValue(0, 1.0),
+			tsm1.NewValue(1, 2.0),
+		}},
+		{"mem", []tsm1.Value{
+			tsm1.NewValue(0, 1.5),
+		}},
 	}
 
 	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
-			t.Fatalf("unexpected error writing: %v", err)
-		}
+		assert.NoError(w.Write([]byte(d.key), d.values), "writing")
 	}
 
-	if err := w.WriteIndex(); err != nil {
-		t.Fatalf("unexpected error closing: %v", err)
-	}
+	assert.NoError(w.WriteIndex(), "writing index")
 
-	if err := w.Close(); err != nil {
-		t.Fatalf("unexpected error closing: %v", err)
-	}
+	assert.NoError(w.Close(), "closing")
 
 	fd, err := os.Open(f.Name())
-	if err != nil {
-		t.Fatalf("unexpected error open file: %v", err)
-	}
+	assert.NoError(err, "open file")
 
 	r, err := tsm1.NewTSMReader(fd)
-	if err != nil {
-		t.Fatalf("unexpected error created reader: %v", err)
-	}
+	assert.NoError(err, "creating reader")
 	defer r.Close()
 
 	for _, d := range data {
 		readValues, err := r.ReadAll([]byte(d.key))
-		if err != nil {
-			t.Fatalf("unexpected error readin: %v", err)
-		}
-
-		if exp := len(d.values); exp != len(readValues) {
-			t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), exp)
-		}
+		assert.NoError(err, "readin")
+		assert.Equal(len(d.values), len(readValues), "read values length")
 
 		for i, v := range d.values {
-			if v.Value() != readValues[i].Value() {
-				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
-			}
+			assert.Equal(v.Value(), readValues[i].Value(), "value mismatch")
 		}
 	}
+
+	expectedStats := map[string]int{
+		"cpu": 39,
+		"mem": 34,
+	}
+	stats, err := r.MeasurementStats()
+	assert.NoError(err, "reading measurement stats")
+	assert.Equal(expectedStats, map[string]int(stats))
+
 }
 
 func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
@@ -430,14 +429,13 @@ func TestTSMWriter_WriteBlock_Empty(t *testing.T) {
 }
 
 func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
+	assert := tassert.New(t)
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
 
 	w, err := tsm1.NewTSMWriter(f)
-	if err != nil {
-		t.Fatalf("unexpected error creating writer: %v", err)
-	}
+	assert.NoError(err, "creating writer")
 
 	var data = []struct {
 		key    string
@@ -448,100 +446,70 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 	}
 
 	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
-			t.Fatalf("unexpected error writing: %v", err)
-		}
+		assert.NoError(w.Write([]byte(d.key), d.values), "writing")
 	}
 
-	if err := w.WriteIndex(); err != nil {
-		t.Fatalf("unexpected error closing: %v", err)
-	}
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("unexpected error closing: %v", err)
-	}
+	assert.NoError(w.WriteIndex(), "writing index")
+	assert.NoError(w.Close(), "closing")
 
 	fd, err := os.Open(f.Name())
-	if err != nil {
-		t.Fatalf("unexpected error open file: %v", err)
-	}
+	assert.NoError(err, "open file")
 	defer fd.Close()
 
 	b, err := ioutil.ReadAll(fd)
-	if err != nil {
-		t.Fatalf("unexpected error read all: %v", err)
-	}
+	assert.NoError(err, "read all")
 
-	if got, exp := len(b), 5; got < exp {
-		t.Fatalf("file size mismatch: got %v, exp %v", got, exp)
-	}
-	if got := binary.BigEndian.Uint32(b[0:4]); got != tsm1.MagicNumber {
-		t.Fatalf("magic number mismatch: got %v, exp %v", got, tsm1.MagicNumber)
-	}
+	assert.Greater(len(b), 5, "file size should be greater than 5")
+	assert.Equal(tsm1.MagicNumber, binary.BigEndian.Uint32(b[0:4]), "magic number")
 
-	if _, err := fd.Seek(0, io.SeekStart); err != nil {
-		t.Fatalf("error seeking: %v", err)
-	}
+	_, err = fd.Seek(0, io.SeekStart)
+	assert.NoError(err, "seeking")
 
 	// Create reader for that file
 	r, err := tsm1.NewTSMReader(fd)
-	if err != nil {
-		t.Fatalf("unexpected error created reader: %v", err)
-	}
+	assert.NoError(err, "creating reader")
 
 	f = MustTempFile(dir)
 	w, err = tsm1.NewTSMWriter(f)
-	if err != nil {
-		t.Fatalf("unexpected error creating writer: %v", err)
-	}
+	assert.NoError(err, "creating writer")
+	w.EnableMeasurementStats()
 
 	iter := r.BlockIterator()
 	for iter.Next() {
 		key, minTime, maxTime, _, _, b, err := iter.Read()
-		if err != nil {
-			t.Fatalf("unexpected error reading block: %v", err)
-		}
-		if err := w.WriteBlock([]byte(key), minTime, maxTime, b); err != nil {
-			t.Fatalf("unexpected error writing block: %v", err)
-		}
+		assert.NoError(err, "reading block")
+		assert.NoError(w.WriteBlock([]byte(key), minTime, maxTime, b), "writing block")
 	}
-	if err := w.WriteIndex(); err != nil {
-		t.Fatalf("unexpected error closing: %v", err)
-	}
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("unexpected error closing: %v", err)
-	}
+	assert.NoError(w.WriteIndex(), "writing index")
+	assert.NoError(w.Close(), "closing")
 
 	fd, err = os.Open(f.Name())
-	if err != nil {
-		t.Fatalf("unexpected error open file: %v", err)
-	}
+	assert.NoError(err, "open file")
 
 	// Now create a reader to verify the written blocks matches the originally
 	// written file using Write
 	r, err = tsm1.NewTSMReader(fd)
-	if err != nil {
-		t.Fatalf("unexpected error created reader: %v", err)
-	}
+	assert.NoError(err, "creating reader")
 	defer r.Close()
 
 	for _, d := range data {
 		readValues, err := r.ReadAll([]byte(d.key))
-		if err != nil {
-			t.Fatalf("unexpected error readin: %v", err)
-		}
+		assert.NoError(err, "readin")
 
-		if exp := len(d.values); exp != len(readValues) {
-			t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), exp)
-		}
+		assert.Equal(len(d.values), len(readValues), "read values length")
 
 		for i, v := range d.values {
-			if v.Value() != readValues[i].Value() {
-				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
-			}
+			assert.Equal(v.Value(), readValues[i].Value(), "read value")
 		}
 	}
+
+	expectedStats := map[string]int{
+		"cpu": 34,
+		"mem": 34,
+	}
+	stats, err := r.MeasurementStats()
+	assert.NoError(err, "reading measurement stats")
+	assert.Equal(expectedStats, map[string]int(stats))
 }
 
 func TestTSMWriter_WriteBlock_MaxKey(t *testing.T) {

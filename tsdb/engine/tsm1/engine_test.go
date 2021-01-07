@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"io"
 	"io/ioutil"
 	"math"
@@ -29,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
 	tassert "github.com/stretchr/testify/assert"
+	trequire "github.com/stretchr/testify/require"
 )
 
 // Ensure that deletes only sent to the WAL will clear out the data from the cache on restart
@@ -2317,6 +2319,54 @@ func TestEngine_Invalid_UTF8(t *testing.T) {
 		})
 	}
 }
+
+func TestEngine_MeasurementStatsBackfiller(t *testing.T) {
+	assert := tassert.New(t)
+	require := trequire.New(t)
+
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	var data = map[string][]tsm1.Value{
+		"cpu": []tsm1.Value{
+			tsm1.NewValue(0, 1.0),
+			tsm1.NewValue(1, 2.0),
+		},
+		"mem": []tsm1.Value{
+			tsm1.NewValue(0, 1.5),
+		},
+	}
+	fileName := MustWriteTSM(dir, 1, data)
+
+	fs := tsm1.NewFileStore(dir)
+	fs.Open()
+
+	r := fs.TSMReader(fileName)
+	require.NotNil(r)
+	defer r.Unref()
+
+	// MeasurementStats starts empty
+	stats, err := r.MeasurementStats()
+	assert.NoError(err, "reading measurement stats")
+	assert.Equal(make(map[string]int), map[string]int(stats))
+
+	limit := limiter.NewFixed(1)
+	filler := tsm1.NewMeasurementStatsBackfiller(fs, limit)
+	filler.Open()
+	filler.Wait() // Usually we would call 'Close' to cancel, but for the test we wait until backfilling finishes before closing
+	filler.Close()
+
+	expectedStats := map[string]int{
+		"cpu": 39,
+		"mem": 34,
+	}
+
+	// MeasurementStats properly backfilled
+	stats, err = r.MeasurementStats()
+	assert.NoError(err, "reading measurement stats")
+	assert.Equal(expectedStats, map[string]int(stats))
+}
+
 func BenchmarkEngine_WritePoints(b *testing.B) {
 	batchSizes := []int{10, 100, 1000, 5000, 10000}
 	for _, sz := range batchSizes {

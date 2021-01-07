@@ -82,6 +82,9 @@ type Store struct {
 	SeriesFileMaxSize int64 // Determines size of series file mmap. Can be altered in tests.
 	path              string
 
+	// store-level stats for writing to /debug/vars (stats only about disk size for now)
+	usageStats usageStats
+
 	// shared per-database indexes, only if using "inmem".
 	indexes map[string]interface{}
 
@@ -138,6 +141,7 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	// Add all the series and measurements cardinality estimations.
 	databases := s.Databases()
 	statistics := make([]models.Statistic, 0, len(databases))
+	statistics = append(statistics, s.usageStats.Statistics(tags)...)
 	for _, database := range databases {
 		log := s.Logger.With(logger.Database(database))
 		sc, err := s.SeriesCardinality(database)
@@ -162,7 +166,7 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 		})
 	}
 
-	// Gather all statistics for all shards.
+	// Gather all statistics for all shards.
 	for _, shard := range shards {
 		statistics = append(statistics, shard.Statistics(tags)...)
 	}
@@ -245,6 +249,9 @@ func (s *Store) loadShards() error {
 
 	// Limit the number of concurrent TSM files to be opened to the number of cores.
 	s.EngineOptions.OpenLimiter = limiter.NewFixed(runtime.GOMAXPROCS(0))
+
+	// Only generate one TSS file at a time - this is only necessary during a config change to start collecting stats
+	s.EngineOptions.MeasurementStatsLimiter = limiter.NewFixed(1)
 
 	// Setup a shared limiter for compactions
 	lim := s.EngineOptions.Config.MaxConcurrentCompactions
@@ -1927,15 +1934,17 @@ func mergeTagValues(valueIdxs [][2]int, tvs ...tagValues) TagValues {
 }
 
 func (s *Store) monitorShards() {
-	t := time.NewTicker(10 * time.Second)
-	defer t.Stop()
-	t2 := time.NewTicker(time.Minute)
-	defer t2.Stop()
+	compactionIdleTimer := time.NewTicker(10 * time.Second)
+	defer compactionIdleTimer.Stop()
+	tagValueCardinalityTimer := time.NewTicker(time.Minute)
+	defer tagValueCardinalityTimer.Stop()
+	measurementStatsTimer := time.NewTicker(5 * time.Minute)
+	defer measurementStatsTimer.Stop()
 	for {
 		select {
 		case <-s.closing:
 			return
-		case <-t.C:
+		case <-compactionIdleTimer.C:
 			s.mu.RLock()
 			for _, sh := range s.shards {
 				if sh.IsIdle() {
@@ -1949,7 +1958,7 @@ func (s *Store) monitorShards() {
 				}
 			}
 			s.mu.RUnlock()
-		case <-t2.C:
+		case <-tagValueCardinalityTimer.C:
 			if s.EngineOptions.Config.MaxValuesPerTag == 0 {
 				continue
 			}
@@ -2031,6 +2040,26 @@ func (s *Store) monitorShards() {
 				}
 				return nil
 			})
+		case <-measurementStatsTimer.C:
+			if s.EngineOptions.Config.MeasurementStatsEnabled {
+				s.mu.RLock()
+				shards := s.shardsSlice()
+				s.mu.RUnlock()
+				for _, sh := range shards {
+					stats, err := sh.MeasurementStats()
+					if err != nil {
+						s.Logger.Warn("Cannot retrieve shard stats by measurement",
+							zap.Error(err),
+							logger.Shard(sh.ID()),
+							logger.Database(sh.database))
+						continue
+					}
+					for measure, size := range stats {
+						s.usageStats.AddDiskSize(sh.database, measure, float64(size))
+					}
+				}
+			}
+			s.usageStats.FinishedAdding()
 		}
 	}
 }

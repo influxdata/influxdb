@@ -73,6 +73,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb/models"
 )
 
 const (
@@ -146,6 +148,9 @@ type TSMWriter interface {
 
 	// Size returns the current size in bytes of the file.
 	Size() uint32
+
+	// EnableMeasurementStats turns on writing out the measurement stats file. Call before any write calls.
+	EnableMeasurementStats()
 
 	Remove() error
 }
@@ -544,6 +549,7 @@ type tsmWriter struct {
 	wrapped io.Writer
 	w       *bufio.Writer
 	index   IndexWriter
+	stats   MeasurementStats
 	n       int64
 
 	// The bytes written count of when we last fsync'd
@@ -571,8 +577,11 @@ func NewTSMWriterWithDiskBuffer(w io.Writer) (TSMWriter, error) {
 		// w is not a file, just use an inmem index
 		index = NewIndexWriter()
 	}
+	return &tsmWriter{wrapped: w, w: bufio.NewWriterSize(w, 1024*1024), stats: nil, index: index}, nil
+}
 
-	return &tsmWriter{wrapped: w, w: bufio.NewWriterSize(w, 1024*1024), index: index}, nil
+func (t *tsmWriter) EnableMeasurementStats() {
+	t.stats = make(MeasurementStats)
 }
 
 func (t *tsmWriter) writeHeader() error {
@@ -633,6 +642,11 @@ func (t *tsmWriter) Write(key []byte, values Values) error {
 	// Record this block in index
 	t.index.Add(key, blockType, values[0].UnixNano(), values[len(values)-1].UnixNano(), t.n, uint32(n))
 
+	if t.stats != nil {
+		name := models.ParseName(key)
+		t.stats[string(name)] += n
+	}
+
 	// Increment file position pointer
 	t.n += int64(n)
 
@@ -684,6 +698,12 @@ func (t *tsmWriter) WriteBlock(key []byte, minTime, maxTime int64, block []byte)
 
 	// Record this block in index
 	t.index.Add(key, blockType, minTime, maxTime, t.n, uint32(n))
+
+	if t.stats != nil {
+		// Add block size to measurement stats.
+		name := models.ParseName(key)
+		t.stats[string(name)] += n
+	}
 
 	// Increment file position pointer (checksum + block len)
 	t.n += int64(n)
@@ -755,12 +775,40 @@ func (t *tsmWriter) sync() error {
 	return nil
 }
 
+func (t *tsmWriter) writeStatsFile() error {
+	fw, ok := t.wrapped.(syncer)
+	if !ok {
+		return nil
+	}
+
+	if t.stats == nil {
+		return nil
+	}
+
+	f, err := os.Create(StatsFilename(fw.Name()))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err := t.stats.WriteTo(f); err != nil {
+		return err
+	} else if err := f.Sync(); err != nil {
+		return err
+	}
+	return f.Close()
+}
+
 func (t *tsmWriter) Close() error {
 	if err := t.Flush(); err != nil {
 		return err
 	}
 
 	if err := t.index.Close(); err != nil {
+		return err
+	}
+
+	if err := t.writeStatsFile(); err != nil {
 		return err
 	}
 
@@ -788,7 +836,12 @@ func (t *tsmWriter) Remove() error {
 		// we just want to cleanup and remove the file.
 		_ = f.Close()
 
-		return os.Remove(f.Name())
+		if err := os.Remove(f.Name()); err != nil {
+			return err
+		}
+		if err := os.Remove(StatsFilename(f.Name())); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 	return nil
 }

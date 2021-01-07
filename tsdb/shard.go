@@ -490,6 +490,19 @@ func (s *Shard) DiskSize() (int64, error) {
 	return size, nil
 }
 
+// MeasurementStats returns the stats for the shard broken down by measurement
+// (currently the only stat is disk size).
+func (s *Shard) MeasurementStats() (MeasurementStats, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// We don't use engine() because we still want to report the shard's stats
+	// (disk usage by measurement) even if the shard has been disabled.
+	if s._engine == nil {
+		return MeasurementStats{}, ErrEngineClosed
+	}
+	return s._engine.MeasurementStats()
+}
+
 // FieldCreate holds information for a field to create on a measurement.
 type FieldCreate struct {
 	Measurement []byte

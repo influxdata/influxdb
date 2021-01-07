@@ -159,7 +159,9 @@ func TestIndexSet_DedupeInmemIndexes(t *testing.T) {
 
 			var indexes []tsdb.Index
 			for i := 0; i < testCase.tsiN; i++ {
-				indexes = append(indexes, MustOpenNewIndex(tsi1.IndexName))
+				newIdx := MustOpenNewIndex(tsi1.IndexName)
+				indexes = append(indexes, newIdx)
+				defer newIdx.Close()
 			}
 			if testCase.inmem1N > 0 {
 				sfile := MustOpenSeriesFile()
@@ -431,8 +433,7 @@ func (i *Index) Close() error {
 	if err := i.sfile.Close(); err != nil {
 		return err
 	}
-	//return os.RemoveAll(i.rootPath)
-	return nil
+	return os.RemoveAll(i.rootPath)
 }
 
 // This benchmark compares the TagSets implementation across index types.

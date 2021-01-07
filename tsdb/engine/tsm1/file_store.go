@@ -145,6 +145,9 @@ type TSMFile interface {
 
 	// Free releases any resources held by the FileStore to free up system resources.
 	Free() error
+
+	// Stats returns the statistics for the file.
+	MeasurementStats() (MeasurementStats, error)
 }
 
 // Statistics gathered by the FileStore.
@@ -742,6 +745,14 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			return err
 		}
 
+		// Observe the associated statistics file, if available.
+		statsFile := StatsFilename(file)
+		if _, err := os.Stat(statsFile); err == nil {
+			if err := f.obs.FileFinishing(statsFile); err != nil {
+				return err
+			}
+		}
+
 		var oldName, newName = file, file
 		if strings.HasSuffix(oldName, tsmTmpExt) {
 			// The new TSM files have a tmp extension.  First rename them.
@@ -810,6 +821,14 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 				// give the observer a chance to process the file first.
 				if err := f.obs.FileUnlinking(file.Path()); err != nil {
 					return err
+				}
+
+				// Remove associated stats file.
+				statsFile := StatsFilename(file.Path())
+				if _, err := os.Stat(statsFile); err == nil {
+					if err := f.obs.FileUnlinking(statsFile); err != nil {
+						return err
+					}
 				}
 
 				for _, t := range file.TombstoneFiles() {
@@ -1106,6 +1125,22 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 		return "", err
 	}
 	return tmpPath, nil
+}
+
+// MeasurementStats returns the sum of all measurement stats within the store.
+func (f *FileStore) MeasurementStats() (MeasurementStats, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	stats := NewMeasurementStats()
+	for _, file := range f.files {
+		s, err := file.MeasurementStats()
+		if err != nil {
+			return nil, err
+		}
+		stats.Add(s)
+	}
+	return stats, nil
 }
 
 // FormatFileNameFunc is executed when generating a new TSM filename.

@@ -29,6 +29,9 @@ var (
 	ErrUnknownEngineFormat = errors.New("unknown engine format")
 )
 
+// MeasurementStats represents a set of measurement sizes.
+type MeasurementStats map[string]int
+
 // Engine represents a swappable storage engine for the shard.
 type Engine interface {
 	Open() error
@@ -80,6 +83,8 @@ type Engine interface {
 	DiskSize() int64
 	IsIdle() bool
 	Free() error
+
+	MeasurementStats() (MeasurementStats, error)
 
 	io.WriterTo
 }
@@ -165,6 +170,9 @@ type EngineOptions struct {
 	// Limits the concurrent number of TSM files that can be loaded at once.
 	OpenLimiter limiter.Fixed
 
+	// Limits the concurrent number of measurement stats files that can be created
+	MeasurementStatsLimiter limiter.Fixed
+
 	// CompactionDisabled specifies shards should not schedule compactions.
 	// This option is intended for offline tooling.
 	CompactionDisabled          bool
@@ -199,11 +207,12 @@ type EngineOptions struct {
 // This should only be used in tests; production environments should read from a config file.
 func NewEngineOptions() EngineOptions {
 	return EngineOptions{
-		EngineVersion: DefaultEngine,
-		IndexVersion:  DefaultIndex,
-		Config:        NewConfig(),
-		WALEnabled:    true,
-		OpenLimiter:   limiter.NewFixed(runtime.GOMAXPROCS(0)),
+		EngineVersion:           DefaultEngine,
+		IndexVersion:            DefaultIndex,
+		Config:                  NewConfig(),
+		WALEnabled:              true,
+		OpenLimiter:             limiter.NewFixed(runtime.GOMAXPROCS(0)),
+		MeasurementStatsLimiter: limiter.NewFixed(1),
 	}
 }
 

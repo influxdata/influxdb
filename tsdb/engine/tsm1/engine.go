@@ -189,6 +189,8 @@ type Engine struct {
 
 	stats *EngineStatistics
 
+	measurementStatsBackfiller *MeasurementStatsBackfiller
+
 	// Limiter for concurrent compactions.
 	compactionLimiter limiter.Fixed
 
@@ -225,11 +227,17 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 	c.Dir = path
 	c.FileStore = fs
 	c.RateLimit = opt.CompactionThroughputLimiter
+	c.MeasurementStatsEnabled = opt.Config.MeasurementStatsEnabled
 
 	var planner CompactionPlanner = NewDefaultPlanner(fs, time.Duration(opt.Config.CompactFullWriteColdDuration))
 	if opt.CompactionPlannerCreator != nil {
 		planner = opt.CompactionPlannerCreator(opt.Config).(CompactionPlanner)
 		planner.SetFileStore(fs)
+	}
+
+	var measurementStatsBackfiller *MeasurementStatsBackfiller
+	if opt.Config.MeasurementStatsEnabled {
+		measurementStatsBackfiller = NewMeasurementStatsBackfiller(fs, opt.MeasurementStatsLimiter)
 	}
 
 	logger := zap.NewNop()
@@ -256,6 +264,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		WALEnabled:                    opt.WALEnabled,
 		formatFileName:                DefaultFormatFileName,
 		stats:                         stats,
+		measurementStatsBackfiller:    measurementStatsBackfiller,
 		compactionLimiter:             opt.CompactionLimiter,
 		scheduler:                     newScheduler(stats, opt.CompactionLimiter.Capacity()),
 		seriesIDSets:                  opt.SeriesIDSets,
@@ -607,6 +616,15 @@ func (e *Engine) SeriesN() int64 {
 	return e.index.SeriesN()
 }
 
+// MeasurementStats returns the current measurement stats for the engine.
+func (e *Engine) MeasurementStats() (tsdb.MeasurementStats, error) {
+	s, err := e.FileStore.MeasurementStats()
+	if err != nil {
+		return tsdb.MeasurementStats{}, err
+	}
+	return tsdb.MeasurementStats(s), err
+}
+
 // MeasurementsSketches returns sketches that describe the cardinality of the
 // measurements in this shard and measurements that were in this shard, but have
 // been tombstoned.
@@ -761,7 +779,7 @@ func (e *Engine) Open() error {
 	if e.enableCompactionsOnOpen {
 		e.SetCompactionsEnabled(true)
 	}
-
+	e.measurementStatsBackfiller.Open()
 	return nil
 }
 
@@ -774,6 +792,7 @@ func (e *Engine) Close() error {
 	defer e.mu.Unlock()
 	e.done = nil // Ensures that the channel will not be closed again.
 
+	e.measurementStatsBackfiller.Close()
 	if err := e.FileStore.Close(); err != nil {
 		return err
 	}
@@ -795,6 +814,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 		e.WAL.WithLogger(e.logger)
 	}
 	e.FileStore.WithLogger(e.logger)
+	e.measurementStatsBackfiller.WithLogger(e.logger)
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.
@@ -3264,4 +3284,116 @@ func varRefSliceRemove(a []influxql.VarRef, v string) []influxql.VarRef {
 		}
 	}
 	return other
+}
+
+func createStatsFile(reader *TSMReader, statsFileName string) error {
+	stats := make(MeasurementStats)
+	for i := 0; i < reader.KeyCount(); i++ {
+		key, _ := reader.KeyAt(i)
+		keyWithoutFields, _ := SeriesAndFieldFromCompositeKey(key)
+		measurement := models.ParseName(keyWithoutFields)
+		for _, entry := range reader.Entries(key) {
+			stats[string(measurement)] += int(entry.Size)
+		}
+	}
+	f, err := os.Create(statsFileName)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err := stats.WriteTo(f); err != nil {
+		return err
+	} else if err := f.Sync(); err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+type MeasurementStatsBackfiller struct {
+	fs        *FileStore
+	limiter   limiter.Fixed
+	wg        sync.WaitGroup
+	cancelled chan struct{}
+	logger    *zap.Logger
+}
+
+func NewMeasurementStatsBackfiller(fs *FileStore, limiter limiter.Fixed) *MeasurementStatsBackfiller {
+	return &MeasurementStatsBackfiller{
+		fs:        fs,
+		limiter:   limiter,
+		cancelled: make(chan struct{}),
+		logger:    zap.NewNop(),
+	}
+}
+
+func (m *MeasurementStatsBackfiller) WithLogger(logger *zap.Logger) {
+	if m == nil {
+		return
+	}
+	m.logger = logger
+}
+
+// Returns true if we have more work to do
+func (m *MeasurementStatsBackfiller) createOneStatsFile() bool {
+	m.limiter.Take()
+	defer m.limiter.Release()
+	// Check if Close was called while waiting for the limiter
+	select {
+	case <-m.cancelled:
+		return false
+	default:
+	}
+	for _, tsmFile := range m.fs.Stats() {
+		statsFile := StatsFilename(tsmFile.Path)
+		if _, err := os.Stat(statsFile); err != nil {
+			file := m.fs.TSMReader(tsmFile.Path)
+			if file != nil {
+				func() {
+					defer file.Unref()
+					err := createStatsFile(file, statsFile)
+					if err != nil {
+						m.logger.Warn("Error creating measurement stats file, will retry", zap.String("filename", statsFile), zap.Error(err))
+					} else {
+						m.logger.Info("Successfully created measurement stats file", zap.String("filename", statsFile))
+					}
+				}()
+				// Check if Close was called while creating the file
+				select {
+				case <-m.cancelled:
+					return false
+				default:
+				}
+				// We tried to create one file, there might be more work to do though
+				return true
+			}
+		}
+	}
+	// All the tsm files have stats files, we're done
+	return false
+}
+
+func (m *MeasurementStatsBackfiller) Open() {
+	if m == nil {
+		return
+	}
+	m.wg.Add(1)
+	go func() {
+		for m.createOneStatsFile() {
+		}
+		m.wg.Done()
+	}()
+}
+
+// For tests only. Production code calls 'Close' to cancel any running jobs.
+func (m *MeasurementStatsBackfiller) Wait() {
+	m.wg.Wait()
+}
+
+func (m *MeasurementStatsBackfiller) Close() {
+	if m == nil {
+		return
+	}
+	close(m.cancelled)
+	m.wg.Wait()
 }
