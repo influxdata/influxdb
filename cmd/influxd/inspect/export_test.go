@@ -150,7 +150,10 @@ func Test_exportWAL(t *testing.T) {
 		{corpus: basicCorpus, filter: earlyEntriesOnlyFilter, lines: earlyEntriesOnlyExpLines},
 		{corpus: basicCorpus, filter: lateEntriesOnlyFilter, lines: lateEntriesOnlyExpLines},
 	} {
-		walFile := writeCorpusToWALFile(c.corpus)
+		walFile, err := writeCorpusToWALFile(c.corpus)
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer os.Remove(walFile.Name())
 
 		var out bytes.Buffer
@@ -195,7 +198,10 @@ func Test_exportTSM(t *testing.T) {
 		{corpus: basicCorpus, filter: earlyEntriesOnlyFilter, lines: earlyEntriesOnlyExpLines},
 		{corpus: basicCorpus, filter: lateEntriesOnlyFilter, lines: lateEntriesOnlyExpLines},
 	} {
-		tsmFile := writeCorpusToTSMFile(c.corpus)
+		tsmFile, err := writeCorpusToTSMFile(c.corpus)
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer os.Remove(tsmFile.Name())
 
 		var out bytes.Buffer
@@ -234,7 +240,10 @@ func benchmarkExportTSM(c corpus, b *testing.B) {
 	// Garbage collection is relatively likely to happen during export, so track allocations.
 	b.ReportAllocs()
 
-	f := writeCorpusToTSMFile(c)
+	f, err := writeCorpusToTSMFile(c)
+	if err != nil {
+		b.Fatal(err)
+	}
 	defer os.Remove(f.Name())
 
 	var out bytes.Buffer
@@ -272,7 +281,10 @@ func benchmarkExportWAL(c corpus, b *testing.B) {
 	// Garbage collection is relatively likely to happen during export, so track allocations.
 	b.ReportAllocs()
 
-	f := writeCorpusToWALFile(c)
+	f, err := writeCorpusToWALFile(c)
+	if err != nil {
+		b.Fatal(err)
+	}
 	defer os.Remove(f.Name())
 
 	var out bytes.Buffer
@@ -360,47 +372,45 @@ func makeStringsCorpus(numSeries, numStringsPerSeries int) corpus {
 
 // writeCorpusToWALFile writes the given corpus as a WAL file, and returns a handle to that file.
 // It is the caller's responsibility to remove the returned temp file.
-// writeCorpusToWALFile will panic on any error that occurs.
-func writeCorpusToWALFile(c corpus) *os.File {
+func writeCorpusToWALFile(c corpus) (*os.File, error) {
 	walFile, err := ioutil.TempFile("", "export_test_corpus_wal")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	e := &tsm1.WriteWALEntry{Values: c}
 	b, err := e.Encode(nil)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	w := tsm1.NewWALSegmentWriter(walFile)
 	if err := w.Write(e.Type(), snappy.Encode(nil, b)); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := w.Flush(); err != nil {
-		panic(err)
+		return nil, err
 	}
 	// (*tsm1.WALSegmentWriter).sync isn't exported, but it only Syncs the file anyway.
 	if err := walFile.Sync(); err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return walFile
+	return walFile, nil
 }
 
 // writeCorpusToTSMFile writes the given corpus as a TSM file, and returns a handle to that file.
 // It is the caller's responsibility to remove the returned temp file.
-// writeCorpusToTSMFile will panic on any error that occurs.
-func writeCorpusToTSMFile(c corpus) *os.File {
+func writeCorpusToTSMFile(c corpus) (*os.File, error) {
 	tsmFile, err := ioutil.TempFile("", "export_test_corpus_tsm")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	w, err := tsm1.NewTSMWriter(tsmFile)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	// Write the series in alphabetical order so that each test run is comparable,
@@ -412,17 +422,17 @@ func writeCorpusToTSMFile(c corpus) *os.File {
 	sort.Strings(keys)
 	for _, k := range keys {
 		if err := w.Write([]byte(k), c[k]); err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
 
 	if err := w.WriteIndex(); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := w.Close(); err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return tsmFile
+	return tsmFile, nil
 }
