@@ -194,6 +194,10 @@ workflows:
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
 
+orbs:
+  # Needed to install chrome for e2e testing.
+  browser-tools: circleci/browser-tools@1.1
+
 jobs:
 
   ####################
@@ -203,7 +207,7 @@ jobs:
   jsdeps:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -221,29 +225,32 @@ jobs:
           name: Save Yarn Cache
           key: yarn-deps-{{ checksum "ui/yarn.lock" }}
           paths:
-            - /go/src/github.com/influxdata/influxdb/ui/node_modules
+            - /home/circleci/go/src/github.com/influxdata/influxdb/ui/node_modules
             - ~/.cache/yarn
             - ~/.cache/Cypress
 
   jstest:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-{{ checksum "ui/yarn.lock" }}
-      - run: make ui_client
       - run:
-          name: parallel jest tests
+          name: install dependencies
           command: |
-            set +e
             cd ui
             # This should usually be a no-op (fully contained in the Yarn cache above), but we
             # include it to be safe since `yarn test` won't auto-install missing modules.
             yarn install --immutable
+      - run: make ui_client
+      - run:
+          name: run tests
+          command: |
+            cd ui
             yarn test:circleci
       - store_test_results:
           path: ui/coverage
@@ -254,7 +261,7 @@ jobs:
   jslint:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
       - checkout
@@ -262,15 +269,18 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-{{ checksum "ui/yarn.lock" }}
+      - run:
+          name: install dependencies
+          command: |
+            cd ui
+            # This should usually be a no-op (fully contained in the Yarn cache above), but we
+            # include it to be safe since the lint commands won't auto-install missing modules.
+            yarn install --immutable
       - run: make ui_client
       - run:
           name: parallel eslint
           command: |
-            set +e
             cd ui
-            # This should usually be a no-op (fully contained in the Yarn cache above), but we
-            # include it to be safe since `yarn test` won't auto-install missing modules.
-            yarn install --immutable
             TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
             yarn prettier:circleci ${TESTFILES[@]}
             yarn eslint:circleci ${TESTFILES[@]}
@@ -285,7 +295,7 @@ jobs:
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -300,14 +310,14 @@ jobs:
           name: Save GOPATH/pkg/mod
           key: influxdb-gomod-{{ checksum "go.sum" }}
           paths:
-            - /go/pkg/mod
+            - /home/circleci/go/pkg/mod
 
   golint:
     docker:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -337,7 +347,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
       - checkout
@@ -376,7 +386,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -409,7 +419,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       TEST_RESULTS: /tmp/test-results
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -444,7 +454,7 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - run: make checkcommit
@@ -483,7 +493,7 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -527,8 +537,7 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-      DOCKER_VERSION: 2.0.0-rc
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - restore_cache:
@@ -576,11 +585,12 @@ jobs:
       - image: quay.io/influxdb/influxdb-circleci:latest
     environment:
       GOCACHE: /tmp/go-cache
-    working_directory: /go/src/github.com/influxdata/influxdb
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
+      - browser-tools/install-browser-tools
       - checkout
       - attach_workspace:
-          at: /go/src/github.com/influxdata/influxdb
+          at: /home/circleci/go/src/github.com/influxdata/influxdb
       - restore_cache:
           name: Restore Yarn Cache
           keys:
