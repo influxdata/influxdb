@@ -18,6 +18,7 @@
 // - Stopping the server after all relevant tests are run
 
 use assert_cmd::prelude::*;
+use data_types::database_rules::DatabaseRules;
 use futures::prelude::*;
 use generated_types::{
     aggregate::AggregateType,
@@ -98,6 +99,24 @@ async fn read_and_write_data() -> Result<()> {
 
     let client = reqwest::Client::new();
     let client2 = influxdb2_client::Client::new(HTTP_BASE, TOKEN);
+
+    let rules = DatabaseRules {
+        store_locally: true,
+        ..Default::default()
+    };
+    let data = serde_json::to_vec(&rules).unwrap();
+
+    let database_name = format!("{}_{}", org_id_str, bucket_id_str);
+
+    client
+        .put(&format!(
+            "{}/iox/api/v1/databases/{}",
+            HTTP_BASE, &database_name
+        ))
+        .body(data)
+        .send()
+        .await
+        .unwrap();
 
     let start_time = SystemTime::now();
     let ns_since_epoch: i64 = start_time

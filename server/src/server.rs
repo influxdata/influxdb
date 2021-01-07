@@ -321,6 +321,11 @@ impl<M: ConnectionManager> Server<M> {
         let config = self.config.read().await;
         config.databases.get(&name).cloned()
     }
+
+    pub async fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
+        let config = self.config.read().await;
+        config.databases.get(&name).map(|d| d.rules.clone())
+    }
 }
 
 #[async_trait]

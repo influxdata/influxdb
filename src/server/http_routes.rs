@@ -13,7 +13,7 @@ use super::{org_and_bucket_to_database, OrgBucketMappingError};
 
 // Influx crates
 use arrow_deps::arrow;
-use data_types::database_rules::DatabaseRules;
+use data_types::{database_rules::DatabaseRules, DatabaseName};
 use influxdb_line_protocol::parse_lines;
 use object_store::path::ObjectStorePath;
 use query::SQLDatabase;
@@ -91,11 +91,8 @@ pub enum ApplicationError {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display("Invalid request body '{}': {}", request_body, source))]
-    InvalidRequestBody {
-        request_body: String,
-        source: serde_json::error::Error,
-    },
+    #[snafu(display("Invalid request body: {}", source))]
+    InvalidRequestBody { source: serde_json::error::Error },
 
     #[snafu(display("Invalid content encoding: {}", content_encoding))]
     InvalidContentEncoding { content_encoding: String },
@@ -131,6 +128,17 @@ pub enum ApplicationError {
 
     #[snafu(display("Error generating json response: {}", source))]
     JsonGenerationError { source: serde_json::Error },
+
+    #[snafu(display("Error creating database: {}", source))]
+    ErrorCreatingDatabase { source: server::server::Error },
+
+    #[snafu(display("Invalid database name: {}", source))]
+    DatabaseNameError {
+        source: data_types::DatabaseNameError,
+    },
+
+    #[snafu(display("Database {} not found", name))]
+    DatabaseNotFound { name: String },
 }
 
 impl ApplicationError {
@@ -155,6 +163,9 @@ impl ApplicationError {
             Self::RouteNotFound { .. } => self.not_found(),
             Self::DatabaseError { .. } => self.internal_error(),
             Self::JsonGenerationError { .. } => self.internal_error(),
+            Self::ErrorCreatingDatabase { .. } => self.bad_request(),
+            Self::DatabaseNameError { .. } => self.bad_request(),
+            Self::DatabaseNotFound { .. } => self.not_found(),
         })
     }
 
@@ -205,6 +216,8 @@ where
         .post("/api/v2/write", write_handler::<M>)
         .get("/ping", ping)
         .get("/api/v2/read", read_handler::<M>)
+        .put("/iox/api/v1/databases/:name", create_database_handler::<M>)
+        .get("/iox/api/v1/databases/:name", get_database_handler::<M>)
         .get("/api/v1/partitions", list_partitions_handler::<M>)
         .post("/api/v1/snapshot", snapshot_partition_handler::<M>)
         // Specify the error handler to handle any errors caused by
@@ -337,23 +350,6 @@ where
         write_info.bucket
     );
 
-    // TODO: remove this once the API is in to create a database
-    if server.db(&db_name).await.is_none() {
-        let rules = DatabaseRules {
-            store_locally: true,
-            ..Default::default()
-        };
-
-        server
-            .create_database(db_name.to_string(), rules)
-            .await
-            .map_err(|e| Box::new(e) as _)
-            .context(WritingPoints {
-                org: write_info.org.clone(),
-                bucket_name: write_info.bucket.clone(),
-            })?;
-    }
-
     server
         .write_lines(&db_name, &lines)
         .await
@@ -426,6 +422,93 @@ async fn read<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let results = arrow::util::pretty::pretty_format_batches(&results).unwrap();
 
     Ok(Response::new(Body::from(results.into_bytes())))
+}
+
+#[tracing::instrument(level = "debug")]
+async fn create_database_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    match create_database::<M>(req).await {
+        Err(e) => {
+            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
+
+            e.response()
+        }
+        res => res,
+    }
+}
+
+#[tracing::instrument(level = "debug")]
+async fn create_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let server = req
+        .data::<Arc<AppServer<M>>>()
+        .expect("server state")
+        .clone();
+
+    // with routerify, we shouldn't have gotten here without this being set
+    let db_name = req
+        .param("name")
+        .expect("db name must have been set")
+        .clone();
+    let body = parse_body(req).await?;
+
+    let rules: DatabaseRules = serde_json::from_slice(body.as_ref())
+        .context(InvalidRequestBody)
+        .unwrap();
+    server
+        .create_database(db_name, rules)
+        .await
+        .context(ErrorCreatingDatabase)?;
+
+    Ok(Response::new(Body::empty()))
+}
+
+#[tracing::instrument(level = "debug")]
+async fn get_database_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    match get_database::<M>(req).await {
+        Err(e) => {
+            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
+
+            e.response()
+        }
+        res => res,
+    }
+}
+
+#[tracing::instrument(level = "debug")]
+async fn get_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let server = req
+        .data::<Arc<AppServer<M>>>()
+        .expect("server state")
+        .clone();
+
+    // with routerify, we shouldn't have gotten here without this being set
+    let db_name_str = req
+        .param("name")
+        .expect("db name must have been set")
+        .clone();
+    let db_name = DatabaseName::new(&db_name_str).context(DatabaseNameError)?;
+    let db = server
+        .db_rules(&db_name)
+        .await
+        .context(DatabaseNotFound { name: &db_name_str })?;
+
+    let data = serde_json::to_string(&db).context(JsonGenerationError)?;
+    let response = Response::builder()
+        .header("Content-Type", "application/json")
+        .status(StatusCode::OK)
+        .body(Body::from(data))
+        .expect("builder should be successful");
+
+    Ok(response)
 }
 
 // Route to test that the server is alive
@@ -731,6 +814,66 @@ mod tests {
         assert_eq!(results, expected);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_database() {
+        let server = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        server.set_id(1).await;
+        let server_url = test_server(server.clone());
+
+        let data = r#"{"store_locally": true}"#;
+
+        let database_name = DatabaseName::new("foo_bar").unwrap();
+
+        let client = Client::new();
+        let response = client
+            .put(&format!(
+                "{}/iox/api/v1/databases/{}",
+                server_url, database_name
+            ))
+            .body(data)
+            .send()
+            .await;
+
+        check_response("create_database", response, StatusCode::OK, "").await;
+
+        server.db(&database_name).await.unwrap();
+        let db_rules = server.db_rules(&database_name).await.unwrap();
+        assert_eq!(db_rules.store_locally, true);
+    }
+
+    #[tokio::test]
+    async fn get_database() {
+        let server = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        server.set_id(1).await;
+        let server_url = test_server(server.clone());
+
+        let rules = DatabaseRules {
+            store_locally: true,
+            ..Default::default()
+        };
+        let data = serde_json::to_string(&rules).unwrap();
+
+        let database_name = "foo_bar";
+        server.create_database(database_name, rules).await.unwrap();
+
+        let client = Client::new();
+        let response = client
+            .get(&format!(
+                "{}/iox/api/v1/databases/{}",
+                server_url, database_name
+            ))
+            .send()
+            .await;
+
+        check_response("create_database", response, StatusCode::OK, &data).await;
     }
 
     /// checks a http response against expected results
