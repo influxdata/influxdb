@@ -1562,6 +1562,7 @@ dependencies = [
  "opentelemetry",
  "opentelemetry-jaeger",
  "packers",
+ "panic_logging",
  "predicates",
  "prost",
  "prost-types",
@@ -2304,6 +2305,13 @@ dependencies = [
  "rand",
  "snafu",
  "test_helpers",
+ "tracing",
+]
+
+[[package]]
+name = "panic_logging"
+version = "0.1.0"
+dependencies = [
  "tracing",
 ]
 

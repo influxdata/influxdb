@@ -1160,8 +1160,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::panic::SendPanicsToTracing;
     use arrow_deps::arrow::datatypes::DataType;
+    use panic_logging::SendPanicsToTracing;
     use query::{
         exec::fieldlist::{Field, FieldList},
         exec::FieldListPlan,

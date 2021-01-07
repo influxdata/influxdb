@@ -19,6 +19,7 @@ members = [
     "mutable_buffer",
     "object_store",
     "packers",
+    "panic_logging",
     "query",
     "read_buffer",
     "server",
@@ -44,6 +45,7 @@ mem_qe = { path = "mem_qe" }
 mutable_buffer = { path = "mutable_buffer" }
 object_store = { path = "object_store" }
 packers = { path = "packers" }
+panic_logging = { path = "panic_logging" }
 query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }

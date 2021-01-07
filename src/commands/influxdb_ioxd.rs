@@ -14,7 +14,7 @@ use object_store::{self, gcp::GoogleCloudStorage, ObjectStore};
 
 use snafu::{ResultExt, Snafu};
 
-use crate::panic::SendPanicsToTracing;
+use panic_logging::SendPanicsToTracing;
 
 use super::{config::load_config, logging::LoggingLevel};
 

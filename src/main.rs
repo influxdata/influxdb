@@ -12,7 +12,6 @@ use ingest::parquet::writer::CompressionLevel;
 use tokio::runtime::Runtime;
 use tracing::{debug, error, info, warn};
 
-mod panic;
 pub mod server;
 
 mod commands {
