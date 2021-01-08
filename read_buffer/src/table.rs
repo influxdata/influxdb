@@ -2,7 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
 
-use crate::row_group::{ColumnName, GroupKey, Predicate, RowGroup};
+use crate::{
+    column,
+    row_group::{ColumnName, GroupKey, Predicate, RowGroup},
+};
 use crate::{
     column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
     row_group::{ReadFilterResult, ReadGroupResult},
@@ -92,6 +95,11 @@ impl Table {
     /// The ranges on each column in the table (across all row groups).
     pub fn column_ranges(&self) -> BTreeMap<String, (OwnedValue, OwnedValue)> {
         todo!()
+    }
+
+    /// The logical data-type of each column in the `Table`'s schema.
+    pub fn column_logical_types(&self) -> &BTreeMap<String, column::LogicalDataType> {
+        &self.meta.column_types
     }
 
     // Determines if schema contains all the provided column names.
@@ -451,6 +459,9 @@ struct MetaData {
     // possibly match based on the range of values a column has.
     column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
 
+    // The `ReadBuffer` logical types associated with the columns in the table
+    column_types: BTreeMap<String, column::LogicalDataType>,
+
     // The total time range of this table spanning all of the row groups within
     // the table.
     //
@@ -460,16 +471,21 @@ struct MetaData {
 }
 
 impl MetaData {
-    pub fn new(segment: &RowGroup) -> Self {
+    pub fn new(rg: &RowGroup) -> Self {
         Self {
-            size: segment.size(),
-            rows: u64::from(segment.rows()),
-            column_ranges: segment
+            size: rg.size(),
+            rows: u64::from(rg.rows()),
+            column_ranges: rg
                 .column_ranges()
                 .iter()
                 .map(|(k, v)| (k.to_string(), (v.0.clone(), v.1.clone())))
                 .collect(),
-            time_range: Some(segment.time_range()),
+            column_types: rg
+                .column_logical_types()
+                .iter()
+                .map(|(k, v)| (k.clone(), *v))
+                .collect(),
+            time_range: Some(rg.time_range()),
         }
     }
 
@@ -477,6 +493,10 @@ impl MetaData {
         // update size, rows, column ranges, time range
         self.size += rg.size();
         self.rows += u64::from(rg.rows());
+
+        // The incoming row group must have the same schema as the existing row
+        // groups in the table.
+        assert_eq!(&self.column_types, rg.column_logical_types());
 
         assert_eq!(self.column_ranges.len(), rg.column_ranges().len());
         for (column_name, (column_range_min, column_range_max)) in rg.column_ranges() {
@@ -579,7 +599,7 @@ impl std::fmt::Display for ReadGroupResults<'_, '_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::column::{cmp::Operator, Column};
+    use crate::column::{cmp::Operator, Column, LogicalDataType};
     use crate::row_group::{ColumnType, TIME_COLUMN_NAME};
 
     fn build_predicates(
@@ -617,9 +637,17 @@ mod test {
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
         columns.insert("count".to_string(), fc);
 
-        let segment = RowGroup::new(6, columns);
+        let rg = RowGroup::new(6, columns);
 
-        let mut table = Table::new("cpu".to_owned(), segment);
+        let mut table = Table::new("cpu".to_owned(), rg);
+        let exp_col_types = vec![
+            ("region".to_owned(), LogicalDataType::String),
+            ("count".to_owned(), LogicalDataType::Unsigned),
+            ("time".to_owned(), LogicalDataType::Integer),
+        ]
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        assert_eq!(table.column_logical_types(), &exp_col_types);
 
         // Build another segment.
         let mut columns = BTreeMap::new();

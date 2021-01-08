@@ -7,9 +7,9 @@ use arrow_deps::arrow;
 use arrow_deps::arrow::record_batch::RecordBatch;
 
 use crate::column::{
-    cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, OwnedValue, RowIDs,
-    RowIDsOption, Scalar, Value, Values, ValuesIterator, FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE,
-    TIME_COLUMN_TYPE,
+    self, cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, LogicalDataType,
+    OwnedValue, RowIDs, RowIDsOption, Scalar, Value, Values, ValuesIterator, FIELD_COLUMN_TYPE,
+    TAG_COLUMN_TYPE, TIME_COLUMN_TYPE,
 };
 
 /// The name used for a timestamp column.
@@ -48,6 +48,7 @@ impl RowGroup {
                 ColumnType::Tag(c) => {
                     assert_eq!(c.num_rows(), rows);
 
+                    meta.column_types.insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -57,6 +58,7 @@ impl RowGroup {
                 ColumnType::Field(c) => {
                     assert_eq!(c.num_rows(), rows);
 
+                    meta.column_types.insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -75,6 +77,7 @@ impl RowGroup {
                         Some((_, _)) => unreachable!("unexpected types for time range"),
                     };
 
+                    meta.column_types.insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
 
@@ -84,6 +87,12 @@ impl RowGroup {
                 }
             }
         }
+
+        // Meta data should have same columns for types and ranges.
+        assert_eq!(
+            meta.column_types.keys().collect::<Vec<_>>(),
+            meta.column_ranges.keys().collect::<Vec<_>>(),
+        );
 
         Self {
             meta,
@@ -109,6 +118,11 @@ impl RowGroup {
     /// The ranges on each column in the `RowGroup`.
     pub fn column_ranges(&self) -> &BTreeMap<String, (OwnedValue, OwnedValue)> {
         &self.meta.column_ranges
+    }
+
+    /// The logical data-type of each column.
+    pub fn column_logical_types(&self) -> &BTreeMap<String, column::LogicalDataType> {
+        &self.meta.column_types
     }
 
     // Returns a reference to a column from the column name.
@@ -953,7 +967,7 @@ impl Ord for GroupKey<'_> {
 // A representation of a column name.
 pub type ColumnName<'a> = &'a str;
 
-/// The logical type that a column could have.
+/// The InfluxDB-specific semantic meaning of a column.
 pub enum ColumnType {
     Tag(Column),
     Field(Column),
@@ -986,6 +1000,9 @@ struct MetaData {
     // This can be used to skip the table entirely if a logical predicate can't
     // possibly match based on the range of values a column has.
     column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
+
+    // The logical column types for each column in the `RowGroup`.
+    column_types: BTreeMap<String, LogicalDataType>,
 
     // The total time range of this table spanning all of the `RowGroup`s within
     // the table.

@@ -69,6 +69,18 @@ impl Column {
         }
     }
 
+    /// Returns the logical data-type associated with the column.
+    pub fn logical_datatype(&self) -> LogicalDataType {
+        match self {
+            Column::String(_, _) => LogicalDataType::String,
+            Column::Float(_, _) => LogicalDataType::Float,
+            Column::Integer(_, _) => LogicalDataType::Integer,
+            Column::Unsigned(_, _) => LogicalDataType::Unsigned,
+            Column::Bool => LogicalDataType::Boolean,
+            Column::ByteArray(_, _) => LogicalDataType::Binary,
+        }
+    }
+
     pub fn size(&self) -> u64 {
         0
     }
@@ -598,6 +610,17 @@ impl Column {
 #[derive(Default, Debug, PartialEq)]
 pub struct ColumnProperties {
     pub has_pre_computed_row_ids: bool,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+/// The logical data-type for a column.
+pub enum LogicalDataType {
+    Integer,  // Signed integer
+    Unsigned, // Unsigned integer
+    Float,    //
+    String,   // UTF-8 valid string
+    Binary,   // Arbitrary collection of bytes
+    Boolean,  //
 }
 
 #[derive(Default, Debug, PartialEq)]
