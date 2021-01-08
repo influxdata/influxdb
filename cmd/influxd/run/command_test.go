@@ -50,7 +50,9 @@ func TestCommand_PIDFile(t *testing.T) {
 	}
 	go cmd.Close()
 
-	timeout := time.NewTimer(100 * time.Millisecond)
+	// It takes a while for net/http.Server.Shutdown() to run, as it waits for connections to return to idle.
+	// Use a long timeout to allow for this and stop the test flakiness
+	timeout := time.NewTimer(5 * time.Second)
 	select {
 	case <-timeout.C:
 		t.Fatal("unexpected timeout")
