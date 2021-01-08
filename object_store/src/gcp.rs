@@ -157,7 +157,7 @@ mod test {
 
     const NON_EXISTENT_NAME: &str = "nonexistentname";
 
-    // Helper macro to skip tests if the AWS environment variables are not set.
+    // Helper macro to skip tests if the GCP environment variables are not set.
     // Skips become hard errors if TEST_INTEGRATION is set.
     macro_rules! maybe_skip_integration {
         () => {

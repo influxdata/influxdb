@@ -16,12 +16,14 @@
 //! Future compatibility will include Azure Blob Storage, Minio, and Ceph.
 
 pub mod aws;
+pub mod azure;
 pub mod disk;
 pub mod gcp;
 pub mod memory;
 pub mod path;
 
 use aws::AmazonS3;
+use azure::MicrosoftAzure;
 use disk::File;
 use gcp::GoogleCloudStorage;
 use memory::InMemory;
@@ -31,7 +33,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, TryStreamExt};
 use snafu::Snafu;
-use std::{io, path::PathBuf};
+use std::{io, path::PathBuf, unimplemented};
 
 /// Universal interface to multiple object store services.
 #[derive(Debug)]
@@ -58,6 +60,11 @@ impl ObjectStore {
         Self(ObjectStoreIntegration::File(file))
     }
 
+    /// Configure a connection to Microsoft Azure Blob store.
+    pub fn new_microsoft_azure(azure: MicrosoftAzure) -> Self {
+        Self(ObjectStoreIntegration::MicrosoftAzure(Box::new(azure)))
+    }
+
     /// Save the provided bytes to the specified location.
     pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
     where
@@ -69,6 +76,7 @@ impl ObjectStore {
             GoogleCloudStorage(gcs) => gcs.put(location, bytes, length).await?,
             InMemory(in_mem) => in_mem.put(location, bytes, length).await?,
             File(file) => file.put(location, bytes, length).await?,
+            MicrosoftAzure(azure) => azure.put(location, bytes, length).await?,
         }
 
         Ok(())
@@ -85,6 +93,7 @@ impl ObjectStore {
             GoogleCloudStorage(gcs) => gcs.get(location).await?.boxed(),
             InMemory(in_mem) => in_mem.get(location).await?.boxed(),
             File(file) => file.get(location).await?.boxed(),
+            MicrosoftAzure(azure) => azure.get(location).await?.boxed(),
         }
         .err_into())
     }
@@ -97,6 +106,7 @@ impl ObjectStore {
             GoogleCloudStorage(gcs) => gcs.delete(location).await?,
             InMemory(in_mem) => in_mem.delete(location).await?,
             File(file) => file.delete(location).await?,
+            MicrosoftAzure(azure) => azure.delete(location).await?,
         }
 
         Ok(())
@@ -113,6 +123,7 @@ impl ObjectStore {
             GoogleCloudStorage(gcs) => gcs.list(prefix).await?.boxed(),
             InMemory(in_mem) => in_mem.list(prefix).await?.boxed(),
             File(file) => file.list(prefix).await?.boxed(),
+            MicrosoftAzure(azure) => azure.list(prefix).await?.boxed(),
         }
         .err_into())
     }
@@ -130,6 +141,7 @@ impl ObjectStore {
             GoogleCloudStorage(_gcs) => unimplemented!(),
             InMemory(in_mem) => in_mem.list_with_delimiter(prefix, &None).await,
             File(_file) => unimplemented!(),
+            MicrosoftAzure(_azure) => unimplemented!(),
         }
     }
 
@@ -139,7 +151,7 @@ impl ObjectStore {
     pub fn convert_path(&self, path: &ObjectStorePath) -> String {
         use ObjectStoreIntegration::*;
         match &self.0 {
-            AmazonS3(_) | GoogleCloudStorage(_) | InMemory(_) => {
+            AmazonS3(_) | GoogleCloudStorage(_) | InMemory(_) | MicrosoftAzure(_) => {
                 path::CloudConverter::convert(path)
             }
             File(_) => path::FileConverter::convert(path).display().to_string(),
@@ -158,6 +170,8 @@ pub enum ObjectStoreIntegration {
     InMemory(InMemory),
     /// Local file system storage
     File(File),
+    /// Microsoft Azure Blob storage
+    MicrosoftAzure(Box<MicrosoftAzure>),
 }
 
 /// Result of a list call that includes objects, prefixes (directories) and a
@@ -273,6 +287,22 @@ pub enum Error {
         source: std::io::Error,
     },
     NoDataInMemory,
+
+    UnableToPutDataToAzure {
+        source: azure_sdk_core::errors::AzureError,
+        location: String,
+    },
+    UnableToGetDataFromAzure {
+        source: azure_sdk_core::errors::AzureError,
+        location: String,
+    },
+    UnableToDeleteDataFromAzure {
+        source: azure_sdk_core::errors::AzureError,
+        location: String,
+    },
+    UnableToListDataFromAzure {
+        source: azure_sdk_core::errors::AzureError,
+    },
 
     #[snafu(display("Unable to create file {}: {}", path.display(), err))]
     UnableToCreateFile {

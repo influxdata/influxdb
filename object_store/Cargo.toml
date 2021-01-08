@@ -24,6 +24,11 @@ tokio = { version = "0.2", features = ["full"] }
 # Filesystem integration
 tokio-util = "0.3.1"
 
+# Microsoft Azure Blob storage integration
+azure_sdk_core = "0.43.7"
+azure_sdk_storage_blob = "0.45.3"
+azure_sdk_storage_core = "0.44.4"
+
 [dev-dependencies]
 tempfile = "3.1.0"
 dotenv = "0.15.0"
