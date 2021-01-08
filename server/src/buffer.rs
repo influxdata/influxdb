@@ -4,16 +4,16 @@ use data_types::{
     data::ReplicatedWrite,
     database_rules::{WalBufferRollover, WriterId},
 };
+use object_store::path::ObjectStorePath;
 
 use std::{collections::BTreeMap, convert::TryFrom, mem, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use snafu::Snafu;
 use tokio::sync::Mutex;
-
 use tracing::warn;
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, PartialEq)]
 pub enum Error {
     #[snafu(display("Max size limit hit {}", size))]
     MaxSizeLimit { size: u64 },
@@ -36,6 +36,9 @@ pub enum Error {
         current_sequence: u64,
         incoming_sequence: u64,
     },
+
+    #[snafu(display("segment id must be between [1, 1,000,000,000)"))]
+    SegmentIdOutOfBounds,
 }
 
 #[allow(dead_code)]
@@ -315,11 +318,43 @@ pub struct WriterSequence {
     pub sequence: u64,
 }
 
+const WAL_DIR: &str = "wal";
+const MAX_SEGMENT_ID: u64 = 999_999_999;
+const SEGMENT_FILE_EXTENSION: &str = ".segment";
+
+/// Builds the path for a given segment id, given the root object store path.
+/// The path should be where the root of the database is (e.g. 1/my_db/).
+pub fn object_store_path_for_segment(
+    root_path: &ObjectStorePath,
+    segment_id: u64,
+) -> Result<ObjectStorePath> {
+    if segment_id > MAX_SEGMENT_ID || segment_id == 0 {
+        return Err(Error::SegmentIdOutOfBounds);
+    }
+
+    let millions_place = segment_id / 1_000_000;
+    let millions = millions_place * 1_000_000;
+    let thousands_place = (segment_id - millions) / 1_000;
+    let thousands = thousands_place * 1_000;
+    let hundreds_place = segment_id - millions - thousands;
+
+    let mut path = root_path.clone();
+    path.push_all(&[
+        WAL_DIR,
+        &format!("{:03}", millions_place),
+        &format!("{:03}", thousands_place),
+        &format!("{:03}{}", hundreds_place, SEGMENT_FILE_EXTENSION),
+    ]);
+
+    Ok(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use data_types::{data::lines_to_replicated_write, database_rules::DatabaseRules};
     use influxdb_line_protocol::parse_lines;
+    use object_store::path::CloudConverter;
 
     #[tokio::test]
     async fn append_increments_current_size_and_uses_existing_segment() {
@@ -623,6 +658,39 @@ mod tests {
             },
             summary
         );
+    }
+
+    #[test]
+    fn object_store_path_for_segment() {
+        let path = ObjectStorePath::from_cloud_unchecked("1/mydb");
+        let segment_path = super::object_store_path_for_segment(&path, 23).unwrap();
+        let segment_path = CloudConverter::convert(&segment_path);
+
+        assert_eq!(segment_path, "1/mydb/wal/000/000/023.segment");
+
+        let segment_path = super::object_store_path_for_segment(&path, 20_003).unwrap();
+        let segment_path = CloudConverter::convert(&segment_path);
+
+        assert_eq!(segment_path, "1/mydb/wal/000/020/003.segment");
+
+        let segment_path = super::object_store_path_for_segment(&path, 45_010_105).unwrap();
+        let segment_path = CloudConverter::convert(&segment_path);
+
+        assert_eq!(segment_path, "1/mydb/wal/045/010/105.segment");
+    }
+
+    #[test]
+    fn object_store_path_for_segment_out_of_bounds() {
+        let path = ObjectStorePath::from_cloud_unchecked("1/mydb");
+        let segment_path = super::object_store_path_for_segment(&path, 0)
+            .err()
+            .unwrap();
+        assert_eq!(segment_path, Error::SegmentIdOutOfBounds);
+
+        let segment_path = super::object_store_path_for_segment(&path, 23_000_000_000)
+            .err()
+            .unwrap();
+        assert_eq!(segment_path, Error::SegmentIdOutOfBounds);
     }
 
     fn lp_to_replicated_write(writer_id: u32, sequence_number: u64, lp: &str) -> ReplicatedWrite {
