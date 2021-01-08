@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::server::http_routes;
 use crate::server::rpc::service;
-use server::server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
+use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 
 use hyper::Server;
 use object_store::{self, gcp::GoogleCloudStorage, ObjectStore};

@@ -17,7 +17,7 @@ use data_types::{database_rules::DatabaseRules, DatabaseName};
 use influxdb_line_protocol::parse_lines;
 use object_store::path::ObjectStorePath;
 use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore};
-use server::server::{ConnectionManager, Server as AppServer};
+use server::{ConnectionManager, Server as AppServer};
 
 // External crates
 use bytes::{Bytes, BytesMut};
@@ -132,7 +132,7 @@ pub enum ApplicationError {
     JsonGenerationError { source: serde_json::Error },
 
     #[snafu(display("Error creating database: {}", source))]
-    ErrorCreatingDatabase { source: server::server::Error },
+    ErrorCreatingDatabase { source: server::Error },
 
     #[snafu(display("Invalid database name: {}", source))]
     DatabaseNameError {
@@ -680,7 +680,7 @@ mod tests {
     use data_types::database_rules::DatabaseRules;
     use data_types::DatabaseName;
     use object_store::{memory::InMemory, ObjectStore};
-    use server::{db::Db, server::ConnectionManagerImpl};
+    use server::{db::Db, ConnectionManagerImpl};
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
