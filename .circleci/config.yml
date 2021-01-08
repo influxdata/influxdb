@@ -379,6 +379,7 @@ jobs:
             echo unexpected go version $gomodversiondiff
             exit 1
           fi
+      - install_core_deps
       - run: make vet
       - run: make checkfmt
       - run: make checktidy
