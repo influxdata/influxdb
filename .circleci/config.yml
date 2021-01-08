@@ -172,6 +172,11 @@ commands:
               lzma-dev \
               zlib1g-dev
       - run:
+          name: Import GPG key
+          command: |
+            echo -e "$GPG_PRIVATE_KEY" > private.key
+            gpg --batch --import private.key
+      - run:
           name: Install cross-compilers
           environment:
             MUSL_VERSION: 1.1.24
