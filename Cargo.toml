@@ -24,6 +24,9 @@ members = [
     "server",
     "test_helpers",
     "wal",
+    "influxdb_iox_client",
+    "mutable_buffer",
+    "influxdb2_client",
 ]
 
 [profile.release]
