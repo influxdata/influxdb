@@ -377,7 +377,8 @@ mod tests {
 
         let data = Bytes::from("arbitrary data");
         let mut location = ObjectStorePath::default();
-        location.push("test_file");
+        location.push_dir("test_dir");
+        location.set_file_name("test_file.json");
 
         let stream_data = std::io::Result::Ok(data.clone());
         storage
@@ -394,13 +395,13 @@ mod tests {
 
         // List everything starting with a prefix that should return results
         let mut prefix = ObjectStorePath::default();
-        prefix.push("test");
+        prefix.push_dir("test_dir");
         let content_list = flatten_list_stream(storage, Some(&prefix)).await?;
         assert_eq!(content_list, &[location.clone()]);
 
         // List everything starting with a prefix that shouldn't return results
         let mut prefix = ObjectStorePath::default();
-        prefix.push("something");
+        prefix.push_dir("something");
         let content_list = flatten_list_stream(storage, Some(&prefix)).await?;
         assert!(content_list.is_empty());
 
@@ -454,17 +455,15 @@ mod tests {
         }
 
         let mut prefix = ObjectStorePath::default();
-        prefix.push_all(&["mydb", "wal"]);
+        prefix.push_all_dirs(&["mydb", "wal"]);
 
         let mut expected_000 = prefix.clone();
-        expected_000.push("000");
+        expected_000.push_dir("000");
         let mut expected_001 = prefix.clone();
-        expected_001.push("001");
+        expected_001.push_dir("001");
         let mut expected_location = prefix.clone();
-        expected_location.push("foo.test");
+        expected_location.set_file_name("foo.test");
 
-        // This is needed because we want a trailing slash on the prefix in this test
-        prefix.push("");
         let result = storage.list_with_delimiter(&prefix).await.unwrap();
 
         assert_eq!(result.common_prefixes, vec![expected_000, expected_001]);

@@ -1,7 +1,8 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
 use crate::{
-    path::ObjectStorePath, DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta, Result,
+    path::{DirsAndFileName, ObjectStorePath},
+    DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta, Result,
     UnableToPutDataInMemory,
 };
 use bytes::Bytes;
@@ -16,7 +17,7 @@ use tokio::sync::RwLock;
 /// storage provider.
 #[derive(Debug, Default)]
 pub struct InMemory {
-    storage: RwLock<BTreeMap<ObjectStorePath, Bytes>>,
+    storage: RwLock<BTreeMap<DirsAndFileName, Bytes>>,
 }
 
 impl InMemory {
@@ -56,7 +57,7 @@ impl InMemory {
 
         let content = content.freeze();
 
-        self.storage.write().await.insert(location.clone(), content);
+        self.storage.write().await.insert(location.into(), content);
         Ok(())
     }
 
@@ -65,11 +66,12 @@ impl InMemory {
         &self,
         location: &ObjectStorePath,
     ) -> Result<impl Stream<Item = Result<Bytes>>> {
+        let location = location.into();
         let data = self
             .storage
             .read()
             .await
-            .get(location)
+            .get(&location)
             .cloned()
             .context(NoDataInMemory)?;
 
@@ -78,7 +80,7 @@ impl InMemory {
 
     /// Delete the object at the specified location.
     pub async fn delete(&self, location: &ObjectStorePath) -> Result<()> {
-        self.storage.write().await.remove(location);
+        self.storage.write().await.remove(&location.into());
         Ok(())
     }
 
@@ -87,16 +89,18 @@ impl InMemory {
         &'a self,
         prefix: Option<&'a ObjectStorePath>,
     ) -> Result<impl Stream<Item = Result<Vec<ObjectStorePath>>> + 'a> {
-        let list = if let Some(prefix) = prefix {
+        let prefix = prefix.map(Into::into);
+
+        let list = if let Some(prefix) = &prefix {
             self.storage
                 .read()
                 .await
                 .keys()
-                .filter(|k| k.starts_with(prefix))
-                .cloned()
+                .filter(|k| k.prefix_matches(prefix))
+                .map(Into::into)
                 .collect()
         } else {
-            self.storage.read().await.keys().cloned().collect()
+            self.storage.read().await.keys().map(Into::into).collect()
         };
 
         Ok(futures::stream::once(async move { Ok(list) }))
@@ -115,25 +119,27 @@ impl InMemory {
         let mut common_prefixes = BTreeSet::new();
         let last_modified = Utc::now();
 
-        // set the end prefix so we pull back everything that starts with
-        // the passed in prefix
-        let mut end_prefix = prefix.clone();
-        end_prefix.pop();
-        end_prefix.push("0");
+        let prefix: DirsAndFileName = prefix.into();
 
         // Only objects in this base level should be returned in the
         // response. Otherwise, we just collect the common prefixes.
         let mut objects = vec![];
-        for (k, v) in self.storage.read().await.range(prefix.clone()..end_prefix) {
+        for (k, v) in self
+            .storage
+            .read()
+            .await
+            .range((&prefix)..)
+            .take_while(|(k, _)| k.prefix_matches(&prefix))
+        {
             let parts = k.parts_after_prefix(&prefix);
 
             if parts.len() >= 2 {
                 let mut full_prefix = prefix.clone();
-                full_prefix.push_part(&parts[0]);
+                full_prefix.push_part_as_dir(&parts[0]);
                 common_prefixes.insert(full_prefix);
             } else {
                 let object = ObjectMeta {
-                    location: k.clone(),
+                    location: k.into(),
                     last_modified,
                     size: v.len(),
                 };
@@ -143,7 +149,7 @@ impl InMemory {
 
         Ok(ListResult {
             objects,
-            common_prefixes: common_prefixes.into_iter().collect(),
+            common_prefixes: common_prefixes.into_iter().map(Into::into).collect(),
             next_token: None,
         })
     }
@@ -163,7 +169,6 @@ mod tests {
     use futures::stream;
 
     #[tokio::test]
-    #[ignore]
     async fn in_memory_test() -> Result<()> {
         let integration = ObjectStore::new_in_memory(InMemory::new());
 
