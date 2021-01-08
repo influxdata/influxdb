@@ -512,6 +512,7 @@ jobs:
   build:
     docker:
       - image: cimg/go:1.15.6-node
+    resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -550,6 +551,7 @@ jobs:
   cross_build:
     machine:
       image: ubuntu-2004:202010-01
+    resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
     steps:
@@ -586,6 +588,7 @@ jobs:
   deploy_nightly:
     machine:
       image: ubuntu-2004:202010-01
+    resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
