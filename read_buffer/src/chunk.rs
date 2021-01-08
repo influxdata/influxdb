@@ -56,7 +56,7 @@ impl Chunk {
         self.tables() == 0
     }
 
-    /// Add a table to the chunk, updating all Chunk meta data.
+    /// Add a row_group to a table in the chunk, updating all Chunk meta data.
     pub fn update_table(&mut self, table_name: String, row_group: RowGroup) {
         // update meta data
         self.meta.update(&row_group);
@@ -194,20 +194,11 @@ impl MetaData {
         self.rows += table_data.rows() as u64;
         self.row_groups += 1;
 
-        match &mut self.time_range {
-            Some((this_min, this_max)) => {
-                let (them_min, them_max) = table_data.time_range();
-                if them_min < *this_min {
-                    *this_min = them_min;
-                }
-                if them_max > *this_max {
-                    *this_max = them_max;
-                }
-            }
-            None => {
-                self.time_range = Some(table_data.time_range());
-            }
-        }
+        let (them_min, them_max) = table_data.time_range();
+        self.time_range = Some(match self.time_range {
+            Some((this_min, this_max)) => (them_min.min(this_min), them_max.max(this_max)),
+            None => (them_min, them_max),
+        })
     }
 
     // invalidate should be called when a table is removed. All meta data must
