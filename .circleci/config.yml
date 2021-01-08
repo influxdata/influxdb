@@ -165,6 +165,7 @@ commands:
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends \
               cmake \
+              gnupg \
               libssl-dev \
               libxml2-dev \
               llvm-dev \
