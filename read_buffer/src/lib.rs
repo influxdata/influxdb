@@ -369,7 +369,7 @@ pub struct Partition {
     // The partition's key
     key: String,
 
-    // The collection of chunks in the database. Each chunk is uniquely
+    // The collection of chunks in the partition. Each chunk is uniquely
     // identified by a chunk id.
     chunks: BTreeMap<u32, Chunk>,
 
