@@ -31,6 +31,11 @@ impl Chunk {
         p
     }
 
+    /// The chunk's ID.
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
     /// The total size in bytes of all row groups in all tables in this chunk.
     pub fn size(&self) -> u64 {
         self.meta.size
@@ -57,7 +62,7 @@ impl Chunk {
     }
 
     /// Add a row_group to a table in the chunk, updating all Chunk meta data.
-    pub fn update_table(&mut self, table_name: String, row_group: RowGroup) {
+    pub fn upsert_table(&mut self, table_name: String, row_group: RowGroup) {
         // update meta data
         self.meta.update(&row_group);
 
