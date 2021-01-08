@@ -9,12 +9,15 @@ use std::sync::{
 use async_trait::async_trait;
 use data_types::{data::ReplicatedWrite, database_rules::DatabaseRules};
 use mutable_buffer::MutableBufferDb;
-use query::{Database, PartitionChunk};
+use query::Database;
 use read_buffer::Database as ReadBufferDb;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::buffer::Buffer;
+
+mod chunk;
+use chunk::DBChunk;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -99,6 +102,11 @@ impl Db {
             DatatbaseNotWriteable {}.fail()
         }
     }
+
+    /// Returns the next write sequence number
+    pub fn next_sequence(&self) -> u64 {
+        self.sequence.fetch_add(1, Ordering::SeqCst)
+    }
 }
 
 impl PartialEq for Db {
@@ -107,56 +115,6 @@ impl PartialEq for Db {
     }
 }
 impl Eq for Db {}
-
-impl Db {
-    pub fn next_sequence(&self) -> u64 {
-        self.sequence.fetch_add(1, Ordering::SeqCst)
-    }
-}
-
-/// A IOx DatabaseChunk can come from one of three places:
-/// MutableBuffer, ReadBuffer, or a ParquetFile
-#[derive(Debug)]
-pub enum DBChunk {
-    MutableBuffer(Arc<mutable_buffer::chunk::Chunk>),
-    ReadBuffer,  // TODO add appropriate type here
-    ParquetFile, // TODO add appropriate type here
-}
-
-impl PartitionChunk for DBChunk {
-    type Error = Error;
-
-    fn id(&self) -> u64 {
-        match self {
-            Self::MutableBuffer(chunk) => chunk.id(),
-            Self::ReadBuffer => unimplemented!("read buffer not implemented"),
-            Self::ParquetFile => unimplemented!("parquet file not implemented"),
-        }
-    }
-
-    fn table_stats(&self) -> Result<Vec<data_types::partition_metadata::Table>, Self::Error> {
-        match self {
-            Self::MutableBuffer(chunk) => chunk.table_stats().context(MutableBufferChunk),
-            Self::ReadBuffer => unimplemented!("read buffer not implemented"),
-            Self::ParquetFile => unimplemented!("parquet file not implemented"),
-        }
-    }
-
-    fn table_to_arrow(
-        &self,
-        dst: &mut Vec<arrow_deps::arrow::record_batch::RecordBatch>,
-        table_name: &str,
-        columns: &[&str],
-    ) -> Result<(), Self::Error> {
-        match self {
-            Self::MutableBuffer(chunk) => chunk
-                .table_to_arrow(dst, table_name, columns)
-                .context(MutableBufferChunk),
-            Self::ReadBuffer => unimplemented!("read buffer not implemented"),
-            Self::ParquetFile => unimplemented!("parquet file not implemented"),
-        }
-    }
-}
 
 #[async_trait]
 impl Database for Db {
