@@ -12,16 +12,15 @@ use ingest::parquet::writer::CompressionLevel;
 use tokio::runtime::Runtime;
 use tracing::{debug, error, info, warn};
 
-mod panic;
 pub mod server;
 
 mod commands {
     pub mod config;
     pub mod convert;
     pub mod file_meta;
+    pub mod influxdb_ioxd;
     mod input;
     pub mod logging;
-    pub mod server;
     pub mod stats;
 }
 
@@ -214,7 +213,7 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
             // Note don't set up basic logging here, different logging rules appy in server
             // mode
             println!("InfluxDB IOx server starting");
-            match commands::server::main(logging_level, ignore_config_file).await {
+            match commands::influxdb_ioxd::main(logging_level, ignore_config_file).await {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {
                     error!("Server shutdown with error: {}", e);
