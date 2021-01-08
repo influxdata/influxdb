@@ -38,7 +38,7 @@ pub enum Error {
     #[snafu(display("Tag value ID {} not found in dictionary of chunk {}", value, chunk))]
     TagValueIdNotFoundInDictionary {
         value: u32,
-        chunk: String,
+        chunk: u64,
         source: DictionaryError,
     },
 
@@ -73,7 +73,7 @@ pub enum Error {
     ))]
     ColumnNameNotFoundInDictionary {
         column_name: String,
-        chunk: String,
+        chunk: u64,
         source: DictionaryError,
     },
 
@@ -84,7 +84,7 @@ pub enum Error {
     ))]
     ColumnIdNotFoundInDictionary {
         column_id: u32,
-        chunk: String,
+        chunk: u64,
         source: DictionaryError,
     },
 
@@ -805,7 +805,7 @@ impl Table {
                 .lookup_value(column_name)
                 .context(ColumnNameNotFoundInDictionary {
                     column_name,
-                    chunk: &chunk.key,
+                    chunk: chunk.id,
                 })?;
 
         self.column_id_to_index
@@ -842,7 +842,7 @@ impl Table {
                 let column_name = chunk.dictionary.lookup_id(column_id).context(
                     ColumnIdNotFoundInDictionary {
                         column_id,
-                        chunk: &chunk.key,
+                        chunk: chunk.id,
                     },
                 )?;
                 Ok((column_name, column_index))
@@ -892,7 +892,7 @@ impl Table {
                                 let tag_value = chunk.dictionary.lookup_id(*value_id).context(
                                     TagValueIdNotFoundInDictionary {
                                         value: *value_id,
-                                        chunk: &chunk.key,
+                                        chunk: chunk.id,
                                     },
                                 )?;
                                 builder.append_value(tag_value)
@@ -1275,7 +1275,7 @@ mod tests {
 
     #[test]
     fn test_has_columns() {
-        let mut chunk = Chunk::new("dummy_chunk_key", 42);
+        let mut chunk = Chunk::new(42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1317,7 +1317,7 @@ mod tests {
 
     #[test]
     fn test_matches_table_name_predicate() {
-        let mut chunk = Chunk::new("dummy_chunk_key", 42);
+        let mut chunk = Chunk::new(42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
 
@@ -1347,7 +1347,7 @@ mod tests {
 
     #[test]
     fn test_matches_column_name_predicate() {
-        let mut chunk = Chunk::new("dummy_chunk_key", 42);
+        let mut chunk = Chunk::new(42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
 
@@ -1393,7 +1393,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_series_set_plan() {
-        let mut chunk = Chunk::new("dummy_chunk_key", 42);
+        let mut chunk = Chunk::new(42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1440,7 +1440,7 @@ mod tests {
         // test that the columns and rows come out in the right order (tags then
         // timestamp)
 
-        let mut chunk = Chunk::new("dummy_chunk_key", 42);
+        let mut chunk = Chunk::new(42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1489,7 +1489,7 @@ mod tests {
     async fn test_series_set_plan_filter() {
         // test that filters are applied reasonably
 
-        let mut chunk = Chunk::new("dummy_chunk_key", 42);
+        let mut chunk = Chunk::new(42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1878,7 +1878,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_grouped_window_series_set_plan_nanoseconds() {
-        let mut chunk = Chunk::new("dummy_chunk_key", 42);
+        let mut chunk = Chunk::new(42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1942,7 +1942,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_grouped_window_series_set_plan_months() {
-        let mut chunk = Chunk::new("dummy_chunk_key", 42);
+        let mut chunk = Chunk::new(42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -1987,7 +1987,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_field_name_plan() {
-        let mut chunk = Chunk::new("dummy_chunk_key", 42);
+        let mut chunk = Chunk::new(42);
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -2164,7 +2164,7 @@ mod tests {
     impl TableFixture {
         /// Create an Table with the specified lines loaded
         fn new(lp_lines: Vec<&str>) -> Self {
-            let mut chunk = Chunk::new("dummy_chunk_key", 42);
+            let mut chunk = Chunk::new(42);
             let dictionary = &mut chunk.dictionary;
             let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 

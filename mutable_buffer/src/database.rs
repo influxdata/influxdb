@@ -41,7 +41,7 @@ pub enum Error {
     #[snafu(display("Table name {} not found in dictionary of chunk {}", table, chunk))]
     TableNameNotFoundInDictionary {
         table: String,
-        chunk: String,
+        chunk: u64,
         source: DictionaryError,
     },
 
@@ -52,21 +52,21 @@ pub enum Error {
     ))]
     ColumnNameNotFoundInDictionary {
         column_name: String,
-        chunk: String,
+        chunk: u64,
         source: DictionaryError,
     },
 
     #[snafu(display("Column ID {} not found in dictionary of chunk {}", column_id, chunk))]
     ColumnIdNotFoundInDictionary {
         column_id: u32,
-        chunk: String,
+        chunk: u64,
         source: DictionaryError,
     },
 
     #[snafu(display("Value ID {} not found in dictionary of chunk {}", value_id, chunk))]
     ColumnValueIdNotFoundInDictionary {
         value_id: u32,
-        chunk: String,
+        chunk: u64,
         source: DictionaryError,
     },
 
@@ -607,7 +607,7 @@ impl Visitor for NameVisitor {
                     .lookup_id(column_id)
                     .context(ColumnIdNotFoundInDictionary {
                         column_id,
-                        chunk: &chunk.key,
+                        chunk: chunk.id,
                     })?;
 
             if !self.column_names.contains(column_name) {
@@ -743,7 +743,7 @@ impl<'a> Visitor for ValueVisitor<'a> {
         self.column_id = Some(chunk.dictionary.lookup_value(self.column_name).context(
             ColumnNameNotFoundInDictionary {
                 column_name: self.column_name,
-                chunk: &chunk.key,
+                chunk: chunk.id,
             },
         )?);
 
@@ -808,7 +808,7 @@ impl<'a> Visitor for ValueVisitor<'a> {
             let value = chunk.dictionary.lookup_id(value_id).context(
                 ColumnValueIdNotFoundInDictionary {
                     value_id,
-                    chunk: &chunk.key,
+                    chunk: chunk.id,
                 },
             )?;
 

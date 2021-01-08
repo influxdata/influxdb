@@ -439,10 +439,6 @@ pub struct TestChunk {}
 impl PartitionChunk for TestChunk {
     type Error = TestError;
 
-    fn key(&self) -> &str {
-        unimplemented!()
-    }
-
     fn id(&self) -> u64 {
         unimplemented!()
     }

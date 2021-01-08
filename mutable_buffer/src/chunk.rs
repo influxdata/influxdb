@@ -39,12 +39,12 @@ pub enum Error {
     #[snafu(display("Table ID {} not found in dictionary of chunk {}", table, chunk))]
     TableIdNotFoundInDictionary {
         table: u32,
-        chunk: String,
+        chunk: u64,
         source: DictionaryError,
     },
 
     #[snafu(display("Table {} not found in chunk {}", table, chunk))]
-    TableNotFoundInChunk { table: u32, chunk: String },
+    TableNotFoundInChunk { table: u32, chunk: u64 },
 
     #[snafu(display("Attempt to write table batch without a name"))]
     TableWriteWithoutName,
@@ -56,9 +56,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Chunk {
     /// The id for this chunk
     pub id: u64,
-
-    /// partition key for all rows in this chunk
-    pub key: String,
 
     /// Time at which the first data was written into this chunk. Note
     /// this is not the same as the timestamps on the data itself
@@ -180,10 +177,9 @@ fn make_range_expr(range: &TimestampRange) -> Expr {
 }
 
 impl Chunk {
-    pub fn new(key: impl Into<String>, id: u64) -> Self {
+    pub fn new(id: u64) -> Self {
         Self {
             id,
-            key: key.into(),
             dictionary: Dictionary::new(),
             tables: HashMap::new(),
             time_of_first_write: None,
@@ -370,7 +366,7 @@ impl Chunk {
                 .lookup_id(*id)
                 .context(TableIdNotFoundInDictionary {
                     table: *id,
-                    chunk: &self.key,
+                    chunk: self.id,
                 })?;
 
             let columns = table.stats();
@@ -391,7 +387,7 @@ impl Chunk {
         let table = match table_id {
             Ok(table_id) => Some(self.tables.get(&table_id).context(TableNotFoundInChunk {
                 table: table_id,
-                chunk: &self.key,
+                chunk: self.id,
             })?),
             Err(_) => None,
         };
@@ -419,10 +415,6 @@ impl Chunk {
 
 impl query::PartitionChunk for Chunk {
     type Error = Error;
-
-    fn key(&self) -> &str {
-        &self.key
-    }
 
     fn id(&self) -> u64 {
         self.id

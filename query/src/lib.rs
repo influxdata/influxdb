@@ -114,9 +114,6 @@ pub trait Database: Debug + Send + Sync {
 pub trait PartitionChunk: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// returns the partition key of this chunk
-    fn key(&self) -> &str;
-
     /// returns the Id of this chunk. Ids are unique within a
     /// particular partition.
     fn id(&self) -> u64;
