@@ -231,6 +231,8 @@ commands:
             docker buildx install
             docker run --rm --privileged tonistiigi/binfmt:latest --install ${DOCKER_BUILDX_CROSS_TARGETS}
             docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+            docker buildx ls
       - run:
           name: Install goreleaser
           environment:
