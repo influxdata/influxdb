@@ -139,8 +139,8 @@ commands:
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends \
               bzr \
+              clang \
               libprotobuf-dev \
-              netcat-openbsd \
               pkg-config \
               protobuf-compiler
       - run:
@@ -160,7 +160,6 @@ commands:
           command: |
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends \
-              clang \
               cmake \
               libssl-dev \
               libxml2-dev \
@@ -637,6 +636,7 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
+      - run: sudo apt-get update && sudo apt-get install netcat-openbsd
       - run:
           command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
           background: true
