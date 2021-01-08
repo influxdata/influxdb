@@ -1,12 +1,12 @@
 {
-  "name": "chronograf-ui",
-  "version": "2.0.0",
+  "name": "influxdb-ui",
+  "version": "2.0.x",
   "private": false,
-  "license": "AGPL-3.0",
+  "license": "MIT",
   "description": "",
   "repository": {
     "type": "git",
-    "url": "github:influxdata/chronograf"
+    "url": "github:influxdata/ui"
   },
   "engines": {
     "node": ">=10.5.0",
@@ -40,6 +40,7 @@
     "eslint:circleci": "eslint",
     "eslint:fix": "eslint --fix '{src,cypress}/**/*.{ts,tsx}'",
     "prettier": "prettier --config .prettierrc.json --check '{src,cypress}/**/*.{ts,tsx}'",
+    "prettier:circleci": "prettier --config .prettierrc.json --check",
     "prettier:fix": "prettier --config .prettierrc.json --write '{src,cypress}/**/*.{ts,tsx}'",
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty --skipLibCheck",
     "tsc:cypress": "tsc -p ./cypress/tsconfig.json --noEmit --pretty --skipLibCheck",

@@ -92,8 +92,8 @@ func (c *Client) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error
 			Database:        dbrp.Database,
 			RetentionPolicy: dbrp.RetentionPolicy,
 			Default:         dbrp.Default,
-			OrganizationID:  dbrp.OrganizationID,
-			BucketID:        dbrp.BucketID,
+			OrganizationID:  dbrp.OrganizationID.String(),
+			BucketID:        dbrp.BucketID.String(),
 		}, c.Prefix).
 		DecodeJSON(&newDBRP).
 		Do(ctx); err != nil {

@@ -15,6 +15,7 @@
 # It is required that all SUBDIRS have the `all` and `clean` targets.
 SUBDIRS := http ui chronograf storage
 
+export GOPATH=$(shell go env GOPATH)
 export GOOS=$(shell go env GOOS)
 export GOARCH=$(shell go env GOARCH)
 
@@ -46,6 +47,8 @@ endif
 
 # Allow for `go test` to be swapped out by other tooling, i.e. `gotestsum`
 GO_TEST_CMD=go test
+# Allow for a subset of tests to be specified.
+GO_TEST_PATHS=./...
 
 # Test vars can be used by all recursive Makefiles
 export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh
@@ -149,7 +152,7 @@ test-js: node_modules
 	make -C ui test
 
 test-go:
-	$(GO_TEST) ./...
+	$(GO_TEST) $(GO_TEST_PATHS)
 
 test-influxql-integration:
 	$(GO_TEST) -mod=readonly ./influxql/_v1tests
@@ -159,12 +162,12 @@ test-influxql-validation:
 
 test-integration: GO_TAGS=integration
 test-integration:
-	$(GO_TEST) -count=1 ./...
+	$(GO_TEST) -count=1 $(GO_TEST_PATHS)
 
 test: test-go test-js
 
 test-go-race:
-	$(GO_TEST) -v -race -count=1 ./...
+	$(GO_TEST) -v -race -count=1 $(GO_TEST_PATHS)
 
 vet:
 	$(GO_VET) -v ./...
@@ -213,13 +216,6 @@ run: chronogiraffe
 
 run-e2e: chronogiraffe
 	./bin/$(GOOS)/influxd --assets-path=ui/build --e2e-testing --store=memory
-
-# assume this is running from circleci
-# TODO: Move this to the CI docker image build?
-protoc:
-	curl -s -L https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip > /tmp/protoc.zip
-	unzip -o -d /go /tmp/protoc.zip
-	chmod +x /go/bin/protoc
 
 # generate feature flags
 flags:

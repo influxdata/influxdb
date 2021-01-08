@@ -131,7 +131,7 @@ func (s *fakeQueryService) FailNextQuery(forced error) {
 func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 	t.Helper()
 
-	const attempts = 10
+	const attempts = 100
 	ast := makeAST(script)
 	astUTC := makeAST(script)
 	astUTC.Now = ast.Now.UTC()
@@ -139,7 +139,7 @@ func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 	specUTC := makeASTString(astUTC)
 	for i := 0; i < attempts; i++ {
 		if i != 0 {
-			time.Sleep(5 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 
 		s.mu.Lock()

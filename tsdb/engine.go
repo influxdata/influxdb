@@ -81,6 +81,8 @@ type Engine interface {
 	IsIdle() bool
 	Free() error
 
+	Reindex() error
+
 	io.WriterTo
 }
 
@@ -91,11 +93,6 @@ type SeriesIDSets interface {
 
 // EngineFormat represents the format for an engine.
 type EngineFormat int
-
-const (
-	// TSM1Format is the format used by the tsm1 engine.
-	TSM1Format EngineFormat = 2
-)
 
 // NewEngineFunc creates a new engine.
 type NewEngineFunc func(id uint64, i Index, path string, walPath string, sfile *SeriesFile, options EngineOptions) Engine
@@ -161,7 +158,6 @@ type EngineOptions struct {
 	EngineVersion string
 	IndexVersion  string
 	ShardID       uint64
-	InmemIndex    interface{} // shared in-memory index
 
 	// Limits the concurrent number of TSM files that can be loaded at once.
 	OpenLimiter limiter.Fixed
@@ -207,9 +203,6 @@ func NewEngineOptions() EngineOptions {
 		OpenLimiter:   limiter.NewFixed(runtime.GOMAXPROCS(0)),
 	}
 }
-
-// NewInmemIndex returns a new "inmem" index type.
-var NewInmemIndex func(name string, sfile *SeriesFile) (interface{}, error)
 
 type CompactionPlannerCreator func(cfg Config) interface{}
 

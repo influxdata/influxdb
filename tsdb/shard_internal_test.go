@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -231,9 +230,6 @@ func NewTempShard(index string) *TempShard {
 	opt := NewEngineOptions()
 	opt.IndexVersion = index
 	opt.Config.WALDir = filepath.Join(dir, "wal")
-	if index == InmemIndexName {
-		opt.InmemIndex, _ = NewInmemIndex(path.Base(dir), sfile)
-	}
 
 	return &TempShard{
 		Shard: NewShard(0,
