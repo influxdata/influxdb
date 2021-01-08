@@ -37,6 +37,10 @@ workflows:
       - litmus_daily:
           requires:
             - build
+#          filters:
+#            branches:
+#              only:
+#                - /^(?!pull\/).*$/
       - cross_build:
           requires:
             - build
@@ -46,7 +50,7 @@ workflows:
 #                - master
       - litmus_integration:
           requires:
-            - litmus_daily
+            - build
 #          filters:
 #            branches:
 #              only:
@@ -192,6 +196,7 @@ commands:
               rm ${OSXCROSS_ARCHIVE}
             echo 'export PATH=/usr/local/osxcross/target/bin:${PATH}' >> $BASH_ENV
 
+            mkdir -p ${GOPATH}/bin
             cp scripts/ci/xcc.sh ${GOPATH}/bin/xcc
             chmod a+x ${GOPATH}/bin/xcc
       - run:
